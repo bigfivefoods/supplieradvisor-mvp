@@ -1947,6 +1947,7 @@ export function buildMemberPortalPayload(
             coach_member_feeling: b.coach_member_feeling ?? null,
             coach_member_rating: b.coach_member_rating ?? null,
             rsvp: b.rsvp || null,
+            class_plan: s.class_plan || s.public_notes || undefined,
             programme: programmeForSessionPayload(store, s, {
               memberFacing: true,
             }),
@@ -2812,6 +2813,7 @@ export function buildCoachPortalPayload(
     unread: unreadInThread(t, 'coach', coach.id),
     participants: t.participants,
     messages: t.messages,
+    group: t.group || null,
   }));
   const messagesUnread = totalUnread(store.threads || [], 'coach', coach.id);
 

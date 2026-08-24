@@ -11,6 +11,7 @@ import {
   listSubscribeClasses,
   persistVukaCatalogIfNeeded,
   ensureVukaCoachOrder,
+  membersOnClassSession,
   storeUsesClassSubscribe,
   memberMayBookSession,
   planCoversSession,
@@ -352,6 +353,41 @@ assert.deepEqual(
   coaches.coaches.map((c) => c.id),
   ['bianca', 'jared', 'sophie']
 );
+
+const msgStore = emptyFitgraphStore();
+msgStore.clients = [
+  {
+    id: 'cli_a',
+    code: 'A',
+    name: 'Ada',
+    membership_status: 'active',
+    active: true,
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  },
+];
+msgStore.sessions = [
+  {
+    id: 'ses_1',
+    class_type_id: 'ct1',
+    date: '2026-08-24',
+    start_time: '06:00',
+    status: 'scheduled',
+    created_at: '2026-01-01T00:00:00.000Z',
+  } as FitSession,
+];
+msgStore.bookings = [
+  {
+    id: 'bkg_1',
+    session_id: 'ses_1',
+    client_id: 'cli_a',
+    status: 'booked',
+    booked_at: '2026-08-20T00:00:00.000Z',
+  },
+];
+assert.deepEqual(membersOnClassSession(msgStore, msgStore.sessions[0]), [
+  { id: 'cli_a', name: 'Ada' },
+]);
 
   console.log('vuka-class-catalog.test.ts ok');
 })();

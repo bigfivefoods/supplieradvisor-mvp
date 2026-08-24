@@ -34,6 +34,7 @@ import {
   activeClassSubscriptions,
   buildClassSubscriptionReport,
   memberMayBookSession,
+  membersOnClassSession,
   subscribersForSession,
 } from '@/lib/fitness/vuka-class-catalog';
 import {
@@ -377,6 +378,53 @@ export async function POST(request: NextRequest) {
           bodyWithAuthor.with_name = other.name;
           bodyWithAuthor.channel = bodyWithAuthor.channel || 'colleague';
         }
+      }
+      if (
+        body.session_id &&
+        (body.to_class === true ||
+          body.channel === 'class_session' ||
+          body.group_kind === 'session')
+      ) {
+        const sid = String(body.session_id);
+        const session = store.sessions.find(
+          (s) => s.id === sid && s.coach_id === coach.id
+        );
+        if (!session) {
+          return NextResponse.json(
+            { error: 'Class not found' },
+            { status: 404 }
+          );
+        }
+        const people = membersOnClassSession(store, session);
+        if (!people.length) {
+          return NextResponse.json(
+            {
+              error:
+                'Nobody is on this class yet — book or subscribe members, then message the group',
+            },
+            { status: 400 }
+          );
+        }
+        const ct = store.class_types.find(
+          (c) => c.id === session.class_type_id
+        );
+        const label = `${ct?.name || 'Class'} · ${session.date} ${String(
+          session.start_time || ''
+        ).slice(0, 5)}`;
+        bodyWithAuthor.channel = 'class_session';
+        bodyWithAuthor.group = {
+          kind: 'session',
+          ref_id: session.id,
+          label,
+        };
+        bodyWithAuthor.participants = [
+          { role: 'coach', ref_id: coach.id, name: coach.name },
+          ...people.map((p) => ({
+            role: 'member',
+            ref_id: p.id,
+            name: p.name,
+          })),
+        ];
       }
 
       const result = applyMessageAction(

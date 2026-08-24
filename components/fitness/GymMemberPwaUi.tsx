@@ -96,6 +96,7 @@ export function GymNextUpCard({
   color,
   kicker = 'Next up',
   featured = true,
+  plan,
   onOpen,
   onRsvp,
 }: {
@@ -110,6 +111,7 @@ export function GymNextUpCard({
   color: string;
   kicker?: string;
   featured?: boolean;
+  plan?: string;
   onOpen?: () => void;
   onRsvp: (coming: boolean) => void;
 }) {
@@ -160,6 +162,15 @@ export function GymNextUpCard({
         {coach ? ` · ${coach}` : ''}
         {location ? ` · ${location}` : ''}
       </p>
+      {plan ? (
+        <p
+          className={`mt-2 whitespace-pre-wrap text-sm font-semibold leading-snug ${
+            featured ? 'opacity-85' : 'text-slate-600 dark:text-slate-300'
+          }`}
+        >
+          {plan}
+        </p>
+      ) : null}
       <div className="mt-2">
         <GymCalendarLink date={date} start={startTime} title={className} />
       </div>

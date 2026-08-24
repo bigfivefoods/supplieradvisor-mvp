@@ -17,6 +17,7 @@ import {
   evaluateMemberAccess,
   newId,
   parseCompanyIdFromToken,
+  programmeForSessionPayload,
   readFitgraphFromMetadata,
   recordMemberCheckIn,
   sessionBookingCount,
@@ -196,6 +197,10 @@ function decorateMemberPortal(
         feedback_token: null as string | null,
         feedback_submitted_at: null as string | null,
         rsvp: prior?.rsvp || null,
+        class_plan: s.class_plan || s.public_notes || undefined,
+        programme: programmeForSessionPayload(store, s, {
+          memberFacing: true,
+        }),
       };
     });
   const my_bookings = [...(portal.my_bookings || []), ...allocated].sort(

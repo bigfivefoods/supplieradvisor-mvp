@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Check, Loader2, MapPin, User, Users, X } from 'lucide-react';
 import { MemberPortalWeekCalendar } from '@/components/advisors/MemberPortalWeekCalendar';
+import { ProgrammeView } from '@/components/fitness/ProgrammeView';
 import { advisorBrandInk } from '@/lib/advisors/brand-ink';
 import { slotsToMemberCalendarEvents } from '@/lib/advisors/member-week-calendar';
 import { addDaysIso } from '@/lib/schedule/recurrence';
@@ -25,6 +26,7 @@ export type MemberDiarySlot = {
   need_debit_bank?: boolean;
   book_hint?: string | null;
   class_plan?: string;
+  programme?: import('@/lib/fitness/movements').FitHydratedProgramme | null;
 };
 
 function clock(t?: string | null) {
@@ -221,6 +223,11 @@ function SlotCard({
               : `${slot.spots_left} left`}
         </span>
       </button>
+      {slot.programme ? (
+        <div className="mt-2">
+          <ProgrammeView programme={slot.programme} compact />
+        </div>
+      ) : null}
       <SlotActions
         slot={slot}
         allowBooking={allowBooking}

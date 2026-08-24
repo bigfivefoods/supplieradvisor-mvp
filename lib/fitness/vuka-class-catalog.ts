@@ -938,6 +938,27 @@ export function memberMayBookSession(
   return { ok: true, plan_name: covering[0].plan.name };
 }
 
+/** Booked + subscribed people a coach can group-message for this session. */
+export function membersOnClassSession(
+  store: FitgraphStore,
+  session: FitSession
+): Array<{ id: string; name: string }> {
+  const byId = new Map<string, string>();
+  for (const b of store.bookings || []) {
+    if (b.session_id !== session.id) continue;
+    if (b.status === 'cancelled' && b.rsvp !== 'coming') continue;
+    const client = (store.clients || []).find((c) => c.id === b.client_id);
+    if (client?.active === false) continue;
+    const name = client?.name || b.guest_name;
+    if (b.client_id && name) byId.set(b.client_id, name);
+  }
+  for (const row of subscribersForSession(store, session)) {
+    if (row.client.active === false) continue;
+    byId.set(row.client.id, row.client.name);
+  }
+  return [...byId.entries()].map(([id, name]) => ({ id, name }));
+}
+
 export function subscribersForSession(
   store: FitgraphStore,
   session: FitSession

@@ -121,6 +121,7 @@ type MyBooking = {
   coach_member_feeling?: number | null;
   coach_member_rating?: number | null;
   rsvp?: 'coming' | 'not_coming' | null;
+  class_plan?: string;
   programme?: import('@/lib/fitness/movements').FitHydratedProgramme | null;
 };
 
@@ -1357,6 +1358,7 @@ export default function MemberFitgraphPortalPage() {
                       color={color}
                       kicker={i === 0 ? 'Next up' : 'Coming up'}
                       featured={i === 0}
+                      plan={b.class_plan}
                       onRsvp={(coming) =>
                         void rsvp(b.booking_id, coming, b.session_id)
                       }
@@ -1368,6 +1370,22 @@ export default function MemberFitgraphPortalPage() {
                 ))}
               </div>
             )}
+            {(portal.progress?.pending_feedback || []).length ? (
+              <div className="space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                  Rate a class
+                </p>
+                {(portal.progress?.pending_feedback || []).map((f) => (
+                  <GymClassRateCard
+                    key={`mine-rate-${f.booking_id}`}
+                    className={f.class_name}
+                    date={f.date}
+                    busy={busyId === `rate:${f.booking_id}`}
+                    onSubmit={(v) => void rateClass(f.booking_id, v)}
+                  />
+                ))}
+              </div>
+            ) : null}
           </div>
         )}
 

@@ -277,6 +277,7 @@ type Portal = {
       author_name: string;
       created_at: string;
     }>;
+    group?: { kind?: string; ref_id?: string; label?: string } | null;
   }>;
   messages_unread?: number;
   peer_coaches?: Array<{ id: string; code: string; name: string }>;
@@ -387,6 +388,7 @@ export default function CoachFitgraphPortalPage() {
   const [msgTo, setMsgTo] = useState<'member' | 'desk' | 'coach'>('member');
   const [msgTargetId, setMsgTargetId] = useState('');
   const [msgBody, setMsgBody] = useState('');
+  const [classMsg, setClassMsg] = useState('');
 
   const openMemberEdit = (m: {
     id: string;
@@ -1131,7 +1133,7 @@ export default function CoachFitgraphPortalPage() {
                 </p>
                 {openCard.programme ? (
                   <div className="mt-3">
-                    <ProgrammeView programme={openCard.programme} dark compact />
+                    <ProgrammeView programme={openCard.programme} compact />
                   </div>
                 ) : null}
               </div>
@@ -1206,6 +1208,64 @@ export default function CoachFitgraphPortalPage() {
                 Delete
               </button>
             </div>
+
+            {sessionEdit && sessionEdit.session_kind !== 'coach_personal' ? (
+              <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  Today&apos;s programme · members see this
+                </p>
+                <select
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-neutral-950"
+                  value={sessionEdit.programme_id}
+                  onChange={(e) =>
+                    setSessionEdit((f) =>
+                      f ? { ...f, programme_id: e.target.value } : f
+                    )
+                  }
+                >
+                  <option value="">No programme on this class</option>
+                  {(portal.programmes || []).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+                <textarea
+                  className="min-h-[4.5rem] w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-neutral-950"
+                  placeholder={
+                    'Class plan members see, e.g.\n• Warm-up\n• Strength\n• Finisher'
+                  }
+                  value={sessionEdit.class_plan}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setSessionEdit((f) =>
+                      f ? { ...f, class_plan: v } : f
+                    );
+                    setClassPlanDraft(v);
+                  }}
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    className="min-h-10 flex-1 rounded-xl bg-[#E8E830] text-[11px] font-black text-slate-950 disabled:opacity-50"
+                    onClick={() => void saveSessionEdit()}
+                  >
+                    Save for members
+                  </button>
+                  <button
+                    type="button"
+                    className="min-h-10 rounded-xl border border-slate-200 px-3 text-[11px] font-black dark:border-white/10"
+                    onClick={() => {
+                      setLibrarySessionId(openCard.session.id);
+                      setShowLibrary(true);
+                    }}
+                  >
+                    Movements
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             {sessionEdit && (
               <details className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
@@ -1765,7 +1825,75 @@ export default function CoachFitgraphPortalPage() {
             </div>
 
             {sessionEdit?.session_kind !== 'coach_personal' ? (
-            <div className="space-y-2 border-t border-slate-800 pt-3">
+            <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                Message this class
+              </p>
+              <p className="text-[11px] text-slate-500">
+                Goes to everyone booked or subscribed on this session
+                {(openCard.roster.length || 0) +
+                  (openCard.subscribed_not_booked || []).length
+                  ? ` · ${
+                      new Set([
+                        ...openCard.roster
+                          .filter((r) => r.status !== 'cancelled')
+                          .map((r) => r.client_id),
+                        ...(openCard.subscribed || []).map((s) => s.client_id),
+                      ]).size
+                    } people`
+                  : ''}
+                .
+              </p>
+              {(() => {
+                const thr = (portal.threads || []).find(
+                  (t) =>
+                    t.group?.kind === 'session' &&
+                    t.group?.ref_id === openCard.session.id
+                );
+                if (!thr?.messages?.length) return null;
+                return (
+                  <div className="max-h-36 space-y-1 overflow-y-auto rounded-xl border border-slate-100 bg-white p-2 dark:border-white/10 dark:bg-neutral-950">
+                    {thr.messages.slice(-6).map((m) => (
+                      <p key={m.id} className="text-[11px] text-slate-700 dark:text-slate-200">
+                        <span className="font-bold">{m.author_name}: </span>
+                        {m.body}
+                      </p>
+                    ))}
+                  </div>
+                );
+              })()}
+              <textarea
+                className="min-h-[4rem] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-neutral-950"
+                placeholder="e.g. Bring bands. We’ll follow the programme on the card."
+                value={classMsg}
+                onChange={(e) => setClassMsg(e.target.value)}
+              />
+              <button
+                type="button"
+                disabled={busy || !classMsg.trim()}
+                className="min-h-10 w-full rounded-xl bg-sky-600 text-[11px] font-black text-white disabled:opacity-50"
+                onClick={() => {
+                  void post({
+                    action: 'create_thread',
+                    to_class: true,
+                    session_id: openCard.session.id,
+                    channel: 'class_session',
+                    body: classMsg.trim(),
+                    from: weekStart,
+                    to: weekEnd,
+                  }).then(() => {
+                    setClassMsg('');
+                    void load();
+                  });
+                }}
+              >
+                <Send className="mr-1 inline h-3.5 w-3.5" /> Send to class
+              </button>
+            </div>
+            ) : null}
+
+            {sessionEdit?.session_kind !== 'coach_personal' ? (
+            <div className="space-y-2 border-t border-slate-200 pt-3 dark:border-white/10">
               <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                 Add a booked member
               </p>
