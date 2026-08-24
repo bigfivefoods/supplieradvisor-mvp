@@ -3,6 +3,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCustomersAccess } from '@/lib/customers/access';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import { seedRequesterBooksFromPendingInvites } from '@/lib/connections/sync';
+import { bookIlikeOr } from '@/lib/security/book-search';
 
 export async function GET(request: NextRequest) {
   try {
@@ -36,10 +37,37 @@ export async function GET(request: NextRequest) {
       .from('customers')
       .select('*')
       .eq('profile_id', companyId)
-      .order('trading_name');
+      .order('trading_name')
+      .limit(500);
     if (status && status !== 'all') query = query.eq('status', status);
+    const orClause = bookIlikeOr(q, [
+      'trading_name',
+      'legal_name',
+      'email',
+      'phone',
+      'contact_name',
+      'city',
+      'country',
+      'industry',
+    ]);
+    if (orClause) query = query.or(orClause);
 
-    const { data, error } = await query;
+    let usedOr = Boolean(orClause);
+    let { data, error } = await query;
+    if (error && orClause) {
+      const retry = supabase
+        .from('customers')
+        .select('*')
+        .eq('profile_id', companyId)
+        .order('trading_name')
+        .limit(500);
+      const again =
+        status && status !== 'all' ? retry.eq('status', status) : retry;
+      const second = await again;
+      data = second.data;
+      error = second.error;
+      usedOr = false;
+    }
     if (error) {
       return NextResponse.json({
         success: true,
@@ -50,7 +78,7 @@ export async function GET(request: NextRequest) {
     }
 
     let customers = data || [];
-    if (q) {
+    if (q && !usedOr) {
       customers = customers.filter((c) => {
         const hay = [
           c.trading_name,
@@ -208,7 +236,9 @@ export async function POST(request: NextRequest) {
       registration_number: body.registration_number || null,
       city: body.city || null,
       country: body.country || null,
-      region: body.region || null,
+      continent: body.continent || null,
+      province: body.province || body.region || null,
+      region: body.region || body.province || null,
       postal_code: body.postal_code || null,
       currency: body.currency || 'ZAR',
       payment_terms: body.payment_terms || null,
@@ -255,6 +285,12 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 });
     const companyId = Number(body.companyId);
+    if (Number.isFinite(companyId) && companyId > 0) {
+      const _gate = await requireCompanyAccess(request, companyId, {
+        legacyPrivyUserId: legacyPrivyFrom(request, body),
+      });
+      if (!_gate.ok) return _gate.response;
+    }
     if (body.privyUserId && Number.isFinite(companyId)) {
       const mem = await assertCustomersAccess(body.privyUserId, companyId, 'write');
       if (!mem.ok) {
@@ -406,6 +442,8 @@ export async function PATCH(request: NextRequest) {
       'registration_number',
       'city',
       'country',
+      'continent',
+      'province',
       'region',
       'postal_code',
       'currency',
@@ -420,21 +458,27 @@ export async function PATCH(request: NextRequest) {
     for (const f of fields) {
       if (body[f] !== undefined) updates[f] = body[f];
     }
-    let { data, error } = await supabase
-      .from('customers')
-      .update(updates)
-      .eq('id', Number(body.id))
-      .select('*')
-      .single();
-    if (error && /logo_url|column|schema cache|does not exist/i.test(error.message || '')) {
+    if (updates.province != null && updates.region === undefined) {
+      updates.region = updates.province;
+    }
+    if (updates.region != null && updates.province === undefined) {
+      updates.province = updates.region;
+    }
+    let q = supabase.from('customers').update(updates).eq('id', Number(body.id));
+    if (Number.isFinite(companyId) && companyId > 0) {
+      q = q.eq('profile_id', companyId);
+    }
+    let { data, error } = await q.select('*').single();
+    if (error && /logo_url|continent|province|column|schema cache|does not exist/i.test(error.message || '')) {
       const soft = { ...updates };
       delete soft.logo_url;
-      const retry = await supabase
-        .from('customers')
-        .update(soft)
-        .eq('id', Number(body.id))
-        .select('*')
-        .single();
+      delete soft.continent;
+      delete soft.province;
+      let q2 = supabase.from('customers').update(soft).eq('id', Number(body.id));
+      if (Number.isFinite(companyId) && companyId > 0) {
+        q2 = q2.eq('profile_id', companyId);
+      }
+      const retry = await q2.select('*').single();
       data = retry.data;
       error = retry.error;
     }

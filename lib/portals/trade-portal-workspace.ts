@@ -400,7 +400,9 @@ export async function loadPortalWorkspace(opts: {
   let bookProfile: BookProfile | null = null;
   if (kind === 'customer' && opts.viewer.customer_id) {
     const cols =
-      'linked_profile_id, trading_name, legal_name, contact_name, job_title, email, phone, website, vat_number, registration_number, billing_address, city, country, region, payment_terms, industry';
+      'linked_profile_id, trading_name, legal_name, contact_name, job_title, email, phone, website, vat_number, registration_number, billing_address, continent, province, region, city, country, payment_terms, industry';
+    const softCols =
+      'linked_profile_id, trading_name, legal_name, contact_name, job_title, email, phone, website, vat_number, registration_number, billing_address, region, city, country, payment_terms, industry';
     let hit = await supabase
       .from('customers')
       .select(`${cols}, logo_url`)
@@ -411,6 +413,22 @@ export async function loadPortalWorkspace(opts: {
       hit = await supabase
         .from('customers')
         .select(cols)
+        .eq('id', opts.viewer.customer_id)
+        .eq('profile_id', companyId)
+        .maybeSingle();
+    }
+    if (hit.error) {
+      hit = await supabase
+        .from('customers')
+        .select(`${softCols}, logo_url`)
+        .eq('id', opts.viewer.customer_id)
+        .eq('profile_id', companyId)
+        .maybeSingle();
+    }
+    if (hit.error) {
+      hit = await supabase
+        .from('customers')
+        .select(softCols)
         .eq('id', opts.viewer.customer_id)
         .eq('profile_id', companyId)
         .maybeSingle();
@@ -430,10 +448,14 @@ export async function loadPortalWorkspace(opts: {
         vat_number: String(data.vat_number || ''),
         registration_number: String(data.registration_number || ''),
         address: String(data.billing_address || ''),
-        continent: '',
+        continent: String(
+          (data as { continent?: string | null }).continent || ''
+        ),
         country: String(data.country || ''),
         province: String(
-          (data as { region?: string | null }).region || ''
+          (data as { province?: string | null }).province ||
+            (data as { region?: string | null }).region ||
+            ''
         ),
         city: String(data.city || ''),
         payment_terms: String(data.payment_terms || ''),

@@ -105,13 +105,7 @@ export async function POST(request: NextRequest) {
         else patch.address = String(body.address).trim().slice(0, 500);
       }
       if (patch.email) patch.email = String(patch.email).toLowerCase();
-      if (portal.kind === 'customer') {
-        if (patch.province != null) patch.region = patch.province;
-        delete patch.province;
-        delete patch.continent;
-      } else if (patch.province != null) {
-        patch.region = patch.province;
-      }
+      if (patch.province != null) patch.region = patch.province;
       if (portal.kind === 'customer' && viewer.customer_id) {
         const { error } = await supabase
           .from('customers')
@@ -119,7 +113,19 @@ export async function POST(request: NextRequest) {
           .eq('id', viewer.customer_id)
           .eq('profile_id', portal.profile_id);
         if (error) {
-          return NextResponse.json({ error: error.message }, { status: 500 });
+          const retry: Record<string, unknown> = { ...patch };
+          delete retry.continent;
+          delete retry.province;
+          delete retry.vat_number;
+          delete retry.registration_number;
+          const r2 = await supabase
+            .from('customers')
+            .update(retry)
+            .eq('id', viewer.customer_id)
+            .eq('profile_id', portal.profile_id);
+          if (r2.error) {
+            return NextResponse.json({ error: r2.error.message }, { status: 500 });
+          }
         }
       } else if (portal.kind === 'supplier' && viewer.supplier_id) {
         const { error } = await supabase

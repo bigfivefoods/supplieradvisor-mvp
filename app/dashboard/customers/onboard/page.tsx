@@ -62,6 +62,8 @@ type FormState = {
   billing_address: string;
   shipping_address: string;
   city: string;
+  continent: string;
+  province: string;
   region: string;
   country: string;
   postal_code: string;
@@ -90,6 +92,8 @@ const emptyForm = (): FormState => ({
   billing_address: '',
   shipping_address: '',
   city: '',
+  continent: '',
+  province: '',
   region: '',
   country: '',
   postal_code: '',
@@ -169,7 +173,9 @@ function OnboardInner() {
         billing_address: c.billing_address || '',
         shipping_address: c.shipping_address || '',
         city: c.city || '',
-        region: c.region || '',
+        continent: c.continent || '',
+        province: c.province || c.region || '',
+        region: c.region || c.province || '',
         country: c.country || '',
         postal_code: c.postal_code || '',
         currency: c.currency || 'ZAR',
@@ -472,15 +478,17 @@ function OnboardInner() {
                 compact
                 countryRequired={false}
                 value={{
-                  continent: '',
+                  continent: form.continent || '',
                   country: form.country || '',
-                  province: form.region || '',
+                  province: form.province || form.region || '',
                   city: form.city || '',
                 }}
                 onChange={(g: GeoValue) => {
                   setForm((prev) => ({
                     ...prev,
+                    continent: g.continent,
                     country: g.country,
+                    province: g.province,
                     region: g.province,
                     city: g.city,
                   }));

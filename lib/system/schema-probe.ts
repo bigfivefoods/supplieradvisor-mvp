@@ -105,6 +105,31 @@ export const OPTIONAL_LEDGER_COLUMNS: Array<{
     column: 'reference',
     migrationHint: '20260825_saas_reliability.sql',
   },
+  {
+    table: 'customers',
+    column: 'continent',
+    migrationHint: 'RUN_THIS_FOR_CRM_SRM_BOOK.sql',
+  },
+  {
+    table: 'customers',
+    column: 'province',
+    migrationHint: 'RUN_THIS_FOR_CRM_SRM_BOOK.sql',
+  },
+  {
+    table: 'srm_suppliers',
+    column: 'vat_number',
+    migrationHint: 'RUN_THIS_FOR_CRM_SRM_BOOK.sql',
+  },
+  {
+    table: 'order_batches',
+    column: 'expiry_date',
+    migrationHint: 'RUN_THIS_FOR_ORDER_CHAINS_COMPLETE.sql',
+  },
+  {
+    table: 'order_chain_setups',
+    column: 'product_ids',
+    migrationHint: 'RUN_THIS_FOR_ORDER_CHAINS_COMPLETE.sql',
+  },
 ];
 
 export type ColumnProbe = {

@@ -281,6 +281,8 @@ export type CustomerRecord = {
   registration_number?: string | null;
   city?: string | null;
   country?: string | null;
+  continent?: string | null;
+  province?: string | null;
   region?: string | null;
   postal_code?: string | null;
   currency?: string | null;

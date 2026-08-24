@@ -3,6 +3,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCompanyMember } from '@/lib/suppliers/access';
 import { computeTrustScore } from '@/lib/suppliers/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { bookIlikeOr } from '@/lib/security/book-search';
 
 function asRecord(raw: unknown): Record<string, unknown> {
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
@@ -53,8 +54,37 @@ export async function GET(request: NextRequest) {
     if (byId) query = query.eq('id', id);
     else if (status && status !== 'all') query = query.eq('status', status);
     if (inviteStatus && inviteStatus !== 'all') query = query.eq('invite_status', inviteStatus);
+    const orClause = !byId
+      ? bookIlikeOr(q, [
+          'trading_name',
+          'legal_name',
+          'email',
+          'industry',
+          'city',
+          'country',
+          'contact_name',
+        ])
+      : null;
+    if (orClause) query = query.or(orClause);
 
-    const { data, error } = await query;
+    let usedOr = Boolean(orClause);
+    let { data, error } = await query;
+    if (error && orClause) {
+      let retry = supabase
+        .from('srm_suppliers')
+        .select('*')
+        .eq('profile_id', companyId)
+        .order('updated_at', { ascending: false })
+        .limit(500);
+      if (status && status !== 'all') retry = retry.eq('status', status);
+      if (inviteStatus && inviteStatus !== 'all') {
+        retry = retry.eq('invite_status', inviteStatus);
+      }
+      const second = await retry;
+      data = second.data;
+      error = second.error;
+      usedOr = false;
+    }
     if (error) {
       return NextResponse.json({
         success: true,
@@ -65,7 +95,7 @@ export async function GET(request: NextRequest) {
     }
 
     let suppliers = data || [];
-    if (q) {
+    if (q && !usedOr) {
       suppliers = suppliers.filter((s) => {
         const hay = [
           s.trading_name,
@@ -186,12 +216,15 @@ export async function POST(request: NextRequest) {
       sub_industry: body.sub_industry || null,
       category: body.category || null,
       city: body.city || null,
-      region: body.region || null,
-      province: body.province || null,
+      region: body.region || body.province || null,
+      province: body.province || body.region || null,
       country: body.country || 'South Africa',
       continent: body.continent || null,
       address: body.address || null,
       postal_code: body.postal_code || null,
+      vat_number: body.vat_number || null,
+      registration_number: body.registration_number || null,
+      payment_terms: body.payment_terms || null,
       status: body.status || 'prospect',
       invite_status: 'not_invited',
       linked_profile_id: body.linked_profile_id || null,
@@ -236,6 +269,12 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 });
     const companyId = Number(body.companyId);
+    if (Number.isFinite(companyId) && companyId > 0) {
+      const _gate = await requireCompanyAccess(request, companyId, {
+        legacyPrivyUserId: legacyPrivyFrom(request, body),
+      });
+      if (!_gate.ok) return _gate.response;
+    }
     const fields = [
       'trading_name',
       'legal_name',
@@ -278,6 +317,9 @@ export async function PATCH(request: NextRequest) {
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     for (const f of fields) {
       if (body[f] !== undefined) updates[f] = body[f];
+    }
+    if (updates.province != null && updates.region === undefined) {
+      updates.region = updates.province;
     }
 
     const supabase = getSupabaseServer();
