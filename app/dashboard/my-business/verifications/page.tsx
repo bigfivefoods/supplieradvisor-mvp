@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { Loader2, ShieldCheck, Wallet, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
@@ -14,6 +13,7 @@ import {
 } from '@/components/business/BusinessShell';
 import { Panel } from '@/components/relationship/RelationshipChrome';
 import OpsHealthStrip from '@/components/system/OpsHealthStrip';
+import { CompanyVerifyNowDesk } from '@/components/business/CompanyVerifyNowDesk';
 
 /**
  * Ops strip: recent CIPC / bank verifications + platform queue of paid-not-verified.
@@ -190,7 +190,7 @@ function Inner() {
       <BusinessHeader
         title="Verify"
         titleAccent="identity"
-        description="CIPC and bank AVS for this company — plus the platform paid-not-verified queue."
+        description="Run VerifyNow CIPC and bank AVS for this company. Pay on this page — the check never leaves SupplierAdvisor."
         action={
           <button
             type="button"
@@ -201,6 +201,17 @@ function Inner() {
           </button>
         }
       />
+
+      <div className="mb-6">
+        <p className="mb-3 text-[10px] font-black uppercase tracking-[0.16em] text-[#0077b6]">
+          01 · This company
+        </p>
+        <CompanyVerifyNowDesk onChanged={() => void load()} />
+      </div>
+
+      <p className="mb-3 text-[10px] font-black uppercase tracking-[0.16em] text-[#0077b6]">
+        02 · Activity &amp; ops
+      </p>
 
       <OpsHealthStrip />
 
@@ -414,12 +425,9 @@ function Inner() {
                   {data?.verifynowConfigured ? String(data.verifynowMode) : 'missing key'}
                 </strong>
               </div>
-              <Link
-                href="/dashboard/my-business/profile#banking"
-                className="text-[#0077b6] font-semibold hover:underline"
-              >
-                Run checks on profile →
-              </Link>
+              <p className="text-neutral-500 pt-1">
+                Run CIPC and bank AVS in the VerifyNow desk above.
+              </p>
             </Panel>
           </div>
 
@@ -427,8 +435,8 @@ function Inner() {
             <div className="divide-y divide-neutral-100">
               {events.length === 0 ? (
                 <p className="p-6 text-sm text-neutral-500 text-center">
-                  No verification events yet. Run CIPC (R69) or bank AVS (R50) on
-                  your profile.
+                  No verification events yet. Run CIPC (R69) or bank AVS (R50)
+                  in the VerifyNow desk above.
                 </p>
               ) : (
                 events.map((e) => (
