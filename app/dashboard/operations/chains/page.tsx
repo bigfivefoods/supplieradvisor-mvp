@@ -2,39 +2,54 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { Loader2, RefreshCw } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
+import { getSelectedCompanyId } from '@/lib/containers/company';
+import { getCanonicalUserId } from '@/lib/auth/identity';
+import {
+  CompanyRequired,
+  OperationsHeader,
+  OperationsPage,
+} from '@/components/operations/OperationsShell';
 import OrderChainCard from '@/components/orders/OrderChainCard';
+import { OrderChainPath } from '@/components/orders/OrderChainPath';
 
 /**
- * Operations tower — linked multi-party order chains with commercial snapshot.
- * Requires company context from localStorage / existing workspace pattern.
+ * Operations tower — linked SO → PO chains with commercial snapshot.
  */
 export default function OperationsChainsPage() {
+  return (
+    <CompanyRequired>
+      <ChainsInner />
+    </CompanyRequired>
+  );
+}
+
+function ChainsInner() {
+  const companyId = getSelectedCompanyId()!;
   const { user, ready, authenticated } = usePrivy();
-  const [companyId, setCompanyId] = useState<number | null>(null);
-  const [filter, setFilter] = useState<'linked' | 'all' | 'independent'>('linked');
+  const privyUserId = getCanonicalUserId(user?.id);
+  const [filter, setFilter] = useState<'linked' | 'all' | 'independent'>(
+    'linked'
+  );
   const [chains, setChains] = useState<unknown[]>([]);
   const [independent, setIndependent] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('sa_active_company_id');
-      if (raw) setCompanyId(Number(raw));
-    } catch {
-      /* ignore */
-    }
-  }, []);
+  const [hint, setHint] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!companyId || !user?.id) return;
+    if (!companyId || !privyUserId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
+    setHint(null);
     try {
       const q = new URLSearchParams({
         companyId: String(companyId),
-        privyUserId: user.id,
+        privyUserId,
         filter,
       });
       const res = await fetch(`/api/orders/chains?${q}`);
@@ -42,91 +57,169 @@ export default function OperationsChainsPage() {
       if (!res.ok) throw new Error(json.error || 'Failed to load chains');
       setChains(json.chains || []);
       setIndependent(json.independentPos || []);
+      if (json.hint) setHint(String(json.hint));
+      if (json.warning) setHint(String(json.warning));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Load failed');
+      setChains([]);
+      setIndependent([]);
     } finally {
       setLoading(false);
     }
-  }, [companyId, user?.id, filter]);
+  }, [companyId, privyUserId, filter]);
 
   useEffect(() => {
-    if (ready && authenticated) void load();
-  }, [ready, authenticated, load]);
+    if (!ready) return;
+    if (!authenticated || !privyUserId) {
+      setLoading(false);
+      return;
+    }
+    void load();
+  }, [ready, authenticated, privyUserId, load]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <Link
-            href="/dashboard/operations"
-            className="text-xs font-medium text-[#00b4d8] hover:underline"
+    <OperationsPage>
+      <OperationsHeader
+        title="Order"
+        titleAccent="chains"
+        description="Customer purchase order → your sales order → supplier purchase order → production → delivery → feedback. Cost and margin stay on this page."
+        action={
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1.5"
           >
-            ← Operations
-          </Link>
-          <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-900">
-            Order chains
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Boxer sales order → Kelpac purchase order. Cost and margin stay here;
-            the customer only sees production labels.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {(['linked', 'all', 'independent'] as const).map((f) => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => setFilter(f)}
-              className={`rounded-full px-4 py-2 text-xs font-semibold capitalize ${
-                filter === f
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {f}
-            </button>
-          ))}
+            {loading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+            Refresh
+          </button>
+        }
+      />
+
+      <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
+        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
+          Golden path
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <p className="text-xs font-semibold text-slate-500 mb-1.5">
+              Customer portal
+            </p>
+            <OrderChainPath side="customer" compact />
+            <p className="mt-1.5 text-[11px] text-slate-500">
+              They raise a purchase order. It becomes your sales order, then
+              production, delivery, and feedback. They see Scheduled / In
+              production / Produced — never supplier cost.
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 mb-1.5">
+              Supplier portal
+            </p>
+            <OrderChainPath side="supplier" compact />
+            <p className="mt-1.5 text-[11px] text-slate-500">
+              They receive your purchase order, accept, produce, and ship.
+              Each step updates the linked sales order automatically.
+            </p>
+          </div>
         </div>
       </div>
 
-      {!companyId && (
-        <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          Select an active company workspace to view chains.
-        </p>
-      )}
-
-      {loading && <p className="text-sm text-slate-500">Loading…</p>}
-      {error && (
-        <p className="text-sm text-red-600" role="alert">
-          {error}
-        </p>
-      )}
-
-      {!loading && filter !== 'independent' && chains.length === 0 && (
-        <p className="rounded-xl border border-neutral-200 bg-white p-6 text-sm text-slate-500">
-          No active linked chains yet. A customer portal PO auto-raises a
-          manufacturer PO when a preferred supplier is set. You can also tap
-          Manufacturer chain on a sales order.
-        </p>
-      )}
-
-      <div className="grid gap-4">
-        {(chains as Parameters<typeof OrderChainCard>[0]['chain'][]).map((c) => (
-          <OrderChainCard
-            key={c.linkId}
-            chain={c}
-            companyId={companyId || undefined}
-            privyUserId={user?.id}
-            onChanged={() => void load()}
-          />
+      <div className="mb-4 flex flex-wrap gap-2">
+        {(['linked', 'all', 'independent'] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => setFilter(f)}
+            className={`rounded-full px-4 py-2 text-xs font-semibold capitalize ${
+              filter === f
+                ? 'bg-slate-900 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            {f}
+          </button>
         ))}
       </div>
 
-      {(filter === 'all' || filter === 'independent') && independent.length > 0 && (
+      {loading ? (
+        <div className="flex items-center gap-2 text-sm text-slate-500 py-8">
+          <Loader2 className="h-5 w-5 animate-spin text-[#00b4d8]" />
+          Loading chains…
+        </div>
+      ) : null}
+
+      {error ? (
+        <p className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800" role="alert">
+          {error}
+        </p>
+      ) : null}
+
+      {hint && !error ? (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 mb-4">
+          {hint}
+        </p>
+      ) : null}
+
+      {!loading && !error && filter !== 'independent' && chains.length === 0 ? (
+        <div className="rounded-xl border border-neutral-200 bg-white p-6 text-sm text-slate-600 space-y-2">
+          <p className="font-semibold text-slate-900">No linked chains yet</p>
+          <p>
+            A chain appears when a customer purchase order becomes a sales
+            order and a supplier purchase order is linked to it. Set a
+            preferred manufacturer under My Business → Settings, then raise a
+            PO on the customer portal — or open a sales order and use
+            Manufacturer chain.
+          </p>
+          <p>
+            <Link
+              href="/dashboard/customers/orders"
+              className="font-semibold text-[#0077b6] hover:underline"
+            >
+              Open sales orders
+            </Link>
+            {' · '}
+            <Link
+              href="/dashboard/my-business/settings"
+              className="font-semibold text-[#0077b6] hover:underline"
+            >
+              Preferred manufacturer
+            </Link>
+          </p>
+        </div>
+      ) : null}
+
+      {!loading ? (
+        <div className="grid gap-4">
+          {(chains as Parameters<typeof OrderChainCard>[0]['chain'][]).map(
+            (c) => (
+              <OrderChainCard
+                key={c.linkId}
+                chain={c}
+                companyId={companyId}
+                privyUserId={privyUserId || undefined}
+                onChanged={() => void load()}
+              />
+            )
+          )}
+        </div>
+      ) : null}
+
+      {!loading &&
+      (filter === 'all' || filter === 'independent') &&
+      independent.length > 0 ? (
         <div className="mt-8">
           <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
             Independent POs
           </h2>
+          <p className="text-xs text-slate-500 mb-3">
+            Supplier purchase orders that are not linked to a customer sales
+            order.
+          </p>
           <ul className="space-y-2">
             {(independent as Array<Record<string, unknown>>).map((p) => (
               <li
@@ -145,7 +238,7 @@ export default function OperationsChainsPage() {
             ))}
           </ul>
         </div>
-      )}
-    </div>
+      ) : null}
+    </OperationsPage>
   );
 }

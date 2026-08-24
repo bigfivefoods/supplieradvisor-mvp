@@ -346,7 +346,7 @@ function SettingsInner() {
               </select>
               <p className="text-[10px] text-neutral-500 mt-1">
                 When a customer raises a PO on their portal, we auto-send a
-                linked manufacturing PO to this supplier (Kelpac, etc.).
+                linked manufacturing PO to this supplier.
               </p>
             </div>
             <div>

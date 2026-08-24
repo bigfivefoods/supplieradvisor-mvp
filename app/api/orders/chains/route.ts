@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCompanyMember } from '@/lib/customers/access';
 import { customerVisibleProductionStatus } from '@/lib/orders/order-links';
+import { isMissingRelation } from '@/lib/business/company-data';
 
 /**
  * GET /api/orders/chains?companyId=&privyUserId=&filter=linked|independent|all
@@ -37,6 +38,15 @@ export async function GET(req: NextRequest) {
       .limit(200);
 
     if (linkErr) {
+      if (isMissingRelation(linkErr)) {
+        return NextResponse.json({
+          success: true,
+          chains: [],
+          independentPos: [],
+          warning:
+            'Order-link tables are not on this database yet. Run supabase/migrations/20260828_order_links_and_cascade.sql in the Supabase SQL editor, then refresh.',
+        });
+      }
       return NextResponse.json({ error: linkErr.message }, { status: 500 });
     }
 

@@ -120,9 +120,19 @@ export default function OrderChainCard({
             <span className="mx-2 text-slate-300">→</span>
             PO #{chain.purchaseOrder?.id}
           </h3>
-          <div className="mt-2 space-y-1.5">
-            <OrderChainPath side="customer" current={customerStep} compact />
-            <OrderChainPath side="supplier" current={supplierStep} compact />
+          <div className="mt-2 space-y-2">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">
+                Customer path
+              </p>
+              <OrderChainPath side="customer" current={customerStep} compact />
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">
+                Supplier path
+              </p>
+              <OrderChainPath side="supplier" current={supplierStep} compact />
+            </div>
           </div>
         </div>
         <span
@@ -138,7 +148,9 @@ export default function OrderChainCard({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-xl bg-slate-50 p-3">
-          <p className="text-xs font-semibold text-slate-500">Customer (SO)</p>
+          <p className="text-xs font-semibold text-slate-500">
+            Sales order · customer
+          </p>
           <p className="mt-1 text-sm font-medium text-slate-900">
             {chain.salesOrder?.customerName || '—'}
           </p>
@@ -151,7 +163,9 @@ export default function OrderChainCard({
           </p>
         </div>
         <div className="rounded-xl bg-slate-50 p-3">
-          <p className="text-xs font-semibold text-slate-500">Manufacturer (PO)</p>
+          <p className="text-xs font-semibold text-slate-500">
+            Purchase order · supplier
+          </p>
           <p className="mt-1 text-sm font-medium text-slate-900">
             {chain.purchaseOrder?.supplierName || '—'}
           </p>
