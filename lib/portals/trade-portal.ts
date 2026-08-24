@@ -108,6 +108,13 @@ export type PublicDocRow = {
   linked?: boolean;
   customer_po_number?: string | null;
   batches?: PortalBatchLot[];
+  notes?: string | null;
+  lines?: Array<{
+    name: string;
+    qty: number | null;
+    uom: string | null;
+    amount: number | null;
+  }>;
 };
 
 export type PortalBatchLot = {
@@ -420,6 +427,28 @@ export async function touchViewer(viewerId: number): Promise<void> {
   }
 }
 
+function portalQuoteLines(
+  raw: unknown
+): PublicDocRow['lines'] {
+  if (!Array.isArray(raw)) return [];
+  const out: NonNullable<PublicDocRow['lines']> = [];
+  for (const item of raw.slice(0, 40)) {
+    const row = asObject(item);
+    const name = String(row.name || row.description || row.sku || '').trim();
+    if (!name) continue;
+    const qtyRaw = row.quantity ?? row.qty;
+    const amtRaw = row.line_total ?? row.amount;
+    out.push({
+      name: name.slice(0, 160),
+      qty: qtyRaw != null && Number.isFinite(Number(qtyRaw)) ? Number(qtyRaw) : null,
+      uom: row.uom != null ? String(row.uom).slice(0, 24) : null,
+      amount:
+        amtRaw != null && Number.isFinite(Number(amtRaw)) ? Number(amtRaw) : null,
+    });
+  }
+  return out;
+}
+
 function moneyRow(opts: {
   id: number;
   kind: string;
@@ -519,18 +548,35 @@ async function loadCustomerDocs(
   const invoices: PublicDocRow[] = [];
 
   if (sections.quotes !== false) {
-    const { data } = await supabase
+    const qHit = await supabase
       .from('customer_quotes')
       .select(
-        'id, quote_number, status, created_at, valid_until, total_amount, currency, customer_name'
+        'id, quote_number, status, created_at, valid_until, total_amount, currency, notes, items'
       )
       .eq('profile_id', companyId)
       .eq('customer_id', customerId)
       .order('created_at', { ascending: false })
       .limit(40);
-    for (const r of data || []) {
-      quotes.push(
-        moneyRow({
+    let quoteRows: Record<string, unknown>[] = (qHit.data ||
+      []) as unknown as Record<string, unknown>[];
+    if (qHit.error) {
+      const retry = await supabase
+        .from('customer_quotes')
+        .select(
+          'id, quote_number, status, created_at, valid_until, total_amount, currency'
+        )
+        .eq('profile_id', companyId)
+        .eq('customer_id', customerId)
+        .order('created_at', { ascending: false })
+        .limit(40);
+      quoteRows = (retry.data || []) as unknown as Record<string, unknown>[];
+    }
+    for (const raw of quoteRows) {
+      const r = asObject(raw);
+      const status = String(r.status || 'draft').toLowerCase();
+      if (status === 'draft') continue;
+      quotes.push({
+        ...moneyRow({
           id: Number(r.id),
           kind: 'quote',
           number: r.quote_number,
@@ -539,8 +585,10 @@ async function loadCustomerDocs(
           due: r.valid_until,
           amount: r.total_amount,
           currency: r.currency,
-        })
-      );
+        }),
+        notes: r.notes != null ? String(r.notes).slice(0, 400) : null,
+        lines: portalQuoteLines(r.items),
+      });
     }
   }
   if (sections.orders !== false) {

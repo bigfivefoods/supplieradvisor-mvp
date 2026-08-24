@@ -55,6 +55,7 @@ import {
 
 export type GuestPortalTab =
   | 'profile'
+  | 'quotes'
   | 'orders'
   | 'otifef'
   | 'statement'
@@ -90,6 +91,7 @@ export function guestPortalTabs(opts: {
   }
   return [
     { id: 'profile' as const, label: profile },
+    { id: 'quotes' as const, label: 'Quotations' },
     { id: 'orders' as const, label: 'Sales orders' },
     { id: 'newpo' as const, label: 'Purchase order' },
     { id: 'otifef' as const, label: 'OTIFEF metrics' },
@@ -662,6 +664,13 @@ export function GuestTradeWorkspace({
         />
       ) : null}
 
+      {tab === 'quotes' && !isSupplier ? (
+        <QuotesPanel
+          quotes={live.quotes || []}
+          hostName={live.host.name}
+        />
+      ) : null}
+
       {tab === 'orders' ? (
         <OrdersPanel
           isSupplier={isSupplier}
@@ -684,7 +693,6 @@ export function GuestTradeWorkspace({
       {tab === 'statement' && !isSupplier ? (
         <StatementPanel
           invoices={live.invoices || []}
-          quotes={live.quotes || []}
           hostName={live.host.name}
         />
       ) : null}
@@ -2926,13 +2934,152 @@ function OtifefPanel({
   );
 }
 
-function StatementPanel({
-  invoices,
+function quoteStatusClass(status: string): string {
+  const s = status.toLowerCase();
+  if (['accepted', 'converted', 'won'].includes(s)) {
+    return 'bg-emerald-50 text-emerald-800';
+  }
+  if (['rejected', 'expired', 'cancelled', 'lost'].includes(s)) {
+    return 'bg-rose-50 text-rose-800';
+  }
+  if (['sent', 'issued', 'viewed', 'open'].includes(s)) {
+    return 'bg-sky-50 text-sky-800';
+  }
+  return 'bg-neutral-100 text-neutral-600';
+}
+
+function QuotesPanel({
   quotes,
   hostName,
 }: {
-  invoices: PublicPortalPayload['invoices'];
   quotes: PublicPortalPayload['quotes'];
+  hostName: string;
+}) {
+  const [openId, setOpenId] = useState<number | null>(null);
+  const listed = quotes
+    .slice()
+    .sort((a, b) => {
+      const open = (s: string) =>
+        ['sent', 'issued', 'viewed', 'open'].includes(s.toLowerCase()) ? 1 : 0;
+      const d = open(b.status) - open(a.status);
+      if (d !== 0) return d;
+      return String(b.date || '').localeCompare(String(a.date || ''));
+    });
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-[1.5rem] border border-white/70 bg-white/90 p-5 shadow-sm">
+        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
+          Quotations · {hostName}
+        </p>
+        <h2 className="mt-1 text-lg font-black text-slate-900">
+          Quotes sent to this account
+        </h2>
+        <p className="mt-1 text-sm text-neutral-600">
+          These are quotations {hostName} issued on your CRM record. Drafts stay
+          on their desk until they send them.
+        </p>
+      </section>
+      {listed.length === 0 ? (
+        <p className="rounded-[1.5rem] border border-white/70 bg-white/90 px-5 py-10 text-center text-sm text-neutral-500">
+          No quotations have been sent yet.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {listed.map((r) => {
+            const open = openId === r.id;
+            const lines = r.lines || [];
+            return (
+              <li
+                key={`q-${r.id}`}
+                className="rounded-[1.5rem] border border-white/70 bg-white/90 shadow-sm overflow-hidden"
+              >
+                <button
+                  type="button"
+                  className="w-full px-5 py-4 flex flex-wrap items-start justify-between gap-2 text-left"
+                  onClick={() => setOpenId(open ? null : r.id)}
+                >
+                  <div className="min-w-0">
+                    <p className="font-black text-slate-900 text-sm">
+                      {r.number}
+                      {r.title ? (
+                        <span className="font-medium text-neutral-500">
+                          {' '}
+                          · {r.title}
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="text-[11px] text-neutral-500 mt-0.5">
+                      {[
+                        r.date,
+                        r.due ? `valid until ${r.due}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0 space-y-1">
+                    <span
+                      className={`text-[10px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 ${quoteStatusClass(r.status)}`}
+                    >
+                      {r.status.replace(/_/g, ' ')}
+                    </span>
+                    {r.amount != null ? (
+                      <p className="text-sm font-black tabular-nums text-slate-900">
+                        {formatMoney(r.amount, r.currency)}
+                      </p>
+                    ) : null}
+                  </div>
+                </button>
+                {open ? (
+                  <div className="px-5 pb-4 border-t border-slate-100 pt-3 space-y-2">
+                    {r.notes ? (
+                      <p className="text-sm text-slate-600 whitespace-pre-wrap">
+                        {r.notes}
+                      </p>
+                    ) : null}
+                    {lines.length ? (
+                      <ul className="space-y-1 text-sm">
+                        {lines.map((line, i) => (
+                          <li
+                            key={`${r.id}-line-${i}`}
+                            className="flex justify-between gap-3"
+                          >
+                            <span className="text-slate-700">
+                              {line.name}
+                              {line.qty != null
+                                ? ` · ${line.qty}${line.uom ? ` ${line.uom}` : ''}`
+                                : ''}
+                            </span>
+                            {line.amount != null ? (
+                              <span className="tabular-nums font-semibold">
+                                {formatMoney(line.amount, r.currency)}
+                              </span>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-neutral-500">
+                        Line items were not attached to this quotation.
+                      </p>
+                    )}
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function StatementPanel({
+  invoices,
+  hostName,
+}: {
+  invoices: PublicPortalPayload['invoices'];
   hostName: string;
 }) {
   const open = invoices.filter((i) => {
@@ -3002,33 +3149,6 @@ function StatementPanel({
         )}
       </section>
 
-      {quotes.length > 0 ? (
-        <section className="rounded-[1.5rem] border border-white/70 bg-white/90 shadow-sm overflow-hidden">
-          <div className="px-5 py-3 border-b border-slate-100">
-            <h3 className="text-sm font-black text-slate-900">Quotes</h3>
-          </div>
-          <ul className="divide-y divide-slate-100">
-            {quotes.map((r) => (
-              <li
-                key={`q-${r.id}`}
-                className="px-5 py-3.5 flex flex-wrap items-center justify-between gap-2"
-              >
-                <div>
-                  <p className="font-bold text-slate-900 text-sm">{r.number}</p>
-                  <p className="text-[11px] text-neutral-500">
-                    {[r.date, r.status].filter(Boolean).join(' · ')}
-                  </p>
-                </div>
-                {r.amount != null ? (
-                  <p className="text-sm font-black tabular-nums">
-                    {formatMoney(r.amount, r.currency)}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
     </div>
   );
 }

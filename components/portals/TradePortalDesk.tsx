@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Check,
+  ChevronDown,
+  ChevronRight,
   Copy,
   Eye,
   Globe,
@@ -83,6 +85,7 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
   const [copied, setCopied] = useState<string | null>(null);
   const [accountQ, setAccountQ] = useState('');
   const [issuingId, setIssuingId] = useState<number | null>(null);
+  const [openGroupKey, setOpenGroupKey] = useState<string | null>(null);
 
   const accountName = (v: TradePortalViewer) => {
     const id = isCustomer ? v.customer_id : v.supplier_id;
@@ -635,6 +638,7 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                           name: prev.name || a.contact || a.name,
                           email: prev.email || a.email || '',
                         }));
+                        setOpenGroupKey(`a-${a.id}`);
                       }}
                       className={`w-full text-left rounded-2xl border px-3 py-3 ${
                         selected
@@ -769,20 +773,37 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                 const personUrl = primary
                   ? `/portal/${encodeURIComponent(primary.token)}`
                   : '';
+                const expanded = openGroupKey === g.key;
                 return (
-                  <div key={g.key} className="px-5 py-4 space-y-3">
+                  <div key={g.key} className="px-5 py-3">
                     <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-black text-slate-900 text-base">
-                          {g.label}
-                        </p>
-                        <p className="text-xs text-neutral-500 mt-0.5">
-                          {g.activeCount} active access
-                          {g.activeCount === 1 ? '' : 'es'} ·{' '}
-                          {g.viewers.length} person
-                          {g.viewers.length === 1 ? '' : 's'}
-                        </p>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenGroupKey(expanded ? null : g.key)
+                        }
+                        className="min-w-0 flex-1 text-left flex items-start gap-2"
+                      >
+                        <span className="mt-1 shrink-0 text-neutral-400">
+                          {expanded ? (
+                            <ChevronDown className="w-4 h-4" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4" />
+                          )}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block font-black text-slate-900 text-base">
+                            {g.label}
+                          </span>
+                          <span className="block text-xs text-neutral-500 mt-0.5">
+                            {g.activeCount} active access
+                            {g.activeCount === 1 ? '' : 'es'} ·{' '}
+                            {g.viewers.length} person
+                            {g.viewers.length === 1 ? '' : 's'}
+                            {expanded ? '' : ' · open to manage people'}
+                          </span>
+                        </span>
+                      </button>
                       {primary && primary.status === 'active' && personUrl ? (
                         <div className="flex flex-wrap gap-1.5">
                           <a
@@ -815,7 +836,8 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                       ) : null}
                     </div>
 
-                    <ul className="space-y-2">
+                    {expanded ? (
+                    <ul className="space-y-2 mt-3">
                       {g.viewers.map((v) => {
                         const vUrl = `/portal/${encodeURIComponent(v.token)}`;
                         const revoked = v.status === 'revoked';
@@ -914,6 +936,7 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                         );
                       })}
                     </ul>
+                    ) : null}
                   </div>
                 );
               })
