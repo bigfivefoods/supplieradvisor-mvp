@@ -251,6 +251,29 @@ export function mergeRequiredDocIntoMetadata(
   return meta;
 }
 
+export function mergeExtraDocIntoMetadata(
+  metadata: unknown,
+  opts: { name: string; url: string; category: string; nowIso: string }
+): Record<string, unknown> {
+  const meta = { ...asObject(metadata) };
+  const list = Array.isArray(meta.documents) ? [...meta.documents] : [];
+  const slug = opts.name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '')
+    .slice(0, 40) || 'document';
+  list.unshift({
+    field: `extra:${slug}:${Date.now()}`,
+    name: opts.name.slice(0, 160),
+    url: opts.url,
+    category: opts.category.slice(0, 40) || 'Other',
+    extra: true,
+    uploaded_at: opts.nowIso,
+  });
+  meta.documents = list.slice(0, 40);
+  return meta;
+}
+
 export function filledPortalDocs(
   slots: PortalDocSlot[]
 ): Array<{ name: string; url: string; category: string }> {

@@ -192,6 +192,7 @@ const HEAVY_ACTIONS = new Set([
   'profile',
   'rate',
   'document_save',
+  'document_extra',
   'production_update',
 ]);
 const REFRESH_ACTIONS = new Set([
@@ -201,6 +202,7 @@ const REFRESH_ACTIONS = new Set([
   'rate',
   'po_update',
   'document_save',
+  'document_extra',
   'production_update',
 ]);
 
@@ -427,6 +429,29 @@ function applyActLocally(
       },
     };
   }
+  if (action === 'document_extra') {
+    const extra = (
+      data.extra && typeof data.extra === 'object' ? data.extra : null
+    ) as { name?: string; url?: string; category?: string } | null;
+    if (!extra?.url || !extra.name) return prev;
+    const slot = {
+      field: `extra:${extra.name}`,
+      name: String(extra.name),
+      url: String(extra.url),
+      category: String(extra.category || 'Other'),
+      extra: true,
+    };
+    if (String(payload.pack || 'account') === 'host') {
+      return {
+        ...prev,
+        hostDocuments: [...(prev.hostDocuments || []), slot],
+      };
+    }
+    return {
+      ...prev,
+      accountDocuments: [...(prev.accountDocuments || []), slot],
+    };
+  }
   if (action === 'document_save') {
     const field = String(payload.field || '');
     const url =
@@ -556,7 +581,7 @@ export function GuestTradeWorkspace({
                     ? 'Project heading saved'
                     : action === 'task_update'
                       ? 'Task saved'
-                      : action === 'document_save'
+                      : action === 'document_save' || action === 'document_extra'
                         ? 'Document shared'
                         : action === 'production_update'
                           ? 'Production updated — customer sales order will follow'
@@ -1148,7 +1173,7 @@ function CompanyDocsPanel({
                           {d.name}
                         </span>
                         <span className="block text-[11px] text-neutral-500">
-                          {d.category} · extra
+                          {d.category} · additional
                         </span>
                       </span>
                       <FileText className="w-4 h-4 text-[#00b4d8] shrink-0" />
@@ -1156,6 +1181,54 @@ function CompanyDocsPanel({
                   </li>
                 ))}
               </ul>
+              {p.canEdit ? (
+                <ExtraDocForm
+                  busy={busy || uploading === `${p.key}:extra`}
+                  onAdd={async (name, category, file, url) => {
+                    setUploading(`${p.key}:extra`);
+                    setDocNote(null);
+                    try {
+                      let nextUrl = url;
+                      if (file) {
+                        const form = new FormData();
+                        form.append('token', token);
+                        form.append('file', file);
+                        form.append('purpose', 'company-doc');
+                        form.append('field', 'extra');
+                        const res = await fetch(
+                          '/api/public/portals/trade/upload',
+                          {
+                            method: 'POST',
+                            body: form,
+                            credentials: 'include',
+                          }
+                        );
+                        const data = (await res.json()) as {
+                          url?: string;
+                          error?: string;
+                        };
+                        if (!res.ok || !data.url) {
+                          throw new Error(data.error || 'Upload failed');
+                        }
+                        nextUrl = data.url;
+                      }
+                      await onAct({
+                        action: 'document_extra',
+                        pack: p.key,
+                        name,
+                        category,
+                        url: nextUrl,
+                      });
+                    } catch (e) {
+                      setDocNote(
+                        e instanceof Error ? e.message : 'Save failed'
+                      );
+                    } finally {
+                      setUploading(null);
+                    }
+                  }}
+                />
+              ) : null}
               {!p.canEdit ? (
                 <p className="px-5 py-2 text-[11px] text-neutral-500">
                   Host company files are updated by {hostName}.
@@ -1165,6 +1238,92 @@ function CompanyDocsPanel({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function ExtraDocForm({
+  busy,
+  onAdd,
+}: {
+  busy: boolean;
+  onAdd: (
+    name: string,
+    category: string,
+    file: File | null,
+    url: string
+  ) => Promise<void>;
+}) {
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState('Other');
+  const [url, setUrl] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  return (
+    <div className="border-t border-slate-100 px-5 py-4 space-y-2 bg-slate-50/60">
+      <p className="text-[10px] font-black uppercase tracking-wider text-[#0077b6]">
+        Add additional document
+      </p>
+      <p className="text-[11px] text-slate-500">
+        Specs, contracts, certificates, or anything else you want shared on this
+        portal.
+      </p>
+      <input
+        className="input w-full !py-2 !px-3 !text-sm"
+        placeholder="Document name *"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+      <div className="grid grid-cols-2 gap-2">
+        <select
+          className="input !py-2 !px-3 !text-sm"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+        >
+          {['Other', 'Legal', 'Financial', 'Quality', 'Spec', 'Contract'].map(
+            (c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            )
+          )}
+        </select>
+        <label className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold text-slate-700">
+          <Upload className="h-3.5 w-3.5" />
+          {file ? file.name.slice(0, 18) : 'Upload'}
+          <input
+            type="file"
+            className="hidden"
+            disabled={busy}
+            accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.doc,.docx"
+            onChange={(e) => {
+              setFile(e.target.files?.[0] || null);
+              e.target.value = '';
+            }}
+          />
+        </label>
+      </div>
+      <input
+        className="input w-full !py-2 !px-3 !text-xs"
+        placeholder="or paste https://…"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+      />
+      <button
+        type="button"
+        disabled={busy || !name.trim() || (!file && !url.trim())}
+        onClick={() => {
+          const n = name.trim();
+          const u = url.trim();
+          const f = file;
+          setName('');
+          setUrl('');
+          setFile(null);
+          void onAdd(n, category, f, u);
+        }}
+        className="btn-secondary w-full !py-2 text-xs"
+      >
+        {busy ? 'Saving…' : 'Add document'}
+      </button>
     </div>
   );
 }
@@ -2256,6 +2415,28 @@ function OrdersPanel({
                 <div className="mt-3">
                   <OrderChainPath side={side} current={stage} />
                 </div>
+                {o.batches && o.batches.length ? (
+                  <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      Traceability
+                    </p>
+                    <ul className="mt-1 space-y-1">
+                      {o.batches.map((b, i) => (
+                        <li
+                          key={`${b.batch_number}-${i}`}
+                          className="text-[11px] text-slate-700"
+                        >
+                          <span className="font-bold">{b.batch_number}</span>
+                          {b.manufactured_at
+                            ? ` · manufactured ${b.manufactured_at}`
+                            : ''}
+                          {b.expiry_date ? ` · expiry ${b.expiry_date}` : ''}
+                          {b.qty != null ? ` · qty ${b.qty}${b.uom ? ` ${b.uom}` : ''}` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 {isHost && !isSupplier && o.kind === 'order' && o.linked === false ? (
                   <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-950">
                     No manufacturer PO linked yet. Set a preferred manufacturer
@@ -2313,10 +2494,17 @@ function SupplierOrderActions({
 }) {
   const [delivered, setDelivered] = useState(String(order.delivered ?? ''));
   const [qty, setQty] = useState(String(order.confirmed_qty ?? order.ordered ?? ''));
+  const [batchNumber, setBatchNumber] = useState('');
+  const [manufacturedAt, setManufacturedAt] = useState('');
+  const [expiryDate, setExpiryDate] = useState('');
   const next = nextSupplierProductionAction(
     order.status,
     order.production_status
   );
+  const needsLot = next?.status === 'completed';
+  const lotOk =
+    !needsLot ||
+    (batchNumber.trim() && manufacturedAt && expiryDate);
   const runNext = () => {
     if (!next) return;
     if (next.status === 'accepted') {
@@ -2332,11 +2520,24 @@ function SupplierOrderActions({
       });
       return;
     }
+    const batches =
+      needsLot && batchNumber.trim()
+        ? [
+            {
+              batch_number: batchNumber.trim(),
+              manufactured_at: manufacturedAt,
+              produced_at: manufacturedAt,
+              expiry_date: expiryDate,
+              qty: qty ? Number(qty) : undefined,
+            },
+          ]
+        : undefined;
     void onAct({
       action: 'production_update',
       id: order.id,
       production_status: next.status,
       confirmed_qty: qty ? Number(qty) : undefined,
+      batches,
     });
   };
   return (
@@ -2345,7 +2546,7 @@ function SupplierOrderActions({
         {next ? (
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || !lotOk}
             onClick={runNext}
             className="btn-primary !py-2 !px-4 text-xs"
           >
@@ -2373,9 +2574,41 @@ function SupplierOrderActions({
           />
         </label>
       </div>
+      {needsLot ? (
+        <div className="grid gap-2 sm:grid-cols-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
+          <label className="text-[10px] font-bold uppercase text-neutral-400">
+            Batch number *
+            <input
+              className="input mt-0.5 !py-1 !px-2 !text-xs w-full"
+              value={batchNumber}
+              onChange={(e) => setBatchNumber(e.target.value)}
+              placeholder="LOT-…"
+            />
+          </label>
+          <label className="text-[10px] font-bold uppercase text-neutral-400">
+            Manufactured *
+            <input
+              type="date"
+              className="input mt-0.5 !py-1 !px-2 !text-xs w-full"
+              value={manufacturedAt}
+              onChange={(e) => setManufacturedAt(e.target.value)}
+            />
+          </label>
+          <label className="text-[10px] font-bold uppercase text-neutral-400">
+            Expiry *
+            <input
+              type="date"
+              className="input mt-0.5 !py-1 !px-2 !text-xs w-full"
+              value={expiryDate}
+              onChange={(e) => setExpiryDate(e.target.value)}
+            />
+          </label>
+        </div>
+      ) : null}
       <p className="text-[11px] text-neutral-500">
         Each tap moves the chain and updates the customer sales order. They
-        see Scheduled / In production / Produced — never your costs.
+        see Scheduled / In production / Produced and lot details — never your
+        costs.
       </p>
     </div>
   );

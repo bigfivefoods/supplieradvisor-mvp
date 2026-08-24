@@ -1,11 +1,14 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { productAssignedToCustomer } from '@/lib/inventory/customer-brand';
+import { isMissingRelation } from '@/lib/business/company-data';
+import { parseProductIds } from '@/lib/orders/chain-setup';
 import { otifefForLine, rollupOtifef } from '@/lib/portals/otifef-line';
 import { dateEnvelope } from '@/lib/projects/waterfall';
 import { enrichChainDoc } from '@/lib/orders/chain-path';
 import type { OtifefMetrics } from '@/lib/suppliers/types';
 import {
   parsePortalTaskRiadId,
+  type PortalBatchLot,
   type PortalMessageView,
   type PortalRatingView,
   type PortalRiadView,
@@ -109,6 +112,8 @@ export type PortalCatalogueItem = {
   short_description: string | null;
   primary_image_url: string | null;
   customer_brand?: boolean;
+  /** Product sits on a saved order chain for this customer. */
+  on_chain?: boolean;
 };
 
 export function isPortalFinishedGood(
@@ -136,17 +141,23 @@ export function isPortalFinishedGood(
   );
 }
 
-/** Customer-brand SKUs first, then the host's other finished goods. */
+/** Order-chain SKUs first, then customer-brand, then other finished goods. */
 export function portalPoCatalogue(
   items: PortalCatalogueItem[]
 ): PortalCatalogueItem[] {
-  const branded = items
-    .filter((i) => i.customer_brand)
-    .sort((a, b) => a.name.localeCompare(b.name));
-  const other = items
-    .filter((i) => !i.customer_brand && isPortalFinishedGood(i.product_type))
-    .sort((a, b) => a.name.localeCompare(b.name));
-  return [...branded, ...other];
+  const rank = (i: PortalCatalogueItem) => {
+    if (i.on_chain && i.customer_brand) return 0;
+    if (i.on_chain) return 1;
+    if (i.customer_brand) return 2;
+    return 3;
+  };
+  return items
+    .filter((i) => i.on_chain || i.customer_brand || isPortalFinishedGood(i.product_type))
+    .sort((a, b) => {
+      const d = rank(a) - rank(b);
+      if (d !== 0) return d;
+      return a.name.localeCompare(b.name);
+    });
 }
 
 export type PortalWorkspace = {
@@ -165,6 +176,68 @@ export type PortalWorkspace = {
   /** Host sellable products (customer portal only) for PO product picker */
   catalogue: PortalCatalogueItem[];
 };
+
+function mapBatchLot(raw: Record<string, unknown>): PortalBatchLot | null {
+  const batch_number = String(raw.batch_number || '').trim();
+  if (!batch_number) return null;
+  const meta = metaOf(raw);
+  const expiry =
+    raw.expiry_date != null
+      ? String(raw.expiry_date).slice(0, 10)
+      : meta.expiry_date != null
+        ? String(meta.expiry_date).slice(0, 10)
+        : null;
+  const manufactured =
+    raw.produced_at != null
+      ? String(raw.produced_at).slice(0, 10)
+      : meta.manufactured_date != null
+        ? String(meta.manufactured_date).slice(0, 10)
+        : null;
+  return {
+    batch_number,
+    qty: raw.qty != null ? Number(raw.qty) : null,
+    uom: raw.uom != null ? String(raw.uom) : null,
+    manufactured_at: manufactured,
+    expiry_date: expiry,
+  };
+}
+
+async function loadBatchLots(
+  companyId: number,
+  orderIds: number[]
+): Promise<Map<number, PortalBatchLot[]>> {
+  const out = new Map<number, PortalBatchLot[]>();
+  const ids = [...new Set(orderIds.filter((id) => Number.isFinite(id) && id > 0))];
+  if (!ids.length) return out;
+  const supabase = getSupabaseServer();
+  const hit = await supabase
+    .from('order_batches')
+    .select('order_id, batch_number, qty, uom, produced_at, expiry_date, metadata')
+    .eq('company_id', companyId)
+    .in('order_id', ids)
+    .limit(400);
+  let rows: Record<string, unknown>[] = (hit.data ||
+    []) as unknown as Record<string, unknown>[];
+  if (hit.error) {
+    const retry = await supabase
+      .from('order_batches')
+      .select('order_id, batch_number, qty, uom, produced_at, metadata')
+      .eq('company_id', companyId)
+      .in('order_id', ids)
+      .limit(400);
+    rows = (retry.data || []) as unknown as Record<string, unknown>[];
+  }
+  for (const raw of rows) {
+    const r = asObject(raw);
+    const lot = mapBatchLot(r);
+    const oid = Number(r.order_id);
+    if (!lot || !oid) continue;
+    const list = out.get(oid) || [];
+    list.push(lot);
+    out.set(oid, list);
+  }
+  return out;
+}
 
 function poToDoc(r: Record<string, unknown>, otifefInput: Parameters<typeof otifefForLine>[0]): PublicDocRow {
   const ot = otifefForLine(otifefInput);
@@ -232,6 +305,24 @@ async function loadHostCatalogue(
     }
     return [];
   }
+  const chainIds = new Set<number>();
+  if (customerId != null) {
+    const setups = await supabase
+      .from('order_chain_setups')
+      .select('product_ids, customer_id, status')
+      .eq('profile_id', companyId)
+      .eq('status', 'active')
+      .limit(200);
+    if (!setups.error) {
+      for (const row of setups.data || []) {
+        const cid = row.customer_id != null ? Number(row.customer_id) : null;
+        if (cid && cid !== customerId) continue;
+        for (const id of parseProductIds(row.product_ids)) chainIds.add(id);
+      }
+    } else if (!isMissingRelation(setups.error)) {
+      console.warn('portal catalogue chains', setups.error.message);
+    }
+  }
   const out: PortalCatalogueItem[] = [];
   for (const raw of data || []) {
     const st = String(raw.status || 'active').toLowerCase();
@@ -259,6 +350,7 @@ async function loadHostCatalogue(
       primary_image_url:
         raw.primary_image_url != null ? String(raw.primary_image_url) : null,
       customer_brand: branded,
+      on_chain: chainIds.has(Number(raw.id)),
     });
   }
   return portalPoCatalogue(out);
@@ -439,6 +531,13 @@ export async function loadPortalWorkspace(opts: {
         });
       }
     }
+    const batchMap = await loadBatchLots(
+      companyId,
+      pos.map((p) => p.id)
+    );
+    for (const p of pos) {
+      p.batches = batchMap.get(p.id) || [];
+    }
   }
 
   if (kind === 'customer' && opts.viewer.customer_id) {
@@ -489,7 +588,13 @@ export async function loadPortalWorkspace(opts: {
     const soIds = (orders || []).map((o) => Number(o.id)).filter((id) => id > 0);
     const prodBySo = new Map<
       number,
-      { status: string | null; completed: string | null; qty: number | null; linked: boolean }
+      {
+        status: string | null;
+        completed: string | null;
+        qty: number | null;
+        linked: boolean;
+        poIds: number[];
+      }
     >();
     if (soIds.length) {
       const { data: links } = await supabase
@@ -515,17 +620,24 @@ export async function loadPortalWorkspace(opts: {
         const sid = Number(l.source_order_id);
         const po = poProd.get(Number(l.target_order_id));
         if (!sid) continue;
+        const prev = prodBySo.get(sid);
+        const poId = Number(l.target_order_id);
         prodBySo.set(sid, {
-          status: po?.production_status != null ? String(po.production_status) : null,
+          status: po?.production_status != null ? String(po.production_status) : prev?.status || null,
           completed:
             po?.actual_completion_date != null
               ? String(po.actual_completion_date).slice(0, 10)
-              : null,
-          qty: po?.confirmed_qty != null ? Number(po.confirmed_qty) : null,
+              : prev?.completed || null,
+          qty: po?.confirmed_qty != null ? Number(po.confirmed_qty) : prev?.qty ?? null,
           linked: true,
+          poIds: [...(prev?.poIds || []), ...(Number.isFinite(poId) && poId > 0 ? [poId] : [])],
         });
       }
     }
+    const batchMap = await loadBatchLots(
+      companyId,
+      [...prodBySo.values()].flatMap((v) => v.poIds)
+    );
     for (const raw of orders || []) {
       const r = asObject(raw);
       const items = Array.isArray(r.items) ? r.items : [];
@@ -583,6 +695,9 @@ export async function loadPortalWorkspace(opts: {
             customer_po_number: meta.customer_po_number
               ? String(meta.customer_po_number)
               : null,
+            batches: (linked?.poIds || []).flatMap(
+              (id) => batchMap.get(id) || []
+            ),
           },
           'customer'
         )

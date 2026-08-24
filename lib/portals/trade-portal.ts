@@ -107,6 +107,15 @@ export type PublicDocRow = {
   rated?: boolean;
   linked?: boolean;
   customer_po_number?: string | null;
+  batches?: PortalBatchLot[];
+};
+
+export type PortalBatchLot = {
+  batch_number: string;
+  qty: number | null;
+  uom: string | null;
+  manufactured_at: string | null;
+  expiry_date: string | null;
 };
 
 export type PortalRatingView = {

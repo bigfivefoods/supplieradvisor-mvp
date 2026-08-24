@@ -27,6 +27,7 @@ import { expandDocumentUrlWrites } from '@/lib/business/documentFields';
 import {
   isPortalDocUrl,
   isPortalRequiredDocField,
+  mergeExtraDocIntoMetadata,
   mergeRequiredDocIntoMetadata,
 } from '@/lib/portals/portal-documents';
 import { cascadeFromPo } from '@/lib/orders/cascade';
@@ -1076,6 +1077,44 @@ export async function POST(request: NextRequest) {
       if (upErr) {
         return NextResponse.json({ error: upErr.message }, { status: 500 });
       }
+
+      const batchesIn = Array.isArray(body.batches) ? body.batches : [];
+      const savedLots: Array<Record<string, unknown>> = [];
+      for (const raw of batchesIn) {
+        const b = asObj(raw);
+        const batchNumber = String(b.batch_number || '').trim().slice(0, 120);
+        if (!batchNumber) continue;
+        const manufactured = String(
+          b.manufactured_at || b.produced_at || ''
+        ).slice(0, 10);
+        const expiry = String(b.expiry_date || '').slice(0, 10);
+        const lotMeta = {
+          manufactured_date: manufactured || null,
+          expiry_date: expiry || null,
+        };
+        const lot = {
+          company_id: portal.profile_id,
+          order_id: id,
+          order_type: 'purchase_order',
+          batch_number: batchNumber,
+          qty: Number(b.qty) || 0,
+          uom: String(b.uom || 'ea').slice(0, 24),
+          produced_at: manufactured || null,
+          expiry_date: expiry || null,
+          manufacturer_profile_id: linkedProfileId,
+          notes: b.notes ? String(b.notes).slice(0, 500) : null,
+          metadata: lotMeta,
+          created_by: stamp.createdBy,
+        };
+        let ins = await supabase.from('order_batches').insert(lot).select('*').single();
+        if (ins.error) {
+          const soft = { ...lot };
+          delete soft.expiry_date;
+          ins = await supabase.from('order_batches').insert(soft).select('*').single();
+        }
+        if (!ins.error && ins.data) savedLots.push(asObj(ins.data));
+      }
+
       const casc = await cascadeFromPo(supabase, portal.profile_id, id, {
         production_status: productionStatus || undefined,
         confirmed_qty:
@@ -1095,11 +1134,43 @@ export async function POST(request: NextRequest) {
         actorCompanyId: linkedProfileId || portal.profile_id,
         isSupplier: true,
       });
+      if (savedLots.length && casc.linkedSoIds.length) {
+        for (const soId of casc.linkedSoIds) {
+          for (const lot of savedLots) {
+            const copy = {
+              company_id: portal.profile_id,
+              order_id: soId,
+              order_type: 'sales_order',
+              batch_number: lot.batch_number,
+              qty: lot.qty,
+              uom: lot.uom,
+              produced_at: lot.produced_at,
+              expiry_date: lot.expiry_date,
+              metadata: lot.metadata || {},
+              created_by: stamp.createdBy,
+            };
+            const soIns = await supabase.from('order_batches').insert(copy);
+            if (soIns.error) {
+              const soft = { ...copy };
+              delete soft.expiry_date;
+              await supabase.from('order_batches').insert(soft);
+            }
+          }
+        }
+      }
+
       return NextResponse.json({
         success: true,
         production_status: productionStatus,
         production_label: chainProductionLabel(productionStatus),
         cascaded: casc.updated,
+        batches: savedLots.map((l) => ({
+          batch_number: l.batch_number,
+          qty: l.qty,
+          uom: l.uom,
+          manufactured_at: l.produced_at,
+          expiry_date: l.expiry_date,
+        })),
       });
     }
 
@@ -1550,6 +1621,82 @@ export async function POST(request: NextRequest) {
         }
       }
       return NextResponse.json({ success: true, pack, field, url });
+    }
+
+    if (action === 'document_extra') {
+      const pack = String(body.pack || 'account') === 'host' ? 'host' : 'account';
+      const name = String(body.name || '').trim().slice(0, 160);
+      const rawUrl = String(body.url || '').trim();
+      const category = String(body.category || 'Other').trim().slice(0, 40) || 'Other';
+      if (!name) {
+        return NextResponse.json({ error: 'Document name required' }, { status: 400 });
+      }
+      if (!isPortalDocUrl(rawUrl)) {
+        return NextResponse.json(
+          { error: 'Document URL must be http or https' },
+          { status: 400 }
+        );
+      }
+      if (pack === 'host' && !hostActor) {
+        return NextResponse.json(
+          { error: 'Only the host company can add their extra documents' },
+          { status: 403 }
+        );
+      }
+      if (pack === 'host') {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('metadata')
+          .eq('id', portal.profile_id)
+          .maybeSingle();
+        const nextMeta = mergeExtraDocIntoMetadata(prof?.metadata, {
+          name,
+          url: rawUrl,
+          category,
+          nowIso: now,
+        });
+        const { error } = await supabase
+          .from('profiles')
+          .update({ metadata: nextMeta, updated_at: now } as never)
+          .eq('id', portal.profile_id);
+        if (error) {
+          return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+        return NextResponse.json({
+          success: true,
+          pack,
+          extra: { name, url: rawUrl, category, extra: true },
+        });
+      }
+      const table = portal.kind === 'customer' ? 'customers' : 'srm_suppliers';
+      const accountId =
+        portal.kind === 'customer' ? viewer.customer_id : viewer.supplier_id;
+      if (!accountId) {
+        return NextResponse.json({ error: 'No book account' }, { status: 403 });
+      }
+      const { data: row } = await supabase
+        .from(table)
+        .select('metadata')
+        .eq('id', accountId)
+        .eq('profile_id', portal.profile_id)
+        .maybeSingle();
+      const nextMeta = mergeExtraDocIntoMetadata(
+        (row as { metadata?: unknown } | null)?.metadata,
+        { name, url: rawUrl, category, nowIso: now }
+      );
+      const { error } = await supabase
+        .from(table)
+        .update({ metadata: nextMeta, updated_at: now } as never)
+        .eq('id', accountId)
+        .eq('profile_id', portal.profile_id);
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      return NextResponse.json({
+        success: true,
+        pack,
+        extra: { name, url: rawUrl, category, extra: true },
+      });
     }
 
     if (action === 'revoke_person') {

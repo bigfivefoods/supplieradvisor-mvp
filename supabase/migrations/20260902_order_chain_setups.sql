@@ -56,3 +56,5 @@ CREATE INDEX IF NOT EXISTS idx_order_chain_setups_profile
   ON public.order_chain_setups (profile_id, status);
 CREATE INDEX IF NOT EXISTS idx_order_chain_setups_customer
   ON public.order_chain_setups (profile_id, customer_id);
+
+SELECT public.sa_add_column('order_batches', 'expiry_date', 'date');

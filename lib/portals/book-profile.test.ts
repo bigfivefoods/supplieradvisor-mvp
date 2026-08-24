@@ -89,4 +89,22 @@ assert.deepEqual(
   [1, 2]
 );
 
+const chained = portalPoCatalogue([
+  { ...cat[0], on_chain: false },
+  { ...cat[1], on_chain: false },
+  {
+    id: 4,
+    name: 'Chain SKU',
+    sku: 'CH',
+    product_type: 'finished_good',
+    uom: 'kg',
+    unit_price: 9,
+    currency: 'ZAR',
+    short_description: null,
+    primary_image_url: null,
+    on_chain: true,
+  },
+]);
+assert.equal(chained[0].id, 4);
+
 console.log('book-profile.test.ts ok');

@@ -86,7 +86,11 @@ function CatalogueTile({
           {[
             item.sku,
             item.uom,
-            item.customer_brand ? 'Your brand' : 'Finished good',
+            item.on_chain
+              ? 'On order chain'
+              : item.customer_brand
+                ? 'Your brand'
+                : 'Finished good',
           ]
             .filter(Boolean)
             .join(' · ')}
@@ -212,18 +216,29 @@ export function PortalPurchaseOrder({
   } | null>(null);
 
   const taxRate = portalPoTaxRate(hostCountry || book?.country);
+  const chained = useMemo(
+    () => catalogue.filter((c) => c.on_chain),
+    [catalogue]
+  );
   const branded = useMemo(
-    () => catalogue.filter((c) => c.customer_brand),
+    () => catalogue.filter((c) => c.customer_brand && !c.on_chain),
     [catalogue]
   );
   const otherFg = useMemo(
     () =>
       catalogue.filter(
-        (c) => !c.customer_brand && isPortalFinishedGood(c.product_type)
+        (c) =>
+          !c.on_chain &&
+          !c.customer_brand &&
+          isPortalFinishedGood(c.product_type)
       ),
     [catalogue]
   );
-  const pool = useMemo(() => [...branded, ...otherFg], [branded, otherFg]);
+  const pool = useMemo(
+    () => [...chained, ...branded, ...otherFg],
+    [chained, branded, otherFg]
+  );
+  const hasChains = chained.length > 0;
   const filtered = useMemo(() => {
     const n = q.trim().toLowerCase();
     if (!n) return pool;
@@ -536,8 +551,10 @@ export function PortalPurchaseOrder({
                   Catalogue
                 </p>
                 <p className="text-sm text-slate-600">
-                  Your brand first, then {hostName} finished goods. Same SKU
-                  merges quantity.
+                  {hasChains
+                    ? 'Products on your order chain first, then other finished goods.'
+                    : `Your brand first, then ${hostName} finished goods.`}{' '}
+                  Same SKU merges quantity.
                 </p>
               </div>
               <label className="inline-flex items-center gap-1.5 text-xs font-semibold">
@@ -578,6 +595,25 @@ export function PortalPurchaseOrder({
                 </ul>
               ) : (
                 <div className="max-h-80 space-y-3 overflow-y-auto">
+                  {chained.length ? (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-[#0077b6]">
+                        On your order chain
+                      </p>
+                      <ul className="grid gap-2 sm:grid-cols-2">
+                        {chained.map((c) => (
+                          <li key={c.id}>
+                            <CatalogueTile
+                              item={c}
+                              currency={currency}
+                              busy={busy}
+                              onAdd={addFromCatalogue}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
                   {branded.length ? (
                     <div className="space-y-2">
                       <p className="text-[10px] font-black uppercase tracking-wider text-[#0077b6]">
@@ -656,6 +692,14 @@ export function PortalPurchaseOrder({
                           <p className="text-[11px] text-neutral-500">
                             {l.sku || 'Free-text'}
                           </p>
+                          {hasChains &&
+                          l.product_id &&
+                          !catalogue.find((c) => c.id === l.product_id)?.on_chain ? (
+                            <p className="mt-0.5 text-[11px] font-semibold text-amber-800">
+                              Not on an order chain yet — we’ll confirm the
+                              manufacturer.
+                            </p>
+                          ) : null}
                         </td>
                         <td className="px-3 py-2.5 text-neutral-600">{l.uom || 'ea'}</td>
                         <td className="px-3 py-2.5">

@@ -9,6 +9,7 @@ import {
   isPortalRequiredDocField,
   mergePortalDocSlots,
   mergeRequiredDocIntoMetadata,
+  mergeExtraDocIntoMetadata,
   PORTAL_REQUIRED_DOCS,
 } from './portal-documents';
 
@@ -70,6 +71,24 @@ assert.equal(
 assert.equal(
   (meta.documents as Array<{ name: string }>)[0].name,
   'Bank confirmation letter'
+);
+
+const extraMeta = mergeExtraDocIntoMetadata(
+  { documents: [] },
+  {
+    name: 'Pack spec',
+    url: 'https://files.example/spec.pdf',
+    category: 'Quality',
+    nowIso: '2026-08-24T00:00:00.000Z',
+  }
+);
+assert.equal(
+  (extraMeta.documents as Array<{ name: string; extra?: boolean }>)[0].name,
+  'Pack spec'
+);
+assert.equal(
+  (extraMeta.documents as Array<{ extra?: boolean }>)[0].extra,
+  true
 );
 
 console.log('portal-documents.test.ts ok');
