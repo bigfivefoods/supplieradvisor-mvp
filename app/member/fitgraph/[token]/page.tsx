@@ -40,7 +40,6 @@ import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
 import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
 import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
-import { B2cAutoLinkBanner } from '@/components/b2c/B2cAutoLinkBanner';
 import { MemberAnnouncementsFeed } from '@/components/services/MemberAnnouncementsFeed';
 import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
 import { MemberAdvisorShell } from '@/components/advisors/MemberAdvisorShell';
@@ -52,10 +51,6 @@ import {
 import { gymBrandColor } from '@/lib/fitness/fitgraph';
 import { advisorBrandInk } from '@/lib/advisors/brand-ink';
 import type { MemberAnnouncementPublic } from '@/lib/services/member-announcements';
-import {
-  PORTAL_PHOTO_SAVED_MESSAGE,
-  PORTAL_PHOTO_SHARE_HINT,
-} from '@/lib/services/portal-profile';
 import {
   GymCheckinPass,
   GymClassRateCard,
@@ -906,13 +901,6 @@ export default function MemberFitgraphPortalPage() {
             </div>
           </div>
         ) : null}
-        {tab === 'profile' ? (
-          <B2cAutoLinkBanner token={token} tone="yellow" />
-        ) : null}
-        {tab === 'profile' ? (
-          <MemberPortalInvoices invoices={portal.invoices} />
-        ) : null}
-
         {tab === 'share' && (
           <GymSharePanel
             brand={portal.brand}
@@ -969,7 +957,6 @@ export default function MemberFitgraphPortalPage() {
               onPhone={setPhone}
               onBuy={(item) => void buy(item)}
               buyingId={buyingId}
-              joining={portal.joining}
               classSubscribe={portal.class_subscribe === true}
               hideIntro
               hideIdentity
@@ -1700,52 +1687,6 @@ export default function MemberFitgraphPortalPage() {
 
         {tab === 'profile' && (
           <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900">
-            {needBank ? (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-bold text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-100">
-                Complete membership — add bank details for the gym debit order.
-              </div>
-            ) : null}
-            <GymSectionTitle hint="Changes sync to the gym desk and your SA Member wallet.">
-              Your profile
-            </GymSectionTitle>
-            <button
-              type="button"
-              onClick={() => selectTab('progress')}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left dark:border-white/10 dark:bg-white/5"
-            >
-              <p className="text-xs font-black text-slate-900 dark:text-white">
-                Attendance, goals & feedback
-              </p>
-              <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                Classes attended, coach notes, and your ratings.
-              </p>
-            </button>
-            {(portal.packs || []).length > 0 ? (
-              <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/10 dark:bg-white/5">
-                <p className="mb-1 text-[10px] font-black uppercase text-slate-500">Session packs</p>
-                <ul className="space-y-1">
-                  {(portal.packs || []).map((p) => (
-                    <li key={p.id} className="text-xs font-semibold text-slate-700">
-                      {p.label || 'Pack'}: <strong>{p.remaining}</strong> left
-                      {p.expires_at ? ` · exp ${p.expires_at.slice(0, 10)}` : ''}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-
-            {portal.collect_debit_bank &&
-            portal.require_debit_bank &&
-            !portal.bank?.complete ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-950">
-                Add your bank account below to complete your membership. The
-                gym sets up a debit order from these details.
-              </div>
-            ) : null}
-            <p className="text-xs text-slate-500">
-              Email is usually the parent/guardian contact for invites and care
-              messages — add kids under Family members.
-            </p>
             {companyId != null ? (
               <ProfilePhotoField
                 companyId={companyId}
@@ -1755,22 +1696,37 @@ export default function MemberFitgraphPortalPage() {
                   void post({ action: 'update_profile', photo_url: url })
                     .then((data) => {
                       setError(null);
-                      setMsg(
-                        (data.message as string) || PORTAL_PHOTO_SAVED_MESSAGE
-                      );
+                      setMsg((data.message as string) || 'Photo saved');
                     })
                     .catch((e: unknown) => {
                       setError(
-                        e instanceof Error ? e.message : 'Could not share photo'
+                        e instanceof Error ? e.message : 'Could not save photo'
                       );
                     });
                 }}
                 kind="client_photo"
                 label="Your photo"
-                description={PORTAL_PHOTO_SHARE_HINT}
                 disabled={busyId === 'profile'}
                 accentClass="border-yellow-300"
               />
+            ) : null}
+            {(portal.packs || []).length > 0 ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/10 dark:bg-white/5">
+                <p className="mb-1 text-[10px] font-black uppercase text-slate-500">
+                  Session packs
+                </p>
+                <ul className="space-y-1">
+                  {(portal.packs || []).map((p) => (
+                    <li
+                      key={p.id}
+                      className="text-xs font-semibold text-slate-700"
+                    >
+                      {p.label || 'Pack'}: <strong>{p.remaining}</strong> left
+                      {p.expires_at ? ` · exp ${p.expires_at.slice(0, 10)}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : null}
             <label className="block">
               <span className="text-[10px] font-bold uppercase text-slate-500">
@@ -1829,6 +1785,7 @@ export default function MemberFitgraphPortalPage() {
                 onChange={setDebitBank}
                 required={portal.require_debit_bank}
                 complete={portal.bank?.complete}
+                showCompleteHint={false}
               />
             ) : null}
             <PortalFamilyMembers
@@ -1895,6 +1852,9 @@ export default function MemberFitgraphPortalPage() {
             </button>
           </div>
         )}
+        {tab === 'profile' ? (
+          <MemberPortalInvoices invoices={portal.invoices} />
+        ) : null}
 
         <PopiaConsentNotice brand={portal.brand} />
         <p className="pb-4 text-center text-[10px] text-slate-400">

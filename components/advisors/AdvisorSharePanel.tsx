@@ -23,7 +23,7 @@ export function AdvisorSharePanel({
   email?: string;
   color: string;
   productLine: string;
-  hint: string;
+  hint?: string;
   lead: string;
   emailSubject: string;
   copiedOk: string;
@@ -66,14 +66,16 @@ export function AdvisorSharePanel({
 
   return (
     <div className="space-y-3">
-      <div>
-        <h2 className="text-base font-black text-slate-900 dark:text-white">
-          Share {brand}
-        </h2>
-        <p className="mt-0.5 text-xs leading-snug text-slate-500 dark:text-slate-400">
-          {hint}
-        </p>
-      </div>
+      {hint ? (
+        <div>
+          <h2 className="text-base font-black text-slate-900 dark:text-white">
+            Share {brand}
+          </h2>
+          <p className="mt-0.5 text-xs leading-snug text-slate-500 dark:text-slate-400">
+            {hint}
+          </p>
+        </div>
+      ) : null}
       <div
         className="rounded-3xl p-4"
         style={{ backgroundColor: color, color: ink }}

@@ -29,12 +29,15 @@ export function MemberDebitBankFields({
   required,
   complete,
   inputClass,
+  showCompleteHint = true,
 }: {
   value: DebitBankForm;
   onChange: (next: DebitBankForm) => void;
   required?: boolean;
   complete?: boolean;
   inputClass?: string;
+  /** Desk can confirm details are on file. Member PWA only nags when empty. */
+  showCompleteHint?: boolean;
 }) {
   const box = inputClass || 'mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm';
   const pickBank = (name: string) => {
@@ -57,11 +60,11 @@ export function MemberDebitBankFields({
           The gym owner sets up the debit order against this account. This is
           not a card or Apple Pay charge.
         </p>
-        {complete ? (
+        {complete && showCompleteHint ? (
           <p className="mt-1 text-[11px] font-bold text-emerald-800">
             Bank details on file — membership can complete.
           </p>
-        ) : required ? (
+        ) : !complete && required ? (
           <p className="mt-1 text-[11px] font-bold text-amber-800">
             Required to complete your membership.
           </p>

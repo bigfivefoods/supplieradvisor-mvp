@@ -91,7 +91,6 @@ export function GymShopPay({
   hideIdentity,
   hidePayAccepted,
   hideIntro,
-  joining,
   subscribedIds,
   classSubscribe,
   coaches,
@@ -114,7 +113,6 @@ export function GymShopPay({
   hideIdentity?: boolean;
   hidePayAccepted?: boolean;
   hideIntro?: boolean;
-  joining?: { fee_zar: number; waived?: boolean; note?: string } | null;
   subscribedIds?: string[];
   classSubscribe?: boolean;
   coaches?: GymShopCoach[];
@@ -262,14 +260,6 @@ export function GymShopPay({
             : 'Open a card for the details, then pay with card or Apple Pay.'}
         </p>
       )}
-      {joining ? (
-        <p className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
-          {joining.note ||
-            `Once-off joining R${joining.fee_zar}${
-              joining.waived ? ' — currently waived' : ''
-            }`}
-        </p>
-      ) : null}
       {!hideIdentity ? (
         <div className="grid gap-2 sm:grid-cols-3">
           <input

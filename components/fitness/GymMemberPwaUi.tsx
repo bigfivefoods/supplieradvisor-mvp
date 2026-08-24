@@ -469,7 +469,6 @@ export function GymSharePanel({
         email={email}
         color={color}
         productLine="GymAdvisor®"
-        hint="Send this gym to a friend. For new people, share a free class or the join form below — that is how membership grows."
         lead={`Train with ${brand} on GymAdvisor®`}
         emailSubject={`Train at ${brand}`}
         copiedOk="Gym details copied"

@@ -550,7 +550,6 @@ export default function EmbedFitgraphPage() {
             onPhone={setPhone}
             onBuy={(item) => void buy(item)}
             buyingId={buyingId}
-            joining={calendar.joining}
             classSubscribe={calendar.class_subscribe === true}
           />
         </AdvisorPublicSection>
