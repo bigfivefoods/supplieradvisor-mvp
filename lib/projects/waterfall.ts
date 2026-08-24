@@ -66,6 +66,47 @@ export function daysBetween(from: string, to: string): number {
   return Math.max(0, Math.round((b - a) / 86_400_000));
 }
 
+export function isIsoDay(v: unknown): v is string {
+  return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v.slice(0, 10));
+}
+
+/** Swap if end is before start so Gantt bars never invert. */
+export function clampDayRange(
+  start: string,
+  end: string
+): { start: string; end: string } {
+  const s = start.slice(0, 10);
+  const e = end.slice(0, 10);
+  if (e < s) return { start: e, end: s };
+  return { start: s, end: e };
+}
+
+/** Min start / max end across tasks — MS Project-style summary duration. */
+export function dateEnvelope(
+  pairs: Array<{ start?: string | null; end?: string | null }>
+): { start: string; end: string } | null {
+  const days: string[] = [];
+  const starts: string[] = [];
+  const ends: string[] = [];
+  for (const p of pairs) {
+    const s = p.start != null ? String(p.start).slice(0, 10) : '';
+    const e = p.end != null ? String(p.end).slice(0, 10) : '';
+    if (isIsoDay(s)) {
+      starts.push(s);
+      days.push(s);
+    }
+    if (isIsoDay(e)) {
+      ends.push(e);
+      days.push(e);
+    }
+  }
+  if (!days.length) return null;
+  days.sort();
+  const start = starts.length ? [...starts].sort()[0] : days[0];
+  const end = ends.length ? [...ends].sort().slice(-1)[0] : days[days.length - 1];
+  return clampDayRange(start, end);
+}
+
 export function dateRangeOverlaps(
   start: string | null | undefined,
   end: string | null | undefined,

@@ -16,8 +16,15 @@ import type {
   BookProfile,
   PortalCatalogueItem,
 } from '@/lib/portals/trade-portal-workspace';
-import { addDays, isoDay } from '@/lib/projects/waterfall';
+import {
+  addDays,
+  clampDayRange,
+  dateEnvelope,
+  daysBetween,
+  isoDay,
+} from '@/lib/projects/waterfall';
 import { WaterfallGantt } from '@/components/projects/WaterfallGantt';
+import { PortalRiadPanel } from '@/components/portals/PortalRiadPanel';
 
 export type GuestPortalTab =
   | 'profile'
@@ -119,10 +126,16 @@ export function GuestTradeWorkspace({
       if (!res.ok) throw new Error(data.error || 'Failed');
       setNote(
         payload.action === 'project_create'
-          ? 'Project created'
+          ? 'Project created — waterfall tasks span the full duration'
           : payload.action === 'po_create'
             ? 'Purchase order sent'
-            : 'Saved'
+            : payload.action === 'task_add'
+              ? 'Task added'
+              : payload.action === 'riad_add'
+                ? 'RIAD logged'
+                : payload.action === 'riad_delete'
+                  ? 'RIAD deleted'
+                  : 'Saved'
       );
       onRefresh();
     } catch (e) {
@@ -203,7 +216,13 @@ export function GuestTradeWorkspace({
         />
       ) : null}
       {tab === 'riad' ? (
-        <RiadPanel items={ws?.riad || []} busy={busy} onAct={act} />
+        <PortalRiadPanel
+          kind={portal.kind}
+          items={ws?.riad || []}
+          busy={busy}
+          ownerName={portal.viewer?.name || ''}
+          onAct={act}
+        />
       ) : null}
       {tab === 'messages' ? (
         <MessagesPanel items={ws?.messages || []} busy={busy} onAct={act} />
@@ -501,6 +520,20 @@ function ProfilePanel({
   );
 }
 
+function datedTasks(
+  tasks: NonNullable<PublicPortalPayload['workspace']>['projects'][number]['tasks'],
+  projectStart: string
+) {
+  let cursor = projectStart;
+  return tasks.map((t, i) => {
+    const rawStart = t.start_date || (i === 0 ? projectStart : cursor);
+    const rawEnd = t.due_date || addDays(rawStart, 6);
+    const range = clampDayRange(rawStart.slice(0, 10), rawEnd.slice(0, 10));
+    cursor = range.end;
+    return { ...t, start_date: range.start, due_date: range.end };
+  });
+}
+
 function ProjectsPanel({
   items,
   busy,
@@ -511,6 +544,8 @@ function ProjectsPanel({
   onAct: (p: Record<string, unknown>) => Promise<void>;
 }) {
   const [title, setTitle] = useState('');
+  const [taskStart, setTaskStart] = useState(isoDay(new Date()));
+  const [taskEnd, setTaskEnd] = useState(addDays(isoDay(new Date()), 7));
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newStart, setNewStart] = useState(isoDay(new Date()));
@@ -520,46 +555,91 @@ function ProjectsPanel({
     if (!projectId && items[0]?.id) setProjectId(items[0].id);
   }, [items, projectId]);
   const selected = items.find((p) => p.id === projectId) || items[0] || null;
-  const from =
-    items
-      .map((p) => p.start_date)
-      .filter(Boolean)
-      .sort()[0] || isoDay(new Date());
-  const to =
-    items
-      .map((p) => p.target_date)
-      .filter(Boolean)
-      .sort()
-      .slice(-1)[0] || addDays(from, 56);
-  const groups = items.map((p) => ({
-    id: String(p.id),
-    title: p.name,
-    subtitle: p.status,
-    bars: (p.tasks.length
-      ? p.tasks
-      : [
-          {
-            id: 0,
-            title: p.name,
-            column_key: p.status,
-            start_date: p.start_date,
-            due_date: p.target_date,
-            phase_key: null,
-          },
-        ]
-    ).map((t) => ({
-      id: String(t.id || `p-${p.id}`),
+
+  const planned = useMemo(() => {
+    return items.map((p) => {
+      const fallbackStart = p.start_date || isoDay(new Date());
+      const fallbackEnd = p.target_date || addDays(fallbackStart, 28);
+      const tasks = datedTasks(p.tasks, fallbackStart).sort((a, b) =>
+        String(a.start_date).localeCompare(String(b.start_date))
+      );
+      const env =
+        dateEnvelope(tasks.map((t) => ({ start: t.start_date, end: t.due_date }))) || {
+          start: fallbackStart,
+          end: fallbackEnd,
+        };
+      return { ...p, tasks, envelope: env };
+    });
+  }, [items]);
+
+  const selectedPlanned =
+    planned.find((p) => p.id === selected?.id) || planned[0] || null;
+
+  useEffect(() => {
+    if (!selectedPlanned) return;
+    const last = selectedPlanned.tasks[selectedPlanned.tasks.length - 1];
+    const start = last?.due_date || selectedPlanned.envelope.start;
+    setTaskStart(start);
+    setTaskEnd(addDays(start, 7));
+  }, [selectedPlanned?.id, selectedPlanned?.tasks.length]);
+
+  const chartEnv =
+    dateEnvelope(
+      planned.flatMap((p) => [
+        { start: p.envelope.start, end: p.envelope.end },
+        ...p.tasks.map((t) => ({ start: t.start_date, end: t.due_date })),
+      ])
+    ) || {
+      start: isoDay(new Date()),
+      end: addDays(isoDay(new Date()), 56),
+    };
+  const from = chartEnv.start;
+  const to = chartEnv.end;
+  const groups = planned.map((p) => {
+    const span = daysBetween(p.envelope.start, p.envelope.end) + 1;
+    const taskBars = p.tasks.map((t) => ({
+      id: String(t.id),
       label: t.title,
-      start: String(t.start_date || p.start_date || from).slice(0, 10),
-      end: String(t.due_date || p.target_date || to).slice(0, 10),
+      start: t.start_date,
+      end: t.due_date,
+      subtitle: `${t.start_date} → ${t.due_date}`,
       tone:
         t.column_key === 'done'
           ? ('emerald' as const)
           : t.column_key === 'in_progress'
             ? ('cyan' as const)
             : ('violet' as const),
-    })),
-  }));
+    }));
+    return {
+      id: String(p.id),
+      title: p.name,
+      subtitle: `${p.status} · ${p.envelope.start} → ${p.envelope.end} · ${span} day${
+        span === 1 ? '' : 's'
+      } · ${p.tasks.length} task${p.tasks.length === 1 ? '' : 's'}`,
+      bars:
+        taskBars.length > 0
+          ? [
+              {
+                id: `summary-${p.id}`,
+                label: p.name,
+                start: p.envelope.start,
+                end: p.envelope.end,
+                tone: 'slate' as const,
+                subtitle: 'Project duration (all tasks)',
+              },
+              ...taskBars,
+            ]
+          : [
+              {
+                id: `p-${p.id}`,
+                label: p.name,
+                start: p.envelope.start,
+                end: p.envelope.end,
+                tone: 'cyan' as const,
+              },
+            ],
+    };
+  });
 
   const createForm = (
     <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 space-y-3 dark:border-white/10 dark:bg-neutral-900">
@@ -567,8 +647,9 @@ function ProjectsPanel({
         New project
       </p>
       <p className="text-xs text-slate-500">
-        Opens a joint waterfall on both our books — name it, set dates, then add
-        tasks.
+        Opens a joint waterfall on both our books. Initiate → Close tasks are
+        dated so they add up to the project duration. Add more tasks with their
+        own start and end dates.
       </p>
       <input
         className="input w-full !p-3 !text-sm"
@@ -663,50 +744,126 @@ function ProjectsPanel({
               <p className="text-sm text-neutral-600 mt-1">{selected.description}</p>
             ) : null}
           </div>
-          {selected.tasks.map((t) => (
+          {selectedPlanned ? (
+            <p className="text-xs text-neutral-500">
+              Project duration is the envelope of every task (
+              {selectedPlanned.envelope.start} → {selectedPlanned.envelope.end},{' '}
+              {daysBetween(
+                selectedPlanned.envelope.start,
+                selectedPlanned.envelope.end
+              ) + 1}{' '}
+              days) — same as Microsoft Project.
+            </p>
+          ) : null}
+          {(selectedPlanned?.tasks || []).map((t) => (
             <div
               key={t.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-slate-50 px-3 py-2"
+              className="rounded-2xl bg-slate-50 px-3 py-2.5 space-y-2"
             >
-              <div>
-                <p className="text-sm font-bold text-slate-900">{t.title}</p>
-                <p className="text-[11px] text-neutral-500">
-                  {[t.start_date, t.due_date ? `→ ${t.due_date}` : null]
-                    .filter(Boolean)
-                    .join(' ')}
-                </p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-bold text-slate-900">{t.title}</p>
+                  {t.phase_key ? (
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#0077b6]">
+                      {t.phase_key}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="flex gap-1">
+                  {['todo', 'in_progress', 'done'].map((col) => (
+                    <button
+                      key={col}
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        void onAct({
+                          action: 'task_update',
+                          id: t.id,
+                          column_key: col,
+                        })
+                      }
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${
+                        t.column_key === col
+                          ? 'bg-[#00b4d8] border-[#00b4d8] text-white'
+                          : 'bg-white border-slate-200 text-slate-600'
+                      }`}
+                    >
+                      {col.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex gap-1">
-                {['todo', 'in_progress', 'done'].map((col) => (
-                  <button
-                    key={col}
-                    type="button"
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-[10px] font-bold uppercase text-neutral-400">
+                  Start
+                  <input
+                    type="date"
+                    className="input mt-0.5 w-full !py-1.5 !px-2 !text-sm"
+                    value={t.start_date}
                     disabled={busy}
-                    onClick={() =>
-                      void onAct({ action: 'task_update', id: t.id, column_key: col })
+                    onChange={(e) =>
+                      void onAct({
+                        action: 'task_update',
+                        id: t.id,
+                        start_date: e.target.value,
+                        due_date: t.due_date,
+                      })
                     }
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${
-                      t.column_key === col
-                        ? 'bg-[#00b4d8] border-[#00b4d8] text-white'
-                        : 'bg-white border-slate-200 text-slate-600'
-                    }`}
-                  >
-                    {col.replace('_', ' ')}
-                  </button>
-                ))}
+                  />
+                </label>
+                <label className="text-[10px] font-bold uppercase text-neutral-400">
+                  End
+                  <input
+                    type="date"
+                    className="input mt-0.5 w-full !py-1.5 !px-2 !text-sm"
+                    value={t.due_date}
+                    disabled={busy}
+                    onChange={(e) =>
+                      void onAct({
+                        action: 'task_update',
+                        id: t.id,
+                        start_date: t.start_date,
+                        due_date: e.target.value,
+                      })
+                    }
+                  />
+                </label>
               </div>
             </div>
           ))}
-          <div className="flex gap-2">
+          <div className="rounded-2xl border border-dashed border-slate-200 p-3 space-y-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+              Add a task
+            </p>
             <input
-              className="input flex-1 !py-2 !px-2.5 !text-sm"
-              placeholder="Add a task we share"
+              className="input w-full !py-2 !px-2.5 !text-sm"
+              placeholder="Task name *"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-[10px] font-bold uppercase text-neutral-400">
+                Start
+                <input
+                  type="date"
+                  className="input mt-0.5 w-full !py-1.5 !px-2 !text-sm"
+                  value={taskStart}
+                  onChange={(e) => setTaskStart(e.target.value)}
+                />
+              </label>
+              <label className="text-[10px] font-bold uppercase text-neutral-400">
+                End
+                <input
+                  type="date"
+                  className="input mt-0.5 w-full !py-1.5 !px-2 !text-sm"
+                  value={taskEnd}
+                  onChange={(e) => setTaskEnd(e.target.value)}
+                />
+              </label>
+            </div>
             <button
               type="button"
-              disabled={busy || !title.trim()}
+              disabled={busy || !title.trim() || !taskStart || !taskEnd}
               onClick={() => {
                 const t = title;
                 setTitle('');
@@ -714,11 +871,13 @@ function ProjectsPanel({
                   action: 'task_add',
                   project_id: selected.id,
                   title: t,
+                  start_date: taskStart,
+                  due_date: taskEnd,
                 });
               }}
-              className="btn-primary !py-2 !px-3 text-xs"
+              className="btn-primary w-full !py-2 !px-3 text-xs"
             >
-              Add
+              Add task
             </button>
           </div>
         </div>
@@ -1391,112 +1550,6 @@ function NewPoPanel({
                 : ''
             }`}
       </button>
-    </div>
-  );
-}
-
-function RiadPanel({
-  items,
-  busy,
-  onAct,
-}: {
-  items: NonNullable<PublicPortalPayload['workspace']>['riad'];
-  busy: boolean;
-  onAct: (p: Record<string, unknown>) => Promise<void>;
-}) {
-  const [title, setTitle] = useState('');
-  const [type, setType] = useState('issue');
-  const [desc, setDesc] = useState('');
-  const [comment, setComment] = useState<Record<number, string>>({});
-  return (
-    <div className="space-y-3">
-      <div className="rounded-[1.5rem] border border-white/70 bg-white/90 p-4 space-y-2">
-        <p className="text-xs font-black uppercase tracking-wider text-neutral-400">
-          Log a RIAD
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          <select
-            className="input !p-2 !text-sm"
-            value={type}
-            onChange={(e) => setType(e.target.value)}
-          >
-            <option value="risk">Risk</option>
-            <option value="issue">Issue</option>
-            <option value="action">Action</option>
-            <option value="decision">Decision</option>
-          </select>
-          <input
-            className="input !p-2 !text-sm"
-            placeholder="Title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-        </div>
-        <textarea
-          className="input w-full !p-2 !text-sm min-h-[64px]"
-          placeholder="Detail"
-          value={desc}
-          onChange={(e) => setDesc(e.target.value)}
-        />
-        <button
-          type="button"
-          disabled={busy || !title.trim()}
-          onClick={() =>
-            void onAct({
-              action: 'riad_add',
-              entry_type: type,
-              title,
-              description: desc,
-            })
-          }
-          className="btn-primary !py-2 !px-3 text-xs"
-        >
-          Add to register
-        </button>
-      </div>
-      {items.map((r) => (
-        <div
-          key={r.id}
-          className="rounded-[1.5rem] border border-white/70 bg-white/90 p-4"
-        >
-          <p className="text-[10px] font-bold uppercase tracking-wider text-[#0077b6]">
-            {r.entry_type} · {r.status}
-          </p>
-          <p className="font-bold text-slate-900">{r.title}</p>
-          {r.description ? (
-            <p className="text-sm text-neutral-600 mt-1">{r.description}</p>
-          ) : null}
-          {r.notes ? (
-            <pre className="mt-2 text-[11px] text-neutral-500 whitespace-pre-wrap font-sans">
-              {r.notes}
-            </pre>
-          ) : null}
-          <div className="mt-2 flex gap-2">
-            <input
-              className="input flex-1 !py-1.5 !px-2 !text-xs"
-              placeholder="Add a comment"
-              value={comment[r.id] || ''}
-              onChange={(e) =>
-                setComment((m) => ({ ...m, [r.id]: e.target.value }))
-              }
-            />
-            <button
-              type="button"
-              disabled={busy || !comment[r.id]}
-              onClick={() =>
-                void onAct({
-                  action: 'riad_comment',
-                  id: r.id,
-                  notes: comment[r.id],
-                })
-              }
-              className="btn-secondary !py-1.5 !px-2 text-xs"
-            >
-              Comment
-            </button>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }

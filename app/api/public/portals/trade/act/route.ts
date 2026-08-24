@@ -4,6 +4,14 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { resolveGuestViewer } from '@/lib/portals/portal-guest';
 import { clampStar } from '@/lib/ratings/company-rating';
 import { isSrmBuyerTransitionAllowed } from '@/lib/procurement/types';
+import {
+  addDays,
+  clampDayRange,
+  dateEnvelope,
+  isoDay,
+  seedWaterfallTasks,
+} from '@/lib/projects/waterfall';
+import { RIAD_STATUSES, RIAD_PRIORITIES, RIAD_TYPES } from '@/lib/containers/riad';
 
 const SUPPLIER_STATUS = ['accepted', 'invoiced'] as const;
 
@@ -109,7 +117,7 @@ export async function POST(request: NextRequest) {
     async function assertJointProject(projectId: number) {
       const { data: proj } = await supabase
         .from('pm_projects')
-        .select('id, customer_id, supplier_id, profile_id, metadata')
+        .select('id, customer_id, supplier_id, profile_id, metadata, start_date, target_date')
         .eq('id', projectId)
         .eq('profile_id', portal.profile_id)
         .maybeSingle();
@@ -134,7 +142,7 @@ export async function POST(request: NextRequest) {
       }
       const { data: task } = await supabase
         .from('pm_tasks')
-        .select('id, project_id, profile_id, description')
+        .select('id, project_id, profile_id, description, start_date, due_date')
         .eq('id', id)
         .eq('profile_id', portal.profile_id)
         .maybeSingle();
@@ -151,10 +159,30 @@ export async function POST(request: NextRequest) {
         patch.column_key = col;
         patch.status = col;
       }
+      if (typeof body.title === 'string' && body.title.trim()) {
+        patch.title = body.title.trim().slice(0, 200);
+      }
       if (typeof body.notes === 'string' && body.notes.trim()) {
         patch.description = [task.description, `[${viewer.name}] ${body.notes.trim()}`]
           .filter(Boolean)
           .join('\n');
+      }
+      const nextStart =
+        dayOrNull(body.start_date) ||
+        (task.start_date != null ? String(task.start_date).slice(0, 10) : null);
+      const nextEnd =
+        dayOrNull(body.due_date) ||
+        (task.due_date != null ? String(task.due_date).slice(0, 10) : null);
+      if (body.start_date !== undefined || body.due_date !== undefined) {
+        if (nextStart && nextEnd) {
+          const range = clampDayRange(nextStart, nextEnd);
+          patch.start_date = range.start;
+          patch.due_date = range.end;
+        } else if (nextStart) {
+          patch.start_date = nextStart;
+        } else if (nextEnd) {
+          patch.due_date = nextEnd;
+        }
       }
       const { error } = await supabase
         .from('pm_tasks')
@@ -164,6 +192,7 @@ export async function POST(request: NextRequest) {
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
+      await rollupJointProjectDates(supabase, portal.profile_id, Number(task.project_id));
       return NextResponse.json({ success: true });
     }
 
@@ -178,15 +207,11 @@ export async function POST(request: NextRequest) {
       if (portal.kind === 'supplier' && !viewer.supplier_id) {
         return NextResponse.json({ error: 'No book account' }, { status: 403 });
       }
-      const { isoDay, addDays } = await import('@/lib/projects/waterfall');
       const start =
-        body.start_date && /^\d{4}-\d{2}-\d{2}$/.test(String(body.start_date))
-          ? String(body.start_date).slice(0, 10)
-          : isoDay(new Date());
-      const target =
-        body.target_date && /^\d{4}-\d{2}-\d{2}$/.test(String(body.target_date))
-          ? String(body.target_date).slice(0, 10)
-          : addDays(start, 28);
+        dayOrNull(body.start_date) || isoDay(new Date());
+      const targetRaw =
+        dayOrNull(body.target_date) || addDays(start, 28);
+      const { start: startDay, end: target } = clampDayRange(start, targetRaw);
       const description = String(body.description || '').trim().slice(0, 2000);
       const insert: Record<string, unknown> = {
         profile_id: portal.profile_id,
@@ -194,7 +219,7 @@ export async function POST(request: NextRequest) {
         description: description || null,
         status: 'planning',
         health: 'green',
-        start_date: start,
+        start_date: startDay,
         target_date: target,
         customer_id: portal.kind === 'customer' ? viewer.customer_id : null,
         supplier_id: portal.kind === 'supplier' ? viewer.supplier_id : null,
@@ -220,17 +245,29 @@ export async function POST(request: NextRequest) {
       }
       const projectId = Number(ins.data?.id);
       if (projectId > 0) {
-        await supabase.from('pm_tasks').insert({
+        const seeds = seedWaterfallTasks(startDay, target);
+        const rows = seeds.map((s) => ({
           profile_id: portal.profile_id,
           project_id: projectId,
-          title: 'Kick-off',
-          status: 'todo',
-          column_key: 'todo',
-          start_date: start,
-          due_date: addDays(start, 7),
+          title: s.title,
+          status: s.status,
+          column_key: s.column_key,
+          start_date: s.start_date,
+          due_date: s.due_date,
+          phase_key: s.phase_key,
+          sort_order: s.sort_order,
           created_by: `portal:${viewer.name}`,
           updated_at: now,
-        });
+        }));
+        const seeded = await supabase.from('pm_tasks').insert(rows);
+        if (
+          seeded.error &&
+          /column|schema cache|does not exist/i.test(seeded.error.message)
+        ) {
+          await supabase.from('pm_tasks').insert(
+            rows.map(({ start_date: _s, phase_key: _p, ...rest }) => rest)
+          );
+        }
       }
       return NextResponse.json({ success: true, id: projectId || ins.data?.id });
     }
@@ -245,23 +282,65 @@ export async function POST(request: NextRequest) {
       if (!proj) {
         return NextResponse.json({ error: 'Not your project' }, { status: 403 });
       }
-      const row = {
+      const { data: existing } = await supabase
+        .from('pm_tasks')
+        .select('id, start_date, due_date, sort_order')
+        .eq('profile_id', portal.profile_id)
+        .eq('project_id', projectId)
+        .order('sort_order', { ascending: true });
+      const env = dateEnvelope(
+        (existing || []).map((t) => ({
+          start: t.start_date as string | null,
+          end: t.due_date as string | null,
+        }))
+      );
+      const defaultStart =
+        env?.end ||
+        dayOrNull((proj as { start_date?: string | null }).start_date) ||
+        isoDay(new Date());
+      const start = dayOrNull(body.start_date) || defaultStart;
+      const end =
+        dayOrNull(body.due_date) || addDays(start, 7);
+      const range = clampDayRange(start, end);
+      const sortOrder =
+        Number(
+          (existing || []).reduce(
+            (n, t) => Math.max(n, Number(t.sort_order) || 0),
+            -1
+          )
+        ) + 1;
+      const row: Record<string, unknown> = {
         profile_id: portal.profile_id,
         project_id: projectId,
         title: title.slice(0, 200),
         status: 'todo',
         column_key: 'todo',
+        start_date: range.start,
+        due_date: range.end,
+        sort_order: sortOrder,
         created_by: `portal:${viewer.name}`,
         updated_at: now,
       };
-      const { data, error } = await supabase
+      if (typeof body.phase_key === 'string' && body.phase_key) {
+        row.phase_key = String(body.phase_key).slice(0, 24);
+      }
+      let { data, error } = await supabase
         .from('pm_tasks')
         .insert(row)
         .select('id')
         .single();
+      if (error && /column|schema cache|does not exist/i.test(error.message)) {
+        const soft = { ...row };
+        delete soft.start_date;
+        delete soft.phase_key;
+        const retry = await supabase.from('pm_tasks').insert(soft).select('id').single();
+        data = retry.data;
+        error = retry.error;
+      }
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
+      await rollupJointProjectDates(supabase, portal.profile_id, projectId);
       return NextResponse.json({ success: true, id: data?.id });
     }
 
@@ -298,17 +377,29 @@ export async function POST(request: NextRequest) {
       if (!title) {
         return NextResponse.json({ error: 'Title required' }, { status: 400 });
       }
-      const entry = {
+      const entryType = RIAD_TYPES.some((t) => t.key === body.entry_type)
+        ? String(body.entry_type)
+        : 'issue';
+      const status = RIAD_STATUSES.some((s) => s.value === body.status)
+        ? String(body.status)
+        : 'open';
+      const severity = RIAD_PRIORITIES.some((p) => p.value === body.severity)
+        ? String(body.severity)
+        : String(body.priority || 'medium').slice(0, 20);
+      const entry: Record<string, unknown> = {
         profile_id: portal.profile_id,
-        entry_type: ['risk', 'issue', 'action', 'decision'].includes(
-          String(body.entry_type)
-        )
-          ? String(body.entry_type)
-          : 'issue',
+        entry_type: entryType,
         title: title.slice(0, 200),
         description: String(body.description || '').slice(0, 4000) || null,
-        status: 'open',
-        severity: String(body.severity || 'medium').slice(0, 20),
+        status,
+        severity,
+        owner_name:
+          String(body.owner_name || viewer.name || '').trim().slice(0, 120) ||
+          null,
+        due_date: dayOrNull(body.due_date),
+        category: String(body.category || '').trim().slice(0, 80) || null,
+        mitigation_plan:
+          String(body.mitigation_plan || '').trim().slice(0, 4000) || null,
         notes: String(body.notes || '').slice(0, 4000) || null,
         created_by: `portal:${viewer.name}`,
         updated_at: now,
@@ -319,15 +410,171 @@ export async function POST(request: NextRequest) {
         portal.kind === 'customer'
           ? { customer_id: viewer.customer_id }
           : { supplier_id: viewer.supplier_id };
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from(table)
         .insert({ ...entry, ...extra })
         .select('id')
         .single();
+      if (error && /column|schema cache|does not exist/i.test(error.message || '')) {
+        const minimal = {
+          profile_id: portal.profile_id,
+          ...extra,
+          entry_type: entryType,
+          title: entry.title,
+          description: entry.description,
+          status,
+          severity,
+          owner_name: entry.owner_name,
+          due_date: entry.due_date,
+          notes: entry.notes,
+          created_by: entry.created_by,
+          updated_at: now,
+        };
+        const retry = await supabase.from(table).insert(minimal).select('id').single();
+        data = retry.data;
+        error = retry.error;
+      }
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
       return NextResponse.json({ success: true, id: data?.id });
+    }
+
+    if (action === 'riad_update') {
+      const id = Number(body.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return NextResponse.json({ error: 'id required' }, { status: 400 });
+      }
+      const table =
+        portal.kind === 'customer' ? 'customer_riad' : 'supplier_riad';
+      const accountCol =
+        portal.kind === 'customer' ? 'customer_id' : 'supplier_id';
+      const accountId =
+        portal.kind === 'customer' ? viewer.customer_id : viewer.supplier_id;
+      if (!accountId) {
+        return NextResponse.json({ error: 'No book account' }, { status: 403 });
+      }
+      const { data: existing } = await supabase
+        .from(table)
+        .select('id, notes, status')
+        .eq('id', id)
+        .eq('profile_id', portal.profile_id)
+        .eq(accountCol, accountId)
+        .maybeSingle();
+      if (!existing) {
+        return NextResponse.json({ error: 'RIAD not found' }, { status: 404 });
+      }
+      const updates: Record<string, unknown> = { updated_at: now };
+      if (typeof body.title === 'string' && body.title.trim()) {
+        updates.title = body.title.trim().slice(0, 200);
+      }
+      if (body.description !== undefined) {
+        updates.description = String(body.description || '').slice(0, 4000) || null;
+      }
+      if (typeof body.status === 'string' && body.status) {
+        const st = RIAD_STATUSES.some((s) => s.value === body.status)
+          ? String(body.status)
+          : String(body.status).slice(0, 24);
+        updates.status = st;
+        if (st === 'closed' || st === 'resolved') {
+          updates.closed_at = now;
+        }
+        if (st === 'open' || st === 'in_progress' || st === 'on_hold') {
+          updates.closed_at = null;
+        }
+      }
+      if (typeof body.severity === 'string' && body.severity) {
+        updates.severity = String(body.severity).slice(0, 20);
+      }
+      if (body.priority !== undefined && body.severity === undefined) {
+        updates.severity = String(body.priority).slice(0, 20);
+      }
+      if (body.owner_name !== undefined) {
+        updates.owner_name = String(body.owner_name || '').trim().slice(0, 120) || null;
+      }
+      if (body.due_date !== undefined) {
+        updates.due_date = dayOrNull(body.due_date);
+      }
+      if (body.category !== undefined) {
+        updates.category = String(body.category || '').trim().slice(0, 80) || null;
+      }
+      if (body.mitigation_plan !== undefined) {
+        updates.mitigation_plan =
+          String(body.mitigation_plan || '').trim().slice(0, 4000) || null;
+      }
+      if (body.resolution !== undefined) {
+        updates.resolution = String(body.resolution || '').trim().slice(0, 4000) || null;
+      }
+      if (typeof body.notes === 'string' && body.notes.trim() && body.append_note) {
+        updates.notes = [existing.notes, `[${viewer.name}] ${body.notes.trim()}`]
+          .filter(Boolean)
+          .join('\n');
+      } else if (body.notes !== undefined && !body.append_note) {
+        updates.notes = String(body.notes || '').slice(0, 4000) || null;
+      }
+      let { error } = await supabase
+        .from(table)
+        .update(updates)
+        .eq('id', id)
+        .eq('profile_id', portal.profile_id)
+        .eq(accountCol, accountId);
+      if (error && /column|schema cache|does not exist/i.test(error.message || '')) {
+        const safe: Record<string, unknown> = { updated_at: now };
+        for (const k of [
+          'title',
+          'description',
+          'status',
+          'severity',
+          'owner_name',
+          'due_date',
+          'notes',
+          'closed_at',
+        ]) {
+          if (updates[k] !== undefined) safe[k] = updates[k];
+        }
+        if (updates.resolution) {
+          safe.description = [updates.description || existing.status, `Resolution: ${updates.resolution}`]
+            .filter(Boolean)
+            .join('\n\n');
+        }
+        const retry = await supabase
+          .from(table)
+          .update(safe)
+          .eq('id', id)
+          .eq('profile_id', portal.profile_id)
+          .eq(accountCol, accountId);
+        error = retry.error;
+      }
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'riad_delete') {
+      const id = Number(body.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return NextResponse.json({ error: 'id required' }, { status: 400 });
+      }
+      const table =
+        portal.kind === 'customer' ? 'customer_riad' : 'supplier_riad';
+      const accountCol =
+        portal.kind === 'customer' ? 'customer_id' : 'supplier_id';
+      const accountId =
+        portal.kind === 'customer' ? viewer.customer_id : viewer.supplier_id;
+      if (!accountId) {
+        return NextResponse.json({ error: 'No book account' }, { status: 403 });
+      }
+      const { error } = await supabase
+        .from(table)
+        .delete()
+        .eq('id', id)
+        .eq('profile_id', portal.profile_id)
+        .eq(accountCol, accountId);
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      return NextResponse.json({ success: true, deleted: true });
     }
 
     if (action === 'riad_comment') {
@@ -338,11 +585,19 @@ export async function POST(request: NextRequest) {
       }
       const table =
         portal.kind === 'customer' ? 'customer_riad' : 'supplier_riad';
+      const accountCol =
+        portal.kind === 'customer' ? 'customer_id' : 'supplier_id';
+      const accountId =
+        portal.kind === 'customer' ? viewer.customer_id : viewer.supplier_id;
+      if (!accountId) {
+        return NextResponse.json({ error: 'No book account' }, { status: 403 });
+      }
       const { data: existing } = await supabase
         .from(table)
         .select('id, notes, profile_id')
         .eq('id', id)
         .eq('profile_id', portal.profile_id)
+        .eq(accountCol, accountId)
         .maybeSingle();
       if (!existing) {
         return NextResponse.json({ error: 'RIAD not found' }, { status: 404 });
@@ -354,7 +609,8 @@ export async function POST(request: NextRequest) {
         .from(table)
         .update({ notes: next, updated_at: now })
         .eq('id', id)
-        .eq('profile_id', portal.profile_id);
+        .eq('profile_id', portal.profile_id)
+        .eq(accountCol, accountId);
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
@@ -754,4 +1010,37 @@ export async function POST(request: NextRequest) {
 function asObj(v: unknown): Record<string, unknown> {
   if (v && typeof v === 'object' && !Array.isArray(v)) return v as Record<string, unknown>;
   return {};
+}
+
+function dayOrNull(v: unknown): string | null {
+  const s = String(v || '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+}
+
+async function rollupJointProjectDates(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  companyId: number,
+  projectId: number
+) {
+  const { data } = await supabase
+    .from('pm_tasks')
+    .select('start_date, due_date')
+    .eq('profile_id', companyId)
+    .eq('project_id', projectId);
+  const env = dateEnvelope(
+    (data || []).map((t) => ({
+      start: t.start_date as string | null,
+      end: t.due_date as string | null,
+    }))
+  );
+  if (!env) return;
+  await supabase
+    .from('pm_projects')
+    .update({
+      start_date: env.start,
+      target_date: env.end,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', projectId)
+    .eq('profile_id', companyId);
 }

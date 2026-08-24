@@ -1,6 +1,7 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { productAssignedToCustomer } from '@/lib/inventory/customer-brand';
 import { otifefForLine, rollupOtifef } from '@/lib/portals/otifef-line';
+import { dateEnvelope } from '@/lib/projects/waterfall';
 import type { OtifefMetrics } from '@/lib/suppliers/types';
 import type {
   PortalMessageView,
@@ -23,6 +24,33 @@ function asObject(raw: unknown): Record<string, unknown> {
 
 function metaOf(row: Record<string, unknown>): Record<string, unknown> {
   return asObject(row.metadata);
+}
+
+function strOrNull(v: unknown): string | null {
+  if (v == null) return null;
+  const s = String(v);
+  return s.trim() ? s : null;
+}
+
+function mapPortalRiad(r: Record<string, unknown>): PortalRiadView {
+  return {
+    id: Number(r.id),
+    entry_type: String(r.entry_type || r.riad_type || 'issue'),
+    title: String(r.title || ''),
+    description: strOrNull(r.description),
+    status: String(r.status || 'open'),
+    severity: strOrNull(r.severity) || strOrNull(r.priority) || 'medium',
+    notes: strOrNull(r.notes),
+    created_at: r.created_at != null ? String(r.created_at) : null,
+    owner_name: strOrNull(r.owner_name),
+    due_date: r.due_date != null ? String(r.due_date).slice(0, 10) : null,
+    category: strOrNull(r.category),
+    mitigation_plan: strOrNull(r.mitigation_plan),
+    resolution: strOrNull(r.resolution),
+    closed_at: r.closed_at != null ? String(r.closed_at) : null,
+    created_by: strOrNull(r.created_by),
+    updated_at: r.updated_at != null ? String(r.updated_at) : null,
+  };
 }
 
 export type BookProfile = {
@@ -460,43 +488,25 @@ export async function loadPortalWorkspace(opts: {
   if (kind === 'customer' && opts.viewer.customer_id) {
     const { data } = await supabase
       .from('customer_riad')
-      .select('id, entry_type, title, description, status, severity, notes, created_at')
+      .select('*')
       .eq('profile_id', companyId)
       .eq('customer_id', opts.viewer.customer_id)
       .order('created_at', { ascending: false })
       .limit(80);
     for (const r of data || []) {
-      riad.push({
-        id: Number(r.id),
-        entry_type: String(r.entry_type || 'issue'),
-        title: String(r.title || ''),
-        description: r.description != null ? String(r.description) : null,
-        status: String(r.status || 'open'),
-        severity: r.severity != null ? String(r.severity) : null,
-        notes: r.notes != null ? String(r.notes) : null,
-        created_at: r.created_at != null ? String(r.created_at) : null,
-      });
+      riad.push(mapPortalRiad(asObject(r)));
     }
   }
   if (kind === 'supplier' && opts.viewer.supplier_id) {
     const { data } = await supabase
       .from('supplier_riad')
-      .select('id, entry_type, title, description, status, severity, notes, created_at')
+      .select('*')
       .eq('profile_id', companyId)
       .eq('supplier_id', opts.viewer.supplier_id)
       .order('created_at', { ascending: false })
       .limit(80);
     for (const r of data || []) {
-      riad.push({
-        id: Number(r.id),
-        entry_type: String(r.entry_type || 'issue'),
-        title: String(r.title || ''),
-        description: r.description != null ? String(r.description) : null,
-        status: String(r.status || 'open'),
-        severity: r.severity != null ? String(r.severity) : null,
-        notes: r.notes != null ? String(r.notes) : null,
-        created_at: r.created_at != null ? String(r.created_at) : null,
-      });
+      riad.push(mapPortalRiad(asObject(r)));
     }
   }
 
@@ -558,15 +568,23 @@ export async function loadPortalWorkspace(opts: {
     }
   }
   for (const p of projRows || []) {
+    const tasks = taskByProject.get(Number(p.id)) || [];
+    const env = dateEnvelope(
+      tasks.map((t) => ({ start: t.start_date, end: t.due_date }))
+    );
     projects.push({
       id: Number(p.id),
       name: String(p.name || `Project #${p.id}`),
       status: String(p.status || 'planning'),
       health: p.health != null ? String(p.health) : null,
-      start_date: p.start_date != null ? String(p.start_date).slice(0, 10) : null,
-      target_date: p.target_date != null ? String(p.target_date).slice(0, 10) : null,
+      start_date:
+        env?.start ||
+        (p.start_date != null ? String(p.start_date).slice(0, 10) : null),
+      target_date:
+        env?.end ||
+        (p.target_date != null ? String(p.target_date).slice(0, 10) : null),
       description: p.description != null ? String(p.description) : null,
-      tasks: taskByProject.get(Number(p.id)) || [],
+      tasks,
     });
   }
 

@@ -117,6 +117,14 @@ export type PortalRiadView = {
   severity: string | null;
   notes: string | null;
   created_at: string | null;
+  owner_name?: string | null;
+  due_date?: string | null;
+  category?: string | null;
+  mitigation_plan?: string | null;
+  resolution?: string | null;
+  closed_at?: string | null;
+  created_by?: string | null;
+  updated_at?: string | null;
 };
 
 export type PortalMessageView = {

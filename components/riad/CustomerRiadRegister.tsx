@@ -816,6 +816,11 @@ export default function CustomerRiadRegister({
                 {detail.mitigation_plan}
               </div>
             )}
+            {detail.notes && (
+              <pre className="mb-4 text-[11px] text-neutral-600 whitespace-pre-wrap font-sans rounded-2xl bg-slate-50 p-3 border">
+                {detail.notes}
+              </pre>
+            )}
             {detail.resolution && (
               <div className="mb-4 p-3 rounded-2xl bg-neutral-50 text-sm text-slate-700 border">
                 <div className="font-semibold mb-1 text-neutral-600">Resolution / close note</div>
