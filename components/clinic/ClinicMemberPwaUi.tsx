@@ -24,13 +24,25 @@ export {
 
 export function clinicMemberDockTabs({
   messagesUnread,
+  photoUrl,
 }: {
   messagesUnread?: number;
+  photoUrl?: string | null;
 }): {
   tabs: MemberAdvisorTab<ClinicMemberTabId>[];
   mobileTabs: MemberAdvisorTab<ClinicMemberTabId>[];
 } {
   const unread = messagesUnread || undefined;
+  const youIcon = photoUrl ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={photoUrl}
+      alt=""
+      className="h-14 w-14 rounded-full object-cover"
+    />
+  ) : (
+    <User />
+  );
   const tabs: MemberAdvisorTab<ClinicMemberTabId>[] = [
     { id: 'mine', label: 'Book', icon: <CalendarCheck /> },
     { id: 'open', label: 'Schedule', icon: <CalendarDays /> },
@@ -55,7 +67,7 @@ export function clinicMemberDockTabs({
     {
       id: 'profile',
       label: 'You',
-      icon: <User />,
+      icon: youIcon,
       badge: unread,
       covers: ['profile', 'messages', 'history'] as ClinicMemberTabId[],
       emphasis: true,
@@ -169,7 +181,6 @@ export function ClinicSharePanel({
       email={email}
       color={color}
       productLine={productLine}
-      hint="Send this practice to a friend on WhatsApp, socials, or copy the link."
       lead={`See ${brand} on ${productLine}`}
       emailSubject={`See ${brand}`}
       copiedOk="Practice details copied"

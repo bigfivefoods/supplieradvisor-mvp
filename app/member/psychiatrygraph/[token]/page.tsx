@@ -5,19 +5,13 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Loader2, User, X } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
-import {
-  PORTAL_PHOTO_SAVED_MESSAGE,
-  PORTAL_PHOTO_SHARE_HINT,
-} from '@/lib/services/portal-profile';
 import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
 import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
-import { VerifiedBadge } from '@/components/services/VerifiedBadge';
 import { PortalMessagesPanel } from '@/components/services/PortalMessagesPanel';
 import { PortalWaitlistReschedule } from '@/components/services/PortalWaitlistReschedule';
 import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
-import { B2cAutoLinkBanner } from '@/components/b2c/B2cAutoLinkBanner';
 import { MemberAnnouncementsFeed } from '@/components/services/MemberAnnouncementsFeed';
 import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
 import { MemberAdvisorShell } from '@/components/advisors/MemberAdvisorShell';
@@ -326,6 +320,7 @@ export default function MemberPsychiatrygraphPortalPage() {
 
   const dock = clinicMemberDockTabs({
     messagesUnread: portal.messages_unread,
+    photoUrl: portal.patient.photo_url,
   });
   const youTab = isClinicYouTab(tab);
 
@@ -349,43 +344,13 @@ export default function MemberPsychiatrygraphPortalPage() {
       tabs={dock.tabs}
       mobileTabs={dock.mobileTabs}
       header={
-        <div>
-          <MemberPortalBrandLockup
-            logoUrl={portal.logo_url}
-            brand={portal.brand}
-            eyebrow="Patient portal · PsychiatryAdvisor®"
-          />
-          <div className="mt-4 flex items-end gap-3">
-            {portal.patient.photo_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={portal.patient.photo_url}
-                alt=""
-                className="h-12 w-12 rounded-full object-cover border-2 border-white/40"
-              />
-            ) : (
-              <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
-                <User className="w-6 h-6" />
-              </div>
-            )}
-            <div>
-              <p className="font-bold inline-flex flex-wrap items-center gap-2">{portal.patient.name}
-                <VerifiedBadge
-                  verified={portal.patient.identity?.is_verified}
-                  provider={portal.patient.identity?.provider}
-                  name={portal.patient.identity?.verified_name}
-                  className="!bg-white/20 !text-white !border-white/30"
-                /></p>
-              <p className="text-xs text-white/85">
-                {portal.patient.status || 'Patient'} · {portal.open_count} open
-                slots
-              </p>
-            </div>
-          </div>
-        </div>
+        <MemberPortalBrandLockup
+          logoUrl={portal.logo_url}
+          brand={portal.brand}
+          eyebrow="Patient · PsychiatryAdvisor®"
+        />
       }
     >
-        {youTab ? <B2cAutoLinkBanner token={token} tone="rose" /> : null}
         <ClinicFlash error={error} msg={msg} />
         {youTab ? (
           <div className="space-y-3">
@@ -604,25 +569,7 @@ export default function MemberPsychiatrygraphPortalPage() {
 
         {tab === 'profile' && (
           <div className="space-y-4">
-          <ClinicSectionTitle hint="Your profile, scripts on file, and appointment and account history.">
-            You
-          </ClinicSectionTitle>
-          <MemberMedicalShare
-            share={portal.medical_share}
-            plans={portal.treatment_plans}
-            advice={portal.shared_advice}
-            followUps={portal.follow_ups}
-            tone="rose"
-            heading="Scripts on your file"
-          />
-          <MemberPortalInvoices invoices={portal.invoices} />
-          <MemberPortalClaims claims={portal.claims} />
           <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
-            <p className="text-sm font-black text-slate-900">Your profile</p>
-            <p className="text-xs text-slate-500">
-              Changes sync to the clinic chart and your SA Member wallet. Email
-              is used for invites and care messages.
-            </p>
             {companyId != null ? (
               <ProfilePhotoField
                 companyId={companyId}
@@ -632,19 +579,16 @@ export default function MemberPsychiatrygraphPortalPage() {
                   void post({ action: 'update_profile', photo_url: url })
                     .then((data) => {
                       setError(null);
-                      setMsg(
-                        (data.message as string) || PORTAL_PHOTO_SAVED_MESSAGE
-                      );
+                      setMsg((data.message as string) || 'Photo saved');
                     })
                     .catch((e: unknown) => {
                       setError(
-                        e instanceof Error ? e.message : 'Could not share photo'
+                        e instanceof Error ? e.message : 'Could not save photo'
                       );
                     });
                 }}
                 kind="patient_photo"
                 label="Your photo"
-                description={PORTAL_PHOTO_SHARE_HINT}
                 disabled={busyId === 'profile'}
                 accentClass="border-indigo-300"
               />
