@@ -33,6 +33,7 @@ import { sessionIsUpcoming } from '@/lib/fitness/gym-local-time';
 import type { MemberRelationshipPayload } from '@/components/services/MemberRelationshipSection';
 import { MemberGoalsPanel } from '@/components/fitness/MemberGoalsPanel';
 import { MemberProgrammeFollow } from '@/components/fitness/MemberProgrammeFollow';
+import type { MemberProgrammeFollowView } from '@/lib/fitness/programme-follow';
 import { MemberOpenDiaryWeek } from '@/components/fitness/MemberOpenDiaryWeek';
 import type { MemberGoalView } from '@/lib/fitness/member-goals';
 import { ProgrammeView } from '@/components/fitness/ProgrammeView';
