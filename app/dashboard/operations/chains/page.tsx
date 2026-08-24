@@ -13,6 +13,7 @@ import {
 } from '@/components/operations/OperationsShell';
 import OrderChainCard from '@/components/orders/OrderChainCard';
 import { OrderChainPath } from '@/components/orders/OrderChainPath';
+import { OrderChainSetupBoard } from '@/components/orders/OrderChainSetup';
 
 /**
  * Operations tower — linked SO → PO chains with commercial snapshot.
@@ -82,7 +83,7 @@ function ChainsInner() {
       <OperationsHeader
         title="Order"
         titleAccent="chains"
-        description="Customer purchase order → your sales order → supplier purchase order → production → delivery → feedback. Cost and margin stay on this page."
+        description="Set up who orders, which of your products, and who makes them. Live sales orders then follow that path: purchase order → sales order → production → delivery → feedback."
         action={
           <button
             type="button"
@@ -127,6 +128,26 @@ function ChainsInner() {
             </p>
           </div>
         </div>
+      </div>
+
+      {privyUserId ? (
+        <div className="mb-8">
+          <OrderChainSetupBoard
+            companyId={companyId}
+            privyUserId={privyUserId}
+          />
+        </div>
+      ) : null}
+
+      <div className="mb-3">
+        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
+          Live orders
+        </p>
+        <h2 className="text-lg font-black text-slate-900">Linked sales orders</h2>
+        <p className="text-sm text-slate-500">
+          Once a customer PO lands, the matching chain raises a supplier PO.
+          Track production here.
+        </p>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">

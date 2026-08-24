@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCompanyMember, logActivity } from '@/lib/customers/access';
-import { raiseLinkedPoFromSo } from '@/lib/orders/raise-linked-po';
+import {
+  raiseFulfillmentPosFromSo,
+  raiseLinkedPoFromSo,
+} from '@/lib/orders/raise-linked-po';
 
 /**
  * POST /api/orders/raise-linked-po
@@ -28,7 +31,10 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = getSupabaseServer();
-    const result = await raiseLinkedPoFromSo({
+    const pickedSupplier =
+      (body.srmSupplierId && Number(body.srmSupplierId) > 0) ||
+      (body.supplierProfileId && Number(body.supplierProfileId) > 0);
+    const args = {
       supabase,
       companyId,
       salesOrderId,
@@ -41,7 +47,10 @@ export async function POST(req: NextRequest) {
       allowMultipleLinks: body.allowMultipleLinks === true,
       promisedDate: body.promised_date ? String(body.promised_date) : null,
       paymentTerms: body.payment_terms ? String(body.payment_terms) : null,
-    });
+    };
+    const result = pickedSupplier
+      ? await raiseLinkedPoFromSo(args)
+      : await raiseFulfillmentPosFromSo(args);
 
     if (result.skipped && result.code === 'ALREADY_LINKED') {
       return NextResponse.json(

@@ -8,6 +8,12 @@ import { docNumber } from '@/lib/customers/documents';
 import { mapSoItemsToPoItems } from '@/lib/orders/map-so-to-po-items';
 import { notifyLinkedPoCreated } from '@/lib/orders/notify-chain';
 import { resolvePreferredSupplier } from '@/lib/orders/preferred-supplier';
+import {
+  groupSoItemsByChain,
+  mapChainSetup,
+  type OrderChainSetup,
+} from '@/lib/orders/chain-setup';
+import { isMissingRelation } from '@/lib/business/company-data';
 
 export type RaiseLinkedPoInput = {
   supabase: SupabaseClient;
@@ -21,6 +27,9 @@ export type RaiseLinkedPoInput = {
   allowMultipleLinks?: boolean;
   promisedDate?: string | null;
   paymentTerms?: string | null;
+  /** When splitting an SO across manufacturers, pass only this group's lines. */
+  itemsOverride?: unknown;
+  chainSetupId?: number | null;
 };
 
 export type RaiseLinkedPoResult = {
@@ -158,7 +167,8 @@ export async function raiseLinkedPoFromSo(
     };
   }
 
-  const soItems = so.items;
+  const soItems =
+    input.itemsOverride !== undefined ? input.itemsOverride : so.items;
   const productIds: number[] = [];
   if (Array.isArray(soItems)) {
     for (const row of soItems) {
@@ -219,6 +229,7 @@ export async function raiseLinkedPoFromSo(
       book_only: !supplierProfileId,
       raise_linked_po: true,
       preferred_source: preferredSource,
+      chain_setup_id: input.chainSetupId || null,
       hide_customer_commercial: true,
     },
     created_at: now,
@@ -298,5 +309,108 @@ export async function raiseLinkedPoFromSo(
     link: linkErr ? null : (link as Record<string, unknown>),
     preferredSource,
     warning: linkErr ? `PO created but link failed: ${linkErr.message}` : undefined,
+  };
+}
+
+async function loadChainSetups(
+  supabase: SupabaseClient,
+  companyId: number
+): Promise<OrderChainSetup[]> {
+  const { data, error } = await supabase
+    .from('order_chain_setups')
+    .select('*')
+    .eq('profile_id', companyId)
+    .eq('status', 'active')
+    .limit(200);
+  if (error) {
+    if (!isMissingRelation(error)) {
+      console.warn('order_chain_setups', error.message);
+    }
+    return [];
+  }
+  return (data || [])
+    .map(mapChainSetup)
+    .filter((s): s is OrderChainSetup => !!s);
+}
+
+/**
+ * Raise one or more manufacturer POs from an SO using order-chain setups
+ * (customer + products + supplier). Unmatched lines fall back to company preferred.
+ */
+export async function raiseFulfillmentPosFromSo(
+  input: RaiseLinkedPoInput
+): Promise<RaiseLinkedPoResult & { raised: number }> {
+  const supabase = input.supabase;
+  let so = input.salesOrder || null;
+  if (!so) {
+    const hit = await supabase
+      .from('sales_orders')
+      .select('*')
+      .eq('id', input.salesOrderId)
+      .eq('profile_id', input.companyId)
+      .maybeSingle();
+    so = hit.data as Record<string, unknown> | null;
+  }
+  if (!so) {
+    return {
+      ok: false,
+      error: 'Sales order not found',
+      code: 'SO_NOT_FOUND',
+      raised: 0,
+    };
+  }
+
+  const setups = await loadChainSetups(supabase, input.companyId);
+  const customerId = Number(so.customer_id);
+  const groups = groupSoItemsByChain(
+    so.items,
+    setups,
+    Number.isFinite(customerId) && customerId > 0 ? customerId : null
+  );
+
+  const assigned = groups.filter((g) => g.srmSupplierId);
+  if (!assigned.length || setups.length === 0) {
+    const one = await raiseLinkedPoFromSo(input);
+    return { ...one, raised: one.ok && !one.skipped ? 1 : 0 };
+  }
+
+  let last: RaiseLinkedPoResult = {
+    ok: false,
+    error: 'No manufacturer PO raised',
+  };
+  let raised = 0;
+  let i = 0;
+  for (const g of assigned) {
+    const result = await raiseLinkedPoFromSo({
+      ...input,
+      salesOrder: so,
+      srmSupplierId: g.srmSupplierId,
+      itemsOverride: g.items,
+      allowMultipleLinks: i > 0 || input.allowMultipleLinks === true,
+      chainSetupId: g.setupId,
+    });
+    last = result;
+    if (result.ok && !result.skipped) raised += 1;
+    i += 1;
+  }
+  const unmatched = groups.find((g) => !g.srmSupplierId);
+  if (unmatched && unmatched.items.length) {
+    const result = await raiseLinkedPoFromSo({
+      ...input,
+      salesOrder: so,
+      itemsOverride: unmatched.items,
+      allowMultipleLinks: raised > 0 || input.allowMultipleLinks === true,
+      srmSupplierId: undefined,
+      supplierProfileId: undefined,
+    });
+    last = result;
+    if (result.ok && !result.skipped) raised += 1;
+  }
+
+  return {
+    ...last,
+    ok: raised > 0 || last.ok,
+    raised,
+    preferredSource: raised ? 'chain_setup' : last.preferredSource,
   };
 }

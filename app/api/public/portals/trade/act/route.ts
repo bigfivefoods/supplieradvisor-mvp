@@ -31,7 +31,7 @@ import {
 } from '@/lib/portals/portal-documents';
 import { cascadeFromPo } from '@/lib/orders/cascade';
 import { notifyProductionCascade } from '@/lib/orders/notify-chain';
-import { raiseLinkedPoFromSo } from '@/lib/orders/raise-linked-po';
+import { raiseFulfillmentPosFromSo } from '@/lib/orders/raise-linked-po';
 import {
   PRODUCTION_STATUS_OPTIONS,
   type ProductionStatus,
@@ -1307,7 +1307,7 @@ export async function POST(request: NextRequest) {
       let chainWarning: string | undefined;
       if (so.data?.id) {
         try {
-          const linked = await raiseLinkedPoFromSo({
+          const linked = await raiseFulfillmentPosFromSo({
             supabase,
             companyId: portal.profile_id,
             salesOrderId: Number(so.data.id),
