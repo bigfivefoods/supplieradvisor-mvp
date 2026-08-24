@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Check,
   Copy,
+  Eye,
   Globe,
   Loader2,
   Mail,
@@ -80,6 +81,48 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
   });
   const [adding, setAdding] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+
+  const accountName = (v: TradePortalViewer) => {
+    const id = isCustomer ? v.customer_id : v.supplier_id;
+    if (!id) return null;
+    const hit = accounts.find((a) => a.id === id);
+    return hit?.name || `${noun} #${id}`;
+  };
+
+  /** Group viewers by linked customer/supplier so you can open each account's portal view */
+  const portalGroups = (() => {
+    const map = new Map<
+      string,
+      {
+        key: string;
+        accountId: number | null;
+        label: string;
+        viewers: TradePortalViewer[];
+        activeCount: number;
+      }
+    >();
+    for (const v of viewers) {
+      const id = isCustomer ? v.customer_id : v.supplier_id;
+      const key = id != null ? `a-${id}` : `p-${v.id}`;
+      const label =
+        id != null
+          ? accounts.find((a) => a.id === id)?.name || `${noun} #${id}`
+          : v.name || 'Unlinked person';
+      const g = map.get(key) || {
+        key,
+        accountId: id,
+        label,
+        viewers: [] as TradePortalViewer[],
+        activeCount: 0,
+      };
+      g.viewers.push(v);
+      if (v.status === 'active') g.activeCount += 1;
+      map.set(key, g);
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      a.label.localeCompare(b.label)
+    );
+  })();
 
   const qs = () => {
     const p = new URLSearchParams({
@@ -324,11 +367,10 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
         <Panel className="lg:col-span-3" title="What they see">
           <div className="p-5 space-y-4">
             <p className="text-sm text-neutral-600 leading-relaxed">
-              One <strong>customer portal</strong> and one{' '}
-              <strong>supplier portal</strong> per company. Add as many people as
-              you need. Each person must sit on a {noun} already on your books
-              so they only see that account's orders, OTIFEF, ratings, RIAD
-              and messages.
+              One shared portal template for all {noun}s. Add people linked to each
+              {noun} on your books. Below you get every linked account — click{' '}
+              <strong>View portal</strong> to open exactly what they see (orders,
+              OTIFEF, statement, projects).
             </p>
             <div>
               <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
@@ -576,92 +618,169 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
           </div>
         </Panel>
 
-        <Panel className="lg:col-span-3" title="People with access">
+        <Panel
+          className="lg:col-span-3"
+          title={isCustomer ? 'Customer portals' : 'Supplier portals'}
+        >
           <div className="divide-y divide-neutral-100">
             {viewers.length === 0 ? (
               <p className="p-5 text-sm text-neutral-500">
-                No one yet. Add a buyer or supplier contact — they do not need an
-                account.
+                No one yet. Add a {noun} contact — they do not need an account.
+                Each linked {noun} gets their own portal view of orders, OTIFEF,
+                statement and projects.
               </p>
             ) : (
-              viewers.map((v) => {
-                const personUrl = `/portal/${encodeURIComponent(v.token)}`;
-                const revoked = v.status === 'revoked';
+              portalGroups.map((g) => {
+                const primary =
+                  g.viewers.find((v) => v.status === 'active') || g.viewers[0];
+                const personUrl = primary
+                  ? `/portal/${encodeURIComponent(primary.token)}`
+                  : '';
                 return (
-                  <div
-                    key={v.id}
-                    className="px-5 py-3.5 flex flex-wrap items-start justify-between gap-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-bold text-slate-900">{v.name}</p>
-                        <span
-                          className={`text-[10px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 ${
-                            revoked
-                              ? 'bg-neutral-100 text-neutral-500'
-                              : 'bg-emerald-50 text-emerald-800'
-                          }`}
-                        >
-                          {revoked ? 'Revoked' : 'Active'}
-                        </span>
+                  <div key={g.key} className="px-5 py-4 space-y-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-black text-slate-900 text-base">
+                          {g.label}
+                        </p>
+                        <p className="text-xs text-neutral-500 mt-0.5">
+                          {g.activeCount} active access
+                          {g.activeCount === 1 ? '' : 'es'} ·{' '}
+                          {g.viewers.length} person
+                          {g.viewers.length === 1 ? '' : 's'}
+                        </p>
                       </div>
-                      <p className="text-xs text-neutral-500 mt-0.5">
-                        {[v.job_title, v.email, v.phone].filter(Boolean).join(' · ') ||
-                          'No contact yet'}
-                      </p>
-                      <p className="text-[11px] font-mono text-slate-600 break-all mt-1">
-                        Personal link: {personUrl}
-                      </p>
-                      {v.last_seen_at ? (
-                        <p className="text-[11px] text-neutral-400 mt-0.5">
-                          Opened {new Date(v.last_seen_at).toLocaleString()}
-                        </p>
-                      ) : (
-                        <p className="text-[11px] text-neutral-400 mt-0.5">
-                          Not opened yet
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => void copy(`${window.location.origin}${personUrl}`, String(v.id))}
-                        className="btn-secondary !py-1.5 !px-2.5 text-xs inline-flex items-center gap-1"
-                      >
-                        {copied === String(v.id) ? (
-                          <Check className="w-3.5 h-3.5" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
-                        Copy
-                      </button>
-                      {v.email ? (
-                        <button
-                          type="button"
-                          onClick={() => void actViewer(v.id, 'resend')}
-                          className="btn-secondary !py-1.5 !px-2.5 text-xs inline-flex items-center gap-1"
-                        >
-                          <Mail className="w-3.5 h-3.5" /> Email
-                        </button>
+                      {primary && primary.status === 'active' && personUrl ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          <a
+                            href={personUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1.5"
+                            title="Opens exactly what this customer sees"
+                          >
+                            <Eye className="w-3.5 h-3.5" /> View portal
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void copy(
+                                `${window.location.origin}${personUrl}`,
+                                `g-${g.key}`
+                              )
+                            }
+                            className="btn-secondary !py-1.5 !px-2.5 text-xs inline-flex items-center gap-1"
+                          >
+                            {copied === `g-${g.key}` ? (
+                              <Check className="w-3.5 h-3.5" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                            Copy link
+                          </button>
+                        </div>
                       ) : null}
-                      {revoked ? (
-                        <button
-                          type="button"
-                          onClick={() => void actViewer(v.id, 'restore')}
-                          className="btn-secondary !py-1.5 !px-2.5 text-xs"
-                        >
-                          Restore
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => void actViewer(v.id, 'revoke')}
-                          className="btn-secondary !py-1.5 !px-2.5 text-xs inline-flex items-center gap-1 text-rose-700"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" /> Revoke
-                        </button>
-                      )}
                     </div>
+
+                    <ul className="space-y-2">
+                      {g.viewers.map((v) => {
+                        const vUrl = `/portal/${encodeURIComponent(v.token)}`;
+                        const revoked = v.status === 'revoked';
+                        return (
+                          <li
+                            key={v.id}
+                            className="rounded-2xl border border-slate-100 bg-slate-50/80 px-3 py-2.5 flex flex-wrap items-start justify-between gap-2"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-bold text-slate-900">
+                                  {v.name}
+                                </p>
+                                <span
+                                  className={`text-[10px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 ${
+                                    revoked
+                                      ? 'bg-neutral-100 text-neutral-500'
+                                      : 'bg-emerald-50 text-emerald-800'
+                                  }`}
+                                >
+                                  {revoked ? 'Revoked' : 'Active'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-neutral-500 mt-0.5">
+                                {[v.job_title, v.email, v.phone]
+                                  .filter(Boolean)
+                                  .join(' · ') || 'No contact yet'}
+                              </p>
+                              {v.last_seen_at ? (
+                                <p className="text-[11px] text-neutral-400 mt-0.5">
+                                  Opened {new Date(v.last_seen_at).toLocaleString()}
+                                </p>
+                              ) : (
+                                <p className="text-[11px] text-neutral-400 mt-0.5">
+                                  Not opened yet
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {!revoked ? (
+                                <a
+                                  href={vUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="btn-secondary !py-1.5 !px-2.5 text-xs inline-flex items-center gap-1"
+                                  title="See what they see"
+                                >
+                                  <Eye className="w-3.5 h-3.5" /> View
+                                </a>
+                              ) : null}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void copy(
+                                    `${window.location.origin}${vUrl}`,
+                                    String(v.id)
+                                  )
+                                }
+                                className="btn-secondary !py-1.5 !px-2.5 text-xs inline-flex items-center gap-1"
+                              >
+                                {copied === String(v.id) ? (
+                                  <Check className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                                Copy
+                              </button>
+                              {v.email ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void actViewer(v.id, 'resend')}
+                                  className="btn-secondary !py-1.5 !px-2.5 text-xs inline-flex items-center gap-1"
+                                >
+                                  <Mail className="w-3.5 h-3.5" /> Email
+                                </button>
+                              ) : null}
+                              {revoked ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void actViewer(v.id, 'restore')}
+                                  className="btn-secondary !py-1.5 !px-2.5 text-xs"
+                                >
+                                  Restore
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => void actViewer(v.id, 'revoke')}
+                                  className="btn-secondary !py-1.5 !px-2.5 text-xs inline-flex items-center gap-1 text-rose-700"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" /> Revoke
+                                </button>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
                   </div>
                 );
               })
