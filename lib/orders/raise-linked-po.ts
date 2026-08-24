@@ -277,31 +277,17 @@ export async function raiseLinkedPoFromSo(
   void notifyLinkedPoCreated(supabase, {
     companyId,
     poId: Number(po.id),
+    poNumber: poNumber,
     salesOrderId,
     orderNumber: so.order_number != null ? String(so.order_number) : null,
     supplierProfileId,
+    srmSupplierId: srmId,
     sent: status === 'sent',
+    totalAmount: Number(po.total_amount ?? mapped.total),
+    currency: String(po.currency || 'ZAR'),
+    lineCount: mapped.items.length,
+    promisedDate: promised,
   });
-
-  if (status === 'sent' && supplierProfileId) {
-    void (async () => {
-      try {
-        const { notifyInboundPo } = await import('@/lib/notifications/email-alerts');
-        await notifyInboundPo({
-          supplierProfileId,
-          buyerProfileId: companyId,
-          buyerName,
-          poId: Number(po.id),
-          totalAmount: Number(po.total_amount ?? mapped.total),
-          currency: String(po.currency || 'ZAR'),
-          lineCount: mapped.items.length,
-          source: 'linked_so',
-        });
-      } catch (e) {
-        console.warn('raise-linked-po notify soft-fail', e);
-      }
-    })();
-  }
 
   return {
     ok: true,

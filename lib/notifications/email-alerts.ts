@@ -4,7 +4,14 @@
  */
 import { getResend, getResendFrom } from '@/lib/resend';
 import { resolveCompanyEmails } from '@/lib/billing/company-emails';
-import { renderAdvisorNoticeEmail } from '@/lib/services/advisor-branded-email';
+import {
+  escapeEmailHtml,
+  renderAdvisorNoticeEmail,
+} from '@/lib/services/advisor-branded-email';
+import {
+  chainPoSubject,
+  chainProductionSubject,
+} from '@/lib/orders/chain-mail-copy';
 
 function appBase() {
   return (
@@ -99,6 +106,116 @@ export async function notifyInboundPo(params: {
     });
   } catch (e) {
     console.warn('notifyInboundPo', e);
+  }
+}
+
+/**
+ * Manufacturer on an order chain: PO from the hub (middleman), never the
+ * end customer. Recipients are already resolved (SRM + portal + company).
+ */
+export async function notifyChainPoFromHub(params: {
+  to: string[];
+  hubName: string;
+  hubLogoUrl?: string | null;
+  poNumber: string;
+  poId: number;
+  totalAmount?: number | null;
+  currency?: string | null;
+  lineCount?: number;
+  promisedDate?: string | null;
+  portalUrl?: string | null;
+}): Promise<void> {
+  try {
+    if (!params.to.length) return;
+    const hub = escapeEmailHtml(params.hubName || 'Your trading partner');
+    const poNumber = escapeEmailHtml(params.poNumber || `PO #${params.poId}`);
+    const ccy = (params.currency || 'ZAR').toUpperCase();
+    const total =
+      params.totalAmount != null && Number.isFinite(Number(params.totalAmount))
+        ? `${ccy} ${Number(params.totalAmount).toLocaleString(undefined, {
+            maximumFractionDigits: 2,
+          })}`
+        : null;
+    const ctaUrl =
+      params.portalUrl || `${appBase()}/dashboard/customers/orders?tab=inbound`;
+    const mail = renderAdvisorNoticeEmail({
+      brand: params.hubName || 'SupplierAdvisor',
+      logoUrl: params.hubLogoUrl,
+      subject: chainPoSubject(params.hubName, params.poNumber),
+      kicker: 'Order chain',
+      headline: 'New purchase order',
+      leadHtml: `<strong>${hub}</strong> sent you <strong>${poNumber}</strong>. Confirm, produce, and update status on their portal — they remain your customer on this order.`,
+      detailKicker: 'Purchase order',
+      detailTitle: poNumber,
+      detailLines: [
+        total ? `Total ${escapeEmailHtml(total)}` : '',
+        params.lineCount != null ? `${params.lineCount} line(s)` : '',
+        params.promisedDate
+          ? `Promised ${escapeEmailHtml(String(params.promisedDate).slice(0, 10))}`
+          : '',
+      ],
+      ctaUrl,
+      ctaLabel: params.portalUrl ? 'Open portal →' : 'Open inbound POs →',
+    });
+    await sendAlert({
+      to: params.to,
+      subject: `[SupplierAdvisor] ${mail.subject}`,
+      html: mail.html,
+    });
+  } catch (e) {
+    console.warn('notifyChainPoFromHub', e);
+  }
+}
+
+/**
+ * End customer on an order chain: production update from the hub, never
+ * the manufacturer. Recipients already resolved (CRM + portal + company).
+ */
+export async function notifyChainProductionFromHub(params: {
+  to: string[];
+  hubName: string;
+  hubLogoUrl?: string | null;
+  orderNumber: string;
+  statusLabel: string;
+  promisedDate?: string | null;
+  portalUrl?: string | null;
+}): Promise<void> {
+  try {
+    if (!params.to.length) return;
+    const hub = escapeEmailHtml(params.hubName || 'Your trading partner');
+    const order = escapeEmailHtml(params.orderNumber);
+    const status = escapeEmailHtml(params.statusLabel);
+    const ctaUrl =
+      params.portalUrl || `${appBase()}/dashboard/buyer/documents`;
+    const mail = renderAdvisorNoticeEmail({
+      brand: params.hubName || 'SupplierAdvisor',
+      logoUrl: params.hubLogoUrl,
+      subject: chainProductionSubject(
+        params.hubName,
+        params.orderNumber,
+        params.statusLabel
+      ),
+      kicker: 'Your order',
+      headline: status,
+      leadHtml: `<strong>${hub}</strong> updated <strong>${order}</strong> to <strong>${status}</strong>. Open the portal to track sales orders and delivery.`,
+      detailKicker: 'Order',
+      detailTitle: order,
+      detailLines: [
+        `Status ${status}`,
+        params.promisedDate
+          ? `Promised ${escapeEmailHtml(String(params.promisedDate).slice(0, 10))}`
+          : '',
+      ],
+      ctaUrl,
+      ctaLabel: params.portalUrl ? 'Open portal →' : 'View order →',
+    });
+    await sendAlert({
+      to: params.to,
+      subject: `[SupplierAdvisor] ${mail.subject}`,
+      html: mail.html,
+    });
+  } catch (e) {
+    console.warn('notifyChainProductionFromHub', e);
   }
 }
 

@@ -8,6 +8,10 @@ import {
   renderAdvisorNoticeEmail,
   renderAdvisorSessionEmail,
 } from '@/lib/services/advisor-branded-email';
+import {
+  chainPoSubject,
+  chainProductionSubject,
+} from '@/lib/orders/chain-mail-copy';
 
 export const EMAIL_DESIGN_SAMPLE_TO = 'craig@bigfivefoods.com';
 
@@ -47,16 +51,30 @@ export function buildEmailDesignSamples(to = EMAIL_DESIGN_SAMPLE_TO): Array<{
     moduleKey: 'physiograph',
   });
   const po = renderAdvisorNoticeEmail({
-    brand: 'SupplierAdvisor',
-    subject: 'New purchase order #4821',
-    headline: 'Inbound purchase order',
+    brand: 'Big Five Foods',
+    subject: chainPoSubject('Big Five Foods', 'PO-4821'),
+    kicker: 'Order chain',
+    headline: 'New purchase order',
     leadHtml:
-      '<strong>Big Five Foods</strong> raised <strong>PO #4821</strong> against your catalogue. Total <strong>R12,480</strong> · 4 lines.',
-    detailKicker: 'Trade loop',
-    detailTitle: 'PO #4821',
-    detailLines: ['ZAR 12,480', '4 lines', 'Accept or decline from inbound orders'],
-    ctaUrl: `${app}/dashboard/customers/orders?tab=inbound`,
-    ctaLabel: 'Open inbound POs →',
+      '<strong>Big Five Foods</strong> sent you <strong>PO-4821</strong>. Confirm, produce, and update status on their portal — they remain your customer on this order.',
+    detailKicker: 'Purchase order',
+    detailTitle: 'PO-4821',
+    detailLines: ['ZAR 12,480', '4 lines', 'Promised 2026-09-12'],
+    ctaUrl: `${app}/portal/sample`,
+    ctaLabel: 'Open portal →',
+  });
+  const production = renderAdvisorNoticeEmail({
+    brand: 'Big Five Foods',
+    subject: chainProductionSubject('Big Five Foods', 'SO-88', 'In production'),
+    kicker: 'Your order',
+    headline: 'In production',
+    leadHtml:
+      '<strong>Big Five Foods</strong> updated <strong>SO-88</strong> to <strong>In production</strong>. Open the portal to track sales orders and delivery.',
+    detailKicker: 'Order',
+    detailTitle: 'SO-88',
+    detailLines: ['Status In production', 'Promised 2026-09-12'],
+    ctaUrl: `${app}/portal/sample`,
+    ctaLabel: 'Open portal →',
   });
   return [
     {
@@ -81,6 +99,12 @@ export function buildEmailDesignSamples(to = EMAIL_DESIGN_SAMPLE_TO): Array<{
       key: 'po',
       subject: `[Sample] ${po.subject}`,
       html: po.html,
+      to,
+    },
+    {
+      key: 'chain-production',
+      subject: `[Sample] ${production.subject}`,
+      html: production.html,
       to,
     },
   ].map((row) => ({ ...row, to }));

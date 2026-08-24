@@ -1,10 +1,16 @@
 /**
- * Soft in-app notifications for multi-party order chains.
+ * Soft in-app + email notifications for multi-party order chains.
+ * Hub (middleman) is the only voice the customer and manufacturer hear.
  * Never blocks the primary write path.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { customerVisibleProductionStatus } from './order-links';
+import {
+  loadChainHubBrand,
+  loadCustomerChainMail,
+  loadSupplierChainMail,
+} from './chain-mail';
 
 export async function notifyProductionCascade(
   supabase: SupabaseClient,
@@ -15,6 +21,7 @@ export async function notifyProductionCascade(
     productionStatus?: string | null;
     actorCompanyId: number;
     isSupplier: boolean;
+    promisedDate?: string | null;
   }
 ): Promise<void> {
   try {
@@ -44,9 +51,12 @@ export async function notifyProductionCascade(
     if (!opts.soIds.length) return;
     const { data: sos } = await supabase
       .from('sales_orders')
-      .select('id, order_number, customer_id')
+      .select('id, order_number, customer_id, promised_date')
       .eq('profile_id', opts.buyerCompanyId)
       .in('id', opts.soIds);
+
+    const hub = await loadChainHubBrand(supabase, opts.buyerCompanyId);
+    const emailedCustomers = new Set<number>();
 
     for (const so of sos || []) {
       const custId = Number(so.customer_id);
@@ -92,6 +102,30 @@ export async function notifyProductionCascade(
           body: `Order ${so.order_number || so.id}: ${label}. Track it under Sales orders.`,
         });
       }
+
+      if (opts.productionStatus && !emailedCustomers.has(custId)) {
+        emailedCustomers.add(custId);
+        const mail = await loadCustomerChainMail(supabase, {
+          hubCompanyId: opts.buyerCompanyId,
+          customerId: custId,
+        });
+        if (mail.emails.length) {
+          const { notifyChainProductionFromHub } = await import(
+            '@/lib/notifications/email-alerts'
+          );
+          await notifyChainProductionFromHub({
+            to: mail.emails,
+            hubName: hub.name,
+            hubLogoUrl: hub.logoUrl,
+            orderNumber: String(so.order_number || `SO-${so.id}`),
+            statusLabel: label,
+            promisedDate:
+              opts.promisedDate ||
+              (so.promised_date != null ? String(so.promised_date) : null),
+            portalUrl: mail.portalUrl,
+          });
+        }
+      }
     }
   } catch (e) {
     console.warn('[notify-chain] production cascade soft-fail', e);
@@ -103,19 +137,24 @@ export async function notifyLinkedPoCreated(
   opts: {
     companyId: number;
     poId: number;
+    poNumber?: string | null;
     salesOrderId: number;
     orderNumber?: string | null;
     supplierProfileId?: number | null;
+    srmSupplierId?: number | null;
     sent: boolean;
+    totalAmount?: number | null;
+    currency?: string | null;
+    lineCount?: number;
+    promisedDate?: string | null;
   }
 ): Promise<void> {
   try {
+    const poLabel = opts.poNumber || `PO #${opts.poId}`;
     await supabase.from('notifications').insert({
       profile_id: opts.companyId,
       type: 'linked_po_created',
-      title: opts.sent
-        ? `Linked PO #${opts.poId} sent`
-        : `Linked PO #${opts.poId} drafted`,
+      title: opts.sent ? `Linked ${poLabel} sent` : `Linked ${poLabel} drafted`,
       body: `From SO ${opts.orderNumber || opts.salesOrderId}`,
       metadata: {
         poId: opts.poId,
@@ -123,6 +162,30 @@ export async function notifyLinkedPoCreated(
         href: `/dashboard/operations/chains`,
       },
       read: false,
+    });
+
+    if (!opts.sent) return;
+    const hub = await loadChainHubBrand(supabase, opts.companyId);
+    const mail = await loadSupplierChainMail(supabase, {
+      hubCompanyId: opts.companyId,
+      srmSupplierId: opts.srmSupplierId,
+      supplierProfileId: opts.supplierProfileId,
+    });
+    if (!mail.emails.length) return;
+    const { notifyChainPoFromHub } = await import(
+      '@/lib/notifications/email-alerts'
+    );
+    await notifyChainPoFromHub({
+      to: mail.emails,
+      hubName: hub.name,
+      hubLogoUrl: hub.logoUrl,
+      poNumber: poLabel,
+      poId: opts.poId,
+      totalAmount: opts.totalAmount,
+      currency: opts.currency,
+      lineCount: opts.lineCount,
+      promisedDate: opts.promisedDate,
+      portalUrl: mail.portalUrl,
     });
   } catch (e) {
     console.warn('[notify-chain] linked po soft-fail', e);
