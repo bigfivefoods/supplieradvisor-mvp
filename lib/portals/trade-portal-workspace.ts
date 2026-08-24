@@ -391,7 +391,7 @@ export async function loadPortalWorkspace(opts: {
       .eq('profile_id', companyId)
       .maybeSingle();
     const linked = srm?.linked_profile_id != null ? Number(srm.linked_profile_id) : null;
-    let poHit = await supabase
+    const poHit = await supabase
       .from('purchase_orders')
       .select(
         'id, po_number, order_number, status, created_at, promised_date, actual_delivery_date, actual_completion_date, order_quantity, delivered_quantity, damaged_quantity, total_amount, currency, supplier_id, supplier_profile_id, items, metadata, production_status, confirmed_qty'
@@ -399,8 +399,10 @@ export async function loadPortalWorkspace(opts: {
       .eq('buyer_profile_id', companyId)
       .order('created_at', { ascending: false })
       .limit(80);
+    let poRows: Record<string, unknown>[] = (poHit.data ||
+      []) as unknown as Record<string, unknown>[];
     if (poHit.error) {
-      poHit = await supabase
+      const retry = await supabase
         .from('purchase_orders')
         .select(
           'id, po_number, order_number, status, created_at, promised_date, actual_delivery_date, order_quantity, delivered_quantity, damaged_quantity, total_amount, currency, supplier_id, supplier_profile_id, items, metadata'
@@ -408,9 +410,9 @@ export async function loadPortalWorkspace(opts: {
         .eq('buyer_profile_id', companyId)
         .order('created_at', { ascending: false })
         .limit(80);
+      poRows = (retry.data || []) as unknown as Record<string, unknown>[];
     }
-    const data = poHit.data;
-    for (const raw of data || []) {
+    for (const raw of poRows) {
       const r = asObject(raw);
       const sid = r.supplier_id != null ? Number(r.supplier_id) : null;
       const spid = r.supplier_profile_id != null ? Number(r.supplier_profile_id) : null;
@@ -461,7 +463,7 @@ export async function loadPortalWorkspace(opts: {
         })
       );
     }
-    let ordersHit = await supabase
+    const ordersHit = await supabase
       .from('sales_orders')
       .select(
         'id, order_number, status, created_at, promised_date, shipped_date, total_amount, currency, items, production_status, confirmed_qty, actual_completion_date, metadata'
@@ -470,8 +472,10 @@ export async function loadPortalWorkspace(opts: {
       .eq('customer_id', opts.viewer.customer_id)
       .order('created_at', { ascending: false })
       .limit(40);
+    let orders: Record<string, unknown>[] = (ordersHit.data ||
+      []) as unknown as Record<string, unknown>[];
     if (ordersHit.error) {
-      ordersHit = await supabase
+      const retry = await supabase
         .from('sales_orders')
         .select(
           'id, order_number, status, created_at, promised_date, shipped_date, total_amount, currency, items, metadata'
@@ -480,8 +484,8 @@ export async function loadPortalWorkspace(opts: {
         .eq('customer_id', opts.viewer.customer_id)
         .order('created_at', { ascending: false })
         .limit(40);
+      orders = (retry.data || []) as unknown as Record<string, unknown>[];
     }
-    const orders = ordersHit.data;
     const soIds = (orders || []).map((o) => Number(o.id)).filter((id) => id > 0);
     const prodBySo = new Map<
       number,

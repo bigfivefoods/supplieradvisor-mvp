@@ -535,7 +535,7 @@ async function loadCustomerDocs(
     }
   }
   if (sections.orders !== false) {
-    let soHit = await supabase
+    const soHit = await supabase
       .from('sales_orders')
       .select(
         'id, order_number, status, created_at, promised_date, total_amount, currency, production_status, shipped_date, metadata'
@@ -544,8 +544,10 @@ async function loadCustomerDocs(
       .eq('customer_id', customerId)
       .order('created_at', { ascending: false })
       .limit(40);
+    let soRows: Record<string, unknown>[] = (soHit.data ||
+      []) as unknown as Record<string, unknown>[];
     if (soHit.error) {
-      soHit = await supabase
+      const retry = await supabase
         .from('sales_orders')
         .select(
           'id, order_number, status, created_at, promised_date, total_amount, currency'
@@ -554,9 +556,10 @@ async function loadCustomerDocs(
         .eq('customer_id', customerId)
         .order('created_at', { ascending: false })
         .limit(40);
+      soRows = (retry.data || []) as unknown as Record<string, unknown>[];
     }
-    const data = soHit.data;
-    for (const r of data || []) {
+    for (const raw of soRows) {
+      const r = asObject(raw);
       const row = moneyRow({
         id: Number(r.id),
         kind: 'order',
@@ -663,19 +666,18 @@ async function loadProfileDocRow(
   companyId: number
 ): Promise<Record<string, unknown> | null> {
   const supabase = getSupabaseServer();
-  let hit = await supabase
+  const hit = await supabase
     .from('profiles')
     .select(PROFILE_DOC_SELECT)
     .eq('id', companyId)
     .maybeSingle();
-  if (hit.error) {
-    hit = await supabase
-      .from('profiles')
-      .select(PROFILE_DOC_SELECT_FALLBACK)
-      .eq('id', companyId)
-      .maybeSingle();
-  }
-  return hit.data ? asObject(hit.data) : null;
+  if (!hit.error && hit.data) return asObject(hit.data);
+  const retry = await supabase
+    .from('profiles')
+    .select(PROFILE_DOC_SELECT_FALLBACK)
+    .eq('id', companyId)
+    .maybeSingle();
+  return retry.data ? asObject(retry.data) : null;
 }
 
 async function loadSharedDocs(companyId: number): Promise<PortalDocSlot[]> {
