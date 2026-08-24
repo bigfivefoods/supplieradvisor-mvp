@@ -17,7 +17,7 @@ import {
   hasCustomModuleAccess,
   mergeAllowedModulesIntoPermissions,
 } from '@/lib/business/member-modules';
-import { isListedTeamMember } from '@/lib/business/types';
+import { isListedTeamMember, type TeamMember } from '@/lib/business/types';
 
 const TEAM_SELECT =
   'id, profile_id, user_id, name, email, invited_email, role, status, joined_at, invited_at, created_at, last_active_at, permissions';
@@ -49,20 +49,23 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = getSupabaseServer();
-    let membersQuery = supabase
-      .from('business_users')
-      .select(TEAM_SELECT)
-      .eq('profile_id', companyId)
-      .order('created_at', { ascending: false })
-      .limit(200);
-    let [{ data: members, error }, { data: company }] = await Promise.all([
-      membersQuery,
-      supabase
-        .from('profiles')
-        .select('id, trading_name, legal_name, metadata')
-        .eq('id', companyId)
-        .maybeSingle(),
-    ]);
+    const [{ data: membersHit, error: membersErr }, { data: company }] =
+      await Promise.all([
+        supabase
+          .from('business_users')
+          .select(TEAM_SELECT)
+          .eq('profile_id', companyId)
+          .order('created_at', { ascending: false })
+          .limit(200),
+        supabase
+          .from('profiles')
+          .select('id, trading_name, legal_name, metadata')
+          .eq('id', companyId)
+          .maybeSingle(),
+      ]);
+
+    let error = membersErr;
+    let members: TeamMember[] | null = (membersHit || null) as TeamMember[] | null;
 
     if (error && /last_active_at/i.test(error.message || '')) {
       const retry = await supabase
@@ -71,7 +74,7 @@ export async function GET(request: NextRequest) {
         .eq('profile_id', companyId)
         .order('created_at', { ascending: false })
         .limit(200);
-      members = retry.data;
+      members = (retry.data || null) as TeamMember[] | null;
       error = retry.error;
     }
 
