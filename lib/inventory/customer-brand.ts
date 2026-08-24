@@ -50,3 +50,13 @@ export function productAssignedToCustomer(
   const tag = readCustomerBrand(metadata);
   return tag.customer_brand && tag.customer_id === customerId;
 }
+
+/** Guest catalogue: never leak another customer's private-label SKU. */
+export function productVisibleOnCustomerPortal(
+  metadata: Record<string, unknown> | null | undefined,
+  customerId: number
+): boolean {
+  const tag = readCustomerBrand(metadata);
+  if (!tag.customer_id) return true;
+  return tag.customer_id === customerId;
+}

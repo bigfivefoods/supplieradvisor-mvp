@@ -1,5 +1,8 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { productAssignedToCustomer } from '@/lib/inventory/customer-brand';
+import {
+  productAssignedToCustomer,
+  productVisibleOnCustomerPortal,
+} from '@/lib/inventory/customer-brand';
 import { isMissingRelation } from '@/lib/business/company-data';
 import { parseProductIds } from '@/lib/orders/chain-setup';
 import { otifefForLine, rollupOtifef } from '@/lib/portals/otifef-line';
@@ -341,6 +344,12 @@ async function loadHostCatalogue(
     const type = String(raw.product_type || 'finished_good').toLowerCase();
     if (type === 'wip' || type === 'work_in_progress') continue;
     const meta = asObject(raw.metadata);
+    if (
+      customerId != null &&
+      !productVisibleOnCustomerPortal(meta, customerId)
+    ) {
+      continue;
+    }
     const branded =
       customerId != null && productAssignedToCustomer(meta, customerId);
     const unit =
@@ -966,7 +975,8 @@ export async function loadPortalWorkspace(opts: {
     });
   }
 
-  // Customer portal: branded SKUs first, then other finished goods
+  // Customer portal: this customer's branded SKUs, then shared finished goods.
+  // Private-label SKUs tagged to another customer never appear here.
   const catalogue =
     kind === 'customer'
       ? await loadHostCatalogue(companyId, opts.viewer.customer_id)

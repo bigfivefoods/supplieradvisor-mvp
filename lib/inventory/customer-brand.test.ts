@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import {
   productAssignedToCustomer,
+  productVisibleOnCustomerPortal,
   readCustomerBrand,
   writeCustomerBrand,
 } from './customer-brand';
@@ -16,6 +17,9 @@ const tagged = writeCustomerBrand({}, {
 assert.equal(readCustomerBrand(tagged).customer_id, 44);
 assert.equal(productAssignedToCustomer(tagged, 44), true);
 assert.equal(productAssignedToCustomer(tagged, 9), false);
+assert.equal(productVisibleOnCustomerPortal(tagged, 44), true);
+assert.equal(productVisibleOnCustomerPortal(tagged, 9), false);
+assert.equal(productVisibleOnCustomerPortal({}, 9), true);
 
 const cleared = writeCustomerBrand(tagged, {
   customer_brand: false,
