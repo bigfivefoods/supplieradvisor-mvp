@@ -78,7 +78,7 @@ function DocTable({
                 </div>
                 <div className="flex items-center gap-2">
                   <span
-                    className={`text-[10px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 ${statusTone(r.status)}`
+                    className={`text-[10px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 ${statusTone(r.status)}`}
                   >
                     {r.status.replace(/_/g, ' ')}
                   </span>
