@@ -406,19 +406,20 @@ export async function POST(request: NextRequest) {
       };
       const table =
         portal.kind === 'customer' ? 'customer_riad' : 'supplier_riad';
-      const extra =
-        portal.kind === 'customer'
-          ? { customer_id: viewer.customer_id }
-          : { supplier_id: viewer.supplier_id };
+      const row: Record<string, unknown> = { ...entry };
+      if (portal.kind === 'customer') {
+        row.customer_id = viewer.customer_id;
+      } else {
+        row.supplier_id = viewer.supplier_id;
+      }
       let { data, error } = await supabase
         .from(table)
-        .insert({ ...entry, ...extra })
+        .insert(row as never)
         .select('id')
         .single();
       if (error && /column|schema cache|does not exist/i.test(error.message || '')) {
-        const minimal = {
+        const minimal: Record<string, unknown> = {
           profile_id: portal.profile_id,
-          ...extra,
           entry_type: entryType,
           title: entry.title,
           description: entry.description,
@@ -430,7 +431,16 @@ export async function POST(request: NextRequest) {
           created_by: entry.created_by,
           updated_at: now,
         };
-        const retry = await supabase.from(table).insert(minimal).select('id').single();
+        if (portal.kind === 'customer') {
+          minimal.customer_id = viewer.customer_id;
+        } else {
+          minimal.supplier_id = viewer.supplier_id;
+        }
+        const retry = await supabase
+          .from(table)
+          .insert(minimal as never)
+          .select('id')
+          .single();
         data = retry.data;
         error = retry.error;
       }
@@ -514,7 +524,7 @@ export async function POST(request: NextRequest) {
       }
       let { error } = await supabase
         .from(table)
-        .update(updates)
+        .update(updates as never)
         .eq('id', id)
         .eq('profile_id', portal.profile_id)
         .eq(accountCol, accountId);
@@ -539,7 +549,7 @@ export async function POST(request: NextRequest) {
         }
         const retry = await supabase
           .from(table)
-          .update(safe)
+          .update(safe as never)
           .eq('id', id)
           .eq('profile_id', portal.profile_id)
           .eq(accountCol, accountId);
@@ -607,7 +617,7 @@ export async function POST(request: NextRequest) {
         .join('\n');
       const { error } = await supabase
         .from(table)
-        .update({ notes: next, updated_at: now })
+        .update({ notes: next, updated_at: now } as never)
         .eq('id', id)
         .eq('profile_id', portal.profile_id)
         .eq(accountCol, accountId);
