@@ -10,6 +10,7 @@ import {
   Shield,
   LayoutGrid,
   ChevronDown,
+  Clock3,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePrivy } from '@privy-io/react-auth';
@@ -17,10 +18,13 @@ import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import {
+  isListedTeamMember,
   memberStatusClass,
   roleBadgeClass,
+  teamLastLoginAt,
   type TeamMember,
 } from '@/lib/business/types';
+import { portalTimeAgo, portalWhen } from '@/lib/portals/portal-activity';
 import {
   ROLE_PERMISSIONS,
   TEAM_ROLE_OPTIONS,
@@ -263,6 +267,7 @@ function TeamInner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Remove failed');
       toast.success('Member removed');
+      setMembers((prev) => prev.filter((m) => m.id !== memberId));
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -271,7 +276,7 @@ function TeamInner() {
     }
   };
 
-  /** Resend invite email + refresh token for invited / pending / removed members */
+  /** Resend invite email + refresh token for invited / pending members */
   const reinvite = async (member: TeamMember) => {
     if (!canManage) {
       toast.error('Only owners and admins can reinvite team members');
@@ -342,7 +347,7 @@ function TeamInner() {
 
   const canReinvite = (m: TeamMember) => {
     const status = String(m.status || '').toLowerCase();
-    return ['invited', 'pending', 'removed', 'expired'].includes(status);
+    return ['invited', 'pending'].includes(status);
   };
 
   /** Company-enabled modules the owner can assign to users (exclude always-on) */
@@ -528,25 +533,21 @@ function TeamInner() {
             <div className="p-16 flex justify-center">
               <Loader2 className="w-7 h-7 animate-spin text-[#00b4d8]" />
             </div>
-          ) : members.length === 0 ? (
+          ) : members.filter((m) => isListedTeamMember(m.status)).length === 0 ? (
             <div className="p-12 text-center text-sm text-neutral-500">No team members yet.</div>
           ) : (
             <ul className="divide-y divide-neutral-100">
-              {members.map((m) => {
+              {members.filter((m) => isListedTeamMember(m.status)).map((m) => {
                   const roleMeta = TEAM_ROLE_OPTIONS.find(
                     (r) => r.value === String(m.role || 'member').toLowerCase()
                   );
                   const showReinvite = canManage && canReinvite(m);
-                  const isRemoved =
-                    String(m.status || '').toLowerCase() === 'removed';
                   const isOwnerRow =
                     String(m.role || '').toLowerCase() === 'owner';
                   const modulesOpen = modulesOpenId === m.id;
+                  const lastLogin = teamLastLoginAt(m);
                   return (
-                    <li
-                      key={m.id}
-                      className={`${isRemoved ? 'opacity-70 bg-neutral-50/80' : ''}`}
-                    >
+                    <li key={m.id}>
                       <div className="px-5 py-4 flex flex-wrap items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div className="font-semibold text-slate-900 truncate">
@@ -563,6 +564,21 @@ function TeamInner() {
                                 : ' · all company modules'}
                             </div>
                           )}
+                          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-neutral-500">
+                            <span className="inline-flex items-center gap-1">
+                              <Clock3 className="w-3 h-3 text-neutral-400" />
+                              {lastLogin
+                                ? `Last login ${portalTimeAgo(lastLogin)}${
+                                    portalWhen(lastLogin)
+                                      ? ` · ${portalWhen(lastLogin)}`
+                                      : ''
+                                  }`
+                                : 'Never logged in'}
+                            </span>
+                            {m.invited_at ? (
+                              <span>Invited {portalTimeAgo(m.invited_at)}</span>
+                            ) : null}
+                          </p>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap justify-end">
                           <span
@@ -580,7 +596,7 @@ function TeamInner() {
                               if (known) return raw;
                               return raw;
                             })()}
-                            disabled={busyId === m.id || !canManage || isRemoved}
+                            disabled={busyId === m.id || !canManage}
                             onChange={(e) => void updateRole(m.id, e.target.value)}
                           >
                             {m.role &&
@@ -604,7 +620,7 @@ function TeamInner() {
                               </option>
                             ))}
                           </select>
-                          {canManage && !isRemoved && !isOwnerRow && (
+                          {canManage && !isOwnerRow && (
                             <button
                               type="button"
                               onClick={() => openModuleEditor(m)}
@@ -639,7 +655,7 @@ function TeamInner() {
                               Reinvite
                             </button>
                           )}
-                          {canManage && !isRemoved && (
+                          {canManage && (
                             <button
                               type="button"
                               disabled={busyId === m.id}

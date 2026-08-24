@@ -18,9 +18,9 @@ import { formatMoney } from '@/lib/customers/types';
 import type { PublicPortalPayload } from '@/lib/portals/trade-portal';
 import {
   GuestTradeWorkspace,
-  guestPortalTabs,
   type GuestPortalTab,
 } from '@/components/portals/GuestTradeWorkspace';
+import { guestPortalTabGroups } from '@/lib/portals/guest-portal-tabs';
 import { B2cThemeToggle } from '@/components/b2c/B2cThemeToggle';
 
 function statusTone(status: string): string {
@@ -210,6 +210,13 @@ export default function GuestTradePortalPage() {
     currency: 'ZAR',
     people: (portal.people || []).length,
   };
+  const tabGroups = guestPortalTabGroups({
+    kind: portal.kind,
+    profileGaps: portal.workspace?.profileGaps?.length || 0,
+    isHost,
+  });
+  const mainGroups = tabGroups.filter((g) => g.align !== 'end');
+  const endGroup = tabGroups.find((g) => g.align === 'end');
 
   return (
     <div className="relative min-h-[100dvh] bg-slate-50 text-slate-900 dark:bg-[#07111f] dark:text-white">
@@ -270,28 +277,57 @@ export default function GuestTradePortalPage() {
         </div>
         {portal.workspace?.onBooks ? (
           <nav className="border-t border-slate-100 dark:border-white/10">
-            <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-3 py-2 scrollbar-none sm:px-6 lg:px-8">
-              {guestPortalTabs({
-                kind: portal.kind,
-                profileGaps: portal.workspace.profileGaps?.length || 0,
-                isHost,
-              }).map((t) => {
-                const on = tab === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setTab(t.id)}
-                    className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold ${
-                      on
-                        ? 'bg-[#0077b6] text-white'
-                        : 'text-slate-600 hover:bg-slate-100 dark:text-white/70 dark:hover:bg-white/10'
+            <div className="mx-auto flex max-w-7xl items-center gap-1 px-3 py-2 sm:px-6 lg:px-8">
+              <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-none">
+                {mainGroups.map((g, i) => (
+                  <div
+                    key={g.id}
+                    className={`flex shrink-0 items-center gap-1 ${
+                      i > 0
+                        ? 'ml-1 border-l border-slate-200 pl-1.5 dark:border-white/10'
+                        : ''
                     }`}
                   >
-                    {t.label}
-                  </button>
-                );
-              })}
+                    {g.tabs.map((t) => {
+                      const on = tab === t.id;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setTab(t.id)}
+                          className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold ${
+                            on
+                              ? 'bg-[#0077b6] text-white'
+                              : 'text-slate-600 hover:bg-slate-100 dark:text-white/70 dark:hover:bg-white/10'
+                          }`}
+                        >
+                          {t.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+              {endGroup
+                ? endGroup.tabs.map((t) => {
+                    const on = tab === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setTab(t.id)}
+                        className={`ml-2 inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold ${
+                          on
+                            ? 'bg-[#0077b6] text-white'
+                            : 'border border-[#00b4d8]/40 bg-cyan-50 text-[#0077b6] hover:bg-cyan-100 dark:border-cyan-400/30 dark:bg-cyan-400/10 dark:text-cyan-100'
+                        }`}
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        {t.label}
+                      </button>
+                    );
+                  })
+                : null}
             </div>
           </nav>
         ) : null}
@@ -356,7 +392,7 @@ export default function GuestTradePortalPage() {
           </div>
         </section>
 
-        {!portal.brochure ? (
+        {!portal.brochure && tab !== 'demo' ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
               ['Quotes', kpis.quotes],
@@ -382,17 +418,19 @@ export default function GuestTradePortalPage() {
           </div>
         ) : null}
 
-        {portal.moneyHint ? (
+        {tab !== 'demo' && portal.moneyHint ? (
           <p className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-50">
             {portal.moneyHint}
           </p>
         ) : null}
 
+        {tab !== 'demo' ? (
         <p className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[13px] leading-relaxed text-slate-600 dark:border-white/10 dark:bg-black/20 dark:text-white/70">
           {isHost
             ? `You are working as ${host.name} in ${portal.accountLabel || 'this'} portal. Profile and purchase orders update the same ${portal.kind === 'supplier' ? 'SRM' : 'CRM'} book.`
             : `This is the same live ledger ${host.name} runs in SupplierAdvisor. Raise a purchase order, keep the profile in sync with ${portal.kind === 'supplier' ? 'SRM' : 'CRM'}, and add colleagues on People.`}
         </p>
+        ) : null}
 
         <div className="space-y-4 rounded-[1.75rem] border border-white/10 bg-[#f8fafc] p-3 text-slate-900 shadow-2xl sm:p-5">
 
@@ -443,6 +481,7 @@ export default function GuestTradePortalPage() {
         ) : null}
         </div>
 
+        {tab !== 'demo' ? (
         <section className="rounded-[1.75rem] border border-white/15 bg-gradient-to-br from-[#0077b6] to-[#00b4d8] p-6 sm:p-8 text-white shadow-lg">
           <div className="flex items-start gap-3">
             <Sparkles className="w-6 h-6 shrink-0 opacity-90" />
@@ -477,6 +516,7 @@ export default function GuestTradePortalPage() {
             </div>
           </div>
         </section>
+        ) : null}
         </div>
       </main>
 

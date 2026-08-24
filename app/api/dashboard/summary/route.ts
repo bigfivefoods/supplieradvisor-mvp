@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { computeProfileCompleteness } from '@/lib/business/completeness';
-import { normalizeProfileRow } from '@/lib/business/types';
+import { isListedTeamMember, normalizeProfileRow } from '@/lib/business/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import { OPPORTUNITY_STAGES, stageProbability } from '@/lib/customers/types';
 
@@ -334,7 +334,9 @@ export async function POST(request: NextRequest) {
         .limit(500),
     ]);
 
-    const team = teamRes.data || [];
+    const team = (teamRes.data || []).filter((m) =>
+      isListedTeamMember((m as { status?: string | null }).status)
+    );
     const invites = invitesRes.data || [];
     const riadMap = new Map<number, Record<string, unknown>>();
     for (const r of [...(riadByProfile.data || []), ...(riadByOwner.data || [])]) {

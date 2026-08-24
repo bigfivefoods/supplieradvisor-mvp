@@ -5,6 +5,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Clock3,
   Copy,
   Eye,
   Globe,
@@ -30,6 +31,12 @@ import {
   type TradePortalRow,
   type TradePortalViewer,
 } from '@/lib/portals/trade-portal';
+import {
+  firstPortalInvite,
+  latestPortalLogin,
+  portalTimeAgo,
+  portalWhen,
+} from '@/lib/portals/portal-activity';
 
 type AccountOpt = { id: number; name: string; email?: string | null; contact?: string | null };
 
@@ -60,6 +67,7 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
   const privyUserId = getCanonicalUserId(user?.id);
   const isCustomer = kind === 'customer';
   const noun = isCustomer ? 'customer' : 'supplier';
+  const book = isCustomer ? 'CRM' : 'SRM';
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -413,7 +421,7 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
         <Panel className="lg:col-span-3" title="What they see">
           <div className="p-5 space-y-4">
             <p className="text-sm text-neutral-600 leading-relaxed">
-              Pick a {noun} already on your CRM, then issue their portal. That
+              Pick a {noun} already on your {book}, then issue their portal. That
               account sees only their quotes, orders, OTIFEF, ratings and RIAD.
               Inside the portal they can add colleagues. Below you get every
               linked account — click <strong>View portal</strong> to work in it
@@ -542,7 +550,7 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
               {live ? 'Live' : 'Paused'} · {viewers.filter((v) => v.status === 'active').length} people
             </div>
             <p className="text-sm text-neutral-600 leading-relaxed">
-              Each CRM {noun} gets a <strong>personal portal</strong> tied to
+              Each {book} {noun} gets a <strong>personal portal</strong> tied to
               their profile. Send those personal links — they open that
               account&apos;s live books. The brochure below is only your company
               card, not their books.
@@ -598,10 +606,10 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
       </div>
 
       <div className="grid lg:grid-cols-5 gap-4">
-        <Panel className="lg:col-span-2" title={`CRM ${noun}s`}>
+        <Panel className="lg:col-span-2" title={`${book} ${noun}s`}>
           <div className="p-5 space-y-3">
             <p className="text-sm text-neutral-600">
-              Issue a portal on a CRM profile. The primary contact gets the
+              Issue a portal on a {book} profile. The primary contact gets the
               first link; they can add more people from inside the portal.
             </p>
             <input
@@ -621,12 +629,16 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                 })
                 .slice(0, 80)
                 .map((a) => {
-                  const people = viewers.filter(
+                  const allForAccount = viewers.filter(
                     (v) =>
-                      (isCustomer ? v.customer_id : v.supplier_id) === a.id &&
-                      v.status === 'active'
+                      (isCustomer ? v.customer_id : v.supplier_id) === a.id
+                  );
+                  const people = allForAccount.filter(
+                    (v) => v.status === 'active'
                   );
                   const selected = form.accountId === a.id;
+                  const last = latestPortalLogin(allForAccount);
+                  const invited = firstPortalInvite(allForAccount);
                   return (
                     <button
                       key={a.id}
@@ -654,6 +666,16 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                           <p className="text-[11px] text-neutral-500 truncate">
                             {a.contact || a.email || 'No contact yet'}
                           </p>
+                          {people.length ? (
+                            <p className="text-[11px] text-neutral-400 mt-0.5 truncate">
+                              {last
+                                ? `Last login ${portalTimeAgo(last.at)}`
+                                : 'Never logged in'}
+                              {invited
+                                ? ` · Invited ${portalTimeAgo(invited)}`
+                                : ''}
+                            </p>
+                          ) : null}
                         </div>
                         <span className="shrink-0 text-[10px] font-black uppercase tracking-wide text-[#0077b6]">
                           {people.length
@@ -666,7 +688,7 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                 })}
               {accounts.length === 0 ? (
                 <p className="text-sm text-neutral-500">
-                  Add {noun}s in CRM first, then issue their portal here.
+                  Add {noun}s in {book} first, then issue their portal here.
                 </p>
               ) : null}
             </div>
@@ -774,6 +796,8 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                   ? `/portal/${encodeURIComponent(primary.token)}`
                   : '';
                 const expanded = openGroupKey === g.key;
+                const last = latestPortalLogin(g.viewers);
+                const invited = firstPortalInvite(g.viewers);
                 return (
                   <div key={g.key} className="px-5 py-3">
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -801,6 +825,19 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                             {g.viewers.length} person
                             {g.viewers.length === 1 ? '' : 's'}
                             {expanded ? '' : ' · open to manage people'}
+                          </span>
+                          <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-neutral-500">
+                            <span className="inline-flex items-center gap-1">
+                              <Clock3 className="w-3 h-3 text-neutral-400" />
+                              {last
+                                ? `Last login ${portalTimeAgo(last.at)}${
+                                    last.name ? ` · ${last.name}` : ''
+                                  }`
+                                : 'Never logged in'}
+                            </span>
+                            {invited ? (
+                              <span>Invited {portalTimeAgo(invited)}</span>
+                            ) : null}
                           </span>
                         </span>
                       </button>
@@ -866,15 +903,26 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                                   .filter(Boolean)
                                   .join(' · ') || 'No contact yet'}
                               </p>
-                              {v.last_seen_at ? (
-                                <p className="text-[11px] text-neutral-400 mt-0.5">
-                                  Opened {new Date(v.last_seen_at).toLocaleString()}
-                                </p>
-                              ) : (
-                                <p className="text-[11px] text-neutral-400 mt-0.5">
-                                  Not opened yet
-                                </p>
-                              )}
+                              <p className="text-[11px] text-neutral-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                <span className="inline-flex items-center gap-1">
+                                  <Clock3 className="w-3 h-3 text-neutral-400" />
+                                  {v.last_seen_at
+                                    ? `Last login ${portalTimeAgo(v.last_seen_at)}${
+                                        portalWhen(v.last_seen_at)
+                                          ? ` · ${portalWhen(v.last_seen_at)}`
+                                          : ''
+                                      }`
+                                    : 'Never logged in'}
+                                </span>
+                                {v.invited_at ? (
+                                  <span>
+                                    Invited {portalTimeAgo(v.invited_at)}
+                                    {portalWhen(v.invited_at)
+                                      ? ` · ${portalWhen(v.invited_at)}`
+                                      : ''}
+                                  </span>
+                                ) : null}
+                              </p>
                             </div>
                             <div className="flex flex-wrap gap-1.5">
                               {!revoked ? (

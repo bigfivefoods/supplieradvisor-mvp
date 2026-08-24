@@ -323,7 +323,12 @@ export function mapViewer(row: Record<string, unknown>): TradePortalViewer {
     status: row.status === 'revoked' ? 'revoked' : 'active',
     last_seen_at:
       row.last_seen_at != null ? String(row.last_seen_at) : null,
-    invited_at: row.invited_at != null ? String(row.invited_at) : undefined,
+    invited_at:
+      row.invited_at != null
+        ? String(row.invited_at)
+        : row.created_at != null
+          ? String(row.created_at)
+          : undefined,
   };
 }
 

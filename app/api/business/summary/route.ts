@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCompanyMember } from '@/lib/customers/access';
 import { computeProfileCompleteness } from '@/lib/business/completeness';
-import { normalizeProfileRow } from '@/lib/business/types';
+import { isListedTeamMember, normalizeProfileRow } from '@/lib/business/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import { computeCompanySubscription } from '@/lib/billing/company-subscription';
 
@@ -55,7 +55,9 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const team = teamRes.data || [];
+    const team = (teamRes.data || []).filter((m) =>
+      isListedTeamMember((m as { status?: string | null }).status)
+    );
     const profile = normalizeProfileRow(p as Record<string, unknown>);
     const comp = computeProfileCompleteness(profile as Record<string, unknown>);
     const raw = p as Record<string, unknown>;
@@ -104,7 +106,7 @@ export async function GET(request: NextRequest) {
         is_discoverable: profile.is_discoverable !== false,
         primary_currency: profile.primary_currency || 'ZAR',
         timezone: profile.timezone || 'Africa/Johannesburg',
-        teamTotal: teamRes.count ?? team.length,
+        teamTotal: team.length,
         teamActive: team.filter((m) => m.status === 'active').length,
         teamInvited: team.filter((m) =>
           ['invited', 'pending'].includes(String(m.status || '').toLowerCase())

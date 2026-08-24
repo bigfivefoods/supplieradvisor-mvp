@@ -17,6 +17,12 @@ import {
   hasCustomModuleAccess,
   mergeAllowedModulesIntoPermissions,
 } from '@/lib/business/member-modules';
+import { isListedTeamMember } from '@/lib/business/types';
+
+const TEAM_SELECT =
+  'id, profile_id, user_id, name, email, invited_email, role, status, joined_at, invited_at, created_at, last_active_at, permissions';
+const TEAM_SELECT_FALLBACK =
+  'id, profile_id, user_id, name, email, invited_email, role, status, joined_at, invited_at, created_at, permissions';
 
 /**
  * GET ?companyId=&privyUserId=
@@ -43,21 +49,31 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = getSupabaseServer();
-    const [{ data: members, error }, { data: company }] = await Promise.all([
-      supabase
-        .from('business_users')
-        .select(
-          'id, profile_id, user_id, name, email, invited_email, role, status, joined_at, invited_at, created_at, permissions'
-        )
-        .eq('profile_id', companyId)
-        .order('created_at', { ascending: false })
-        .limit(200),
+    let membersQuery = supabase
+      .from('business_users')
+      .select(TEAM_SELECT)
+      .eq('profile_id', companyId)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    let [{ data: members, error }, { data: company }] = await Promise.all([
+      membersQuery,
       supabase
         .from('profiles')
         .select('id, trading_name, legal_name, metadata')
         .eq('id', companyId)
         .maybeSingle(),
     ]);
+
+    if (error && /last_active_at/i.test(error.message || '')) {
+      const retry = await supabase
+        .from('business_users')
+        .select(TEAM_SELECT_FALLBACK)
+        .eq('profile_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(200);
+      members = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       return NextResponse.json({
@@ -79,14 +95,16 @@ export async function GET(request: NextRequest) {
         ),
       }
     );
-    const list = (members || []).map((m) => {
-      const perms = (m as { permissions?: unknown }).permissions;
-      return {
-        ...m,
-        customModuleAccess: hasCustomModuleAccess(perms),
-        allowedModules: extractAllowedModules(perms),
-      };
-    });
+    const list = (members || [])
+      .filter((m) => isListedTeamMember((m as { status?: string | null }).status))
+      .map((m) => {
+        const perms = (m as { permissions?: unknown }).permissions;
+        return {
+          ...m,
+          customModuleAccess: hasCustomModuleAccess(perms),
+          allowedModules: extractAllowedModules(perms),
+        };
+      });
     const counts = {
       total: list.length,
       active: list.filter((m) => m.status === 'active').length,

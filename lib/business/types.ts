@@ -192,6 +192,7 @@ export type TeamMember = {
   status?: string | null;
   joined_at?: string | null;
   invited_at?: string | null;
+  last_active_at?: string | null;
   created_at?: string;
   permissions?: unknown;
   /** Derived: has custom module allow-list */
@@ -199,6 +200,20 @@ export type TeamMember = {
   /** Derived: module id → true when custom */
   allowedModules?: Record<string, boolean> | null;
 };
+
+/** People still on the company team (hide removed / expired / suspended). */
+export function isListedTeamMember(status?: string | null): boolean {
+  const s = String(status || 'active').toLowerCase().trim();
+  return s !== 'removed' && s !== 'expired' && s !== 'suspended';
+}
+
+/** Last login: live activity, else the join (first login). */
+export function teamLastLoginAt(member: {
+  last_active_at?: string | null;
+  joined_at?: string | null;
+}): string | null {
+  return member.last_active_at || member.joined_at || null;
+}
 
 export const DEFAULT_SETTINGS: CompanySettings = {
   timezone: 'Africa/Johannesburg',

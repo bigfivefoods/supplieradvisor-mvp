@@ -52,58 +52,15 @@ import {
   chainStepIndex,
   nextSupplierProductionAction,
 } from '@/lib/orders/chain-path';
+import { PortalJoinDemo } from '@/components/portals/PortalJoinDemo';
+import {
+  portalTimeAgo,
+  portalWhen,
+} from '@/lib/portals/portal-activity';
+import type { GuestPortalTab } from '@/lib/portals/guest-portal-tabs';
 
-export type GuestPortalTab =
-  | 'profile'
-  | 'quotes'
-  | 'orders'
-  | 'otifef'
-  | 'statement'
-  | 'stock'
-  | 'riad'
-  | 'messages'
-  | 'reviews'
-  | 'newpo'
-  | 'projects'
-  | 'people'
-  | 'docs';
-
-export function guestPortalTabs(opts: {
-  kind: 'customer' | 'supplier';
-  profileGaps?: number;
-  isHost?: boolean;
-}): Array<{ id: GuestPortalTab; label: string }> {
-  const gaps = opts.profileGaps || 0;
-  const profile = gaps ? `Profile (${gaps})` : 'Profile';
-  if (opts.kind === 'supplier') {
-    return [
-      { id: 'profile' as const, label: profile },
-      { id: 'orders' as const, label: 'Purchase orders' },
-      { id: 'stock' as const, label: 'Stock' },
-      { id: 'projects' as const, label: 'Projects' },
-      { id: 'docs' as const, label: 'Documents' },
-      { id: 'otifef' as const, label: 'OTIFEF' },
-      { id: 'people' as const, label: 'People' },
-      { id: 'messages' as const, label: 'Messages' },
-      { id: 'riad' as const, label: 'RIAD' },
-      { id: 'reviews' as const, label: 'Ratings' },
-    ];
-  }
-  return [
-    { id: 'profile' as const, label: profile },
-    { id: 'quotes' as const, label: 'Quotations' },
-    { id: 'newpo' as const, label: 'Purchase order' },
-    { id: 'orders' as const, label: 'Sales orders' },
-    { id: 'statement' as const, label: 'Statement' },
-    { id: 'projects' as const, label: 'Projects' },
-    { id: 'docs' as const, label: 'Documents' },
-    { id: 'otifef' as const, label: 'OTIFEF' },
-    { id: 'people' as const, label: 'People' },
-    { id: 'messages' as const, label: 'Messages' },
-    { id: 'riad' as const, label: 'RIAD' },
-    { id: 'reviews' as const, label: 'Ratings' },
-  ];
-}
+export type { GuestPortalTab, GuestPortalTabGroup, GuestPortalTabItem } from '@/lib/portals/guest-portal-tabs';
+export { guestPortalTabGroups, guestPortalTabs } from '@/lib/portals/guest-portal-tabs';
 
 const EMPTY_PROFILE: BookProfile = {
   logo_url: '',
@@ -641,7 +598,7 @@ export function GuestTradeWorkspace({
         </p>
       ) : null}
 
-      {gaps.length > 0 && tab !== 'profile' ? (
+      {gaps.length > 0 && tab !== 'profile' && tab !== 'demo' ? (
         <button
           type="button"
           onClick={() => onTab('profile')}
@@ -791,6 +748,13 @@ export function GuestTradeWorkspace({
           onAct={act}
         />
       ) : null}
+      {tab === 'demo' ? (
+        <PortalJoinDemo
+          hostName={live.host.name}
+          kind={live.kind}
+          joinPath={live.joinPath}
+        />
+      ) : null}
     </div>
   );
 }
@@ -923,6 +887,18 @@ function PeoplePanel({
                   {[p.job_title, p.email].filter(Boolean).join(' · ') ||
                     'No contact yet'}
                 </p>
+                {p.side === 'host' ? null : p.last_seen_at ? (
+                  <p className="text-[11px] text-neutral-400 mt-0.5">
+                    Last login {portalTimeAgo(p.last_seen_at)}
+                    {portalWhen(p.last_seen_at)
+                      ? ` · ${portalWhen(p.last_seen_at)}`
+                      : ''}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-neutral-400 mt-0.5">
+                    Never logged in
+                  </p>
+                )}
               </div>
               {p.side === 'host' || p.you ? (
                 p.side === 'host' ? (

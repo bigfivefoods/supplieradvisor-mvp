@@ -137,16 +137,42 @@ async function loadCompanyMembership(
     name?: string | null;
     permissions?: unknown;
   };
+  const memberId = Number(row.id);
+  touchMemberActivity(memberId);
   return {
     ok: true,
     userId,
-    memberId: Number(row.id),
+    memberId,
     role: normalizeTeamRole(row.role),
     status: String(row.status || 'active'),
     email: row.email || row.invited_email || null,
     name: row.name || null,
     permissions: row.permissions ?? null,
   };
+}
+
+const ACTIVITY_TOUCH_MS = 5 * 60 * 1000;
+const activityTouchMemo = new Map<number, number>();
+
+/** Stamp last_active_at at most every 5 minutes per member. */
+function touchMemberActivity(memberId: number): void {
+  if (!Number.isFinite(memberId) || memberId <= 0) return;
+  const now = Date.now();
+  const prev = activityTouchMemo.get(memberId) || 0;
+  if (now - prev < ACTIVITY_TOUCH_MS) return;
+  activityTouchMemo.set(memberId, now);
+  void (async () => {
+    try {
+      const supabase = getSupabaseServer();
+      const stamp = new Date().toISOString();
+      await supabase
+        .from('business_users')
+        .update({ last_active_at: stamp, updated_at: stamp })
+        .eq('id', memberId);
+    } catch {
+      /* column or network — last login stays stale */
+    }
+  })();
 }
 
 /**
