@@ -19,7 +19,6 @@ import {
   User,
 } from 'lucide-react';
 import { GymShopPay } from '@/components/fitness/GymShopPay';
-import { AdvisorPayAccepted } from '@/components/billing/ApplePayAccepted';
 
 import {
   emptyDebitBankForm,
@@ -925,8 +924,8 @@ export default function MemberFitgraphPortalPage() {
         )}
 
         {tab === 'join' && (
-          <div className="space-y-5">
-            <GymSectionTitle hint="Classes, private coaches, programmes and products. Card, Apple Pay or EFT.">
+          <div className="space-y-4">
+            <GymSectionTitle hint="Open a section, pick a card, then pay with Apple Pay or card.">
               Shop
             </GymSectionTitle>
             <GymShopPay
@@ -946,6 +945,7 @@ export default function MemberFitgraphPortalPage() {
                   image_url: p.image_url,
                   group,
                   code: p.sku || undefined,
+                  category: p.category || undefined,
                 });
                 return [
                   ...(portal.inventory_products || [])
@@ -970,7 +970,6 @@ export default function MemberFitgraphPortalPage() {
               buyingId={buyingId}
               joining={portal.joining}
               classSubscribe={portal.class_subscribe === true}
-              hidePayAccepted
               hideIntro
               hideIdentity
               coaches={portal.shop_coaches || []}
@@ -979,96 +978,6 @@ export default function MemberFitgraphPortalPage() {
                 .map((s) => s.plan_id)
                 .filter((id): id is string => Boolean(id))}
             />
-            {(portal.subscriptions || []).length ? (
-              <ul className="space-y-2">
-                {portal.subscriptions!.map((s) => (
-                  <li
-                    key={s.id}
-                    className="rounded-2xl border border-yellow-200 bg-white p-4"
-                  >
-                    <p className="font-black text-sm">{s.plan_name}</p>
-                    {s.schedule_label ? (
-                      <p className="text-[11px] text-slate-500">
-                        {s.schedule_label}
-                      </p>
-                    ) : null}
-                    <p className="text-xs text-slate-600 mt-1">
-                      R{s.price_zar}/{s.billing}
-                      {s.addon ? ' · add-on' : ''}
-                      {s.current_period_end
-                        ? ` · paid to ${s.current_period_end}`
-                        : ''}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            <div className="space-y-2">
-              <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
-                History
-              </p>
-              {(portal.purchase_history || []).length ? (
-                <ul className="space-y-2">
-                  {(portal.purchase_history || []).map((h) => (
-                    <li
-                      key={h.id}
-                      className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-white/10 dark:bg-neutral-900"
-                    >
-                      <div>
-                        <p className="font-black text-slate-900 dark:text-white">
-                          {h.label}
-                        </p>
-                        <p className="text-[11px] text-slate-500">
-                          {String(h.at).slice(0, 10)} · {h.kind}
-                        </p>
-                      </div>
-                      <p className="font-black">R{h.amount_zar}</p>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-slate-500">No purchases yet.</p>
-              )}
-            </div>
-
-            {portal.payout_ready !== false ? (
-              <div className="space-y-2">
-                <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
-                  Pay
-                </p>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  <input
-                    className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-neutral-900"
-                    placeholder="Your name *"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                  <input
-                    className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-neutral-900"
-                    placeholder="Email *"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                  <input
-                    className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-neutral-900"
-                    placeholder="Phone / WhatsApp"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                  />
-                </div>
-                <AdvisorPayAccepted tone="onLight" size="sm" />
-                <p className="text-xs text-slate-500">
-                  Card, Apple Pay (Safari / iPhone) or EFT via Paystack. Open a
-                  card above, then pay.
-                </p>
-              </div>
-            ) : (
-              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-950">
-                Card / Apple Pay is not available right now. Ask reception
-                to take payment.
-              </p>
-            )}
           </div>
         )}
 

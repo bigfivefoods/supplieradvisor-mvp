@@ -19,6 +19,7 @@ import {
 } from './gym-shop';
 import {
   inventoryGroupOf,
+  inventoryShelfOf,
   mergeGymShopWithInventory,
 } from './gym-inventory-shop';
 
@@ -259,4 +260,14 @@ assert.equal(parseGymSaleKind('product'), 'product');
 assert.equal(parseGymSaleKind(''), 'membership');
 
 void newId;
+assert.equal(
+  inventoryShelfOf({ name: 'VUKA T-shirt', category: 'Apparel' }),
+  'apparel'
+);
+assert.equal(
+  inventoryShelfOf({ name: 'Muscle soak', category: 'Recovery' }),
+  'recovery'
+);
+assert.equal(inventoryShelfOf({ name: 'Water bottle' }), 'other');
+
 console.log('gym-shop.test.ts ok');

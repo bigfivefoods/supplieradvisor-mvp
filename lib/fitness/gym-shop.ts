@@ -65,6 +65,7 @@ export type GymShopItem = {
   location?: string;
   weekly_class_limit?: number | null;
   unlocks_all?: boolean;
+  category?: string;
 };
 
 export function gymPeriodEnd(

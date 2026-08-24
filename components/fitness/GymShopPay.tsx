@@ -1,8 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { Loader2, X } from 'lucide-react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { ChevronDown, Loader2, X } from 'lucide-react';
 import type { GymShopCoach, GymShopItem } from '@/lib/fitness/gym-shop';
+import { inventoryShelfOf } from '@/lib/fitness/gym-inventory-shop';
+import { AdvisorPayAccepted } from '@/components/billing/ApplePayAccepted';
+import { advisorBrandInk } from '@/lib/advisors/brand-ink';
+import { videoEmbedSrc } from '@/lib/fitness/movements';
 
 function coachRateLabel(rate?: number | null, basis?: string | null) {
   if (rate == null || !Number.isFinite(rate)) return null;
@@ -10,9 +14,6 @@ function coachRateLabel(rate?: number | null, basis?: string | null) {
   const b = String(basis || 'session').replace(/_/g, ' ');
   return `${money} / ${b}`;
 }
-import { AdvisorPayAccepted } from '@/components/billing/ApplePayAccepted';
-import { advisorBrandInk } from '@/lib/advisors/brand-ink';
-import { videoEmbedSrc } from '@/lib/fitness/movements';
 
 function itemKindLabel(item: GymShopItem, classMode: boolean): string {
   if (item.kind === 'programme') return 'Programme';
@@ -27,6 +28,51 @@ function itemKindLabel(item: GymShopItem, classMode: boolean): string {
 
 function itemKey(item: GymShopItem): string {
   return `${item.kind}:${item.id}`;
+}
+
+function ShopFold({
+  title,
+  count,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  count: number;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  if (count <= 0) return null;
+  return (
+    <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-neutral-900">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
+      >
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-black text-slate-900 dark:text-white">
+            {title}
+          </p>
+          <p className="text-[11px] font-semibold text-slate-500">
+            {count} {count === 1 ? 'item' : 'items'}
+          </p>
+        </div>
+        <ChevronDown
+          className={`h-5 w-5 shrink-0 text-slate-400 transition-transform ${
+            open ? 'rotate-180 text-slate-700' : ''
+          }`}
+        />
+      </button>
+      {open ? (
+        <div className="space-y-4 border-t border-slate-100 px-4 py-4 dark:border-white/10">
+          {children}
+        </div>
+      ) : null}
+    </section>
+  );
 }
 
 export function GymShopPay({
@@ -74,35 +120,36 @@ export function GymShopPay({
 }) {
   const already = new Set(subscribedIds || []);
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const [openFold, setOpenFold] = useState<Record<string, boolean>>({
+    memberships: true,
+  });
   const classMode =
     classSubscribe === true ||
     items.some((i) => i.kind === 'membership' && Boolean(i.schedule_label));
 
   const groups = useMemo(() => {
+    const memberships = items.filter((i) => i.kind === 'membership');
     const programmes = items.filter((i) => i.kind === 'programme');
     const goods = items.filter(
       (i) => i.kind === 'product' && i.group !== 'service'
     );
-    const services = items.filter(
-      (i) =>
-        i.kind === 'membership' ||
-        (i.kind === 'product' && i.group === 'service')
-    );
-    return { programmes, goods, services };
+    const shelfOf = (i: GymShopItem) =>
+      inventoryShelfOf({
+        name: i.name,
+        category: i.category,
+        description: i.description,
+        sku: i.code,
+      });
+    const apparel = goods.filter((i) => shelfOf(i) === 'apparel');
+    const recovery = goods.filter((i) => shelfOf(i) === 'recovery');
+    const otherGoods = goods.filter((i) => shelfOf(i) === 'other');
+    return { memberships, programmes, apparel, recovery, otherGoods, goods };
   }, [items]);
 
   const openItem = items.find((i) => itemKey(i) === openKey) || null;
   const coachList = coaches || [];
-
-  if (!items.length && !coachList.length) {
-    return (
-      <p className="text-sm text-slate-500 dark:text-slate-400">
-        {classMode
-          ? 'No fitness services, classes or programmes are for sale yet. Ask the gym to publish the timetable.'
-          : 'No memberships or programmes are for sale yet. Ask the gym to publish a priced plan.'}
-      </p>
-    );
-  }
+  const toggle = (id: string) =>
+    setOpenFold((prev) => ({ ...prev, [id]: !prev[id] }));
 
   const renderCard = (item: GymShopItem) => {
     const subscribed = item.kind === 'membership' && already.has(item.id);
@@ -111,7 +158,7 @@ export function GymShopPay({
         type="button"
         key={itemKey(item)}
         onClick={() => setOpenKey(itemKey(item))}
-        className="flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white text-left shadow-sm dark:border-white/10 dark:bg-neutral-900"
+        className="flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white text-left shadow-sm dark:border-white/10 dark:bg-neutral-950"
       >
         {item.image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -125,7 +172,7 @@ export function GymShopPay({
           <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
             {itemKindLabel(item, classMode)}
           </p>
-          <p className="font-bold text-sm text-slate-900 dark:text-white">
+          <p className="text-sm font-bold text-slate-900 dark:text-white">
             {item.name}
           </p>
           {item.schedule_label ? (
@@ -152,60 +199,52 @@ export function GymShopPay({
     );
   };
 
-  const section = (title: string, list: GymShopItem[]) =>
+  const grid = (list: GymShopItem[]) =>
+    list.length ? (
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {list.map(renderCard)}
+      </div>
+    ) : null;
+
+  const shelf = (title: string, list: GymShopItem[]) =>
     list.length ? (
       <div className="space-y-2">
-        <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
           {title}
         </p>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {list.map(renderCard)}
-        </div>
+        {grid(list)}
       </div>
     ) : null;
 
   const busy = openItem ? buyingId === itemKey(openItem) : false;
   const subscribed =
     openItem?.kind === 'membership' && already.has(openItem.id);
-  const canBuy =
-    payoutReady && name.trim() && email.includes('@') && Boolean(openItem);
+  const profileReady = Boolean(name.trim() && email.includes('@'));
+  const canBuy = payoutReady && profileReady && Boolean(openItem);
+
+  if (!items.length && !coachList.length) {
+    return (
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        Nothing is for sale yet. Ask the gym to publish memberships or products.
+      </p>
+    );
+  }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {hideIntro ? null : (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {classMode ? (
-            <p className="text-sm text-slate-600 dark:text-slate-300">
-              Open a fitness service, class or programme to read the details,
-              then pay. Card, Apple Pay (Safari / iPhone) or EFT.
-            </p>
-          ) : requirePaid ? (
-            <p className="text-sm text-slate-600 dark:text-slate-300">
-              Open a membership, programme or product first — then pay. Card,
-              Apple Pay (Safari / iPhone) or EFT.
-            </p>
-          ) : (
-            <p className="text-sm text-slate-600 dark:text-slate-300">
-              Tap a product or service for the full details before you buy.
-            </p>
-          )}
-          {payoutReady && !hidePayAccepted ? (
-            <AdvisorPayAccepted tone="onLight" size="sm" />
-          ) : null}
-        </div>
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          {requirePaid
+            ? 'Open a membership, programme or product, then pay with card or Apple Pay.'
+            : 'Open a card for the details, then pay with card or Apple Pay.'}
+        </p>
       )}
       {joining ? (
-        <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+        <p className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
           {joining.note ||
             `Once-off joining R${joining.fee_zar}${
               joining.waived ? ' — currently waived' : ''
             }`}
-        </p>
-      ) : null}
-      {!payoutReady ? (
-        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-950">
-          Card / Apple Pay is not available right now. You can still leave
-          your details — ask reception to take payment.
         </p>
       ) : null}
       {!hideIdentity ? (
@@ -232,82 +271,126 @@ export function GymShopPay({
         </div>
       ) : null}
 
-      {section('Fitness services', groups.services)}
-      {coachList.length ? (
-        <div className="space-y-2">
-          <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
-            Private coach
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {coachList.map((c) => {
-              const inner = (
-                <>
-                  {c.photo_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={c.photo_url}
-                      alt=""
-                      className="h-36 w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-28 items-center justify-center bg-slate-100 text-3xl font-black text-slate-400 dark:bg-white/5">
-                      {c.name.slice(0, 1)}
-                    </div>
-                  )}
-                  <div className="flex flex-1 flex-col px-4 py-4">
-                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                      Coach
-                    </p>
-                    <p className="text-sm font-black text-slate-900 dark:text-white">
-                      {c.name}
-                    </p>
-                    {c.specialties?.length ? (
-                      <p className="mt-0.5 text-[11px] font-bold text-slate-500">
-                        {c.specialties.slice(0, 3).join(' · ')}
-                      </p>
-                    ) : null}
-                    {c.bio ? (
-                      <p className="mt-1 line-clamp-3 text-[12px] text-slate-600 dark:text-slate-300">
-                        {c.bio}
-                      </p>
-                    ) : null}
-                    {coachRateLabel(c.rate_zar, c.rate_basis) ? (
-                      <p
-                        className="mt-auto pt-2 text-sm font-black tabular-nums"
-                        style={{ color }}
-                      >
-                        {coachRateLabel(c.rate_zar, c.rate_basis)}
-                      </p>
-                    ) : (
-                      <p className="mt-auto pt-2 text-[11px] font-bold text-slate-400">
-                        Private coaching
-                      </p>
-                    )}
-                    {joinPrivateHref ? (
-                      <p className="mt-2 text-[11px] font-black" style={{ color }}>
-                        Apply
-                      </p>
-                    ) : null}
+      <ShopFold
+        title="Membership services"
+        count={groups.memberships.length}
+        open={!!openFold.memberships}
+        onToggle={() => toggle('memberships')}
+      >
+        {grid(groups.memberships)}
+      </ShopFold>
+
+      <ShopFold
+        title="Private coaching"
+        count={coachList.length}
+        open={!!openFold.coaches}
+        onToggle={() => toggle('coaches')}
+      >
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {coachList.map((c) => {
+            const inner = (
+              <>
+                {c.photo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={c.photo_url}
+                    alt=""
+                    className="h-36 w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-28 items-center justify-center bg-slate-100 text-3xl font-black text-slate-400 dark:bg-white/5">
+                    {c.name.slice(0, 1)}
                   </div>
-                </>
-              );
-              const cls =
-                'flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white text-left shadow-sm dark:border-white/10 dark:bg-neutral-900';
-              return joinPrivateHref ? (
-                <a key={c.id} href={joinPrivateHref} className={cls}>
-                  {inner}
-                </a>
-              ) : (
-                <div key={c.id} className={cls}>
-                  {inner}
+                )}
+                <div className="flex flex-1 flex-col px-4 py-4">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    Coach
+                  </p>
+                  <p className="text-sm font-black text-slate-900 dark:text-white">
+                    {c.name}
+                  </p>
+                  {c.specialties?.length ? (
+                    <p className="mt-0.5 text-[11px] font-bold text-slate-500">
+                      {c.specialties.slice(0, 3).join(' · ')}
+                    </p>
+                  ) : null}
+                  {c.bio ? (
+                    <p className="mt-1 line-clamp-3 text-[12px] text-slate-600 dark:text-slate-300">
+                      {c.bio}
+                    </p>
+                  ) : null}
+                  {coachRateLabel(c.rate_zar, c.rate_basis) ? (
+                    <p
+                      className="mt-auto pt-2 text-sm font-black tabular-nums"
+                      style={{ color }}
+                    >
+                      {coachRateLabel(c.rate_zar, c.rate_basis)}
+                    </p>
+                  ) : (
+                    <p className="mt-auto pt-2 text-[11px] font-bold text-slate-400">
+                      Private coaching
+                    </p>
+                  )}
+                  {joinPrivateHref ? (
+                    <p className="mt-2 text-[11px] font-black" style={{ color }}>
+                      Apply
+                    </p>
+                  ) : null}
                 </div>
-              );
-            })}
-          </div>
+              </>
+            );
+            const cls =
+              'flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white text-left shadow-sm dark:border-white/10 dark:bg-neutral-950';
+            return joinPrivateHref ? (
+              <a key={c.id} href={joinPrivateHref} className={cls}>
+                {inner}
+              </a>
+            ) : (
+              <div key={c.id} className={cls}>
+                {inner}
+              </div>
+            );
+          })}
         </div>
-      ) : null}
-      {section('Programmes', groups.programmes)}
-      {section('Products', groups.goods)}
+      </ShopFold>
+
+      <ShopFold
+        title="Programmes"
+        count={groups.programmes.length}
+        open={!!openFold.programmes}
+        onToggle={() => toggle('programmes')}
+      >
+        {grid(groups.programmes)}
+      </ShopFold>
+
+      <ShopFold
+        title="Products"
+        count={groups.goods.length}
+        open={!!openFold.products}
+        onToggle={() => toggle('products')}
+      >
+        {shelf('Apparel', groups.apparel)}
+        {shelf('Recovery & health', groups.recovery)}
+        {shelf('More', groups.otherGoods)}
+      </ShopFold>
+
+      {hidePayAccepted ? null : payoutReady ? (
+        <div className="space-y-2 rounded-3xl border border-slate-200 bg-white px-4 py-4 dark:border-white/10 dark:bg-neutral-900">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+            Payments accepted
+          </p>
+          <AdvisorPayAccepted tone="onLight" size="md" label="Apple Pay and card via Paystack" />
+          <p className="text-xs text-slate-500">
+            Open a card above, then pay. Apple Pay on Safari / iPhone; card and
+            EFT via Paystack.
+          </p>
+        </div>
+      ) : (
+        <p className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-950">
+          Card / Apple Pay is not available right now. Ask reception to take
+          payment.
+        </p>
+      )}
 
       {openItem ? (
         <div
@@ -452,9 +535,11 @@ export function GymShopPay({
                   `Pay & join · R${openItem.price_zar}`
                 )}
               </button>
-              {!name.trim() || !email.includes('@') ? (
+              {!profileReady ? (
                 <p className="text-center text-[11px] text-slate-500">
-                  Enter your name and email above before paying.
+                  {hideIdentity
+                    ? 'Save your name and email under You → Profile before paying.'
+                    : 'Enter your name and email above before paying.'}
                 </p>
               ) : null}
             </div>

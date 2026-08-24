@@ -14,7 +14,29 @@ export type GymInventoryShopItem = {
   price_zar: number;
   image_url?: string | null;
   sku?: string | null;
+  category?: string | null;
 };
+
+export type GymProductShelf = 'apparel' | 'recovery' | 'other';
+
+const APPAREL_RE =
+  /apparel|clothing|merch|t-?shirts?|tees?\b|hoodie|sweat|vest|cap\b|hat\b|kit\b|shorts?|leggings?|jacket|wear|socks?|tank/i;
+const RECOVERY_RE =
+  /recover|health|soak|epsom|magnesium|foam|roller|massage|balm|cream|gel|ice\b|heat|supplement|protein|wellness|muscle|cbd|sauna|stretch|therapy|salt/i;
+
+export function inventoryShelfOf(item: {
+  name?: string | null;
+  category?: string | null;
+  description?: string | null;
+  sku?: string | null;
+}): GymProductShelf {
+  const blob = [item.category, item.name, item.description, item.sku]
+    .filter(Boolean)
+    .join(' ');
+  if (APPAREL_RE.test(blob)) return 'apparel';
+  if (RECOVERY_RE.test(blob)) return 'recovery';
+  return 'other';
+}
 
 const SERVICE_TYPE_RE =
   /^(service|services|membership|class|programme|program)$/i;
@@ -48,6 +70,7 @@ export function gymShopItemFromInventory(
     image_url: item.image_url,
     group: item.group,
     code: item.sku || undefined,
+    category: item.category || undefined,
   };
 }
 
@@ -115,6 +138,7 @@ export async function listGymInventoryShop(
           price_zar: price,
           image_url: p.primary_image_url ? String(p.primary_image_url) : null,
           sku: p.sku ? String(p.sku) : null,
+          category: p.category ? String(p.category) : null,
         };
       })
       .filter((p) => p.price_zar > 0)
