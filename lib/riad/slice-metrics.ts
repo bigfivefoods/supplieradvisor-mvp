@@ -11,6 +11,7 @@ export type RiadMetricRow = {
   category?: string | null;
   owner_name?: string | null;
   created_at?: string | null;
+  source?: string | null;
 };
 
 export type RiadMetricSeg = { label: string; value: number; color: string };
@@ -46,6 +47,12 @@ const STATUS_COLORS: Record<string, string> = {
   resolved: '#10b981',
   closed: '#059669',
   active: '#38bdf8',
+};
+
+const SOURCE_COLORS: Record<string, string> = {
+  customer: '#0284c7',
+  supplier: '#0d9488',
+  operations: '#8b5cf6',
 };
 
 const OWNER_PALETTE = [
@@ -127,6 +134,12 @@ export function riadSlicePack(items: RiadMetricRow[]) {
     (i) => String(i.category || '').trim() || 'Uncategorised',
     (_k, i) => OWNER_PALETTE[i % OWNER_PALETTE.length]
   ).slice(0, 8);
+  const bySource = tally(
+    items,
+    (i) => norm(i.source) || 'other',
+    (k) => SOURCE_COLORS[k] || '#64748b',
+    (k) => k.charAt(0).toUpperCase() + k.slice(1)
+  );
 
   const months: Array<{ label: string; open: number; closed: number; key: string }> = [];
   const now = new Date();
@@ -152,6 +165,7 @@ export function riadSlicePack(items: RiadMetricRow[]) {
     byStatus,
     byOwner,
     byCategory,
+    bySource,
     byMonth: months,
   };
 }
