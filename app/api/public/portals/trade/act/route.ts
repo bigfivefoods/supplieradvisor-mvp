@@ -20,6 +20,8 @@ import {
 } from '@/lib/projects/waterfall';
 import { RIAD_STATUSES, RIAD_PRIORITIES, RIAD_TYPES } from '@/lib/containers/riad';
 import { portalTaskRiadMark } from '@/lib/portals/trade-portal';
+import { parsePortalPersonKey } from '@/lib/portals/trade-portal-people';
+import { hostDisplayName } from '@/lib/portals/portal-actor';
 import { WBS_MAX_DEPTH, wbsDepthOf } from '@/lib/projects/wbs';
 
 const SUPPLIER_STATUS = ['accepted', 'invoiced'] as const;
@@ -218,13 +220,47 @@ export async function POST(request: NextRequest) {
         task.metadata && typeof task.metadata === 'object' && !Array.isArray(task.metadata)
           ? { ...(task.metadata as Record<string, unknown>) }
           : {};
-      if (body.assignee_viewer_id !== undefined || body.assignee !== undefined) {
-        const vid = Number(body.assignee_viewer_id);
-        if (Number.isFinite(vid) && vid > 0) {
+      if (
+        body.assignee_key !== undefined ||
+        body.assignee_viewer_id !== undefined ||
+        body.assignee_member_id !== undefined ||
+        body.assignee !== undefined
+      ) {
+        const parsed =
+          parsePortalPersonKey(body.assignee_key) ||
+          (Number(body.assignee_member_id) > 0
+            ? { side: 'host' as const, id: Number(body.assignee_member_id) }
+            : Number(body.assignee_viewer_id) > 0
+              ? { side: 'guest' as const, id: Number(body.assignee_viewer_id) }
+              : null);
+        if (parsed?.side === 'host') {
+          const { data: member } = await supabase
+            .from('business_users')
+            .select('id, name, email, role, status')
+            .eq('id', parsed.id)
+            .eq('profile_id', portal.profile_id)
+            .eq('status', 'active')
+            .maybeSingle();
+          if (!member) {
+            return NextResponse.json(
+              { error: 'Assign someone on the host team' },
+              { status: 400 }
+            );
+          }
+          const name = hostDisplayName({
+            memberName: member.name != null ? String(member.name) : null,
+            memberEmail: String(member.email || ''),
+          }).slice(0, 120);
+          patch.assignee = name || null;
+          meta.assignee_member_id = Number(member.id);
+          meta.assignee_name = name;
+          meta.assignee_side = 'host';
+          delete meta.assignee_viewer_id;
+        } else if (parsed?.side === 'guest') {
           let personQ = supabase
             .from('trade_portal_viewers')
             .select('id, name, status')
-            .eq('id', vid)
+            .eq('id', parsed.id)
             .eq('profile_id', portal.profile_id)
             .eq('portal_id', portal.id);
           if (portal.kind === 'customer' && viewer.customer_id) {
@@ -242,13 +278,17 @@ export async function POST(request: NextRequest) {
           patch.assignee = String(person.name || '').slice(0, 120) || null;
           meta.assignee_viewer_id = person.id;
           meta.assignee_name = person.name;
+          meta.assignee_side = 'guest';
+          delete meta.assignee_member_id;
         } else {
           patch.assignee =
             body.assignee != null && String(body.assignee).trim()
               ? String(body.assignee).trim().slice(0, 120)
               : null;
           delete meta.assignee_viewer_id;
+          delete meta.assignee_member_id;
           delete meta.assignee_name;
+          delete meta.assignee_side;
         }
         patch.metadata = meta;
       }

@@ -26,8 +26,13 @@ import {
   isOpenLike,
 } from '@/lib/customers/riad';
 import { SUPPLIER_RIAD_CATEGORIES } from '@/lib/suppliers/riad';
-import type { PortalRiadView, TradePortalKind } from '@/lib/portals/trade-portal';
+import type {
+  PortalPersonPublic,
+  PortalRiadView,
+  TradePortalKind,
+} from '@/lib/portals/trade-portal';
 import { stripPortalTaskRiadMark } from '@/lib/portals/trade-portal';
+import { portalPersonKey } from '@/lib/portals/trade-portal-people';
 
 const emptyForm = {
   entry_type: 'risk' as RiadType,
@@ -62,12 +67,18 @@ export function PortalRiadPanel({
   items,
   busy,
   ownerName,
+  people,
+  hostName,
+  accountLabel,
   onAct,
 }: {
   kind: TradePortalKind;
   items: PortalRiadView[];
   busy: boolean;
   ownerName: string;
+  people?: PortalPersonPublic[];
+  hostName?: string;
+  accountLabel?: string | null;
   onAct: (p: Record<string, unknown>) => Promise<unknown>;
 }) {
   const categories =
@@ -347,12 +358,52 @@ export function PortalRiadPanel({
                 </option>
               ))}
             </select>
-            <input
-              className="input !p-3 !text-sm"
-              placeholder="Owner"
-              value={form.owner_name}
-              onChange={(e) => setForm({ ...form, owner_name: e.target.value })}
-            />
+            {people && people.length > 0 ? (
+              <select
+                className="input !p-3 !text-sm"
+                value={form.owner_name || ownerName || ''}
+                onChange={(e) =>
+                  setForm({ ...form, owner_name: e.target.value })
+                }
+              >
+                {people.some((p) => p.name === (form.owner_name || ownerName)) ? null : (
+                  <option value={form.owner_name || ownerName || ''}>
+                    {form.owner_name || ownerName || 'Owner'}
+                  </option>
+                )}
+                {people.filter((p) => p.side === 'host').length ? (
+                  <optgroup label={hostName || 'Host team'}>
+                    {people
+                      .filter((p) => p.side === 'host')
+                      .map((p) => (
+                        <option key={portalPersonKey(p)} value={p.name}>
+                          {p.name}
+                          {p.you ? ' (you)' : ''}
+                        </option>
+                      ))}
+                  </optgroup>
+                ) : null}
+                {people.filter((p) => p.side !== 'host').length ? (
+                  <optgroup label={accountLabel || 'Portal people'}>
+                    {people
+                      .filter((p) => p.side !== 'host')
+                      .map((p) => (
+                        <option key={portalPersonKey(p)} value={p.name}>
+                          {p.name}
+                          {p.you ? ' (you)' : ''}
+                        </option>
+                      ))}
+                  </optgroup>
+                ) : null}
+              </select>
+            ) : (
+              <input
+                className="input !p-3 !text-sm"
+                placeholder="Owner"
+                value={form.owner_name}
+                onChange={(e) => setForm({ ...form, owner_name: e.target.value })}
+              />
+            )}
             <input
               type="date"
               className="input !p-3 !text-sm"

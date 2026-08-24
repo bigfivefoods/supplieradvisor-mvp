@@ -6,6 +6,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { isSafeFilterEmail } from '@/lib/security/email-filter';
 import { isMissingRelation } from '@/lib/business/company-data';
 import { sendTradePortalAccessEmail } from '@/lib/portals/trade-portal-email';
+import { hostDisplayName } from '@/lib/portals/portal-actor';
 import {
   ensureTradePortal,
   mapViewer,
@@ -39,7 +40,113 @@ export function publicPeopleView(
       job_title: p.job_title,
       last_seen_at: p.last_seen_at,
       you: p.id === youId,
+      side: 'guest' as const,
     }));
+}
+
+export function portalPersonKey(p: {
+  side?: 'host' | 'guest';
+  id: number;
+}): string {
+  return `${p.side === 'host' ? 'host' : 'guest'}:${p.id}`;
+}
+
+export function parsePortalPersonKey(
+  raw: unknown
+): { side: 'host' | 'guest'; id: number } | null {
+  const m = /^(host|guest):(\d+)$/.exec(String(raw || '').trim());
+  if (!m) return null;
+  const id = Number(m[2]);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  return { side: m[1] as 'host' | 'guest', id };
+}
+
+export function mergePortalPeople(
+  host: PortalPersonPublic[],
+  guests: PortalPersonPublic[]
+): PortalPersonPublic[] {
+  const hostEmails = new Set(
+    host
+      .map((p) => String(p.email || '').toLowerCase())
+      .filter((e) => e.includes('@'))
+  );
+  const guestsOut = guests.filter((g) => {
+    const e = String(g.email || '').toLowerCase();
+    return !e.includes('@') || !hostEmails.has(e);
+  });
+  return [...host, ...guestsOut];
+}
+
+function roleLabel(role: unknown): string | null {
+  const r = String(role || '').trim().replace(/[_-]+/g, ' ');
+  if (!r) return null;
+  return r.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Active host-company team (Craig / Big Five Foods), for assign + RIAD. */
+export async function listHostTeam(
+  companyId: number
+): Promise<PortalPersonPublic[]> {
+  if (!Number.isFinite(companyId) || companyId <= 0) return [];
+  const supabase = getSupabaseServer();
+  let rows: Array<Record<string, unknown>> = [];
+  const full = await supabase
+    .from('business_users')
+    .select('id, name, email, role, status')
+    .eq('profile_id', companyId)
+    .eq('status', 'active')
+    .limit(40);
+  if (full.error) {
+    const soft = await supabase
+      .from('business_users')
+      .select('id, email, role, status')
+      .eq('profile_id', companyId)
+      .eq('status', 'active')
+      .limit(40);
+    if (soft.error) return [];
+    rows = (soft.data || []) as Array<Record<string, unknown>>;
+  } else {
+    rows = (full.data || []) as Array<Record<string, unknown>>;
+  }
+  if (!rows.length) return [];
+
+  let contactName: string | null = null;
+  let companyName: string | null = null;
+  const { data: prof } = await supabase
+    .from('profiles')
+    .select('trading_name, legal_name, contact_name')
+    .eq('id', companyId)
+    .maybeSingle();
+  if (prof) {
+    contactName = prof.contact_name != null ? String(prof.contact_name) : null;
+    companyName =
+      String(prof.trading_name || prof.legal_name || '').trim() || null;
+  }
+
+  const out: PortalPersonPublic[] = [];
+  for (const row of rows) {
+    const id = Number(row.id);
+    if (!Number.isFinite(id) || id <= 0) continue;
+    const role = String(row.role || '').toLowerCase();
+    const email = String(row.email || '').trim() || null;
+    const name = hostDisplayName({
+      memberName: row.name != null ? String(row.name) : null,
+      memberEmail: email,
+      contactName: role === 'owner' || role === 'admin' ? contactName : null,
+      companyName,
+    });
+    out.push({
+      id,
+      name,
+      email: email && email.includes('@') ? email : null,
+      job_title: roleLabel(row.role),
+      last_seen_at: null,
+      you: false,
+      side: 'host',
+    });
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name));
+  return out;
 }
 
 export async function listAccountPeople(opts: {

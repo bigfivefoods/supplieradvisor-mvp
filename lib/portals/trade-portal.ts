@@ -170,6 +170,7 @@ export type PortalProjectTask = {
   phase_key: string | null;
   assignee?: string | null;
   assignee_viewer_id?: number | null;
+  assignee_member_id?: number | null;
   description?: string | null;
   parent_task_id?: number | null;
 };
@@ -207,6 +208,8 @@ export type PortalPersonPublic = {
   job_title: string | null;
   last_seen_at: string | null;
   you: boolean;
+  /** Host company team vs guest portal members */
+  side?: 'host' | 'guest';
 };
 
 export function isTradePortalKind(v: unknown): v is TradePortalKind {
@@ -786,16 +789,23 @@ export async function loadPublicPortal(
   let people: PortalPersonPublic[] = [];
   if (viewer && (viewer.customer_id || viewer.supplier_id)) {
     try {
-      const { listAccountPeople, publicPeopleView } = await import(
-        '@/lib/portals/trade-portal-people'
-      );
+      const {
+        listAccountPeople,
+        listHostTeam,
+        mergePortalPeople,
+        publicPeopleView,
+      } = await import('@/lib/portals/trade-portal-people');
       const listed = await listAccountPeople({
         companyId: portal.profile_id,
         portalId: portal.id,
         customerId: viewer.customer_id,
         supplierId: viewer.supplier_id,
       });
-      if (listed.ok) people = publicPeopleView(listed.people, viewer.id);
+      const guests = listed.ok
+        ? publicPeopleView(listed.people, viewer.id)
+        : [];
+      const hostTeam = await listHostTeam(portal.profile_id);
+      people = mergePortalPeople(hostTeam, guests);
     } catch {
       people = [];
     }

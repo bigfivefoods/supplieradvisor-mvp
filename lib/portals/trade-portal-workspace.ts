@@ -584,6 +584,7 @@ export async function loadPortalWorkspace(opts: {
       const list = taskByProject.get(pid) || [];
       const meta = metaOf(asObject(t));
       const assigneeViewer = Number(meta.assignee_viewer_id);
+      const assigneeMember = Number(meta.assignee_member_id);
       const parentFromMeta = Number(meta.parent_task_id);
       const parentCol =
         t.parent_task_id != null ? Number(t.parent_task_id) : parentFromMeta;
@@ -598,6 +599,10 @@ export async function loadPortalWorkspace(opts: {
         assignee_viewer_id:
           Number.isFinite(assigneeViewer) && assigneeViewer > 0
             ? assigneeViewer
+            : null,
+        assignee_member_id:
+          Number.isFinite(assigneeMember) && assigneeMember > 0
+            ? assigneeMember
             : null,
         description: t.description != null ? String(t.description) : null,
         parent_task_id:

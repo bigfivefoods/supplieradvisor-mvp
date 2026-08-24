@@ -80,7 +80,7 @@ export function portalActionStamp(
 
 export function attachPortalActor(
   payload: PublicPortalPayload,
-  host: { name: string; email: string | null } | null
+  host: { name: string; email: string | null; memberId?: number } | null
 ): PublicPortalPayload {
   if (host) {
     return {
@@ -90,7 +90,10 @@ export function attachPortalActor(
         name: host.name,
         email: host.email,
       },
-      people: (payload.people || []).map((p) => ({ ...p, you: false })),
+      people: (payload.people || []).map((p) => ({
+        ...p,
+        you: p.side === 'host' && host.memberId != null && p.id === host.memberId,
+      })),
     };
   }
   const viewer = payload.viewer;
@@ -103,6 +106,10 @@ export function attachPortalActor(
           email: viewer.email,
         }
       : { role: 'guest', name: 'Guest', email: null },
+    people: (payload.people || []).map((p) => ({
+      ...p,
+      you: p.side === 'host' ? false : p.you,
+    })),
   };
 }
 

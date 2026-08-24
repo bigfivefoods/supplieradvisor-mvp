@@ -16,6 +16,7 @@ import type {
   PortalRiadView,
   PublicPortalPayload,
 } from '@/lib/portals/trade-portal';
+import { portalPersonKey } from '@/lib/portals/trade-portal-people';
 import {
   RIAD_PRIORITIES,
   RIAD_TYPES,
@@ -116,6 +117,67 @@ const EMPTY_PROFILE: BookProfile = {
 function pct(n: number | null | undefined) {
   if (n == null) return '—';
   return `${Math.round(n)}%`;
+}
+
+function taskAssigneeKey(t: PortalProjectTask): string {
+  if (t.assignee_member_id) return `host:${t.assignee_member_id}`;
+  if (t.assignee_viewer_id) return `guest:${t.assignee_viewer_id}`;
+  return '';
+}
+
+function PersonPicker({
+  people,
+  hostName,
+  accountLabel,
+  value,
+  disabled,
+  emptyLabel = 'Unassigned',
+  onChange,
+}: {
+  people: PortalPersonPublic[];
+  hostName?: string;
+  accountLabel?: string | null;
+  value: string;
+  disabled?: boolean;
+  emptyLabel?: string;
+  onChange: (key: string, person: PortalPersonPublic | null) => void;
+}) {
+  const host = people.filter((p) => p.side === 'host');
+  const guests = people.filter((p) => p.side !== 'host');
+  return (
+    <select
+      className="input mt-0.5 w-full !py-1.5 !px-2 !text-sm"
+      value={value}
+      disabled={disabled || people.length === 0}
+      onChange={(e) => {
+        const key = e.target.value;
+        onChange(key, people.find((p) => portalPersonKey(p) === key) || null);
+      }}
+    >
+      <option value="">{emptyLabel}</option>
+      {host.length ? (
+        <optgroup label={hostName || 'Host team'}>
+          {host.map((p) => (
+            <option key={portalPersonKey(p)} value={portalPersonKey(p)}>
+              {p.name}
+              {p.you ? ' (you)' : ''}
+              {p.job_title ? ` · ${p.job_title}` : ''}
+            </option>
+          ))}
+        </optgroup>
+      ) : null}
+      {guests.length ? (
+        <optgroup label={accountLabel || 'Portal people'}>
+          {guests.map((p) => (
+            <option key={portalPersonKey(p)} value={portalPersonKey(p)}>
+              {p.name}
+              {p.you ? ' (you)' : ''}
+            </option>
+          ))}
+        </optgroup>
+      ) : null}
+    </select>
+  );
 }
 
 const HEAVY_ACTIONS = new Set([
@@ -242,6 +304,10 @@ function applyActLocally(
                 payload.assignee_viewer_id !== undefined
                   ? Number(payload.assignee_viewer_id) || null
                   : t.assignee_viewer_id,
+              assignee_member_id:
+                payload.assignee_member_id !== undefined
+                  ? Number(payload.assignee_member_id) || null
+                  : t.assignee_member_id,
             };
           }),
         })),
@@ -517,6 +583,8 @@ export function GuestTradeWorkspace({
           people={live.people || []}
           riad={ws?.riad || []}
           ownerName={live.actor?.name || live.viewer?.name || ''}
+          hostName={live.host.name}
+          accountLabel={live.accountLabel}
           busy={busy}
           onAct={act}
         />
@@ -539,6 +607,9 @@ export function GuestTradeWorkspace({
           items={ws?.riad || []}
           busy={busy}
           ownerName={live.actor?.name || live.viewer?.name || ''}
+          people={live.people || []}
+          hostName={live.host.name}
+          accountLabel={live.accountLabel}
           onAct={act}
         />
       ) : null}
@@ -556,6 +627,8 @@ export function GuestTradeWorkspace({
           people={live.people || []}
           busy={busy}
           isHost={isHost}
+          hostName={live.host.name}
+          accountLabel={live.accountLabel}
           onAct={act}
           onPeople={(next) =>
             setLive((prev) => ({
@@ -584,6 +657,8 @@ function PeoplePanel({
   people,
   busy,
   isHost,
+  hostName,
+  accountLabel,
   onAct,
   onPeople,
   onNote,
@@ -591,6 +666,8 @@ function PeoplePanel({
   people: PortalPersonPublic[];
   busy: boolean;
   isHost: boolean;
+  hostName?: string;
+  accountLabel?: string | null;
   onAct: (p: Record<string, unknown>) => Promise<Record<string, unknown> | null>;
   onPeople: (next: PortalPersonPublic[]) => void;
   onNote: (v: string | null) => void;
@@ -645,6 +722,7 @@ function PeoplePanel({
               person.job_title != null ? String(person.job_title) : job || null,
             last_seen_at: null,
             you: false,
+            side: 'guest',
           },
         ]);
       }
@@ -679,48 +757,78 @@ function PeoplePanel({
           People with access
         </p>
         <p className="mt-1 text-sm text-neutral-600">
-          Anyone you add sees the same live books for this account. They do not
-          need a SupplierAdvisor login.
+          Host team and guest people can be assigned on projects and RIAD.
+          Anyone you add sees the same live books for this account.
         </p>
-        <ul className="mt-4 space-y-2">
-          {people.length === 0 ? (
-            <li className="text-sm text-neutral-500">
-              {isHost ? 'No guest people on this account yet.' : 'Only you so far.'}
+        {(() => {
+          const hostPeople = people.filter((p) => p.side === 'host');
+          const guestPeople = people.filter((p) => p.side !== 'host');
+          const row = (p: PortalPersonPublic) => (
+            <li
+              key={portalPersonKey(p)}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-900">
+                  {p.name}
+                  {p.you ? (
+                    <span className="ml-2 text-[10px] font-black uppercase tracking-wide text-[#0077b6]">
+                      You
+                    </span>
+                  ) : null}
+                </p>
+                <p className="text-[11px] text-neutral-500">
+                  {[p.job_title, p.email].filter(Boolean).join(' · ') ||
+                    'No contact yet'}
+                </p>
+              </div>
+              {p.side === 'host' || p.you ? (
+                p.side === 'host' ? (
+                  <span className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                    {hostName || 'Host'}
+                  </span>
+                ) : null
+              ) : (
+                <button
+                  type="button"
+                  disabled={blocked}
+                  onClick={() => void revoke(p.id)}
+                  className="text-xs font-bold text-rose-700"
+                >
+                  Remove
+                </button>
+              )}
             </li>
-          ) : (
-            people.map((p) => (
-              <li
-                key={p.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-slate-900">
-                    {p.name}
-                    {p.you ? (
-                      <span className="ml-2 text-[10px] font-black uppercase tracking-wide text-[#0077b6]">
-                        You
-                      </span>
-                    ) : null}
+          );
+          return (
+            <div className="mt-4 space-y-4">
+              {hostPeople.length ? (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400 mb-2">
+                    {hostName || 'Host team'}
                   </p>
-                  <p className="text-[11px] text-neutral-500">
-                    {[p.job_title, p.email].filter(Boolean).join(' · ') ||
-                      'No contact yet'}
-                  </p>
+                  <ul className="space-y-2">{hostPeople.map(row)}</ul>
                 </div>
-                {p.you ? null : (
-                  <button
-                    type="button"
-                    disabled={blocked}
-                    onClick={() => void revoke(p.id)}
-                    className="text-xs font-bold text-rose-700"
-                  >
-                    Remove
-                  </button>
-                )}
-              </li>
-            ))
-          )}
-        </ul>
+              ) : null}
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400 mb-2">
+                  {accountLabel || 'Portal people'}
+                </p>
+                <ul className="space-y-2">
+                  {guestPeople.length === 0 ? (
+                    <li className="text-sm text-neutral-500">
+                      {isHost
+                        ? 'No guest people on this account yet.'
+                        : 'Only you so far.'}
+                    </li>
+                  ) : (
+                    guestPeople.map(row)
+                  )}
+                </ul>
+              </div>
+            </div>
+          );
+        })()}
       </section>
       <section className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-sm space-y-3">
         <p className="text-sm font-black text-slate-900">Give someone access</p>
@@ -880,12 +988,18 @@ function TaskRiadForm({
   taskId,
   taskTitle,
   ownerName,
+  people,
+  hostName,
+  accountLabel,
   busy,
   onAct,
 }: {
   taskId: number;
   taskTitle: string;
   ownerName: string;
+  people: PortalPersonPublic[];
+  hostName?: string;
+  accountLabel?: string | null;
   busy: boolean;
   onAct: (p: Record<string, unknown>) => Promise<unknown>;
 }) {
@@ -893,6 +1007,10 @@ function TaskRiadForm({
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
   const [severity, setSeverity] = useState('medium');
+  const defaultOwner = people.find((p) => p.name === ownerName);
+  const [ownerKey, setOwnerKey] = useState(
+    defaultOwner ? portalPersonKey(defaultOwner) : ''
+  );
   return (
     <div className="rounded-2xl border border-cyan-100 bg-white p-3 space-y-2">
       <p className="text-[10px] font-black uppercase tracking-wider text-[#0077b6]">
@@ -934,6 +1052,18 @@ function TaskRiadForm({
         value={desc}
         onChange={(e) => setDesc(e.target.value)}
       />
+      <label className="text-[10px] font-bold uppercase text-neutral-400 block">
+        Owner
+        <PersonPicker
+          people={people}
+          hostName={hostName}
+          accountLabel={accountLabel}
+          value={ownerKey}
+          disabled={busy}
+          emptyLabel={ownerName || 'Owner'}
+          onChange={(key) => setOwnerKey(key)}
+        />
+      </label>
       <button
         type="button"
         disabled={busy || !title.trim()}
@@ -947,7 +1077,10 @@ function TaskRiadForm({
             title: t,
             description: desc || undefined,
             severity,
-            owner_name: ownerName || undefined,
+            owner_name:
+              people.find((p) => portalPersonKey(p) === ownerKey)?.name ||
+              ownerName ||
+              undefined,
             related_task_id: taskId,
           });
         }}
@@ -978,6 +1111,8 @@ function ProjectsPanel({
   people,
   riad,
   ownerName,
+  hostName,
+  accountLabel,
   busy,
   onAct,
 }: {
@@ -985,6 +1120,8 @@ function ProjectsPanel({
   people: PortalPersonPublic[];
   riad: PortalRiadView[];
   ownerName: string;
+  hostName?: string;
+  accountLabel?: string | null;
   busy: boolean;
   onAct: (p: Record<string, unknown>) => Promise<unknown>;
 }) {
@@ -1463,36 +1600,31 @@ function ProjectsPanel({
                 </label>
               </div>
               <label className="text-[10px] font-bold uppercase text-neutral-400 block">
-                Assign to portal member
+                Assign
                 {people.length === 0 ? (
                   <p className="mt-0.5 text-[11px] font-medium normal-case tracking-normal text-amber-800">
-                    Add people on the People tab first.
+                    Host team and portal people appear here.
                   </p>
                 ) : null}
-                <select
-                  className="input mt-0.5 w-full !py-1.5 !px-2 !text-sm"
-                  value={t.assignee_viewer_id || ''}
+                <PersonPicker
+                  people={people}
+                  hostName={hostName}
+                  accountLabel={accountLabel}
+                  value={taskAssigneeKey(t)}
                   disabled={busy || people.length === 0}
-                  onChange={(e) => {
-                    const vid = e.target.value ? Number(e.target.value) : 0;
+                  onChange={(key, person) => {
                     void onAct({
                       action: 'task_update',
                       id: t.id,
-                      assignee_viewer_id: vid || null,
-                      assignee: vid
-                        ? people.find((p) => p.id === vid)?.name || null
-                        : null,
+                      assignee_key: key || null,
+                      assignee: person?.name || null,
+                      assignee_viewer_id:
+                        person?.side === 'guest' ? person.id : null,
+                      assignee_member_id:
+                        person?.side === 'host' ? person.id : null,
                     });
                   }}
-                >
-                  <option value="">Unassigned</option>
-                  {people.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                      {p.you ? ' (you)' : ''}
-                    </option>
-                  ))}
-                </select>
+                />
               </label>
               {t.assignee && !t.assignee_viewer_id ? (
                 <p className="text-[11px] text-neutral-500">
@@ -1532,6 +1664,9 @@ function ProjectsPanel({
                   taskId={t.id}
                   taskTitle={t.title}
                   ownerName={t.assignee || ownerName}
+                  people={people}
+                  hostName={hostName}
+                  accountLabel={accountLabel}
                   busy={busy}
                   onAct={onAct}
                 />

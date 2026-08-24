@@ -62,12 +62,22 @@ const base = {
   },
   people: [
     {
+      id: 7,
+      name: 'Craig',
+      email: 'craig@bigfivefoods.com',
+      job_title: 'Owner',
+      last_seen_at: null,
+      you: false,
+      side: 'host',
+    },
+    {
       id: 99,
       name: 'Boxer buyer',
       email: 'buyer@boxer.test',
       job_title: 'Buyer',
       last_seen_at: null,
       you: true,
+      side: 'guest',
     },
   ],
 } as unknown as PublicPortalPayload;
@@ -75,15 +85,18 @@ const base = {
 const asHost = attachPortalActor(base, {
   name: 'Craig',
   email: 'craig@bigfivefoods.com',
+  memberId: 7,
 });
 assert.equal(asHost.actor?.role, 'host');
 assert.equal(asHost.actor?.name, 'Craig');
-assert.equal(asHost.people[0].you, false);
+assert.equal(asHost.people[0].you, true);
+assert.equal(asHost.people[1].you, false);
 
 const asGuest = attachPortalActor(base, null);
 assert.equal(asGuest.actor?.role, 'guest');
 assert.equal(asGuest.actor?.name, 'Boxer buyer');
-assert.equal(asGuest.people[0].you, true);
+assert.equal(asGuest.people[0].you, false);
+assert.equal(asGuest.people[1].you, true);
 
 assert.equal(
   hostDisplayName({
