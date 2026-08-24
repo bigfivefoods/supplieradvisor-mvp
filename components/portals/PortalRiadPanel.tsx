@@ -27,6 +27,7 @@ import {
 } from '@/lib/customers/riad';
 import { SUPPLIER_RIAD_CATEGORIES } from '@/lib/suppliers/riad';
 import type { PortalRiadView, TradePortalKind } from '@/lib/portals/trade-portal';
+import { stripPortalTaskRiadMark } from '@/lib/portals/trade-portal';
 
 const emptyForm = {
   entry_type: 'risk' as RiadType,
@@ -442,7 +443,12 @@ export function PortalRiadPanel({
                       {item.title}
                     </p>
                     <p className="text-xs text-neutral-500 mt-0.5 flex flex-wrap gap-x-2">
-                      {item.category ? <span>{item.category}</span> : null}
+                      {item.related_task_id ? (
+                        <span className="text-[#0077b6] font-semibold">
+                          Task #{item.related_task_id}
+                        </span>
+                      ) : null}
+                      {item.category ? <span>· {item.category}</span> : null}
                       {item.due_date ? <span>· due {item.due_date}</span> : null}
                       {item.owner_name ? <span>· {item.owner_name}</span> : null}
                     </p>
@@ -554,10 +560,15 @@ export function PortalRiadPanel({
                 {detail.resolution}
               </div>
             ) : null}
-            {detail.notes ? (
+            {stripPortalTaskRiadMark(detail.notes) ? (
               <pre className="mb-4 text-[11px] text-neutral-500 whitespace-pre-wrap font-sans rounded-2xl bg-slate-50 p-3">
-                {detail.notes}
+                {stripPortalTaskRiadMark(detail.notes)}
               </pre>
+            ) : null}
+            {detail.related_task_id ? (
+              <p className="mb-4 text-xs font-semibold text-[#0077b6]">
+                Linked to project task #{detail.related_task_id}
+              </p>
             ) : null}
 
             <label className="text-xs font-medium text-neutral-500">Status</label>

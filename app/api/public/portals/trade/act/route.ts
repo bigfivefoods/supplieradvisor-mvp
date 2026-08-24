@@ -12,6 +12,7 @@ import {
   seedWaterfallTasks,
 } from '@/lib/projects/waterfall';
 import { RIAD_STATUSES, RIAD_PRIORITIES, RIAD_TYPES } from '@/lib/containers/riad';
+import { portalTaskRiadMark } from '@/lib/portals/trade-portal';
 
 const SUPPLIER_STATUS = ['accepted', 'invoiced'] as const;
 
@@ -135,6 +136,37 @@ export async function POST(request: NextRequest) {
       return ok ? proj : null;
     }
 
+    if (action === 'project_update') {
+      const id = Number(body.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return NextResponse.json({ error: 'id required' }, { status: 400 });
+      }
+      const proj = await assertJointProject(id);
+      if (!proj) {
+        return NextResponse.json({ error: 'Not your project' }, { status: 403 });
+      }
+      const patch: Record<string, unknown> = { updated_at: now };
+      if (typeof body.name === 'string' && body.name.trim()) {
+        patch.name = body.name.trim().slice(0, 160);
+      }
+      if (body.description !== undefined) {
+        patch.description =
+          String(body.description || '').trim().slice(0, 2000) || null;
+      }
+      if (Object.keys(patch).length <= 1) {
+        return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
+      }
+      const { error } = await supabase
+        .from('pm_projects')
+        .update(patch)
+        .eq('id', id)
+        .eq('profile_id', portal.profile_id);
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      return NextResponse.json({ success: true });
+    }
+
     if (action === 'task_update') {
       const id = Number(body.id);
       if (!Number.isFinite(id)) {
@@ -142,7 +174,9 @@ export async function POST(request: NextRequest) {
       }
       const { data: task } = await supabase
         .from('pm_tasks')
-        .select('id, project_id, profile_id, description, start_date, due_date')
+        .select(
+          'id, project_id, profile_id, description, start_date, due_date, assignee, metadata'
+        )
         .eq('id', id)
         .eq('profile_id', portal.profile_id)
         .maybeSingle();
@@ -161,6 +195,44 @@ export async function POST(request: NextRequest) {
       }
       if (typeof body.title === 'string' && body.title.trim()) {
         patch.title = body.title.trim().slice(0, 200);
+      }
+      const meta =
+        task.metadata && typeof task.metadata === 'object' && !Array.isArray(task.metadata)
+          ? { ...(task.metadata as Record<string, unknown>) }
+          : {};
+      if (body.assignee_viewer_id !== undefined || body.assignee !== undefined) {
+        const vid = Number(body.assignee_viewer_id);
+        if (Number.isFinite(vid) && vid > 0) {
+          let personQ = supabase
+            .from('trade_portal_viewers')
+            .select('id, name, status')
+            .eq('id', vid)
+            .eq('profile_id', portal.profile_id)
+            .eq('portal_id', portal.id);
+          if (portal.kind === 'customer' && viewer.customer_id) {
+            personQ = personQ.eq('customer_id', viewer.customer_id);
+          } else if (portal.kind === 'supplier' && viewer.supplier_id) {
+            personQ = personQ.eq('supplier_id', viewer.supplier_id);
+          }
+          const { data: person } = await personQ.maybeSingle();
+          if (!person || person.status === 'revoked') {
+            return NextResponse.json(
+              { error: 'Assign someone on this portal' },
+              { status: 400 }
+            );
+          }
+          patch.assignee = String(person.name || '').slice(0, 120) || null;
+          meta.assignee_viewer_id = person.id;
+          meta.assignee_name = person.name;
+        } else {
+          patch.assignee =
+            body.assignee != null && String(body.assignee).trim()
+              ? String(body.assignee).trim().slice(0, 120)
+              : null;
+          delete meta.assignee_viewer_id;
+          delete meta.assignee_name;
+        }
+        patch.metadata = meta;
       }
       if (typeof body.notes === 'string' && body.notes.trim()) {
         patch.description = [task.description, `[${viewer.name}] ${body.notes.trim()}`]
@@ -184,11 +256,22 @@ export async function POST(request: NextRequest) {
           patch.due_date = nextEnd;
         }
       }
-      const { error } = await supabase
+      let { error } = await supabase
         .from('pm_tasks')
         .update(patch)
         .eq('id', id)
         .eq('profile_id', portal.profile_id);
+      if (error && /column|schema cache|does not exist/i.test(error.message)) {
+        const soft = { ...patch };
+        delete soft.metadata;
+        delete soft.start_date;
+        const retry = await supabase
+          .from('pm_tasks')
+          .update(soft)
+          .eq('id', id)
+          .eq('profile_id', portal.profile_id);
+        error = retry.error;
+      }
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
@@ -386,6 +469,28 @@ export async function POST(request: NextRequest) {
       const severity = RIAD_PRIORITIES.some((p) => p.value === body.severity)
         ? String(body.severity)
         : String(body.priority || 'medium').slice(0, 20);
+      let relatedTaskId: number | null = null;
+      let relatedProjectId: number | null = null;
+      const wantTask = Number(body.related_task_id);
+      if (Number.isFinite(wantTask) && wantTask > 0) {
+        const { data: linkedTask } = await supabase
+          .from('pm_tasks')
+          .select('id, project_id, title')
+          .eq('id', wantTask)
+          .eq('profile_id', portal.profile_id)
+          .maybeSingle();
+        if (!linkedTask) {
+          return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+        }
+        const linkedProj = await assertJointProject(Number(linkedTask.project_id));
+        if (!linkedProj) {
+          return NextResponse.json({ error: 'Not your project' }, { status: 403 });
+        }
+        relatedTaskId = Number(linkedTask.id);
+        relatedProjectId = Number(linkedTask.project_id);
+      }
+      const mark = relatedTaskId ? portalTaskRiadMark(relatedTaskId) : '';
+      const notesBody = String(body.notes || '').slice(0, 4000);
       const entry: Record<string, unknown> = {
         profile_id: portal.profile_id,
         entry_type: entryType,
@@ -400,9 +505,11 @@ export async function POST(request: NextRequest) {
         category: String(body.category || '').trim().slice(0, 80) || null,
         mitigation_plan:
           String(body.mitigation_plan || '').trim().slice(0, 4000) || null,
-        notes: String(body.notes || '').slice(0, 4000) || null,
+        notes: [mark, notesBody].filter(Boolean).join('\n') || null,
         created_by: `portal:${viewer.name}`,
         updated_at: now,
+        related_task_id: relatedTaskId,
+        related_project_id: relatedProjectId,
       };
       const table =
         portal.kind === 'customer' ? 'customer_riad' : 'supplier_riad';

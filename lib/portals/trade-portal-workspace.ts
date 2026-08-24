@@ -3,16 +3,17 @@ import { productAssignedToCustomer } from '@/lib/inventory/customer-brand';
 import { otifefForLine, rollupOtifef } from '@/lib/portals/otifef-line';
 import { dateEnvelope } from '@/lib/projects/waterfall';
 import type { OtifefMetrics } from '@/lib/suppliers/types';
-import type {
-  PortalMessageView,
-  PortalRatingView,
-  PortalRiadView,
-  PortalProjectView,
-  PortalStockLine,
-  PublicDocRow,
-  TradePortalKind,
-  TradePortalRow,
-  TradePortalViewer,
+import {
+  parsePortalTaskRiadId,
+  type PortalMessageView,
+  type PortalRatingView,
+  type PortalRiadView,
+  type PortalProjectView,
+  type PortalStockLine,
+  type PublicDocRow,
+  type TradePortalKind,
+  type TradePortalRow,
+  type TradePortalViewer,
 } from '@/lib/portals/trade-portal';
 
 function asObject(raw: unknown): Record<string, unknown> {
@@ -50,6 +51,14 @@ function mapPortalRiad(r: Record<string, unknown>): PortalRiadView {
     closed_at: r.closed_at != null ? String(r.closed_at) : null,
     created_by: strOrNull(r.created_by),
     updated_at: r.updated_at != null ? String(r.updated_at) : null,
+    related_project_id:
+      r.related_project_id != null && Number(r.related_project_id) > 0
+        ? Number(r.related_project_id)
+        : null,
+    related_task_id:
+      r.related_task_id != null && Number(r.related_task_id) > 0
+        ? Number(r.related_task_id)
+        : parsePortalTaskRiadId(strOrNull(r.notes)),
   };
 }
 
@@ -549,13 +558,17 @@ export async function loadPortalWorkspace(opts: {
   if (projIds.length) {
     const { data: trows } = await supabase
       .from('pm_tasks')
-      .select('id, project_id, title, column_key, status, start_date, due_date, phase_key')
+      .select(
+        'id, project_id, title, column_key, status, start_date, due_date, phase_key, assignee, metadata, description'
+      )
       .eq('profile_id', companyId)
       .in('project_id', projIds)
       .order('sort_order', { ascending: true });
     for (const t of trows || []) {
       const pid = Number(t.project_id);
       const list = taskByProject.get(pid) || [];
+      const meta = metaOf(asObject(t));
+      const assigneeViewer = Number(meta.assignee_viewer_id);
       list.push({
         id: Number(t.id),
         title: String(t.title || ''),
@@ -563,6 +576,12 @@ export async function loadPortalWorkspace(opts: {
         start_date: t.start_date != null ? String(t.start_date).slice(0, 10) : null,
         due_date: t.due_date != null ? String(t.due_date).slice(0, 10) : null,
         phase_key: t.phase_key != null ? String(t.phase_key) : null,
+        assignee: t.assignee != null ? String(t.assignee) : null,
+        assignee_viewer_id:
+          Number.isFinite(assigneeViewer) && assigneeViewer > 0
+            ? assigneeViewer
+            : null,
+        description: t.description != null ? String(t.description) : null,
       });
       taskByProject.set(pid, list);
     }

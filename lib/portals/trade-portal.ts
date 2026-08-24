@@ -125,7 +125,26 @@ export type PortalRiadView = {
   closed_at?: string | null;
   created_by?: string | null;
   updated_at?: string | null;
+  related_project_id?: number | null;
+  related_task_id?: number | null;
 };
+
+export function portalTaskRiadMark(taskId: number): string {
+  return `[[portal_task:${taskId}]]`;
+}
+
+export function parsePortalTaskRiadId(notes: string | null | undefined): number | null {
+  const m = String(notes || '').match(/\[\[portal_task:(\d+)\]\]/);
+  if (!m) return null;
+  const id = Number(m[1]);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+export function stripPortalTaskRiadMark(notes: string | null | undefined): string {
+  return String(notes || '')
+    .replace(/\[\[portal_task:\d+\]\]\s*/g, '')
+    .trim();
+}
 
 export type PortalMessageView = {
   id: number;
@@ -149,6 +168,9 @@ export type PortalProjectTask = {
   start_date: string | null;
   due_date: string | null;
   phase_key: string | null;
+  assignee?: string | null;
+  assignee_viewer_id?: number | null;
+  description?: string | null;
 };
 
 export type PortalProjectView = {

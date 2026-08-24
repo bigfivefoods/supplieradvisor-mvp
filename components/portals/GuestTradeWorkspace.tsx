@@ -10,8 +10,14 @@ import { formatMoney } from '@/lib/customers/types';
 import { OtifefKpiCard } from '@/components/portals/OtifefKpiCard';
 import type {
   PortalPersonPublic,
+  PortalRiadView,
   PublicPortalPayload,
 } from '@/lib/portals/trade-portal';
+import {
+  RIAD_PRIORITIES,
+  RIAD_TYPES,
+  type RiadType,
+} from '@/lib/containers/riad';
 import type {
   BookProfile,
   PortalCatalogueItem,
@@ -135,7 +141,11 @@ export function GuestTradeWorkspace({
                 ? 'RIAD logged'
                 : payload.action === 'riad_delete'
                   ? 'RIAD deleted'
-                  : 'Saved'
+                  : payload.action === 'project_update'
+                    ? 'Project heading saved'
+                    : payload.action === 'task_update'
+                      ? 'Task saved'
+                      : 'Saved'
       );
       onRefresh();
     } catch (e) {
@@ -201,7 +211,14 @@ export function GuestTradeWorkspace({
         />
       ) : null}
       {tab === 'projects' ? (
-        <ProjectsPanel items={ws?.projects || []} busy={busy} onAct={act} />
+        <ProjectsPanel
+          items={ws?.projects || []}
+          people={portal.people || []}
+          riad={ws?.riad || []}
+          ownerName={portal.viewer?.name || ''}
+          busy={busy}
+          onAct={act}
+        />
       ) : null}
       {tab === 'stock' && isSupplier ? (
         <StockPanel lines={ws?.stock || []} busy={busy} onAct={act} />
@@ -520,6 +537,89 @@ function ProfilePanel({
   );
 }
 
+function TaskRiadForm({
+  taskId,
+  taskTitle,
+  ownerName,
+  busy,
+  onAct,
+}: {
+  taskId: number;
+  taskTitle: string;
+  ownerName: string;
+  busy: boolean;
+  onAct: (p: Record<string, unknown>) => Promise<void>;
+}) {
+  const [entryType, setEntryType] = useState<RiadType>('issue');
+  const [title, setTitle] = useState('');
+  const [desc, setDesc] = useState('');
+  const [severity, setSeverity] = useState('medium');
+  return (
+    <div className="rounded-2xl border border-cyan-100 bg-white p-3 space-y-2">
+      <p className="text-[10px] font-black uppercase tracking-wider text-[#0077b6]">
+        RIAD for {taskTitle}
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        <select
+          className="input !py-1.5 !px-2 !text-xs"
+          value={entryType}
+          onChange={(e) => setEntryType(e.target.value as RiadType)}
+        >
+          {RIAD_TYPES.map((t) => (
+            <option key={t.key} value={t.key}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+        <select
+          className="input !py-1.5 !px-2 !text-xs"
+          value={severity}
+          onChange={(e) => setSeverity(e.target.value)}
+        >
+          {RIAD_PRIORITIES.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <input
+        className="input w-full !py-1.5 !px-2 !text-sm"
+        placeholder="Title *"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+      />
+      <textarea
+        className="input w-full !py-1.5 !px-2 !text-sm min-h-[56px]"
+        placeholder="What happened on this task"
+        value={desc}
+        onChange={(e) => setDesc(e.target.value)}
+      />
+      <button
+        type="button"
+        disabled={busy || !title.trim()}
+        onClick={() => {
+          const t = title.trim();
+          setTitle('');
+          setDesc('');
+          void onAct({
+            action: 'riad_add',
+            entry_type: entryType,
+            title: t,
+            description: desc || undefined,
+            severity,
+            owner_name: ownerName || undefined,
+            related_task_id: taskId,
+          });
+        }}
+        className="btn-primary w-full !py-2 text-xs"
+      >
+        Log on this task
+      </button>
+    </div>
+  );
+}
+
 function datedTasks(
   tasks: NonNullable<PublicPortalPayload['workspace']>['projects'][number]['tasks'],
   projectStart: string
@@ -536,10 +636,16 @@ function datedTasks(
 
 function ProjectsPanel({
   items,
+  people,
+  riad,
+  ownerName,
   busy,
   onAct,
 }: {
   items: NonNullable<PublicPortalPayload['workspace']>['projects'];
+  people: PortalPersonPublic[];
+  riad: PortalRiadView[];
+  ownerName: string;
   busy: boolean;
   onAct: (p: Record<string, unknown>) => Promise<void>;
 }) {
@@ -551,10 +657,17 @@ function ProjectsPanel({
   const [newStart, setNewStart] = useState(isoDay(new Date()));
   const [newEnd, setNewEnd] = useState(addDays(isoDay(new Date()), 28));
   const [projectId, setProjectId] = useState<number | null>(items[0]?.id || null);
+  const [openTaskId, setOpenTaskId] = useState<number | null>(null);
+  const [heading, setHeading] = useState('');
+  const [brief, setBrief] = useState('');
   useEffect(() => {
     if (!projectId && items[0]?.id) setProjectId(items[0].id);
   }, [items, projectId]);
   const selected = items.find((p) => p.id === projectId) || items[0] || null;
+  useEffect(() => {
+    setHeading(selected?.name || '');
+    setBrief(selected?.description || '');
+  }, [selected?.id, selected?.name, selected?.description]);
 
   const planned = useMemo(() => {
     return items.map((p) => {
@@ -583,6 +696,12 @@ function ProjectsPanel({
     setTaskEnd(addDays(start, 7));
   }, [selectedPlanned?.id, selectedPlanned?.tasks.length]);
 
+  useEffect(() => {
+    if (!openTaskId) return;
+    const el = document.getElementById(`portal-task-${openTaskId}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [openTaskId]);
+
   const chartEnv =
     dateEnvelope(
       planned.flatMap((p) => [
@@ -602,13 +721,17 @@ function ProjectsPanel({
       label: t.title,
       start: t.start_date,
       end: t.due_date,
-      subtitle: `${t.start_date} → ${t.due_date}`,
+      subtitle: [t.assignee, `${t.start_date} → ${t.due_date}`]
+        .filter(Boolean)
+        .join(' · '),
       tone:
         t.column_key === 'done'
           ? ('emerald' as const)
           : t.column_key === 'in_progress'
             ? ('cyan' as const)
-            : ('violet' as const),
+            : t.assignee
+              ? ('amber' as const)
+              : ('violet' as const),
     }));
     return {
       id: String(p.id),
@@ -723,26 +846,65 @@ function ProjectsPanel({
       <div className="rounded-2xl border border-cyan-100 bg-cyan-50/70 px-4 py-3 text-sm text-slate-700">
         <p className="font-bold text-slate-900">Work this plan together</p>
         <p className="text-xs text-neutral-600 mt-0.5 leading-relaxed">
-          Same project we hold on our books. Update task status, add shared
-          tasks, and keep dates aligned — changes sync both ways.
+          Click a Gantt bar to open that task: rename it, assign a portal
+          member, and log a RIAD against it. Project heading is editable too.
         </p>
       </div>
       <WaterfallGantt
         groups={groups}
         from={from}
         to={to}
-        onSelect={(gid) => setProjectId(Number(gid))}
+        onSelect={(gid, barId) => {
+          setProjectId(Number(gid));
+          if (!barId || barId.startsWith('summary-') || barId.startsWith('p-')) {
+            setOpenTaskId(null);
+            return;
+          }
+          const tid = Number(barId);
+          setOpenTaskId(Number.isFinite(tid) && tid > 0 ? tid : null);
+        }}
       />
       {selected ? (
         <div className="rounded-[1.5rem] border border-white/70 bg-white/90 p-4 space-y-3">
-          <div>
+          <div className="space-y-2">
             <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
               {selected.status}
             </p>
-            <h3 className="font-black text-slate-900">{selected.name}</h3>
-            {selected.description ? (
-              <p className="text-sm text-neutral-600 mt-1">{selected.description}</p>
-            ) : null}
+            <label className="text-[10px] font-bold uppercase text-neutral-400 block">
+              Project heading
+              <input
+                className="input mt-0.5 w-full !p-2.5 !text-base font-black text-slate-900"
+                value={heading}
+                onChange={(e) => setHeading(e.target.value)}
+                onBlur={() => {
+                  const next = heading.trim();
+                  if (next && next !== selected.name) {
+                    void onAct({
+                      action: 'project_update',
+                      id: selected.id,
+                      name: next,
+                      description: brief,
+                    });
+                  }
+                }}
+              />
+            </label>
+            <textarea
+              className="input w-full !p-2.5 !text-sm min-h-[64px]"
+              placeholder="Project description"
+              value={brief}
+              onChange={(e) => setBrief(e.target.value)}
+              onBlur={() => {
+                if ((brief || '') !== (selected.description || '')) {
+                  void onAct({
+                    action: 'project_update',
+                    id: selected.id,
+                    name: heading.trim() || selected.name,
+                    description: brief,
+                  });
+                }
+              }}
+            />
           </div>
           {selectedPlanned ? (
             <p className="text-xs text-neutral-500">
@@ -755,16 +917,39 @@ function ProjectsPanel({
               days) — same as Microsoft Project.
             </p>
           ) : null}
-          {(selectedPlanned?.tasks || []).map((t) => (
+          {(selectedPlanned?.tasks || []).map((t) => {
+            const open = openTaskId === t.id;
+            const taskRiad = riad.filter((r) => r.related_task_id === t.id);
+            return (
             <div
               key={t.id}
-              className="rounded-2xl bg-slate-50 px-3 py-2.5 space-y-2"
+              id={`portal-task-${t.id}`}
+              className={`rounded-2xl px-3 py-2.5 space-y-2 ${
+                open
+                  ? 'bg-cyan-50 border border-cyan-200 ring-2 ring-[#00b4d8]/30'
+                  : 'bg-slate-50'
+              }`}
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-bold text-slate-900">{t.title}</p>
+                <div className="min-w-0 flex-1">
+                  <input
+                    className="input w-full !py-1.5 !px-2 !text-sm font-bold"
+                    defaultValue={t.title}
+                    key={`${t.id}-${t.title}`}
+                    disabled={busy}
+                    onBlur={(e) => {
+                      const next = e.target.value.trim();
+                      if (next && next !== t.title) {
+                        void onAct({
+                          action: 'task_update',
+                          id: t.id,
+                          title: next,
+                        });
+                      }
+                    }}
+                  />
                   {t.phase_key ? (
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#0077b6]">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#0077b6] mt-0.5">
                       {t.phase_key}
                     </p>
                   ) : null}
@@ -829,8 +1014,83 @@ function ProjectsPanel({
                   />
                 </label>
               </div>
+              <label className="text-[10px] font-bold uppercase text-neutral-400 block">
+                Assign to portal member
+                {people.length === 0 ? (
+                  <p className="mt-0.5 text-[11px] font-medium normal-case tracking-normal text-amber-800">
+                    Add people on the People tab first.
+                  </p>
+                ) : null}
+                <select
+                  className="input mt-0.5 w-full !py-1.5 !px-2 !text-sm"
+                  value={t.assignee_viewer_id || ''}
+                  disabled={busy || people.length === 0}
+                  onChange={(e) => {
+                    const vid = e.target.value ? Number(e.target.value) : 0;
+                    void onAct({
+                      action: 'task_update',
+                      id: t.id,
+                      assignee_viewer_id: vid || null,
+                      assignee: vid
+                        ? people.find((p) => p.id === vid)?.name || null
+                        : null,
+                    });
+                  }}
+                >
+                  <option value="">Unassigned</option>
+                  {people.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                      {p.you ? ' (you)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {t.assignee && !t.assignee_viewer_id ? (
+                <p className="text-[11px] text-neutral-500">
+                  Currently: {t.assignee}
+                </p>
+              ) : null}
+
+              {taskRiad.length > 0 ? (
+                <ul className="space-y-1">
+                  {taskRiad.map((r) => (
+                    <li
+                      key={r.id}
+                      className="text-xs rounded-xl bg-white border border-slate-100 px-2.5 py-1.5"
+                    >
+                      <span className="font-bold uppercase tracking-wide text-[#0077b6]">
+                        {r.entry_type}
+                      </span>{' '}
+                      · {r.title}
+                      <span className="text-neutral-400">
+                        {' '}
+                        · {String(r.status || 'open').replace('_', ' ')}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+
+              <button
+                type="button"
+                className="text-xs font-bold text-[#0077b6]"
+                onClick={() => setOpenTaskId(open ? null : t.id)}
+              >
+                {open ? 'Hide RIAD' : 'Log RIAD on this task'}
+              </button>
+              {open ? (
+                <TaskRiadForm
+                  taskId={t.id}
+                  taskTitle={t.title}
+                  ownerName={t.assignee || ownerName}
+                  busy={busy}
+                  onAct={onAct}
+                />
+              ) : null}
             </div>
-          ))}
+            );
+          })}
           <div className="rounded-2xl border border-dashed border-slate-200 p-3 space-y-2">
             <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
               Add a task
