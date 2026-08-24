@@ -1435,7 +1435,7 @@ function ProfileInner() {
       <BusinessHeader
         title="Company"
         titleAccent="profile"
-        description="Identity, CIPC verification, contacts, banking, and compliance — saved to your company profile."
+        description="Who you are, how to reach you, what you do, and the trust records buyers check."
         action={
           <button
             type="button"
@@ -1523,21 +1523,21 @@ function ProfileInner() {
       })()}
 
       <nav
-        className="sticky top-0 z-20 mb-3 flex gap-1 overflow-x-auto rounded-xl border border-neutral-200 bg-white/95 px-2 py-1.5 shadow-sm backdrop-blur"
+        className="sticky top-0 z-20 mb-4 flex gap-1 overflow-x-auto rounded-2xl border border-neutral-200 bg-white/95 p-1.5 shadow-sm backdrop-blur"
         aria-label="Profile sections"
       >
         {[
-          { id: 'identity', label: 'Identity & CIPC' },
-          { id: 'contacts', label: 'Contacts' },
-          { id: 'location', label: 'Location' },
+          { id: 'identity', label: 'Identity' },
+          { id: 'reach', label: 'Reach' },
           { id: 'industry', label: 'Industry' },
+          { id: 'certs', label: 'Certs' },
           { id: 'banking', label: 'Banking' },
           { id: 'licenses', label: 'Licenses' },
         ].map((s) => (
           <button
             key={s.id}
             type="button"
-            className="shrink-0 rounded-lg px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:bg-[#00b4d8]/10 hover:text-[#0077b6]"
+            className="shrink-0 rounded-xl px-3 py-1.5 text-[11px] font-black text-slate-600 hover:bg-[#00b4d8]/10 hover:text-[#0077b6]"
             onClick={() =>
               document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
             }
@@ -1605,44 +1605,17 @@ function ProfileInner() {
             style={{ width: `${completeness?.pct ?? 0}%` }}
           />
         </div>
-        <div className="mt-3">
-          <SearchVisibilityCard
-            profile={
-              {
-                ...form,
-                id: companyId,
-                is_discoverable:
-                  form.is_discoverable === false ? false : true,
-              } as Record<string, unknown>
-            }
-            completeness={completeness}
-            isRegistered
-            toggling={saving}
-            onToggleDiscoverable={async (next) => {
-              setForm((prev) => ({ ...prev, is_discoverable: next }));
-              try {
-                await persistPartial({ is_discoverable: next });
-                toast.success(
-                  next
-                    ? 'Discoverable on — you can appear in search'
-                    : 'Hidden from Discover & directory'
-                );
-              } catch (e: unknown) {
-                setForm((prev) => ({ ...prev, is_discoverable: !next }));
-                toast.error(
-                  e instanceof Error ? e.message : 'Could not update visibility'
-                );
-              }
-            }}
-          />
-        </div>
       </div>
 
-      <div className="space-y-3 sm:space-y-4">
-        {/* ── Identity + CIPC (grouped) ── */}
+      <div className="space-y-8">
+        <ProfileChapter
+          step="01"
+          title="Identity"
+          hint="Legal name, logo, CIPC — who the network sees."
+        >
         <Panel
           id="identity"
-          title="Identity & CIPC verification"
+          title="Company details & CIPC"
           action={
             isVerified ? (
               <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
@@ -1800,6 +1773,35 @@ function ProfileInner() {
                   }}
                 />
               </div>
+              <Field label="Wallet (on-chain)">
+                <div className="relative">
+                  <input
+                    className={`${inputCls} font-mono pr-9`}
+                    value={form.wallet_address || loginWallet || ''}
+                    onChange={(e) => set('wallet_address', e.target.value)}
+                    placeholder="0x…"
+                  />
+                  <Wallet className="w-3.5 h-3.5 text-neutral-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
+                </div>
+                {loginWallet ? (
+                  <p className="text-[10px] text-neutral-500 mt-1">
+                    Login:{' '}
+                    <span className="font-mono">
+                      {loginWallet.slice(0, 6)}…{loginWallet.slice(-4)}
+                    </span>
+                    {(!form.wallet_address ||
+                      form.wallet_address.toLowerCase() !== loginWallet.toLowerCase()) && (
+                      <button
+                        type="button"
+                        className="ml-1.5 text-[#00b4d8] font-semibold hover:underline"
+                        onClick={() => set('wallet_address', loginWallet)}
+                      >
+                        Use login wallet
+                      </button>
+                    )}
+                  </p>
+                ) : null}
+              </Field>
             </div>
 
             {/* Right: CIPC verify */}
@@ -2045,8 +2047,14 @@ function ProfileInner() {
             </div>
           </div>
         </Panel>
+        </ProfileChapter>
 
-        {/* ── Contacts + Location ── */}
+        <ProfileChapter
+          id="reach"
+          step="02"
+          title="How to reach you"
+          hint="People, channels, and where you operate."
+        >
         <div className="grid lg:grid-cols-2 gap-3 sm:gap-4">
           <Panel id="contacts" title="Contacts">
             <div className="p-4 space-y-2.5">
@@ -2081,35 +2089,6 @@ function ProfileInner() {
                   />
                 </Field>
               </div>
-              <Field label="Wallet (on-chain)">
-                <div className="relative">
-                  <input
-                    className={`${inputCls} font-mono pr-9`}
-                    value={form.wallet_address || loginWallet || ''}
-                    onChange={(e) => set('wallet_address', e.target.value)}
-                    placeholder="0x…"
-                  />
-                  <Wallet className="w-3.5 h-3.5 text-neutral-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
-                </div>
-                {loginWallet ? (
-                  <p className="text-[10px] text-neutral-500 mt-1">
-                    Login:{' '}
-                    <span className="font-mono">
-                      {loginWallet.slice(0, 6)}…{loginWallet.slice(-4)}
-                    </span>
-                    {(!form.wallet_address ||
-                      form.wallet_address.toLowerCase() !== loginWallet.toLowerCase()) && (
-                      <button
-                        type="button"
-                        className="ml-1.5 text-[#00b4d8] font-semibold hover:underline"
-                        onClick={() => set('wallet_address', loginWallet)}
-                      >
-                        Use login wallet
-                      </button>
-                    )}
-                  </p>
-                ) : null}
-              </Field>
             </div>
           </Panel>
 
@@ -2185,9 +2164,42 @@ function ProfileInner() {
             </div>
           </Panel>
         </div>
+        </ProfileChapter>
 
-        {/* ── Industry + Certifications ── */}
-        <div className="grid lg:grid-cols-2 gap-3 sm:gap-4">
+        <ProfileChapter
+          step="03"
+          title="What you do"
+          hint="Sectors buyers filter on, and whether you appear in Discover."
+        >
+          <SearchVisibilityCard
+            profile={
+              {
+                ...form,
+                id: companyId,
+                is_discoverable:
+                  form.is_discoverable === false ? false : true,
+              } as Record<string, unknown>
+            }
+            completeness={completeness}
+            isRegistered
+            toggling={saving}
+            onToggleDiscoverable={async (next) => {
+              setForm((prev) => ({ ...prev, is_discoverable: next }));
+              try {
+                await persistPartial({ is_discoverable: next });
+                toast.success(
+                  next
+                    ? 'Discoverable on — you can appear in search'
+                    : 'Hidden from Discover & directory'
+                );
+              } catch (e: unknown) {
+                setForm((prev) => ({ ...prev, is_discoverable: !next }));
+                toast.error(
+                  e instanceof Error ? e.message : 'Could not update visibility'
+                );
+              }
+            }}
+          />
           <Panel id="industry" title="Sector & industry">
             <div className="p-4 space-y-3">
               <p className="text-[11px] text-neutral-500 leading-relaxed">
@@ -2290,8 +2302,15 @@ function ProfileInner() {
               </div>
             </div>
           </Panel>
+        </ProfileChapter>
 
+        <ProfileChapter
+          step="04"
+          title="Certifications"
+          hint="B-BBEE and quality marks that travel with the company."
+        >
           <Panel
+            id="certs"
             title="Certifications & B-BBEE"
             action={
               <button
@@ -2303,7 +2322,7 @@ function ProfileInner() {
               </button>
             }
           >
-            <div className="p-4 space-y-2.5 max-md:max-h-64 max-md:overflow-y-auto">
+            <div className="p-4 space-y-2.5">
               <div className="grid grid-cols-2 gap-2.5">
                 <Field label="B-BBEE level">
                   <select
@@ -2460,13 +2479,16 @@ function ProfileInner() {
               </div>
             </div>
           </Panel>
-        </div>
+        </ProfileChapter>
 
-        {/* ── Banking + Licenses ── */}
-        <div className="grid lg:grid-cols-2 gap-3 sm:gap-4">
+        <ProfileChapter
+          step="05"
+          title="Banking"
+          hint="Where you get paid, and the AVS check counterparties trust."
+        >
           <Panel
             id="banking"
-            title="Banking"
+            title="Bank account"
             action={
               bankVerified ? (
                 <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-700">
@@ -2708,7 +2730,13 @@ function ProfileInner() {
               </div>
             </div>
           </Panel>
+        </ProfileChapter>
 
+        <ProfileChapter
+          step="06"
+          title="Licenses"
+          hint="Import, export, and the director ID used for bank AVS."
+        >
           <Panel
             id="licenses"
             title="Licenses & director"
@@ -2722,7 +2750,7 @@ function ProfileInner() {
               </button>
             }
           >
-            <div className="p-4 space-y-2.5 max-md:max-h-72 max-md:overflow-y-auto">
+            <div className="p-4 space-y-2.5">
               <div className="grid sm:grid-cols-2 gap-2.5">
                 <Field label="Director SA ID">
                   <input
@@ -2847,7 +2875,7 @@ function ProfileInner() {
               </div>
             </div>
           </Panel>
-        </div>
+        </ProfileChapter>
       </div>
 
       <div className="mt-4 flex justify-end sticky bottom-3 z-10">
@@ -2886,6 +2914,35 @@ function Field({
       </label>
       <div className="mt-0.5">{children}</div>
     </div>
+  );
+}
+
+function ProfileChapter({
+  id,
+  step,
+  title,
+  hint,
+  children,
+}: {
+  id?: string;
+  step: string;
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section id={id} className="space-y-3 scroll-mt-16">
+      <div className="px-0.5">
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0077b6]">
+          {step}
+        </p>
+        <h2 className="text-lg font-black tracking-tight text-slate-900">{title}</h2>
+        {hint ? (
+          <p className="mt-0.5 text-[13px] text-neutral-500">{hint}</p>
+        ) : null}
+      </div>
+      {children}
+    </section>
   );
 }
 
