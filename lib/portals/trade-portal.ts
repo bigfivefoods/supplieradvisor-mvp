@@ -547,7 +547,7 @@ async function loadCustomerDocs(
   const orders: PublicDocRow[] = [];
   const invoices: PublicDocRow[] = [];
 
-  if (sections.quotes !== false) {
+  {
     const qHit = await supabase
       .from('customer_quotes')
       .select(
@@ -556,7 +556,7 @@ async function loadCustomerDocs(
       .eq('profile_id', companyId)
       .eq('customer_id', customerId)
       .order('created_at', { ascending: false })
-      .limit(40);
+      .limit(80);
     let quoteRows: Record<string, unknown>[] = (qHit.data ||
       []) as unknown as Record<string, unknown>[];
     if (qHit.error) {
@@ -568,19 +568,17 @@ async function loadCustomerDocs(
         .eq('profile_id', companyId)
         .eq('customer_id', customerId)
         .order('created_at', { ascending: false })
-        .limit(40);
+        .limit(80);
       quoteRows = (retry.data || []) as unknown as Record<string, unknown>[];
     }
     for (const raw of quoteRows) {
       const r = asObject(raw);
-      const status = String(r.status || 'draft').toLowerCase();
-      if (status === 'draft') continue;
       quotes.push({
         ...moneyRow({
           id: Number(r.id),
           kind: 'quote',
           number: r.quote_number,
-          status: r.status,
+          status: r.status || 'draft',
           date: r.created_at,
           due: r.valid_until,
           amount: r.total_amount,

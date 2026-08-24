@@ -34,24 +34,24 @@ import {
 type AccountOpt = { id: number; name: string; email?: string | null; contact?: string | null };
 
 const CUSTOMER_SECTIONS: Array<{ key: keyof PortalSections; label: string; hint: string }> = [
-  { key: 'quotes', label: 'Quotes', hint: 'Open proposals' },
+  { key: 'quotes', label: 'Quotations', hint: 'Quotes created on this CRM account' },
   { key: 'orders', label: 'Sales orders', hint: 'SO list and status' },
   { key: 'invoices', label: 'Statement', hint: 'Invoices and open balance' },
-  { key: 'documents', label: 'Documents', hint: 'Certs and files' },
-  { key: 'ratings', label: 'Ratings', hint: 'Same stars as the network' },
-  { key: 'riad', label: 'RIAD', hint: 'Risks and comments' },
-  { key: 'messages', label: 'Messages', hint: 'Direct thread' },
   { key: 'projects', label: 'Projects', hint: 'Joint waterfall — both sides edit tasks' },
+  { key: 'documents', label: 'Documents', hint: 'Certs and files' },
+  { key: 'messages', label: 'Messages', hint: 'Direct thread' },
+  { key: 'riad', label: 'RIAD', hint: 'Risks and comments' },
+  { key: 'ratings', label: 'Ratings', hint: 'Same stars as the network' },
 ];
 
 const SUPPLIER_SECTIONS: Array<{ key: keyof PortalSections; label: string; hint: string }> = [
-  { key: 'purchase_orders', label: 'Purchase orders', hint: 'OTIFEF overall and per order' },
+  { key: 'purchase_orders', label: 'Purchase orders', hint: 'POs they receive and update' },
   { key: 'stock', label: 'Stock on hand', hint: 'They confirm availability' },
-  { key: 'documents', label: 'Documents', hint: 'Specs, SLAs, certs' },
-  { key: 'ratings', label: 'Ratings', hint: 'Same stars as the network' },
-  { key: 'riad', label: 'RIAD', hint: 'Risks and comments' },
-  { key: 'messages', label: 'Messages', hint: 'Direct thread' },
   { key: 'projects', label: 'Projects', hint: 'Joint waterfall Gantt' },
+  { key: 'documents', label: 'Documents', hint: 'Specs, SLAs, certs' },
+  { key: 'messages', label: 'Messages', hint: 'Direct thread' },
+  { key: 'riad', label: 'RIAD', hint: 'Risks and comments' },
+  { key: 'ratings', label: 'Ratings', hint: 'Same stars as the network' },
 ];
 
 export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {

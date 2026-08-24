@@ -151,6 +151,8 @@ export default function GuestTradePortalPage() {
       if (!navReady.current) {
         navReady.current = true;
         if (gaps > 0 && !isHost) setTab('profile');
+        else if (data.portal?.kind === 'customer') setTab('quotes');
+        else setTab('orders');
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed');

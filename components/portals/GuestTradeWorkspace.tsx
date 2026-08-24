@@ -79,28 +79,28 @@ export function guestPortalTabs(opts: {
     return [
       { id: 'profile' as const, label: profile },
       { id: 'orders' as const, label: 'Purchase orders' },
-      { id: 'otifef' as const, label: 'OTIFEF metrics' },
-      { id: 'projects' as const, label: 'Projects' },
       { id: 'stock' as const, label: 'Stock' },
+      { id: 'projects' as const, label: 'Projects' },
       { id: 'docs' as const, label: 'Documents' },
-      { id: 'riad' as const, label: 'RIAD' },
-      { id: 'messages' as const, label: 'Messages' },
+      { id: 'otifef' as const, label: 'OTIFEF' },
       { id: 'people' as const, label: 'People' },
+      { id: 'messages' as const, label: 'Messages' },
+      { id: 'riad' as const, label: 'RIAD' },
       { id: 'reviews' as const, label: 'Ratings' },
     ];
   }
   return [
     { id: 'profile' as const, label: profile },
     { id: 'quotes' as const, label: 'Quotations' },
-    { id: 'orders' as const, label: 'Sales orders' },
     { id: 'newpo' as const, label: 'Purchase order' },
-    { id: 'otifef' as const, label: 'OTIFEF metrics' },
+    { id: 'orders' as const, label: 'Sales orders' },
     { id: 'statement' as const, label: 'Statement' },
     { id: 'projects' as const, label: 'Projects' },
     { id: 'docs' as const, label: 'Documents' },
+    { id: 'otifef' as const, label: 'OTIFEF' },
     { id: 'people' as const, label: 'People' },
-    { id: 'riad' as const, label: 'RIAD' },
     { id: 'messages' as const, label: 'Messages' },
+    { id: 'riad' as const, label: 'RIAD' },
     { id: 'reviews' as const, label: 'Ratings' },
   ];
 }
@@ -2958,13 +2958,7 @@ function QuotesPanel({
   const [openId, setOpenId] = useState<number | null>(null);
   const listed = quotes
     .slice()
-    .sort((a, b) => {
-      const open = (s: string) =>
-        ['sent', 'issued', 'viewed', 'open'].includes(s.toLowerCase()) ? 1 : 0;
-      const d = open(b.status) - open(a.status);
-      if (d !== 0) return d;
-      return String(b.date || '').localeCompare(String(a.date || ''));
-    });
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
 
   return (
     <div className="space-y-4">
@@ -2973,16 +2967,16 @@ function QuotesPanel({
           Quotations · {hostName}
         </p>
         <h2 className="mt-1 text-lg font-black text-slate-900">
-          Quotes sent to this account
+          Quotations on this account
         </h2>
         <p className="mt-1 text-sm text-neutral-600">
-          These are quotations {hostName} issued on your CRM record. Drafts stay
-          on their desk until they send them.
+          Every quotation {hostName} created on your CRM record — including
+          drafts — shows here.
         </p>
       </section>
       {listed.length === 0 ? (
         <p className="rounded-[1.5rem] border border-white/70 bg-white/90 px-5 py-10 text-center text-sm text-neutral-500">
-          No quotations have been sent yet.
+          No quotations on this account yet.
         </p>
       ) : (
         <ul className="space-y-2">
