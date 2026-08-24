@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, Plus, Save, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2, Plus, Save, Trash2 } from 'lucide-react';
 import { readCustomerBrand } from '@/lib/inventory/customer-brand';
 import type { OrderChainSetup } from '@/lib/orders/chain-setup';
 import { isPortalFinishedGood } from '@/lib/portals/trade-portal-workspace';
@@ -57,6 +57,7 @@ export function OrderChainSetupBoard({
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [composer, setComposer] = useState(false);
+  const [openId, setOpenId] = useState<number | null>(null);
   const [draft, setDraft] = useState<Draft>({
     customer_id: '',
     srm_supplier_id: '',
@@ -246,6 +247,8 @@ export function OrderChainSetupBoard({
           suppliers={suppliers}
           products={products}
           busy={savingId === String(s.id)}
+          expanded={openId === s.id}
+          onToggle={() => setOpenId(openId === s.id ? null : s.id)}
           onSave={(d) => void save({ ...d, id: s.id })}
           onRemove={() => void remove(s.id)}
         />
@@ -268,6 +271,8 @@ function SavedChain({
   suppliers,
   products,
   busy,
+  expanded,
+  onToggle,
   onSave,
   onRemove,
 }: {
@@ -276,6 +281,8 @@ function SavedChain({
   suppliers: SupplierOpt[];
   products: ProductOpt[];
   busy: boolean;
+  expanded: boolean;
+  onToggle: () => void;
   onSave: (d: Draft) => void;
   onRemove: () => void;
 }) {
@@ -292,18 +299,55 @@ function SavedChain({
     });
   }, [setup.id, setup.customer_id, setup.srm_supplier_id, setup.product_ids]);
 
+  const customer =
+    customers.find((c) => c.id === setup.customer_id)?.trading_name ||
+    setup.customer_name ||
+    'Customer';
+  const supplier =
+    suppliers.find((s) => s.id === setup.srm_supplier_id)?.trading_name ||
+    setup.supplier_name ||
+    'Supplier';
+  const n = setup.product_ids.length;
+
   return (
-    <ChainTriple
-      customers={customers}
-      suppliers={suppliers}
-      products={products}
-      draft={draft}
-      busy={busy}
-      saveLabel="Update chain"
-      onChange={setDraft}
-      onSave={() => onSave(draft)}
-      onRemove={onRemove}
-    />
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full px-4 py-3 flex items-start gap-2 text-left hover:bg-slate-50"
+      >
+        <span className="mt-1 shrink-0 text-neutral-400">
+          {expanded ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-black text-slate-900">{customer}</span>
+          <span className="block text-xs text-slate-500 mt-0.5">
+            {n} product{n === 1 ? '' : 's'} · {supplier}
+            {expanded ? '' : ' · open to edit'}
+          </span>
+        </span>
+      </button>
+      {expanded ? (
+        <div className="px-4 pb-4">
+          <ChainTriple
+            customers={customers}
+            suppliers={suppliers}
+            products={products}
+            draft={draft}
+            busy={busy}
+            framed={false}
+            saveLabel="Update chain"
+            onChange={setDraft}
+            onSave={() => onSave(draft)}
+            onRemove={onRemove}
+          />
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -314,6 +358,7 @@ function ChainTriple({
   draft,
   busy,
   saveLabel,
+  framed = true,
   onChange,
   onSave,
   onRemove,
@@ -324,6 +369,7 @@ function ChainTriple({
   draft: Draft;
   busy: boolean;
   saveLabel: string;
+  framed?: boolean;
   onChange: (d: Draft) => void;
   onSave: () => void;
   onRemove?: () => void;
@@ -370,7 +416,13 @@ function ChainTriple({
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+    <div
+      className={
+        framed
+          ? 'rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3'
+          : 'space-y-3'
+      }
+    >
       <div className="grid gap-3 lg:grid-cols-3">
         <section className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
           <p className="text-[10px] font-black uppercase tracking-wider text-[#0077b6]">
