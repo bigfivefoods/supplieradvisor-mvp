@@ -928,15 +928,17 @@ export function CompanyVerifyNowDesk({ onChanged }: { onChanged?: () => void }) 
                   <p className="font-semibold text-slate-800">{bankResult.message}</p>
                 ) : null}
                 <dl className="grid grid-cols-2 gap-x-2 gap-y-0.5">
-                  {[
-                    ['Found', bankResult.verification.accountFound],
-                    ['Open', bankResult.verification.accountOpen],
-                    ['Identity', bankResult.verification.identityMatch],
-                    ['Credits', bankResult.verification.acceptsCredits],
-                  ]
+                  {(
+                    [
+                      ['Found', bankResult.verification.accountFound],
+                      ['Open', bankResult.verification.accountOpen],
+                      ['Identity', bankResult.verification.identityMatch],
+                      ['Credits', bankResult.verification.acceptsCredits],
+                    ] as Array<[string, unknown]>
+                  )
                     .filter(([, v]) => v != null && String(v).trim())
                     .map(([label, value]) => (
-                      <div key={String(label)} className="contents">
+                      <div key={label} className="contents">
                         <dt className="text-neutral-500">{label}</dt>
                         <dd className="font-semibold text-slate-800">{String(value)}</dd>
                       </div>
