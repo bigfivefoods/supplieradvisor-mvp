@@ -11,7 +11,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Copy,
   Loader2,
   MessageSquare,
   Plus,
@@ -58,6 +57,7 @@ import { ProgrammeView } from '@/components/fitness/ProgrammeView';
 import { ClassSubscriptionReport } from '@/components/fitness/ClassSubscriptionReport';
 import { MemberPortalWeekCalendar } from '@/components/advisors/MemberPortalWeekCalendar';
 import { OwnerWorkspaceCta } from '@/components/advisors/OwnerWorkspaceCta';
+import { GymSectionTitle } from '@/components/fitness/GymMemberPwaUi';
 import type {
   FitHydratedProgramme,
   FitMovement,
@@ -305,6 +305,7 @@ export default function CoachFitgraphPortalPage() {
   const [portal, setPortal] = useState<Portal | null>(null);
   const [companyId, setCompanyId] = useState<number | null>(null);
   const [brand, setBrand] = useState('Gym');
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [publicToken, setPublicToken] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -345,7 +346,6 @@ export default function CoachFitgraphPortalPage() {
   });
   const [classPlanDraft, setClassPlanDraft] = useState('');
   const [sessionEdit, setSessionEdit] = useState<SessionEditForm | null>(null);
-  const [showProfile, setShowProfile] = useState(false);
   const [profile, setProfile] = useState({
     name: '',
     email: '',
@@ -381,7 +381,6 @@ export default function CoachFitgraphPortalPage() {
     end_time: string;
     notes: string;
   } | null>(null);
-  const [showMessages, setShowMessages] = useState(false);
   const [msgThreadId, setMsgThreadId] = useState<string | null>(null);
   const [msgReply, setMsgReply] = useState('');
   const [msgCompose, setMsgCompose] = useState(false);
@@ -434,6 +433,7 @@ export default function CoachFitgraphPortalPage() {
       if (!res.ok) throw new Error(data.error || 'Failed');
       setPortal(data.portal);
       setBrand(data.brand || 'Gym');
+      setLogoUrl(data.logo_url || null);
       setCompanyId(
         Number.isFinite(Number(data.company_id)) ? Number(data.company_id) : null
       );
@@ -617,16 +617,16 @@ export default function CoachFitgraphPortalPage() {
 
   if (loading && !portal) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950">
-        <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
+      <div className="flex min-h-[100dvh] items-center justify-center bg-yellow-50 dark:bg-slate-950">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
       </div>
     );
   }
 
   if (error && !portal) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 p-6">
-        <p className="text-rose-400 text-sm">{error}</p>
+      <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 p-6 dark:bg-slate-950">
+        <p className="text-sm text-rose-600 dark:text-rose-400">{error}</p>
       </div>
     );
   }
@@ -642,9 +642,20 @@ export default function CoachFitgraphPortalPage() {
     calFilter === 'all' ||
     (calFilter === 'owner' && slotSource(card) === 'owner') ||
     (calFilter === 'mine' && slotSource(card) === 'mine');
-  const todayCards = portal.sessions.filter(
-    (s) => s.session.date === todayIso && matchesCal(s)
-  );
+  const todayCards = portal.sessions
+    .filter((s) => s.session.date === todayIso && matchesCal(s))
+    .slice()
+    .sort((a, b) =>
+      String(a.session.start_time).localeCompare(String(b.session.start_time))
+    );
+  const nowMs = Date.now();
+  const nextToday =
+    todayCards.find((s) => {
+      const t = new Date(
+        `${s.session.date}T${String(s.session.start_time).slice(0, 5)}:00`
+      ).getTime();
+      return Number.isFinite(t) && t >= nowMs - 20 * 60 * 1000;
+    }) || todayCards[0];
   const slotBadge = (card: PortalSession) => {
     if (card.session.session_kind === 'coach_personal') return 'Personal';
     if (slotSource(card) === 'owner') return 'Gym booked';
@@ -657,110 +668,189 @@ export default function CoachFitgraphPortalPage() {
       brand={brand}
       name={portal.coach.name}
       photoUrl={portal.coach.photo_url}
-      eyebrow={`Coach · ${brand}`}
+      eyebrow="Coach · GymAdvisor®"
       unread={portal.messages_unread || 0}
       tab={workTab}
-      onTab={(t) => {
-        setWorkTab(t);
-        if (t === 'inbox') {
-          setShowMessages(true);
-          setMsgCompose(false);
-        }
-        if (t === 'me') setShowProfile(true);
-      }}
+      onTab={setWorkTab}
+      surface="light"
+      logoUrl={logoUrl}
+      appHref={`/me?link=${encodeURIComponent(token)}`}
     >
       {workTab === 'today' ? (
-        <div className="space-y-3">
-          <div className="flex gap-1">
-            {(
-              [
-                ['all', 'All'],
-                ['owner', 'Gym booked'],
-                ['mine', 'My private'],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setCalFilter(id)}
-                className={`rounded-full px-3 py-1 text-[11px] font-black ${
-                  calFilter === id
-                    ? 'bg-[#E8E830] text-slate-950'
-                    : 'bg-white/5 text-slate-400'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+        <div className="space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <GymSectionTitle hint="Next session, then mark who came.">
+              Today
+            </GymSectionTitle>
+            <div className="inline-flex overflow-x-auto rounded-full border border-slate-200 bg-slate-50 p-0.5 dark:border-white/10 dark:bg-white/5">
+              {(
+                [
+                  ['all', 'All'],
+                  ['owner', 'Gym'],
+                  ['mine', 'Mine'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setCalFilter(id)}
+                  className={`min-h-8 rounded-full px-2.5 text-[10px] font-black ${
+                    calFilter === id
+                      ? 'bg-[#E8E830] text-slate-950 shadow-sm'
+                      : 'text-slate-500'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
-          <p className="text-sm text-slate-400">
-            {todayCards.length
-              ? `${todayCards.length} session${todayCards.length === 1 ? '' : 's'} today`
-              : 'Nothing on the floor today. Book a member or open Diary.'}
-          </p>
+
+          {nextToday ? (
+            <button
+              type="button"
+              onClick={() => setOpenId(nextToday.session.id)}
+              className="w-full overflow-hidden rounded-3xl p-4 text-left shadow-sm"
+              style={{ backgroundColor: '#E8E830', color: '#0f172a' }}
+            >
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-70">
+                Next up · {slotBadge(nextToday)}
+              </p>
+              <p className="mt-1 text-lg font-black leading-tight">
+                {String(nextToday.session.start_time).slice(0, 5)}
+                {nextToday.session.end_time
+                  ? `–${String(nextToday.session.end_time).slice(0, 5)}`
+                  : ''}{' '}
+                · {nextToday.class_name || 'Session'}
+              </p>
+              <p className="mt-1 text-sm font-bold opacity-80">
+                {nextToday.planned} booked
+                {nextToday.waitlist ? ` · ${nextToday.waitlist} waitlist` : ''}
+                {nextToday.pending
+                  ? ` · ${nextToday.pending} to mark`
+                  : nextToday.attended
+                    ? ` · ${nextToday.attended} in`
+                    : ''}
+              </p>
+              <p className="mt-3 text-[11px] font-black">Open roster →</p>
+            </button>
+          ) : (
+            <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500 dark:border-white/15 dark:bg-neutral-900">
+              Nothing on the floor today.
+            </div>
+          )}
+
+          {todayCards.filter((c) => c.session.id !== nextToday?.session.id)
+            .length ? (
+            <div className="space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                Also today
+              </p>
+              {todayCards
+                .filter((c) => c.session.id !== nextToday?.session.id)
+                .map((card) => (
+                  <button
+                    key={card.session.id}
+                    type="button"
+                    onClick={() => setOpenId(card.session.id)}
+                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left dark:border-white/10 dark:bg-neutral-900"
+                  >
+                    <div>
+                      <p className="text-sm font-black text-slate-900 dark:text-white">
+                        {String(card.session.start_time).slice(0, 5)} ·{' '}
+                        {card.class_name || 'Session'}
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        {slotBadge(card)} · {card.planned} booked
+                        {card.pending ? ` · ${card.pending} to mark` : ''}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+            </div>
+          ) : null}
+
           <MemberSpecialDatesPanel
             tone="coach"
             title="Your clients"
-            description="Birthdays and gym anniversaries for members assigned to you or training with you."
+            description="Birthdays and gym anniversaries this week."
             rows={portal.special_dates || []}
           />
-          {todayCards.map((card) => (
+
+          <div className="grid grid-cols-2 gap-2">
             <button
-              key={card.session.id}
               type="button"
-              onClick={() => setOpenId(card.session.id)}
-              className="w-full rounded-3xl border border-white/10 bg-white/5 px-4 py-3 text-left"
+              onClick={() =>
+                setBookWith({
+                  client_id: '',
+                  date: todayIso,
+                  start_time: '09:00',
+                  end_time: '10:00',
+                  notes: '',
+                })
+              }
+              className="rounded-2xl bg-[#E8E830] py-3 text-xs font-black text-slate-950"
             >
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-lg font-black">
-                  {String(card.session.start_time).slice(0, 5)} ·{' '}
-                  {card.class_name || 'Session'}
-                </div>
-                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-200">
-                  {slotBadge(card)}
-                </span>
-              </div>
-              <div className="mt-1 text-xs text-slate-400">
-                {card.planned} booked
-                {card.waitlist ? ` · ${card.waitlist} waitlist` : ''}
-                {card.attended ? ` · ${card.attended} in` : ''}
-              </div>
+              Book a member
             </button>
-          ))}
-          <button
-            type="button"
-            onClick={() =>
-              setBookWith({
-                client_id: '',
-                date: todayIso,
-                start_time: '09:00',
-                end_time: '10:00',
-                notes: '',
-              })
-            }
-            className="w-full rounded-2xl bg-[#E8E830] py-3 text-sm font-black text-slate-950"
-          >
-            Book a member with me
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowCreate(true)}
-            className="w-full rounded-2xl border border-white/20 py-3 text-sm font-black"
-          >
-            Add class / PT / personal time
-          </button>
+            <button
+              type="button"
+              onClick={() => setShowCreate(true)}
+              className="rounded-2xl border border-slate-200 bg-white py-3 text-xs font-black text-slate-800 dark:border-white/10 dark:bg-neutral-900 dark:text-white"
+            >
+              Add session
+            </button>
+          </div>
         </div>
       ) : null}
 
       {workTab === 'people' ? (
-        <div className="space-y-2">
+        <div className="space-y-5">
+          <GymSectionTitle hint="Care flags, programmes, then your book.">
+            People
+          </GymSectionTitle>
+          {(() => {
+            const care = portal.members.filter(
+              (m) =>
+                m.health?.injured ||
+                (m.health?.injury_areas || []).length > 0 ||
+                (portal.special_dates || []).some(
+                  (d) => d.client_id === m.id && d.days_until <= 7
+                )
+            );
+            if (!care.length) return null;
+            return (
+              <div className="space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                  Needs care
+                </p>
+                {care.map((m) => (
+                  <button
+                    key={`care-${m.id}`}
+                    type="button"
+                    onClick={() => openMemberEdit(m)}
+                    className="w-full rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-left dark:border-rose-500/30 dark:bg-rose-950/30"
+                  >
+                    <p className="text-sm font-black text-slate-900 dark:text-white">
+                      {m.name}
+                    </p>
+                    <p className="text-[11px] font-semibold text-rose-800 dark:text-rose-200">
+                      {m.health?.injured || (m.health?.injury_areas || []).length
+                        ? 'Injury / modification — tap to update'
+                        : 'Birthday or anniversary this week'}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
           {(portal.programmes || []).length ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-3 space-y-2">
-              <p className="text-[10px] font-black uppercase tracking-wide text-amber-300">
+            <div className="space-y-2 rounded-3xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
+              <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
                 Assign a programme
               </p>
               <select
-                className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-neutral-950"
                 value={enrollClientId}
                 onChange={(e) => setEnrollClientId(e.target.value)}
               >
@@ -772,7 +862,7 @@ export default function CoachFitgraphPortalPage() {
                 ))}
               </select>
               <select
-                className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-neutral-950"
                 value={enrollProgrammeId}
                 onChange={(e) => setEnrollProgrammeId(e.target.value)}
               >
@@ -785,7 +875,7 @@ export default function CoachFitgraphPortalPage() {
               </select>
               <input
                 type="date"
-                className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-neutral-950"
                 value={enrollStart}
                 onChange={(e) => setEnrollStart(e.target.value)}
               />
@@ -807,14 +897,14 @@ export default function CoachFitgraphPortalPage() {
             </div>
           ) : null}
           {(portal.programme_follows || []).length ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-3 space-y-2">
-              <p className="text-[10px] font-black uppercase tracking-wide text-amber-300">
-                Programmes · follow
+            <div className="space-y-2 rounded-3xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
+              <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                Programme follow
               </p>
               {(portal.programme_follows || []).slice(0, 12).map((r) => (
                 <div
                   key={r.enrollment_id}
-                  className="rounded-xl border border-white/10 px-3 py-2"
+                  className="rounded-xl border border-slate-100 px-3 py-2 dark:border-white/10"
                 >
                   <p className="text-sm font-bold">
                     {r.client_name}
@@ -848,21 +938,26 @@ export default function CoachFitgraphPortalPage() {
           {portal.class_report ? (
             <ClassSubscriptionReport
               report={portal.class_report}
-              tone="coach"
+              tone="member"
               title="Your class subscriptions"
             />
           ) : null}
+          <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+            Members
+          </p>
           {portal.members.map((m) => (
             <div
               key={m.id}
-              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-neutral-900"
             >
               <button
                 type="button"
                 onClick={() => openMemberEdit(m)}
                 className="w-full text-left"
               >
-                <div className="font-bold">{m.name}</div>
+                <div className="font-bold text-slate-900 dark:text-white">
+                  {m.name}
+                </div>
                 <div className="text-[11px] text-slate-400">
                   {m.plan_names?.length
                     ? m.plan_names.join(' · ')
@@ -903,179 +998,79 @@ export default function CoachFitgraphPortalPage() {
       ) : null}
 
       {workTab === 'diary' ? (
-      <div>
-      <header className="mb-3">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-[10px] font-black uppercase tracking-widest text-amber-400">
-            Week diary
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1">
+      <div className="space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <GymSectionTitle hint="Gym classes, your PT, and personal time.">
+          Diary
+        </GymSectionTitle>
+        <div className="flex gap-1">
+          <button
+            type="button"
+            onClick={() => setShowLibrary(true)}
+            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-700 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-200"
+          >
+            Library
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowCreate(true)}
+            className="rounded-full bg-[#E8E830] px-3 py-1.5 text-[11px] font-black text-slate-950"
+          >
+            Add
+          </button>
+        </div>
+      </div>
+      <div className="inline-flex overflow-x-auto rounded-full border border-slate-200 bg-slate-50 p-0.5 dark:border-white/10 dark:bg-white/5">
             {(
               [
                 ['all', 'All'],
-                ['owner', 'Gym booked'],
-                ['mine', 'My private'],
+                ['owner', 'Gym'],
+                ['mine', 'Mine'],
               ] as const
             ).map(([id, label]) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => setCalFilter(id)}
-                className={`rounded-full px-2.5 py-1 text-[10px] font-black ${
+                className={`min-h-8 rounded-full px-2.5 text-[10px] font-black ${
                   calFilter === id
-                    ? 'bg-amber-500 text-amber-950'
-                    : 'border border-slate-600 text-slate-400'
+                    ? 'bg-[#E8E830] text-slate-950 shadow-sm'
+                    : 'text-slate-500'
                 }`}
               >
                 {label}
               </button>
             ))}
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 mt-1">
-            <div className="flex items-center gap-2 min-w-0">
-              {portal.coach.photo_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={portal.coach.photo_url}
-                  alt=""
-                  className="w-10 h-10 rounded-full object-cover border border-amber-500/40 shrink-0"
-                />
-              ) : (
-                <div className="w-10 h-10 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0">
-                  <User className="w-5 h-5 text-amber-400" />
-                </div>
-              )}
-              <div className="min-w-0">
-                <h1 className="text-xl font-black truncate">
-                  {portal.coach.name}
-                </h1>
-                {(portal.coach.specialties || []).length > 0 && (
-                  <p className="text-[10px] text-amber-200/80 truncate">
-                    {(portal.coach.specialties || []).join(' · ')}
-                  </p>
-                )}
-                {(portal.coach.start_date || portal.coach.end_date) && (
-                  <p className="text-[10px] text-slate-400 truncate">
-                    Tenure:{' '}
-                    {portal.coach.start_date || '—'}
-                    {portal.coach.end_date
-                      ? ` → ${portal.coach.end_date}`
-                      : ' → present'}
-                    {portal.coach.active === false || portal.coach.end_date
-                      ? ' · ended'
-                      : ''}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                onClick={() => setShowProfile(true)}
-                className="inline-flex items-center gap-1 rounded-full border border-slate-600 px-3 py-1.5 text-xs font-bold"
-              >
-                <User className="w-3.5 h-3.5" /> My profile
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowMessages(true);
-                  setMsgCompose(false);
-                }}
-                className="inline-flex items-center gap-1 rounded-full border border-sky-700/50 bg-sky-950/40 px-3 py-1.5 text-xs font-bold text-sky-100"
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                Messages
-                {(portal.messages_unread || 0) > 0 ? (
-                  <span className="rounded-full bg-rose-500 text-white text-[9px] font-black px-1.5">
-                    {portal.messages_unread}
-                  </span>
-                ) : null}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!portal.members.length) {
-                    setError(
-                      'No members yet — book a guest or ask the desk to add clients.'
-                    );
-                    return;
-                  }
-                  // Prefer injured members first so coaches act on them
-                  const injured = portal.members.find(
-                    (m) =>
-                      m.health?.injured ||
-                      (m.health?.injury_areas || []).length > 0
-                  );
-                  openMemberEdit(injured || portal.members[0]);
-                }}
-                className="inline-flex items-center gap-1 rounded-full border border-rose-700/60 bg-rose-950/40 px-3 py-1.5 text-xs font-bold text-rose-100"
-              >
-                <UserPlus className="w-3.5 h-3.5" /> Member health
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowCreate(true)}
-                className="inline-flex items-center gap-1 rounded-full bg-amber-500 text-amber-950 px-3 py-1.5 text-xs font-black"
-              >
-                <Plus className="w-3.5 h-3.5" /> Class / PT / block
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowLibrary(true)}
-                className="inline-flex items-center gap-1 rounded-full border border-amber-500/50 px-3 py-1.5 text-xs font-bold text-amber-200"
-              >
-                Library
-              </button>
-            </div>
-          </div>
-          <p className="text-[11px] text-slate-400 mt-1">
-            Bio · messages · member injury notes · plan classes · mark who came
-          </p>
-          <div className="flex items-center gap-2 mt-3">
+      </div>
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              className="p-2 rounded-xl border border-slate-700"
+              className="rounded-xl border border-slate-200 p-2 dark:border-white/10"
               onClick={() => setWeekStart(addDaysIso(weekStart, -7))}
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="text-xs font-bold tabular-nums flex items-center gap-1">
-              <CalendarDays className="w-3.5 h-3.5 text-amber-400" />
+            <span className="flex items-center gap-1 text-xs font-bold tabular-nums text-slate-700 dark:text-slate-200">
+              <CalendarDays className="h-3.5 w-3.5" />
               {weekStart} → {weekEnd}
             </span>
             <button
               type="button"
-              className="p-2 rounded-xl border border-slate-700"
+              className="rounded-xl border border-slate-200 p-2 dark:border-white/10"
               onClick={() => setWeekStart(addDaysIso(weekStart, 7))}
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="h-4 w-4" />
             </button>
-            {publicToken && (
-              <button
-                type="button"
-                className="ml-auto text-[10px] font-bold text-yellow-300 inline-flex items-center gap-1"
-                onClick={() => {
-                  const url = `${window.location.origin}/embed/fitgraph/${encodeURIComponent(publicToken)}`;
-                  void navigator.clipboard.writeText(url);
-                }}
-              >
-                <Copy className="w-3 h-3" /> Gym calendar link
-              </button>
-            )}
           </div>
-        </div>
-      </header>
 
-      <main className="max-w-3xl mx-auto px-3 py-4 sm:px-6 space-y-3">
-        {error && (
-          <div className="rounded-2xl border border-rose-900/50 bg-rose-950/40 px-4 py-3 text-sm text-rose-300">
+        {error ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-100">
             {error}
           </div>
-        )}
+        ) : null}
 
         <MemberPortalWeekCalendar
-          theme="dark"
+          theme="light"
           color="#E8E830"
           hideNav
           weekStart={weekStart}
@@ -1102,29 +1097,28 @@ export default function CoachFitgraphPortalPage() {
         />
 
         {portal.sessions.length === 0 && (
-          <p className="text-center text-slate-500 py-10 text-sm">
-            Nothing this week. Tap <strong>Class / PT / block</strong> to add a
-            class, private PT, or your own training.
+          <p className="py-8 text-center text-sm text-slate-500">
+            Nothing this week. Tap <strong>Add</strong> for a class, PT, or
+            personal time.
           </p>
         )}
-      </main>
       </div>
       ) : null}
 
       {/* Session detail */}
       {openCard && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-3">
-          <div className="w-full max-w-lg max-h-[92dvh] overflow-y-auto rounded-3xl border border-slate-700 bg-slate-900 p-5 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center">
+          <div className="max-h-[92dvh] w-full max-w-lg space-y-4 overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 text-slate-900 shadow-2xl dark:border-white/10 dark:bg-neutral-950 dark:text-white">
             <div className="flex justify-between gap-2">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-amber-400">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                   {openCard.session.date} · {openCard.session.start_time}
                   {openCard.session.end_time
                     ? `–${openCard.session.end_time}`
                     : ''}
                   {openCard.session.series_id ? ' · series' : ' · bespoke'}
                 </p>
-                <h3 className="text-lg font-black">
+                <h3 className="text-lg font-black text-slate-900 dark:text-white">
                   {openCard.session.session_kind === 'coach_personal'
                     ? openCard.session.notes?.split('\n')[0] ||
                       'Coach personal time'
@@ -1214,10 +1208,11 @@ export default function CoachFitgraphPortalPage() {
             </div>
 
             {sessionEdit && (
-              <div className="space-y-2 rounded-2xl border border-amber-500/30 bg-amber-950/20 p-3">
-                <h4 className="text-[10px] font-black uppercase tracking-wider text-amber-400">
-                  Edit calendar entry
-                </h4>
+              <details className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+                <summary className="cursor-pointer text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  Edit class
+                </summary>
+                <div className="mt-2 space-y-2">
                 <p className="text-[10px] text-slate-500">
                   Change type, date, time, room, capacity or status. Save to
                   update this class on the gym calendar.
@@ -1439,7 +1434,8 @@ export default function CoachFitgraphPortalPage() {
                   ) : null}{' '}
                   Save calendar entry
                 </button>
-              </div>
+                </div>
+              </details>
             )}
 
             <div>
@@ -1596,7 +1592,11 @@ export default function CoachFitgraphPortalPage() {
                         </button>
                       </div>
                       {r.actual === 'attended' || r.actual === 'pending' ? (
-                        <div className="w-full pt-1 space-y-1">
+                        <details className="w-full pt-1">
+                          <summary className="cursor-pointer text-[10px] font-black uppercase text-slate-400">
+                            Note for this member
+                          </summary>
+                        <div className="space-y-1 pt-1">
                           {r.coach_feedback ||
                           r.coach_member_feeling != null ||
                           r.coach_member_rating != null ? (
@@ -1705,6 +1705,7 @@ export default function CoachFitgraphPortalPage() {
                             Save to member profile
                           </button>
                         </div>
+                        </details>
                       ) : null}
                     </li>
                     );
@@ -1740,7 +1741,6 @@ export default function CoachFitgraphPortalPage() {
               <FitClassFeedbackForm
                 key={openCard.session.id + (openCard.my_feedback?.id || 'new')}
                 role="coach"
-                dark
                 initial={openCard.my_feedback}
                 busy={busy}
                 title={
@@ -1839,22 +1839,16 @@ export default function CoachFitgraphPortalPage() {
         </div>
       )}
 
-      {/* Coach profile self-edit */}
-      {showProfile && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-3">
-          <div className="w-full max-w-md max-h-[92dvh] overflow-y-auto rounded-3xl border border-slate-700 bg-slate-900 p-5 space-y-3">
-            <div className="flex justify-between items-center">
-              <h3 className="font-black">My coach profile</h3>
-              <button type="button" onClick={() => setShowProfile(false)}>
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <p className="text-[11px] text-slate-400">
-              Members see your public bio and specialties on the gym calendar.
-              Keep contact details up to date. Engagement dates and contractor /
-              employed are set by the gym owner.
+      {workTab === 'me' ? (
+        <div className="space-y-3">
+            <GymSectionTitle hint="What members see in Shop, plus your work details.">
+              Me
+            </GymSectionTitle>
+            <p className="text-[11px] text-slate-500">
+              Public bio and photo appear on the member shop. Rate and tenure are
+              set by the gym owner.
             </p>
-            <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-950 dark:border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-100">
               {portal.coach.engagement === 'employed'
                 ? 'Employed — this work app is your diary. Only the gym owner opens SupplierAdvisor.'
                 : 'Contractor — this work app is your diary. Gym-booked slots and your private PT live here.'}
@@ -1864,9 +1858,9 @@ export default function CoachFitgraphPortalPage() {
               portal.coach.end_date ||
               portal.coach.rate_zar != null ||
               (portal.coach.history || []).length > 0) && (
-              <div className="rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-2 text-[11px] text-slate-300 space-y-1">
-                <div className="font-bold text-amber-300/90 text-[10px] uppercase tracking-wider">
-                  Engagement & rate (read-only)
+              <div className="space-y-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Engagement & rate (owner-set)
                 </div>
                 <div>
                   Current:{' '}
@@ -2068,7 +2062,6 @@ export default function CoachFitgraphPortalPage() {
                     ? profile.specialties
                     : ['General'],
                 }).then(() => {
-                  setShowProfile(false);
                   void load();
                 })
               }
@@ -2078,35 +2071,22 @@ export default function CoachFitgraphPortalPage() {
               ) : null}{' '}
               Save profile
             </button>
-          </div>
         </div>
-      )}
+      ) : null}
 
-      {/* Coach messages — members, desk, peer coaches */}
-      {showMessages && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-3">
-          <div className="w-full max-w-lg max-h-[92dvh] overflow-hidden flex flex-col rounded-3xl border border-slate-700 bg-slate-900">
-            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-700">
-              <div>
-                <h3 className="font-black flex items-center gap-1.5">
-                  <MessageSquare className="w-4 h-4 text-sky-400" /> Messages
-                </h3>
-                <p className="text-[10px] text-slate-400">
-                  Members · desk · fellow coaches
-                </p>
-              </div>
-              <div className="flex gap-1.5">
+      {workTab === 'inbox' ? (
+        <div className="space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <GymSectionTitle hint="Members, desk, and other coaches.">
+                Inbox
+              </GymSectionTitle>
                 <button
                   type="button"
-                  className="rounded-full bg-sky-500 text-sky-950 px-2.5 py-1 text-[11px] font-black"
+                  className="rounded-full bg-sky-500 px-3 py-1.5 text-[11px] font-black text-sky-950"
                   onClick={() => setMsgCompose((v) => !v)}
                 >
-                  <Plus className="w-3 h-3 inline" /> New
+                  <Plus className="inline h-3 w-3" /> New
                 </button>
-                <button type="button" onClick={() => setShowMessages(false)}>
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
             </div>
 
             {msgCompose ? (
@@ -2209,8 +2189,8 @@ export default function CoachFitgraphPortalPage() {
               </div>
             ) : null}
 
-            <div className="flex-1 grid sm:grid-cols-[200px_1fr] min-h-0 overflow-hidden">
-              <div className="border-b sm:border-b-0 sm:border-r border-slate-800 max-h-40 sm:max-h-none overflow-y-auto">
+            <div className="min-h-0 overflow-hidden rounded-3xl border border-slate-200 bg-white dark:border-white/10 dark:bg-neutral-900 sm:grid sm:grid-cols-[200px_1fr]">
+              <div className="max-h-40 overflow-y-auto border-b border-slate-100 sm:max-h-none sm:border-b-0 sm:border-r dark:border-white/10">
                 {(portal.threads || []).length === 0 ? (
                   <p className="p-3 text-[11px] text-slate-500">
                     No threads yet. Message a member or the desk.
@@ -2229,8 +2209,10 @@ export default function CoachFitgraphPortalPage() {
                           to: weekEnd,
                         }).then(() => void load());
                       }}
-                      className={`w-full text-left px-3 py-2.5 border-b border-slate-800/80 ${
-                        msgThreadId === t.id ? 'bg-slate-800' : ''
+                      className={`w-full border-b border-slate-100 px-3 py-2.5 text-left dark:border-white/10 ${
+                        msgThreadId === t.id
+                          ? 'bg-slate-50 dark:bg-white/10'
+                          : ''
                       }`}
                     >
                       <div className="text-[12px] font-bold truncate">
@@ -2337,9 +2319,8 @@ export default function CoachFitgraphPortalPage() {
                 })()}
               </div>
             </div>
-          </div>
         </div>
-      )}
+      ) : null}
 
       {/* Member profile + injury awareness (coach can update) */}
       {memberEdit && (

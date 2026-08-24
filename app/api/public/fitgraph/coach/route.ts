@@ -191,6 +191,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       brand,
+      logo_url: resolved.store.settings?.company_logo_url || null,
       company_id: resolved.companyId,
       portal,
       website_enabled: resolved.store.settings?.enabled === true,
