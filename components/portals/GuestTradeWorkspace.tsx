@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   CUSTOMER_DIMS,
   SUPPLIER_DIMS,
@@ -29,7 +29,14 @@ import {
   daysBetween,
   isoDay,
 } from '@/lib/projects/waterfall';
+import {
+  buildWbsTree,
+  flattenWbs,
+  rollupWbsDates,
+  type WbsNode,
+} from '@/lib/projects/wbs';
 import { WaterfallGantt } from '@/components/projects/WaterfallGantt';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { PortalRiadPanel } from '@/components/portals/PortalRiadPanel';
 
 export type GuestPortalTab =
@@ -660,6 +667,16 @@ function ProjectsPanel({
   const [openTaskId, setOpenTaskId] = useState<number | null>(null);
   const [heading, setHeading] = useState('');
   const [brief, setBrief] = useState('');
+  const [collapsedProjects, setCollapsedProjects] = useState<Set<number>>(
+    () => new Set()
+  );
+  const [collapsedTasks, setCollapsedTasks] = useState<Set<number>>(
+    () => new Set()
+  );
+  const [subParent, setSubParent] = useState<number | null>(null);
+  const [subTitle, setSubTitle] = useState('');
+  const [subStart, setSubStart] = useState(isoDay(new Date()));
+  const [subEnd, setSubEnd] = useState(addDays(isoDay(new Date()), 7));
   useEffect(() => {
     if (!projectId && items[0]?.id) setProjectId(items[0].id);
   }, [items, projectId]);
@@ -673,15 +690,24 @@ function ProjectsPanel({
     return items.map((p) => {
       const fallbackStart = p.start_date || isoDay(new Date());
       const fallbackEnd = p.target_date || addDays(fallbackStart, 28);
-      const tasks = datedTasks(p.tasks, fallbackStart).sort((a, b) =>
-        String(a.start_date).localeCompare(String(b.start_date))
+      const dated = datedTasks(p.tasks, fallbackStart);
+      const tree = rollupWbsDates(
+        buildWbsTree(
+          dated.map((t) => ({
+            ...t,
+            parent_task_id: t.parent_task_id || null,
+          }))
+        )
       );
+      const tasks = flattenWbs(tree);
       const env =
-        dateEnvelope(tasks.map((t) => ({ start: t.start_date, end: t.due_date }))) || {
+        dateEnvelope(
+          tasks.map((t) => ({ start: t.start_date, end: t.due_date }))
+        ) || {
           start: fallbackStart,
           end: fallbackEnd,
         };
-      return { ...p, tasks, envelope: env };
+      return { ...p, tree, tasks, envelope: env };
     });
   }, [items]);
 
@@ -716,22 +742,29 @@ function ProjectsPanel({
   const to = chartEnv.end;
   const groups = planned.map((p) => {
     const span = daysBetween(p.envelope.start, p.envelope.end) + 1;
-    const taskBars = p.tasks.map((t) => ({
+    const projectOpen = !collapsedProjects.has(p.id);
+    const visible = projectOpen
+      ? flattenWbs(p.tree, collapsedTasks)
+      : [];
+    const taskBars = visible.map((t) => ({
       id: String(t.id),
       label: t.title,
-      start: t.start_date,
-      end: t.due_date,
-      subtitle: [t.assignee, `${t.start_date} → ${t.due_date}`]
-        .filter(Boolean)
-        .join(' · '),
+      start: String(t.start_date),
+      end: String(t.due_date),
+      depth: t.depth + 1,
+      expandable: t.children.length > 0,
+      expanded: t.children.length > 0 && !collapsedTasks.has(t.id),
+      subtitle: t.assignee || undefined,
       tone:
-        t.column_key === 'done'
-          ? ('emerald' as const)
-          : t.column_key === 'in_progress'
-            ? ('cyan' as const)
-            : t.assignee
-              ? ('amber' as const)
-              : ('violet' as const),
+        t.children.length
+          ? ('slate' as const)
+          : t.column_key === 'done'
+            ? ('emerald' as const)
+            : t.column_key === 'in_progress'
+              ? ('cyan' as const)
+              : t.assignee
+                ? ('amber' as const)
+                : ('violet' as const),
     }));
     return {
       id: String(p.id),
@@ -739,28 +772,20 @@ function ProjectsPanel({
       subtitle: `${p.status} · ${p.envelope.start} → ${p.envelope.end} · ${span} day${
         span === 1 ? '' : 's'
       } · ${p.tasks.length} task${p.tasks.length === 1 ? '' : 's'}`,
-      bars:
-        taskBars.length > 0
-          ? [
-              {
-                id: `summary-${p.id}`,
-                label: p.name,
-                start: p.envelope.start,
-                end: p.envelope.end,
-                tone: 'slate' as const,
-                subtitle: 'Project duration (all tasks)',
-              },
-              ...taskBars,
-            ]
-          : [
-              {
-                id: `p-${p.id}`,
-                label: p.name,
-                start: p.envelope.start,
-                end: p.envelope.end,
-                tone: 'cyan' as const,
-              },
-            ],
+      bars: [
+        {
+          id: `summary-${p.id}`,
+          label: p.name,
+          start: p.envelope.start,
+          end: p.envelope.end,
+          depth: 0,
+          expandable: true,
+          expanded: projectOpen,
+          tone: 'slate' as const,
+          subtitle: 'Project',
+        },
+        ...taskBars,
+      ],
     };
   });
 
@@ -846,14 +871,34 @@ function ProjectsPanel({
       <div className="rounded-2xl border border-cyan-100 bg-cyan-50/70 px-4 py-3 text-sm text-slate-700">
         <p className="font-bold text-slate-900">Work this plan together</p>
         <p className="text-xs text-neutral-600 mt-0.5 leading-relaxed">
-          Click a Gantt bar to open that task: rename it, assign a portal
-          member, and log a RIAD against it. Project heading is editable too.
+          Expand or collapse the project and any task with sub-tasks. Click a
+          bar to assign people and log RIAD. Add sub-tasks under any task.
         </p>
       </div>
       <WaterfallGantt
         groups={groups}
         from={from}
         to={to}
+        onToggle={(gid, barId) => {
+          const pid = Number(gid);
+          if (!barId || barId.startsWith('summary-') || barId.startsWith('p-')) {
+            setCollapsedProjects((prev) => {
+              const next = new Set(prev);
+              if (next.has(pid)) next.delete(pid);
+              else next.add(pid);
+              return next;
+            });
+            return;
+          }
+          const tid = Number(barId);
+          if (!Number.isFinite(tid)) return;
+          setCollapsedTasks((prev) => {
+            const next = new Set(prev);
+            if (next.has(tid)) next.delete(tid);
+            else next.add(tid);
+            return next;
+          });
+        }}
         onSelect={(gid, barId) => {
           setProjectId(Number(gid));
           if (!barId || barId.startsWith('summary-') || barId.startsWith('p-')) {
@@ -917,13 +962,84 @@ function ProjectsPanel({
               days) — same as Microsoft Project.
             </p>
           ) : null}
-          {(selectedPlanned?.tasks || []).map((t) => {
+          {(selectedPlanned?.tree || []).map((node) =>
+            renderPortalTask(node)
+          )}
+          <div className="rounded-2xl border border-dashed border-slate-200 p-3 space-y-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+              Add a top-level task
+            </p>
+            <input
+              className="input w-full !py-2 !px-2.5 !text-sm"
+              placeholder="Task name *"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-[10px] font-bold uppercase text-neutral-400">
+                Start
+                <input
+                  type="date"
+                  className="input mt-0.5 w-full !py-1.5 !px-2 !text-sm"
+                  value={taskStart}
+                  onChange={(e) => setTaskStart(e.target.value)}
+                />
+              </label>
+              <label className="text-[10px] font-bold uppercase text-neutral-400">
+                End
+                <input
+                  type="date"
+                  className="input mt-0.5 w-full !py-1.5 !px-2 !text-sm"
+                  value={taskEnd}
+                  onChange={(e) => setTaskEnd(e.target.value)}
+                />
+              </label>
+            </div>
+            <button
+              type="button"
+              disabled={busy || !title.trim() || !taskStart || !taskEnd}
+              onClick={() => {
+                const t = title;
+                setTitle('');
+                void onAct({
+                  action: 'task_add',
+                  project_id: selected.id,
+                  title: t,
+                  start_date: taskStart,
+                  due_date: taskEnd,
+                });
+              }}
+              className="btn-primary w-full !py-2 !px-3 text-xs"
+            >
+              Add task
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+
+  function renderPortalTask(
+    t: WbsNode<
+      NonNullable<
+        PublicPortalPayload['workspace']
+      >['projects'][number]['tasks'][number] & {
+        start_date: string;
+        due_date: string;
+      }
+    >
+  ): ReactNode {
             const open = openTaskId === t.id;
             const taskRiad = riad.filter((r) => r.related_task_id === t.id);
+            const kidsOpen = t.children.length > 0 && !collapsedTasks.has(t.id);
             return (
             <div
               key={t.id}
               id={`portal-task-${t.id}`}
+              className="space-y-2"
+              style={{ marginLeft: t.depth * 14 }}
+            >
+            <div
               className={`rounded-2xl px-3 py-2.5 space-y-2 ${
                 open
                   ? 'bg-cyan-50 border border-cyan-200 ring-2 ring-[#00b4d8]/30'
@@ -1088,62 +1204,98 @@ function ProjectsPanel({
                   onAct={onAct}
                 />
               ) : null}
+              <div className="flex flex-wrap gap-2">
+                {t.children.length > 0 ? (
+                  <button
+                    type="button"
+                    className="text-xs font-bold text-slate-700 inline-flex items-center gap-1"
+                    onClick={() =>
+                      setCollapsedTasks((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(t.id)) next.delete(t.id);
+                        else next.add(t.id);
+                        return next;
+                      })
+                    }
+                  >
+                    {kidsOpen ? (
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    ) : (
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    )}
+                    {t.children.length} sub-task
+                    {t.children.length === 1 ? '' : 's'}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="text-xs font-bold text-[#0077b6]"
+                  onClick={() => {
+                    setSubParent(subParent === t.id ? null : t.id);
+                    setSubTitle('');
+                    setSubStart(String(t.start_date));
+                    setSubEnd(String(t.due_date));
+                  }}
+                >
+                  {subParent === t.id ? 'Cancel sub-task' : 'Add sub-task'}
+                </button>
+              </div>
+              {subParent === t.id ? (
+                <div className="rounded-2xl border border-dashed border-cyan-200 bg-white p-3 space-y-2">
+                  <input
+                    className="input w-full !py-1.5 !px-2 !text-sm"
+                    placeholder="Sub-task name *"
+                    value={subTitle}
+                    onChange={(e) => setSubTitle(e.target.value)}
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="date"
+                      className="input !py-1.5 !px-2 !text-sm"
+                      value={subStart}
+                      onChange={(e) => setSubStart(e.target.value)}
+                    />
+                    <input
+                      type="date"
+                      className="input !py-1.5 !px-2 !text-sm"
+                      value={subEnd}
+                      onChange={(e) => setSubEnd(e.target.value)}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={busy || !subTitle.trim() || !subStart || !subEnd}
+                    onClick={() => {
+                      const name = subTitle.trim();
+                      setSubTitle('');
+                      setSubParent(null);
+                      setCollapsedTasks((prev) => {
+                        const next = new Set(prev);
+                        next.delete(t.id);
+                        return next;
+                      });
+                      void onAct({
+                        action: 'task_add',
+                        project_id: selected!.id,
+                        parent_task_id: t.id,
+                        title: name,
+                        start_date: subStart,
+                        due_date: subEnd,
+                      });
+                    }}
+                    className="btn-primary w-full !py-2 text-xs"
+                  >
+                    Create sub-task
+                  </button>
+                </div>
+              ) : null}
+            </div>
+            {kidsOpen
+              ? t.children.map((child) => renderPortalTask(child))
+              : null}
             </div>
             );
-          })}
-          <div className="rounded-2xl border border-dashed border-slate-200 p-3 space-y-2">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-              Add a task
-            </p>
-            <input
-              className="input w-full !py-2 !px-2.5 !text-sm"
-              placeholder="Task name *"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <label className="text-[10px] font-bold uppercase text-neutral-400">
-                Start
-                <input
-                  type="date"
-                  className="input mt-0.5 w-full !py-1.5 !px-2 !text-sm"
-                  value={taskStart}
-                  onChange={(e) => setTaskStart(e.target.value)}
-                />
-              </label>
-              <label className="text-[10px] font-bold uppercase text-neutral-400">
-                End
-                <input
-                  type="date"
-                  className="input mt-0.5 w-full !py-1.5 !px-2 !text-sm"
-                  value={taskEnd}
-                  onChange={(e) => setTaskEnd(e.target.value)}
-                />
-              </label>
-            </div>
-            <button
-              type="button"
-              disabled={busy || !title.trim() || !taskStart || !taskEnd}
-              onClick={() => {
-                const t = title;
-                setTitle('');
-                void onAct({
-                  action: 'task_add',
-                  project_id: selected.id,
-                  title: t,
-                  start_date: taskStart,
-                  due_date: taskEnd,
-                });
-              }}
-              className="btn-primary w-full !py-2 !px-3 text-xs"
-            >
-              Add task
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
+  }
 }
 
 function OrdersPanel({

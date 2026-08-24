@@ -1,5 +1,6 @@
 'use client';
 
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { ganttPct, isoDay, monthTicks } from '@/lib/projects/waterfall';
 
 export type GanttBar = {
@@ -10,6 +11,9 @@ export type GanttBar = {
   progress?: number;
   tone?: 'cyan' | 'emerald' | 'amber' | 'rose' | 'slate' | 'violet';
   subtitle?: string;
+  depth?: number;
+  expandable?: boolean;
+  expanded?: boolean;
 };
 
 export type GanttGroup = {
@@ -33,11 +37,13 @@ export function WaterfallGantt({
   from,
   to,
   onSelect,
+  onToggle,
 }: {
   groups: GanttGroup[];
   from: string;
   to: string;
   onSelect?: (groupId: string, barId?: string) => void;
+  onToggle?: (groupId: string, barId?: string) => void;
 }) {
   const ticks = monthTicks(from, to);
   const today = isoDay(new Date());
@@ -85,20 +91,72 @@ export function WaterfallGantt({
             ) : null}
           </div>
           <ul className="divide-y divide-slate-50">
-            {groups.map((g) => (
+            {groups.map((g) => {
+              const outline = g.bars.some(
+                (b) => b.expandable || (b.depth != null && b.depth > 0)
+              );
+              return (
               <li key={g.id} className="px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => onSelect?.(g.id)}
-                  className="text-left w-full mb-2"
-                >
-                  <p className="text-sm font-black text-slate-900 truncate">{g.title}</p>
-                  {g.subtitle ? (
-                    <p className="text-[11px] text-neutral-500">{g.subtitle}</p>
+                {!outline ? (
+                  <button
+                    type="button"
+                    onClick={() => onSelect?.(g.id)}
+                    className="text-left w-full mb-2"
+                  >
+                    <p className="text-sm font-black text-slate-900 truncate">{g.title}</p>
+                    {g.subtitle ? (
+                      <p className="text-[11px] text-neutral-500">{g.subtitle}</p>
+                    ) : null}
+                  </button>
+                ) : g.subtitle ? (
+                  <p className="text-[11px] text-neutral-500 mb-2">{g.subtitle}</p>
+                ) : null}
+                <div className={outline ? 'flex gap-2' : undefined}>
+                  {outline ? (
+                    <div className="w-[13.5rem] shrink-0">
+                      {g.bars.map((bar) => {
+                        const depth = bar.depth || 0;
+                        return (
+                          <div
+                            key={`ol-${bar.id}`}
+                            className="flex items-center h-[26px] min-w-0"
+                            style={{ paddingLeft: 4 + depth * 12 }}
+                          >
+                            {bar.expandable ? (
+                              <button
+                                type="button"
+                                className="shrink-0 p-0.5 rounded hover:bg-slate-100"
+                                title={bar.expanded ? 'Collapse' : 'Expand'}
+                                onClick={() => onToggle?.(g.id, bar.id)}
+                              >
+                                {bar.expanded ? (
+                                  <ChevronDown className="w-3.5 h-3.5 text-slate-600" />
+                                ) : (
+                                  <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+                                )}
+                              </button>
+                            ) : (
+                              <span className="inline-block w-4 shrink-0" />
+                            )}
+                            <button
+                              type="button"
+                              title={bar.label}
+                              onClick={() => onSelect?.(g.id, bar.id)}
+                              className={`truncate text-left text-[11px] ${
+                                depth === 0
+                                  ? 'font-black text-slate-900'
+                                  : 'font-semibold text-slate-700'
+                              }`}
+                            >
+                              {bar.label}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
                   ) : null}
-                </button>
                 <div
-                  className="relative"
+                  className="relative min-w-0 flex-1"
                   style={{ height: Math.max(1, g.bars.length) * 26 }}
                 >
                   {todayPct != null ? (
@@ -132,15 +190,18 @@ export function WaterfallGantt({
                           />
                         ) : null}
                         <span className="relative z-[1] px-2 text-[10px] font-bold text-white truncate block leading-5">
-                          {bar.label}
-                          {bar.subtitle ? ` · ${bar.subtitle}` : ''}
+                          {outline
+                            ? bar.subtitle || ''
+                            : `${bar.label}${bar.subtitle ? ` · ${bar.subtitle}` : ''}`}
                         </span>
                       </button>
                     );
                   })}
                 </div>
+                </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </div>
       </div>

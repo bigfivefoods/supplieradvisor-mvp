@@ -556,19 +556,33 @@ export async function loadPortalWorkspace(opts: {
   const projIds = (projRows || []).map((p) => Number(p.id));
   const taskByProject = new Map<number, PortalProjectView['tasks']>();
   if (projIds.length) {
-    const { data: trows } = await supabase
+    let { data: trows } = await supabase
       .from('pm_tasks')
       .select(
-        'id, project_id, title, column_key, status, start_date, due_date, phase_key, assignee, metadata, description'
+        'id, project_id, title, column_key, status, start_date, due_date, phase_key, assignee, metadata, description, parent_task_id'
       )
       .eq('profile_id', companyId)
       .in('project_id', projIds)
       .order('sort_order', { ascending: true });
+    if (!trows) {
+      const retry = await supabase
+        .from('pm_tasks')
+        .select(
+          'id, project_id, title, column_key, status, start_date, due_date, phase_key, assignee, metadata, description'
+        )
+        .eq('profile_id', companyId)
+        .in('project_id', projIds)
+        .order('sort_order', { ascending: true });
+      trows = retry.data;
+    }
     for (const t of trows || []) {
       const pid = Number(t.project_id);
       const list = taskByProject.get(pid) || [];
       const meta = metaOf(asObject(t));
       const assigneeViewer = Number(meta.assignee_viewer_id);
+      const parentFromMeta = Number(meta.parent_task_id);
+      const parentCol =
+        t.parent_task_id != null ? Number(t.parent_task_id) : parentFromMeta;
       list.push({
         id: Number(t.id),
         title: String(t.title || ''),
@@ -582,6 +596,8 @@ export async function loadPortalWorkspace(opts: {
             ? assigneeViewer
             : null,
         description: t.description != null ? String(t.description) : null,
+        parent_task_id:
+          Number.isFinite(parentCol) && parentCol > 0 ? parentCol : null,
       });
       taskByProject.set(pid, list);
     }

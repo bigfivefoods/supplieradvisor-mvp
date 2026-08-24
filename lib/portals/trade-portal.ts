@@ -171,6 +171,7 @@ export type PortalProjectTask = {
   assignee?: string | null;
   assignee_viewer_id?: number | null;
   description?: string | null;
+  parent_task_id?: number | null;
 };
 
 export type PortalProjectView = {

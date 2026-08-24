@@ -13,6 +13,7 @@ import {
 } from '@/lib/projects/waterfall';
 import { RIAD_STATUSES, RIAD_PRIORITIES, RIAD_TYPES } from '@/lib/containers/riad';
 import { portalTaskRiadMark } from '@/lib/portals/trade-portal';
+import { WBS_MAX_DEPTH, wbsDepthOf } from '@/lib/projects/wbs';
 
 const SUPPLIER_STATUS = ['accepted', 'invoiced'] as const;
 
@@ -276,6 +277,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
       await rollupJointProjectDates(supabase, portal.profile_id, Number(task.project_id));
+      await rollupAncestorTaskDates(
+        supabase,
+        portal.profile_id,
+        Number(task.project_id)
+      );
       return NextResponse.json({ success: true });
     }
 
@@ -367,27 +373,58 @@ export async function POST(request: NextRequest) {
       }
       const { data: existing } = await supabase
         .from('pm_tasks')
-        .select('id, start_date, due_date, sort_order')
+        .select('id, start_date, due_date, sort_order, parent_task_id, metadata')
         .eq('profile_id', portal.profile_id)
         .eq('project_id', projectId)
         .order('sort_order', { ascending: true });
+      const existingTasks = (existing || []).map((t) => {
+        const meta = asObj(t.metadata);
+        const parent =
+          t.parent_task_id != null
+            ? Number(t.parent_task_id)
+            : Number(meta.parent_task_id);
+        return {
+          id: Number(t.id),
+          parent_task_id: Number.isFinite(parent) && parent > 0 ? parent : null,
+          start_date: t.start_date as string | null,
+          due_date: t.due_date as string | null,
+          sort_order: t.sort_order,
+        };
+      });
+      const parentId = Number(body.parent_task_id);
+      let parent: (typeof existingTasks)[number] | null = null;
+      if (Number.isFinite(parentId) && parentId > 0) {
+        parent = existingTasks.find((t) => t.id === parentId) || null;
+        if (!parent) {
+          return NextResponse.json({ error: 'Parent task not found' }, { status: 400 });
+        }
+        if (wbsDepthOf(existingTasks, parentId) + 1 >= WBS_MAX_DEPTH) {
+          return NextResponse.json(
+            { error: `Sub-tasks can nest ${WBS_MAX_DEPTH} levels` },
+            { status: 400 }
+          );
+        }
+      }
       const env = dateEnvelope(
-        (existing || []).map((t) => ({
-          start: t.start_date as string | null,
-          end: t.due_date as string | null,
+        existingTasks.map((t) => ({
+          start: t.start_date,
+          end: t.due_date,
         }))
       );
       const defaultStart =
+        (parent && dayOrNull(parent.start_date)) ||
         env?.end ||
         dayOrNull((proj as { start_date?: string | null }).start_date) ||
         isoDay(new Date());
       const start = dayOrNull(body.start_date) || defaultStart;
       const end =
-        dayOrNull(body.due_date) || addDays(start, 7);
+        dayOrNull(body.due_date) ||
+        (parent && dayOrNull(parent.due_date)) ||
+        addDays(start, 7);
       const range = clampDayRange(start, end);
       const sortOrder =
         Number(
-          (existing || []).reduce(
+          existingTasks.reduce(
             (n, t) => Math.max(n, Number(t.sort_order) || 0),
             -1
           )
@@ -403,7 +440,11 @@ export async function POST(request: NextRequest) {
         sort_order: sortOrder,
         created_by: `portal:${viewer.name}`,
         updated_at: now,
+        metadata: parent
+          ? { parent_task_id: parent.id, source: 'portal_subtask' }
+          : { source: 'portal_task' },
       };
+      if (parent) row.parent_task_id = parent.id;
       if (typeof body.phase_key === 'string' && body.phase_key) {
         row.phase_key = String(body.phase_key).slice(0, 24);
       }
@@ -416,6 +457,7 @@ export async function POST(request: NextRequest) {
         const soft = { ...row };
         delete soft.start_date;
         delete soft.phase_key;
+        delete soft.parent_task_id;
         const retry = await supabase.from('pm_tasks').insert(soft).select('id').single();
         data = retry.data;
         error = retry.error;
@@ -424,6 +466,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
       await rollupJointProjectDates(supabase, portal.profile_id, projectId);
+      await rollupAncestorTaskDates(supabase, portal.profile_id, projectId);
       return NextResponse.json({ success: true, id: data?.id });
     }
 
@@ -1160,4 +1203,46 @@ async function rollupJointProjectDates(
     })
     .eq('id', projectId)
     .eq('profile_id', companyId);
+}
+
+async function rollupAncestorTaskDates(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  companyId: number,
+  projectId: number
+) {
+  const { data } = await supabase
+    .from('pm_tasks')
+    .select('id, parent_task_id, start_date, due_date, metadata')
+    .eq('profile_id', companyId)
+    .eq('project_id', projectId);
+  const tasks = (data || []).map((t) => {
+    const meta = asObj(t.metadata);
+    const parent =
+      t.parent_task_id != null
+        ? Number(t.parent_task_id)
+        : Number(meta.parent_task_id);
+    return {
+      id: Number(t.id),
+      parent_task_id: Number.isFinite(parent) && parent > 0 ? parent : null,
+      start_date: t.start_date != null ? String(t.start_date).slice(0, 10) : null,
+      due_date: t.due_date != null ? String(t.due_date).slice(0, 10) : null,
+    };
+  });
+  const { buildWbsTree, rollupWbsDates, flattenWbs } = await import(
+    '@/lib/projects/wbs'
+  );
+  const tree = rollupWbsDates(buildWbsTree(tasks));
+  const now = new Date().toISOString();
+  for (const n of flattenWbs(tree)) {
+    if (!n.children.length || !n.start_date || !n.due_date) continue;
+    await supabase
+      .from('pm_tasks')
+      .update({
+        start_date: n.start_date,
+        due_date: n.due_date,
+        updated_at: now,
+      })
+      .eq('id', n.id)
+      .eq('profile_id', companyId);
+  }
 }
