@@ -33,6 +33,7 @@ import type {
 } from '@/lib/portals/trade-portal';
 import { stripPortalTaskRiadMark } from '@/lib/portals/trade-portal';
 import { portalPersonKey } from '@/lib/portals/trade-portal-people';
+import { RiadMetricsBoard } from '@/components/riad/RiadMetricsBoard';
 
 const emptyForm = {
   entry_type: 'risk' as RiadType,
@@ -150,57 +151,6 @@ export function PortalRiadPanel({
     });
   }, [items, tab, statusFilter, q]);
 
-  const chips: Array<{
-    key: string;
-    label: string;
-    count: number;
-    on: string;
-    off: string;
-  }> = [
-    {
-      key: 'all',
-      label: 'All',
-      count: summary.total,
-      on: 'bg-slate-900 text-white border-slate-900',
-      off: 'bg-white text-slate-700 border-slate-200',
-    },
-    {
-      key: 'open',
-      label: 'Open',
-      count: summary.open,
-      on: 'bg-sky-600 text-white border-sky-600',
-      off: 'bg-sky-50 text-sky-900 border-sky-100',
-    },
-    {
-      key: 'in_progress',
-      label: 'In progress',
-      count: summary.inProgress,
-      on: 'bg-indigo-600 text-white border-indigo-600',
-      off: 'bg-indigo-50 text-indigo-900 border-indigo-100',
-    },
-    {
-      key: 'on_hold',
-      label: 'On hold',
-      count: summary.onHold,
-      on: 'bg-amber-500 text-white border-amber-500',
-      off: 'bg-amber-50 text-amber-900 border-amber-100',
-    },
-    {
-      key: 'closed',
-      label: 'Closed',
-      count: summary.closed,
-      on: 'bg-emerald-600 text-white border-emerald-600',
-      off: 'bg-emerald-50 text-emerald-900 border-emerald-100',
-    },
-    {
-      key: 'critical',
-      label: 'Critical open',
-      count: summary.critical,
-      on: 'bg-red-600 text-white border-red-600',
-      off: 'bg-red-50 text-red-900 border-red-100',
-    },
-  ];
-
   const submit = async () => {
     if (!form.title.trim()) return;
     await onAct({
@@ -229,24 +179,17 @@ export function PortalRiadPanel({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-        {chips.map((c) => (
-          <button
-            key={c.key}
-            type="button"
-            onClick={() => setStatusFilter(c.key)}
-            className={`rounded-2xl border px-3 py-3 text-left ${
-              statusFilter === c.key ? c.on : c.off
-            }`}
-          >
-            <div className="text-[11px] font-medium opacity-90">{c.label}</div>
-            <div className="text-2xl font-black tracking-tight mt-0.5 tabular-nums">
-              {c.count}
-            </div>
-          </button>
-        ))}
-      </div>
+      <RiadMetricsBoard
+        universe={items}
+        slice={filtered}
+        summary={summary}
+        statusFilter={statusFilter}
+        onStatusFilter={setStatusFilter}
+      />
 
+      <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6] pt-1">
+        Register
+      </p>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex flex-wrap gap-1 p-1 bg-neutral-100 rounded-2xl">
           <button

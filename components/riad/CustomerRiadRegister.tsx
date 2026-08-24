@@ -28,6 +28,7 @@ import {
   type RiadType,
 } from '@/lib/customers/riad';
 import type { CustomerRecord } from '@/lib/customers/types';
+import { RiadMetricsBoard } from '@/components/riad/RiadMetricsBoard';
 
 type Props = {
   companyId: number;
@@ -281,57 +282,6 @@ export default function CustomerRiadRegister({
     }
   };
 
-  const statusChips: Array<{
-    key: string;
-    label: string;
-    count: number;
-    activeClass: string;
-    idleClass: string;
-  }> = [
-    {
-      key: 'all',
-      label: 'All',
-      count: summary.total,
-      activeClass: 'bg-slate-900 text-white border-slate-900',
-      idleClass: 'bg-white text-slate-700 border-neutral-200 hover:border-neutral-300',
-    },
-    {
-      key: 'open',
-      label: 'Open',
-      count: summary.open,
-      activeClass: 'bg-sky-600 text-white border-sky-600',
-      idleClass: 'bg-sky-50 text-sky-900 border-sky-100 hover:border-sky-300',
-    },
-    {
-      key: 'in_progress',
-      label: 'In progress',
-      count: summary.inProgress,
-      activeClass: 'bg-indigo-600 text-white border-indigo-600',
-      idleClass: 'bg-indigo-50 text-indigo-900 border-indigo-100 hover:border-indigo-300',
-    },
-    {
-      key: 'on_hold',
-      label: 'On hold',
-      count: summary.onHold,
-      activeClass: 'bg-amber-500 text-white border-amber-500',
-      idleClass: 'bg-amber-50 text-amber-900 border-amber-100 hover:border-amber-300',
-    },
-    {
-      key: 'closed',
-      label: 'Closed',
-      count: summary.closed,
-      activeClass: 'bg-emerald-600 text-white border-emerald-600',
-      idleClass: 'bg-emerald-50 text-emerald-900 border-emerald-100 hover:border-emerald-300',
-    },
-    {
-      key: 'critical',
-      label: 'Critical open',
-      count: summary.critical,
-      activeClass: 'bg-red-600 text-white border-red-600',
-      idleClass: 'bg-red-50 text-red-900 border-red-100 hover:border-red-300',
-    },
-  ];
-
   const filterLabel =
     statusFilter === 'all'
       ? 'all items'
@@ -345,30 +295,20 @@ export default function CustomerRiadRegister({
 
   return (
     <div className={compact ? '' : ''}>
-      <div className="mb-2 text-xs font-medium text-neutral-500 uppercase tracking-wide">
-        Status overview · click to filter
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 mb-6">
-        {statusChips.map((chip) => {
-          const active = statusFilter === chip.key;
-          return (
-            <button
-              key={chip.key}
-              type="button"
-              onClick={() => setStatusFilter(chip.key)}
-              className={`rounded-2xl border px-3 py-3 text-left transition-all ${
-                active
-                  ? chip.activeClass + ' shadow-md ring-2 ring-offset-1 ring-current/20'
-                  : chip.idleClass
-              }`}
-            >
-              <div className="text-[11px] font-medium opacity-90">{chip.label}</div>
-              <div className="text-2xl font-black tracking-tight mt-0.5">{chip.count}</div>
-            </button>
-          );
-        })}
+      <div className="mb-6">
+        <RiadMetricsBoard
+          universe={items}
+          slice={filtered}
+          summary={summary}
+          statusFilter={statusFilter}
+          onStatusFilter={setStatusFilter}
+          compact={compact}
+        />
       </div>
 
+      <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6] mb-3">
+        Register
+      </p>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div className="flex flex-wrap gap-1 p-1 bg-neutral-100 rounded-2xl">
           <button

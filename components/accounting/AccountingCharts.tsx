@@ -578,10 +578,14 @@ export function MixDoughnut({
   segments,
   centerLabel,
   centerValue,
+  format = 'money',
+  emptyMessage,
 }: {
   segments: Array<{ label: string; value: number; color?: string }>;
   centerLabel?: string;
   centerValue?: string;
+  format?: 'money' | 'count';
+  emptyMessage?: string;
 }) {
   const palette = [
     C.revenue,
@@ -629,7 +633,9 @@ export function MixDoughnut({
           label: (ctx) => {
             const v = Number(ctx.parsed || 0);
             const total = filtered.reduce((s, x) => s + Math.abs(x.value), 0) || 1;
-            return `${ctx.label}: ${formatMoney(v)} (${((v / total) * 100).toFixed(0)}%)`;
+            const pct = `${((v / total) * 100).toFixed(0)}%`;
+            if (format === 'count') return `${ctx.label}: ${Math.round(v)} (${pct})`;
+            return `${ctx.label}: ${formatMoney(v)} (${pct})`;
           },
         },
       },
@@ -638,7 +644,7 @@ export function MixDoughnut({
 
   return (
     <div className="relative h-full w-full">
-      {!ok && <EmptyChartState />}
+      {!ok && <EmptyChartState message={emptyMessage} />}
       <Doughnut data={data} options={options} />
       {ok && centerValue && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center pr-14 sm:pr-20">
