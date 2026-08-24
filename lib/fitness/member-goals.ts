@@ -177,8 +177,8 @@ export function toMemberGoalView(goal: FitGoal): MemberGoalView {
     achieved_at: goal.achieved_at || null,
     check_ins: (goal.check_ins || [])
       .slice()
-      .sort((a, b) => b.at.localeCompare(a.at))
-      .slice(0, 12)
+      .sort((a, b) => a.at.localeCompare(b.at))
+      .slice(-500)
       .map((c) => ({
         id: c.id,
         at: c.at,

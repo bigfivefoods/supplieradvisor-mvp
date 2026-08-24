@@ -7,6 +7,8 @@ import {
   type MemberGoalView,
 } from '@/lib/fitness/member-goals';
 import { FIT_GOAL_CATEGORIES } from '@/lib/fitness/fitgraph-relationship';
+import type { GoalPeriodKey } from '@/lib/fitness/goal-chart';
+import { GoalPeriodPicker, GoalSparkline } from '@/components/fitness/GoalTrendChart';
 
 const CATEGORY_LABEL: Record<string, string> = {
   physical: 'Physical',
@@ -95,6 +97,9 @@ export function MemberGoalsPanel({
   const [watchKm, setWatchKm] = useState('');
   const [watchCal, setWatchCal] = useState('');
   const [watchHr, setWatchHr] = useState('');
+  const [period, setPeriod] = useState<GoalPeriodKey>('3m');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
 
   return (
     <div className="space-y-3">
@@ -114,11 +119,21 @@ export function MemberGoalsPanel({
       {goals.length === 0 ? (
         <p className="text-sm text-slate-500">No goals yet. Pick one below.</p>
       ) : (
-        <ul className="space-y-2">
+        <div className="space-y-3">
+          <GoalPeriodPicker
+            period={period}
+            onPeriod={setPeriod}
+            customFrom={customFrom}
+            customTo={customTo}
+            onCustomFrom={setCustomFrom}
+            onCustomTo={setCustomTo}
+            color={color}
+          />
+        <ul className="space-y-3">
           {goals.map((g) => (
             <li
               key={g.id}
-              className="rounded-2xl border border-yellow-200 bg-white p-3 space-y-2"
+              className="space-y-3 rounded-3xl border border-yellow-200/90 bg-white p-3.5 shadow-sm dark:border-yellow-500/20 dark:bg-neutral-900"
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
@@ -167,7 +182,7 @@ export function MemberGoalsPanel({
                 </div>
               </div>
               {g.progress_pct != null ? (
-                <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden dark:bg-white/10">
                   <div
                     className="h-full rounded-full"
                     style={{
@@ -177,6 +192,13 @@ export function MemberGoalsPanel({
                   />
                 </div>
               ) : null}
+              <GoalSparkline
+                goal={g}
+                period={period}
+                customFrom={customFrom}
+                customTo={customTo}
+                color={color}
+              />
               {g.status === 'active' ? (
                 <div className="flex gap-2">
                   <input
@@ -219,6 +241,7 @@ export function MemberGoalsPanel({
             </li>
           ))}
         </ul>
+        </div>
       )}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
