@@ -4,6 +4,7 @@ import { assertCompanyMember, logActivity } from '@/lib/customers/access';
 import {
   raiseFulfillmentPosFromSo,
   raiseLinkedPoFromSo,
+  type RaiseLinkedPoInput,
 } from '@/lib/orders/raise-linked-po';
 
 /**
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
     const companyId = Number(body.companyId);
     const salesOrderId = Number(body.salesOrderId);
     const privyUserId = body.privyUserId as string | undefined;
-    const status = body.status === 'sent' ? 'sent' : 'draft';
+    const status: 'draft' | 'sent' = body.status === 'sent' ? 'sent' : 'draft';
 
     if (!companyId || !salesOrderId || !privyUserId) {
       return NextResponse.json(
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
     const pickedSupplier =
       (body.srmSupplierId && Number(body.srmSupplierId) > 0) ||
       (body.supplierProfileId && Number(body.supplierProfileId) > 0);
-    const args = {
+    const args: RaiseLinkedPoInput = {
       supabase,
       companyId,
       salesOrderId,
