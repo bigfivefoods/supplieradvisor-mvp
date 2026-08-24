@@ -1,11 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode, Suspense } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
   Users,
   Truck,
-  Package,
   AlertTriangle,
   Network,
   RefreshCw,
@@ -13,57 +12,30 @@ import {
   ShoppingCart,
   Loader2,
   Wallet,
-  Search,
-  Tag,
   Boxes,
   Factory,
-  Ship,
   Building2,
   ChevronDown,
   Brain,
   ClipboardCheck,
   ArrowRight,
   Landmark,
-  Percent,
-  Star,
   type LucideIcon,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { useCompanyRole } from '@/lib/business/useCompanyRole';
 import { advisorLandingPath } from '@/lib/brand/advisor-skins';
 import { useRouter } from 'next/navigation';
-import FeatureHealthBanner from '@/components/chrome/FeatureHealthBanner';
 import {
   AlertBanner,
-  RelationshipHeader,
   RelationshipPage,
 } from '@/components/relationship/RelationshipChrome';
-import FxRateStrip from '@/components/fx/FxRateStrip';
 import {
   HubHero,
-  HubModuleGrid,
-  HubPrinciples,
   HubTelemetryGrid,
   TelemetryCard,
-  type HubModule,
   type TelemetryAccent,
 } from '@/components/chrome/CommandHubChrome';
-import GoldenPathChecklist from '@/components/onboarding/GoldenPathChecklist';
-import RatingPromptBanner from '@/components/ratings/RatingPromptBanner';
-import FirstHourKickstart from '@/components/dashboard/FirstHourKickstart';
-import FirstTradeOrchestrator from '@/components/dashboard/FirstTradeOrchestrator';
-import TrustDeltaStrip from '@/components/dashboard/TrustDeltaStrip';
-import PeerTradeKickstart from '@/components/dashboard/PeerTradeKickstart';
-import InevitableNextBanner from '@/components/dashboard/InevitableNextBanner';
-import NotificationCenter from '@/components/dashboard/NotificationCenter';
-import SettleFunnelStrip from '@/components/dashboard/SettleFunnelStrip';
-import GoldenPathStrip from '@/components/dashboard/GoldenPathStrip';
-import RoleHomeStrip from '@/components/dashboard/RoleHomeStrip';
-import CatalogueEmptyBanner from '@/components/business/CatalogueEmptyBanner';
-import TradeNextBanner from '@/components/journey/TradeNextBanner';
-import { computeHubNextAction } from '@/lib/connections/next-action';
-import CipcMismatchBanner from '@/components/business/CipcMismatchBanner';
-import PaidNotBadgedBanner from '@/components/business/PaidNotBadgedBanner';
 import { formatMoneyDisplay } from '@/lib/format/money';
 
 type CompanyData = {
@@ -211,13 +183,6 @@ type Metric = {
   href?: string;
   tone?: 'default' | 'good' | 'warn' | 'bad';
 };
-
-function greeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  return 'Good evening';
-}
 
 function money(n: number, currency = 'ZAR', compact = true) {
   return formatMoneyDisplay(n, currency, { compact });
@@ -371,15 +336,14 @@ export default function DashboardCommandCenter() {
   const [fin, setFin] = useState<FinSnap | null>(null);
   const [intel, setIntel] = useState<IntelSnap | null>(null);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    business: true,
-    financial: true,
-    crm: true,
+    business: false,
+    financial: false,
+    crm: false,
     srm: false,
     operations: false,
     manufacturing: false,
     quality: false,
     intelligence: false,
-    inventory: false,
   });
 
   const load = useCallback(async () => {
@@ -526,7 +490,6 @@ export default function DashboardCommandCenter() {
       manufacturing: true,
       quality: true,
       intelligence: true,
-      inventory: true,
     });
 
   const collapseAll = () =>
@@ -539,7 +502,6 @@ export default function DashboardCommandCenter() {
       manufacturing: false,
       quality: false,
       intelligence: false,
-      inventory: false,
     });
 
   const topCards = useMemo(
@@ -623,67 +585,6 @@ export default function DashboardCommandCenter() {
     ]
   );
 
-  const modules: HubModule[] = [
-    {
-      href: '/dashboard/operations',
-      icon: Factory,
-      code: 'OPS',
-      title: 'Operations tower',
-      desc: 'Procure → inbound → warehouse → make → outbound → fulfill.',
-      accent: 'from-cyan-50 to-white border-cyan-100',
-      metric: inMotion,
-      metricLabel: 'in motion',
-    },
-    {
-      href: '/dashboard/suppliers',
-      icon: Truck,
-      code: 'SRM',
-      title: 'Suppliers',
-      desc: 'Discover, connect, PO, OTIFEF — trust you can measure.',
-      accent: 'from-violet-50 to-white border-violet-100',
-      metric: srm?.book ?? kpis?.srmBookTotal ?? 0,
-      metricLabel: 'in book',
-    },
-    {
-      href: '/dashboard/customers',
-      icon: Users,
-      code: 'CRM',
-      title: 'Customers',
-      desc: 'Lead → quote → order → invoice → loyalty on one tower.',
-      accent: 'from-sky-50 to-white border-sky-100',
-      metric: crm?.customers ?? kpis?.customersTotal ?? 0,
-      metricLabel: 'accounts',
-    },
-    {
-      href: '/dashboard/accounting',
-      icon: Wallet,
-      code: 'FIN',
-      title: 'Accounting',
-      desc: 'Books, AR/AP, bank, management accounts, forecasts.',
-      accent: 'from-violet-50 to-white border-violet-100',
-    },
-    {
-      href: '/dashboard/manufacturing',
-      icon: Factory,
-      code: 'MFG',
-      title: 'Manufacturing',
-      desc: 'BOMs, MPS, MRP, and work-order execution.',
-      accent: 'from-amber-50 to-white border-amber-100',
-      metric: mfg?.ordersInProgress ?? ops?.workOrdersInFlight ?? 0,
-      metricLabel: 'WOs live',
-    },
-    {
-      href: '/dashboard/intelligence',
-      icon: Brain,
-      code: 'BI',
-      title: 'Intelligence',
-      desc: 'Pulse, insights, forecasts, Super-Cube® leadership.',
-      accent: 'from-sky-50 to-white border-sky-100',
-      metric: intel?.overallHealth != null ? `${Math.round(intel.overallHealth)}` : '—',
-      metricLabel: 'health',
-    },
-  ];
-
   if (!companyId) {
     return (
       <RelationshipPage>
@@ -707,125 +608,8 @@ export default function DashboardCommandCenter() {
     );
   }
 
-  const name = company?.trading_name || company?.legal_name || 'Your company';
-  const place = [company?.city, company?.country].filter(Boolean).join(', ');
-
   return (
     <RelationshipPage>
-      <RelationshipHeader
-        band
-        eyebrow="Command center"
-        title={greeting() + ','}
-        titleAccent={name}
-        description={
-          place
-            ? `${place}${company?.industry ? ` · ${company.industry}` : ''} — expandable live snapshot across business, money, trade, and operations.`
-            : 'Expandable live snapshot across business, money, trade, and operations.'
-        }
-        action={
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-        }
-      />
-
-      <div className="flex flex-wrap items-center gap-2 mb-5 -mt-2">
-        {company?.verification_status === 'verified' && (
-          <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
-            Verified
-          </span>
-        )}
-        <span className="text-[11px] text-neutral-400">
-          {baseCcy}
-          {generatedAt ? ` · ${formatRelative(generatedAt) || 'live'}` : ''}
-        </span>
-      </div>
-
-      <FxRateStrip currency={baseCcy} className="mb-6" />
-      <FeatureHealthBanner className="mb-4" />
-
-      <RoleHomeStrip />
-
-      <FirstHourKickstart
-        loading={loading && !kpis}
-        networkAccepted={network?.accepted ?? kpis?.networkAccepted ?? 0}
-        openPos={openPos}
-        products={kpis?.products ?? inventory?.products ?? 0}
-        profileCompleteness={completeness}
-        quotesOpen={kpis?.quotesOpen ?? trade?.quotesOpen ?? 0}
-        invoicesOpen={Number(
-          crm?.invoicesOpen ??
-            trade?.invoicesOpen ??
-            kpis?.invoicesOpen ??
-            (crm?.invoicesDraft ?? trade?.invoicesDraft ?? kpis?.invoicesDraft ?? 0)
-        )}
-      />
-      {!loading ? (
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0 flex-1 space-y-0">
-            <InevitableNextBanner />
-            <GoldenPathStrip />
-            <SettleFunnelStrip />
-          </div>
-          <NotificationCenter compact />
-        </div>
-      ) : null}
-      {!loading ? (
-        <Suspense fallback={null}>
-          <PeerTradeKickstart />
-        </Suspense>
-      ) : null}
-      {!loading ? <FirstTradeOrchestrator /> : null}
-      {!loading ? <TrustDeltaStrip /> : null}
-
-      {!loading ? (
-        <>
-          <PaidNotBadgedBanner onFixed={() => void load()} />
-          <CipcMismatchBanner
-            verificationStatus={company?.verification_status}
-            onFixed={() => void load()}
-          />
-          <TradeNextBanner
-            action={computeHubNextAction({
-              role: 'main',
-              openOutboundPos: openPos,
-              openInboundPos: Number(ops?.customerPosOpen || 0),
-              invoiceableInboundPos: Number(
-                ops?.customerPosInvoiceable || 0
-              ),
-              pendingConnections: pendingIn,
-              draftInvoices: Number(
-                crm?.invoicesDraft ??
-                  trade?.invoicesDraft ??
-                  kpis?.invoicesDraft ??
-                  0
-              ),
-              overdueInvoices: Number(
-                crm?.invoicesOverdue ??
-                  trade?.invoicesOverdue ??
-                  kpis?.invoicesOverdue ??
-                  0
-              ),
-              profileCompleteness: completeness,
-              verificationStatus: company?.verification_status,
-              catalogueEmpty:
-                (kpis?.products ?? inventory?.products ?? 0) === 0,
-            })}
-          />
-        </>
-      ) : null}
-
-      <GoldenPathChecklist />
-      <CatalogueEmptyBanner />
-      <Suspense fallback={null}>
-        <RatingPromptBanner />
-      </Suspense>
-
       {error && (
         <AlertBanner tone="red">
           <div className="flex items-center justify-between gap-3">
@@ -838,7 +622,7 @@ export default function DashboardCommandCenter() {
       )}
 
       <HubHero
-        pill="Live command · expand any domain"
+        pill="Live command"
         title="One company. Zero blind spots."
         description="Top-line telemetry stays visible. Expand Business, Finance, CRM, SRM, Operations, Manufacturing, Quality, and Intelligence for deep KPIs and shortcuts."
         stats={[
@@ -880,43 +664,6 @@ export default function DashboardCommandCenter() {
             ))}
           </HubTelemetryGrid>
 
-          {alerts.length > 0 && (
-            <div className="rounded-3xl border border-neutral-200 bg-white shadow-sm mb-8 overflow-hidden">
-              <div className="px-5 py-3.5 border-b border-neutral-100 flex items-center justify-between">
-                <h2 className="text-xs font-bold text-slate-700 tracking-wide">Needs attention</h2>
-                <span className="text-[10px] font-semibold text-neutral-400">
-                  {alerts.length} signal{alerts.length === 1 ? '' : 's'}
-                </span>
-              </div>
-              <ul className="divide-y divide-neutral-100">
-                {alerts.slice(0, 5).map((a) => (
-                  <li key={a.id}>
-                    <Link
-                      href={a.href}
-                      className="flex gap-3 px-5 py-3.5 hover:bg-sky-50/40 transition-colors"
-                    >
-                      <span
-                        className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${
-                          a.severity === 'critical'
-                            ? 'bg-red-500'
-                            : a.severity === 'warning'
-                              ? 'bg-amber-500'
-                              : 'bg-sky-500'
-                        }`}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold text-slate-900">{a.title}</div>
-                        <div className="text-xs text-neutral-500 mt-0.5 line-clamp-1">
-                          {a.detail}
-                        </div>
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
           {/* ── Expandable domain sections ── */}
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -924,10 +671,19 @@ export default function DashboardCommandCenter() {
                 Domain command boards
               </h2>
               <p className="text-xs text-neutral-500 mt-0.5">
-                Expand a section for KPIs, projections, and deep links
+                Expand a board for KPIs and shortcuts
+                {generatedAt ? ` · ${formatRelative(generatedAt) || 'live'}` : ''}
               </p>
             </div>
             <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => void load()}
+                className="text-[11px] font-semibold px-3 py-1.5 rounded-full border border-neutral-200 bg-white text-slate-600 hover:border-[#00b4d8] inline-flex items-center gap-1.5"
+              >
+                <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
               <button
                 type="button"
                 onClick={expandAll}
@@ -1031,7 +787,7 @@ export default function DashboardCommandCenter() {
               onToggle={() => toggle('financial')}
               icon={Landmark}
               code="FIN"
-              title="Financial"
+              title="Finance"
               summary={`${money(arValue, finCcy)} AR · ${money(apValue, finCcy)} AP · ${money(bankBal, finCcy)} bank`}
               badge={
                 (fin?.unreconciled ?? 0) > 0
@@ -1108,24 +864,15 @@ export default function DashboardCommandCenter() {
                   },
                 ]}
               />
-              <div className="mt-4 rounded-2xl border border-cyan-100 bg-gradient-to-r from-sky-50/80 to-white px-4 py-3">
-                <div className="text-[10px] font-black uppercase tracking-wider text-[#0077b6] mb-1">
-                  FX context
-                </div>
-                <p className="text-xs text-slate-600 mb-2">
-                  Live reference rates for {baseCcy} trading — expand the strip above or open
-                  management accounts for P&amp;L and 1–12m forecasts.
-                </p>
-                <SectionLinks
-                  links={[
-                    { href: '/dashboard/accounting/management', label: 'Management accounts' },
-                    { href: '/dashboard/accounting/afs', label: 'Annual financial statements' },
-                    { href: '/dashboard/accounting/reports', label: 'Reports & forecast' },
-                    { href: '/dashboard/accounting/bank-reconciliation', label: 'Bank' },
-                    { href: '/dashboard/accounting/tax', label: 'Tax' },
-                  ]}
-                />
-              </div>
+              <SectionLinks
+                links={[
+                  { href: '/dashboard/accounting/management', label: 'Management accounts' },
+                  { href: '/dashboard/accounting/afs', label: 'Annual financial statements' },
+                  { href: '/dashboard/accounting/reports', label: 'Reports & forecast' },
+                  { href: '/dashboard/accounting/bank-reconciliation', label: 'Bank' },
+                  { href: '/dashboard/accounting/tax', label: 'Tax' },
+                ]}
+              />
             </ExpandableSection>
 
             <ExpandableSection
@@ -1134,7 +881,7 @@ export default function DashboardCommandCenter() {
               onToggle={() => toggle('crm')}
               icon={Users}
               code="CRM"
-              title="CRM · sales & customers"
+              title="CRM"
               summary={`${crm?.opportunitiesOpen ?? kpis?.opportunitiesOpen ?? 0} open deals · ${money(
                 crm?.pipelineValue ?? kpis?.pipelineValue ?? 0,
                 baseCcy
@@ -1352,7 +1099,7 @@ export default function DashboardCommandCenter() {
               onToggle={() => toggle('srm')}
               icon={Truck}
               code="SRM"
-              title="SRM · suppliers & POs"
+              title="SRM"
               summary={`${srm?.book ?? kpis?.srmBookTotal ?? 0} suppliers · ${openPos} open POs`}
               badge={
                 Number(srm?.avgOtifef ?? kpis?.srmAvgOtifef ?? 0) >= 90
@@ -1528,6 +1275,7 @@ export default function DashboardCommandCenter() {
                   { href: '/dashboard/operations', label: 'Ops tower' },
                   { href: '/dashboard/operations/inbound', label: 'Inbound' },
                   { href: '/dashboard/operations/outbound', label: 'Outbound' },
+                  { href: '/dashboard/inventory/stock', label: 'Stock' },
                   { href: '/dashboard/distribution', label: 'Distribution' },
                   { href: '/dashboard/containers', label: 'Containers' },
                 ]}
@@ -1780,117 +1528,7 @@ export default function DashboardCommandCenter() {
                 ]}
               />
             </ExpandableSection>
-
-            <ExpandableSection
-              id="inventory"
-              open={!!openSections.inventory}
-              onToggle={() => toggle('inventory')}
-              icon={Package}
-              code="INV"
-              title="Inventory"
-              summary={`${inventory?.products ?? kpis?.products ?? 0} SKUs · ${lowStock} low stock`}
-              badge={
-                lowStock > 0
-                  ? { label: `${lowStock} low`, tone: 'warn' }
-                  : { label: 'Stock OK', tone: 'good' }
-              }
-              href="/dashboard/inventory"
-              accent="from-emerald-50 to-white border-emerald-100"
-            >
-              <MetricGrid
-                metrics={[
-                  {
-                    label: 'Products / SKUs',
-                    value: inventory?.products ?? kpis?.products ?? 0,
-                    sub: 'Master catalogue',
-                    href: '/dashboard/inventory/products',
-                  },
-                  {
-                    label: 'Warehouses',
-                    value: inventory?.warehouses ?? 0,
-                    sub: 'Locations',
-                    href: '/dashboard/inventory/warehouses',
-                  },
-                  {
-                    label: 'Low stock',
-                    value: lowStock,
-                    sub: 'At or below reorder',
-                    href: '/dashboard/inventory/stock',
-                    tone: lowStock > 0 ? 'warn' : 'good',
-                  },
-                  {
-                    label: 'Units on hand',
-                    value:
-                      ops?.unitsOnHand != null
-                        ? Math.round(ops.unitsOnHand).toLocaleString()
-                        : '—',
-                    sub: 'Across stock records',
-                    href: '/dashboard/inventory/stock',
-                  },
-                  {
-                    label: 'Containers active',
-                    value: kpis?.containersActive ?? 0,
-                    sub: `${kpis?.containersTotal ?? 0} total outlets`,
-                    href: '/dashboard/containers',
-                  },
-                  {
-                    label: 'Multi-currency SKUs',
-                    value: inventory?.multiCurrencyProducts ?? 0,
-                    sub: 'Global pricing ready',
-                    href: '/dashboard/inventory/products',
-                  },
-                ]}
-              />
-              <SectionLinks
-                links={[
-                  { href: '/dashboard/inventory/stock', label: 'Stock' },
-                  { href: '/dashboard/inventory/products', label: 'Products' },
-                  { href: '/dashboard/inventory/stock-transfers', label: 'Transfers' },
-                  { href: '/dashboard/inventory/counts', label: 'Counts' },
-                ]}
-              />
-            </ExpandableSection>
           </div>
-
-          <HubModuleGrid modules={modules} />
-
-          <div className="flex flex-wrap gap-2 mb-8">
-            {[
-              { href: '/dashboard/suppliers/discover', icon: Search, label: 'Discover' },
-              { href: '/dashboard/connections/pricing', icon: Tag, label: 'Pricing' },
-              { href: '/dashboard/operations', icon: Factory, label: 'Operations' },
-              { href: '/dashboard/inventory/stock', icon: Package, label: 'Stock' },
-              { href: '/dashboard/distribution/tracking', icon: Ship, label: 'Tracking' },
-              { href: '/dashboard/accounting/reports', icon: Percent, label: 'Forecasts' },
-              { href: '/dashboard/intelligence', icon: Brain, label: 'Intelligence' },
-            ].map((q) => (
-              <Link
-                key={q.href}
-                href={q.href}
-                className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-600 hover:border-[#00b4d8] hover:text-[#0077b6] transition-colors"
-              >
-                <q.icon className="w-3.5 h-3.5 text-[#00b4d8]" />
-                {q.label}
-              </Link>
-            ))}
-          </div>
-
-          <HubPrinciples
-            items={[
-              {
-                title: 'Expand what matters',
-                body: 'Dashboard keeps a thin top line; each domain board opens into KPIs and deep links so operators jump without hunting menus.',
-              },
-              {
-                title: 'Exceptions surface first',
-                body: 'Connection requests, low stock, open RIAD, unreconciled bank lines, and ops holds appear before vanity metrics.',
-              },
-              {
-                title: 'Trade is company-scoped',
-                body: 'Every number is membership-checked against your selected company — multi-entity safe by design.',
-              },
-            ]}
-          />
         </>
       )}
     </RelationshipPage>
