@@ -49,6 +49,7 @@ import { commercialDocWhatsAppText } from '@/lib/invites/whatsapp';
 import { CompanyRequired, CustomersHeader } from '@/components/customers/CustomersShell';
 import CommissionBadge from '@/components/sales/CommissionBadge';
 import FxRateStrip from '@/components/fx/FxRateStrip';
+import LinkedOrdersPanel from '@/components/orders/LinkedOrdersPanel';
 
 type DocType = 'quote' | 'order' | 'invoice';
 
@@ -214,6 +215,7 @@ function DocInner({
   const [busyId, setBusyId] = useState<number | null>(null);
   /** When set, form saves via PATCH to update this document (quotes / drafts) */
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [chainOrderId, setChainOrderId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState(
     statusFromUrl && statusFromUrl !== 'all' ? statusFromUrl : 'all'
   );
@@ -2673,6 +2675,17 @@ function DocInner({
         </div>
       )}
 
+      {type === 'order' && (chainOrderId || editingId) && companyId && privyUserId ? (
+        <div className="mb-6">
+          <LinkedOrdersPanel
+            companyId={companyId}
+            privyUserId={privyUserId}
+            orderId={Number(chainOrderId || editingId)}
+            orderType="sales_order"
+          />
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap gap-2 mb-4 items-center">
         <select
           className={
@@ -3006,6 +3019,17 @@ function DocInner({
                         Mark paid
                       </button>
                     )}
+                    {type === 'order' ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setChainOrderId((cur) => (cur === d.id ? null : d.id))
+                        }
+                        className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1 border-sky-200 text-sky-900"
+                      >
+                        {chainOrderId === d.id ? 'Hide chain' : 'Manufacturer chain'}
+                      </button>
+                    ) : null}
                     {canEditDoc(d) && (
                       <button
                         type="button"

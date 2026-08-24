@@ -177,6 +177,8 @@ export type CompanySettings = {
    */
   paymentTermsOptions: string[];
   fiscalYearStartMonth: number;
+  /** SRM book id used when a customer portal PO auto-raises a manufacturer PO. */
+  preferred_srm_supplier_id: number | null;
 };
 
 export type TeamMember = {
@@ -215,6 +217,7 @@ export const DEFAULT_SETTINGS: CompanySettings = {
   defaultPaymentTerms: 'Net 30',
   paymentTermsOptions: [...DEFAULT_PAYMENT_TERMS_OPTIONS],
   fiscalYearStartMonth: 3,
+  preferred_srm_supplier_id: null,
 };
 
 /** Resolve dropdown options + default for PO/quote forms */

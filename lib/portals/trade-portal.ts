@@ -99,6 +99,14 @@ export type PublicDocRow = {
     errorFree: number | null;
     pending: boolean;
   } | null;
+  production_status?: string | null;
+  production_label?: string | null;
+  chain_step?: number;
+  completed_at?: string | null;
+  confirmed_qty?: number | null;
+  rated?: boolean;
+  linked?: boolean;
+  customer_po_number?: string | null;
 };
 
 export type PortalRatingView = {
@@ -527,28 +535,51 @@ async function loadCustomerDocs(
     }
   }
   if (sections.orders !== false) {
-    const { data } = await supabase
+    let soHit = await supabase
       .from('sales_orders')
       .select(
-        'id, order_number, status, created_at, promised_date, total_amount, currency'
+        'id, order_number, status, created_at, promised_date, total_amount, currency, production_status, shipped_date, metadata'
       )
       .eq('profile_id', companyId)
       .eq('customer_id', customerId)
       .order('created_at', { ascending: false })
       .limit(40);
+    if (soHit.error) {
+      soHit = await supabase
+        .from('sales_orders')
+        .select(
+          'id, order_number, status, created_at, promised_date, total_amount, currency'
+        )
+        .eq('profile_id', companyId)
+        .eq('customer_id', customerId)
+        .order('created_at', { ascending: false })
+        .limit(40);
+    }
+    const data = soHit.data;
     for (const r of data || []) {
-      orders.push(
-        moneyRow({
-          id: Number(r.id),
-          kind: 'order',
-          number: r.order_number,
-          status: r.status,
-          date: r.created_at,
-          due: r.promised_date,
-          amount: r.total_amount,
-          currency: r.currency,
-        })
-      );
+      const row = moneyRow({
+        id: Number(r.id),
+        kind: 'order',
+        number: r.order_number,
+        status: r.status,
+        date: r.created_at,
+        due: r.promised_date,
+        amount: r.total_amount,
+        currency: r.currency,
+      });
+      const prod =
+        (r as { production_status?: string | null }).production_status || null;
+      const meta = asObject((r as { metadata?: unknown }).metadata);
+      orders.push({
+        ...row,
+        production_status: prod,
+        completed_at: (r as { shipped_date?: string | null }).shipped_date
+          ? String((r as { shipped_date?: string | null }).shipped_date).slice(0, 10)
+          : null,
+        customer_po_number: meta.customer_po_number
+          ? String(meta.customer_po_number)
+          : null,
+      });
     }
   }
   if (sections.invoices !== false) {

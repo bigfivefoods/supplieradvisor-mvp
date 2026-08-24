@@ -137,6 +137,7 @@ export async function PATCH(request: NextRequest) {
         autoEmailOnFromPo: next.autoEmailOnFromPo,
         defaultPaymentTerms: next.defaultPaymentTerms,
         fiscalYearStartMonth: next.fiscalYearStartMonth,
+        preferred_srm_supplier_id: next.preferred_srm_supplier_id,
       },
       timezone: next.timezone,
       primary_currency: next.primary_currency,
@@ -251,6 +252,12 @@ function mergeSettings(row: {
     fiscalYearStartMonth: Number(
       s.fiscalYearStartMonth ?? DEFAULT_SETTINGS.fiscalYearStartMonth
     ),
+    preferred_srm_supplier_id: (() => {
+      const n = Number(
+        s.preferred_srm_supplier_id ?? s.defaultManufacturerSrmId
+      );
+      return Number.isFinite(n) && n > 0 ? n : null;
+    })(),
   };
 }
 
@@ -272,6 +279,7 @@ function pickSettings(incoming: Partial<CompanySettings>): Partial<CompanySettin
     'autoEmailOnFromPo',
     'defaultPaymentTerms',
     'fiscalYearStartMonth',
+    'preferred_srm_supplier_id',
   ];
   for (const k of keys) {
     if (incoming[k] !== undefined) {

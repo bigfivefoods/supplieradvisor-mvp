@@ -219,7 +219,7 @@ export default function LinkedOrdersPanel({
           Linked orders
         </h3>
         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-          Optional
+          Manufacturer
         </span>
       </div>
 
@@ -231,8 +231,8 @@ export default function LinkedOrdersPanel({
         <div className="mb-4 rounded-xl border border-dashed border-neutral-200 bg-slate-50 px-4 py-6 text-center">
           <p className="text-sm font-medium text-slate-700">No active links</p>
           <p className="mt-1 text-xs text-slate-500">
-            Raise a linked PO to your manufacturer, or attach an existing document.
-            Linking is optional — independent POs still work.
+            Raise a linked PO to your manufacturer (Kelpac, etc.). Customer portal
+            POs do this automatically when a preferred manufacturer is set.
           </p>
         </div>
       )}

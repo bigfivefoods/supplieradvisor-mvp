@@ -46,6 +46,11 @@ import { WaterfallGantt } from '@/components/projects/WaterfallGantt';
 import { Building2, ChevronDown, ChevronRight, FileText, Upload } from 'lucide-react';
 import { PortalRiadPanel } from '@/components/portals/PortalRiadPanel';
 import { PortalPurchaseOrder } from '@/components/portals/PortalPurchaseOrder';
+import { OrderChainPath } from '@/components/orders/OrderChainPath';
+import {
+  chainStepIndex,
+  nextSupplierProductionAction,
+} from '@/lib/orders/chain-path';
 
 export type GuestPortalTab =
   | 'profile'
@@ -187,6 +192,7 @@ const HEAVY_ACTIONS = new Set([
   'profile',
   'rate',
   'document_save',
+  'production_update',
 ]);
 const REFRESH_ACTIONS = new Set([
   'project_create',
@@ -195,6 +201,7 @@ const REFRESH_ACTIONS = new Set([
   'rate',
   'po_update',
   'document_save',
+  'production_update',
 ]);
 
 function applyActLocally(
@@ -388,6 +395,38 @@ function applyActLocally(
       },
     };
   }
+  if (
+    (action === 'production_update' || action === 'po_update') &&
+    prev.workspace
+  ) {
+    const id = Number(payload.id);
+    const production_status =
+      payload.production_status != null
+        ? String(payload.production_status)
+        : payload.status === 'accepted'
+          ? 'released'
+          : payload.status === 'invoiced' || payload.status === 'completed'
+            ? 'completed'
+            : undefined;
+    const status =
+      typeof payload.status === 'string' ? String(payload.status) : undefined;
+    return {
+      ...prev,
+      workspace: {
+        ...prev.workspace,
+        purchase_orders: (prev.workspace.purchase_orders || []).map((o) =>
+          o.id === id
+            ? {
+                ...o,
+                status: status || o.status,
+                production_status:
+                  production_status ?? o.production_status,
+              }
+            : o
+        ),
+      },
+    };
+  }
   if (action === 'document_save') {
     const field = String(payload.field || '');
     const url =
@@ -519,7 +558,11 @@ export function GuestTradeWorkspace({
                       ? 'Task saved'
                       : action === 'document_save'
                         ? 'Document shared'
-                        : 'Saved'
+                        : action === 'production_update'
+                          ? 'Production updated — customer sales order will follow'
+                          : action === 'po_update'
+                            ? 'Order updated'
+                            : 'Saved'
       );
       if (REFRESH_ACTIONS.has(action)) onRefresh();
       return data;
@@ -593,9 +636,11 @@ export function GuestTradeWorkspace({
       {tab === 'orders' ? (
         <OrdersPanel
           isSupplier={isSupplier}
+          isHost={isHost}
           orders={listedOrders}
           busy={busy}
           onAct={act}
+          onFeedback={() => onTab('reviews')}
         />
       ) : null}
       {tab === 'otifef' ? (
@@ -2125,76 +2170,22 @@ function ProjectsPanel({
   }
 }
 
-const ORDER_GOLDEN_PATH = [
-  'Purchase order',
-  'Sales order',
-  'Production order',
-  'Delivery',
-  'Feedback',
-] as const;
-
-function orderPathIndex(status: string): number {
-  const s = String(status || '').toLowerCase();
-  if (['rated', 'closed', 'complete', 'completed', 'done'].includes(s)) return 4;
-  if (['delivered', 'shipped', 'received', 'invoiced', 'paid'].includes(s)) return 3;
-  if (
-    [
-      'in_production',
-      'production',
-      'released',
-      'manufacturing',
-      'in progress',
-      'in_progress',
-    ].includes(s)
-  ) {
-    return 2;
-  }
-  if (['confirmed', 'open', 'accepted', 'processing', 'partial'].includes(s)) {
-    return 1;
-  }
-  return 0;
-}
-
-function OrderGoldenPath({ current }: { current?: number }) {
-  return (
-    <ol className="flex flex-wrap items-center gap-1.5">
-      {ORDER_GOLDEN_PATH.map((label, i) => {
-        const on = current != null && i === current;
-        const done = current != null && i < current;
-        return (
-          <li key={label} className="flex items-center gap-1.5">
-            {i > 0 ? (
-              <ChevronRight className="h-3.5 w-3.5 text-neutral-300" />
-            ) : null}
-            <span
-              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                on
-                  ? 'bg-[#0077b6] text-white'
-                  : done
-                    ? 'bg-emerald-50 text-emerald-900'
-                    : 'bg-slate-100 text-slate-600'
-              }`}
-            >
-              {label}
-            </span>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
 function OrdersPanel({
   isSupplier,
+  isHost,
   orders,
   busy,
   onAct,
+  onFeedback,
 }: {
   isSupplier: boolean;
+  isHost?: boolean;
   orders: PublicPortalPayload['purchase_orders'];
   busy: boolean;
   onAct: (p: Record<string, unknown>) => Promise<unknown>;
+  onFeedback?: () => void;
 }) {
+  const side = isSupplier ? 'supplier' : 'customer';
   return (
     <div className="space-y-4">
       <div className="rounded-[1.5rem] border border-white/70 bg-white/90 p-4 shadow-sm space-y-2">
@@ -2202,13 +2193,16 @@ function OrdersPanel({
           Golden path
         </p>
         <p className="text-sm font-black text-slate-900">
-          {isSupplier ? 'How a purchase order moves' : 'How an order moves'}
+          {isSupplier
+            ? 'Receive, produce, ship'
+            : 'Order, produce, deliver, feedback'}
         </p>
         <p className="text-xs text-slate-500">
-          Purchase order → sales order → production order → delivery →
-          feedback. Each order below shows where it is on this path.
+          {isSupplier
+            ? 'Accept the PO, update production as you make it, then ship. Status is shared back to the sales order automatically — the customer never sees your costs.'
+            : 'Your purchase order becomes a sales order, then production, delivery, and feedback. Production status is live from the factory floor.'}
         </p>
-        <OrderGoldenPath />
+        <OrderChainPath side={side} />
       </div>
       {!orders.length ? (
         <p className="rounded-[1.5rem] border border-white/70 bg-white/90 p-6 text-sm text-neutral-500">
@@ -2219,7 +2213,17 @@ function OrdersPanel({
       ) : (
         <ul className="space-y-3">
           {orders.map((o) => {
-            const stage = orderPathIndex(o.status);
+            const stage =
+              o.chain_step ??
+              chainStepIndex({
+                side,
+                orderStatus: o.status,
+                productionStatus: o.production_status,
+                shippedDate: o.completed_at,
+                deliveredQty: o.delivered,
+                rated: o.rated,
+                hasSalesOrder: o.kind === 'order' || !isSupplier,
+              });
             return (
               <li
                 key={`${o.kind}-${o.id}`}
@@ -2229,7 +2233,16 @@ function OrdersPanel({
                   <div>
                     <p className="font-black text-slate-900">{o.number}</p>
                     <p className="text-[11px] text-neutral-500">
-                      {[o.date, o.due ? `expected ${o.due}` : null, o.status]
+                      {[
+                        o.customer_po_number && !isSupplier
+                          ? `PO ${o.customer_po_number}`
+                          : null,
+                        o.date,
+                        o.due ? `expected ${o.due}` : null,
+                        o.production_label && !isSupplier
+                          ? o.production_label
+                          : o.status,
+                      ]
                         .filter(Boolean)
                         .join(' · ')}
                     </p>
@@ -2241,8 +2254,14 @@ function OrdersPanel({
                   ) : null}
                 </div>
                 <div className="mt-3">
-                  <OrderGoldenPath current={stage} />
+                  <OrderChainPath side={side} current={stage} />
                 </div>
+                {isHost && !isSupplier && o.kind === 'order' && o.linked === false ? (
+                  <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-950">
+                    No manufacturer PO linked yet. Set a preferred manufacturer
+                    or raise a linked PO from Sales orders.
+                  </p>
+                ) : null}
                 {o.otifef ? (
                   <div className="mt-3 grid grid-cols-4 gap-1 text-center text-[10px]">
                     {[
@@ -2266,7 +2285,13 @@ function OrdersPanel({
                 {isSupplier ? (
                   <SupplierOrderActions order={o} busy={busy} onAct={onAct} />
                 ) : (
-                  <CustomerOrderActions order={o} busy={busy} onAct={onAct} />
+                  <CustomerOrderActions
+                    order={o}
+                    busy={busy}
+                    onAct={onAct}
+                    stage={stage}
+                    onFeedback={onFeedback}
+                  />
                 )}
               </li>
             );
@@ -2287,61 +2312,71 @@ function SupplierOrderActions({
   onAct: (p: Record<string, unknown>) => Promise<unknown>;
 }) {
   const [delivered, setDelivered] = useState(String(order.delivered ?? ''));
-  const [stock, setStock] = useState('');
-  const st = order.status.toLowerCase();
+  const [qty, setQty] = useState(String(order.confirmed_qty ?? order.ordered ?? ''));
+  const next = nextSupplierProductionAction(
+    order.status,
+    order.production_status
+  );
+  const runNext = () => {
+    if (!next) return;
+    if (next.status === 'accepted') {
+      void onAct({ action: 'po_update', id: order.id, status: 'accepted' });
+      return;
+    }
+    if (next.status === 'shipped') {
+      void onAct({
+        action: 'po_update',
+        id: order.id,
+        status: 'invoiced',
+        delivered_quantity: delivered ? Number(delivered) : undefined,
+      });
+      return;
+    }
+    void onAct({
+      action: 'production_update',
+      id: order.id,
+      production_status: next.status,
+      confirmed_qty: qty ? Number(qty) : undefined,
+    });
+  };
   return (
-    <div className="mt-3 flex flex-wrap gap-2 items-end">
-      {st === 'sent' ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void onAct({ action: 'po_update', id: order.id, status: 'accepted' })}
-          className="btn-primary !py-1.5 !px-3 text-xs"
-        >
-          Accept order
-        </button>
-      ) : null}
-      {st === 'accepted' ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void onAct({ action: 'po_update', id: order.id, status: 'invoiced' })}
-          className="btn-secondary !py-1.5 !px-3 text-xs"
-        >
-          Mark shipped / invoiced
-        </button>
-      ) : null}
-      <label className="text-[10px] font-bold uppercase text-neutral-400">
-        Delivered qty
-        <input
-          className="input mt-0.5 !py-1 !px-2 !text-xs w-24"
-          value={delivered}
-          onChange={(e) => setDelivered(e.target.value)}
-        />
-      </label>
-      <label className="text-[10px] font-bold uppercase text-neutral-400">
-        Stock on hand
-        <input
-          className="input mt-0.5 !py-1 !px-2 !text-xs w-24"
-          value={stock}
-          onChange={(e) => setStock(e.target.value)}
-        />
-      </label>
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() =>
-          void onAct({
-            action: 'po_update',
-            id: order.id,
-            delivered_quantity: delivered ? Number(delivered) : undefined,
-            stock_on_hand: stock ? Number(stock) : undefined,
-          })
-        }
-        className="btn-secondary !py-1.5 !px-3 text-xs"
-      >
-        Update qty
-      </button>
+    <div className="mt-3 space-y-2">
+      <div className="flex flex-wrap gap-2 items-end">
+        {next ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={runNext}
+            className="btn-primary !py-2 !px-4 text-xs"
+          >
+            {next.label}
+          </button>
+        ) : (
+          <p className="text-[11px] font-semibold text-emerald-800">
+            This order is complete on the path.
+          </p>
+        )}
+        <label className="text-[10px] font-bold uppercase text-neutral-400">
+          Confirmed qty
+          <input
+            className="input mt-0.5 !py-1 !px-2 !text-xs w-24"
+            value={qty}
+            onChange={(e) => setQty(e.target.value)}
+          />
+        </label>
+        <label className="text-[10px] font-bold uppercase text-neutral-400">
+          Delivered qty
+          <input
+            className="input mt-0.5 !py-1 !px-2 !text-xs w-24"
+            value={delivered}
+            onChange={(e) => setDelivered(e.target.value)}
+          />
+        </label>
+      </div>
+      <p className="text-[11px] text-neutral-500">
+        Each tap moves the chain and updates the customer sales order. They
+        see Scheduled / In production / Produced — never your costs.
+      </p>
     </div>
   );
 }
@@ -2350,19 +2385,36 @@ function CustomerOrderActions({
   order,
   busy,
   onAct,
+  stage,
+  onFeedback,
 }: {
   order: PublicPortalPayload['purchase_orders'][number];
   busy: boolean;
   onAct: (p: Record<string, unknown>) => Promise<unknown>;
+  stage?: number;
+  onFeedback?: () => void;
 }) {
   const [url, setUrl] = useState(order.attachment_url || '');
   const [date, setDate] = useState(order.due || '');
   const [qty, setQty] = useState(String(order.ordered ?? ''));
   if (order.kind !== 'purchase_order') {
     return (
-      <p className="mt-2 text-[11px] text-neutral-500">
-        Status is updated by {order.status ? `us · ${order.status}` : 'us'}.
-      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <p className="text-[11px] text-neutral-500">
+          {order.production_label
+            ? `Production: ${order.production_label}`
+            : 'We update production and delivery here as the order moves.'}
+        </p>
+        {(stage ?? 0) >= 3 && onFeedback ? (
+          <button
+            type="button"
+            className="btn-primary !py-1.5 !px-3 text-xs"
+            onClick={onFeedback}
+          >
+            Leave feedback
+          </button>
+        ) : null}
+      </div>
     );
   }
   return (

@@ -1,5 +1,11 @@
 'use client';
 
+import { useState } from 'react';
+import Link from 'next/link';
+import { OrderChainPath } from '@/components/orders/OrderChainPath';
+import { chainStepIndex, nextSupplierProductionAction } from '@/lib/orders/chain-path';
+import { PRODUCTION_STATUS_OPTIONS } from '@/lib/orders/order-links';
+
 type Chain = {
   linkId: number;
   salesOrder?: {
@@ -9,6 +15,7 @@ type Chain = {
     customerName?: string | null;
     total?: number | null;
     productionLabel?: string | null;
+    productionStatus?: string | null;
     origin?: string | null;
   };
   purchaseOrder?: {
@@ -34,6 +41,9 @@ type Chain = {
 type Props = {
   chain: Chain;
   className?: string;
+  companyId?: number;
+  privyUserId?: string;
+  onChanged?: () => void;
 };
 
 function money(n: number | null | undefined, ccy = 'ZAR') {
@@ -41,10 +51,60 @@ function money(n: number | null | undefined, ccy = 'ZAR') {
   return `${Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })} ${ccy}`;
 }
 
-export default function OrderChainCard({ chain, className = '' }: Props) {
+export default function OrderChainCard({
+  chain,
+  className = '',
+  companyId,
+  privyUserId,
+  onChanged,
+}: Props) {
   const ccy = chain.commercial?.currency || 'ZAR';
   const margin = chain.commercial?.margin;
   const marginPositive = margin != null && margin >= 0;
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const customerStep = chainStepIndex({
+    side: 'customer',
+    orderStatus: chain.salesOrder?.status,
+    productionStatus: chain.salesOrder?.productionStatus || chain.purchaseOrder?.productionStatus,
+    hasSalesOrder: true,
+  });
+  const supplierStep = chainStepIndex({
+    side: 'supplier',
+    orderStatus: chain.purchaseOrder?.status,
+    productionStatus: chain.purchaseOrder?.productionStatus,
+  });
+  const next = nextSupplierProductionAction(
+    chain.purchaseOrder?.status,
+    chain.purchaseOrder?.productionStatus
+  );
+
+  async function setProduction(status: string) {
+    if (!companyId || !privyUserId || !chain.purchaseOrder?.id) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      const res = await fetch('/api/orders/production-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          poId: chain.purchaseOrder.id,
+          production_status: status,
+          cascade: true,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Update failed');
+      setNote('Production cascaded to the sales order');
+      onChanged?.();
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : 'Update failed');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div
@@ -60,6 +120,10 @@ export default function OrderChainCard({ chain, className = '' }: Props) {
             <span className="mx-2 text-slate-300">→</span>
             PO #{chain.purchaseOrder?.id}
           </h3>
+          <div className="mt-2 space-y-1.5">
+            <OrderChainPath side="customer" current={customerStep} compact />
+            <OrderChainPath side="supplier" current={supplierStep} compact />
+          </div>
         </div>
         <span
           className={`rounded-full px-3 py-1 text-xs font-semibold ${
@@ -127,6 +191,39 @@ export default function OrderChainCard({ chain, className = '' }: Props) {
             {money(chain.commercial?.costPaid, ccy)}
           </p>
         </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <Link
+          href="/dashboard/customers/orders"
+          className="text-xs font-semibold text-[#0077b6] hover:underline"
+        >
+          Open sales orders
+        </Link>
+        <Link
+          href="/dashboard/suppliers/po"
+          className="text-xs font-semibold text-[#0077b6] hover:underline"
+        >
+          Open purchase orders
+        </Link>
+        {companyId && privyUserId && chain.purchaseOrder?.id ? (
+          <>
+            {next &&
+            PRODUCTION_STATUS_OPTIONS.some((o) => o.value === next.status) ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void setProduction(next.status)}
+                className="rounded-full bg-[#0077b6] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+              >
+                {next.label}
+              </button>
+            ) : null}
+          </>
+        ) : null}
+        {note ? (
+          <span className="text-xs text-slate-500">{note}</span>
+        ) : null}
       </div>
 
       {chain.invoices && chain.invoices.length > 0 && (

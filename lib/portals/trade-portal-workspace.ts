@@ -2,6 +2,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { productAssignedToCustomer } from '@/lib/inventory/customer-brand';
 import { otifefForLine, rollupOtifef } from '@/lib/portals/otifef-line';
 import { dateEnvelope } from '@/lib/projects/waterfall';
+import { enrichChainDoc } from '@/lib/orders/chain-path';
 import type { OtifefMetrics } from '@/lib/suppliers/types';
 import {
   parsePortalTaskRiadId,
@@ -168,29 +169,49 @@ export type PortalWorkspace = {
 function poToDoc(r: Record<string, unknown>, otifefInput: Parameters<typeof otifefForLine>[0]): PublicDocRow {
   const ot = otifefForLine(otifefInput);
   const meta = metaOf(r);
-  return {
-    id: Number(r.id),
-    kind: 'purchase_order',
-    number: String(r.po_number || r.order_number || `#${r.id}`),
-    status: String(r.status || 'draft'),
-    date: r.created_at != null ? String(r.created_at).slice(0, 10) : null,
-    due: r.promised_date != null ? String(r.promised_date).slice(0, 10) : null,
-    amount: r.total_amount != null ? Number(r.total_amount) : null,
-    paid: null,
-    currency: String(r.currency || 'ZAR'),
-    ordered: otifefInput.ordered ?? null,
-    delivered: otifefInput.delivered ?? null,
-    damaged: otifefInput.damaged ?? null,
-    attachment_url:
-      meta.attachment_url != null ? String(meta.attachment_url) : null,
-    otifef: {
-      overall: ot.overall,
-      onTime: ot.onTime,
-      inFull: ot.inFull,
-      errorFree: ot.errorFree,
-      pending: ot.pending,
+  const production_status =
+    r.production_status != null ? String(r.production_status) : null;
+  return enrichChainDoc(
+    {
+      id: Number(r.id),
+      kind: 'purchase_order',
+      number: String(r.po_number || r.order_number || `#${r.id}`),
+      status: String(r.status || 'draft'),
+      date: r.created_at != null ? String(r.created_at).slice(0, 10) : null,
+      due: r.promised_date != null ? String(r.promised_date).slice(0, 10) : null,
+      amount: r.total_amount != null ? Number(r.total_amount) : null,
+      paid: null,
+      currency: String(r.currency || 'ZAR'),
+      ordered: otifefInput.ordered ?? null,
+      delivered: otifefInput.delivered ?? null,
+      damaged: otifefInput.damaged ?? null,
+      attachment_url:
+        meta.attachment_url != null ? String(meta.attachment_url) : null,
+      otifef: {
+        overall: ot.overall,
+        onTime: ot.onTime,
+        inFull: ot.inFull,
+        errorFree: ot.errorFree,
+        pending: ot.pending,
+      },
+      production_status,
+      completed_at:
+        r.actual_completion_date != null
+          ? String(r.actual_completion_date).slice(0, 10)
+          : r.actual_delivery_date != null
+            ? String(r.actual_delivery_date).slice(0, 10)
+            : null,
+      confirmed_qty:
+        r.confirmed_qty != null ? Number(r.confirmed_qty) : null,
+      linked: true,
+      customer_po_number: meta.source_customer_po_number
+        ? String(meta.source_customer_po_number)
+        : meta.customer_po_number
+          ? String(meta.customer_po_number)
+          : null,
     },
-  };
+    'supplier'
+  );
 }
 
 async function loadHostCatalogue(
@@ -370,14 +391,25 @@ export async function loadPortalWorkspace(opts: {
       .eq('profile_id', companyId)
       .maybeSingle();
     const linked = srm?.linked_profile_id != null ? Number(srm.linked_profile_id) : null;
-    const { data } = await supabase
+    let poHit = await supabase
       .from('purchase_orders')
       .select(
-        'id, po_number, order_number, status, created_at, promised_date, actual_delivery_date, order_quantity, delivered_quantity, damaged_quantity, total_amount, currency, supplier_id, supplier_profile_id, items, metadata'
+        'id, po_number, order_number, status, created_at, promised_date, actual_delivery_date, actual_completion_date, order_quantity, delivered_quantity, damaged_quantity, total_amount, currency, supplier_id, supplier_profile_id, items, metadata, production_status, confirmed_qty'
       )
       .eq('buyer_profile_id', companyId)
       .order('created_at', { ascending: false })
       .limit(80);
+    if (poHit.error) {
+      poHit = await supabase
+        .from('purchase_orders')
+        .select(
+          'id, po_number, order_number, status, created_at, promised_date, actual_delivery_date, order_quantity, delivered_quantity, damaged_quantity, total_amount, currency, supplier_id, supplier_profile_id, items, metadata'
+        )
+        .eq('buyer_profile_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(80);
+    }
+    const data = poHit.data;
     for (const raw of data || []) {
       const r = asObject(raw);
       const sid = r.supplier_id != null ? Number(r.supplier_id) : null;
@@ -411,7 +443,7 @@ export async function loadPortalWorkspace(opts: {
     const { data } = await supabase
       .from('purchase_orders')
       .select(
-        'id, po_number, order_number, status, created_at, promised_date, actual_delivery_date, order_quantity, delivered_quantity, damaged_quantity, total_amount, currency, seller_customer_id, buyer_profile_id, items, metadata'
+        'id, po_number, order_number, status, created_at, promised_date, actual_delivery_date, actual_completion_date, order_quantity, delivered_quantity, damaged_quantity, total_amount, currency, seller_customer_id, buyer_profile_id, items, metadata, production_status, confirmed_qty'
       )
       .eq('supplier_profile_id', companyId)
       .eq('seller_customer_id', opts.viewer.customer_id)
@@ -429,15 +461,67 @@ export async function loadPortalWorkspace(opts: {
         })
       );
     }
-    const { data: orders } = await supabase
+    let ordersHit = await supabase
       .from('sales_orders')
       .select(
-        'id, order_number, status, created_at, promised_date, shipped_date, total_amount, currency, items'
+        'id, order_number, status, created_at, promised_date, shipped_date, total_amount, currency, items, production_status, confirmed_qty, actual_completion_date, metadata'
       )
       .eq('profile_id', companyId)
       .eq('customer_id', opts.viewer.customer_id)
       .order('created_at', { ascending: false })
       .limit(40);
+    if (ordersHit.error) {
+      ordersHit = await supabase
+        .from('sales_orders')
+        .select(
+          'id, order_number, status, created_at, promised_date, shipped_date, total_amount, currency, items, metadata'
+        )
+        .eq('profile_id', companyId)
+        .eq('customer_id', opts.viewer.customer_id)
+        .order('created_at', { ascending: false })
+        .limit(40);
+    }
+    const orders = ordersHit.data;
+    const soIds = (orders || []).map((o) => Number(o.id)).filter((id) => id > 0);
+    const prodBySo = new Map<
+      number,
+      { status: string | null; completed: string | null; qty: number | null; linked: boolean }
+    >();
+    if (soIds.length) {
+      const { data: links } = await supabase
+        .from('order_links')
+        .select('source_order_id, target_order_id')
+        .eq('company_id', companyId)
+        .eq('source_order_type', 'sales_order')
+        .eq('target_order_type', 'purchase_order')
+        .eq('status', 'active')
+        .in('source_order_id', soIds);
+      const poIds = (links || [])
+        .map((l) => Number(l.target_order_id))
+        .filter((id) => id > 0);
+      const poProd = new Map<number, Record<string, unknown>>();
+      if (poIds.length) {
+        const { data: posRows } = await supabase
+          .from('purchase_orders')
+          .select('id, production_status, confirmed_qty, actual_completion_date, status')
+          .in('id', poIds);
+        for (const p of posRows || []) poProd.set(Number(p.id), asObject(p));
+      }
+      for (const l of links || []) {
+        const sid = Number(l.source_order_id);
+        const po = poProd.get(Number(l.target_order_id));
+        if (!sid) continue;
+        prodBySo.set(sid, {
+          status: po?.production_status != null ? String(po.production_status) : null,
+          completed:
+            po?.actual_completion_date != null
+              ? String(po.actual_completion_date).slice(0, 10)
+              : null,
+          qty: po?.confirmed_qty != null ? Number(po.confirmed_qty) : null,
+          linked: true,
+        });
+      }
+    }
     for (const raw of orders || []) {
       const r = asObject(raw);
       const items = Array.isArray(r.items) ? r.items : [];
@@ -445,33 +529,60 @@ export async function loadPortalWorkspace(opts: {
         (n, it) => n + Number(asObject(it).qty || asObject(it).quantity || 0),
         0
       );
+      const linked = prodBySo.get(Number(r.id));
+      const production_status =
+        (r.production_status != null ? String(r.production_status) : null) ||
+        linked?.status ||
+        null;
+      const completed_at =
+        r.actual_completion_date != null
+          ? String(r.actual_completion_date).slice(0, 10)
+          : r.shipped_date != null
+            ? String(r.shipped_date).slice(0, 10)
+            : linked?.completed || null;
       const ot = otifefForLine({
         promised_date: r.promised_date as string | null,
-        actual_date: r.shipped_date as string | null,
+        actual_date: completed_at,
         ordered: qty || 1,
-        delivered: r.shipped_date ? qty || 1 : 0,
+        delivered: completed_at ? qty || 1 : 0,
         damaged: 0,
       });
-      pos.push({
-        id: Number(r.id),
-        kind: 'order',
-        number: String(r.order_number || `#${r.id}`),
-        status: String(r.status || ''),
-        date: r.created_at != null ? String(r.created_at).slice(0, 10) : null,
-        due: r.promised_date != null ? String(r.promised_date).slice(0, 10) : null,
-        amount: r.total_amount != null ? Number(r.total_amount) : null,
-        paid: null,
-        currency: String(r.currency || 'ZAR'),
-        ordered: qty || null,
-        delivered: r.shipped_date ? qty || null : null,
-        otifef: {
-          overall: ot.overall,
-          onTime: ot.onTime,
-          inFull: ot.inFull,
-          errorFree: ot.errorFree,
-          pending: ot.pending,
-        },
-      });
+      const meta = metaOf(r);
+      pos.push(
+        enrichChainDoc(
+          {
+            id: Number(r.id),
+            kind: 'order',
+            number: String(r.order_number || `#${r.id}`),
+            status: String(r.status || ''),
+            date: r.created_at != null ? String(r.created_at).slice(0, 10) : null,
+            due: r.promised_date != null ? String(r.promised_date).slice(0, 10) : null,
+            amount: r.total_amount != null ? Number(r.total_amount) : null,
+            paid: null,
+            currency: String(r.currency || 'ZAR'),
+            ordered: qty || null,
+            delivered: completed_at ? qty || null : null,
+            otifef: {
+              overall: ot.overall,
+              onTime: ot.onTime,
+              inFull: ot.inFull,
+              errorFree: ot.errorFree,
+              pending: ot.pending,
+            },
+            production_status,
+            completed_at,
+            confirmed_qty:
+              r.confirmed_qty != null
+                ? Number(r.confirmed_qty)
+                : linked?.qty ?? null,
+            linked: !!linked?.linked,
+            customer_po_number: meta.customer_po_number
+              ? String(meta.customer_po_number)
+              : null,
+          },
+          'customer'
+        )
+      );
     }
   }
 

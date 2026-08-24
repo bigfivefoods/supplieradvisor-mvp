@@ -27,6 +27,7 @@ import {
   portalPoTaxRate,
   suggestPortalPoNumber,
 } from '@/lib/portals/portal-po';
+import { OrderChainPath } from '@/components/orders/OrderChainPath';
 
 type Line = {
   key: string;
@@ -207,6 +208,7 @@ export function PortalPurchaseOrder({
   const [done, setDone] = useState<{
     po: string;
     so: string | null;
+    chain?: string | null;
   } | null>(null);
 
   const taxRate = portalPoTaxRate(hostCountry || book?.country);
@@ -359,6 +361,7 @@ export function PortalPurchaseOrder({
       setDone({
         po: poNumber.trim(),
         so: data.sales_order_number ? String(data.sales_order_number) : null,
+        chain: data.chain != null ? String(data.chain) : null,
       });
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not send PO');
@@ -383,8 +386,11 @@ export function PortalPurchaseOrder({
               <strong>{done.so}</strong>
             </>
           ) : null}
-          . You can track it under Sales orders.
+          . Production and delivery will update live on Sales orders.
         </p>
+        <div className="mt-4 flex justify-center">
+          <OrderChainPath side="customer" current={1} />
+        </div>
         <div className="mt-5 flex flex-wrap justify-center gap-2">
           <button
             type="button"

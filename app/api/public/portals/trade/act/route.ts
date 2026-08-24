@@ -29,6 +29,14 @@ import {
   isPortalRequiredDocField,
   mergeRequiredDocIntoMetadata,
 } from '@/lib/portals/portal-documents';
+import { cascadeFromPo } from '@/lib/orders/cascade';
+import { notifyProductionCascade } from '@/lib/orders/notify-chain';
+import { raiseLinkedPoFromSo } from '@/lib/orders/raise-linked-po';
+import {
+  PRODUCTION_STATUS_OPTIONS,
+  type ProductionStatus,
+} from '@/lib/orders/order-links';
+import { chainProductionLabel } from '@/lib/orders/chain-path';
 
 const SUPPLIER_STATUS = ['accepted', 'invoiced'] as const;
 
@@ -954,7 +962,145 @@ export async function POST(request: NextRequest) {
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
-      return NextResponse.json({ success: true });
+
+      let productionStatus: string | null = null;
+      if (portal.kind === 'supplier' && typeof patch.status === 'string') {
+        const to = String(patch.status).toLowerCase();
+        if (to === 'accepted') productionStatus = 'released';
+        if (to === 'invoiced' || to === 'completed') productionStatus = 'completed';
+        if (productionStatus) {
+          const extra: Record<string, unknown> = {
+            production_status: productionStatus,
+            cascade_updated_at: now,
+            updated_at: now,
+          };
+          if (productionStatus === 'completed') {
+            extra.actual_completion_date = isoDay(new Date());
+          }
+          await supabase.from('purchase_orders').update(extra as never).eq('id', id);
+          const casc = await cascadeFromPo(supabase, portal.profile_id, id, {
+            production_status: productionStatus,
+            actual_completion_date:
+              productionStatus === 'completed' ? isoDay(new Date()) : undefined,
+          });
+          void notifyProductionCascade(supabase, {
+            buyerCompanyId: portal.profile_id,
+            poId: id,
+            soIds: casc.linkedSoIds,
+            productionStatus,
+            actorCompanyId: linkedProfileId || portal.profile_id,
+            isSupplier: true,
+          });
+        }
+      }
+      return NextResponse.json({
+        success: true,
+        production_status: productionStatus,
+        production_label: productionStatus
+          ? chainProductionLabel(productionStatus)
+          : undefined,
+      });
+    }
+
+    if (action === 'production_update') {
+      if (portal.kind !== 'supplier') {
+        return NextResponse.json(
+          { error: 'Only the manufacturer portal can update production' },
+          { status: 403 }
+        );
+      }
+      const id = Number(body.id);
+      if (!Number.isFinite(id)) {
+        return NextResponse.json({ error: 'id required' }, { status: 400 });
+      }
+      const productionStatus = String(body.production_status || '').trim() as ProductionStatus;
+      if (
+        productionStatus &&
+        !PRODUCTION_STATUS_OPTIONS.some((o) => o.value === productionStatus)
+      ) {
+        return NextResponse.json(
+          { error: 'Invalid production status' },
+          { status: 400 }
+        );
+      }
+      const { data: po, error: loadErr } = await supabase
+        .from('purchase_orders')
+        .select(
+          'id, status, buyer_profile_id, supplier_id, supplier_profile_id, metadata'
+        )
+        .eq('id', id)
+        .maybeSingle();
+      if (loadErr || !po) {
+        return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+      }
+      const allowed =
+        Number(po.buyer_profile_id) === portal.profile_id &&
+        (Number(po.supplier_id) === viewer.supplier_id ||
+          Number(po.supplier_profile_id) === (linkedProfileId || -1));
+      if (!allowed) {
+        return NextResponse.json({ error: 'Not your order' }, { status: 403 });
+      }
+      const poUpdate: Record<string, unknown> = {
+        updated_at: now,
+        cascade_updated_at: now,
+      };
+      if (productionStatus) poUpdate.production_status = productionStatus;
+      if (body.confirmed_qty != null && Number.isFinite(Number(body.confirmed_qty))) {
+        poUpdate.confirmed_qty = Number(body.confirmed_qty);
+      }
+      if (typeof body.promised_date === 'string' && body.promised_date) {
+        poUpdate.promised_date = String(body.promised_date).slice(0, 10);
+      }
+      if (productionStatus === 'completed') {
+        poUpdate.actual_completion_date =
+          typeof body.actual_completion_date === 'string' && body.actual_completion_date
+            ? String(body.actual_completion_date).slice(0, 10)
+            : isoDay(new Date());
+      } else if (typeof body.actual_completion_date === 'string' && body.actual_completion_date) {
+        poUpdate.actual_completion_date = String(body.actual_completion_date).slice(0, 10);
+      }
+      if (typeof body.notes === 'string' && body.notes.trim()) {
+        const prevMeta =
+          po.metadata && typeof po.metadata === 'object'
+            ? (po.metadata as Record<string, unknown>)
+            : {};
+        poUpdate.metadata = {
+          ...prevMeta,
+          production_notes: String(body.notes).trim().slice(0, 2000),
+        };
+      }
+      const { error: upErr } = await supabase
+        .from('purchase_orders')
+        .update(poUpdate as never)
+        .eq('id', id);
+      if (upErr) {
+        return NextResponse.json({ error: upErr.message }, { status: 500 });
+      }
+      const casc = await cascadeFromPo(supabase, portal.profile_id, id, {
+        production_status: productionStatus || undefined,
+        confirmed_qty:
+          body.confirmed_qty != null ? Number(body.confirmed_qty) : undefined,
+        promised_date:
+          typeof body.promised_date === 'string' ? body.promised_date : undefined,
+        actual_completion_date:
+          poUpdate.actual_completion_date != null
+            ? String(poUpdate.actual_completion_date)
+            : undefined,
+      });
+      void notifyProductionCascade(supabase, {
+        buyerCompanyId: portal.profile_id,
+        poId: id,
+        soIds: casc.linkedSoIds,
+        productionStatus: productionStatus || null,
+        actorCompanyId: linkedProfileId || portal.profile_id,
+        isSupplier: true,
+      });
+      return NextResponse.json({
+        success: true,
+        production_status: productionStatus,
+        production_label: chainProductionLabel(productionStatus),
+        cascaded: casc.updated,
+      });
     }
 
     if (action === 'po_create') {
@@ -1119,6 +1265,7 @@ export async function POST(request: NextRequest) {
           .filter(Boolean)
           .join('\n')
           .slice(0, 1200),
+        origin: 'customer_portal',
         items: soItems,
         metadata: {
           source: 'customer_portal',
@@ -1147,6 +1294,7 @@ export async function POST(request: NextRequest) {
         delete soft.billing_address;
         delete soft.tax_amount;
         delete soft.tax_rate;
+        delete soft.origin;
         so = await supabase
           .from('sales_orders')
           .insert(soft)
@@ -1154,12 +1302,42 @@ export async function POST(request: NextRequest) {
           .single();
       }
 
+      let manufacturerPoId: number | null = null;
+      let chain: string = 'pending';
+      let chainWarning: string | undefined;
+      if (so.data?.id) {
+        try {
+          const linked = await raiseLinkedPoFromSo({
+            supabase,
+            companyId: portal.profile_id,
+            salesOrderId: Number(so.data.id),
+            salesOrder: { ...soPayload, ...so.data },
+            status: 'sent',
+            createdBy: stamp.createdBy,
+            promisedDate: promised,
+            paymentTerms,
+          });
+          if (linked.ok && linked.purchaseOrder?.id) {
+            manufacturerPoId = Number(linked.purchaseOrder.id);
+            chain = linked.skipped ? String(linked.code || 'linked') : 'linked';
+          } else {
+            chain = linked.code || 'pending';
+            chainWarning = linked.error;
+          }
+        } catch (e) {
+          chainWarning = e instanceof Error ? e.message : 'Manufacturer PO not raised';
+          console.warn('portal auto linked PO', e);
+        }
+      }
+
       return NextResponse.json({
         success: true,
         id: poIns.data?.id,
         sales_order_id: so.data?.id || null,
         sales_order_number: so.data?.order_number || null,
-        warning: so.error?.message,
+        manufacturer_po_id: manufacturerPoId,
+        chain,
+        warning: so.error?.message || chainWarning,
       });
     }
 

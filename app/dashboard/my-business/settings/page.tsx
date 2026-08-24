@@ -49,6 +49,9 @@ function SettingsInner() {
   const [confirmPhrase, setConfirmPhrase] = useState('');
   const [deleteReason, setDeleteReason] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [manufacturers, setManufacturers] = useState<
+    Array<{ id: number; trading_name: string; status?: string | null }>
+  >([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -63,6 +66,29 @@ function SettingsInner() {
       if (!res.ok) throw new Error(data.error || 'Failed to load');
       setTradingName(data.trading_name || '');
       setSettings({ ...DEFAULT_SETTINGS, ...(data.settings || {}) });
+      try {
+        const srm = await fetch(
+          `/api/suppliers?companyId=${companyId}&privyUserId=${encodeURIComponent(privyUserId || '')}`
+        );
+        const srmJson = await srm.json();
+        const rows = (srmJson.suppliers || []) as Array<{
+          id: number;
+          trading_name?: string;
+          status?: string | null;
+        }>;
+        setManufacturers(
+          rows
+            .filter((s) => String(s.status || '').toLowerCase() !== 'blocked')
+            .map((s) => ({
+              id: Number(s.id),
+              trading_name: String(s.trading_name || `Supplier ${s.id}`),
+              status: s.status,
+            }))
+            .filter((s) => s.id > 0)
+        );
+      } catch {
+        setManufacturers([]);
+      }
       if (delRes.ok) {
         const d = await delRes.json();
         setCanDelete(Boolean(d.canDelete));
@@ -293,6 +319,34 @@ function SettingsInner() {
               </select>
               <p className="text-[10px] text-neutral-500 mt-1">
                 Used as the starting value when raising a PO or quote.
+              </p>
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
+                Preferred manufacturer
+              </label>
+              <select
+                className="input mt-1 w-full !p-3 !text-sm"
+                value={settings.preferred_srm_supplier_id || ''}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    preferred_srm_supplier_id: e.target.value
+                      ? Number(e.target.value)
+                      : null,
+                  })
+                }
+              >
+                <option value="">None — pick per sales order</option>
+                {manufacturers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.trading_name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-neutral-500 mt-1">
+                When a customer raises a PO on their portal, we auto-send a
+                linked manufacturing PO to this supplier (Kelpac, etc.).
               </p>
             </div>
             <div>

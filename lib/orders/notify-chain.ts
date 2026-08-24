@@ -44,7 +44,7 @@ export async function notifyProductionCascade(
     if (!opts.soIds.length) return;
     const { data: sos } = await supabase
       .from('sales_orders')
-      .select('id, order_number, customer_id, customer_name')
+      .select('id, order_number, customer_id')
       .eq('profile_id', opts.buyerCompanyId)
       .in('id', opts.soIds);
 
@@ -57,21 +57,41 @@ export async function notifyProductionCascade(
         .eq('id', custId)
         .maybeSingle();
       const linked = Number(cust?.linked_profile_id);
-      if (!Number.isFinite(linked) || linked <= 0) continue;
+      if (Number.isFinite(linked) && linked > 0) {
+        await supabase.from('notifications').insert({
+          profile_id: linked,
+          type: 'order_production_update',
+          title: `Order ${so.order_number || so.id} update`,
+          body: `Status: ${label}`,
+          metadata: {
+            salesOrderId: so.id,
+            production_status: opts.productionStatus,
+            href: `/dashboard/buyer/documents`,
+          },
+          read: false,
+        });
+      }
 
-      await supabase.from('notifications').insert({
-        profile_id: linked,
-        type: 'order_production_update',
-        title: `Order ${so.order_number || so.id} update`,
-        body: `Status: ${label}`,
-        metadata: {
-          salesOrderId: so.id,
-          production_status: opts.productionStatus,
-          // Never include cost or manufacturer identity beyond buyer branding
-          href: `/dashboard/buyer/documents`,
-        },
-        read: false,
-      });
+      const { data: viewers } = await supabase
+        .from('trade_portal_viewers')
+        .select('id, portal_id')
+        .eq('profile_id', opts.buyerCompanyId)
+        .eq('customer_id', custId)
+        .eq('status', 'active')
+        .limit(8);
+      const seenPortals = new Set<number>();
+      for (const v of viewers || []) {
+        const pid = Number(v.portal_id);
+        if (!pid || seenPortals.has(pid)) continue;
+        seenPortals.add(pid);
+        await supabase.from('trade_portal_messages').insert({
+          portal_id: pid,
+          viewer_id: v.id,
+          profile_id: opts.buyerCompanyId,
+          author: 'host',
+          body: `Order ${so.order_number || so.id}: ${label}. Track it under Sales orders.`,
+        });
+      }
     }
   } catch (e) {
     console.warn('[notify-chain] production cascade soft-fail', e);

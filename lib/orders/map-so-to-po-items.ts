@@ -29,7 +29,9 @@ export function mapSoItemsToPoItems(
     const r = row as Record<string, unknown>;
     const item_name = String(r.item_name || r.name || '').trim();
     if (!item_name) return null;
-    const quantity = Number(r.quantity);
+    const quantity = Number(
+      r.quantity != null && String(r.quantity) !== '' ? r.quantity : r.qty
+    );
     if (!Number.isFinite(quantity) || quantity <= 0) return null;
 
     const productId =

@@ -67,7 +67,8 @@ export default function OperationsChainsPage() {
             Order chains
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Linked SO → PO flows with cost vs revenue (BFF only)
+            Boxer sales order → Kelpac purchase order. Cost and margin stay here;
+            the customer only sees production labels.
           </p>
         </div>
         <div className="flex gap-2">
@@ -103,14 +104,21 @@ export default function OperationsChainsPage() {
 
       {!loading && filter !== 'independent' && chains.length === 0 && (
         <p className="rounded-xl border border-neutral-200 bg-white p-6 text-sm text-slate-500">
-          No active linked chains yet. Raise a linked PO from a sales order to see
-          cost vs revenue here.
+          No active linked chains yet. A customer portal PO auto-raises a
+          manufacturer PO when a preferred supplier is set. You can also tap
+          Manufacturer chain on a sales order.
         </p>
       )}
 
       <div className="grid gap-4">
         {(chains as Parameters<typeof OrderChainCard>[0]['chain'][]).map((c) => (
-          <OrderChainCard key={c.linkId} chain={c} />
+          <OrderChainCard
+            key={c.linkId}
+            chain={c}
+            companyId={companyId || undefined}
+            privyUserId={user?.id}
+            onChanged={() => void load()}
+          />
         ))}
       </div>
 
