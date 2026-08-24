@@ -116,13 +116,13 @@ export default function GuestTradePortalPage() {
   const [tab, setTab] = useState<GuestPortalTab>('orders');
   const navReady = useRef(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!token) {
       setError('Missing portal link');
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!opts?.silent) setLoading(true);
     try {
       const res = await fetch(
         `/api/public/portals/trade?token=${encodeURIComponent(token)}`
@@ -138,9 +138,9 @@ export default function GuestTradePortalPage() {
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed');
-      setPortal(null);
+      if (!opts?.silent) setPortal(null);
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, [token]);
 
@@ -342,7 +342,7 @@ export default function GuestTradePortalPage() {
             portal={portal}
             tab={tab}
             onTab={setTab}
-            onRefresh={() => void load()}
+            onRefresh={() => void load({ silent: true })}
           />
         ) : portal.kind === 'customer' ? (
           <>

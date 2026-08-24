@@ -467,7 +467,23 @@ export async function POST(request: NextRequest) {
       }
       await rollupJointProjectDates(supabase, portal.profile_id, projectId);
       await rollupAncestorTaskDates(supabase, portal.profile_id, projectId);
-      return NextResponse.json({ success: true, id: data?.id });
+      const taskId = Number(data?.id);
+      return NextResponse.json({
+        success: true,
+        id: taskId || data?.id,
+        task: {
+          id: taskId,
+          title: title.slice(0, 200),
+          column_key: 'todo',
+          start_date: range.start,
+          due_date: range.end,
+          parent_task_id: parent?.id || null,
+          phase_key: null,
+          assignee: null,
+          assignee_viewer_id: null,
+          description: null,
+        },
+      });
     }
 
     if (action === 'message') {
@@ -597,7 +613,28 @@ export async function POST(request: NextRequest) {
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
-      return NextResponse.json({ success: true, id: data?.id });
+      const riadId = Number(data?.id);
+      return NextResponse.json({
+        success: true,
+        id: riadId || data?.id,
+        entry: {
+          id: riadId,
+          entry_type: entryType,
+          title: title.slice(0, 200),
+          description: entry.description,
+          status,
+          severity,
+          notes: entry.notes,
+          created_at: now,
+          owner_name: entry.owner_name,
+          due_date: entry.due_date,
+          category: entry.category,
+          mitigation_plan: entry.mitigation_plan,
+          related_task_id: relatedTaskId,
+          related_project_id: relatedProjectId,
+          created_by: entry.created_by,
+        },
+      });
     }
 
     if (action === 'riad_update') {

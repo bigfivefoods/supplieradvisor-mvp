@@ -556,26 +556,30 @@ export async function loadPortalWorkspace(opts: {
   const projIds = (projRows || []).map((p) => Number(p.id));
   const taskByProject = new Map<number, PortalProjectView['tasks']>();
   if (projIds.length) {
-    let { data: trows } = await supabase
+    const taskSelect =
+      'id, project_id, title, column_key, status, start_date, due_date, phase_key, assignee, metadata, description';
+    const first = await supabase
       .from('pm_tasks')
-      .select(
-        'id, project_id, title, column_key, status, start_date, due_date, phase_key, assignee, metadata, description, parent_task_id'
-      )
+      .select(`${taskSelect}, parent_task_id`)
       .eq('profile_id', companyId)
       .in('project_id', projIds)
       .order('sort_order', { ascending: true });
-    if (!trows) {
+    let trows: Array<Record<string, unknown>> = (first.data || []) as Array<
+      Record<string, unknown>
+    >;
+    if (first.error) {
       const retry = await supabase
         .from('pm_tasks')
-        .select(
-          'id, project_id, title, column_key, status, start_date, due_date, phase_key, assignee, metadata, description'
-        )
+        .select(taskSelect)
         .eq('profile_id', companyId)
         .in('project_id', projIds)
         .order('sort_order', { ascending: true });
-      trows = retry.data;
+      trows = ((retry.data || []) as Array<Record<string, unknown>>).map((r) => ({
+        ...r,
+        parent_task_id: null,
+      }));
     }
-    for (const t of trows || []) {
+    for (const t of trows) {
       const pid = Number(t.project_id);
       const list = taskByProject.get(pid) || [];
       const meta = metaOf(asObject(t));

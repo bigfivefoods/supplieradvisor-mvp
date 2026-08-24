@@ -10,6 +10,7 @@ import { formatMoney } from '@/lib/customers/types';
 import { OtifefKpiCard } from '@/components/portals/OtifefKpiCard';
 import type {
   PortalPersonPublic,
+  PortalProjectTask,
   PortalRiadView,
   PublicPortalPayload,
 } from '@/lib/portals/trade-portal';
@@ -107,6 +108,212 @@ function pct(n: number | null | undefined) {
   return `${Math.round(n)}%`;
 }
 
+const HEAVY_ACTIONS = new Set([
+  'project_create',
+  'po_create',
+  'profile',
+  'rate',
+]);
+const REFRESH_ACTIONS = new Set([
+  'project_create',
+  'po_create',
+  'profile',
+  'rate',
+  'po_update',
+]);
+
+function applyActLocally(
+  prev: PublicPortalPayload,
+  payload: Record<string, unknown>,
+  data: Record<string, unknown>
+): PublicPortalPayload {
+  const action = String(payload.action || '');
+  const ws = prev.workspace;
+  if (action === 'task_add' && ws) {
+    const projectId = Number(payload.project_id);
+    const raw = (data.task && typeof data.task === 'object'
+      ? data.task
+      : null) as Partial<PortalProjectTask> | null;
+    const task: PortalProjectTask = {
+      id: Number(raw?.id || data.id),
+      title: String(raw?.title || payload.title || 'Task'),
+      column_key: String(raw?.column_key || 'todo'),
+      start_date: raw?.start_date
+        ? String(raw.start_date).slice(0, 10)
+        : payload.start_date
+          ? String(payload.start_date).slice(0, 10)
+          : null,
+      due_date: raw?.due_date
+        ? String(raw.due_date).slice(0, 10)
+        : payload.due_date
+          ? String(payload.due_date).slice(0, 10)
+          : null,
+      parent_task_id:
+        raw?.parent_task_id != null
+          ? Number(raw.parent_task_id)
+          : payload.parent_task_id
+            ? Number(payload.parent_task_id)
+            : null,
+      phase_key: raw?.phase_key != null ? String(raw.phase_key) : null,
+      assignee: null,
+      assignee_viewer_id: null,
+      description: null,
+    };
+    if (!Number.isFinite(task.id) || task.id <= 0) return prev;
+    return {
+      ...prev,
+      workspace: {
+        ...ws,
+        projects: (ws.projects || []).map((p) =>
+          p.id === projectId ? { ...p, tasks: [...p.tasks, task] } : p
+        ),
+      },
+    };
+  }
+  if (action === 'task_update' && ws) {
+    const id = Number(payload.id);
+    return {
+      ...prev,
+      workspace: {
+        ...ws,
+        projects: (ws.projects || []).map((p) => ({
+          ...p,
+          tasks: p.tasks.map((t) => {
+            if (t.id !== id) return t;
+            return {
+              ...t,
+              title:
+                typeof payload.title === 'string' && payload.title.trim()
+                  ? payload.title.trim()
+                  : t.title,
+              column_key:
+                typeof payload.column_key === 'string' && payload.column_key
+                  ? String(payload.column_key)
+                  : t.column_key,
+              start_date:
+                payload.start_date != null
+                  ? String(payload.start_date).slice(0, 10)
+                  : t.start_date,
+              due_date:
+                payload.due_date != null
+                  ? String(payload.due_date).slice(0, 10)
+                  : t.due_date,
+              assignee:
+                payload.assignee !== undefined
+                  ? payload.assignee
+                    ? String(payload.assignee)
+                    : null
+                  : t.assignee,
+              assignee_viewer_id:
+                payload.assignee_viewer_id !== undefined
+                  ? Number(payload.assignee_viewer_id) || null
+                  : t.assignee_viewer_id,
+            };
+          }),
+        })),
+      },
+    };
+  }
+  if (action === 'project_update' && ws) {
+    const id = Number(payload.id);
+    return {
+      ...prev,
+      workspace: {
+        ...ws,
+        projects: (ws.projects || []).map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                name:
+                  typeof payload.name === 'string' && payload.name.trim()
+                    ? payload.name.trim()
+                    : p.name,
+                description:
+                  payload.description !== undefined
+                    ? String(payload.description || '') || null
+                    : p.description,
+              }
+            : p
+        ),
+      },
+    };
+  }
+  if (action === 'riad_add' && ws) {
+    const raw = (data.entry && typeof data.entry === 'object'
+      ? data.entry
+      : null) as Partial<PortalRiadView> | null;
+    const id = Number(raw?.id || data.id);
+    if (!Number.isFinite(id) || id <= 0) return prev;
+    const entry: PortalRiadView = {
+      id,
+      entry_type: String(raw?.entry_type || payload.entry_type || 'issue'),
+      title: String(raw?.title || payload.title || ''),
+      description:
+        raw?.description != null
+          ? String(raw.description)
+          : payload.description
+            ? String(payload.description)
+            : null,
+      status: String(raw?.status || payload.status || 'open'),
+      severity: String(raw?.severity || payload.severity || 'medium'),
+      notes: raw?.notes != null ? String(raw.notes) : null,
+      created_at: raw?.created_at != null ? String(raw.created_at) : new Date().toISOString(),
+      owner_name: raw?.owner_name != null ? String(raw.owner_name) : null,
+      due_date: raw?.due_date != null ? String(raw.due_date).slice(0, 10) : null,
+      category: raw?.category != null ? String(raw.category) : null,
+      related_task_id:
+        raw?.related_task_id != null
+          ? Number(raw.related_task_id)
+          : payload.related_task_id
+            ? Number(payload.related_task_id)
+            : null,
+      related_project_id:
+        raw?.related_project_id != null ? Number(raw.related_project_id) : null,
+    };
+    return {
+      ...prev,
+      workspace: { ...ws, riad: [entry, ...(ws.riad || [])] },
+    };
+  }
+  if (action === 'riad_delete' && ws) {
+    const id = Number(payload.id);
+    return {
+      ...prev,
+      workspace: {
+        ...ws,
+        riad: (ws.riad || []).filter((r) => r.id !== id),
+      },
+    };
+  }
+  if (action === 'riad_update' && ws) {
+    const id = Number(payload.id);
+    return {
+      ...prev,
+      workspace: {
+        ...ws,
+        riad: (ws.riad || []).map((r) =>
+          r.id === id
+            ? {
+                ...r,
+                status:
+                  typeof payload.status === 'string' ? payload.status : r.status,
+                severity:
+                  typeof payload.severity === 'string'
+                    ? payload.severity
+                    : r.severity,
+                resolution:
+                  payload.resolution !== undefined
+                    ? String(payload.resolution || '') || null
+                    : r.resolution,
+              }
+            : r
+        ),
+      },
+    };
+  }
+  return prev;
+}
+
 export function GuestTradeWorkspace({
   token,
   portal,
@@ -120,14 +327,20 @@ export function GuestTradeWorkspace({
   tab: GuestPortalTab;
   onTab: (id: GuestPortalTab) => void;
 }) {
-  const ws = portal.workspace;
-  const isSupplier = portal.kind === 'supplier';
+  const [live, setLive] = useState(portal);
+  useEffect(() => {
+    setLive(portal);
+  }, [portal]);
+  const ws = live.workspace;
+  const isSupplier = live.kind === 'supplier';
   const gaps = ws?.profileGaps || [];
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
   const act = async (payload: Record<string, unknown>) => {
-    setBusy(true);
+    const action = String(payload.action || '');
+    const heavy = HEAVY_ACTIONS.has(action);
+    if (heavy) setBusy(true);
     setNote(null);
     try {
       const res = await fetch('/api/public/portals/trade/act', {
@@ -135,37 +348,38 @@ export function GuestTradeWorkspace({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, ...payload }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed');
+      const data = (await res.json()) as Record<string, unknown>;
+      if (!res.ok) throw new Error(String(data.error || 'Failed'));
+      setLive((prev) => applyActLocally(prev, payload, data));
       setNote(
-        payload.action === 'project_create'
+        action === 'project_create'
           ? 'Project created — waterfall tasks span the full duration'
-          : payload.action === 'po_create'
+          : action === 'po_create'
             ? 'Purchase order sent'
-            : payload.action === 'task_add'
+            : action === 'task_add'
               ? 'Task added'
-              : payload.action === 'riad_add'
+              : action === 'riad_add'
                 ? 'RIAD logged'
-                : payload.action === 'riad_delete'
+                : action === 'riad_delete'
                   ? 'RIAD deleted'
-                  : payload.action === 'project_update'
+                  : action === 'project_update'
                     ? 'Project heading saved'
-                    : payload.action === 'task_update'
+                    : action === 'task_update'
                       ? 'Task saved'
                       : 'Saved'
       );
-      onRefresh();
+      if (REFRESH_ACTIONS.has(action)) onRefresh();
     } catch (e) {
       setNote(e instanceof Error ? e.message : 'Failed');
     } finally {
-      setBusy(false);
+      if (heavy) setBusy(false);
     }
   };
 
   const ot = ws?.otifef;
   const orders = isSupplier
-    ? ws?.purchase_orders || portal.purchase_orders
-    : [...(ws?.inbound_pos || []), ...(portal.orders || [])];
+    ? ws?.purchase_orders || live.purchase_orders
+    : [...(ws?.inbound_pos || []), ...(live.orders || [])];
 
   return (
     <div className="space-y-4">
@@ -179,7 +393,7 @@ export function GuestTradeWorkspace({
           onClick={() => onTab('profile')}
           className="w-full text-left rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
         >
-          Complete your profile so {portal.host.name} has the right details on
+          Complete your profile so {live.host.name} has the right details on
           their books ({gaps.join(', ')}).
         </button>
       ) : null}
@@ -212,17 +426,17 @@ export function GuestTradeWorkspace({
       ) : null}
       {tab === 'statement' && !isSupplier ? (
         <StatementPanel
-          invoices={portal.invoices || []}
-          quotes={portal.quotes || []}
-          hostName={portal.host.name}
+          invoices={live.invoices || []}
+          quotes={live.quotes || []}
+          hostName={live.host.name}
         />
       ) : null}
       {tab === 'projects' ? (
         <ProjectsPanel
           items={ws?.projects || []}
-          people={portal.people || []}
+          people={live.people || []}
           riad={ws?.riad || []}
-          ownerName={portal.viewer?.name || ''}
+          ownerName={live.viewer?.name || ''}
           busy={busy}
           onAct={act}
         />
@@ -236,15 +450,15 @@ export function GuestTradeWorkspace({
           busy={busy}
           onAct={act}
           catalogue={ws?.catalogue || []}
-          hostName={portal.host.name}
+          hostName={live.host.name}
         />
       ) : null}
       {tab === 'riad' ? (
         <PortalRiadPanel
-          kind={portal.kind}
+          kind={live.kind}
           items={ws?.riad || []}
           busy={busy}
-          ownerName={portal.viewer?.name || ''}
+          ownerName={live.viewer?.name || ''}
           onAct={act}
         />
       ) : null}
@@ -254,15 +468,21 @@ export function GuestTradeWorkspace({
       {tab === 'people' ? (
         <PeoplePanel
           token={token}
-          people={portal.people || []}
+          people={live.people || []}
           busy={busy}
-          onRefresh={onRefresh}
+          onPeople={(next) =>
+            setLive((prev) => ({
+              ...prev,
+              people: next,
+              kpis: { ...prev.kpis, people: next.length },
+            }))
+          }
           onNote={setNote}
         />
       ) : null}
       {tab === 'reviews' ? (
         <ReviewsPanel
-          kind={portal.kind}
+          kind={live.kind}
           items={ws?.ratings || []}
           busy={busy}
           onAct={act}
@@ -276,13 +496,13 @@ function PeoplePanel({
   token,
   people,
   busy,
-  onRefresh,
+  onPeople,
   onNote,
 }: {
   token: string;
   people: PortalPersonPublic[];
   busy: boolean;
-  onRefresh: () => void;
+  onPeople: (next: PortalPersonPublic[]) => void;
   onNote: (v: string | null) => void;
 }) {
   const [name, setName] = useState('');
@@ -327,7 +547,23 @@ function PeoplePanel({
       setEmail('');
       setPhone('');
       setJob('');
-      onRefresh();
+      const person = data.person as
+        | { id: number; name: string; email?: string | null; job_title?: string | null }
+        | undefined;
+      if (person?.id && !people.some((p) => p.id === person.id)) {
+        onPeople([
+          ...people,
+          {
+            id: Number(person.id),
+            name: String(person.name || name),
+            email: person.email != null ? String(person.email) : email || null,
+            job_title:
+              person.job_title != null ? String(person.job_title) : job || null,
+            last_seen_at: null,
+            you: false,
+          },
+        ]);
+      }
     } catch (e) {
       onNote(e instanceof Error ? e.message : 'Failed');
     } finally {
@@ -347,7 +583,7 @@ function PeoplePanel({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not revoke');
       onNote('Access removed');
-      onRefresh();
+      onPeople(people.filter((p) => p.id !== id));
     } catch (e) {
       onNote(e instanceof Error ? e.message : 'Failed');
     } finally {
