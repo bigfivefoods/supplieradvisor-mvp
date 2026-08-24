@@ -4,7 +4,7 @@ import {
   productVisibleOnCustomerPortal,
 } from '@/lib/inventory/customer-brand';
 import { isMissingRelation } from '@/lib/business/company-data';
-import { parseProductIds } from '@/lib/orders/chain-setup';
+import { productIdsOnCustomerChains } from '@/lib/orders/chain-setup';
 import { otifefForLine, rollupOtifef } from '@/lib/portals/otifef-line';
 import { dateEnvelope } from '@/lib/projects/waterfall';
 import { enrichChainDoc } from '@/lib/orders/chain-path';
@@ -154,21 +154,15 @@ export function isPortalFinishedGood(
   );
 }
 
-/** Order-chain SKUs first, then customer-brand, then other finished goods. */
+/** Portal PO catalogue is order-chain SKUs only. */
 export function portalPoCatalogue(
   items: PortalCatalogueItem[]
 ): PortalCatalogueItem[] {
-  const rank = (i: PortalCatalogueItem) => {
-    if (i.on_chain && i.customer_brand) return 0;
-    if (i.on_chain) return 1;
-    if (i.customer_brand) return 2;
-    return 3;
-  };
   return items
-    .filter((i) => i.on_chain || i.customer_brand || isPortalFinishedGood(i.product_type))
+    .filter((i) => i.on_chain)
     .sort((a, b) => {
-      const d = rank(a) - rank(b);
-      if (d !== 0) return d;
+      if (a.customer_brand && !b.customer_brand) return -1;
+      if (!a.customer_brand && b.customer_brand) return 1;
       return a.name.localeCompare(b.name);
     });
 }
@@ -304,37 +298,36 @@ async function loadHostCatalogue(
   companyId: number,
   customerId?: number | null
 ): Promise<PortalCatalogueItem[]> {
+  if (customerId == null || customerId <= 0) return [];
   const supabase = getSupabaseServer();
+  const setups = await supabase
+    .from('order_chain_setups')
+    .select('product_ids, customer_id, status')
+    .eq('profile_id', companyId)
+    .eq('status', 'active')
+    .limit(200);
+  if (setups.error) {
+    if (!isMissingRelation(setups.error)) {
+      console.warn('portal catalogue chains', setups.error.message);
+    }
+    return [];
+  }
+  const chainIds = productIdsOnCustomerChains(setups.data || [], customerId);
+  if (!chainIds.size) return [];
+
   const { data, error } = await supabase
     .from('products')
     .select(
       'id, name, sku, product_type, uom, status, is_sellable, sell_price, cost_price, base_currency, short_description, primary_image_url, metadata'
     )
     .eq('profile_id', companyId)
+    .in('id', [...chainIds])
     .order('name');
   if (error) {
     if (!/relation|does not exist/i.test(error.message)) {
       console.warn('portal catalogue products', error.message);
     }
     return [];
-  }
-  const chainIds = new Set<number>();
-  if (customerId != null) {
-    const setups = await supabase
-      .from('order_chain_setups')
-      .select('product_ids, customer_id, status')
-      .eq('profile_id', companyId)
-      .eq('status', 'active')
-      .limit(200);
-    if (!setups.error) {
-      for (const row of setups.data || []) {
-        const cid = row.customer_id != null ? Number(row.customer_id) : null;
-        if (cid && cid !== customerId) continue;
-        for (const id of parseProductIds(row.product_ids)) chainIds.add(id);
-      }
-    } else if (!isMissingRelation(setups.error)) {
-      console.warn('portal catalogue chains', setups.error.message);
-    }
   }
   const out: PortalCatalogueItem[] = [];
   for (const raw of data || []) {
@@ -344,14 +337,8 @@ async function loadHostCatalogue(
     const type = String(raw.product_type || 'finished_good').toLowerCase();
     if (type === 'wip' || type === 'work_in_progress') continue;
     const meta = asObject(raw.metadata);
-    if (
-      customerId != null &&
-      !productVisibleOnCustomerPortal(meta, customerId)
-    ) {
-      continue;
-    }
-    const branded =
-      customerId != null && productAssignedToCustomer(meta, customerId);
+    if (!productVisibleOnCustomerPortal(meta, customerId)) continue;
+    const branded = productAssignedToCustomer(meta, customerId);
     const unit =
       Number(raw.sell_price) > 0
         ? Number(raw.sell_price)
@@ -369,7 +356,7 @@ async function loadHostCatalogue(
       primary_image_url:
         raw.primary_image_url != null ? String(raw.primary_image_url) : null,
       customer_brand: branded,
-      on_chain: chainIds.has(Number(raw.id)),
+      on_chain: true,
     });
   }
   return portalPoCatalogue(out);
@@ -975,8 +962,7 @@ export async function loadPortalWorkspace(opts: {
     });
   }
 
-  // Customer portal: this customer's branded SKUs, then shared finished goods.
-  // Private-label SKUs tagged to another customer never appear here.
+  // Customer portal PO catalogue is order-chain SKUs for this customer only.
   const catalogue =
     kind === 'customer'
       ? await loadHostCatalogue(companyId, opts.viewer.customer_id)

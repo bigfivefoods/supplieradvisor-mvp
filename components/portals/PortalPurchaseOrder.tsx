@@ -8,7 +8,6 @@ import {
   ChevronRight,
   FileText,
   Paperclip,
-  Plus,
   Search,
   Trash2,
 } from 'lucide-react';
@@ -19,7 +18,6 @@ import {
 } from '@/lib/customers/documents';
 import { addDays, isoDay } from '@/lib/projects/waterfall';
 import {
-  isPortalFinishedGood,
   type BookProfile,
   type PortalCatalogueItem,
 } from '@/lib/portals/trade-portal-workspace';
@@ -87,10 +85,10 @@ function CatalogueTile({
             item.sku,
             item.uom,
             item.on_chain
-              ? 'On order chain'
+              ? 'On your order chain'
               : item.customer_brand
                 ? 'Your brand'
-                : 'Finished good',
+                : null,
           ]
             .filter(Boolean)
             .join(' · ')}
@@ -186,10 +184,7 @@ export function PortalPurchaseOrder({
   const [lines, setLines] = useState<Line[]>([]);
   const [q, setQ] = useState('');
   const [chipQty, setChipQty] = useState(1);
-  const [freeName, setFreeName] = useState('');
-  const [freeQty, setFreeQty] = useState('1');
-  const [freePrice, setFreePrice] = useState('');
-  const [freeUom, setFreeUom] = useState('ea');
+
   const [shipSame, setShipSame] = useState(true);
   const [billTo, setBillTo] = useState(
     [book?.address, book?.city, book?.country].filter(Boolean).join('\n')
@@ -216,29 +211,8 @@ export function PortalPurchaseOrder({
   } | null>(null);
 
   const taxRate = portalPoTaxRate(hostCountry || book?.country);
-  const chained = useMemo(
-    () => catalogue.filter((c) => c.on_chain),
-    [catalogue]
-  );
-  const branded = useMemo(
-    () => catalogue.filter((c) => c.customer_brand && !c.on_chain),
-    [catalogue]
-  );
-  const otherFg = useMemo(
-    () =>
-      catalogue.filter(
-        (c) =>
-          !c.on_chain &&
-          !c.customer_brand &&
-          isPortalFinishedGood(c.product_type)
-      ),
-    [catalogue]
-  );
-  const pool = useMemo(
-    () => [...chained, ...branded, ...otherFg],
-    [chained, branded, otherFg]
-  );
-  const hasChains = chained.length > 0;
+  const pool = catalogue;
+  const hasChains = catalogue.length > 0;
   const filtered = useMemo(() => {
     const n = q.trim().toLowerCase();
     if (!n) return pool;
@@ -283,28 +257,10 @@ export function PortalPurchaseOrder({
     });
   };
 
-  const addFreeLine = () => {
-    const name = freeName.trim();
-    if (!name) return;
-    setLines((prev) => [
-      ...prev,
-      {
-        key: `f-${Date.now()}`,
-        product_id: null,
-        name,
-        sku: null,
-        qty: Math.max(1, Number(freeQty) || 1),
-        unit_price: Number(freePrice) || 0,
-        uom: freeUom.trim() || 'ea',
-      },
-    ]);
-    setFreeName('');
-    setFreeQty('1');
-    setFreePrice('');
-  };
-
   const headerOk = Boolean(poNumber.trim() && poDate && deliveryDate);
-  const linesOk = lines.length > 0 && lines.every((l) => l.qty > 0);
+  const linesOk =
+    lines.length > 0 &&
+    lines.every((l) => l.qty > 0 && l.product_id != null && l.product_id > 0);
   const deliveryOk = Boolean((shipSame ? billTo : shipTo).trim() && contactName.trim());
 
   const canNext =
@@ -383,6 +339,29 @@ export function PortalPurchaseOrder({
     }
   };
 
+  if (!hasChains) {
+    return (
+      <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50/80 p-6 sm:p-8 shadow-sm">
+        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-amber-900">
+          Purchase order
+        </p>
+        <h2 className="mt-1 text-xl font-black text-slate-900">
+          No order chain for this account
+        </h2>
+        <p className="mt-2 text-sm text-slate-700 leading-relaxed">
+          {hostName} has not set up an order chain for{' '}
+          <strong>{accountName || 'this customer'}</strong> yet. Portal orders
+          only use products on a saved chain — customer, those products, and
+          the supplier who makes them.
+        </p>
+        <p className="mt-2 text-sm text-slate-600">
+          Ask them to add a chain under Operations → Order chains, then refresh
+          this page.
+        </p>
+      </div>
+    );
+  }
+
   if (done) {
     return (
       <div className="rounded-[1.5rem] border border-emerald-200 bg-white p-6 sm:p-8 text-center shadow-sm">
@@ -446,8 +425,9 @@ export function PortalPurchaseOrder({
           Official order to {hostName}
         </h2>
         <p className="mt-1 text-sm text-slate-600">
-          Four steps: header, products, delivery, then review and send. This
-          becomes a purchase order and a sales order on {hostName}’s books.
+          Four steps: header, products on your order chain, delivery, then
+          review and send. Only SKUs {hostName} set up for this account can be
+          ordered here.
         </p>
         <ol className="mt-4 grid grid-cols-4 gap-1.5">
           {STEPS.map((s) => {
@@ -551,10 +531,7 @@ export function PortalPurchaseOrder({
                   Catalogue
                 </p>
                 <p className="text-sm text-slate-600">
-                  {hasChains
-                    ? 'Products on your order chain first, then other finished goods.'
-                    : `Your brand first, then ${hostName} finished goods.`}{' '}
-                  Same SKU merges quantity.
+                  Products on your order chain. Same SKU merges quantity.
                 </p>
               </div>
               <label className="inline-flex items-center gap-1.5 text-xs font-semibold">
@@ -595,70 +572,28 @@ export function PortalPurchaseOrder({
                 </ul>
               ) : (
                 <div className="max-h-80 space-y-3 overflow-y-auto">
-                  {chained.length ? (
-                    <div className="space-y-2">
-                      <p className="text-[10px] font-black uppercase tracking-wider text-[#0077b6]">
-                        On your order chain
-                      </p>
-                      <ul className="grid gap-2 sm:grid-cols-2">
-                        {chained.map((c) => (
-                          <li key={c.id}>
-                            <CatalogueTile
-                              item={c}
-                              currency={currency}
-                              busy={busy}
-                              onAdd={addFromCatalogue}
-                            />
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                  {branded.length ? (
-                    <div className="space-y-2">
-                      <p className="text-[10px] font-black uppercase tracking-wider text-[#0077b6]">
-                        Your brand
-                      </p>
-                      <ul className="grid gap-2 sm:grid-cols-2">
-                        {branded.map((c) => (
-                          <li key={c.id}>
-                            <CatalogueTile
-                              item={c}
-                              currency={currency}
-                              busy={busy}
-                              onAdd={addFromCatalogue}
-                            />
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                  {otherFg.length ? (
-                    <div className="space-y-2">
-                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        {hostName} finished goods
-                      </p>
-                      <ul className="grid gap-2 sm:grid-cols-2">
-                        {otherFg.map((c) => (
-                          <li key={c.id}>
-                            <CatalogueTile
-                              item={c}
-                              currency={currency}
-                              busy={busy}
-                              onAdd={addFromCatalogue}
-                            />
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-[#0077b6]">
+                      On your order chain
+                    </p>
+                    <ul className="grid gap-2 sm:grid-cols-2">
+                      {filtered.map((c) => (
+                        <li key={c.id}>
+                          <CatalogueTile
+                            item={c}
+                            currency={currency}
+                            busy={busy}
+                            onAdd={addFromCatalogue}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
               )
             ) : (
               <p className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-                {pool.length
-                  ? 'No catalogue match.'
-                  : 'No published catalogue — add a free-text line below.'}
+                No catalogue match.
               </p>
             )}
           </div>
@@ -669,7 +604,7 @@ export function PortalPurchaseOrder({
             </div>
             {lines.length === 0 ? (
               <p className="px-5 py-8 text-sm text-neutral-500">
-                No lines yet. Add from the catalogue or a free-text item.
+                No lines yet. Add products from your order chain.
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -690,16 +625,8 @@ export function PortalPurchaseOrder({
                         <td className="px-4 py-2.5">
                           <p className="font-bold text-slate-900">{l.name}</p>
                           <p className="text-[11px] text-neutral-500">
-                            {l.sku || 'Free-text'}
+                            {l.sku || 'SKU'}
                           </p>
-                          {hasChains &&
-                          l.product_id &&
-                          !catalogue.find((c) => c.id === l.product_id)?.on_chain ? (
-                            <p className="mt-0.5 text-[11px] font-semibold text-amber-800">
-                              Not on an order chain yet — we’ll confirm the
-                              manufacturer.
-                            </p>
-                          ) : null}
                         </td>
                         <td className="px-3 py-2.5 text-neutral-600">{l.uom || 'ea'}</td>
                         <td className="px-3 py-2.5">
@@ -763,40 +690,7 @@ export function PortalPurchaseOrder({
                 </table>
               </div>
             )}
-            <div className="grid gap-2 border-t border-dashed border-slate-200 p-4 sm:grid-cols-5">
-              <input
-                className="input sm:col-span-2 !p-2.5 !text-sm"
-                placeholder="Free-text item"
-                value={freeName}
-                onChange={(e) => setFreeName(e.target.value)}
-              />
-              <input
-                className="input !p-2.5 !text-sm"
-                placeholder="Qty"
-                value={freeQty}
-                onChange={(e) => setFreeQty(e.target.value)}
-              />
-              <input
-                className="input !p-2.5 !text-sm"
-                placeholder="Unit price"
-                value={freePrice}
-                onChange={(e) => setFreePrice(e.target.value)}
-              />
-              <button
-                type="button"
-                disabled={!freeName.trim()}
-                onClick={addFreeLine}
-                className="btn-secondary !py-2 text-xs inline-flex items-center justify-center gap-1"
-              >
-                <Plus className="h-3.5 w-3.5" /> Add
-              </button>
-              <input
-                className="input sm:col-span-5 !p-2 !text-xs"
-                placeholder="UOM (ea, case, kg…)"
-                value={freeUom}
-                onChange={(e) => setFreeUom(e.target.value)}
-              />
-            </div>
+
             <div className="space-y-1 border-t border-slate-100 px-5 py-4 text-sm">
               <div className="flex justify-between text-neutral-600">
                 <span>Subtotal</span>

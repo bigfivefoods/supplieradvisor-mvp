@@ -6,6 +6,7 @@ import {
   groupSoItemsByChain,
   mapChainSetup,
   pickSetupForLine,
+  productIdsOnCustomerChains,
   scoreChainSetup,
 } from './chain-setup';
 
@@ -59,5 +60,9 @@ assert.equal(
   1
 );
 assert.equal(groups.find((g) => g.srmSupplierId == null)?.items.length, 1);
+
+const allowed = productIdsOnCustomerChains([a, b, anyCust], 44);
+assert.deepEqual([...allowed].sort((x, y) => x - y), [101, 102, 201]);
+assert.equal(productIdsOnCustomerChains([a, b, anyCust], 99).size, 0);
 
 console.log('chain-setup.test.ts ok');

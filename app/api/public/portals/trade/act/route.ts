@@ -1249,43 +1249,38 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      const productIds = [
-        ...new Set(
-          lines
-            .map((l) => Number(l.product_id))
-            .filter((id) => Number.isFinite(id) && id > 0)
-        ),
-      ];
-      if (productIds.length) {
-        const { productVisibleOnCustomerPortal } = await import(
-          '@/lib/inventory/customer-brand'
+      const { productIdsOnCustomerChains } = await import(
+        '@/lib/orders/chain-setup'
+      );
+      const setupsHit = await supabase
+        .from('order_chain_setups')
+        .select('customer_id, product_ids, status')
+        .eq('profile_id', portal.profile_id)
+        .eq('status', 'active')
+        .limit(200);
+      const allowed = productIdsOnCustomerChains(
+        setupsHit.data || [],
+        viewer.customer_id
+      );
+      if (!allowed.size) {
+        return NextResponse.json(
+          {
+            error:
+              'No order chain is set up for this account. Ask your supplier to add one before you can raise a purchase order.',
+          },
+          { status: 403 }
         );
-        const { data: skus } = await supabase
-          .from('products')
-          .select('id, metadata')
-          .eq('profile_id', portal.profile_id)
-          .in('id', productIds);
-        const byId = new Map(
-          (skus || []).map((p) => [Number(p.id), p] as const)
-        );
-        for (const id of productIds) {
-          const sku = byId.get(id);
-          if (!sku) {
-            return NextResponse.json(
-              { error: 'A product on this PO is not in your catalogue' },
-              { status: 403 }
-            );
-          }
-          const meta =
-            sku.metadata && typeof sku.metadata === 'object' && !Array.isArray(sku.metadata)
-              ? (sku.metadata as Record<string, unknown>)
-              : {};
-          if (!productVisibleOnCustomerPortal(meta, viewer.customer_id)) {
-            return NextResponse.json(
-              { error: 'That product is not on this customer portal' },
-              { status: 403 }
-            );
-          }
+      }
+      for (const line of lines) {
+        const id = Number(line.product_id);
+        if (!Number.isFinite(id) || id <= 0 || !allowed.has(id)) {
+          return NextResponse.json(
+            {
+              error:
+                'You can only order products on your order chain. Remove items that are not set up.',
+            },
+            { status: 403 }
+          );
         }
       }
       const qty = lines.reduce((n, l) => n + Number(l.qty || 0), 0);

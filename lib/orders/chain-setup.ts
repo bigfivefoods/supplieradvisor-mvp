@@ -85,6 +85,25 @@ export function scoreChainSetup(
   return score;
 }
 
+/** Product ids this customer may order on the portal (active chains only). */
+export function productIdsOnCustomerChains(
+  setups: Array<{
+    customer_id: number | null;
+    product_ids: unknown;
+    status?: string | null;
+  }>,
+  customerId: number
+): Set<number> {
+  const out = new Set<number>();
+  if (!Number.isFinite(customerId) || customerId <= 0) return out;
+  for (const s of setups) {
+    if (String(s.status || 'active') !== 'active') continue;
+    if (Number(s.customer_id) !== customerId) continue;
+    for (const id of parseProductIds(s.product_ids)) out.add(id);
+  }
+  return out;
+}
+
 export function pickSetupForLine(
   setups: OrderChainSetup[],
   customerId: number | null,

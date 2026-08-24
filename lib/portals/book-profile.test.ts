@@ -85,15 +85,11 @@ const cat: PortalCatalogueItem[] = [
     primary_image_url: null,
   },
 ];
-const pooled = portalPoCatalogue(cat);
-assert.deepEqual(
-  pooled.map((p) => p.id),
-  [1, 2]
-);
+assert.deepEqual(portalPoCatalogue(cat).map((p) => p.id), []);
 
 const chained = portalPoCatalogue([
   { ...cat[0], on_chain: false },
-  { ...cat[1], on_chain: false },
+  { ...cat[1], on_chain: true, customer_brand: true },
   {
     id: 4,
     name: 'Chain SKU',
@@ -107,6 +103,9 @@ const chained = portalPoCatalogue([
     on_chain: true,
   },
 ]);
-assert.equal(chained[0].id, 4);
+assert.deepEqual(
+  chained.map((p) => p.id),
+  [1, 4]
+);
 
 console.log('book-profile.test.ts ok');
