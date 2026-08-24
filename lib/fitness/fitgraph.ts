@@ -339,6 +339,8 @@ export type FitCoach = {
   /** Can manage own sessions (edit capacity, cancel, share) */
   can_manage_classes?: boolean;
   active?: boolean;
+  /** Lower first on shop, website, and the coaches desk. */
+  sort_order?: number;
   color?: string;
   /**
    * Current engagement start (owner-set).

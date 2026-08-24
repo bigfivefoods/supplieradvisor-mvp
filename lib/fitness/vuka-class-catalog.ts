@@ -23,6 +23,7 @@ import {
   SYS_PT_CODE,
 } from '@/lib/fitness/session-times';
 import { ensureDemoShopProgramme } from '@/lib/fitness/demo-shop-programme';
+import { vukaShopCoachRank } from '@/lib/fitness/gym-shop';
 
 export const VUKA_COMPANY_ID = 110;
 
@@ -1306,6 +1307,31 @@ export function ensureVukaShopOffers(
   return changed;
 }
 
+/** Bianca, Miri, Jared, Jaryyd, Sophie — then everyone else. */
+export function ensureVukaCoachOrder(store: FitgraphStore): boolean {
+  const list = store.coaches || [];
+  if (!list.length) return false;
+  const sorted = list.slice().sort((a, b) => {
+    const r = vukaShopCoachRank(a.name) - vukaShopCoachRank(b.name);
+    if (r !== 0) return r;
+    return String(a.name).localeCompare(String(b.name));
+  });
+  let changed = false;
+  sorted.forEach((c, i) => {
+    const order = 10 * (i + 1);
+    if (c.sort_order !== order) {
+      c.sort_order = order;
+      changed = true;
+    }
+  });
+  const same = sorted.every((c, i) => c.id === list[i]?.id);
+  if (!same) {
+    store.coaches = sorted;
+    changed = true;
+  }
+  return changed;
+}
+
 export async function persistVukaCatalogIfNeeded(
   companyId: number,
   store: FitgraphStore,
@@ -1342,6 +1368,7 @@ export async function persistVukaCatalogIfNeeded(
   }
   if (ensureDemoShopProgramme(next)) dirty = true;
   if (ensureVukaShopOffers(next)) dirty = true;
+  if (ensureVukaCoachOrder(next)) dirty = true;
   if (dirty) {
     await save(next);
   }

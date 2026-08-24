@@ -10,6 +10,7 @@ import {
   isVukaFitnessCompany,
   listSubscribeClasses,
   persistVukaCatalogIfNeeded,
+  ensureVukaCoachOrder,
   storeUsesClassSubscribe,
   memberMayBookSession,
   planCoversSession,
@@ -325,5 +326,32 @@ void (async () => {
     otherSaved += 1;
   });
   assert.equal(otherSaved, 0);
+const coaches = emptyFitgraphStore();
+coaches.coaches = [
+  {
+    id: 'sophie',
+    code: 'SP',
+    name: 'Sophie Pearce',
+    created_at: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'bianca',
+    code: 'BW',
+    name: 'Bianca Westhorpe-Pottow',
+    created_at: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'jared',
+    code: 'JM',
+    name: 'Jared Martin',
+    created_at: '2026-01-01T00:00:00.000Z',
+  },
+];
+assert.equal(ensureVukaCoachOrder(coaches), true);
+assert.deepEqual(
+  coaches.coaches.map((c) => c.id),
+  ['bianca', 'jared', 'sophie']
+);
+
   console.log('vuka-class-catalog.test.ts ok');
 })();
