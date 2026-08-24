@@ -272,3 +272,113 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
   }
 }
+
+/**
+ * DELETE ?id=&companyId=&privyUserId=
+ * Remove a book-only or duplicate SRM row. History-linked rows archive instead.
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const sp = request.nextUrl.searchParams;
+    const id = Number(sp.get('id'));
+    const companyId = Number(sp.get('companyId'));
+    const privyUserId = sp.get('privyUserId');
+    if (!Number.isFinite(id) || id <= 0) {
+      return NextResponse.json({ error: 'id required' }, { status: 400 });
+    }
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    if (privyUserId) {
+      const mem = await assertCompanyMember(privyUserId, companyId);
+      if (!mem.ok) {
+        return NextResponse.json({ error: mem.error }, { status: mem.status });
+      }
+    } else {
+      const gate = await requireCompanyAccess(request, companyId, {
+        legacyPrivyUserId: legacyPrivyFrom(request),
+      });
+      if (!gate.ok) return gate.response;
+    }
+
+    const supabase = getSupabaseServer();
+    const { data: row } = await supabase
+      .from('srm_suppliers')
+      .select('id, trading_name, status')
+      .eq('id', id)
+      .eq('profile_id', companyId)
+      .maybeSingle();
+    if (!row) {
+      return NextResponse.json({ error: 'Supplier not found' }, { status: 404 });
+    }
+
+    await supabase
+      .from('trade_portal_viewers')
+      .update({ status: 'revoked', updated_at: new Date().toISOString() })
+      .eq('profile_id', companyId)
+      .eq('supplier_id', id);
+
+    const { error } = await supabase
+      .from('srm_suppliers')
+      .delete()
+      .eq('id', id)
+      .eq('profile_id', companyId);
+
+    if (error) {
+      const archived = await supabase
+        .from('srm_suppliers')
+        .update({
+          status: 'archived',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('profile_id', companyId)
+        .select('id')
+        .maybeSingle();
+      if (archived.error) {
+        return NextResponse.json(
+          {
+            error:
+              'This supplier is linked to orders or a portal, so it cannot be deleted. Archive failed too.',
+            detail: error.message,
+          },
+          { status: 409 }
+        );
+      }
+      return NextResponse.json({
+        success: true,
+        archived: true,
+        warning:
+          'Could not hard-delete because orders or links still point at this row. It is archived and hidden from active lists.',
+      });
+    }
+
+    try {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('settings')
+        .eq('id', companyId)
+        .maybeSingle();
+      const settings =
+        prof?.settings && typeof prof.settings === 'object'
+          ? { ...(prof.settings as Record<string, unknown>) }
+          : {};
+      if (Number(settings.preferred_srm_supplier_id) === id) {
+        settings.preferred_srm_supplier_id = null;
+        await supabase
+          .from('profiles')
+          .update({ settings, updated_at: new Date().toISOString() })
+          .eq('id', companyId);
+      }
+    } catch {
+      /* preferred-manufacturer clear is optional */
+    }
+
+    return NextResponse.json({ success: true, deleted: true });
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Error' },
+      { status: 500 }
+    );
+  }
+}

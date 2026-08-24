@@ -11,6 +11,7 @@ import {
   Truck,
   Mail,
   TrendingUp,
+  Trash2,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -118,6 +119,41 @@ function NetworkInner() {
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Invite failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const remove = async (s: SrmSupplierRecord) => {
+    if (!privyUserId) {
+      toast.error('Sign in required');
+      return;
+    }
+    if (
+      !confirm(
+        `Delete ${s.trading_name} from your supplier book? This cannot be undone. If it has purchase orders, it will be archived instead.`
+      )
+    ) {
+      return;
+    }
+    setBusyId(s.id);
+    try {
+      const params = new URLSearchParams({
+        id: String(s.id),
+        companyId: String(companyId),
+        privyUserId,
+      });
+      const res = await fetch(`/api/suppliers?${params}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Delete failed');
+      toast.success(
+        data.archived
+          ? `${s.trading_name} archived (still linked to orders)`
+          : `${s.trading_name} deleted`
+      );
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Delete failed');
     } finally {
       setBusyId(null);
     }
@@ -314,6 +350,21 @@ function NetworkInner() {
                             Invite
                           </button>
                         )}
+                        {s.status !== 'archived' ? (
+                          <button
+                            type="button"
+                            disabled={busyId === s.id}
+                            onClick={() => void remove(s)}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-rose-200 text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                          >
+                            {busyId === s.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
+                            Delete
+                          </button>
+                        ) : null}
                       </div>
                       </div>
                     </div>
