@@ -78,7 +78,7 @@ function DocTable({
                 </div>
                 <div className="flex items-center gap-2">
                   <span
-                    className={`text-[10px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 ${statusTone(r.status)}`}
+                    className={`text-[10px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 ${statusTone(r.status)}`
                   >
                     {r.status.replace(/_/g, ' ')}
                   </span>
@@ -172,7 +172,7 @@ export default function GuestTradePortalPage() {
   return (
     <div className="min-h-[100dvh] bg-slate-50">
       <header className="border-b border-white/70 bg-white/80 backdrop-blur-md">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             {host.logo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -201,7 +201,7 @@ export default function GuestTradePortalPage() {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-10">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
         <div className="sa-page space-y-5">
         <section className="rounded-[1.75rem] border border-white/80 bg-white/90 p-6 sm:p-8 shadow-sm">
           <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#0077b6]">
@@ -356,7 +356,7 @@ export default function GuestTradePortalPage() {
         </div>
       </main>
 
-      <footer className="max-w-3xl mx-auto px-4 pb-10 text-center text-[11px] text-neutral-400">
+      <footer className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10 text-center text-[11px] text-neutral-400">
         <Link href="/" className="hover:text-[#0077b6]">
           SupplierAdvisor®
         </Link>
