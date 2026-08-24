@@ -3,24 +3,24 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, RefreshCw, TrendingUp } from 'lucide-react';
 import {
-  convertAmount,
-  formatFxRate,
+  ZAR_DISPLAY_PAIRS,
+  formatZarPair,
+  rateToZar,
   type FxRatesPayload,
 } from '@/lib/fx/types';
 
 type Props = {
-  /** Document / form currency for contextual conversion */
+  /** Kept for call-site compat — strip always quotes USD / GBP / EUR in ZAR. */
   currency?: string;
   className?: string;
   compact?: boolean;
 };
 
 /**
- * Live FX strip — USD-based reference rates for global trading context.
+ * Live FX strip — USD:ZAR, GBP:ZAR, EUR:ZAR only.
  * Rates are indicative (ECB via Frankfurter); not a bank feed.
  */
 export default function FxRateStrip({
-  currency = 'ZAR',
   className = '',
   compact = false,
 }: Props) {
@@ -56,29 +56,11 @@ export default function FxRateStrip({
     return () => clearInterval(t);
   }, [load]);
 
-  const cur = (currency || 'ZAR').toUpperCase();
   const rates = fx?.rates || {};
-
-  // 1 USD → doc currency
-  const usdToDoc = cur === 'USD' ? 1 : rates[cur] ?? null;
-  // 1 doc → USD
-  const docToUsd =
-    cur === 'USD' ? 1 : usdToDoc && usdToDoc > 0 ? 1 / usdToDoc : null;
-
-  const pairs: { label: string; rate: number | null }[] = [
-    { label: 'USD→' + cur, rate: usdToDoc },
-    { label: cur + '→USD', rate: docToUsd },
-  ];
-
-  // Extra majors for bearing
-  for (const c of ['EUR', 'GBP', 'ZAR', 'KES']) {
-    if (c === cur || c === 'USD') continue;
-    const r = rates[c];
-    if (r != null) pairs.push({ label: 'USD→' + c, rate: r });
-  }
-
-  // Sample: 100 units of doc currency in USD
-  const sample100Usd = convertAmount(100, cur, 'USD', rates);
+  const pairs = ZAR_DISPLAY_PAIRS.map((from) => ({
+    from,
+    label: formatZarPair(from, rateToZar(from, rates)),
+  }));
 
   if (compact) {
     return (
@@ -90,14 +72,11 @@ export default function FxRateStrip({
           <Loader2 className="w-3 h-3 animate-spin" />
         ) : (
           <>
-            <span className="font-semibold text-slate-700">
-              {formatFxRate('USD', cur, usdToDoc)}
-            </span>
-            {docToUsd != null && (
-              <span className="text-neutral-500">
-                {formatFxRate(cur, 'USD', docToUsd)}
+            {pairs.map((p) => (
+              <span key={p.from} className="font-semibold text-slate-700 tabular-nums">
+                {p.label}
               </span>
-            )}
+            ))}
             {fx?.date && (
               <span className="text-neutral-400">· {fx.date}</span>
             )}
@@ -125,7 +104,7 @@ export default function FxRateStrip({
       <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-2 text-xs font-bold text-[#0077b6]">
           <TrendingUp className="w-4 h-4" />
-          Live FX (USD reference)
+          Live FX
         </div>
         <button
           type="button"
@@ -144,37 +123,15 @@ export default function FxRateStrip({
       ) : (
         <>
           <div className="flex flex-wrap gap-2">
-            {pairs.slice(0, 6).map((p) => (
+            {pairs.map((p) => (
               <span
-                key={p.label}
+                key={p.from}
                 className="text-[11px] font-semibold px-2 py-1 rounded-full bg-white border border-neutral-200 text-slate-700 tabular-nums"
               >
-                {p.label.replace('→', ' → ')}:{' '}
-                {p.rate != null
-                  ? p.rate >= 1
-                    ? p.rate.toFixed(4)
-                    : p.rate.toFixed(6)
-                  : '—'}
+                {p.label}
               </span>
             ))}
           </div>
-          {sample100Usd != null && cur !== 'USD' && (
-            <p className="text-[11px] text-neutral-500 mt-2">
-              Bearing: 100 {cur} ≈{' '}
-              <strong className="text-slate-700">
-                {sample100Usd.toFixed(2)} USD
-              </strong>
-              {usdToDoc != null && (
-                <>
-                  {' '}
-                  · 100 USD ≈{' '}
-                  <strong className="text-slate-700">
-                    {(100 * usdToDoc).toFixed(2)} {cur}
-                  </strong>
-                </>
-              )}
-            </p>
-          )}
           <p className="text-[10px] text-neutral-400 mt-1.5">
             Indicative ECB reference
             {fx?.date ? ` · ${fx.date}` : ''}

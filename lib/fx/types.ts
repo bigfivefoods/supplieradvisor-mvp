@@ -51,3 +51,29 @@ export function formatFxRate(from: string, to: string, rate: number | null): str
   const decimals = rate >= 100 ? 2 : rate >= 1 ? 4 : 6;
   return `1 ${from} = ${rate.toFixed(decimals)} ${to}`;
 }
+
+/** FX strip display — majors quoted in ZAR only. */
+export const ZAR_DISPLAY_PAIRS = ['USD', 'GBP', 'EUR'] as const;
+
+/** Units of ZAR per 1 unit of `from`, given USD-based rates. */
+export function rateToZar(
+  from: string,
+  ratesUsd: Record<string, number>
+): number | null {
+  const f = from.toUpperCase();
+  const zarPerUsd = ratesUsd.ZAR;
+  if (zarPerUsd == null || !Number.isFinite(zarPerUsd) || zarPerUsd <= 0) return null;
+  if (f === 'ZAR') return 1;
+  if (f === 'USD') return zarPerUsd;
+  const fromPerUsd = ratesUsd[f];
+  if (fromPerUsd == null || !Number.isFinite(fromPerUsd) || fromPerUsd <= 0) return null;
+  return zarPerUsd / fromPerUsd;
+}
+
+/** e.g. USD:ZAR (1:18.4521) */
+export function formatZarPair(from: string, rate: number | null): string {
+  const code = from.toUpperCase();
+  if (rate == null || !Number.isFinite(rate)) return `${code}:ZAR (1:—)`;
+  const decimals = rate >= 100 ? 2 : rate >= 1 ? 4 : 6;
+  return `${code}:ZAR (1:${rate.toFixed(decimals)})`;
+}
