@@ -1,4 +1,5 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { productAssignedToCustomer } from '@/lib/inventory/customer-brand';
 import { otifefForLine, rollupOtifef } from '@/lib/portals/otifef-line';
 import type { OtifefMetrics } from '@/lib/suppliers/types';
 import type {
@@ -68,6 +69,7 @@ export type PortalCatalogueItem = {
   currency: string;
   short_description: string | null;
   primary_image_url: string | null;
+  customer_brand?: boolean;
 };
 
 export type PortalWorkspace = {
@@ -115,12 +117,15 @@ function poToDoc(r: Record<string, unknown>, otifefInput: Parameters<typeof otif
   };
 }
 
-async function loadHostCatalogue(companyId: number): Promise<PortalCatalogueItem[]> {
+async function loadHostCatalogue(
+  companyId: number,
+  customerId?: number | null
+): Promise<PortalCatalogueItem[]> {
   const supabase = getSupabaseServer();
   const { data, error } = await supabase
     .from('products')
     .select(
-      'id, name, sku, product_type, uom, status, is_sellable, sell_price, cost_price, base_currency, short_description, primary_image_url'
+      'id, name, sku, product_type, uom, status, is_sellable, sell_price, cost_price, base_currency, short_description, primary_image_url, metadata'
     )
     .eq('profile_id', companyId)
     .order('name');
@@ -137,6 +142,9 @@ async function loadHostCatalogue(companyId: number): Promise<PortalCatalogueItem
     if (raw.is_sellable === false) continue;
     const type = String(raw.product_type || 'finished_good').toLowerCase();
     if (type === 'wip' || type === 'work_in_progress') continue;
+    const meta = asObject(raw.metadata);
+    const branded =
+      customerId != null && productAssignedToCustomer(meta, customerId);
     const unit =
       Number(raw.sell_price) > 0
         ? Number(raw.sell_price)
@@ -153,9 +161,17 @@ async function loadHostCatalogue(companyId: number): Promise<PortalCatalogueItem
         raw.short_description != null ? String(raw.short_description) : null,
       primary_image_url:
         raw.primary_image_url != null ? String(raw.primary_image_url) : null,
+      customer_brand: branded,
     });
   }
-  return out;
+  out.sort((a, b) => {
+    if (!!a.customer_brand !== !!b.customer_brand) {
+      return a.customer_brand ? -1 : 1;
+    }
+    return a.name.localeCompare(b.name);
+  });
+  const branded = out.filter((p) => p.customer_brand);
+  return branded.length ? branded : out;
 }
 
 export async function loadPortalWorkspace(opts: {
@@ -554,9 +570,11 @@ export async function loadPortalWorkspace(opts: {
     });
   }
 
-  // Customer portal: host's sellable catalogue (e.g. Boxer Soya finished goods)
+  // Customer portal: branded SKUs when tagged, else host sellable catalogue
   const catalogue =
-    kind === 'customer' ? await loadHostCatalogue(companyId) : [];
+    kind === 'customer'
+      ? await loadHostCatalogue(companyId, opts.viewer.customer_id)
+      : [];
 
   return {
     onBooks: true,

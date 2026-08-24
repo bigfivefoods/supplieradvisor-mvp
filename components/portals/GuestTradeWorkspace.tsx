@@ -7,13 +7,19 @@ import {
 } from '@/lib/ratings/company-rating';
 import { StarRating } from '@/components/ratings/StarRating';
 import { formatMoney } from '@/lib/customers/types';
-import { otifefBand } from '@/lib/suppliers/types';
-import type { PublicPortalPayload } from '@/lib/portals/trade-portal';
-import type { BookProfile } from '@/lib/portals/trade-portal-workspace';
+import { OtifefKpiCard } from '@/components/portals/OtifefKpiCard';
+import type {
+  PortalPersonPublic,
+  PublicPortalPayload,
+} from '@/lib/portals/trade-portal';
+import type {
+  BookProfile,
+  PortalCatalogueItem,
+} from '@/lib/portals/trade-portal-workspace';
 import { addDays, isoDay } from '@/lib/projects/waterfall';
 import { WaterfallGantt } from '@/components/projects/WaterfallGantt';
 
-type Tab =
+export type GuestPortalTab =
   | 'profile'
   | 'orders'
   | 'otifef'
@@ -23,7 +29,41 @@ type Tab =
   | 'messages'
   | 'reviews'
   | 'newpo'
-  | 'projects';
+  | 'projects'
+  | 'people';
+
+export function guestPortalTabs(opts: {
+  kind: 'customer' | 'supplier';
+  profileGaps?: number;
+}): Array<{ id: GuestPortalTab; label: string }> {
+  const gaps = opts.profileGaps || 0;
+  const profile = gaps ? `Profile (${gaps})` : 'Profile';
+  if (opts.kind === 'supplier') {
+    return [
+      { id: 'profile', label: profile },
+      { id: 'orders', label: 'Purchase orders' },
+      { id: 'otifef', label: 'OTIFEF metrics' },
+      { id: 'projects', label: 'Projects' },
+      { id: 'stock', label: 'Stock' },
+      { id: 'riad', label: 'RIAD' },
+      { id: 'messages', label: 'Messages' },
+      { id: 'people', label: 'People' },
+      { id: 'reviews', label: 'Ratings' },
+    ];
+  }
+  return [
+    { id: 'profile', label: profile },
+    { id: 'orders', label: 'Sales orders' },
+    { id: 'otifef', label: 'OTIFEF metrics' },
+    { id: 'statement', label: 'Statement' },
+    { id: 'projects', label: 'Projects' },
+    { id: 'newpo', label: 'Raise a PO' },
+    { id: 'people', label: 'People' },
+    { id: 'riad', label: 'RIAD' },
+    { id: 'messages', label: 'Messages' },
+    { id: 'reviews', label: 'Ratings' },
+  ];
+}
 
 const EMPTY_PROFILE: BookProfile = {
   trading_name: '',
@@ -51,37 +91,18 @@ export function GuestTradeWorkspace({
   token,
   portal,
   onRefresh,
+  tab,
+  onTab,
 }: {
   token: string;
   portal: PublicPortalPayload;
   onRefresh: () => void;
+  tab: GuestPortalTab;
+  onTab: (id: GuestPortalTab) => void;
 }) {
   const ws = portal.workspace;
   const isSupplier = portal.kind === 'supplier';
   const gaps = ws?.profileGaps || [];
-  const tabs: Array<{ id: Tab; label: string }> = isSupplier
-    ? [
-        { id: 'profile', label: gaps.length ? `Profile (${gaps.length})` : 'Profile' },
-        { id: 'orders', label: 'Purchase orders' },
-        { id: 'otifef', label: 'OTIFEF metrics' },
-        { id: 'projects', label: 'Projects' },
-        { id: 'stock', label: 'Stock' },
-        { id: 'riad', label: 'RIAD' },
-        { id: 'messages', label: 'Messages' },
-        { id: 'reviews', label: 'Ratings' },
-      ]
-    : [
-        { id: 'profile', label: gaps.length ? `Profile (${gaps.length})` : 'Profile' },
-        { id: 'orders', label: 'Sales orders' },
-        { id: 'otifef', label: 'OTIFEF metrics' },
-        { id: 'statement', label: 'Statement' },
-        { id: 'projects', label: 'Projects' },
-        { id: 'newpo', label: 'Raise a PO' },
-        { id: 'riad', label: 'RIAD' },
-        { id: 'messages', label: 'Messages' },
-        { id: 'reviews', label: 'Ratings' },
-      ];
-  const [tab, setTab] = useState<Tab>(gaps.length ? 'profile' : 'orders');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
@@ -96,7 +117,13 @@ export function GuestTradeWorkspace({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      setNote('Saved');
+      setNote(
+        payload.action === 'project_create'
+          ? 'Project created'
+          : payload.action === 'po_create'
+            ? 'Purchase order sent'
+            : 'Saved'
+      );
       onRefresh();
     } catch (e) {
       setNote(e instanceof Error ? e.message : 'Failed');
@@ -106,30 +133,12 @@ export function GuestTradeWorkspace({
   };
 
   const ot = ws?.otifef;
-  const band = otifefBand(ot?.overall || 0);
   const orders = isSupplier
     ? ws?.purchase_orders || portal.purchase_orders
     : [...(ws?.inbound_pos || []), ...(portal.orders || [])];
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 overflow-x-auto pb-1">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold border ${
-              tab === t.id
-                ? 'bg-[#00b4d8] border-[#00b4d8] text-white'
-                : 'bg-white border-slate-200 text-slate-600'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
       {note ? (
         <p className="text-xs font-semibold text-[#0077b6]">{note}</p>
       ) : null}
@@ -137,7 +146,7 @@ export function GuestTradeWorkspace({
       {gaps.length > 0 && tab !== 'profile' ? (
         <button
           type="button"
-          onClick={() => setTab('profile')}
+          onClick={() => onTab('profile')}
           className="w-full text-left rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
         >
           Complete your profile so {portal.host.name} has the right details on
@@ -163,12 +172,13 @@ export function GuestTradeWorkspace({
         />
       ) : null}
       {tab === 'otifef' ? (
-        <OtifefPanel
-          ot={ot || null}
-          isSupplier={isSupplier}
-          band={band}
-          orders={orders}
-        />
+        <div className="space-y-4">
+          <OtifefKpiCard
+            metrics={ot}
+            kind={isSupplier ? 'supplier' : 'customer'}
+          />
+          <OtifefPanel orders={orders} />
+        </div>
       ) : null}
       {tab === 'statement' && !isSupplier ? (
         <StatementPanel
@@ -185,6 +195,7 @@ export function GuestTradeWorkspace({
       ) : null}
       {tab === 'newpo' && !isSupplier ? (
         <NewPoPanel
+          token={token}
           busy={busy}
           onAct={act}
           catalogue={ws?.catalogue || []}
@@ -197,6 +208,15 @@ export function GuestTradeWorkspace({
       {tab === 'messages' ? (
         <MessagesPanel items={ws?.messages || []} busy={busy} onAct={act} />
       ) : null}
+      {tab === 'people' ? (
+        <PeoplePanel
+          token={token}
+          people={portal.people || []}
+          busy={busy}
+          onRefresh={onRefresh}
+          onNote={setNote}
+        />
+      ) : null}
       {tab === 'reviews' ? (
         <ReviewsPanel
           kind={portal.kind}
@@ -205,6 +225,181 @@ export function GuestTradeWorkspace({
           onAct={act}
         />
       ) : null}
+    </div>
+  );
+}
+
+function PeoplePanel({
+  token,
+  people,
+  busy,
+  onRefresh,
+  onNote,
+}: {
+  token: string;
+  people: PortalPersonPublic[];
+  busy: boolean;
+  onRefresh: () => void;
+  onNote: (v: string | null) => void;
+}) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [job, setJob] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const invite = async () => {
+    setSaving(true);
+    onNote(null);
+    try {
+      const res = await fetch('/api/public/portals/trade/act', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          action: 'invite_person',
+          name,
+          email,
+          phone,
+          job_title: job,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not add person');
+      if (data.url) {
+        try {
+          await navigator.clipboard.writeText(String(data.url));
+        } catch {
+          /* ignore */
+        }
+      }
+      onNote(
+        data.existing
+          ? 'They already have access — link copied'
+          : data.emailSent
+            ? 'Invite sent and link copied'
+            : 'Person added — link copied'
+      );
+      setName('');
+      setEmail('');
+      setPhone('');
+      setJob('');
+      onRefresh();
+    } catch (e) {
+      onNote(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const revoke = async (id: number) => {
+    setSaving(true);
+    onNote(null);
+    try {
+      const res = await fetch('/api/public/portals/trade/act', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, action: 'revoke_person', id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not revoke');
+      onNote('Access removed');
+      onRefresh();
+    } catch (e) {
+      onNote(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const blocked = busy || saving;
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-sm">
+        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
+          People with access
+        </p>
+        <p className="mt-1 text-sm text-neutral-600">
+          Anyone you add sees the same live books for this account. They do not
+          need a SupplierAdvisor login.
+        </p>
+        <ul className="mt-4 space-y-2">
+          {people.length === 0 ? (
+            <li className="text-sm text-neutral-500">Only you so far.</li>
+          ) : (
+            people.map((p) => (
+              <li
+                key={p.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-900">
+                    {p.name}
+                    {p.you ? (
+                      <span className="ml-2 text-[10px] font-black uppercase tracking-wide text-[#0077b6]">
+                        You
+                      </span>
+                    ) : null}
+                  </p>
+                  <p className="text-[11px] text-neutral-500">
+                    {[p.job_title, p.email].filter(Boolean).join(' · ') ||
+                      'No contact yet'}
+                  </p>
+                </div>
+                {p.you ? null : (
+                  <button
+                    type="button"
+                    disabled={blocked}
+                    onClick={() => void revoke(p.id)}
+                    className="text-xs font-bold text-rose-700"
+                  >
+                    Remove
+                  </button>
+                )}
+              </li>
+            ))
+          )}
+        </ul>
+      </section>
+      <section className="rounded-[1.5rem] border border-white/70 bg-white p-5 shadow-sm space-y-3">
+        <p className="text-sm font-black text-slate-900">Give someone access</p>
+        <input
+          className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+          placeholder="Name *"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <input
+          className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+          placeholder="Email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+            placeholder="Phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+          <input
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+            placeholder="Role"
+            value={job}
+            onChange={(e) => setJob(e.target.value)}
+          />
+        </div>
+        <button
+          type="button"
+          disabled={blocked || !name.trim()}
+          onClick={() => void invite()}
+          className="min-h-11 w-full rounded-xl bg-[#0077b6] text-sm font-black text-white disabled:opacity-50"
+        >
+          {saving ? 'Adding…' : 'Add person & copy link'}
+        </button>
+      </section>
     </div>
   );
 }
@@ -316,7 +511,14 @@ function ProjectsPanel({
   onAct: (p: Record<string, unknown>) => Promise<void>;
 }) {
   const [title, setTitle] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newDesc, setNewDesc] = useState('');
+  const [newStart, setNewStart] = useState(isoDay(new Date()));
+  const [newEnd, setNewEnd] = useState(addDays(isoDay(new Date()), 28));
   const [projectId, setProjectId] = useState<number | null>(items[0]?.id || null);
+  useEffect(() => {
+    if (!projectId && items[0]?.id) setProjectId(items[0].id);
+  }, [items, projectId]);
   const selected = items.find((p) => p.id === projectId) || items[0] || null;
   const from =
     items
@@ -359,14 +561,76 @@ function ProjectsPanel({
     })),
   }));
 
+  const createForm = (
+    <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 space-y-3 dark:border-white/10 dark:bg-neutral-900">
+      <p className="text-sm font-black text-slate-900 dark:text-white">
+        New project
+      </p>
+      <p className="text-xs text-slate-500">
+        Opens a joint waterfall on both our books — name it, set dates, then add
+        tasks.
+      </p>
+      <input
+        className="input w-full !p-3 !text-sm"
+        placeholder="Project name *"
+        value={newName}
+        onChange={(e) => setNewName(e.target.value)}
+      />
+      <textarea
+        className="input w-full !p-3 !text-sm min-h-[64px]"
+        placeholder="What we are delivering together"
+        value={newDesc}
+        onChange={(e) => setNewDesc(e.target.value)}
+      />
+      <div className="grid grid-cols-2 gap-2">
+        <label className="text-[11px] font-bold text-slate-500">
+          Start
+          <input
+            type="date"
+            className="input mt-1 w-full !p-2.5 !text-sm"
+            value={newStart}
+            onChange={(e) => setNewStart(e.target.value)}
+          />
+        </label>
+        <label className="text-[11px] font-bold text-slate-500">
+          Target
+          <input
+            type="date"
+            className="input mt-1 w-full !p-2.5 !text-sm"
+            value={newEnd}
+            onChange={(e) => setNewEnd(e.target.value)}
+          />
+        </label>
+      </div>
+      <button
+        type="button"
+        disabled={busy || !newName.trim()}
+        onClick={() => {
+          const n = newName.trim();
+          void onAct({
+            action: 'project_create',
+            name: n,
+            description: newDesc,
+            start_date: newStart,
+            target_date: newEnd,
+          });
+          setNewName('');
+          setNewDesc('');
+        }}
+        className="btn-primary w-full !py-2.5 text-sm"
+      >
+        Create project
+      </button>
+    </div>
+  );
+
   if (!items.length) {
     return (
-      <div className="rounded-[1.5rem] border border-white/70 bg-white/90 p-6 space-y-2 shadow-sm">
-        <p className="text-sm font-bold text-slate-900">No joint projects yet</p>
-        <p className="text-sm text-neutral-600 leading-relaxed">
-          When we open a shared waterfall project on your account, it appears
-          here. You can move tasks, add work, and track the same plan we run
-          internally — no login required.
+      <div className="space-y-4">
+        {createForm}
+        <p className="text-sm text-slate-500">
+          No projects yet. Create the first one above — it shows on this portal
+          and on our Projects desk.
         </p>
       </div>
     );
@@ -374,6 +638,7 @@ function ProjectsPanel({
 
   return (
     <div className="space-y-4">
+      {createForm}
       <div className="rounded-2xl border border-cyan-100 bg-cyan-50/70 px-4 py-3 text-sm text-slate-700">
         <p className="font-bold text-slate-900">Work this plan together</p>
         <p className="text-xs text-neutral-600 mt-0.5 leading-relaxed">
@@ -746,23 +1011,16 @@ function StockQuick({
 }
 
 function NewPoPanel({
+  token,
   busy,
   onAct,
   catalogue,
   hostName,
 }: {
+  token: string;
   busy: boolean;
   onAct: (p: Record<string, unknown>) => Promise<void>;
-  catalogue: Array<{
-    id: number;
-    name: string;
-    sku: string | null;
-    product_type: string | null;
-    uom: string | null;
-    unit_price: number;
-    currency: string;
-    short_description: string | null;
-  }>;
+  catalogue: PortalCatalogueItem[];
   hostName: string;
 }) {
   type Line = {
@@ -775,20 +1033,29 @@ function NewPoPanel({
     uom: string | null;
   };
   const [lines, setLines] = useState<Line[]>([]);
+  const [poNumber, setPoNumber] = useState('');
   const [date, setDate] = useState('');
   const [notes, setNotes] = useState('');
-  const [url, setUrl] = useState('');
   const [freeName, setFreeName] = useState('');
   const [freeQty, setFreeQty] = useState('1');
   const [freePrice, setFreePrice] = useState('');
   const [chipQty, setChipQty] = useState(1);
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
+  const branded = catalogue.filter((c) => c.customer_brand);
+  const shown = branded.length ? branded : catalogue;
   const total = useMemo(
-    () => lines.reduce((s, l) => s + Number(l.qty || 0) * Number(l.unit_price || 0), 0),
+    () =>
+      lines.reduce(
+        (s, l) => s + Number(l.qty || 0) * Number(l.unit_price || 0),
+        0
+      ),
     [lines]
   );
 
-  const addFromCatalogue = (c: (typeof catalogue)[number]) => {
+  const addFromCatalogue = (c: PortalCatalogueItem) => {
     const qty = Math.max(1, Number(chipQty) || 1);
     setLines((prev) => {
       const idx = prev.findIndex((l) => l.product_id === c.id);
@@ -841,26 +1108,96 @@ function NewPoPanel({
     setLines((prev) => prev.filter((l) => l.key !== key));
   };
 
+  const send = async () => {
+    setErr(null);
+    let attachment_url: string | undefined;
+    let attachment_name: string | undefined;
+    try {
+      if (file) {
+        setUploading(true);
+        try {
+          const fd = new FormData();
+          fd.set('token', token);
+          fd.set('file', file);
+          const res = await fetch('/api/public/portals/trade/upload', {
+            method: 'POST',
+            body: fd,
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Upload failed');
+          attachment_url = data.url;
+          attachment_name = data.name || file.name;
+        } finally {
+          setUploading(false);
+        }
+      }
+      await onAct({
+        action: 'po_create',
+        po_number: poNumber || undefined,
+        promised_date: date || undefined,
+        description: notes || undefined,
+        total_amount: total,
+        attachment_url,
+        attachment_name,
+        items: lines.map((l) => ({
+          name: l.name,
+          sku: l.sku,
+          qty: l.qty,
+          quantity: l.qty,
+          unit_price: l.unit_price,
+          product_id: l.product_id,
+          uom: l.uom,
+          line_total: Math.round(Number(l.qty) * Number(l.unit_price) * 100) / 100,
+        })),
+      });
+      setLines([]);
+      setPoNumber('');
+      setNotes('');
+      setFile(null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not send PO');
+    }
+  };
+
   return (
-    <div className="rounded-[1.5rem] border border-white/70 bg-white/90 p-5 space-y-4">
+    <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 space-y-4 dark:border-white/10 dark:bg-neutral-900">
       <div>
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
           Raise a PO
         </p>
-        <h2 className="text-lg font-black text-slate-900">Order from {hostName}</h2>
-        <p className="text-sm text-neutral-600 mt-1">
-          Select products, set quantities and expected date, then send. Lines land on our books as
-          a purchase order.
+        <h2 className="text-lg font-black text-slate-900 dark:text-white">
+          Order from {hostName}
+        </h2>
+        <p className="mt-1 text-sm text-slate-600 dark:text-neutral-400">
+          Select products, set quantities and delivery date, then send. This
+          lands as a purchase order and a sales order on our books. Attach your
+          own PO if you have one.
         </p>
       </div>
 
-      {catalogue.length > 0 ? (
-        <div className="rounded-2xl border border-cyan-100 bg-sky-50/60 p-3 space-y-2">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <input
+          className="input w-full !p-3 !text-sm"
+          placeholder="Your PO number *"
+          value={poNumber}
+          onChange={(e) => setPoNumber(e.target.value)}
+        />
+        <input
+          type="date"
+          className="input !p-3 !text-sm"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+        />
+      </div>
+
+      {shown.length > 0 ? (
+        <div className="rounded-2xl border border-cyan-100 bg-sky-50/60 p-3 space-y-2 dark:border-cyan-400/20 dark:bg-cyan-400/10">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-[10px] font-bold uppercase tracking-wider text-[#0077b6]">
-              Catalogue · {catalogue.length} item{catalogue.length === 1 ? '' : 's'}
+              {branded.length ? 'Your branded products' : 'Catalogue'} ·{' '}
+              {shown.length} item{shown.length === 1 ? '' : 's'}
             </p>
-            <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
+            <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 dark:text-white/80">
               Qty
               <input
                 type="number"
@@ -868,39 +1205,41 @@ function NewPoPanel({
                 step={1}
                 className="input !py-1 !px-2 !text-xs w-16 tabular-nums"
                 value={chipQty}
-                onChange={(e) => setChipQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                onChange={(e) =>
+                  setChipQty(Math.max(1, parseInt(e.target.value, 10) || 1))
+                }
               />
             </label>
           </div>
           <div className="flex flex-wrap gap-1.5 max-h-44 overflow-y-auto">
-            {catalogue.map((c) => (
+            {shown.map((c) => (
               <button
                 key={c.id}
                 type="button"
                 disabled={busy}
                 onClick={() => addFromCatalogue(c)}
-                className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-800 hover:border-[#00b4d8] hover:bg-[#e0f7fc] text-left"
+                className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-800 hover:border-[#00b4d8] hover:bg-[#e0f7fc] text-left dark:border-white/15 dark:bg-white/10 dark:text-white"
                 title={c.short_description || c.name}
               >
                 <span>{c.name}</span>
                 {c.sku ? (
                   <span className="font-normal text-neutral-400">{c.sku}</span>
                 ) : null}
-                <span className="font-normal text-neutral-500 tabular-nums">
-                  R{Number(c.unit_price || 0).toLocaleString()}
+                <span className="font-normal text-neutral-500 tabular-nums dark:text-white/60">
+                  {formatMoney(Number(c.unit_price || 0), c.currency)}
                   {c.uom ? `/${c.uom}` : ''}
                 </span>
               </button>
             ))}
           </div>
-          <p className="text-[10px] text-neutral-500">
+          <p className="text-[10px] text-neutral-500 dark:text-white/50">
             Tap a product to add it (qty above). Same product merges quantity.
           </p>
         </div>
       ) : (
         <p className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-          No sellable catalogue published yet — use free-text lines below, or ask us to publish
-          finished goods.
+          No sellable catalogue published yet — use free-text lines below, or
+          ask us to tag your SKUs in Inventory → Customer brand.
         </p>
       )}
 
@@ -909,11 +1248,13 @@ function NewPoPanel({
           {lines.map((l) => (
             <li
               key={l.key}
-              className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5 space-y-2"
+              className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5 space-y-2 dark:border-white/10 dark:bg-black/20"
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <p className="text-sm font-bold text-slate-900">{l.name}</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">
+                    {l.name}
+                  </p>
                   <p className="text-[11px] text-neutral-500">
                     {[l.sku, l.product_id ? `ID ${l.product_id}` : 'Free-text', l.uom]
                       .filter(Boolean)
@@ -938,12 +1279,14 @@ function NewPoPanel({
                     className="input mt-0.5 w-full !py-1.5 !px-2 !text-sm"
                     value={l.qty}
                     onChange={(e) =>
-                      updateLine(l.key, { qty: Math.max(1, Number(e.target.value) || 1) })
+                      updateLine(l.key, {
+                        qty: Math.max(1, Number(e.target.value) || 1),
+                      })
                     }
                   />
                 </label>
                 <label className="text-[10px] font-bold uppercase text-neutral-400">
-                  Unit price (R)
+                  Unit price
                   <input
                     type="number"
                     min={0}
@@ -951,20 +1294,23 @@ function NewPoPanel({
                     className="input mt-0.5 w-full !py-1.5 !px-2 !text-sm"
                     value={l.unit_price}
                     onChange={(e) =>
-                      updateLine(l.key, { unit_price: Number(e.target.value) || 0 })
+                      updateLine(l.key, {
+                        unit_price: Number(e.target.value) || 0,
+                      })
                     }
                   />
                 </label>
               </div>
-              <p className="text-xs font-semibold text-slate-700 tabular-nums text-right">
-                Line: R{(Number(l.qty) * Number(l.unit_price)).toLocaleString()}
+              <p className="text-xs font-semibold text-slate-700 tabular-nums text-right dark:text-white/80">
+                Line:{' '}
+                {formatMoney(Number(l.qty) * Number(l.unit_price))}
               </p>
             </li>
           ))}
         </ul>
       ) : null}
 
-      <div className="rounded-2xl border border-dashed border-slate-200 p-3 space-y-2">
+      <div className="rounded-2xl border border-dashed border-slate-200 p-3 space-y-2 dark:border-white/15">
         <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
           Free-text line (optional)
         </p>
@@ -983,7 +1329,7 @@ function NewPoPanel({
           />
           <input
             className="input !p-2.5 !text-sm"
-            placeholder="Unit price (R)"
+            placeholder="Unit price"
             value={freePrice}
             onChange={(e) => setFreePrice(e.target.value)}
           />
@@ -998,65 +1344,56 @@ function NewPoPanel({
         </button>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-2">
-        <label className="text-[10px] font-bold uppercase text-neutral-400">
-          Expected date
-          <input
-            type="date"
-            className="input mt-0.5 w-full !p-2.5 !text-sm"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
-        </label>
-        <label className="text-[10px] font-bold uppercase text-neutral-400">
-          Order total
-          <div className="mt-0.5 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-sm font-black tabular-nums text-slate-900">
-            R{total.toLocaleString()}
-          </div>
-        </label>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-black tabular-nums text-slate-900 dark:text-white">
+          Total {formatMoney(total)}
+        </p>
+        <p className="text-[11px] text-slate-500">
+          Delivery date applies to the whole PO
+        </p>
       </div>
       <textarea
         className="input w-full !p-3 !text-sm min-h-[64px]"
-        placeholder="Notes / delivery instructions / batch details"
+        placeholder="Notes / delivery instructions (optional)"
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
       />
-      <input
-        className="input w-full !p-3 !text-sm"
-        placeholder="Attach PO URL (optional)"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-      />
+      <label className="block rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-sm dark:border-white/15 dark:bg-black/20">
+        <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
+          Attach your PO (PDF, image, Word)
+        </span>
+        <input
+          type="file"
+          accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,application/pdf"
+          className="mt-2 block w-full text-xs"
+          onChange={(e) => setFile(e.target.files?.[0] || null)}
+        />
+        {file ? (
+          <p className="mt-1 text-xs font-semibold text-[#0077b6]">{file.name}</p>
+        ) : null}
+      </label>
+      {err ? (
+        <p className="text-sm font-semibold text-rose-700">{err}</p>
+      ) : null}
       <button
         type="button"
-        disabled={busy || lines.length === 0}
-        onClick={() =>
-          void onAct({
-            action: 'po_create',
-            description: notes || undefined,
-            promised_date: date || undefined,
-            total_amount: total,
-            attachment_url: url || undefined,
-            items: lines.map((l) => ({
-              name: l.name,
-              sku: l.sku,
-              qty: l.qty,
-              quantity: l.qty,
-              unit_price: l.unit_price,
-              product_id: l.product_id,
-              uom: l.uom,
-            })),
-          })
+        disabled={
+          busy || uploading || lines.length === 0 || !poNumber.trim() || !date
         }
+        onClick={() => void send()}
         className="btn-primary w-full !py-2.5 text-sm"
       >
-        Send purchase order
-        {lines.length ? ` · ${lines.length} line${lines.length === 1 ? '' : 's'}` : ''}
+        {uploading
+          ? 'Uploading attachment…'
+          : `Send purchase order${
+              lines.length
+                ? ` · ${lines.length} line${lines.length === 1 ? '' : 's'}`
+                : ''
+            }`}
       </button>
     </div>
   );
 }
-
 
 function RiadPanel({
   items,
@@ -1223,107 +1560,40 @@ function MessagesPanel({
 
 
 function OtifefPanel({
-  ot,
-  isSupplier,
-  band,
   orders,
 }: {
-  ot: {
-    overall?: number | null;
-    onTime?: number | null;
-    inFull?: number | null;
-    errorFree?: number | null;
-    totalPOs?: number;
-  } | null;
-  isSupplier: boolean;
-  band: { label: string; className: string };
   orders: PublicPortalPayload['purchase_orders'];
 }) {
-  if (!ot || (!(ot.totalPOs && ot.totalPOs > 0) && !(ot.overall && ot.overall > 0))) {
-    return (
-      <div className="rounded-[1.5rem] border border-white/70 bg-white/90 p-6 text-sm text-neutral-500">
-        OTIFEF metrics appear once there are deliveries on this account.
-      </div>
-    );
-  }
+  const lined = orders.filter((o) => o.otifef);
+  if (!lined.length) return null;
   return (
-    <div className="space-y-4">
-      <section className="rounded-[1.5rem] border border-white/70 bg-white/90 p-5 shadow-sm">
-        <div className="flex flex-wrap items-end justify-between gap-3">
+    <ul className="space-y-2">
+      {lined.map((o) => (
+        <li
+          key={`${o.kind}-${o.id}`}
+          className="rounded-2xl border border-white/70 bg-white/90 px-4 py-3 flex flex-wrap items-center justify-between gap-2"
+        >
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
-              OTIFEF
-            </p>
-            <p className="text-3xl font-black tabular-nums text-slate-900">
-              {pct(ot.overall)}
-            </p>
-            <p className="text-xs text-neutral-500 mt-0.5">
-              {isSupplier
-                ? 'Your delivery performance on our purchase orders'
-                : 'Our delivery performance on your orders'}
-            </p>
+            <p className="text-sm font-bold text-slate-900">{o.number}</p>
+            <p className="text-[11px] text-neutral-500">{o.status}</p>
           </div>
-          <span className={`rounded-full px-3 py-1 text-xs font-bold ${band.className}`}>
-            {band.label}
-          </span>
-        </div>
-        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          {[
-            ['On time', ot.onTime],
-            ['In full', ot.inFull],
-            ['Error-free', ot.errorFree],
-          ].map(([label, v]) => (
-            <div
-              key={String(label)}
-              className="rounded-2xl border border-slate-100 bg-slate-50 px-2 py-2"
-            >
-              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                {label}
-              </div>
-              <div className="text-lg font-black tabular-nums text-slate-900">
-                {pct(v as number)}
-              </div>
-            </div>
-          ))}
-        </div>
-        {ot.totalPOs != null ? (
-          <p className="mt-3 text-[11px] text-neutral-500">
-            Based on {ot.totalPOs} order{ot.totalPOs === 1 ? '' : 's'}
-          </p>
-        ) : null}
-      </section>
-      {orders.filter((o) => o.otifef).length > 0 ? (
-        <ul className="space-y-2">
-          {orders
-            .filter((o) => o.otifef)
-            .map((o) => (
-              <li
-                key={`${o.kind}-${o.id}`}
-                className="rounded-2xl border border-white/70 bg-white/90 px-4 py-3 flex flex-wrap items-center justify-between gap-2"
-              >
-                <div>
-                  <p className="text-sm font-bold text-slate-900">{o.number}</p>
-                  <p className="text-[11px] text-neutral-500">{o.status}</p>
-                </div>
-                <div className="flex gap-2 text-[10px] font-bold tabular-nums">
-                  <span className="rounded-full bg-slate-50 px-2 py-0.5">
-                    OTIFEF {o.otifef?.pending ? '—' : pct(o.otifef?.overall)}
-                  </span>
-                  <span className="rounded-full bg-slate-50 px-2 py-0.5">
-                    OT {o.otifef?.pending ? '—' : pct(o.otifef?.onTime)}
-                  </span>
-                  <span className="rounded-full bg-slate-50 px-2 py-0.5">
-                    IF {o.otifef?.pending ? '—' : pct(o.otifef?.inFull)}
-                  </span>
-                  <span className="rounded-full bg-slate-50 px-2 py-0.5">
-                    EF {o.otifef?.pending ? '—' : pct(o.otifef?.errorFree)}
-                  </span>
-                </div>
-              </li>
-            ))}
-        </ul>
-      ) : null}
-    </div>
+          <div className="flex gap-2 text-[10px] font-bold tabular-nums">
+            <span className="rounded-full bg-slate-50 px-2 py-0.5">
+              OTIFEF {o.otifef?.pending ? '—' : pct(o.otifef?.overall)}
+            </span>
+            <span className="rounded-full bg-slate-50 px-2 py-0.5">
+              OT {o.otifef?.pending ? '—' : pct(o.otifef?.onTime)}
+            </span>
+            <span className="rounded-full bg-slate-50 px-2 py-0.5">
+              IF {o.otifef?.pending ? '—' : pct(o.otifef?.inFull)}
+            </span>
+            <span className="rounded-full bg-slate-50 px-2 py-0.5">
+              EF {o.otifef?.pending ? '—' : pct(o.otifef?.errorFree)}
+            </span>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 

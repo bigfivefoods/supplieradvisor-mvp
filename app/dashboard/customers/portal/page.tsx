@@ -14,7 +14,7 @@ export default function CustomerGuestPortalPage() {
         <CustomersHeader
           title="Customer"
           titleAccent="portal"
-          description="A portal for customers already on your books. They see their orders, our OTIFEF, ratings, RIAD, and can raise a PO — without joining the OS."
+          description="Issue a branded portal for a customer on your CRM. They see their live books and can add the people in their business who should have access."
         />
         <TradePortalDesk kind="customer" />
       </CustomersPage>

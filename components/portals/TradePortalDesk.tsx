@@ -81,6 +81,8 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
   });
   const [adding, setAdding] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [accountQ, setAccountQ] = useState('');
+  const [issuingId, setIssuingId] = useState<number | null>(null);
 
   const accountName = (v: TradePortalViewer) => {
     const id = isCustomer ? v.customer_id : v.supplier_id;
@@ -257,6 +259,47 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
     }
   };
 
+  const issueAccount = async (accountId: number) => {
+    setIssuingId(accountId);
+    try {
+      const res = await fetch('/api/portals/trade/viewers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          kind,
+          action: 'issue_account',
+          customer_id: isCustomer ? accountId : undefined,
+          supplier_id: !isCustomer ? accountId : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not issue portal');
+      if (data.url) {
+        try {
+          await navigator.clipboard.writeText(data.url);
+        } catch {
+          /* ignore */
+        }
+      }
+      toast.success(
+        data.existing
+          ? 'Portal already live — link copied'
+          : data.emailSent
+            ? 'Portal issued — email sent, link copied'
+            : 'Portal issued — link copied'
+      );
+      if (data.warning) toast.message(data.warning);
+      setForm((prev) => ({ ...prev, accountId }));
+      void load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setIssuingId(null);
+    }
+  };
+
   const addPerson = async () => {
     if (!form.accountId) {
       toast.error(`Pick a ${noun} on your books`);
@@ -367,10 +410,11 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
         <Panel className="lg:col-span-3" title="What they see">
           <div className="p-5 space-y-4">
             <p className="text-sm text-neutral-600 leading-relaxed">
-              One shared portal template for all {noun}s. Add people linked to each
-              {noun} on your books. Below you get every linked account — click{' '}
-              <strong>View portal</strong> to open exactly what they see (orders,
-              OTIFEF, statement, projects).
+              Pick a {noun} already on your CRM, then issue their portal. That
+              account sees only their quotes, orders, OTIFEF, ratings and RIAD.
+              Inside the portal they can add colleagues. Below you get every
+              linked account — click <strong>View portal</strong> to open
+              exactly what they see (orders, OTIFEF, statement, projects).
             </p>
             <div>
               <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
@@ -494,9 +538,10 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
               {live ? 'Live' : 'Paused'} · {viewers.filter((v) => v.status === 'active').length} people
             </div>
             <p className="text-sm text-neutral-600 leading-relaxed">
-              Send <strong>personal links</strong> (People list) — those open
-              Boxer's (or that account's) live orders. The brochure below is
-              only your company card, not their books.
+              Each CRM {noun} gets a <strong>personal portal</strong> tied to
+              their profile. Send those personal links — they open that
+              account&apos;s live books. The brochure below is only your company
+              card, not their books.
             </p>
             <div className="rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 py-2.5 text-xs text-slate-700">
               <p className="font-bold text-slate-900 mb-1">What's in this portal</p>
@@ -549,25 +594,124 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
       </div>
 
       <div className="grid lg:grid-cols-5 gap-4">
-        <Panel className="lg:col-span-2" title="Add a person">
+        <Panel className="lg:col-span-2" title={`CRM ${noun}s`}>
           <div className="p-5 space-y-3">
             <p className="text-sm text-neutral-600">
-              Required: a {noun} already on your books. Then name the person who
-              should open the portal.
+              Issue a portal on a CRM profile. The primary contact gets the
+              first link; they can add more people from inside the portal.
             </p>
             <input
               className="input w-full !p-3 !text-sm"
-              placeholder="Name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder={`Search ${noun}s…`}
+              value={accountQ}
+              onChange={(e) => setAccountQ(e.target.value)}
             />
-            <input
-              className="input w-full !p-3 !text-sm"
-              placeholder="Email (sends the link)"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-            />
-            <div className="grid grid-cols-2 gap-2">
+            <div className="max-h-[22rem] overflow-y-auto space-y-2 pr-0.5">
+              {accounts
+                .filter((a) => {
+                  const q = accountQ.trim().toLowerCase();
+                  if (!q) return true;
+                  return `${a.name} ${a.contact || ''} ${a.email || ''}`
+                    .toLowerCase()
+                    .includes(q);
+                })
+                .slice(0, 80)
+                .map((a) => {
+                  const people = viewers.filter(
+                    (v) =>
+                      (isCustomer ? v.customer_id : v.supplier_id) === a.id &&
+                      v.status === 'active'
+                  );
+                  const selected = form.accountId === a.id;
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => {
+                        setForm((prev) => ({
+                          ...prev,
+                          accountId: a.id,
+                          name: prev.name || a.contact || a.name,
+                          email: prev.email || a.email || '',
+                        }));
+                      }}
+                      className={`w-full text-left rounded-2xl border px-3 py-3 ${
+                        selected
+                          ? 'border-cyan-300 bg-cyan-50'
+                          : 'border-neutral-200 bg-white hover:border-cyan-200'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 truncate">
+                            {a.name}
+                          </p>
+                          <p className="text-[11px] text-neutral-500 truncate">
+                            {a.contact || a.email || 'No contact yet'}
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-[10px] font-black uppercase tracking-wide text-[#0077b6]">
+                          {people.length
+                            ? `${people.length} on portal`
+                            : 'No portal'}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              {accounts.length === 0 ? (
+                <p className="text-sm text-neutral-500">
+                  Add {noun}s in CRM first, then issue their portal here.
+                </p>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              disabled={!form.accountId || issuingId != null}
+              onClick={() =>
+                form.accountId && void issueAccount(Number(form.accountId))
+              }
+              className="btn-primary w-full !py-2.5 text-sm inline-flex items-center justify-center gap-1.5"
+            >
+              {issuingId != null ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Globe className="w-4 h-4" />
+              )}
+              {viewers.some(
+                (v) =>
+                  (isCustomer ? v.customer_id : v.supplier_id) ===
+                    form.accountId && v.status === 'active'
+              )
+                ? `Copy this ${noun} portal`
+                : `Issue ${noun} portal`}
+            </button>
+          </div>
+        </Panel>
+
+        <Panel className="lg:col-span-3" title="People on this portal">
+          <div className="p-5 border-b border-neutral-100 space-y-3">
+            <p className="text-sm text-neutral-600">
+              {form.accountId
+                ? `Add another person on ${
+                    accounts.find((a) => a.id === form.accountId)?.name ||
+                    `this ${noun}`
+                  }. They get their own link to the same books.`
+                : `Select a ${noun} on the left, then add people.`}
+            </p>
+            <div className="grid sm:grid-cols-2 gap-2">
+              <input
+                className="input w-full !p-3 !text-sm"
+                placeholder="Name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+              <input
+                className="input w-full !p-3 !text-sm"
+                placeholder="Email (sends the link)"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              />
               <input
                 className="input w-full !p-3 !text-sm"
                 placeholder="Phone"
@@ -581,56 +725,44 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                 onChange={(e) => setForm({ ...form, job_title: e.target.value })}
               />
             </div>
-            <select
-              className="input w-full !p-3 !text-sm"
-              value={form.accountId}
-              onChange={(e) => {
-                const id = e.target.value ? Number(e.target.value) : '';
-                const acc = accounts.find((a) => a.id === id);
-                setForm((prev) => ({
-                  ...prev,
-                  accountId: id,
-                  name: prev.name || acc?.contact || acc?.name || '',
-                  email: prev.email || acc?.email || '',
-                }));
-              }}
-            >
-              <option value="">Select {noun} on your books…</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
             <button
               type="button"
-              disabled={adding}
+              disabled={adding || !form.accountId}
               onClick={() => void addPerson()}
-              className="btn-primary w-full !py-2.5 text-sm inline-flex items-center justify-center gap-1.5"
+              className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center justify-center gap-1.5"
             >
               {adding ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <UserPlus className="w-4 h-4" />
               )}
-              Add & copy link
+              Add person
             </button>
           </div>
         </Panel>
+      </div>
 
-        <Panel
-          className="lg:col-span-3"
-          title={isCustomer ? 'Customer portals' : 'Supplier portals'}
-        >
+      <Panel
+        title={isCustomer ? 'Customer portals' : 'Supplier portals'}
+      >
           <div className="divide-y divide-neutral-100">
-            {viewers.length === 0 ? (
+            {viewers.filter(
+              (v) =>
+                !form.accountId ||
+                (isCustomer ? v.customer_id : v.supplier_id) === form.accountId
+            ).length === 0 ? (
               <p className="p-5 text-sm text-neutral-500">
-                No one yet. Add a {noun} contact — they do not need an account.
-                Each linked {noun} gets their own portal view of orders, OTIFEF,
-                statement and projects.
+                {form.accountId
+                  ? 'No one on this portal yet. Issue it, or add a person.'
+                  : `No one yet. Add a ${noun} contact — they do not need an account. Each linked ${noun} gets their own portal view of orders, OTIFEF, statement and projects.`}
               </p>
             ) : (
-              portalGroups.map((g) => {
+              portalGroups
+                .filter(
+                  (g) =>
+                    !form.accountId || g.accountId === form.accountId
+                )
+                .map((g) => {
                 const primary =
                   g.viewers.find((v) => v.status === 'active') || g.viewers[0];
                 const personUrl = primary
@@ -787,7 +919,6 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
             )}
           </div>
         </Panel>
-      </div>
 
       <div className="flex items-center gap-2 text-xs text-neutral-500">
         <Globe className="w-3.5 h-3.5 text-[#00b4d8]" />

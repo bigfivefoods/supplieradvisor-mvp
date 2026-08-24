@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Loader2,
   RefreshCw,
@@ -23,6 +24,7 @@ import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { formatMoney } from '@/lib/accounting/types';
 import { otifefBand, trustBand } from '@/lib/suppliers/types';
+import { OtifefKpiCard } from '@/components/portals/OtifefKpiCard';
 import {
   CompanyRequired,
   SuppliersHeader,
@@ -117,13 +119,22 @@ type PoRow = {
 export default function SupplierReportPage() {
   return (
     <CompanyRequired>
-      <Inner />
+      <Suspense
+        fallback={
+          <div className="flex justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-[#00b4d8]" />
+          </div>
+        }
+      >
+        <Inner />
+      </Suspense>
     </CompanyRequired>
   );
 }
 
 function Inner() {
   const companyId = getSelectedCompanyId()!;
+  const searchParams = useSearchParams();
   const [report, setReport] = useState<ReportId>('overview');
   const [period, setPeriod] = useState<PeriodSlicerValue>(() =>
     initialPeriodSlicerValue('ytd', 3)
@@ -174,6 +185,10 @@ function Inner() {
   const [sortKey, setSortKey] = useState<'spend' | 'otifef' | 'stars' | 'name' | 'open'>(
     'spend'
   );
+
+  useEffect(() => {
+    if (searchParams.get('tab') === 'otifef') setReport('otifef');
+  }, [searchParams]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -746,6 +761,17 @@ function Inner() {
 
           {report === 'otifef' && (
             <div className="space-y-4">
+              <OtifefKpiCard
+                metrics={{
+                  overall: k?.otifefOverall ?? 0,
+                  onTime: k?.otifefOnTime ?? 0,
+                  inFull: k?.otifefInFull ?? 0,
+                  errorFree: k?.otifefErrorFree ?? 0,
+                  totalPOs: k?.completedPos ?? k?.poCount ?? 0,
+                  supplierCount: filteredRows.length,
+                }}
+                kind="supplier"
+              />
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <Card
                   label="Overall"

@@ -148,6 +148,10 @@ export async function POST(request: NextRequest) {
       track_serial: !!body.track_serial,
       is_sellable: body.is_sellable !== false,
       is_purchasable: body.is_purchasable !== false,
+      metadata:
+        body.metadata && typeof body.metadata === 'object'
+          ? body.metadata
+          : undefined,
       qr_payload: qrPayload,
       onchain_status: 'hashed',
       onchain_hash: onchainHash,
@@ -257,6 +261,10 @@ export async function PATCH(request: NextRequest) {
 
     if (body.category !== undefined) {
       updates.category = String(body.category || '').trim() || 'General';
+    }
+
+    if (body.metadata && typeof body.metadata === 'object') {
+      updates.metadata = body.metadata;
     }
 
     if (body.anchor === true) {

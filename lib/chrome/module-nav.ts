@@ -333,6 +333,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Trade',
       },
       { name: 'Score', href: '/dashboard/suppliers/performance', desc: 'OTIFEF performance', section: 'Score' },
+      {
+        name: 'OTIFEF',
+        href: '/dashboard/suppliers/report?tab=otifef',
+        desc: 'On-time · in-full · error-free by supplier',
+        section: 'Score',
+      },
       { name: 'Rate', href: '/dashboard/suppliers/ratings', desc: 'Peer ratings after trade', section: 'Score' },
       {
         name: 'Report',
@@ -374,9 +380,15 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Money', href: '/dashboard/customers/money', desc: 'Collect, claims, AR, settle', section: 'Money' },
       { name: 'Rate', href: '/dashboard/customers/ratings', desc: 'Peer ratings after trade', section: 'Score' },
       {
+        name: 'OTIFEF',
+        href: '/dashboard/customers/report?tab=otifef',
+        desc: 'On-time · in-full · error-free to each customer',
+        section: 'Score',
+      },
+      {
         name: 'Report',
         href: '/dashboard/customers/report',
-        desc: 'Slice & dice — revenue, AR, pipeline, risk',
+        desc: 'Slice & dice — revenue, AR, pipeline, OTIFEF, risk',
         section: 'Score',
       },
 

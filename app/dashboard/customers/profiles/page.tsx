@@ -11,6 +11,7 @@ import {
   Trash2,
   PauseCircle,
   PlayCircle,
+  Globe,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
@@ -66,6 +67,48 @@ function ProfilesInner() {
     const t = setTimeout(() => void load(), 200);
     return () => clearTimeout(t);
   }, [load]);
+
+  const issuePortal = async (c: CustomerRecord) => {
+    if (!privyUserId) {
+      toast.error('Sign in required');
+      return;
+    }
+    setActionId(c.id);
+    try {
+      const res = await fetch('/api/portals/trade/viewers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          kind: 'customer',
+          action: 'issue_account',
+          customer_id: c.id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not issue portal');
+      if (data.url) {
+        try {
+          await navigator.clipboard.writeText(String(data.url));
+        } catch {
+          /* ignore */
+        }
+      }
+      toast.success(
+        data.existing
+          ? 'Portal already live — link copied'
+          : data.emailSent
+            ? 'Customer portal issued — email sent, link copied'
+            : 'Customer portal issued — link copied'
+      );
+      if (data.warning) toast.message(data.warning);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setActionId(null);
+    }
+  };
 
   const remove = async (id: number) => {
     if (!confirm('Delete this customer?')) return;
@@ -413,6 +456,19 @@ function ProfilesInner() {
                           }
                           return null;
                         })()}
+                        <button
+                          type="button"
+                          disabled={actionId === c.id || !privyUserId}
+                          onClick={() => void issuePortal(c)}
+                          className="p-2 inline-flex rounded-xl hover:bg-cyan-50 text-[#0077b6] disabled:opacity-50"
+                          title="Issue customer portal"
+                        >
+                          {actionId === c.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Globe className="w-4 h-4" />
+                          )}
+                        </button>
                         <Link
                           href={`/dashboard/customers/360`}
                           className="text-[10px] font-bold text-[#0077b6] px-2"

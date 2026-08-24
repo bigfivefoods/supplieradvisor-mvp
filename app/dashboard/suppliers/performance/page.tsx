@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Loader2, TrendingUp, Truck, Package, Award } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { otifefBand, type OtifefMetrics, type SupplierOtifefRow } from '@/lib/suppliers/types';
+import { OtifefKpiCard } from '@/components/portals/OtifefKpiCard';
 import {
   CompanyRequired,
   SuppliersHeader,
@@ -116,6 +117,9 @@ function PerfInner() {
         </div>
       ) : (
         <>
+          <div className="mb-6">
+            <OtifefKpiCard metrics={summary} kind="supplier" />
+          </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <div className="bg-white border rounded-3xl p-6">
               <div className="flex items-center justify-between text-xs text-neutral-500 mb-2">

@@ -10,7 +10,13 @@ const OPTIONS: Array<{ id: ThemeMode; label: string; icon: typeof Sun }> = [
   { id: 'system', label: 'System', icon: Monitor },
 ];
 
-export function B2cThemeToggle({ compact = false }: { compact?: boolean }) {
+export function B2cThemeToggle({
+  compact = false,
+  onDark = false,
+}: {
+  compact?: boolean;
+  onDark?: boolean;
+}) {
   const { mode, resolved, setMode, toggle } = useTheme();
 
   if (compact) {
@@ -18,7 +24,11 @@ export function B2cThemeToggle({ compact = false }: { compact?: boolean }) {
       <button
         type="button"
         onClick={() => toggle()}
-        className="rounded-full bg-white/15 p-2 text-white"
+        className={
+          onDark
+            ? 'rounded-full bg-white/15 p-2 text-white'
+            : 'rounded-full border border-slate-200 bg-white p-2 text-slate-700 dark:border-white/20 dark:bg-white/10 dark:text-white'
+        }
         aria-label={resolved === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
         title={resolved === 'dark' ? 'Light theme' : 'Dark theme'}
       >

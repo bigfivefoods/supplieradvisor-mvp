@@ -167,6 +167,74 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    if (action === 'project_create') {
+      const name = String(body.name || '').trim();
+      if (!name) {
+        return NextResponse.json({ error: 'Project name is required' }, { status: 400 });
+      }
+      if (portal.kind === 'customer' && !viewer.customer_id) {
+        return NextResponse.json({ error: 'No book account' }, { status: 403 });
+      }
+      if (portal.kind === 'supplier' && !viewer.supplier_id) {
+        return NextResponse.json({ error: 'No book account' }, { status: 403 });
+      }
+      const { isoDay, addDays } = await import('@/lib/projects/waterfall');
+      const start =
+        body.start_date && /^\d{4}-\d{2}-\d{2}$/.test(String(body.start_date))
+          ? String(body.start_date).slice(0, 10)
+          : isoDay(new Date());
+      const target =
+        body.target_date && /^\d{4}-\d{2}-\d{2}$/.test(String(body.target_date))
+          ? String(body.target_date).slice(0, 10)
+          : addDays(start, 28);
+      const description = String(body.description || '').trim().slice(0, 2000);
+      const insert: Record<string, unknown> = {
+        profile_id: portal.profile_id,
+        name: name.slice(0, 160),
+        description: description || null,
+        status: 'planning',
+        health: 'green',
+        start_date: start,
+        target_date: target,
+        customer_id: portal.kind === 'customer' ? viewer.customer_id : null,
+        supplier_id: portal.kind === 'supplier' ? viewer.supplier_id : null,
+        created_by: `portal:${viewer.id}`,
+        updated_at: now,
+        metadata: {
+          source: `${portal.kind}_portal`,
+          portal_viewer_id: viewer.id,
+          opened_by: viewer.name,
+        },
+      };
+      let ins = await supabase.from('pm_projects').insert(insert).select('id').single();
+      if (ins.error && /column|schema cache|does not exist/i.test(ins.error.message)) {
+        const soft = { ...insert };
+        delete soft.customer_id;
+        delete soft.supplier_id;
+        delete soft.health;
+        delete soft.created_by;
+        ins = await supabase.from('pm_projects').insert(soft).select('id').single();
+      }
+      if (ins.error) {
+        return NextResponse.json({ error: ins.error.message }, { status: 500 });
+      }
+      const projectId = Number(ins.data?.id);
+      if (projectId > 0) {
+        await supabase.from('pm_tasks').insert({
+          profile_id: portal.profile_id,
+          project_id: projectId,
+          title: 'Kick-off',
+          status: 'todo',
+          column_key: 'todo',
+          start_date: start,
+          due_date: addDays(start, 7),
+          created_by: `portal:${viewer.name}`,
+          updated_at: now,
+        });
+      }
+      return NextResponse.json({ success: true, id: projectId || ins.data?.id });
+    }
+
     if (action === 'task_add') {
       const projectId = Number(body.project_id);
       const title = String(body.title || '').trim();
@@ -386,57 +454,150 @@ export async function POST(request: NextRequest) {
           const qty = Number(row.qty || row.quantity || 0);
           const name = String(row.name || row.sku || '').trim();
           if (!name || !(qty > 0)) return null;
+          const unit = Number(row.unit_price || 0);
           return {
+            product_id:
+              row.product_id != null && Number(row.product_id) > 0
+                ? Number(row.product_id)
+                : null,
             name: name.slice(0, 160),
             sku: row.sku != null ? String(row.sku).slice(0, 80) : null,
             qty,
             quantity: qty,
-            unit_price: Number(row.unit_price || 0),
-            product_id:
-              row.product_id != null && Number.isFinite(Number(row.product_id))
-                ? Number(row.product_id)
-                : null,
-            uom: row.uom != null ? String(row.uom).slice(0, 24) : null,
+            unit_price: unit,
+            line_total: Math.round(qty * unit * 100) / 100,
+            uom: row.uom != null ? String(row.uom).slice(0, 24) : 'unit',
           };
         })
-        .filter(Boolean);
-      const qty = lines.reduce((n, l) => n + Number(l && l.qty), 0);
-      const amount = Number(body.total_amount || 0);
+        .filter(Boolean) as Array<Record<string, unknown>>;
+      if (!lines.length) {
+        return NextResponse.json(
+          { error: 'Add at least one product with a quantity' },
+          { status: 400 }
+        );
+      }
+      const qty = lines.reduce((n, l) => n + Number(l.qty || 0), 0);
+      const subtotal = lines.reduce(
+        (n, l) => n + Number(l.line_total || 0),
+        0
+      );
+      const amount = Number(body.total_amount || subtotal) || subtotal;
+      const poNumber = String(body.po_number || '').trim().slice(0, 60);
+      const promised = body.promised_date
+        ? String(body.promised_date).slice(0, 10)
+        : null;
+      const attachment = body.attachment_url
+        ? String(body.attachment_url).slice(0, 2000)
+        : null;
       const insert: Record<string, unknown> = {
         supplier_profile_id: portal.profile_id,
         seller_customer_id: viewer.customer_id,
         source: 'customer_portal',
         status: 'sent',
-        description: String(body.description || `PO from ${accountName}`).slice(
-          0,
-          400
-        ),
+        po_number: poNumber || null,
+        order_number: poNumber || null,
+        description: String(
+          body.description ||
+            `Customer PO${poNumber ? ` ${poNumber}` : ''} from ${accountName}`
+        ).slice(0, 400),
         currency: String(body.currency || 'ZAR').slice(0, 8),
         total_amount: amount,
         subtotal: amount,
         items: lines,
         order_quantity: qty || null,
-        promised_date: body.promised_date
-          ? String(body.promised_date).slice(0, 10)
-          : null,
+        promised_date: promised,
         metadata: {
-          attachment_url: body.attachment_url
-            ? String(body.attachment_url).slice(0, 2000)
+          attachment_url: attachment,
+          attachment_name: body.attachment_name
+            ? String(body.attachment_name).slice(0, 160)
             : null,
+          portal_viewer_id: viewer.id,
+          customer_po_number: poNumber || null,
+        },
+        created_at: now,
+        updated_at: now,
+      };
+      let poIns = await supabase
+        .from('purchase_orders')
+        .insert(insert)
+        .select('id')
+        .single();
+      if (poIns.error && /column|schema cache|does not exist/i.test(poIns.error.message)) {
+        const soft = { ...insert };
+        delete soft.po_number;
+        delete soft.order_number;
+        poIns = await supabase
+          .from('purchase_orders')
+          .insert(soft)
+          .select('id')
+          .single();
+      }
+      if (poIns.error) {
+        return NextResponse.json({ error: poIns.error.message }, { status: 500 });
+      }
+
+      const { docNumber, calcDocTotals, normalizeItems } = await import(
+        '@/lib/customers/documents'
+      );
+      const soItems = normalizeItems(lines);
+      const totals = calcDocTotals(soItems, 0);
+      totals.total_amount = amount;
+      totals.subtotal = amount;
+      const soPayload: Record<string, unknown> = {
+        profile_id: portal.profile_id,
+        customer_id: viewer.customer_id,
+        order_number: docNumber('SO'),
+        status: 'confirmed',
+        currency: String(body.currency || 'ZAR').slice(0, 8),
+        ...totals,
+        promised_date: promised,
+        customer_name: accountName,
+        contact_name: viewer.name,
+        contact_email: viewer.email,
+        contact_phone: viewer.phone,
+        notes: [
+          poNumber ? `Customer PO ${poNumber}` : null,
+          String(body.description || '').trim() || null,
+          attachment ? `Attached: ${attachment}` : null,
+        ]
+          .filter(Boolean)
+          .join('\n')
+          .slice(0, 800),
+        items: soItems,
+        metadata: {
+          source: 'customer_portal',
+          customer_po_number: poNumber || null,
+          inbound_po_id: poIns.data?.id || null,
+          attachment_url: attachment,
           portal_viewer_id: viewer.id,
         },
         created_at: now,
         updated_at: now,
       };
-      const { data, error } = await supabase
-        .from('purchase_orders')
-        .insert(insert)
-        .select('id')
+      let so = await supabase
+        .from('sales_orders')
+        .insert(soPayload)
+        .select('id, order_number')
         .single();
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+      if (so.error && /column|schema cache|does not exist/i.test(so.error.message)) {
+        const soft = { ...soPayload };
+        delete soft.metadata;
+        delete soft.promised_date;
+        delete soft.contact_phone;
+        so = await supabase
+          .from('sales_orders')
+          .insert(soft)
+          .select('id, order_number')
+          .single();
       }
-      return NextResponse.json({ success: true, id: data?.id });
+
+      return NextResponse.json({
+        success: true,
+        id: poIns.data?.id,
+        sales_order_id: so.data?.id || null,
+        sales_order_number: so.data?.order_number || null,
+        warning: so.error?.message,
+      });
     }
 
     if (action === 'rate') {
@@ -503,6 +664,82 @@ export async function POST(request: NextRequest) {
         });
       }
       return NextResponse.json({ success: true });
+    }
+
+    if (action === 'invite_person') {
+      if (portal.kind === 'customer' && !viewer.customer_id) {
+        return NextResponse.json({ error: 'No book account' }, { status: 403 });
+      }
+      if (portal.kind === 'supplier' && !viewer.supplier_id) {
+        return NextResponse.json({ error: 'No book account' }, { status: 403 });
+      }
+      const { inviteTradePortalPerson } = await import(
+        '@/lib/portals/trade-portal-people'
+      );
+      const invited = await inviteTradePortalPerson({
+        companyId: portal.profile_id,
+        kind: portal.kind,
+        name: String(body.name || ''),
+        email: body.email != null ? String(body.email) : null,
+        phone: body.phone != null ? String(body.phone) : null,
+        job_title: body.job_title != null ? String(body.job_title) : null,
+        customerId: viewer.customer_id,
+        supplierId: viewer.supplier_id,
+        sendEmail: body.sendEmail !== false,
+      });
+      if (!invited.ok) {
+        return NextResponse.json(
+          { error: invited.error },
+          { status: invited.status }
+        );
+      }
+      return NextResponse.json({
+        success: true,
+        url: invited.url,
+        emailSent: invited.emailSent,
+        warning: invited.warning,
+        existing: invited.existing === true,
+        person: {
+          id: invited.viewer.id,
+          name: invited.viewer.name,
+          email: invited.viewer.email,
+          job_title: invited.viewer.job_title,
+        },
+      });
+    }
+
+    if (action === 'revoke_person') {
+      const id = Number(body.id);
+      if (!Number.isFinite(id) || id <= 0) {
+        return NextResponse.json({ error: 'Person required' }, { status: 400 });
+      }
+      if (id === viewer.id) {
+        return NextResponse.json(
+          { error: 'You cannot revoke your own access' },
+          { status: 400 }
+        );
+      }
+      let q = supabase
+        .from('trade_portal_viewers')
+        .update({
+          status: 'revoked',
+          updated_at: now,
+        })
+        .eq('id', id)
+        .eq('profile_id', portal.profile_id)
+        .eq('portal_id', portal.id);
+      if (portal.kind === 'customer' && viewer.customer_id) {
+        q = q.eq('customer_id', viewer.customer_id);
+      } else if (portal.kind === 'supplier' && viewer.supplier_id) {
+        q = q.eq('supplier_id', viewer.supplier_id);
+      } else {
+        return NextResponse.json({ error: 'No book account' }, { status: 403 });
+      }
+      const { error } = await q;
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      return NextResponse.json({ success: true, revoked: true });
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

@@ -169,6 +169,15 @@ export type PublicHost = {
   public_path: string;
 };
 
+export type PortalPersonPublic = {
+  id: number;
+  name: string;
+  email: string | null;
+  job_title: string | null;
+  last_seen_at: string | null;
+  you: boolean;
+};
+
 export function isTradePortalKind(v: unknown): v is TradePortalKind {
   return v === 'customer' || v === 'supplier';
 }
@@ -227,7 +236,7 @@ function mapPortal(row: Record<string, unknown>): TradePortalRow {
   };
 }
 
-function mapViewer(row: Record<string, unknown>): TradePortalViewer {
+export function mapViewer(row: Record<string, unknown>): TradePortalViewer {
   return {
     id: Number(row.id),
     portal_id: Number(row.portal_id),
@@ -619,6 +628,15 @@ export type PublicPortalPayload = {
   documents: Array<{ name: string; url: string; category: string }>;
   joinPath: string;
   moneyHint: string | null;
+  kpis: {
+    quotes: number;
+    orders: number;
+    invoices_open: number;
+    due: number | null;
+    currency: string;
+    people: number;
+  };
+  people: PortalPersonPublic[];
   workspace?: import('@/lib/portals/trade-portal-workspace').PortalWorkspace | null;
 };
 
@@ -731,6 +749,24 @@ export async function loadPublicPortal(
 
   if (viewer) void touchViewer(viewer.id);
 
+  let people: PortalPersonPublic[] = [];
+  if (viewer && (viewer.customer_id || viewer.supplier_id)) {
+    try {
+      const { listAccountPeople, publicPeopleView } = await import(
+        '@/lib/portals/trade-portal-people'
+      );
+      const listed = await listAccountPeople({
+        companyId: portal.profile_id,
+        portalId: portal.id,
+        customerId: viewer.customer_id,
+        supplierId: viewer.supplier_id,
+      });
+      if (listed.ok) people = publicPeopleView(listed.people, viewer.id);
+    } catch {
+      people = [];
+    }
+  }
+
   let workspace = null;
   if (viewer && (viewer.customer_id || viewer.supplier_id)) {
     try {
@@ -792,6 +828,15 @@ export async function loadPublicPortal(
       documents,
       joinPath,
       moneyHint,
+      kpis: {
+        quotes: quotes.length,
+        orders: portal.kind === 'customer' ? orders.length : purchase_orders.length,
+        invoices_open: openInvoices.length,
+        due: portal.kind === 'customer' && openInvoices.length ? due : null,
+        currency: openInvoices[0]?.currency || 'ZAR',
+        people: people.length,
+      },
+      people,
       workspace,
     },
   };

@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Loader2,
   RefreshCw,
@@ -28,6 +29,8 @@ import {
   CustomersPage,
 } from '@/components/customers/CustomersShell';
 import { StarRating } from '@/components/ratings';
+import { OtifefKpiCard } from '@/components/portals/OtifefKpiCard';
+import type { OtifefMetrics } from '@/lib/suppliers/types';
 import PeriodSlicer, {
   initialPeriodSlicerValue,
   type PeriodSlicerValue,
@@ -46,6 +49,7 @@ const REPORTS = [
   { id: 'invoices', label: 'Invoice ledger', desc: 'Billed & open' },
   { id: 'ar_aging', label: 'AR aging', desc: 'Collections risk' },
   { id: 'pipeline', label: 'Pipeline', desc: 'Leads & opportunities' },
+  { id: 'otifef', label: 'OTIFEF', desc: 'On-time / in-full / error-free' },
   { id: 'ratings', label: 'Ratings', desc: 'Peer + feedback' },
   { id: 'claims', label: 'Claims', desc: 'Disputes & claims' },
   { id: 'trend', label: 'Trends', desc: 'Monthly revenue' },
@@ -134,13 +138,22 @@ type InvoiceRow = {
 export default function CustomerReportPage() {
   return (
     <CompanyRequired>
-      <Inner />
+      <Suspense
+        fallback={
+          <div className="flex justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-[#00b4d8]" />
+          </div>
+        }
+      >
+        <Inner />
+      </Suspense>
     </CompanyRequired>
   );
 }
 
 function Inner() {
   const companyId = getSelectedCompanyId()!;
+  const searchParams = useSearchParams();
   const [report, setReport] = useState<ReportId>('overview');
   const [period, setPeriod] = useState<PeriodSlicerValue>(() =>
     initialPeriodSlicerValue('ytd', 3)
@@ -221,6 +234,23 @@ function Inner() {
     'billed' | 'revenue' | 'ar' | 'stars' | 'name'
   >('billed');
   const [minBilled, setMinBilled] = useState('');
+  const [otifefSummary, setOtifefSummary] = useState<OtifefMetrics | null>(null);
+  const [otifefRows, setOtifefRows] = useState<
+    Array<{
+      customer_id: number;
+      name: string;
+      overall: number;
+      ot_percent: number;
+      if_percent: number;
+      ef_percent: number;
+      total_orders: number;
+    }>
+  >([]);
+
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t === 'otifef') setReport('otifef');
+  }, [searchParams]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -248,6 +278,13 @@ function Inner() {
       setClaimsByStatus(data.claimsByStatus || []);
       setRisk(data.risk || null);
       if (data.warnings?.length) toast.message(String(data.warnings[0]));
+      const ot = await fetch(
+        `/api/customers/otifef?companyId=${companyId}&from=${period.from}&to=${period.to}`,
+        { cache: 'no-store' }
+      );
+      const otData = await ot.json();
+      setOtifefSummary(otData.summary || null);
+      setOtifefRows(otData.rows || []);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
     } finally {
@@ -990,6 +1027,66 @@ function Inner() {
               >
                 Open leads & pipeline →
               </Link>
+            </div>
+          )}
+
+          {report === 'otifef' && (
+            <div className="space-y-4">
+              <OtifefKpiCard metrics={otifefSummary} kind="customer" />
+              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-sm">
+                    <thead>
+                      <tr className="border-b text-left text-[10px] font-bold uppercase text-slate-400">
+                        <th className="px-4 py-3">Customer</th>
+                        <th className="px-3 py-3 text-right">OTIFEF</th>
+                        <th className="px-3 py-3 text-right">On time</th>
+                        <th className="px-3 py-3 text-right">In full</th>
+                        <th className="px-3 py-3 text-right">Error-free</th>
+                        <th className="px-3 py-3 text-right">Orders</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {otifefRows.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="px-4 py-12 text-center text-slate-500"
+                          >
+                            No delivered sales orders in this period.
+                          </td>
+                        </tr>
+                      ) : (
+                        otifefRows.map((r) => (
+                          <tr
+                            key={r.customer_id}
+                            className="border-b border-slate-50"
+                          >
+                            <td className="px-4 py-2.5 font-semibold">
+                              {r.name}
+                            </td>
+                            <td className="px-3 py-2.5 text-right font-black tabular-nums">
+                              {r.overall.toFixed(1)}%
+                            </td>
+                            <td className="px-3 py-2.5 text-right tabular-nums">
+                              {r.ot_percent.toFixed(1)}%
+                            </td>
+                            <td className="px-3 py-2.5 text-right tabular-nums">
+                              {r.if_percent.toFixed(1)}%
+                            </td>
+                            <td className="px-3 py-2.5 text-right tabular-nums">
+                              {r.ef_percent.toFixed(1)}%
+                            </td>
+                            <td className="px-3 py-2.5 text-right tabular-nums">
+                              {r.total_orders}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           )}
 

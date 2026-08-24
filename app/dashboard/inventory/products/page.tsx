@@ -40,6 +40,7 @@ import {
   uploadProductImage,
   uploadProductSpecSheet,
 } from '@/lib/inventory/uploadProductAssets';
+import { writeCustomerBrand } from '@/lib/inventory/customer-brand';
 
 type CategoryRow = {
   id: number;
@@ -121,6 +122,29 @@ function ProductsInner() {
   const [displayCurrency, setDisplayCurrency] = useState('');
   /** Always try to show two currencies when product has them */
   const [showDualCurrency, setShowDualCurrency] = useState(true);
+  const [customerBrand, setCustomerBrand] = useState(false);
+  const [brandCustomerId, setBrandCustomerId] = useState<number | ''>('');
+  const [crmCustomers, setCrmCustomers] = useState<
+    Array<{ id: number; trading_name: string }>
+  >([]);
+
+  const loadCrmCustomers = useCallback(async () => {
+    if (!companyId) return;
+    try {
+      const res = await fetch(`/api/customers?companyId=${companyId}`);
+      const data = await res.json();
+      setCrmCustomers(
+        (data.customers || []).map(
+          (c: { id: number; trading_name?: string }) => ({
+            id: Number(c.id),
+            trading_name: String(c.trading_name || `#${c.id}`),
+          })
+        )
+      );
+    } catch {
+      setCrmCustomers([]);
+    }
+  }, [companyId]);
 
   const loadCategories = useCallback(async () => {
     if (!companyId) return;
@@ -159,7 +183,8 @@ function ProductsInner() {
 
   useEffect(() => {
     void loadCategories();
-  }, [loadCategories]);
+    void loadCrmCustomers();
+  }, [loadCategories, loadCrmCustomers]);
 
   /** Currencies available across the catalogue (for the display picker). */
   const catalogueCurrencies = useMemo(() => {
@@ -252,6 +277,8 @@ function ProductsInner() {
     setSpecFile(null);
     setShowNewCategory(false);
     setNewCategoryName('');
+    setCustomerBrand(false);
+    setBrandCustomerId('');
   };
 
   const openCreate = (preferType?: string) => {
@@ -302,6 +329,13 @@ function ProductsInner() {
     setImageFile(null);
     setImagePreview(p.primary_image_url || null);
     setSpecFile(null);
+    const meta =
+      p.metadata && typeof p.metadata === 'object'
+        ? (p.metadata as Record<string, unknown>)
+        : {};
+    const cid = Number(meta.customer_id);
+    setCustomerBrand(meta.customer_brand === true || (Number.isFinite(cid) && cid > 0));
+    setBrandCustomerId(Number.isFinite(cid) && cid > 0 ? cid : '');
     setShowModal(true);
   };
 
@@ -365,6 +399,22 @@ function ProductsInner() {
         primary_image_url: primary_image_url || null,
         specs_sheet_url: specs_sheet_url || null,
         specs_sheet_name: specs_sheet_name || null,
+        metadata: (() => {
+          const prev =
+            editingId != null
+              ? (products.find((p) => p.id === editingId)?.metadata as
+                  | Record<string, unknown>
+                  | undefined) || {}
+              : {};
+          const name =
+            crmCustomers.find((c) => c.id === brandCustomerId)?.trading_name ||
+            null;
+          return writeCustomerBrand(prev, {
+            customer_brand: customerBrand,
+            customer_id: customerBrand && brandCustomerId ? Number(brandCustomerId) : null,
+            customer_name: name,
+          });
+        })(),
       };
 
       const res = await fetch('/api/inventory/products', {
@@ -630,6 +680,18 @@ function ProductsInner() {
                                   Manufacturer
                                 </a>
                               )}
+                            {(() => {
+                              const meta =
+                                p.metadata && typeof p.metadata === 'object'
+                                  ? (p.metadata as Record<string, unknown>)
+                                  : {};
+                              const brand = String(meta.customer_name || '').trim();
+                              return brand ? (
+                                <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-cyan-50 text-cyan-900 border border-cyan-100">
+                                  Brand · {brand}
+                                </span>
+                              ) : null;
+                            })()}
                             {p.source_profile_id && (
                               <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-800 border border-violet-100">
                                 Network import
@@ -1025,6 +1087,44 @@ function ProductsInner() {
                       </div>
                     </div>
                   )}
+                </div>
+                <div className="rounded-2xl border border-cyan-100 bg-cyan-50/40 p-3 space-y-2">
+                  <label className="flex items-start gap-2 text-sm font-semibold text-slate-800">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={customerBrand}
+                      onChange={(e) => {
+                        setCustomerBrand(e.target.checked);
+                        if (!e.target.checked) setBrandCustomerId('');
+                      }}
+                    />
+                    <span>
+                      Customer brand
+                      <span className="block text-[11px] font-medium text-slate-500">
+                        Private-label SKU. Pick the CRM customer — it appears on
+                        their portal so they can raise a PO for these products.
+                      </span>
+                    </span>
+                  </label>
+                  {customerBrand ? (
+                    <select
+                      className="input w-full !p-3 !text-sm"
+                      value={brandCustomerId}
+                      onChange={(e) =>
+                        setBrandCustomerId(
+                          e.target.value ? Number(e.target.value) : ''
+                        )
+                      }
+                    >
+                      <option value="">Select customer…</option>
+                      {crmCustomers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.trading_name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
