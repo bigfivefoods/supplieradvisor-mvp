@@ -988,42 +988,76 @@ export async function POST(request: NextRequest) {
         );
       }
       const qty = lines.reduce((n, l) => n + Number(l.qty || 0), 0);
-      const subtotal = lines.reduce(
-        (n, l) => n + Number(l.line_total || 0),
-        0
+      const { calcDocTotals, normalizeItems, docNumber } = await import(
+        '@/lib/customers/documents'
       );
-      const amount = Number(body.total_amount || subtotal) || subtotal;
+      const soItems = normalizeItems(lines);
+      const taxRate = Number(body.tax_rate);
+      const totals = calcDocTotals(
+        soItems,
+        Number.isFinite(taxRate) ? taxRate : 15
+      );
+      if (body.total_amount != null && Number(body.total_amount) > 0) {
+        totals.total_amount = Number(body.total_amount);
+      }
+      if (body.subtotal != null && Number(body.subtotal) > 0) {
+        totals.subtotal = Number(body.subtotal);
+      }
+      if (body.tax_amount != null && Number(body.tax_amount) >= 0) {
+        totals.tax_amount = Number(body.tax_amount);
+      }
+      const amount = totals.total_amount;
       const poNumber = String(body.po_number || '').trim().slice(0, 60);
+      if (!poNumber) {
+        return NextResponse.json({ error: 'PO number is required' }, { status: 400 });
+      }
       const promised = body.promised_date
         ? String(body.promised_date).slice(0, 10)
         : null;
       const attachment = body.attachment_url
         ? String(body.attachment_url).slice(0, 2000)
         : null;
+      const shipTo = String(body.ship_to || '').trim().slice(0, 800) || null;
+      const billTo = String(body.bill_to || '').trim().slice(0, 800) || null;
+      const paymentTerms =
+        String(body.payment_terms || '').trim().slice(0, 80) || null;
+      const contactName =
+        String(body.contact_name || viewer.name || '').trim().slice(0, 120) ||
+        null;
       const insert: Record<string, unknown> = {
         supplier_profile_id: portal.profile_id,
         seller_customer_id: viewer.customer_id,
         source: 'customer_portal',
         status: 'sent',
-        po_number: poNumber || null,
-        order_number: poNumber || null,
+        po_number: poNumber,
+        order_number: poNumber,
         description: String(
           body.description ||
-            `Customer PO${poNumber ? ` ${poNumber}` : ''} from ${accountName}`
+            `Customer PO ${poNumber} from ${accountName}`
         ).slice(0, 400),
         currency: String(body.currency || 'ZAR').slice(0, 8),
         total_amount: amount,
-        subtotal: amount,
+        subtotal: totals.subtotal,
+        tax_amount: totals.tax_amount,
+        tax_rate: totals.tax_rate,
         items: lines,
         order_quantity: qty || null,
         promised_date: promised,
+        payment_terms: paymentTerms,
         metadata: {
           attachment_url: attachment,
           attachment_name: body.attachment_name
             ? String(body.attachment_name).slice(0, 160)
             : null,
           portal_viewer_id: viewer.id,
-          customer_po_number: poNumber || null,
+          customer_po_number: poNumber,
+          ship_to: shipTo,
+          bill_to: billTo,
+          contact_name: contactName,
+          contact_email: String(body.contact_email || viewer.email || '').slice(0, 240) || null,
+          contact_phone: String(body.contact_phone || viewer.phone || '').slice(0, 40) || null,
+          po_date: body.po_date ? String(body.po_date).slice(0, 10) : null,
+          requested_by: stamp.noteTag,
         },
         created_at: now,
         updated_at: now,
@@ -1037,6 +1071,9 @@ export async function POST(request: NextRequest) {
         const soft = { ...insert };
         delete soft.po_number;
         delete soft.order_number;
+        delete soft.tax_amount;
+        delete soft.tax_rate;
+        delete soft.payment_terms;
         poIns = await supabase
           .from('purchase_orders')
           .insert(soft)
@@ -1047,13 +1084,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: poIns.error.message }, { status: 500 });
       }
 
-      const { docNumber, calcDocTotals, normalizeItems } = await import(
-        '@/lib/customers/documents'
-      );
-      const soItems = normalizeItems(lines);
-      const totals = calcDocTotals(soItems, 0);
-      totals.total_amount = amount;
-      totals.subtotal = amount;
       const soPayload: Record<string, unknown> = {
         profile_id: portal.profile_id,
         customer_id: viewer.customer_id,
@@ -1062,25 +1092,36 @@ export async function POST(request: NextRequest) {
         currency: String(body.currency || 'ZAR').slice(0, 8),
         ...totals,
         promised_date: promised,
+        payment_terms: paymentTerms,
         customer_name: accountName,
-        contact_name: viewer.name,
-        contact_email: viewer.email,
-        contact_phone: viewer.phone,
+        contact_name: contactName,
+        contact_email:
+          String(body.contact_email || viewer.email || '').slice(0, 240) ||
+          viewer.email,
+        contact_phone:
+          String(body.contact_phone || viewer.phone || '').slice(0, 40) ||
+          viewer.phone,
+        shipping_address: shipTo,
+        billing_address: billTo,
         notes: [
-          poNumber ? `Customer PO ${poNumber}` : null,
+          `Customer PO ${poNumber}`,
+          paymentTerms ? `Terms: ${paymentTerms}` : null,
+          shipTo ? `Deliver to:\n${shipTo}` : null,
           String(body.description || '').trim() || null,
           attachment ? `Attached: ${attachment}` : null,
         ]
           .filter(Boolean)
           .join('\n')
-          .slice(0, 800),
+          .slice(0, 1200),
         items: soItems,
         metadata: {
           source: 'customer_portal',
-          customer_po_number: poNumber || null,
+          customer_po_number: poNumber,
           inbound_po_id: poIns.data?.id || null,
           attachment_url: attachment,
           portal_viewer_id: viewer.id,
+          ship_to: shipTo,
+          bill_to: billTo,
         },
         created_at: now,
         updated_at: now,
@@ -1095,6 +1136,11 @@ export async function POST(request: NextRequest) {
         delete soft.metadata;
         delete soft.promised_date;
         delete soft.contact_phone;
+        delete soft.payment_terms;
+        delete soft.shipping_address;
+        delete soft.billing_address;
+        delete soft.tax_amount;
+        delete soft.tax_rate;
         so = await supabase
           .from('sales_orders')
           .insert(soft)

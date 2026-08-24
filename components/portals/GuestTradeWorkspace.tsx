@@ -42,6 +42,7 @@ import {
 import { WaterfallGantt } from '@/components/projects/WaterfallGantt';
 import { Building2, ChevronDown, ChevronRight, FileText } from 'lucide-react';
 import { PortalRiadPanel } from '@/components/portals/PortalRiadPanel';
+import { PortalPurchaseOrder } from '@/components/portals/PortalPurchaseOrder';
 
 export type GuestPortalTab =
   | 'profile'
@@ -81,7 +82,7 @@ export function guestPortalTabs(opts: {
   return [
     { id: 'profile' as const, label: profile },
     { id: 'orders' as const, label: 'Sales orders' },
-    { id: 'newpo' as const, label: 'Raise a PO' },
+    { id: 'newpo' as const, label: 'Purchase order' },
     { id: 'otifef' as const, label: 'OTIFEF metrics' },
     { id: 'statement' as const, label: 'Statement' },
     { id: 'projects' as const, label: 'Projects' },
@@ -586,12 +587,20 @@ export function GuestTradeWorkspace({
         <StockPanel lines={ws?.stock || []} busy={busy} onAct={act} />
       ) : null}
       {tab === 'newpo' && !isSupplier ? (
-        <NewPoPanel
+        <PortalPurchaseOrder
           token={token}
           busy={busy}
           onAct={act}
           catalogue={ws?.catalogue || []}
           hostName={live.host.name}
+          hostLogo={live.host.logo_url}
+          hostCountry={live.host.country}
+          accountName={live.accountLabel}
+          accountLogo={live.accountLogo || ws?.bookProfile?.logo_url}
+          book={ws?.bookProfile}
+          viewerName={live.actor?.name || live.viewer?.name}
+          viewerEmail={live.viewer?.email}
+          onViewOrders={() => onTab('orders')}
         />
       ) : null}
       {tab === 'docs' ? (
@@ -2139,391 +2148,6 @@ function StockQuick({
         className="btn-secondary !py-1 !px-2 text-xs"
       >
         Set
-      </button>
-    </div>
-  );
-}
-
-function NewPoPanel({
-  token,
-  busy,
-  onAct,
-  catalogue,
-  hostName,
-}: {
-  token: string;
-  busy: boolean;
-  onAct: (p: Record<string, unknown>) => Promise<unknown>;
-  catalogue: PortalCatalogueItem[];
-  hostName: string;
-}) {
-  type Line = {
-    key: string;
-    product_id: number | null;
-    name: string;
-    sku: string | null;
-    qty: number;
-    unit_price: number;
-    uom: string | null;
-  };
-  const [lines, setLines] = useState<Line[]>([]);
-  const [poNumber, setPoNumber] = useState('');
-  const [date, setDate] = useState('');
-  const [notes, setNotes] = useState('');
-  const [freeName, setFreeName] = useState('');
-  const [freeQty, setFreeQty] = useState('1');
-  const [freePrice, setFreePrice] = useState('');
-  const [chipQty, setChipQty] = useState(1);
-  const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  const branded = catalogue.filter((c) => c.customer_brand);
-  const shown = branded.length ? branded : catalogue;
-  const total = useMemo(
-    () =>
-      lines.reduce(
-        (s, l) => s + Number(l.qty || 0) * Number(l.unit_price || 0),
-        0
-      ),
-    [lines]
-  );
-
-  const addFromCatalogue = (c: PortalCatalogueItem) => {
-    const qty = Math.max(1, Number(chipQty) || 1);
-    setLines((prev) => {
-      const idx = prev.findIndex((l) => l.product_id === c.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = { ...next[idx], qty: Number(next[idx].qty || 0) + qty };
-        return next;
-      }
-      return [
-        ...prev,
-        {
-          key: `p-${c.id}-${Date.now()}`,
-          product_id: c.id,
-          name: c.name,
-          sku: c.sku,
-          qty,
-          unit_price: Number(c.unit_price) || 0,
-          uom: c.uom || 'ea',
-        },
-      ];
-    });
-  };
-
-  const addFreeLine = () => {
-    const name = freeName.trim();
-    if (!name) return;
-    const qty = Math.max(1, Number(freeQty) || 1);
-    setLines((prev) => [
-      ...prev,
-      {
-        key: `f-${Date.now()}`,
-        product_id: null,
-        name,
-        sku: null,
-        qty,
-        unit_price: Number(freePrice) || 0,
-        uom: 'ea',
-      },
-    ]);
-    setFreeName('');
-    setFreeQty('1');
-    setFreePrice('');
-  };
-
-  const updateLine = (key: string, patch: Partial<Line>) => {
-    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
-  };
-
-  const removeLine = (key: string) => {
-    setLines((prev) => prev.filter((l) => l.key !== key));
-  };
-
-  const send = async () => {
-    setErr(null);
-    let attachment_url: string | undefined;
-    let attachment_name: string | undefined;
-    try {
-      if (file) {
-        setUploading(true);
-        try {
-          const fd = new FormData();
-          fd.set('token', token);
-          fd.set('file', file);
-          const res = await fetch('/api/public/portals/trade/upload', {
-            method: 'POST',
-            body: fd,
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || 'Upload failed');
-          attachment_url = data.url;
-          attachment_name = data.name || file.name;
-        } finally {
-          setUploading(false);
-        }
-      }
-      await onAct({
-        action: 'po_create',
-        po_number: poNumber || undefined,
-        promised_date: date || undefined,
-        description: notes || undefined,
-        total_amount: total,
-        attachment_url,
-        attachment_name,
-        items: lines.map((l) => ({
-          name: l.name,
-          sku: l.sku,
-          qty: l.qty,
-          quantity: l.qty,
-          unit_price: l.unit_price,
-          product_id: l.product_id,
-          uom: l.uom,
-          line_total: Math.round(Number(l.qty) * Number(l.unit_price) * 100) / 100,
-        })),
-      });
-      setLines([]);
-      setPoNumber('');
-      setNotes('');
-      setFile(null);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Could not send PO');
-    }
-  };
-
-  return (
-    <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 space-y-4 dark:border-white/10 dark:bg-neutral-900">
-      <div>
-        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
-          Raise a PO
-        </p>
-        <h2 className="text-lg font-black text-slate-900 dark:text-white">
-          Order from {hostName}
-        </h2>
-        <p className="mt-1 text-sm text-slate-600 dark:text-neutral-400">
-          Select products, set quantities and delivery date, then send. This
-          lands as a purchase order and a sales order on our books. Attach your
-          own PO if you have one.
-        </p>
-      </div>
-
-      <div className="grid gap-2 sm:grid-cols-2">
-        <input
-          className="input w-full !p-3 !text-sm"
-          placeholder="Your PO number *"
-          value={poNumber}
-          onChange={(e) => setPoNumber(e.target.value)}
-        />
-        <input
-          type="date"
-          className="input !p-3 !text-sm"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-        />
-      </div>
-
-      {shown.length > 0 ? (
-        <div className="rounded-2xl border border-cyan-100 bg-sky-50/60 p-3 space-y-2 dark:border-cyan-400/20 dark:bg-cyan-400/10">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-[#0077b6]">
-              {branded.length ? 'Your branded products' : 'Catalogue'} ·{' '}
-              {shown.length} item{shown.length === 1 ? '' : 's'}
-            </p>
-            <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 dark:text-white/80">
-              Qty
-              <input
-                type="number"
-                min={1}
-                step={1}
-                className="input !py-1 !px-2 !text-xs w-16 tabular-nums"
-                value={chipQty}
-                onChange={(e) =>
-                  setChipQty(Math.max(1, parseInt(e.target.value, 10) || 1))
-                }
-              />
-            </label>
-          </div>
-          <div className="flex flex-wrap gap-1.5 max-h-44 overflow-y-auto">
-            {shown.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                disabled={busy}
-                onClick={() => addFromCatalogue(c)}
-                className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-800 hover:border-[#00b4d8] hover:bg-[#e0f7fc] text-left dark:border-white/15 dark:bg-white/10 dark:text-white"
-                title={c.short_description || c.name}
-              >
-                <span>{c.name}</span>
-                {c.sku ? (
-                  <span className="font-normal text-neutral-400">{c.sku}</span>
-                ) : null}
-                <span className="font-normal text-neutral-500 tabular-nums dark:text-white/60">
-                  {formatMoney(Number(c.unit_price || 0), c.currency)}
-                  {c.uom ? `/${c.uom}` : ''}
-                </span>
-              </button>
-            ))}
-          </div>
-          <p className="text-[10px] text-neutral-500 dark:text-white/50">
-            Tap a product to add it (qty above). Same product merges quantity.
-          </p>
-        </div>
-      ) : (
-        <p className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-          No sellable catalogue published yet — use free-text lines below, or
-          ask us to tag your SKUs in Inventory → Customer brand.
-        </p>
-      )}
-
-      {lines.length > 0 ? (
-        <ul className="space-y-2">
-          {lines.map((l) => (
-            <li
-              key={l.key}
-              className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5 space-y-2 dark:border-white/10 dark:bg-black/20"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-bold text-slate-900 dark:text-white">
-                    {l.name}
-                  </p>
-                  <p className="text-[11px] text-neutral-500">
-                    {[l.sku, l.product_id ? `ID ${l.product_id}` : 'Free-text', l.uom]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => removeLine(l.key)}
-                  className="text-[11px] font-bold text-rose-600"
-                >
-                  Remove
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="text-[10px] font-bold uppercase text-neutral-400">
-                  Qty
-                  <input
-                    type="number"
-                    min={1}
-                    className="input mt-0.5 w-full !py-1.5 !px-2 !text-sm"
-                    value={l.qty}
-                    onChange={(e) =>
-                      updateLine(l.key, {
-                        qty: Math.max(1, Number(e.target.value) || 1),
-                      })
-                    }
-                  />
-                </label>
-                <label className="text-[10px] font-bold uppercase text-neutral-400">
-                  Unit price
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    className="input mt-0.5 w-full !py-1.5 !px-2 !text-sm"
-                    value={l.unit_price}
-                    onChange={(e) =>
-                      updateLine(l.key, {
-                        unit_price: Number(e.target.value) || 0,
-                      })
-                    }
-                  />
-                </label>
-              </div>
-              <p className="text-xs font-semibold text-slate-700 tabular-nums text-right dark:text-white/80">
-                Line:{' '}
-                {formatMoney(Number(l.qty) * Number(l.unit_price))}
-              </p>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      <div className="rounded-2xl border border-dashed border-slate-200 p-3 space-y-2 dark:border-white/15">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-          Free-text line (optional)
-        </p>
-        <input
-          className="input w-full !p-2.5 !text-sm"
-          placeholder="Item name"
-          value={freeName}
-          onChange={(e) => setFreeName(e.target.value)}
-        />
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            className="input !p-2.5 !text-sm"
-            placeholder="Qty"
-            value={freeQty}
-            onChange={(e) => setFreeQty(e.target.value)}
-          />
-          <input
-            className="input !p-2.5 !text-sm"
-            placeholder="Unit price"
-            value={freePrice}
-            onChange={(e) => setFreePrice(e.target.value)}
-          />
-        </div>
-        <button
-          type="button"
-          disabled={busy || !freeName.trim()}
-          onClick={addFreeLine}
-          className="btn-secondary !py-1.5 !px-3 text-xs"
-        >
-          Add line
-        </button>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-black tabular-nums text-slate-900 dark:text-white">
-          Total {formatMoney(total)}
-        </p>
-        <p className="text-[11px] text-slate-500">
-          Delivery date applies to the whole PO
-        </p>
-      </div>
-      <textarea
-        className="input w-full !p-3 !text-sm min-h-[64px]"
-        placeholder="Notes / delivery instructions (optional)"
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
-      />
-      <label className="block rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-sm dark:border-white/15 dark:bg-black/20">
-        <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
-          Attach your PO (PDF, image, Word)
-        </span>
-        <input
-          type="file"
-          accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,application/pdf"
-          className="mt-2 block w-full text-xs"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
-        />
-        {file ? (
-          <p className="mt-1 text-xs font-semibold text-[#0077b6]">{file.name}</p>
-        ) : null}
-      </label>
-      {err ? (
-        <p className="text-sm font-semibold text-rose-700">{err}</p>
-      ) : null}
-      <button
-        type="button"
-        disabled={
-          busy || uploading || lines.length === 0 || !poNumber.trim() || !date
-        }
-        onClick={() => void send()}
-        className="btn-primary w-full !py-2.5 text-sm"
-      >
-        {uploading
-          ? 'Uploading attachment…'
-          : `Send purchase order${
-              lines.length
-                ? ` · ${lines.length} line${lines.length === 1 ? '' : 's'}`
-                : ''
-            }`}
       </button>
     </div>
   );
