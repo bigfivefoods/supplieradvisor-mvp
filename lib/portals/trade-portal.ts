@@ -8,6 +8,14 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getAppUrl } from '@/lib/resend';
 import { formatMoney } from '@/lib/customers/types';
 import { isMissingRelation } from '@/lib/business/company-data';
+import { ALL_DOCUMENT_DB_COLUMNS } from '@/lib/business/documentFields';
+import {
+  filledPortalDocs,
+  mergePortalDocSlots,
+  type PortalDocSlot,
+} from '@/lib/portals/portal-documents';
+
+export type { PortalDocSlot } from '@/lib/portals/portal-documents';
 
 export const TRADE_PORTAL_KINDS = ['customer', 'supplier'] as const;
 export type TradePortalKind = (typeof TRADE_PORTAL_KINDS)[number];
@@ -613,52 +621,35 @@ async function loadSupplierPos(
   );
 }
 
-function pushDoc(
-  out: Array<{ name: string; url: string; category: string }>,
-  name: string,
-  url: unknown,
-  category: string
-) {
-  const u = String(url || '').trim();
-  if (u) out.push({ name, url: u, category });
-}
+const PROFILE_DOC_SELECT = `${ALL_DOCUMENT_DB_COLUMNS.filter(
+  (c) => c !== 'logo_url'
+).join(', ')}, metadata`;
 
-function docsFromMetadata(
-  metadata: unknown,
-  fallbackCategory: string
-): Array<{ name: string; url: string; category: string }> {
-  const out: Array<{ name: string; url: string; category: string }> = [];
-  const meta = asObject(metadata);
-  const list = Array.isArray(meta.documents) ? meta.documents : [];
-  for (const item of list) {
-    const row = asObject(item);
-    const url = String(row.url || '').trim();
-    const name = String(row.name || 'Document').trim();
-    if (url) out.push({ name, url, category: String(row.category || fallbackCategory) });
-  }
-  return out;
-}
+const PROFILE_DOC_SELECT_FALLBACK =
+  'registration_certificate_url, registration_document_url, vat_certificate_url, vat_document_url, bee_certificate_url, bank_confirmation_url, import_license_url, import_document_url, export_license_url, export_document_url, tax_document_url, metadata';
 
-async function loadSharedDocs(
-  companyId: number,
-  kind: TradePortalKind
-): Promise<Array<{ name: string; url: string; category: string }>> {
+async function loadProfileDocRow(
+  companyId: number
+): Promise<Record<string, unknown> | null> {
   const supabase = getSupabaseServer();
-  const { data } = await supabase
+  let hit = await supabase
     .from('profiles')
-    .select(
-      'registration_certificate_url, vat_certificate_url, bee_certificate_url, metadata'
-    )
+    .select(PROFILE_DOC_SELECT)
     .eq('id', companyId)
     .maybeSingle();
-  const out: Array<{ name: string; url: string; category: string }> = [];
-  if (data) {
-    pushDoc(out, 'Company registration', data.registration_certificate_url, 'Legal');
-    pushDoc(out, 'VAT certificate', data.vat_certificate_url, 'Financial');
-    pushDoc(out, 'B-BBEE certificate', data.bee_certificate_url, 'Legal');
-    out.push(...docsFromMetadata(data.metadata, kind));
+  if (hit.error) {
+    hit = await supabase
+      .from('profiles')
+      .select(PROFILE_DOC_SELECT_FALLBACK)
+      .eq('id', companyId)
+      .maybeSingle();
   }
-  return out.slice(0, 24);
+  return hit.data ? asObject(hit.data) : null;
+}
+
+async function loadSharedDocs(companyId: number): Promise<PortalDocSlot[]> {
+  const row = await loadProfileDocRow(companyId);
+  return mergePortalDocSlots({ profileRow: row });
 }
 
 async function loadAccountDocs(opts: {
@@ -666,9 +657,9 @@ async function loadAccountDocs(opts: {
   kind: TradePortalKind;
   customerId?: number | null;
   supplierId?: number | null;
-}): Promise<Array<{ name: string; url: string; category: string }>> {
+}): Promise<PortalDocSlot[]> {
   const supabase = getSupabaseServer();
-  const out: Array<{ name: string; url: string; category: string }> = [];
+  let metadata: unknown = null;
   let linked: number | null = null;
   if (opts.kind === 'customer' && opts.customerId) {
     let hit = await supabase
@@ -686,7 +677,7 @@ async function loadAccountDocs(opts: {
         .maybeSingle();
     }
     if (hit.data) {
-      out.push(...docsFromMetadata((hit.data as { metadata?: unknown }).metadata, 'customer'));
+      metadata = (hit.data as { metadata?: unknown }).metadata;
       if (hit.data.linked_profile_id) linked = Number(hit.data.linked_profile_id);
     }
   } else if (opts.kind === 'supplier' && opts.supplierId) {
@@ -705,17 +696,15 @@ async function loadAccountDocs(opts: {
         .maybeSingle();
     }
     if (hit.data) {
-      out.push(...docsFromMetadata((hit.data as { metadata?: unknown }).metadata, 'supplier'));
+      metadata = (hit.data as { metadata?: unknown }).metadata;
       if (hit.data.linked_profile_id) linked = Number(hit.data.linked_profile_id);
     }
   }
+  let linkedRow: Record<string, unknown> | null = null;
   if (linked && linked > 0 && linked !== opts.companyId) {
-    const linkedDocs = await loadSharedDocs(linked, opts.kind);
-    for (const d of linkedDocs) {
-      if (!out.some((x) => x.url === d.url)) out.push(d);
-    }
+    linkedRow = await loadProfileDocRow(linked);
   }
-  return out.slice(0, 24);
+  return mergePortalDocSlots({ profileRow: linkedRow, metadata });
 }
 
 export type PublicPortalPayload = {
@@ -736,10 +725,10 @@ export type PublicPortalPayload = {
   invoices: PublicDocRow[];
   purchase_orders: PublicDocRow[];
   documents: Array<{ name: string; url: string; category: string }>;
-  /** Host company (e.g. Big Five Foods) legal pack */
-  hostDocuments?: Array<{ name: string; url: string; category: string }>;
-  /** Customer/supplier book + linked company pack (e.g. Boxer) */
-  accountDocuments?: Array<{ name: string; url: string; category: string }>;
+  /** Host company (e.g. Big Five Foods) required + extra docs */
+  hostDocuments?: PortalDocSlot[];
+  /** Customer/supplier book + linked company required + extra docs */
+  accountDocuments?: PortalDocSlot[];
   joinPath: string;
   moneyHint: string | null;
   kpis: {
@@ -899,12 +888,12 @@ export async function loadPublicPortal(
     }
   }
 
-  const documents =
+  const hostSlots =
     sections.documents !== false
-      ? await loadSharedDocs(portal.profile_id, portal.kind)
+      ? await loadSharedDocs(portal.profile_id)
       : [];
-  let accountDocuments: Array<{ name: string; url: string; category: string }> =
-    [];
+  const documents = filledPortalDocs(hostSlots);
+  let accountDocuments: PortalDocSlot[] = [];
   if (viewer && (viewer.customer_id || viewer.supplier_id)) {
     try {
       accountDocuments = await loadAccountDocs({
@@ -1013,7 +1002,7 @@ export async function loadPublicPortal(
       invoices,
       purchase_orders,
       documents,
-      hostDocuments: documents,
+      hostDocuments: hostSlots,
       accountDocuments,
       joinPath,
       moneyHint,

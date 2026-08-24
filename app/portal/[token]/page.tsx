@@ -388,8 +388,8 @@ export default function GuestTradePortalPage() {
 
         <p className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[13px] leading-relaxed text-slate-600 dark:border-white/10 dark:bg-black/20 dark:text-white/70">
           {isHost
-            ? `You are working as ${host.name} in ${portal.accountLabel || 'this'} portal. Company profile and purchase orders update the same CRM/SRM books.`
-            : `This is the same live ledger ${host.name} runs in SupplierAdvisor. Raise a purchase order, keep the company profile in sync with CRM, and add colleagues on People.`}
+            ? `You are working as ${host.name} in ${portal.accountLabel || 'this'} portal. Profile and purchase orders update the same CRM/SRM books.`
+            : `This is the same live ledger ${host.name} runs in SupplierAdvisor. Raise a purchase order, keep the profile in sync with CRM, and add colleagues on People.`}
         </p>
 
         <div className="space-y-4 rounded-[1.75rem] border border-white/10 bg-[#f8fafc] p-3 text-slate-900 shadow-2xl sm:p-5">

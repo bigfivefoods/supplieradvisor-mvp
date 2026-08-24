@@ -18,7 +18,11 @@ import {
   formatMoney as formatMoneyPrecise,
 } from '@/lib/customers/documents';
 import { addDays, isoDay } from '@/lib/projects/waterfall';
-import type { BookProfile, PortalCatalogueItem } from '@/lib/portals/trade-portal-workspace';
+import {
+  isPortalFinishedGood,
+  type BookProfile,
+  type PortalCatalogueItem,
+} from '@/lib/portals/trade-portal-workspace';
 import {
   portalPoTaxRate,
   suggestPortalPoNumber,
@@ -43,6 +47,58 @@ const STEPS = [
 
 function money(n: number, currency = 'ZAR') {
   return formatMoneyPrecise(n, currency);
+}
+
+function CatalogueTile({
+  item,
+  currency,
+  busy,
+  onAdd,
+}: {
+  item: PortalCatalogueItem;
+  currency: string;
+  busy: boolean;
+  onAdd: (c: PortalCatalogueItem) => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={() => onAdd(item)}
+      className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left hover:border-[#00b4d8] hover:bg-sky-50"
+    >
+      {item.primary_image_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={item.primary_image_url}
+          alt=""
+          className="h-12 w-12 rounded-xl border border-white object-cover"
+        />
+      ) : (
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-[10px] font-black text-slate-400">
+          SKU
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-bold text-slate-900">{item.name}</p>
+        <p className="text-[11px] text-neutral-500">
+          {[
+            item.sku,
+            item.uom,
+            item.customer_brand ? 'Your brand' : 'Finished good',
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </p>
+      </div>
+      <div className="text-right">
+        <p className="text-sm font-black tabular-nums">
+          {money(Number(item.unit_price || 0), item.currency || currency)}
+        </p>
+        <p className="text-[10px] font-bold text-[#0077b6]">Add</p>
+      </div>
+    </button>
+  );
 }
 
 function PartyCard({
@@ -154,8 +210,18 @@ export function PortalPurchaseOrder({
   } | null>(null);
 
   const taxRate = portalPoTaxRate(hostCountry || book?.country);
-  const branded = catalogue.filter((c) => c.customer_brand);
-  const pool = branded.length ? branded : catalogue;
+  const branded = useMemo(
+    () => catalogue.filter((c) => c.customer_brand),
+    [catalogue]
+  );
+  const otherFg = useMemo(
+    () =>
+      catalogue.filter(
+        (c) => !c.customer_brand && isPortalFinishedGood(c.product_type)
+      ),
+    [catalogue]
+  );
+  const pool = useMemo(() => [...branded, ...otherFg], [branded, otherFg]);
   const filtered = useMemo(() => {
     const n = q.trim().toLowerCase();
     if (!n) return pool;
@@ -461,10 +527,11 @@ export function PortalPurchaseOrder({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-wider text-[#0077b6]">
-                  {branded.length ? 'Your branded catalogue' : 'Catalogue'}
+                  Catalogue
                 </p>
                 <p className="text-sm text-slate-600">
-                  Search and add lines. Same SKU merges quantity.
+                  Your brand first, then {hostName} finished goods. Same SKU
+                  merges quantity.
                 </p>
               </div>
               <label className="inline-flex items-center gap-1.5 text-xs font-semibold">
@@ -490,45 +557,61 @@ export function PortalPurchaseOrder({
               />
             </div>
             {filtered.length ? (
-              <ul className="grid max-h-72 gap-2 overflow-y-auto sm:grid-cols-2">
-                {filtered.map((c) => (
-                  <li key={c.id}>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => addFromCatalogue(c)}
-                      className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left hover:border-[#00b4d8] hover:bg-sky-50"
-                    >
-                      {c.primary_image_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={c.primary_image_url}
-                          alt=""
-                          className="h-12 w-12 rounded-xl border border-white object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-[10px] font-black text-slate-400">
-                          SKU
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold text-slate-900">
-                          {c.name}
-                        </p>
-                        <p className="text-[11px] text-neutral-500">
-                          {[c.sku, c.uom].filter(Boolean).join(' · ')}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-black tabular-nums">
-                          {money(Number(c.unit_price || 0), c.currency || currency)}
-                        </p>
-                        <p className="text-[10px] font-bold text-[#0077b6]">Add</p>
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              q.trim() ? (
+                <ul className="grid max-h-72 gap-2 overflow-y-auto sm:grid-cols-2">
+                  {filtered.map((c) => (
+                    <li key={c.id}>
+                      <CatalogueTile
+                        item={c}
+                        currency={currency}
+                        busy={busy}
+                        onAdd={addFromCatalogue}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="max-h-80 space-y-3 overflow-y-auto">
+                  {branded.length ? (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-[#0077b6]">
+                        Your brand
+                      </p>
+                      <ul className="grid gap-2 sm:grid-cols-2">
+                        {branded.map((c) => (
+                          <li key={c.id}>
+                            <CatalogueTile
+                              item={c}
+                              currency={currency}
+                              busy={busy}
+                              onAdd={addFromCatalogue}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {otherFg.length ? (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        {hostName} finished goods
+                      </p>
+                      <ul className="grid gap-2 sm:grid-cols-2">
+                        {otherFg.map((c) => (
+                          <li key={c.id}>
+                            <CatalogueTile
+                              item={c}
+                              currency={currency}
+                              busy={busy}
+                              onAdd={addFromCatalogue}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              )
             ) : (
               <p className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
                 {pool.length

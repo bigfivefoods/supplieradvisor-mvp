@@ -11,21 +11,24 @@ import { StarRating } from '@/components/ratings/StarRating';
 import { formatMoney } from '@/lib/customers/types';
 import { OtifefKpiCard } from '@/components/portals/OtifefKpiCard';
 import type {
+  PortalDocSlot,
   PortalPersonPublic,
   PortalProjectTask,
   PortalRiadView,
   PublicPortalPayload,
 } from '@/lib/portals/trade-portal';
+import {
+  applyPortalDocSlotUrl,
+  emptyRequiredDocSlots,
+  mergePortalDocSlots,
+} from '@/lib/portals/portal-documents';
 import { portalPersonKey } from '@/lib/portals/trade-portal-people';
 import {
   RIAD_PRIORITIES,
   RIAD_TYPES,
   type RiadType,
 } from '@/lib/containers/riad';
-import type {
-  BookProfile,
-  PortalCatalogueItem,
-} from '@/lib/portals/trade-portal-workspace';
+import type { BookProfile } from '@/lib/portals/trade-portal-workspace';
 import {
   addDays,
   clampDayRange,
@@ -40,7 +43,7 @@ import {
   type WbsNode,
 } from '@/lib/projects/wbs';
 import { WaterfallGantt } from '@/components/projects/WaterfallGantt';
-import { Building2, ChevronDown, ChevronRight, FileText } from 'lucide-react';
+import { Building2, ChevronDown, ChevronRight, FileText, Upload } from 'lucide-react';
 import { PortalRiadPanel } from '@/components/portals/PortalRiadPanel';
 import { PortalPurchaseOrder } from '@/components/portals/PortalPurchaseOrder';
 
@@ -64,7 +67,7 @@ export function guestPortalTabs(opts: {
   isHost?: boolean;
 }): Array<{ id: GuestPortalTab; label: string }> {
   const gaps = opts.profileGaps || 0;
-  const profile = gaps ? `Company profile (${gaps})` : 'Company profile';
+  const profile = gaps ? `Profile (${gaps})` : 'Profile';
   if (opts.kind === 'supplier') {
     return [
       { id: 'profile' as const, label: profile },
@@ -72,7 +75,7 @@ export function guestPortalTabs(opts: {
       { id: 'otifef' as const, label: 'OTIFEF metrics' },
       { id: 'projects' as const, label: 'Projects' },
       { id: 'stock' as const, label: 'Stock' },
-      { id: 'docs' as const, label: 'Company documents' },
+      { id: 'docs' as const, label: 'Documents' },
       { id: 'riad' as const, label: 'RIAD' },
       { id: 'messages' as const, label: 'Messages' },
       { id: 'people' as const, label: 'People' },
@@ -86,7 +89,7 @@ export function guestPortalTabs(opts: {
     { id: 'otifef' as const, label: 'OTIFEF metrics' },
     { id: 'statement' as const, label: 'Statement' },
     { id: 'projects' as const, label: 'Projects' },
-    { id: 'docs' as const, label: 'Company documents' },
+    { id: 'docs' as const, label: 'Documents' },
     { id: 'people' as const, label: 'People' },
     { id: 'riad' as const, label: 'RIAD' },
     { id: 'messages' as const, label: 'Messages' },
@@ -183,6 +186,7 @@ const HEAVY_ACTIONS = new Set([
   'po_create',
   'profile',
   'rate',
+  'document_save',
 ]);
 const REFRESH_ACTIONS = new Set([
   'project_create',
@@ -190,6 +194,7 @@ const REFRESH_ACTIONS = new Set([
   'profile',
   'rate',
   'po_update',
+  'document_save',
 ]);
 
 function applyActLocally(
@@ -383,6 +388,31 @@ function applyActLocally(
       },
     };
   }
+  if (action === 'document_save') {
+    const field = String(payload.field || '');
+    const url =
+      payload.url != null && String(payload.url).trim()
+        ? String(payload.url).trim()
+        : null;
+    const pack = String(payload.pack || 'account') === 'host' ? 'host' : 'account';
+    if (pack === 'host') {
+      return {
+        ...prev,
+        hostDocuments: applyPortalDocSlotUrl(prev.hostDocuments, field, url),
+        documents: applyPortalDocSlotUrl(prev.hostDocuments, field, url)
+          .filter((d) => d.url)
+          .map((d) => ({
+            name: d.name,
+            url: d.url as string,
+            category: d.category,
+          })),
+      };
+    }
+    return {
+      ...prev,
+      accountDocuments: applyPortalDocSlotUrl(prev.accountDocuments, field, url),
+    };
+  }
   if (action === 'riad_update' && ws) {
     const id = Number(payload.id);
     return {
@@ -487,7 +517,9 @@ export function GuestTradeWorkspace({
                     ? 'Project heading saved'
                     : action === 'task_update'
                       ? 'Task saved'
-                      : 'Saved'
+                      : action === 'document_save'
+                        ? 'Document shared'
+                        : 'Saved'
       );
       if (REFRESH_ACTIONS.has(action)) onRefresh();
       return data;
@@ -503,6 +535,17 @@ export function GuestTradeWorkspace({
   const orders = isSupplier
     ? ws?.purchase_orders || live.purchase_orders
     : [...(ws?.inbound_pos || []), ...(live.orders || [])];
+  const listedOrders = (
+    isSupplier
+      ? ws?.purchase_orders || live.purchase_orders || []
+      : [
+          ...((ws?.purchase_orders || []).filter((o) => o.kind === 'order')),
+          ...(live.orders || []),
+        ]
+  )
+    .filter((o, i, all) => all.findIndex((x) => x.kind === o.kind && x.id === o.id) === i)
+    .slice()
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
 
   return (
     <div className="space-y-4">
@@ -550,7 +593,7 @@ export function GuestTradeWorkspace({
       {tab === 'orders' ? (
         <OrdersPanel
           isSupplier={isSupplier}
-          orders={orders}
+          orders={listedOrders}
           busy={busy}
           onAct={act}
         />
@@ -605,13 +648,17 @@ export function GuestTradeWorkspace({
       ) : null}
       {tab === 'docs' ? (
         <CompanyDocsPanel
+          token={token}
           kind={live.kind}
+          isHost={isHost}
+          busy={busy}
           hostName={live.host.name}
           hostLogo={live.host.logo_url}
-          hostDocs={live.hostDocuments || live.documents || []}
+          hostDocs={live.hostDocuments || []}
           accountName={live.accountLabel}
           accountLogo={live.accountLogo}
           accountDocs={live.accountDocuments || []}
+          onAct={act}
         />
       ) : null}
       {tab === 'riad' ? (
@@ -885,96 +932,279 @@ function PeoplePanel({
   );
 }
 
+function coercePortalDocSlots(docs: PortalDocSlot[]): PortalDocSlot[] {
+  const required = docs.filter((d) => d.field && !d.extra);
+  if (required.length >= 7) return docs.length ? docs : emptyRequiredDocSlots();
+  return mergePortalDocSlots({
+    metadata: { documents: docs },
+  });
+}
+
 function CompanyDocsPanel({
+  token,
   kind,
+  isHost,
+  busy,
   hostName,
   hostLogo,
   hostDocs,
   accountName,
   accountLogo,
   accountDocs,
+  onAct,
 }: {
+  token: string;
   kind: PublicPortalPayload['kind'];
+  isHost?: boolean;
+  busy: boolean;
   hostName: string;
   hostLogo?: string | null;
-  hostDocs: Array<{ name: string; url: string; category: string }>;
+  hostDocs: PortalDocSlot[];
   accountName?: string | null;
   accountLogo?: string | null;
-  accountDocs: Array<{ name: string; url: string; category: string }>;
+  accountDocs: PortalDocSlot[];
+  onAct: (p: Record<string, unknown>) => Promise<unknown>;
 }) {
-  const packs = [
-    { key: 'host', name: hostName, logo: hostLogo, docs: hostDocs },
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [docNote, setDocNote] = useState<string | null>(null);
+  const hostSlots = coercePortalDocSlots(hostDocs);
+  const accountSlots = coercePortalDocSlots(accountDocs);
+  const packs: Array<{
+    key: 'host' | 'account';
+    name: string;
+    logo?: string | null;
+    docs: PortalDocSlot[];
+    canEdit: boolean;
+  }> = [
+    {
+      key: 'host',
+      name: hostName,
+      logo: hostLogo,
+      docs: hostSlots,
+      canEdit: !!isHost,
+    },
     {
       key: 'account',
       name: accountName || (kind === 'supplier' ? 'Supplier' : 'Customer'),
       logo: accountLogo,
-      docs: accountDocs,
+      docs: accountSlots,
+      canEdit: true,
     },
   ];
+
+  const saveSlot = async (
+    pack: 'host' | 'account',
+    field: string,
+    file?: File | null,
+    pasted?: string
+  ) => {
+    const key = `${pack}:${field}`;
+    setUploading(key);
+    setDocNote(null);
+    try {
+      let url = String(pasted || '').trim();
+      if (file && file.size > 0) {
+        const form = new FormData();
+        form.append('token', token);
+        form.append('file', file);
+        form.append('purpose', 'company-doc');
+        form.append('field', field);
+        const res = await fetch('/api/public/portals/trade/upload', {
+          method: 'POST',
+          body: form,
+          credentials: 'include',
+        });
+        const data = (await res.json()) as { url?: string; error?: string };
+        if (!res.ok || !data.url) {
+          throw new Error(data.error || 'Upload failed');
+        }
+        url = data.url;
+      }
+      if (!url) throw new Error('Choose a file or paste a URL');
+      await onAct({ action: 'document_save', pack, field, url });
+    } catch (e) {
+      setDocNote(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setUploading(null);
+    }
+  };
+
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      {packs.map((p) => (
-        <section
-          key={p.key}
-          className="rounded-[1.5rem] border border-white/70 bg-white/90 shadow-sm overflow-hidden"
-        >
-          <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3">
-            {p.logo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={p.logo}
-                alt=""
-                className="h-10 w-10 rounded-xl border border-slate-200 bg-white object-contain"
-              />
-            ) : (
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50">
-                <Building2 className="h-5 w-5 text-[#00b4d8]" />
+    <div className="space-y-4">
+      {docNote ? (
+        <p className="text-xs font-semibold text-rose-700">{docNote}</p>
+      ) : null}
+      <p className="rounded-2xl border border-cyan-100 bg-cyan-50/70 px-4 py-3 text-sm text-slate-700">
+        Required documents for both companies — registration, VAT, B-BBEE, bank
+        confirmation letter, import, export, and tax. Files saved here are
+        shared on this portal
+        {isHost ? ' and on CRM / My Business.' : '.'}
+      </p>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {packs.map((p) => {
+          const required = p.docs.filter((d) => !d.extra);
+          const extra = p.docs.filter((d) => d.extra);
+          const filled = required.filter((d) => d.url).length;
+          return (
+            <section
+              key={p.key}
+              className="rounded-[1.5rem] border border-white/70 bg-white/90 shadow-sm overflow-hidden"
+            >
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3">
+                {p.logo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={p.logo}
+                    alt=""
+                    className="h-10 w-10 rounded-xl border border-slate-200 bg-white object-contain"
+                  />
+                ) : (
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50">
+                    <Building2 className="h-5 w-5 text-[#00b4d8]" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-[#0077b6]">
+                    {p.key === 'host'
+                      ? 'Company'
+                      : kind === 'supplier'
+                        ? 'Supplier'
+                        : 'Customer'}
+                  </p>
+                  <h2 className="text-sm font-black text-slate-900 truncate">
+                    {p.name}
+                  </h2>
+                </div>
+                <p className="shrink-0 text-[11px] font-bold tabular-nums text-slate-500">
+                  {filled}/{required.length || 7}
+                </p>
               </div>
-            )}
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-wider text-[#0077b6]">
-                {p.key === 'host'
-                  ? 'Company'
-                  : kind === 'supplier'
-                    ? 'Supplier'
-                    : 'Customer'}
-              </p>
-              <h2 className="text-sm font-black text-slate-900 truncate">
-                {p.name}
-              </h2>
-            </div>
-          </div>
-          {p.docs.length === 0 ? (
-            <p className="px-5 py-8 text-sm text-neutral-500">
-              No company documents on file yet.
-            </p>
-          ) : (
-            <ul className="divide-y divide-slate-100">
-              {p.docs.map((d) => (
-                <li key={`${p.key}-${d.name}-${d.url}`}>
-                  <a
-                    href={d.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-5 py-3.5 flex items-center justify-between gap-3 hover:bg-sky-50/60"
-                  >
-                    <span className="min-w-0">
-                      <span className="block text-sm font-bold text-slate-900 truncate">
-                        {d.name}
+              <ul className="divide-y divide-slate-100">
+                {required.map((d) => (
+                  <DocSlotRow
+                    key={`${p.key}-${d.field}`}
+                    slot={d}
+                    canEdit={p.canEdit && !d.extra}
+                    busy={busy || uploading === `${p.key}:${d.field}`}
+                    onFile={(file) => void saveSlot(p.key, d.field, file)}
+                    onUrl={(url) => void saveSlot(p.key, d.field, null, url)}
+                  />
+                ))}
+                {extra.map((d) => (
+                  <li key={`${p.key}-extra-${d.name}-${d.url}`}>
+                    <a
+                      href={d.url || '#'}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-5 py-3.5 flex items-center justify-between gap-3 hover:bg-sky-50/60"
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-sm font-bold text-slate-900 truncate">
+                          {d.name}
+                        </span>
+                        <span className="block text-[11px] text-neutral-500">
+                          {d.category} · extra
+                        </span>
                       </span>
-                      <span className="block text-[11px] text-neutral-500">
-                        {d.category}
-                      </span>
-                    </span>
-                    <FileText className="w-4 h-4 text-[#00b4d8] shrink-0" />
-                  </a>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ))}
+                      <FileText className="w-4 h-4 text-[#00b4d8] shrink-0" />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+              {!p.canEdit ? (
+                <p className="px-5 py-2 text-[11px] text-neutral-500">
+                  Host company files are updated by {hostName}.
+                </p>
+              ) : null}
+            </section>
+          );
+        })}
+      </div>
     </div>
+  );
+}
+
+function DocSlotRow({
+  slot,
+  canEdit,
+  busy,
+  onFile,
+  onUrl,
+}: {
+  slot: PortalDocSlot;
+  canEdit: boolean;
+  busy: boolean;
+  onFile: (file: File) => void;
+  onUrl: (url: string) => void;
+}) {
+  const [paste, setPaste] = useState('');
+  return (
+    <li className="px-5 py-3.5 space-y-2">
+      <div className="flex items-start justify-between gap-3">
+        <span className="min-w-0">
+          <span className="block text-sm font-bold text-slate-900">
+            {slot.name}
+          </span>
+          <span className="block text-[11px] text-neutral-500">
+            {slot.category}
+            {slot.url ? ' · on file' : ' · not on file'}
+          </span>
+        </span>
+        {slot.url ? (
+          <a
+            href={slot.url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-bold text-[#0077b6] shrink-0"
+          >
+            <FileText className="w-4 h-4" />
+            View
+          </a>
+        ) : (
+          <span className="text-[11px] font-semibold text-amber-800 shrink-0">
+            Needed
+          </span>
+        )}
+      </div>
+      {canEdit ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-700">
+            <Upload className="h-3.5 w-3.5" />
+            {busy ? 'Saving…' : slot.url ? 'Replace' : 'Upload'}
+            <input
+              type="file"
+              className="hidden"
+              disabled={busy}
+              accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.doc,.docx"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (file) onFile(file);
+              }}
+            />
+          </label>
+          <input
+            className="input !py-1 !px-2 !text-xs min-w-[10rem] flex-1"
+            placeholder="or paste https://…"
+            value={paste}
+            disabled={busy}
+            onChange={(e) => setPaste(e.target.value)}
+          />
+          <button
+            type="button"
+            disabled={busy || !paste.trim()}
+            onClick={() => {
+              const u = paste.trim();
+              setPaste('');
+              onUrl(u);
+            }}
+            className="btn-secondary !py-1 !px-2 text-xs"
+          >
+            Share
+          </button>
+        </div>
+      ) : null}
+    </li>
   );
 }
 
@@ -1023,7 +1253,7 @@ function ProfilePanel({
     <div className="rounded-[1.5rem] border border-white/70 bg-white/90 p-5 space-y-4 shadow-sm">
       <div>
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
-          Company profile · CRM
+          Profile · CRM
         </p>
         {profile?.logo_url ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -1034,7 +1264,7 @@ function ProfilePanel({
           />
         ) : null}
         <h2 className="text-lg font-black text-slate-900">
-          {accountLabel || 'Company profile'}
+          {accountLabel || 'Profile'}
         </h2>
         <p className="text-sm text-neutral-600 mt-1">
           This is the same {accountLabel || 'account'} record as CRM / SRM
@@ -1251,6 +1481,7 @@ function ProjectsPanel({
   const [subTitle, setSubTitle] = useState('');
   const [subStart, setSubStart] = useState(isoDay(new Date()));
   const [subEnd, setSubEnd] = useState(addDays(isoDay(new Date()), 7));
+  const [showCreate, setShowCreate] = useState(false);
   useEffect(() => {
     if (!projectId && items[0]?.id) setProjectId(items[0].id);
   }, [items, projectId]);
@@ -1416,9 +1647,13 @@ function ProjectsPanel({
             description: newDesc,
             start_date: newStart,
             target_date: newEnd,
+          }).then((ok) => {
+            if (ok) {
+              setNewName('');
+              setNewDesc('');
+              setShowCreate(false);
+            }
           });
-          setNewName('');
-          setNewDesc('');
         }}
         className="btn-primary w-full !py-2.5 text-sm"
       >
@@ -1427,13 +1662,33 @@ function ProjectsPanel({
     </div>
   );
 
+  const createToggle = (
+    <div className="space-y-3">
+      <button
+        type="button"
+        onClick={() => setShowCreate((v) => !v)}
+        className="btn-secondary w-full !py-2.5 text-sm inline-flex items-center justify-center gap-2"
+      >
+        {showCreate ? (
+          'Cancel'
+        ) : (
+          <>
+            Add new project
+            <ChevronDown className="h-4 w-4" />
+          </>
+        )}
+      </button>
+      {showCreate ? createForm : null}
+    </div>
+  );
+
   if (!items.length) {
     return (
       <div className="space-y-4">
-        {createForm}
+        {createToggle}
         <p className="text-sm text-slate-500">
-          No projects yet. Create the first one above — it shows on this portal
-          and on our Projects desk.
+          No projects yet. Expand Add new project to open a joint waterfall on
+          both our books.
         </p>
       </div>
     );
@@ -1441,7 +1696,7 @@ function ProjectsPanel({
 
   return (
     <div className="space-y-4">
-      {createForm}
+      {createToggle}
       <div className="rounded-2xl border border-cyan-100 bg-cyan-50/70 px-4 py-3 text-sm text-slate-700">
         <p className="font-bold text-slate-900">Work this plan together</p>
         <p className="text-xs text-neutral-600 mt-0.5 leading-relaxed">
@@ -1870,6 +2125,65 @@ function ProjectsPanel({
   }
 }
 
+const ORDER_GOLDEN_PATH = [
+  'Purchase order',
+  'Sales order',
+  'Production order',
+  'Delivery',
+  'Feedback',
+] as const;
+
+function orderPathIndex(status: string): number {
+  const s = String(status || '').toLowerCase();
+  if (['rated', 'closed', 'complete', 'completed', 'done'].includes(s)) return 4;
+  if (['delivered', 'shipped', 'received', 'invoiced', 'paid'].includes(s)) return 3;
+  if (
+    [
+      'in_production',
+      'production',
+      'released',
+      'manufacturing',
+      'in progress',
+      'in_progress',
+    ].includes(s)
+  ) {
+    return 2;
+  }
+  if (['confirmed', 'open', 'accepted', 'processing', 'partial'].includes(s)) {
+    return 1;
+  }
+  return 0;
+}
+
+function OrderGoldenPath({ current }: { current?: number }) {
+  return (
+    <ol className="flex flex-wrap items-center gap-1.5">
+      {ORDER_GOLDEN_PATH.map((label, i) => {
+        const on = current != null && i === current;
+        const done = current != null && i < current;
+        return (
+          <li key={label} className="flex items-center gap-1.5">
+            {i > 0 ? (
+              <ChevronRight className="h-3.5 w-3.5 text-neutral-300" />
+            ) : null}
+            <span
+              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                on
+                  ? 'bg-[#0077b6] text-white'
+                  : done
+                    ? 'bg-emerald-50 text-emerald-900'
+                    : 'bg-slate-100 text-slate-600'
+              }`}
+            >
+              {label}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function OrdersPanel({
   isSupplier,
   orders,
@@ -1881,60 +2195,85 @@ function OrdersPanel({
   busy: boolean;
   onAct: (p: Record<string, unknown>) => Promise<unknown>;
 }) {
-  if (!orders.length) {
-    return (
-      <p className="rounded-[1.5rem] border border-white/70 bg-white/90 p-6 text-sm text-neutral-500">
-        No orders on this account yet.
-      </p>
-    );
-  }
   return (
-    <ul className="space-y-3">
-      {orders.map((o) => (
-        <li
-          key={`${o.kind}-${o.id}`}
-          className="rounded-[1.5rem] border border-white/70 bg-white/90 p-4 shadow-sm"
-        >
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <p className="font-black text-slate-900">{o.number}</p>
-              <p className="text-[11px] text-neutral-500">
-                {[o.date, o.due ? `expected ${o.due}` : null, o.status]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </p>
-            </div>
-            {o.amount != null ? (
-              <p className="font-black tabular-nums text-slate-900">
-                {formatMoney(o.amount, o.currency)}
-              </p>
-            ) : null}
-          </div>
-          {o.otifef ? (
-            <div className="mt-3 grid grid-cols-4 gap-1 text-center text-[10px]">
-              {[
-                ['OTIFEF', o.otifef.pending ? '—' : pct(o.otifef.overall)],
-                ['On time', o.otifef.pending ? '—' : pct(o.otifef.onTime)],
-                ['In full', o.otifef.pending ? '—' : pct(o.otifef.inFull)],
-                ['Error-free', o.otifef.pending ? '—' : pct(o.otifef.errorFree)],
-              ].map(([k, v]) => (
-                <div key={k} className="rounded-xl bg-slate-50 py-1.5">
-                  <div className="font-bold uppercase tracking-wider text-neutral-400">
-                    {k}
+    <div className="space-y-4">
+      <div className="rounded-[1.5rem] border border-white/70 bg-white/90 p-4 shadow-sm space-y-2">
+        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
+          Golden path
+        </p>
+        <p className="text-sm font-black text-slate-900">
+          {isSupplier ? 'How a purchase order moves' : 'How an order moves'}
+        </p>
+        <p className="text-xs text-slate-500">
+          Purchase order → sales order → production order → delivery →
+          feedback. Each order below shows where it is on this path.
+        </p>
+        <OrderGoldenPath />
+      </div>
+      {!orders.length ? (
+        <p className="rounded-[1.5rem] border border-white/70 bg-white/90 p-6 text-sm text-neutral-500">
+          {isSupplier
+            ? 'No purchase orders on this account yet.'
+            : 'No sales orders on this account yet.'}
+        </p>
+      ) : (
+        <ul className="space-y-3">
+          {orders.map((o) => {
+            const stage = orderPathIndex(o.status);
+            return (
+              <li
+                key={`${o.kind}-${o.id}`}
+                className="rounded-[1.5rem] border border-white/70 bg-white/90 p-4 shadow-sm"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="font-black text-slate-900">{o.number}</p>
+                    <p className="text-[11px] text-neutral-500">
+                      {[o.date, o.due ? `expected ${o.due}` : null, o.status]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
                   </div>
-                  <div className="font-black text-slate-800">{v}</div>
+                  {o.amount != null ? (
+                    <p className="font-black tabular-nums text-slate-900">
+                      {formatMoney(o.amount, o.currency)}
+                    </p>
+                  ) : null}
                 </div>
-              ))}
-            </div>
-          ) : null}
-          {isSupplier ? (
-            <SupplierOrderActions order={o} busy={busy} onAct={onAct} />
-          ) : (
-            <CustomerOrderActions order={o} busy={busy} onAct={onAct} />
-          )}
-        </li>
-      ))}
-    </ul>
+                <div className="mt-3">
+                  <OrderGoldenPath current={stage} />
+                </div>
+                {o.otifef ? (
+                  <div className="mt-3 grid grid-cols-4 gap-1 text-center text-[10px]">
+                    {[
+                      ['OTIFEF', o.otifef.pending ? '—' : pct(o.otifef.overall)],
+                      ['On time', o.otifef.pending ? '—' : pct(o.otifef.onTime)],
+                      ['In full', o.otifef.pending ? '—' : pct(o.otifef.inFull)],
+                      [
+                        'Error-free',
+                        o.otifef.pending ? '—' : pct(o.otifef.errorFree),
+                      ],
+                    ].map(([k, v]) => (
+                      <div key={k} className="rounded-xl bg-slate-50 py-1.5">
+                        <div className="font-bold uppercase tracking-wider text-neutral-400">
+                          {k}
+                        </div>
+                        <div className="font-black text-slate-800">{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {isSupplier ? (
+                  <SupplierOrderActions order={o} busy={busy} onAct={onAct} />
+                ) : (
+                  <CustomerOrderActions order={o} busy={busy} onAct={onAct} />
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 

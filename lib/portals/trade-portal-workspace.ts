@@ -110,6 +110,44 @@ export type PortalCatalogueItem = {
   customer_brand?: boolean;
 };
 
+export function isPortalFinishedGood(
+  productType: string | null | undefined
+): boolean {
+  const t = String(productType || 'finished_good')
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+  if (
+    t === 'raw_material' ||
+    t === 'raw' ||
+    t === 'wip' ||
+    t === 'work_in_progress' ||
+    t === 'packaging' ||
+    t === 'component'
+  ) {
+    return false;
+  }
+  return (
+    t === 'finished_good' ||
+    t === 'fg' ||
+    t === 'finished' ||
+    t === 'finished_goods' ||
+    t === ''
+  );
+}
+
+/** Customer-brand SKUs first, then the host's other finished goods. */
+export function portalPoCatalogue(
+  items: PortalCatalogueItem[]
+): PortalCatalogueItem[] {
+  const branded = items
+    .filter((i) => i.customer_brand)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const other = items
+    .filter((i) => !i.customer_brand && isPortalFinishedGood(i.product_type))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return [...branded, ...other];
+}
+
 export type PortalWorkspace = {
   onBooks: boolean;
   linkedProfileId: number | null;
@@ -202,14 +240,7 @@ async function loadHostCatalogue(
       customer_brand: branded,
     });
   }
-  out.sort((a, b) => {
-    if (!!a.customer_brand !== !!b.customer_brand) {
-      return a.customer_brand ? -1 : 1;
-    }
-    return a.name.localeCompare(b.name);
-  });
-  const branded = out.filter((p) => p.customer_brand);
-  return branded.length ? branded : out;
+  return portalPoCatalogue(out);
 }
 
 export async function loadPortalWorkspace(opts: {
@@ -653,7 +684,7 @@ export async function loadPortalWorkspace(opts: {
     });
   }
 
-  // Customer portal: branded SKUs when tagged, else host sellable catalogue
+  // Customer portal: branded SKUs first, then other finished goods
   const catalogue =
     kind === 'customer'
       ? await loadHostCatalogue(companyId, opts.viewer.customer_id)

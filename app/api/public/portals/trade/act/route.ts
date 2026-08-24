@@ -23,6 +23,12 @@ import { portalTaskRiadMark } from '@/lib/portals/trade-portal';
 import { parsePortalPersonKey } from '@/lib/portals/trade-portal-people';
 import { hostDisplayName } from '@/lib/portals/portal-actor';
 import { WBS_MAX_DEPTH, wbsDepthOf } from '@/lib/projects/wbs';
+import { expandDocumentUrlWrites } from '@/lib/business/documentFields';
+import {
+  isPortalDocUrl,
+  isPortalRequiredDocField,
+  mergeRequiredDocIntoMetadata,
+} from '@/lib/portals/portal-documents';
 
 const SUPPLIER_STATUS = ['accepted', 'invoiced'] as const;
 
@@ -1263,6 +1269,109 @@ export async function POST(request: NextRequest) {
           job_title: invited.viewer.job_title,
         },
       });
+    }
+
+    if (action === 'document_save') {
+      const pack = String(body.pack || 'account') === 'host' ? 'host' : 'account';
+      const field = String(body.field || '').trim();
+      if (!isPortalRequiredDocField(field)) {
+        return NextResponse.json(
+          { error: 'Unknown document field' },
+          { status: 400 }
+        );
+      }
+      const rawUrl = body.url == null ? '' : String(body.url).trim();
+      const url = rawUrl ? rawUrl : null;
+      if (url && !isPortalDocUrl(url)) {
+        return NextResponse.json(
+          { error: 'Document URL must be http or https' },
+          { status: 400 }
+        );
+      }
+      if (pack === 'host') {
+        if (!hostActor) {
+          return NextResponse.json(
+            { error: 'Only the host company can update their documents' },
+            { status: 403 }
+          );
+        }
+        const writes = expandDocumentUrlWrites({
+          [field]: url,
+          updated_at: now,
+        });
+        let upd = await supabase
+          .from('profiles')
+          .update(writes as never)
+          .eq('id', portal.profile_id);
+        if (upd.error) {
+          upd = await supabase
+            .from('profiles')
+            .update({ [field]: url, updated_at: now } as never)
+            .eq('id', portal.profile_id);
+        }
+        if (upd.error) {
+          return NextResponse.json({ error: upd.error.message }, { status: 500 });
+        }
+        return NextResponse.json({ success: true, pack, field, url });
+      }
+
+      const table = portal.kind === 'customer' ? 'customers' : 'srm_suppliers';
+      const accountId =
+        portal.kind === 'customer' ? viewer.customer_id : viewer.supplier_id;
+      if (!accountId) {
+        return NextResponse.json({ error: 'No book account' }, { status: 403 });
+      }
+      let hit = await supabase
+        .from(table)
+        .select('metadata, linked_profile_id')
+        .eq('id', accountId)
+        .eq('profile_id', portal.profile_id)
+        .maybeSingle();
+      if (hit.error) {
+        hit = await supabase
+          .from(table)
+          .select('linked_profile_id')
+          .eq('id', accountId)
+          .eq('profile_id', portal.profile_id)
+          .maybeSingle();
+      }
+      if (!hit.data) {
+        return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+      }
+      const nextMeta = mergeRequiredDocIntoMetadata(
+        (hit.data as { metadata?: unknown }).metadata,
+        field,
+        url,
+        now
+      );
+      const { error: metaErr } = await supabase
+        .from(table)
+        .update({ metadata: nextMeta, updated_at: now } as never)
+        .eq('id', accountId)
+        .eq('profile_id', portal.profile_id);
+      if (metaErr) {
+        return NextResponse.json({ error: metaErr.message }, { status: 500 });
+      }
+      const linked = hit.data.linked_profile_id
+        ? Number(hit.data.linked_profile_id)
+        : null;
+      if (linked && linked > 0 && linked !== portal.profile_id) {
+        const writes = expandDocumentUrlWrites({
+          [field]: url,
+          updated_at: now,
+        });
+        const linkedUpd = await supabase
+          .from('profiles')
+          .update(writes as never)
+          .eq('id', linked);
+        if (linkedUpd.error) {
+          await supabase
+            .from('profiles')
+            .update({ [field]: url, updated_at: now } as never)
+            .eq('id', linked);
+        }
+      }
+      return NextResponse.json({ success: true, pack, field, url });
     }
 
     if (action === 'revoke_person') {

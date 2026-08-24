@@ -48,7 +48,13 @@ export async function POST(request: NextRequest) {
     const ext =
       file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') ||
       'pdf';
-    const path = `${guest.ctx.portal.profile_id}/portal-po/${guest.ctx.viewer.id}-${Date.now()}.${ext}`;
+    const purpose = String(form.get('purpose') || 'po').toLowerCase();
+    const field = String(form.get('field') || 'file')
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, '')
+      .slice(0, 80) || 'file';
+    const folder = purpose === 'company-doc' ? 'portal-docs' : 'portal-po';
+    const path = `${guest.ctx.portal.profile_id}/${folder}/${guest.ctx.viewer.id}-${field}-${Date.now()}.${ext}`;
     const supabase = getSupabaseServer();
     const buf = Buffer.from(await file.arrayBuffer());
     const buckets = ['company-documents', 'product-documents'];
