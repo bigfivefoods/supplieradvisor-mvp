@@ -18,7 +18,13 @@ import {
   weekdayOf,
 } from '@/lib/schedule/recurrence';
 import { healthSummaryLabel } from '@/lib/health/body-map';
-import { buildRelationshipSummary } from '@/lib/fitness/fitgraph-relationship';
+import {
+  buildRelationshipSummary,
+  type FitConsentShare,
+  type FitGoal,
+  type FitJourneyEvent,
+  type FitMemberStory,
+} from '@/lib/fitness/fitgraph-relationship';
 import { publishedAnnouncements } from '@/lib/services/member-announcements';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { bookingEligibleForClientRating } from '@/lib/services/booking-feedback';
@@ -1518,6 +1524,11 @@ export interface FitgraphStore {
   /** Watch / Garmin sessions logged after class */
   watch_sessions?: import('@/lib/fitness/wearable-types').FitWatchSession[];
   garmin_oauth_pending?: import('@/lib/fitness/wearable-types').GarminOauthPending[];
+  /** Structured member goals (start / actual / target) */
+  goals?: FitGoal[];
+  journey_events?: FitJourneyEvent[];
+  member_stories?: FitMemberStory[];
+  consent_shares?: FitConsentShare[];
   settings?: FitPublicSettings;
   updated_at?: string;
 }
@@ -1684,6 +1695,10 @@ export function emptyFitgraphStore(): FitgraphStore {
     gym_sales: [],
     watch_sessions: [],
     garmin_oauth_pending: [],
+    goals: [],
+    journey_events: [],
+    member_stories: [],
+    consent_shares: [],
     settings: defaultPublicSettings(),
   };
 }
@@ -1804,6 +1819,10 @@ export function writeFitgraphToMetadata(
     ...meta,
     [FITGRAPH_META_KEY]: {
       ...store,
+      goals: store.goals || [],
+      journey_events: store.journey_events || [],
+      member_stories: store.member_stories || [],
+      consent_shares: store.consent_shares || [],
       updated_at: new Date().toISOString(),
     },
     [FITGRAPH_PUBLIC_TOKEN_KEY]: store.settings?.public_token || null,

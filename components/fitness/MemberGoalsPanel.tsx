@@ -9,6 +9,7 @@ import {
 import { FIT_GOAL_CATEGORIES } from '@/lib/fitness/fitgraph-relationship';
 import type { GoalPeriodKey } from '@/lib/fitness/goal-chart';
 import { GoalPeriodPicker, GoalSparkline } from '@/components/fitness/GoalTrendChart';
+import { GymExpandSection } from '@/components/fitness/GymMemberPwaUi';
 
 const CATEGORY_LABEL: Record<string, string> = {
   physical: 'Physical',
@@ -65,6 +66,7 @@ export function MemberGoalsPanel({
     target_value: string;
     target_date: string;
     unit: string;
+    direction: string;
   }) => void | Promise<void>;
   onHideGoal?: (goalId: string) => void | Promise<void>;
   onLogActual: (goalId: string, value: string) => void | Promise<void>;
@@ -100,6 +102,7 @@ export function MemberGoalsPanel({
   const [period, setPeriod] = useState<GoalPeriodKey>('3m');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
+  const [watchOpen, setWatchOpen] = useState(false);
 
   return (
     <div className="space-y-3">
@@ -213,7 +216,12 @@ export function MemberGoalsPanel({
                   <button
                     type="button"
                     disabled={busy || !actualDraft[g.id]}
-                    onClick={() => void onLogActual(g.id, actualDraft[g.id])}
+                    onClick={() => {
+                      const v = actualDraft[g.id];
+                      void Promise.resolve(onLogActual(g.id, v)).then(() => {
+                        setActualDraft((cur) => ({ ...cur, [g.id]: '' }));
+                      });
+                    }}
                     className="rounded-xl bg-slate-900 px-3 py-1.5 text-[11px] font-black text-white disabled:opacity-50"
                   >
                     Log
@@ -328,14 +336,20 @@ export function MemberGoalsPanel({
           type="button"
           disabled={busy || !title.trim()}
           onClick={() =>
-            void onSaveGoal({
-              kind,
-              title,
-              category,
-              start_value: startValue,
-              target_value: targetValue,
-              target_date: targetDate,
-              unit,
+            void Promise.resolve(
+              onSaveGoal({
+                kind,
+                title,
+                category,
+                start_value: startValue,
+                target_value: targetValue,
+                target_date: targetDate,
+                unit,
+                direction: preset.direction,
+              })
+            ).then(() => {
+              setStartValue('');
+              setTargetValue('');
             })
           }
           className="w-full rounded-xl bg-[#E8E830] py-2 text-sm font-black text-slate-900 disabled:opacity-50"
@@ -344,11 +358,19 @@ export function MemberGoalsPanel({
         </button>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
-        <div className="flex items-center gap-2 text-slate-800">
-          <Watch className="h-4 w-4" />
-          <h3 className="text-sm font-black">Watch after class</h3>
-        </div>
+      <GymExpandSection
+        title="Watch after class"
+        hint={
+          watchOpen
+            ? undefined
+            : (watchSessions || []).length
+              ? `${(watchSessions || []).length} logged`
+              : 'Garmin, Apple Watch, or log stats after class'
+        }
+        icon={<Watch className="h-4 w-4" />}
+        open={watchOpen}
+        onToggle={() => setWatchOpen((v) => !v)}
+      >
         <p className="text-[11px] text-slate-500">
           Garmin Connect can send the session automatically when the gym has
           connected Garmin. Apple Watch and Wear OS cannot be read from this
@@ -484,7 +506,7 @@ export function MemberGoalsPanel({
             ))}
           </ul>
         ) : null}
-      </div>
+      </GymExpandSection>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   CalendarPlus,
   CheckCircle2,
+  ChevronDown,
   Loader2,
   MessageCircle,
   QrCode,
@@ -69,6 +70,60 @@ export function GymSectionTitle({
         </p>
       ) : null}
     </div>
+  );
+}
+
+export function GymExpandSection({
+  title,
+  hint,
+  icon,
+  open,
+  onToggle,
+  badge,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  icon?: ReactNode;
+  open: boolean;
+  onToggle: () => void;
+  badge?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white dark:border-white/10 dark:bg-neutral-900">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-4 py-3.5 text-left"
+      >
+        {icon ? (
+          <span className="shrink-0 text-slate-800 dark:text-white">{icon}</span>
+        ) : null}
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-black text-slate-900 dark:text-white">
+            {title}
+          </h2>
+          {hint ? (
+            <p className="mt-0.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+              {hint}
+            </p>
+          ) : null}
+        </div>
+        {badge}
+        <ChevronDown
+          className={`h-5 w-5 shrink-0 text-slate-400 transition-transform ${
+            open ? 'rotate-180 text-slate-700 dark:text-white' : ''
+          }`}
+        />
+      </button>
+      {open ? (
+        <div className="space-y-3 border-t border-slate-100 px-4 py-4 dark:border-white/10">
+          {children}
+        </div>
+      ) : null}
+    </section>
   );
 }
 

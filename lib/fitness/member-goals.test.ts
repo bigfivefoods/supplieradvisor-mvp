@@ -3,14 +3,20 @@
  */
 import assert from 'node:assert/strict';
 import {
+  applyGoalToStore,
   createMemberGoal,
   goalProgressPct,
   goalReached,
   latestGoalActual,
   logGoalActual,
+  parseGoalNumber,
 } from './member-goals';
 import { matchWatchToSession } from './wearables';
-import { emptyFitgraphStore } from './fitgraph';
+import {
+  emptyFitgraphStore,
+  readFitgraphFromMetadata,
+  writeFitgraphToMetadata,
+} from './fitgraph';
 
 const weight = createMemberGoal({
   client_id: 'c1',
@@ -43,6 +49,31 @@ assert.equal(run.unit, 'min');
 const faster = logGoalActual(run, 26);
 assert.equal(goalReached(faster), false);
 assert.equal(goalReached(logGoalActual(run, 24)), true);
+
+assert.equal(parseGoalNumber(''), null);
+assert.equal(parseGoalNumber('  '), null);
+assert.equal(parseGoalNumber('90.5'), 90.5);
+assert.equal(parseGoalNumber(0), 0);
+
+const persist = emptyFitgraphStore();
+const saved = createMemberGoal({
+  client_id: 'c1',
+  kind: 'weight',
+  start_value: 90,
+  target_value: 80,
+});
+applyGoalToStore(persist, saved);
+const blob = writeFitgraphToMetadata({}, persist);
+const reloaded = readFitgraphFromMetadata(blob);
+assert.equal(reloaded.goals?.length, 1);
+assert.equal(reloaded.goals?.[0].start_value, 90);
+assert.equal(reloaded.goals?.[0].target_value, 80);
+const withActual = logGoalActual(reloaded.goals![0], 85);
+applyGoalToStore(reloaded, withActual);
+const blob2 = writeFitgraphToMetadata({}, reloaded);
+const again = readFitgraphFromMetadata(blob2);
+assert.equal(again.goals?.[0].current_value, 85);
+assert.equal(again.goals?.[0].check_ins?.length, 1);
 
 const store = emptyFitgraphStore();
 store.sessions.push({

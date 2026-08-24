@@ -64,6 +64,14 @@ export const MEMBER_GOAL_PRESETS = [
 export type MemberGoalKind = (typeof MEMBER_GOAL_PRESETS)[number]['kind'];
 export type GoalDirection = 'increase' | 'decrease';
 
+export function parseGoalNumber(raw: unknown): number | null {
+  if (raw == null) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
 export function presetForKind(kind?: string | null) {
   return (
     MEMBER_GOAL_PRESETS.find((p) => p.kind === kind) ||

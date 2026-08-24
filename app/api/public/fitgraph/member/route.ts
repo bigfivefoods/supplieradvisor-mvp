@@ -22,7 +22,6 @@ import {
   recordMemberCheckIn,
   sessionBookingCount,
   sessionKindOf,
-  writeFitgraphToMetadata,
   type FitBooking,
   type FitClient,
   type FitgraphStore,
@@ -80,6 +79,7 @@ import {
   createMemberGoal,
   logGoalActual,
   memberFacingGoals,
+  parseGoalNumber,
 } from '@/lib/fitness/member-goals';
 import {
   applyWatchSessionToStore,
@@ -99,7 +99,8 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 async function resolveMember(
-  token: string
+  token: string,
+  opts?: { fresh?: boolean }
 ): Promise<{
   companyId: number;
   meta: Record<string, unknown>;
@@ -115,6 +116,7 @@ async function resolveMember(
     read: readFitgraphFromMetadata,
     parseCompanyId: parseCompanyIdFromToken,
     indexKeys: [FITGRAPH_CLIENT_TOKENS_KEY],
+    fresh: opts?.fresh,
   });
   if (!loaded) return null;
 
@@ -134,6 +136,9 @@ async function resolveMember(
   const store = loaded.store;
   applyCompanyLogoToSettings(store, pickCompanyLogoUrl(prof));
   if (stampShareCodesForGrow(store)) {
+    if (!opts?.fresh) {
+      return resolveMember(clean, { fresh: true });
+    }
     await saveStore(loaded.companyId, loaded.meta, store);
   }
   const client = store.clients.find((c) =>
@@ -329,16 +334,8 @@ async function saveStore(
   _meta: Record<string, unknown>,
   store: FitgraphStore
 ) {
-  const { saveAdvisorModuleStore } = await import('@/lib/business/company-data');
-  const { FITGRAPH_META_KEY, writeFitgraphToMetadata } = await import(
-    '@/lib/fitness/fitgraph'
-  );
-  await saveAdvisorModuleStore(
-    companyId,
-    FITGRAPH_META_KEY,
-    store,
-    writeFitgraphToMetadata
-  );
+  const { saveFitgraphMerged } = await import('@/lib/fitness/fitgraph-io');
+  await saveFitgraphMerged(companyId, store);
 }
 
 export async function GET(request: NextRequest) {
@@ -481,7 +478,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'token required' }, { status: 400 });
     }
 
-    const resolved = await resolveMember(token);
+    const resolved = await resolveMember(token, { fresh: true });
     if (!resolved) {
       return NextResponse.json(
         { error: 'Member portal not found' },
@@ -1258,13 +1255,13 @@ export async function POST(request: NextRequest) {
           )
         : null;
       const startVal =
-        body.start_value != null && String(body.start_value) !== ''
-          ? Number(body.start_value)
-          : prev?.start_value ?? null;
+        parseGoalNumber(body.start_value) ?? prev?.start_value ?? null;
       const targetVal =
-        body.target_value != null && String(body.target_value) !== ''
-          ? Number(body.target_value)
-          : prev?.target_value ?? null;
+        parseGoalNumber(body.target_value) ?? prev?.target_value ?? null;
+      const direction =
+        body.direction === 'increase' || body.direction === 'decrease'
+          ? body.direction
+          : undefined;
       let goal = prev
         ? {
             ...prev,
@@ -1275,18 +1272,14 @@ export async function POST(request: NextRequest) {
               body.description != null ? String(body.description) : prev.description,
             unit:
               body.unit != null ? String(body.unit) || null : prev.unit,
-            start_value: Number.isFinite(Number(startVal)) ? Number(startVal) : prev.start_value,
-            target_value: Number.isFinite(Number(targetVal))
-              ? Number(targetVal)
-              : prev.target_value,
+            start_value: startVal,
+            target_value: targetVal,
+            current_value: prev.current_value ?? startVal,
             target_date:
               body.target_date != null
                 ? String(body.target_date).slice(0, 10) || null
                 : prev.target_date,
-            direction:
-              body.direction === 'increase' || body.direction === 'decrease'
-                ? body.direction
-                : prev.direction,
+            direction: direction || prev.direction,
             updated_at: now,
           }
         : createMemberGoal({
@@ -1297,13 +1290,12 @@ export async function POST(request: NextRequest) {
             category: category || undefined,
             description: body.description != null ? String(body.description) : undefined,
             unit: body.unit != null ? String(body.unit) : undefined,
-            start_value: Number.isFinite(Number(startVal)) ? Number(startVal) : null,
-            target_value: Number.isFinite(Number(targetVal)) ? Number(targetVal) : null,
+            start_value: startVal,
+            target_value: targetVal,
             target_date: body.target_date
               ? String(body.target_date).slice(0, 10)
               : null,
-            direction:
-              body.direction === 'increase' ? 'increase' : undefined,
+            direction,
             created_by_role: 'member',
             nowIso: now,
           });
@@ -1327,8 +1319,8 @@ export async function POST(request: NextRequest) {
 
     if (action === 'log_goal' || action === 'goal_actual') {
       const goalId = String(body.goal_id || '');
-      const value = Number(body.value ?? body.actual);
-      if (!Number.isFinite(value)) {
+      const value = parseGoalNumber(body.value ?? body.actual);
+      if (value == null) {
         return NextResponse.json({ error: 'Enter an actual number' }, { status: 400 });
       }
       const prev = (store.goals || []).find(

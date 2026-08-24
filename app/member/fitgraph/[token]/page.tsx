@@ -54,6 +54,7 @@ import type { MemberAnnouncementPublic } from '@/lib/services/member-announcemen
 import {
   GymCheckinPass,
   GymClassRateCard,
+  GymExpandSection,
   GymFlash,
   GymNextUpCard,
   GymSectionTitle,
@@ -353,6 +354,7 @@ export default function MemberFitgraphPortalPage() {
   const [msgThreadId, setMsgThreadId] = useState<string | null>(null);
   const [msgReply, setMsgReply] = useState('');
   const [debitBank, setDebitBank] = useState<DebitBankForm>(emptyDebitBankForm);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -1409,10 +1411,12 @@ export default function MemberFitgraphPortalPage() {
                     target_value: v.target_value,
                     target_date: v.target_date,
                     unit: v.unit,
+                    direction: v.direction,
                   });
                   setMsg(data.message || 'Goal saved');
                 } catch (e: unknown) {
                   setError(e instanceof Error ? e.message : 'Could not save goal');
+                  throw e;
                 } finally {
                   setBusyId(null);
                 }
@@ -1444,6 +1448,7 @@ export default function MemberFitgraphPortalPage() {
                   setMsg(data.message || 'Actual saved');
                 } catch (e: unknown) {
                   setError(e instanceof Error ? e.message : 'Could not log actual');
+                  throw e;
                 } finally {
                   setBusyId(null);
                 }
@@ -1635,11 +1640,19 @@ export default function MemberFitgraphPortalPage() {
               ) : null}
             </div>
 
-            <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900">
-              <div className="flex items-center gap-2 text-slate-900 dark:text-white">
-                <MessageSquareHeart className="h-4 w-4" />
-                <h2 className="text-sm font-black">Class feedback</h2>
-              </div>
+            <GymExpandSection
+              title="Class feedback"
+              hint={
+                (portal.progress?.pending_feedback || []).length
+                  ? `${(portal.progress?.pending_feedback || []).length} to rate`
+                  : (portal.progress?.my_feedback || []).length
+                    ? `${(portal.progress?.my_feedback || []).length} ratings`
+                    : 'Rate a class after you complete it'
+              }
+              icon={<MessageSquareHeart className="h-4 w-4" />}
+              open={feedbackOpen}
+              onToggle={() => setFeedbackOpen((v) => !v)}
+            >
               {(portal.progress?.pending_feedback || []).length ? (
                 <div className="space-y-2">
                   {(portal.progress?.pending_feedback || []).map((f) => (
@@ -1655,25 +1668,31 @@ export default function MemberFitgraphPortalPage() {
               ) : null}
               {(portal.progress?.my_feedback || []).length ? (
                 <ul className="space-y-2">
-                  {(portal.progress?.my_feedback || []).map((f) => (
-                    <li
-                      key={f.id}
-                      className="rounded-2xl border border-slate-100 px-3 py-2 dark:border-white/10"
-                    >
-                      <p className="text-sm font-black text-slate-900 dark:text-white">
-                        {f.class_name}
-                      </p>
-                      <p className="text-[11px] text-slate-500">
-                        {f.date} · feel {f.feeling}/5 · RPE {f.intensity}/10
-                        {f.enjoyment != null ? ` · enjoy ${f.enjoyment}/5` : ''}
-                      </p>
-                      {f.comment ? (
-                        <p className="mt-1 text-xs text-slate-700 dark:text-slate-300">
-                          {f.comment}
+                  {[...(portal.progress?.my_feedback || [])]
+                    .sort((a, b) =>
+                      String(b.at || b.date).localeCompare(String(a.at || a.date))
+                    )
+                    .map((f) => (
+                      <li
+                        key={f.id}
+                        className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5 dark:border-white/10 dark:bg-white/5"
+                      >
+                        <p className="text-sm font-black text-slate-900 dark:text-white">
+                          {f.class_name}
                         </p>
-                      ) : null}
-                    </li>
-                  ))}
+                        <p className="text-[11px] text-slate-500">
+                          {f.date} · feel {f.feeling}/5 · RPE {f.intensity}/10
+                          {f.enjoyment != null
+                            ? ` · enjoy ${f.enjoyment}/5`
+                            : ''}
+                        </p>
+                        {f.comment ? (
+                          <p className="mt-1 text-xs text-slate-700 dark:text-slate-300">
+                            {f.comment}
+                          </p>
+                        ) : null}
+                      </li>
+                    ))}
                 </ul>
               ) : !(portal.progress?.pending_feedback || []).length ? (
                 <p className="text-sm text-slate-500">
@@ -1681,7 +1700,7 @@ export default function MemberFitgraphPortalPage() {
                   here.
                 </p>
               ) : null}
-            </div>
+            </GymExpandSection>
           </div>
         )}
 
