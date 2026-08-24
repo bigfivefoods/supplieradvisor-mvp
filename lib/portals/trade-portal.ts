@@ -651,6 +651,8 @@ export type PublicPortalPayload = {
   welcome: string;
   title: string;
   viewer: { name: string; email: string | null; job_title: string | null } | null;
+  /** Logged-in host company member, or the guest on this token. */
+  actor?: { role: 'host' | 'guest'; name: string; email: string | null };
   accountLabel: string | null;
   quotes: PublicDocRow[];
   orders: PublicDocRow[];
@@ -672,9 +674,10 @@ export type PublicPortalPayload = {
 };
 
 export async function loadPublicPortal(
-  token: string
+  token: string,
+  opts?: { touchViewer?: boolean }
 ): Promise<
-  | { ok: true; payload: PublicPortalPayload }
+  | { ok: true; payload: PublicPortalPayload; viewerId: number | null }
   | { ok: false; error: string; status: number }
 > {
   const tok = String(token || '').trim();
@@ -778,7 +781,7 @@ export async function loadPublicPortal(
       ? await loadSharedDocs(portal.profile_id, portal.kind)
       : [];
 
-  if (viewer) void touchViewer(viewer.id);
+  if (viewer && opts?.touchViewer !== false) void touchViewer(viewer.id);
 
   let people: PortalPersonPublic[] = [];
   if (viewer && (viewer.customer_id || viewer.supplier_id)) {
@@ -835,6 +838,7 @@ export async function loadPublicPortal(
 
   return {
     ok: true,
+    viewerId: viewer ? viewer.id : null,
     payload: {
       kind: portal.kind,
       paused: false,
@@ -851,6 +855,13 @@ export async function loadPublicPortal(
             job_title: viewer.job_title,
           }
         : null,
+      actor: viewer
+        ? {
+            role: 'guest',
+            name: viewer.name,
+            email: viewer.email,
+          }
+        : { role: 'guest', name: 'Guest', email: null },
       accountLabel,
       quotes,
       orders,

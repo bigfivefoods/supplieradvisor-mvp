@@ -413,8 +413,9 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
               Pick a {noun} already on your CRM, then issue their portal. That
               account sees only their quotes, orders, OTIFEF, ratings and RIAD.
               Inside the portal they can add colleagues. Below you get every
-              linked account — click <strong>View portal</strong> to open
-              exactly what they see (orders, OTIFEF, statement, projects).
+              linked account — click <strong>View portal</strong> to work in it
+              as you (your company credentials). Their own link still uses
+              their access.
             </p>
             <div>
               <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
@@ -789,7 +790,7 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                             target="_blank"
                             rel="noreferrer"
                             className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1.5"
-                            title="Opens exactly what this customer sees"
+                            title="Opens this account’s portal as you — your company credentials"
                           >
                             <Eye className="w-3.5 h-3.5" /> View portal
                           </a>
@@ -860,7 +861,7 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                                   target="_blank"
                                   rel="noreferrer"
                                   className="btn-secondary !py-1.5 !px-2.5 text-xs inline-flex items-center gap-1"
-                                  title="See what they see"
+                                  title="Open as you (host)"
                                 >
                                   <Eye className="w-3.5 h-3.5" /> View
                                 </a>

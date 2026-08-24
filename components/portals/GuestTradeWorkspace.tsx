@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { usePrivy } from '@privy-io/react-auth';
+import { getCanonicalUserId } from '@/lib/auth/identity';
 import {
   CUSTOMER_DIMS,
   SUPPLIER_DIMS,
@@ -56,34 +58,42 @@ export type GuestPortalTab =
 export function guestPortalTabs(opts: {
   kind: 'customer' | 'supplier';
   profileGaps?: number;
+  isHost?: boolean;
 }): Array<{ id: GuestPortalTab; label: string }> {
   const gaps = opts.profileGaps || 0;
-  const profile = gaps ? `Profile (${gaps})` : 'Profile';
-  if (opts.kind === 'supplier') {
-    return [
-      { id: 'profile', label: profile },
-      { id: 'orders', label: 'Purchase orders' },
-      { id: 'otifef', label: 'OTIFEF metrics' },
-      { id: 'projects', label: 'Projects' },
-      { id: 'stock', label: 'Stock' },
-      { id: 'riad', label: 'RIAD' },
-      { id: 'messages', label: 'Messages' },
-      { id: 'people', label: 'People' },
-      { id: 'reviews', label: 'Ratings' },
-    ];
-  }
-  return [
-    { id: 'profile', label: profile },
-    { id: 'orders', label: 'Sales orders' },
-    { id: 'otifef', label: 'OTIFEF metrics' },
-    { id: 'statement', label: 'Statement' },
-    { id: 'projects', label: 'Projects' },
-    { id: 'newpo', label: 'Raise a PO' },
-    { id: 'people', label: 'People' },
-    { id: 'riad', label: 'RIAD' },
-    { id: 'messages', label: 'Messages' },
-    { id: 'reviews', label: 'Ratings' },
+  const profile = opts.isHost
+    ? 'Their profile'
+    : gaps
+      ? `Profile (${gaps})`
+      : 'Profile';
+  const supplier = [
+    { id: 'profile' as const, label: profile },
+    { id: 'orders' as const, label: 'Purchase orders' },
+    { id: 'otifef' as const, label: 'OTIFEF metrics' },
+    { id: 'projects' as const, label: 'Projects' },
+    { id: 'stock' as const, label: 'Stock' },
+    { id: 'riad' as const, label: 'RIAD' },
+    { id: 'messages' as const, label: 'Messages' },
+    { id: 'people' as const, label: 'People' },
+    { id: 'reviews' as const, label: 'Ratings' },
   ];
+  const customer = [
+    { id: 'profile' as const, label: profile },
+    { id: 'orders' as const, label: 'Sales orders' },
+    { id: 'otifef' as const, label: 'OTIFEF metrics' },
+    { id: 'statement' as const, label: 'Statement' },
+    { id: 'projects' as const, label: 'Projects' },
+    { id: 'newpo' as const, label: 'Raise a PO' },
+    { id: 'people' as const, label: 'People' },
+    { id: 'riad' as const, label: 'RIAD' },
+    { id: 'messages' as const, label: 'Messages' },
+    { id: 'reviews' as const, label: 'Ratings' },
+  ];
+  const tabs = opts.kind === 'supplier' ? supplier : customer;
+  if (opts.isHost) {
+    return tabs.filter((t) => t.id !== 'newpo');
+  }
+  return tabs;
 }
 
 const EMPTY_PROFILE: BookProfile = {
@@ -128,6 +138,30 @@ function applyActLocally(
   data: Record<string, unknown>
 ): PublicPortalPayload {
   const action = String(payload.action || '');
+  const ws0 = prev.workspace;
+  if (action === 'message' && ws0) {
+    const raw = (
+      data.message && typeof data.message === 'object' ? data.message : null
+    ) as { id?: number; author?: string; body?: string; created_at?: string } | null;
+    const id = Number(raw?.id);
+    if (Number.isFinite(id) && id > 0) {
+      return {
+        ...prev,
+        workspace: {
+          ...ws0,
+          messages: [
+            ...ws0.messages,
+            {
+              id,
+              author: raw?.author === 'host' ? 'host' : 'guest',
+              body: String(raw?.body || payload.body || ''),
+              created_at: String(raw?.created_at || new Date().toISOString()),
+            },
+          ],
+        },
+      };
+    }
+  }
   const ws = prev.workspace;
   if (action === 'task_add' && ws) {
     const projectId = Number(payload.project_id);
@@ -331,11 +365,29 @@ export function GuestTradeWorkspace({
   useEffect(() => {
     setLive(portal);
   }, [portal]);
+  const { authenticated, getAccessToken, user } = usePrivy();
+  const privyUserId = getCanonicalUserId(user?.id);
   const ws = live.workspace;
   const isSupplier = live.kind === 'supplier';
+  const isHost = live.actor?.role === 'host';
   const gaps = ws?.profileGaps || [];
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+
+  const authHeaders = useCallback(async (): Promise<HeadersInit> => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    try {
+      if (authenticated && typeof getAccessToken === 'function') {
+        const access = await getAccessToken();
+        if (access) headers.Authorization = `Bearer ${access}`;
+      }
+    } catch {
+      /* cookie fallback */
+    }
+    return headers;
+  }, [authenticated, getAccessToken]);
 
   const act = async (payload: Record<string, unknown>) => {
     const action = String(payload.action || '');
@@ -345,8 +397,13 @@ export function GuestTradeWorkspace({
     try {
       const res = await fetch('/api/public/portals/trade/act', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, ...payload }),
+        headers: await authHeaders(),
+        credentials: 'include',
+        body: JSON.stringify({
+          token,
+          ...payload,
+          ...(privyUserId ? { privyUserId } : {}),
+        }),
       });
       const data = (await res.json()) as Record<string, unknown>;
       if (!res.ok) throw new Error(String(data.error || 'Failed'));
@@ -369,12 +426,18 @@ export function GuestTradeWorkspace({
                       : 'Saved'
       );
       if (REFRESH_ACTIONS.has(action)) onRefresh();
+      return data;
     } catch (e) {
       setNote(e instanceof Error ? e.message : 'Failed');
+      return null;
     } finally {
       if (heavy) setBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (isHost && tab === 'newpo') onTab('orders');
+  }, [isHost, tab, onTab]);
 
   const ot = ws?.otifef;
   const orders = isSupplier
@@ -387,7 +450,21 @@ export function GuestTradeWorkspace({
         <p className="text-xs font-semibold text-[#0077b6]">{note}</p>
       ) : null}
 
-      {gaps.length > 0 && tab !== 'profile' ? (
+      {isHost ? (
+        <p className="rounded-[1.5rem] border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
+          Signed in as <strong>{live.actor?.name || 'you'}</strong> at{' '}
+          <strong>{live.host.name}</strong>. Actions use your company
+          credentials
+          {live.accountLabel ? (
+            <>
+              , not <strong>{live.accountLabel}</strong>
+            </>
+          ) : null}
+          .
+        </p>
+      ) : null}
+
+      {gaps.length > 0 && tab !== 'profile' && !isHost ? (
         <button
           type="button"
           onClick={() => onTab('profile')}
@@ -403,6 +480,9 @@ export function GuestTradeWorkspace({
           profile={ws?.bookProfile || null}
           gaps={gaps}
           busy={busy}
+          readOnly={isHost}
+          accountLabel={live.accountLabel}
+          hostName={live.host.name}
           onAct={act}
         />
       ) : null}
@@ -436,7 +516,7 @@ export function GuestTradeWorkspace({
           items={ws?.projects || []}
           people={live.people || []}
           riad={ws?.riad || []}
-          ownerName={live.viewer?.name || ''}
+          ownerName={live.actor?.name || live.viewer?.name || ''}
           busy={busy}
           onAct={act}
         />
@@ -444,7 +524,7 @@ export function GuestTradeWorkspace({
       {tab === 'stock' && isSupplier ? (
         <StockPanel lines={ws?.stock || []} busy={busy} onAct={act} />
       ) : null}
-      {tab === 'newpo' && !isSupplier ? (
+      {tab === 'newpo' && !isSupplier && !isHost ? (
         <NewPoPanel
           token={token}
           busy={busy}
@@ -458,18 +538,25 @@ export function GuestTradeWorkspace({
           kind={live.kind}
           items={ws?.riad || []}
           busy={busy}
-          ownerName={live.viewer?.name || ''}
+          ownerName={live.actor?.name || live.viewer?.name || ''}
           onAct={act}
         />
       ) : null}
       {tab === 'messages' ? (
-        <MessagesPanel items={ws?.messages || []} busy={busy} onAct={act} />
+        <MessagesPanel
+          items={ws?.messages || []}
+          busy={busy}
+          isHost={isHost}
+          accountLabel={live.accountLabel}
+          onAct={act}
+        />
       ) : null}
       {tab === 'people' ? (
         <PeoplePanel
-          token={token}
           people={live.people || []}
           busy={busy}
+          isHost={isHost}
+          onAct={act}
           onPeople={(next) =>
             setLive((prev) => ({
               ...prev,
@@ -485,6 +572,7 @@ export function GuestTradeWorkspace({
           kind={live.kind}
           items={ws?.ratings || []}
           busy={busy}
+          readOnly={isHost}
           onAct={act}
         />
       ) : null}
@@ -493,15 +581,17 @@ export function GuestTradeWorkspace({
 }
 
 function PeoplePanel({
-  token,
   people,
   busy,
+  isHost,
+  onAct,
   onPeople,
   onNote,
 }: {
-  token: string;
   people: PortalPersonPublic[];
   busy: boolean;
+  isHost: boolean;
+  onAct: (p: Record<string, unknown>) => Promise<Record<string, unknown> | null>;
   onPeople: (next: PortalPersonPublic[]) => void;
   onNote: (v: string | null) => void;
 }) {
@@ -515,20 +605,14 @@ function PeoplePanel({
     setSaving(true);
     onNote(null);
     try {
-      const res = await fetch('/api/public/portals/trade/act', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token,
-          action: 'invite_person',
-          name,
-          email,
-          phone,
-          job_title: job,
-        }),
+      const data = await onAct({
+        action: 'invite_person',
+        name,
+        email,
+        phone,
+        job_title: job,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not add person');
+      if (!data) return;
       if (data.url) {
         try {
           await navigator.clipboard.writeText(String(data.url));
@@ -575,13 +659,8 @@ function PeoplePanel({
     setSaving(true);
     onNote(null);
     try {
-      const res = await fetch('/api/public/portals/trade/act', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, action: 'revoke_person', id }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not revoke');
+      const data = await onAct({ action: 'revoke_person', id });
+      if (!data) return;
       onNote('Access removed');
       onPeople(people.filter((p) => p.id !== id));
     } catch (e) {
@@ -605,7 +684,9 @@ function PeoplePanel({
         </p>
         <ul className="mt-4 space-y-2">
           {people.length === 0 ? (
-            <li className="text-sm text-neutral-500">Only you so far.</li>
+            <li className="text-sm text-neutral-500">
+              {isHost ? 'No guest people on this account yet.' : 'Only you so far.'}
+            </li>
           ) : (
             people.map((p) => (
               <li
@@ -687,12 +768,18 @@ function ProfilePanel({
   profile,
   gaps,
   busy,
+  readOnly,
+  accountLabel,
+  hostName,
   onAct,
 }: {
   profile: BookProfile | null;
   gaps: string[];
   busy: boolean;
-  onAct: (p: Record<string, unknown>) => Promise<void>;
+  readOnly?: boolean;
+  accountLabel?: string | null;
+  hostName?: string;
+  onAct: (p: Record<string, unknown>) => Promise<unknown>;
 }) {
   const [form, setForm] = useState<BookProfile>(profile || EMPTY_PROFILE);
   useEffect(() => {
@@ -726,10 +813,15 @@ function ProfilePanel({
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
           On our books
         </p>
-        <h2 className="text-lg font-black text-slate-900">Complete your profile</h2>
+        <h2 className="text-lg font-black text-slate-900">
+          {readOnly
+            ? `${accountLabel || 'Their'} credentials`
+            : 'Complete your profile'}
+        </h2>
         <p className="text-sm text-neutral-600 mt-1">
-          These fields write straight into our customer / supplier record. Keep
-          them accurate so quotes, POs, and invoices match your legal entity.
+          {readOnly
+            ? `These are ${accountLabel || 'the account'}’s details on ${hostName || 'your'} books — not yours. Edit them in CRM / SRM.`
+            : 'These fields write straight into our customer / supplier record. Keep them accurate so quotes, POs, and invoices match your legal entity.'}
         </p>
       </div>
       {gaps.length ? (
@@ -755,6 +847,7 @@ function ProfilePanel({
               <textarea
                 className="input mt-0.5 w-full !p-2.5 !text-sm min-h-[64px] font-medium normal-case tracking-normal"
                 value={form[f.key]}
+                disabled={readOnly}
                 onChange={(e) => set(f.key, e.target.value)}
               />
             ) : (
@@ -762,12 +855,14 @@ function ProfilePanel({
                 className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
                 type={f.key === 'email' ? 'email' : 'text'}
                 value={form[f.key]}
+                disabled={readOnly}
                 onChange={(e) => set(f.key, e.target.value)}
               />
             )}
           </label>
         ))}
       </div>
+      {readOnly ? null : (
       <button
         type="button"
         disabled={busy}
@@ -776,6 +871,7 @@ function ProfilePanel({
       >
         Save to our books
       </button>
+      )}
     </div>
   );
 }
@@ -791,7 +887,7 @@ function TaskRiadForm({
   taskTitle: string;
   ownerName: string;
   busy: boolean;
-  onAct: (p: Record<string, unknown>) => Promise<void>;
+  onAct: (p: Record<string, unknown>) => Promise<unknown>;
 }) {
   const [entryType, setEntryType] = useState<RiadType>('issue');
   const [title, setTitle] = useState('');
@@ -890,7 +986,7 @@ function ProjectsPanel({
   riad: PortalRiadView[];
   ownerName: string;
   busy: boolean;
-  onAct: (p: Record<string, unknown>) => Promise<void>;
+  onAct: (p: Record<string, unknown>) => Promise<unknown>;
 }) {
   const [title, setTitle] = useState('');
   const [taskStart, setTaskStart] = useState(isoDay(new Date()));
@@ -1543,7 +1639,7 @@ function OrdersPanel({
   isSupplier: boolean;
   orders: PublicPortalPayload['purchase_orders'];
   busy: boolean;
-  onAct: (p: Record<string, unknown>) => Promise<void>;
+  onAct: (p: Record<string, unknown>) => Promise<unknown>;
 }) {
   if (!orders.length) {
     return (
@@ -1609,7 +1705,7 @@ function SupplierOrderActions({
 }: {
   order: PublicPortalPayload['purchase_orders'][number];
   busy: boolean;
-  onAct: (p: Record<string, unknown>) => Promise<void>;
+  onAct: (p: Record<string, unknown>) => Promise<unknown>;
 }) {
   const [delivered, setDelivered] = useState(String(order.delivered ?? ''));
   const [stock, setStock] = useState('');
@@ -1678,7 +1774,7 @@ function CustomerOrderActions({
 }: {
   order: PublicPortalPayload['purchase_orders'][number];
   busy: boolean;
-  onAct: (p: Record<string, unknown>) => Promise<void>;
+  onAct: (p: Record<string, unknown>) => Promise<unknown>;
 }) {
   const [url, setUrl] = useState(order.attachment_url || '');
   const [date, setDate] = useState(order.due || '');
@@ -1745,7 +1841,7 @@ function StockPanel({
 }: {
   lines: NonNullable<PublicPortalPayload['workspace']>['stock'];
   busy: boolean;
-  onAct: (p: Record<string, unknown>) => Promise<void>;
+  onAct: (p: Record<string, unknown>) => Promise<unknown>;
 }) {
   if (!lines.length) {
     return (
@@ -1789,7 +1885,7 @@ function StockQuick({
   poId: number;
   current: number | null;
   busy: boolean;
-  onAct: (p: Record<string, unknown>) => Promise<void>;
+  onAct: (p: Record<string, unknown>) => Promise<unknown>;
 }) {
   const [v, setV] = useState(current != null ? String(current) : '');
   return (
@@ -1826,7 +1922,7 @@ function NewPoPanel({
 }: {
   token: string;
   busy: boolean;
-  onAct: (p: Record<string, unknown>) => Promise<void>;
+  onAct: (p: Record<string, unknown>) => Promise<unknown>;
   catalogue: PortalCatalogueItem[];
   hostName: string;
 }) {
@@ -2205,11 +2301,15 @@ function NewPoPanel({
 function MessagesPanel({
   items,
   busy,
+  isHost,
+  accountLabel,
   onAct,
 }: {
   items: NonNullable<PublicPortalPayload['workspace']>['messages'];
   busy: boolean;
-  onAct: (p: Record<string, unknown>) => Promise<void>;
+  isHost?: boolean;
+  accountLabel?: string | null;
+  onAct: (p: Record<string, unknown>) => Promise<unknown>;
 }) {
   const [body, setBody] = useState('');
   return (
@@ -2222,13 +2322,19 @@ function MessagesPanel({
             <div
               key={m.id}
               className={`rounded-2xl px-3 py-2 text-sm ${
-                m.author === 'guest'
+                m.author === (isHost ? 'host' : 'guest')
                   ? 'bg-cyan-50 text-slate-900 ml-8'
                   : 'bg-slate-50 text-slate-800 mr-8'
               }`}
             >
               <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                {m.author === 'guest' ? 'You' : 'Us'}
+                {isHost
+                  ? m.author === 'host'
+                    ? 'You'
+                    : accountLabel || 'Them'
+                  : m.author === 'guest'
+                    ? 'You'
+                    : 'Us'}
               </p>
               <p>{m.body}</p>
             </div>
@@ -2409,12 +2515,14 @@ function ReviewsPanel({
   kind,
   items,
   busy,
+  readOnly,
   onAct,
 }: {
   kind: PublicPortalPayload['kind'];
   items: NonNullable<PublicPortalPayload['workspace']>['ratings'];
   busy: boolean;
-  onAct: (p: Record<string, unknown>) => Promise<void>;
+  readOnly?: boolean;
+  onAct: (p: Record<string, unknown>) => Promise<unknown>;
 }) {
   const dims = kind === 'supplier' ? CUSTOMER_DIMS : SUPPLIER_DIMS;
   const [overall, setOverall] = useState(0);
@@ -2428,6 +2536,7 @@ function ReviewsPanel({
 
   return (
     <div className="space-y-4">
+      {readOnly ? null : (
       <div className="rounded-[1.5rem] border border-white/70 bg-white/90 p-5 space-y-3">
         <p className="text-sm font-bold text-slate-900">Rate us</p>
         <p className="text-xs text-neutral-500">
@@ -2463,6 +2572,7 @@ function ReviewsPanel({
           Publish review
         </button>
       </div>
+      )}
       {items.map((r) => (
         <div
           key={`${r.direction}-${r.id}`}

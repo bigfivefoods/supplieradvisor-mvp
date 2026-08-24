@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
+import { legacyPrivyFrom } from '@/lib/auth/api-auth';
 import { resolveGuestViewer } from '@/lib/portals/portal-guest';
+import {
+  guestOnlyActionMessage,
+  isGuestOnlyPortalAction,
+  portalActionStamp,
+  tryPortalHostActor,
+} from '@/lib/portals/portal-host';
 import { clampStar } from '@/lib/ratings/company-rating';
 import { isSrmBuyerTransitionAllowed } from '@/lib/procurement/types';
 import {
@@ -39,6 +46,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: guest.error }, { status: guest.status });
     }
     const { portal, viewer, linkedProfileId, accountName } = guest.ctx;
+    const hostActor = await tryPortalHostActor(request, portal.profile_id, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (hostActor && isGuestOnlyPortalAction(action)) {
+      return NextResponse.json(
+        { error: guestOnlyActionMessage(action, portal.kind) },
+        { status: 403 }
+      );
+    }
+    const stamp = portalActionStamp(hostActor, viewer);
     const supabase = getSupabaseServer();
     const now = new Date().toISOString();
 
@@ -236,7 +253,7 @@ export async function POST(request: NextRequest) {
         patch.metadata = meta;
       }
       if (typeof body.notes === 'string' && body.notes.trim()) {
-        patch.description = [task.description, `[${viewer.name}] ${body.notes.trim()}`]
+        patch.description = [task.description, `[${stamp.noteTag}] ${body.notes.trim()}`]
           .filter(Boolean)
           .join('\n');
       }
@@ -312,12 +329,13 @@ export async function POST(request: NextRequest) {
         target_date: target,
         customer_id: portal.kind === 'customer' ? viewer.customer_id : null,
         supplier_id: portal.kind === 'supplier' ? viewer.supplier_id : null,
-        created_by: `portal:${viewer.id}`,
+        created_by: stamp.createdBy,
         updated_at: now,
         metadata: {
           source: `${portal.kind}_portal`,
           portal_viewer_id: viewer.id,
-          opened_by: viewer.name,
+          opened_by: stamp.noteTag,
+          host_user_id: hostActor?.userId || null,
         },
       };
       let ins = await supabase.from('pm_projects').insert(insert).select('id').single();
@@ -345,7 +363,7 @@ export async function POST(request: NextRequest) {
           due_date: s.due_date,
           phase_key: s.phase_key,
           sort_order: s.sort_order,
-          created_by: `portal:${viewer.name}`,
+          created_by: stamp.createdBy,
           updated_at: now,
         }));
         const seeded = await supabase.from('pm_tasks').insert(rows);
@@ -438,7 +456,7 @@ export async function POST(request: NextRequest) {
         start_date: range.start,
         due_date: range.end,
         sort_order: sortOrder,
-        created_by: `portal:${viewer.name}`,
+        created_by: stamp.createdBy,
         updated_at: now,
         metadata: parent
           ? { parent_task_id: parent.id, source: 'portal_subtask' }
@@ -497,7 +515,7 @@ export async function POST(request: NextRequest) {
           portal_id: portal.id,
           viewer_id: viewer.id,
           profile_id: portal.profile_id,
-          author: 'guest',
+          author: stamp.messageAuthor,
           body: text,
         })
         .select('id, author, body, created_at')
@@ -558,14 +576,14 @@ export async function POST(request: NextRequest) {
         status,
         severity,
         owner_name:
-          String(body.owner_name || viewer.name || '').trim().slice(0, 120) ||
+          String(body.owner_name || stamp.name || '').trim().slice(0, 120) ||
           null,
         due_date: dayOrNull(body.due_date),
         category: String(body.category || '').trim().slice(0, 80) || null,
         mitigation_plan:
           String(body.mitigation_plan || '').trim().slice(0, 4000) || null,
         notes: [mark, notesBody].filter(Boolean).join('\n') || null,
-        created_by: `portal:${viewer.name}`,
+        created_by: stamp.createdBy,
         updated_at: now,
         related_task_id: relatedTaskId,
         related_project_id: relatedProjectId,
@@ -703,7 +721,7 @@ export async function POST(request: NextRequest) {
         updates.resolution = String(body.resolution || '').trim().slice(0, 4000) || null;
       }
       if (typeof body.notes === 'string' && body.notes.trim() && body.append_note) {
-        updates.notes = [existing.notes, `[${viewer.name}] ${body.notes.trim()}`]
+        updates.notes = [existing.notes, `[${stamp.noteTag}] ${body.notes.trim()}`]
           .filter(Boolean)
           .join('\n');
       } else if (body.notes !== undefined && !body.append_note) {
@@ -799,7 +817,7 @@ export async function POST(request: NextRequest) {
       if (!existing) {
         return NextResponse.json({ error: 'RIAD not found' }, { status: 404 });
       }
-      const next = [existing.notes, `[${viewer.name}] ${note}`]
+      const next = [existing.notes, `[${stamp.noteTag}] ${note}`]
         .filter(Boolean)
         .join('\n');
       const { error } = await supabase

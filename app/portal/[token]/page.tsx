@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { usePrivy } from '@privy-io/react-auth';
+import { getCanonicalUserId } from '@/lib/auth/identity';
 import {
   ArrowRight,
   Building2,
@@ -109,6 +111,8 @@ export default function GuestTradePortalPage() {
   const params = useParams() as { token?: string | string[] };
   const raw = Array.isArray(params.token) ? params.token[0] : params.token;
   const token = String(raw || '').trim();
+  const { ready, authenticated, getAccessToken, user } = usePrivy();
+  const privyUserId = getCanonicalUserId(user?.id);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -124,17 +128,30 @@ export default function GuestTradePortalPage() {
     }
     if (!opts?.silent) setLoading(true);
     try {
-      const res = await fetch(
-        `/api/public/portals/trade?token=${encodeURIComponent(token)}`
-      );
+      const headers: Record<string, string> = {};
+      try {
+        if (authenticated && typeof getAccessToken === 'function') {
+          const access = await getAccessToken();
+          if (access) headers.Authorization = `Bearer ${access}`;
+        }
+      } catch {
+        /* cookie fallback */
+      }
+      const q = new URLSearchParams({ token });
+      if (privyUserId) q.set('privyUserId', privyUserId);
+      const res = await fetch(`/api/public/portals/trade?${q.toString()}`, {
+        headers,
+        credentials: 'include',
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Portal unavailable');
       setPortal(data.portal);
       setError(null);
+      const isHost = data.portal?.actor?.role === 'host';
       const gaps = data.portal?.workspace?.profileGaps?.length || 0;
       if (!navReady.current) {
         navReady.current = true;
-        if (gaps > 0) setTab('profile');
+        if (gaps > 0 && !isHost) setTab('profile');
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed');
@@ -142,13 +159,14 @@ export default function GuestTradePortalPage() {
     } finally {
       if (!opts?.silent) setLoading(false);
     }
-  }, [token]);
+  }, [token, authenticated, getAccessToken, privyUserId]);
 
   useEffect(() => {
+    if (!ready) return;
     void load();
-  }, [load]);
+  }, [load, ready]);
 
-  if (loading) {
+  if (!ready || loading) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 dark:bg-[#07111f]">
         <Loader2 className="h-8 w-8 animate-spin text-[#00b4d8]" />
@@ -177,9 +195,12 @@ export default function GuestTradePortalPage() {
 
   const host = portal.host;
   const kindLabel = portal.kind === 'customer' ? 'Customer' : 'Supplier';
-  const greeting = portal.viewer?.name
-    ? `Hello, ${portal.viewer.name}`
-    : `Welcome to ${host.name}`;
+  const isHost = portal.actor?.role === 'host';
+  const greeting = isHost
+    ? `Hello, ${portal.actor?.name || 'there'}`
+    : portal.viewer?.name
+      ? `Hello, ${portal.viewer.name}`
+      : `Welcome to ${host.name}`;
   const kpis = portal.kpis || {
     quotes: portal.quotes.length,
     orders: portal.orders.length || portal.purchase_orders.length,
@@ -225,6 +246,11 @@ export default function GuestTradePortalPage() {
           </div>
           <div className="flex items-center gap-2">
             <B2cThemeToggle compact />
+            {isHost ? (
+              <span className="hidden items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-bold text-sky-900 dark:border-sky-400/30 dark:bg-sky-400/10 dark:text-sky-100 sm:inline-flex">
+                Signed in as {host.name}
+              </span>
+            ) : null}
             {host.verified ? (
               <span className="hidden items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-200 sm:inline-flex">
                 <ShieldCheck className="h-3.5 w-3.5" /> Verified
@@ -238,6 +264,7 @@ export default function GuestTradePortalPage() {
               {guestPortalTabs({
                 kind: portal.kind,
                 profileGaps: portal.workspace.profileGaps?.length || 0,
+                isHost,
               }).map((t) => {
                 const on = tab === t.id;
                 return (
@@ -271,10 +298,25 @@ export default function GuestTradePortalPage() {
           </h1>
           {portal.accountLabel ? (
             <p className="mt-2 text-sm text-slate-600 dark:text-white/70">
-              Live books for{' '}
-              <strong className="text-slate-900 dark:text-white">
-                {portal.accountLabel}
-              </strong>
+              {isHost ? (
+                <>
+                  Viewing{' '}
+                  <strong className="text-slate-900 dark:text-white">
+                    {portal.accountLabel}
+                  </strong>
+                  ’s portal as{' '}
+                  <strong className="text-slate-900 dark:text-white">
+                    {host.name}
+                  </strong>
+                </>
+              ) : (
+                <>
+                  Live books for{' '}
+                  <strong className="text-slate-900 dark:text-white">
+                    {portal.accountLabel}
+                  </strong>
+                </>
+              )}
             </p>
           ) : null}
           <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-slate-600 dark:text-white/80">
@@ -329,9 +371,9 @@ export default function GuestTradePortalPage() {
         ) : null}
 
         <p className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[13px] leading-relaxed text-slate-600 dark:border-white/10 dark:bg-black/20 dark:text-white/70">
-          This is the same live ledger {host.name} runs in SupplierAdvisor —
-          OTIFEF, ratings, RIAD, and documents. Raise a purchase order from your
-          branded products, or add colleagues on People.
+          {isHost
+            ? `You are working as ${host.name}. Projects, RIAD, and messages are yours — the customer’s profile and purchase orders stay theirs.`
+            : `This is the same live ledger ${host.name} runs in SupplierAdvisor — OTIFEF, ratings, RIAD, and documents. Raise a purchase order from your branded products, or add colleagues on People.`}
         </p>
 
         <div className="space-y-4 rounded-[1.75rem] border border-white/10 bg-[#f8fafc] p-3 text-slate-900 shadow-2xl sm:p-5">

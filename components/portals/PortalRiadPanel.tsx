@@ -68,7 +68,7 @@ export function PortalRiadPanel({
   items: PortalRiadView[];
   busy: boolean;
   ownerName: string;
-  onAct: (p: Record<string, unknown>) => Promise<void>;
+  onAct: (p: Record<string, unknown>) => Promise<unknown>;
 }) {
   const categories =
     kind === 'supplier' ? SUPPLIER_RIAD_CATEGORIES : CUSTOMER_RIAD_CATEGORIES;
