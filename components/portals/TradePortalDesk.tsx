@@ -417,379 +417,17 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid lg:grid-cols-5 gap-4">
-        <Panel className="lg:col-span-3" title="What they see">
-          <div className="p-5 space-y-4">
-            <p className="text-sm text-neutral-600 leading-relaxed">
-              Pick a {noun} already on your {book}, then issue their portal. That
-              account sees only their quotes, orders, OTIFEF, ratings and RIAD.
-              Inside the portal they can add colleagues. Below you get every
-              linked account — click <strong>View portal</strong> to work in it
-              as you (your company credentials). Their own link still uses
-              their access.
-            </p>
-            <div>
-              <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
-                Portal title
-              </label>
-              <input
-                className="input mt-1 w-full !p-3 !text-sm"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder={isCustomer ? 'Customer portal' : 'Supplier portal'}
-              />
-            </div>
-            <div>
-              <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
-                Welcome note
-              </label>
-              <textarea
-                className="input mt-1 w-full !p-3 !text-sm min-h-[96px]"
-                value={welcome}
-                onChange={(e) => setWelcome(e.target.value)}
-                placeholder={`A short note they see first — why you work with them, how to reach you.`}
-              />
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400 mb-2">
-                Sections
-              </p>
-              <div className="grid sm:grid-cols-2 gap-2">
-                {sectionList.map((s) => (
-                  <label
-                    key={s.key}
-                    className={`flex items-start gap-3 rounded-2xl border px-3 py-3 cursor-pointer ${
-                      sections[s.key] !== false
-                        ? 'border-cyan-200 bg-cyan-50/60'
-                        : 'border-neutral-200 bg-white'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      className="mt-1"
-                      checked={sections[s.key] !== false}
-                      onChange={(e) =>
-                        setSections((prev) => ({
-                          ...prev,
-                          [s.key]: e.target.checked,
-                        }))
-                      }
-                    />
-                    <span>
-                      <span className="block text-sm font-bold text-slate-900">
-                        {s.label}
-                      </span>
-                      <span className="block text-xs text-neutral-500">
-                        {s.hint}
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <p className="text-xs text-neutral-500 leading-relaxed rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2">
-              <strong className="text-slate-800">Projects:</strong> enable the
-              section, then open{' '}
-              <a
-                href="/dashboard/projects/portfolio"
-                className="font-semibold text-[#0077b6] underline-offset-2 hover:underline"
-              >
-                Projects → Portfolio
-              </a>{' '}
-              and set <em>Customer portal</em> to the account (e.g. Boxer). Guest
-              portal shows separate tabs for Sales orders, OTIFEF metrics,
-              Statement and Projects.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => void save()}
-                className="btn-primary !py-2.5 !px-5 text-sm"
-              >
-                {saving ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  'Save portal'
-                )}
-              </button>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={() => void togglePause()}
-                className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
-              >
-                {live ? (
-                  <>
-                    <Pause className="w-4 h-4" /> Pause
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4" /> Go live
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </Panel>
-
-        <Panel className="lg:col-span-2" title="Share">
-          <div className="p-5 space-y-4">
-            <div
-              className={`rounded-2xl border px-3 py-2.5 text-xs font-semibold inline-flex items-center gap-1.5 ${
-                live
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                  : 'border-amber-200 bg-amber-50 text-amber-900'
-              }`}
-            >
-              {live ? (
-                <ShieldCheck className="w-3.5 h-3.5" />
-              ) : (
-                <Pause className="w-3.5 h-3.5" />
-              )}
-              {live ? 'Live' : 'Paused'} · {viewers.filter((v) => v.status === 'active').length} people
-            </div>
-            <p className="text-sm text-neutral-600 leading-relaxed">
-              Each {book} {noun} gets a <strong>personal portal</strong> tied to
-              their profile. Send those personal links — they open that
-              account&apos;s live books. The brochure below is only your company
-              card, not their books.
-            </p>
-            <div className="rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 py-2.5 text-xs text-slate-700">
-              <p className="font-bold text-slate-900 mb-1">What's in this portal</p>
-              <ul className="space-y-0.5">
-                {sectionList
-                  .filter((s) => sections[s.key] !== false)
-                  .map((s) => (
-                    <li key={s.key}>
-                      · {s.label} — {s.hint}
-                    </li>
-                  ))}
-              </ul>
-            </div>
-            <div className="rounded-2xl border border-neutral-200 bg-slate-50 px-3 py-3">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mb-1">
-                Company brochure
-              </p>
-              <p className="text-xs break-all text-slate-700">{url}</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => void copy(url, 'company')}
-                  className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
-                >
-                  {copied === 'company' ? (
-                    <Check className="w-3.5 h-3.5" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5" />
-                  )}
-                  Copy
-                </button>
-                {url ? (
-                  <a
-                    href={url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" /> Preview
-                  </a>
-                ) : null}
-              </div>
-            </div>
-            <p className="text-xs text-neutral-500 leading-relaxed">
-              Join CTA on the portal points to login — the fastest path from a
-              guest to a full SupplierAdvisor workspace.
-            </p>
-          </div>
-        </Panel>
-      </div>
-
-      <div className="grid lg:grid-cols-5 gap-4">
-        <Panel className="lg:col-span-2" title={`${book} ${noun}s`}>
-          <div className="p-5 space-y-3">
-            <p className="text-sm text-neutral-600">
-              Issue a portal on a {book} profile. The primary contact gets the
-              first link; they can add more people from inside the portal.
-            </p>
-            <input
-              className="input w-full !p-3 !text-sm"
-              placeholder={`Search ${noun}s…`}
-              value={accountQ}
-              onChange={(e) => setAccountQ(e.target.value)}
-            />
-            <div className="max-h-[22rem] overflow-y-auto space-y-2 pr-0.5">
-              {accounts
-                .filter((a) => {
-                  const q = accountQ.trim().toLowerCase();
-                  if (!q) return true;
-                  return `${a.name} ${a.contact || ''} ${a.email || ''}`
-                    .toLowerCase()
-                    .includes(q);
-                })
-                .slice(0, 80)
-                .map((a) => {
-                  const allForAccount = viewers.filter(
-                    (v) =>
-                      (isCustomer ? v.customer_id : v.supplier_id) === a.id
-                  );
-                  const people = allForAccount.filter(
-                    (v) => v.status === 'active'
-                  );
-                  const selected = form.accountId === a.id;
-                  const last = latestPortalLogin(allForAccount);
-                  const invited = firstPortalInvite(allForAccount);
-                  return (
-                    <button
-                      key={a.id}
-                      type="button"
-                      onClick={() => {
-                        setForm((prev) => ({
-                          ...prev,
-                          accountId: a.id,
-                          name: prev.name || a.contact || a.name,
-                          email: prev.email || a.email || '',
-                        }));
-                        setOpenGroupKey(`a-${a.id}`);
-                      }}
-                      className={`w-full text-left rounded-2xl border px-3 py-3 ${
-                        selected
-                          ? 'border-cyan-300 bg-cyan-50'
-                          : 'border-neutral-200 bg-white hover:border-cyan-200'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="font-bold text-slate-900 truncate">
-                            {a.name}
-                          </p>
-                          <p className="text-[11px] text-neutral-500 truncate">
-                            {a.contact || a.email || 'No contact yet'}
-                          </p>
-                          {people.length ? (
-                            <p className="text-[11px] text-neutral-400 mt-0.5 truncate">
-                              {last
-                                ? `Last login ${portalTimeAgo(last.at)}`
-                                : 'Never logged in'}
-                              {invited
-                                ? ` · Invited ${portalTimeAgo(invited)}`
-                                : ''}
-                            </p>
-                          ) : null}
-                        </div>
-                        <span className="shrink-0 text-[10px] font-black uppercase tracking-wide text-[#0077b6]">
-                          {people.length
-                            ? `${people.length} on portal`
-                            : 'No portal'}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              {accounts.length === 0 ? (
-                <p className="text-sm text-neutral-500">
-                  Add {noun}s in {book} first, then issue their portal here.
-                </p>
-              ) : null}
-            </div>
-            <button
-              type="button"
-              disabled={!form.accountId || issuingId != null}
-              onClick={() =>
-                form.accountId && void issueAccount(Number(form.accountId))
-              }
-              className="btn-primary w-full !py-2.5 text-sm inline-flex items-center justify-center gap-1.5"
-            >
-              {issuingId != null ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Globe className="w-4 h-4" />
-              )}
-              {viewers.some(
-                (v) =>
-                  (isCustomer ? v.customer_id : v.supplier_id) ===
-                    form.accountId && v.status === 'active'
-              )
-                ? `Copy this ${noun} portal`
-                : `Issue ${noun} portal`}
-            </button>
-          </div>
-        </Panel>
-
-        <Panel className="lg:col-span-3" title="People on this portal">
-          <div className="p-5 border-b border-neutral-100 space-y-3">
-            <p className="text-sm text-neutral-600">
-              {form.accountId
-                ? `Add another person on ${
-                    accounts.find((a) => a.id === form.accountId)?.name ||
-                    `this ${noun}`
-                  }. They get their own link to the same books.`
-                : `Select a ${noun} on the left, then add people.`}
-            </p>
-            <div className="grid sm:grid-cols-2 gap-2">
-              <input
-                className="input w-full !p-3 !text-sm"
-                placeholder="Name"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-              />
-              <input
-                className="input w-full !p-3 !text-sm"
-                placeholder="Email (sends the link)"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-              />
-              <input
-                className="input w-full !p-3 !text-sm"
-                placeholder="Phone"
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              />
-              <input
-                className="input w-full !p-3 !text-sm"
-                placeholder="Role"
-                value={form.job_title}
-                onChange={(e) => setForm({ ...form, job_title: e.target.value })}
-              />
-            </div>
-            <button
-              type="button"
-              disabled={adding || !form.accountId}
-              onClick={() => void addPerson()}
-              className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center justify-center gap-1.5"
-            >
-              {adding ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <UserPlus className="w-4 h-4" />
-              )}
-              Add person
-            </button>
-          </div>
-        </Panel>
-      </div>
-
       <Panel
         title={isCustomer ? 'Customer portals' : 'Supplier portals'}
       >
           <div className="divide-y divide-neutral-100">
-            {viewers.filter(
-              (v) =>
-                !form.accountId ||
-                (isCustomer ? v.customer_id : v.supplier_id) === form.accountId
-            ).length === 0 ? (
+            {portalGroups.length === 0 ? (
               <p className="p-5 text-sm text-neutral-500">
-                {form.accountId
-                  ? 'No one on this portal yet. Issue it, or add a person.'
-                  : `No one yet. Add a ${noun} contact — they do not need an account. Each linked ${noun} gets their own portal view of orders, OTIFEF, statement and projects.`}
+                No {noun} portals yet. Issue one below from a {book} profile —
+                they do not need an account.
               </p>
             ) : (
-              portalGroups
-                .filter(
-                  (g) =>
-                    !form.accountId || g.accountId === form.accountId
-                )
-                .map((g) => {
+              portalGroups.map((g) => {
                 const primary =
                   g.viewers.find((v) => v.status === 'active') || g.viewers[0];
                 const personUrl = primary
@@ -803,9 +441,18 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <button
                         type="button"
-                        onClick={() =>
-                          setOpenGroupKey(expanded ? null : g.key)
-                        }
+                        onClick={() => {
+                          setOpenGroupKey(expanded ? null : g.key);
+                          if (!expanded && g.accountId) {
+                            const a = accounts.find((x) => x.id === g.accountId);
+                            setForm((prev) => ({
+                              ...prev,
+                              accountId: g.accountId as number,
+                              name: prev.name || a?.contact || a?.name || prev.name,
+                              email: prev.email || a?.email || prev.email,
+                            }));
+                          }
+                        }}
                         className="min-w-0 flex-1 text-left flex items-start gap-2"
                       >
                         <span className="mt-1 shrink-0 text-neutral-400">
@@ -991,6 +638,359 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
             )}
           </div>
         </Panel>
+
+      <div className="grid lg:grid-cols-5 gap-4">
+        <Panel className="lg:col-span-2" title={`Issue a ${noun} portal`}>
+          <div className="p-5 space-y-3">
+            <p className="text-sm text-neutral-600">
+              Create a portal for a {book} profile that does not have one yet.
+              The primary contact gets the first link; they can add more people
+              from inside the portal.
+            </p>
+            <input
+              className="input w-full !p-3 !text-sm"
+              placeholder={`Search ${noun}s…`}
+              value={accountQ}
+              onChange={(e) => setAccountQ(e.target.value)}
+            />
+            <div className="max-h-[22rem] overflow-y-auto space-y-2 pr-0.5">
+              {accounts
+                .filter((a) => {
+                  const q = accountQ.trim().toLowerCase();
+                  if (!q) return true;
+                  return `${a.name} ${a.contact || ''} ${a.email || ''}`
+                    .toLowerCase()
+                    .includes(q);
+                })
+                .slice(0, 80)
+                .map((a) => {
+                  const allForAccount = viewers.filter(
+                    (v) =>
+                      (isCustomer ? v.customer_id : v.supplier_id) === a.id
+                  );
+                  const people = allForAccount.filter(
+                    (v) => v.status === 'active'
+                  );
+                  const selected = form.accountId === a.id;
+                  const last = latestPortalLogin(allForAccount);
+                  const invited = firstPortalInvite(allForAccount);
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => {
+                        setForm((prev) => ({
+                          ...prev,
+                          accountId: a.id,
+                          name: prev.name || a.contact || a.name,
+                          email: prev.email || a.email || '',
+                        }));
+                        setOpenGroupKey(`a-${a.id}`);
+                      }}
+                      className={`w-full text-left rounded-2xl border px-3 py-3 ${
+                        selected
+                          ? 'border-cyan-300 bg-cyan-50'
+                          : 'border-neutral-200 bg-white hover:border-cyan-200'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 truncate">
+                            {a.name}
+                          </p>
+                          <p className="text-[11px] text-neutral-500 truncate">
+                            {a.contact || a.email || 'No contact yet'}
+                          </p>
+                          {people.length ? (
+                            <p className="text-[11px] text-neutral-400 mt-0.5 truncate">
+                              {last
+                                ? `Last login ${portalTimeAgo(last.at)}`
+                                : 'Never logged in'}
+                              {invited
+                                ? ` · Invited ${portalTimeAgo(invited)}`
+                                : ''}
+                            </p>
+                          ) : null}
+                        </div>
+                        <span className="shrink-0 text-[10px] font-black uppercase tracking-wide text-[#0077b6]">
+                          {people.length
+                            ? `${people.length} on portal`
+                            : 'No portal'}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              {accounts.length === 0 ? (
+                <p className="text-sm text-neutral-500">
+                  Add {noun}s in {book} first, then issue their portal here.
+                </p>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              disabled={!form.accountId || issuingId != null}
+              onClick={() =>
+                form.accountId && void issueAccount(Number(form.accountId))
+              }
+              className="btn-primary w-full !py-2.5 text-sm inline-flex items-center justify-center gap-1.5"
+            >
+              {issuingId != null ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Globe className="w-4 h-4" />
+              )}
+              {viewers.some(
+                (v) =>
+                  (isCustomer ? v.customer_id : v.supplier_id) ===
+                    form.accountId && v.status === 'active'
+              )
+                ? `Copy this ${noun} portal`
+                : `Issue ${noun} portal`}
+            </button>
+          </div>
+        </Panel>
+
+        <Panel className="lg:col-span-3" title="People on this portal">
+          <div className="p-5 border-b border-neutral-100 space-y-3">
+            <p className="text-sm text-neutral-600">
+              {form.accountId
+                ? `Add another person on ${
+                    accounts.find((a) => a.id === form.accountId)?.name ||
+                    `this ${noun}`
+                  }. They get their own link to the same books.`
+                : `Select a ${noun} on the left, then add people.`}
+            </p>
+            <div className="grid sm:grid-cols-2 gap-2">
+              <input
+                className="input w-full !p-3 !text-sm"
+                placeholder="Name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+              <input
+                className="input w-full !p-3 !text-sm"
+                placeholder="Email (sends the link)"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              />
+              <input
+                className="input w-full !p-3 !text-sm"
+                placeholder="Phone"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              />
+              <input
+                className="input w-full !p-3 !text-sm"
+                placeholder="Role"
+                value={form.job_title}
+                onChange={(e) => setForm({ ...form, job_title: e.target.value })}
+              />
+            </div>
+            <button
+              type="button"
+              disabled={adding || !form.accountId}
+              onClick={() => void addPerson()}
+              className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center justify-center gap-1.5"
+            >
+              {adding ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <UserPlus className="w-4 h-4" />
+              )}
+              Add person
+            </button>
+          </div>
+        </Panel>
+      </div>
+
+      <div className="grid lg:grid-cols-5 gap-4">
+        <Panel className="lg:col-span-3" title="What they see">
+          <div className="p-5 space-y-4">
+            <p className="text-sm text-neutral-600 leading-relaxed">
+              Pick a {noun} already on your {book}, then issue their portal. That
+              account sees only their quotes, orders, OTIFEF, ratings and RIAD.
+              Inside the portal they can add colleagues. Issued portals are
+              listed first — click <strong>View portal</strong> to work in it as
+              you (your company credentials). Their own link still uses their
+              access.
+            </p>
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
+                Portal title
+              </label>
+              <input
+                className="input mt-1 w-full !p-3 !text-sm"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={isCustomer ? 'Customer portal' : 'Supplier portal'}
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
+                Welcome note
+              </label>
+              <textarea
+                className="input mt-1 w-full !p-3 !text-sm min-h-[96px]"
+                value={welcome}
+                onChange={(e) => setWelcome(e.target.value)}
+                placeholder={`A short note they see first — why you work with them, how to reach you.`}
+              />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-400 mb-2">
+                Sections
+              </p>
+              <div className="grid sm:grid-cols-2 gap-2">
+                {sectionList.map((s) => (
+                  <label
+                    key={s.key}
+                    className={`flex items-start gap-3 rounded-2xl border px-3 py-3 cursor-pointer ${
+                      sections[s.key] !== false
+                        ? 'border-cyan-200 bg-cyan-50/60'
+                        : 'border-neutral-200 bg-white'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={sections[s.key] !== false}
+                      onChange={(e) =>
+                        setSections((prev) => ({
+                          ...prev,
+                          [s.key]: e.target.checked,
+                        }))
+                      }
+                    />
+                    <span>
+                      <span className="block text-sm font-bold text-slate-900">
+                        {s.label}
+                      </span>
+                      <span className="block text-xs text-neutral-500">
+                        {s.hint}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <p className="text-xs text-neutral-500 leading-relaxed rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2">
+              <strong className="text-slate-800">Projects:</strong> enable the
+              section, then open{' '}
+              <a
+                href="/dashboard/projects/portfolio"
+                className="font-semibold text-[#0077b6] underline-offset-2 hover:underline"
+              >
+                Projects → Portfolio
+              </a>{' '}
+              and set <em>Customer portal</em> to the account (e.g. Boxer). Guest
+              portal shows separate tabs for Sales orders, OTIFEF metrics,
+              Statement and Projects.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void save()}
+                className="btn-primary !py-2.5 !px-5 text-sm"
+              >
+                {saving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  'Save portal'
+                )}
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void togglePause()}
+                className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
+              >
+                {live ? (
+                  <>
+                    <Pause className="w-4 h-4" /> Pause
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4" /> Go live
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </Panel>
+
+        <Panel className="lg:col-span-2" title="Share">
+          <div className="p-5 space-y-4">
+            <div
+              className={`rounded-2xl border px-3 py-2.5 text-xs font-semibold inline-flex items-center gap-1.5 ${
+                live
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  : 'border-amber-200 bg-amber-50 text-amber-900'
+              }`}
+            >
+              {live ? (
+                <ShieldCheck className="w-3.5 h-3.5" />
+              ) : (
+                <Pause className="w-3.5 h-3.5" />
+              )}
+              {live ? 'Live' : 'Paused'} · {viewers.filter((v) => v.status === 'active').length} people
+            </div>
+            <p className="text-sm text-neutral-600 leading-relaxed">
+              Each {book} {noun} gets a <strong>personal portal</strong> tied to
+              their profile. Send those personal links — they open that
+              account&apos;s live books. The brochure below is only your company
+              card, not their books.
+            </p>
+            <div className="rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 py-2.5 text-xs text-slate-700">
+              <p className="font-bold text-slate-900 mb-1">What's in this portal</p>
+              <ul className="space-y-0.5">
+                {sectionList
+                  .filter((s) => sections[s.key] !== false)
+                  .map((s) => (
+                    <li key={s.key}>
+                      · {s.label} — {s.hint}
+                    </li>
+                  ))}
+              </ul>
+            </div>
+            <div className="rounded-2xl border border-neutral-200 bg-slate-50 px-3 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mb-1">
+                Company brochure
+              </p>
+              <p className="text-xs break-all text-slate-700">{url}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void copy(url, 'company')}
+                  className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+                >
+                  {copied === 'company' ? (
+                    <Check className="w-3.5 h-3.5" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                  Copy
+                </button>
+                {url ? (
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" /> Preview
+                  </a>
+                ) : null}
+              </div>
+            </div>
+            <p className="text-xs text-neutral-500 leading-relaxed">
+              Join CTA on the portal points to login — the fastest path from a
+              guest to a full SupplierAdvisor workspace.
+            </p>
+          </div>
+        </Panel>
+      </div>
 
       <div className="flex items-center gap-2 text-xs text-neutral-500">
         <Globe className="w-3.5 h-3.5 text-[#00b4d8]" />

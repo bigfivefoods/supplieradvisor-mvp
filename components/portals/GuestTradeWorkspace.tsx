@@ -751,6 +751,7 @@ export function GuestTradeWorkspace({
       {tab === 'demo' ? (
         <PortalJoinDemo
           hostName={live.host.name}
+          hostLogo={live.host.logo_url}
           kind={live.kind}
           joinPath={live.joinPath}
         />
