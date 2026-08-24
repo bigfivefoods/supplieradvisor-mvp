@@ -154,12 +154,39 @@ export type GymShopCoach = {
   photo_url?: string | null;
   specialties?: string[];
   bio?: string;
+  qualifications?: string[];
   rate_zar?: number | null;
   rate_basis?: string | null;
+  sort_order?: number;
 };
+
+/** VUKA Fitness shop / website coach pin order. */
+export const VUKA_SHOP_COACH_FIRST = [
+  'bianca',
+  'miri',
+  'jared',
+  'jaryyd',
+  'sophie',
+] as const;
+
+export function shopCoachFirstName(name: string): string {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/[^a-z]+/g, ' ')
+    .trim()
+    .split(/\s+/)[0] || '';
+}
+
+export function vukaShopCoachRank(name: string): number {
+  const i = (VUKA_SHOP_COACH_FIRST as readonly string[]).indexOf(
+    shopCoachFirstName(name)
+  );
+  return i < 0 ? 1000 : i;
+}
 
 export function publicShopCoaches(store: FitgraphStore): GymShopCoach[] {
   if (store.settings?.show_coaches === false) return [];
+  const vuka = /^vuka/i.test(String(store.settings?.brand_name || ''));
   return (store.coaches || [])
     .filter((c) => c.active !== false)
     .map((c) => ({
@@ -168,12 +195,26 @@ export function publicShopCoaches(store: FitgraphStore): GymShopCoach[] {
       photo_url: c.photo_url || null,
       specialties: (c.specialties || []).filter(Boolean),
       bio: String(c.public_bio || c.bio || '').trim() || undefined,
+      qualifications: (c.qualifications || [])
+        .filter((q) => q.public !== false && q.title)
+        .map((q) => q.title),
       rate_zar:
         c.rate_zar != null && Number.isFinite(Number(c.rate_zar))
           ? Number(c.rate_zar)
           : null,
       rate_basis: c.rate_basis || null,
-    }));
+      sort_order: c.sort_order,
+    }))
+    .sort((a, b) => {
+      if (vuka) {
+        const r = vukaShopCoachRank(a.name) - vukaShopCoachRank(b.name);
+        if (r !== 0) return r;
+      }
+      const ao = a.sort_order ?? 999;
+      const bo = b.sort_order ?? 999;
+      if (ao !== bo) return ao - bo;
+      return a.name.localeCompare(b.name);
+    });
 }
 
 export function gymRequiresPaidMembership(store: FitgraphStore): boolean {

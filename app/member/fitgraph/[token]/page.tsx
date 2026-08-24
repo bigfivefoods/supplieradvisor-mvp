@@ -974,6 +974,29 @@ export default function MemberFitgraphPortalPage() {
               hideIdentity
               coaches={portal.shop_coaches || []}
               joinPrivateHref={portal.grow?.join_private || null}
+              contactBusy={busyId === 'coach-msg'}
+              onContactCoach={async (coach, body) => {
+                setBusyId('coach-msg');
+                setError(null);
+                try {
+                  const data = await post({
+                    action: 'create_thread',
+                    coach_id: coach.id,
+                    body,
+                  });
+                  setMsg(
+                    (data.message as string) ||
+                      `Message sent to ${coach.name}`
+                  );
+                  selectTab('messages');
+                } catch (e: unknown) {
+                  setError(
+                    e instanceof Error ? e.message : 'Could not message coach'
+                  );
+                } finally {
+                  setBusyId(null);
+                }
+              }}
               subscribedIds={(portal.subscriptions || [])
                 .map((s) => s.plan_id)
                 .filter((id): id is string => Boolean(id))}

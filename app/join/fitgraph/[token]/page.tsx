@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { ChevronLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   HEARD_ABOUT_OPTIONS,
@@ -86,6 +86,11 @@ export default function GymOnboardPage() {
 
   const yesCount = useMemo(() => parqYesCount(parq), [parq]);
   const parqComplete = PARQ_QUESTIONS.every((q) => typeof parq[q.key] === 'boolean');
+  const coachName = search.get('coachName');
+  const backHref = (() => {
+    const raw = search.get('from') || '';
+    return raw.startsWith('/') && !raw.startsWith('//') ? raw : null;
+  })();
 
   const submit = async () => {
     if (!form.name.trim()) {
@@ -159,12 +164,30 @@ export default function GymOnboardPage() {
           {brand} has your contract on file. The gym owner can see it on your
           member profile.
         </p>
+        {backHref ? (
+          <a
+            href={backHref}
+            className="mt-6 inline-flex items-center gap-1 rounded-full bg-yellow-300 px-4 py-2 text-sm font-black text-yellow-950"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Back to shop
+          </a>
+        ) : null}
       </main>
     );
   }
 
   return (
     <main className="mx-auto min-h-dvh max-w-2xl bg-gradient-to-b from-yellow-50 to-white px-4 py-8 dark:from-yellow-950 dark:to-black">
+      {backHref ? (
+        <a
+          href={backHref}
+          className="mb-4 inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-800 dark:border-white/10 dark:bg-neutral-900 dark:text-white"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" />
+          Back to shop
+        </a>
+      ) : null}
       <p className="text-[11px] font-black uppercase tracking-wide text-yellow-800">
         {brand} · GymAdvisor
       </p>
@@ -178,7 +201,9 @@ export default function GymOnboardPage() {
         {wantMember && wantPrivate
           ? 'Gym membership and private coaching'
           : wantPrivate
-            ? 'Private coaching application'
+            ? coachName
+              ? `Private coaching with ${coachName}`
+              : 'Private coaching application'
             : 'Gym membership application'}
       </h1>
       <p className="mt-1 text-sm text-slate-600 dark:text-yellow-100/80">

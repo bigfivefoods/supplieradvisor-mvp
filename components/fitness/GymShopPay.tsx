@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
-import { ChevronDown, Loader2, X } from 'lucide-react';
+import { ChevronDown, Loader2, MessageSquare, X } from 'lucide-react';
 import type { GymShopCoach, GymShopItem } from '@/lib/fitness/gym-shop';
 import { inventoryShelfOf } from '@/lib/fitness/gym-inventory-shop';
 import { AdvisorPayAccepted } from '@/components/billing/ApplePayAccepted';
@@ -96,6 +96,8 @@ export function GymShopPay({
   classSubscribe,
   coaches,
   joinPrivateHref,
+  onContactCoach,
+  contactBusy,
 }: {
   items: GymShopItem[];
   color: string;
@@ -117,9 +119,14 @@ export function GymShopPay({
   classSubscribe?: boolean;
   coaches?: GymShopCoach[];
   joinPrivateHref?: string | null;
+  onContactCoach?: (coach: GymShopCoach, body: string) => void | Promise<void>;
+  contactBusy?: boolean;
 }) {
   const already = new Set(subscribedIds || []);
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const [openCoachId, setOpenCoachId] = useState<string | null>(null);
+  const [contactOpen, setContactOpen] = useState(false);
+  const [contactNote, setContactNote] = useState('');
   const [openFold, setOpenFold] = useState<Record<string, boolean>>({
     memberships: true,
   });
@@ -148,8 +155,24 @@ export function GymShopPay({
 
   const openItem = items.find((i) => itemKey(i) === openKey) || null;
   const coachList = coaches || [];
+  const openCoach = coachList.find((c) => c.id === openCoachId) || null;
   const toggle = (id: string) =>
     setOpenFold((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  const privateJoinHref = (coach: GymShopCoach) => {
+    if (!joinPrivateHref) return null;
+    try {
+      const u = new URL(joinPrivateHref, window.location.origin);
+      u.searchParams.set('coach', coach.id);
+      u.searchParams.set('coachName', coach.name);
+      const here = new URL(window.location.href);
+      here.searchParams.set('tab', 'join');
+      u.searchParams.set('from', `${here.pathname}${here.search}`);
+      return `${u.pathname}${u.search}`;
+    } catch {
+      return joinPrivateHref;
+    }
+  };
 
   const renderCard = (item: GymShopItem) => {
     const subscribed = item.kind === 'membership' && already.has(item.id);
@@ -287,70 +310,64 @@ export function GymShopPay({
         onToggle={() => toggle('coaches')}
       >
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {coachList.map((c) => {
-            const inner = (
-              <>
-                {c.photo_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={c.photo_url}
-                    alt=""
-                    className="h-36 w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-28 items-center justify-center bg-slate-100 text-3xl font-black text-slate-400 dark:bg-white/5">
-                    {c.name.slice(0, 1)}
-                  </div>
-                )}
-                <div className="flex flex-1 flex-col px-4 py-4">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                    Coach
-                  </p>
-                  <p className="text-sm font-black text-slate-900 dark:text-white">
-                    {c.name}
-                  </p>
-                  {c.specialties?.length ? (
-                    <p className="mt-0.5 text-[11px] font-bold text-slate-500">
-                      {c.specialties.slice(0, 3).join(' · ')}
-                    </p>
-                  ) : null}
-                  {c.bio ? (
-                    <p className="mt-1 line-clamp-3 text-[12px] text-slate-600 dark:text-slate-300">
-                      {c.bio}
-                    </p>
-                  ) : null}
-                  {coachRateLabel(c.rate_zar, c.rate_basis) ? (
-                    <p
-                      className="mt-auto pt-2 text-sm font-black tabular-nums"
-                      style={{ color }}
-                    >
-                      {coachRateLabel(c.rate_zar, c.rate_basis)}
-                    </p>
-                  ) : (
-                    <p className="mt-auto pt-2 text-[11px] font-bold text-slate-400">
-                      Private coaching
-                    </p>
-                  )}
-                  {joinPrivateHref ? (
-                    <p className="mt-2 text-[11px] font-black" style={{ color }}>
-                      Apply
-                    </p>
-                  ) : null}
+          {coachList.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => {
+                setOpenCoachId(c.id);
+                setContactOpen(false);
+                setContactNote('');
+              }}
+              className="flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white text-left shadow-sm dark:border-white/10 dark:bg-neutral-950"
+            >
+              {c.photo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={c.photo_url}
+                  alt=""
+                  className="h-36 w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-28 items-center justify-center bg-slate-100 text-3xl font-black text-slate-400 dark:bg-white/5">
+                  {c.name.slice(0, 1)}
                 </div>
-              </>
-            );
-            const cls =
-              'flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white text-left shadow-sm dark:border-white/10 dark:bg-neutral-950';
-            return joinPrivateHref ? (
-              <a key={c.id} href={joinPrivateHref} className={cls}>
-                {inner}
-              </a>
-            ) : (
-              <div key={c.id} className={cls}>
-                {inner}
+              )}
+              <div className="flex flex-1 flex-col px-4 py-4">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  Coach
+                </p>
+                <p className="text-sm font-black text-slate-900 dark:text-white">
+                  {c.name}
+                </p>
+                {c.specialties?.length ? (
+                  <p className="mt-0.5 text-[11px] font-bold text-slate-500">
+                    {c.specialties.slice(0, 3).join(' · ')}
+                  </p>
+                ) : null}
+                {c.bio ? (
+                  <p className="mt-1 line-clamp-2 text-[12px] text-slate-600 dark:text-slate-300">
+                    {c.bio}
+                  </p>
+                ) : null}
+                {coachRateLabel(c.rate_zar, c.rate_basis) ? (
+                  <p
+                    className="mt-auto pt-2 text-sm font-black tabular-nums"
+                    style={{ color }}
+                  >
+                    {coachRateLabel(c.rate_zar, c.rate_basis)}
+                  </p>
+                ) : (
+                  <p className="mt-auto pt-2 text-[11px] font-bold text-slate-400">
+                    Private coaching
+                  </p>
+                )}
+                <p className="mt-2 text-[11px] font-black" style={{ color }}>
+                  View profile
+                </p>
               </div>
-            );
-          })}
+            </button>
+          ))}
         </div>
       </ShopFold>
 
@@ -391,6 +408,164 @@ export function GymShopPay({
           payment.
         </p>
       )}
+
+      {openCoach ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="gym-coach-detail-title"
+          onClick={() => setOpenCoachId(null)}
+        >
+          <div
+            className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white shadow-2xl dark:bg-neutral-950"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {openCoach.photo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={openCoach.photo_url}
+                alt=""
+                className="h-52 w-full object-cover"
+              />
+            ) : null}
+            <div className="space-y-3 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    Private coaching
+                  </p>
+                  <h2
+                    id="gym-coach-detail-title"
+                    className="text-xl font-black text-slate-900 dark:text-white"
+                  >
+                    {openCoach.name}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOpenCoachId(null)}
+                  className="rounded-full border border-slate-200 p-2 text-slate-500"
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              {coachRateLabel(openCoach.rate_zar, openCoach.rate_basis) ? (
+                <p className="text-lg font-black tabular-nums" style={{ color }}>
+                  {coachRateLabel(openCoach.rate_zar, openCoach.rate_basis)}
+                </p>
+              ) : null}
+              {openCoach.specialties?.length ? (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                    Specialties
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {openCoach.specialties.map((s) => (
+                      <span
+                        key={s}
+                        className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                      >
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {openCoach.qualifications?.length ? (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                    Qualifications
+                  </p>
+                  <ul className="mt-1 space-y-0.5 text-sm text-slate-700 dark:text-slate-200">
+                    {openCoach.qualifications.map((q) => (
+                      <li key={q}>{q}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {openCoach.bio ? (
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                    Bio
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-slate-200">
+                    {openCoach.bio}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">
+                  Ask the desk if you want more about training with{' '}
+                  {openCoach.name}.
+                </p>
+              )}
+
+              {contactOpen && onContactCoach ? (
+                <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+                  <p className="text-[11px] font-black uppercase tracking-wide text-slate-400">
+                    Message {openCoach.name}
+                  </p>
+                  <textarea
+                    className="min-h-24 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-neutral-950"
+                    placeholder={`Hi ${openCoach.name}, I'd like to talk about private coaching…`}
+                    value={contactNote}
+                    onChange={(e) => setContactNote(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    disabled={contactBusy}
+                    className="min-h-11 w-full rounded-xl text-sm font-black disabled:opacity-50"
+                    style={{
+                      backgroundColor: color,
+                      color: advisorBrandInk(color),
+                    }}
+                    onClick={() => {
+                      const body =
+                        contactNote.trim() ||
+                        `Hi ${openCoach.name}, I'd like to talk about private coaching.`;
+                      void Promise.resolve(
+                        onContactCoach(openCoach, body)
+                      ).then(() => {
+                        setOpenCoachId(null);
+                        setContactOpen(false);
+                        setContactNote('');
+                      });
+                    }}
+                  >
+                    {contactBusy ? 'Sending…' : 'Send message'}
+                  </button>
+                </div>
+              ) : null}
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                {onContactCoach ? (
+                  <button
+                    type="button"
+                    onClick={() => setContactOpen(true)}
+                    className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-sm font-black text-slate-800 dark:border-white/10 dark:bg-neutral-900 dark:text-white"
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    Contact the coach
+                  </button>
+                ) : null}
+                {privateJoinHref(openCoach) ? (
+                  <a
+                    href={privateJoinHref(openCoach) || '#'}
+                    className="inline-flex min-h-11 items-center justify-center rounded-xl px-3 text-center text-sm font-black"
+                    style={{
+                      backgroundColor: color,
+                      color: advisorBrandInk(color),
+                    }}
+                  >
+                    Sign up for private coaching
+                  </a>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {openItem ? (
         <div
