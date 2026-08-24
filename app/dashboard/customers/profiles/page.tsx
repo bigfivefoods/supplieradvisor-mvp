@@ -27,7 +27,7 @@ import {
 } from '@/lib/customers/types';
 import { CompanyRequired, CustomersHeader } from '@/components/customers/CustomersShell';
 import InviteCustomerButton from '@/components/customers/InviteCustomerButton';
-import CompanyLogo from '@/components/business/CompanyLogo';
+import { AccountLogoField } from '@/components/relationship/AccountLogoField';
 
 export default function CustomerProfilesPage() {
   return (
@@ -323,10 +323,22 @@ function ProfilesInner() {
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2.5 min-w-0">
                         {/* linked company logo when on platform; customer book may not have logo */}
-                        <CompanyLogo
-                          logoUrl={(c as { logo_url?: string | null }).logo_url}
+                        <AccountLogoField
+                          companyId={companyId}
+                          privyUserId={privyUserId}
+                          kind="customer"
+                          recordId={c.id}
+                          logoUrl={c.logo_url}
                           name={c.trading_name}
                           size="sm"
+                          compact
+                          onChange={(url) =>
+                            setCustomers((prev) =>
+                              prev.map((row) =>
+                                row.id === c.id ? { ...row, logo_url: url } : row
+                              )
+                            )
+                          }
                         />
                         <div className="min-w-0">
                           <div className="font-semibold truncate">{c.trading_name}</div>

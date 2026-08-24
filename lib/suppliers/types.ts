@@ -110,6 +110,8 @@ export type SrmSupplierRecord = {
   rating_count?: number | null;
   owner_name?: string | null;
   notes?: string | null;
+  /** Book logo (SRM). Falls back to linked platform profile logo on list APIs. */
+  logo_url?: string | null;
   tags?: string[] | null;
   metadata?: Record<string, unknown> | null;
   onchain_tx?: string | null;

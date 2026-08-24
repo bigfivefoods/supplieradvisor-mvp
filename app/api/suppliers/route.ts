@@ -177,13 +177,21 @@ export async function POST(request: NextRequest) {
       verified: !!body.verified,
       owner_name: body.owner_name || null,
       notes: body.notes || null,
+      logo_url: body.logo_url != null ? String(body.logo_url).trim() || null : null,
       tags: Array.isArray(body.tags) ? body.tags : [],
       created_by: body.created_by || body.privyUserId || null,
       updated_at: new Date().toISOString(),
     };
 
     const supabase = getSupabaseServer();
-    const { data, error } = await supabase.from('srm_suppliers').insert(payload).select('*').single();
+    let { data, error } = await supabase.from('srm_suppliers').insert(payload).select('*').single();
+    if (error && /logo_url|column|schema cache|does not exist/i.test(error.message || '')) {
+      const soft = { ...payload } as Record<string, unknown>;
+      delete soft.logo_url;
+      const retry = await supabase.from('srm_suppliers').insert(soft).select('*').single();
+      data = retry.data;
+      error = retry.error;
+    }
     if (error) {
       return NextResponse.json(
         { error: error.message, hint: 'Run 20260709_srm_supplier_module.sql' },
@@ -230,6 +238,7 @@ export async function PATCH(request: NextRequest) {
       'verified',
       'owner_name',
       'notes',
+      'logo_url',
       'tags',
       'linked_profile_id',
       'connection_id',
@@ -247,7 +256,16 @@ export async function PATCH(request: NextRequest) {
     const supabase = getSupabaseServer();
     let q = supabase.from('srm_suppliers').update(updates).eq('id', Number(body.id));
     if (Number.isFinite(companyId)) q = q.eq('profile_id', companyId);
-    const { data, error } = await q.select('*').single();
+    let { data, error } = await q.select('*').single();
+    if (error && /logo_url|column|schema cache|does not exist/i.test(error.message || '')) {
+      const soft = { ...updates };
+      delete soft.logo_url;
+      let q2 = supabase.from('srm_suppliers').update(soft).eq('id', Number(body.id));
+      if (Number.isFinite(companyId)) q2 = q2.eq('profile_id', companyId);
+      const retry = await q2.select('*').single();
+      data = retry.data;
+      error = retry.error;
+    }
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, supplier: data });
   } catch (e: unknown) {

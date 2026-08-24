@@ -98,6 +98,7 @@ export function guestPortalTabs(opts: {
 }
 
 const EMPTY_PROFILE: BookProfile = {
+  logo_url: '',
   trading_name: '',
   legal_name: '',
   contact_name: '',
@@ -921,6 +922,14 @@ function ProfilePanel({
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
           On our books
         </p>
+        {profile?.logo_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={profile.logo_url}
+            alt=""
+            className="mb-3 h-16 w-16 rounded-2xl border border-slate-200 bg-white object-contain"
+          />
+        ) : null}
         <h2 className="text-lg font-black text-slate-900">
           {readOnly
             ? `${accountLabel || 'Their'} credentials`

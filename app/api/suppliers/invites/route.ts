@@ -84,34 +84,36 @@ export async function POST(request: NextRequest) {
 
     // Ensure srm_suppliers row
     if (!supplierId) {
-      const { data: created, error: cErr } = await supabase
-        .from('srm_suppliers')
-        .insert({
-          profile_id: companyId,
-          trading_name: tradingName,
-          legal_name: body.legal_name || tradingName,
-          email,
-          phone: body.contact_phone || body.phone || null,
-          contact_name: body.contact_name || null,
-          website: body.website || null,
-          industry: body.industry || null,
-          category: body.category || null,
-          city: body.city || null,
-          country: body.country || 'South Africa',
-          status: 'prospect',
-          invite_status: 'not_invited',
-          created_by: mem.userId,
-          updated_at: new Date().toISOString(),
-        })
-        .select('id')
-        .single();
-      if (cErr) {
+      const row: Record<string, unknown> = {
+        profile_id: companyId,
+        trading_name: tradingName,
+        legal_name: body.legal_name || tradingName,
+        email,
+        phone: body.contact_phone || body.phone || null,
+        contact_name: body.contact_name || null,
+        website: body.website || null,
+        industry: body.industry || null,
+        category: body.category || null,
+        city: body.city || null,
+        country: body.country || 'South Africa',
+        logo_url: body.logo_url != null ? String(body.logo_url).trim() || null : null,
+        status: 'prospect',
+        invite_status: 'not_invited',
+        created_by: mem.userId,
+        updated_at: new Date().toISOString(),
+      };
+      let created = await supabase.from('srm_suppliers').insert(row).select('id').single();
+      if (created.error && /logo_url|column|schema cache|does not exist/i.test(created.error.message || '')) {
+        delete row.logo_url;
+        created = await supabase.from('srm_suppliers').insert(row).select('id').single();
+      }
+      if (created.error) {
         return NextResponse.json(
-          { error: cErr.message, hint: 'Run 20260709_srm_supplier_module.sql' },
+          { error: created.error.message, hint: 'Run 20260709_srm_supplier_module.sql' },
           { status: 500 }
         );
       }
-      supplierId = Number(created.id);
+      supplierId = Number(created.data?.id);
     }
 
     const limits = await checkSupplierInviteRateLimits({

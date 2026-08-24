@@ -32,6 +32,7 @@ import {
   SectionLabel,
 } from '@/components/relationship/RelationshipChrome';
 import GeoSelectFields, { type GeoValue } from '@/components/geo/GeoSelectFields';
+import { AccountLogoField } from '@/components/relationship/AccountLogoField';
 
 const PROCESS = [
   { label: 'Source', href: '/dashboard/customers/leads' },
@@ -70,6 +71,7 @@ type FormState = {
   source: string;
   owner_name: string;
   notes: string;
+  logo_url: string;
 };
 
 const emptyForm = (): FormState => ({
@@ -97,6 +99,7 @@ const emptyForm = (): FormState => ({
   source: '',
   owner_name: '',
   notes: '',
+  logo_url: '',
 });
 
 export default function OnboardCustomerPage() {
@@ -175,6 +178,7 @@ function OnboardInner() {
         source: c.source || '',
         owner_name: c.owner_name || '',
         notes: c.notes || '',
+        logo_url: c.logo_url || '',
       });
     } finally {
       setLoading(false);
@@ -347,6 +351,16 @@ function OnboardInner() {
                 <Building2 className="w-3.5 h-3.5 text-[#00b4d8]" />
                 Company identity on your CRM book
               </div>
+              <AccountLogoField
+                companyId={companyId}
+                privyUserId={privyUserId}
+                kind="customer"
+                recordId={editId ? Number(editId) : null}
+                logoUrl={form.logo_url || null}
+                name={form.trading_name}
+                size="lg"
+                onChange={(url) => set('logo_url', url || '')}
+              />
               <div className="grid sm:grid-cols-2 gap-3">
                 <Field
                   label="Trading name *"

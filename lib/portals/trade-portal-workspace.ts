@@ -63,6 +63,7 @@ function mapPortalRiad(r: Record<string, unknown>): PortalRiadView {
 }
 
 export type BookProfile = {
+  logo_url?: string;
   trading_name: string;
   legal_name: string;
   contact_name: string;
@@ -244,17 +245,27 @@ export async function loadPortalWorkspace(opts: {
   let linkedProfileId: number | null = null;
   let bookProfile: BookProfile | null = null;
   if (kind === 'customer' && opts.viewer.customer_id) {
-    const { data } = await supabase
+    const cols =
+      'linked_profile_id, trading_name, legal_name, contact_name, job_title, email, phone, website, vat_number, registration_number, billing_address, city, country, payment_terms, industry';
+    let hit = await supabase
       .from('customers')
-      .select(
-        'linked_profile_id, trading_name, legal_name, contact_name, job_title, email, phone, website, vat_number, registration_number, billing_address, city, country, payment_terms, industry'
-      )
+      .select(`${cols}, logo_url`)
       .eq('id', opts.viewer.customer_id)
       .eq('profile_id', companyId)
       .maybeSingle();
+    if (hit.error) {
+      hit = await supabase
+        .from('customers')
+        .select(cols)
+        .eq('id', opts.viewer.customer_id)
+        .eq('profile_id', companyId)
+        .maybeSingle();
+    }
+    const data = hit.data;
     if (data?.linked_profile_id) linkedProfileId = Number(data.linked_profile_id);
     if (data) {
       bookProfile = {
+        logo_url: String((data as { logo_url?: string | null }).logo_url || ''),
         trading_name: String(data.trading_name || ''),
         legal_name: String(data.legal_name || ''),
         contact_name: String(data.contact_name || ''),
@@ -273,17 +284,27 @@ export async function loadPortalWorkspace(opts: {
     }
   }
   if (kind === 'supplier' && opts.viewer.supplier_id) {
-    const { data } = await supabase
+    const cols =
+      'linked_profile_id, trading_name, legal_name, contact_name, job_title, email, phone, website, vat_number, registration_number, address, city, country, payment_terms, industry';
+    let hit = await supabase
       .from('srm_suppliers')
-      .select(
-        'linked_profile_id, trading_name, legal_name, contact_name, job_title, email, phone, website, vat_number, registration_number, address, city, country, payment_terms, industry'
-      )
+      .select(`${cols}, logo_url`)
       .eq('id', opts.viewer.supplier_id)
       .eq('profile_id', companyId)
       .maybeSingle();
+    if (hit.error) {
+      hit = await supabase
+        .from('srm_suppliers')
+        .select(cols)
+        .eq('id', opts.viewer.supplier_id)
+        .eq('profile_id', companyId)
+        .maybeSingle();
+    }
+    const data = hit.data;
     if (data?.linked_profile_id) linkedProfileId = Number(data.linked_profile_id);
     if (data) {
       bookProfile = {
+        logo_url: String((data as { logo_url?: string | null }).logo_url || ''),
         trading_name: String(data.trading_name || ''),
         legal_name: String(data.legal_name || ''),
         contact_name: String(data.contact_name || ''),

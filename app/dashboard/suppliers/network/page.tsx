@@ -27,7 +27,7 @@ import {
   SuppliersHeader,
   SuppliersPage,
 } from '@/components/suppliers/SuppliersShell';
-import CompanyLogo from '@/components/business/CompanyLogo';
+import { AccountLogoField } from '@/components/relationship/AccountLogoField';
 
 export default function SupplierNetworkPage() {
   return (
@@ -200,13 +200,25 @@ function NetworkInner() {
                     className="px-5 py-4 flex flex-wrap gap-3 justify-between items-start"
                   >
                     <div className="min-w-0 flex-1 flex items-start gap-3">
-                      <CompanyLogo
+                      <AccountLogoField
+                        companyId={companyId}
+                        privyUserId={privyUserId}
+                        kind="supplier"
+                        recordId={s.id}
                         logoUrl={
-                          (s as { logo_url?: string | null }).logo_url ||
+                          s.logo_url ||
                           (s as { linked_logo_url?: string | null }).linked_logo_url
                         }
                         name={s.trading_name}
                         size="sm"
+                        compact
+                        onChange={(url) =>
+                          setRows((prev) =>
+                            prev.map((row) =>
+                              row.id === s.id ? { ...row, logo_url: url } : row
+                            )
+                          )
+                        }
                       />
                       <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2 mb-1">

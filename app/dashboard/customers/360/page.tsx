@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Loader2, RefreshCw, FileText } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePrivy } from '@privy-io/react-auth';
+import { getCanonicalUserId } from '@/lib/auth/identity';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
   CompanyRequired,
@@ -13,6 +15,8 @@ import {
 import { IdentityStrip, KindChips } from '@/components/core-os/IdentityStrip';
 import { formatMoney } from '@/lib/customers/types';
 import type { Customer360 } from '@/lib/core-os/customer-360';
+import CompanyLogo from '@/components/business/CompanyLogo';
+import { AccountLogoField } from '@/components/relationship/AccountLogoField';
 
 const FILTERS: Array<{ id: string; label: string }> = [
   { id: 'all', label: 'All' },
@@ -32,6 +36,8 @@ export default function Customers360Page() {
 
 function Inner() {
   const companyId = getSelectedCompanyId()!;
+  const { user } = usePrivy();
+  const privyUserId = getCanonicalUserId(user?.id);
   const [kind, setKind] = useState('all');
   const [rows, setRows] = useState<Customer360[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -145,7 +151,9 @@ function Inner() {
                   className="flex w-full flex-wrap items-start justify-between gap-3 text-left"
                   onClick={() => setOpenId(open ? null : r.customer_id)}
                 >
-                  <div>
+                  <div className="flex min-w-0 items-start gap-3">
+                    <CompanyLogo logoUrl={r.logo_url} name={r.name} size="md" />
+                    <div className="min-w-0">
                     <p className="font-black text-slate-900">{r.name}</p>
                     <p className="text-[12px] text-slate-500">
                       {r.email || '—'}
@@ -155,6 +163,7 @@ function Inner() {
                     </p>
                     <div className="mt-1">
                       <KindChips kinds={r.kinds} />
+                    </div>
                     </div>
                   </div>
                   <div className="text-right text-[12px]">
@@ -176,7 +185,22 @@ function Inner() {
                     )}
                   </div>
                 </button>
-                {open ? <Detail row={r} /> : null}
+                {open ? (
+                  <Detail
+                    row={r}
+                    companyId={companyId}
+                    privyUserId={privyUserId}
+                    onLogo={(url) =>
+                      setRows((prev) =>
+                        prev.map((x) =>
+                          x.customer_id === r.customer_id
+                            ? { ...x, logo_url: url }
+                            : x
+                        )
+                      )
+                    }
+                  />
+                ) : null}
               </article>
             );
           })}
@@ -186,13 +210,35 @@ function Inner() {
   );
 }
 
-function Detail({ row }: { row: Customer360 }) {
+function Detail({
+  row,
+  companyId,
+  privyUserId,
+  onLogo,
+}: {
+  row: Customer360;
+  companyId: number;
+  privyUserId?: string | null;
+  onLogo: (url: string | null) => void;
+}) {
   return (
     <div className="mt-3 grid gap-3 border-t border-slate-100 pt-3 md:grid-cols-2">
       <div>
         <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
           Identity
         </p>
+        <div className="mt-2 mb-2">
+          <AccountLogoField
+            companyId={companyId}
+            privyUserId={privyUserId}
+            kind="customer"
+            recordId={row.customer_id}
+            logoUrl={row.logo_url}
+            name={row.name}
+            size="lg"
+            onChange={onLogo}
+          />
+        </div>
         <IdentityStrip identity={row.identity} />
         {row.memberships.length ? (
           <ul className="mt-2 space-y-1 text-[12px]">

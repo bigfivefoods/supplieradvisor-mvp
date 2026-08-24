@@ -14,6 +14,7 @@ import {
   SuppliersPage
 } from '@/components/suppliers/SuppliersShell';
 import GeoSelectFields, { type GeoValue } from '@/components/geo/GeoSelectFields';
+import { AccountLogoField } from '@/components/relationship/AccountLogoField';
 import { continentFromCountry } from '@/lib/geo/continent-from-country';
 
 export default function AddSupplierPage() {
@@ -60,6 +61,7 @@ function AddInner() {
     country: initialCountry,
     continent: initialContinent,
     notes: '',
+    logo_url: '',
     certifications: [] as string[],
   });
   const geoHint = useMemo(() => {
@@ -105,6 +107,7 @@ function AddInner() {
             city: form.city,
             country: form.country,
             invitedBy: form.contact_name || 'Buyer',
+            logo_url: form.logo_url || null,
           }),
         });
         const data = await res.json();
@@ -167,6 +170,16 @@ function AddInner() {
           />
           Send platform invite (recommended) — they take over their company profile
         </label>
+
+        <AccountLogoField
+          companyId={companyId}
+          privyUserId={privyUserId}
+          kind="supplier"
+          logoUrl={form.logo_url || null}
+          name={form.trading_name}
+          size="lg"
+          onChange={(url) => setForm((f) => ({ ...f, logo_url: url || '' }))}
+        />
 
         <div className="grid sm:grid-cols-2 gap-3">
           <div className="sm:col-span-2">

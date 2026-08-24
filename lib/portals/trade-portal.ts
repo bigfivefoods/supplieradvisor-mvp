@@ -657,6 +657,8 @@ export type PublicPortalPayload = {
   /** Logged-in host company member, or the guest on this token. */
   actor?: { role: 'host' | 'guest'; name: string; email: string | null };
   accountLabel: string | null;
+  /** Customer/supplier book logo (falls back to linked platform logo). */
+  accountLogo?: string | null;
   quotes: PublicDocRow[];
   orders: PublicDocRow[];
   invoices: PublicDocRow[];
@@ -742,6 +744,7 @@ export async function loadPublicPortal(
   let invoices: PublicDocRow[] = [];
   let purchase_orders: PublicDocRow[] = [];
   let accountLabel: string | null = null;
+  let accountLogo: string | null = null;
 
   if (viewer && portal.kind === 'customer' && viewer.customer_id) {
     const pack = await loadCustomerDocs(
@@ -752,31 +755,72 @@ export async function loadPublicPortal(
     quotes = pack.quotes;
     orders = pack.orders;
     invoices = pack.invoices;
-    const { data: cust } = await supabase
+    let cust = await supabase
       .from('customers')
-      .select('trading_name')
+      .select('trading_name, logo_url, linked_profile_id')
       .eq('id', viewer.customer_id)
       .eq('profile_id', portal.profile_id)
       .maybeSingle();
-    accountLabel = cust?.trading_name ? String(cust.trading_name) : null;
+    if (cust.error) {
+      cust = await supabase
+        .from('customers')
+        .select('trading_name, linked_profile_id')
+        .eq('id', viewer.customer_id)
+        .eq('profile_id', portal.profile_id)
+        .maybeSingle();
+    }
+    accountLabel = cust.data?.trading_name
+      ? String(cust.data.trading_name)
+      : null;
+    accountLogo =
+      (cust.data as { logo_url?: string | null } | null)?.logo_url
+        ? String((cust.data as { logo_url?: string | null }).logo_url)
+        : null;
+    if (!accountLogo && cust.data?.linked_profile_id) {
+      const { data: lp } = await supabase
+        .from('profiles')
+        .select('logo_url')
+        .eq('id', Number(cust.data.linked_profile_id))
+        .maybeSingle();
+      if (lp?.logo_url) accountLogo = String(lp.logo_url);
+    }
   }
-  if (
-    viewer &&
-    portal.kind === 'supplier' &&
-    viewer.supplier_id &&
-    sections.purchase_orders !== false
-  ) {
-    purchase_orders = await loadSupplierPos(
-      portal.profile_id,
-      viewer.supplier_id
-    );
-    const { data: srm } = await supabase
+  if (viewer && portal.kind === 'supplier' && viewer.supplier_id) {
+    if (sections.purchase_orders !== false) {
+      purchase_orders = await loadSupplierPos(
+        portal.profile_id,
+        viewer.supplier_id
+      );
+    }
+    let srm = await supabase
       .from('srm_suppliers')
-      .select('trading_name')
+      .select('trading_name, logo_url, linked_profile_id')
       .eq('id', viewer.supplier_id)
       .eq('profile_id', portal.profile_id)
       .maybeSingle();
-    accountLabel = srm?.trading_name ? String(srm.trading_name) : null;
+    if (srm.error) {
+      srm = await supabase
+        .from('srm_suppliers')
+        .select('trading_name, linked_profile_id')
+        .eq('id', viewer.supplier_id)
+        .eq('profile_id', portal.profile_id)
+        .maybeSingle();
+    }
+    accountLabel = srm.data?.trading_name
+      ? String(srm.data.trading_name)
+      : accountLabel;
+    accountLogo =
+      (srm.data as { logo_url?: string | null } | null)?.logo_url
+        ? String((srm.data as { logo_url?: string | null }).logo_url)
+        : accountLogo;
+    if (!accountLogo && srm.data?.linked_profile_id) {
+      const { data: lp } = await supabase
+        .from('profiles')
+        .select('logo_url')
+        .eq('id', Number(srm.data.linked_profile_id))
+        .maybeSingle();
+      if (lp?.logo_url) accountLogo = String(lp.logo_url);
+    }
   }
 
   const documents =
@@ -873,6 +917,7 @@ export async function loadPublicPortal(
           }
         : { role: 'guest', name: 'Guest', email: null },
       accountLabel,
+      accountLogo,
       quotes,
       orders,
       invoices,

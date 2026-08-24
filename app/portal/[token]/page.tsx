@@ -235,6 +235,15 @@ export default function GuestTradePortalPage() {
                 <Building2 className="h-5 w-5 text-[#00b4d8]" />
               </div>
             )}
+            {portal.accountLogo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={portal.accountLogo}
+                alt=""
+                className="h-10 w-10 rounded-2xl border border-slate-200 bg-white object-contain dark:border-white/20"
+                title={portal.accountLabel || 'Account'}
+              />
+            ) : null}
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0077b6] dark:text-[#7dd3fc]">
                 {kindLabel} portal · SupplierAdvisor
@@ -297,7 +306,15 @@ export default function GuestTradePortalPage() {
             {greeting}
           </h1>
           {portal.accountLabel ? (
-            <p className="mt-2 text-sm text-slate-600 dark:text-white/70">
+            <p className="mt-2 flex items-center gap-2 text-sm text-slate-600 dark:text-white/70">
+              {portal.accountLogo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={portal.accountLogo}
+                  alt=""
+                  className="h-8 w-8 rounded-xl border border-slate-200 bg-white object-contain dark:border-white/20"
+                />
+              ) : null}
               {isHost ? (
                 <>
                   Viewing{' '}

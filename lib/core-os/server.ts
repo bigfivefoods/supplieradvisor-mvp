@@ -243,6 +243,7 @@ export async function loadCustomer360Bundle(
         notes: c.notes,
         customer_type: c.customer_type,
         linked_profile_id: c.linked_profile_id,
+        logo_url: (c as { logo_url?: string | null }).logo_url || null,
       },
       invoices,
       gym: {

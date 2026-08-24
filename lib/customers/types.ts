@@ -289,6 +289,8 @@ export type CustomerRecord = {
   owner_name?: string | null;
   notes?: string | null;
   rating?: number | null;
+  /** Book logo (CRM). Falls back to linked platform profile logo on list APIs. */
+  logo_url?: string | null;
   /** Linked buyer company profile after invite accept. */
   linked_profile_id?: number | null;
   /** business_connections id for the customer edge (type=customer). */

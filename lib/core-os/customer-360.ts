@@ -101,6 +101,7 @@ export type Customer360 = {
   name: string;
   email: string | null;
   phone: string | null;
+  logo_url?: string | null;
   kinds: CoreCustomerKind[];
   identity: IdentityLinks;
   memberships: Customer360Membership[];
@@ -163,6 +164,7 @@ export function assembleCustomer360(opts: {
     notes?: string | null;
     customer_type?: string | null;
     linked_profile_id?: number | null;
+    logo_url?: string | null;
   };
   invoices?: LooseInvoice[];
   gym?: {
@@ -373,6 +375,7 @@ export function assembleCustomer360(opts: {
     name: c.trading_name,
     email: c.email || null,
     phone: c.phone || null,
+    logo_url: c.logo_url || null,
     kinds: [...kinds],
     identity,
     memberships,

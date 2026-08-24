@@ -216,6 +216,7 @@ export async function POST(request: NextRequest) {
       owner_name: body.owner_name || null,
       notes: body.notes || null,
       rating: body.rating != null ? Number(body.rating) : 0,
+      logo_url: body.logo_url != null ? String(body.logo_url).trim() || null : null,
       updated_at: new Date().toISOString(),
     };
     if (linkedProfileId != null) {
@@ -413,17 +414,30 @@ export async function PATCH(request: NextRequest) {
       'owner_name',
       'notes',
       'rating',
+      'logo_url',
     ] as const;
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     for (const f of fields) {
       if (body[f] !== undefined) updates[f] = body[f];
     }
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('customers')
       .update(updates)
       .eq('id', Number(body.id))
       .select('*')
       .single();
+    if (error && /logo_url|column|schema cache|does not exist/i.test(error.message || '')) {
+      const soft = { ...updates };
+      delete soft.logo_url;
+      const retry = await supabase
+        .from('customers')
+        .update(soft)
+        .eq('id', Number(body.id))
+        .select('*')
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, customer: data });
   } catch (e: unknown) {
