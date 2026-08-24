@@ -54,6 +54,7 @@ import {
   gymRequiresPaidMembership,
   gymShopCatalog,
   memberPurchaseHistory,
+  publicShopCoaches,
 } from '@/lib/fitness/gym-shop';
 import {
   parseGymSaleKind,
@@ -229,6 +230,7 @@ function decorateMemberPortal(
     open_classes,
     vacancies: open_classes.filter((c) => !c.full && !c.my_status),
     shop: gymShopCatalog(store),
+    shop_coaches: publicShopCoaches(store),
     require_paid_membership: gymRequiresPaidMembership(store),
     paid_access: clientHasPaidAccess(store, client),
     payout_ready: isAdvisorCardPayReady(readAdvisorPayout(meta)),
@@ -889,7 +891,12 @@ export async function POST(request: NextRequest) {
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
-        portal: buildMemberPortalPayloadBase(store, store.clients[ci]),
+        portal: decorateMemberPortal(
+          store,
+          store.clients[ci],
+          buildMemberPortalPayloadBase(store, store.clients[ci]),
+          meta
+        ),
         promoted: result.promoted
           ? { booking_id: result.promoted.id, client_id: result.promoted.client_id }
           : null,

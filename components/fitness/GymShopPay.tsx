@@ -2,7 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import { Loader2, X } from 'lucide-react';
-import type { GymShopItem } from '@/lib/fitness/gym-shop';
+import type { GymShopCoach, GymShopItem } from '@/lib/fitness/gym-shop';
+
+function coachRateLabel(rate?: number | null, basis?: string | null) {
+  if (rate == null || !Number.isFinite(rate)) return null;
+  const money = `R${rate.toLocaleString('en-ZA', { maximumFractionDigits: 0 })}`;
+  const b = String(basis || 'session').replace(/_/g, ' ');
+  return `${money} / ${b}`;
+}
 import { AdvisorPayAccepted } from '@/components/billing/ApplePayAccepted';
 import { advisorBrandInk } from '@/lib/advisors/brand-ink';
 import { videoEmbedSrc } from '@/lib/fitness/movements';
@@ -37,9 +44,12 @@ export function GymShopPay({
   buyingId,
   hideIdentity,
   hidePayAccepted,
+  hideIntro,
   joining,
   subscribedIds,
   classSubscribe,
+  coaches,
+  joinPrivateHref,
 }: {
   items: GymShopItem[];
   color: string;
@@ -55,9 +65,12 @@ export function GymShopPay({
   buyingId?: string | null;
   hideIdentity?: boolean;
   hidePayAccepted?: boolean;
+  hideIntro?: boolean;
   joining?: { fee_zar: number; waived?: boolean; note?: string } | null;
   subscribedIds?: string[];
   classSubscribe?: boolean;
+  coaches?: GymShopCoach[];
+  joinPrivateHref?: string | null;
 }) {
   const already = new Set(subscribedIds || []);
   const [openKey, setOpenKey] = useState<string | null>(null);
@@ -79,8 +92,9 @@ export function GymShopPay({
   }, [items]);
 
   const openItem = items.find((i) => itemKey(i) === openKey) || null;
+  const coachList = coaches || [];
 
-  if (!items.length) {
+  if (!items.length && !coachList.length) {
     return (
       <p className="text-sm text-slate-500 dark:text-slate-400">
         {classMode
@@ -157,27 +171,29 @@ export function GymShopPay({
     payoutReady && name.trim() && email.includes('@') && Boolean(openItem);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {classMode ? (
-          <p className="text-sm text-slate-600 dark:text-slate-300">
-            Open a fitness service, class or programme to read the details,
-            then pay. Card, Apple Pay (Safari / iPhone) or EFT.
-          </p>
-        ) : requirePaid ? (
-          <p className="text-sm text-slate-600 dark:text-slate-300">
-            Open a membership, programme or product first — then pay. Card,
-            Apple Pay (Safari / iPhone) or EFT.
-          </p>
-        ) : (
-          <p className="text-sm text-slate-600 dark:text-slate-300">
-            Tap a product or service for the full details before you buy.
-          </p>
-        )}
-        {payoutReady && !hidePayAccepted ? (
-          <AdvisorPayAccepted tone="onLight" size="sm" />
-        ) : null}
-      </div>
+    <div className="space-y-5">
+      {hideIntro ? null : (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {classMode ? (
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              Open a fitness service, class or programme to read the details,
+              then pay. Card, Apple Pay (Safari / iPhone) or EFT.
+            </p>
+          ) : requirePaid ? (
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              Open a membership, programme or product first — then pay. Card,
+              Apple Pay (Safari / iPhone) or EFT.
+            </p>
+          ) : (
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              Tap a product or service for the full details before you buy.
+            </p>
+          )}
+          {payoutReady && !hidePayAccepted ? (
+            <AdvisorPayAccepted tone="onLight" size="sm" />
+          ) : null}
+        </div>
+      )}
       {joining ? (
         <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
           {joining.note ||
@@ -216,10 +232,80 @@ export function GymShopPay({
         </div>
       ) : null}
 
-      {section(
-        classMode ? 'Fitness services' : 'Memberships & services',
-        groups.services
-      )}
+      {section('Fitness services', groups.services)}
+      {coachList.length ? (
+        <div className="space-y-2">
+          <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+            Private coach
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {coachList.map((c) => {
+              const inner = (
+                <>
+                  {c.photo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={c.photo_url}
+                      alt=""
+                      className="h-36 w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-28 items-center justify-center bg-slate-100 text-3xl font-black text-slate-400 dark:bg-white/5">
+                      {c.name.slice(0, 1)}
+                    </div>
+                  )}
+                  <div className="flex flex-1 flex-col px-4 py-4">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      Coach
+                    </p>
+                    <p className="text-sm font-black text-slate-900 dark:text-white">
+                      {c.name}
+                    </p>
+                    {c.specialties?.length ? (
+                      <p className="mt-0.5 text-[11px] font-bold text-slate-500">
+                        {c.specialties.slice(0, 3).join(' · ')}
+                      </p>
+                    ) : null}
+                    {c.bio ? (
+                      <p className="mt-1 line-clamp-3 text-[12px] text-slate-600 dark:text-slate-300">
+                        {c.bio}
+                      </p>
+                    ) : null}
+                    {coachRateLabel(c.rate_zar, c.rate_basis) ? (
+                      <p
+                        className="mt-auto pt-2 text-sm font-black tabular-nums"
+                        style={{ color }}
+                      >
+                        {coachRateLabel(c.rate_zar, c.rate_basis)}
+                      </p>
+                    ) : (
+                      <p className="mt-auto pt-2 text-[11px] font-bold text-slate-400">
+                        Private coaching
+                      </p>
+                    )}
+                    {joinPrivateHref ? (
+                      <p className="mt-2 text-[11px] font-black" style={{ color }}>
+                        Apply
+                      </p>
+                    ) : null}
+                  </div>
+                </>
+              );
+              const cls =
+                'flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white text-left shadow-sm dark:border-white/10 dark:bg-neutral-900';
+              return joinPrivateHref ? (
+                <a key={c.id} href={joinPrivateHref} className={cls}>
+                  {inner}
+                </a>
+              ) : (
+                <div key={c.id} className={cls}>
+                  {inner}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
       {section('Programmes', groups.programmes)}
       {section('Products', groups.goods)}
 

@@ -30,6 +30,7 @@ export function MemberGoalsPanel({
   onGarminImport,
   onGarminDisconnect,
   color = '#E8E830',
+  showHeading = true,
 }: {
   goals: MemberGoalView[];
   wearable?: {
@@ -77,6 +78,7 @@ export function MemberGoalsPanel({
   onGarminImport: () => void | Promise<void>;
   onGarminDisconnect: () => void | Promise<void>;
   color?: string;
+  showHeading?: boolean;
 }) {
   const [kind, setKind] = useState('weight');
   const preset = MEMBER_GOAL_PRESETS.find((p) => p.kind === kind) || MEMBER_GOAL_PRESETS[0];
@@ -96,14 +98,18 @@ export function MemberGoalsPanel({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 text-yellow-800">
-        <Target className="h-4 w-4" />
-        <h2 className="text-sm font-black">Your goals</h2>
-      </div>
-      <p className="text-xs text-slate-600">
-        Set a target, a date, and log actuals as you go — lose weight, improve
-        BMI, run 5 km, or your own number.
-      </p>
+      {showHeading ? (
+        <>
+          <div className="flex items-center gap-2 text-yellow-800">
+            <Target className="h-4 w-4" />
+            <h2 className="text-sm font-black">Your goals</h2>
+          </div>
+          <p className="text-xs text-slate-600">
+            Set a target, a date, and log actuals as you go — lose weight, improve
+            BMI, run 5 km, or your own number.
+          </p>
+        </>
+      ) : null}
 
       {goals.length === 0 ? (
         <p className="text-sm text-slate-500">No goals yet. Pick one below.</p>

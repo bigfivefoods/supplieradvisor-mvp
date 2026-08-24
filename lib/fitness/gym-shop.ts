@@ -147,6 +147,34 @@ export function gymShopCatalog(store: FitgraphStore): GymShopItem[] {
   return [...publicMembershipShop(store), ...publicProgrammeShop(store)];
 }
 
+export type GymShopCoach = {
+  id: string;
+  name: string;
+  photo_url?: string | null;
+  specialties?: string[];
+  bio?: string;
+  rate_zar?: number | null;
+  rate_basis?: string | null;
+};
+
+export function publicShopCoaches(store: FitgraphStore): GymShopCoach[] {
+  if (store.settings?.show_coaches === false) return [];
+  return (store.coaches || [])
+    .filter((c) => c.active !== false)
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      photo_url: c.photo_url || null,
+      specialties: (c.specialties || []).filter(Boolean),
+      bio: String(c.public_bio || c.bio || '').trim() || undefined,
+      rate_zar:
+        c.rate_zar != null && Number.isFinite(Number(c.rate_zar))
+          ? Number(c.rate_zar)
+          : null,
+      rate_basis: c.rate_basis || null,
+    }));
+}
+
 export function gymRequiresPaidMembership(store: FitgraphStore): boolean {
   if (store.settings?.require_paid_membership === false) return false;
   if (store.settings?.require_paid_membership === true) return true;

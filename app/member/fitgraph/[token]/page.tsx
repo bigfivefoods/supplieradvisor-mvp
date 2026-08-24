@@ -12,14 +12,11 @@ import {
   CheckCircle2,
   Dumbbell,
   Loader2,
-  MessageSquare,
   MessageSquareHeart,
-  QrCode,
   Send,
   Share2,
   ShoppingBag,
   User,
-  Users,
 } from 'lucide-react';
 import { GymShopPay } from '@/components/fitness/GymShopPay';
 import { AdvisorPayAccepted } from '@/components/billing/ApplePayAccepted';
@@ -29,21 +26,19 @@ import {
   MemberDebitBankFields,
   type DebitBankForm,
 } from '@/components/fitness/MemberDebitBankFields';
-import type { GymShopItem } from '@/lib/fitness/gym-shop';
+import type { GymShopCoach, GymShopItem } from '@/lib/fitness/gym-shop';
 import type { GymInventoryShopItem } from '@/lib/fitness/gym-inventory-shop';
 import { sessionHasEnded } from '@/lib/services/booking-feedback';
 import { sessionIsUpcoming } from '@/lib/fitness/gym-local-time';
-import { MemberRelationshipSection } from '@/components/services/MemberRelationshipSection';
+import type { MemberRelationshipPayload } from '@/components/services/MemberRelationshipSection';
 import { MemberGoalsPanel } from '@/components/fitness/MemberGoalsPanel';
 import { MemberProgrammeFollow } from '@/components/fitness/MemberProgrammeFollow';
-import type { MemberProgrammeFollowView } from '@/lib/fitness/programme-follow';
 import { MemberOpenDiaryWeek } from '@/components/fitness/MemberOpenDiaryWeek';
 import type { MemberGoalView } from '@/lib/fitness/member-goals';
 import { ProgrammeView } from '@/components/fitness/ProgrammeView';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
 import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
-import { VerifiedBadge } from '@/components/services/VerifiedBadge';
 import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
 import { B2cAutoLinkBanner } from '@/components/b2c/B2cAutoLinkBanner';
 import { MemberAnnouncementsFeed } from '@/components/services/MemberAnnouncementsFeed';
@@ -62,7 +57,6 @@ import {
   PORTAL_PHOTO_SHARE_HINT,
 } from '@/lib/services/portal-profile';
 import {
-  GymCalendarLink,
   GymCheckinPass,
   GymClassRateCard,
   GymFlash,
@@ -78,6 +72,7 @@ const MEMBER_TOKEN_KEY = 'sa_fitgraph_member_token';
 
 type MemberTab =
   | 'checkin'
+  | 'history'
   | 'join'
   | 'open'
   | 'mine'
@@ -216,7 +211,7 @@ type Portal = {
     }>;
   };
   programme_follows?: MemberProgrammeFollowView[];
-  relationship?: import('@/components/services/MemberRelationshipSection').MemberRelationshipPayload | null;
+  relationship?: MemberRelationshipPayload | null;
   announcements?: MemberAnnouncementPublic[];
   messages_unread?: number;
   packs?: Array<{
@@ -241,6 +236,7 @@ type Portal = {
     member_message: string;
   };
   shop?: GymShopItem[];
+  shop_coaches?: GymShopCoach[];
   inventory_products?: GymInventoryShopItem[];
   inventory_services?: GymInventoryShopItem[];
   purchase_history?: Array<{
@@ -431,8 +427,9 @@ export default function MemberFitgraphPortalPage() {
       setTab('join');
     } else if (raw === 'class' || raw === 'classes') {
       setTab('mine');
+    } else if (raw === 'checkin' || raw === 'history') {
+      setTab('history');
     } else if (
-      raw === 'checkin' ||
       raw === 'open' ||
       raw === 'mine' ||
       raw === 'progress' ||
@@ -552,6 +549,7 @@ export default function MemberFitgraphPortalPage() {
               data.portal.inventory_products || prev?.inventory_products,
             inventory_services:
               data.portal.inventory_services || prev?.inventory_services,
+            shop_coaches: data.portal.shop_coaches || prev?.shop_coaches,
           },
           prev
         )
@@ -805,7 +803,8 @@ export default function MemberFitgraphPortalPage() {
         ? String(b.start_time).localeCompare(String(a.start_time))
         : b.date.localeCompare(a.date)
     );
-  const youTab = tab === 'messages' || tab === 'profile' || tab === 'checkin';
+  const youTab =
+    tab === 'messages' || tab === 'profile' || tab === 'history';
 
   return (
     <>
@@ -831,18 +830,13 @@ export default function MemberFitgraphPortalPage() {
           id: 'profile',
           label: 'You',
           icon: <User />,
-          badge: needBank ? 1 : undefined,
+          badge:
+            (portal.messages_unread || 0) + (needBank ? 1 : 0) || undefined,
+          covers: ['profile', 'messages', 'history'],
         },
         { id: 'join', label: 'Shop', icon: <ShoppingBag /> },
         { id: 'share', label: 'Share', icon: <Share2 /> },
         { id: 'open', label: 'Book', icon: <CalendarDays /> },
-        { id: 'checkin', label: 'Check in', icon: <QrCode /> },
-        {
-          id: 'messages',
-          label: 'Inbox',
-          icon: <MessageSquare />,
-          badge: portal.messages_unread || undefined,
-        },
       ]}
       mobileTabs={[
         { id: 'mine', label: 'Class', icon: <Dumbbell /> },
@@ -862,80 +856,20 @@ export default function MemberFitgraphPortalPage() {
           ),
           badge:
             (portal.messages_unread || 0) + (needBank ? 1 : 0) || undefined,
-          covers: ['profile', 'messages', 'checkin'],
+          covers: ['profile', 'messages', 'history'],
           emphasis: true,
         },
         { id: 'join', label: 'Shop', icon: <ShoppingBag /> },
         { id: 'share', label: 'Share', icon: <Share2 /> },
       ]}
       header={
-        <div>
-          <MemberPortalBrandLockup
-            logoUrl={portal.logo_url}
-            brand={portal.brand}
-            eyebrow="Member · GymAdvisor®"
-          />
-          <div className="mt-4 flex items-end gap-3">
-            {portal.client.photo_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={portal.client.photo_url}
-                alt=""
-                className="h-12 w-12 rounded-full object-cover ring-2 ring-white/50"
-              />
-            ) : (
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20">
-                <User className="h-6 w-6" />
-              </div>
-            )}
-            <div className="min-w-0">
-              <p className="inline-flex flex-wrap items-center gap-2 font-bold">
-                {portal.client.name}
-                <VerifiedBadge
-                  verified={portal.client.identity?.is_verified}
-                  provider={portal.client.identity?.provider}
-                  name={portal.client.identity?.verified_name}
-                  className="!bg-white/20 !text-white !border-white/30"
-                />
-              </p>
-              <p className="truncate text-xs text-white/85">
-                {(portal.subscriptions || []).length
-                  ? portal.subscriptions!.map((s) => s.plan_name).join(' · ')
-                  : [portal.client.plan_name, portal.client.membership_status]
-                      .filter(Boolean)
-                      .join(' · ') || 'Member'}
-                {portal.client.coach_name
-                  ? ` · ${portal.client.coach_name}`
-                  : ''}
-              </p>
-              {nextClass ? (
-                <button
-                  type="button"
-                  onClick={() => selectTab('mine')}
-                  className="mt-1 text-left text-[11px] font-bold text-white/90 underline"
-                >
-                  Next: {nextClass.class_name} ·{' '}
-                  {formatDay(nextClass.date, nextClass.start_time)}
-                </button>
-              ) : (
-                <p className="mt-1 text-[11px] font-semibold text-white/75">
-                  {portal.open_count} open spots this week
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
+        <MemberPortalBrandLockup
+          logoUrl={portal.logo_url}
+          brand={portal.brand}
+          eyebrow="Member · GymAdvisor®"
+        />
       }
     >
-        {needBank ? (
-          <button
-            type="button"
-            onClick={() => selectTab('profile')}
-            className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-left text-xs font-bold text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-100"
-          >
-            Complete membership — add bank details for the gym debit order.
-          </button>
-        ) : null}
         <GymFlash error={error} msg={msg} />
 
         {youTab ? (
@@ -950,7 +884,7 @@ export default function MemberFitgraphPortalPage() {
                 [
                   ['profile', 'Profile'],
                   ['messages', 'Inbox'],
-                  ['checkin', 'Check in'],
+                  ['history', 'History'],
                 ] as const
               ).map(([id, label]) => (
                 <button
@@ -991,60 +925,9 @@ export default function MemberFitgraphPortalPage() {
 
         {tab === 'join' && (
           <div className="space-y-5">
-            <GymSectionTitle hint="Fitness services and classes, training programmes, then shop products. Pay with card, Apple Pay or EFT.">
+            <GymSectionTitle hint="Classes, private coaches, programmes and products. Card, Apple Pay or EFT.">
               Shop
             </GymSectionTitle>
-            <div
-              className="rounded-2xl p-4"
-              style={{ backgroundColor: color, color: ink }}
-            >
-              <p className="flex items-center gap-2 text-sm font-black">
-                <Users className="h-4 w-4" /> Memberships for family &amp; friends
-              </p>
-              <p className="mt-1 text-xs font-semibold opacity-80">
-                {(portal.client.family || []).filter((m) => m.active !== false)
-                  .length
-                  ? `Add ${(portal.client.family || [])
-                      .filter((m) => m.active !== false)
-                      .map((m) => m.name)
-                      .slice(0, 3)
-                      .join(', ')} on a plan — or buy a membership for someone new.`
-                  : 'Buy a membership for a partner, kid or friend. Add them under You, then pick a plan below.'}
-              </p>
-            </div>
-            <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
-              Shop
-            </p>
-            {portal.class_subscribe && (portal.subscriptions || []).length ? (
-              <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">
-                You are subscribed to{' '}
-                {portal.subscriptions!.map((s) => s.plan_name).join(' · ')}.
-                Monthly total R
-                {portal.subscriptions!.reduce(
-                  (n, s) => n + (Number(s.price_zar) || 0),
-                  0
-                )}
-                . Add another class below if you train more than one.
-              </p>
-            ) : portal.class_subscribe && portal.require_paid_membership ? (
-              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-950">
-                Subscribe to a class first — your fee is based on the class or
-                classes you pick. Then you or a coach book you into that
-                session.
-              </p>
-            ) : portal.paid_access ? (
-              <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">
-                You have paid access
-                {portal.access?.plan_name
-                  ? ` · ${portal.access.plan_name}`
-                  : ''}
-                . Renew or add a programme below.
-              </p>
-            ) : portal.require_paid_membership ? (
-              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-950">
-                Pay for a membership before booking classes.
-              </p>
-            ) : null}
             <GymShopPay
               items={(() => {
                 const shop = portal.shop || [];
@@ -1087,6 +970,10 @@ export default function MemberFitgraphPortalPage() {
               joining={portal.joining}
               classSubscribe={portal.class_subscribe === true}
               hidePayAccepted
+              hideIntro
+              hideIdentity
+              coaches={portal.shop_coaches || []}
+              joinPrivateHref={portal.grow?.join_private || null}
               subscribedIds={(portal.subscriptions || [])
                 .map((s) => s.plan_id)
                 .filter((id): id is string => Boolean(id))}
@@ -1144,13 +1031,35 @@ export default function MemberFitgraphPortalPage() {
             </div>
 
             {portal.payout_ready !== false ? (
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
                   Pay
                 </p>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <input
+                    className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-neutral-900"
+                    placeholder="Your name *"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                  <input
+                    className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-neutral-900"
+                    placeholder="Email *"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                  <input
+                    className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-neutral-900"
+                    placeholder="Phone / WhatsApp"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                  />
+                </div>
                 <AdvisorPayAccepted tone="onLight" size="sm" />
                 <p className="text-xs text-slate-500">
-                  Card, Apple Pay (Safari / iPhone) or EFT via Paystack.
+                  Card, Apple Pay (Safari / iPhone) or EFT via Paystack. Open a
+                  card above, then pay.
                 </p>
               </div>
             ) : (
@@ -1162,10 +1071,10 @@ export default function MemberFitgraphPortalPage() {
           </div>
         )}
 
-        {tab === 'checkin' && (
+        {tab === 'history' && (
           <div className="space-y-4">
-            <GymSectionTitle hint="When a coach checks you in, it lands here. After a class you can tick that you completed it and rate it.">
-              Check-ins
+            <GymSectionTitle hint="Check-ins, completed classes, and ratings.">
+              History
             </GymSectionTitle>
             {(portal.progress?.pending_feedback || []).length ? (
               <div className="space-y-2">
@@ -1476,12 +1385,21 @@ export default function MemberFitgraphPortalPage() {
 
         {tab === 'mine' && (
           <div className="space-y-4">
-            <GymSectionTitle hint="Every class you are scheduled for. Tell your coach if you will be attending or won’t be attending.">
-              My classes
-            </GymSectionTitle>
+            <div className="flex items-start justify-between gap-3">
+              <GymSectionTitle hint="Your next classes. Tell your coach if you will be attending.">
+                Next up
+              </GymSectionTitle>
+              <button
+                type="button"
+                onClick={() => selectTab('open')}
+                className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-700 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-200"
+              >
+                Book
+              </button>
+            </div>
             {bookedUpcoming.length === 0 ? (
               <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm text-slate-500 dark:border-white/15 dark:bg-neutral-900">
-                No upcoming booked classes.{' '}
+                Nothing on the diary yet.{' '}
                 <button
                   type="button"
                   className="font-black text-slate-900 underline dark:text-white"
@@ -1491,82 +1409,27 @@ export default function MemberFitgraphPortalPage() {
                 </button>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {bookedUpcoming.map((b, i) => (
-                  <div
-                    key={b.booking_id}
-                    className="flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900"
-                  >
-                    <div className="min-w-0">
-                      {i === 0 ? (
-                        <p className="text-[10px] font-black uppercase tracking-widest text-yellow-800">
-                          Next up
-                        </p>
-                      ) : null}
-                      <p className="font-black text-slate-900 dark:text-white">
-                        {b.class_name}
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        {formatDay(b.date, b.start_time)}
-                      </p>
-                      {b.coach_name ? (
-                        <p className="text-xs text-slate-500">{b.coach_name}</p>
-                      ) : null}
-                      <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase text-slate-700 dark:bg-white/10 dark:text-slate-200">
-                        {b.rsvp === 'coming'
-                          ? 'Will be attending'
-                          : b.rsvp === 'not_coming'
-                            ? 'Won’t be attending'
-                            : b.status === 'waitlist'
-                              ? 'Waitlist'
-                              : String(b.booking_id).startsWith('alloc_')
-                                ? 'On your class'
-                                : b.status}
-                      </span>
-                      <div className="mt-1.5">
-                        <GymCalendarLink
-                          date={b.date}
-                          start={b.start_time}
-                          title={b.class_name}
-                        />
-                      </div>
-                      {b.programme ? (
-                        <div className="mt-3">
-                          <ProgrammeView programme={b.programme} compact />
-                        </div>
-                      ) : null}
-                    </div>
-                    {b.status !== 'attended' ? (
-                      <div className="flex shrink-0 flex-col gap-1">
-                        <button
-                          type="button"
-                          disabled={busyId === b.booking_id}
-                          onClick={() =>
-                            void rsvp(b.booking_id, true, b.session_id)
-                          }
-                          className={`min-h-10 rounded-xl px-3 text-[11px] font-black ${
-                            b.rsvp === 'coming'
-                              ? 'bg-emerald-600 text-white'
-                              : 'border border-emerald-200 text-emerald-800 dark:border-emerald-500/40 dark:text-emerald-200'
-                          }`}
-                        >
-                          Will be attending
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busyId === b.booking_id}
-                          onClick={() =>
-                            void rsvp(b.booking_id, false, b.session_id)
-                          }
-                          className={`min-h-10 rounded-xl px-3 text-[11px] font-black ${
-                            b.rsvp === 'not_coming'
-                              ? 'bg-rose-600 text-white'
-                              : 'border border-rose-200 text-rose-700 dark:border-rose-500/40 dark:text-rose-200'
-                          }`}
-                        >
-                          Won&apos;t be attending
-                        </button>
-                      </div>
+                  <div key={b.booking_id} className="space-y-2">
+                    <GymNextUpCard
+                      className={b.class_name}
+                      date={b.date}
+                      startTime={b.start_time}
+                      location={b.location}
+                      coach={b.coach_name}
+                      rsvp={b.rsvp}
+                      bookingId={b.booking_id}
+                      busy={busyId === b.booking_id}
+                      color={color}
+                      kicker={i === 0 ? 'Next up' : 'Coming up'}
+                      featured={i === 0}
+                      onRsvp={(coming) =>
+                        void rsvp(b.booking_id, coming, b.session_id)
+                      }
+                    />
+                    {b.programme ? (
+                      <ProgrammeView programme={b.programme} compact />
                     ) : null}
                   </div>
                 ))}
@@ -1576,46 +1439,11 @@ export default function MemberFitgraphPortalPage() {
         )}
 
         {tab === 'progress' && (
-          <div className="space-y-4">
-            <GymSectionTitle hint={`Programmes, calendar, attendance, goals and feedback at ${portal.brand}.`}>
-              Your training
-            </GymSectionTitle>
-            <MemberProgrammeFollow
-              follows={portal.programme_follows || []}
-              busyId={busyId}
-              onLog={async (v) => {
-                setBusyId(v.enrollment_id);
-                setError(null);
-                try {
-                  const data = await post({
-                    action: 'log_programme',
-                    ...v,
-                  });
-                  setMsg(data.message || 'Session logged');
-                } catch (e: unknown) {
-                  setError(
-                    e instanceof Error ? e.message : 'Could not log session'
-                  );
-                } finally {
-                  setBusyId(null);
-                }
-              }}
-            />
-            <div className="grid grid-cols-3 gap-2">
-              <GymStat
-                value={portal.progress?.attended_30d ?? 0}
-                label="Classes · 30d"
-              />
-              <GymStat
-                value={portal.progress?.attended_count ?? 0}
-                label="Attended"
-              />
-              <GymStat
-                value={portal.progress?.check_ins_30d ?? 0}
-                label="Check-ins"
-              />
-            </div>
-
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <GymSectionTitle hint="Set a target and log actuals as you go.">
+                Goals
+              </GymSectionTitle>
             <MemberGoalsPanel
               goals={portal.goals || []}
               wearable={portal.wearable}
@@ -1741,119 +1569,160 @@ export default function MemberFitgraphPortalPage() {
                 }
               }}
               color={color}
+              showHeading={false}
             />
+            </div>
 
-            <MemberRelationshipSection
-              relationship={portal.relationship}
-              primaryColor={color}
-            />
-
-            {(portal.packs || []).length > 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900">
-                <p className="mb-1 text-[10px] font-black uppercase text-slate-500">
-                  Session packs
-                </p>
-                <ul className="space-y-1">
-                  {(portal.packs || []).map((p) => (
-                    <li key={p.id} className="text-xs font-semibold text-slate-700">
-                      {p.label || 'Pack'}: <strong>{p.remaining}</strong> left
-                      {p.expires_at
-                        ? ` · exp ${p.expires_at.slice(0, 10)}`
-                        : ''}
-                    </li>
-                  ))}
-                </ul>
+            <div className="space-y-3">
+              <GymSectionTitle hint="Sessions, programmes, and recent milestones.">
+                Journey
+              </GymSectionTitle>
+              <div className="grid grid-cols-3 gap-2">
+                <GymStat
+                  value={portal.progress?.attended_30d ?? 0}
+                  label="Classes · 30d"
+                />
+                <GymStat
+                  value={portal.progress?.attended_count ?? 0}
+                  label="Attended"
+                />
+                <GymStat
+                  value={portal.progress?.check_ins_30d ?? 0}
+                  label="Check-ins"
+                />
               </div>
-            ) : null}
-
-            {portal.progress?.health &&
-            (portal.progress.health.goals ||
-              portal.progress.health.training_modifications ||
-              portal.progress.health.summary) ? (
-              <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900">
-                <div className="flex items-center gap-2 text-slate-800 dark:text-white">
-                  <Activity className="h-4 w-4" />
-                  <h2 className="text-sm font-black">Training notes</h2>
+              {(portal.relationship?.journey_preview || []).length ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {(portal.relationship?.journey_preview || [])
+                    .slice(0, 8)
+                    .map((e) => (
+                      <div
+                        key={e.id}
+                        className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900"
+                      >
+                        <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                          {e.at.slice(0, 10)}
+                          {e.kind ? ` · ${e.kind}` : ''}
+                        </p>
+                        <p className="mt-1 text-sm font-black text-slate-900 dark:text-white">
+                          {e.title}
+                        </p>
+                        {e.body ? (
+                          <p className="mt-0.5 line-clamp-3 text-xs text-slate-500">
+                            {e.body}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))}
                 </div>
-                {portal.progress.health.summary ? (
-                  <p className="text-xs text-slate-600">
-                    {portal.progress.health.summary}
-                  </p>
-                ) : null}
-                {portal.progress.health.goals ? (
-                  <p className="text-sm text-slate-800">
-                    <span className="font-bold">Goals: </span>
-                    {portal.progress.health.goals}
-                  </p>
-                ) : null}
-                {portal.progress.health.training_modifications ? (
-                  <p className="text-sm text-slate-800">
-                    <span className="font-bold">Modifications: </span>
-                    {portal.progress.health.training_modifications}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
+              ) : (
+                <p className="text-xs text-slate-500">
+                  Classes you complete and notes from your coach will land here.
+                </p>
+              )}
+              <MemberProgrammeFollow
+                follows={portal.programme_follows || []}
+                busyId={busyId}
+                onLog={async (v) => {
+                  setBusyId(v.enrollment_id);
+                  setError(null);
+                  try {
+                    const data = await post({
+                      action: 'log_programme',
+                      ...v,
+                    });
+                    setMsg(data.message || 'Session logged');
+                  } catch (e: unknown) {
+                    setError(
+                      e instanceof Error ? e.message : 'Could not log session'
+                    );
+                  } finally {
+                    setBusyId(null);
+                  }
+                }}
+              />
+            </div>
 
-            {(portal.progress?.coach_notes || []).length > 0 ? (
-              <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900">
-                <h2 className="text-sm font-black text-slate-900 dark:text-white">
-                  Coach notes
-                </h2>
+            <div className="space-y-2 rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900">
+              <div className="flex items-center gap-2 text-slate-800 dark:text-white">
+                <Activity className="h-4 w-4" />
+                <h2 className="text-sm font-black">Training notes</h2>
+              </div>
+              {portal.progress?.health?.summary ? (
+                <p className="text-sm text-slate-700 dark:text-slate-200">
+                  {portal.progress.health.summary}
+                </p>
+              ) : null}
+              {portal.progress?.health?.goals ? (
+                <p className="text-sm text-slate-800 dark:text-slate-100">
+                  <span className="font-bold">Goals: </span>
+                  {portal.progress.health.goals}
+                </p>
+              ) : null}
+              {portal.progress?.health?.training_modifications ? (
+                <p className="text-sm text-slate-800 dark:text-slate-100">
+                  <span className="font-bold">Modifications: </span>
+                  {portal.progress.health.training_modifications}
+                </p>
+              ) : null}
+              {(portal.progress?.coach_notes || []).length ? (
                 <ul className="space-y-2">
                   {(portal.progress?.coach_notes || []).map((n) => (
-                    <li key={n.id} className="rounded-xl bg-slate-50 px-3 py-2">
+                    <li
+                      key={n.id}
+                      className="rounded-2xl bg-slate-50 px-3 py-2 dark:bg-white/5"
+                    >
                       <p className="text-[10px] font-bold text-slate-400">
                         {n.at.slice(0, 10)}
                       </p>
-                      <p className="text-sm font-semibold text-slate-900">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">
                         {n.title}
                       </p>
                       {n.body ? (
-                        <p className="mt-0.5 whitespace-pre-wrap text-xs text-slate-600">
+                        <p className="mt-0.5 whitespace-pre-wrap text-xs text-slate-600 dark:text-slate-300">
                           {n.body}
                         </p>
                       ) : null}
                     </li>
                   ))}
                 </ul>
-              </div>
-            ) : null}
-
-            {(portal.progress?.pending_feedback || []).length > 0 ? (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-slate-900 dark:text-white">
-                  <MessageSquareHeart className="h-4 w-4" />
-                  <h2 className="text-sm font-black">Rate a class (optional)</h2>
-                </div>
-                <p className="text-xs text-slate-500">
-                  Feedback goes to your coach and the gym owner. After you send
-                  it you stay on Progress.
+              ) : null}
+              {!portal.progress?.health?.summary &&
+              !portal.progress?.health?.goals &&
+              !portal.progress?.health?.training_modifications &&
+              !(portal.progress?.coach_notes || []).length ? (
+                <p className="text-sm text-slate-500">
+                  Your coach has not left training notes yet.
                 </p>
-                {(portal.progress?.pending_feedback || []).map((f) => (
-                  <GymClassRateCard
-                    key={f.booking_id}
-                    className={f.class_name}
-                    date={f.date}
-                    busy={busyId === `rate:${f.booking_id}`}
-                    onSubmit={(v) => void rateClass(f.booking_id, v)}
-                  />
-                ))}
-              </div>
-            ) : null}
+              ) : null}
+            </div>
 
-            {(portal.progress?.my_feedback || []).length > 0 ? (
-              <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900">
-                <h2 className="text-sm font-black text-slate-900 dark:text-white">
-                  Your class feedback
-                </h2>
+            <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900">
+              <div className="flex items-center gap-2 text-slate-900 dark:text-white">
+                <MessageSquareHeart className="h-4 w-4" />
+                <h2 className="text-sm font-black">Class feedback</h2>
+              </div>
+              {(portal.progress?.pending_feedback || []).length ? (
+                <div className="space-y-2">
+                  {(portal.progress?.pending_feedback || []).map((f) => (
+                    <GymClassRateCard
+                      key={f.booking_id}
+                      className={f.class_name}
+                      date={f.date}
+                      busy={busyId === `rate:${f.booking_id}`}
+                      onSubmit={(v) => void rateClass(f.booking_id, v)}
+                    />
+                  ))}
+                </div>
+              ) : null}
+              {(portal.progress?.my_feedback || []).length ? (
                 <ul className="space-y-2">
                   {(portal.progress?.my_feedback || []).map((f) => (
                     <li
                       key={f.id}
-                      className="rounded-xl border border-slate-100 px-3 py-2"
+                      className="rounded-2xl border border-slate-100 px-3 py-2 dark:border-white/10"
                     >
-                      <p className="text-sm font-black text-slate-900">
+                      <p className="text-sm font-black text-slate-900 dark:text-white">
                         {f.class_name}
                       </p>
                       <p className="text-[11px] text-slate-500">
@@ -1861,23 +1730,30 @@ export default function MemberFitgraphPortalPage() {
                         {f.enjoyment != null ? ` · enjoy ${f.enjoyment}/5` : ''}
                       </p>
                       {f.comment ? (
-                        <p className="mt-1 text-xs text-slate-700">{f.comment}</p>
+                        <p className="mt-1 text-xs text-slate-700 dark:text-slate-300">
+                          {f.comment}
+                        </p>
                       ) : null}
                     </li>
                   ))}
                 </ul>
-              </div>
-            ) : (
-              <p className="text-xs text-slate-500">
-                After a class, tick complete under You → Check-in, then rate it
-                here. Your coach and the gym owner both see it.
-              </p>
-            )}
+              ) : !(portal.progress?.pending_feedback || []).length ? (
+                <p className="text-sm text-slate-500">
+                  After a class, tick complete under You → History, then rate it
+                  here.
+                </p>
+              ) : null}
+            </div>
           </div>
         )}
 
         {tab === 'profile' && (
           <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900">
+            {needBank ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-bold text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-100">
+                Complete membership — add bank details for the gym debit order.
+              </div>
+            ) : null}
             <GymSectionTitle hint="Changes sync to the gym desk and your SA Member wallet.">
               Your profile
             </GymSectionTitle>

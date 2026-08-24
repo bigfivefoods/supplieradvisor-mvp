@@ -92,9 +92,10 @@ export function GymNextUpCard({
   location,
   coach,
   rsvp,
-  bookingId,
   busy,
   color,
+  kicker = 'Next up',
+  featured = true,
   onOpen,
   onRsvp,
 }: {
@@ -107,50 +108,89 @@ export function GymNextUpCard({
   bookingId: string;
   busy?: boolean;
   color: string;
-  onOpen: () => void;
+  kicker?: string;
+  featured?: boolean;
+  onOpen?: () => void;
   onRsvp: (coming: boolean) => void;
 }) {
   const ink = advisorBrandInk(color);
+  const coming = rsvp === 'coming';
+  const skipping = rsvp === 'not_coming';
   return (
     <div
-      className="overflow-hidden rounded-3xl p-4 text-left shadow-sm"
-      style={{ backgroundColor: color, color: ink }}
+      className={
+        featured
+          ? 'overflow-hidden rounded-3xl p-4 text-left shadow-sm'
+          : 'overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 text-left shadow-sm dark:border-white/10 dark:bg-neutral-900'
+      }
+      style={featured ? { backgroundColor: color, color: ink } : undefined}
     >
-      <p className="text-[10px] font-black uppercase tracking-widest opacity-70">
-        Next class
+      <p
+        className={`text-[10px] font-black uppercase tracking-widest ${
+          featured ? 'opacity-70' : 'text-slate-400'
+        }`}
+      >
+        {kicker}
       </p>
-      <button type="button" onClick={onOpen} className="mt-1 w-full text-left">
-        <p className="text-lg font-black leading-tight">{className}</p>
-        <p className="mt-1 text-sm font-bold opacity-80">
-          {gymFormatDay(date, startTime)}
-          {coach ? ` · ${coach}` : ''}
-          {location ? ` · ${location}` : ''}
+      {onOpen ? (
+        <button type="button" onClick={onOpen} className="mt-1 w-full text-left">
+          <p
+            className={`text-lg font-black leading-tight ${
+              featured ? '' : 'text-slate-900 dark:text-white'
+            }`}
+          >
+            {className}
+          </p>
+        </button>
+      ) : (
+        <p
+          className={`mt-1 text-lg font-black leading-tight ${
+            featured ? '' : 'text-slate-900 dark:text-white'
+          }`}
+        >
+          {className}
         </p>
-      </button>
-      <div className="mt-3 flex flex-wrap gap-2">
+      )}
+      <p
+        className={`mt-1 text-sm font-bold ${
+          featured ? 'opacity-80' : 'text-slate-600 dark:text-slate-300'
+        }`}
+      >
+        {gymFormatDay(date, startTime)}
+        {coach ? ` · ${coach}` : ''}
+        {location ? ` · ${location}` : ''}
+      </p>
+      <div className="mt-2">
+        <GymCalendarLink date={date} start={startTime} title={className} />
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
         <button
           type="button"
           disabled={busy}
           onClick={() => onRsvp(true)}
-          className={`min-h-10 rounded-xl px-3 text-xs font-black ${
-            rsvp === 'coming'
-              ? 'bg-slate-900 text-white'
-              : 'bg-white/80 text-slate-900'
+          className={`min-h-11 rounded-2xl px-3 text-xs font-black disabled:opacity-50 ${
+            coming
+              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+              : featured
+                ? 'bg-white/80 text-slate-900'
+                : 'border border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-100'
           }`}
         >
-          Will be attending
+          {busy ? 'Saving…' : 'Will be attending'}
         </button>
         <button
           type="button"
           disabled={busy}
           onClick={() => onRsvp(false)}
-          className={`min-h-10 rounded-xl px-3 text-xs font-black ${
-            rsvp === 'not_coming'
+          className={`min-h-11 rounded-2xl px-3 text-xs font-black disabled:opacity-50 ${
+            skipping
               ? 'bg-rose-700 text-white'
-              : 'bg-white/80 text-slate-900'
+              : featured
+                ? 'bg-white/80 text-slate-900'
+                : 'border border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-100'
           }`}
         >
-          Won&apos;t be attending
+          {busy ? 'Saving…' : "Won't be attending"}
         </button>
       </div>
     </div>

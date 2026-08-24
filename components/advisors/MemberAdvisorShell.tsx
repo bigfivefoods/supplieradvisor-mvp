@@ -156,12 +156,12 @@ export function MemberAdvisorShell<T extends string = string>({
     >
       <B2cPresencePing />
       <header
-        className="shrink-0 text-white pt-[env(safe-area-inset-top)] md:z-40 md:shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
+        className="sticky top-0 z-40 shrink-0 text-white pt-[env(safe-area-inset-top)] shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
         style={{
           background: `linear-gradient(135deg, ${color} 0%, color-mix(in srgb, ${color} 55%, #0f172a) 100%)`,
         }}
       >
-        <div className="mx-auto max-w-6xl px-4 py-5 md:px-8 md:py-4">
+        <div className="mx-auto max-w-6xl px-4 py-3 md:px-8 md:py-3.5">
           <div className="flex items-stretch justify-between gap-3">
             <div className="min-w-0 flex-1">{header}</div>
             <PortalHeaderTools appHref={appHref} spread />
