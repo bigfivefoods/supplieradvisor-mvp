@@ -10,6 +10,7 @@ import {
   portalPublicUrl,
   type TradePortalKind,
 } from '@/lib/portals/trade-portal';
+import { sendTradePortalAccessEmail } from '@/lib/portals/trade-portal-email';
 import {
   inviteTradePortalPerson,
   issueAccountPortal,
