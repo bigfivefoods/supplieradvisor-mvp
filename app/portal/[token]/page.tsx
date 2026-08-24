@@ -280,7 +280,7 @@ export default function GuestTradePortalPage() {
                     key={t.id}
                     type="button"
                     onClick={() => setTab(t.id)}
-                    className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-black ${
+                    className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-semibold ${
                       on
                         ? 'bg-[#0077b6] text-white'
                         : 'text-slate-600 hover:bg-slate-100 dark:text-white/70 dark:hover:bg-white/10'

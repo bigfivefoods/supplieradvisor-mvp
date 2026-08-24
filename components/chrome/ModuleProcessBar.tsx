@@ -46,6 +46,10 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
   const healthProgramme = useHealthProgrammeRole();
   const isSchoolsLife = life?.id === 'schools';
   const isHealthLife = life?.id === 'health';
+  const isTradeLife = life?.id === 'customers' || life?.id === 'suppliers';
+  const stepLabelClass = isTradeLife
+    ? 'text-sm font-semibold'
+    : 'text-[10px] sm:text-[11px] font-semibold';
 
   const roleStepsRaw =
     life && isSchoolsLife
@@ -182,7 +186,7 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
                                   ? `${seg.group}: ${step.name}`
                                   : step.name)
                               }
-                              className={`inline-flex items-center gap-1 sm:gap-1.5 rounded-full border px-2 sm:px-2.5 py-1.5 min-h-[36px] sm:min-h-[40px] text-[10px] sm:text-[11px] font-semibold transition-all whitespace-nowrap touch-manipulation ${
+                              className={`inline-flex items-center gap-1 sm:gap-1.5 rounded-full border px-2 sm:px-2.5 py-1.5 min-h-[36px] sm:min-h-[40px] ${stepLabelClass} transition-all whitespace-nowrap touch-manipulation ${
                                 active
                                   ? 'border-[#00b4d8] bg-[#00b4d8] text-white shadow-sm'
                                   : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/40 hover:text-[#0077b6]'

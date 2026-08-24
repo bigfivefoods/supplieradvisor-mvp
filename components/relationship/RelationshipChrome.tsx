@@ -115,7 +115,7 @@ export function RelationshipNav({
             <Link
               key={item.href}
               href={item.href}
-              className={`flex-shrink-0 inline-flex items-center px-3 py-2 rounded-full text-xs font-semibold border transition-all ${
+              className={`flex-shrink-0 inline-flex items-center px-3 py-2 rounded-full text-sm font-semibold border transition-all ${
                 active
                   ? 'border-[#00b4d8] bg-[#00b4d8] text-white shadow-sm'
                   : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/40 hover:text-[#0077b6]'
