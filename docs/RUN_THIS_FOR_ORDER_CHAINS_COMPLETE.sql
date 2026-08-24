@@ -1,9 +1,8 @@
--- Run in the Supabase SQL editor (once is enough; everything is idempotent).
--- Order chains: customer → your products → supplier routing, SO↔PO links,
--- production cascade, and supplier lot / manufacture / expiry traceability.
--- Same as supabase/migrations/20260902_order_chain_setups.sql
--- and docs/RUN_THIS_FOR_ORDER_CHAINS.sql
-
+-- UPDATED 2026-08-24 — run THIS file in the Supabase SQL editor.
+-- Filename: RUN_THIS_FOR_ORDER_CHAINS_COMPLETE.sql
+-- Includes: chain setups, order_links, production cascade, order_batches (lot + manufacture + expiry).
+-- Safe to run more than once.
+-- Also in docs/RUN_THIS_FOR_ORDER_CHAINS_COMPLETE.sql
 -- ── Helpers ──────────────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.sa_add_column(p_table text, p_column text, p_type text, p_default text DEFAULT NULL)
 RETURNS void LANGUAGE plpgsql AS $$

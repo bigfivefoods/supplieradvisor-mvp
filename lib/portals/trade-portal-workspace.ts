@@ -37,6 +37,14 @@ function strOrNull(v: unknown): string | null {
   return s.trim() ? s : null;
 }
 
+function bookStr(row: Record<string, unknown>, key: string): string {
+  const direct = String(row[key] ?? '').trim();
+  if (direct) return direct;
+  const meta = asObject(row.metadata);
+  const book = asObject(meta.book_profile);
+  return String(book[key] ?? meta[key] ?? '').trim();
+}
+
 function mapPortalRiad(r: Record<string, unknown>): PortalRiadView {
   return {
     id: Number(r.id),
@@ -429,7 +437,9 @@ export async function loadPortalWorkspace(opts: {
   }
   if (kind === 'supplier' && opts.viewer.supplier_id) {
     const cols =
-      'linked_profile_id, trading_name, legal_name, contact_name, job_title, email, phone, website, vat_number, registration_number, address, city, country, payment_terms, industry';
+      'linked_profile_id, trading_name, legal_name, contact_name, job_title, email, phone, website, vat_number, registration_number, address, city, country, payment_terms, industry, metadata';
+    const softCols =
+      'linked_profile_id, trading_name, legal_name, contact_name, job_title, email, phone, website, address, city, country, industry, metadata';
     let hit = await supabase
       .from('srm_suppliers')
       .select(`${cols}, logo_url`)
@@ -444,29 +454,41 @@ export async function loadPortalWorkspace(opts: {
         .eq('profile_id', companyId)
         .maybeSingle();
     }
-    const data = hit.data;
+    if (hit.error) {
+      hit = await supabase
+        .from('srm_suppliers')
+        .select(`${softCols}, logo_url`)
+        .eq('id', opts.viewer.supplier_id)
+        .eq('profile_id', companyId)
+        .maybeSingle();
+    }
+    if (hit.error) {
+      hit = await supabase
+        .from('srm_suppliers')
+        .select(softCols)
+        .eq('id', opts.viewer.supplier_id)
+        .eq('profile_id', companyId)
+        .maybeSingle();
+    }
+    const data = hit.data as Record<string, unknown> | null;
     if (data?.linked_profile_id) linkedProfileId = Number(data.linked_profile_id);
     if (data) {
       bookProfile = {
-        logo_url: String((data as { logo_url?: string | null }).logo_url || ''),
-        trading_name: String(data.trading_name || ''),
-        legal_name: String(data.legal_name || ''),
-        contact_name: String(data.contact_name || ''),
-        job_title: String(data.job_title || ''),
-        email: String(data.email || ''),
-        phone: String(data.phone || ''),
-        website: String(data.website || ''),
-        vat_number: String((data as { vat_number?: string }).vat_number || ''),
-        registration_number: String(
-          (data as { registration_number?: string }).registration_number || ''
-        ),
-        address: String(data.address || ''),
-        city: String(data.city || ''),
-        country: String(data.country || ''),
-        payment_terms: String(
-          (data as { payment_terms?: string }).payment_terms || ''
-        ),
-        industry: String(data.industry || ''),
+        logo_url: String(data.logo_url || ''),
+        trading_name: bookStr(data, 'trading_name'),
+        legal_name: bookStr(data, 'legal_name'),
+        contact_name: bookStr(data, 'contact_name'),
+        job_title: bookStr(data, 'job_title'),
+        email: bookStr(data, 'email'),
+        phone: bookStr(data, 'phone'),
+        website: bookStr(data, 'website'),
+        vat_number: bookStr(data, 'vat_number'),
+        registration_number: bookStr(data, 'registration_number'),
+        address: bookStr(data, 'address'),
+        city: bookStr(data, 'city'),
+        country: bookStr(data, 'country'),
+        payment_terms: bookStr(data, 'payment_terms'),
+        industry: bookStr(data, 'industry'),
       };
     }
   }

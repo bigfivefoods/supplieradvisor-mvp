@@ -92,6 +92,9 @@ export type SrmSupplierRecord = {
   continent?: string | null;
   address?: string | null;
   postal_code?: string | null;
+  vat_number?: string | null;
+  registration_number?: string | null;
+  payment_terms?: string | null;
   status?: string | null;
   invite_status?: string | null;
   invite_token?: string | null;

@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Loader2,
   Search,
@@ -12,6 +13,7 @@ import {
   Mail,
   TrendingUp,
   Trash2,
+  ChevronRight,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -29,11 +31,22 @@ import {
   SuppliersPage,
 } from '@/components/suppliers/SuppliersShell';
 import { AccountLogoField } from '@/components/relationship/AccountLogoField';
+import { SupplierBookProfile } from '@/components/suppliers/SupplierBookProfile';
 
 export default function SupplierNetworkPage() {
   return (
     <CompanyRequired>
-      <NetworkInner />
+      <Suspense
+        fallback={
+          <SuppliersPage>
+            <div className="py-20 flex justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+            </div>
+          </SuppliersPage>
+        }
+      >
+        <NetworkInner />
+      </Suspense>
     </CompanyRequired>
   );
 }
@@ -42,11 +55,40 @@ function NetworkInner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlId = Number(searchParams.get('id') || 0);
   const [rows, setRows] = useState<SrmSupplierRecord[]>([]);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('all');
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(
+    Number.isFinite(urlId) && urlId > 0 ? urlId : null
+  );
+  const [selectedHold, setSelectedHold] = useState<SrmSupplierRecord | null>(
+    null
+  );
+
+  useEffect(() => {
+    if (Number.isFinite(urlId) && urlId > 0) setSelectedId(urlId);
+  }, [urlId]);
+
+  const setUrlId = (id: number | null) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (id && id > 0) next.set('id', String(id));
+    else next.delete('id');
+    const qs = next.toString();
+    router.replace(`/dashboard/suppliers/network${qs ? `?${qs}` : ''}`, {
+      scroll: false,
+    });
+  };
+
+  const selectSupplier = (s: SrmSupplierRecord | null) => {
+    setSelectedId(s?.id ?? null);
+    if (s) setSelectedHold(s);
+    setUrlId(s?.id ?? null);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -56,7 +98,8 @@ function NetworkInner() {
       if (q) params.set('q', q);
       const res = await fetch(`/api/suppliers?${params}`);
       const data = await res.json();
-      setRows(data.suppliers || []);
+      const list = (data.suppliers || []) as SrmSupplierRecord[];
+      setRows(list);
       if (data.warning) toast.message(data.warning);
     } finally {
       setLoading(false);
@@ -67,6 +110,33 @@ function NetworkInner() {
     const t = setTimeout(() => void load(), 200);
     return () => clearTimeout(t);
   }, [load]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    const hit = rows.find((s) => s.id === selectedId);
+    if (hit) {
+      setSelectedHold(hit);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const params = new URLSearchParams({
+        companyId: String(companyId),
+        id: String(selectedId),
+      });
+      const res = await fetch(`/api/suppliers?${params}`);
+      const data = await res.json();
+      const found = ((data.suppliers || []) as SrmSupplierRecord[])[0];
+      if (!cancelled && found) setSelectedHold(found);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, selectedId, rows]);
+
+  const selected =
+    rows.find((s) => s.id === selectedId) ||
+    (selectedHold && selectedHold.id === selectedId ? selectedHold : null);
 
   const invite = async (s: SrmSupplierRecord) => {
     if (!privyUserId) {
@@ -151,6 +221,7 @@ function NetworkInner() {
           ? `${s.trading_name} archived (still linked to orders)`
           : `${s.trading_name} deleted`
       );
+      if (selectedId === s.id && !data.archived) selectSupplier(null);
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Delete failed');
@@ -164,7 +235,7 @@ function NetworkInner() {
       <div className="pb-8">
         <SuppliersHeader
           title="My supplier network"
-          description="Your company-scoped supplier book — prospects you added, preferred partners, and on-platform connections with live trust signals."
+          description="Select a supplier to open the SRM profile that syncs with their portal — trading name, contacts, VAT, address, and documents."
           action={
             <div className="flex flex-wrap gap-2">
               <Link
@@ -204,7 +275,8 @@ function NetworkInner() {
           </select>
         </div>
 
-        <div className="bg-white border border-neutral-200 rounded-3xl overflow-hidden">
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] gap-4 items-start">
+        <div className="bg-white border border-neutral-200 rounded-3xl overflow-hidden lg:order-1">
           {loading ? (
             <div className="p-16 flex justify-center">
               <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
@@ -230,10 +302,13 @@ function NetworkInner() {
                   !s.linked_profile_id &&
                   s.invite_status !== 'accepted' &&
                   Boolean(s.email);
+                const isSelected = selectedId === s.id;
                 return (
                   <li
                     key={s.id}
-                    className="px-5 py-4 flex flex-wrap gap-3 justify-between items-start"
+                    className={`px-5 py-4 flex flex-wrap gap-3 justify-between items-start ${
+                      isSelected ? 'bg-sky-50/80' : ''
+                    }`}
                   >
                     <div className="min-w-0 flex-1 flex items-start gap-3">
                       <AccountLogoField
@@ -258,7 +333,15 @@ function NetworkInner() {
                       />
                       <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <span className="font-semibold text-slate-800">{s.trading_name}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            selectSupplier(isSelected ? null : s)
+                          }
+                          className="font-semibold text-slate-800 text-left hover:text-[#0077b6]"
+                        >
+                          {s.trading_name}
+                        </button>
                         <span
                           className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${srmStatusClass(s.status)}`}
                         >
@@ -295,6 +378,18 @@ function NetworkInner() {
                         ))}
                       </div>
                       <div className="flex flex-wrap gap-2 mt-3">
+                        <button
+                          type="button"
+                          onClick={() => selectSupplier(isSelected ? null : s)}
+                          className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
+                            isSelected
+                              ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
+                              : 'border-[#00b4d8]/30 bg-[#00b4d8]/10 text-[#0077b6] hover:bg-[#00b4d8]/15'
+                          }`}
+                        >
+                          <ChevronRight className="w-3.5 h-3.5" />
+                          {isSelected ? 'Profile open' : 'Open profile'}
+                        </button>
                         <Link
                           href={
                             canPo
@@ -389,6 +484,28 @@ function NetworkInner() {
               })}
             </ul>
           )}
+        </div>
+        <div className="order-first lg:order-2 lg:sticky lg:top-24">
+        {selected ? (
+          <SupplierBookProfile
+            supplier={selected}
+            companyId={companyId}
+            privyUserId={privyUserId}
+            onClose={() => selectSupplier(null)}
+            onSaved={(next) => {
+              setSelectedHold(next);
+              setRows((prev) =>
+                prev.map((row) => (row.id === next.id ? { ...row, ...next } : row))
+              );
+            }}
+          />
+        ) : (
+          <div className="hidden lg:block rounded-[1.5rem] border border-dashed border-neutral-200 bg-white/70 px-5 py-10 text-center text-sm text-neutral-500">
+            Select a supplier to see the full SRM profile — the same details
+            that sync on their portal.
+          </div>
+        )}
+        </div>
         </div>
       </div>
     </SuppliersPage>

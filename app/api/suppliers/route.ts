@@ -4,8 +4,24 @@ import { assertCompanyMember } from '@/lib/suppliers/access';
 import { computeTrustScore } from '@/lib/suppliers/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
+function asRecord(raw: unknown): Record<string, unknown> {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    return raw as Record<string, unknown>;
+  }
+  return {};
+}
+
+function bookField(row: Record<string, unknown>, key: string): string | null {
+  const direct = String(row[key] ?? '').trim();
+  if (direct) return direct;
+  const meta = asRecord(row.metadata);
+  const book = asRecord(meta.book_profile);
+  const nested = String(book[key] ?? meta[key] ?? '').trim();
+  return nested || null;
+}
+
 /**
- * GET ?companyId=&status=&invite_status=&q=&privyUserId=
+ * GET ?companyId=&id=&status=&invite_status=&q=&privyUserId=
  * List company-scoped srm_suppliers (buyer book).
  */
 export async function GET(request: NextRequest) {
@@ -13,6 +29,7 @@ export async function GET(request: NextRequest) {
     const sp = request.nextUrl.searchParams;
     const companyId = Number(sp.get('companyId'));
     const privyUserId = sp.get('privyUserId');
+    const id = Number(sp.get('id'));
     const status = sp.get('status');
     const inviteStatus = sp.get('invite_status');
     const q = (sp.get('q') || '').trim().toLowerCase();
@@ -26,14 +43,15 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = getSupabaseServer();
+    const byId = Number.isFinite(id) && id > 0;
     let query = supabase
       .from('srm_suppliers')
       .select('*')
       .eq('profile_id', companyId)
       .order('updated_at', { ascending: false })
       .limit(500);
-
-    if (status && status !== 'all') query = query.eq('status', status);
+    if (byId) query = query.eq('id', id);
+    else if (status && status !== 'all') query = query.eq('status', status);
     if (inviteStatus && inviteStatus !== 'all') query = query.eq('invite_status', inviteStatus);
 
     const { data, error } = await query;
@@ -101,22 +119,28 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const enriched = suppliers.map((s) => ({
-      ...s,
-      logo_url:
-        (s as { logo_url?: string | null }).logo_url ||
-        (s.linked_profile_id
-          ? logoByProfile[Number(s.linked_profile_id)] || null
-          : null),
-      connection_suspended: s.connection_id ? !!suspMap[Number(s.connection_id)] : false,
-      trust_score:
-        s.trust_score ||
-        computeTrustScore({
-          otifef: s.otifef_pct,
-          ratingAvg: s.rating_avg,
-          verified: s.verified,
-        }),
-    }));
+    const enriched = suppliers.map((s) => {
+      const row = s as Record<string, unknown>;
+      return {
+        ...s,
+        logo_url:
+          (s as { logo_url?: string | null }).logo_url ||
+          (s.linked_profile_id
+            ? logoByProfile[Number(s.linked_profile_id)] || null
+            : null),
+        vat_number: bookField(row, 'vat_number'),
+        registration_number: bookField(row, 'registration_number'),
+        payment_terms: bookField(row, 'payment_terms'),
+        connection_suspended: s.connection_id ? !!suspMap[Number(s.connection_id)] : false,
+        trust_score:
+          s.trust_score ||
+          computeTrustScore({
+            otifef: s.otifef_pct,
+            ratingAvg: s.rating_avg,
+            verified: s.verified,
+          }),
+      };
+    });
 
     return NextResponse.json({ success: true, suppliers: enriched });
   } catch (e: unknown) {
@@ -230,6 +254,9 @@ export async function PATCH(request: NextRequest) {
       'continent',
       'address',
       'postal_code',
+      'vat_number',
+      'registration_number',
+      'payment_terms',
       'status',
       'invite_status',
       'wallet_address',
@@ -257,9 +284,33 @@ export async function PATCH(request: NextRequest) {
     let q = supabase.from('srm_suppliers').update(updates).eq('id', Number(body.id));
     if (Number.isFinite(companyId)) q = q.eq('profile_id', companyId);
     let { data, error } = await q.select('*').single();
-    if (error && /logo_url|column|schema cache|does not exist/i.test(error.message || '')) {
+    if (error && /logo_url|vat_number|registration_number|payment_terms|column|schema cache|does not exist/i.test(error.message || '')) {
       const soft = { ...updates };
       delete soft.logo_url;
+      const bookPatch: Record<string, unknown> = {};
+      for (const col of ['vat_number', 'registration_number', 'payment_terms'] as const) {
+        if (body[col] !== undefined) {
+          bookPatch[col] = body[col];
+          delete soft[col];
+        }
+      }
+      if (Object.keys(bookPatch).length) {
+        const curHit = Number.isFinite(companyId)
+          ? await supabase
+              .from('srm_suppliers')
+              .select('metadata')
+              .eq('id', Number(body.id))
+              .eq('profile_id', companyId)
+              .maybeSingle()
+          : await supabase
+              .from('srm_suppliers')
+              .select('metadata')
+              .eq('id', Number(body.id))
+              .maybeSingle();
+        const meta = asRecord(curHit.data?.metadata);
+        meta.book_profile = { ...asRecord(meta.book_profile), ...bookPatch };
+        soft.metadata = meta;
+      }
       let q2 = supabase.from('srm_suppliers').update(soft).eq('id', Number(body.id));
       if (Number.isFinite(companyId)) q2 = q2.eq('profile_id', companyId);
       const retry = await q2.select('*').single();

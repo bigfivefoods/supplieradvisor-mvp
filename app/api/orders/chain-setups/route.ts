@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
           success: true,
           setups: [],
           warning:
-            'Run RUN_THIS_FOR_ORDER_CHAINS.sql in the Supabase SQL editor so chain setups can save.',
+            'Run RUN_THIS_FOR_ORDER_CHAINS_COMPLETE.sql in the Supabase SQL editor so chain setups can save.',
         });
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             error:
-              'Chain setups are not on this database yet. Run RUN_THIS_FOR_ORDER_CHAINS.sql in Supabase.',
+              'Chain setups are not on this database yet. Run RUN_THIS_FOR_ORDER_CHAINS_COMPLETE.sql in Supabase.',
           },
           { status: 503 }
         );

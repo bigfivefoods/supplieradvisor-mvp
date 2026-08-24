@@ -123,6 +123,27 @@ export async function POST(request: NextRequest) {
           delete retry.vat_number;
           delete retry.registration_number;
           delete retry.payment_terms;
+          const { data: cur } = await supabase
+            .from('srm_suppliers')
+            .select('metadata')
+            .eq('id', viewer.supplier_id)
+            .eq('profile_id', portal.profile_id)
+            .maybeSingle();
+          const meta =
+            cur?.metadata && typeof cur.metadata === 'object' && !Array.isArray(cur.metadata)
+              ? { ...(cur.metadata as Record<string, unknown>) }
+              : {};
+          const book =
+            meta.book_profile && typeof meta.book_profile === 'object' && !Array.isArray(meta.book_profile)
+              ? { ...(meta.book_profile as Record<string, unknown>) }
+              : {};
+          if (patch.vat_number != null) book.vat_number = patch.vat_number;
+          if (patch.registration_number != null) {
+            book.registration_number = patch.registration_number;
+          }
+          if (patch.payment_terms != null) book.payment_terms = patch.payment_terms;
+          meta.book_profile = book;
+          retry.metadata = meta;
           const r2 = await supabase
             .from('srm_suppliers')
             .update(retry)
@@ -1092,7 +1113,7 @@ export async function POST(request: NextRequest) {
           manufactured_date: manufactured || null,
           expiry_date: expiry || null,
         };
-        const lot = {
+        const lot: Record<string, unknown> = {
           company_id: portal.profile_id,
           order_id: id,
           order_type: 'purchase_order',
@@ -1108,7 +1129,7 @@ export async function POST(request: NextRequest) {
         };
         let ins = await supabase.from('order_batches').insert(lot).select('*').single();
         if (ins.error) {
-          const soft = { ...lot };
+          const soft: Record<string, unknown> = { ...lot };
           delete soft.expiry_date;
           ins = await supabase.from('order_batches').insert(soft).select('*').single();
         }
@@ -1137,7 +1158,7 @@ export async function POST(request: NextRequest) {
       if (savedLots.length && casc.linkedSoIds.length) {
         for (const soId of casc.linkedSoIds) {
           for (const lot of savedLots) {
-            const copy = {
+            const copy: Record<string, unknown> = {
               company_id: portal.profile_id,
               order_id: soId,
               order_type: 'sales_order',
@@ -1151,7 +1172,7 @@ export async function POST(request: NextRequest) {
             };
             const soIns = await supabase.from('order_batches').insert(copy);
             if (soIns.error) {
-              const soft = { ...copy };
+              const soft: Record<string, unknown> = { ...copy };
               delete soft.expiry_date;
               await supabase.from('order_batches').insert(soft);
             }

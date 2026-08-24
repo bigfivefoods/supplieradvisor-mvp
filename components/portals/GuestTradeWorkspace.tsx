@@ -629,7 +629,7 @@ export function GuestTradeWorkspace({
             <>
               {' '}
               — company profile and POs update{' '}
-              <strong>{live.accountLabel}</strong> on CRM
+              <strong>{live.accountLabel}</strong> on {isSupplier ? 'SRM' : 'CRM'}
             </>
           ) : null}
           .
@@ -643,7 +643,7 @@ export function GuestTradeWorkspace({
           className="w-full text-left rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
         >
           Complete the {live.accountLabel || 'company'} profile so it stays in
-          sync with CRM ({gaps.join(', ')}).
+          sync with {isSupplier ? 'SRM' : 'CRM'} ({gaps.join(', ')}).
         </button>
       ) : null}
 
@@ -654,6 +654,7 @@ export function GuestTradeWorkspace({
           busy={busy}
           accountLabel={live.accountLabel}
           hostName={live.host.name}
+          book={isSupplier ? 'SRM' : 'CRM'}
           onAct={act}
         />
       ) : null}
@@ -1108,7 +1109,9 @@ function CompanyDocsPanel({
         Required documents for both companies — registration, VAT, B-BBEE, bank
         confirmation letter, import, export, and tax. Files saved here are
         shared on this portal
-        {isHost ? ' and on CRM / My Business.' : '.'}
+        {isHost
+          ? ` and on ${kind === 'supplier' ? 'SRM' : 'CRM'} / My Business.`
+          : '.'}
       </p>
       <div className="grid gap-4 lg:grid-cols-2">
         {packs.map((p) => {
@@ -1418,6 +1421,7 @@ function ProfilePanel({
   busy,
   accountLabel,
   hostName,
+  book,
   onAct,
 }: {
   profile: BookProfile | null;
@@ -1425,6 +1429,7 @@ function ProfilePanel({
   busy: boolean;
   accountLabel?: string | null;
   hostName?: string;
+  book: 'CRM' | 'SRM';
   onAct: (p: Record<string, unknown>) => Promise<unknown>;
 }) {
   const [form, setForm] = useState<BookProfile>(profile || EMPTY_PROFILE);
@@ -1457,7 +1462,7 @@ function ProfilePanel({
     <div className="rounded-[1.5rem] border border-white/70 bg-white/90 p-5 space-y-4 shadow-sm">
       <div>
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
-          Profile · CRM
+          Profile · {book}
         </p>
         {profile?.logo_url ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -1471,7 +1476,7 @@ function ProfilePanel({
           {accountLabel || 'Profile'}
         </h2>
         <p className="text-sm text-neutral-600 mt-1">
-          This is the same {accountLabel || 'account'} record as CRM / SRM
+          This is the same {accountLabel || 'account'} record as {book}
           {hostName ? ` on ${hostName}` : ''}. Saving here updates that book.
         </p>
       </div>
@@ -1517,7 +1522,7 @@ function ProfilePanel({
         onClick={() => void onAct({ action: 'profile', ...form })}
         className="btn-primary w-full !py-2.5 text-sm"
       >
-        Save to CRM
+        Save to {book}
       </button>
     </div>
   );
