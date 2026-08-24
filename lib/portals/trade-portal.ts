@@ -613,6 +613,32 @@ async function loadSupplierPos(
   );
 }
 
+function pushDoc(
+  out: Array<{ name: string; url: string; category: string }>,
+  name: string,
+  url: unknown,
+  category: string
+) {
+  const u = String(url || '').trim();
+  if (u) out.push({ name, url: u, category });
+}
+
+function docsFromMetadata(
+  metadata: unknown,
+  fallbackCategory: string
+): Array<{ name: string; url: string; category: string }> {
+  const out: Array<{ name: string; url: string; category: string }> = [];
+  const meta = asObject(metadata);
+  const list = Array.isArray(meta.documents) ? meta.documents : [];
+  for (const item of list) {
+    const row = asObject(item);
+    const url = String(row.url || '').trim();
+    const name = String(row.name || 'Document').trim();
+    if (url) out.push({ name, url, category: String(row.category || fallbackCategory) });
+  }
+  return out;
+}
+
 async function loadSharedDocs(
   companyId: number,
   kind: TradePortalKind
@@ -626,21 +652,67 @@ async function loadSharedDocs(
     .eq('id', companyId)
     .maybeSingle();
   const out: Array<{ name: string; url: string; category: string }> = [];
-  const push = (name: string, url: unknown, category: string) => {
-    const u = String(url || '').trim();
-    if (u) out.push({ name, url: u, category });
-  };
   if (data) {
-    push('Company registration', data.registration_certificate_url, 'Legal');
-    push('VAT certificate', data.vat_certificate_url, 'Financial');
-    push('B-BBEE certificate', data.bee_certificate_url, 'Legal');
-    const meta = asObject(data.metadata);
-    const list = Array.isArray(meta.documents) ? meta.documents : [];
-    for (const item of list) {
-      const row = asObject(item);
-      const url = String(row.url || '').trim();
-      const name = String(row.name || 'Document').trim();
-      if (url) out.push({ name, url, category: String(row.category || kind) });
+    pushDoc(out, 'Company registration', data.registration_certificate_url, 'Legal');
+    pushDoc(out, 'VAT certificate', data.vat_certificate_url, 'Financial');
+    pushDoc(out, 'B-BBEE certificate', data.bee_certificate_url, 'Legal');
+    out.push(...docsFromMetadata(data.metadata, kind));
+  }
+  return out.slice(0, 24);
+}
+
+async function loadAccountDocs(opts: {
+  companyId: number;
+  kind: TradePortalKind;
+  customerId?: number | null;
+  supplierId?: number | null;
+}): Promise<Array<{ name: string; url: string; category: string }>> {
+  const supabase = getSupabaseServer();
+  const out: Array<{ name: string; url: string; category: string }> = [];
+  let linked: number | null = null;
+  if (opts.kind === 'customer' && opts.customerId) {
+    let hit = await supabase
+      .from('customers')
+      .select('metadata, linked_profile_id')
+      .eq('id', opts.customerId)
+      .eq('profile_id', opts.companyId)
+      .maybeSingle();
+    if (hit.error) {
+      hit = await supabase
+        .from('customers')
+        .select('linked_profile_id')
+        .eq('id', opts.customerId)
+        .eq('profile_id', opts.companyId)
+        .maybeSingle();
+    }
+    if (hit.data) {
+      out.push(...docsFromMetadata((hit.data as { metadata?: unknown }).metadata, 'customer'));
+      if (hit.data.linked_profile_id) linked = Number(hit.data.linked_profile_id);
+    }
+  } else if (opts.kind === 'supplier' && opts.supplierId) {
+    let hit = await supabase
+      .from('srm_suppliers')
+      .select('metadata, linked_profile_id')
+      .eq('id', opts.supplierId)
+      .eq('profile_id', opts.companyId)
+      .maybeSingle();
+    if (hit.error) {
+      hit = await supabase
+        .from('srm_suppliers')
+        .select('linked_profile_id')
+        .eq('id', opts.supplierId)
+        .eq('profile_id', opts.companyId)
+        .maybeSingle();
+    }
+    if (hit.data) {
+      out.push(...docsFromMetadata((hit.data as { metadata?: unknown }).metadata, 'supplier'));
+      if (hit.data.linked_profile_id) linked = Number(hit.data.linked_profile_id);
+    }
+  }
+  if (linked && linked > 0 && linked !== opts.companyId) {
+    const linkedDocs = await loadSharedDocs(linked, opts.kind);
+    for (const d of linkedDocs) {
+      if (!out.some((x) => x.url === d.url)) out.push(d);
     }
   }
   return out.slice(0, 24);
@@ -664,6 +736,10 @@ export type PublicPortalPayload = {
   invoices: PublicDocRow[];
   purchase_orders: PublicDocRow[];
   documents: Array<{ name: string; url: string; category: string }>;
+  /** Host company (e.g. Big Five Foods) legal pack */
+  hostDocuments?: Array<{ name: string; url: string; category: string }>;
+  /** Customer/supplier book + linked company pack (e.g. Boxer) */
+  accountDocuments?: Array<{ name: string; url: string; category: string }>;
   joinPath: string;
   moneyHint: string | null;
   kpis: {
@@ -827,6 +903,20 @@ export async function loadPublicPortal(
     sections.documents !== false
       ? await loadSharedDocs(portal.profile_id, portal.kind)
       : [];
+  let accountDocuments: Array<{ name: string; url: string; category: string }> =
+    [];
+  if (viewer && (viewer.customer_id || viewer.supplier_id)) {
+    try {
+      accountDocuments = await loadAccountDocs({
+        companyId: portal.profile_id,
+        kind: portal.kind,
+        customerId: viewer.customer_id,
+        supplierId: viewer.supplier_id,
+      });
+    } catch {
+      accountDocuments = [];
+    }
+  }
 
   if (viewer && opts?.touchViewer !== false) void touchViewer(viewer.id);
 
@@ -923,6 +1013,8 @@ export async function loadPublicPortal(
       invoices,
       purchase_orders,
       documents,
+      hostDocuments: documents,
+      accountDocuments,
       joinPath,
       moneyHint,
       kpis: {

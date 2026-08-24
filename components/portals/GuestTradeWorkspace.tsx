@@ -40,7 +40,7 @@ import {
   type WbsNode,
 } from '@/lib/projects/wbs';
 import { WaterfallGantt } from '@/components/projects/WaterfallGantt';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { Building2, ChevronDown, ChevronRight, FileText } from 'lucide-react';
 import { PortalRiadPanel } from '@/components/portals/PortalRiadPanel';
 
 export type GuestPortalTab =
@@ -54,7 +54,8 @@ export type GuestPortalTab =
   | 'reviews'
   | 'newpo'
   | 'projects'
-  | 'people';
+  | 'people'
+  | 'docs';
 
 export function guestPortalTabs(opts: {
   kind: 'customer' | 'supplier';
@@ -62,39 +63,34 @@ export function guestPortalTabs(opts: {
   isHost?: boolean;
 }): Array<{ id: GuestPortalTab; label: string }> {
   const gaps = opts.profileGaps || 0;
-  const profile = opts.isHost
-    ? 'Their profile'
-    : gaps
-      ? `Profile (${gaps})`
-      : 'Profile';
-  const supplier = [
-    { id: 'profile' as const, label: profile },
-    { id: 'orders' as const, label: 'Purchase orders' },
-    { id: 'otifef' as const, label: 'OTIFEF metrics' },
-    { id: 'projects' as const, label: 'Projects' },
-    { id: 'stock' as const, label: 'Stock' },
-    { id: 'riad' as const, label: 'RIAD' },
-    { id: 'messages' as const, label: 'Messages' },
-    { id: 'people' as const, label: 'People' },
-    { id: 'reviews' as const, label: 'Ratings' },
-  ];
-  const customer = [
+  const profile = gaps ? `Company profile (${gaps})` : 'Company profile';
+  if (opts.kind === 'supplier') {
+    return [
+      { id: 'profile' as const, label: profile },
+      { id: 'orders' as const, label: 'Purchase orders' },
+      { id: 'otifef' as const, label: 'OTIFEF metrics' },
+      { id: 'projects' as const, label: 'Projects' },
+      { id: 'stock' as const, label: 'Stock' },
+      { id: 'docs' as const, label: 'Company documents' },
+      { id: 'riad' as const, label: 'RIAD' },
+      { id: 'messages' as const, label: 'Messages' },
+      { id: 'people' as const, label: 'People' },
+      { id: 'reviews' as const, label: 'Ratings' },
+    ];
+  }
+  return [
     { id: 'profile' as const, label: profile },
     { id: 'orders' as const, label: 'Sales orders' },
+    { id: 'newpo' as const, label: 'Raise a PO' },
     { id: 'otifef' as const, label: 'OTIFEF metrics' },
     { id: 'statement' as const, label: 'Statement' },
     { id: 'projects' as const, label: 'Projects' },
-    { id: 'newpo' as const, label: 'Raise a PO' },
+    { id: 'docs' as const, label: 'Company documents' },
     { id: 'people' as const, label: 'People' },
     { id: 'riad' as const, label: 'RIAD' },
     { id: 'messages' as const, label: 'Messages' },
     { id: 'reviews' as const, label: 'Ratings' },
   ];
-  const tabs = opts.kind === 'supplier' ? supplier : customer;
-  if (opts.isHost) {
-    return tabs.filter((t) => t.id !== 'newpo');
-  }
-  return tabs;
 }
 
 const EMPTY_PROFILE: BookProfile = {
@@ -502,10 +498,6 @@ export function GuestTradeWorkspace({
     }
   };
 
-  useEffect(() => {
-    if (isHost && tab === 'newpo') onTab('orders');
-  }, [isHost, tab, onTab]);
-
   const ot = ws?.otifef;
   const orders = isSupplier
     ? ws?.purchase_orders || live.purchase_orders
@@ -520,25 +512,26 @@ export function GuestTradeWorkspace({
       {isHost ? (
         <p className="rounded-[1.5rem] border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
           Signed in as <strong>{live.actor?.name || 'you'}</strong> at{' '}
-          <strong>{live.host.name}</strong>. Actions use your company
-          credentials
+          <strong>{live.host.name}</strong>
           {live.accountLabel ? (
             <>
-              , not <strong>{live.accountLabel}</strong>
+              {' '}
+              — company profile and POs update{' '}
+              <strong>{live.accountLabel}</strong> on CRM
             </>
           ) : null}
           .
         </p>
       ) : null}
 
-      {gaps.length > 0 && tab !== 'profile' && !isHost ? (
+      {gaps.length > 0 && tab !== 'profile' ? (
         <button
           type="button"
           onClick={() => onTab('profile')}
           className="w-full text-left rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
         >
-          Complete your profile so {live.host.name} has the right details on
-          their books ({gaps.join(', ')}).
+          Complete the {live.accountLabel || 'company'} profile so it stays in
+          sync with CRM ({gaps.join(', ')}).
         </button>
       ) : null}
 
@@ -547,7 +540,6 @@ export function GuestTradeWorkspace({
           profile={ws?.bookProfile || null}
           gaps={gaps}
           busy={busy}
-          readOnly={isHost}
           accountLabel={live.accountLabel}
           hostName={live.host.name}
           onAct={act}
@@ -593,13 +585,24 @@ export function GuestTradeWorkspace({
       {tab === 'stock' && isSupplier ? (
         <StockPanel lines={ws?.stock || []} busy={busy} onAct={act} />
       ) : null}
-      {tab === 'newpo' && !isSupplier && !isHost ? (
+      {tab === 'newpo' && !isSupplier ? (
         <NewPoPanel
           token={token}
           busy={busy}
           onAct={act}
           catalogue={ws?.catalogue || []}
           hostName={live.host.name}
+        />
+      ) : null}
+      {tab === 'docs' ? (
+        <CompanyDocsPanel
+          kind={live.kind}
+          hostName={live.host.name}
+          hostLogo={live.host.logo_url}
+          hostDocs={live.hostDocuments || live.documents || []}
+          accountName={live.accountLabel}
+          accountLogo={live.accountLogo}
+          accountDocs={live.accountDocuments || []}
         />
       ) : null}
       {tab === 'riad' ? (
@@ -873,11 +876,103 @@ function PeoplePanel({
   );
 }
 
+function CompanyDocsPanel({
+  kind,
+  hostName,
+  hostLogo,
+  hostDocs,
+  accountName,
+  accountLogo,
+  accountDocs,
+}: {
+  kind: PublicPortalPayload['kind'];
+  hostName: string;
+  hostLogo?: string | null;
+  hostDocs: Array<{ name: string; url: string; category: string }>;
+  accountName?: string | null;
+  accountLogo?: string | null;
+  accountDocs: Array<{ name: string; url: string; category: string }>;
+}) {
+  const packs = [
+    { key: 'host', name: hostName, logo: hostLogo, docs: hostDocs },
+    {
+      key: 'account',
+      name: accountName || (kind === 'supplier' ? 'Supplier' : 'Customer'),
+      logo: accountLogo,
+      docs: accountDocs,
+    },
+  ];
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      {packs.map((p) => (
+        <section
+          key={p.key}
+          className="rounded-[1.5rem] border border-white/70 bg-white/90 shadow-sm overflow-hidden"
+        >
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3">
+            {p.logo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={p.logo}
+                alt=""
+                className="h-10 w-10 rounded-xl border border-slate-200 bg-white object-contain"
+              />
+            ) : (
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50">
+                <Building2 className="h-5 w-5 text-[#00b4d8]" />
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-wider text-[#0077b6]">
+                {p.key === 'host'
+                  ? 'Company'
+                  : kind === 'supplier'
+                    ? 'Supplier'
+                    : 'Customer'}
+              </p>
+              <h2 className="text-sm font-black text-slate-900 truncate">
+                {p.name}
+              </h2>
+            </div>
+          </div>
+          {p.docs.length === 0 ? (
+            <p className="px-5 py-8 text-sm text-neutral-500">
+              No company documents on file yet.
+            </p>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {p.docs.map((d) => (
+                <li key={`${p.key}-${d.name}-${d.url}`}>
+                  <a
+                    href={d.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-5 py-3.5 flex items-center justify-between gap-3 hover:bg-sky-50/60"
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-sm font-bold text-slate-900 truncate">
+                        {d.name}
+                      </span>
+                      <span className="block text-[11px] text-neutral-500">
+                        {d.category}
+                      </span>
+                    </span>
+                    <FileText className="w-4 h-4 text-[#00b4d8] shrink-0" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ))}
+    </div>
+  );
+}
+
 function ProfilePanel({
   profile,
   gaps,
   busy,
-  readOnly,
   accountLabel,
   hostName,
   onAct,
@@ -885,7 +980,6 @@ function ProfilePanel({
   profile: BookProfile | null;
   gaps: string[];
   busy: boolean;
-  readOnly?: boolean;
   accountLabel?: string | null;
   hostName?: string;
   onAct: (p: Record<string, unknown>) => Promise<unknown>;
@@ -920,7 +1014,7 @@ function ProfilePanel({
     <div className="rounded-[1.5rem] border border-white/70 bg-white/90 p-5 space-y-4 shadow-sm">
       <div>
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
-          On our books
+          Company profile · CRM
         </p>
         {profile?.logo_url ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -931,14 +1025,11 @@ function ProfilePanel({
           />
         ) : null}
         <h2 className="text-lg font-black text-slate-900">
-          {readOnly
-            ? `${accountLabel || 'Their'} credentials`
-            : 'Complete your profile'}
+          {accountLabel || 'Company profile'}
         </h2>
         <p className="text-sm text-neutral-600 mt-1">
-          {readOnly
-            ? `These are ${accountLabel || 'the account'}’s details on ${hostName || 'your'} books — not yours. Edit them in CRM / SRM.`
-            : 'These fields write straight into our customer / supplier record. Keep them accurate so quotes, POs, and invoices match your legal entity.'}
+          This is the same {accountLabel || 'account'} record as CRM / SRM
+          {hostName ? ` on ${hostName}` : ''}. Saving here updates that book.
         </p>
       </div>
       {gaps.length ? (
@@ -964,7 +1055,6 @@ function ProfilePanel({
               <textarea
                 className="input mt-0.5 w-full !p-2.5 !text-sm min-h-[64px] font-medium normal-case tracking-normal"
                 value={form[f.key]}
-                disabled={readOnly}
                 onChange={(e) => set(f.key, e.target.value)}
               />
             ) : (
@@ -972,23 +1062,20 @@ function ProfilePanel({
                 className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
                 type={f.key === 'email' ? 'email' : 'text'}
                 value={form[f.key]}
-                disabled={readOnly}
                 onChange={(e) => set(f.key, e.target.value)}
               />
             )}
           </label>
         ))}
       </div>
-      {readOnly ? null : (
       <button
         type="button"
         disabled={busy}
         onClick={() => void onAct({ action: 'profile', ...form })}
         className="btn-primary w-full !py-2.5 text-sm"
       >
-        Save to our books
+        Save to CRM
       </button>
-      )}
     </div>
   );
 }

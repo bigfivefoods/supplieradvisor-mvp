@@ -11,14 +11,13 @@ import {
 } from './portal-actor';
 import type { PublicPortalPayload } from './trade-portal';
 
-assert.equal(isGuestOnlyPortalAction('profile'), true);
-assert.equal(isGuestOnlyPortalAction('po_create'), true);
+assert.equal(isGuestOnlyPortalAction('profile'), false);
+assert.equal(isGuestOnlyPortalAction('po_create'), false);
 assert.equal(isGuestOnlyPortalAction('rate'), true);
 assert.equal(isGuestOnlyPortalAction('task_add'), false);
 assert.equal(isGuestOnlyPortalAction('message'), false);
 
-assert.match(guestOnlyActionMessage('profile', 'customer'), /customer/);
-assert.match(guestOnlyActionMessage('po_create', 'customer'), /your company credentials/);
+assert.match(guestOnlyActionMessage('rate', 'customer'), /customer or supplier/);
 
 const hostStamp = portalActionStamp(
   { userId: 'did:privy:craig', name: 'Craig' },

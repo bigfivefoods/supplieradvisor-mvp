@@ -9,7 +9,6 @@ import {
   ArrowRight,
   Building2,
   CheckCircle2,
-  FileText,
   Loader2,
   MapPin,
   ShieldCheck,
@@ -389,8 +388,8 @@ export default function GuestTradePortalPage() {
 
         <p className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[13px] leading-relaxed text-slate-600 dark:border-white/10 dark:bg-black/20 dark:text-white/70">
           {isHost
-            ? `You are working as ${host.name}. Projects, RIAD, and messages are yours — the customer’s profile and purchase orders stay theirs.`
-            : `This is the same live ledger ${host.name} runs in SupplierAdvisor — OTIFEF, ratings, RIAD, and documents. Raise a purchase order from your branded products, or add colleagues on People.`}
+            ? `You are working as ${host.name} in ${portal.accountLabel || 'this'} portal. Company profile and purchase orders update the same CRM/SRM books.`
+            : `This is the same live ledger ${host.name} runs in SupplierAdvisor. Raise a purchase order, keep the company profile in sync with CRM, and add colleagues on People.`}
         </p>
 
         <div className="space-y-4 rounded-[1.75rem] border border-white/10 bg-[#f8fafc] p-3 text-slate-900 shadow-2xl sm:p-5">
@@ -428,36 +427,6 @@ export default function GuestTradePortalPage() {
             rows={portal.purchase_orders}
           />
         )}
-
-        {portal.documents.length > 0 ? (
-          <section className="rounded-[1.5rem] border border-white/70 bg-white/90 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100">
-              <h2 className="text-sm font-black text-slate-900">Documents</h2>
-            </div>
-            <ul className="divide-y divide-slate-100">
-              {portal.documents.map((d) => (
-                <li key={`${d.name}-${d.url}`}>
-                  <a
-                    href={d.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-5 py-3.5 flex items-center justify-between gap-3 hover:bg-sky-50/60"
-                  >
-                    <span className="min-w-0">
-                      <span className="block text-sm font-bold text-slate-900 truncate">
-                        {d.name}
-                      </span>
-                      <span className="block text-[11px] text-neutral-500">
-                        {d.category}
-                      </span>
-                    </span>
-                    <FileText className="w-4 h-4 text-[#00b4d8] shrink-0" />
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
 
         {portal.brochure ? (
           <p className="text-sm text-neutral-500 leading-relaxed px-1">

@@ -27,12 +27,8 @@ export type PortalActionStamp = {
   messageAuthor: 'host' | 'guest';
 };
 
-/** Guest-only writes — must not run as the host using a customer's token. */
-export const GUEST_ONLY_PORTAL_ACTIONS = new Set([
-  'profile',
-  'po_create',
-  'rate',
-]);
+/** Guest-only writes — host must not rate the host as if they were the customer. */
+export const GUEST_ONLY_PORTAL_ACTIONS = new Set(['rate']);
 
 export function isGuestOnlyPortalAction(action: string): boolean {
   return GUEST_ONLY_PORTAL_ACTIONS.has(String(action || '').trim());
@@ -42,14 +38,6 @@ export function guestOnlyActionMessage(
   action: string,
   kind: 'customer' | 'supplier'
 ): string {
-  if (action === 'profile') {
-    return kind === 'customer'
-      ? 'You are signed in as the host. Those profile fields are the customer’s credentials — edit them in CRM, not as the customer.'
-      : 'You are signed in as the host. Those profile fields are the supplier’s credentials — edit them in SRM, not as the supplier.';
-  }
-  if (action === 'po_create') {
-    return 'Raise a PO is the customer’s action. Create the order from your desk so it uses your company credentials.';
-  }
   if (action === 'rate') {
     return 'Ratings in this portal are from the customer or supplier, not from the host company.';
   }
