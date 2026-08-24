@@ -90,8 +90,10 @@ export async function POST(request: NextRequest) {
         website: 'website',
         vat_number: 'vat_number',
         registration_number: 'registration_number',
-        city: 'city',
+        continent: 'continent',
         country: 'country',
+        province: 'province',
+        city: 'city',
         payment_terms: 'payment_terms',
         industry: 'industry',
       };
@@ -103,6 +105,13 @@ export async function POST(request: NextRequest) {
         else patch.address = String(body.address).trim().slice(0, 500);
       }
       if (patch.email) patch.email = String(patch.email).toLowerCase();
+      if (portal.kind === 'customer') {
+        if (patch.province != null) patch.region = patch.province;
+        delete patch.province;
+        delete patch.continent;
+      } else if (patch.province != null) {
+        patch.region = patch.province;
+      }
       if (portal.kind === 'customer' && viewer.customer_id) {
         const { error } = await supabase
           .from('customers')
@@ -123,6 +132,9 @@ export async function POST(request: NextRequest) {
           delete retry.vat_number;
           delete retry.registration_number;
           delete retry.payment_terms;
+          delete retry.continent;
+          delete retry.province;
+          delete retry.region;
           const { data: cur } = await supabase
             .from('srm_suppliers')
             .select('metadata')

@@ -29,6 +29,7 @@ import {
   type RiadType,
 } from '@/lib/containers/riad';
 import type { BookProfile } from '@/lib/portals/trade-portal-workspace';
+import GeoSelectFields from '@/components/geo/GeoSelectFields';
 import {
   addDays,
   clampDayRange,
@@ -114,8 +115,10 @@ const EMPTY_PROFILE: BookProfile = {
   vat_number: '',
   registration_number: '',
   address: '',
-  city: '',
+  continent: '',
   country: '',
+  province: '',
+  city: '',
   payment_terms: '',
   industry: '',
 };
@@ -1440,23 +1443,58 @@ function ProfilePanel({
   const set = (key: keyof BookProfile, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  const fields: Array<{ key: keyof BookProfile; label: string; required?: boolean; span?: boolean }> =
-    [
-      { key: 'trading_name', label: 'Trading name', required: true },
-      { key: 'legal_name', label: 'Legal name' },
-      { key: 'contact_name', label: 'Contact name', required: true },
-      { key: 'job_title', label: 'Job title' },
-      { key: 'email', label: 'Email', required: true },
-      { key: 'phone', label: 'Phone', required: true },
-      { key: 'website', label: 'Website', span: true },
-      { key: 'vat_number', label: 'VAT number' },
-      { key: 'registration_number', label: 'Registration number' },
-      { key: 'address', label: 'Street address', span: true },
-      { key: 'city', label: 'City', required: true },
-      { key: 'country', label: 'Country', required: true },
-      { key: 'payment_terms', label: 'Payment terms' },
-      { key: 'industry', label: 'Industry' },
-    ];
+  const beforeGeo: Array<{
+    key: keyof BookProfile;
+    label: string;
+    required?: boolean;
+    span?: boolean;
+  }> = [
+    { key: 'trading_name', label: 'Trading name', required: true },
+    { key: 'legal_name', label: 'Legal name' },
+    { key: 'contact_name', label: 'Contact name', required: true },
+    { key: 'job_title', label: 'Job title' },
+    { key: 'email', label: 'Email', required: true },
+    { key: 'phone', label: 'Phone', required: true },
+    { key: 'website', label: 'Website', span: true },
+    { key: 'vat_number', label: 'VAT number' },
+    { key: 'registration_number', label: 'Registration number' },
+    { key: 'address', label: 'Street address', span: true },
+  ];
+  const afterGeo: Array<{
+    key: keyof BookProfile;
+    label: string;
+    required?: boolean;
+    span?: boolean;
+  }> = [
+    { key: 'payment_terms', label: 'Payment terms' },
+    { key: 'industry', label: 'Industry' },
+  ];
+
+  const renderField = (f: (typeof beforeGeo)[number]) => (
+    <label
+      key={f.key}
+      className={`text-[10px] font-bold uppercase tracking-wider text-neutral-400 ${
+        f.span ? 'sm:col-span-2' : ''
+      }`}
+    >
+      {f.label}
+      {f.required ? <span className="text-rose-500"> *</span> : null}
+      {f.key === 'address' ? (
+        <textarea
+          className="input mt-0.5 w-full !p-2.5 !text-sm min-h-[64px] font-medium normal-case tracking-normal"
+          value={form[f.key]}
+          onChange={(e) => set(f.key, e.target.value)}
+        />
+      ) : (
+        <input
+          className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
+          type={f.key === 'email' ? 'email' : 'text'}
+          value={form[f.key]}
+          onChange={(e) => set(f.key, e.target.value)}
+        />
+      )}
+    </label>
+  );
 
   return (
     <div className="rounded-[1.5rem] border border-white/70 bg-white/90 p-5 space-y-4 shadow-sm">
@@ -1490,31 +1528,31 @@ function ProfilePanel({
         </p>
       )}
       <div className="grid sm:grid-cols-2 gap-3">
-        {fields.map((f) => (
-          <label
-            key={f.key}
-            className={`text-[10px] font-bold uppercase tracking-wider text-neutral-400 ${
-              f.span ? 'sm:col-span-2' : ''
-            }`}
-          >
-            {f.label}
-            {f.required ? <span className="text-rose-500"> *</span> : null}
-            {f.key === 'address' ? (
-              <textarea
-                className="input mt-0.5 w-full !p-2.5 !text-sm min-h-[64px] font-medium normal-case tracking-normal"
-                value={form[f.key]}
-                onChange={(e) => set(f.key, e.target.value)}
-              />
-            ) : (
-              <input
-                className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
-                type={f.key === 'email' ? 'email' : 'text'}
-                value={form[f.key]}
-                onChange={(e) => set(f.key, e.target.value)}
-              />
-            )}
-          </label>
-        ))}
+        {beforeGeo.map(renderField)}
+        <div className="sm:col-span-2">
+          <GeoSelectFields
+            compact
+            continentRequired
+            countryRequired
+            disabled={busy}
+            value={{
+              continent: form.continent || '',
+              country: form.country || '',
+              province: form.province || '',
+              city: form.city || '',
+            }}
+            onChange={(g) =>
+              setForm((prev) => ({
+                ...prev,
+                continent: g.continent,
+                country: g.country,
+                province: g.province,
+                city: g.city,
+              }))
+            }
+          />
+        </div>
+        {afterGeo.map(renderField)}
       </div>
       <button
         type="button"

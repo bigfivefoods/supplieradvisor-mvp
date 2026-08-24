@@ -86,8 +86,10 @@ export type BookProfile = {
   vat_number: string;
   registration_number: string;
   address: string;
-  city: string;
+  continent: string;
   country: string;
+  province: string;
+  city: string;
   payment_terms: string;
   industry: string;
 };
@@ -398,7 +400,7 @@ export async function loadPortalWorkspace(opts: {
   let bookProfile: BookProfile | null = null;
   if (kind === 'customer' && opts.viewer.customer_id) {
     const cols =
-      'linked_profile_id, trading_name, legal_name, contact_name, job_title, email, phone, website, vat_number, registration_number, billing_address, city, country, payment_terms, industry';
+      'linked_profile_id, trading_name, legal_name, contact_name, job_title, email, phone, website, vat_number, registration_number, billing_address, city, country, region, payment_terms, industry';
     let hit = await supabase
       .from('customers')
       .select(`${cols}, logo_url`)
@@ -428,8 +430,12 @@ export async function loadPortalWorkspace(opts: {
         vat_number: String(data.vat_number || ''),
         registration_number: String(data.registration_number || ''),
         address: String(data.billing_address || ''),
-        city: String(data.city || ''),
+        continent: '',
         country: String(data.country || ''),
+        province: String(
+          (data as { region?: string | null }).region || ''
+        ),
+        city: String(data.city || ''),
         payment_terms: String(data.payment_terms || ''),
         industry: String(data.industry || ''),
       };
@@ -437,7 +443,7 @@ export async function loadPortalWorkspace(opts: {
   }
   if (kind === 'supplier' && opts.viewer.supplier_id) {
     const cols =
-      'linked_profile_id, trading_name, legal_name, contact_name, job_title, email, phone, website, vat_number, registration_number, address, city, country, payment_terms, industry, metadata';
+      'linked_profile_id, trading_name, legal_name, contact_name, job_title, email, phone, website, vat_number, registration_number, address, continent, province, region, city, country, payment_terms, industry, metadata';
     const softCols =
       'linked_profile_id, trading_name, legal_name, contact_name, job_title, email, phone, website, address, city, country, industry, metadata';
     let hit = await supabase
@@ -485,8 +491,10 @@ export async function loadPortalWorkspace(opts: {
         vat_number: bookStr(data, 'vat_number'),
         registration_number: bookStr(data, 'registration_number'),
         address: bookStr(data, 'address'),
-        city: bookStr(data, 'city'),
+        continent: bookStr(data, 'continent'),
         country: bookStr(data, 'country'),
+        province: bookStr(data, 'province') || bookStr(data, 'region'),
+        city: bookStr(data, 'city'),
         payment_terms: bookStr(data, 'payment_terms'),
         industry: bookStr(data, 'industry'),
       };

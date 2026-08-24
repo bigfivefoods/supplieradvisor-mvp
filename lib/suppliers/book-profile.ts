@@ -17,8 +17,10 @@ export type SrmBookProfile = {
   vat_number: string;
   registration_number: string;
   address: string;
-  city: string;
+  continent: string;
   country: string;
+  province: string;
+  city: string;
   payment_terms: string;
   industry: string;
 };
@@ -39,10 +41,13 @@ export const SRM_BOOK_PROFILE_FIELDS: Array<{
   { key: 'vat_number', label: 'VAT number' },
   { key: 'registration_number', label: 'Registration number' },
   { key: 'address', label: 'Street address', span: true },
-  { key: 'city', label: 'City', required: true },
-  { key: 'country', label: 'Country', required: true },
   { key: 'payment_terms', label: 'Payment terms' },
   { key: 'industry', label: 'Industry' },
+];
+
+const SRM_GEO_REQUIRED: Array<{ key: keyof SrmBookProfile; label: string }> = [
+  { key: 'city', label: 'City' },
+  { key: 'country', label: 'Country' },
 ];
 
 export const EMPTY_SRM_BOOK_PROFILE: SrmBookProfile = {
@@ -57,8 +62,10 @@ export const EMPTY_SRM_BOOK_PROFILE: SrmBookProfile = {
   vat_number: '',
   registration_number: '',
   address: '',
-  city: '',
+  continent: '',
   country: '',
+  province: '',
+  city: '',
   payment_terms: '',
   industry: '',
 };
@@ -94,20 +101,24 @@ export function srmRecordToBookProfile(
     vat_number: pick(row, 'vat_number'),
     registration_number: pick(row, 'registration_number'),
     address: pick(row, 'address'),
-    city: pick(row, 'city'),
+    continent: pick(row, 'continent'),
     country: pick(row, 'country'),
+    province: pick(row, 'province') || pick(row, 'region'),
+    city: pick(row, 'city'),
     payment_terms: pick(row, 'payment_terms'),
     industry: pick(row, 'industry'),
   };
 }
 
 export function srmBookProfileGaps(p: SrmBookProfile | null): string[] {
-  if (!p) {
-    return SRM_BOOK_PROFILE_FIELDS.filter((f) => f.required).map((f) => f.label);
-  }
-  return SRM_BOOK_PROFILE_FIELDS.filter(
-    (f) => f.required && !String(p[f.key] || '').trim()
-  ).map((f) => f.label);
+  const required = [
+    ...SRM_BOOK_PROFILE_FIELDS.filter((f) => f.required),
+    ...SRM_GEO_REQUIRED,
+  ];
+  if (!p) return required.map((f) => f.label);
+  return required
+    .filter((f) => !String(p[f.key] || '').trim())
+    .map((f) => f.label);
 }
 
 export function srmPortalDocuments(

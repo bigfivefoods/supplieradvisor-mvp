@@ -30,8 +30,10 @@ const full: BookProfile = {
   vat_number: '',
   registration_number: '',
   address: '',
-  city: 'Johannesburg',
+  continent: 'Africa',
   country: 'ZA',
+  province: 'Gauteng',
+  city: 'Johannesburg',
   payment_terms: '',
   industry: '',
 };

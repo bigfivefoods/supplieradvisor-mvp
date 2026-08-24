@@ -26,6 +26,8 @@ const row = {
   email: 'sam@kelpac.test',
   phone: '021',
   website: 'https://kelpac.test',
+  continent: 'Africa',
+  province: 'Western Cape',
   city: 'Cape Town',
   country: 'South Africa',
   industry: 'Packaging & Materials',
@@ -48,6 +50,8 @@ assert.equal(profile.vat_number, 'VAT123');
 assert.equal(profile.registration_number, 'REG9');
 assert.equal(profile.payment_terms, 'Net 30');
 assert.equal(profile.job_title, 'Plant lead');
+assert.equal(profile.continent, 'Africa');
+assert.equal(profile.province, 'Western Cape');
 assert.deepEqual(srmBookProfileGaps(profile), []);
 
 const docs = srmPortalDocuments(row);

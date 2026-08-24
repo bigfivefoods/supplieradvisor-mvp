@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AccountLogoField } from '@/components/relationship/AccountLogoField';
+import GeoSelectFields from '@/components/geo/GeoSelectFields';
 import {
   SRM_BOOK_PROFILE_FIELDS,
   srmBookProfileGaps,
@@ -87,8 +88,11 @@ export function SupplierBookProfile({
           vat_number: form.vat_number,
           registration_number: form.registration_number,
           address: form.address,
-          city: form.city,
+          continent: form.continent,
           country: form.country,
+          province: form.province,
+          region: form.province,
+          city: form.city,
           payment_terms: form.payment_terms,
           industry: form.industry,
         }),
@@ -189,7 +193,9 @@ export function SupplierBookProfile({
               {status}
             </span>
           </div>
-          {SRM_BOOK_PROFILE_FIELDS.map((f) => (
+          {SRM_BOOK_PROFILE_FIELDS.filter(
+            (f) => f.key !== 'payment_terms' && f.key !== 'industry'
+          ).map((f) => (
             <label
               key={f.key}
               className={`text-[10px] font-bold uppercase tracking-wider text-neutral-400 ${
@@ -204,7 +210,48 @@ export function SupplierBookProfile({
                   value={form[f.key]}
                   onChange={(e) => set(f.key, e.target.value)}
                 />
-              ) : f.key === 'industry' ? (
+              ) : (
+                <input
+                  className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
+                  type={f.key === 'email' ? 'email' : 'text'}
+                  value={form[f.key]}
+                  onChange={(e) => set(f.key, e.target.value)}
+                />
+              )}
+            </label>
+          ))}
+          <div className="sm:col-span-2">
+            <GeoSelectFields
+              compact
+              continentRequired
+              countryRequired
+              disabled={saving}
+              value={{
+                continent: form.continent || '',
+                country: form.country || '',
+                province: form.province || '',
+                city: form.city || '',
+              }}
+              onChange={(g) =>
+                setForm((prev) => ({
+                  ...prev,
+                  continent: g.continent,
+                  country: g.country,
+                  province: g.province,
+                  city: g.city,
+                }))
+              }
+            />
+          </div>
+          {SRM_BOOK_PROFILE_FIELDS.filter(
+            (f) => f.key === 'payment_terms' || f.key === 'industry'
+          ).map((f) => (
+            <label
+              key={f.key}
+              className="text-[10px] font-bold uppercase tracking-wider text-neutral-400"
+            >
+              {f.label}
+              {f.key === 'industry' ? (
                 <select
                   className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
                   value={form.industry}
@@ -220,7 +267,6 @@ export function SupplierBookProfile({
               ) : (
                 <input
                   className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
-                  type={f.key === 'email' ? 'email' : 'text'}
                   value={form[f.key]}
                   onChange={(e) => set(f.key, e.target.value)}
                 />
