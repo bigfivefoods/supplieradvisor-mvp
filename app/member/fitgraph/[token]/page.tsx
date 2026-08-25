@@ -360,6 +360,7 @@ export default function MemberFitgraphPortalPage() {
   const [msgReply, setMsgReply] = useState('');
   const [debitBank, setDebitBank] = useState<DebitBankForm>(emptyDebitBankForm);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [journeyOpen, setJourneyOpen] = useState(true);
   const [rsvpOverride, setRsvpOverride] = useState<
     Record<string, 'coming' | 'not_coming'>
   >({});
@@ -1593,10 +1594,21 @@ export default function MemberFitgraphPortalPage() {
               color={color}
             />
 
-            <div className="space-y-3">
-              <GymSectionTitle hint="Tap a class to open the session and your rating.">
-                Journey
-              </GymSectionTitle>
+            <GymExpandSection
+              title="Journey"
+              hint={
+                journeyOpen
+                  ? 'Tap a class to open the session and your rating.'
+                  : recentDone.length
+                    ? `${Math.min(recentDone.length, 16)} class${
+                        recentDone.length === 1 ? '' : 'es'
+                      } · ${portal.progress?.attended_30d ?? 0} in 30 days`
+                    : 'Classes you complete land here'
+              }
+              icon={<CheckCircle2 className="h-4 w-4" />}
+              open={journeyOpen}
+              onToggle={() => setJourneyOpen((v) => !v)}
+            >
               <div className="grid grid-cols-3 gap-2">
                 <GymStat
                   value={portal.progress?.attended_30d ?? 0}
@@ -1666,7 +1678,7 @@ export default function MemberFitgraphPortalPage() {
                   }
                 }}
               />
-            </div>
+            </GymExpandSection>
 
             <div className="space-y-2 rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900">
               <div className="flex items-center gap-2 text-slate-800 dark:text-white">
