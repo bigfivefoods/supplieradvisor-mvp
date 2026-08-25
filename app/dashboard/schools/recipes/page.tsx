@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   Calculator,
+  ChevronDown,
   Coffee,
   Loader2,
   Pencil,
@@ -54,6 +55,26 @@ const WEEKDAY_LABEL: Record<number, string> = {
   4: 'Thursday',
   5: 'Friday',
 };
+
+function prettyCat(c: string) {
+  return String(c || '')
+    .replace(/_/g, ' ')
+    .trim();
+}
+
+function recipeLineIsCategory(l: {
+  brand_name?: string | null;
+  notes?: string | null;
+  category_only?: boolean;
+  brand_options?: unknown[] | null;
+}) {
+  return (
+    Boolean(l.category_only) ||
+    !l.brand_name ||
+    String(l.notes || '').includes('category_line:') ||
+    Boolean(l.brand_options && l.brand_options.length > 1 && !l.brand_name)
+  );
+}
 
 type BomLine = {
   /** Reference product id (UOM); null when pure category line until save */
@@ -191,6 +212,7 @@ function Inner() {
 
   // Recipe editor
   const [editId, setEditId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const [name, setName] = useState('');
   const [mealType, setMealType] = useState('lunch');
   const [weekday, setWeekday] = useState<string>('1'); // 1–5 Mon–Fri
@@ -263,6 +285,12 @@ function Inner() {
     return [...set].sort();
   }, [products, budgets]);
 
+  const scrollToEditor = () => {
+    requestAnimationFrame(() => {
+      editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
   const openNew = (slot?: { weekday: number; meal: MealTypeKey }) => {
     setEditId(null);
     setName('');
@@ -277,6 +305,7 @@ function Inner() {
       const dayName = WEEKDAY_LABEL[slot.weekday] || `Day ${slot.weekday}`;
       setName(`${dayName} ${slot.meal === 'breakfast' ? 'Breakfast' : 'Lunch'}`);
     }
+    scrollToEditor();
   };
 
   const openEdit = (r: Recipe) => {
@@ -314,10 +343,8 @@ function Inner() {
     setBomCategory('');
     setBomMode('category');
     setTab('recipes');
-    // Bring editor into view so Edit is obvious
-    requestAnimationFrame(() => {
-      editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+    setExpandedId(r.id);
+    scrollToEditor();
   };
 
   const updateBomLine = (
@@ -369,6 +396,36 @@ function Inner() {
     ) as MealTypeKey;
     return productsForMealHint(products, meal) as Product[];
   }, [products, mealType]);
+
+  const mealCategories = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of mealProducts) {
+      if (p.category) set.add(String(p.category));
+    }
+    const list = [...set].sort((a, b) => a.localeCompare(b));
+    return list.length ? list : categories;
+  }, [mealProducts, categories]);
+
+  const categoryProducts = useMemo(() => {
+    const cat = bomCategory.trim().toLowerCase();
+    if (!cat) return [] as Product[];
+    const pool = mealProducts.length ? mealProducts : products;
+    return pool.filter(
+      (p) =>
+        String(p.category || '')
+          .toLowerCase()
+          .trim() === cat
+    );
+  }, [bomCategory, mealProducts, products]);
+
+  const slotFilledCount = useMemo(() => {
+    let n = 0;
+    for (const d of SCHOOL_WEEK_DAYS) {
+      if (slotRecipes(d.day, 'breakfast').length) n += 1;
+      if (slotRecipes(d.day, 'lunch').length) n += 1;
+    }
+    return n;
+  }, [recipes]);
 
   /** Group recipes Mon→Fri, breakfast then lunch within each day */
   const recipesByWeekday = useMemo(() => {
@@ -718,7 +775,7 @@ function Inner() {
         mode={role === 'isp' ? 'isp' : role === 'agency' ? 'agency' : 'school'}
         description={
           role === 'agency'
-            ? 'Build recipe BOMs from the approved catalogue (qty per learner). MPS = meals from learner counts × feeding days; MRP = product requirements per school and per SP. Set category budgets to track cost.'
+            ? 'Current recipes sit at the top. Create a new one by picking the day and meal, then adding ingredients as a catalogue category (schools pick the brand) or a specific product. Qty is per learner; MPS/MRP scales that by feeding days.'
             : role === 'isp'
               ? 'Estimated meals (MPS) and product quantities (MRP) for schools you supply — scaled by each school’s NSNP learner count and DBE recipes.'
               : 'Pick the brand for each BOM ingredient (e.g. which soya), then use MPS/MRP quantities to order from your SP. Qty per learner is set by DBE.'
@@ -753,7 +810,7 @@ function Inner() {
           >
             {t === 'recipes'
               ? canEdit
-                ? 'Recipe BOM'
+                ? 'Recipes'
                 : 'Choose brands'
               : t === 'plan'
                 ? 'MPS / MRP plan'
@@ -984,39 +1041,96 @@ function Inner() {
           )}
         </div>
       ) : tab === 'recipes' && canEdit ? (
-        <div className="space-y-4">
-          {/* ── Week planner: click a cell to set day + meal ─────────── */}
-          <div className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
-            <div className="px-4 py-3 border-b flex flex-wrap items-center justify-between gap-2">
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-sky-200 bg-white px-4 py-3 text-sm text-slate-700">
+            <p className="font-bold text-slate-900">How a programme recipe works</p>
+            <ol className="mt-2 grid sm:grid-cols-3 gap-3 text-[13px] leading-snug">
+              <li>
+                <strong>1. Day and meal.</strong> Assign the recipe to a weekday
+                breakfast or lunch. Schools cook from this BOM on that slot.
+              </li>
+              <li>
+                <strong>2. Ingredients.</strong> Add a catalogue{' '}
+                <em>category</em> (schools pick the brand) or a{' '}
+                <em>specific product</em>. Qty is per one learner.
+              </li>
+              <li>
+                <strong>3. Scale.</strong> MPS/MRP multiplies qty × learners ×
+                feeding days. Set budgets on the next tab if you track cost.
+              </li>
+            </ol>
+            <p className="mt-3 text-[12px] text-slate-500">
+              <Link
+                href="/dashboard/schools/approved-list"
+                className="font-bold text-[#0077b6] hover:underline"
+              >
+                Foods
+              </Link>
+              {' · '}
+              <Link
+                href="/dashboard/schools/menu"
+                className="font-bold text-[#0077b6] hover:underline"
+              >
+                Menu
+              </Link>
+              {' · '}
+              <Link
+                href="/dashboard/schools/feeding-calendar"
+                className="font-bold text-[#0077b6] hover:underline"
+              >
+                Calendar
+              </Link>
+            </p>
+            {categories.length === 0 ? (
+              <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-950">
+                No catalogue categories yet.{' '}
+                <Link
+                  href="/dashboard/schools/approved-list"
+                  className="underline"
+                >
+                  Add approved foods first →
+                </Link>
+              </p>
+            ) : null}
+          </div>
+
+          {/* ── 1. Current recipes ──────────────────────────────────── */}
+          <section className="rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden">
+            <div className="px-4 py-3 border-b bg-white/80 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-sm font-black inline-flex items-center gap-2">
                   <Utensils className="w-4 h-4 text-[#0077b6]" />
-                  Week planner · assign BOM to a day &amp; meal
+                  Current recipes
                 </p>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  Click a cell (e.g. <strong>Tue · Breakfast</strong>) to create
-                  or edit that recipe. Filled cells already have a BOM.
+                  {recipes.length} recipe{recipes.length === 1 ? '' : 's'} ·{' '}
+                  {slotFilledCount}/10 breakfast and lunch slots this week
+                  {recipesByWeekday.unassigned.length
+                    ? ` · ${recipesByWeekday.unassigned.length} not assigned to a day`
+                    : ''}
                 </p>
               </div>
-              <span className="text-[11px] font-semibold text-slate-500">
-                {recipes.length} recipe{recipes.length === 1 ? '' : 's'} ·{' '}
-                {recipesByWeekday.unassigned.length} unassigned
-              </span>
+              <button
+                type="button"
+                onClick={() => openNew()}
+                className="btn-primary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              >
+                <Plus className="w-3.5 h-3.5" /> New recipe
+              </button>
             </div>
+
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-sm border-collapse">
+              <table className="w-full min-w-[640px] text-sm border-collapse">
                 <thead>
                   <tr className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    <th className="px-3 py-2 text-left w-28">Meal</th>
+                    <th className="px-3 py-2 text-left w-24">Meal</th>
                     {SCHOOL_WEEK_DAYS.map((d) => (
                       <th key={d.day} className="px-2 py-2 text-center">
-                        <span className="inline-flex flex-col items-center">
-                          <span className="text-slate-900 font-black text-xs">
-                            {d.short}
-                          </span>
-                          <span className="font-semibold normal-case tracking-normal text-slate-400">
-                            {d.label}
-                          </span>
+                        <span className="block text-slate-900 font-black text-xs">
+                          {d.short}
+                        </span>
+                        <span className="font-semibold normal-case tracking-normal text-slate-400">
+                          {d.label}
                         </span>
                       </th>
                     ))}
@@ -1048,68 +1162,45 @@ function Inner() {
                             mealType === meal;
                           const has = list.length > 0;
                           return (
-                            <td key={`${d.day}-${meal}`} className="p-1.5 align-top">
+                            <td
+                              key={`${d.day}-${meal}`}
+                              className="p-1.5 align-top"
+                            >
                               <button
                                 type="button"
                                 onClick={() => selectWeekSlot(d.day, meal)}
-                                className={`w-full min-h-[4.5rem] rounded-2xl border-2 px-2 py-2 text-left transition-all ${
+                                className={`w-full min-h-[3.75rem] rounded-2xl border px-2 py-1.5 text-left transition-all ${
                                   selected
                                     ? isB
                                       ? 'border-amber-500 bg-amber-50 ring-2 ring-amber-200'
                                       : 'border-sky-500 bg-sky-50 ring-2 ring-sky-200'
                                     : has
                                       ? isB
-                                        ? 'border-amber-200 bg-amber-50/60 hover:border-amber-400'
-                                        : 'border-sky-200 bg-sky-50/60 hover:border-sky-400'
-                                      : 'border-dashed border-slate-200 bg-slate-50/50 hover:border-[#00b4d8] hover:bg-sky-50/40'
+                                        ? 'border-amber-200 bg-white hover:border-amber-400'
+                                        : 'border-sky-200 bg-white hover:border-sky-400'
+                                      : 'border-dashed border-slate-200 bg-white/50 hover:border-[#00b4d8]'
                                 }`}
                               >
                                 {has ? (
-                                  <div className="space-y-1.5">
+                                  <div className="space-y-1">
                                     {list.map((r) => (
-                                      <div
+                                      <p
                                         key={r.id}
-                                        className={
-                                          editId === r.id
-                                            ? 'rounded-lg bg-white/80 px-1 py-0.5 ring-1 ring-[#00b4d8]/40'
-                                            : ''
-                                        }
+                                        className="text-[11px] font-bold text-slate-900 leading-snug line-clamp-2"
                                       >
-                                        <p className="text-[11px] font-bold text-slate-900 leading-snug line-clamp-2">
-                                          {r.name}
-                                        </p>
-                                        <p className="text-[10px] text-slate-500">
-                                          {(r.lines || []).length} product
+                                        {r.name}
+                                        <span className="block font-semibold text-slate-500">
+                                          {(r.lines || []).length} ingredient
                                           {(r.lines || []).length === 1
                                             ? ''
                                             : 's'}
-                                          {editId === r.id ? ' · editing' : ''}
-                                        </p>
-                                        {list.length > 1 ? (
-                                          <span
-                                            role="button"
-                                            tabIndex={0}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              openEdit(r);
-                                            }}
-                                            onKeyDown={(e) => {
-                                              if (e.key === 'Enter') {
-                                                e.stopPropagation();
-                                                openEdit(r);
-                                              }
-                                            }}
-                                            className="text-[10px] font-bold text-[#0077b6] underline"
-                                          >
-                                            Edit this
-                                          </span>
-                                        ) : null}
-                                      </div>
+                                        </span>
+                                      </p>
                                     ))}
                                   </div>
                                 ) : (
                                   <p className="text-[11px] font-semibold text-slate-400 text-center py-2">
-                                    + Add
+                                    Empty · add
                                   </p>
                                 )}
                               </button>
@@ -1122,134 +1213,289 @@ function Inner() {
                 </tbody>
               </table>
             </div>
-            {recipesByWeekday.unassigned.length > 0 ? (
-              <div className="px-4 py-3 border-t border-amber-100 bg-amber-50/50">
-                <p className="text-[11px] font-bold text-amber-950 mb-2">
-                  Unassigned recipes — open one and pick a week cell, then save
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {recipesByWeekday.unassigned.map((r) => (
-                    <button
-                      key={r.id}
-                      type="button"
-                      onClick={() => openEdit(r)}
-                      className="rounded-full border border-amber-200 bg-white px-3 py-1 text-[11px] font-bold text-amber-950 hover:bg-amber-100"
-                    >
-                      {r.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
 
-          {/* ── Recipe editor for the selected slot ─────────────────── */}
-          <div className="grid lg:grid-cols-5 gap-4">
-            <div
-              ref={editorRef}
-              className={`lg:col-span-3 rounded-3xl border bg-white p-4 sm:p-5 space-y-4 ${
-                editId
-                  ? 'border-[#00b4d8] ring-2 ring-[#00b4d8]/20'
-                  : 'border-slate-200'
-              }`}
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-black inline-flex items-center gap-2">
-                    {editId ? (
-                      <>
-                        <Pencil className="w-4 h-4 text-[#0077b6]" />
-                        Editing BOM #{editId}
-                      </>
-                    ) : (
-                      'New recipe BOM'
-                    )}
-                  </p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    {editId
-                      ? 'Change day, meal, name, or edit ingredient qty / wastage below — then Update BOM.'
-                      : 'Pick a week cell (or day + meal), add ingredients, then Save.'}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <span
-                    className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-black ${
-                      mealType === 'breakfast'
-                        ? 'bg-amber-100 border-amber-300 text-amber-950'
-                        : 'bg-sky-100 border-sky-300 text-sky-950'
-                    }`}
-                  >
-                    {selectedSlotLabel.dayName} · {selectedSlotLabel.meal}
-                  </span>
-                  {editId ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        openNew({
-                          weekday: Number(weekday) || 1,
-                          meal: (mealType === 'breakfast'
-                            ? 'breakfast'
-                            : 'lunch') as MealTypeKey,
-                        })
-                      }
-                      className="text-[11px] font-bold text-slate-500 px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50"
-                    >
-                      Cancel edit · new
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-
-              {/* Big day + meal buttons (in case user wants to change without grid) */}
-              <div className="space-y-2">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  1 · When is this meal served?
+            <div className="border-t divide-y divide-slate-100 bg-white">
+              {recipes.length === 0 ? (
+                <p className="px-4 py-10 text-center text-slate-500 text-sm">
+                  No recipes yet. Use <strong>New recipe</strong> or click an
+                  empty slot above.
                 </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {SCHOOL_WEEK_DAYS.map((d) => {
-                    const on = String(weekday) === String(d.day);
-                    return (
+              ) : (
+                recipesByWeekday.days.map((day) => {
+                  const dayRecipes = [
+                    ...day.breakfast,
+                    ...day.lunch,
+                    ...day.other,
+                  ];
+                  if (!dayRecipes.length) return null;
+                  return (
+                    <section key={day.day} className="px-3 py-3 space-y-2">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 px-1">
+                        {day.label}
+                      </p>
+                      {dayRecipes.map((r) => {
+                        const open = expandedId === r.id || editId === r.id;
+                        const meal = String(r.meal_type || '').toLowerCase();
+                        return (
+                          <article
+                            key={r.id}
+                            className={`rounded-2xl border px-3 py-2.5 ${
+                              editId === r.id
+                                ? 'border-[#00b4d8] bg-sky-50/70 ring-1 ring-[#00b4d8]/30'
+                                : 'border-slate-200 bg-slate-50/60'
+                            }`}
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <button
+                                type="button"
+                                className="min-w-0 text-left flex-1"
+                                onClick={() =>
+                                  setExpandedId(open && editId !== r.id ? null : r.id)
+                                }
+                              >
+                                <p className="font-bold text-sm text-slate-900 inline-flex items-center gap-2 flex-wrap">
+                                  <ChevronDown
+                                    className={`w-4 h-4 text-slate-400 transition-transform ${
+                                      open ? '' : 'rotate-[-90deg]'
+                                    }`}
+                                  />
+                                  {r.name}
+                                  <span
+                                    className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-md ${
+                                      meal === 'breakfast'
+                                        ? 'bg-amber-100 text-amber-900'
+                                        : 'bg-sky-100 text-sky-900'
+                                    }`}
+                                  >
+                                    {r.meal_type || 'meal'}
+                                  </span>
+                                </p>
+                                <p className="text-[11px] text-slate-500 mt-0.5 pl-6">
+                                  {(r.lines || []).length} ingredient
+                                  {(r.lines || []).length === 1 ? '' : 's'}
+                                  {(r.lines || []).length
+                                    ? ` · ${(r.lines || [])
+                                        .map((l) => prettyCat(l.category || l.product_name))
+                                        .join(', ')}`
+                                    : ''}
+                                </p>
+                              </button>
+                              <div className="flex gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => openEdit(r)}
+                                  className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg border inline-flex items-center gap-1 ${
+                                    editId === r.id
+                                      ? 'bg-[#0077b6] text-white border-[#0077b6]'
+                                      : 'text-[#0077b6] border-sky-200 bg-white hover:bg-sky-50'
+                                  }`}
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                  {editId === r.id ? 'Editing' : 'Edit'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void deleteRecipe(r.id)}
+                                  className="text-[11px] font-bold text-rose-600 px-2 py-1.5 rounded-lg border border-rose-100 bg-white"
+                                  aria-label={`Delete ${r.name}`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                            {open ? (
+                              <ul className="mt-2 ml-6 space-y-1">
+                                {(r.lines || []).length === 0 ? (
+                                  <li className="text-xs text-slate-400">
+                                    No ingredients yet.
+                                  </li>
+                                ) : (
+                                  (r.lines || []).map((l, i) => {
+                                    const catOnly = recipeLineIsCategory(l);
+                                    return (
+                                      <li
+                                        key={l.id ?? i}
+                                        className="text-xs text-slate-700 flex flex-wrap justify-between gap-2 border-t border-slate-100 pt-1.5"
+                                      >
+                                        <span>
+                                          {catOnly ? (
+                                            <>
+                                              <span className="font-bold">
+                                                {prettyCat(l.category || l.product_name)}
+                                              </span>
+                                              <span className="text-slate-500">
+                                                {' '}
+                                                · schools pick brand
+                                                {l.brand_options?.length
+                                                  ? ` (${l.brand_options.length} options)`
+                                                  : ''}
+                                              </span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <span className="font-bold">
+                                                {l.brand_name
+                                                  ? `${l.brand_name} · `
+                                                  : ''}
+                                                {l.product_name}
+                                              </span>
+                                              <span className="text-slate-500">
+                                                {' '}
+                                                · {prettyCat(l.category || '')}
+                                              </span>
+                                            </>
+                                          )}
+                                        </span>
+                                        <span className="font-black tabular-nums text-slate-900">
+                                          {l.qty_per_portion} {l.uom}/learner
+                                          {l.wastage_pct
+                                            ? ` · +${l.wastage_pct}% waste`
+                                            : ''}
+                                        </span>
+                                      </li>
+                                    );
+                                  })
+                                )}
+                              </ul>
+                            ) : null}
+                          </article>
+                        );
+                      })}
+                    </section>
+                  );
+                })
+              )}
+              {recipesByWeekday.unassigned.length > 0 ? (
+                <div className="px-4 py-3 bg-amber-50/70">
+                  <p className="text-[11px] font-bold text-amber-950 mb-2">
+                    Unassigned — open one, pick a weekday, then save
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {recipesByWeekday.unassigned.map((r) => (
                       <button
-                        key={d.day}
+                        key={r.id}
                         type="button"
-                        onClick={() => setWeekday(String(d.day))}
-                        className={`min-w-[3.25rem] rounded-xl border px-2.5 py-2 text-xs font-black transition-colors ${
-                          on
-                            ? 'border-[#0077b6] bg-[#0077b6] text-white'
-                            : 'border-slate-200 bg-white text-slate-700 hover:border-sky-300'
-                        }`}
+                        onClick={() => openEdit(r)}
+                        className="rounded-full border border-amber-200 bg-white px-3 py-1 text-[11px] font-bold text-amber-950 hover:bg-amber-100"
                       >
-                        {d.short}
+                        {r.name}
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setMealType('breakfast')}
-                    className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-black ${
-                      mealType === 'breakfast'
-                        ? 'border-amber-500 bg-amber-100 text-amber-950'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-amber-300'
-                    }`}
-                  >
-                    <Coffee className="w-3.5 h-3.5" /> Breakfast
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMealType('lunch')}
-                    className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-black ${
-                      mealType === 'lunch'
-                        ? 'border-sky-500 bg-sky-100 text-sky-950'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300'
-                    }`}
-                  >
-                    <Sun className="w-3.5 h-3.5" /> Lunch
-                  </button>
-                </div>
-              </div>
+              ) : null}
+            </div>
+          </section>
 
+          {/* ── 2. Create / edit ────────────────────────────────────── */}
+          <section
+            ref={editorRef}
+            className={`rounded-3xl border bg-white p-4 sm:p-5 space-y-5 ${
+              editId
+                ? 'border-[#00b4d8] ring-2 ring-[#00b4d8]/20'
+                : 'border-slate-200'
+            }`}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="text-sm font-black inline-flex items-center gap-2">
+                  {editId ? (
+                    <>
+                      <Pencil className="w-4 h-4 text-[#0077b6]" />
+                      Edit recipe
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 text-[#0077b6]" />
+                      Create a new recipe
+                    </>
+                  )}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {editId
+                    ? 'Change the day, meal, name, or ingredients, then save.'
+                    : 'Pick when it is served, name it, add ingredients from the catalogue.'}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <span
+                  className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-black ${
+                    mealType === 'breakfast'
+                      ? 'bg-amber-100 border-amber-300 text-amber-950'
+                      : 'bg-sky-100 border-sky-300 text-sky-950'
+                  }`}
+                >
+                  {selectedSlotLabel.dayName} · {selectedSlotLabel.meal}
+                </span>
+                {editId ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openNew({
+                        weekday: Number(weekday) || 1,
+                        meal: (mealType === 'breakfast'
+                          ? 'breakfast'
+                          : 'lunch') as MealTypeKey,
+                      })
+                    }
+                    className="text-[11px] font-bold text-slate-500 px-2 py-1 rounded-lg border border-slate-200 hover:bg-slate-50"
+                  >
+                    Cancel · new
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                1 · Day and meal
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {SCHOOL_WEEK_DAYS.map((d) => {
+                  const on = String(weekday) === String(d.day);
+                  return (
+                    <button
+                      key={d.day}
+                      type="button"
+                      onClick={() => setWeekday(String(d.day))}
+                      className={`min-w-[3.25rem] rounded-xl border px-2.5 py-2 text-xs font-black transition-colors ${
+                        on
+                          ? 'border-[#0077b6] bg-[#0077b6] text-white'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-sky-300'
+                      }`}
+                    >
+                      {d.short}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMealType('breakfast')}
+                  className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-black ${
+                    mealType === 'breakfast'
+                      ? 'border-amber-500 bg-amber-100 text-amber-950'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-amber-300'
+                  }`}
+                >
+                  <Coffee className="w-3.5 h-3.5" /> Breakfast
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMealType('lunch')}
+                  className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-black ${
+                    mealType === 'lunch'
+                      ? 'border-sky-500 bg-sky-100 text-sky-950'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300'
+                  }`}
+                >
+                  <Sun className="w-3.5 h-3.5" /> Lunch
+                </button>
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-3">
               <label className="block text-xs">
                 <span className="text-[10px] font-bold uppercase text-slate-400">
                   2 · Recipe name *
@@ -1258,358 +1504,361 @@ function Inner() {
                   className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Fortified maize porridge"
+                  placeholder="e.g. Monday lunch — samp, soya, veg"
                 />
               </label>
               <label className="block text-xs">
                 <span className="text-[10px] font-bold uppercase text-slate-400">
-                  Description (optional)
+                  Kitchen notes (optional)
                 </span>
                 <input
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Prep notes for schools / kitchens"
+                  placeholder="Prep notes for schools"
                 />
               </label>
+            </div>
 
-              <div className="border-t pt-4 space-y-3">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    3 · BOM ingredients (qty per 1 learner)
-                  </p>
-                  <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                    <strong>DBE selects the category</strong> (e.g. soya).
-                    Schools then pick the brand within that category. SPs must
-                    buy the school brand (or an approved same-category
-                    substitute if OOS — half score).
-                  </p>
-                </div>
+            <div className="border-t pt-4 space-y-3">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  3 · Add an ingredient
+                </p>
+                <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                  Choose a <strong>category</strong> first. Then either keep it
+                  as “any approved brand” (schools pick) or lock a{' '}
+                  <strong>specific product</strong>.
+                </p>
+              </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setBomMode('category')}
-                    className={`rounded-full px-3 py-1.5 text-[11px] font-bold border ${
-                      bomMode === 'category'
-                        ? 'bg-[#0077b6] text-white border-[#0077b6]'
-                        : 'bg-white border-slate-200 text-slate-600'
-                    }`}
-                  >
-                    By category (recommended)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBomMode('product')}
-                    className={`rounded-full px-3 py-1.5 text-[11px] font-bold border ${
-                      bomMode === 'product'
-                        ? 'bg-slate-800 text-white border-slate-800'
-                        : 'bg-white border-slate-200 text-slate-600'
-                    }`}
-                  >
-                    Specific product
-                  </button>
-                </div>
+              <label className="block text-xs">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Category *
+                </span>
+                <select
+                  className="w-full rounded-xl border border-sky-200 bg-sky-50/40 px-3 py-2.5 text-sm font-semibold"
+                  value={bomCategory}
+                  onChange={(e) => {
+                    setBomCategory(e.target.value);
+                    setProductId('');
+                    setBomMode('category');
+                  }}
+                >
+                  <option value="">Select category…</option>
+                  {mealCategories.map((c) => {
+                    const n = products.filter(
+                      (p) =>
+                        String(p.category || '').toLowerCase() ===
+                        c.toLowerCase()
+                    ).length;
+                    return (
+                      <option key={c} value={c}>
+                        {prettyCat(c)} · {n} product{n === 1 ? '' : 's'}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
 
-                {bomMode === 'category' ? (
-                  <label className="block text-xs">
-                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                      Product category *
-                    </span>
-                    <select
-                      className="w-full rounded-xl border border-sky-200 bg-sky-50/40 px-3 py-2.5 text-sm font-semibold"
-                      value={bomCategory}
-                      onChange={(e) => setBomCategory(e.target.value)}
+              {bomCategory ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBomMode('category');
+                        setProductId('');
+                      }}
+                      className={`rounded-full px-3 py-1.5 text-[11px] font-bold border ${
+                        bomMode === 'category'
+                          ? 'bg-[#0077b6] text-white border-[#0077b6]'
+                          : 'bg-white border-slate-200 text-slate-600'
+                      }`}
                     >
-                      <option value="">Select category…</option>
-                      {categories.map((c) => {
-                        const n = products.filter(
-                          (p) =>
-                            String(p.category || '').toLowerCase() ===
-                            c.toLowerCase()
-                        ).length;
-                        return (
-                          <option key={c} value={c}>
-                            {c} · {n} brand{n === 1 ? '' : 's'}
+                      Any brand in this category
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBomMode('product')}
+                      className={`rounded-full px-3 py-1.5 text-[11px] font-bold border ${
+                        bomMode === 'product'
+                          ? 'bg-slate-800 text-white border-slate-800'
+                          : 'bg-white border-slate-200 text-slate-600'
+                      }`}
+                    >
+                      Specific product
+                    </button>
+                  </div>
+
+                  {bomMode === 'category' ? (
+                    <p className="text-[11px] text-sky-900">
+                      Schools will choose among{' '}
+                      <strong>{categoryProducts.length || products.filter(
+                        (p) =>
+                          String(p.category || '').toLowerCase() ===
+                          bomCategory.toLowerCase()
+                      ).length}</strong>{' '}
+                      approved product
+                      {(categoryProducts.length || 0) === 1 ? '' : 's'} in{' '}
+                      <strong>{prettyCat(bomCategory)}</strong>.
+                    </p>
+                  ) : (
+                    <label className="block text-xs">
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                        Product in {prettyCat(bomCategory)}
+                      </span>
+                      <select
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+                        value={productId}
+                        onChange={(e) => setProductId(e.target.value)}
+                      >
+                        <option value="">Select product…</option>
+                        {(categoryProducts.length
+                          ? categoryProducts
+                          : products.filter(
+                              (p) =>
+                                String(p.category || '').toLowerCase() ===
+                                bomCategory.toLowerCase()
+                            )
+                        ).map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.brand_name ? `${p.brand_name} — ` : ''}
+                            {p.name}
+                            {p.uom ? ` (${p.uom})` : ''}
                           </option>
-                        );
-                      })}
-                    </select>
-                    {bomCategory ? (
-                      <span className="block mt-1 text-[10px] text-sky-800 font-semibold">
-                        Schools will choose among{' '}
-                        {
-                          products.filter(
+                        ))}
+                      </select>
+                    </label>
+                  )}
+
+                  {(categoryProducts.length
+                    ? categoryProducts
+                    : products.filter(
+                        (p) =>
+                          String(p.category || '').toLowerCase() ===
+                          bomCategory.toLowerCase()
+                      )
+                  ).length > 0 ? (
+                    <p className="text-[10px] text-slate-500 leading-snug">
+                      In catalogue:{' '}
+                      {(categoryProducts.length
+                        ? categoryProducts
+                        : products.filter(
                             (p) =>
                               String(p.category || '').toLowerCase() ===
                               bomCategory.toLowerCase()
-                          ).length
-                        }{' '}
-                        approved brand(s) in this category
-                      </span>
-                    ) : null}
-                  </label>
-                ) : (
-                  <label className="block text-xs">
-                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                      Specific approved product
-                    </span>
-                    <select
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
-                      value={productId}
-                      onChange={(e) => setProductId(e.target.value)}
-                    >
-                      <option value="">
-                        {mealProducts.length
-                          ? `Select ${selectedSlotLabel.meal.toLowerCase()} product…`
-                          : 'Select product from catalogue…'}
-                      </option>
-                      {(mealProducts.length ? mealProducts : products).map(
-                        (p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.brand_name} — {p.name}
-                            {p.category ? ` · ${p.category}` : ''}
-                            {p.uom ? ` (${p.uom})` : ''}
-                          </option>
-                        )
-                      )}
-                    </select>
-                  </label>
-                )}
-
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="block text-xs">
-                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                      Qty per 1 learner
-                    </span>
-                    <input
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-bold tabular-nums"
-                      value={qtyPer}
-                      onChange={(e) => setQtyPer(e.target.value)}
-                      placeholder="e.g. 0.08"
-                      inputMode="decimal"
-                    />
-                  </label>
-                  <label className="block text-xs">
-                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                      Wastage %
-                    </span>
-                    <input
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm tabular-nums"
-                      value={wastage}
-                      onChange={(e) => setWastage(e.target.value)}
-                      placeholder="e.g. 5"
-                      inputMode="decimal"
-                    />
-                  </label>
-                </div>
-
-                {(() => {
-                  const q = Number(qtyPer);
-                  const w = Number(wastage) || 0;
-                  if (!(q > 0)) return null;
-                  const prod =
-                    bomMode === 'product'
-                      ? mealProducts.find((p) => p.id === Number(productId)) ||
-                        products.find((p) => p.id === Number(productId))
-                      : products.find(
-                          (p) =>
-                            String(p.category || '').toLowerCase() ===
-                            bomCategory.toLowerCase()
-                        );
-                  if (!prod && bomMode === 'product') return null;
-                  if (bomMode === 'category' && !bomCategory) return null;
-                  const total = Math.round(q * (1 + w / 100) * 1e6) / 1e6;
-                  const uom = prod?.uom || 'uom';
-                  return (
-                    <p className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
-                      Total per 1 learner (incl. wastage):{' '}
-                      <span className="font-black tabular-nums">
-                        {total} {uom}
-                      </span>
+                          )
+                      )
+                        .slice(0, 8)
+                        .map((p) => p.brand_name || p.name)
+                        .join(' · ')}
+                      {(categoryProducts.length > 8
+                        ? categoryProducts
+                        : products.filter(
+                            (p) =>
+                              String(p.category || '').toLowerCase() ===
+                              bomCategory.toLowerCase()
+                          )
+                      ).length > 8
+                        ? ' …'
+                        : ''}
                     </p>
-                  );
-                })()}
+                  ) : (
+                    <p className="text-[11px] font-semibold text-amber-800">
+                      No products in this category.{' '}
+                      <Link
+                        href="/dashboard/schools/approved-list"
+                        className="underline"
+                      >
+                        Add them on Foods
+                      </Link>
+                      .
+                    </p>
+                  )}
+                </div>
+              ) : null}
 
-                <button
-                  type="button"
-                  onClick={addBomLine}
-                  className="btn-secondary !py-2.5 !px-3 text-xs w-full"
-                >
-                  <Plus className="w-3.5 h-3.5 inline mr-1" />
-                  {bomMode === 'category'
-                    ? 'Add category to BOM'
-                    : 'Add product to BOM'}
-                </button>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block text-xs">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Qty per 1 learner
+                  </span>
+                  <input
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-bold tabular-nums"
+                    value={qtyPer}
+                    onChange={(e) => setQtyPer(e.target.value)}
+                    placeholder="e.g. 0.08"
+                    inputMode="decimal"
+                  />
+                </label>
+                <label className="block text-xs">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Wastage %
+                  </span>
+                  <input
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm tabular-nums"
+                    value={wastage}
+                    onChange={(e) => setWastage(e.target.value)}
+                    placeholder="e.g. 5"
+                    inputMode="decimal"
+                  />
+                </label>
               </div>
 
-              {bomLines.length > 0 ? (
-                <div className="rounded-xl border border-slate-200 overflow-hidden">
-                  <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                      BOM lines · edit qty / wastage inline
-                    </p>
-                    <p className="text-[10px] font-semibold text-slate-400">
-                      {bomLines.length} ingredient
-                      {bomLines.length === 1 ? '' : 's'}
-                    </p>
-                  </div>
-                  <ul className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
-                    {bomLines.map((l, i) => {
-                      const q = Number(l.qty_per_portion) || 0;
-                      const w = Number(l.wastage_pct) || 0;
-                      const total =
-                        Math.round(q * (1 + w / 100) * 1e6) / 1e6;
-                      return (
-                        <li
-                          key={`${l.approved_product_id}-${i}`}
-                          className="px-3 py-2.5 space-y-2 sm:space-y-0 sm:grid sm:grid-cols-12 sm:gap-2 sm:items-center"
-                        >
-                          <div className="sm:col-span-5 min-w-0">
-                            <p className="text-xs font-bold text-slate-900 truncate">
-                              {l.category_only || !l.brand_name
-                                ? `Category · ${l.category}`
-                                : `${l.brand_name} · ${l.product_name}`}
-                            </p>
-                            <p className="text-[10px] text-slate-400">
-                              {l.category_only || !l.brand_name
-                                ? 'Schools pick brand · '
-                                : ''}
-                              {l.category} · UOM {l.uom}
-                            </p>
-                          </div>
-                          <label className="sm:col-span-2 block text-[10px]">
-                            <span className="font-bold uppercase text-slate-400">
-                              Qty / learner
-                            </span>
-                            <input
-                              className="mt-0.5 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm font-bold tabular-nums text-right"
-                              value={l.qty_per_portion}
-                              inputMode="decimal"
-                              onChange={(e) =>
-                                updateBomLine(i, {
-                                  qty_per_portion: e.target.value,
-                                })
-                              }
-                            />
-                          </label>
-                          <label className="sm:col-span-2 block text-[10px]">
-                            <span className="font-bold uppercase text-slate-400">
-                              Wastage %
-                            </span>
-                            <input
-                              className="mt-0.5 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm tabular-nums text-right"
-                              value={l.wastage_pct}
-                              inputMode="decimal"
-                              onChange={(e) =>
-                                updateBomLine(i, {
-                                  wastage_pct: e.target.value,
-                                })
-                              }
-                            />
-                          </label>
-                          <div className="sm:col-span-2 text-right">
-                            <p className="text-[9px] font-bold uppercase text-slate-400">
-                              Total
-                            </p>
-                            <p className="text-sm font-black tabular-nums text-emerald-800">
-                              {total}{' '}
-                              <span className="text-[10px] font-semibold text-slate-500">
-                                {l.uom}
-                              </span>
-                            </p>
-                          </div>
-                          <div className="sm:col-span-1 flex sm:justify-end">
-                            <button
-                              type="button"
-                              className="text-rose-600 font-bold text-xs px-2 py-1 rounded-lg border border-rose-100 hover:bg-rose-50"
-                              title="Remove from BOM"
-                              onClick={() =>
-                                setBomLines((prev) =>
-                                  prev.filter((_, j) => j !== i)
-                                )
-                              }
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </li>
+              {(() => {
+                const q = Number(qtyPer);
+                const w = Number(wastage) || 0;
+                if (!(q > 0) || !bomCategory) return null;
+                const prod =
+                  bomMode === 'product'
+                    ? categoryProducts.find((p) => p.id === Number(productId)) ||
+                      products.find((p) => p.id === Number(productId))
+                    : categoryProducts[0] ||
+                      products.find(
+                        (p) =>
+                          String(p.category || '').toLowerCase() ===
+                          bomCategory.toLowerCase()
                       );
-                    })}
-                  </ul>
-                </div>
-              ) : (
-                <p className="text-xs text-slate-400 text-center py-2">
-                  No ingredients yet — add catalogue products above.
-                </p>
-              )}
+                if (bomMode === 'product' && !prod) return null;
+                const total = Math.round(q * (1 + w / 100) * 1e6) / 1e6;
+                const uom = prod?.uom || 'uom';
+                return (
+                  <p className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
+                    Total per learner (incl. wastage):{' '}
+                    <span className="font-black tabular-nums">
+                      {total} {uom}
+                    </span>
+                  </p>
+                );
+              })()}
 
               <button
                 type="button"
-                disabled={saving}
-                onClick={() => void saveRecipe()}
-                className="btn-primary !py-3 !px-4 text-sm w-full inline-flex items-center justify-center gap-2"
+                onClick={addBomLine}
+                className="btn-secondary !py-2.5 !px-3 text-xs w-full sm:w-auto"
               >
-                {saving ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Save className="w-4 h-4" />
-                )}
-                {editId ? 'Update BOM' : 'Save BOM'} ·{' '}
-                {selectedSlotLabel.dayName} {selectedSlotLabel.meal}
+                <Plus className="w-3.5 h-3.5 inline mr-1" />
+                {bomMode === 'product'
+                  ? 'Add product to recipe'
+                  : 'Add category to recipe'}
               </button>
             </div>
 
-            {/* Side list of all recipes for this week */}
-            <div className="lg:col-span-2 rounded-3xl border border-sky-300 bg-sky-50 dark:!border-sky-400 dark:!bg-sky-950 dark:ring-1 dark:ring-sky-500/50 overflow-hidden max-h-[40rem] overflow-y-auto">
-              <div className="px-4 py-3 border-b text-sm font-black sticky top-0 bg-white z-10">
-                All recipes ({recipes.length})
-              </div>
-              {recipes.length === 0 ? (
-                <p className="px-4 py-10 text-center text-slate-500 text-sm">
-                  Click a week cell to start your first BOM.
-                </p>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {recipesByWeekday.days.map((day) => {
-                    const dayRecipes = [
-                      ...day.breakfast,
-                      ...day.lunch,
-                      ...day.other,
-                    ];
-                    if (!dayRecipes.length) return null;
+            {bomLines.length > 0 ? (
+              <div className="rounded-xl border border-slate-200 overflow-hidden">
+                <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    Recipe ingredients
+                  </p>
+                  <p className="text-[10px] font-semibold text-slate-400">
+                    {bomLines.length} line{bomLines.length === 1 ? '' : 's'}
+                  </p>
+                </div>
+                <ul className="divide-y divide-slate-100">
+                  {bomLines.map((l, i) => {
+                    const q = Number(l.qty_per_portion) || 0;
+                    const w = Number(l.wastage_pct) || 0;
+                    const total = Math.round(q * (1 + w / 100) * 1e6) / 1e6;
                     return (
-                      <section key={day.day}>
-                        <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-black uppercase text-slate-500">
-                          {day.label}
+                      <li
+                        key={`${l.approved_product_id}-${l.category}-${i}`}
+                        className="px-3 py-2.5 space-y-2 sm:space-y-0 sm:grid sm:grid-cols-12 sm:gap-2 sm:items-center"
+                      >
+                        <div className="sm:col-span-5 min-w-0">
+                          <p className="text-xs font-bold text-slate-900 truncate">
+                            {l.category_only || !l.brand_name
+                              ? prettyCat(l.category)
+                              : `${l.brand_name} · ${l.product_name}`}
+                          </p>
+                          <p className="text-[10px] text-slate-400">
+                            {l.category_only || !l.brand_name
+                              ? 'Schools pick brand · '
+                              : 'Specific product · '}
+                            {prettyCat(l.category)} · {l.uom}
+                          </p>
                         </div>
-                        {day.breakfast.length > 0 ? (
-                          <MealGroup
-                            label="Breakfast"
-                            icon="breakfast"
-                            recipes={day.breakfast}
-                            editId={editId}
-                            onEdit={openEdit}
-                            onDelete={deleteRecipe}
+                        <label className="sm:col-span-2 block text-[10px]">
+                          <span className="font-bold uppercase text-slate-400">
+                            Qty / learner
+                          </span>
+                          <input
+                            className="mt-0.5 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm font-bold tabular-nums text-right"
+                            value={l.qty_per_portion}
+                            inputMode="decimal"
+                            onChange={(e) =>
+                              updateBomLine(i, {
+                                qty_per_portion: e.target.value,
+                              })
+                            }
                           />
-                        ) : null}
-                        {day.lunch.length > 0 ? (
-                          <MealGroup
-                            label="Lunch"
-                            icon="lunch"
-                            recipes={day.lunch}
-                            editId={editId}
-                            onEdit={openEdit}
-                            onDelete={deleteRecipe}
+                        </label>
+                        <label className="sm:col-span-2 block text-[10px]">
+                          <span className="font-bold uppercase text-slate-400">
+                            Wastage %
+                          </span>
+                          <input
+                            className="mt-0.5 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm tabular-nums text-right"
+                            value={l.wastage_pct}
+                            inputMode="decimal"
+                            onChange={(e) =>
+                              updateBomLine(i, {
+                                wastage_pct: e.target.value,
+                              })
+                            }
                           />
-                        ) : null}
-                      </section>
+                        </label>
+                        <div className="sm:col-span-2 text-right">
+                          <p className="text-[9px] font-bold uppercase text-slate-400">
+                            Total
+                          </p>
+                          <p className="text-sm font-black tabular-nums text-emerald-800">
+                            {total}{' '}
+                            <span className="text-[10px] font-semibold text-slate-500">
+                              {l.uom}
+                            </span>
+                          </p>
+                        </div>
+                        <div className="sm:col-span-1 flex sm:justify-end">
+                          <button
+                            type="button"
+                            className="text-rose-600 font-bold text-xs px-2 py-1 rounded-lg border border-rose-100 hover:bg-rose-50"
+                            title="Remove"
+                            onClick={() =>
+                              setBomLines((prev) =>
+                                prev.filter((_, j) => j !== i)
+                              )
+                            }
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </li>
                     );
                   })}
-                </div>
+                </ul>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 text-center py-2">
+                No ingredients yet — pick a category above.
+              </p>
+            )}
+
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void saveRecipe()}
+              className="btn-primary !py-3 !px-4 text-sm w-full inline-flex items-center justify-center gap-2"
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
               )}
-            </div>
-          </div>
+              {editId ? 'Save changes' : 'Save recipe'} ·{' '}
+              {selectedSlotLabel.dayName} {selectedSlotLabel.meal}
+            </button>
+          </section>
         </div>
       ) : tab === 'budgets' && canEdit ? (
         <div className="space-y-4">
@@ -2158,98 +2407,6 @@ function Stat({
         {label}
       </div>
       <div className="text-lg font-black tabular-nums">{value}</div>
-    </div>
-  );
-}
-
-function MealGroup({
-  label,
-  icon,
-  recipes,
-  editId,
-  onEdit,
-  onDelete,
-  bare,
-}: {
-  label: string;
-  icon: 'breakfast' | 'lunch';
-  recipes: Recipe[];
-  editId: number | null;
-  onEdit: (r: Recipe) => void;
-  onDelete: (id: number) => void;
-  bare?: boolean;
-}) {
-  const Icon = icon === 'breakfast' ? Coffee : Sun;
-  const tone =
-    icon === 'breakfast'
-      ? 'text-amber-800 bg-amber-50 border-amber-100'
-      : 'text-sky-800 bg-sky-50 border-sky-100';
-
-  return (
-    <div className={bare ? '' : ''}>
-      {!bare ? (
-        <div
-          className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-wider border-b flex items-center gap-1.5 ${tone}`}
-        >
-          <Icon className="w-3 h-3" />
-          {label}
-        </div>
-      ) : null}
-      <ul>
-        {recipes.map((r) => (
-          <li
-            key={r.id}
-            className={`px-4 py-3 flex flex-wrap items-start justify-between gap-2 ${
-              editId === r.id ? 'bg-sky-50/70' : 'hover:bg-slate-50/80'
-            }`}
-          >
-            <div className="min-w-0">
-              <p className="font-bold text-sm">
-                {r.name}{' '}
-                <span
-                  className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-md ${
-                    String(r.meal_type).toLowerCase() === 'breakfast'
-                      ? 'bg-amber-100 text-amber-900'
-                      : 'bg-sky-100 text-sky-900'
-                  }`}
-                >
-                  {r.meal_type || 'meal'}
-                </span>
-              </p>
-              <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                {(r.lines || [])
-                  .map(
-                    (l) =>
-                      `${l.product_name} ${l.qty_per_portion}${l.uom}`
-                  )
-                  .join(' · ') || 'No lines'}
-              </p>
-            </div>
-            <div className="flex gap-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => onEdit(r)}
-                className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg border inline-flex items-center gap-1 ${
-                  editId === r.id
-                    ? 'bg-[#0077b6] text-white border-[#0077b6]'
-                    : 'text-[#0077b6] border-sky-200 bg-sky-50 hover:bg-sky-100'
-                }`}
-              >
-                <Pencil className="w-3 h-3" />
-                {editId === r.id ? 'Editing' : 'Edit BOM'}
-              </button>
-              <button
-                type="button"
-                onClick={() => void onDelete(r.id)}
-                className="text-[11px] font-bold text-rose-600 px-2 py-1.5 rounded-lg border border-rose-100"
-                aria-label={`Delete ${r.name}`}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

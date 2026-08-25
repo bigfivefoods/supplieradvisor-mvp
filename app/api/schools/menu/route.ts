@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
         mandated: mandatedClean,
         catalogue: ctx,
         policy:
-          'Set breakfast and lunch for each school day. Only active approved-list products appear — inactive foods stay off the menu. Schools and SPs follow this live; schools are rated on % menu adherence.',
+          'Assign a programme recipe to each weekday breakfast and lunch. Schools and SPs follow this live; schools are rated on menu adherence.',
       });
     }
 
@@ -172,8 +172,8 @@ export async function GET(request: NextRequest) {
         : null,
       catalogue: ctx,
       policy: mandated.menu
-        ? `2 meals/day (breakfast + lunch) set by ${mandated.agencyName || 'department'}. Adherence this quarter: ${adherence?.pct ?? 0}% (${adherence?.matched ?? 0}/${adherence?.total ?? 0} days).`
-        : 'Your department has not published a 2-meal mandated menu yet.',
+        ? `Weekly recipes (breakfast + lunch) set by ${mandated.agencyName || 'department'}. Adherence this quarter: ${adherence?.pct ?? 0}% (${adherence?.matched ?? 0}/${adherence?.total ?? 0} days).`
+        : 'Your department has not published a weekly recipe menu yet.',
     });
   } catch (e: unknown) {
     return NextResponse.json(

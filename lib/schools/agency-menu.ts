@@ -11,6 +11,7 @@ export type MenuCycleItem = {
   dish?: string;
   approved_product_ids?: number[];
   notes?: string;
+  recipe_id?: number | null;
 };
 
 export type AgencyMenu = {
@@ -49,12 +50,14 @@ export function parseMenuItems(raw: unknown): MenuCycleItem[] {
             .filter((n) => Number.isFinite(n) && n > 0)
         : [];
       const mt = String(o.meal_type || 'lunch').toLowerCase();
+      const rid = Number(o.recipe_id);
       return {
         day,
         meal_type: mt === 'breakfast' ? 'breakfast' : mt === 'snack' ? 'snack' : 'lunch',
         dish: String(o.dish || '').trim(),
         approved_product_ids: ids,
         notes: o.notes != null ? String(o.notes) : undefined,
+        recipe_id: Number.isFinite(rid) && rid > 0 ? rid : undefined,
       };
     })
     .filter(Boolean) as MenuCycleItem[];

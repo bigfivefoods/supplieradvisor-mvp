@@ -378,6 +378,7 @@ export async function sanitizeMenuItemsProducts(
     dish?: string;
     approved_product_ids?: number[];
     notes?: string;
+    recipe_id?: number | null;
   }>
 ): Promise<{
   items: Array<{
@@ -386,6 +387,7 @@ export async function sanitizeMenuItemsProducts(
     dish?: string;
     approved_product_ids: number[];
     notes?: string;
+    recipe_id?: number | null;
   }>;
   stripped: MenuProductStrip[];
 }> {

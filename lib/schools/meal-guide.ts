@@ -172,6 +172,8 @@ export type DayMealSlot = {
   dish: string;
   approved_product_ids: number[];
   notes?: string;
+  /** Programme recipe assigned to this slot (BOM source) */
+  recipe_id?: number | null;
 };
 
 /** Empty Mon–Fri × breakfast+lunch grid */
@@ -184,6 +186,7 @@ export function emptyTwoMealWeek(): DayMealSlot[] {
         meal_type: meal,
         dish: '',
         approved_product_ids: [],
+        recipe_id: null,
       });
     }
   }
@@ -198,6 +201,7 @@ export function normalizeTwoMealItems(
     dish?: string;
     approved_product_ids?: number[];
     notes?: string;
+    recipe_id?: number | null;
   }>
 ): DayMealSlot[] {
   const map = new Map<string, DayMealSlot>();
@@ -207,6 +211,7 @@ export function normalizeTwoMealItems(
     const meal: MealTypeKey = mt === 'breakfast' ? 'breakfast' : 'lunch';
     if (!Number.isFinite(day) || day < 1 || day > 7) continue;
     const key = `${day}:${meal}`;
+    const rid = Number(it.recipe_id);
     map.set(key, {
       day,
       meal_type: meal,
@@ -215,6 +220,7 @@ export function normalizeTwoMealItems(
         ? it.approved_product_ids.map(Number).filter((n) => n > 0)
         : [],
       notes: it.notes,
+      recipe_id: Number.isFinite(rid) && rid > 0 ? rid : null,
     });
   }
   const out: DayMealSlot[] = [];
@@ -227,6 +233,7 @@ export function normalizeTwoMealItems(
           meal_type: meal,
           dish: '',
           approved_product_ids: [],
+          recipe_id: null,
         }
       );
     }
@@ -248,6 +255,7 @@ export function groupItemsByDay(
           meal_type: mt,
           dish: '',
           approved_product_ids: [],
+          recipe_id: null,
         }
     ),
   }));
