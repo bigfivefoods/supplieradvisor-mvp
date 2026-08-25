@@ -9,7 +9,7 @@ import { isAdvisorModuleKey } from '@/lib/business/company-data';
 import { resolveAdvisorCompanyId } from '@/lib/business/advisor-store-resolve';
 import { pickCompanyLogoUrl } from '@/lib/business/company-logo';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { ttlGet, ttlSet } from '@/lib/system/memory-ttl';
+import { ttlDel, ttlGet, ttlSet } from '@/lib/system/memory-ttl';
 import { SITE_URL } from '@/lib/seo/site';
 import {
   ADVISOR_PWA_INDEX_KEYS,
