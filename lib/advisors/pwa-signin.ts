@@ -18,15 +18,30 @@ type RosterPerson = {
   name?: string;
   email?: string;
   invite_email?: string | null;
+  work_invite_email?: string | null;
   active?: boolean;
   end_date?: string | null;
   portal_token?: string | null;
 };
 
 function rosterEmails(person: RosterPerson): string[] {
-  return [person.email, person.invite_email]
+  return [person.email, person.invite_email, person.work_invite_email]
     .map((v) => String(v || '').trim().toLowerCase())
     .filter((v) => v.includes('@'));
+}
+
+function staffEngagementIsLive(
+  person: RosterPerson,
+  todayIso?: string
+): boolean {
+  if (person.active === false) return false;
+  const end = String(person.end_date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(end)) return true;
+  const today = String(todayIso || new Date().toISOString().slice(0, 10)).slice(
+    0,
+    10
+  );
+  return end >= today;
 }
 
 export function findRosterPersonForSignIn<T extends RosterPerson>(
@@ -103,15 +118,15 @@ export function findStaffForPortalSignIn<T extends RosterPerson>(
   if (!email || !email.includes('@')) return null;
   const name = String(lookup.name || '').trim();
   const hits = (people || []).filter(
-    (p) =>
-      p.active !== false &&
-      !p.end_date &&
-      rosterEmails(p).includes(email)
+    (p) => staffEngagementIsLive(p) && rosterEmails(p).includes(email)
   );
   if (!hits.length) return null;
+  if (hits.length === 1) return hits[0];
   const parts = name.split(/\s+/).filter(Boolean);
   if (parts.length >= 2) {
-    return hits.find((p) => namesMatchForPortalSignIn(p.name, name)) || null;
+    return (
+      hits.find((p) => namesMatchForPortalSignIn(p.name, name)) || hits[0]
+    );
   }
   return hits[0];
 }

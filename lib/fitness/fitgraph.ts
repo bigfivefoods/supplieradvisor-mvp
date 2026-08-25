@@ -1424,6 +1424,35 @@ export function namesMatchForPortalSignIn(
   return at[0] === bt[0] && at[at.length - 1] === bt[bt.length - 1];
 }
 
+/** Emails that unlock the coach work PWA. */
+export function coachPortalEmails(coach: {
+  email?: string | null;
+  invite_email?: string | null;
+  work_invite_email?: string | null;
+}): string[] {
+  return [coach.email, coach.invite_email, coach.work_invite_email]
+    .map((v) => String(v || '').trim().toLowerCase())
+    .filter((v) => v.includes('@'));
+}
+
+/**
+ * Contracted / employed coaches stay on until the engagement end date
+ * (inclusive). A future contract end must not lock them out today.
+ */
+export function coachEngagementIsLive(
+  coach: { active?: boolean; end_date?: string | null },
+  todayIso?: string
+): boolean {
+  if (coach.active === false) return false;
+  const end = String(coach.end_date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(end)) return true;
+  const today = String(todayIso || new Date().toISOString().slice(0, 10)).slice(
+    0,
+    10
+  );
+  return end >= today;
+}
+
 /** Active coach on the gym file — email is the access key. */
 export function findCoachForPortalSignIn(
   store: FitgraphStore,
@@ -1431,20 +1460,25 @@ export function findCoachForPortalSignIn(
 ): FitCoach | null {
   const email = String(lookup.email || '').trim().toLowerCase();
   if (!email || !email.includes('@')) return null;
+  const today = isoDateInZone(
+    store.settings?.timezone || 'Africa/Johannesburg'
+  );
+  const hits = (store.coaches || []).filter(
+    (c) =>
+      coachEngagementIsLive(c, today) && coachPortalEmails(c).includes(email)
+  );
+  if (!hits.length) return null;
+  if (hits.length === 1) return hits[0];
   const name = String(lookup.name || '').trim();
+  if (!name) return hits[0];
   return (
-    (store.coaches || []).find((c) => {
-      if (c.active === false || c.end_date) return false;
-      const emails = [c.email]
-        .map((v) => String(v || '').trim().toLowerCase())
-        .filter((v) => v.includes('@'));
-      if (!emails.includes(email)) return false;
-      const parts = name.split(/\s+/).filter(Boolean);
-      if (parts.length >= 2 && c.name) {
-        return namesMatchForPortalSignIn(c.name, name);
-      }
-      return true;
-    }) || null
+    hits.find((c) => namesMatchForPortalSignIn(c.name, name)) ||
+    hits.find((c) => {
+      const a = normalizePersonName(c.name || '').split(' ')[0];
+      const b = normalizePersonName(name).split(' ')[0];
+      return Boolean(a && a === b);
+    }) ||
+    hits[0]
   );
 }
 
@@ -2442,7 +2476,12 @@ export function buildPublicCalendarPayload(
 
   const coaches = showTeam
     ? store.coaches
-        .filter((c) => c.active !== false && !c.end_date)
+        .filter((c) =>
+          coachEngagementIsLive(
+            c,
+            isoDateInZone(store.settings?.timezone || 'Africa/Johannesburg')
+          )
+        )
         .map((c) => ({
           code: c.code,
           name: c.name,

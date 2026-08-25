@@ -4,8 +4,12 @@
  */
 import {
   addDaysIso,
+  coachPortalEmails,
+  namesMatchForPortalSignIn,
+  newId,
   weekdayOf,
   type FitClassType,
+  type FitCoach,
   type FitgraphStore,
   type FitMembershipPlan,
   type FitSession,
@@ -23,7 +27,7 @@ import {
   SYS_PT_CODE,
 } from '@/lib/fitness/session-times';
 import { ensureDemoShopProgramme } from '@/lib/fitness/demo-shop-programme';
-import { vukaShopCoachRank } from '@/lib/fitness/gym-shop';
+import { shopCoachFirstName, vukaShopCoachRank } from '@/lib/fitness/gym-shop';
 
 export const VUKA_COMPANY_ID = 110;
 
@@ -1279,6 +1283,7 @@ export function ensureVukaClassCatalog(
 
   if (ensureDemoShopProgramme(store, now)) changed = true;
   if (ensureVukaShopOffers(store, now)) changed = true;
+  if (ensureVukaCoaches(store, now)) changed = true;
 
   return { store, changed, applied: true };
 }
@@ -1322,6 +1327,122 @@ export function ensureVukaShopOffers(
       p.public = true;
       p.active = true;
       if (!(Number(p.price_zar) > 0) && draft) p.price_zar = draft.price_zar;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+/**
+ * Contracted VUKA coaches. Email on this list is the GymAdvisor coach
+ * sign-in key. Jared is Jared-Wade Cawood (trainer), not member Jared Martin.
+ */
+export const VUKA_COACH_ROSTER: Array<{
+  name: string;
+  email: string;
+  code: string;
+}> = [
+  {
+    name: 'Bianca Westhorpe-Pottow',
+    email: 'b.west.pot@gmail.com',
+    code: 'BIA',
+  },
+  { name: 'Miri', email: '', code: 'MRI' },
+  {
+    name: 'Jared-Wade Cawood',
+    email: 'jaredcawood77@gmail.com',
+    code: 'JAR',
+  },
+  { name: 'Jaryyd', email: '', code: 'JYD' },
+  {
+    name: 'Sophie Pearce',
+    email: 'pearcesophie56@gmail.com',
+    code: 'SOP',
+  },
+];
+
+function findExistingVukaCoach(
+  store: FitgraphStore,
+  row: { name: string; email: string }
+): FitCoach | undefined {
+  const email = String(row.email || '').trim().toLowerCase();
+  if (email) {
+    const byEmail = (store.coaches || []).find((c) =>
+      coachPortalEmails(c).includes(email)
+    );
+    if (byEmail) return byEmail;
+  }
+  const byName = (store.coaches || []).find((c) =>
+    namesMatchForPortalSignIn(c.name, row.name)
+  );
+  if (byName) return byName;
+  const first = shopCoachFirstName(row.name);
+  if (!first) return undefined;
+  const sameFirst = (store.coaches || []).filter(
+    (c) => shopCoachFirstName(c.name) === first
+  );
+  if (first === 'jared') {
+    const trainer = sameFirst.find((c) => /cawood/i.test(c.name));
+    if (trainer) return trainer;
+    const notMember = sameFirst.filter((c) => !/martin/i.test(c.name));
+    if (notMember.length === 1) return notMember[0];
+    const unnamed = sameFirst.filter(
+      (c) => shopCoachFirstName(c.name) === first && !String(c.name).includes(' ')
+    );
+    if (unnamed.length === 1) return unnamed[0];
+    return undefined;
+  }
+  if (sameFirst.length === 1) return sameFirst[0];
+  return undefined;
+}
+
+/** Keep contracted VUKA coaches on the gym file with their emails. */
+export function ensureVukaCoaches(
+  store: FitgraphStore,
+  now = new Date().toISOString()
+): boolean {
+  if (!Array.isArray(store.coaches)) store.coaches = [];
+  let changed = false;
+  for (const row of VUKA_COACH_ROSTER) {
+    const email = String(row.email || '').trim().toLowerCase();
+    let coach = findExistingVukaCoach(store, row);
+    if (!coach) {
+      coach = {
+        id: newId('coh'),
+        code: row.code,
+        name: row.name,
+        email: email || undefined,
+        engagement: 'contractor',
+        can_manage_classes: true,
+        active: true,
+        created_at: now,
+      };
+      store.coaches.push(coach);
+      changed = true;
+      continue;
+    }
+    if (email && !coachPortalEmails(coach).includes(email)) {
+      coach.email = email;
+      changed = true;
+    }
+    if (coach.can_manage_classes !== true) {
+      coach.can_manage_classes = true;
+      changed = true;
+    }
+    if (coach.active === false) {
+      coach.active = true;
+      changed = true;
+    }
+    if (!coach.engagement) {
+      coach.engagement = 'contractor';
+      changed = true;
+    }
+    if (
+      row.name.toLowerCase() !== String(coach.name || '').toLowerCase() &&
+      shopCoachFirstName(coach.name) === shopCoachFirstName(row.name) &&
+      !String(coach.name || '').includes(' ')
+    ) {
+      coach.name = row.name;
       changed = true;
     }
   }
@@ -1389,6 +1510,7 @@ export async function persistVukaCatalogIfNeeded(
   }
   if (ensureDemoShopProgramme(next)) dirty = true;
   if (ensureVukaShopOffers(next)) dirty = true;
+  if (ensureVukaCoaches(next)) dirty = true;
   if (ensureVukaCoachOrder(next)) dirty = true;
   if (dirty) {
     await save(next);

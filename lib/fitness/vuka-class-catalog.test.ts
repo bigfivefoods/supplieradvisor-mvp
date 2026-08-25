@@ -2,7 +2,12 @@
  * Run: npx --yes tsx lib/fitness/vuka-class-catalog.test.ts
  */
 import assert from 'node:assert/strict';
-import { emptyFitgraphStore, newId, type FitSession } from './fitgraph';
+import {
+  emptyFitgraphStore,
+  findCoachForPortalSignIn,
+  newId,
+  type FitSession,
+} from './fitgraph';
 import {
   ensureVukaClassCatalog,
   ensureVukaShopOffers,
@@ -11,6 +16,7 @@ import {
   listSubscribeClasses,
   persistVukaCatalogIfNeeded,
   ensureVukaCoachOrder,
+  ensureVukaCoaches,
   membersOnClassSession,
   storeUsesClassSubscribe,
   memberMayBookSession,
@@ -352,6 +358,39 @@ assert.equal(ensureVukaCoachOrder(coaches), true);
 assert.deepEqual(
   coaches.coaches.map((c) => c.id),
   ['bianca', 'jared', 'sophie']
+);
+
+const vukaCoaches = emptyFitgraphStore();
+vukaCoaches.coaches = [
+  {
+    id: 'jared',
+    code: 'J',
+    name: 'Jared',
+    created_at: '2026-01-01T00:00:00.000Z',
+  },
+];
+assert.equal(ensureVukaCoaches(vukaCoaches, '2026-08-25T00:00:00.000Z'), true);
+const jared = findCoachForPortalSignIn(vukaCoaches, {
+  name: 'Jared',
+  email: 'jaredcawood77@gmail.com',
+});
+assert.equal(jared?.id, 'jared');
+assert.equal(jared?.email, 'jaredcawood77@gmail.com');
+assert.equal(jared?.name, 'Jared-Wade Cawood');
+assert.equal(jared?.can_manage_classes, true);
+assert.equal(jared?.engagement, 'contractor');
+assert.equal(
+  findCoachForPortalSignIn(vukaCoaches, {
+    name: 'Jared Cawood',
+    email: 'jaredcawood77@gmail.com',
+  })?.id,
+  'jared'
+);
+assert.equal(ensureVukaCoaches(vukaCoaches, '2026-08-25T00:00:00.000Z'), false);
+assert.ok(vukaCoaches.coaches.some((c) => c.name === 'Bianca Westhorpe-Pottow'));
+assert.equal(
+  vukaCoaches.coaches.filter((c) => /jared/i.test(c.name)).length,
+  1
 );
 
 const msgStore = emptyFitgraphStore();

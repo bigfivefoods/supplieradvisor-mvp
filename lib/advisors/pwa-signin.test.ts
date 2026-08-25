@@ -116,8 +116,32 @@ assert.equal(
   findCoachForPortalSignIn(gym, {
     name: 'Wrong Name',
     email: 'alex.coach@example.com',
+  })?.id,
+  'c1'
+);
+gym.coaches[0].end_date = '2099-12-31';
+assert.equal(
+  findCoachForPortalSignIn(gym, {
+    email: 'alex.coach@example.com',
+  })?.id,
+  'c1'
+);
+gym.coaches[0].end_date = '2020-01-01';
+assert.equal(
+  findCoachForPortalSignIn(gym, {
+    email: 'alex.coach@example.com',
   }),
   null
+);
+gym.coaches[0].end_date = null;
+gym.coaches[0].email = '';
+gym.coaches[0].work_invite_email = 'alex.coach@example.com';
+assert.equal(
+  findCoachForPortalSignIn(gym, {
+    name: 'Alex',
+    email: 'alex.coach@example.com',
+  })?.id,
+  'c1'
 );
 
 assert.equal(
