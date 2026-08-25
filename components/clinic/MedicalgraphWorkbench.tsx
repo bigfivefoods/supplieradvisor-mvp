@@ -52,8 +52,11 @@ export function useMedicalgraph() {
     void load();
   }, [load]);
 
-  const post = async (body: Record<string, unknown>) => {
-    setSaving(true);
+  const post = async (
+    body: Record<string, unknown>,
+    opts?: { quiet?: boolean }
+  ) => {
+    if (!opts?.quiet) setSaving(true);
     try {
       const res = await fetch('/api/clinic/medicalgraph', {
         method: 'POST',
@@ -68,10 +71,12 @@ export function useMedicalgraph() {
       if (data.analysis) setAnalysis(data.analysis);
       return data;
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Save failed');
+      if (!opts?.quiet) {
+        toast.error(e instanceof Error ? e.message : 'Save failed');
+      }
       throw e;
     } finally {
-      setSaving(false);
+      if (!opts?.quiet) setSaving(false);
     }
   };
 

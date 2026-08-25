@@ -656,13 +656,25 @@ export async function POST(req: NextRequest) {
       action === 'mark'
     ) {
       const bookingId = String(body.booking_id || '');
-      const booking = store.bookings.find((b) => b.id === bookingId);
+      const { findClinicAppointmentSeat } = await import(
+        '@/lib/clinic/clinic-bookings'
+      );
+      const booking =
+        store.bookings.find((b) => b.id === bookingId) ||
+        (appointmentId && body.patient_id
+          ? findClinicAppointmentSeat(
+              store.bookings,
+              appointmentId,
+              String(body.patient_id)
+            )
+          : undefined);
       if (!booking) {
         return NextResponse.json(
           { error: 'Booking not found' },
           { status: 404 }
         );
       }
+      booking.updated_at = now;
       const appt = store.appointments.find(
         (a) => a.id === booking.appointment_id
       );

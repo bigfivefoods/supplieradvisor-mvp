@@ -4,7 +4,7 @@
  * Clinician diary portal — parity with GymAdvisor coach portal.
  * /clinician/{dentalgraph|physiograph|medicalgraph|psychiatrygraph}/{token}
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { PersonQualificationsEditor } from '@/components/services/PersonQualificationsEditor';
 import type { PersonQualification } from '@/lib/services/person-qualifications';
@@ -137,6 +137,10 @@ export default function ClinicianPortalPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [workTab, setWorkTab] = useState<AdvisorWorkTab>('today');
   const [patientFor, setPatientFor] = useState('');
+  const [attendOverride, setAttendOverride] = useState<
+    Record<string, 'attended' | 'no_show' | 'booked'>
+  >({});
+  const attendChain = useRef(Promise.resolve());
   const [edit, setEdit] = useState({
     service_id: '',
     date: '',
@@ -200,10 +204,13 @@ export default function ClinicianPortalPage() {
     void load();
   }, [load]);
 
-  const post = async (body: Record<string, unknown>) => {
-    setBusy(true);
+  const post = async (
+    body: Record<string, unknown>,
+    opts?: { quiet?: boolean }
+  ) => {
+    if (!opts?.quiet) setBusy(true);
     setError(null);
-    setMsg(null);
+    if (!opts?.quiet) setMsg(null);
     try {
       const res = await fetch('/api/public/advisor/clinician', {
         method: 'POST',
@@ -219,13 +226,13 @@ export default function ClinicianPortalPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Action failed');
       if (data.portal) setPortal(data.portal);
-      if (data.message) setMsg(String(data.message));
+      if (data.message && !opts?.quiet) setMsg(String(data.message));
       return data;
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed');
       throw e;
     } finally {
-      setBusy(false);
+      if (!opts?.quiet) setBusy(false);
     }
   };
 
@@ -715,51 +722,111 @@ export default function ClinicianPortalPage() {
                       <div className="min-w-0">
                         <div className="text-sm font-bold">{r.name}</div>
                         <div className="text-[10px] uppercase text-slate-500">
-                          {r.status}
+                          {attendOverride[r.booking_id] || r.actual || r.status}
                           {r.soft_block
                             ? ' · ⚠ soft-block (no-shows)'
                             : ''}
                           {r.injured ? ' · clinical alert' : ''}
                         </div>
                       </div>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1.5">
                         <button
                           type="button"
-                          disabled={busy}
-                          className={`p-1.5 rounded-lg border text-xs ${
-                            r.actual === 'attended'
-                              ? 'bg-emerald-600 border-emerald-600'
+                          className={`inline-flex min-h-10 items-center gap-1 rounded-xl border px-3 text-xs font-bold ${
+                            (attendOverride[r.booking_id] || r.actual) ===
+                            'attended'
+                              ? 'bg-emerald-600 border-emerald-600 text-white'
                               : 'border-slate-600'
                           }`}
-                          title="Attended"
-                          onClick={() =>
-                            void post({
-                              action: 'mark_attendance',
-                              booking_id: r.booking_id,
-                              status: 'attended',
-                            })
-                          }
+                          title="Attended — tap once to save"
+                          onClick={() => {
+                            setAttendOverride((prev) => ({
+                              ...prev,
+                              [r.booking_id]: 'attended',
+                            }));
+                            attendChain.current = attendChain.current.then(() =>
+                              post(
+                                {
+                                  action: 'mark_attendance',
+                                  booking_id: r.booking_id,
+                                  appointment_id: openCard.appointment.id,
+                                  patient_id: r.patient_id,
+                                  status: 'attended',
+                                },
+                                { quiet: true }
+                              )
+                                .then(() => {
+                                  setAttendOverride((prev) => {
+                                    const next = { ...prev };
+                                    if (next[r.booking_id] === 'attended') {
+                                      delete next[r.booking_id];
+                                    }
+                                    return next;
+                                  });
+                                })
+                                .catch(() => {
+                                  setAttendOverride((prev) => {
+                                    const next = { ...prev };
+                                    if (next[r.booking_id] === 'attended') {
+                                      delete next[r.booking_id];
+                                    }
+                                    return next;
+                                  });
+                                })
+                            );
+                          }}
                         >
-                          <Check className="w-3.5 h-3.5" />
+                          <Check className="w-4 h-4" />
+                          Came
                         </button>
                         <button
                           type="button"
-                          disabled={busy}
-                          className={`p-1.5 rounded-lg border text-xs ${
-                            r.actual === 'no_show'
-                              ? 'bg-rose-600 border-rose-600'
+                          className={`inline-flex min-h-10 items-center gap-1 rounded-xl border px-3 text-xs font-bold ${
+                            (attendOverride[r.booking_id] || r.actual) ===
+                            'no_show'
+                              ? 'bg-rose-600 border-rose-600 text-white'
                               : 'border-slate-600'
                           }`}
-                          title="No-show"
-                          onClick={() =>
-                            void post({
-                              action: 'mark_attendance',
-                              booking_id: r.booking_id,
-                              status: 'no_show',
-                            })
-                          }
+                          title="Did not attend — tap once to save"
+                          onClick={() => {
+                            setAttendOverride((prev) => ({
+                              ...prev,
+                              [r.booking_id]: 'no_show',
+                            }));
+                            attendChain.current = attendChain.current.then(() =>
+                              post(
+                                {
+                                  action: 'mark_attendance',
+                                  booking_id: r.booking_id,
+                                  appointment_id: openCard.appointment.id,
+                                  patient_id: r.patient_id,
+                                  status: 'no_show',
+                                },
+                                { quiet: true }
+                              )
+                                .then(() => {
+                                  setAttendOverride((prev) => {
+                                    const next = { ...prev };
+                                    if (next[r.booking_id] === 'no_show') {
+                                      delete next[r.booking_id];
+                                    }
+                                    return next;
+                                  });
+                                })
+                                .catch(() => {
+                                  setAttendOverride((prev) => {
+                                    const next = { ...prev };
+                                    if (next[r.booking_id] === 'no_show') {
+                                      delete next[r.booking_id];
+                                    }
+                                    return next;
+                                  });
+                                })
+                            );
+                          }}
                         >
-                          <UserX className="w-3.5 h-3.5" />
+                          <UserX className="w-4 h-4" />
+                          Didn’t
                         </button>
                         <button
                           type="button"
@@ -800,7 +867,15 @@ export default function ClinicianPortalPage() {
                 onChange={(e) => setPatientFor(e.target.value)}
               >
                 <option value="">Book patient…</option>
-                {portal.patients.map((p) => (
+                {portal.patients
+                  .filter(
+                    (p) =>
+                      !openCard.roster.some(
+                        (r) =>
+                          r.patient_id === p.id && r.status !== 'cancelled'
+                      )
+                  )
+                  .map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                     {p.soft_block ? ' ⚠' : ''}

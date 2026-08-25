@@ -1011,6 +1011,10 @@ export async function POST(request: NextRequest) {
         bookingId: String(body.booking_id || ''),
         status: String(body.status || 'attended'),
         now,
+        appointmentId: body.appointment_id
+          ? String(body.appointment_id)
+          : undefined,
+        patientId: body.patient_id ? String(body.patient_id) : undefined,
         cfg: {
           moduleLabel: 'PhysioAdvisor®',
           portalPath: 'physiograph',
@@ -2081,7 +2085,10 @@ function upsert(
     if (i >= 0) store.appointments[i] = row;
     else store.appointments.push(row);
   } else if (entity === 'bookings') {
-    const id = String(rec.id || newId('bkg'));
+    const { resolveClinicBookingId } = await import(
+      '@/lib/clinic/clinic-bookings'
+    );
+    const id = resolveClinicBookingId(store.bookings, rec, () => newId('bkg'));
     const i = store.bookings.findIndex((b) => b.id === id);
     const prev = i >= 0 ? store.bookings[i] : null;
     const patientId = String(rec.patient_id || prev?.patient_id || '');
@@ -2115,6 +2122,7 @@ function upsert(
       patient_id: patientId,
       status: nextStatus,
       booked_at: prev?.booked_at || now,
+      updated_at: now,
       source: rec.source != null ? String(rec.source) : prev?.source || 'desk',
       notes: rec.notes != null ? String(rec.notes) : prev?.notes,
       family_member_id: fam.family_member_id,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import {
@@ -35,6 +35,11 @@ import {
 import { ClinicDiaryKindFields } from '@/components/clinic/ClinicDiaryKindFields';
 import { ClinicAppointmentVisitDesk } from '@/components/clinic/ClinicAppointmentVisitDesk';
 import { appointmentVisitPatients } from '@/lib/clinic/appointment-visit';
+import { ClinicBookedRoster } from '@/components/clinic/ClinicBookedRoster';
+import {
+  clinicRosterRows,
+  findClinicAppointmentSeat,
+} from '@/lib/clinic/clinic-bookings';
 import {
   appointmentKindLabel,
   appointmentKindOf,
@@ -72,6 +77,12 @@ export default function CalendarPage() {
   const [recurrence, setRecurrence] = useState<RecurrenceFormValue>(
     emptyRecurrenceForm
   );
+  const [attendOverride, setAttendOverride] = useState<
+    Record<string, 'attended' | 'no_show'>
+  >({});
+  const attendChain = useRef(Promise.resolve());
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
 
   const closeEditor = () => {
     setEditorOpen(false);
@@ -223,13 +234,50 @@ export default function CalendarPage() {
 
   const rosterOnSelected = useMemo(() => {
     if (!store || !selectedId) return [];
-    return store.bookings.filter(
-      (b) =>
-        b.appointment_id === selectedId &&
-        b.status !== 'cancelled' &&
-        b.patient_id
+    return clinicRosterRows(store.bookings, selectedId, store.patients).map(
+      (r) => ({
+        ...r,
+        status: attendOverride[r.booking_id] || r.status,
+      })
     );
-  }, [store, selectedId]);
+  }, [store, selectedId, attendOverride]);
+
+  const markRoster = (
+    bookingId: string,
+    status: 'attended' | 'no_show',
+    patientId: string
+  ) => {
+    setAttendOverride((prev) => ({ ...prev, [bookingId]: status }));
+    attendChain.current = attendChain.current.then(() =>
+      post(
+        {
+          action: 'mark_attendance',
+          booking_id: bookingId,
+          status,
+          appointment_id: selectedIdRef.current,
+          patient_id: patientId,
+        },
+        { quiet: true }
+      )
+        .then(() => {
+          setAttendOverride((prev) => {
+            const next = { ...prev };
+            if (next[bookingId] === status) delete next[bookingId];
+            return next;
+          });
+        })
+        .catch((e: unknown) => {
+          setAttendOverride((prev) => {
+            const next = { ...prev };
+            if (next[bookingId] === status) delete next[bookingId];
+            return next;
+          });
+          toast.error(
+            e instanceof Error ? e.message : 'Could not update attendance'
+          );
+        })
+    );
+  };
 
   const saveHours = async (hours: typeof workingHours) => {
     await post({
@@ -467,7 +515,17 @@ export default function CalendarPage() {
       return;
     }
 
-    if (!personal && form.patient_id) {
+    const alreadyBooked = findClinicAppointmentSeat(
+      store?.bookings || [],
+      appointmentId,
+      form.patient_id,
+      form.family_member_id
+    );
+    if (
+      !personal &&
+      form.patient_id &&
+      (!alreadyBooked || alreadyBooked.status === 'cancelled')
+    ) {
       const patient = store?.patients.find((p) => p.id === form.patient_id);
       if (patient?.booking_soft_block) {
         toast.warning(
@@ -939,20 +997,13 @@ export default function CalendarPage() {
                 Public slot
               </label>
               ) : null}
-              {selectedId && rosterOnSelected.length > 0 ? (
-                <p className="sm:col-span-2 lg:col-span-3 text-[11px] text-slate-600 rounded-xl border border-sky-100 bg-sky-50/50 px-3 py-2">
-                  <strong>Booked on this slot:</strong>{' '}
-                  {rosterOnSelected
-                    .map((b) => {
-                      const p = store.patients.find(
-                        (x) => x.id === b.patient_id
-                      );
-                      return (
-                        b.family_member_name || p?.name || b.patient_id
-                      );
-                    })
-                    .join(', ')}
-                </p>
+              {selectedId && form.appointment_kind !== 'personal' ? (
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <ClinicBookedRoster
+                    roster={rosterOnSelected}
+                    onMark={markRoster}
+                  />
+                </div>
               ) : null}
             </FormCard>
             {selectedId && form.appointment_kind !== 'personal' ? (

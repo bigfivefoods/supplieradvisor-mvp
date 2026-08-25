@@ -1,9 +1,10 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   CalendarCheck,
   CalendarDays,
+  ChevronDown,
   HeartPulse,
   MessageSquare,
   Share2,
@@ -96,6 +97,109 @@ export function ClinicFlash({
       }`}
     >
       {error || msg}
+    </div>
+  );
+}
+
+export function ClinicExpandSection({
+  title,
+  hint,
+  icon,
+  defaultOpen = false,
+  badge,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  icon?: ReactNode;
+  defaultOpen?: boolean;
+  badge?: ReactNode;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white dark:border-white/10 dark:bg-neutral-900">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-4 py-3.5 text-left"
+      >
+        {icon ? (
+          <span className="shrink-0 text-slate-800 dark:text-white">{icon}</span>
+        ) : null}
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-black text-slate-900 dark:text-white">
+            {title}
+          </h2>
+          {hint && !open ? (
+            <p className="mt-0.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+              {hint}
+            </p>
+          ) : null}
+        </div>
+        {badge}
+        <ChevronDown
+          className={`h-5 w-5 shrink-0 text-slate-400 transition-transform ${
+            open ? 'rotate-180 text-slate-700 dark:text-white' : ''
+          }`}
+        />
+      </button>
+      {open ? (
+        <div className="space-y-3 border-t border-slate-100 px-4 py-4 dark:border-white/10">
+          {children}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+export function ClinicWaitlistJoin({
+  position,
+  busy,
+  onJoin,
+  onLeave,
+}: {
+  position?: number | null;
+  busy?: boolean;
+  onJoin: () => void;
+  onLeave?: () => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50/80 p-3">
+      <p className="text-xs font-bold text-amber-950">
+        Need the next available slot?
+      </p>
+      {position ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-black text-amber-900">
+            You are #{position} in the practice queue
+          </span>
+          {onLeave ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onLeave}
+              className="text-xs font-bold text-rose-700 underline"
+            >
+              Leave queue
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onJoin}
+          className="rounded-xl bg-amber-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+        >
+          {busy ? '…' : 'Join next-available waitlist'}
+        </button>
+      )}
+      <p className="text-[11px] text-amber-900/80">
+        Notifies the practice you want the next free slot (any clinician if
+        needed).
+      </p>
     </div>
   );
 }

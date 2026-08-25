@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { Loader2, X } from 'lucide-react';
+import { HeartPulse, Loader2 } from 'lucide-react';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
 import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
@@ -24,10 +24,8 @@ import {
 import { MemberPortalClaims, type MemberPortalClaim } from '@/components/advisors/MemberPortalClaims';
 import { MemberMedicalShare } from '@/components/services/MemberMedicalShare';
 import { PatientVisitHistory } from '@/components/clinic/PatientVisitHistory';
-import {
-  MemberRateLink,
-  publicRatePath,
-} from '@/components/advisors/MemberRateLink';
+import { publicRatePath } from '@/components/advisors/MemberRateLink';
+import { ClinicMemberBookList } from '@/components/clinic/ClinicVisitCard';
 import { ClinicMemberDiary } from '@/components/clinic/ClinicMemberDiary';
 import type {
   SharedAdviceNote,
@@ -39,9 +37,11 @@ import type {
 } from '@/lib/clinic/clinic-portal-shop';
 import {
   ClinicCarePacks,
+  ClinicExpandSection,
   ClinicFlash,
   ClinicSectionTitle,
   ClinicSharePanel,
+  ClinicWaitlistJoin,
   ClinicYouSubnav,
   clinicMemberDockTabs,
   isClinicYouTab,
@@ -248,6 +248,20 @@ export default function MemberMedicalgraphPortalPage() {
     }
   };
 
+  const leaveQueue = async (queueId?: string) => {
+    setBusyId('queue');
+    try {
+      const data = await post({
+        action: 'leave_queue',
+        queue_id: queueId,
+      });
+      setMsg(data.message || 'Left waitlist');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not leave queue');
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const cancel = async (bookingId: string) => {
     if (!confirm('Cancel this appointment?')) return;
@@ -287,19 +301,6 @@ export default function MemberMedicalgraphPortalPage() {
   };
 
   const color = portal?.primary_color || '#059669';
-  const formatDay = (date: string, time: string) => {
-    try {
-      const d = new Date(`${date}T12:00:00`);
-      return `${d.toLocaleDateString(undefined, {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-      })} · ${time}`;
-    } catch {
-      return `${date} · ${time}`;
-    }
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-emerald-50">
@@ -417,25 +418,14 @@ export default function MemberMedicalgraphPortalPage() {
               Book your regular clinician or another available practitioner. Full slots: join waitlist (practice is notified). </p>
 
             {portal.allow_booking ? (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-3">
-                {(portal.waitlist_queue || []).length > 0 ? (
-                  <p className="text-sm font-black text-amber-900">
-                    Next-available queue: #{(portal.waitlist_queue || [])[0]?.position}
-                  </p>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={busyId === 'queue'}
-                    onClick={() => void joinQueue()}
-                    className="rounded-xl bg-amber-600 text-white px-3 py-2 text-xs font-bold"
-                  >
-                    Join next-available waitlist
-                  </button>
-                )}
-                <p className="text-[11px] text-amber-900/80 mt-1">
-                  Notifies the practice you want the next free slot (any clinician if needed).
-                </p>
-              </div>
+              <ClinicWaitlistJoin
+                position={(portal.waitlist_queue || [])[0]?.position}
+                busy={busyId === 'queue'}
+                onJoin={() => void joinQueue()}
+                onLeave={() =>
+                  void leaveQueue((portal.waitlist_queue || [])[0]?.id)
+                }
+              />
             ) : null}
             <ClinicMemberDiary
               slots={portal.open_slots}
@@ -449,10 +439,12 @@ export default function MemberMedicalgraphPortalPage() {
         )}
 
         {tab === 'care' && (
-          <div className="space-y-3">
-            <ClinicSectionTitle hint="Scripts, plans and advice your doctor has prescribed on your file.">
-              Care
-            </ClinicSectionTitle>
+          <ClinicExpandSection
+            title="Care"
+            hint="Scripts, plans and advice your doctor has prescribed on your file."
+            icon={<HeartPulse className="h-4 w-4" />}
+            defaultOpen
+          >
             <ClinicCarePacks packs={portal.care_packs} />
             <MemberMedicalShare
               share={portal.medical_share}
@@ -462,7 +454,7 @@ export default function MemberMedicalgraphPortalPage() {
               tone="emerald"
               heading="Prescribed scripts"
             />
-          </div>
+          </ClinicExpandSection>
         )}
 
         {tab === 'messages' && (
@@ -522,55 +514,17 @@ export default function MemberMedicalgraphPortalPage() {
 
         {tab === 'mine' && (
           <div className="space-y-3">
-            <ClinicSectionTitle hint="Your booked and waitlisted sessions. Cancel or reschedule here.">
+            <ClinicSectionTitle hint="Your next visits. Tap a card for details, cancel, or rate after the appointment.">
               Book
             </ClinicSectionTitle>
-            {portal.my_bookings.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-                No upcoming bookings.
-              </div>
-            ) : (
-              portal.my_bookings.map((b) => (
-                <div
-                  key={b.booking_id}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 flex justify-between gap-3"
-                >
-                  <div>
-                    <p className="font-black">{b.service_name}</p>
-                    <p className="text-xs text-slate-500">
-                      {formatDay(b.date, b.start_time)}
-                    </p>
-                    <a
-                      className="text-[11px] font-bold text-emerald-700 underline"
-                      href={`/api/public/advisor/ics?module=medicalgraph&date=${encodeURIComponent(b.date)}&start=${encodeURIComponent(b.start_time)}&title=${encodeURIComponent(b.service_name || 'Appointment')}&duration=45`}
-                    >
-                      Add to calendar
-                    </a>
-                    <span className="text-[10px] font-black uppercase text-slate-600">
-                      {b.status}
-                    </span>
-                    <MemberRateLink
-                      href={publicRatePath(
-                        'medicalgraph',
-                        companyId,
-                        b.feedback_token
-                      )}
-                      submitted={Boolean(b.feedback_submitted_at)}
-                      label="Rate this visit (optional)"
-                    />
-                  </div>
-                  {(b.status === 'booked' || b.status === 'waitlist') && (
-                    <button
-                      type="button"
-                      className="text-xs font-bold text-rose-600"
-                      onClick={() => void cancel(b.booking_id)}
-                    >
-                      <X className="w-3.5 h-3.5 inline" /> Cancel
-                    </button>
-                  )}
-                </div>
-              ))
-            )}
+            <ClinicMemberBookList
+              bookings={portal.my_bookings}
+              module="medicalgraph"
+              companyId={companyId}
+              color={color}
+              busyId={busyId}
+              onCancel={(id) => void cancel(id)}
+            />
           </div>
         )}
 

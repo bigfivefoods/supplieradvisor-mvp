@@ -32,6 +32,7 @@ export type ClinicBookingRow = {
   patient_id: string;
   status: string;
   booked_at?: string;
+  updated_at?: string | null;
   notes?: string;
   family_member_id?: string | null;
   family_member_name?: string | null;
@@ -371,6 +372,8 @@ export async function clinicMarkAttendance(
     bookingId: string;
     status: string;
     now?: string;
+    appointmentId?: string;
+    patientId?: string;
     cfg: ClinicModuleConfig;
     /** When true, email the promoted waitlist patient */
     notifyPromoted?: boolean;
@@ -382,12 +385,35 @@ export async function clinicMarkAttendance(
   message?: string;
 } | { ok: false; error: string }> {
   const now = opts.now || new Date().toISOString();
-  const booking = store.bookings.find((b) => b.id === opts.bookingId);
+  let booking = store.bookings.find((b) => b.id === opts.bookingId);
+  if (!booking) {
+    const { findClinicAppointmentSeat } = await import(
+      '@/lib/clinic/clinic-bookings'
+    );
+    const appointmentId = String(opts.appointmentId || '');
+    const patientId = String(opts.patientId || '');
+    if (appointmentId && patientId) {
+      booking = findClinicAppointmentSeat(
+        store.bookings,
+        appointmentId,
+        patientId
+      );
+    }
+  }
   if (!booking) return { ok: false, error: 'Booking not found' };
 
   const status = opts.status as BookingStatus;
   const prev = booking.status;
   booking.status = status;
+  booking.updated_at = now;
+  const appt = store.appointments.find((a) => a.id === booking.appointment_id);
+  if (
+    appt &&
+    (status === 'attended' || status === 'no_show') &&
+    appt.status !== 'cancelled'
+  ) {
+    appt.status = 'completed';
+  }
 
   if (
     (status === 'attended' || status === 'no_show') &&

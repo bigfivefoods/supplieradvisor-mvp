@@ -1254,10 +1254,22 @@ export async function POST(request: NextRequest) {
     if (action === 'mark_attendance') {
       const bookingId = String(body.booking_id || '');
       const status = String(body.status || 'attended');
-      const booking = store.bookings.find((b) => b.id === bookingId);
+      const { findClinicAppointmentSeat } = await import(
+        '@/lib/clinic/clinic-bookings'
+      );
+      let booking =
+        store.bookings.find((b) => b.id === bookingId) ||
+        (body.appointment_id && body.patient_id
+          ? findClinicAppointmentSeat(
+              store.bookings,
+              String(body.appointment_id),
+              String(body.patient_id)
+            )
+          : undefined);
       if (!booking) {
         return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
       }
+      booking.updated_at = now;
       const prev = booking.status;
       booking.status = status as typeof booking.status;
       if (
@@ -2074,7 +2086,10 @@ function upsert(
     if (i >= 0) store.appointments[i] = row;
     else store.appointments.push(row);
   } else if (entity === 'bookings') {
-    const id = String(rec.id || newId('bkg'));
+    const { resolveClinicBookingId } = await import(
+      '@/lib/clinic/clinic-bookings'
+    );
+    const id = resolveClinicBookingId(store.bookings, rec, () => newId('bkg'));
     const i = store.bookings.findIndex((b) => b.id === id);
     const prev = i >= 0 ? store.bookings[i] : null;
     const bookApt = store.appointments.find(
@@ -2116,6 +2131,7 @@ function upsert(
       patient_id: String(rec.patient_id || prev?.patient_id || ''),
       status: nextStatus,
       booked_at: prev?.booked_at || now,
+      updated_at: now,
       source: rec.source != null ? String(rec.source) : prev?.source || 'desk',
       notes: rec.notes != null ? String(rec.notes) : prev?.notes,
       family_member_id: famId,

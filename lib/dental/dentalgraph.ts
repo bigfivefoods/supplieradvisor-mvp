@@ -423,6 +423,7 @@ export type DentalBooking = {
   patient_id: string;
   status: 'booked' | 'waitlist' | 'cancelled' | 'attended' | 'no_show';
   booked_at: string;
+  updated_at?: string | null;
   source?: 'desk' | 'website' | 'practitioner' | string;
   notes?: string;
   family_member_id?: string | null;
