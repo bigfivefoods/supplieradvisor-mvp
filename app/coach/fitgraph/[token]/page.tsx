@@ -11,6 +11,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Dumbbell,
   Loader2,
   MessageSquare,
   Plus,
@@ -58,7 +59,11 @@ import { ProgrammeView } from '@/components/fitness/ProgrammeView';
 import { ClassSubscriptionReport } from '@/components/fitness/ClassSubscriptionReport';
 import { MemberPortalWeekCalendar } from '@/components/advisors/MemberPortalWeekCalendar';
 import { OwnerWorkspaceCta } from '@/components/advisors/OwnerWorkspaceCta';
-import { GymSectionTitle } from '@/components/fitness/GymMemberPwaUi';
+import {
+  GymExpandSection,
+  GymSectionTitle,
+} from '@/components/fitness/GymMemberPwaUi';
+import { isoDateInZone } from '@/lib/fitness/gym-local-time';
 import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
 import { AdvisorPwaSignOutButton } from '@/components/advisors/AdvisorPwaSignOutButton';
 import type {
@@ -304,6 +309,132 @@ function mondayOf(iso: string) {
   return d.toISOString().slice(0, 10);
 }
 
+const WEEK_DAY_LABELS = [
+  'Mon',
+  'Tue',
+  'Wed',
+  'Thu',
+  'Fri',
+  'Sat',
+  'Sun',
+] as const;
+
+type CoachLaneId = 'all' | 'workouts' | 'classes' | 'clients';
+
+function laneOf(card: PortalSession): Exclude<CoachLaneId, 'all'> {
+  const kind = card.session.session_kind;
+  if (kind === 'coach_personal') return 'workouts';
+  if (kind === 'private_pt') return 'clients';
+  return 'classes';
+}
+
+const COACH_LANES: Array<{
+  id: CoachLaneId;
+  title: string;
+  hint: string;
+  icon: typeof CalendarDays;
+}> = [
+  {
+    id: 'all',
+    title: 'All',
+    hint: 'Full view of your schedule',
+    icon: CalendarDays,
+  },
+  {
+    id: 'workouts',
+    title: 'Workouts',
+    hint: 'Your planned training',
+    icon: Dumbbell,
+  },
+  {
+    id: 'classes',
+    title: 'Classes',
+    hint: 'Classes you are scheduled to take',
+    icon: Users,
+  },
+  {
+    id: 'clients',
+    title: 'Clients',
+    hint: 'Private client sessions',
+    icon: User,
+  },
+];
+
+function CoachWeekStrip({
+  weekStart,
+  todayIso,
+  selectedIso,
+  onPrev,
+  onNext,
+  onSelectDay,
+  arrows = true,
+  prevLabel = 'Previous week',
+  nextLabel = 'Next week',
+}: {
+  weekStart: string;
+  todayIso: string;
+  selectedIso?: string;
+  onPrev?: () => void;
+  onNext?: () => void;
+  onSelectDay?: (iso: string) => void;
+  arrows?: boolean;
+  prevLabel?: string;
+  nextLabel?: string;
+}) {
+  const days = Array.from({ length: 7 }, (_, i) => addDaysIso(weekStart, i));
+  return (
+    <div className="flex items-stretch gap-1">
+      {arrows ? (
+        <button
+          type="button"
+          aria-label={prevLabel}
+          onClick={onPrev}
+          className="flex w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-neutral-900 dark:text-white"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+      ) : null}
+      <div className="grid min-w-0 flex-1 grid-cols-7 gap-0.5">
+        {days.map((iso, i) => {
+          const isToday = iso === todayIso;
+          const on = selectedIso ? iso === selectedIso : isToday;
+          return (
+            <button
+              key={iso}
+              type="button"
+              onClick={() => onSelectDay?.(iso)}
+              className={`rounded-2xl px-0.5 py-1.5 text-center ${
+                on
+                  ? 'bg-[#E8E830] text-slate-950 shadow-sm'
+                  : isToday
+                    ? 'border border-[#E8E830] bg-white text-slate-900 dark:bg-neutral-900 dark:text-white'
+                    : 'bg-white text-slate-500 dark:bg-neutral-900 dark:text-slate-400'
+              }`}
+            >
+              <span className="block text-[8px] font-black uppercase tracking-wide">
+                {WEEK_DAY_LABELS[i]}
+              </span>
+              <span className="block text-[13px] font-black tabular-nums leading-tight">
+                {Number(iso.slice(8, 10))}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {arrows ? (
+        <button
+          type="button"
+          aria-label={nextLabel}
+          onClick={onNext}
+          className="flex w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-neutral-900 dark:text-white"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export default function CoachFitgraphPortalPage() {
   const { token } = useParams() as { token: string };
   const [portal, setPortal] = useState<Portal | null>(null);
@@ -381,7 +512,25 @@ export default function CoachFitgraphPortalPage() {
     new Date().toISOString().slice(0, 10)
   );
   const [workTab, setWorkTab] = useState<AdvisorWorkTab>('today');
-  const [calFilter, setCalFilter] = useState<'all' | 'owner' | 'mine'>('all');
+  const [diaryLaneOpen, setDiaryLaneOpen] = useState<Record<CoachLaneId, boolean>>(
+    {
+      all: true,
+      workouts: false,
+      classes: false,
+      clients: false,
+    }
+  );
+  const [todayLaneOpen, setTodayLaneOpen] = useState<Record<CoachLaneId, boolean>>(
+    {
+      all: true,
+      workouts: false,
+      classes: false,
+      clients: false,
+    }
+  );
+  const [focusDate, setFocusDate] = useState(() =>
+    isoDateInZone('Africa/Johannesburg')
+  );
   const [bookWith, setBookWith] = useState<{
     client_id: string;
     date: string;
@@ -687,21 +836,42 @@ export default function CoachFitgraphPortalPage() {
 
   if (!portal) return null;
 
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = isoDateInZone('Africa/Johannesburg');
   const slotSource = (card: PortalSession) =>
     card.scheduled_by === 'coach' || card.session.origin === 'coach'
       ? 'mine'
       : 'owner';
-  const matchesCal = (card: PortalSession) =>
-    calFilter === 'all' ||
-    (calFilter === 'owner' && slotSource(card) === 'owner') ||
-    (calFilter === 'mine' && slotSource(card) === 'mine');
+  const viewDate = workTab === 'today' ? focusDate : todayIso;
   const todayCards = portal.sessions
-    .filter((s) => s.session.date === todayIso && matchesCal(s))
+    .filter((s) => s.session.date === viewDate)
     .slice()
     .sort((a, b) =>
       String(a.session.start_time).localeCompare(String(b.session.start_time))
     );
+  const cardsInLane = (cards: PortalSession[], lane: CoachLaneId) =>
+    lane === 'all' ? cards : cards.filter((c) => laneOf(c) === lane);
+  const slotBadge = (card: PortalSession) => {
+    if (card.session.session_kind === 'coach_personal') return 'Personal';
+    if (slotSource(card) === 'owner') return 'Gym booked';
+    if (card.session.session_kind === 'private_pt') return 'Your PT';
+    return 'Your class';
+  };
+  const toCalEvent = (card: PortalSession) => ({
+    id: card.session.id,
+    date: card.session.date,
+    start_time: String(card.session.start_time).slice(0, 5),
+    end_time: card.session.end_time
+      ? String(card.session.end_time).slice(0, 5)
+      : null,
+    title:
+      card.session.session_kind === 'coach_personal'
+        ? card.session.notes?.split('\n')[0] || 'Personal time'
+        : card.session.session_kind === 'private_pt'
+          ? `PT · ${card.class_name || 'PT'}`
+          : card.class_name || 'Class',
+    person: slotBadge(card),
+    my_status: 'scheduled' as const,
+  });
   const nowMs = Date.now();
   const nextToday =
     todayCards.find((s) => {
@@ -710,12 +880,6 @@ export default function CoachFitgraphPortalPage() {
       ).getTime();
       return Number.isFinite(t) && t >= nowMs - 20 * 60 * 1000;
     }) || todayCards[0];
-  const slotBadge = (card: PortalSession) => {
-    if (card.session.session_kind === 'coach_personal') return 'Personal';
-    if (slotSource(card) === 'owner') return 'Gym booked';
-    if (card.session.session_kind === 'private_pt') return 'Your PT';
-    return 'Your class';
-  };
 
   return (
     <>
@@ -734,38 +898,73 @@ export default function CoachFitgraphPortalPage() {
       eyebrow="Coach · GymAdvisor®"
       unread={portal.messages_unread || 0}
       tab={workTab}
-      onTab={setWorkTab}
+      onTab={(t) => {
+        setWorkTab(t);
+        if (t === 'today') {
+          const t0 = isoDateInZone('Africa/Johannesburg');
+          setFocusDate(t0);
+          setWeekStart(mondayOf(t0));
+        }
+      }}
       surface="light"
       logoUrl={logoUrl}
       appHref={`/me?link=${encodeURIComponent(token)}`}
     >
       {workTab === 'today' ? (
         <div className="space-y-4">
+          <CoachWeekStrip
+            weekStart={mondayOf(focusDate)}
+            todayIso={todayIso}
+            selectedIso={focusDate}
+            onPrev={() => {
+              const n = addDaysIso(focusDate, -1);
+              setFocusDate(n);
+              setWeekStart(mondayOf(n));
+            }}
+            onNext={() => {
+              const n = addDaysIso(focusDate, 1);
+              setFocusDate(n);
+              setWeekStart(mondayOf(n));
+            }}
+            onSelectDay={(iso) => {
+              setFocusDate(iso);
+              setWeekStart(mondayOf(iso));
+            }}
+            prevLabel="Previous day"
+            nextLabel="Next day"
+          />
           <div className="flex items-start justify-between gap-3">
-            <GymSectionTitle hint="Next session, then mark who came.">
-              Today
+            <GymSectionTitle hint="This day’s schedule by type.">
+              {focusDate === todayIso
+                ? 'Today'
+                : new Date(`${focusDate}T12:00:00`).toLocaleDateString(
+                    undefined,
+                    { weekday: 'short', day: 'numeric', month: 'short' }
+                  )}
             </GymSectionTitle>
-            <div className="inline-flex overflow-x-auto rounded-full border border-slate-200 bg-slate-50 p-0.5 dark:border-white/10 dark:bg-white/5">
-              {(
-                [
-                  ['all', 'All'],
-                  ['owner', 'Gym'],
-                  ['mine', 'Mine'],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setCalFilter(id)}
-                  className={`min-h-8 rounded-full px-2.5 text-[10px] font-black ${
-                    calFilter === id
-                      ? 'bg-[#E8E830] text-slate-950 shadow-sm'
-                      : 'text-slate-500'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() =>
+                  setBookWith({
+                    client_id: '',
+                    date: focusDate,
+                    start_time: '09:00',
+                    end_time: '10:00',
+                    notes: '',
+                  })
+                }
+                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-700 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-200"
+              >
+                Book
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCreate(true)}
+                className="rounded-full bg-[#E8E830] px-3 py-1.5 text-[11px] font-black text-slate-950"
+              >
+                Add
+              </button>
             </div>
           </div>
 
@@ -799,39 +998,70 @@ export default function CoachFitgraphPortalPage() {
             </button>
           ) : (
             <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500 dark:border-white/15 dark:bg-neutral-900">
-              Nothing on the floor today.
+              {focusDate === todayIso
+                ? 'Nothing on the floor today.'
+                : 'Nothing on the floor this day.'}
             </div>
           )}
 
-          {todayCards.filter((c) => c.session.id !== nextToday?.session.id)
-            .length ? (
-            <div className="space-y-2">
-              <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
-                Also today
-              </p>
-              {todayCards
-                .filter((c) => c.session.id !== nextToday?.session.id)
-                .map((card) => (
-                  <button
-                    key={card.session.id}
-                    type="button"
-                    onClick={() => setOpenId(card.session.id)}
-                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left dark:border-white/10 dark:bg-neutral-900"
-                  >
-                    <div>
-                      <p className="text-sm font-black text-slate-900 dark:text-white">
-                        {String(card.session.start_time).slice(0, 5)} ·{' '}
-                        {card.class_name || 'Session'}
-                      </p>
-                      <p className="text-[11px] text-slate-500">
-                        {slotBadge(card)} · {card.planned} booked
-                        {card.pending ? ` · ${card.pending} to mark` : ''}
-                      </p>
-                    </div>
-                  </button>
-                ))}
-            </div>
-          ) : null}
+          {COACH_LANES.map((lane) => {
+            const cards = cardsInLane(todayCards, lane.id);
+            const open = todayLaneOpen[lane.id];
+            const Icon = lane.icon;
+            return (
+              <GymExpandSection
+                key={lane.id}
+                title={lane.title}
+                hint={lane.hint}
+                icon={<Icon className="h-4 w-4" />}
+                badge={
+                  <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-black tabular-nums text-white dark:bg-white dark:text-slate-900">
+                    {cards.length}
+                  </span>
+                }
+                open={open}
+                onToggle={() =>
+                  setTodayLaneOpen((s) => ({ ...s, [lane.id]: !open }))
+                }
+              >
+                {cards.length ? (
+                  cards.map((card) => (
+                    <button
+                      key={card.session.id}
+                      type="button"
+                      onClick={() => setOpenId(card.session.id)}
+                      className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left dark:border-white/10 dark:bg-neutral-900"
+                    >
+                      <div>
+                        <p className="text-sm font-black text-slate-900 dark:text-white">
+                          {String(card.session.start_time).slice(0, 5)}
+                          {card.session.end_time
+                            ? `–${String(card.session.end_time).slice(0, 5)}`
+                            : ''}{' '}
+                          ·{' '}
+                          {card.session.session_kind === 'coach_personal'
+                            ? card.session.notes?.split('\n')[0] ||
+                              'Personal time'
+                            : card.class_name || 'Session'}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          {slotBadge(card)}
+                          {card.session.session_kind === 'coach_personal'
+                            ? ''
+                            : ` · ${card.planned} booked`}
+                          {card.pending ? ` · ${card.pending} to mark` : ''}
+                        </p>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-xs text-slate-500">
+                    Nothing in {lane.title.toLowerCase()} this day.
+                  </p>
+                )}
+              </GymExpandSection>
+            );
+          })}
 
           <MemberSpecialDatesPanel
             tone="coach"
@@ -839,31 +1069,6 @@ export default function CoachFitgraphPortalPage() {
             description="Birthdays and gym anniversaries this week."
             rows={portal.special_dates || []}
           />
-
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                setBookWith({
-                  client_id: '',
-                  date: todayIso,
-                  start_time: '09:00',
-                  end_time: '10:00',
-                  notes: '',
-                })
-              }
-              className="rounded-2xl bg-[#E8E830] py-3 text-xs font-black text-slate-950"
-            >
-              Book a member
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowCreate(true)}
-              className="rounded-2xl border border-slate-200 bg-white py-3 text-xs font-black text-slate-800 dark:border-white/10 dark:bg-neutral-900 dark:text-white"
-            >
-              Add session
-            </button>
-          </div>
         </div>
       ) : null}
 
@@ -1062,6 +1267,18 @@ export default function CoachFitgraphPortalPage() {
 
       {workTab === 'diary' ? (
       <div className="space-y-3">
+      <CoachWeekStrip
+        weekStart={weekStart}
+        todayIso={todayIso}
+        selectedIso={
+          days.includes(todayIso) ? todayIso : undefined
+        }
+        onPrev={() => setWeekStart(addDaysIso(weekStart, -7))}
+        onNext={() => setWeekStart(addDaysIso(weekStart, 7))}
+        onSelectDay={(iso) => {
+          setWeekStart(mondayOf(iso));
+        }}
+      />
       <div className="flex items-start justify-between gap-3">
         <GymSectionTitle hint="Gym classes, your PT, and personal time.">
           Diary
@@ -1083,48 +1300,6 @@ export default function CoachFitgraphPortalPage() {
           </button>
         </div>
       </div>
-      <div className="inline-flex overflow-x-auto rounded-full border border-slate-200 bg-slate-50 p-0.5 dark:border-white/10 dark:bg-white/5">
-            {(
-              [
-                ['all', 'All'],
-                ['owner', 'Gym'],
-                ['mine', 'Mine'],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setCalFilter(id)}
-                className={`min-h-8 rounded-full px-2.5 text-[10px] font-black ${
-                  calFilter === id
-                    ? 'bg-[#E8E830] text-slate-950 shadow-sm'
-                    : 'text-slate-500'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-      </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="rounded-xl border border-slate-200 p-2 dark:border-white/10"
-              onClick={() => setWeekStart(addDaysIso(weekStart, -7))}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <span className="flex items-center gap-1 text-xs font-bold tabular-nums text-slate-700 dark:text-slate-200">
-              <CalendarDays className="h-3.5 w-3.5" />
-              {weekStart} → {weekEnd}
-            </span>
-            <button
-              type="button"
-              className="rounded-xl border border-slate-200 p-2 dark:border-white/10"
-              onClick={() => setWeekStart(addDaysIso(weekStart, 7))}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
 
         {error ? (
           <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-100">
@@ -1132,39 +1307,49 @@ export default function CoachFitgraphPortalPage() {
           </div>
         ) : null}
 
-        <MemberPortalWeekCalendar
-          theme="light"
-          color="#E8E830"
-          hideNav
-          weekStart={weekStart}
-          events={days.flatMap((d) =>
-            (portal.by_date?.[d] || []).filter(matchesCal).map((card) => ({
-              id: card.session.id,
-              date: d,
-              start_time: String(card.session.start_time).slice(0, 5),
-              end_time: card.session.end_time
-                ? String(card.session.end_time).slice(0, 5)
-                : null,
-              title:
-                card.session.session_kind === 'coach_personal'
-                  ? card.session.notes?.split('\n')[0] || 'Personal time'
-                  : card.session.session_kind === 'private_pt'
-                    ? `PT · ${card.class_name || 'PT'}`
-                    : card.class_name || 'Class',
-              person: slotBadge(card),
-              my_status: 'scheduled',
-            }))
-          )}
-          onSelect={(ev) => setOpenId(ev.id)}
-          emptyLabel="Nothing this week. Tap Class / PT / block to add a class, private PT, or your own training."
-        />
-
-        {portal.sessions.length === 0 && (
-          <p className="py-8 text-center text-sm text-slate-500">
-            Nothing this week. Tap <strong>Add</strong> for a class, PT, or
-            personal time.
-          </p>
-        )}
+        {COACH_LANES.map((lane) => {
+          const cards = cardsInLane(
+            days.flatMap((d) => portal.by_date?.[d] || []),
+            lane.id
+          );
+          const open = diaryLaneOpen[lane.id];
+          const Icon = lane.icon;
+          return (
+            <GymExpandSection
+              key={lane.id}
+              title={lane.title}
+              hint={lane.hint}
+              icon={<Icon className="h-4 w-4" />}
+              badge={
+                <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-black tabular-nums text-white dark:bg-white dark:text-slate-900">
+                  {cards.length}
+                </span>
+              }
+              open={open}
+              onToggle={() =>
+                setDiaryLaneOpen((s) => ({ ...s, [lane.id]: !open }))
+              }
+            >
+              <MemberPortalWeekCalendar
+                theme="light"
+                color="#E8E830"
+                hideNav
+                weekStart={weekStart}
+                events={cards.map(toCalEvent)}
+                onSelect={(ev) => setOpenId(ev.id)}
+                emptyLabel={
+                  lane.id === 'workouts'
+                    ? 'No planned workouts this week. Add personal time from Add.'
+                    : lane.id === 'classes'
+                      ? 'No classes scheduled this week.'
+                      : lane.id === 'clients'
+                        ? 'No private client sessions this week.'
+                        : 'Nothing this week. Tap Add for a class, PT, or your own training.'
+                }
+              />
+            </GymExpandSection>
+          );
+        })}
       </div>
       ) : null}
 

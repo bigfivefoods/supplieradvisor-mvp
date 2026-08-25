@@ -378,6 +378,9 @@ export default function MemberFitgraphPortalPage() {
     Record<string, boolean>
   >({});
   const [afterClassOpen, setAfterClassOpen] = useState(true);
+  const [afterClassMonthOpen, setAfterClassMonthOpen] = useState<
+    Record<string, boolean>
+  >({});
   const [rsvpOverride, setRsvpOverride] = useState<
     Record<string, 'coming' | 'not_coming'>
   >({});
@@ -1521,43 +1524,84 @@ export default function MemberFitgraphPortalPage() {
               title="After class"
               hint={
                 afterClassOpen
-                  ? 'Rate a class you have already done.'
-                  : recentDone.length
-                    ? `${Math.min(recentDone.length, 6)} recent class${
-                        recentDone.length === 1 ? '' : 'es'
-                      }`
+                  ? 'Grouped by month — plan vs actual and % achieved. Rate a class you have already done.'
+                  : journeyMonths.length
+                    ? journeyMonths
+                        .map((m) => {
+                          const s = journeyMonthStats(m.items);
+                          return `${m.label} ${s.planned} plan vs ${s.attended} actual${
+                            s.pct == null ? '' : ` · ${s.pct}% achieved`
+                          }`;
+                        })
+                        .join(' · ')
                     : 'Rate a class you have already done'
               }
               icon={<CheckCircle2 className="h-4 w-4" />}
               open={afterClassOpen}
               onToggle={() => setAfterClassOpen((v) => !v)}
             >
-              {recentDone.length ? (
-                recentDone.slice(0, 6).map((b) => (
-                  <GymNextUpCard
-                    key={`done-${b.booking_id}`}
-                    className={b.class_name}
-                    date={b.date}
-                    startTime={b.start_time}
-                    location={b.location}
-                    coach={b.coach_name}
-                    rsvp={rsvpOf(b)}
-                    bookingId={b.booking_id}
-                    busy={
-                      busyId === b.booking_id ||
-                      busyId === `rate:${b.booking_id}`
-                    }
-                    color={color}
-                    featured={false}
-                    ended
-                    attended={b.status === 'attended'}
-                    pendingRate={pendingRateOf(b)}
-                    feedback={feedbackOf(b)}
-                    plan={b.class_plan}
-                    programme={b.programme}
-                    onRate={(v) => void rateClass(b.booking_id, v)}
-                  />
-                ))
+              {journeyMonths.length ? (
+                journeyMonths.map((month, i) => {
+                  const monthOpen =
+                    afterClassMonthOpen[month.key] ?? i === 0;
+                  const s = journeyMonthStats(month.items);
+                  return (
+                    <GymExpandSection
+                      key={month.key}
+                      nested
+                      title={month.label}
+                      hint={`${s.planned} plan vs ${s.attended} actual${
+                        s.pct == null ? '' : ` · ${s.pct}% achieved`
+                      }`}
+                      badge={
+                        <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-black tabular-nums text-white dark:bg-white dark:text-slate-900">
+                          {s.pct == null ? '—' : `${s.pct}%`}
+                        </span>
+                      }
+                      open={monthOpen}
+                      onToggle={() =>
+                        setAfterClassMonthOpen((prev) => ({
+                          ...prev,
+                          [month.key]: !monthOpen,
+                        }))
+                      }
+                    >
+                      <div className="grid grid-cols-3 gap-2">
+                        <GymStat value={s.planned} label="Plan" />
+                        <GymStat value={s.attended} label="Actual" />
+                        <GymStat
+                          value={s.pct == null ? '—' : `${s.pct}%`}
+                          label="Achieved"
+                        />
+                      </div>
+                      {month.items.map((b) => (
+                        <GymNextUpCard
+                          key={`done-${b.booking_id}`}
+                          className={b.class_name}
+                          date={b.date}
+                          startTime={b.start_time}
+                          location={b.location}
+                          coach={b.coach_name}
+                          rsvp={rsvpOf(b)}
+                          bookingId={b.booking_id}
+                          busy={
+                            busyId === b.booking_id ||
+                            busyId === `rate:${b.booking_id}`
+                          }
+                          color={color}
+                          featured={false}
+                          ended
+                          attended={b.status === 'attended'}
+                          pendingRate={pendingRateOf(b)}
+                          feedback={feedbackOf(b)}
+                          plan={b.class_plan}
+                          programme={b.programme}
+                          onRate={(v) => void rateClass(b.booking_id, v)}
+                        />
+                      ))}
+                    </GymExpandSection>
+                  );
+                })
               ) : (
                 <p className="text-xs text-slate-500">
                   Classes you complete land here — rate them after you attend.
