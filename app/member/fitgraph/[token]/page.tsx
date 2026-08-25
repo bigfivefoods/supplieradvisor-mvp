@@ -361,6 +361,7 @@ export default function MemberFitgraphPortalPage() {
   const [debitBank, setDebitBank] = useState<DebitBankForm>(emptyDebitBankForm);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [journeyOpen, setJourneyOpen] = useState(true);
+  const [notesOpen, setNotesOpen] = useState(true);
   const [rsvpOverride, setRsvpOverride] = useState<
     Record<string, 'coming' | 'not_coming'>
   >({});
@@ -1680,11 +1681,23 @@ export default function MemberFitgraphPortalPage() {
               />
             </GymExpandSection>
 
-            <div className="space-y-2 rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900">
-              <div className="flex items-center gap-2 text-slate-800 dark:text-white">
-                <Activity className="h-4 w-4" />
-                <h2 className="text-sm font-black">Training notes</h2>
-              </div>
+            <GymExpandSection
+              title="Training notes"
+              hint={
+                notesOpen
+                  ? undefined
+                  : (portal.progress?.coach_notes || []).length
+                    ? `${(portal.progress?.coach_notes || []).length} note${
+                        (portal.progress?.coach_notes || []).length === 1
+                          ? ''
+                          : 's'
+                      } from your coach`
+                    : 'Coach notes and modifications'
+              }
+              icon={<Activity className="h-4 w-4" />}
+              open={notesOpen}
+              onToggle={() => setNotesOpen((v) => !v)}
+            >
               {portal.progress?.health?.summary ? (
                 <p className="text-sm text-slate-700 dark:text-slate-200">
                   {portal.progress.health.summary}
@@ -1732,7 +1745,7 @@ export default function MemberFitgraphPortalPage() {
                   Your coach has not left training notes yet.
                 </p>
               ) : null}
-            </div>
+            </GymExpandSection>
 
             <GymExpandSection
               title="Class feedback"
