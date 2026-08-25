@@ -4,6 +4,8 @@ import { useState, type ReactNode } from 'react';
 import {
   Activity,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Dumbbell,
   Globe,
   Inbox,
@@ -223,21 +225,241 @@ function AvatarCircle({
   );
 }
 
-function GymMemberPwaMock({
-  copy,
+function GymAppHeader({
+  eyebrow,
   brand,
   logoUrl,
   color,
-  dark,
+  ink,
+  sub,
 }: {
-  copy: GrowPreviewCopy;
+  eyebrow: string;
   brand: string;
   logoUrl?: string | null;
   color: string;
-  dark?: boolean;
+  ink: string;
+  sub: string;
 }) {
-  const ink = advisorBrandInk(color);
-  const skin = previewSkin(Boolean(dark));
+  return (
+    <div
+      className="px-3 pb-3 pt-7"
+      style={{
+        background: `linear-gradient(135deg, ${color} 0%, color-mix(in srgb, ${color} 50%, #0f172a) 100%)`,
+        color: ink,
+      }}
+    >
+      <p className="text-[8px] font-black uppercase tracking-[0.16em] opacity-70">
+        {eyebrow}
+      </p>
+      <div className="mt-1 flex items-end gap-2">
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logoUrl}
+            alt=""
+            className="h-8 w-8 rounded-xl bg-white/20 object-contain p-0.5"
+          />
+        ) : (
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/20 text-[11px] font-black">
+            {brand.slice(0, 1).toUpperCase()}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13px] font-black leading-tight">{brand}</p>
+          <p className="text-[9px] opacity-80">{sub}</p>
+        </div>
+        <AvatarCircle
+          letter={sub.includes('coach') ? 'J' : 'A'}
+          className="h-9 w-9 ring-2 ring-white/50"
+        />
+      </div>
+    </div>
+  );
+}
+
+function MiniFold({
+  title,
+  hint,
+  badge,
+  open,
+  skin,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  badge?: string;
+  open?: boolean;
+  skin: ReturnType<typeof previewSkin>;
+  children?: ReactNode;
+}) {
+  return (
+    <div className={`${skin.card} overflow-hidden`}>
+      <div className="flex items-center gap-1.5 px-2.5 py-2">
+        <div className="min-w-0 flex-1">
+          <p className={`text-[10px] font-black ${skin.title}`}>{title}</p>
+          {hint ? <p className={`text-[8px] leading-snug ${skin.muted}`}>{hint}</p> : null}
+        </div>
+        {badge ? (
+          <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-black ${skin.coming}`}>
+            {badge}
+          </span>
+        ) : null}
+      </div>
+      {open && children ? (
+        <div className="space-y-1.5 border-t border-black/5 px-2.5 py-2 dark:border-white/10">
+          {children}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function MiniWeekStrip({
+  skin,
+  color,
+  ink,
+  selected = 2,
+  arrows = true,
+}: {
+  skin: ReturnType<typeof previewSkin>;
+  color: string;
+  ink: string;
+  selected?: number;
+  arrows?: boolean;
+}) {
+  const days = [
+    ['Mon', '24'],
+    ['Tue', '25'],
+    ['Wed', '26'],
+    ['Thu', '27'],
+    ['Fri', '28'],
+    ['Sat', '29'],
+    ['Sun', '30'],
+  ];
+  return (
+    <div className="flex items-stretch gap-0.5">
+      {arrows ? (
+        <span
+          className={`flex w-5 shrink-0 items-center justify-center rounded-lg ${skin.card}`}
+        >
+          <ChevronLeft className="h-3 w-3" />
+        </span>
+      ) : null}
+      <div className="grid min-w-0 flex-1 grid-cols-7 gap-0.5">
+        {days.map(([d, n], i) => {
+          const on = i === selected;
+          return (
+            <span
+              key={d}
+              className={`rounded-lg py-1 text-center ${
+                on ? '' : skin.weekOff
+              }`}
+              style={on ? { backgroundColor: color, color: ink } : undefined}
+            >
+              <span className="block text-[7px] font-black uppercase">{d}</span>
+              <span className="block text-[10px] font-black leading-none">{n}</span>
+            </span>
+          );
+        })}
+      </div>
+      {arrows ? (
+        <span
+          className={`flex w-5 shrink-0 items-center justify-center rounded-lg ${skin.card}`}
+        >
+          <ChevronRight className="h-3 w-3" />
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function ScreenSlider({
+  screens,
+  dark,
+  labelPrefix,
+}: {
+  screens: Array<{ id: string; title: string; phone: ReactNode }>;
+  dark?: boolean;
+  labelPrefix: string;
+}) {
+  const [i, setI] = useState(0);
+  const n = screens.length;
+  const go = (j: number) => setI(((j % n) + n) % n);
+  const cur = screens[i] || screens[0];
+  if (!cur) return null;
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-center gap-2">
+        {n > 1 ? (
+          <button
+            type="button"
+            aria-label="Previous screen"
+            onClick={() => go(i - 1)}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 dark:border-white/15 dark:bg-neutral-900 dark:text-white"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        ) : null}
+        <PhoneChrome label={`${labelPrefix} · ${cur.title}`} dark={dark}>
+          {cur.phone}
+        </PhoneChrome>
+        {n > 1 ? (
+          <button
+            type="button"
+            aria-label="Next screen"
+            onClick={() => go(i + 1)}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 dark:border-white/15 dark:bg-neutral-900 dark:text-white"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        ) : null}
+      </div>
+      {n > 1 ? (
+        <>
+          <input
+            type="range"
+            min={0}
+            max={n - 1}
+            step={1}
+            value={i}
+            aria-label="Preview screen"
+            onChange={(e) => setI(Number(e.target.value))}
+            className="w-full accent-slate-900 dark:accent-yellow-400"
+          />
+          <div className="flex flex-wrap justify-center gap-1">
+            {screens.map((s, j) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setI(j)}
+                aria-pressed={j === i}
+                className={`rounded-full px-2.5 py-1 text-[10px] font-black ${
+                  j === i
+                    ? 'bg-slate-900 text-white dark:bg-yellow-400 dark:text-yellow-950'
+                    : 'border border-slate-200 bg-white text-slate-500 dark:border-white/15 dark:bg-neutral-900'
+                }`}
+              >
+                {s.title}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function GymMemberDock({
+  active,
+  color,
+  ink,
+  skin,
+}: {
+  active: 'class' | 'progress';
+  color: string;
+  ink: string;
+  skin: ReturnType<typeof previewSkin>;
+}) {
   const dock: Array<{
     id: string;
     label: string;
@@ -251,151 +473,230 @@ function GymMemberPwaMock({
     { id: 'share', label: 'Share', icon: Share2 },
   ];
   return (
-    <div className={skin.pageGym}>
-      <div
-        className="px-3 pb-3 pt-7"
-        style={{
-          background: `linear-gradient(135deg, ${color} 0%, color-mix(in srgb, ${color} 50%, #0f172a) 100%)`,
-          color: ink,
-        }}
-      >
-        <p className="text-[8px] font-black uppercase tracking-[0.16em] opacity-70">
-          {copy.pwaEyebrow}
-        </p>
-        <div className="mt-1 flex items-end gap-2">
-          {logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={logoUrl}
-              alt=""
-              className="h-8 w-8 rounded-xl bg-white/20 object-contain p-0.5"
-            />
-          ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/20 text-[11px] font-black">
-              {brand.slice(0, 1).toUpperCase()}
-            </div>
-          )}
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-black leading-tight">
-              {brand}
-            </p>
-            <p className="text-[9px] opacity-80">Hi Alex</p>
-          </div>
-          <AvatarCircle letter="A" className="h-9 w-9 ring-2 ring-white/50" />
-        </div>
-      </div>
-      <div className="min-h-0 flex-1 space-y-2 overflow-hidden p-2.5">
-        <div
-          className="rounded-2xl p-2.5 shadow-sm"
-          style={{ backgroundColor: color, color: ink }}
-        >
-          <p className="text-[8px] font-black uppercase tracking-widest opacity-70">
-            Next class
-          </p>
-          <p className="text-[13px] font-black leading-tight">
-            {copy.sampleTitle}
-          </p>
-          <p className="mt-0.5 text-[10px] font-bold opacity-80">
-            {copy.sampleWhen} · Coach Sam
-          </p>
-          <div className="mt-2 flex gap-1">
-            <span className={`rounded-lg px-2 py-0.5 text-[8px] font-black ${skin.coming}`}>
-              I&apos;m coming
-            </span>
-            <span className="rounded-lg px-2 py-0.5 text-[8px] font-bold underline">
-              Can&apos;t make it
-            </span>
-          </div>
-        </div>
-        <div className={`${skin.card} px-2.5 py-2`}>
-          <div className="flex items-center justify-between">
-            <p className={`text-[10px] font-black ${skin.title}`}>
-              {copy.programmeName || 'Programme'}
-            </p>
-            <p className={`text-[10px] font-black tabular-nums ${skin.title}`}>
-              62%
-            </p>
-          </div>
-          <div className={`mt-1 h-1 overflow-hidden rounded-full ${skin.track}`}>
-            <div
-              className="h-full rounded-full"
-              style={{ width: '62%', backgroundColor: color }}
-            />
-          </div>
-          <p className={`mt-1 text-[9px] ${skin.muted}`}>
-            Today · Squat + engine · log feel &amp; RPE
-          </p>
-        </div>
-        <div className="grid grid-cols-7 gap-0.5">
-          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
-            <div
-              key={`${d}-${i}`}
-              className={`rounded-lg py-1 text-center text-[8px] font-black ${
-                i === 1 ? '' : skin.weekOff
-              }`}
-              style={
-                i === 1 ? { backgroundColor: color, color: ink } : undefined
-              }
-            >
-              {d}
-              <div className="text-[9px]">{14 + i}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className={skin.dock}>
-        {dock.map((t) => {
-          const on = t.id === 'class';
-          if (t.emphasis) {
-            return (
-              <div key={t.id} className="-mt-4 flex flex-col items-center">
-                <span
-                  className={`flex h-11 w-11 items-center justify-center overflow-hidden rounded-full text-[12px] font-black shadow-lg ${skin.youRing}`}
-                  style={{ backgroundColor: color, color: ink }}
-                >
-                  A
-                </span>
-                <span className={`text-[8px] font-black ${skin.youLabel}`}>
-                  {t.label}
-                </span>
-              </div>
-            );
-          }
-          const Icon = t.icon;
-          if (!Icon) return null;
+    <div className={skin.dock}>
+      {dock.map((t) => {
+        const on = t.id === active;
+        if (t.emphasis) {
           return (
-            <div
-              key={t.id}
-              className={`flex flex-col items-center gap-0.5 px-1 text-[8px] font-black ${
-                on ? '' : skin.dockOff
-              }`}
-              style={on ? { color } : undefined}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {t.label}
+            <div key={t.id} className="-mt-4 flex flex-col items-center">
+              <span
+                className={`flex h-11 w-11 items-center justify-center overflow-hidden rounded-full text-[12px] font-black shadow-lg ${skin.youRing}`}
+                style={{ backgroundColor: color, color: ink }}
+              >
+                A
+              </span>
+              <span className={`text-[8px] font-black ${skin.youLabel}`}>
+                {t.label}
+              </span>
             </div>
           );
-        })}
-      </div>
+        }
+        const Icon = t.icon;
+        if (!Icon) return null;
+        return (
+          <div
+            key={t.id}
+            className={`flex flex-col items-center gap-0.5 px-1 text-[8px] font-black ${
+              on ? '' : skin.dockOff
+            }`}
+            style={on ? { color } : undefined}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            {t.label}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function GymCoachPwaMock({
+function GymMemberPwaMock({
   copy,
   brand,
   logoUrl,
   color,
   dark,
+  screen = 'class',
 }: {
   copy: GrowPreviewCopy;
   brand: string;
   logoUrl?: string | null;
   color: string;
   dark?: boolean;
+  screen?: 'class' | 'after' | 'journey';
 }) {
   const ink = advisorBrandInk(color);
   const skin = previewSkin(Boolean(dark));
+  const active = screen === 'journey' ? 'progress' : 'class';
+  return (
+    <div className={skin.pageGym}>
+      <GymAppHeader
+        eyebrow={copy.pwaEyebrow}
+        brand={brand}
+        logoUrl={logoUrl}
+        color={color}
+        ink={ink}
+        sub="Hi Alex"
+      />
+      <div className="min-h-0 flex-1 space-y-2 overflow-hidden p-2.5">
+        {screen === 'class' ? (
+          <>
+            <p className={`text-[11px] font-black ${skin.title}`}>Next up</p>
+            <div
+              className="rounded-2xl p-2.5 shadow-sm"
+              style={{ backgroundColor: color, color: ink }}
+            >
+              <p className="text-[8px] font-black uppercase tracking-widest opacity-70">
+                Next up
+              </p>
+              <p className="text-[13px] font-black leading-tight">
+                {copy.sampleTitle}
+              </p>
+              <p className="mt-0.5 text-[10px] font-bold opacity-80">
+                {copy.sampleWhen} · Coach Sam
+              </p>
+              <div className="mt-2 flex gap-1">
+                <span className={`rounded-lg px-2 py-0.5 text-[8px] font-black ${skin.coming}`}>
+                  I&apos;m coming
+                </span>
+                <span className="rounded-lg px-2 py-0.5 text-[8px] font-bold underline">
+                  Can&apos;t make it
+                </span>
+              </div>
+            </div>
+            <MiniFold
+              title="Coming up"
+              hint="Sessions planned, grouped by month"
+              badge="5 sessions"
+              open
+              skin={skin}
+            >
+              <p className={`text-[9px] font-black ${skin.title}`}>August</p>
+              <div className={`${skin.card} px-2 py-1.5`}>
+                <p className={`text-[8px] font-black uppercase ${skin.kicker}`}>
+                  Coming up
+                </p>
+                <p className={`text-[11px] font-black ${skin.title}`}>
+                  Hyrox engine
+                </p>
+                <p className={`text-[8px] ${skin.muted}`}>Thu · 06:00</p>
+              </div>
+            </MiniFold>
+            <MiniFold
+              title="After class"
+              hint="4 plan vs 3 actual · 75% achieved"
+              badge="75%"
+              skin={skin}
+            />
+          </>
+        ) : null}
+        {screen === 'after' ? (
+          <>
+            <p className={`text-[11px] font-black ${skin.title}`}>After class</p>
+            <MiniFold
+              title="August"
+              hint="4 plan vs 3 actual · 75% achieved"
+              badge="75%"
+              open
+              skin={skin}
+            >
+              <div className="grid grid-cols-3 gap-1">
+                {[
+                  ['4', 'Plan'],
+                  ['3', 'Actual'],
+                  ['75%', 'Achieved'],
+                ].map(([v, l]) => (
+                  <div
+                    key={l}
+                    className={`rounded-xl px-1 py-1.5 text-center ${skin.card}`}
+                  >
+                    <p className={`text-[11px] font-black tabular-nums ${skin.title}`}>
+                      {v}
+                    </p>
+                    <p className={`text-[7px] font-black uppercase ${skin.kicker}`}>
+                      {l}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <div className={`${skin.card} px-2 py-1.5`}>
+                <p className={`text-[8px] font-black uppercase ${skin.kicker}`}>
+                  Attended
+                </p>
+                <p className={`text-[11px] font-black ${skin.title}`}>
+                  {copy.sampleTitle}
+                </p>
+                <p className={`text-[8px] ${skin.muted}`}>Mon · rate this class</p>
+              </div>
+            </MiniFold>
+            <MiniFold
+              title="July"
+              hint="8 plan vs 7 actual · 88% achieved"
+              badge="88%"
+              skin={skin}
+            />
+          </>
+        ) : null}
+        {screen === 'journey' ? (
+          <>
+            <p className={`text-[11px] font-black ${skin.title}`}>Journey</p>
+            <div className="grid grid-cols-3 gap-1">
+              {[
+                ['12', 'Classes · 30d'],
+                ['48', 'Attended'],
+                ['9', 'Check-ins'],
+              ].map(([v, l]) => (
+                <div
+                  key={l}
+                  className={`rounded-xl px-1 py-1.5 text-center ${skin.card}`}
+                >
+                  <p className={`text-[11px] font-black tabular-nums ${skin.title}`}>
+                    {v}
+                  </p>
+                  <p className={`text-[6px] font-black uppercase leading-tight ${skin.kicker}`}>
+                    {l}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <MiniFold
+              title="August"
+              hint="4 planned · 3 attended"
+              badge="75%"
+              open
+              skin={skin}
+            >
+              <div className={`${skin.card} px-2 py-1.5`}>
+                <p className={`text-[11px] font-black ${skin.title}`}>
+                  {copy.sampleTitle}
+                </p>
+                <p className={`text-[8px] ${skin.muted}`}>Attended · tap to rate</p>
+              </div>
+            </MiniFold>
+            <MiniFold
+              title="Training notes"
+              hint="Coach notes and modifications"
+              skin={skin}
+            />
+          </>
+        ) : null}
+      </div>
+      <GymMemberDock active={active} color={color} ink={ink} skin={skin} />
+    </div>
+  );
+}
+
+function GymCoachDock({
+  active,
+  color,
+  ink,
+  skin,
+}: {
+  active: 'today' | 'diary';
+  color: string;
+  ink: string;
+  skin: ReturnType<typeof previewSkin>;
+}) {
   const tabs: Array<{
     id: string;
     label: string;
@@ -409,125 +710,150 @@ function GymCoachPwaMock({
     { id: 'inbox', label: 'Inbox', icon: Inbox },
   ];
   return (
-    <div className={skin.pageGym}>
-      <div
-        className="px-3 pb-3 pt-7"
-        style={{
-          background: `linear-gradient(135deg, ${color} 0%, color-mix(in srgb, ${color} 50%, #0f172a) 100%)`,
-          color: ink,
-        }}
-      >
-        <p className="text-[8px] font-black uppercase tracking-[0.16em] opacity-70">
-          {copy.staffEyebrow}
-        </p>
-        <div className="mt-1 flex items-end gap-2">
-          {logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={logoUrl}
-              alt=""
-              className="h-8 w-8 rounded-xl bg-white/20 object-contain p-0.5"
-            />
-          ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/20 text-[11px] font-black">
-              {brand.slice(0, 1).toUpperCase()}
-            </div>
-          )}
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-black leading-tight">
-              {brand}
-            </p>
-            <p className="text-[9px] opacity-80">Jordan · coach</p>
-          </div>
-          <AvatarCircle letter="J" className="h-9 w-9 ring-2 ring-white/50" />
-        </div>
-      </div>
-      <div className="min-h-0 flex-1 space-y-2 overflow-hidden p-2.5">
-        <div className="flex items-start justify-between gap-2">
-          <p className={`text-[12px] font-black leading-tight ${skin.title}`}>
-            Today
-          </p>
-          <div className={skin.chipTrack}>
-            {['All', 'Gym', 'Mine'].map((t, i) => (
-              <span
-                key={t}
-                className={`rounded-full px-1.5 py-0.5 text-[7px] font-black ${
-                  i === 0 ? 'shadow-sm' : skin.chipOff
-                }`}
-                style={i === 0 ? { backgroundColor: color, color: ink } : undefined}
-              >
-                {t}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div
-          className="rounded-2xl p-2.5 shadow-sm"
-          style={{ backgroundColor: color, color: ink }}
-        >
-          <p className="text-[8px] font-black uppercase tracking-widest opacity-70">
-            Next up · Gym
-          </p>
-          <p className="text-[13px] font-black leading-tight">
-            {copy.staffSample}
-          </p>
-          <p className="mt-0.5 text-[10px] font-bold opacity-80">
-            Mark attended · open roster
-          </p>
-        </div>
-        <div className={`${skin.card} px-2.5 py-2`}>
-          <p className={`text-[8px] font-black uppercase tracking-wide ${skin.kicker}`}>
-            Also today
-          </p>
-          <p className={`text-[11px] font-black ${skin.title}`}>09:00 PT · Ada</p>
-          <p className={`text-[9px] ${skin.muted}`}>Mine · 1 booked</p>
-        </div>
-        <div className={`${skin.card} px-2.5 py-2`}>
-          <p className={`text-[8px] font-black uppercase tracking-wide ${skin.kicker}`}>
-            Programme follow
-          </p>
-          <p className={`text-[11px] font-black ${skin.title}`}>
-            Ada · {copy.programmeName || 'Plan'}
-          </p>
-          <p className={`text-[9px] ${skin.muted}`}>
-            62% · feel 4/5 · RPE 7
-          </p>
-        </div>
-      </div>
-      <div className={skin.dock}>
-        {tabs.map((t) => {
-          const on = t.id === 'today';
-          if (t.emphasis) {
-            return (
-              <div key={t.id} className="-mt-4 flex flex-col items-center">
-                <span
-                  className={`flex h-11 w-11 items-center justify-center overflow-hidden rounded-full text-[12px] font-black shadow-lg ${skin.youRing}`}
-                  style={{ backgroundColor: color, color: ink }}
-                >
-                  J
-                </span>
-                <span className={`text-[8px] font-black ${skin.youLabel}`}>
-                  {t.label}
-                </span>
-              </div>
-            );
-          }
-          const Icon = t.icon;
-          if (!Icon) return null;
+    <div className={skin.dock}>
+      {tabs.map((t) => {
+        const on = t.id === active;
+        if (t.emphasis) {
           return (
-            <div
-              key={t.id}
-              className={`flex flex-col items-center gap-0.5 px-1 text-[8px] font-black ${
-                on ? '' : skin.dockOff
-              }`}
-              style={on ? { color } : undefined}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {t.label}
+            <div key={t.id} className="-mt-4 flex flex-col items-center">
+              <span
+                className={`flex h-11 w-11 items-center justify-center overflow-hidden rounded-full text-[12px] font-black shadow-lg ${skin.youRing}`}
+                style={{ backgroundColor: color, color: ink }}
+              >
+                J
+              </span>
+              <span className={`text-[8px] font-black ${skin.youLabel}`}>
+                {t.label}
+              </span>
             </div>
           );
-        })}
+        }
+        const Icon = t.icon;
+        if (!Icon) return null;
+        return (
+          <div
+            key={t.id}
+            className={`flex flex-col items-center gap-0.5 px-1 text-[8px] font-black ${
+              on ? '' : skin.dockOff
+            }`}
+            style={on ? { color } : undefined}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            {t.label}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function GymCoachPwaMock({
+  copy,
+  brand,
+  logoUrl,
+  color,
+  dark,
+  screen = 'today',
+}: {
+  copy: GrowPreviewCopy;
+  brand: string;
+  logoUrl?: string | null;
+  color: string;
+  dark?: boolean;
+  screen?: 'today' | 'diary';
+}) {
+  const ink = advisorBrandInk(color);
+  const skin = previewSkin(Boolean(dark));
+  const lanes = [
+    { title: 'All', hint: 'Full view of your schedule', n: 4 },
+    { title: 'Workouts', hint: 'Your planned training', n: 1 },
+    { title: 'Classes', hint: 'Classes you take', n: 2 },
+    { title: 'Clients', hint: 'Private client sessions', n: 1 },
+  ];
+  return (
+    <div className={skin.pageGym}>
+      <GymAppHeader
+        eyebrow={copy.staffEyebrow}
+        brand={brand}
+        logoUrl={logoUrl}
+        color={color}
+        ink={ink}
+        sub="Jordan · coach"
+      />
+      <div className="min-h-0 flex-1 space-y-1.5 overflow-hidden p-2.5">
+        <MiniWeekStrip
+          skin={skin}
+          color={color}
+          ink={ink}
+          selected={2}
+          arrows
+        />
+        <p className={`text-[11px] font-black ${skin.title}`}>
+          {screen === 'diary' ? 'Diary' : 'Today'}
+        </p>
+        {screen === 'today' ? (
+          <div
+            className="rounded-2xl p-2 shadow-sm"
+            style={{ backgroundColor: color, color: ink }}
+          >
+            <p className="text-[7px] font-black uppercase tracking-widest opacity-70">
+              Next up · Gym
+            </p>
+            <p className="text-[12px] font-black leading-tight">
+              {copy.staffSample}
+            </p>
+            <p className="text-[8px] font-bold opacity-80">Open roster →</p>
+          </div>
+        ) : (
+          <div className={`${skin.card} px-2 py-1.5`}>
+            <div className="grid grid-cols-7 gap-0.5">
+              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+                <div
+                  key={`${d}-${i}`}
+                  className={`rounded py-1 text-center text-[7px] font-black ${
+                    i === 2 ? '' : skin.weekOff
+                  }`}
+                  style={
+                    i === 2 ? { backgroundColor: color, color: ink } : undefined
+                  }
+                >
+                  {d}
+                </div>
+              ))}
+            </div>
+            <p className={`mt-1 text-[8px] ${skin.muted}`}>
+              Week calendar · tap a session
+            </p>
+          </div>
+        )}
+        {lanes.map((lane, i) => (
+          <MiniFold
+            key={lane.title}
+            title={lane.title}
+            hint={lane.hint}
+            badge={`${lane.n}`}
+            open={i === 0}
+            skin={skin}
+          >
+            {i === 0 ? (
+              <div className={`${skin.card} px-2 py-1.5`}>
+                <p className={`text-[11px] font-black ${skin.title}`}>
+                  {screen === 'diary' ? 'Wed · 06:00 strength' : '09:00 PT · Ada'}
+                </p>
+                <p className={`text-[8px] ${skin.muted}`}>
+                  {screen === 'diary' ? 'Class · 12 booked' : 'Clients · 1 booked'}
+                </p>
+              </div>
+            ) : null}
+          </MiniFold>
+        ))}
       </div>
+      <GymCoachDock
+        active={screen === 'diary' ? 'diary' : 'today'}
+        color={color}
+        ink={ink}
+        skin={skin}
+      />
     </div>
   );
 }
@@ -1188,20 +1514,68 @@ export function AdvisorGrowPreviews({
           title={`${copy.audienceSingular[0].toUpperCase()}${copy.audienceSingular.slice(1)} app`}
           hint={
             gym
-              ? `What ${copy.audience} see on their phone: Class, Progress (programmes), You in the raised centre circle, Shop and Share.`
+              ? `What ${copy.audience} see on their phone: Class (Next up, Coming up by month, After class plan vs actual), Progress Journey, You in the raised centre. Use the slider to click through each screen.`
               : `What ${copy.audience} see on their phone after they join ${brand}. ${copy.sampleHint} Branded preview, not a live client record.`
           }
         >
-          <PhoneChrome label={`${eyebrow} · member phone`} dark={dark}>
-            {gym ? (
-              <GymMemberPwaMock
-                copy={copy}
-                brand={brand}
-                logoUrl={logoUrl}
-                color={color}
-                dark={dark}
-              />
-            ) : (
+          {gym ? (
+            <ScreenSlider
+              dark={dark}
+              labelPrefix={`${eyebrow} · member`}
+              screens={[
+                {
+                  id: 'class',
+                  title: 'Class',
+                  phone: (
+                    <GymMemberPwaMock
+                      copy={copy}
+                      brand={brand}
+                      logoUrl={logoUrl}
+                      color={color}
+                      dark={dark}
+                      screen="class"
+                    />
+                  ),
+                },
+                {
+                  id: 'after',
+                  title: 'After class',
+                  phone: (
+                    <GymMemberPwaMock
+                      copy={copy}
+                      brand={brand}
+                      logoUrl={logoUrl}
+                      color={color}
+                      dark={dark}
+                      screen="after"
+                    />
+                  ),
+                },
+                {
+                  id: 'journey',
+                  title: 'Journey',
+                  phone: (
+                    <GymMemberPwaMock
+                      copy={copy}
+                      brand={brand}
+                      logoUrl={logoUrl}
+                      color={color}
+                      dark={dark}
+                      screen="journey"
+                    />
+                  ),
+                },
+                {
+                  id: 'programme',
+                  title: 'Programme',
+                  phone: (
+                    <GymProgrammeMock copy={copy} color={color} dark={dark} />
+                  ),
+                },
+              ]}
+            />
+          ) : (
+            <PhoneChrome label={`${eyebrow} · member phone`} dark={dark}>
               <MemberPwaMock
                 copy={copy}
                 brand={brand}
@@ -1209,8 +1583,8 @@ export function AdvisorGrowPreviews({
                 color={color}
                 dark={dark}
               />
-            )}
-          </PhoneChrome>
+            </PhoneChrome>
+          )}
         </PreviewCard>
 
         {copy.staffRole ? (
@@ -1219,31 +1593,58 @@ export function AdvisorGrowPreviews({
             title={gym ? 'Coach app' : `${copy.staffRole} PWA`}
             hint={
               gym
-                ? 'What a contracted coach sees: Today with All / Gym / Mine, People (programme follow + feedback), Diary, Inbox, and You in the raised centre circle — same dock as the member app. Issued from People, not the public website.'
+                ? 'What a contracted coach sees: Today and Diary with Mon–Sun dates, All / Workouts / Classes / Clients, and You in the raised centre. Use the slider to click through each screen. Issued from People, not the public website.'
                 : `What a contracted ${copy.staffRole.replace('contracted ', '')} sees on their phone — today's floor, week diary, people, inbox. Issued from People, not the public website.`
             }
           >
-            <PhoneChrome
-              label={`${copy.staffEyebrow} · contracted access`}
-              dark={dark}
-            >
-              {gym ? (
-                <GymCoachPwaMock
-                  copy={copy}
-                  brand={brand}
-                  logoUrl={logoUrl}
-                  color={color}
-                  dark={dark}
-                />
-              ) : (
+            {gym ? (
+              <ScreenSlider
+                dark={dark}
+                labelPrefix={`${copy.staffEyebrow}`}
+                screens={[
+                  {
+                    id: 'today',
+                    title: 'Today',
+                    phone: (
+                      <GymCoachPwaMock
+                        copy={copy}
+                        brand={brand}
+                        logoUrl={logoUrl}
+                        color={color}
+                        dark={dark}
+                        screen="today"
+                      />
+                    ),
+                  },
+                  {
+                    id: 'diary',
+                    title: 'Diary',
+                    phone: (
+                      <GymCoachPwaMock
+                        copy={copy}
+                        brand={brand}
+                        logoUrl={logoUrl}
+                        color={color}
+                        dark={dark}
+                        screen="diary"
+                      />
+                    ),
+                  },
+                ]}
+              />
+            ) : (
+              <PhoneChrome
+                label={`${copy.staffEyebrow} · contracted access`}
+                dark={dark}
+              >
                 <StaffPwaMock
                   copy={copy}
                   brand={brand}
                   color={color}
                   dark={dark}
                 />
-              )}
-            </PhoneChrome>
+              </PhoneChrome>
+            )}
           </PreviewCard>
         ) : null}
 
