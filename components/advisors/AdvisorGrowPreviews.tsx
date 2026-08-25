@@ -460,7 +460,7 @@ function GymMemberDock({
   ink,
   skin,
 }: {
-  active: 'class' | 'progress';
+  active: 'class' | 'progress' | 'you' | 'shop' | 'share';
   color: string;
   ink: string;
   skin: ReturnType<typeof previewSkin>;
@@ -490,7 +490,10 @@ function GymMemberDock({
               >
                 A
               </span>
-              <span className={`text-[8px] font-black ${skin.youLabel}`}>
+              <span
+                className={`text-[8px] font-black ${on ? '' : skin.youLabel}`}
+                style={on ? { color } : undefined}
+              >
                 {t.label}
               </span>
             </div>
@@ -528,11 +531,16 @@ function GymMemberPwaMock({
   logoUrl?: string | null;
   color: string;
   dark?: boolean;
-  screen?: 'class' | 'after' | 'journey';
+  screen?: 'class' | 'after' | 'progress' | 'you' | 'shop' | 'share';
 }) {
   const ink = advisorBrandInk(color);
   const skin = previewSkin(Boolean(dark));
-  const active = screen === 'journey' ? 'progress' : 'class';
+  const active: 'class' | 'progress' | 'you' | 'shop' | 'share' =
+    screen === 'progress'
+      ? 'progress'
+      : screen === 'you' || screen === 'shop' || screen === 'share'
+        ? screen
+        : 'class';
   return (
     <div className={skin.pageGym}>
       <GymAppHeader
@@ -593,6 +601,15 @@ function GymMemberPwaMock({
               badge="75%"
               skin={skin}
             />
+            <div className={`${skin.card} px-2 py-1.5`}>
+              <p className={`text-[8px] font-black uppercase ${skin.kicker}`}>
+                Class board
+              </p>
+              <p className={`text-[11px] font-black ${skin.title}`}>
+                Back squat 5RM
+              </p>
+              <p className={`text-[8px] ${skin.muted}`}>You are 2nd of 8</p>
+            </div>
           </>
         ) : null}
         {screen === 'after' ? (
@@ -633,6 +650,15 @@ function GymMemberPwaMock({
                 </p>
                 <p className={`text-[8px] ${skin.muted}`}>Mon · rate this class</p>
               </div>
+              <div className={`${skin.card} px-2 py-1.5`}>
+                <p className={`text-[8px] font-black uppercase ${skin.kicker}`}>
+                  Class board
+                </p>
+                <p className={`text-[11px] font-black ${skin.title}`}>
+                  1. Priya · 150 kg
+                </p>
+                <p className={`text-[8px] ${skin.muted}`}>2. Alex · 145 kg · you</p>
+              </div>
             </MiniFold>
             <MiniFold
               title="July"
@@ -642,9 +668,24 @@ function GymMemberPwaMock({
             />
           </>
         ) : null}
-        {screen === 'journey' ? (
+        {screen === 'progress' ? (
           <>
-            <p className={`text-[11px] font-black ${skin.title}`}>Journey</p>
+            <p className={`text-[11px] font-black ${skin.title}`}>Progress</p>
+            <MiniFold
+              title="Leaderboard"
+              hint="Morning strength · You are 2nd of 8"
+              badge="2nd"
+              open
+              skin={skin}
+            >
+              <p className={`text-[11px] font-black ${skin.title}`}>
+                Back squat 5RM
+              </p>
+              <p className={`text-[8px] ${skin.muted}`}>1. Priya 150 kg</p>
+              <p className={`text-[8px] font-black ${skin.title}`}>
+                2. Alex 145 kg · you
+              </p>
+            </MiniFold>
             <div className="grid grid-cols-3 gap-1">
               {[
                 ['12', 'Classes · 30d'],
@@ -683,6 +724,73 @@ function GymMemberPwaMock({
               hint="Coach notes and modifications"
               skin={skin}
             />
+          </>
+        ) : null}
+        {screen === 'you' ? (
+          <>
+            <p className={`text-[11px] font-black ${skin.title}`}>Profile</p>
+            <MiniFold
+              title="PBs"
+              hint="Custom or a common lift"
+              badge="2"
+              open
+              skin={skin}
+            >
+              <p className={`text-[11px] font-black ${skin.title}`}>Back squat</p>
+              <p className={`text-[8px] ${skin.muted}`}>140 kg</p>
+              <p className={`mt-1 text-[8px] font-bold ${skin.muted}`}>
+                + Add a custom PB
+              </p>
+            </MiniFold>
+            <MiniFold title="Injuries" hint="So sessions can be adapted" skin={skin} />
+            <MiniFold
+              title="Feedback"
+              hint="From classes you attended"
+              badge="3"
+              skin={skin}
+            />
+            <MiniFold
+              title="Leaderboard"
+              hint="Morning strength · You are 2nd of 8"
+              badge="2nd"
+              open
+              skin={skin}
+            >
+              <p className={`text-[8px] ${skin.muted}`}>1. Priya 150 kg</p>
+              <p className={`text-[11px] font-black ${skin.title}`}>
+                2. Alex 145 kg · you
+              </p>
+            </MiniFold>
+            <MiniFold title="Admin" hint="Name, contact, photo" skin={skin} />
+          </>
+        ) : null}
+        {screen === 'shop' ? (
+          <>
+            <p className={`text-[11px] font-black ${skin.title}`}>Shop</p>
+            <div className={`${skin.card} px-2.5 py-2`}>
+              <p className={`text-[11px] font-black ${skin.title}`}>
+                Unlimited classes
+              </p>
+              <p className={`text-[8px] ${skin.muted}`}>R890 / month</p>
+            </div>
+            <div className={`${skin.card} px-2.5 py-2`}>
+              <p className={`text-[11px] font-black ${skin.title}`}>
+                {copy.programmeName || 'Hyrox 6'}
+              </p>
+              <p className={`text-[8px] ${skin.muted}`}>Programme · sell or assign</p>
+            </div>
+          </>
+        ) : null}
+        {screen === 'share' ? (
+          <>
+            <p className={`text-[11px] font-black ${skin.title}`}>Share</p>
+            <p className={`text-[8px] ${skin.muted}`}>
+              Invite a friend to {brand}
+            </p>
+            <div className={`${skin.card} px-2.5 py-2`}>
+              <p className={`text-[11px] font-black ${skin.title}`}>Join link</p>
+              <p className={`text-[8px] ${skin.muted}`}>Copy · WhatsApp · Email</p>
+            </div>
           </>
         ) : null}
       </div>
@@ -1017,6 +1125,19 @@ function GymCoachPwaMock({
             >
               <p className={`text-[11px] font-black ${skin.title}`}>Ada</p>
               <p className={`text-[8px] ${skin.muted}`}>Private PT</p>
+            </MiniFold>
+            <MiniFold
+              title="Leaderboard"
+              hint="Morning strength · Back squat 5RM"
+              badge="8"
+              open
+              skin={skin}
+            >
+              <p className={`text-[8px] font-black ${skin.title}`}>
+                Morning strength
+              </p>
+              <p className={`text-[8px] ${skin.muted}`}>1. Priya 150 kg</p>
+              <p className={`text-[8px] ${skin.muted}`}>2. Alex 145 kg</p>
             </MiniFold>
           </>
         ) : null}
@@ -1723,7 +1844,7 @@ export function AdvisorGrowPreviews({
           title={`${copy.audienceSingular[0].toUpperCase()}${copy.audienceSingular.slice(1)} app`}
           hint={
             gym
-              ? `What ${copy.audience} see on their phone: Class (Next up, Coming up by month, After class plan vs actual), Progress Journey, You in the raised centre. Use the slider to click through each screen.`
+              ? `What ${copy.audience} see: Class, After class, Progress (leaderboard + journey), Programme, You (PBs, injuries, feedback, leaderboard, admin), Shop, Share. Toggle light and dark.`
               : `What ${copy.audience} see on their phone after they join ${brand}. ${copy.sampleHint} Branded preview, not a live client record.`
           }
         >
@@ -1761,8 +1882,8 @@ export function AdvisorGrowPreviews({
                   ),
                 },
                 {
-                  id: 'journey',
-                  title: 'Journey',
+                  id: 'progress',
+                  title: 'Progress',
                   phone: (
                     <GymMemberPwaMock
                       copy={copy}
@@ -1770,7 +1891,7 @@ export function AdvisorGrowPreviews({
                       logoUrl={logoUrl}
                       color={color}
                       dark={dark}
-                      screen="journey"
+                      screen="progress"
                     />
                   ),
                 },
@@ -1779,6 +1900,48 @@ export function AdvisorGrowPreviews({
                   title: 'Programme',
                   phone: (
                     <GymProgrammeMock copy={copy} color={color} dark={dark} />
+                  ),
+                },
+                {
+                  id: 'you',
+                  title: 'You',
+                  phone: (
+                    <GymMemberPwaMock
+                      copy={copy}
+                      brand={brand}
+                      logoUrl={logoUrl}
+                      color={color}
+                      dark={dark}
+                      screen="you"
+                    />
+                  ),
+                },
+                {
+                  id: 'shop',
+                  title: 'Shop',
+                  phone: (
+                    <GymMemberPwaMock
+                      copy={copy}
+                      brand={brand}
+                      logoUrl={logoUrl}
+                      color={color}
+                      dark={dark}
+                      screen="shop"
+                    />
+                  ),
+                },
+                {
+                  id: 'share',
+                  title: 'Share',
+                  phone: (
+                    <GymMemberPwaMock
+                      copy={copy}
+                      brand={brand}
+                      logoUrl={logoUrl}
+                      color={color}
+                      dark={dark}
+                      screen="share"
+                    />
                   ),
                 },
               ]}
@@ -1802,7 +1965,7 @@ export function AdvisorGrowPreviews({
             title={gym ? 'Coach app' : `${copy.staffRole} PWA`}
             hint={
               gym
-                ? 'What a contracted coach sees: Today, Diary, You, People, Inbox. Toggle light and dark. Issued from People, not the public website.'
+                ? 'What a contracted coach sees: Today, Diary, You (PBs, injuries, feedback, admin), People (classes, clients, leaderboard), Inbox. Toggle light and dark.'
                 : `What a contracted ${copy.staffRole.replace('contracted ', '')} sees on their phone — today's floor, week diary, you, people, inbox. Issued from People, not the public website.`
             }
           >
