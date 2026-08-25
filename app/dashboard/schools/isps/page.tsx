@@ -338,6 +338,22 @@ function Inner() {
             >
               <Truck className="w-3.5 h-3.5" /> Deliveries · POD
             </Link>
+            {role === 'school' ? (
+              <>
+                <Link
+                  href="/dashboard/schools/isp-sla"
+                  className="btn-secondary !py-2 !px-3 text-xs"
+                >
+                  SP score
+                </Link>
+                <Link
+                  href="/dashboard/schools/ratings"
+                  className="btn-secondary !py-2 !px-3 text-xs"
+                >
+                  Rate SP & food
+                </Link>
+              </>
+            ) : null}
             {role === 'agency' ? (
               <Link
                 href="/dashboard/schools/agency"

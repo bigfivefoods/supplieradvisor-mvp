@@ -1135,6 +1135,12 @@ function Inner() {
               <AlertTriangle className="w-3.5 h-3.5" /> Low stock PDF
             </button>
             <Link
+              href="/dashboard/schools/kitchen-pack"
+              className="btn-secondary !py-2 !px-3 text-xs"
+            >
+              Kitchen pack
+            </Link>
+            <Link
               href="/dashboard/schools/orders"
               className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
             >
