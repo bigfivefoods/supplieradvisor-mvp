@@ -18,6 +18,8 @@ const ID_ARRAYS: Array<keyof FitgraphStore> = [
   'watch_sessions',
   'goals',
   'journey_events',
+  'class_challenges',
+  'class_challenge_scores',
 ];
 
 function asRows(v: unknown): Array<Record<string, unknown>> {

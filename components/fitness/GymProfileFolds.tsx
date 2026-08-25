@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
+  Medal,
   MessageSquareHeart,
   Shield,
   Trophy,
@@ -19,6 +20,11 @@ import {
   type FitPersonalBest,
 } from '@/lib/fitness/person-records';
 import { GymClassRateCard, GymExpandSection } from '@/components/fitness/GymMemberPwaUi';
+import {
+  GymClassLeaderboards,
+  leaderboardHint,
+} from '@/components/fitness/GymClassLeaderboards';
+import type { ChallengeView } from '@/lib/fitness/class-challenges';
 
 export type ProfileFeedbackRow = {
   id: string;
@@ -53,7 +59,7 @@ function emptyPb(): {
     id: '',
     title: '',
     value: '',
-    unit: 'kg',
+    unit: '',
     achieved_on: '',
     notes: '',
   };
@@ -95,11 +101,13 @@ export function GymProfileFolds({
   onDeleteInjury,
   onRateClass,
   admin,
+  leaderboards,
 }: {
   pbs: FitPersonalBest[];
   injuries: FitInjuryEntry[];
   feedback: ProfileFeedbackRow[];
   pending?: ProfilePendingRate[];
+  leaderboards?: ChallengeView[];
   busyId?: string | null;
   color: string;
   ink: string;
@@ -116,23 +124,37 @@ export function GymProfileFolds({
   const [pbOpen, setPbOpen] = useState(pbs.length > 0);
   const [injOpen, setInjOpen] = useState(injuries.length > 0);
   const [fbOpen, setFbOpen] = useState(Boolean(pending?.length) || feedback.length > 0);
+  const [boardOpen, setBoardOpen] = useState((leaderboards || []).length > 0);
   const [adminOpen, setAdminOpen] = useState(true);
   const [pbForm, setPbForm] = useState(emptyPb);
   const [injForm, setInjForm] = useState(emptyInjury);
   const [addingPb, setAddingPb] = useState(false);
   const [addingInj, setAddingInj] = useState(false);
+  const [customUnit, setCustomUnit] = useState(false);
+  const pbTitleRef = useRef<HTMLInputElement>(null);
 
   const editPb = (row: FitPersonalBest) => {
+    const unit = row.unit || '';
+    const known = (PB_UNITS as readonly string[]).includes(unit);
     setAddingPb(true);
+    setCustomUnit(Boolean(unit) && !known);
     setPbForm({
       id: row.id,
       title: row.title,
       value: row.value,
-      unit: row.unit || 'kg',
+      unit,
       achieved_on: row.achieved_on || '',
       notes: row.notes || '',
     });
     setPbOpen(true);
+  };
+
+  const startCustomPb = () => {
+    setPbForm(emptyPb());
+    setCustomUnit(false);
+    setAddingPb(true);
+    setPbOpen(true);
+    requestAnimationFrame(() => pbTitleRef.current?.focus());
   };
   const editInj = (row: FitInjuryEntry) => {
     setAddingInj(true);
@@ -206,12 +228,33 @@ export function GymProfileFolds({
         )}
         {addingPb ? (
           <div className="space-y-2 rounded-2xl border border-slate-200 p-3 dark:border-white/10">
+            <p className="text-[11px] font-semibold text-slate-500">
+              Pick a common test, or type your own name and save it.
+            </p>
             <div className="flex flex-wrap gap-1">
+              <button
+                type="button"
+                onClick={startCustomPb}
+                className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                  !(PB_TITLE_PRESETS as readonly string[]).includes(pbForm.title)
+                    ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
+                    : 'border-slate-200 text-slate-600 dark:border-white/15'
+                }`}
+              >
+                Custom
+              </button>
               {PB_TITLE_PRESETS.map((t) => (
                 <button
                   key={t}
                   type="button"
-                  onClick={() => setPbForm((f) => ({ ...f, title: t }))}
+                  onClick={() => {
+                    setCustomUnit(false);
+                    setPbForm((f) => ({
+                      ...f,
+                      title: t,
+                      unit: t.includes('km') ? 'km' : f.unit || 'kg',
+                    }));
+                  }}
                   className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
                     pbForm.title === t
                       ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
@@ -223,9 +266,11 @@ export function GymProfileFolds({
               ))}
             </div>
             <label className="block">
-              <span className={labelClass}>Movement / test</span>
+              <span className={labelClass}>Name</span>
               <input
+                ref={pbTitleRef}
                 className={fieldClass}
+                placeholder="e.g. Wall balls 50, Fran, Farmer carry"
                 value={pbForm.title}
                 onChange={(e) =>
                   setPbForm((f) => ({ ...f, title: e.target.value }))
@@ -237,6 +282,7 @@ export function GymProfileFolds({
                 <span className={labelClass}>Result</span>
                 <input
                   className={fieldClass}
+                  placeholder="140 or 2:30"
                   value={pbForm.value}
                   onChange={(e) =>
                     setPbForm((f) => ({ ...f, value: e.target.value }))
@@ -245,19 +291,45 @@ export function GymProfileFolds({
               </label>
               <label className="block">
                 <span className={labelClass}>Unit</span>
-                <select
-                  className={fieldClass}
-                  value={pbForm.unit}
-                  onChange={(e) =>
-                    setPbForm((f) => ({ ...f, unit: e.target.value }))
-                  }
-                >
-                  {PB_UNITS.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                </select>
+                {customUnit ? (
+                  <input
+                    className={fieldClass}
+                    placeholder="cals, watts, rounds…"
+                    value={pbForm.unit}
+                    onChange={(e) =>
+                      setPbForm((f) => ({ ...f, unit: e.target.value }))
+                    }
+                  />
+                ) : (
+                  <select
+                    className={fieldClass}
+                    value={
+                      (PB_UNITS as readonly string[]).includes(pbForm.unit)
+                        ? pbForm.unit
+                        : pbForm.unit
+                          ? '__custom__'
+                          : ''
+                    }
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === '__custom__') {
+                        setCustomUnit(true);
+                        setPbForm((f) => ({ ...f, unit: '' }));
+                        return;
+                      }
+                      setCustomUnit(false);
+                      setPbForm((f) => ({ ...f, unit: v }));
+                    }}
+                  >
+                    <option value="">None</option>
+                    {PB_UNITS.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                    <option value="__custom__">Custom…</option>
+                  </select>
+                )}
               </label>
             </div>
             <label className="block">
@@ -291,12 +363,13 @@ export function GymProfileFolds({
                       id: pbForm.id || undefined,
                       title: pbForm.title.trim(),
                       value: pbForm.value.trim(),
-                      unit: pbForm.unit,
+                      unit: pbForm.unit.trim() || undefined,
                       achieved_on: pbForm.achieved_on || null,
                       notes: pbForm.notes,
                     })
                   ).then(() => {
                     setAddingPb(false);
+                    setCustomUnit(false);
                     setPbForm(emptyPb());
                   })
                 }
@@ -312,6 +385,7 @@ export function GymProfileFolds({
                   onClick={() =>
                     void Promise.resolve(onDeletePb(pbForm.id)).then(() => {
                       setAddingPb(false);
+                      setCustomUnit(false);
                       setPbForm(emptyPb());
                     })
                   }
@@ -324,6 +398,7 @@ export function GymProfileFolds({
                   type="button"
                   onClick={() => {
                     setAddingPb(false);
+                    setCustomUnit(false);
                     setPbForm(emptyPb());
                   }}
                   className="min-h-11 rounded-xl border border-slate-200 px-3 text-[11px] font-black dark:border-white/15"
@@ -336,13 +411,10 @@ export function GymProfileFolds({
         ) : (
           <button
             type="button"
-            onClick={() => {
-              setPbForm(emptyPb());
-              setAddingPb(true);
-            }}
+            onClick={startCustomPb}
             className="w-full rounded-xl border border-dashed border-slate-300 py-2.5 text-[11px] font-black text-slate-600 dark:border-white/20"
           >
-            Add a PB
+            Add a custom PB
           </button>
         )}
       </GymExpandSection>
@@ -640,6 +712,30 @@ export function GymProfileFolds({
           </p>
         ) : null}
       </GymExpandSection>
+
+      {leaderboards ? (
+        <GymExpandSection
+          title="Leaderboard"
+          hint={leaderboardHint(leaderboards)}
+          icon={<Medal className="h-4 w-4" />}
+          badge={
+            leaderboards.length ? (
+              <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-black tabular-nums text-white dark:bg-white dark:text-slate-900">
+                {leaderboards.length}
+              </span>
+            ) : undefined
+          }
+          open={boardOpen}
+          onToggle={() => setBoardOpen((v) => !v)}
+        >
+          <GymClassLeaderboards
+            boards={leaderboards}
+            color={color}
+            ink={ink}
+            highlight
+          />
+        </GymExpandSection>
+      ) : null}
 
       <GymExpandSection
         title="Admin"

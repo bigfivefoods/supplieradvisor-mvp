@@ -9,6 +9,7 @@ import { useParams } from 'next/navigation';
 import {
   Check,
   Loader2,
+  Medal,
   MessageSquare,
   Plus,
   Repeat,
@@ -59,6 +60,12 @@ import { hourBounds, type WorkingHours } from '@/lib/schedule/working-hours';
 import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
 import { AdvisorPwaSignOutButton } from '@/components/advisors/AdvisorPwaSignOutButton';
 import { GymProfileFolds } from '@/components/fitness/GymProfileFolds';
+import { GymClassChallengeBoard } from '@/components/fitness/GymClassChallengeBoard';
+import type {
+  ChallengeView,
+  CoachClassLeaderboard,
+} from '@/lib/fitness/class-challenges';
+import { GymClassLeaderboards } from '@/components/fitness/GymClassLeaderboards';
 import {
   injuriesForPerson,
   parsePersonalBests,
@@ -157,6 +164,7 @@ type PortalSession = {
     plan_name: string;
     booked: boolean;
   }>;
+  challenge?: ChallengeView | null;
 };
 
 type SessionEditForm = {
@@ -252,6 +260,7 @@ type Portal = {
     class_names?: string[];
   }>;
   sees_all_people?: boolean;
+  leaderboards?: CoachClassLeaderboard[];
   special_dates?: MemberSpecialDate[];
   class_report?: import('@/lib/fitness/vuka-class-catalog').ClassSubscriptionReport;
   class_types: Array<{
@@ -429,6 +438,7 @@ export default function CoachFitgraphPortalPage() {
   const [peopleClassOpen, setPeopleClassOpen] = useState(true);
   const [peopleClientOpen, setPeopleClientOpen] = useState(true);
   const [peopleGymOpen, setPeopleGymOpen] = useState(true);
+  const [peopleBoardOpen, setPeopleBoardOpen] = useState(true);
   const [recordBusy, setRecordBusy] = useState<string | null>(null);
   const [peopleClassGroupOpen, setPeopleClassGroupOpen] = useState<
     Record<string, boolean>
@@ -935,6 +945,39 @@ export default function CoachFitgraphPortalPage() {
               </div>
             );
           })()}
+          <GymExpandSection
+            title="Leaderboard"
+            hint={
+              (portal.leaderboards || []).length
+                ? `${(portal.leaderboards || []).length} class${
+                    (portal.leaderboards || []).length === 1 ? '' : 'es'
+                  } with a test`
+                : 'Set a test on a class from Today or Diary to rank the pack'
+            }
+            icon={<Medal className="h-4 w-4" />}
+            badge={
+              (portal.leaderboards || []).length ? (
+                <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-black tabular-nums text-white dark:bg-white dark:text-slate-900">
+                  {(portal.leaderboards || []).length}
+                </span>
+              ) : undefined
+            }
+            open={peopleBoardOpen}
+            onToggle={() => setPeopleBoardOpen((v) => !v)}
+          >
+            {(portal.leaderboards || []).length ? (
+              <GymClassLeaderboards
+                groups={portal.leaderboards}
+                color="#E8E830"
+                ink="#0f172a"
+              />
+            ) : (
+              <p className="text-xs text-slate-500">
+                Open a group class and set a test. Rankings for each class show
+                here.
+              </p>
+            )}
+          </GymExpandSection>
           {(portal.programmes || []).length ? (
             <div className="space-y-2 rounded-3xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
               <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
@@ -1746,6 +1789,40 @@ export default function CoachFitgraphPortalPage() {
                 </div>
               </details>
             )}
+
+            {openCard.session.session_kind !== 'coach_personal' &&
+            openCard.session.session_kind !== 'private_pt' ? (
+              <GymClassChallengeBoard
+                key={`${openCard.session.id}-${openCard.challenge?.id || 'new'}`}
+                challenge={openCard.challenge || null}
+                color="#E8E830"
+                ink="#0f172a"
+                busy={busy}
+                canEdit
+                pinSessionDefault={Boolean(openCard.challenge?.session_id)}
+                onSave={(patch) =>
+                  post({
+                    action: 'upsert_class_challenge',
+                    session_id: openCard.session.id,
+                    class_type_id: openCard.session.class_type_id,
+                    title: patch.title,
+                    unit: patch.unit,
+                    win: patch.win,
+                    target: patch.target,
+                    notes: patch.notes,
+                    pin_session: patch.pin_session,
+                  })
+                }
+                onClose={() =>
+                  openCard.challenge
+                    ? post({
+                        action: 'close_class_challenge',
+                        id: openCard.challenge.id,
+                      })
+                    : undefined
+                }
+              />
+            ) : null}
 
             <div>
               <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1">

@@ -34,6 +34,12 @@ import {
 import { resolveCompanyEmails } from '@/lib/billing/company-emails';
 import { shareProgrammeWithCoaches } from '@/lib/fitness/movements';
 import {
+  challengeOnSessionId,
+  closeClassChallenge,
+  openChallengesGroupedForCoach,
+  upsertClassChallenge,
+} from '@/lib/fitness/class-challenges';
+import {
   activeClassSubscriptions,
   buildClassSubscriptionReport,
   memberMayBookSession,
@@ -70,7 +76,14 @@ function buildCoachPortalPayload(
   const merged = mergeSubscribersIntoCoachSessions(store, portal.sessions || []);
   const sessions = merged.map((card) => {
     const session = store.sessions.find((s) => s.id === card.session.id);
-    if (!session) return { ...card, subscribed: [], subscribed_not_booked: [] };
+    if (!session) {
+      return {
+        ...card,
+        subscribed: [],
+        subscribed_not_booked: [],
+        challenge: challengeOnSessionId(store, card.session.id),
+      };
+    }
     const subscribed = subscribersForSession(store, session).map((r) => ({
       client_id: r.client.id,
       name: r.client.name,
@@ -82,6 +95,7 @@ function buildCoachPortalPayload(
       ...card,
       subscribed,
       subscribed_not_booked: subscribed.filter((s) => !s.booked),
+      challenge: challengeOnSessionId(store, session.id),
     };
   });
   const members = (portal.members || []).map((m) => {
@@ -96,6 +110,7 @@ function buildCoachPortalPayload(
     ...portal,
     sessions,
     members,
+    leaderboards: openChallengesGroupedForCoach(store, coach.id),
     special_dates: memberSpecialDatesForStore(store, {
       days: 14,
       ...(portal.sees_all_people ? {} : { coachId: coach.id }),
@@ -673,6 +688,65 @@ export async function POST(request: NextRequest) {
         success: true,
         message: result.message,
         portal: buildCoachPortalPayload(store, person),
+      });
+    }
+
+    if (action === 'upsert_class_challenge') {
+      const session = store.sessions.find(
+        (s) =>
+          s.id === String(body.session_id || sessionId || '') &&
+          coachCanSeeSession(s, coach.id)
+      );
+      const classTypeId = String(
+        body.class_type_id || session?.class_type_id || ''
+      ).trim();
+      if (session && sessionKindOf(store, session) !== 'class') {
+        return NextResponse.json(
+          { error: 'Boards are for group classes, not private sessions.' },
+          { status: 400 }
+        );
+      }
+      const result = upsertClassChallenge(
+        store.class_challenges,
+        {
+          ...body,
+          class_type_id: classTypeId,
+          session_id:
+            body.pin_session === true || body.session_only === true
+              ? session?.id || null
+              : null,
+          coach_id: coach.id,
+        },
+        now
+      );
+      if (result.error) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      store.class_challenges = result.list;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        message: 'Class test saved',
+        challenge: result.row,
+        portal: buildCoachPortalPayload(store, coach),
+      });
+    }
+
+    if (action === 'close_class_challenge') {
+      const id = String(body.id || body.challenge_id || '').trim();
+      if (!id) {
+        return NextResponse.json({ error: 'challenge id required' }, { status: 400 });
+      }
+      store.class_challenges = closeClassChallenge(
+        store.class_challenges,
+        id,
+        now
+      );
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        message: 'Class test closed',
+        portal: buildCoachPortalPayload(store, coach),
       });
     }
 

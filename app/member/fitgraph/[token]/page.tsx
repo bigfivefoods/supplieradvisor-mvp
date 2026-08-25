@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Dumbbell,
   Loader2,
+  Medal,
   MessageSquareHeart,
   Send,
   Share2,
@@ -69,6 +70,12 @@ import {
 import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
 import { AdvisorPwaSignOutButton } from '@/components/advisors/AdvisorPwaSignOutButton';
 import { GymProfileFolds } from '@/components/fitness/GymProfileFolds';
+import { GymClassChallengeBoard } from '@/components/fitness/GymClassChallengeBoard';
+import {
+  GymClassLeaderboards,
+  leaderboardHint,
+} from '@/components/fitness/GymClassLeaderboards';
+import type { ChallengeView } from '@/lib/fitness/class-challenges';
 import {
   injuriesForPerson,
   parsePersonalBests,
@@ -137,6 +144,7 @@ type MyBooking = {
   rsvp?: 'coming' | 'not_coming' | null;
   class_plan?: string;
   programme?: import('@/lib/fitness/movements').FitHydratedProgramme | null;
+  challenge?: ChallengeView | null;
 };
 
 type Portal = {
@@ -337,6 +345,7 @@ type Portal = {
     }>;
   }>;
   invoices?: MemberPortalInvoice[];
+  leaderboards?: ChallengeView[];
   goals?: MemberGoalView[];
   wearable?: {
     garmin_available?: boolean;
@@ -377,6 +386,7 @@ export default function MemberFitgraphPortalPage() {
   const [msgReply, setMsgReply] = useState('');
   const [debitBank, setDebitBank] = useState<DebitBankForm>(emptyDebitBankForm);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [progressBoardOpen, setProgressBoardOpen] = useState(true);
   const [journeyOpen, setJourneyOpen] = useState(true);
   const [journeyMonthOpen, setJourneyMonthOpen] = useState<
     Record<string, boolean>
@@ -1433,6 +1443,7 @@ export default function MemberFitgraphPortalPage() {
                 </button>
               </div>
             ) : (
+              <div className="space-y-2">
               <GymNextUpCard
                 className={bookedUpcoming[0].class_name}
                 date={bookedUpcoming[0].date}
@@ -1455,6 +1466,14 @@ export default function MemberFitgraphPortalPage() {
                   )
                 }
               />
+              {bookedUpcoming[0].challenge ? (
+                <GymClassChallengeBoard
+                  challenge={bookedUpcoming[0].challenge}
+                  color={color}
+                  ink={ink}
+                />
+              ) : null}
+              </div>
             )}
             <GymExpandSection
               title="Coming up"
@@ -1584,8 +1603,8 @@ export default function MemberFitgraphPortalPage() {
                         />
                       </div>
                       {month.items.map((b) => (
+                        <div key={`done-${b.booking_id}`} className="space-y-2">
                         <GymNextUpCard
-                          key={`done-${b.booking_id}`}
                           className={b.class_name}
                           date={b.date}
                           startTime={b.start_time}
@@ -1595,7 +1614,8 @@ export default function MemberFitgraphPortalPage() {
                           bookingId={b.booking_id}
                           busy={
                             busyId === b.booking_id ||
-                            busyId === `rate:${b.booking_id}`
+                            busyId === `rate:${b.booking_id}` ||
+                            busyId === `score:${b.booking_id}`
                           }
                           color={color}
                           featured={false}
@@ -1607,6 +1627,38 @@ export default function MemberFitgraphPortalPage() {
                           programme={b.programme}
                           onRate={(v) => void rateClass(b.booking_id, v)}
                         />
+                        {b.challenge ? (
+                          <GymClassChallengeBoard
+                            challenge={b.challenge}
+                            color={color}
+                            ink={ink}
+                            busy={busyId === `score:${b.booking_id}`}
+                            canLog
+                            onLog={async (patch) => {
+                              setBusyId(`score:${b.booking_id}`);
+                              try {
+                                await post({
+                                  action: 'log_class_score',
+                                  challenge_id: b.challenge!.id,
+                                  session_id: b.session_id,
+                                  value: patch.value,
+                                  division: patch.division,
+                                });
+                                setMsg('Score logged on the class board');
+                                setError(null);
+                              } catch (e: unknown) {
+                                setError(
+                                  e instanceof Error
+                                    ? e.message
+                                    : 'Could not log score'
+                                );
+                              } finally {
+                                setBusyId(null);
+                              }
+                            }}
+                          />
+                        ) : null}
+                        </div>
                       ))}
                     </GymExpandSection>
                   );
@@ -1622,6 +1674,27 @@ export default function MemberFitgraphPortalPage() {
 
         {tab === 'progress' && (
           <div className="space-y-6">
+            <GymExpandSection
+              title="Leaderboard"
+              hint={leaderboardHint(portal.leaderboards)}
+              icon={<Medal className="h-4 w-4" />}
+              badge={
+                (portal.leaderboards || []).length ? (
+                  <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-black tabular-nums text-white dark:bg-white dark:text-slate-900">
+                    {(portal.leaderboards || []).length}
+                  </span>
+                ) : undefined
+              }
+              open={progressBoardOpen}
+              onToggle={() => setProgressBoardOpen((v) => !v)}
+            >
+              <GymClassLeaderboards
+                boards={portal.leaderboards || []}
+                color={color}
+                ink={ink}
+                highlight
+              />
+            </GymExpandSection>
             <MemberGoalsPanel
               goals={portal.goals || []}
               wearable={portal.wearable}
@@ -2006,10 +2079,11 @@ export default function MemberFitgraphPortalPage() {
 
         {tab === 'profile' && (
           <div className="space-y-3">
-            <GymSectionTitle hint="PBs, injuries, class ratings, and your gym records.">
+            <GymSectionTitle hint="PBs, injuries, class boards, ratings, and your gym records.">
               Profile
             </GymSectionTitle>
             <GymProfileFolds
+              leaderboards={portal.leaderboards || []}
               pbs={parsePersonalBests(portal.client.personal_bests)}
               injuries={injuriesForPerson({
                 injuries: portal.client.injuries,

@@ -35,6 +35,15 @@ import {
 import { addDaysIso } from '@/lib/schedule/recurrence';
 import { isoDateInZone } from '@/lib/fitness/gym-local-time';
 import { applyMemberClassRsvp } from '@/lib/fitness/member-class-rsvp';
+import {
+  challengeOnSessionId,
+  clientEligibleForChallenge,
+  openChallengesForClient,
+  parseChallengeValue,
+  parseChallenges,
+  stampPbFromChallenge,
+  upsertChallengeScore,
+} from '@/lib/fitness/class-challenges';
 import { notifyGymClassRsvp } from '@/lib/fitness/notify-class-rsvp';
 import { notifyPatientBookingPush } from '@/lib/b2c/member-push';
 import { portalInvoicesForPerson } from '@/lib/b2c/member-account-portal';
@@ -203,12 +212,19 @@ function decorateMemberPortal(
         }),
       };
     });
-  const my_bookings = [...(portal.my_bookings || []), ...allocated].sort(
-    (a, b) =>
+  const my_bookings = [...(portal.my_bookings || []), ...allocated]
+    .sort((a, b) =>
       a.date === b.date
         ? String(a.start_time).localeCompare(String(b.start_time))
         : a.date.localeCompare(b.date)
-  );
+    )
+    .map((b) => ({
+      ...b,
+      challenge: challengeOnSessionId(store, String(b.session_id || ''), {
+        clientId: client.id,
+        hideIds: true,
+      }),
+    }));
 
   const open_classes = (portal.open_classes || []).map((c) => {
     const session = store.sessions.find((s) => s.id === c.id);
@@ -226,6 +242,10 @@ function decorateMemberPortal(
       need_plan: gate.need_plan === true,
       need_debit_bank: gate.need_debit_bank === true,
       book_hint: gate.ok || bookedHere ? null : gate.error || null,
+      challenge: challengeOnSessionId(store, String(c.id || ''), {
+        clientId: client.id,
+        hideIds: true,
+      }),
     };
   });
   return {
@@ -298,6 +318,7 @@ function decorateMemberPortal(
         activity_type: w.activity_type || null,
       })),
     diary_open: store.settings?.share_member_calendar !== false,
+    leaderboards: openChallengesForClient(store, client.id),
     purchase_history: memberPurchaseHistory(store, client),
     check_ins: (store.check_ins || [])
       .filter((c) => c.client_id === client.id)
@@ -753,6 +774,68 @@ export async function POST(request: NextRequest) {
           meta
         ),
         message: portalProfileSaveMessage(result, body, 'gym records'),
+      });
+    }
+
+    if (action === 'log_class_score') {
+      const challengeId = String(body.challenge_id || body.id || '').trim();
+      const challenge = parseChallenges(store.class_challenges).find(
+        (c) => c.id === challengeId && c.status === 'open'
+      );
+      if (!challenge) {
+        return NextResponse.json(
+          { error: 'This class test is not open.' },
+          { status: 404 }
+        );
+      }
+      const eligible = clientEligibleForChallenge(
+        store,
+        challenge,
+        client.id,
+        body.session_id ? String(body.session_id) : null
+      );
+      if (!eligible.ok) {
+        return NextResponse.json({ error: eligible.error }, { status: 403 });
+      }
+      const parsed = parseChallengeValue(body.value ?? body.display, challenge.win);
+      if ('error' in parsed) {
+        return NextResponse.json({ error: parsed.error }, { status: 400 });
+      }
+      const person = store.clients[ci];
+      const injured = Boolean(
+        person.health?.injured ||
+          (person.injuries || []).some((e) =>
+            ['acute', 'recovering', 'chronic'].includes(String(e.status || ''))
+          )
+      );
+      const scored = upsertChallengeScore(
+        store.class_challenge_scores,
+        {
+          challenge_id: challenge.id,
+          client_id: client.id,
+          session_id: eligible.session.id,
+          booking_id: eligible.booking.id,
+          value: parsed.value,
+          display: parsed.display,
+          division: String(body.division || '') === 'scaled' ? 'scaled' : 'rx',
+          notes: body.notes ? String(body.notes) : undefined,
+          injured,
+        },
+        now
+      );
+      store.class_challenge_scores = scored.list;
+      stampPbFromChallenge(person, challenge, parsed.display, now);
+      store.clients[ci] = person;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        message: 'Score logged on the class board',
+        portal: decorateMemberPortal(
+          store,
+          person,
+          buildMemberPortalPayloadBase(store, person),
+          meta
+        ),
       });
     }
 

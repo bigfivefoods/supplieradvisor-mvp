@@ -1606,6 +1606,9 @@ export interface FitgraphStore {
   pt_packs: FitPtPack[];
   /** Member + coach post-class feedback */
   class_feedback?: FitClassFeedback[];
+  /** Coach-set tests on a class (leaderboard). */
+  class_challenges?: import('@/lib/fitness/class-challenges').FitClassChallenge[];
+  class_challenge_scores?: import('@/lib/fitness/class-challenges').FitClassChallengeScore[];
   /** Session / clinical stickiness */
   visit_notes?: import('@/lib/services/advisor-clinical').VisitNote[];
   outcome_scores?: import('@/lib/services/advisor-clinical').OutcomeScore[];
@@ -1789,6 +1792,8 @@ export function emptyFitgraphStore(): FitgraphStore {
     check_ins: [],
     pt_packs: [],
     class_feedback: [],
+    class_challenges: [],
+    class_challenge_scores: [],
     visit_notes: [],
     outcome_scores: [],
     treatment_plans: [],
@@ -1852,6 +1857,8 @@ export function readFitgraphFromMetadata(
     'programme_logs',
     'watch_sessions',
     'garmin_oauth_pending',
+    'class_challenges',
+    'class_challenge_scores',
   ]) {
     if (Array.isArray(extra[key])) {
       (e as unknown as Record<string, unknown>)[key] = extra[key];
