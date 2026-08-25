@@ -2,14 +2,8 @@
  * Garmin OAuth 2.0 callback — exchanges the code and returns the member to Progress.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  readFitgraphFromMetadata,
-  writeFitgraphToMetadata,
-} from '@/lib/fitness/fitgraph';
-import {
-  loadAdvisorModuleStore,
-  saveAdvisorModuleStore,
-} from '@/lib/business/company-data';
+import { readFitgraphFromMetadata } from '@/lib/fitness/fitgraph';
+import { loadAdvisorModuleStore } from '@/lib/business/company-data';
 import {
   exchangeGarminToken,
   fetchGarminUserId,
@@ -89,12 +83,8 @@ export async function GET(req: NextRequest) {
     store.garmin_oauth_pending = (store.garmin_oauth_pending || []).filter(
       (p) => p.state !== state
     );
-    await saveAdvisorModuleStore(
-      companyId,
-      'fitgraph',
-      store,
-      writeFitgraphToMetadata
-    );
+    const { saveFitgraphMerged } = await import('@/lib/fitness/fitgraph-io');
+    await saveFitgraphMerged(companyId, store);
     const portal = pending.portal_token
       ? `${origin}/member/fitgraph/${encodeURIComponent(pending.portal_token)}?tab=progress&garmin=connected`
       : `${origin}/me?tab=progress&garmin=connected`;

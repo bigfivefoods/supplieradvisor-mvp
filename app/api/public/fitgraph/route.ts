@@ -35,13 +35,12 @@ import {
   sessionByShareCode,
   sessionKindOf,
   upsertClassFeedback,
-  writeFitgraphToMetadata,
   FITGRAPH_META_KEY,
   type FitBooking,
   type FitClient,
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
-import { saveAdvisorModuleStore } from '@/lib/business/company-data';
+import { saveFitgraphMerged } from '@/lib/fitness/fitgraph-io';
 import { loadAdvisorStoreForPublicToken } from '@/lib/business/advisor-store-resolve';
 import { memberMayBookSession } from '@/lib/fitness/vuka-class-catalog';
 import {
@@ -82,12 +81,7 @@ async function saveStore(
   _meta: Record<string, unknown>,
   store: FitgraphStore
 ) {
-  await saveAdvisorModuleStore(
-    companyId,
-    FITGRAPH_META_KEY,
-    store,
-    writeFitgraphToMetadata
-  );
+  await saveFitgraphMerged(companyId, store);
 }
 
 export async function GET(request: NextRequest) {
@@ -180,15 +174,6 @@ export async function GET(request: NextRequest) {
         { status: 404 }
       );
     }
-
-    const { persistVukaCatalogIfNeeded } = await import(
-      '@/lib/fitness/vuka-class-catalog'
-    );
-    resolved.store = await persistVukaCatalogIfNeeded(
-      resolved.companyId,
-      resolved.store,
-      (s) => saveStore(resolved.companyId, resolved.meta, s)
-    );
 
     const calendar = buildPublicCalendarPayload(resolved.store, {
       from: from || undefined,

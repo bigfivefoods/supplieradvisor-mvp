@@ -12,7 +12,9 @@ import {
   parseScheduleHint,
   resolveAllocatedCharge,
   scheduleClassOnCalendar,
+  bookDeskMemberOntoSession,
   sessionRosterNames,
+  sessionRosterRows,
   stampCatalogSeriesAndBookSubscribers,
   suggestClassSchedule,
   updateClassDesk,
@@ -482,5 +484,47 @@ assert.ok(
       b.status !== 'cancelled'
   )
 );
+
+const seatStore = emptyFitgraphStore();
+seatStore.sessions.push({
+  id: 's-seat',
+  class_type_id: 'ct1',
+  date: '2026-08-25',
+  start_time: '06:00',
+  status: 'scheduled',
+  created_at: '2026-08-01T00:00:00Z',
+} as never);
+seatStore.clients.push({
+  id: 'c-seat',
+  code: 'S1',
+  name: 'Seat',
+  active: true,
+  membership_status: 'active',
+  created_at: '2026-08-01T00:00:00Z',
+  updated_at: '2026-08-01T00:00:00Z',
+});
+const firstSeat = bookDeskMemberOntoSession(
+  seatStore,
+  seatStore.sessions[0],
+  seatStore.clients[0],
+  '2026-08-25T06:00:00Z',
+  { force: true }
+);
+assert.equal(firstSeat, 'booked');
+const secondSeat = bookDeskMemberOntoSession(
+  seatStore,
+  seatStore.sessions[0],
+  seatStore.clients[0],
+  '2026-08-25T06:01:00Z',
+  { force: true }
+);
+assert.equal(secondSeat, 'skipped');
+assert.equal(
+  seatStore.bookings.filter(
+    (b) => b.session_id === 's-seat' && b.client_id === 'c-seat'
+  ).length,
+  1
+);
+assert.equal(sessionRosterRows(seatStore, 's-seat').length, 1);
 
 console.log('class-allocate.test.ts ok');

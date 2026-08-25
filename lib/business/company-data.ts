@@ -281,6 +281,21 @@ export async function mergeProfileMetadata(
 
 const MODULE_STORE_TTL_MS = 25_000;
 const moduleStoreInflight = new Map<string, Promise<Record<string, unknown>>>();
+const moduleStoreGen = new Map<string, number>();
+
+function bumpModuleStoreGen(companyId: number, moduleKey?: string) {
+  if (moduleKey) {
+    const k = `${companyId}:${moduleKey}`;
+    moduleStoreGen.set(k, (moduleStoreGen.get(k) || 0) + 1);
+    return;
+  }
+  const prefix = `${companyId}:`;
+  for (const k of [...moduleStoreGen.keys()]) {
+    if (k.startsWith(prefix) || k === String(companyId)) {
+      moduleStoreGen.set(k, (moduleStoreGen.get(k) || 0) + 1);
+    }
+  }
+}
 
 function moduleStoreCacheKey(
   companyId: number,
@@ -296,6 +311,7 @@ export function invalidateModuleStoreCache(
   moduleKey?: string
 ): void {
   if (!Number.isFinite(companyId) || companyId <= 0) return;
+  bumpModuleStoreGen(companyId, moduleKey);
   if (moduleKey) {
     ttlDel(`modstore:${companyId}:${moduleKey}`);
     return;
@@ -313,6 +329,7 @@ export async function loadModuleMeta(
     throw new Error('unknown advisor module');
   }
   const key = moduleStoreCacheKey(companyId, moduleKey, extraKeys);
+  const genKey = `${companyId}:${moduleKey}`;
   if (!opts?.fresh) {
     const hit = ttlGet<Record<string, unknown>>(key);
     if (hit) return structuredClone(hit);
@@ -320,9 +337,12 @@ export async function loadModuleMeta(
     if (pending) return pending.then((m) => structuredClone(m));
   }
 
+  const gen = moduleStoreGen.get(genKey) || 0;
   const run = loadModuleMetaUncached(companyId, moduleKey, extraKeys).then(
     (meta) => {
-      ttlSet(key, meta, MODULE_STORE_TTL_MS);
+      if ((moduleStoreGen.get(genKey) || 0) === gen) {
+        ttlSet(key, meta, MODULE_STORE_TTL_MS);
+      }
       return meta;
     }
   );

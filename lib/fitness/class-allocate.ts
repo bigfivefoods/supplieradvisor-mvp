@@ -28,6 +28,10 @@ import {
   subscribersForSession,
   timetableSlotsForPlan,
 } from '@/lib/fitness/vuka-class-catalog';
+import {
+  findSessionSeat,
+  pickPreferredBooking,
+} from '@/lib/fitness/gym-bookings';
 
 const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -221,9 +225,14 @@ export function sessionRosterRows(
   const session = store.sessions.find((s) => s.id === sessionId);
   const rows: SessionRosterRow[] = [];
   const seen = new Set<string>();
+  const bySeat = new Map<string, (typeof store.bookings)[number]>();
   for (const b of store.bookings || []) {
     if (b.session_id !== sessionId) continue;
     if (b.status === 'cancelled' && b.rsvp !== 'not_coming') continue;
+    const prev = bySeat.get(b.client_id);
+    bySeat.set(b.client_id, prev ? pickPreferredBooking(prev, b) : b);
+  }
+  for (const b of bySeat.values()) {
     const cl = store.clients.find((c) => c.id === b.client_id);
     const name = b.family_member_name || cl?.name || b.guest_name || '';
     if (!name) continue;
@@ -361,40 +370,39 @@ export function calendarCoverage(
   };
 }
 
-function alreadyOnSession(
-  store: FitgraphStore,
-  sessionId: string,
-  clientId: string
-): boolean {
-  return (store.bookings || []).some(
-    (b) =>
-      b.session_id === sessionId &&
-      b.client_id === clientId &&
-      b.status !== 'cancelled'
-  );
-}
-
 export function bookDeskMemberOntoSession(
   store: FitgraphStore,
   session: FitSession,
   client: FitClient,
-  now: string
+  now: string,
+  opts?: { force?: boolean }
 ): 'booked' | 'waitlist' | 'skipped' {
-  if (alreadyOnSession(store, session.id, client.id)) return 'skipped';
-  const gate = memberMayBookSession(store, client, session, {
-    ignoreDebitBank: true,
-  });
-  if (!gate.ok) return 'skipped';
+  const seat = findSessionSeat(store, session.id, client.id);
+  if (seat && seat.status !== 'cancelled') return 'skipped';
+  if (!opts?.force) {
+    const gate = memberMayBookSession(store, client, session, {
+      ignoreDebitBank: true,
+    });
+    if (!gate.ok) return 'skipped';
+  }
   const cap = session.capacity;
   const count = sessionBookingCount(store, session.id);
   const status =
     cap != null && cap > 0 && count >= cap ? 'waitlist' : 'booked';
+  if (seat) {
+    seat.status = status;
+    seat.updated_at = now;
+    if (!seat.booked_at) seat.booked_at = now;
+    seat.source = seat.source || 'desk';
+    return status;
+  }
   store.bookings.push({
     id: newId('bkg'),
     session_id: session.id,
     client_id: client.id,
     status,
     booked_at: now,
+    updated_at: now,
     source: 'desk',
   });
   return status;

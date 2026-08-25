@@ -37,11 +37,11 @@ export function ttlSet<T>(key: string, value: T, ttlMs: number): void {
 }
 
 export function ttlDel(keyOrPrefix: string): void {
-  if (store.has(keyOrPrefix)) {
-    store.delete(keyOrPrefix);
-    return;
-  }
-  for (const k of store.keys()) {
-    if (k.startsWith(keyOrPrefix)) store.delete(k);
+  store.delete(keyOrPrefix);
+  const prefix = keyOrPrefix.endsWith(':')
+    ? keyOrPrefix
+    : `${keyOrPrefix}:`;
+  for (const k of [...store.keys()]) {
+    if (k.startsWith(prefix)) store.delete(k);
   }
 }

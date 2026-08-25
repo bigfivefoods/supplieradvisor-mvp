@@ -135,12 +135,7 @@ async function resolveMember(
 
   const store = loaded.store;
   applyCompanyLogoToSettings(store, pickCompanyLogoUrl(prof));
-  if (stampShareCodesForGrow(store)) {
-    if (!opts?.fresh) {
-      return resolveMember(clean, { fresh: true });
-    }
-    await saveStore(loaded.companyId, loaded.meta, store);
-  }
+  stampShareCodesForGrow(store);
   const client = store.clients.find((c) =>
     clientMatchesPortalToken(c, clean)
   );
@@ -393,29 +388,6 @@ export async function GET(request: NextRequest) {
     } catch {
       /* wallet hydrate is best-effort */
     }
-
-    const { ensureClientRatingTokens } = await import(
-      '@/lib/services/booking-feedback'
-    );
-    const ratingDirty = ensureClientRatingTokens(
-      resolved.store.bookings,
-      (b) => {
-        const s = resolved.store.sessions.find((x) => x.id === b.session_id);
-        return s ? { date: s.date, start_time: s.start_time } : null;
-      }
-    );
-    if (ratingDirty) {
-      await saveStore(resolved.companyId, resolved.meta, resolved.store);
-    }
-
-    const { persistVukaCatalogIfNeeded } = await import(
-      '@/lib/fitness/vuka-class-catalog'
-    );
-    resolved.store = await persistVukaCatalogIfNeeded(
-      resolved.companyId,
-      resolved.store,
-      (s) => saveStore(resolved.companyId, resolved.meta, s)
-    );
 
     const portal = decorateMemberPortal(
       resolved.store,
@@ -749,7 +721,12 @@ export async function POST(request: NextRequest) {
       }
       return NextResponse.json({
         success: true,
-        portal: buildMemberPortalPayloadBase(store, c),
+        portal: decorateMemberPortal(
+          store,
+          c,
+          buildMemberPortalPayloadBase(store, c),
+          meta
+        ),
         message: portalProfileSaveMessage(result, body, 'gym records'),
       });
     }
@@ -852,9 +829,14 @@ export async function POST(request: NextRequest) {
         duplicate: result.duplicate,
         check_in: result.check_in,
         access: result.access,
-        portal: buildMemberPortalPayloadBase(
+        portal: decorateMemberPortal(
           result.store,
-          result.store.clients[ci]
+          result.store.clients[ci],
+          buildMemberPortalPayloadBase(
+            result.store,
+            result.store.clients[ci]
+          ),
+          meta
         ),
         message: result.duplicate
           ? 'Already checked in recently.'
@@ -885,12 +867,12 @@ export async function POST(request: NextRequest) {
       if (!result.ok) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
-      await notifyGymClassRsvp({
+      await saveStore(companyId, meta, store);
+      void notifyGymClassRsvp({
         store,
         booking: result.booking,
         coming,
-      });
-      await saveStore(companyId, meta, store);
+      }).catch(() => null);
       return NextResponse.json({
         success: true,
         portal: decorateMemberPortal(
@@ -1069,7 +1051,12 @@ export async function POST(request: NextRequest) {
               ? 'Class is full — you are on the waitlist (join request received)'
               : 'You are booked into this class',
         },
-        portal: buildMemberPortalPayloadBase(store, store.clients[ci]),
+        portal: decorateMemberPortal(
+          store,
+          store.clients[ci],
+          buildMemberPortalPayloadBase(store, store.clients[ci]),
+          meta
+        ),
       });
     }
 
@@ -1167,15 +1154,15 @@ export async function POST(request: NextRequest) {
       });
       booking.feedback_submitted_at = now;
       booking.feedback_id = row.id;
+      await saveStore(companyId, meta, store);
       const { notifyGymClassFeedback } = await import(
         '@/lib/fitness/notify-class-feedback'
       );
-      await notifyGymClassFeedback({
+      void notifyGymClassFeedback({
         store,
         bookingId: booking.id,
         feedback: row,
-      });
-      await saveStore(companyId, meta, store);
+      }).catch(() => null);
       return NextResponse.json({
         success: true,
         portal: decorateMemberPortal(

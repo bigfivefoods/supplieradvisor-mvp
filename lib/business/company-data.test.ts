@@ -12,6 +12,7 @@ import {
   mergeCompanyChromeLayers,
   splitModuleWriteSlice,
 } from './company-data';
+import { ttlDel, ttlGet, ttlSet } from '@/lib/system/memory-ttl';
 
 assert.ok(COMPANY_CHROME_META_KEYS.includes('enabled_modules'));
 assert.ok(COMPANY_CHROME_META_KEYS.includes('user_sidebar_orders'));
@@ -72,5 +73,13 @@ assert.equal(noToken.publicToken, null);
 
 invalidateModuleStoreCache(110, 'fitgraph');
 invalidateModuleStoreCache(110);
+
+ttlSet('modstore:9:fitgraph', { a: 1 }, 60_000);
+ttlSet('modstore:9:fitgraph:extra', { a: 2 }, 60_000);
+ttlSet('modstore:9:fitgraph_lib', { a: 3 }, 60_000);
+ttlDel('modstore:9:fitgraph');
+assert.equal(ttlGet('modstore:9:fitgraph'), null);
+assert.equal(ttlGet('modstore:9:fitgraph:extra'), null);
+assert.deepEqual(ttlGet('modstore:9:fitgraph_lib'), { a: 3 });
 
 console.log('company-data.test.ts ok');

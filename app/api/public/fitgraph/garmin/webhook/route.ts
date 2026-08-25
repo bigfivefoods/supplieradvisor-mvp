@@ -6,11 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import {
-  readFitgraphFromMetadata,
-  writeFitgraphToMetadata,
-} from '@/lib/fitness/fitgraph';
-import { saveAdvisorModuleStore } from '@/lib/business/company-data';
+import { readFitgraphFromMetadata } from '@/lib/fitness/fitgraph';
 import {
   applyWatchSessionToStore,
   ensureGarminAccess,
@@ -127,12 +123,8 @@ export async function POST(req: NextRequest) {
           },
         },
       };
-      await saveAdvisorModuleStore(
-        Number(row.company_id),
-        'fitgraph',
-        store,
-        writeFitgraphToMetadata
-      );
+      const { saveFitgraphMerged } = await import('@/lib/fitness/fitgraph-io');
+      await saveFitgraphMerged(Number(row.company_id), store);
     } catch {
       /* one company fail should not 500 the webhook */
     }

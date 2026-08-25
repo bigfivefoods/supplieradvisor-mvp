@@ -30,7 +30,11 @@ export function ClassBookedRoster({
   selectedIds: string[];
   onToggleAdd: (id: string) => void;
   onBook: () => void;
-  onMark?: (bookingId: string, status: 'attended' | 'no_show' | 'booked') => void;
+  onMark?: (
+    bookingId: string,
+    status: 'attended' | 'no_show' | 'booked',
+    clientId?: string
+  ) => void;
   saving?: boolean;
   emptyLabel?: string;
 }) {
@@ -46,8 +50,8 @@ export function ClassBookedRoster({
         <ul className="divide-y divide-sky-100 dark:divide-sky-900 rounded-lg border border-sky-100 bg-white dark:border-sky-900 dark:bg-slate-950">
           {roster.map((r) => (
             <li
-              key={r.booking_id}
-              className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-1.5"
+              key={`${r.client_id || r.booking_id}:${r.booking_id}`}
+              className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-2"
             >
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-slate-900 dark:text-yellow-50">
@@ -68,30 +72,42 @@ export function ClassBookedRoster({
                 ) : null}
               </div>
               {onMark && r.status !== 'cancelled' ? (
-                <div className="flex gap-1">
+                <div className="flex gap-1.5">
                   <button
                     type="button"
-                    title="Attended"
-                    className={`rounded-lg border p-1.5 text-xs ${
+                    title="Attended — tap once to save"
+                    aria-pressed={r.status === 'attended'}
+                    className={`inline-flex min-h-10 min-w-10 items-center justify-center gap-1 rounded-xl border px-3 text-xs font-bold ${
                       r.status === 'attended'
                         ? 'bg-emerald-600 border-emerald-600 text-white'
-                        : 'border-slate-200 dark:border-slate-600'
+                        : 'border-slate-200 bg-white text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100'
                     }`}
-                    onClick={() => onMark(r.booking_id, 'attended')}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onMark(r.booking_id, 'attended', r.client_id);
+                    }}
                   >
-                    <Check className="w-3.5 h-3.5" />
+                    <Check className="w-4 h-4" />
+                    Came
                   </button>
                   <button
                     type="button"
-                    title="No-show"
-                    className={`rounded-lg border p-1.5 text-xs ${
+                    title="Did not attend — tap once to save"
+                    aria-pressed={r.status === 'no_show'}
+                    className={`inline-flex min-h-10 min-w-10 items-center justify-center gap-1 rounded-xl border px-3 text-xs font-bold ${
                       r.status === 'no_show'
                         ? 'bg-rose-600 border-rose-600 text-white'
-                        : 'border-slate-200 dark:border-slate-600'
+                        : 'border-slate-200 bg-white text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100'
                     }`}
-                    onClick={() => onMark(r.booking_id, 'no_show')}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onMark(r.booking_id, 'no_show', r.client_id);
+                    }}
                   >
-                    <UserX className="w-3.5 h-3.5" />
+                    <UserX className="w-4 h-4" />
+                    Didn’t
                   </button>
                 </div>
               ) : null}

@@ -111,9 +111,15 @@ export default function CalendarPage() {
     Record<string, 'attended' | 'no_show' | 'booked'>
   >({});
   const attendPending = useRef(
-    new Map<string, 'attended' | 'no_show' | 'booked'>()
+    new Map<
+      string,
+      {
+        status: 'attended' | 'no_show' | 'booked';
+        client_id?: string;
+        session_id?: string | null;
+      }
+    >()
   );
-  const attendTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attendChain = useRef(Promise.resolve());
   const selectedSessionIdRef = useRef(selectedSessionId);
   selectedSessionIdRef.current = selectedSessionId;
@@ -347,22 +353,20 @@ export default function CalendarPage() {
     sessionId: string,
     clientIds: string[]
   ) => {
-    if (!clientIds.length || !sessionId) return 0;
-    let n = 0;
-    for (const clientId of clientIds) {
-      await post({
-        entity: 'bookings',
-        action: 'upsert',
-        record: {
-          session_id: sessionId,
-          client_id: clientId,
-          status: 'booked',
-          source: 'desk',
-        },
-      });
-      n += 1;
+    if (!clientIds.length || !sessionId) {
+      return { added: 0, skipped: 0, message: 'No members added' };
     }
-    return n;
+    const data = await post({
+      action: 'add_session_members',
+      session_id: sessionId,
+      client_ids: clientIds,
+      lite: true,
+    });
+    return {
+      added: Number(data.added || 0),
+      skipped: Number(data.skipped || 0),
+      message: String(data.message || ''),
+    };
   };
 
   /** Remove the open class from the calendar (optionally whole series). */
@@ -629,13 +633,16 @@ export default function CalendarPage() {
   };
 
   const flushAttendance = async () => {
-    const sessionId = selectedSessionIdRef.current;
     const marks = [...attendPending.current.entries()].map(
-      ([booking_id, status]) => ({ booking_id, status })
+      ([booking_id, rec]) => ({
+        booking_id,
+        status: rec.status,
+        client_id: rec.client_id,
+        session_id: rec.session_id || selectedSessionIdRef.current,
+      })
     );
     attendPending.current.clear();
     if (!marks.length) return;
-    const ids = marks.map((m) => m.booking_id);
     try {
       if (marks.length === 1) {
         await post(
@@ -643,6 +650,8 @@ export default function CalendarPage() {
             action: 'mark_attendance',
             booking_id: marks[0].booking_id,
             status: marks[0].status,
+            session_id: marks[0].session_id,
+            client_id: marks[0].client_id,
             lite: true,
           },
           { quiet: true }
@@ -651,7 +660,7 @@ export default function CalendarPage() {
         await post(
           {
             action: 'mark_attendance_bulk',
-            session_id: sessionId,
+            session_id: marks[0].session_id,
             marks,
             lite: true,
           },
@@ -660,21 +669,17 @@ export default function CalendarPage() {
       }
       setAttendOverride((prev) => {
         const next = { ...prev };
-        for (const id of ids) delete next[id];
+        for (const m of marks) {
+          if (next[m.booking_id] === m.status) delete next[m.booking_id];
+        }
         return next;
       });
-      const attended = marks.filter((m) => m.status === 'attended').length;
-      toast.success(
-        attended
-          ? attended === 1
-            ? 'Marked attended — member notified to rate the class'
-            : `${attended} marked attended — members notified to rate`
-          : 'Attendance saved'
-      );
     } catch (e) {
       setAttendOverride((prev) => {
         const next = { ...prev };
-        for (const id of ids) delete next[id];
+        for (const m of marks) {
+          if (next[m.booking_id] === m.status) delete next[m.booking_id];
+        }
         return next;
       });
       toast.error(e instanceof Error ? e.message : 'Could not update attendance');
@@ -683,14 +688,16 @@ export default function CalendarPage() {
 
   const markRoster = (
     bookingId: string,
-    status: 'attended' | 'no_show' | 'booked'
+    status: 'attended' | 'no_show' | 'booked',
+    clientId?: string
   ) => {
     setAttendOverride((prev) => ({ ...prev, [bookingId]: status }));
-    attendPending.current.set(bookingId, status);
-    if (attendTimer.current) clearTimeout(attendTimer.current);
-    attendTimer.current = setTimeout(() => {
-      attendChain.current = attendChain.current.then(() => flushAttendance());
-    }, 160);
+    attendPending.current.set(bookingId, {
+      status,
+      client_id: clientId,
+      session_id: selectedSessionIdRef.current,
+    });
+    attendChain.current = attendChain.current.then(() => flushAttendance());
   };
 
   const toggleAddMember = (id: string) => {
@@ -704,10 +711,28 @@ export default function CalendarPage() {
       toast.error('Select at least one member');
       return;
     }
-    const n = await bookMembersOntoSession(sessionId, addMemberIds);
-    toast.success(
-      n === 1 ? 'Member added to class' : `${n} members added to class`
+    const onClass = new Set(
+      rosterFor(sessionId)
+        .map((r) => r.client_id)
+        .filter(Boolean)
     );
+    const ids = addMemberIds.filter((id) => !onClass.has(id));
+    if (!ids.length) {
+      toast.message('Already on this class');
+      setAddMemberIds([]);
+      return;
+    }
+    const result = await bookMembersOntoSession(sessionId, ids);
+    if (result.added > 0) {
+      toast.success(
+        result.message ||
+          (result.added === 1
+            ? 'Member added to class'
+            : `${result.added} members added to class`)
+      );
+    } else {
+      toast.message(result.message || 'Already on this class');
+    }
     setAddMemberIds([]);
   };
 
@@ -1456,9 +1481,8 @@ export default function CalendarPage() {
                       selectedIds={addMemberIds}
                       onToggleAdd={toggleAddMember}
                       onBook={() => void saveMembersOnSession(s.id)}
-                      onMark={(id, status) => {
-                        if (id.startsWith('alloc_')) return;
-                        void markRoster(id, status);
+                      onMark={(id, status, clientId) => {
+                        void markRoster(id, status, clientId);
                       }}
                       saving={saving}
                     />
@@ -1527,11 +1551,7 @@ export default function CalendarPage() {
                   end_time: s.end_time,
                   duration_min: s.duration_min,
                 });
-                const roster = store.bookings.filter(
-                  (b) =>
-                    b.session_id === s.id &&
-                    b.status !== 'cancelled'
-                );
+                const roster = rosterFor(s.id);
                 return (
                   <ListRowCard
                     key={s.id}
@@ -1681,9 +1701,8 @@ export default function CalendarPage() {
                           selectedIds={addMemberIds}
                           onToggleAdd={toggleAddMember}
                           onBook={() => void saveMembersOnSession(s.id)}
-                          onMark={(id, status) => {
-                            if (id.startsWith('alloc_')) return;
-                            void markRoster(id, status);
+                          onMark={(id, status, clientId) => {
+                            void markRoster(id, status, clientId);
                           }}
                           saving={saving}
                         />
@@ -1698,19 +1717,7 @@ export default function CalendarPage() {
                             </p>
                           ) : (
                             <p className="text-[11px] text-slate-700 dark:text-slate-200 mt-1">
-                              {roster
-                                .map((b) => {
-                                  const cl = store.clients.find(
-                                    (c) => c.id === b.client_id
-                                  );
-                                  return (
-                                    b.family_member_name ||
-                                    cl?.name ||
-                                    b.guest_name ||
-                                    b.client_id
-                                  );
-                                })
-                                .join(', ')}
+                              {roster.map((b) => b.name).join(', ')}
                             </p>
                           )}
                           <button

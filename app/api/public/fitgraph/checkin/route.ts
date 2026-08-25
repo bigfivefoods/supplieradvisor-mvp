@@ -15,7 +15,6 @@ import {
   gymBrandColor,
   readFitgraphFromMetadata,
   recordMemberCheckIn,
-  writeFitgraphToMetadata,
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
 
@@ -24,7 +23,8 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 async function resolveGym(
-  token: string
+  token: string,
+  opts?: { fresh?: boolean }
 ): Promise<{
   companyId: number;
   meta: Record<string, unknown>;
@@ -38,6 +38,7 @@ async function resolveGym(
     read: readFitgraphFromMetadata,
     parseCompanyId: parseCompanyIdFromToken,
     indexKeys: [FITGRAPH_PUBLIC_TOKEN_KEY],
+    fresh: opts?.fresh,
   });
   if (!loaded || loaded.store.settings?.public_token !== clean) return null;
   return loaded;
@@ -48,16 +49,8 @@ async function saveStore(
   _meta: Record<string, unknown>,
   store: FitgraphStore
 ) {
-  const { saveAdvisorModuleStore } = await import('@/lib/business/company-data');
-  const { FITGRAPH_META_KEY, writeFitgraphToMetadata } = await import(
-    '@/lib/fitness/fitgraph'
-  );
-  await saveAdvisorModuleStore(
-    companyId,
-    FITGRAPH_META_KEY,
-    store,
-    writeFitgraphToMetadata
-  );
+  const { saveFitgraphMerged } = await import('@/lib/fitness/fitgraph-io');
+  await saveFitgraphMerged(companyId, store);
 }
 
 export async function GET(request: NextRequest) {
@@ -151,7 +144,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const resolved = await resolveGym(gymToken);
+    const resolved = await resolveGym(gymToken, { fresh: true });
     if (!resolved) {
       return NextResponse.json(
         { error: 'Gym check-in QR not found' },

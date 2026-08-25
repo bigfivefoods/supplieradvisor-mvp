@@ -22,7 +22,6 @@ import {
   readFitgraphFromMetadata,
   sessionBookingCount,
   upsertClassFeedback,
-  writeFitgraphToMetadata,
   type FitBooking,
   type FitClient,
   type FitCoach,
@@ -49,6 +48,7 @@ import {
 import { buildPublicFeedbackPath } from '@/lib/services/booking-feedback';
 import { applyCoachMemberClassFeedback } from '@/lib/fitness/coach-member-feedback';
 import { applyGymAttendanceMark } from '@/lib/fitness/apply-gym-attendance';
+import { findSessionSeat } from '@/lib/fitness/gym-bookings';
 import { notifyMemberToRateClass } from '@/lib/fitness/notify-class-feedback';
 import { memberSpecialDatesForStore } from '@/lib/fitness/member-special-dates';
 
@@ -105,7 +105,8 @@ function buildCoachPortalPayload(
 }
 
 async function resolveCoach(
-  token: string
+  token: string,
+  opts?: { fresh?: boolean }
 ): Promise<{
   companyId: number;
   meta: Record<string, unknown>;
@@ -121,6 +122,7 @@ async function resolveCoach(
     read: readFitgraphFromMetadata,
     parseCompanyId: parseCompanyIdFromToken,
     indexKeys: [FITGRAPH_COACH_TOKENS_KEY],
+    fresh: opts?.fresh,
   });
   if (!loaded) return null;
   const { loadFitgraphLibraryRow } = await import('@/lib/fitness/fitgraph-io');
@@ -308,7 +310,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const resolved = await resolveCoach(token);
+    const resolved = await resolveCoach(token, { fresh: true });
     if (!resolved) {
       return NextResponse.json(
         { error: 'Coach portal not found' },
@@ -958,21 +960,43 @@ export async function POST(request: NextRequest) {
         clientId = client.id;
       }
 
+      const existingGuest = findSessionSeat(store, sessionId, clientId);
+      if (existingGuest && existingGuest.status !== 'cancelled') {
+        return NextResponse.json(
+          {
+            error: 'Already on this class',
+            booking: { id: existingGuest.id, status: existingGuest.status },
+          },
+          { status: 409 }
+        );
+      }
       const cap = session.capacity ?? 999;
       const count = sessionBookingCount(store, sessionId);
       const status: FitBooking['status'] = count >= cap ? 'waitlist' : 'booked';
-      const booking: FitBooking = {
-        id: newId('bkg'),
-        session_id: sessionId,
-        client_id: clientId,
-        status,
-        booked_at: now,
-        source: 'coach',
-        guest_name: name,
-        guest_email: email || undefined,
-        guest_phone: phone || undefined,
-      };
-      store.bookings.push(booking);
+      let booking: FitBooking;
+      if (existingGuest) {
+        existingGuest.status = status;
+        existingGuest.updated_at = now;
+        existingGuest.source = existingGuest.source || 'coach';
+        existingGuest.guest_name = name;
+        if (email) existingGuest.guest_email = email;
+        if (phone) existingGuest.guest_phone = phone;
+        booking = existingGuest;
+      } else {
+        booking = {
+          id: newId('bkg'),
+          session_id: sessionId,
+          client_id: clientId,
+          status,
+          booked_at: now,
+          updated_at: now,
+          source: 'coach',
+          guest_name: name,
+          guest_email: email || undefined,
+          guest_phone: phone || undefined,
+        };
+        store.bookings.push(booking);
+      }
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
@@ -983,19 +1007,38 @@ export async function POST(request: NextRequest) {
 
     if (action === 'mark_attended' || action === 'mark_attendance') {
       const bookingId = String(body.booking_id || '');
-      const booking = store.bookings.find((b) => b.id === bookingId);
-      if (!booking) {
-        return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+      const statusWanted = String(body.status || 'attended');
+      const sessionIdHint = String(body.session_id || sessionId || '');
+      const clientId = String(body.client_id || '');
+      let session = store.sessions.find(
+        (s) => s.id === sessionIdHint && s.coach_id === coach.id
+      );
+      if (!session) {
+        const existing = store.bookings.find((b) => b.id === bookingId);
+        if (existing) {
+          session = store.sessions.find(
+            (s) => s.id === existing.session_id && s.coach_id === coach.id
+          );
+        }
       }
-      const session = store.sessions.find((s) => s.id === booking.session_id);
+      if (!session && bookingId.startsWith('alloc_')) {
+        const rest = bookingId.slice('alloc_'.length);
+        session = store.sessions.find(
+          (s) =>
+            s.coach_id === coach.id &&
+            (rest === s.id || rest.startsWith(`${s.id}_`))
+        );
+      }
       if (!session || session.coach_id !== coach.id) {
         return NextResponse.json({ error: 'Not your session' }, { status: 403 });
       }
       const marked = applyGymAttendanceMark(store, {
         bookingId,
-        status: String(body.status || 'attended'),
+        status: statusWanted,
         now,
         requireSessionId: session.id,
+        sessionId: session.id,
+        clientId: clientId || undefined,
       });
       if (!marked.ok) {
         return NextResponse.json({ error: marked.error }, { status: 400 });
@@ -1238,13 +1281,8 @@ export async function POST(request: NextRequest) {
       if (!client) {
         return NextResponse.json({ error: 'Member not found' }, { status: 404 });
       }
-      const existing = store.bookings.find(
-        (b) =>
-          b.session_id === sessionId &&
-          b.client_id === clientId &&
-          b.status !== 'cancelled'
-      );
-      if (existing) {
+      const existing = findSessionSeat(store, sessionId, clientId);
+      if (existing && existing.status !== 'cancelled') {
         return NextResponse.json(
           { error: 'Already on this class', booking: existing },
           { status: 409 }
@@ -1265,15 +1303,24 @@ export async function POST(request: NextRequest) {
       const cap = session.capacity ?? 999;
       const count = sessionBookingCount(store, sessionId);
       const status: FitBooking['status'] = count >= cap ? 'waitlist' : 'booked';
-      const booking: FitBooking = {
-        id: newId('bkg'),
-        session_id: sessionId,
-        client_id: clientId,
-        status,
-        booked_at: now,
-        source: 'coach',
-      };
-      store.bookings.push(booking);
+      let booking: FitBooking;
+      if (existing) {
+        existing.status = status;
+        existing.updated_at = now;
+        existing.source = existing.source || 'coach';
+        booking = existing;
+      } else {
+        booking = {
+          id: newId('bkg'),
+          session_id: sessionId,
+          client_id: clientId,
+          status,
+          booked_at: now,
+          updated_at: now,
+          source: 'coach',
+        };
+        store.bookings.push(booking);
+      }
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,

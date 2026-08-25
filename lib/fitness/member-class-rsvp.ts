@@ -5,6 +5,7 @@
  */
 import { promoteNextWaitlist } from '@/lib/services/advisor-booking';
 import { newId, type FitBooking, type FitgraphStore } from '@/lib/fitness/fitgraph';
+import { findSessionSeat } from '@/lib/fitness/gym-bookings';
 import { isoDateInZone } from '@/lib/fitness/gym-local-time';
 
 export function resolveClassRsvpSessionId(
@@ -50,12 +51,7 @@ export function applyMemberClassRsvp(
     return { ok: false, error: 'That class is in the past' };
   }
 
-  let booking = store.bookings.find(
-    (b) =>
-      b.client_id === opts.clientId &&
-      b.session_id === sessionId &&
-      b.status !== 'attended'
-  );
+  let booking = findSessionSeat(store, sessionId, opts.clientId);
   if (booking?.status === 'attended') {
     return { ok: false, error: 'This class already happened' };
   }
@@ -67,12 +63,14 @@ export function applyMemberClassRsvp(
       status: 'booked',
       source: 'member',
       booked_at: now,
+      updated_at: now,
     };
     store.bookings = [booking, ...store.bookings];
   }
 
   booking.rsvp = opts.coming ? 'coming' : 'not_coming';
   booking.rsvp_at = now;
+  booking.updated_at = now;
 
   let promoted: FitBooking | null = null;
   if (!opts.coming && booking.status !== 'cancelled') {

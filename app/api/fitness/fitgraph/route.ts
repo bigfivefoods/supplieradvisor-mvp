@@ -128,12 +128,7 @@ type Entity =
   | 'programme_logs';
 
 async function loadStore(companyId: number, opts?: { fresh?: boolean }) {
-  const loaded = await loadFitgraphMerged(companyId, opts);
-  if (!opts?.fresh) return loaded;
-  const store = await persistVukaCatalogIfNeeded(companyId, loaded.store, (s) =>
-    saveStore(companyId, loaded.meta, s)
-  );
-  return { ...loaded, store };
+  return loadFitgraphMerged(companyId, opts);
 }
 
 async function saveStore(
@@ -214,7 +209,7 @@ export async function GET(request: NextRequest) {
       },
       {
         headers: {
-          'Cache-Control': 'private, max-age=8, stale-while-revalidate=30',
+          'Cache-Control': 'private, no-store',
         },
       }
     );
@@ -1307,10 +1302,14 @@ export async function POST(request: NextRequest) {
 
     if (action === 'mark_attendance') {
       const bookingId = String(body.booking_id || '');
+      const sessionHint = body.session_id ? String(body.session_id) : undefined;
       const marked = applyGymAttendanceMark(store, {
         bookingId,
         status: String(body.status || 'attended'),
         now,
+        requireSessionId: sessionHint,
+        sessionId: sessionHint,
+        clientId: body.client_id ? String(body.client_id) : undefined,
       });
       if (!marked.ok) {
         return NextResponse.json(
@@ -2195,6 +2194,61 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (action === 'add_session_members') {
+      const sessionId = String(body.session_id || '');
+      const session = store.sessions.find((s) => s.id === sessionId);
+      if (!session) {
+        return NextResponse.json({ error: 'Class not found' }, { status: 404 });
+      }
+      const blocked = coachPersonalBookingError(store, session);
+      if (blocked) {
+        return NextResponse.json({ error: blocked }, { status: 400 });
+      }
+      const { bookDeskMemberOntoSession } = await import(
+        '@/lib/fitness/class-allocate'
+      );
+      const { dedupeFitgraphBookings } = await import(
+        '@/lib/fitness/gym-bookings'
+      );
+      const ids = Array.isArray(body.client_ids)
+        ? (body.client_ids as unknown[]).map((id) => String(id || '')).filter(Boolean)
+        : [];
+      let added = 0;
+      let skipped = 0;
+      for (const clientId of ids) {
+        const client = store.clients.find(
+          (c) => c.id === clientId && c.active !== false
+        );
+        if (!client) {
+          skipped += 1;
+          continue;
+        }
+        const result = bookDeskMemberOntoSession(store, session, client, now, {
+          force: true,
+        });
+        if (result === 'skipped') skipped += 1;
+        else added += 1;
+      }
+      dedupeFitgraphBookings(store);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        ...(body.lite === true ? {} : { analysis: analysis(store) }),
+        added,
+        skipped,
+        message:
+          added === 0
+            ? skipped
+              ? 'Already on this class'
+              : 'No members added'
+            : added === 1
+              ? 'Member added to class'
+              : `${added} members added to class`,
+      });
+    }
+
     if (action === 'mark_attendance_bulk') {
       const sessionId = String(body.session_id || '');
       const marks = Array.isArray(body.marks) ? body.marks : [];
@@ -2202,11 +2256,16 @@ export async function POST(request: NextRequest) {
       for (const m of marks) {
         const bid = String((m as { booking_id?: string }).booking_id || '');
         const st = String((m as { status?: string }).status || '');
+        const markSessionId = String(
+          (m as { session_id?: string }).session_id || sessionId || ''
+        );
         const marked = applyGymAttendanceMark(store, {
           bookingId: bid,
           status: st,
           now,
-          requireSessionId: sessionId || undefined,
+          requireSessionId: markSessionId || undefined,
+          sessionId: markSessionId || undefined,
+          clientId: String((m as { client_id?: string }).client_id || ''),
         });
         if (marked.ok && marked.newlyAttended) rateBookings.push(marked.booking);
       }
@@ -3206,9 +3265,32 @@ function upsert(
     if (i >= 0) store.sessions[i] = row;
     else store.sessions.push(row);
   } else if (entity === 'bookings') {
-    const id = String(rec.id || newId('bkg'));
-    const i = store.bookings.findIndex((b) => b.id === id);
     const sessionId = String(rec.session_id || '');
+    const clientId = String(rec.client_id || '');
+    const famKey =
+      rec.family_member_id != null ? String(rec.family_member_id) : '';
+    const byId = rec.id
+      ? store.bookings.find((b) => b.id === String(rec.id))
+      : undefined;
+    const seat =
+      byId ||
+      (sessionId && clientId
+        ? store.bookings.find(
+            (b) =>
+              b.session_id === sessionId &&
+              b.client_id === clientId &&
+              String(b.family_member_id || '') === famKey &&
+              b.status !== 'cancelled'
+          ) ||
+          store.bookings.find(
+            (b) =>
+              b.session_id === sessionId &&
+              b.client_id === clientId &&
+              String(b.family_member_id || '') === famKey
+          )
+        : undefined);
+    const id = String(byId?.id || seat?.id || rec.id || newId('bkg'));
+    const i = store.bookings.findIndex((b) => b.id === id);
     const status = (rec.status as FitBooking['status']) || 'booked';
     // capacity check for new bookings
     if (i < 0 && status === 'booked') {
@@ -3305,6 +3387,7 @@ function upsert(
       reminder_count: prev?.reminder_count,
       waitlist_offered_at: prev?.waitlist_offered_at ?? null,
       waitlist_accepted_at: prev?.waitlist_accepted_at ?? null,
+      updated_at: now,
       feedback_token: prev?.feedback_token ?? null,
       feedback_requested_at: prev?.feedback_requested_at ?? null,
       feedback_submitted_at: prev?.feedback_submitted_at ?? null,

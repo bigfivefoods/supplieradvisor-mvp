@@ -19,6 +19,29 @@ import {
   type FitgraphLibrary,
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
+import { mergeFitgraphStores } from '@/lib/fitness/fitgraph-merge';
+
+const writeLocks = new Map<number, Promise<unknown>>();
+
+async function withFitgraphWriteLock<T>(
+  companyId: number,
+  fn: () => Promise<T>
+): Promise<T> {
+  const prev = writeLocks.get(companyId) || Promise.resolve();
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const chain = prev.then(() => held).catch(() => undefined);
+  writeLocks.set(companyId, chain);
+  await prev.catch(() => undefined);
+  try {
+    return await fn();
+  } finally {
+    release();
+    if (writeLocks.get(companyId) === chain) writeLocks.delete(companyId);
+  }
+}
 
 export async function loadFitgraphLibraryRow(
   companyId: number
@@ -64,28 +87,37 @@ export async function saveFitgraphMerged(
   companyId: number,
   store: FitgraphStore
 ): Promise<void> {
-  const { core, lib } = splitFitgraphLibrary(store);
-  try {
-    await Promise.all([
-      saveAdvisorModuleStore(
+  await withFitgraphWriteLock(companyId, async () => {
+    let next = store;
+    try {
+      const latest = await loadFitgraphMerged(companyId, { fresh: true });
+      next = mergeFitgraphStores(latest.store, store);
+    } catch {
+      next = store;
+    }
+    const { core, lib } = splitFitgraphLibrary(next);
+    try {
+      await Promise.all([
+        saveAdvisorModuleStore(
+          companyId,
+          FITGRAPH_META_KEY,
+          core,
+          writeFitgraphToMetadata
+        ),
+        saveAdvisorModuleStore(
+          companyId,
+          FITGRAPH_LIB_KEY,
+          lib,
+          writeFitgraphLibToMetadata
+        ),
+      ]);
+    } catch {
+      await saveAdvisorModuleStore(
         companyId,
         FITGRAPH_META_KEY,
-        core,
+        next,
         writeFitgraphToMetadata
-      ),
-      saveAdvisorModuleStore(
-        companyId,
-        FITGRAPH_LIB_KEY,
-        lib,
-        writeFitgraphLibToMetadata
-      ),
-    ]);
-  } catch {
-    await saveAdvisorModuleStore(
-      companyId,
-      FITGRAPH_META_KEY,
-      store,
-      writeFitgraphToMetadata
-    );
-  }
+      );
+    }
+  });
 }

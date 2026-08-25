@@ -67,4 +67,49 @@ const noShow = applyGymAttendanceMark(store, {
 assert.equal(noShow.ok, true);
 assert.equal(store.bookings[0].status, 'no_show');
 
+const allocStore = emptyFitgraphStore();
+allocStore.clients.push({
+  id: 'c2',
+  name: 'Sam',
+  created_at: '2026-01-01T00:00:00Z',
+} as never);
+allocStore.sessions.push({
+  id: 's1',
+  class_type_id: 'ct1',
+  date: '2026-08-24',
+  start_time: '06:00',
+  status: 'scheduled',
+  created_at: '2026-08-01T00:00:00Z',
+} as never);
+const alloc = applyGymAttendanceMark(allocStore, {
+  bookingId: 'alloc_s1_c2',
+  status: 'attended',
+  now: '2026-08-24T07:00:00Z',
+  sessionId: 's1',
+  clientId: 'c2',
+});
+assert.equal(alloc.ok, true);
+assert.equal(allocStore.bookings.length, 1);
+assert.equal(allocStore.bookings[0].client_id, 'c2');
+assert.equal(allocStore.bookings[0].session_id, 's1');
+assert.equal(allocStore.bookings[0].status, 'attended');
+
+allocStore.bookings.push({
+  id: 'dup',
+  session_id: 's1',
+  client_id: 'c2',
+  status: 'booked',
+  booked_at: '2026-08-23T00:00:00Z',
+});
+const againAlloc = applyGymAttendanceMark(allocStore, {
+  bookingId: 'alloc_s1_c2',
+  status: 'no_show',
+  now: '2026-08-24T07:05:00Z',
+  sessionId: 's1',
+  clientId: 'c2',
+});
+assert.equal(againAlloc.ok, true);
+assert.equal(allocStore.bookings.length, 1);
+assert.equal(allocStore.bookings[0].status, 'no_show');
+
 console.log('apply-gym-attendance.test.ts ok');

@@ -716,6 +716,7 @@ export type FitBooking = {
   client_id: string;
   status: 'booked' | 'waitlist' | 'cancelled' | 'attended' | 'no_show';
   booked_at: string;
+  updated_at?: string | null;
   /** Source: owner desk, coach portal, website, member self-serve */
   source?: 'desk' | 'coach' | 'website' | 'member' | string;
   /** Guest name if not yet a client record */
@@ -1686,6 +1687,9 @@ export function emptyFitgraphStore(): FitgraphStore {
     check_ins: [],
     pt_packs: [],
     class_feedback: [],
+    visit_notes: [],
+    outcome_scores: [],
+    treatment_plans: [],
     threads: [],
     announcements: [],
     movements: [],
@@ -2957,11 +2961,14 @@ export function sessionBookingCount(
   store: FitgraphStore,
   sessionId: string
 ): number {
-  return store.bookings.filter(
-    (b) =>
-      b.session_id === sessionId &&
-      (b.status === 'booked' || b.status === 'attended')
-  ).length;
+  const seen = new Set<string>();
+  for (const b of store.bookings || []) {
+    if (b.session_id !== sessionId) continue;
+    if (b.status !== 'booked' && b.status !== 'attended') continue;
+    const k = `${b.client_id || ''}::${b.family_member_id || ''}`;
+    seen.add(k);
+  }
+  return seen.size;
 }
 
 /** Ensure session has a share_code for B2C join links */

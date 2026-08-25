@@ -501,29 +501,40 @@ export default function CoachFitgraphPortalPage() {
 
   const markAttendance = (
     bookingId: string,
-    status: 'attended' | 'no_show' | 'booked'
+    status: 'attended' | 'no_show' | 'booked',
+    clientId?: string,
+    sessionId?: string
   ) => {
-    if (String(bookingId).startsWith('alloc_')) return;
     setAttendOverride((prev) => ({
       ...prev,
       [bookingId]: status === 'booked' ? 'pending' : status,
     }));
     attendChain.current = attendChain.current.then(() =>
       post(
-        { action: 'mark_attendance', booking_id: bookingId, status },
+        {
+          action: 'mark_attendance',
+          booking_id: bookingId,
+          status,
+          session_id: sessionId,
+          client_id: clientId,
+        },
         { quiet: true }
       )
         .then(() => {
           setAttendOverride((prev) => {
             const next = { ...prev };
-            delete next[bookingId];
+            if (next[bookingId] === (status === 'booked' ? 'pending' : status)) {
+              delete next[bookingId];
+            }
             return next;
           });
         })
         .catch(() => {
           setAttendOverride((prev) => {
             const next = { ...prev };
-            delete next[bookingId];
+            if (next[bookingId] === (status === 'booked' ? 'pending' : status)) {
+              delete next[bookingId];
+            }
             return next;
           });
         })
@@ -1637,32 +1648,55 @@ export default function CoachFitgraphPortalPage() {
                         </button>
                         <button
                           type="button"
-                          className={`p-1.5 rounded-lg border text-xs ${
+                          className={`inline-flex min-h-10 items-center gap-1 rounded-xl border px-3 text-xs font-bold ${
                             actual === 'attended'
-                              ? 'bg-emerald-600 border-emerald-600'
+                              ? 'bg-emerald-600 border-emerald-600 text-white'
                               : 'border-slate-600'
                           }`}
-                          title="Attended"
-                          onClick={() => markAttendance(r.booking_id, 'attended')}
+                          title="Attended — tap once to save"
+                          onClick={() =>
+                            markAttendance(
+                              r.booking_id,
+                              'attended',
+                              r.client_id,
+                              openCard.session.id
+                            )
+                          }
                         >
-                          <Check className="w-3.5 h-3.5" />
+                          <Check className="w-4 h-4" />
+                          Came
                         </button>
                         <button
                           type="button"
-                          className={`p-1.5 rounded-lg border text-xs ${
+                          className={`inline-flex min-h-10 items-center gap-1 rounded-xl border px-3 text-xs font-bold ${
                             actual === 'no_show'
-                              ? 'bg-rose-600 border-rose-600'
+                              ? 'bg-rose-600 border-rose-600 text-white'
                               : 'border-slate-600'
                           }`}
-                          title="No-show"
-                          onClick={() => markAttendance(r.booking_id, 'no_show')}
+                          title="Did not attend — tap once to save"
+                          onClick={() =>
+                            markAttendance(
+                              r.booking_id,
+                              'no_show',
+                              r.client_id,
+                              openCard.session.id
+                            )
+                          }
                         >
-                          <UserX className="w-3.5 h-3.5" />
+                          <UserX className="w-4 h-4" />
+                          Didn’t
                         </button>
                         <button
                           type="button"
                           className="px-2 py-1 rounded-lg border border-slate-600 text-[10px] font-bold"
-                          onClick={() => markAttendance(r.booking_id, 'booked')}
+                          onClick={() =>
+                            markAttendance(
+                              r.booking_id,
+                              'booked',
+                              r.client_id,
+                              openCard.session.id
+                            )
+                          }
                         >
                           Plan
                         </button>
