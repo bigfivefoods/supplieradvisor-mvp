@@ -37,6 +37,7 @@ import {
   loadAdvisorModuleStore,
   saveAdvisorModuleStore,
 } from '@/lib/business/company-data';
+import { resolveClinicBookingId } from '@/lib/clinic/clinic-bookings';
 import { parseQualifications } from '@/lib/services/person-qualifications';
 import { mergeHealthProfile } from '@/lib/health/body-map';
 import {
@@ -2086,9 +2087,6 @@ function upsert(
     if (i >= 0) store.appointments[i] = row;
     else store.appointments.push(row);
   } else if (entity === 'bookings') {
-    const { resolveClinicBookingId } = await import(
-      '@/lib/clinic/clinic-bookings'
-    );
     const id = resolveClinicBookingId(store.bookings, rec, () => newId('bkg'));
     const i = store.bookings.findIndex((b) => b.id === id);
     const prev = i >= 0 ? store.bookings[i] : null;
