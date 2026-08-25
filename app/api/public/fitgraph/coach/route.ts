@@ -46,11 +46,10 @@ import {
   threadsForParticipant,
   totalUnread,
 } from '@/lib/messaging/service-inbox';
-import {
-  buildPublicFeedbackPath,
-  issueFeedbackPrompt,
-} from '@/lib/services/booking-feedback';
+import { buildPublicFeedbackPath } from '@/lib/services/booking-feedback';
 import { applyCoachMemberClassFeedback } from '@/lib/fitness/coach-member-feedback';
+import { applyGymAttendanceMark } from '@/lib/fitness/apply-gym-attendance';
+import { notifyMemberToRateClass } from '@/lib/fitness/notify-class-feedback';
 import { memberSpecialDatesForStore } from '@/lib/fitness/member-special-dates';
 
 export const runtime = 'nodejs';
@@ -992,42 +991,38 @@ export async function POST(request: NextRequest) {
       if (!session || session.coach_id !== coach.id) {
         return NextResponse.json({ error: 'Not your session' }, { status: 403 });
       }
-      const nextStatus = String(body.status || 'attended');
-      if (
-        nextStatus !== 'attended' &&
-        nextStatus !== 'no_show' &&
-        nextStatus !== 'booked' &&
-        nextStatus !== 'cancelled'
-      ) {
-        return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
-      }
-      booking.status = nextStatus as FitBooking['status'];
-      if (nextStatus === 'attended' || nextStatus === 'no_show') {
-        session.status =
-          session.status === 'cancelled' ? session.status : 'completed';
+      const marked = applyGymAttendanceMark(store, {
+        bookingId,
+        status: String(body.status || 'attended'),
+        now,
+        requireSessionId: session.id,
+      });
+      if (!marked.ok) {
+        return NextResponse.json({ error: marked.error }, { status: 400 });
       }
       let feedbackPath: string | null = null;
-      if (nextStatus === 'attended') {
-        const prompted = issueFeedbackPrompt(booking, now);
-        booking.feedback_token = prompted.feedback_token;
-        booking.feedback_requested_at = prompted.feedback_requested_at;
-        if (booking.feedback_token) {
-          feedbackPath = buildPublicFeedbackPath(
-            'fitgraph',
-            companyId,
-            booking.feedback_token
-          );
-        }
+      if (marked.booking.status === 'attended' && marked.booking.feedback_token) {
+        feedbackPath = buildPublicFeedbackPath(
+          'fitgraph',
+          companyId,
+          marked.booking.feedback_token
+        );
       }
       await saveStore(companyId, meta, store);
+      if (marked.newlyAttended) {
+        await notifyMemberToRateClass({
+          store,
+          booking: marked.booking,
+        }).catch(() => null);
+      }
       return NextResponse.json({
         success: true,
         portal: buildCoachPortalPayload(store, coach),
         feedback_prompt:
-          nextStatus === 'attended' && booking.feedback_token
+          marked.booking.status === 'attended' && marked.booking.feedback_token
             ? {
-                booking_id: booking.id,
-                token: booking.feedback_token,
+                booking_id: marked.booking.id,
+                token: marked.booking.feedback_token,
                 path: feedbackPath,
               }
             : null,
@@ -1125,30 +1120,28 @@ export async function POST(request: NextRequest) {
       if (!session) {
         return NextResponse.json({ error: 'Session not found' }, { status: 404 });
       }
+      const rateBookings: FitBooking[] = [];
       for (const m of marks) {
         const bid = String((m as { booking_id?: string }).booking_id || '');
         const st = String((m as { status?: string }).status || '');
-        const booking = store.bookings.find(
-          (b) => b.id === bid && b.session_id === sessionId
-        );
-        if (
-          booking &&
-          (st === 'attended' ||
-            st === 'no_show' ||
-            st === 'booked' ||
-            st === 'cancelled')
-        ) {
-          booking.status = st as FitBooking['status'];
-        }
-      }
-      if (marks.length > 0) {
-        session.status =
-          session.status === 'cancelled' ? session.status : 'completed';
+        const marked = applyGymAttendanceMark(store, {
+          bookingId: bid,
+          status: st,
+          now,
+          requireSessionId: sessionId,
+        });
+        if (marked.ok && marked.newlyAttended) rateBookings.push(marked.booking);
       }
       await saveStore(companyId, meta, store);
+      await Promise.all(
+        rateBookings.map((booking) =>
+          notifyMemberToRateClass({ store, booking }).catch(() => null)
+        )
+      );
       return NextResponse.json({
         success: true,
         portal: buildCoachPortalPayload(store, coach),
+        rated: rateBookings.length,
       });
     }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Link2, Share2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -107,6 +107,16 @@ export default function CalendarPage() {
   const [statsOpen, setStatsOpen] = useState(true);
   const [calendarOpen, setCalendarOpen] = useState(true);
   const [waitlistOpen, setWaitlistOpen] = useState(true);
+  const [attendOverride, setAttendOverride] = useState<
+    Record<string, 'attended' | 'no_show' | 'booked'>
+  >({});
+  const attendPending = useRef(
+    new Map<string, 'attended' | 'no_show' | 'booked'>()
+  );
+  const attendTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const attendChain = useRef(Promise.resolve());
+  const selectedSessionIdRef = useRef(selectedSessionId);
+  selectedSessionIdRef.current = selectedSessionId;
 
   const blankCreateForm = () => ({
     session_kind: 'class' as FitSessionKind,
@@ -612,29 +622,75 @@ export default function CalendarPage() {
 
   const rosterFor = (sessionId: string) => {
     if (!store) return [];
-    return sessionRosterRows(store, sessionId);
+    return sessionRosterRows(store, sessionId).map((r) => ({
+      ...r,
+      status: attendOverride[r.booking_id] || r.status,
+    }));
   };
 
-  const markRoster = async (
+  const flushAttendance = async () => {
+    const sessionId = selectedSessionIdRef.current;
+    const marks = [...attendPending.current.entries()].map(
+      ([booking_id, status]) => ({ booking_id, status })
+    );
+    attendPending.current.clear();
+    if (!marks.length) return;
+    const ids = marks.map((m) => m.booking_id);
+    try {
+      if (marks.length === 1) {
+        await post(
+          {
+            action: 'mark_attendance',
+            booking_id: marks[0].booking_id,
+            status: marks[0].status,
+            lite: true,
+          },
+          { quiet: true }
+        );
+      } else {
+        await post(
+          {
+            action: 'mark_attendance_bulk',
+            session_id: sessionId,
+            marks,
+            lite: true,
+          },
+          { quiet: true }
+        );
+      }
+      setAttendOverride((prev) => {
+        const next = { ...prev };
+        for (const id of ids) delete next[id];
+        return next;
+      });
+      const attended = marks.filter((m) => m.status === 'attended').length;
+      toast.success(
+        attended
+          ? attended === 1
+            ? 'Marked attended — member notified to rate the class'
+            : `${attended} marked attended — members notified to rate`
+          : 'Attendance saved'
+      );
+    } catch (e) {
+      setAttendOverride((prev) => {
+        const next = { ...prev };
+        for (const id of ids) delete next[id];
+        return next;
+      });
+      toast.error(e instanceof Error ? e.message : 'Could not update attendance');
+    }
+  };
+
+  const markRoster = (
     bookingId: string,
     status: 'attended' | 'no_show' | 'booked'
   ) => {
-    try {
-      await post({
-        action: 'mark_attendance',
-        booking_id: bookingId,
-        status,
-      });
-      toast.success(
-        status === 'attended'
-          ? 'Marked attended — member can rate the class'
-          : status === 'no_show'
-            ? 'Marked no-show'
-            : 'Back on the booked roster'
-      );
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not update attendance');
-    }
+    setAttendOverride((prev) => ({ ...prev, [bookingId]: status }));
+    attendPending.current.set(bookingId, status);
+    if (attendTimer.current) clearTimeout(attendTimer.current);
+    attendTimer.current = setTimeout(() => {
+      attendChain.current = attendChain.current.then(() => flushAttendance());
+    }, 160);
   };
 
   const toggleAddMember = (id: string) => {

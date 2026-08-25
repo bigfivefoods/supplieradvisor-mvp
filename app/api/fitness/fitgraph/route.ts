@@ -78,6 +78,8 @@ import {
   buildPublicFeedbackPath,
   issueFeedbackPrompt,
 } from '@/lib/services/booking-feedback';
+import { applyGymAttendanceMark } from '@/lib/fitness/apply-gym-attendance';
+import { notifyMemberToRateClass } from '@/lib/fitness/notify-class-feedback';
 import {
   applyAnnouncementAction,
   isAnnouncementAction,
@@ -1305,45 +1307,20 @@ export async function POST(request: NextRequest) {
 
     if (action === 'mark_attendance') {
       const bookingId = String(body.booking_id || '');
-      const status = String(body.status || 'attended') as FitBooking['status'];
-      const booking = store.bookings.find((b) => b.id === bookingId);
-      if (!booking) {
-        return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
-      }
-      if (
-        status !== 'attended' &&
-        status !== 'no_show' &&
-        status !== 'booked' &&
-        status !== 'cancelled'
-      ) {
-        return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
-      }
-      const prevStatus = booking.status;
-      booking.status = status;
-      const session = store.sessions.find((s) => s.id === booking.session_id);
-      if (
-        session &&
-        (status === 'attended' || status === 'no_show') &&
-        session.status !== 'cancelled'
-      ) {
-        session.status = 'completed';
-      }
-      // No-show / attendance stats on client
-      if (
-        (status === 'attended' || status === 'no_show') &&
-        prevStatus !== status
-      ) {
-        const { applyAttendanceToPersonStats } = await import(
-          '@/lib/services/advisor-booking'
+      const marked = applyGymAttendanceMark(store, {
+        bookingId,
+        status: String(body.status || 'attended'),
+        now,
+      });
+      if (!marked.ok) {
+        return NextResponse.json(
+          { error: marked.error },
+          { status: marked.error === 'Booking not found' ? 404 : 400 }
         );
-        const ci = store.clients.findIndex((c) => c.id === booking.client_id);
-        if (ci >= 0) {
-          Object.assign(
-            store.clients[ci],
-            applyAttendanceToPersonStats(store.clients[ci], status, now)
-          );
-        }
       }
+      const booking = marked.booking;
+      const status = booking.status;
+      const prevStatus = marked.prevStatus;
       // Cancelled → promote waitlist + email offer
       let promoted: FitBooking | null = null;
       if (status === 'cancelled' && booking.session_id) {
@@ -1388,17 +1365,14 @@ export async function POST(request: NextRequest) {
       }
       let feedbackPath: string | null = null;
       let packRemaining: number | null = null;
+      if (status === 'attended' && booking.feedback_token) {
+        feedbackPath = buildPublicFeedbackPath(
+          'fitgraph',
+          companyId,
+          booking.feedback_token
+        );
+      }
       if (status === 'attended') {
-        const prompted = issueFeedbackPrompt(booking, now);
-        booking.feedback_token = prompted.feedback_token;
-        booking.feedback_requested_at = prompted.feedback_requested_at;
-        if (booking.feedback_token) {
-          feedbackPath = buildPublicFeedbackPath(
-            'fitgraph',
-            companyId,
-            booking.feedback_token
-          );
-        }
         // Consume PT / session pack if available
         if (prevStatus !== 'attended') {
           const {
@@ -1461,11 +1435,14 @@ export async function POST(request: NextRequest) {
         void dispatchAdvisorEventSideEffects(ev.event);
       }
       await saveStore(companyId, meta, store);
+      if (marked.newlyAttended) {
+        await notifyMemberToRateClass({ store, booking }).catch(() => null);
+      }
       return NextResponse.json({
         success: true,
         store,
         summary: summariseFitgraph(store),
-        analysis: analysis(store),
+        ...(body.lite === true ? {} : { analysis: analysis(store) }),
         waitlist_promoted: promoted
           ? { booking_id: promoted.id, client_id: promoted.client_id }
           : null,
@@ -1482,7 +1459,7 @@ export async function POST(request: NextRequest) {
             : null,
         message:
           status === 'attended' && feedbackPath
-            ? 'Marked attended — feedback link ready for the member'
+            ? 'Marked attended — member notified to rate the class'
             : promoted
               ? 'Cancelled — next waitlist member promoted to booked'
               : status === 'no_show'
@@ -2221,35 +2198,30 @@ export async function POST(request: NextRequest) {
     if (action === 'mark_attendance_bulk') {
       const sessionId = String(body.session_id || '');
       const marks = Array.isArray(body.marks) ? body.marks : [];
+      const rateBookings: FitBooking[] = [];
       for (const m of marks) {
         const bid = String((m as { booking_id?: string }).booking_id || '');
         const st = String((m as { status?: string }).status || '');
-        const booking = store.bookings.find(
-          (b) =>
-            b.id === bid && (!sessionId || b.session_id === sessionId)
-        );
-        if (
-          booking &&
-          (st === 'attended' ||
-            st === 'no_show' ||
-            st === 'booked' ||
-            st === 'cancelled')
-        ) {
-          booking.status = st as FitBooking['status'];
-        }
-      }
-      if (sessionId) {
-        const session = store.sessions.find((s) => s.id === sessionId);
-        if (session && session.status !== 'cancelled' && marks.length > 0) {
-          session.status = 'completed';
-        }
+        const marked = applyGymAttendanceMark(store, {
+          bookingId: bid,
+          status: st,
+          now,
+          requireSessionId: sessionId || undefined,
+        });
+        if (marked.ok && marked.newlyAttended) rateBookings.push(marked.booking);
       }
       await saveStore(companyId, meta, store);
+      await Promise.all(
+        rateBookings.map((booking) =>
+          notifyMemberToRateClass({ store, booking }).catch(() => null)
+        )
+      );
       return NextResponse.json({
         success: true,
         store,
         summary: summariseFitgraph(store),
-        analysis: analysis(store),
+        ...(body.lite === true ? {} : { analysis: analysis(store) }),
+        rated: rateBookings.length,
       });
     }
 

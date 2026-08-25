@@ -88,4 +88,42 @@ if (skipAlloc.ok) {
   assert.equal(skipAlloc.booking.status, 'cancelled');
 }
 
+const tzStore = emptyFitgraphStore();
+tzStore.settings = {
+  ...tzStore.settings,
+  timezone: 'Africa/Johannesburg',
+};
+const todayJhb = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Africa/Johannesburg',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+}).format(new Date('2026-08-24T22:30:00.000Z'));
+tzStore.sessions = [
+  {
+    id: 's-today',
+    date: todayJhb,
+    start_time: '06:00',
+    status: 'scheduled',
+    created_at: '2026-08-01',
+  } as never,
+];
+tzStore.bookings = [
+  {
+    id: 'b-today',
+    session_id: 's-today',
+    client_id: 'c1',
+    status: 'booked',
+    booked_at: '2026-08-23',
+  },
+];
+const tonight = applyMemberClassRsvp(tzStore, {
+  bookingId: 'b-today',
+  clientId: 'c1',
+  coming: true,
+  now: '2026-08-24T22:30:00.000Z',
+});
+assert.equal(tonight.ok, true);
+if (tonight.ok) assert.equal(tonight.booking.rsvp, 'coming');
+
 console.log('member-class-rsvp.test.ts ok');

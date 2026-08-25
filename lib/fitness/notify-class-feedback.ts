@@ -6,7 +6,45 @@ import {
   newDeskNotice,
   pushDeskNotice,
 } from '@/lib/services/advisor-member-calendar';
-import type { FitClassFeedback, FitgraphStore } from '@/lib/fitness/fitgraph';
+import { notifyLinkedMember } from '@/lib/b2c/member-push';
+import type {
+  FitBooking,
+  FitClassFeedback,
+  FitgraphStore,
+} from '@/lib/fitness/fitgraph';
+
+/** PWA push so the member can rate after they are marked attended. */
+export async function notifyMemberToRateClass(opts: {
+  store: FitgraphStore;
+  booking: FitBooking;
+}): Promise<void> {
+  const client = opts.store.clients.find((c) => c.id === opts.booking.client_id);
+  if (!client?.platform_user_id) return;
+  const session = opts.store.sessions.find(
+    (s) => s.id === opts.booking.session_id
+  );
+  const ct = session
+    ? opts.store.class_types.find((t) => t.id === session.class_type_id)
+    : null;
+  const className = ct?.name || 'class';
+  const brand = opts.store.settings?.brand_name || 'Gym';
+  const when = session
+    ? `${session.date} ${String(session.start_time || '').slice(0, 5)}`.trim()
+    : '';
+  const portalPath = client.portal_token
+    ? `/member/fitgraph/${encodeURIComponent(client.portal_token)}?tab=progress`
+    : '/me';
+  await notifyLinkedMember({
+    platformUserId: client.platform_user_id,
+    title: `Rate ${className}`,
+    body: [brand, when, 'How was class? Your coach uses this.']
+      .filter(Boolean)
+      .join(' · '),
+    url: portalPath,
+    tag: `gym-rate-${opts.booking.id}`,
+    topic: 'bookings',
+  });
+}
 
 export async function notifyGymClassFeedback(opts: {
   store: FitgraphStore;

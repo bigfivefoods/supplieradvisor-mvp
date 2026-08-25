@@ -11,6 +11,7 @@ import {
   goalPeriodRange,
   goalYDomain,
   sliceGoalSeries,
+  type GoalChartPoint,
   type GoalPeriodKey,
 } from '@/lib/fitness/goal-chart';
 
@@ -107,6 +108,138 @@ export function GoalPeriodPicker({
           </label>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+export function MetricSparkline({
+  label,
+  unit,
+  points,
+  period,
+  customFrom,
+  customTo,
+  color,
+  target,
+}: {
+  label: string;
+  unit?: string;
+  points: GoalChartPoint[];
+  period: GoalPeriodKey;
+  customFrom: string;
+  customTo: string;
+  color: string;
+  target?: number | null;
+}) {
+  const uid = useId().replace(/:/g, '');
+  const range = goalPeriodRange(period, { customFrom, customTo });
+  const fromMs = new Date(`${range.from}T00:00:00`).getTime();
+  const toMs = new Date(`${range.to}T23:59:59`).getTime();
+  const sliced = useMemo(
+    () => sliceGoalSeries(points, fromMs, toMs),
+    [points, fromMs, toMs]
+  );
+  const domain = goalYDomain(
+    sliced.map((p) => p.v),
+    target ?? null
+  );
+  const W = 320;
+  const H = 120;
+  const L = 34;
+  const R = 10;
+  const T = 12;
+  const B = 22;
+  const pw = W - L - R;
+  const ph = H - T - B;
+  const spanX = Math.max(1, toMs - fromMs);
+  const spanY = Math.max(1e-9, domain.max - domain.min);
+  const xOf = (t: number) => L + ((t - fromMs) / spanX) * pw;
+  const yOf = (v: number) => T + ((domain.max - v) / spanY) * ph;
+  const line =
+    sliced.length >= 1
+      ? sliced
+          .map(
+            (p, i) =>
+              `${i === 0 ? 'M' : 'L'}${xOf(p.t).toFixed(1)},${yOf(p.v).toFixed(1)}`
+          )
+          .join(' ')
+      : '';
+  const last = sliced[sliced.length - 1];
+  const unitLabel = unit ? ` ${unit}` : '';
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+          {label}
+        </p>
+        <p className="text-xs font-black tabular-nums text-slate-800 dark:text-white">
+          {last ? `${formatGoalTick(last.v)}${unitLabel}` : '—'}
+        </p>
+      </div>
+      {sliced.length ? (
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          className="h-[108px] w-full"
+          role="img"
+          aria-label={label}
+        >
+          {[0, 0.5, 1].map((f) => {
+            const y = T + ph * f;
+            const v = domain.max - spanY * f;
+            return (
+              <g key={f}>
+                <line
+                  x1={L}
+                  x2={W - R}
+                  y1={y}
+                  y2={y}
+                  className="stroke-slate-200 dark:stroke-white/10"
+                  strokeWidth={1}
+                />
+                <text
+                  x={L - 4}
+                  y={y + 3}
+                  textAnchor="end"
+                  className="fill-slate-400"
+                  fontSize={8}
+                  fontWeight={700}
+                >
+                  {formatGoalTick(v)}
+                </text>
+              </g>
+            );
+          })}
+          <path
+            d={line}
+            fill="none"
+            stroke={color}
+            strokeWidth={2.25}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+          {sliced.map((p) => (
+            <circle
+              key={`${p.t}-${p.v}`}
+              cx={xOf(p.t)}
+              cy={yOf(p.v)}
+              r={3}
+              fill={color}
+              stroke="#fff"
+              strokeWidth={1.1}
+            >
+              <title>
+                {formatGoalDay(p.t)} · {formatGoalTick(p.v)}
+                {unitLabel}
+              </title>
+            </circle>
+          ))}
+        </svg>
+      ) : (
+        <p className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center text-[11px] text-slate-400 dark:border-white/10">
+          No {label.toLowerCase()} in this period.
+        </p>
+      )}
     </div>
   );
 }

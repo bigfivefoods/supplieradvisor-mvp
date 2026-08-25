@@ -2135,6 +2135,8 @@ function buildMemberFacingProgress(
           const ct = s ? classTypeById(store, s.class_type_id) : null;
           return {
             id: f.id,
+            booking_id: f.booking_id || null,
+            session_id: f.session_id,
             at: f.updated_at || f.created_at,
             class_name: ct?.name || 'Class',
             date: s?.date || f.created_at.slice(0, 10),

@@ -31,11 +31,11 @@ import { sessionHasEnded } from '@/lib/services/booking-feedback';
 import { sessionIsUpcoming } from '@/lib/fitness/gym-local-time';
 import type { MemberRelationshipPayload } from '@/components/services/MemberRelationshipSection';
 import { MemberGoalsPanel } from '@/components/fitness/MemberGoalsPanel';
+import { MemberProgressCharts } from '@/components/fitness/MemberProgressCharts';
 import { MemberProgrammeFollow } from '@/components/fitness/MemberProgrammeFollow';
 import type { MemberProgrammeFollowView } from '@/lib/fitness/programme-follow';
 import { MemberOpenDiaryWeek } from '@/components/fitness/MemberOpenDiaryWeek';
 import type { MemberGoalView } from '@/lib/fitness/member-goals';
-import { ProgrammeView } from '@/components/fitness/ProgrammeView';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
 import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
@@ -191,6 +191,8 @@ type Portal = {
     }>;
     my_feedback?: Array<{
       id: string;
+      booking_id?: string | null;
+      session_id?: string;
       at: string;
       class_name: string;
       date: string;
@@ -355,6 +357,9 @@ export default function MemberFitgraphPortalPage() {
   const [msgReply, setMsgReply] = useState('');
   const [debitBank, setDebitBank] = useState<DebitBankForm>(emptyDebitBankForm);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [rsvpOverride, setRsvpOverride] = useState<
+    Record<string, 'coming' | 'not_coming'>
+  >({});
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -420,7 +425,14 @@ export default function MemberFitgraphPortalPage() {
   }, [msg]);
 
   useEffect(() => {
-    const raw = new URLSearchParams(window.location.search).get('tab');
+    if (tab === 'progress' && (portal?.progress?.pending_feedback || []).length) {
+      setFeedbackOpen(true);
+    }
+  }, [tab, portal?.progress?.pending_feedback?.length]);
+
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const raw = q.get('tab');
     if (raw === 'plans' || raw === 'join' || raw === 'shop') {
       setTab('join');
     } else if (raw === 'class' || raw === 'classes') {
@@ -436,6 +448,10 @@ export default function MemberFitgraphPortalPage() {
       raw === 'share'
     ) {
       setTab(raw);
+    }
+    if (raw === 'progress' || q.get('rate') === '1') {
+      setFeedbackOpen(true);
+      if (raw !== 'progress' && q.get('rate') === '1') setTab('progress');
     }
     const garmin = new URLSearchParams(window.location.search).get('garmin');
     if (garmin === 'connected') {
@@ -612,6 +628,13 @@ export default function MemberFitgraphPortalPage() {
     ) {
       return;
     }
+    const stamp = coming ? ('coming' as const) : ('not_coming' as const);
+    const keys = [bookingId, sessionId].filter(Boolean) as string[];
+    setRsvpOverride((prev) => {
+      const next = { ...prev };
+      for (const k of keys) next[k] = stamp;
+      return next;
+    });
     setBusyId(bookingId);
     setMsg(null);
     setError(null);
@@ -627,6 +650,11 @@ export default function MemberFitgraphPortalPage() {
           (coming ? 'Will be attending' : 'Won’t be attending')
       );
     } catch (e: unknown) {
+      setRsvpOverride((prev) => {
+        const next = { ...prev };
+        for (const k of keys) delete next[k];
+        return next;
+      });
       setError(e instanceof Error ? e.message : 'Could not update');
     } finally {
       setBusyId(null);
@@ -788,6 +816,38 @@ export default function MemberFitgraphPortalPage() {
         : a.date.localeCompare(b.date)
     );
   const nextClass = bookedUpcoming[0];
+  const rsvpOf = (b: MyBooking) =>
+    rsvpOverride[b.session_id] || rsvpOverride[b.booking_id] || b.rsvp || null;
+  const feedbackOf = (b: MyBooking) =>
+    (portal.progress?.my_feedback || []).find(
+      (f) =>
+        (f.booking_id && f.booking_id === b.booking_id) ||
+        (f.session_id && f.session_id === b.session_id) ||
+        (f.date === b.date && f.class_name === b.class_name)
+    ) || null;
+  const pendingRateOf = (b: MyBooking) =>
+    (portal.progress?.pending_feedback || []).some(
+      (f) => f.booking_id === b.booking_id
+    ) ||
+    (Boolean(b.feedback_token) && !b.feedback_submitted_at) ||
+    (sessionHasEnded(b.date, b.start_time) &&
+      b.status !== 'cancelled' &&
+      b.status !== 'no_show' &&
+      !b.feedback_submitted_at &&
+      !feedbackOf(b));
+  const recentDone = (portal.my_bookings || [])
+    .filter(
+      (b) =>
+        !sessionIsUpcoming(b.date, b.start_time, { timeZone: gymTz }) &&
+        b.status !== 'cancelled' &&
+        rsvpOf(b) !== 'not_coming'
+    )
+    .slice()
+    .sort((a, b) =>
+      a.date === b.date
+        ? String(b.start_time).localeCompare(String(a.start_time))
+        : b.date.localeCompare(a.date)
+    );
   const completedPending = (portal.my_bookings || [])
     .filter(
       (b) =>
@@ -1268,11 +1328,12 @@ export default function MemberFitgraphPortalPage() {
                 startTime={nextClass.start_time}
                 location={nextClass.location}
                 coach={nextClass.coach_name}
-                rsvp={nextClass.rsvp}
+                rsvp={rsvpOf(nextClass)}
                 bookingId={nextClass.booking_id}
                 busy={busyId === nextClass.booking_id}
                 color={color}
-                onOpen={() => selectTab('mine')}
+                plan={nextClass.class_plan}
+                programme={nextClass.programme}
                 onRsvp={(coming) =>
                   void rsvp(
                     nextClass.booking_id,
@@ -1334,43 +1395,56 @@ export default function MemberFitgraphPortalPage() {
             ) : (
               <div className="space-y-3">
                 {bookedUpcoming.map((b, i) => (
-                  <div key={b.booking_id} className="space-y-2">
-                    <GymNextUpCard
-                      className={b.class_name}
-                      date={b.date}
-                      startTime={b.start_time}
-                      location={b.location}
-                      coach={b.coach_name}
-                      rsvp={b.rsvp}
-                      bookingId={b.booking_id}
-                      busy={busyId === b.booking_id}
-                      color={color}
-                      kicker={i === 0 ? 'Next up' : 'Coming up'}
-                      featured={i === 0}
-                      plan={b.class_plan}
-                      onRsvp={(coming) =>
-                        void rsvp(b.booking_id, coming, b.session_id)
-                      }
-                    />
-                    {b.programme ? (
-                      <ProgrammeView programme={b.programme} compact />
-                    ) : null}
-                  </div>
+                  <GymNextUpCard
+                    key={b.booking_id}
+                    className={b.class_name}
+                    date={b.date}
+                    startTime={b.start_time}
+                    location={b.location}
+                    coach={b.coach_name}
+                    rsvp={rsvpOf(b)}
+                    bookingId={b.booking_id}
+                    busy={busyId === b.booking_id}
+                    color={color}
+                    kicker={i === 0 ? 'Next up' : 'Coming up'}
+                    featured={i === 0}
+                    plan={b.class_plan}
+                    programme={b.programme}
+                    onRsvp={(coming) =>
+                      void rsvp(b.booking_id, coming, b.session_id)
+                    }
+                  />
                 ))}
               </div>
             )}
-            {(portal.progress?.pending_feedback || []).length ? (
-              <div className="space-y-2">
+            {recentDone.length ? (
+              <div className="space-y-3">
                 <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
-                  Rate a class
+                  After class
                 </p>
-                {(portal.progress?.pending_feedback || []).map((f) => (
-                  <GymClassRateCard
-                    key={`mine-rate-${f.booking_id}`}
-                    className={f.class_name}
-                    date={f.date}
-                    busy={busyId === `rate:${f.booking_id}`}
-                    onSubmit={(v) => void rateClass(f.booking_id, v)}
+                {recentDone.slice(0, 6).map((b) => (
+                  <GymNextUpCard
+                    key={`done-${b.booking_id}`}
+                    className={b.class_name}
+                    date={b.date}
+                    startTime={b.start_time}
+                    location={b.location}
+                    coach={b.coach_name}
+                    rsvp={rsvpOf(b)}
+                    bookingId={b.booking_id}
+                    busy={
+                      busyId === b.booking_id ||
+                      busyId === `rate:${b.booking_id}`
+                    }
+                    color={color}
+                    featured={false}
+                    ended
+                    attended={b.status === 'attended'}
+                    pendingRate={pendingRateOf(b)}
+                    feedback={feedbackOf(b)}
+                    plan={b.class_plan}
+                    programme={b.programme}
+                    onRate={(v) => void rateClass(b.booking_id, v)}
                   />
                 ))}
               </div>
@@ -1516,8 +1590,14 @@ export default function MemberFitgraphPortalPage() {
             />
             </div>
 
+            <MemberProgressCharts
+              feedback={portal.progress?.my_feedback || []}
+              goals={portal.goals || []}
+              color={color}
+            />
+
             <div className="space-y-3">
-              <GymSectionTitle hint="Sessions, programmes, and recent milestones.">
+              <GymSectionTitle hint="Tap a class to open the session and your rating.">
                 Journey
               </GymSectionTitle>
               <div className="grid grid-cols-3 gap-2">
@@ -1534,33 +1614,38 @@ export default function MemberFitgraphPortalPage() {
                   label="Check-ins"
                 />
               </div>
-              {(portal.relationship?.journey_preview || []).length ? (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {(portal.relationship?.journey_preview || [])
-                    .slice(0, 8)
-                    .map((e) => (
-                      <div
-                        key={e.id}
-                        className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900"
-                      >
-                        <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
-                          {e.at.slice(0, 10)}
-                          {e.kind ? ` · ${e.kind}` : ''}
-                        </p>
-                        <p className="mt-1 text-sm font-black text-slate-900 dark:text-white">
-                          {e.title}
-                        </p>
-                        {e.body ? (
-                          <p className="mt-0.5 line-clamp-3 text-xs text-slate-500">
-                            {e.body}
-                          </p>
-                        ) : null}
-                      </div>
-                    ))}
+              {recentDone.length ? (
+                <div className="space-y-3">
+                  {recentDone.slice(0, 16).map((b) => (
+                    <GymNextUpCard
+                      key={`journey-${b.booking_id}`}
+                      className={b.class_name}
+                      date={b.date}
+                      startTime={b.start_time}
+                      location={b.location}
+                      coach={b.coach_name}
+                      rsvp={rsvpOf(b)}
+                      bookingId={b.booking_id}
+                      busy={
+                        busyId === b.booking_id ||
+                        busyId === `rate:${b.booking_id}`
+                      }
+                      color={color}
+                      featured={false}
+                      ended
+                      attended={b.status === 'attended'}
+                      pendingRate={pendingRateOf(b)}
+                      feedback={feedbackOf(b)}
+                      plan={b.class_plan}
+                      programme={b.programme}
+                      onRate={(v) => void rateClass(b.booking_id, v)}
+                    />
+                  ))}
                 </div>
               ) : (
                 <p className="text-xs text-slate-500">
-                  Classes you complete and notes from your coach will land here.
+                  Classes you complete land here — tap one to see the session
+                  and your rating.
                 </p>
               )}
               <MemberProgrammeFollow

@@ -4,7 +4,7 @@
  * Coach portal — week calendar of planned classes, create bespoke/repeat
  * sessions, plan roster (who is coming) + actual (who came / no-show).
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
   CalendarDays,
@@ -311,6 +311,10 @@ export default function CoachFitgraphPortalPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [attendOverride, setAttendOverride] = useState<
+    Record<string, 'attended' | 'no_show' | 'pending'>
+  >({});
+  const attendChain = useRef(Promise.resolve());
   const [weekStart, setWeekStart] = useState(() =>
     mondayOf(new Date().toISOString().slice(0, 10))
   );
@@ -470,8 +474,11 @@ export default function CoachFitgraphPortalPage() {
     void load();
   }, [load]);
 
-  const post = async (body: Record<string, unknown>) => {
-    setBusy(true);
+  const post = async (
+    body: Record<string, unknown>,
+    opts?: { quiet?: boolean }
+  ) => {
+    if (!opts?.quiet) setBusy(true);
     setError(null);
     try {
       const res = await fetch('/api/public/fitgraph/coach', {
@@ -488,8 +495,39 @@ export default function CoachFitgraphPortalPage() {
       setError(e instanceof Error ? e.message : 'Failed');
       throw e;
     } finally {
-      setBusy(false);
+      if (!opts?.quiet) setBusy(false);
     }
+  };
+
+  const markAttendance = (
+    bookingId: string,
+    status: 'attended' | 'no_show' | 'booked'
+  ) => {
+    if (String(bookingId).startsWith('alloc_')) return;
+    setAttendOverride((prev) => ({
+      ...prev,
+      [bookingId]: status === 'booked' ? 'pending' : status,
+    }));
+    attendChain.current = attendChain.current.then(() =>
+      post(
+        { action: 'mark_attendance', booking_id: bookingId, status },
+        { quiet: true }
+      )
+        .then(() => {
+          setAttendOverride((prev) => {
+            const next = { ...prev };
+            delete next[bookingId];
+            return next;
+          });
+        })
+        .catch(() => {
+          setAttendOverride((prev) => {
+            const next = { ...prev };
+            delete next[bookingId];
+            return next;
+          });
+        })
+    );
   };
 
   const openCard = portal?.sessions.find((s) => s.session.id === openId);
@@ -1528,6 +1566,7 @@ export default function CoachFitgraphPortalPage() {
                     const member = portal.members.find(
                       (m) => m.id === r.client_id
                     );
+                    const actual = attendOverride[r.booking_id] || r.actual;
                     return (
                     <li
                       key={r.booking_id}
@@ -1555,7 +1594,7 @@ export default function CoachFitgraphPortalPage() {
                         </button>
                         <div className="text-[10px] uppercase text-slate-500">
                           Plan {r.status} · Actual{' '}
-                          {r.actual === 'pending' ? '—' : r.actual}
+                          {actual === 'pending' ? '—' : actual}
                           {r.rsvp === 'coming'
                             ? ' · will attend'
                             : r.rsvp === 'not_coming'
@@ -1598,60 +1637,37 @@ export default function CoachFitgraphPortalPage() {
                         </button>
                         <button
                           type="button"
-                          disabled={busy}
                           className={`p-1.5 rounded-lg border text-xs ${
-                            r.actual === 'attended'
+                            actual === 'attended'
                               ? 'bg-emerald-600 border-emerald-600'
                               : 'border-slate-600'
                           }`}
                           title="Attended"
-                          onClick={() => {
-                            if (String(r.booking_id).startsWith('alloc_')) return;
-                            void post({
-                              action: 'mark_attendance',
-                              booking_id: r.booking_id,
-                              status: 'attended',
-                            });
-                          }}
+                          onClick={() => markAttendance(r.booking_id, 'attended')}
                         >
                           <Check className="w-3.5 h-3.5" />
                         </button>
                         <button
                           type="button"
-                          disabled={busy}
                           className={`p-1.5 rounded-lg border text-xs ${
-                            r.actual === 'no_show'
+                            actual === 'no_show'
                               ? 'bg-rose-600 border-rose-600'
                               : 'border-slate-600'
                           }`}
                           title="No-show"
-                          onClick={() => {
-                            if (String(r.booking_id).startsWith('alloc_')) return;
-                            void post({
-                              action: 'mark_attendance',
-                              booking_id: r.booking_id,
-                              status: 'no_show',
-                            });
-                          }}
+                          onClick={() => markAttendance(r.booking_id, 'no_show')}
                         >
                           <UserX className="w-3.5 h-3.5" />
                         </button>
                         <button
                           type="button"
-                          disabled={busy}
                           className="px-2 py-1 rounded-lg border border-slate-600 text-[10px] font-bold"
-                          onClick={() =>
-                            void post({
-                              action: 'mark_attendance',
-                              booking_id: r.booking_id,
-                              status: 'booked',
-                            })
-                          }
+                          onClick={() => markAttendance(r.booking_id, 'booked')}
                         >
                           Plan
                         </button>
                       </div>
-                      {r.actual === 'attended' || r.actual === 'pending' ? (
+                      {actual === 'attended' || actual === 'pending' ? (
                         <details className="w-full pt-1">
                           <summary className="cursor-pointer text-[10px] font-black uppercase text-slate-400">
                             Note for this member

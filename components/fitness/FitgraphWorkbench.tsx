@@ -53,8 +53,11 @@ export function useFitgraph(opts?: { library?: boolean }) {
     void load();
   }, [load]);
 
-  const post = async (body: Record<string, unknown>) => {
-    setSaving(true);
+  const post = async (
+    body: Record<string, unknown>,
+    opts?: { quiet?: boolean }
+  ) => {
+    if (!opts?.quiet) setSaving(true);
     try {
       const res = await fetch('/api/fitness/fitgraph', {
         method: 'POST',
@@ -68,15 +71,17 @@ export function useFitgraph(opts?: { library?: boolean }) {
         companyId,
         data
       );
-      setStore(data.store);
+      if (data.store) setStore(data.store);
       setSummary(data.summary || null);
       if (data.analysis) setAnalysis(data.analysis);
       return data;
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Save failed');
+      if (!opts?.quiet) {
+        toast.error(e instanceof Error ? e.message : 'Save failed');
+      }
       throw e;
     } finally {
-      setSaving(false);
+      if (!opts?.quiet) setSaving(false);
     }
   };
 

@@ -61,7 +61,7 @@ export function goalPeriodRange(
   return { from: shiftIsoDay(to, -(days - 1)), to };
 }
 
-function parseStamp(raw: string | null | undefined): number | null {
+export function parseStamp(raw: string | null | undefined): number | null {
   if (!raw) return null;
   const s = String(raw).trim();
   if (!s) return null;
@@ -71,6 +71,21 @@ function parseStamp(raw: string | null | undefined): number | null {
   }
   const t = Date.parse(s);
   return Number.isFinite(t) ? t : null;
+}
+
+export function buildStampSeries(
+  rows: Array<{ at?: string | null; value?: number | null }>
+): GoalChartPoint[] {
+  return rows
+    .map((r) => ({
+      t: parseStamp(r.at),
+      v:
+        r.value != null && Number.isFinite(Number(r.value))
+          ? Number(r.value)
+          : null,
+    }))
+    .filter((p): p is GoalChartPoint => p.t != null && p.v != null)
+    .sort((a, b) => a.t - b.t);
 }
 
 export function buildGoalSeries(goal: {

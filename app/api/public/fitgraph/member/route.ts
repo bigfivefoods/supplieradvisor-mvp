@@ -1115,6 +1115,15 @@ export async function POST(request: NextRequest) {
       await saveStore(companyId, meta, result.store);
       const nextClient =
         result.store.clients.find((c) => c.id === client.id) || client;
+      if (!result.already) {
+        const { notifyMemberToRateClass } = await import(
+          '@/lib/fitness/notify-class-feedback'
+        );
+        await notifyMemberToRateClass({
+          store: result.store,
+          booking: result.booking,
+        }).catch(() => null);
+      }
       return NextResponse.json({
         success: true,
         booking: result.booking,

@@ -5,6 +5,7 @@
  */
 import { promoteNextWaitlist } from '@/lib/services/advisor-booking';
 import { newId, type FitBooking, type FitgraphStore } from '@/lib/fitness/fitgraph';
+import { isoDateInZone } from '@/lib/fitness/gym-local-time';
 
 export function resolveClassRsvpSessionId(
   store: FitgraphStore,
@@ -37,7 +38,10 @@ export function applyMemberClassRsvp(
   | { ok: true; booking: FitBooking; promoted: FitBooking | null }
   | { ok: false; error: string } {
   const now = opts.now || new Date().toISOString();
-  const today = now.slice(0, 10);
+  const today = isoDateInZone(
+    store.settings?.timezone || 'Africa/Johannesburg',
+    new Date(now)
+  );
   const sessionId = resolveClassRsvpSessionId(store, opts);
   if (!sessionId) return { ok: false, error: 'Booking not found' };
   const session = store.sessions.find((s) => s.id === sessionId);

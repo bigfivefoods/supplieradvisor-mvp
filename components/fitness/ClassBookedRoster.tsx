@@ -71,7 +71,6 @@ export function ClassBookedRoster({
                 <div className="flex gap-1">
                   <button
                     type="button"
-                    disabled={saving}
                     title="Attended"
                     className={`rounded-lg border p-1.5 text-xs ${
                       r.status === 'attended'
@@ -84,7 +83,6 @@ export function ClassBookedRoster({
                   </button>
                   <button
                     type="button"
-                    disabled={saving}
                     title="No-show"
                     className={`rounded-lg border p-1.5 text-xs ${
                       r.status === 'no_show'

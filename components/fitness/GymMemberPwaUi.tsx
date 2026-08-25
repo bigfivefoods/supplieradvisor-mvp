@@ -14,6 +14,8 @@ import {
 import { toast } from 'sonner';
 import { AdvisorSharePanel } from '@/components/advisors/AdvisorSharePanel';
 import { advisorBrandInk } from '@/lib/advisors/brand-ink';
+import { ProgrammeView } from '@/components/fitness/ProgrammeView';
+import type { FitHydratedProgramme } from '@/lib/fitness/movements';
 
 export function gymFormatDay(date: string, time: string) {
   try {
@@ -149,11 +151,16 @@ export function GymNextUpCard({
   rsvp,
   busy,
   color,
-  kicker = 'Next up',
+  kicker,
   featured = true,
   plan,
-  onOpen,
+  programme,
+  ended,
+  attended,
+  pendingRate,
+  feedback,
   onRsvp,
+  onRate,
 }: {
   className: string;
   date: string;
@@ -167,98 +174,169 @@ export function GymNextUpCard({
   kicker?: string;
   featured?: boolean;
   plan?: string;
-  onOpen?: () => void;
-  onRsvp: (coming: boolean) => void;
+  programme?: FitHydratedProgramme | null;
+  ended?: boolean;
+  attended?: boolean;
+  pendingRate?: boolean;
+  feedback?: {
+    feeling: number;
+    intensity: number;
+    enjoyment?: number | null;
+    comment?: string | null;
+  } | null;
+  onRsvp?: (coming: boolean) => void;
+  onRate?: (v: {
+    feeling: number;
+    intensity: number;
+    enjoyment: number;
+    comment: string;
+  }) => void | Promise<void>;
 }) {
   const ink = advisorBrandInk(color);
   const coming = rsvp === 'coming';
   const skipping = rsvp === 'not_coming';
+  const [open, setOpen] = useState(false);
+  const bright = featured && !ended;
+  const label = kicker
+    ? kicker
+    : attended
+      ? 'Attended'
+      : ended
+        ? 'Class done'
+        : featured
+          ? 'Next up'
+          : 'Coming up';
+  const hasPlan = Boolean(plan || programme);
   return (
     <div
       className={
-        featured
+        bright
           ? 'overflow-hidden rounded-3xl p-4 text-left shadow-sm'
           : 'overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 text-left shadow-sm dark:border-white/10 dark:bg-neutral-900'
       }
-      style={featured ? { backgroundColor: color, color: ink } : undefined}
+      style={bright ? { backgroundColor: color, color: ink } : undefined}
     >
       <p
         className={`text-[10px] font-black uppercase tracking-widest ${
-          featured ? 'opacity-70' : 'text-slate-400'
+          bright ? 'opacity-70' : 'text-slate-400'
         }`}
       >
-        {kicker}
+        {label}
       </p>
-      {onOpen ? (
-        <button type="button" onClick={onOpen} className="mt-1 w-full text-left">
-          <p
-            className={`text-lg font-black leading-tight ${
-              featured ? '' : 'text-slate-900 dark:text-white'
-            }`}
-          >
-            {className}
-          </p>
-        </button>
-      ) : (
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="mt-1 w-full text-left"
+      >
         <p
-          className={`mt-1 text-lg font-black leading-tight ${
-            featured ? '' : 'text-slate-900 dark:text-white'
+          className={`text-lg font-black leading-tight ${
+            bright ? '' : 'text-slate-900 dark:text-white'
           }`}
         >
           {className}
         </p>
-      )}
-      <p
-        className={`mt-1 text-sm font-bold ${
-          featured ? 'opacity-80' : 'text-slate-600 dark:text-slate-300'
-        }`}
-      >
-        {gymFormatDay(date, startTime)}
-        {coach ? ` · ${coach}` : ''}
-        {location ? ` · ${location}` : ''}
-      </p>
-      {plan ? (
         <p
-          className={`mt-2 whitespace-pre-wrap text-sm font-semibold leading-snug ${
-            featured ? 'opacity-85' : 'text-slate-600 dark:text-slate-300'
+          className={`mt-1 text-sm font-bold ${
+            bright ? 'opacity-80' : 'text-slate-600 dark:text-slate-300'
           }`}
         >
-          {plan}
+          {gymFormatDay(date, startTime)}
+          {coach ? ` · ${coach}` : ''}
+          {location ? ` · ${location}` : ''}
         </p>
+        <p
+          className={`mt-1 text-[11px] font-bold ${
+            bright ? 'opacity-70' : 'text-slate-500'
+          }`}
+        >
+          {open
+            ? 'Hide session'
+            : hasPlan
+              ? 'Tap to see what’s planned'
+              : 'Tap for session details'}
+        </p>
+      </button>
+      {open ? (
+        <div className="mt-3 space-y-2">
+          {plan ? (
+            <p
+              className={`whitespace-pre-wrap text-sm font-semibold leading-snug ${
+                bright ? 'opacity-85' : 'text-slate-600 dark:text-slate-300'
+              }`}
+            >
+              {plan}
+            </p>
+          ) : (
+            <p className="text-xs text-slate-500">
+              No class plan posted for this session yet.
+            </p>
+          )}
+          {programme ? <ProgrammeView programme={programme} compact /> : null}
+          {feedback ? (
+            <div className="rounded-2xl border border-slate-200/80 bg-white/80 px-3 py-2 text-xs dark:border-white/10 dark:bg-black/20">
+              <p className="font-black text-slate-900 dark:text-white">
+                Your rating
+              </p>
+              <p className="mt-0.5 text-slate-600 dark:text-slate-300">
+                Feel {feedback.feeling}/5 · RPE {feedback.intensity}/10
+                {feedback.enjoyment != null
+                  ? ` · enjoy ${feedback.enjoyment}/5`
+                  : ''}
+              </p>
+              {feedback.comment ? (
+                <p className="mt-1 text-slate-700 dark:text-slate-200">
+                  {feedback.comment}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       ) : null}
       <div className="mt-2">
         <GymCalendarLink date={date} start={startTime} title={className} />
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => onRsvp(true)}
-          className={`min-h-11 rounded-2xl px-3 text-xs font-black disabled:opacity-50 ${
-            coming
-              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
-              : featured
-                ? 'bg-white/80 text-slate-900'
-                : 'border border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-100'
-          }`}
-        >
-          {busy ? 'Saving…' : 'Will be attending'}
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => onRsvp(false)}
-          className={`min-h-11 rounded-2xl px-3 text-xs font-black disabled:opacity-50 ${
-            skipping
-              ? 'bg-rose-700 text-white'
-              : featured
-                ? 'bg-white/80 text-slate-900'
-                : 'border border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-100'
-          }`}
-        >
-          {busy ? 'Saving…' : "Won't be attending"}
-        </button>
-      </div>
+      {ended && pendingRate && onRate ? (
+        <div className="mt-3">
+          <GymClassRateCard
+            className={className}
+            date={date}
+            busy={busy}
+            onSubmit={onRate}
+          />
+        </div>
+      ) : null}
+      {!ended && onRsvp ? (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onRsvp(true)}
+            className={`min-h-11 rounded-2xl px-3 text-xs font-black disabled:opacity-50 ${
+              coming
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                : featured
+                  ? 'bg-white/80 text-slate-900'
+                  : 'border border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-100'
+            }`}
+          >
+            {busy ? 'Saving…' : 'Will be attending'}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onRsvp(false)}
+            className={`min-h-11 rounded-2xl px-3 text-xs font-black disabled:opacity-50 ${
+              skipping
+                ? 'bg-rose-700 text-white'
+                : featured
+                  ? 'bg-white/80 text-slate-900'
+                  : 'border border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-500/40 dark:bg-rose-950/40 dark:text-rose-100'
+            }`}
+          >
+            {busy ? 'Saving…' : "Won't be attending"}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
