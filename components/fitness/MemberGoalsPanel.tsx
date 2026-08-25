@@ -103,22 +103,24 @@ export function MemberGoalsPanel({
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [watchOpen, setWatchOpen] = useState(false);
+  const [goalsOpen, setGoalsOpen] = useState(true);
+  const activeCount = goals.filter((g) => g.status !== 'abandoned').length;
 
   return (
     <div className="space-y-3">
-      {showHeading ? (
-        <>
-          <div className="flex items-center gap-2 text-yellow-800">
-            <Target className="h-4 w-4" />
-            <h2 className="text-sm font-black">Your goals</h2>
-          </div>
-          <p className="text-xs text-slate-600">
-            Set a target, a date, and log actuals as you go — lose weight, improve
-            BMI, run 5 km, or your own number.
-          </p>
-        </>
-      ) : null}
-
+      <GymExpandSection
+        title={showHeading ? 'Your goals' : 'Goals'}
+        hint={
+          goalsOpen
+            ? undefined
+            : activeCount
+              ? `${activeCount} goal${activeCount === 1 ? '' : 's'}`
+              : 'Set a target and log actuals as you go'
+        }
+        icon={<Target className="h-4 w-4" />}
+        open={goalsOpen}
+        onToggle={() => setGoalsOpen((v) => !v)}
+      >
       {goals.length === 0 ? (
         <p className="text-sm text-slate-500">No goals yet. Pick one below.</p>
       ) : (
@@ -357,6 +359,7 @@ export function MemberGoalsPanel({
           Save goal
         </button>
       </div>
+      </GymExpandSection>
 
       <GymExpandSection
         title="Watch after class"

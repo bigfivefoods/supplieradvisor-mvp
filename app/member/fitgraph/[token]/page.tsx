@@ -1454,10 +1454,6 @@ export default function MemberFitgraphPortalPage() {
 
         {tab === 'progress' && (
           <div className="space-y-6">
-            <div className="space-y-3">
-              <GymSectionTitle hint="Set a target and log actuals as you go.">
-                Goals
-              </GymSectionTitle>
             <MemberGoalsPanel
               goals={portal.goals || []}
               wearable={portal.wearable}
@@ -1588,7 +1584,6 @@ export default function MemberFitgraphPortalPage() {
               color={color}
               showHeading={false}
             />
-            </div>
 
             <MemberProgressCharts
               feedback={portal.progress?.my_feedback || []}
