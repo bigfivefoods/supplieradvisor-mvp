@@ -11,7 +11,7 @@ import {
 import { B2cInstallPrompt } from '@/components/b2c/B2cInstallPrompt';
 import { PortalHeaderTools } from '@/components/advisors/PortalOpenAppLink';
 import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
-import { isLightBrand } from '@/lib/advisors/brand-ink';
+import { advisorBrandInk, isLightBrand } from '@/lib/advisors/brand-ink';
 
 export type AdvisorWorkTab = 'today' | 'diary' | 'people' | 'inbox' | 'me';
 
@@ -19,12 +19,13 @@ const TABS: Array<{
   id: AdvisorWorkTab;
   label: string;
   icon: typeof Sun;
+  emphasis?: boolean;
 }> = [
   { id: 'today', label: 'Today', icon: Sun },
   { id: 'diary', label: 'Diary', icon: CalendarDays },
+  { id: 'me', label: 'You', icon: User, emphasis: true },
   { id: 'people', label: 'People', icon: Users },
   { id: 'inbox', label: 'Inbox', icon: Inbox },
-  { id: 'me', label: 'Me', icon: User },
 ];
 
 export function AdvisorWorkPwaChrome({
@@ -57,6 +58,7 @@ export function AdvisorWorkPwaChrome({
 }) {
   const light = surface === 'light';
   const paleHeader = isLightBrand(accent);
+  const ink = advisorBrandInk(accent);
 
   return (
     <div
@@ -134,23 +136,65 @@ export function AdvisorWorkPwaChrome({
             : 'fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-slate-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur'
         }
       >
-        <div className="mx-auto grid max-w-lg grid-cols-5">
+        <div className="mx-auto flex max-w-lg items-end justify-around px-1 pt-1">
           {TABS.map((t) => {
             const Icon = t.icon;
             const on = tab === t.id;
+            const muted = light
+              ? 'text-slate-500 dark:text-slate-400'
+              : 'text-slate-500';
+            const active = light
+              ? 'text-slate-900 dark:text-white'
+              : 'text-white';
+            if (t.emphasis) {
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => onTab(t.id)}
+                  aria-current={on ? 'page' : undefined}
+                  aria-label="You"
+                  className="relative -mt-7 flex min-w-[4.25rem] flex-1 flex-col items-center justify-end gap-0.5 px-1"
+                >
+                  <span
+                    className={`flex h-14 w-14 items-center justify-center overflow-hidden rounded-full shadow-lg ring-4 ${
+                      light
+                        ? 'ring-white dark:ring-neutral-950'
+                        : 'ring-slate-950'
+                    }`}
+                    style={{ backgroundColor: accent, color: ink }}
+                  >
+                    {photoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={photoUrl}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-xl font-black leading-none">
+                        {(name || 'Y').trim().slice(0, 1).toUpperCase() || 'Y'}
+                      </span>
+                    )}
+                  </span>
+                  <span
+                    className={`text-[10px] font-black tracking-tight ${
+                      on ? active : muted
+                    }`}
+                  >
+                    {t.label}
+                  </span>
+                </button>
+              );
+            }
             return (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => onTab(t.id)}
-                className={`flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-black ${
-                  on
-                    ? light
-                      ? 'text-slate-900 dark:text-white'
-                      : 'text-white'
-                    : light
-                      ? 'text-slate-500 dark:text-slate-400'
-                      : 'text-slate-500'
+                aria-current={on ? 'page' : undefined}
+                className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-black ${
+                  on ? active : muted
                 }`}
               >
                 <span className="relative">

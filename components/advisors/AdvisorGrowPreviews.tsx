@@ -255,9 +255,9 @@ function GymCoachPwaMock({
   const tabs = [
     { id: 'today', label: 'Today', icon: Sun },
     { id: 'diary', label: 'Diary', icon: CalendarDays },
+    { id: 'me', label: 'You', icon: User, emphasis: true },
     { id: 'people', label: 'People', icon: Users },
     { id: 'inbox', label: 'Inbox', icon: Inbox },
-    { id: 'me', label: 'Me', icon: User },
   ] as const;
   return (
     <div className="flex h-full flex-col bg-slate-950 text-slate-100">
@@ -326,21 +326,31 @@ function GymCoachPwaMock({
           </p>
         </div>
       </div>
-      <div className="grid grid-cols-5 border-t border-white/10 bg-slate-950 pb-1.5 pt-1">
-        {tabs.map((t, i) => {
+      <div className="flex items-end justify-around border-t border-white/10 bg-slate-950 px-0.5 pb-1.5 pt-1">
+        {tabs.map((t) => {
           const Icon = t.icon;
-          const on = i === 0;
+          if ('emphasis' in t && t.emphasis) {
+            return (
+              <div
+                key={t.id}
+                className="-mt-3 flex flex-col items-center gap-0.5 text-[7px] font-black text-white"
+              >
+                <span
+                  className="flex h-7 w-7 items-center justify-center rounded-full ring-2 ring-slate-950"
+                  style={{ backgroundColor: color, color: ink }}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                </span>
+                {t.label}
+              </div>
+            );
+          }
           return (
             <div
               key={t.id}
-              className={`flex flex-col items-center gap-0.5 text-[7px] font-black ${
-                on ? 'text-white' : 'text-slate-500'
-              }`}
+              className="flex flex-col items-center gap-0.5 text-[7px] font-black text-slate-500"
             >
-              <Icon
-                className="h-3.5 w-3.5"
-                style={on ? { color } : undefined}
-              />
+              <Icon className="h-3.5 w-3.5" />
               {t.label}
             </div>
           );
@@ -695,17 +705,32 @@ function StaffPwaMock({
           ))}
         </div>
       </div>
-      <div className="grid grid-cols-5 border-t border-white/10 bg-slate-950 pb-2 pt-1">
-        {copy.staffTabs.map((t, i) => (
-          <span
-            key={t}
-            className={`text-center text-[7px] font-black ${
-              i === 0 ? 'text-white' : 'text-slate-500'
-            }`}
-          >
-            {t}
-          </span>
-        ))}
+      <div className="flex items-end justify-around border-t border-white/10 bg-slate-950 px-0.5 pb-2 pt-1">
+        {copy.staffTabs.map((t, i) =>
+          t === 'You' ? (
+            <span
+              key={t}
+              className="-mt-2 flex flex-col items-center text-[7px] font-black text-white"
+            >
+              <span
+                className="mb-0.5 flex h-6 w-6 items-center justify-center rounded-full ring-2 ring-slate-950"
+                style={{ backgroundColor: color, color: ink }}
+              >
+                Y
+              </span>
+              {t}
+            </span>
+          ) : (
+            <span
+              key={t}
+              className={`text-center text-[7px] font-black ${
+                i === 0 ? 'text-white' : 'text-slate-500'
+              }`}
+            >
+              {t}
+            </span>
+          )
+        )}
       </div>
     </div>
   );

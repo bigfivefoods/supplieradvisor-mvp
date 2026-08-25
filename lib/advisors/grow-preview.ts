@@ -65,7 +65,7 @@ export function growPreviewCopy(module: AdvisorPortalModule): GrowPreviewCopy {
         color: '#E8E830',
         staffRole: 'contracted coach',
         staffEyebrow: 'Coach · GymAdvisor®',
-        staffTabs: ['Today', 'Diary', 'People', 'Inbox', 'Me'],
+        staffTabs: ['Today', 'Diary', 'You', 'People', 'Inbox'],
         staffSample: '06:00 Morning strength · 12 booked',
         showProgramme: true,
         programmeName: 'Hyrox 6',
@@ -87,7 +87,7 @@ export function growPreviewCopy(module: AdvisorPortalModule): GrowPreviewCopy {
         color: '#0d9488',
         staffRole: 'contracted practitioner',
         staffEyebrow: 'Practitioner PWA · PhysioAdvisor®',
-        staffTabs: ['Today', 'Diary', 'People', 'Inbox', 'Me'],
+        staffTabs: ['Today', 'Diary', 'You', 'People', 'Inbox'],
         staffSample: 'Today · 09:30 Follow-up · 1 patient',
       };
     case 'dentalgraph':
@@ -105,7 +105,7 @@ export function growPreviewCopy(module: AdvisorPortalModule): GrowPreviewCopy {
         color: '#0284c7',
         staffRole: 'contracted clinician',
         staffEyebrow: 'Clinician PWA · DentalAdvisor®',
-        staffTabs: ['Today', 'Diary', 'People', 'Inbox', 'Me'],
+        staffTabs: ['Today', 'Diary', 'You', 'People', 'Inbox'],
         staffSample: 'Today · 11:00 Hygiene · chair 2',
       };
     case 'psychiatrygraph':
@@ -123,7 +123,7 @@ export function growPreviewCopy(module: AdvisorPortalModule): GrowPreviewCopy {
         color: '#6366f1',
         staffRole: 'contracted practitioner',
         staffEyebrow: 'Practitioner PWA · PsychiatryAdvisor®',
-        staffTabs: ['Today', 'Diary', 'People', 'Inbox', 'Me'],
+        staffTabs: ['Today', 'Diary', 'You', 'People', 'Inbox'],
         staffSample: 'Today · 14:00 Review session',
       };
     case 'medicalgraph':
@@ -141,7 +141,7 @@ export function growPreviewCopy(module: AdvisorPortalModule): GrowPreviewCopy {
         color: '#059669',
         staffRole: 'contracted practitioner',
         staffEyebrow: 'Practitioner PWA · MedicalAdvisor®',
-        staffTabs: ['Today', 'Diary', 'People', 'Inbox', 'Me'],
+        staffTabs: ['Today', 'Diary', 'You', 'People', 'Inbox'],
         staffSample: 'Today · 08:15 GP consult',
       };
     case 'hiregraph':

@@ -2032,7 +2032,7 @@ export default function CoachFitgraphPortalPage() {
       {workTab === 'me' ? (
         <div className="space-y-3">
             <GymSectionTitle hint="What members see in Shop, plus your work details.">
-              Me
+              You
             </GymSectionTitle>
             <p className="text-[11px] text-slate-500">
               Public bio and photo appear on the member shop. Rate and tenure are
