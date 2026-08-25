@@ -1,15 +1,19 @@
 'use client';
 
 import {
+  advisorPwaBrandStamp,
   advisorPwaIconPath,
   advisorPwaManifestPath,
+  advisorPwaSplashPath,
   type AdvisorPwaBrand,
 } from '@/lib/advisors/member-pwa';
 
 /** Swap SA root PWA tags for the company install (name, icons, manifest). */
 export function applyAdvisorPwaDocumentHead(brand: AdvisorPwaBrand): void {
   if (typeof document === 'undefined') return;
-  const appleIcon = advisorPwaIconPath(brand.module, brand.publicToken, 180);
+  const stamp = advisorPwaBrandStamp(brand);
+  const appleIcon = advisorPwaIconPath(brand.module, brand.publicToken, 180, stamp);
+  const splash = advisorPwaSplashPath(brand.module, brand.publicToken, stamp);
   const setMeta = (name: string, content: string) => {
     let el = document.querySelector(`meta[name="${name}"]`);
     if (!el) {
@@ -22,6 +26,19 @@ export function applyAdvisorPwaDocumentHead(brand: AdvisorPwaBrand): void {
   setMeta('apple-mobile-web-app-title', brand.shortName);
   setMeta('application-name', brand.shortName);
   setMeta('theme-color', brand.themeColor);
+  setMeta('msapplication-TileColor', brand.backgroundColor);
+
+  const appleStartup = document.querySelectorAll(
+    'link[rel="apple-touch-startup-image"]'
+  );
+  if (appleStartup.length) {
+    appleStartup.forEach((l) => l.setAttribute('href', splash));
+  } else {
+    const l = document.createElement('link');
+    l.setAttribute('rel', 'apple-touch-startup-image');
+    l.setAttribute('href', splash);
+    document.head.appendChild(l);
+  }
 
   const appleLinks = document.querySelectorAll('link[rel="apple-touch-icon"]');
   if (appleLinks.length) {
@@ -33,7 +50,11 @@ export function applyAdvisorPwaDocumentHead(brand: AdvisorPwaBrand): void {
     document.head.appendChild(l);
   }
 
-  const manifestHref = advisorPwaManifestPath(brand.module, brand.publicToken);
+  const manifestHref = advisorPwaManifestPath(
+    brand.module,
+    brand.publicToken,
+    stamp
+  );
   const manifests = document.querySelectorAll('link[rel="manifest"]');
   if (manifests.length) {
     manifests.forEach((l) => l.setAttribute('href', manifestHref));

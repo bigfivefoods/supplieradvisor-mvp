@@ -6,7 +6,8 @@ import {
   loadAdvisorPwaBrand,
 } from '@/lib/advisors/load-advisor-pwa';
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 async function readParams(
   params:

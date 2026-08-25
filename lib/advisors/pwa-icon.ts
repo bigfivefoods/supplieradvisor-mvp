@@ -495,7 +495,7 @@ export async function renderAdvisorPwaIconPng(
 ): Promise<Buffer> {
   const sharp = (await import('sharp')).default;
   const dim = size === 144 || size === 180 || size === 192 ? size : 512;
-  const cacheKey = `pwa-icon:${brand.module}:${brand.publicToken}:${dim}:${brand.iconUrl}`;
+  const cacheKey = `pwa-icon:${brand.module}:${brand.publicToken}:${dim}:${brand.iconUrl}:${brand.themeColor}:${brand.backgroundColor}`;
   const cached = ttlGet<Buffer>(cacheKey);
   if (cached) return cached;
 
@@ -527,6 +527,37 @@ export async function renderAdvisorPwaIconPng(
       png = source;
     }
   }
+  ttlSet(cacheKey, png, ICON_TTL_MS);
+  return png;
+}
+
+/** Launch splash: logo centred on the saved splash background. */
+export async function renderAdvisorPwaSplashPng(
+  brand: AdvisorPwaBrand,
+  size = 512
+): Promise<Buffer> {
+  const sharp = (await import('sharp')).default;
+  const dim = size === 144 || size === 180 || size === 192 ? size : 512;
+  const cacheKey = `pwa-splash:${brand.module}:${brand.publicToken}:${dim}:${brand.iconUrl}:${brand.backgroundColor}`;
+  const cached = ttlGet<Buffer>(cacheKey);
+  if (cached) return cached;
+  const mark = await renderAdvisorPwaIconPng(
+    brand,
+    dim >= 512 ? 192 : 144
+  );
+  const png = Buffer.from(
+    await sharp({
+      create: {
+        width: dim,
+        height: dim,
+        channels: 4,
+        background: hexRgb(brand.backgroundColor || brand.themeColor),
+      },
+    })
+      .composite([{ input: mark, gravity: 'centre' }])
+      .png({ compressionLevel: 6 })
+      .toBuffer()
+  );
   ttlSet(cacheKey, png, ICON_TTL_MS);
   return png;
 }
@@ -577,11 +608,11 @@ export async function renderAdvisorPwaOgPng(
   const sharp = (await import('sharp')).default;
   const W = 1200;
   const H = 630;
-  const cacheKey = `pwa-og-mark-v5:${brand.module}:${brand.publicToken}:${brand.iconUrl}:${brand.themeColor}`;
+  const cacheKey = `pwa-og-mark-v6:${brand.module}:${brand.publicToken}:${brand.iconUrl}:${brand.themeColor}:${brand.backgroundColor}`;
   const hit = ttlGet<Buffer>(cacheKey);
   if (hit) return hit;
 
-  const fill = brand.themeColor || brand.backgroundColor || '#0c4a6e';
+  const fill = brand.backgroundColor || brand.themeColor || '#0c4a6e';
   const source =
     (await loadLogoBytes(brand.iconUrl)) ||
     (await loadLogoBytes('/sa-icon-512.png'));

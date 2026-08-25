@@ -5,7 +5,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { publicReadLimit } from '@/lib/security/rate-limit';
 import { loadAdvisorPwaBrand } from '@/lib/advisors/load-advisor-pwa';
-import { renderAdvisorPwaIconPng } from '@/lib/advisors/pwa-icon';
+import {
+  renderAdvisorPwaIconPng,
+  renderAdvisorPwaSplashPng,
+} from '@/lib/advisors/pwa-icon';
 import { ADVISOR_PWA_ASSET_CORS } from '@/lib/advisors/member-pwa';
 
 export const runtime = 'nodejs';
@@ -33,7 +36,10 @@ export async function GET(request: NextRequest) {
     if (!brand) {
       return new NextResponse('Not found', { status: 404 });
     }
-    const png = await renderAdvisorPwaIconPng(brand, size);
+    const splash = request.nextUrl.searchParams.get('splash') === '1';
+    const png = splash
+      ? await renderAdvisorPwaSplashPng(brand, size)
+      : await renderAdvisorPwaIconPng(brand, size);
     return new NextResponse(new Uint8Array(png), {
       status: 200,
       headers: {

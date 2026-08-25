@@ -11,6 +11,7 @@ import {
   advisorPwaWhatsAppBody,
   buildAdvisorPwaBrand,
   htmlColorValue,
+  pwaDraftKey,
   pwaSettingsPatch,
   readPwaSettings,
   type AdvisorPwaModule,
@@ -44,9 +45,12 @@ export function AdvisorMemberPwaCard({
   );
   const [copied, setCopied] = useState(false);
 
+  const storedKey = pwaDraftKey(settings);
   useEffect(() => {
     setDraft(readPwaSettings(settings));
-  }, [settings]);
+    // Parent rebuilds `settings` every render — only reset when PWA fields change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storedKey]);
 
   const origin =
     typeof window !== 'undefined'
@@ -74,11 +78,16 @@ export function AdvisorMemberPwaCard({
   const qrPrintSrc = installUrl
     ? memberAppQrSrc(installUrl, MEMBER_APP_QR_PRINT_SIZE)
     : '';
-  const ink = advisorBrandInk(preview.themeColor);
+  const splashInk = advisorBrandInk(preview.backgroundColor);
   const [qrBusy, setQrBusy] = useState(false);
 
   const save = async () => {
-    await onSave(pwaSettingsPatch(draft));
+    await onSave(
+      pwaSettingsPatch(draft, {
+        theme: preview.themeColor,
+        splash: preview.backgroundColor,
+      })
+    );
     toast.success('Member app saved');
   };
 
@@ -259,7 +268,7 @@ export function AdvisorMemberPwaCard({
         <div className="flex flex-col items-center gap-3">
           <div
             className="flex w-[160px] flex-col items-center rounded-[1.6rem] px-3 pb-4 pt-5 text-center shadow-lg"
-            style={{ background: preview.backgroundColor, color: ink }}
+            style={{ background: preview.backgroundColor, color: splashInk }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -272,10 +281,10 @@ export function AdvisorMemberPwaCard({
               className="h-14 w-14 object-contain"
               style={{ background: 'transparent' }}
             />
-            <p className="mt-2 text-[11px] font-black text-white">
+            <p className="mt-2 text-[11px] font-black" style={{ color: splashInk }}>
               {preview.shortName}
             </p>
-            <p className="text-[9px] text-white/70">Home screen</p>
+            <p className="text-[9px] opacity-70">Splash</p>
           </div>
           {qrSrc ? (
             <div className="flex flex-col items-center gap-2">

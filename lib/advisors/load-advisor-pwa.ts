@@ -14,9 +14,11 @@ import { SITE_URL } from '@/lib/seo/site';
 import {
   ADVISOR_PWA_INDEX_KEYS,
   ADVISOR_PWA_PORTAL_INDEX_KEYS,
+  advisorPwaBrandStamp,
   advisorPwaIconPath,
   advisorPwaManifestPath,
   advisorPwaOgPath,
+  advisorPwaSplashPath,
   buildAdvisorPwaBrand,
   isAdvisorPwaModule,
   type AdvisorPwaBrand,
@@ -227,16 +229,35 @@ function ttlBrand(
 const loadAdvisorPwaBrandData = unstable_cache(
   async (moduleKey: string, token: string) =>
     loadAdvisorPwaBrandUncached(moduleKey, token),
-  ['advisor-pwa-brand-v2'],
-  { revalidate: 60 }
+  ['advisor-pwa-brand-v3'],
+  { revalidate: 15, tags: ['advisor-pwa-brand'] }
 );
 
 const loadAdvisorPwaBrandFromPortalData = unstable_cache(
   async (moduleKey: string, token: string) =>
     loadAdvisorPwaBrandFromPortalTokenUncached(moduleKey, token),
-  ['advisor-pwa-brand-portal-v2'],
-  { revalidate: 60 }
+  ['advisor-pwa-brand-portal-v3'],
+  { revalidate: 15, tags: ['advisor-pwa-brand'] }
 );
+
+export function invalidateAdvisorPwaBrandCache(): void {
+  ttlDel('pwa-brand');
+  ttlDel('pwa-icon');
+  ttlDel('pwa-splash');
+  ttlDel('pwa-og');
+  ttlDel('pwa-og-mark');
+  ttlDel('pwa-logo-v2');
+  void import('next/cache')
+    .then((n) => {
+      const tag = n.revalidateTag as
+        | ((t: string, p?: string) => void)
+        | undefined;
+      tag?.('advisor-pwa-brand', 'max');
+    })
+    .catch(() => {
+      /* tests / non-next */
+    });
+}
 
 export const loadAdvisorPwaBrand = cache(
   async (moduleRaw: string, tokenRaw: string): Promise<AdvisorPwaBrand | null> => {
@@ -263,9 +284,11 @@ export function advisorPwaPageMetadata(brand: AdvisorPwaBrand | null): Metadata 
   if (!brand) {
     return { title: 'Member app', robots: 'noindex' };
   }
-  const appleIcon = advisorPwaIconPath(brand.module, brand.publicToken, 180);
-  const appIcon = advisorPwaIconPath(brand.module, brand.publicToken, 192);
-  const ogPath = advisorPwaOgPath(brand.module, brand.publicToken);
+  const stamp = advisorPwaBrandStamp(brand);
+  const appleIcon = advisorPwaIconPath(brand.module, brand.publicToken, 180, stamp);
+  const appIcon = advisorPwaIconPath(brand.module, brand.publicToken, 192, stamp);
+  const splash = advisorPwaSplashPath(brand.module, brand.publicToken, stamp);
+  const ogPath = advisorPwaOgPath(brand.module, brand.publicToken, stamp);
   const og = `${SITE_URL}${ogPath}`;
   const shareTitle = brand.brandName;
   return {
@@ -277,13 +300,13 @@ export function advisorPwaPageMetadata(brand: AdvisorPwaBrand | null): Metadata 
       capable: true,
       title: brand.shortName,
       statusBarStyle: 'black-translucent',
-      startupImage: [appleIcon],
+      startupImage: [splash],
     },
     icons: {
       apple: [{ url: appleIcon, sizes: '180x180', type: 'image/png' }],
       icon: [{ url: appIcon, sizes: '192x192', type: 'image/png' }],
     },
-    manifest: advisorPwaManifestPath(brand.module, brand.publicToken),
+    manifest: advisorPwaManifestPath(brand.module, brand.publicToken, stamp),
     openGraph: {
       type: 'website',
       title: brand.brandName,
@@ -315,7 +338,7 @@ export function advisorPwaPageMetadata(brand: AdvisorPwaBrand | null): Metadata 
 
 export function advisorPwaPageViewport(brand: AdvisorPwaBrand | null): Viewport {
   return {
-    themeColor: brand?.themeColor || '#0c4a6e',
+    themeColor: brand?.themeColor || brand?.backgroundColor || '#0c4a6e',
     width: 'device-width',
     initialScale: 1,
     viewportFit: 'cover',

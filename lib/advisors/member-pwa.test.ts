@@ -9,6 +9,7 @@ import {
   advisorPwaOpenPath,
   isAdvisorStaffPortalPath,
   advisorPwaStartPath,
+  advisorPwaBrandStamp,
   advisorPwaWebManifest,
   buildAdvisorPwaBrand,
   advisorPwaSwitchPath,
@@ -115,7 +116,23 @@ const brand = buildAdvisorPwaBrand({
 });
 assert.equal(brand.brandName, 'VUKA Fitness');
 assert.equal(brand.themeColor, '#e8e830');
+assert.equal(brand.backgroundColor, '#e8e830');
 assert.equal(brand.iconUrl, 'https://cdn.example/vuka.png');
+const splashBrand = buildAdvisorPwaBrand({
+  module: 'fitgraph',
+  publicToken: 'fg_110_abc',
+  companyId: 110,
+  settings: {
+    brand_name: 'VUKA Fitness',
+    embed_primary_color: '#E8E830',
+    pwa_background_color: '#a3aaae',
+  },
+});
+assert.equal(splashBrand.backgroundColor, '#a3aaae');
+assert.notEqual(
+  advisorPwaBrandStamp(brand),
+  advisorPwaBrandStamp(splashBrand)
+);
 const hireBrand = buildAdvisorPwaBrand({
   module: 'hiregraph',
   publicToken: 'hire_pub_1_abc',
@@ -158,7 +175,7 @@ assert.equal(
 );
 assert.equal(
   advisorPwaOgPath('fitgraph', 'fg_110_abc'),
-  '/api/public/advisor-pwa/og?module=fitgraph&token=fg_110_abc&v=5'
+  '/api/public/advisor-pwa/og?module=fitgraph&token=fg_110_abc&v=6'
 );
 const share = advisorPwaShareCopy(brand, 'https://www.supplieradvisor.com/pwa/fitgraph/fg_110_abc');
 assert.equal(share.title, 'VUKA Fitness');
@@ -234,5 +251,18 @@ const patch = pwaSettingsPatch({
 assert.equal(patch.pwa_name, 'VUKA Fitness Studio');
 assert.equal(patch.pwa_short_name, 'VUKA Fitness');
 assert.equal(patch.pwa_theme_color, '#e8e830');
+assert.equal(patch.pwa_background_color, '#e8e830');
+const splashPatch = pwaSettingsPatch(
+  { pwa_name: 'VUKA', pwa_background_color: '#112233' },
+  { theme: '#e8e830', splash: '#0c4a6e' }
+);
+assert.equal(splashPatch.pwa_background_color, '#112233');
+assert.equal(
+  pwaSettingsPatch(
+    { pwa_name: 'VUKA' },
+    { theme: '#e8e830', splash: '#a3aaae' }
+  ).pwa_background_color,
+  '#a3aaae'
+);
 
 console.log('member-pwa tests ok');

@@ -104,4 +104,22 @@ assert.equal(settingsMerged.settings?.enabled, true);
 assert.equal(settingsMerged.settings?.brand_name, 'Desk');
 assert.equal(typeof settingsMerged.settings?.public_token, 'string');
 
+const pwaLatest = emptyFitgraphStore();
+pwaLatest.settings = {
+  ...pwaLatest.settings,
+  pwa_name: 'Old',
+  pwa_background_color: '#0c4a6e',
+};
+const pwaIncoming = emptyFitgraphStore();
+pwaIncoming.settings = {
+  ...pwaIncoming.settings,
+  pwa_name: 'VUKA Fitness',
+  pwa_theme_color: '#e8e830',
+  pwa_background_color: '#a3aaae',
+};
+const pwaMerged = mergeFitgraphStores(pwaLatest, pwaIncoming);
+assert.equal(pwaMerged.settings?.pwa_name, 'VUKA Fitness');
+assert.equal(pwaMerged.settings?.pwa_theme_color, '#e8e830');
+assert.equal(pwaMerged.settings?.pwa_background_color, '#a3aaae');
+
 console.log('fitgraph-merge.test.ts ok');

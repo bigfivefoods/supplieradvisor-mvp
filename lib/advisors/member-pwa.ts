@@ -95,22 +95,76 @@ export function advisorModuleFromJoinKind(
   return hit || null;
 }
 
-export function advisorPwaManifestPath(module: AdvisorPwaModule, token: string): string {
-  return `/api/public/advisor-pwa/manifest?module=${encodeURIComponent(module)}&token=${encodeURIComponent(token)}`;
+/** Bust manifest / icon / splash after a desk save of colours or name. */
+export function advisorPwaBrandStamp(brand: {
+  themeColor?: string;
+  backgroundColor?: string;
+  shortName?: string;
+  iconUrl?: string;
+}): string {
+  const s = [
+    brand.themeColor || '',
+    brand.backgroundColor || '',
+    brand.shortName || '',
+    brand.iconUrl || '',
+  ].join('|');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+  return Math.abs(h).toString(36) || '1';
+}
+
+function withBrandStamp(url: string, version?: string): string {
+  const v = String(version || '').trim();
+  if (!v) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}v=${encodeURIComponent(v)}`;
+}
+
+export function advisorPwaManifestPath(
+  module: AdvisorPwaModule,
+  token: string,
+  version?: string
+): string {
+  return withBrandStamp(
+    `/api/public/advisor-pwa/manifest?module=${encodeURIComponent(module)}&token=${encodeURIComponent(token)}`,
+    version
+  );
 }
 
 /** Square PNG of the company logo for home-screen / desktop install. */
 export function advisorPwaIconPath(
   module: AdvisorPwaModule,
   token: string,
-  size: 144 | 180 | 192 | 512 = 512
+  size: 144 | 180 | 192 | 512 = 512,
+  version?: string
 ): string {
-  return `/api/public/advisor-pwa/icon?module=${encodeURIComponent(module)}&token=${encodeURIComponent(token)}&size=${size}`;
+  return withBrandStamp(
+    `/api/public/advisor-pwa/icon?module=${encodeURIComponent(module)}&token=${encodeURIComponent(token)}&size=${size}`,
+    version
+  );
+}
+
+/** Full-bleed launch splash (logo on the saved splash background). */
+export function advisorPwaSplashPath(
+  module: AdvisorPwaModule,
+  token: string,
+  version?: string
+): string {
+  return withBrandStamp(
+    `/api/public/advisor-pwa/icon?module=${encodeURIComponent(module)}&token=${encodeURIComponent(token)}&size=512&splash=1`,
+    version
+  );
 }
 
 /** 1200×630 share card — company logo, not SupplierAdvisor. `v=` busts stale OG. */
-export function advisorPwaOgPath(module: AdvisorPwaModule, token: string): string {
-  return `/api/public/advisor-pwa/og?module=${encodeURIComponent(module)}&token=${encodeURIComponent(token)}&v=5`;
+export function advisorPwaOgPath(
+  module: AdvisorPwaModule,
+  token: string,
+  version?: string
+): string {
+  return withBrandStamp(
+    `/api/public/advisor-pwa/og?module=${encodeURIComponent(module)}&token=${encodeURIComponent(token)}&v=6`,
+    version
+  );
 }
 
 export function advisorPwaShareCopy(brand: AdvisorPwaBrand, url: string): {
@@ -315,7 +369,7 @@ export function buildAdvisorPwaBrand(opts: {
     themeColor: theme,
     backgroundColor: normalizeHexColor(
       String(opts.settings.pwa_background_color || ''),
-      '#0c4a6e'
+      theme
     ),
     iconUrl: icon,
     startPath: advisorPwaStartPath(opts.module, opts.publicToken),
@@ -330,9 +384,10 @@ export function buildAdvisorPwaBrand(opts: {
 
 export function advisorPwaWebManifest(brand: AdvisorPwaBrand): Record<string, unknown> {
   const start = `${brand.startPath}?source=pwa`;
-  const icon144 = advisorPwaIconPath(brand.module, brand.publicToken, 144);
-  const icon192 = advisorPwaIconPath(brand.module, brand.publicToken, 192);
-  const icon512 = advisorPwaIconPath(brand.module, brand.publicToken, 512);
+  const stamp = advisorPwaBrandStamp(brand);
+  const icon144 = advisorPwaIconPath(brand.module, brand.publicToken, 144, stamp);
+  const icon192 = advisorPwaIconPath(brand.module, brand.publicToken, 192, stamp);
+  const icon512 = advisorPwaIconPath(brand.module, brand.publicToken, 512, stamp);
   const icons = [
     {
       src: icon144,
@@ -403,20 +458,40 @@ export function readPwaSettings(settings?: Record<string, unknown> | null): Advi
   };
 }
 
-export function pwaSettingsPatch(draft: AdvisorPwaSettings): AdvisorPwaSettings {
+export function pwaDraftKey(settings?: Record<string, unknown> | null): string {
+  const s = readPwaSettings(settings);
+  return [
+    s.pwa_enabled === false ? '0' : '1',
+    s.pwa_name,
+    s.pwa_short_name,
+    s.pwa_description,
+    s.pwa_theme_color,
+    s.pwa_background_color,
+    s.pwa_icon_url || '',
+  ].join('\n');
+}
+
+export function pwaSettingsPatch(
+  draft: AdvisorPwaSettings,
+  fallbacks?: { theme?: string; splash?: string }
+): AdvisorPwaSettings {
   const name = String(draft.pwa_name || '').trim().slice(0, 60);
   const shortRaw = String(draft.pwa_short_name || '').trim();
+  const theme = htmlColorValue(
+    draft.pwa_theme_color,
+    fallbacks?.theme || ''
+  );
+  const splash = htmlColorValue(
+    draft.pwa_background_color,
+    fallbacks?.splash || theme
+  );
   return {
     pwa_enabled: draft.pwa_enabled !== false,
     pwa_name: name,
     pwa_short_name: pwaShortName(shortRaw || name, 12),
     pwa_description: String(draft.pwa_description || '').trim().slice(0, 180),
-    pwa_theme_color: draft.pwa_theme_color
-      ? normalizeHexColor(draft.pwa_theme_color, '')
-      : '',
-    pwa_background_color: draft.pwa_background_color
-      ? normalizeHexColor(draft.pwa_background_color, '')
-      : '',
+    pwa_theme_color: theme,
+    pwa_background_color: splash,
     pwa_icon_url: draft.pwa_icon_url != null ? String(draft.pwa_icon_url).trim() : '',
   };
 }

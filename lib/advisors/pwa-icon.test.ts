@@ -7,6 +7,7 @@ import {
   keepPrimaryLogoMark,
   knockOutLogoBoard,
   renderAdvisorPwaOgPng,
+  renderAdvisorPwaSplashPng,
   stripSvgCaptions,
   transparentPwaIconPng,
 } from './pwa-icon';
@@ -88,6 +89,17 @@ async function main() {
   assert.equal(ogMeta.format, 'png');
   assert.equal(ogMeta.width, 1200);
   assert.equal(ogMeta.height, 630);
+  const splash = await renderAdvisorPwaSplashPng(ogBrand, 192);
+  const splashMeta = await sharp(splash).metadata();
+  assert.equal(splashMeta.format, 'png');
+  assert.equal(splashMeta.width, 192);
+  assert.equal(splashMeta.height, 192);
+  const splashRaw = await sharp(splash).ensureAlpha().raw().toBuffer({
+    resolveWithObject: true,
+  });
+  assert.equal(splashRaw.data[0], 0xa3, 'splash corner uses saved background');
+  assert.equal(splashRaw.data[1], 0xaa);
+  assert.equal(splashRaw.data[2], 0xae);
 
   const glyphSq = await sharp({
     create: {

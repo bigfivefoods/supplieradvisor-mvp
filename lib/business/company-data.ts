@@ -448,7 +448,14 @@ export async function saveModuleSlice(
     rpc = await supabase.rpc('sa_put_module_store', args);
   }
   invalidateModuleStoreCache(companyId, moduleKey);
-  if (!rpc.error) return;
+  if (!rpc.error) {
+    void import('@/lib/advisors/load-advisor-pwa')
+      .then((m) => m.invalidateAdvisorPwaBrandCache())
+      .catch(() => {
+        /* tests without Next cache */
+      });
+    return;
+  }
   throw new Error(
     isMissingRelation(rpc.error)
       ? `${rpc.error.message}. Run supabase/migrations/20260820_ensure_system_schema.sql in the Supabase SQL editor.`
