@@ -23,6 +23,7 @@ import {
   parseCompanyIdFromToken,
   readFitgraphFromMetadata,
   sessionBookingCount,
+  setGymOwnerEmails,
   upsertClassFeedback,
   type FitBooking,
   type FitClient,
@@ -30,6 +31,7 @@ import {
   type FitRecurrence,
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
+import { resolveCompanyEmails } from '@/lib/billing/company-emails';
 import { shareProgrammeWithCoaches } from '@/lib/fitness/movements';
 import {
   activeClassSubscriptions,
@@ -96,10 +98,10 @@ function buildCoachPortalPayload(
     members,
     special_dates: memberSpecialDatesForStore(store, {
       days: 14,
-      coachId: coach.id,
+      ...(portal.sees_all_people ? {} : { coachId: coach.id }),
     }),
     class_report: buildClassSubscriptionReport(store, {
-      coachId: coach.id,
+      ...(portal.sees_all_people ? {} : { coachId: coach.id }),
       from: portal.from,
       to: portal.to,
     }),
@@ -133,6 +135,17 @@ async function resolveCoach(
   const store = mergeFitgraphLibrary(loaded.store, lib);
   const coach = store.coaches.find((c) => c.portal_token === clean);
   if (!coach || coach.active === false) return null;
+
+  try {
+    const { emails } = await resolveCompanyEmails(loaded.companyId, {
+      roleAllowlist: ['owner'],
+      includeInvited: true,
+      limit: 20,
+    });
+    setGymOwnerEmails(store, emails);
+  } catch {
+    /* contact_email on gym settings still applies */
+  }
 
   return {
     companyId: loaded.companyId,

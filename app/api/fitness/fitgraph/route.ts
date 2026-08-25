@@ -33,6 +33,7 @@ import {
   readFitgraphFromMetadata,
   sessionBookingCount,
   sessionsInRange,
+  setGymOwnerEmails,
   summariseFitgraph,
   summariseSessionFeedback,
   upsertClassFeedback,
@@ -109,6 +110,7 @@ import {
 import { appendJoinEvent } from '@/lib/fitness/member-profile';
 import { parseMemberPassport } from '@/lib/b2c/member-passport';
 import { mergeMedicalRecord } from '@/lib/clinic/patient-medical';
+import { resolveCompanyEmails } from '@/lib/billing/company-emails';
 
 export const runtime = 'nodejs';
 
@@ -731,6 +733,16 @@ export async function POST(request: NextRequest) {
       }
       const from = body.from ? String(body.from) : undefined;
       const to = body.to ? String(body.to) : undefined;
+      try {
+        const { emails } = await resolveCompanyEmails(companyId, {
+          roleAllowlist: ['owner'],
+          includeInvited: true,
+          limit: 20,
+        });
+        setGymOwnerEmails(store, emails);
+      } catch {
+        /* contact_email still applies */
+      }
       const portal = buildCoachPortalPayload(store, coach, from, to);
       portal.sessions = mergeSubscribersIntoCoachSessions(store, portal.sessions);
       return NextResponse.json({

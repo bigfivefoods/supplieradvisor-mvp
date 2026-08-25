@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   buildCoachPortalPayload,
   emptyFitgraphStore,
+  setGymOwnerEmails,
 } from './fitgraph';
 
 const store = emptyFitgraphStore();
@@ -99,5 +100,38 @@ assert.equal(alex?.is_client, false);
 assert.deepEqual(alex?.class_names, ['Morning strength']);
 assert.equal(ada?.is_client, true);
 assert.equal(ada?.in_classes, false);
+assert.equal(portal.sees_all_people, false);
+
+const ownerCoach = {
+  ...coach,
+  email: 'owner@gym.example',
+};
+store.settings.contact_email = 'owner@gym.example';
+const ownerPortal = buildCoachPortalPayload(
+  store,
+  ownerCoach,
+  '2026-08-24',
+  '2026-08-31'
+);
+assert.equal(ownerPortal.sees_all_people, true);
+assert.deepEqual(
+  ownerPortal.members.map((m) => m.id).sort(),
+  ['mem_class', 'mem_other', 'mem_pt']
+);
+assert.equal(
+  ownerPortal.members.find((m) => m.id === 'mem_other')?.in_classes,
+  true
+);
+
+store.settings.contact_email = 'hello@gym.example';
+setGymOwnerEmails(store, ['jordan@gym.example']);
+const viaTeam = buildCoachPortalPayload(
+  store,
+  { ...coach, email: 'jordan@gym.example' },
+  '2026-08-24',
+  '2026-08-31'
+);
+assert.equal(viaTeam.sees_all_people, true);
+assert.equal(viaTeam.members.length, 3);
 
 console.log('coach-people.test.ts ok');

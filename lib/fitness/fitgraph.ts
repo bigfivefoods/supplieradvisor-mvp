@@ -1456,6 +1456,45 @@ export function coachPortalEmails(coach: {
     .filter((v) => v.includes('@'));
 }
 
+const gymOwnerEmailsExtra = new WeakMap<FitgraphStore, string[]>();
+
+function normalizeEmailList(raw: unknown): string[] {
+  const list = Array.isArray(raw) ? raw : [raw];
+  return [
+    ...new Set(
+      list
+        .map((v) => String(v || '').trim().toLowerCase())
+        .filter((v) => v.includes('@'))
+    ),
+  ];
+}
+
+/** Company-owner emails for this request (profile / team), not persisted. */
+export function setGymOwnerEmails(store: FitgraphStore, emails: string[]) {
+  gymOwnerEmailsExtra.set(store, normalizeEmailList(emails));
+}
+
+export function gymOwnerEmails(store: FitgraphStore): string[] {
+  return normalizeEmailList([
+    store.settings?.contact_email,
+    ...(gymOwnerEmailsExtra.get(store) || []),
+  ]);
+}
+
+/** Owner who also coaches — same email as the gym owner. */
+export function coachIsGymOwner(
+  store: FitgraphStore,
+  coach: {
+    email?: string | null;
+    invite_email?: string | null;
+    work_invite_email?: string | null;
+  }
+): boolean {
+  const owner = new Set(gymOwnerEmails(store));
+  if (!owner.size) return false;
+  return coachPortalEmails(coach).some((e) => owner.has(e));
+}
+
 /**
  * Contracted / employed coaches stay on until the engagement end date
  * (inclusive). A future contract end must not lock them out today.
@@ -2871,7 +2910,8 @@ export function buildCoachPortalPayload(
         : a.session.date.localeCompare(b.session.date)
     );
 
-  /** This coach's class book + private clients only — not the whole gym. */
+  /** Owner-coaches (email match) see the whole gym; others only their book. */
+  const seeAllPeople = coachIsGymOwner(store, coach);
   const classMemberIds = new Set<string>();
   const privateClientIds = new Set<string>();
   const classNamesByMember = new Map<string, Set<string>>();
@@ -2889,11 +2929,13 @@ export function buildCoachPortalPayload(
   };
   for (const c of store.clients || []) {
     if (c.active === false) continue;
-    if (c.coach_id === coach.id) privateClientIds.add(c.id);
+    if (c.coach_id === coach.id || (seeAllPeople && c.coach_id)) {
+      privateClientIds.add(c.id);
+    }
   }
   for (const s of store.sessions || []) {
     if (s.status === 'cancelled') continue;
-    if (!coachCanSeeSession(s, coach.id)) continue;
+    if (!seeAllPeople && !coachCanSeeSession(s, coach.id)) continue;
     const kind = sessionKindOf(store, s);
     if (kind === 'coach_personal') continue;
     const className = classTypeById(store, s.class_type_id)?.name || null;
@@ -2905,7 +2947,7 @@ export function buildCoachPortalPayload(
     }
   }
   for (const e of store.programme_enrollments || []) {
-    if (e.coach_id !== coach.id) continue;
+    if (!seeAllPeople && e.coach_id !== coach.id) continue;
     if (String(e.status || '') === 'cancelled') continue;
     const p = (store.programmes || []).find((x) => x.id === e.programme_id);
     if (p?.kind === 'personal_pt' || p?.personal_for_coach) {
@@ -2926,7 +2968,9 @@ export function buildCoachPortalPayload(
     .filter(
       (c) =>
         c.active !== false &&
-        (classMemberIds.has(c.id) || privateClientIds.has(c.id))
+        (seeAllPeople ||
+          classMemberIds.has(c.id) ||
+          privateClientIds.has(c.id))
     )
     .map((c) => ({
       id: c.id,
@@ -3026,6 +3070,7 @@ export function buildCoachPortalPayload(
     working_hours: store.settings?.working_hours || null,
     sessions: mySessions,
     by_date: byDate,
+    sees_all_people: seeAllPeople,
     members,
     class_types: classTypes,
     movements: listedFitMovements(store).filter(
