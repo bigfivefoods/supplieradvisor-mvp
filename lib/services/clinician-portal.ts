@@ -111,6 +111,7 @@ export type ClinicianBooking = {
   patient_id: string;
   status: string;
   booked_at?: string;
+  updated_at?: string | null;
   source?: string;
   notes?: string;
   family_member_id?: string | null;
