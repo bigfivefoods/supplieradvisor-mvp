@@ -12,7 +12,6 @@ import {
   ShoppingBag,
   Smartphone,
   Sun,
-  User,
   UserRound,
   Users,
 } from 'lucide-react';
@@ -245,110 +244,138 @@ function GymMemberPwaMock({
 function GymCoachPwaMock({
   copy,
   brand,
+  logoUrl,
   color,
 }: {
   copy: GrowPreviewCopy;
   brand: string;
+  logoUrl?: string | null;
   color: string;
 }) {
   const ink = advisorBrandInk(color);
-  const tabs = [
+  const tabs: Array<{
+    id: string;
+    label: string;
+    icon?: typeof Sun;
+    emphasis?: boolean;
+  }> = [
     { id: 'today', label: 'Today', icon: Sun },
     { id: 'diary', label: 'Diary', icon: CalendarDays },
-    { id: 'me', label: 'You', icon: User, emphasis: true },
+    { id: 'you', label: 'You', emphasis: true },
     { id: 'people', label: 'People', icon: Users },
     { id: 'inbox', label: 'Inbox', icon: Inbox },
-  ] as const;
+  ];
   return (
-    <div className="flex h-full flex-col bg-slate-950 text-slate-100">
+    <div className="flex h-full flex-col bg-gradient-to-b from-yellow-50 to-slate-50 text-slate-900">
       <div
         className="px-3 pb-3 pt-7"
         style={{
-          background: `linear-gradient(160deg, ${color} 0%, #0f172a 72%)`,
+          background: `linear-gradient(135deg, ${color} 0%, color-mix(in srgb, ${color} 50%, #0f172a) 100%)`,
+          color: ink,
         }}
       >
-        <div className="flex items-center gap-2">
-          <AvatarCircle letter="J" className="h-10 w-10 ring-2 ring-white/40" />
-          <div className="min-w-0">
-            <p className="text-[8px] font-black uppercase tracking-[0.16em] text-white/80">
-              {copy.staffEyebrow}
+        <p className="text-[8px] font-black uppercase tracking-[0.16em] opacity-70">
+          {copy.staffEyebrow}
+        </p>
+        <div className="mt-1 flex items-end gap-2">
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={logoUrl}
+              alt=""
+              className="h-8 w-8 rounded-xl bg-white/20 object-contain p-0.5"
+            />
+          ) : (
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/20 text-[11px] font-black">
+              {brand.slice(0, 1).toUpperCase()}
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-black leading-tight">
+              {brand}
             </p>
-            <p className="truncate text-[14px] font-black leading-tight text-slate-950">
-              Jordan
-            </p>
-            <p className="text-[9px] text-slate-950/70">{brand}</p>
+            <p className="text-[9px] opacity-80">Jordan · coach</p>
           </div>
+          <AvatarCircle letter="J" className="h-9 w-9 ring-2 ring-white/50" />
         </div>
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-hidden p-2.5">
-        <div className="flex gap-1">
-          {['All', 'Gym booked', 'My private'].map((t, i) => (
-            <span
-              key={t}
-              className={`rounded-full px-2 py-0.5 text-[8px] font-black ${
-                i === 0
-                  ? 'bg-[#E8E830] text-slate-950'
-                  : 'bg-white/5 text-slate-400'
-              }`}
-            >
-              {t}
-            </span>
-          ))}
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-white/5 px-2.5 py-2">
-          <div className="flex items-center justify-between gap-1">
-            <p className="text-[12px] font-black">{copy.staffSample}</p>
-            <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[7px] font-black uppercase text-amber-200">
-              Gym booked
-            </span>
-          </div>
-          <p className="mt-0.5 text-[9px] text-slate-400">
-            Mark attended · programme on the class
-          </p>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-white/5 px-2.5 py-2">
-          <div className="flex items-center justify-between gap-1">
-            <p className="text-[12px] font-black">09:00 PT · Ada</p>
-            <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[7px] font-black uppercase text-amber-200">
-              Your PT
-            </span>
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-[12px] font-black leading-tight">Today</p>
+          <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-0.5">
+            {['All', 'Gym', 'Mine'].map((t, i) => (
+              <span
+                key={t}
+                className={`rounded-full px-1.5 py-0.5 text-[7px] font-black ${
+                  i === 0 ? 'text-slate-950 shadow-sm' : 'text-slate-500'
+                }`}
+                style={i === 0 ? { backgroundColor: color, color: ink } : undefined}
+              >
+                {t}
+              </span>
+            ))}
           </div>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-white/5 px-2.5 py-2">
-          <p className="text-[8px] font-black uppercase tracking-wide text-amber-300">
-            Programmes · follow
+        <div
+          className="rounded-2xl p-2.5 shadow-sm"
+          style={{ backgroundColor: color, color: ink }}
+        >
+          <p className="text-[8px] font-black uppercase tracking-widest opacity-70">
+            Next up · Gym
           </p>
-          <p className="text-[11px] font-bold">
+          <p className="text-[13px] font-black leading-tight">
+            {copy.staffSample}
+          </p>
+          <p className="mt-0.5 text-[10px] font-bold opacity-80">
+            Mark attended · open roster
+          </p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white px-2.5 py-2">
+          <p className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+            Also today
+          </p>
+          <p className="text-[11px] font-black">09:00 PT · Ada</p>
+          <p className="text-[9px] text-slate-500">Mine · 1 booked</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white px-2.5 py-2">
+          <p className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+            Programme follow
+          </p>
+          <p className="text-[11px] font-black">
             Ada · {copy.programmeName || 'Plan'}
           </p>
-          <p className="text-[9px] text-slate-400">
-            62% · feel 4/5 · RPE 7 · “Knees felt good”
+          <p className="text-[9px] text-slate-500">
+            62% · feel 4/5 · RPE 7
           </p>
         </div>
       </div>
-      <div className="flex items-end justify-around border-t border-white/10 bg-slate-950 px-0.5 pb-1.5 pt-1">
+      <div className="flex items-end justify-around border-t border-slate-200/80 bg-white/95 px-1 pb-1.5 pt-1">
         {tabs.map((t) => {
-          const Icon = t.icon;
-          if ('emphasis' in t && t.emphasis) {
+          const on = t.id === 'today';
+          if (t.emphasis) {
             return (
-              <div
-                key={t.id}
-                className="-mt-3 flex flex-col items-center gap-0.5 text-[7px] font-black text-white"
-              >
+              <div key={t.id} className="-mt-4 flex flex-col items-center">
                 <span
-                  className="flex h-7 w-7 items-center justify-center rounded-full ring-2 ring-slate-950"
+                  className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full text-[12px] font-black shadow-lg ring-4 ring-white"
                   style={{ backgroundColor: color, color: ink }}
                 >
-                  <Icon className="h-3.5 w-3.5" />
+                  J
                 </span>
-                {t.label}
+                <span className="text-[8px] font-black text-slate-500">
+                  {t.label}
+                </span>
               </div>
             );
           }
+          const Icon = t.icon;
+          if (!Icon) return null;
           return (
             <div
               key={t.id}
-              className="flex flex-col items-center gap-0.5 text-[7px] font-black text-slate-500"
+              className={`flex flex-col items-center gap-0.5 px-1 text-[8px] font-black ${
+                on ? '' : 'text-slate-400'
+              }`}
+              style={on ? { color } : undefined}
             >
               <Icon className="h-3.5 w-3.5" />
               {t.label}
@@ -1005,13 +1032,18 @@ export function AdvisorGrowPreviews({
           title={gym ? 'Coach app' : `${copy.staffRole} PWA`}
           hint={
             gym
-              ? 'What a contracted coach sees: Today with Gym booked vs My private, People (programme follow + feedback), Diary, Inbox, Me. Issued from People, not the public website.'
+              ? 'What a contracted coach sees: Today with All / Gym / Mine, People (programme follow + feedback), Diary, Inbox, and You in the raised centre circle — same dock as the member app. Issued from People, not the public website.'
               : `What a contracted ${copy.staffRole.replace('contracted ', '')} sees on their phone — today's floor, week diary, people, inbox. Issued from People, not the public website.`
           }
         >
           <PhoneChrome label={`${copy.staffEyebrow} · contracted access`}>
             {gym ? (
-              <GymCoachPwaMock copy={copy} brand={brand} color={color} />
+              <GymCoachPwaMock
+                copy={copy}
+                brand={brand}
+                logoUrl={logoUrl}
+                color={color}
+              />
             ) : (
               <StaffPwaMock copy={copy} brand={brand} color={color} />
             )}

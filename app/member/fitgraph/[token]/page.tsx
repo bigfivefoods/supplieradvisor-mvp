@@ -28,7 +28,7 @@ import {
 import type { GymShopCoach, GymShopItem } from '@/lib/fitness/gym-shop';
 import type { GymInventoryShopItem } from '@/lib/fitness/gym-inventory-shop';
 import { sessionHasEnded } from '@/lib/services/booking-feedback';
-import { sessionIsUpcoming } from '@/lib/fitness/gym-local-time';
+import { isoDateInZone, sessionIsUpcoming } from '@/lib/fitness/gym-local-time';
 import type { MemberRelationshipPayload } from '@/components/services/MemberRelationshipSection';
 import { MemberGoalsPanel } from '@/components/fitness/MemberGoalsPanel';
 import { MemberProgressCharts } from '@/components/fitness/MemberProgressCharts';
@@ -64,11 +64,19 @@ import {
   GymSharePanel,
   GymStat,
   gymFormatDay,
+  gymGroupByMonth,
 } from '@/components/fitness/GymMemberPwaUi';
 import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
 import { AdvisorPwaSignOutButton } from '@/components/advisors/AdvisorPwaSignOutButton';
 
 const MEMBER_TOKEN_KEY = 'sa_fitgraph_member_token';
+
+function journeyMonthStats(items: { status?: string | null }[]) {
+  const planned = items.length;
+  const attended = items.filter((b) => b.status === 'attended').length;
+  const pct = planned ? Math.round((attended / planned) * 100) : null;
+  return { planned, attended, pct };
+}
 
 type MemberTab =
   | 'checkin'
@@ -361,7 +369,15 @@ export default function MemberFitgraphPortalPage() {
   const [debitBank, setDebitBank] = useState<DebitBankForm>(emptyDebitBankForm);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [journeyOpen, setJourneyOpen] = useState(true);
+  const [journeyMonthOpen, setJourneyMonthOpen] = useState<
+    Record<string, boolean>
+  >({});
   const [notesOpen, setNotesOpen] = useState(true);
+  const [comingUpOpen, setComingUpOpen] = useState(true);
+  const [comingUpMonthOpen, setComingUpMonthOpen] = useState<
+    Record<string, boolean>
+  >({});
+  const [afterClassOpen, setAfterClassOpen] = useState(true);
   const [rsvpOverride, setRsvpOverride] = useState<
     Record<string, 'coming' | 'not_coming'>
   >({});
@@ -819,6 +835,10 @@ export default function MemberFitgraphPortalPage() {
         ? String(a.start_time).localeCompare(String(b.start_time))
         : a.date.localeCompare(b.date)
     );
+  const comingUpMonths = gymGroupByMonth(
+    bookedUpcoming,
+    Number(isoDateInZone(gymTz).slice(0, 4))
+  );
   const nextClass = bookedUpcoming[0];
   const rsvpOf = (b: MyBooking) =>
     rsvpOverride[b.session_id] || rsvpOverride[b.booking_id] || b.rsvp || null;
@@ -852,6 +872,10 @@ export default function MemberFitgraphPortalPage() {
         ? String(b.start_time).localeCompare(String(a.start_time))
         : b.date.localeCompare(a.date)
     );
+  const journeyMonths = gymGroupByMonth(
+    recentDone,
+    Number(isoDateInZone(gymTz).slice(0, 4))
+  );
   const completedPending = (portal.my_bookings || [])
     .filter(
       (b) =>
@@ -1374,7 +1398,7 @@ export default function MemberFitgraphPortalPage() {
         {tab === 'mine' && (
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-3">
-              <GymSectionTitle hint="Your next classes. Tell your coach if you will be attending.">
+              <GymSectionTitle hint="Your next class. Tell your coach if you will be attending.">
                 Next up
               </GymSectionTitle>
               <button
@@ -1397,36 +1421,119 @@ export default function MemberFitgraphPortalPage() {
                 </button>
               </div>
             ) : (
-              <div className="space-y-3">
-                {bookedUpcoming.map((b, i) => (
-                  <GymNextUpCard
-                    key={b.booking_id}
-                    className={b.class_name}
-                    date={b.date}
-                    startTime={b.start_time}
-                    location={b.location}
-                    coach={b.coach_name}
-                    rsvp={rsvpOf(b)}
-                    bookingId={b.booking_id}
-                    busy={busyId === b.booking_id}
-                    color={color}
-                    kicker={i === 0 ? 'Next up' : 'Coming up'}
-                    featured={i === 0}
-                    plan={b.class_plan}
-                    programme={b.programme}
-                    onRsvp={(coming) =>
-                      void rsvp(b.booking_id, coming, b.session_id)
-                    }
-                  />
-                ))}
-              </div>
+              <GymNextUpCard
+                className={bookedUpcoming[0].class_name}
+                date={bookedUpcoming[0].date}
+                startTime={bookedUpcoming[0].start_time}
+                location={bookedUpcoming[0].location}
+                coach={bookedUpcoming[0].coach_name}
+                rsvp={rsvpOf(bookedUpcoming[0])}
+                bookingId={bookedUpcoming[0].booking_id}
+                busy={busyId === bookedUpcoming[0].booking_id}
+                color={color}
+                kicker="Next up"
+                featured
+                plan={bookedUpcoming[0].class_plan}
+                programme={bookedUpcoming[0].programme}
+                onRsvp={(coming) =>
+                  void rsvp(
+                    bookedUpcoming[0].booking_id,
+                    coming,
+                    bookedUpcoming[0].session_id
+                  )
+                }
+              />
             )}
-            {recentDone.length ? (
-              <div className="space-y-3">
-                <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
-                  After class
+            <GymExpandSection
+              title="Coming up"
+              hint={
+                comingUpOpen
+                  ? 'Sessions planned, grouped by month.'
+                  : comingUpMonths.length
+                    ? comingUpMonths
+                        .map(
+                          (m) =>
+                            `${m.label} ${m.items.length} session${
+                              m.items.length === 1 ? '' : 's'
+                            }`
+                        )
+                        .join(' · ')
+                    : 'Sessions planned, grouped by month'
+              }
+              icon={<CalendarDays className="h-4 w-4" />}
+              open={comingUpOpen}
+              onToggle={() => setComingUpOpen((v) => !v)}
+            >
+              {comingUpMonths.length ? (
+                comingUpMonths.map((month, i) => {
+                  const monthOpen =
+                    comingUpMonthOpen[month.key] ?? i === 0;
+                  const n = month.items.length;
+                  return (
+                    <GymExpandSection
+                      key={month.key}
+                      nested
+                      title={month.label}
+                      badge={
+                        <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-black tabular-nums text-white dark:bg-white dark:text-slate-900">
+                          {n} session{n === 1 ? '' : 's'}
+                        </span>
+                      }
+                      open={monthOpen}
+                      onToggle={() =>
+                        setComingUpMonthOpen((s) => ({
+                          ...s,
+                          [month.key]: !monthOpen,
+                        }))
+                      }
+                    >
+                      {month.items.map((b) => (
+                        <GymNextUpCard
+                          key={b.booking_id}
+                          className={b.class_name}
+                          date={b.date}
+                          startTime={b.start_time}
+                          location={b.location}
+                          coach={b.coach_name}
+                          rsvp={rsvpOf(b)}
+                          bookingId={b.booking_id}
+                          busy={busyId === b.booking_id}
+                          color={color}
+                          kicker="Coming up"
+                          featured={false}
+                          plan={b.class_plan}
+                          programme={b.programme}
+                          onRsvp={(coming) =>
+                            void rsvp(b.booking_id, coming, b.session_id)
+                          }
+                        />
+                      ))}
+                    </GymExpandSection>
+                  );
+                })
+              ) : (
+                <p className="text-xs text-slate-500">
+                  Book a class to see your month planned here.
                 </p>
-                {recentDone.slice(0, 6).map((b) => (
+              )}
+            </GymExpandSection>
+            <GymExpandSection
+              title="After class"
+              hint={
+                afterClassOpen
+                  ? 'Rate a class you have already done.'
+                  : recentDone.length
+                    ? `${Math.min(recentDone.length, 6)} recent class${
+                        recentDone.length === 1 ? '' : 'es'
+                      }`
+                    : 'Rate a class you have already done'
+              }
+              icon={<CheckCircle2 className="h-4 w-4" />}
+              open={afterClassOpen}
+              onToggle={() => setAfterClassOpen((v) => !v)}
+            >
+              {recentDone.length ? (
+                recentDone.slice(0, 6).map((b) => (
                   <GymNextUpCard
                     key={`done-${b.booking_id}`}
                     className={b.class_name}
@@ -1450,9 +1557,13 @@ export default function MemberFitgraphPortalPage() {
                     programme={b.programme}
                     onRate={(v) => void rateClass(b.booking_id, v)}
                   />
-                ))}
-              </div>
-            ) : null}
+                ))
+              ) : (
+                <p className="text-xs text-slate-500">
+                  Classes you complete land here — rate them after you attend.
+                </p>
+              )}
+            </GymExpandSection>
           </div>
         )}
 
@@ -1599,11 +1710,16 @@ export default function MemberFitgraphPortalPage() {
               title="Journey"
               hint={
                 journeyOpen
-                  ? 'Tap a class to open the session and your rating.'
-                  : recentDone.length
-                    ? `${Math.min(recentDone.length, 16)} class${
-                        recentDone.length === 1 ? '' : 'es'
-                      } · ${portal.progress?.attended_30d ?? 0} in 30 days`
+                  ? 'By month: planned, attended, and achievement. Tap a class to open the session and your rating.'
+                  : journeyMonths.length
+                    ? journeyMonths
+                        .map((m) => {
+                          const s = journeyMonthStats(m.items);
+                          return `${m.label} ${s.attended}/${s.planned}${
+                            s.pct == null ? '' : ` · ${s.pct}%`
+                          }`;
+                        })
+                        .join(' · ')
                     : 'Classes you complete land here'
               }
               icon={<CheckCircle2 className="h-4 w-4" />}
@@ -1624,34 +1740,58 @@ export default function MemberFitgraphPortalPage() {
                   label="Check-ins"
                 />
               </div>
-              {recentDone.length ? (
-                <div className="space-y-3">
-                  {recentDone.slice(0, 16).map((b) => (
-                    <GymNextUpCard
-                      key={`journey-${b.booking_id}`}
-                      className={b.class_name}
-                      date={b.date}
-                      startTime={b.start_time}
-                      location={b.location}
-                      coach={b.coach_name}
-                      rsvp={rsvpOf(b)}
-                      bookingId={b.booking_id}
-                      busy={
-                        busyId === b.booking_id ||
-                        busyId === `rate:${b.booking_id}`
+              {journeyMonths.length ? (
+                journeyMonths.map((month, i) => {
+                  const monthOpen =
+                    journeyMonthOpen[month.key] ?? i === 0;
+                  const s = journeyMonthStats(month.items);
+                  return (
+                    <GymExpandSection
+                      key={month.key}
+                      nested
+                      title={month.label}
+                      hint={`${s.planned} planned · ${s.attended} attended`}
+                      badge={
+                        <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-black tabular-nums text-white dark:bg-white dark:text-slate-900">
+                          {s.pct == null ? '—' : `${s.pct}%`}
+                        </span>
                       }
-                      color={color}
-                      featured={false}
-                      ended
-                      attended={b.status === 'attended'}
-                      pendingRate={pendingRateOf(b)}
-                      feedback={feedbackOf(b)}
-                      plan={b.class_plan}
-                      programme={b.programme}
-                      onRate={(v) => void rateClass(b.booking_id, v)}
-                    />
-                  ))}
-                </div>
+                      open={monthOpen}
+                      onToggle={() =>
+                        setJourneyMonthOpen((prev) => ({
+                          ...prev,
+                          [month.key]: !monthOpen,
+                        }))
+                      }
+                    >
+                      {month.items.map((b) => (
+                        <GymNextUpCard
+                          key={`journey-${b.booking_id}`}
+                          className={b.class_name}
+                          date={b.date}
+                          startTime={b.start_time}
+                          location={b.location}
+                          coach={b.coach_name}
+                          rsvp={rsvpOf(b)}
+                          bookingId={b.booking_id}
+                          busy={
+                            busyId === b.booking_id ||
+                            busyId === `rate:${b.booking_id}`
+                          }
+                          color={color}
+                          featured={false}
+                          ended
+                          attended={b.status === 'attended'}
+                          pendingRate={pendingRateOf(b)}
+                          feedback={feedbackOf(b)}
+                          plan={b.class_plan}
+                          programme={b.programme}
+                          onRate={(v) => void rateClass(b.booking_id, v)}
+                        />
+                      ))}
+                    </GymExpandSection>
+                  );
+                })
               ) : (
                 <p className="text-xs text-slate-500">
                   Classes you complete land here — tap one to see the session

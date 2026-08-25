@@ -32,6 +32,49 @@ export function gymFormatDay(date: string, time: string) {
   }
 }
 
+export function gymMonthKey(date: string): string {
+  return String(date || '').slice(0, 7);
+}
+
+export function gymFormatMonth(
+  ym: string,
+  nowYear = new Date().getFullYear()
+) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || '').trim());
+  if (!m) return String(ym || '');
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  if (!year || month < 1 || month > 12) return String(ym || '');
+  try {
+    const d = new Date(`${m[1]}-${m[2]}-01T12:00:00`);
+    return d.toLocaleDateString(undefined, {
+      month: 'long',
+      ...(year === nowYear ? {} : { year: 'numeric' }),
+    });
+  } catch {
+    return String(ym);
+  }
+}
+
+export function gymGroupByMonth<T extends { date?: string | null }>(
+  rows: T[],
+  nowYear = new Date().getFullYear()
+): Array<{ key: string; label: string; items: T[] }> {
+  const map = new Map<string, T[]>();
+  for (const row of rows) {
+    const key = gymMonthKey(String(row.date || ''));
+    if (!/^\d{4}-\d{2}$/.test(key)) continue;
+    const list = map.get(key);
+    if (list) list.push(row);
+    else map.set(key, [row]);
+  }
+  return Array.from(map.entries()).map(([key, items]) => ({
+    key,
+    label: gymFormatMonth(key, nowYear),
+    items,
+  }));
+}
+
 export function GymFlash({
   error,
   msg,
@@ -82,6 +125,7 @@ export function GymExpandSection({
   open,
   onToggle,
   badge,
+  nested,
   children,
 }: {
   title: string;
@@ -90,15 +134,24 @@ export function GymExpandSection({
   open: boolean;
   onToggle: () => void;
   badge?: ReactNode;
+  nested?: boolean;
   children: ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white dark:border-white/10 dark:bg-neutral-900">
+    <section
+      className={
+        nested
+          ? 'overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5'
+          : 'overflow-hidden rounded-3xl border border-slate-200 bg-white dark:border-white/10 dark:bg-neutral-900'
+      }
+    >
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-4 py-3.5 text-left"
+        className={`flex w-full items-center gap-2 text-left ${
+          nested ? 'px-3 py-2.5' : 'px-4 py-3.5'
+        }`}
       >
         {icon ? (
           <span className="shrink-0 text-slate-800 dark:text-white">{icon}</span>
@@ -121,7 +174,13 @@ export function GymExpandSection({
         />
       </button>
       {open ? (
-        <div className="space-y-3 border-t border-slate-100 px-4 py-4 dark:border-white/10">
+        <div
+          className={
+            nested
+              ? 'space-y-3 border-t border-slate-200/80 px-3 py-3 dark:border-white/10'
+              : 'space-y-3 border-t border-slate-100 px-4 py-4 dark:border-white/10'
+          }
+        >
           {children}
         </div>
       ) : null}
