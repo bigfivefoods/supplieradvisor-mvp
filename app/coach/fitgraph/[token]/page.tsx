@@ -48,6 +48,7 @@ import {
 import { ProgrammeView } from '@/components/fitness/ProgrammeView';
 import { ClassSubscriptionReport } from '@/components/fitness/ClassSubscriptionReport';
 import { MemberPortalWeekCalendar } from '@/components/advisors/MemberPortalWeekCalendar';
+import type { MemberCalendarEvent } from '@/lib/advisors/member-week-calendar';
 import { OwnerWorkspaceCta } from '@/components/advisors/OwnerWorkspaceCta';
 import {
   GymExpandSection,
@@ -232,6 +233,7 @@ type Portal = {
     is_client?: boolean;
     class_names?: string[];
   }>;
+  sees_all_people?: boolean;
   special_dates?: MemberSpecialDate[];
   class_report?: import('@/lib/fitness/vuka-class-catalog').ClassSubscriptionReport;
   class_types: Array<{
@@ -408,6 +410,7 @@ export default function CoachFitgraphPortalPage() {
   const [workTab, setWorkTab] = useState<AdvisorWorkTab>('today');
   const [peopleClassOpen, setPeopleClassOpen] = useState(true);
   const [peopleClientOpen, setPeopleClientOpen] = useState(true);
+  const [peopleGymOpen, setPeopleGymOpen] = useState(true);
   const [peopleClassGroupOpen, setPeopleClassGroupOpen] = useState<
     Record<string, boolean>
   >({});
@@ -722,32 +725,28 @@ export default function CoachFitgraphPortalPage() {
     if (card.session.session_kind === 'private_pt') return 'Your PT';
     return 'Your class';
   };
-  const toCalEvent = (card: PortalSession) => ({
-    id: card.session.id,
-    date: card.session.date,
-    start_time: String(card.session.start_time).slice(0, 5),
-    end_time: card.session.end_time
-      ? String(card.session.end_time).slice(0, 5)
-      : null,
-    title:
-      card.session.session_kind === 'coach_personal'
-        ? card.session.notes?.split('\n')[0] || 'Workout'
-        : card.session.session_kind === 'private_pt'
-          ? `PT · ${card.class_name || 'Client'}`
-          : card.class_name || 'Class',
-    person:
-      laneOf(card) === 'workouts'
-        ? 'Workout'
-        : laneOf(card) === 'clients'
-          ? 'Client'
-          : 'Class',
-    kind:
-      laneOf(card) === 'workouts'
-        ? 'workout'
-        : laneOf(card) === 'clients'
-          ? 'client'
-          : 'class',
-  });
+  const toCalEvent = (card: PortalSession): MemberCalendarEvent => {
+    const lane = laneOf(card);
+    const kind: MemberCalendarEvent['kind'] =
+      lane === 'workouts' ? 'workout' : lane === 'clients' ? 'client' : 'class';
+    return {
+      id: card.session.id,
+      date: card.session.date,
+      start_time: String(card.session.start_time).slice(0, 5),
+      end_time: card.session.end_time
+        ? String(card.session.end_time).slice(0, 5)
+        : null,
+      title:
+        card.session.session_kind === 'coach_personal'
+          ? card.session.notes?.split('\n')[0] || 'Workout'
+          : card.session.session_kind === 'private_pt'
+            ? `PT · ${card.class_name || 'Client'}`
+            : card.class_name || 'Class',
+      person:
+        kind === 'workout' ? 'Workout' : kind === 'client' ? 'Client' : 'Class',
+      kind,
+    };
+  };
   const gymHours = (() => {
     if (!portal.working_hours) return { start: 5, end: 21 };
     const b = hourBounds(portal.working_hours);
@@ -875,7 +874,13 @@ export default function CoachFitgraphPortalPage() {
 
       {workTab === 'people' ? (
         <div className="space-y-5">
-          <GymSectionTitle hint="Your class members and private clients. They update their own details in the member app.">
+          <GymSectionTitle
+            hint={
+              portal.sees_all_people
+                ? 'Whole gym — you own this studio. They update their own details in the member app.'
+                : 'Your class members and private clients. They update their own details in the member app.'
+            }
+          >
             People
           </GymSectionTitle>
           {(() => {
@@ -1012,6 +1017,9 @@ export default function CoachFitgraphPortalPage() {
           {(() => {
             const classMembers = portal.members.filter((m) => m.in_classes);
             const clients = portal.members.filter((m) => m.is_client);
+            const gymMembers = portal.sees_all_people
+              ? portal.members.filter((m) => !m.in_classes && !m.is_client)
+              : [];
             const classGroups = (() => {
               const map = new Map<string, typeof classMembers>();
               for (const m of classMembers) {
@@ -1071,7 +1079,11 @@ export default function CoachFitgraphPortalPage() {
               <>
                 <GymExpandSection
                   title="Classes"
-                  hint="People booked on your group classes"
+                  hint={
+                    portal.sees_all_people
+                      ? 'Everyone booked on group classes'
+                      : 'People booked on your group classes'
+                  }
                   icon={<Users className="h-4 w-4" />}
                   badge={
                     <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-black tabular-nums text-white dark:bg-white dark:text-slate-900">
@@ -1108,13 +1120,19 @@ export default function CoachFitgraphPortalPage() {
                     })
                   ) : (
                     <p className="text-xs text-slate-500">
-                      No class members on your sessions yet.
+                      {portal.sees_all_people
+                        ? 'No class bookings on the gym file yet.'
+                        : 'No class members on your sessions yet.'}
                     </p>
                   )}
                 </GymExpandSection>
                 <GymExpandSection
                   title="Clients"
-                  hint="Your private PT clients"
+                  hint={
+                    portal.sees_all_people
+                      ? 'Private PT clients across the gym'
+                      : 'Your private PT clients'
+                  }
                   icon={<User className="h-4 w-4" />}
                   badge={
                     <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-black tabular-nums text-white dark:bg-white dark:text-slate-900">
@@ -1128,10 +1146,34 @@ export default function CoachFitgraphPortalPage() {
                     clients.map((m) => personCard(m, 'client-'))
                   ) : (
                     <p className="text-xs text-slate-500">
-                      No private clients assigned to you yet.
+                      {portal.sees_all_people
+                        ? 'No private clients on the gym file yet.'
+                        : 'No private clients assigned to you yet.'}
                     </p>
                   )}
                 </GymExpandSection>
+                {portal.sees_all_people ? (
+                  <GymExpandSection
+                    title="Members"
+                    hint="Gym members not on a class or private client list"
+                    icon={<UserPlus className="h-4 w-4" />}
+                    badge={
+                      <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-black tabular-nums text-white dark:bg-white dark:text-slate-900">
+                        {gymMembers.length}
+                      </span>
+                    }
+                    open={peopleGymOpen}
+                    onToggle={() => setPeopleGymOpen((v) => !v)}
+                  >
+                    {gymMembers.length ? (
+                      gymMembers.map((m) => personCard(m, 'gym-'))
+                    ) : (
+                      <p className="text-xs text-slate-500">
+                        Everyone on the gym file is already in Classes or Clients.
+                      </p>
+                    )}
+                  </GymExpandSection>
+                ) : null}
               </>
             );
           })()}
