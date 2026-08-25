@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   Activity,
   CalendarDays,
@@ -8,6 +8,7 @@ import {
   Globe,
   Inbox,
   ListChecks,
+  Moon,
   Share2,
   ShoppingBag,
   Smartphone,
@@ -25,23 +26,137 @@ import {
 } from '@/lib/advisors/grow-preview';
 import type { AdvisorPortalModule } from '@/lib/advisors/portal-sections';
 
+type PreviewTheme = 'light' | 'dark';
+
+function previewSkin(dark: boolean) {
+  return {
+    pageGym: dark
+      ? 'flex h-full flex-col bg-gradient-to-b from-slate-950 to-black text-slate-100'
+      : 'flex h-full flex-col bg-gradient-to-b from-yellow-50 to-slate-50 text-slate-900',
+    page: dark
+      ? 'flex h-full flex-col bg-gradient-to-b from-slate-950 to-black text-slate-100'
+      : 'flex h-full flex-col bg-slate-50 text-slate-900',
+    site: dark
+      ? 'flex h-full flex-col overflow-hidden bg-slate-950 text-slate-100'
+      : 'flex h-full flex-col overflow-hidden bg-slate-50 text-slate-900',
+    card: dark
+      ? 'rounded-2xl border border-white/10 bg-neutral-900'
+      : 'rounded-2xl border border-slate-200 bg-white',
+    title: dark ? 'text-white' : 'text-slate-900',
+    muted: dark ? 'text-slate-400' : 'text-slate-500',
+    kicker: dark ? 'text-slate-500' : 'text-slate-400',
+    body: dark ? 'text-slate-400' : 'text-slate-600',
+    dock: dark
+      ? 'flex items-end justify-around border-t border-white/10 bg-neutral-950/95 px-1 pb-1.5 pt-1'
+      : 'flex items-end justify-around border-t border-slate-200/80 bg-white/95 px-1 pb-1.5 pt-1',
+    youRing: dark ? 'ring-4 ring-neutral-950' : 'ring-4 ring-white',
+    youLabel: dark ? 'text-slate-400' : 'text-slate-500',
+    dockOff: dark ? 'text-slate-500' : 'text-slate-400',
+    weekOff: dark ? 'bg-white/5 text-slate-500' : 'bg-white text-slate-400',
+    chipTrack: dark
+      ? 'inline-flex rounded-full border border-white/10 bg-white/5 p-0.5'
+      : 'inline-flex rounded-full border border-slate-200 bg-slate-50 p-0.5',
+    chipOff: dark ? 'text-slate-400' : 'text-slate-500',
+    track: dark ? 'bg-white/10' : 'bg-slate-100',
+    coming: dark ? 'bg-white text-slate-950' : 'bg-slate-900 text-white',
+    dash: dark
+      ? 'rounded-2xl border border-dashed border-white/15 bg-neutral-900 px-2.5 py-2 text-[10px] text-slate-400'
+      : 'rounded-2xl border border-dashed border-slate-200 bg-white px-2.5 py-2 text-[10px] text-slate-500',
+    tabBar: dark
+      ? 'flex gap-1 overflow-x-auto border-b border-white/10 bg-neutral-950 px-2 py-1.5'
+      : 'flex gap-1 overflow-x-auto border-b border-slate-200 bg-white px-2 py-1.5',
+    tabOff: dark ? 'bg-white/10 text-slate-400' : 'bg-slate-100 text-slate-500',
+    amber: dark
+      ? 'rounded-xl border border-amber-500/30 bg-amber-950/40 p-2'
+      : 'rounded-xl border border-amber-200 bg-amber-50 p-2',
+    amberInk: dark ? 'text-amber-200' : 'text-amber-900',
+    cellOn: dark ? 'bg-yellow-500/40' : 'bg-yellow-200',
+    cellDone: dark ? 'bg-emerald-500/40' : 'bg-emerald-200',
+    cellOff: dark ? 'bg-white/5' : 'bg-slate-50',
+    weekLabel: dark ? 'text-yellow-300' : 'text-yellow-800',
+  };
+}
+
+function PreviewThemeToggle({
+  theme,
+  onTheme,
+}: {
+  theme: PreviewTheme;
+  onTheme: (t: PreviewTheme) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-neutral-950">
+      <div>
+        <p className="text-sm font-black text-slate-900 dark:text-white">
+          Preview theme
+        </p>
+        <p className="text-[11px] text-slate-500">
+          Light and dark as members and coaches see on their phone.
+        </p>
+      </div>
+      <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-0.5 dark:border-white/15 dark:bg-white/5">
+        {(['light', 'dark'] as const).map((t) => {
+          const on = theme === t;
+          return (
+            <button
+              key={t}
+              type="button"
+              onClick={() => onTheme(t)}
+              aria-pressed={on}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-black ${
+                on
+                  ? 'bg-slate-900 text-white shadow-sm dark:bg-yellow-400 dark:text-yellow-950'
+                  : 'text-slate-500'
+              }`}
+            >
+              {t === 'light' ? (
+                <Sun className="h-3.5 w-3.5" />
+              ) : (
+                <Moon className="h-3.5 w-3.5" />
+              )}
+              {t === 'light' ? 'Light' : 'Dark'}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function PhoneChrome({
   children,
   label,
+  dark,
 }: {
   children: ReactNode;
   label: string;
+  dark?: boolean;
 }) {
   return (
     <div className="flex flex-col items-center gap-2">
-      <div className="w-[260px] rounded-[2.1rem] border-[10px] border-slate-900 bg-slate-900 shadow-xl">
-        <div className="relative h-[540px] overflow-hidden rounded-[1.45rem] bg-white">
-          <div className="absolute left-1/2 top-1.5 z-10 h-3.5 w-[72px] -translate-x-1/2 rounded-full bg-slate-900" />
+      <div
+        className={`w-[260px] rounded-[2.1rem] border-[10px] shadow-xl ${
+          dark ? 'border-slate-700 bg-slate-800' : 'border-slate-900 bg-slate-900'
+        }`}
+      >
+        <div
+          className={`relative h-[540px] overflow-hidden rounded-[1.45rem] ${
+            dark ? 'bg-black' : 'bg-white'
+          }`}
+        >
+          <div
+            className={`absolute left-1/2 top-1.5 z-10 h-3.5 w-[72px] -translate-x-1/2 rounded-full ${
+              dark ? 'bg-slate-800' : 'bg-slate-900'
+            }`}
+          />
           {children}
         </div>
       </div>
       <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
         {label}
+        <span className="ml-1 font-bold normal-case tracking-normal text-slate-400">
+          · {dark ? 'dark' : 'light'}
+        </span>
       </p>
     </div>
   );
@@ -51,22 +166,42 @@ function BrowserChrome({
   children,
   url,
   title,
+  dark,
 }: {
   children: ReactNode;
   url: string;
   title: string;
+  dark?: boolean;
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 dark:border-white/10">
-      <div className="flex items-center gap-1.5 border-b border-slate-200 bg-slate-200/80 px-3 py-1.5">
+    <div
+      className={`overflow-hidden rounded-2xl border ${
+        dark
+          ? 'border-white/10 bg-slate-900'
+          : 'border-slate-200 bg-slate-100 dark:border-white/10'
+      }`}
+    >
+      <div
+        className={`flex items-center gap-1.5 border-b px-3 py-1.5 ${
+          dark
+            ? 'border-white/10 bg-slate-800'
+            : 'border-slate-200 bg-slate-200/80'
+        }`}
+      >
         <span className="h-2 w-2 rounded-full bg-rose-400" />
         <span className="h-2 w-2 rounded-full bg-amber-400" />
         <span className="h-2 w-2 rounded-full bg-emerald-400" />
-        <span className="ml-2 truncate font-mono text-[10px] text-slate-500">
+        <span
+          className={`ml-2 truncate font-mono text-[10px] ${
+            dark ? 'text-slate-400' : 'text-slate-500'
+          }`}
+        >
           {url}
         </span>
       </div>
-      <div className="h-[480px] bg-white">{children}</div>
+      <div className={`h-[480px] ${dark ? 'bg-slate-950' : 'bg-white'}`}>
+        {children}
+      </div>
       <p className="sr-only">{title}</p>
     </div>
   );
@@ -93,13 +228,16 @@ function GymMemberPwaMock({
   brand,
   logoUrl,
   color,
+  dark,
 }: {
   copy: GrowPreviewCopy;
   brand: string;
   logoUrl?: string | null;
   color: string;
+  dark?: boolean;
 }) {
   const ink = advisorBrandInk(color);
+  const skin = previewSkin(Boolean(dark));
   const dock: Array<{
     id: string;
     label: string;
@@ -113,7 +251,7 @@ function GymMemberPwaMock({
     { id: 'share', label: 'Share', icon: Share2 },
   ];
   return (
-    <div className="flex h-full flex-col bg-gradient-to-b from-yellow-50 to-slate-50 text-slate-900">
+    <div className={skin.pageGym}>
       <div
         className="px-3 pb-3 pt-7"
         style={{
@@ -161,7 +299,7 @@ function GymMemberPwaMock({
             {copy.sampleWhen} · Coach Sam
           </p>
           <div className="mt-2 flex gap-1">
-            <span className="rounded-lg bg-slate-900 px-2 py-0.5 text-[8px] font-black text-white">
+            <span className={`rounded-lg px-2 py-0.5 text-[8px] font-black ${skin.coming}`}>
               I&apos;m coming
             </span>
             <span className="rounded-lg px-2 py-0.5 text-[8px] font-bold underline">
@@ -169,20 +307,22 @@ function GymMemberPwaMock({
             </span>
           </div>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-2.5 py-2">
+        <div className={`${skin.card} px-2.5 py-2`}>
           <div className="flex items-center justify-between">
-            <p className="text-[10px] font-black">
+            <p className={`text-[10px] font-black ${skin.title}`}>
               {copy.programmeName || 'Programme'}
             </p>
-            <p className="text-[10px] font-black tabular-nums">62%</p>
+            <p className={`text-[10px] font-black tabular-nums ${skin.title}`}>
+              62%
+            </p>
           </div>
-          <div className="mt-1 h-1 overflow-hidden rounded-full bg-slate-100">
+          <div className={`mt-1 h-1 overflow-hidden rounded-full ${skin.track}`}>
             <div
               className="h-full rounded-full"
               style={{ width: '62%', backgroundColor: color }}
             />
           </div>
-          <p className="mt-1 text-[9px] text-slate-500">
+          <p className={`mt-1 text-[9px] ${skin.muted}`}>
             Today · Squat + engine · log feel &amp; RPE
           </p>
         </div>
@@ -191,7 +331,7 @@ function GymMemberPwaMock({
             <div
               key={`${d}-${i}`}
               className={`rounded-lg py-1 text-center text-[8px] font-black ${
-                i === 1 ? '' : 'bg-white text-slate-400'
+                i === 1 ? '' : skin.weekOff
               }`}
               style={
                 i === 1 ? { backgroundColor: color, color: ink } : undefined
@@ -203,19 +343,19 @@ function GymMemberPwaMock({
           ))}
         </div>
       </div>
-      <div className="flex items-end justify-around border-t border-slate-200/80 bg-white/95 px-1 pb-1.5 pt-1">
+      <div className={skin.dock}>
         {dock.map((t) => {
           const on = t.id === 'class';
           if (t.emphasis) {
             return (
               <div key={t.id} className="-mt-4 flex flex-col items-center">
                 <span
-                  className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full text-[12px] font-black shadow-lg ring-4 ring-white"
+                  className={`flex h-11 w-11 items-center justify-center overflow-hidden rounded-full text-[12px] font-black shadow-lg ${skin.youRing}`}
                   style={{ backgroundColor: color, color: ink }}
                 >
                   A
                 </span>
-                <span className="text-[8px] font-black text-slate-500">
+                <span className={`text-[8px] font-black ${skin.youLabel}`}>
                   {t.label}
                 </span>
               </div>
@@ -227,7 +367,7 @@ function GymMemberPwaMock({
             <div
               key={t.id}
               className={`flex flex-col items-center gap-0.5 px-1 text-[8px] font-black ${
-                on ? '' : 'text-slate-400'
+                on ? '' : skin.dockOff
               }`}
               style={on ? { color } : undefined}
             >
@@ -246,13 +386,16 @@ function GymCoachPwaMock({
   brand,
   logoUrl,
   color,
+  dark,
 }: {
   copy: GrowPreviewCopy;
   brand: string;
   logoUrl?: string | null;
   color: string;
+  dark?: boolean;
 }) {
   const ink = advisorBrandInk(color);
+  const skin = previewSkin(Boolean(dark));
   const tabs: Array<{
     id: string;
     label: string;
@@ -266,7 +409,7 @@ function GymCoachPwaMock({
     { id: 'inbox', label: 'Inbox', icon: Inbox },
   ];
   return (
-    <div className="flex h-full flex-col bg-gradient-to-b from-yellow-50 to-slate-50 text-slate-900">
+    <div className={skin.pageGym}>
       <div
         className="px-3 pb-3 pt-7"
         style={{
@@ -301,13 +444,15 @@ function GymCoachPwaMock({
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-hidden p-2.5">
         <div className="flex items-start justify-between gap-2">
-          <p className="text-[12px] font-black leading-tight">Today</p>
-          <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-0.5">
+          <p className={`text-[12px] font-black leading-tight ${skin.title}`}>
+            Today
+          </p>
+          <div className={skin.chipTrack}>
             {['All', 'Gym', 'Mine'].map((t, i) => (
               <span
                 key={t}
                 className={`rounded-full px-1.5 py-0.5 text-[7px] font-black ${
-                  i === 0 ? 'text-slate-950 shadow-sm' : 'text-slate-500'
+                  i === 0 ? 'shadow-sm' : skin.chipOff
                 }`}
                 style={i === 0 ? { backgroundColor: color, color: ink } : undefined}
               >
@@ -330,38 +475,38 @@ function GymCoachPwaMock({
             Mark attended · open roster
           </p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-2.5 py-2">
-          <p className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+        <div className={`${skin.card} px-2.5 py-2`}>
+          <p className={`text-[8px] font-black uppercase tracking-wide ${skin.kicker}`}>
             Also today
           </p>
-          <p className="text-[11px] font-black">09:00 PT · Ada</p>
-          <p className="text-[9px] text-slate-500">Mine · 1 booked</p>
+          <p className={`text-[11px] font-black ${skin.title}`}>09:00 PT · Ada</p>
+          <p className={`text-[9px] ${skin.muted}`}>Mine · 1 booked</p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-2.5 py-2">
-          <p className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+        <div className={`${skin.card} px-2.5 py-2`}>
+          <p className={`text-[8px] font-black uppercase tracking-wide ${skin.kicker}`}>
             Programme follow
           </p>
-          <p className="text-[11px] font-black">
+          <p className={`text-[11px] font-black ${skin.title}`}>
             Ada · {copy.programmeName || 'Plan'}
           </p>
-          <p className="text-[9px] text-slate-500">
+          <p className={`text-[9px] ${skin.muted}`}>
             62% · feel 4/5 · RPE 7
           </p>
         </div>
       </div>
-      <div className="flex items-end justify-around border-t border-slate-200/80 bg-white/95 px-1 pb-1.5 pt-1">
+      <div className={skin.dock}>
         {tabs.map((t) => {
           const on = t.id === 'today';
           if (t.emphasis) {
             return (
               <div key={t.id} className="-mt-4 flex flex-col items-center">
                 <span
-                  className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full text-[12px] font-black shadow-lg ring-4 ring-white"
+                  className={`flex h-11 w-11 items-center justify-center overflow-hidden rounded-full text-[12px] font-black shadow-lg ${skin.youRing}`}
                   style={{ backgroundColor: color, color: ink }}
                 >
                   J
                 </span>
-                <span className="text-[8px] font-black text-slate-500">
+                <span className={`text-[8px] font-black ${skin.youLabel}`}>
                   {t.label}
                 </span>
               </div>
@@ -373,7 +518,7 @@ function GymCoachPwaMock({
             <div
               key={t.id}
               className={`flex flex-col items-center gap-0.5 px-1 text-[8px] font-black ${
-                on ? '' : 'text-slate-400'
+                on ? '' : skin.dockOff
               }`}
               style={on ? { color } : undefined}
             >
@@ -390,15 +535,18 @@ function GymCoachPwaMock({
 function GymProgrammeMock({
   copy,
   color,
+  dark,
 }: {
   copy: GrowPreviewCopy;
   color: string;
+  dark?: boolean;
 }) {
   const ink = advisorBrandInk(color);
+  const skin = previewSkin(Boolean(dark));
   const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
   const filled = new Set(['0-0', '0-2', '1-0', '1-2']);
   return (
-    <div className="flex h-full flex-col bg-gradient-to-b from-yellow-50 to-white text-slate-900">
+    <div className={skin.pageGym}>
       <div
         className="px-3 pb-2.5 pt-7"
         style={{ backgroundColor: color, color: ink }}
@@ -412,11 +560,13 @@ function GymProgrammeMock({
         <p className="text-[9px] opacity-80">4 weeks · sell or assign</p>
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-hidden p-2.5">
-        <div className="flex items-center justify-between text-[10px] font-black">
+        <div
+          className={`flex items-center justify-between text-[10px] font-black ${skin.title}`}
+        >
           <span>Ada following</span>
           <span>62%</span>
         </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-1.5 overflow-hidden rounded-full ${skin.track}`}>
           <div
             className="h-full rounded-full bg-emerald-500"
             style={{ width: '62%' }}
@@ -424,7 +574,7 @@ function GymProgrammeMock({
         </div>
         <table className="w-full border-collapse text-[7px]">
           <thead>
-            <tr className="text-slate-400">
+            <tr className={skin.kicker}>
               <th className="w-4" />
               {days.map((d, i) => (
                 <th key={`${d}-${i}`} className="font-black">
@@ -436,7 +586,7 @@ function GymProgrammeMock({
           <tbody>
             {[1, 2, 3, 4].map((w) => (
               <tr key={w}>
-                <td className="pr-0.5 font-black text-yellow-800">{w}</td>
+                <td className={`pr-0.5 font-black ${skin.weekLabel}`}>{w}</td>
                 {days.map((d, i) => {
                   const key = `${w - 1}-${i}`;
                   const on = filled.has(key);
@@ -446,10 +596,10 @@ function GymProgrammeMock({
                       <div
                         className={`h-6 rounded-md ${
                           done
-                            ? 'bg-emerald-200'
+                            ? skin.cellDone
                             : on
-                              ? 'bg-yellow-200'
-                              : 'bg-slate-50'
+                              ? skin.cellOn
+                              : skin.cellOff
                         }`}
                       />
                     </td>
@@ -459,12 +609,14 @@ function GymProgrammeMock({
             ))}
           </tbody>
         </table>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-2">
-          <p className="text-[10px] font-black">Mon · Squat + engine</p>
-          <p className="text-[9px] text-slate-600">
+        <div className={skin.amber}>
+          <p className={`text-[10px] font-black ${skin.title}`}>
+            Mon · Squat + engine
+          </p>
+          <p className={`text-[9px] ${skin.body}`}>
             Back squat 4×6 · 120s rest
           </p>
-          <p className="mt-1 text-[8px] font-bold text-amber-900">
+          <p className={`mt-1 text-[8px] font-bold ${skin.amberInk}`}>
             Feel 4/5 Good · RPE 7 · “Knees felt good”
           </p>
         </div>
@@ -480,6 +632,7 @@ function GymWebsiteMock({
   color,
   bio,
   nav,
+  dark,
 }: {
   copy: GrowPreviewCopy;
   brand: string;
@@ -487,12 +640,14 @@ function GymWebsiteMock({
   color: string;
   bio?: string;
   nav: string[];
+  dark?: boolean;
 }) {
   const ink = advisorBrandInk(color);
+  const skin = previewSkin(Boolean(dark));
   const light = ink === '#0f172a' || ink === '#111827';
   const siteNav = [...nav.slice(0, 3), 'Programmes'];
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-slate-50 text-slate-900">
+    <div className={skin.site}>
       <header
         className="shrink-0 border-b px-3 py-2.5"
         style={{
@@ -548,28 +703,32 @@ function GymWebsiteMock({
         </nav>
       </header>
       <div className="space-y-2 overflow-hidden p-3">
-        <p className="text-[11px] leading-snug text-slate-600">
+        <p className={`text-[11px] leading-snug ${skin.body}`}>
           {bio ||
             'Book classes, buy a membership or a training programme, then follow it in the member app.'}
         </p>
-        <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
-          <p className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+        <div className={`${skin.card} p-2.5 shadow-sm`}>
+          <p className={`text-[8px] font-black uppercase tracking-wide ${skin.kicker}`}>
             This week
           </p>
-          <p className="text-[13px] font-black">{copy.sampleTitle}</p>
-          <p className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
+          <p className={`text-[13px] font-black ${skin.title}`}>
+            {copy.sampleTitle}
+          </p>
+          <p className={`mt-0.5 flex items-center gap-1 text-[10px] ${skin.muted}`}>
             <CalendarDays className="h-3 w-3" />
             {copy.sampleWhen} · 8 spots
           </p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
-          <p className="text-[8px] font-black uppercase tracking-wide text-slate-400">
+        <div className={`${skin.card} p-2.5 shadow-sm`}>
+          <p className={`text-[8px] font-black uppercase tracking-wide ${skin.kicker}`}>
             Programme
           </p>
-          <p className="text-[13px] font-black">
+          <p className={`text-[13px] font-black ${skin.title}`}>
             {copy.programmeName} · 4 weeks
           </p>
-          <p className="text-[10px] text-slate-500">R450 once-off · pay first</p>
+          <p className={`text-[10px] ${skin.muted}`}>
+            R450 once-off · pay first
+          </p>
         </div>
       </div>
     </div>
@@ -581,15 +740,18 @@ function MemberPwaMock({
   brand,
   logoUrl,
   color,
+  dark,
 }: {
   copy: GrowPreviewCopy;
   brand: string;
   logoUrl?: string | null;
   color: string;
+  dark?: boolean;
 }) {
   const ink = advisorBrandInk(color);
+  const skin = previewSkin(Boolean(dark));
   return (
-    <div className="flex h-full flex-col bg-slate-50 text-slate-900">
+    <div className={skin.page}>
       <div
         className="px-3 pb-3 pt-7"
         style={{
@@ -621,14 +783,14 @@ function MemberPwaMock({
           </div>
         </div>
       </div>
-      <div className="flex gap-1 overflow-x-auto border-b border-slate-200 bg-white px-2 py-1.5">
+      <div className={skin.tabBar}>
         {copy.pwaTabs.map((t) => {
           const on = t === copy.pwaActiveTab;
           return (
             <span
               key={t}
               className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black ${
-                on ? '' : 'bg-slate-100 text-slate-500'
+                on ? '' : skin.tabOff
               }`}
               style={on ? { backgroundColor: color, color: ink } : undefined}
             >
@@ -638,13 +800,15 @@ function MemberPwaMock({
         })}
       </div>
       <div className="space-y-2 p-2.5">
-        <p className="text-[10px] font-bold text-slate-500">{copy.sampleHint}</p>
-        <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
-          <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+        <p className={`text-[10px] font-bold ${skin.muted}`}>{copy.sampleHint}</p>
+        <div className={`${skin.card} p-2.5 shadow-sm`}>
+          <p className={`text-[9px] font-black uppercase tracking-wide ${skin.kicker}`}>
             Next
           </p>
-          <p className="text-[13px] font-black">{copy.sampleTitle}</p>
-          <p className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
+          <p className={`text-[13px] font-black ${skin.title}`}>
+            {copy.sampleTitle}
+          </p>
+          <p className={`mt-0.5 flex items-center gap-1 text-[10px] ${skin.muted}`}>
             <CalendarDays className="h-3 w-3" />
             {copy.sampleWhen}
           </p>
@@ -662,7 +826,7 @@ function MemberPwaMock({
                 <div
                   key={`${d}-${i}`}
                   className={`rounded-lg py-1 text-center text-[8px] font-black ${
-                    i === 1 ? '' : 'bg-white text-slate-400'
+                    i === 1 ? '' : skin.weekOff
                   }`}
                   style={
                     i === 1 ? { backgroundColor: color, color: ink } : undefined
@@ -673,7 +837,7 @@ function MemberPwaMock({
                 </div>
               ))}
             </div>
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-2.5 py-2 text-[10px] text-slate-500">
+            <div className={skin.dash}>
               Open slot · 07:00 · tap to book
             </div>
           </>
@@ -687,14 +851,17 @@ function StaffPwaMock({
   copy,
   brand,
   color,
+  dark,
 }: {
   copy: GrowPreviewCopy;
   brand: string;
   color: string;
+  dark?: boolean;
 }) {
   const ink = advisorBrandInk(color);
+  const skin = previewSkin(Boolean(dark));
   return (
-    <div className="flex h-full flex-col bg-slate-950 text-slate-100">
+    <div className={skin.page}>
       <div
         className="px-3 pb-3 pt-7"
         style={{
@@ -709,12 +876,14 @@ function StaffPwaMock({
         <p className="text-[9px] opacity-80">Jordan · contracted</p>
       </div>
       <div className="flex-1 space-y-2 p-2.5">
-        <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+        <p className={`text-[9px] font-black uppercase tracking-wide ${skin.kicker}`}>
           Today
         </p>
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5">
-          <p className="text-[12px] font-black">{copy.staffSample}</p>
-          <p className="mt-1 text-[9px] text-slate-400">
+        <div className={`${skin.card} p-2.5`}>
+          <p className={`text-[12px] font-black ${skin.title}`}>
+            {copy.staffSample}
+          </p>
+          <p className={`mt-1 text-[9px] ${skin.muted}`}>
             Diary · mark attended · message
           </p>
         </div>
@@ -723,7 +892,7 @@ function StaffPwaMock({
             <div
               key={`${d}-${i}`}
               className={`rounded-lg py-1 text-center text-[8px] font-black ${
-                i === 1 ? '' : 'bg-white/5 text-slate-500'
+                i === 1 ? '' : skin.weekOff
               }`}
               style={i === 1 ? { backgroundColor: color, color: ink } : undefined}
             >
@@ -732,15 +901,15 @@ function StaffPwaMock({
           ))}
         </div>
       </div>
-      <div className="flex items-end justify-around border-t border-white/10 bg-slate-950 px-0.5 pb-2 pt-1">
+      <div className={skin.dock}>
         {copy.staffTabs.map((t, i) =>
           t === 'You' ? (
             <span
               key={t}
-              className="-mt-2 flex flex-col items-center text-[7px] font-black text-white"
+              className={`-mt-2 flex flex-col items-center text-[7px] font-black ${skin.youLabel}`}
             >
               <span
-                className="mb-0.5 flex h-6 w-6 items-center justify-center rounded-full ring-2 ring-slate-950"
+                className={`mb-0.5 flex h-6 w-6 items-center justify-center rounded-full ${skin.youRing}`}
                 style={{ backgroundColor: color, color: ink }}
               >
                 Y
@@ -751,7 +920,7 @@ function StaffPwaMock({
             <span
               key={t}
               className={`text-center text-[7px] font-black ${
-                i === 0 ? 'text-white' : 'text-slate-500'
+                i === 0 ? skin.title : skin.dockOff
               }`}
             >
               {t}
@@ -770,6 +939,7 @@ function WebsiteMock({
   color,
   bio,
   nav,
+  dark,
 }: {
   copy: GrowPreviewCopy;
   brand: string;
@@ -777,10 +947,12 @@ function WebsiteMock({
   color: string;
   bio?: string;
   nav: string[];
+  dark?: boolean;
 }) {
   const ink = advisorBrandInk(color);
+  const skin = previewSkin(Boolean(dark));
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-slate-50 text-slate-900">
+    <div className={skin.site}>
       <header
         className="shrink-0 px-4 py-3"
         style={{ backgroundColor: color, color: ink }}
@@ -835,15 +1007,17 @@ function WebsiteMock({
         ) : null}
       </header>
       <div className="space-y-2 p-3">
-        <p className="text-[11px] leading-snug text-slate-600">
+        <p className={`text-[11px] leading-snug ${skin.body}`}>
           {bio || copy.sampleHint}
         </p>
-        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-          <p className="text-[9px] font-black uppercase tracking-wide text-slate-400">
+        <div className={`${skin.card} p-3 shadow-sm`}>
+          <p className={`text-[9px] font-black uppercase tracking-wide ${skin.kicker}`}>
             This week
           </p>
-          <p className="text-[13px] font-black">{copy.sampleTitle}</p>
-          <p className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
+          <p className={`text-[13px] font-black ${skin.title}`}>
+            {copy.sampleTitle}
+          </p>
+          <p className={`mt-0.5 flex items-center gap-1 text-[10px] ${skin.muted}`}>
             <CalendarDays className="h-3 w-3" />
             {copy.sampleWhen}
           </p>
@@ -899,6 +1073,8 @@ export function AdvisorGrowPreviews({
   frameKey?: number;
   placement?: 'view-portal' | 'website-settings';
 }) {
+  const [previewTheme, setPreviewTheme] = useState<PreviewTheme>('light');
+  const dark = previewTheme === 'dark';
   const copy = growPreviewCopy(module);
   const brand = (settings?.brand_name || '').trim() || eyebrow.replace(/®/g, '');
   const color =
@@ -927,12 +1103,16 @@ export function AdvisorGrowPreviews({
       }
     >
       {showLiveSite ? (
-        <BrowserChrome url={liveHref} title={`${eyebrow} website preview`}>
+        <BrowserChrome
+          url={liveHref}
+          title={`${eyebrow} website preview`}
+          dark={dark}
+        >
           <iframe
             key={frameKey}
             title={`${eyebrow} website preview`}
             src={liveHref}
-            className="h-full w-full bg-white"
+            className={`h-full w-full ${dark ? 'bg-slate-950' : 'bg-white'}`}
           />
         </BrowserChrome>
       ) : (
@@ -940,6 +1120,7 @@ export function AdvisorGrowPreviews({
           <BrowserChrome
             url={liveHref || 'not published yet'}
             title={`${eyebrow} website mock`}
+            dark={dark}
           >
             {gym ? (
               <GymWebsiteMock
@@ -949,6 +1130,7 @@ export function AdvisorGrowPreviews({
                 color={color}
                 bio={settings?.public_bio}
                 nav={nav}
+                dark={dark}
               />
             ) : (
               <WebsiteMock
@@ -958,6 +1140,7 @@ export function AdvisorGrowPreviews({
                 color={color}
                 bio={settings?.public_bio}
                 nav={nav}
+                dark={dark}
               />
             )}
           </BrowserChrome>
@@ -993,80 +1176,94 @@ export function AdvisorGrowPreviews({
   );
 
   return (
-    <div
-      className={`grid gap-6 lg:grid-cols-2 ${
-        gym || copy.staffRole ? 'xl:grid-cols-2' : ''
-      }`}
-    >
-      <PreviewCard
-        icon={<Smartphone className="h-4 w-4" />}
-        title={`${copy.audienceSingular[0].toUpperCase()}${copy.audienceSingular.slice(1)} app`}
-        hint={
-          gym
-            ? `What ${copy.audience} see on their phone: Class, Progress (programmes), You in the raised centre circle, Shop and Share.`
-            : `What ${copy.audience} see on their phone after they join ${brand}. ${copy.sampleHint} Branded preview, not a live client record.`
-        }
+    <div className="space-y-4">
+      <PreviewThemeToggle theme={previewTheme} onTheme={setPreviewTheme} />
+      <div
+        className={`grid gap-6 lg:grid-cols-2 ${
+          gym || copy.staffRole ? 'xl:grid-cols-2' : ''
+        }`}
       >
-        <PhoneChrome label={`${eyebrow} · member phone`}>
-          {gym ? (
-            <GymMemberPwaMock
-              copy={copy}
-              brand={brand}
-              logoUrl={logoUrl}
-              color={color}
-            />
-          ) : (
-            <MemberPwaMock
-              copy={copy}
-              brand={brand}
-              logoUrl={logoUrl}
-              color={color}
-            />
-          )}
-        </PhoneChrome>
-      </PreviewCard>
-
-      {copy.staffRole ? (
         <PreviewCard
-          icon={<UserRound className="h-4 w-4" />}
-          title={gym ? 'Coach app' : `${copy.staffRole} PWA`}
+          icon={<Smartphone className="h-4 w-4" />}
+          title={`${copy.audienceSingular[0].toUpperCase()}${copy.audienceSingular.slice(1)} app`}
           hint={
             gym
-              ? 'What a contracted coach sees: Today with All / Gym / Mine, People (programme follow + feedback), Diary, Inbox, and You in the raised centre circle — same dock as the member app. Issued from People, not the public website.'
-              : `What a contracted ${copy.staffRole.replace('contracted ', '')} sees on their phone — today's floor, week diary, people, inbox. Issued from People, not the public website.`
+              ? `What ${copy.audience} see on their phone: Class, Progress (programmes), You in the raised centre circle, Shop and Share.`
+              : `What ${copy.audience} see on their phone after they join ${brand}. ${copy.sampleHint} Branded preview, not a live client record.`
           }
         >
-          <PhoneChrome label={`${copy.staffEyebrow} · contracted access`}>
+          <PhoneChrome label={`${eyebrow} · member phone`} dark={dark}>
             {gym ? (
-              <GymCoachPwaMock
+              <GymMemberPwaMock
                 copy={copy}
                 brand={brand}
                 logoUrl={logoUrl}
                 color={color}
+                dark={dark}
               />
             ) : (
-              <StaffPwaMock copy={copy} brand={brand} color={color} />
+              <MemberPwaMock
+                copy={copy}
+                brand={brand}
+                logoUrl={logoUrl}
+                color={color}
+                dark={dark}
+              />
             )}
           </PhoneChrome>
         </PreviewCard>
-      ) : null}
 
-      {gym && copy.showProgramme ? (
-        <PreviewCard
-          icon={<ListChecks className="h-4 w-4" />}
-          title="Programme"
-          hint={
-            copy.programmeHint ||
-            'Build a calendar of movements, sell it or assign it, and watch feel / effort after each day.'
-          }
-        >
-          <PhoneChrome label="Member Progress · follow the plan">
-            <GymProgrammeMock copy={copy} color={color} />
-          </PhoneChrome>
-        </PreviewCard>
-      ) : null}
+        {copy.staffRole ? (
+          <PreviewCard
+            icon={<UserRound className="h-4 w-4" />}
+            title={gym ? 'Coach app' : `${copy.staffRole} PWA`}
+            hint={
+              gym
+                ? 'What a contracted coach sees: Today with All / Gym / Mine, People (programme follow + feedback), Diary, Inbox, and You in the raised centre circle — same dock as the member app. Issued from People, not the public website.'
+                : `What a contracted ${copy.staffRole.replace('contracted ', '')} sees on their phone — today's floor, week diary, people, inbox. Issued from People, not the public website.`
+            }
+          >
+            <PhoneChrome
+              label={`${copy.staffEyebrow} · contracted access`}
+              dark={dark}
+            >
+              {gym ? (
+                <GymCoachPwaMock
+                  copy={copy}
+                  brand={brand}
+                  logoUrl={logoUrl}
+                  color={color}
+                  dark={dark}
+                />
+              ) : (
+                <StaffPwaMock
+                  copy={copy}
+                  brand={brand}
+                  color={color}
+                  dark={dark}
+                />
+              )}
+            </PhoneChrome>
+          </PreviewCard>
+        ) : null}
 
-      {websiteBlock}
+        {gym && copy.showProgramme ? (
+          <PreviewCard
+            icon={<ListChecks className="h-4 w-4" />}
+            title="Programme"
+            hint={
+              copy.programmeHint ||
+              'Build a calendar of movements, sell it or assign it, and watch feel / effort after each day.'
+            }
+          >
+            <PhoneChrome label="Member Progress · follow the plan" dark={dark}>
+              <GymProgrammeMock copy={copy} color={color} dark={dark} />
+            </PhoneChrome>
+          </PreviewCard>
+        ) : null}
+
+        {websiteBlock}
+      </div>
     </div>
   );
 }
