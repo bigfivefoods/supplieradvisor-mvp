@@ -381,10 +381,11 @@ function injuryLabel(client?: FitClient | null): { injured: boolean; label: stri
     };
   }
   if (
-    h?.injured ||
-    ((h?.injury_areas || []).length &&
-      h?.injury_status !== 'cleared' &&
-      h?.injury_status !== 'none')
+    h &&
+    (h.injured ||
+      ((h.injury_areas || []).length > 0 &&
+        h.injury_status !== 'cleared' &&
+        h.injury_status !== 'none'))
   ) {
     return {
       injured: true,
