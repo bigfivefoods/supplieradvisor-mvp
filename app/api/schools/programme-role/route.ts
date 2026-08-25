@@ -24,10 +24,17 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServer();
     const info = await resolveProgrammeRole(supabase, companyId);
-    return NextResponse.json({
-      success: true,
-      ...info,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        ...info,
+      },
+      {
+        headers: {
+          'Cache-Control': 'private, max-age=30, stale-while-revalidate=60',
+        },
+      }
+    );
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

@@ -206,6 +206,7 @@ function Inner() {
     initialPeriodSlicerValue('this_month', 4)
   );
   const [saving, setSaving] = useState(false);
+  const loadedOnce = useRef(false);
   /** DBE BOM: pick category first (preferred) vs single product */
   const [bomMode, setBomMode] = useState<'category' | 'product'>('category');
   const [bomCategory, setBomCategory] = useState('');
@@ -231,9 +232,10 @@ function Inner() {
   const [bUom, setBUom] = useState('kg');
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (!loadedOnce.current) setLoading(true);
     try {
-      const [rRes, pRes, planRes] = await Promise.all([
+      const wantPlan = tab === 'plan' || tab === 'budgets';
+      const reqs: Promise<Response>[] = [
         fetch(
           `/api/schools/recipes?companyId=${companyId}&view=recipes`,
           { cache: 'no-store', credentials: 'same-origin' }
@@ -242,14 +244,19 @@ function Inner() {
           cache: 'no-store',
           credentials: 'same-origin',
         }),
-        fetch(
-          `/api/schools/recipes?companyId=${companyId}&view=plan&from=${period.from}&to=${period.to}`,
-          { cache: 'no-store', credentials: 'same-origin' }
-        ),
-      ]);
+      ];
+      if (wantPlan) {
+        reqs.push(
+          fetch(
+            `/api/schools/recipes?companyId=${companyId}&view=plan&from=${period.from}&to=${period.to}`,
+            { cache: 'no-store', credentials: 'same-origin' }
+          )
+        );
+      }
+      const [rRes, pRes, planRes] = await Promise.all(reqs);
       const r = await rRes.json();
       const p = await pRes.json();
-      const pl = await planRes.json();
+      const pl = planRes ? await planRes.json() : { success: true };
       if (!rRes.ok && !pl.success) {
         throw new Error(r.error || pl.error || 'Failed');
       }
@@ -258,19 +265,22 @@ function Inner() {
       setCanChooseBrand(Boolean(r.canChooseBrand));
       setRecipes(r.recipes || pl.recipes || []);
       setProducts(p.products || []);
-      setBudgets(pl.budgets || []);
-      setPlan(pl.plan || null);
+      if (wantPlan) {
+        setBudgets(pl.budgets || []);
+        setPlan(pl.plan || null);
+      }
       if (r.message && !(r.recipes || []).length) toast.message(r.message);
       if (r.brand_choice_help && r.canChooseBrand) {
         /* soft — UI shows help */
       }
       if (pl.warning || r.warning) toast.message(pl.warning || r.warning);
+      loadedOnce.current = true;
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
     } finally {
       setLoading(false);
     }
-  }, [companyId, period.from, period.to]);
+  }, [companyId, period.from, period.to, tab]);
 
   useEffect(() => {
     void load();

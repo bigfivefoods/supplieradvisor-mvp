@@ -39,7 +39,7 @@ export default function AgencyExceptionBoard({
     try {
       const [exRes, burnRes] = await Promise.all([
         fetch(
-          `/api/schools/ops?companyId=${companyId}&view=exceptions`,
+          `/api/schools/ops?companyId=${companyId}&view=exceptions&lite=1`,
           { cache: 'no-store', credentials: 'same-origin' }
         ),
         fetch(

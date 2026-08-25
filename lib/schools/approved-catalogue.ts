@@ -13,6 +13,7 @@ import {
   NSNP_SEED_PRODUCTS,
 } from '@/lib/schools/nsnp-seed-products';
 import { defaultMealFlagsFromCategory } from '@/lib/schools/meal-guide';
+import { nsnpCacheGet, nsnpCacheSet, NSNP_TTL } from '@/lib/schools/nsnp-cache';
 
 export type CatalogueContext = {
   /** Company id of owning agency (DBE), or null for national fallback */
@@ -30,13 +31,20 @@ export async function getAgencyRegistration(
   supabase: SupabaseClient,
   companyId: number
 ): Promise<Record<string, unknown> | null> {
+  const ck = `nsnp:agency:${companyId}`;
+  const hit = nsnpCacheGet<{ v: Record<string, unknown> | null }>(ck);
+  if (hit) return hit.v;
   const { data } = await supabase
     .from('nsnp_agency_profiles')
-    .select('*')
+    .select(
+      'id, profile_id, agency_name, agency_type, province, district, status, contact_email'
+    )
     .eq('profile_id', companyId)
     .eq('status', 'active')
     .maybeSingle();
-  return (data as Record<string, unknown>) || null;
+  const row = (data as Record<string, unknown>) || null;
+  nsnpCacheSet(ck, { v: row }, NSNP_TTL.agency);
+  return row;
 }
 
 /**
@@ -46,6 +54,25 @@ export async function getAgencyRegistration(
  * Else national template (not yet associated).
  */
 export async function resolveCatalogueContext(
+  supabase: SupabaseClient,
+  companyId: number,
+  opts?: { schoolProfileId?: number | null }
+): Promise<CatalogueContext> {
+  if (!opts?.schoolProfileId) {
+    const ck = `nsnp:ctx:${companyId}`;
+    const hit = nsnpCacheGet<CatalogueContext>(ck);
+    if (hit) return hit;
+    const resolved = await resolveCatalogueContextUncached(
+      supabase,
+      companyId,
+      opts
+    );
+    return nsnpCacheSet(ck, resolved, NSNP_TTL.ctx);
+  }
+  return resolveCatalogueContextUncached(supabase, companyId, opts);
+}
+
+async function resolveCatalogueContextUncached(
   supabase: SupabaseClient,
   companyId: number,
   opts?: { schoolProfileId?: number | null }
@@ -182,6 +209,9 @@ export async function loadApprovedProducts(
 ): Promise<Array<Record<string, unknown>>> {
   const activeOnly = opts?.activeOnly !== false;
   const includeNational = opts?.includeNationalFallback !== false;
+  const ck = `nsnp:products:${agencyProfileId ?? 'nat'}:${activeOnly ? 1 : 0}:${includeNational ? 1 : 0}`;
+  const cached = nsnpCacheGet<Array<Record<string, unknown>>>(ck);
+  if (cached) return cached;
 
   // Prefer agency-owned items; optionally merge national (null) as fallback
   // when agency list is empty or for transitional periods
@@ -204,13 +234,14 @@ export async function loadApprovedProducts(
 
   const rows = (data || []) as Array<Record<string, unknown>>;
   // If agency has its own products, prefer those only (strict agency list)
+  let out = rows;
   if (agencyProfileId != null) {
     const owned = rows.filter(
       (r) => Number(r.agency_profile_id) === agencyProfileId
     );
-    if (owned.length > 0) return owned;
+    if (owned.length > 0) out = owned;
   }
-  return rows;
+  return nsnpCacheSet(ck, out, NSNP_TTL.products);
 }
 
 export async function loadApprovedBrands(
@@ -245,26 +276,39 @@ export async function filterApprovedProductIds(
   agencyProfileId: number | null,
   productIds: number[]
 ): Promise<Map<number, Record<string, unknown>>> {
-  if (!productIds.length) return new Map();
-  // Strict: if school/SP is under an agency, only that agency's live list
-  // (plus national only when agency list still empty — transitional)
-  const products = await loadApprovedProducts(supabase, agencyProfileId, {
-    activeOnly: true,
-    includeNationalFallback: agencyProfileId == null,
-  });
-  // When agency list exists, do not allow national-only product ids
-  let list = products;
+  const ids = [
+    ...new Set(
+      productIds.map(Number).filter((n) => Number.isFinite(n) && n > 0)
+    ),
+  ];
+  if (!ids.length) return new Map();
+  let q = supabase
+    .from('nsnp_approved_products')
+    .select(
+      'id, name, brand_name, category, uom, active, agency_profile_id'
+    )
+    .in('id', ids.slice(0, 400))
+    .eq('active', true);
   if (agencyProfileId != null) {
-    const owned = products.filter(
-      (p) => Number(p.agency_profile_id) === agencyProfileId
-    );
-    if (owned.length > 0) list = owned;
+    q = q.eq('agency_profile_id', agencyProfileId);
   }
-  const byId = new Map(list.map((p) => [Number(p.id), p] as const));
+  const { data, error } = await q.limit(ids.length + 5);
+  if (error) {
+    const products = await loadApprovedProducts(supabase, agencyProfileId, {
+      activeOnly: true,
+      includeNationalFallback: agencyProfileId == null,
+    });
+    const byId = new Map(products.map((p) => [Number(p.id), p] as const));
+    const out = new Map<number, Record<string, unknown>>();
+    for (const id of ids) {
+      const p = byId.get(id);
+      if (p && p.active !== false) out.set(id, p);
+    }
+    return out;
+  }
   const out = new Map<number, Record<string, unknown>>();
-  for (const id of productIds) {
-    const p = byId.get(id);
-    if (p && p.active !== false) out.set(id, p);
+  for (const p of data || []) {
+    out.set(Number(p.id), p as Record<string, unknown>);
   }
   return out;
 }

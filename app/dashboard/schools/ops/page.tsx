@@ -72,6 +72,18 @@ function Inner() {
     null
   );
 
+  useEffect(() => {
+    if (tab !== 'export' || provincial || role !== 'agency') return;
+    const qs = `companyId=${companyId}&from=${period.from}&to=${period.to}`;
+    void fetch(`/api/schools/ops?${qs}&view=provincial_export`, {
+      cache: 'no-store',
+      credentials: 'same-origin',
+    })
+      .then((x) => x.json())
+      .then((exp) => setProvincial(exp))
+      .catch(() => null);
+  }, [tab, provincial, role, companyId, period.from, period.to]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -104,7 +116,7 @@ function Inner() {
         setDayPlan(day);
       } else if (r === 'agency') {
         const qs = `companyId=${companyId}&from=${period.from}&to=${period.to}`;
-        const [ex, dist, cons, exp, burn] = await Promise.all([
+        const [ex, dist, cons, burn] = await Promise.all([
           fetch(
             `/api/schools/ops?companyId=${companyId}&view=exceptions`,
             { cache: 'no-store', credentials: 'same-origin' }
@@ -117,10 +129,6 @@ function Inner() {
             `/api/schools/ops?companyId=${companyId}&view=consistency`,
             { cache: 'no-store', credentials: 'same-origin' }
           ).then((x) => x.json()),
-          fetch(`/api/schools/ops?${qs}&view=provincial_export`, {
-            cache: 'no-store',
-            credentials: 'same-origin',
-          }).then((x) => x.json()),
           fetch(`/api/schools/ops?${qs}&view=budget_burn`, {
             cache: 'no-store',
             credentials: 'same-origin',
@@ -129,7 +137,6 @@ function Inner() {
         setExceptions(ex);
         setDistricts(dist);
         setConsistency(cons);
-        setProvincial(exp);
         setBudgetBurn(burn);
       } else {
         const qs = `companyId=${companyId}&from=${period.from}&to=${period.to}`;

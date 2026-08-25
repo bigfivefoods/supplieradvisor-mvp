@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     const card = await loadIspSlaScorecard(supabase, companyId, {
       from,
       to,
-      persist: true,
+      persist: false,
     });
 
     return NextResponse.json({

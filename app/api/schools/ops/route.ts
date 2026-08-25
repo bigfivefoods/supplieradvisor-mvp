@@ -81,7 +81,11 @@ export async function GET(request: NextRequest) {
           { status: 403 }
         );
       }
-      return NextResponse.json(await exceptionsView(supabase, companyId));
+      return NextResponse.json(
+        await exceptionsView(supabase, companyId, {
+          lite: sp.get('lite') === '1' || sp.get('lite') === 'true',
+        })
+      );
     }
     if (view === 'districts' || view === 'clusters') {
       if (role !== 'agency') {
@@ -809,8 +813,66 @@ async function fulfilView(
 /** Sprint B — DBE exception cockpit */
 async function exceptionsView(
   supabase: ReturnType<typeof getSupabaseServer>,
-  companyId: number
+  companyId: number,
+  opts?: { lite?: boolean }
 ) {
+  if (opts?.lite) {
+    const {
+      loadAgencyLinkSummary,
+      fetchPendingAgencyLinks,
+    } = await import('@/lib/schools/supabase-page');
+    const [summary, pendingLinks, claims] = await Promise.all([
+      loadAgencyLinkSummary(supabase, companyId),
+      fetchPendingAgencyLinks(supabase, companyId, 40).catch(() => []),
+      supabase
+        .from('nsnp_claim_packs')
+        .select('id', { count: 'exact', head: true })
+        .eq('agency_profile_id', companyId)
+        .eq('status', 'submitted'),
+    ]);
+    const exceptions: Array<Record<string, unknown>> = [
+      {
+        kind: 'network_scope',
+        severity: 'low',
+        title: `${summary.activeLinks.toLocaleString('en-ZA')} active school link(s) · ${summary.pendingLinks.toLocaleString('en-ZA')} pending · ${summary.schoolCount.toLocaleString('en-ZA')} total on book`,
+        href: '/dashboard/schools/agency',
+        schools_active: summary.activeLinks,
+        schools_pending: summary.pendingLinks,
+        schools_total: summary.schoolCount,
+      },
+    ];
+    if (summary.pendingLinks) {
+      exceptions.push({
+        kind: 'school_pending_rollup',
+        severity: summary.pendingLinks > 50 ? 'high' : 'medium',
+        title: `${summary.pendingLinks.toLocaleString('en-ZA')} school join(s) awaiting DBE approval`,
+        href: '/dashboard/schools/join',
+        count: summary.pendingLinks,
+      });
+    }
+    const submitted = Number(claims.count || 0);
+    if (submitted) {
+      exceptions.push({
+        kind: 'claims_submitted',
+        severity: 'medium',
+        title: `${submitted} claim(s) awaiting review`,
+        href: '/dashboard/schools/ops',
+        count: submitted,
+      });
+    }
+    return {
+      success: true,
+      role: 'agency',
+      lite: true,
+      exceptions,
+      summary: {
+        schools_active: summary.activeLinks,
+        schools_pending: summary.pendingLinks,
+        claims_submitted: submitted,
+      },
+    };
+  }
+
   const { fetchByIds } = await import('@/lib/schools/supabase-page');
   const links = await fetchAgencySchoolLinks(supabase, companyId, [
     'active',

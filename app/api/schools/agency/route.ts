@@ -7,8 +7,10 @@ import {
 import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
 import {
   fetchAgencySchoolLinks,
-  fetchAllPaged,
+  fetchAgencySchoolLinksSlice,
   fetchByIds,
+  fetchPendingAgencyLinks,
+  loadAgencyLinkSummary,
 } from '@/lib/schools/supabase-page';
 import { familyForAgencyType } from '@/lib/entities/programme-hierarchy';
 import { schoolAdvisorWorkspaceMetadata } from '@/lib/schools/schooladvisor-packaging';
@@ -94,16 +96,25 @@ export async function GET(request: NextRequest) {
         sp.get('lite') === 'true' ||
         sp.get('summaryOnly') === '1';
       const statusFilter = String(sp.get('linkStatus') || 'all').toLowerCase();
+      const wantAll =
+        sp.get('all') === '1' ||
+        sp.get('all') === 'true' ||
+        sp.get('limit') === '0';
+      const listLimit = wantAll
+        ? 0
+        : Math.min(500, Math.max(50, Number(sp.get('limit') || 250)));
 
-      let links: Array<Record<string, unknown>> = [];
+      let summaryCounts = {
+        schoolCount: 0,
+        activeLinks: 0,
+        pendingLinks: 0,
+        suspendedLinks: 0,
+        totalLearners: 0,
+        totalVerified: 0,
+        totalNsnpApproved: 0,
+      };
       try {
-        const statuses =
-          statusFilter === 'pending'
-            ? ['pending']
-            : statusFilter === 'active'
-              ? ['active']
-              : ['active', 'pending', 'suspended'];
-        links = await fetchAgencySchoolLinks(supabase, companyId, statuses);
+        summaryCounts = await loadAgencyLinkSummary(supabase, companyId);
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'link load failed';
         if (/does not exist|schema cache/i.test(msg)) {
@@ -125,16 +136,23 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: msg }, { status: 400 });
       }
 
-      const activeLinks = links.filter((l) => l.status === 'active').length;
-      const pendingLinks = links.filter((l) => l.status === 'pending').length;
-      const suspendedLinks = links.filter(
-        (l) => l.status === 'suspended'
-      ).length;
+      const activeLinks = summaryCounts.activeLinks;
+      const pendingLinks = summaryCounts.pendingLinks;
+      const suspendedLinks = summaryCounts.suspendedLinks;
 
       // Lite mode for join hub: counts + pending schools only (not 5k rows)
       if (lite) {
-        const pendingIds = links
-          .filter((l) => l.status === 'pending')
+        let pendingLinkRows: Array<Record<string, unknown>> = [];
+        try {
+          pendingLinkRows = await fetchPendingAgencyLinks(
+            supabase,
+            companyId,
+            200
+          );
+        } catch {
+          pendingLinkRows = [];
+        }
+        const pendingIds = pendingLinkRows
           .map((l) => Number(l.school_profile_id))
           .filter((n) => Number.isFinite(n) && n > 0);
         let pendingSchools: Array<Record<string, unknown>> = [];
@@ -146,7 +164,7 @@ export async function GET(request: NextRequest) {
             pendingIds.slice(0, 200)
           );
           const linkBy = new Map(
-            links.map((l) => [Number(l.school_profile_id), l] as const)
+            pendingLinkRows.map((l) => [Number(l.school_profile_id), l] as const)
           );
           pendingSchools = rows.map((s) => ({
             ...s,
@@ -162,18 +180,50 @@ export async function GET(request: NextRequest) {
           lite: true,
           schools: pendingSchools,
           pendingSchools,
-          schools_total: links.length,
+          schools_total: summaryCounts.schoolCount,
           summary: {
-            schoolCount: links.length,
+            schoolCount: summaryCounts.schoolCount,
             activeLinks,
             pendingLinks,
             suspendedLinks,
-            totalLearners: 0,
-            totalVerified: 0,
+            totalLearners: summaryCounts.totalLearners,
+            totalVerified: summaryCounts.totalVerified,
+            totalNsnpApproved: summaryCounts.totalNsnpApproved,
             avgPrizeScore: null,
           },
-          links_total: links.length,
+          links_total: summaryCounts.schoolCount,
         });
+      }
+
+      const statuses =
+        statusFilter === 'pending'
+          ? ['pending']
+          : statusFilter === 'active'
+            ? ['active']
+            : ['active', 'pending', 'suspended'];
+      let links: Array<Record<string, unknown>>;
+      if (wantAll) {
+        links = await fetchAgencySchoolLinks(supabase, companyId, statuses);
+      } else if (statusFilter === 'pending') {
+        links = await fetchPendingAgencyLinks(supabase, companyId, listLimit);
+      } else {
+        const pendingRows =
+          statusFilter === 'active'
+            ? []
+            : await fetchPendingAgencyLinks(supabase, companyId, 120);
+        const rest = await fetchAgencySchoolLinksSlice(supabase, companyId, {
+          statuses:
+            statusFilter === 'active' ? ['active'] : ['active', 'suspended'],
+          limit: listLimit,
+        });
+        const seen = new Set<number>();
+        links = [];
+        for (const l of [...pendingRows, ...rest]) {
+          const sid = Number(l.school_profile_id);
+          if (!Number.isFinite(sid) || seen.has(sid)) continue;
+          seen.add(sid);
+          links.push(l);
+        }
       }
 
       const schoolIds = [
@@ -268,29 +318,13 @@ export async function GET(request: NextRequest) {
       }
 
       const summary = {
-        schoolCount: enriched.length,
+        schoolCount: summaryCounts.schoolCount || enriched.length,
         activeLinks,
         pendingLinks,
         suspendedLinks,
-        totalLearners: enriched.reduce(
-          (n, s) =>
-            n +
-            Number(
-              s.learner_count_enrolled ||
-                s.final_emis_enrol ||
-                s.final_nsnp_approved_enrol ||
-                0
-            ),
-          0
-        ),
-        totalVerified: enriched.reduce(
-          (n, s) => n + Number(s.learner_count_verified ?? 0),
-          0
-        ),
-        totalNsnpApproved: enriched.reduce(
-          (n, s) => n + Number(s.final_nsnp_approved_enrol ?? 0),
-          0
-        ),
+        totalLearners: summaryCounts.totalLearners,
+        totalVerified: summaryCounts.totalVerified,
+        totalNsnpApproved: summaryCounts.totalNsnpApproved,
         districts: byDistrict.size,
         byDistrict: [...byDistrict.entries()]
           .map(([key, schools]) => ({ key, schools }))
@@ -313,10 +347,11 @@ export async function GET(request: NextRequest) {
         role: 'agency',
         agency: myAgency,
         schools: enriched,
-        schools_total: enriched.length,
+        schools_total: summaryCounts.schoolCount,
+        schools_shown: enriched.length,
+        schools_capped: !wantAll && summaryCounts.schoolCount > enriched.length,
         summary,
-        // Links alone can be large; omit full list — summary + schools enough
-        links_total: links.length,
+        links_total: summaryCounts.schoolCount,
       });
     }
 
@@ -472,6 +507,12 @@ export async function POST(request: NextRequest) {
         .single();
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      try {
+        const { nsnpCacheDelCompany } = await import('@/lib/schools/nsnp-cache');
+        nsnpCacheDelCompany(companyId);
+      } catch {
+        /* soft */
       }
       // Seed catalogue only when activated
       if (status === 'active') {
@@ -1028,55 +1069,54 @@ export async function POST(request: NextRequest) {
       );
       const availableOnly = body.available_only !== false;
 
-      // Existing links (for available_only + already-linked badges)
       const schoolLinkBySid = new Map<
         number,
         { status: string; link_id: number }
       >();
-      const existingLinks = await fetchAgencySchoolLinks(supabase, companyId, [
-        'pending',
-        'active',
-        'suspended',
-      ]);
-      for (const l of existingLinks) {
-        schoolLinkBySid.set(Number(l.school_profile_id), {
-          status: String(l.status),
-          link_id: Number(l.id),
-        });
-      }
 
       let schoolRows: Array<Record<string, unknown>> = [];
 
-      // Search path: scan school_profiles (may be large) then filter
-      // Default path without q: skip full 5k scan — use profile directory only
+      // Search path: ilike on name/EMIS — never scan the full 5k table in JS
       if (q) {
-        const schoolRowsRaw = await fetchAllPaged(
-          supabase,
-          'school_profiles',
-          'id, profile_id, school_name, emis_number, natemis, province, district, member_type, status, learner_count_enrolled',
-          (qB) => qB.order('school_name', { ascending: true })
-        );
-        schoolRows = schoolRowsRaw.filter((s) => {
-          const mt = String(s.member_type || 'school');
-          if (['hospital', 'clinic', 'shelter'].includes(mt)) return false;
-          const hay = [
-            s.school_name,
-            s.emis_number,
-            s.natemis,
-            s.district,
-            s.province,
-          ]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase();
-          return hay.includes(q);
-        });
-        if (availableOnly) {
-          schoolRows = schoolRows.filter(
-            (s) => !schoolLinkBySid.has(Number(s.id))
-          );
+        const safe = q.replace(/[%*,()]/g, ' ').trim().slice(0, 80);
+        if (safe) {
+          const { data: found } = await supabase
+            .from('school_profiles')
+            .select(
+              'id, profile_id, school_name, emis_number, natemis, province, district, member_type, status, learner_count_enrolled'
+            )
+            .or(
+              `school_name.ilike.%${safe}%,emis_number.ilike.%${safe}%,natemis.ilike.%${safe}%`
+            )
+            .order('school_name', { ascending: true })
+            .limit(limit * 2);
+          schoolRows = (found || []).filter((s) => {
+            const mt = String(s.member_type || 'school');
+            return !['hospital', 'clinic', 'shelter'].includes(mt);
+          });
+          const hitIds = schoolRows
+            .map((s) => Number(s.id))
+            .filter((n) => Number.isFinite(n) && n > 0);
+          if (hitIds.length) {
+            const { data: linkHits } = await supabase
+              .from('school_agency_links')
+              .select('id, school_profile_id, status')
+              .eq('agency_profile_id', companyId)
+              .in('school_profile_id', hitIds.slice(0, 400));
+            for (const l of linkHits || []) {
+              schoolLinkBySid.set(Number(l.school_profile_id), {
+                status: String(l.status),
+                link_id: Number(l.id),
+              });
+            }
+          }
+          if (availableOnly) {
+            schoolRows = schoolRows.filter(
+              (s) => !schoolLinkBySid.has(Number(s.id))
+            );
+          }
+          schoolRows = schoolRows.slice(0, limit);
         }
-        schoolRows = schoolRows.slice(0, limit);
       }
 
       const schoolCompanyIds = [

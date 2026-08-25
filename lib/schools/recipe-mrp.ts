@@ -448,85 +448,101 @@ export function buildProgrammePlan(opts: {
     );
   }
 
-  const schoolPlans: SchoolPlan[] = [];
-  for (const s of opts.schools) {
-    const mps: MpsSlice[] = [];
-    let mrpLines: MrpLine[] = [];
-    let totalMeals = 0;
-    for (const entry of opts.recipes) {
-      const { recipe } = entry;
-      if (!recipe.active && recipe.active !== undefined) continue;
-      let serviceDays =
-        entry.serviceDays != null
-          ? Math.max(0, Math.round(Number(entry.serviceDays) || 0))
-          : autoDays.get(recipe.id);
-      if (serviceDays == null && entry.servesPerWeek != null) {
-        serviceDays = Math.round(
-          (feeding_days * Number(entry.servesPerWeek)) / 5
-        );
-      }
-      serviceDays = Math.max(0, Math.round(Number(serviceDays) || 0));
+  const total_learners = opts.schools.reduce(
+    (n, s) => n + Math.max(0, Number(s.learners) || 0),
+    0
+  );
 
-      const portions = schoolMealPortions({
-        learners: s.learners,
-        serviceDays,
-        portionLearners: recipe.portion_learners,
-      });
-      // Whole learner-meals
-      const meals = Math.round(
-        portions * Math.max(0.0001, recipe.portion_learners)
-      );
-      totalMeals += meals;
-      mps.push({
-        meal_type: recipe.meal_type,
-        recipe_id: recipe.id,
-        recipe_name: recipe.name,
-        portions,
-        meals,
-        service_days: serviceDays,
-      });
-      mrpLines = mrpLines.concat(
-        explodeRecipeMrp(recipe, portions, priceByCategory)
+  // Same recipes for every school — explode once at programme learner total,
+  // then scale. Avoids 5k × recipe × line loops on a DBE desk.
+  const programmeMps: MpsSlice[] = [];
+  let programmeMrpLines: MrpLine[] = [];
+  let programmeTotalMeals = 0;
+  for (const entry of opts.recipes) {
+    const { recipe } = entry;
+    if (!recipe.active && recipe.active !== undefined) continue;
+    let serviceDays =
+      entry.serviceDays != null
+        ? Math.max(0, Math.round(Number(entry.serviceDays) || 0))
+        : autoDays.get(recipe.id);
+    if (serviceDays == null && entry.servesPerWeek != null) {
+      serviceDays = Math.round(
+        (feeding_days * Number(entry.servesPerWeek)) / 5
       );
     }
-    const mrp = mergeMrpLines(mrpLines);
-    const mrp_by_category = rollupMrpByCategory(mrp);
-    const estimated_cost_zar =
-      Math.round(
-        mrp_by_category.reduce((n, c) => n + c.estimated_cost_zar, 0) * 100
-      ) / 100;
-    schoolPlans.push({
+    serviceDays = Math.max(0, Math.round(Number(serviceDays) || 0));
+    const portions = schoolMealPortions({
+      learners: total_learners,
+      serviceDays,
+      portionLearners: recipe.portion_learners,
+    });
+    const meals = Math.round(
+      portions * Math.max(0.0001, recipe.portion_learners)
+    );
+    programmeTotalMeals += meals;
+    programmeMps.push({
+      meal_type: recipe.meal_type,
+      recipe_id: recipe.id,
+      recipe_name: recipe.name,
+      portions,
+      meals,
+      service_days: serviceDays,
+    });
+    programmeMrpLines = programmeMrpLines.concat(
+      explodeRecipeMrp(recipe, portions, priceByCategory)
+    );
+  }
+  const programmeMrp = mergeMrpLines(programmeMrpLines);
+
+  const scaleLines = (lines: MrpLine[], share: number): MrpLine[] =>
+    lines.map((l) => ({
+      ...l,
+      qty: Math.round(l.qty * share * 1000) / 1000,
+      estimated_cost_zar:
+        l.estimated_cost_zar != null
+          ? Math.round(l.estimated_cost_zar * share * 100) / 100
+          : null,
+    }));
+
+  const includeSchoolMrp = opts.schools.length <= 80;
+  const schoolPlans: SchoolPlan[] = opts.schools.map((s) => {
+    const share =
+      total_learners > 0 ? Math.max(0, Number(s.learners) || 0) / total_learners : 0;
+    const mps = programmeMps.map((m) => ({
+      ...m,
+      portions: Math.round(m.portions * share * 100) / 100,
+      meals: Math.round(m.meals * share),
+    }));
+    const mrp = includeSchoolMrp ? scaleLines(programmeMrp, share) : [];
+    const mrp_by_category = includeSchoolMrp
+      ? rollupMrpByCategory(mrp)
+      : [];
+    const estimated_cost_zar = includeSchoolMrp
+      ? Math.round(
+          mrp_by_category.reduce((n, c) => n + c.estimated_cost_zar, 0) * 100
+        ) / 100
+      : Math.round(
+          programmeMrp.reduce((n, l) => n + (l.estimated_cost_zar || 0), 0) *
+            share *
+            100
+        ) / 100;
+    return {
       school_profile_id: s.school_profile_id,
       school_name: s.school_name,
       emis_number: s.emis_number,
       district: s.district,
       learners: s.learners,
       mps,
-      total_meals: Math.round(totalMeals),
+      total_meals: Math.round(programmeTotalMeals * share),
       mrp,
       mrp_by_category,
       estimated_cost_zar,
-    });
-  }
+    };
+  });
 
-  // Programme totals
-  const programmeMrp = mergeMrpLines(schoolPlans.flatMap((s) => s.mrp));
   const programmeMpsMap = new Map<string, MpsSlice>();
-  for (const s of schoolPlans) {
-    for (const m of s.mps) {
-      const key = `${m.recipe_id}`;
-      const prev = programmeMpsMap.get(key);
-      if (!prev) {
-        programmeMpsMap.set(key, { ...m });
-      } else {
-        prev.portions = Math.round((prev.portions + m.portions) * 100) / 100;
-        prev.meals = Math.round(prev.meals + m.meals);
-        if (m.service_days != null) {
-          // service_days is calendar days for the recipe (same for each school) — keep first
-          prev.service_days = prev.service_days ?? m.service_days;
-        }
-      }
-    }
+  for (const m of programmeMps) {
+    programmeMpsMap.set(`${m.recipe_id}`, { ...m });
   }
 
   const mrp_by_category_raw = rollupMrpByCategory(programmeMrp);
@@ -549,6 +565,9 @@ export function buildProgrammePlan(opts: {
     ) / 100;
 
   // SP rollups
+  const planBySchool = new Map(
+    schoolPlans.map((p) => [p.school_profile_id, p] as const)
+  );
   const spMap = new Map<
     number,
     {
@@ -563,9 +582,7 @@ export function buildProgrammePlan(opts: {
         schools: [],
         name: opts.ispNames?.get(ispId) || `SP ${ispId}`,
       };
-      const plan = schoolPlans.find(
-        (p) => p.school_profile_id === s.school_profile_id
-      );
+      const plan = planBySchool.get(s.school_profile_id);
       if (plan) bucket.schools.push(plan);
       spMap.set(ispId, bucket);
     }
@@ -573,7 +590,9 @@ export function buildProgrammePlan(opts: {
 
   const service_providers: SpPlan[] = Array.from(spMap.entries()).map(
     ([isp_profile_id, bucket]) => {
-      const mrp = mergeMrpLines(bucket.schools.flatMap((s) => s.mrp));
+      const learners = bucket.schools.reduce((n, s) => n + s.learners, 0);
+      const share = total_learners > 0 ? learners / total_learners : 0;
+      const mrp = scaleLines(programmeMrp, share);
       const mrp_by_category = rollupMrpByCategory(mrp);
       const estimated_cost_zar =
         Math.round(
@@ -583,10 +602,8 @@ export function buildProgrammePlan(opts: {
         isp_profile_id,
         isp_name: bucket.name,
         school_count: bucket.schools.length,
-        learners: bucket.schools.reduce((n, s) => n + s.learners, 0),
-        total_meals: Math.round(
-          bucket.schools.reduce((n, s) => n + s.total_meals, 0) * 100
-        ) / 100,
+        learners,
+        total_meals: Math.round(programmeTotalMeals * share),
         schools: bucket.schools.map((s) => ({
           school_profile_id: s.school_profile_id,
           school_name: s.school_name,

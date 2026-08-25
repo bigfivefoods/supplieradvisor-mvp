@@ -103,6 +103,13 @@ export async function resolveProgrammeRole(
   supabase: SupabaseClient,
   companyId: number
 ): Promise<ProgrammeRoleInfo> {
+  const { nsnpCacheGet, nsnpCacheSet, NSNP_TTL } = await import(
+    '@/lib/schools/nsnp-cache'
+  );
+  const ck = `nsnp:role:${companyId}`;
+  const hit = nsnpCacheGet<ProgrammeRoleInfo>(ck);
+  if (hit) return hit;
+
   const [{ data: agency }, { data: isp }, { data: school }, { data: prof }] =
     await Promise.all([
       supabase
@@ -128,23 +135,26 @@ export async function resolveProgrammeRole(
     ]);
 
   // Education agencies only for Schools department role
+  const finish = (info: ProgrammeRoleInfo) =>
+    nsnpCacheSet(ck, info, NSNP_TTL.role);
+
   if (
     agency &&
     agency.status !== 'inactive' &&
     familyForAgencyType(String(agency.agency_type || 'dbe')) === 'education'
   ) {
-    return infoForProgrammeRole('department');
+    return finish(infoForProgrammeRole('department'));
   }
 
   if (isp) {
-    return infoForProgrammeRole('sp');
+    return finish(infoForProgrammeRole('sp'));
   }
 
   // School profiles only
   if (school) {
     const mt = String(school.member_type || 'school').toLowerCase();
     if (!['hospital', 'clinic', 'shelter'].includes(mt)) {
-      return infoForProgrammeRole('school');
+      return finish(infoForProgrammeRole('school'));
     }
   }
 
@@ -152,10 +162,10 @@ export async function resolveProgrammeRole(
     prof?.org_type != null ? String(prof.org_type) : null,
     prof?.business_type != null ? String(prof.business_type) : null
   );
-  if (fromOrg) return infoForProgrammeRole(fromOrg);
+  if (fromOrg) return finish(infoForProgrammeRole(fromOrg));
 
   // Default: school-facing programme
-  return infoForProgrammeRole('school');
+  return finish(infoForProgrammeRole('school'));
 }
 
 /** Which nav groups a role may see (only their own tool). */

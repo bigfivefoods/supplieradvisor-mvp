@@ -726,7 +726,14 @@ function AgencySchoolsTable({
           </p>
           <p className="text-[11px] text-slate-500 mt-0.5">
             Showing {filtered.length.toLocaleString('en-ZA')} of{' '}
-            {schools.length.toLocaleString('en-ZA')} schools
+            {schools.length.toLocaleString('en-ZA')} loaded
+            {' · '}
+            <Link
+              href="/dashboard/schools/registry-report"
+              className="font-bold text-[#0077b6] hover:underline"
+            >
+              Full register →
+            </Link>
           </p>
         </div>
         <div className="flex flex-wrap gap-2 items-center">

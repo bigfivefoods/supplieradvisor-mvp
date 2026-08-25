@@ -10,7 +10,7 @@ import {
   resolveCatalogueContext,
 } from '@/lib/schools/approved-catalogue';
 import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
-import { fetchAgencySchoolLinks } from '@/lib/schools/supabase-page';
+import { fetchAgencySchoolLinks, fetchByIds } from '@/lib/schools/supabase-page';
 import {
   applySchoolBrandChoices,
   buildProgrammePlan,
@@ -238,19 +238,23 @@ export async function GET(request: NextRequest) {
         ),
       ];
       if (ids.length) {
-        const { data: schools } = await supabase
-          .from('school_profiles')
-          .select(
-            'id, school_name, emis_number, district, final_nsnp_approved_enrol, learner_count_nsnp_eligible, learner_count_enrolled'
-          )
-          .in('id', ids);
-        // ISP links for schools
-        const { data: ispLinks } = await supabase
-          .from('school_isp_links')
-          .select('school_profile_id, isp_profile_id, status')
-          .in('school_profile_id', ids)
-          .eq('status', 'active')
-          .limit(2000);
+        const schools = await fetchByIds(
+          supabase,
+          'school_profiles',
+          'id, school_name, emis_number, district, final_nsnp_approved_enrol, learner_count_nsnp_eligible, learner_count_enrolled',
+          ids
+        );
+        const ispLinkRows = await fetchByIds(
+          supabase,
+          'school_isp_links',
+          'school_profile_id, isp_profile_id, status',
+          ids,
+          'school_profile_id',
+          150
+        );
+        const ispLinks = ispLinkRows.filter(
+          (l) => String(l.status || '') === 'active'
+        );
         const ispsBySchool = new Map<number, number[]>();
         const ispIdSet = new Set<number>();
         for (const l of ispLinks || []) {
@@ -358,6 +362,20 @@ export async function GET(request: NextRequest) {
       };
     }
 
+    if (role === 'agency' && scoped.schools.length > 80) {
+      scoped = {
+        ...scoped,
+        schools: scoped.schools
+          .slice()
+          .sort((a, b) => b.learners - a.learners)
+          .slice(0, 80)
+          .map((s) => ({
+            ...s,
+            mrp: (s.mrp || []).slice(0, 8),
+          })),
+      };
+    }
+
     return NextResponse.json({
       success: true,
       role,
@@ -366,7 +384,6 @@ export async function GET(request: NextRequest) {
       recipes: activeRecipes,
       budgets,
       plan: scoped,
-      programme_plan: role === 'agency' ? plan : undefined,
       model: {
         description:
           'Recipe BOM (qty per learner) × school NSNP learners × feeding days from DBE calendar (or weekdays if no calendar) → product MRP. SP sees sum of their schools. Category budgets compare estimated cost.',

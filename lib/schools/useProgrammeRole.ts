@@ -40,8 +40,7 @@ export function useProgrammeRole(): ProgrammeRoleInfo & {
     setLoading(true);
     try {
       const res = await fetch(
-        `/api/schools/programme-role?companyId=${companyId}`,
-        { cache: 'no-store' }
+        `/api/schools/programme-role?companyId=${companyId}`
       );
       const data = await res.json();
       if (res.ok && data.role) {

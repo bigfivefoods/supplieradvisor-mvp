@@ -125,22 +125,20 @@ export async function GET(request: NextRequest) {
     }
 
     if (role === 'agency') {
-      const { fetchAgencySchoolLinks } = await import(
+      const { loadAgencyLinkSummary } = await import(
         '@/lib/schools/supabase-page'
       );
-      const links = await fetchAgencySchoolLinks(supabase, companyId, [
-        'active',
-        'pending',
-        'suspended',
+      const [summary, claimsRes] = await Promise.all([
+        loadAgencyLinkSummary(supabase, companyId),
+        supabase
+          .from('nsnp_claim_packs')
+          .select('id', { count: 'exact', head: true })
+          .eq('agency_profile_id', companyId)
+          .eq('status', 'submitted'),
       ]);
-      const pending = links.filter((l) => l.status === 'pending').length;
-      const active = links.filter((l) => l.status === 'active').length;
-      const { data: claims } = await supabase
-        .from('nsnp_claim_packs')
-        .select('id, status')
-        .eq('agency_profile_id', companyId)
-        .eq('status', 'submitted')
-        .limit(100);
+      const pending = summary.pendingLinks;
+      const active = summary.activeLinks;
+      const submittedClaims = Number(claimsRes.count || 0);
 
       return NextResponse.json({
         success: true,
@@ -150,7 +148,7 @@ export async function GET(request: NextRequest) {
         summary: {
           pendingSchools: pending,
           activeSchools: active,
-          submittedClaims: (claims || []).length,
+          submittedClaims,
         },
         nextAction:
           pending > 0
@@ -159,11 +157,11 @@ export async function GET(request: NextRequest) {
                 href: '/dashboard/schools/agency',
                 desc: `${pending} school(s) waiting for DBE/PEU approval`,
               }
-            : (claims || []).length > 0
+            : submittedClaims > 0
               ? {
                   label: 'Review submitted claims',
                   href: '/dashboard/schools/ops',
-                  desc: `${(claims || []).length} claim(s) in exception cockpit`,
+                  desc: `${submittedClaims} claim(s) in exception cockpit`,
                 }
               : {
                   label: 'Exception cockpit',
@@ -182,6 +180,7 @@ export async function GET(request: NextRequest) {
     const [
       linksRes,
       learnersRes,
+      verifiedRes,
       menuRes,
       ispRes,
       stockRes,
@@ -200,10 +199,15 @@ export async function GET(request: NextRequest) {
         .limit(20),
       supabase
         .from('school_learners')
-        .select('id, verification_status, status')
+        .select('id', { count: 'exact', head: true })
+        .eq('school_profile_id', schoolId)
+        .eq('status', 'active'),
+      supabase
+        .from('school_learners')
+        .select('id', { count: 'exact', head: true })
         .eq('school_profile_id', schoolId)
         .eq('status', 'active')
-        .limit(5000),
+        .in('verification_status', ['school_verified', 'attested']),
       supabase
         .from('school_menu_cycles')
         .select('id, active, items')
@@ -264,13 +268,11 @@ export async function GET(request: NextRequest) {
     const links = linksRes.data || [];
     const agencyActive = links.some((l) => l.status === 'active');
     const agencyAny = links.length > 0;
-    const learners = learnersRes.data || [];
-    const verified = learners.filter((l) =>
-      ['school_verified', 'attested'].includes(String(l.verification_status))
-    ).length;
+    const learnerCount = Number(learnersRes.count || 0);
+    const verified = Number(verifiedRes.count || 0);
     const verifiedPct =
-      learners.length > 0
-        ? Math.round((verified / learners.length) * 1000) / 10
+      learnerCount > 0
+        ? Math.round((verified / learnerCount) * 1000) / 10
         : 0;
     const hasMenu = (menuRes.data || []).length > 0;
     const ispLinks = (ispRes.data || []).filter(
@@ -350,7 +352,7 @@ export async function GET(request: NextRequest) {
       {
         id: 'learners',
         label: 'Learner register imported',
-        done: learners.length > 0,
+        done: learnerCount > 0,
         required: true,
         href: '/dashboard/schools/learners',
         hint: 'CSV import or add learners',
@@ -464,11 +466,11 @@ export async function GET(request: NextRequest) {
     const score = totalW > 0 ? Math.round((doneW / totalW) * 100) : 0;
 
     const readyForServeDay =
-      hasEmis && (learners.length > 0 || Number(school.learner_count_enrolled) > 0);
+      hasEmis && (learnerCount > 0 || Number(school.learner_count_enrolled) > 0);
     const readyForClaims =
       agencyActive && serveComplete === false
-        ? agencyActive && learners.length > 0
-        : agencyActive && learners.length > 0;
+        ? agencyActive && learnerCount > 0
+        : agencyActive && learnerCount > 0;
 
     const firstTodo = checks.find((c) => c.required && !c.done) ||
       checks.find((c) => !c.done);
@@ -576,7 +578,7 @@ export async function GET(request: NextRequest) {
         menuDish,
       },
       kpis: {
-        learners: learners.length,
+        learners: learnerCount,
         verifiedPct,
         agencyLinked: agencyAny,
         agencyActive,

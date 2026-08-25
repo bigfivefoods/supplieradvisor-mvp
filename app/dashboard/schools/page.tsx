@@ -83,17 +83,11 @@ function Inner() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [readyRes, prizeRes] = await Promise.all([
-        fetch(`/api/schools/readiness?companyId=${companyId}`, {
-          cache: 'no-store',
-        }),
-        fetch(`/api/schools/prizes?companyId=${companyId}`, {
-          cache: 'no-store',
-        }),
-      ]);
+      const readyRes = await fetch(
+        `/api/schools/readiness?companyId=${companyId}`,
+        { cache: 'no-store' }
+      );
       const ready = await readyRes.json();
-      const prize = await prizeRes.json().catch(() => ({}));
-
       if (!readyRes.ok) throw new Error(ready.error || 'Failed to load');
 
       if (ready.role === 'agency') {
@@ -104,6 +98,7 @@ function Inner() {
         setReadiness(null);
         setKitchenSafety(null);
         setIspSummary(null);
+        setPrizeScore(null);
       } else if (ready.role === 'isp') {
         setRole('isp');
         setIspSummary(ready.summary || null);
@@ -112,15 +107,21 @@ function Inner() {
         setReadiness(null);
         setKitchenSafety(null);
         setAgencySummary(null);
+        setPrizeScore(null);
       } else {
         setRole('school');
         setSchool(ready.school || null);
         setReadiness(ready.readiness || null);
         setKitchenSafety(ready.kitchen_safety || null);
         setIspSummary(null);
-      }
-      if (prizeRes.ok && prize.score) {
-        setPrizeScore(Number(prize.score.total) || null);
+        const prizeRes = await fetch(
+          `/api/schools/prizes?companyId=${companyId}`,
+          { cache: 'no-store' }
+        );
+        const prize = await prizeRes.json().catch(() => ({}));
+        if (prizeRes.ok && prize.score) {
+          setPrizeScore(Number(prize.score.total) || null);
+        }
       }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
