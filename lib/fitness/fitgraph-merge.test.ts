@@ -95,4 +95,13 @@ const stamped = mergeFitgraphStores(latestStamp, incomingStamp);
 assert.equal(stamped.bookings.length, 1);
 assert.equal(stamped.bookings[0].status, 'attended');
 
+const noSettings = emptyFitgraphStore();
+delete (noSettings as { settings?: unknown }).settings;
+const withBrand = emptyFitgraphStore();
+withBrand.settings = { ...withBrand.settings, brand_name: 'Desk', enabled: true };
+const settingsMerged = mergeFitgraphStores(noSettings, withBrand);
+assert.equal(settingsMerged.settings?.enabled, true);
+assert.equal(settingsMerged.settings?.brand_name, 'Desk');
+assert.equal(typeof settingsMerged.settings?.public_token, 'string');
+
 console.log('fitgraph-merge.test.ts ok');

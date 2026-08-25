@@ -3,7 +3,7 @@
  * request just inserted (RSVP, attendance, goals, check-ins).
  * Newer updated_at wins on the same id. Settings come from incoming.
  */
-import type { FitgraphStore } from '@/lib/fitness/fitgraph';
+import type { FitgraphStore, FitPublicSettings } from '@/lib/fitness/fitgraph';
 import { bookingStamp, dedupeFitgraphBookings } from '@/lib/fitness/gym-bookings';
 
 /** Live operational rows that concurrent writers must not drop. */
@@ -62,6 +62,40 @@ export function mergeRowsById(
   return out;
 }
 
+function mergeSettings(
+  latest?: FitPublicSettings,
+  incoming?: FitPublicSettings
+): FitPublicSettings {
+  const merged = {
+    ...(latest || {}),
+    ...(incoming || {}),
+  };
+  return {
+    ...merged,
+    enabled: merged.enabled ?? latest?.enabled ?? incoming?.enabled ?? false,
+    public_token:
+      merged.public_token ||
+      latest?.public_token ||
+      incoming?.public_token ||
+      '',
+    allow_public_booking:
+      merged.allow_public_booking ??
+      latest?.allow_public_booking ??
+      incoming?.allow_public_booking ??
+      true,
+    show_coaches:
+      merged.show_coaches ??
+      latest?.show_coaches ??
+      incoming?.show_coaches ??
+      true,
+    show_pricing:
+      merged.show_pricing ??
+      latest?.show_pricing ??
+      incoming?.show_pricing ??
+      true,
+  };
+}
+
 export function mergeFitgraphStores(
   latest: FitgraphStore,
   incoming: FitgraphStore
@@ -69,10 +103,7 @@ export function mergeFitgraphStores(
   const next: FitgraphStore = {
     ...latest,
     ...incoming,
-    settings: {
-      ...(latest.settings || {}),
-      ...(incoming.settings || {}),
-    },
+    settings: mergeSettings(latest.settings, incoming.settings),
   };
   for (const key of ID_ARRAYS) {
     const merged = mergeRowsById(latest[key], incoming[key]);
