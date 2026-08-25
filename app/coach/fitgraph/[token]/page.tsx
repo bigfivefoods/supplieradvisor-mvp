@@ -48,6 +48,7 @@ import {
   type InjuryFormState,
 } from '@/components/health/InjuryProfileFields';
 import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
+import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { CoachMovementStudio } from '@/components/fitness/CoachMovementStudio';
 import {
   AdvisorWorkPwaChrome,
@@ -2121,13 +2122,38 @@ export default function CoachFitgraphPortalPage() {
                 setProfile((p) => ({ ...p, id_number: e.target.value }))
               }
             />
-            <input
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              placeholder="Photo URL (https://…)"
+            <ProfilePhotoField
               value={profile.photo_url}
-              onChange={(e) =>
-                setProfile((p) => ({ ...p, photo_url: e.target.value }))
-              }
+              kind="coach_photo"
+              label="Your photo"
+              description="Shown on the member shop and your coach app."
+              accentClass="border-amber-300"
+              disabled={busy}
+              uploadFile={async (file) => {
+                const fd = new FormData();
+                fd.set('token', token);
+                fd.set('action', 'upload_photo');
+                fd.set('file', file);
+                const res = await fetch('/api/public/fitgraph/coach', {
+                  method: 'POST',
+                  body: fd,
+                });
+                const data = await res.json();
+                if (!res.ok || !data.url) {
+                  throw new Error(data.error || 'Could not upload photo');
+                }
+                if (data.portal) setPortal(data.portal);
+                return { url: String(data.url) };
+              }}
+              onChange={(url) => {
+                setProfile((p) => ({ ...p, photo_url: url }));
+                if (!url) {
+                  void post(
+                    { action: 'update_profile', photo_url: null },
+                    { quiet: true }
+                  );
+                }
+              }}
             />
             <PortalIdentityVerify
               module="fitgraph"

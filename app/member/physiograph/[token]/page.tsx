@@ -6,7 +6,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { HeartPulse, Loader2 } from 'lucide-react';
-import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
+import {
+  ProfilePhotoField,
+  uploadPortalPersonPhoto,
+} from '@/components/chrome/ProfilePhotoField';
 import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
 import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
 import { PortalMessagesPanel } from '@/components/services/PortalMessagesPanel';
@@ -523,29 +526,33 @@ export default function MemberPhysiographPortalPage() {
         {tab === 'profile' && (
           <div className="space-y-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
-            {companyId != null ? (
-              <ProfilePhotoField
-                companyId={companyId}
-                value={photoUrl}
-                onChange={(url) => {
-                  setPhotoUrl(url);
-                  void post({ action: 'update_profile', photo_url: url })
-                    .then((data) => {
-                      setError(null);
-                      setMsg((data.message as string) || 'Photo saved');
-                    })
-                    .catch((e: unknown) => {
-                      setError(
-                        e instanceof Error ? e.message : 'Could not save photo'
-                      );
-                    });
-                }}
-                kind="patient_photo"
-                label="Your photo"
-                disabled={busyId === 'profile'}
-                accentClass="border-teal-300"
-              />
-            ) : null}
+            <ProfilePhotoField
+              value={photoUrl}
+              onChange={(url) => {
+                setPhotoUrl(url);
+                void post({ action: 'update_profile', photo_url: url })
+                  .then((data) => {
+                    setError(null);
+                    setMsg((data.message as string) || 'Photo saved');
+                  })
+                  .catch((e: unknown) => {
+                    setError(
+                      e instanceof Error ? e.message : 'Could not save photo'
+                    );
+                  });
+              }}
+              uploadFile={(file) =>
+                uploadPortalPersonPhoto(
+                  '/api/public/physiograph/patient',
+                  token,
+                  file
+                )
+              }
+              kind="patient_photo"
+              label="Your photo"
+              disabled={busyId === 'profile'}
+              accentClass="border-teal-300"
+            />
             <label className="block">
               <span className="text-[10px] font-bold uppercase text-slate-500">
                 Name

@@ -1,7 +1,7 @@
 /**
  * MedicalAdvisor patient portal (token auth).
  * GET  ?token= — open diary vacancies + my bookings
- * POST book | request_join | cancel | update_profile
+ * POST book | request_join | cancel | update_profile | upload_photo
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
@@ -184,6 +184,27 @@ export async function POST(request: NextRequest) {
     if (!rl.ok) {
       return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
     }
+    const { tryHandlePortalPhotoMultipart } = await import(
+      '@/lib/services/person-photo-upload'
+    );
+    const photoRes = await tryHandlePortalPhotoMultipart(request, {
+      kind: 'patient_photo',
+      notFound: 'Patient portal not found',
+      resolve: resolvePatient,
+      persist: async (resolved, url) => {
+        const { store, patient, companyId, meta } = resolved;
+        const pi = store.patients.findIndex((p) => p.id === patient.id);
+        if (pi >= 0) {
+          store.patients[pi] = {
+            ...store.patients[pi],
+            photo_url: url,
+            updated_at: new Date().toISOString(),
+          };
+        }
+        await saveStore(companyId, meta, store);
+      },
+    });
+    if (photoRes) return photoRes;
     const body = await request.json();
     const token = String(body.token || '').trim();
     const action = String(body.action || 'book');

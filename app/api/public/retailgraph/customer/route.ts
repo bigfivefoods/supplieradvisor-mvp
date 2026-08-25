@@ -1,7 +1,7 @@
 /**
  * RetailAdvisor® customer portal (token auth).
  * GET  ?token= — shop, orders, profile
- * POST { token, action: update_profile }
+ * POST { token, action: update_profile | upload_photo }
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
@@ -151,6 +151,28 @@ export async function POST(request: NextRequest) {
         { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
       );
     }
+    const { tryHandlePortalPhotoMultipart } = await import(
+      '@/lib/services/person-photo-upload'
+    );
+    const photoRes = await tryHandlePortalPhotoMultipart(request, {
+      kind: 'customer_photo',
+      notFound: 'Customer portal not found',
+      resolve: resolveCustomer,
+      persist: async (resolved, url) => {
+        const idx = resolved.store.customers.findIndex(
+          (c) => c.id === resolved.customer.id
+        );
+        if (idx >= 0) {
+          resolved.store.customers[idx] = {
+            ...resolved.store.customers[idx],
+            photo_url: url,
+            updated_at: new Date().toISOString(),
+          };
+        }
+        await saveStore(resolved.companyId, resolved.store);
+      },
+    });
+    if (photoRes) return photoRes;
     const body = (await request.json()) as Record<string, unknown>;
     const token = String(body.token || '').trim();
     const action = String(body.action || '').trim();

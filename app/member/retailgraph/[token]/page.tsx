@@ -6,7 +6,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Loader2, ShoppingBag, User } from 'lucide-react';
-import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
+import {
+  ProfilePhotoField,
+  uploadPortalPersonPhoto,
+} from '@/components/chrome/ProfilePhotoField';
 import {
   PORTAL_PHOTO_SAVED_MESSAGE,
   PORTAL_PHOTO_SHARE_HINT,
@@ -55,7 +58,6 @@ type TabId = 'shop' | 'orders' | 'account';
 export default function MemberRetailgraphPortalPage() {
   const { token } = useParams() as { token: string };
   const [portal, setPortal] = useState<Portal | null>(null);
-  const [companyId, setCompanyId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -78,7 +80,6 @@ export default function MemberRetailgraphPortalPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Portal not found');
       setPortal(data.portal);
-      setCompanyId(data.companyId ?? null);
       const c = data.portal?.customer;
       if (c) {
         setName(c.name || '');
@@ -339,35 +340,39 @@ export default function MemberRetailgraphPortalPage() {
               <p className="mt-1 text-xs text-slate-500">
                 Saved on this shop and your SA Member wallet.
               </p>
-              {companyId ? (
-                <div className="mt-3">
-                  <ProfilePhotoField
-                    companyId={companyId}
-                    value={photoUrl}
-                    onChange={(url) => {
-                      setPhotoUrl(url);
-                      void post({ action: 'update_profile', photo_url: url })
-                        .then((data) => {
-                          setError(null);
-                          setMsg(
-                            (data.message as string) || PORTAL_PHOTO_SAVED_MESSAGE
-                          );
-                        })
-                        .catch((e: unknown) => {
-                          setError(
-                            e instanceof Error
-                              ? e.message
-                              : 'Could not share photo'
-                          );
-                        });
-                    }}
-                    kind="customer_photo"
-                    label="Your photo"
-                    description={PORTAL_PHOTO_SHARE_HINT}
-                    accentClass="border-orange-200"
-                  />
-                </div>
-              ) : null}
+              <div className="mt-3">
+                <ProfilePhotoField
+                  value={photoUrl}
+                  onChange={(url) => {
+                    setPhotoUrl(url);
+                    void post({ action: 'update_profile', photo_url: url })
+                      .then((data) => {
+                        setError(null);
+                        setMsg(
+                          (data.message as string) || PORTAL_PHOTO_SAVED_MESSAGE
+                        );
+                      })
+                      .catch((e: unknown) => {
+                        setError(
+                          e instanceof Error
+                            ? e.message
+                            : 'Could not share photo'
+                        );
+                      });
+                  }}
+                  uploadFile={(file) =>
+                    uploadPortalPersonPhoto(
+                      '/api/public/retailgraph/customer',
+                      token,
+                      file
+                    )
+                  }
+                  kind="customer_photo"
+                  label="Your photo"
+                  description={PORTAL_PHOTO_SHARE_HINT}
+                  accentClass="border-orange-200"
+                />
+              </div>
               <label className="mt-3 block text-xs font-bold">
                 Name
                 <input

@@ -1,7 +1,7 @@
 /**
  * Member / client portal API (token auth).
  * GET  ?token=  — open class vacancies + my bookings
- * POST { token, action: book | request_join | cancel | rsvp | update_profile }
+ * POST { token, action: book | request_join | cancel | rsvp | update_profile | upload_photo }
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
@@ -442,6 +442,31 @@ export async function POST(request: NextRequest) {
         }
       );
     }
+
+    const { tryHandlePortalPhotoMultipart } = await import(
+      '@/lib/services/person-photo-upload'
+    );
+    const photoRes = await tryHandlePortalPhotoMultipart(request, {
+      kind: 'client_photo',
+      notFound: 'Member portal not found',
+      resolve: (token) => resolveMember(token, { fresh: true }),
+      persist: async (resolved, url) => {
+        const { store, client } = resolved;
+        const ci = store.clients.findIndex((c) => c.id === client.id);
+        if (ci >= 0) {
+          store.clients[ci] = {
+            ...store.clients[ci],
+            photo_url: url,
+            updated_at: new Date().toISOString(),
+          };
+        }
+        const { saveFitgraphMerged } = await import(
+          '@/lib/fitness/fitgraph-io'
+        );
+        await saveFitgraphMerged(resolved.companyId, store);
+      },
+    });
+    if (photoRes) return photoRes;
 
     const body = await request.json();
     const token = String(body.token || '').trim();

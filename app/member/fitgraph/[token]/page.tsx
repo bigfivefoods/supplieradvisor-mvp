@@ -36,7 +36,10 @@ import { MemberProgrammeFollow } from '@/components/fitness/MemberProgrammeFollo
 import type { MemberProgrammeFollowView } from '@/lib/fitness/programme-follow';
 import { MemberOpenDiaryWeek } from '@/components/fitness/MemberOpenDiaryWeek';
 import type { MemberGoalView } from '@/lib/fitness/member-goals';
-import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
+import {
+  ProfilePhotoField,
+  uploadPortalPersonPhoto,
+} from '@/components/chrome/ProfilePhotoField';
 import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
 import { PortalFamilyMembers } from '@/components/identity/PortalFamilyMembers';
 import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
@@ -339,7 +342,6 @@ type Portal = {
 export default function MemberFitgraphPortalPage() {
   const { token } = useParams() as { token: string };
   const [portal, setPortal] = useState<Portal | null>(null);
-  const [companyId, setCompanyId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -374,7 +376,6 @@ export default function MemberFitgraphPortalPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Portal not found');
       setPortal(data.portal);
-      setCompanyId(data.companyId ?? null);
       if (
         data.portal?.require_paid_membership &&
         data.portal?.paid_access === false
@@ -1787,29 +1788,33 @@ export default function MemberFitgraphPortalPage() {
 
         {tab === 'profile' && (
           <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900">
-            {companyId != null ? (
-              <ProfilePhotoField
-                companyId={companyId}
-                value={photoUrl}
-                onChange={(url) => {
-                  setPhotoUrl(url);
-                  void post({ action: 'update_profile', photo_url: url })
-                    .then((data) => {
-                      setError(null);
-                      setMsg((data.message as string) || 'Photo saved');
-                    })
-                    .catch((e: unknown) => {
-                      setError(
-                        e instanceof Error ? e.message : 'Could not save photo'
-                      );
-                    });
-                }}
-                kind="client_photo"
-                label="Your photo"
-                disabled={busyId === 'profile'}
-                accentClass="border-yellow-300"
-              />
-            ) : null}
+            <ProfilePhotoField
+              value={photoUrl}
+              kind="client_photo"
+              label="Your photo"
+              disabled={busyId === 'profile'}
+              accentClass="border-yellow-300"
+              uploadFile={(file) =>
+                uploadPortalPersonPhoto(
+                  '/api/public/fitgraph/member',
+                  token,
+                  file
+                )
+              }
+              onChange={(url) => {
+                setPhotoUrl(url);
+                void post({ action: 'update_profile', photo_url: url })
+                  .then((data) => {
+                    setError(null);
+                    setMsg((data.message as string) || 'Photo saved');
+                  })
+                  .catch((e: unknown) => {
+                    setError(
+                      e instanceof Error ? e.message : 'Could not save photo'
+                    );
+                  });
+              }}
+            />
             {(portal.packs || []).length > 0 ? (
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/10 dark:bg-white/5">
                 <p className="mb-1 text-[10px] font-black uppercase text-slate-500">

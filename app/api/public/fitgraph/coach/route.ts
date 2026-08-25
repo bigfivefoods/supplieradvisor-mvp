@@ -235,13 +235,14 @@ export async function POST(request: NextRequest) {
       const file = form.get('file');
       if (
         (action !== 'upload_certificate' &&
-          action !== 'upload_movement_media') ||
+          action !== 'upload_movement_media' &&
+          action !== 'upload_photo') ||
         !(file instanceof File)
       ) {
         return NextResponse.json(
           {
             error:
-              'token, action=upload_certificate|upload_movement_media and file required',
+              'token, action=upload_certificate|upload_movement_media|upload_photo and file required',
           },
           { status: 400 }
         );
@@ -252,6 +253,30 @@ export async function POST(request: NextRequest) {
           { error: 'Coach portal not found' },
           { status: 404 }
         );
+      }
+      if (action === 'upload_photo') {
+        const { ingestPersonPhotoFile } = await import(
+          '@/lib/services/person-photo-upload'
+        );
+        const stored = await ingestPersonPhotoFile(file, {
+          companyId: resolved.companyId,
+          kind: 'coach_photo',
+        });
+        if (!stored.ok) {
+          return NextResponse.json(
+            { error: stored.error },
+            { status: stored.status }
+          );
+        }
+        const { store, coach } = resolved;
+        coach.photo_url = stored.url;
+        await saveStore(resolved.companyId, resolved.meta, store);
+        return NextResponse.json({
+          success: true,
+          url: stored.url,
+          fileName: stored.fileName,
+          portal: buildCoachPortalPayload(store, coach),
+        });
       }
       if (action === 'upload_movement_media') {
         const { isAllowedMovementMedia, storeFitMovementMedia } = await import(

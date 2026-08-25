@@ -9,10 +9,30 @@ import { Camera, Loader2, Trash2, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
 
+/** Token-auth PWA photo upload — no Privy session. */
+export async function uploadPortalPersonPhoto(
+  apiPath: string,
+  token: string,
+  file: File
+): Promise<{ url: string }> {
+  const fd = new FormData();
+  fd.set('token', token);
+  fd.set('action', 'upload_photo');
+  fd.set('file', file);
+  const res = await fetch(apiPath, { method: 'POST', body: fd });
+  const data = await res.json();
+  if (!res.ok || !data.url) {
+    throw new Error(data.error || 'Could not upload photo');
+  }
+  return { url: String(data.url) };
+}
+
 type Props = {
-  companyId: number;
+  companyId?: number;
   value?: string | null;
   onChange: (url: string) => void;
+  /** Token-auth portals: upload without a Privy session. */
+  uploadFile?: (file: File) => Promise<{ url: string }>;
   /** Storage kind label — e.g. coach_photo, client_photo */
   kind?: string;
   label?: string;
@@ -27,6 +47,7 @@ export function ProfilePhotoField({
   companyId,
   value,
   onChange,
+  uploadFile,
   kind = 'profile_photo',
   label = 'Profile photo',
   description = 'JPG, PNG or WebP · under 8MB',
@@ -49,17 +70,31 @@ export function ProfilePhotoField({
     }
     setUploading(true);
     try {
-      const result = await uploadCompanyAssetServerFirst({
-        file,
-        companyId,
-        kind,
-        profileField: null,
-      });
-      if (!result.url) {
-        toast.error(result.error || 'Upload failed');
+      let url = '';
+      if (uploadFile) {
+        const uploaded = await uploadFile(file);
+        url = String(uploaded.url || '').trim();
+      } else if (companyId) {
+        const result = await uploadCompanyAssetServerFirst({
+          file,
+          companyId,
+          kind,
+          profileField: null,
+        });
+        url = String(result.url || '').trim();
+        if (!url) {
+          toast.error(result.error || 'Upload failed');
+          return;
+        }
+      } else {
+        toast.error('Photo upload is not available');
         return;
       }
-      onChange(result.url);
+      if (!url) {
+        toast.error('Upload failed');
+        return;
+      }
+      onChange(url);
       toast.success('Photo uploaded');
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Upload failed');
