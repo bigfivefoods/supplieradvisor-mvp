@@ -25,6 +25,17 @@ async function mapInBatches<T, R>(
   return out;
 }
 
+function asRows(data: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(data)) return [];
+  const out: Array<Record<string, unknown>> = [];
+  for (const row of data) {
+    if (row && typeof row === 'object') {
+      out.push({ ...(row as object) } as Record<string, unknown>);
+    }
+  }
+  return out;
+}
+
 export async function fetchAllPaged(
   supabase: SupabaseClient,
   table: string,
@@ -43,10 +54,7 @@ export async function fetchAllPaged(
   };
   const { data, error, count } = await firstQ();
   if (error) throw new Error(`${table}: ${error.message}`);
-  const all: Array<Record<string, unknown>> = [];
-  for (const row of data || []) {
-    all.push({ ...(row as object) } as Record<string, unknown>);
-  }
+  const all = asRows(data);
   const total = typeof count === 'number' ? count : all.length;
   if (all.length < size || total <= size) return all;
 
@@ -59,7 +67,7 @@ export async function fetchAllPaged(
     if (apply) q = apply(q);
     const res = await q;
     if (res.error) throw new Error(`${table}: ${res.error.message}`);
-    return (res.data || []) as Array<Record<string, unknown>>;
+    return asRows(res.data);
   });
   for (const page of pages) {
     for (const row of page) {
@@ -90,7 +98,7 @@ export async function fetchByIds(
       .select(select)
       .in(idColumn, chunk);
     if (error) throw new Error(`${table}: ${error.message}`);
-    return (data || []) as Array<Record<string, unknown>>;
+    return asRows(data);
   });
   const all: Array<Record<string, unknown>> = [];
   for (const page of pages) {
@@ -198,7 +206,7 @@ export async function fetchPendingAgencyLinks(
     .order('id', { ascending: false })
     .limit(Math.min(500, Math.max(20, limit)));
   if (error) throw new Error(`school_agency_links: ${error.message}`);
-  return (data || []) as Array<Record<string, unknown>>;
+  return asRows(data);
 }
 
 /** Newest / pending-first slice for the department desk (not the full register). */
@@ -218,5 +226,5 @@ export async function fetchAgencySchoolLinksSlice(
     .order('id', { ascending: false })
     .limit(limit);
   if (error) throw new Error(`school_agency_links: ${error.message}`);
-  return (data || []) as Array<Record<string, unknown>>;
+  return asRows(data);
 }
