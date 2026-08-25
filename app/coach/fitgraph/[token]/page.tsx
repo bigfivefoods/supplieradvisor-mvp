@@ -58,6 +58,8 @@ import { ClassSubscriptionReport } from '@/components/fitness/ClassSubscriptionR
 import { MemberPortalWeekCalendar } from '@/components/advisors/MemberPortalWeekCalendar';
 import { OwnerWorkspaceCta } from '@/components/advisors/OwnerWorkspaceCta';
 import { GymSectionTitle } from '@/components/fitness/GymMemberPwaUi';
+import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
+import { AdvisorPwaSignOutButton } from '@/components/advisors/AdvisorPwaSignOutButton';
 import type {
   FitHydratedProgramme,
   FitMovement,
@@ -715,6 +717,15 @@ export default function CoachFitgraphPortalPage() {
   };
 
   return (
+    <>
+    <AdvisorPwaMemberBinder
+      module="fitgraph"
+      memberToken={token}
+      publicToken={publicToken}
+      brandName={brand}
+      themeColor="#E8E830"
+      iconUrl={logoUrl}
+    />
     <AdvisorWorkPwaChrome
       brand={brand}
       name={portal.coach.name}
@@ -2249,6 +2260,11 @@ export default function CoachFitgraphPortalPage() {
               ) : null}{' '}
               Save profile
             </button>
+            <AdvisorPwaSignOutButton
+              module="fitgraph"
+              publicToken={publicToken}
+              hint="Sign in again as a coach, or as a member."
+            />
         </div>
       ) : null}
 
@@ -3062,5 +3078,6 @@ export default function CoachFitgraphPortalPage() {
         />
       ) : null}
     </AdvisorWorkPwaChrome>
+    </>
   );
 }

@@ -36,6 +36,7 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
   const { authenticated, ready, user } = usePrivy();
   const [memberHref, setMemberHref] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
+  const [signedOut, setSignedOut] = useState(false);
   const [step, setStep] = useState<'home' | 'join' | 'signIn'>('home');
   const [signInAs, setSignInAs] = useState<'member' | 'staff'>('member');
   const [name, setName] = useState('');
@@ -84,6 +85,9 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
     const q = new URLSearchParams(window.location.search);
     const stashed = peekOauthReturnParams();
     const wantJoin = q.get('join') === '1' || stashed.join === '1';
+    const stayHome =
+      q.get('switch') === '1' || q.get('signed_out') === '1';
+    if (stayHome) setSignedOut(true);
     const mapped = recallAdvisorPwaMember(
       brand.module,
       brand.publicToken,
@@ -95,6 +99,7 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
     }
     const href = advisorPwaOpenPath(brand.module, mapped);
     setMemberHref(href);
+    if (stayHome) return;
     if (wantJoin && brand.module !== 'hiregraph') return;
     setOpening(true);
     const go = window.setTimeout(() => {
@@ -327,8 +332,17 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
             app…
           </p>
         ) : (
+          <>
+        {signedOut ? (
+          <p
+            className="mt-6 w-full rounded-2xl border px-3 py-2 text-left text-xs font-semibold opacity-90"
+            style={ghostBtn(pageInk)}
+          >
+            Signed out. Sign in as a member, or as a {staffLabel.toLowerCase()}.
+          </p>
+        ) : null}
           <div className="mt-8 flex w-full flex-col gap-2">
-            {memberHref ? (
+            {memberHref && !signedOut ? (
               <a
                 href={memberHref}
                 className="rounded-2xl px-4 py-3.5 text-sm font-black"
@@ -613,6 +627,7 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
               </p>
             ) : null}
           </div>
+          </>
         )}
       </div>
       {brand.enabled ? (

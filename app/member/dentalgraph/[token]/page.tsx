@@ -16,6 +16,7 @@ import { MemberAnnouncementsFeed } from '@/components/services/MemberAnnouncemen
 import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
 import { MemberAdvisorShell } from '@/components/advisors/MemberAdvisorShell';
 import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
+import { AdvisorPwaSignOutButton } from '@/components/advisors/AdvisorPwaSignOutButton';
 import { ClinicMemberDiary } from '@/components/clinic/ClinicMemberDiary';
 import {
   MemberPortalInvoices,
@@ -719,6 +720,14 @@ export default function MemberDentalgraphPortalPage() {
           </div>
           </div>
         )}
+
+        {tab === 'profile' ? (
+          <AdvisorPwaSignOutButton
+            module="dentalgraph"
+            publicToken={portal.public_token}
+            hint="Sign in again as a patient, or as a clinician."
+          />
+        ) : null}
 
         <PopiaConsentNotice brand={portal.brand} />
         <p className="text-center text-[10px] text-slate-400 pb-8">

@@ -11,6 +11,7 @@ import {
   advisorPwaStartPath,
   advisorPwaWebManifest,
   buildAdvisorPwaBrand,
+  advisorPwaSwitchPath,
   memberTokenStorageKey,
   normalizeHexColor,
   advisorPwaIconPath,
@@ -51,6 +52,10 @@ assert.match(
 assert.equal(pwaShortName('VUKA Fitness'), 'VUKA Fitness');
 assert.equal(pwaShortName('VUKA Fitness Studio West'), 'VUKA Fitness');
 assert.equal(advisorPwaStartPath('fitgraph', 'fg_110_abc'), '/pwa/fitgraph/fg_110_abc');
+assert.equal(
+  advisorPwaSwitchPath('fitgraph', 'fg_110_abc'),
+  '/pwa/fitgraph/fg_110_abc?switch=1'
+);
 assert.equal(
   advisorPwaMemberOpenPath('fitgraph', 'mem_1'),
   '/member/fitgraph/mem_1'

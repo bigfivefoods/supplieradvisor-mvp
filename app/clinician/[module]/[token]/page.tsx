@@ -27,6 +27,9 @@ import {
   type AdvisorWorkTab,
 } from '@/components/services/AdvisorWorkPwaChrome';
 import { OwnerWorkspaceCta } from '@/components/advisors/OwnerWorkspaceCta';
+import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
+import { AdvisorPwaSignOutButton } from '@/components/advisors/AdvisorPwaSignOutButton';
+import type { AdvisorPwaModule } from '@/lib/advisors/member-pwa';
 
 type RosterRow = {
   booking_id: string;
@@ -126,6 +129,7 @@ export default function ClinicianPortalPage() {
   const [portal, setPortal] = useState<Portal | null>(null);
   const [brand, setBrand] = useState('Practice');
   const [companyId, setCompanyId] = useState<number | null>(null);
+  const [publicToken, setPublicToken] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -189,6 +193,9 @@ export default function ClinicianPortalPage() {
       if (!res.ok) throw new Error(data.error || 'Failed');
       setPortal(data.portal);
       setBrand(data.brand || 'Practice');
+      setPublicToken(
+        data.public_token ? String(data.public_token) : undefined
+      );
       setCompanyId(
         Number.isFinite(Number(data.company_id)) ? Number(data.company_id) : null
       );
@@ -288,6 +295,14 @@ export default function ClinicianPortalPage() {
           : '#059669';
 
   return (
+    <>
+    <AdvisorPwaMemberBinder
+      module={mod as AdvisorPwaModule}
+      memberToken={token}
+      publicToken={publicToken}
+      brandName={brand}
+      themeColor={workAccent}
+    />
     <AdvisorWorkPwaChrome
       brand={brand}
       name={portal.clinician.name}
@@ -506,6 +521,12 @@ export default function ClinicianPortalPage() {
           >
             Save bio
           </button>
+          <AdvisorPwaSignOutButton
+            module={mod as AdvisorPwaModule}
+            publicToken={publicToken}
+            className="w-full rounded-xl border border-slate-600 px-3 py-2 text-sm font-black text-slate-100"
+            hint="Sign in again as a practitioner, or as a patient."
+          />
           <PersonQualificationsEditor
             qualifications={portal.clinician.qualifications || []}
             onChange={async (next) => {
@@ -1059,5 +1080,6 @@ export default function ClinicianPortalPage() {
         </div>
       )}
     </AdvisorWorkPwaChrome>
+    </>
   );
 }

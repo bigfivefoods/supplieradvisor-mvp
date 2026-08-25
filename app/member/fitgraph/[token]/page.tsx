@@ -63,6 +63,7 @@ import {
   gymFormatDay,
 } from '@/components/fitness/GymMemberPwaUi';
 import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
+import { AdvisorPwaSignOutButton } from '@/components/advisors/AdvisorPwaSignOutButton';
 
 const MEMBER_TOKEN_KEY = 'sa_fitgraph_member_token';
 
@@ -1953,6 +1954,13 @@ export default function MemberFitgraphPortalPage() {
         )}
         {tab === 'profile' ? (
           <MemberPortalInvoices invoices={portal.invoices} />
+        ) : null}
+        {tab === 'profile' ? (
+          <AdvisorPwaSignOutButton
+            module="fitgraph"
+            publicToken={portal.grow?.public_token}
+            hint="Sign in again as a member, or as a coach."
+          />
         ) : null}
 
         <PopiaConsentNotice brand={portal.brand} />

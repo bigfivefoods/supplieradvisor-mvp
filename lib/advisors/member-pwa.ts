@@ -440,6 +440,43 @@ export function rememberAdvisorPwaMember(opts: {
   }
 }
 
+export function advisorPwaSwitchPath(
+  module: AdvisorPwaModule,
+  publicToken: string
+): string {
+  return `${advisorPwaStartPath(module, publicToken)}?switch=1`;
+}
+
+export function forgetAdvisorPwaSession(opts: {
+  module: AdvisorPwaModule;
+  publicToken?: string | null;
+}): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(memberTokenStorageKey(opts.module));
+    const pub = String(opts.publicToken || '').trim();
+    if (pub.length >= 8) {
+      localStorage.removeItem(pwaMemberMapKey(opts.module, pub));
+    }
+  } catch {
+    /* private mode */
+  }
+}
+
+export function signOutAdvisorPwa(opts: {
+  module: AdvisorPwaModule;
+  publicToken?: string | null;
+}): void {
+  forgetAdvisorPwaSession(opts);
+  if (typeof window === 'undefined') return;
+  const pub = String(opts.publicToken || '').trim();
+  if (pub.length >= 8) {
+    window.location.assign(advisorPwaSwitchPath(opts.module, pub));
+    return;
+  }
+  window.location.assign('/');
+}
+
 export function recallAdvisorPwaMember(
   module: AdvisorPwaModule,
   publicToken: string,
