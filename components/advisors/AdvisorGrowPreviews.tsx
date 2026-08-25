@@ -946,55 +946,37 @@ function GymCoachPwaMock({
         {screen === 'you' ? (
           <>
             <p className={`text-[11px] font-black ${skin.title}`}>You</p>
-            <p className={`text-[8px] ${skin.muted}`}>
-              What members see in Shop, plus your work details
-            </p>
-            <div className={skin.amber}>
-              <p className={`text-[8px] font-semibold leading-snug ${skin.amberInk}`}>
-                Contractor — this work app is your diary. Gym-booked slots and
-                your private PT live here.
-              </p>
-            </div>
-            <div className={`${skin.card} px-2.5 py-2`}>
-              <p className={`text-[7px] font-black uppercase ${skin.kicker}`}>
-                Engagement & rate
-              </p>
-              <p className={`text-[10px] font-bold ${skin.title}`}>
-                2025-01-01 → present
-              </p>
-              <p className={`text-[8px] ${skin.muted}`}>R450 / per class</p>
-            </div>
-            <div className={`${skin.card} flex items-center gap-2 px-2.5 py-2`}>
-              <span
-                className="flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-black"
-                style={{ backgroundColor: color, color: ink }}
-              >
-                J
-              </span>
-              <div className="min-w-0">
-                <p className={`text-[11px] font-black ${skin.title}`}>Jordan</p>
-                <p className={`text-[8px] ${skin.muted}`}>jordan@studio.co</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {['Strength', 'Hyrox'].map((s) => (
-                <span
-                  key={s}
-                  className="rounded-full px-2 py-0.5 text-[8px] font-black"
-                  style={{ backgroundColor: color, color: ink }}
-                >
-                  {s}
-                </span>
-              ))}
-            </div>
-            <div className={`${skin.card} px-2.5 py-2`}>
-              <p className={`text-[7px] font-black uppercase ${skin.kicker}`}>
-                Public bio
-              </p>
-              <p className={`text-[8px] leading-snug ${skin.body}`}>
-                Morning strength and engine sessions. Members book in Shop.
-              </p>
-            </div>
+            <MiniFold
+              title="PBs"
+              hint="Add and update personal bests"
+              badge="2"
+              open
+              skin={skin}
+            >
+              <p className={`text-[11px] font-black ${skin.title}`}>Back squat</p>
+              <p className={`text-[8px] ${skin.muted}`}>140 kg · 2026-08-12</p>
+            </MiniFold>
+            <MiniFold
+              title="Injuries"
+              hint="So sessions can be adapted"
+              badge="1"
+              skin={skin}
+            />
+            <MiniFold
+              title="Feedback"
+              hint="From classes you attended"
+              badge="3"
+              skin={skin}
+            />
+            <MiniFold
+              title="Admin"
+              hint="Name, contact, photo"
+              open
+              skin={skin}
+            >
+              <p className={`text-[11px] font-black ${skin.title}`}>Jordan</p>
+              <p className={`text-[8px] ${skin.muted}`}>jordan@studio.co</p>
+            </MiniFold>
           </>
         ) : null}
         {screen === 'people' ? (

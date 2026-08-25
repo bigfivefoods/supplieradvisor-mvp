@@ -756,6 +756,34 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (
+      action === 'upsert_personal_best' ||
+      action === 'delete_personal_best' ||
+      action === 'upsert_injury' ||
+      action === 'delete_injury'
+    ) {
+      const { applyPersonRecordAction } = await import(
+        '@/lib/fitness/person-records'
+      );
+      const person = store.clients[ci];
+      const result = applyPersonRecordAction(person, action, body, now);
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      store.clients[ci] = person;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+        portal: decorateMemberPortal(
+          store,
+          person,
+          buildMemberPortalPayloadBase(store, person),
+          meta
+        ),
+      });
+    }
+
     if (action === 'family_upsert' || action === 'family_save') {
       const c = store.clients[ci];
       const { upsertFamilyMember } = await import(

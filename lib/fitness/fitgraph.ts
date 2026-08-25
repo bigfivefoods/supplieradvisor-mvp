@@ -371,6 +371,10 @@ export type FitCoach = {
   contracts?: FitContractDoc[];
   /** Closed past engagements (keep history when coach returns) */
   history?: FitCoachEngagement[];
+  /** Coach's own PBs and injuries (You → profile). */
+  personal_bests?: import('@/lib/fitness/person-records').FitPersonalBest[];
+  injuries?: import('@/lib/fitness/person-records').FitInjuryEntry[];
+  health?: FitClientHealth;
   created_at: string;
 } & import('@/lib/services/advisor-workforce').AdvisorPersonInviteFields &
   ContractorCommercialFields;
@@ -567,6 +571,10 @@ export type FitClient = {
   debit_bank?: import('@/lib/fitness/member-debit-bank').FitMemberDebitBank;
   /** Injury, pain, modifications & goals for coach awareness */
   health?: FitClientHealth;
+  /** Member-owned personal bests (You → PBs). */
+  personal_bests?: import('@/lib/fitness/person-records').FitPersonalBest[];
+  /** Member-owned injury list (You → Injuries). */
+  injuries?: import('@/lib/fitness/person-records').FitInjuryEntry[];
   /** Garmin Connect + watch session ingest (tokens stay server-side). */
   wearable?: {
     garmin?: import('@/lib/fitness/wearable-types').GarminConnection | null;
@@ -2131,6 +2139,9 @@ export function buildMemberPortalPayload(
         }
       })(),
       family: Array.isArray(client.family) ? client.family : [],
+      personal_bests: client.personal_bests || [],
+      injuries: client.injuries || [],
+      health: client.health || null,
     },
     shares: {
       schedule: shareSchedule,
@@ -3028,6 +3039,35 @@ export function buildCoachPortalPayload(
     byDate[d].push(card);
   }
 
+  const mySessionIds = new Set(mySessions.map((c) => c.session.id));
+  const profileFeedback = (store.class_feedback || [])
+    .filter(
+      (f) =>
+        (f.role === 'coach' && f.coach_id === coach.id) ||
+        (f.role === 'member' && mySessionIds.has(f.session_id))
+    )
+    .sort((a, b) =>
+      (b.updated_at || b.created_at).localeCompare(a.updated_at || a.created_at)
+    )
+    .slice(0, 24)
+    .map((f) => {
+      const s = store.sessions.find((x) => x.id === f.session_id);
+      const ct = s ? classTypeById(store, s.class_type_id) : null;
+      return {
+        id: f.id,
+        title:
+          f.role === 'coach'
+            ? ct?.name || s?.notes?.split('\n')[0] || 'Session'
+            : `${ct?.name || 'Class'} · ${f.author_name || 'Member'}`,
+        date: s?.date || (f.created_at || '').slice(0, 10),
+        feeling: f.feeling,
+        intensity: f.intensity,
+        enjoyment: f.enjoyment ?? null,
+        comment: f.comment || null,
+        source: f.role === 'coach' ? 'You rated this' : 'Member rating',
+      };
+    });
+
   return {
     coach: {
       id: coach.id,
@@ -3062,6 +3102,9 @@ export function buildCoachPortalPayload(
         status_text: coach.identity?.status_text || null,
         is_verified: coach.identity?.status === 'verified',
       },
+      personal_bests: coach.personal_bests || [],
+      injuries: coach.injuries || [],
+      health: coach.health || null,
     },
     /** Full specialty catalogue for profile multi-select (owner-managed) */
     specialty_options: getCoachSpecialtyOptions(store),
@@ -3071,6 +3114,7 @@ export function buildCoachPortalPayload(
     sessions: mySessions,
     by_date: byDate,
     sees_all_people: seeAllPeople,
+    profile_feedback: profileFeedback,
     members,
     class_types: classTypes,
     movements: listedFitMovements(store).filter(

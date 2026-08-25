@@ -649,6 +649,33 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (
+      action === 'upsert_personal_best' ||
+      action === 'delete_personal_best' ||
+      action === 'upsert_injury' ||
+      action === 'delete_injury'
+    ) {
+      const { applyPersonRecordAction } = await import(
+        '@/lib/fitness/person-records'
+      );
+      const idx = store.coaches.findIndex((c) => c.id === coach.id);
+      if (idx < 0) {
+        return NextResponse.json({ error: 'Coach not found' }, { status: 404 });
+      }
+      const person = store.coaches[idx];
+      const result = applyPersonRecordAction(person, action, body, now);
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      store.coaches[idx] = person;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+        portal: buildCoachPortalPayload(store, person),
+      });
+    }
+
     if (coach.can_manage_classes === false) {
       return NextResponse.json(
         { error: 'Coach cannot manage classes' },

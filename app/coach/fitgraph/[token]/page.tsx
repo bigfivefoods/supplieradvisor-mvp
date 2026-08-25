@@ -58,6 +58,11 @@ import { isoDateInZone } from '@/lib/fitness/gym-local-time';
 import { hourBounds, type WorkingHours } from '@/lib/schedule/working-hours';
 import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
 import { AdvisorPwaSignOutButton } from '@/components/advisors/AdvisorPwaSignOutButton';
+import { GymProfileFolds } from '@/components/fitness/GymProfileFolds';
+import {
+  injuriesForPerson,
+  parsePersonalBests,
+} from '@/lib/fitness/person-records';
 import type {
   FitHydratedProgramme,
   FitMovement,
@@ -209,7 +214,20 @@ type Portal = {
       rate_zar?: number | null;
       rate_basis?: string;
     }>;
+    personal_bests?: import('@/lib/fitness/person-records').FitPersonalBest[];
+    injuries?: import('@/lib/fitness/person-records').FitInjuryEntry[];
+    health?: PersonHealthProfile | null;
   };
+  profile_feedback?: Array<{
+    id: string;
+    title: string;
+    date: string;
+    feeling?: number | null;
+    intensity?: number | null;
+    enjoyment?: number | null;
+    comment?: string | null;
+    source?: string;
+  }>;
   specialty_options?: string[];
   from: string;
   to: string;
@@ -411,6 +429,7 @@ export default function CoachFitgraphPortalPage() {
   const [peopleClassOpen, setPeopleClassOpen] = useState(true);
   const [peopleClientOpen, setPeopleClientOpen] = useState(true);
   const [peopleGymOpen, setPeopleGymOpen] = useState(true);
+  const [recordBusy, setRecordBusy] = useState<string | null>(null);
   const [peopleClassGroupOpen, setPeopleClassGroupOpen] = useState<
     Record<string, boolean>
   >({});
@@ -2199,6 +2218,59 @@ export default function CoachFitgraphPortalPage() {
                 : 'Contractor — this work app is your diary. Gym-booked slots and your private PT live here.'}
             </p>
             <OwnerWorkspaceCta companyId={companyId} brand={brand} />
+            <GymProfileFolds
+              pbs={parsePersonalBests(portal.coach.personal_bests)}
+              injuries={injuriesForPerson({
+                injuries: portal.coach.injuries,
+                health: portal.coach.health,
+              })}
+              feedback={(portal.profile_feedback || []).map((f) => ({
+                id: f.id,
+                title: f.title,
+                date: f.date,
+                feeling: f.feeling,
+                intensity: f.intensity,
+                enjoyment: f.enjoyment,
+                comment: f.comment,
+                source: f.source,
+              }))}
+              busyId={recordBusy}
+              color="#E8E830"
+              ink="#0f172a"
+              onSavePb={async (row) => {
+                setRecordBusy('pb');
+                try {
+                  await post({ action: 'upsert_personal_best', ...row });
+                } finally {
+                  setRecordBusy(null);
+                }
+              }}
+              onDeletePb={async (id) => {
+                setRecordBusy('pb');
+                try {
+                  await post({ action: 'delete_personal_best', id });
+                } finally {
+                  setRecordBusy(null);
+                }
+              }}
+              onSaveInjury={async (row) => {
+                setRecordBusy('injury');
+                try {
+                  await post({ action: 'upsert_injury', ...row });
+                } finally {
+                  setRecordBusy(null);
+                }
+              }}
+              onDeleteInjury={async (id) => {
+                setRecordBusy('injury');
+                try {
+                  await post({ action: 'delete_injury', id });
+                } finally {
+                  setRecordBusy(null);
+                }
+              }}
+              admin={
+            <>
             {(portal.coach.start_date ||
               portal.coach.end_date ||
               portal.coach.rate_zar != null ||
@@ -2441,6 +2513,9 @@ export default function CoachFitgraphPortalPage() {
               ) : null}{' '}
               Save profile
             </button>
+            </>
+              }
+            />
             <AdvisorPwaSignOutButton
               module="fitgraph"
               publicToken={publicToken}

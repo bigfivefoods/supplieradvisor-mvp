@@ -68,6 +68,12 @@ import {
 } from '@/components/fitness/GymMemberPwaUi';
 import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
 import { AdvisorPwaSignOutButton } from '@/components/advisors/AdvisorPwaSignOutButton';
+import { GymProfileFolds } from '@/components/fitness/GymProfileFolds';
+import {
+  injuriesForPerson,
+  parsePersonalBests,
+} from '@/lib/fitness/person-records';
+import type { PersonHealthProfile } from '@/lib/health/body-map';
 
 const MEMBER_TOKEN_KEY = 'sa_fitgraph_member_token';
 
@@ -174,6 +180,9 @@ type Portal = {
       is_minor?: boolean;
       active?: boolean;
     }>;
+    personal_bests?: import('@/lib/fitness/person-records').FitPersonalBest[];
+    injuries?: import('@/lib/fitness/person-records').FitInjuryEntry[];
+    health?: PersonHealthProfile | null;
   };
   open_classes: OpenClass[];
   vacancies: OpenClass[];
@@ -1996,7 +2005,77 @@ export default function MemberFitgraphPortalPage() {
         )}
 
         {tab === 'profile' && (
-          <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-neutral-900">
+          <div className="space-y-3">
+            <GymSectionTitle hint="PBs, injuries, class ratings, and your gym records.">
+              Profile
+            </GymSectionTitle>
+            <GymProfileFolds
+              pbs={parsePersonalBests(portal.client.personal_bests)}
+              injuries={injuriesForPerson({
+                injuries: portal.client.injuries,
+                health: portal.client.health,
+              })}
+              feedback={(portal.progress?.my_feedback || []).map((f) => ({
+                id: f.id,
+                title: f.class_name,
+                date: f.date,
+                feeling: f.feeling,
+                intensity: f.intensity,
+                enjoyment: f.enjoyment,
+                comment: f.comment,
+                source: 'You rated this class',
+              }))}
+              pending={(portal.progress?.pending_feedback || []).map((f) => ({
+                booking_id: f.booking_id,
+                title: f.class_name,
+                date: f.date,
+              }))}
+              busyId={busyId}
+              color={color}
+              ink={ink}
+              onSavePb={async (row) => {
+                setBusyId('pb');
+                try {
+                  await post({ action: 'upsert_personal_best', ...row });
+                  setMsg('PB saved');
+                  setError(null);
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+              onDeletePb={async (id) => {
+                setBusyId('pb');
+                try {
+                  await post({ action: 'delete_personal_best', id });
+                  setMsg('PB removed');
+                  setError(null);
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+              onSaveInjury={async (row) => {
+                setBusyId('injury');
+                try {
+                  await post({ action: 'upsert_injury', ...row });
+                  setMsg('Injury saved');
+                  setError(null);
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+              onDeleteInjury={async (id) => {
+                setBusyId('injury');
+                try {
+                  await post({ action: 'delete_injury', id });
+                  setMsg('Injury removed');
+                  setError(null);
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+              onRateClass={(bookingId, v) => void rateClass(bookingId, v)}
+              admin={
+          <div className="space-y-3">
             <ProfilePhotoField
               value={photoUrl}
               kind="client_photo"
@@ -2164,6 +2243,9 @@ export default function MemberFitgraphPortalPage() {
             >
               {busyId === 'profile' ? 'Saving…' : 'Save profile'}
             </button>
+          </div>
+              }
+            />
           </div>
         )}
         {tab === 'profile' ? (
