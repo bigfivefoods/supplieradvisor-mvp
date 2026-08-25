@@ -834,13 +834,31 @@ function Inner() {
             : 'World-class receive: check quantities, attach photos, post kitchen GRN in one step.'
         }
         action={
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
-          >
-            <RefreshCw className="w-4 h-4" /> Refresh
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {role === 'isp' ? (
+              <>
+                <Link
+                  href="/dashboard/schools/orders"
+                  className="btn-secondary !py-2 !px-3 text-xs"
+                >
+                  Orders
+                </Link>
+                <Link
+                  href="/dashboard/schools/ops"
+                  className="btn-secondary !py-2 !px-3 text-xs"
+                >
+                  Fulfil queue
+                </Link>
+              </>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" /> Refresh
+            </button>
+          </div>
         }
       />
 
