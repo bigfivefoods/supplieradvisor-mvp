@@ -1347,7 +1347,7 @@ export const VUKA_COACH_ROSTER: Array<{
     email: 'b.west.pot@gmail.com',
     code: 'BIA',
   },
-  { name: 'Miri', email: '', code: 'MRI' },
+  { name: 'Miri', email: 'mirjam@roosgroup.co.za', code: 'MRI' },
   {
     name: 'Jared-Wade Cawood',
     email: 'jaredcawood77@gmail.com',

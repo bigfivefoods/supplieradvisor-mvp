@@ -389,6 +389,10 @@ assert.equal(
 assert.equal(ensureVukaCoaches(vukaCoaches, '2026-08-25T00:00:00.000Z'), false);
 assert.ok(vukaCoaches.coaches.some((c) => c.name === 'Bianca Westhorpe-Pottow'));
 assert.equal(
+  vukaCoaches.coaches.find((c) => /^miri$/i.test(c.name))?.email,
+  'mirjam@roosgroup.co.za'
+);
+assert.equal(
   vukaCoaches.coaches.filter((c) => /jared/i.test(c.name)).length,
   1
 );

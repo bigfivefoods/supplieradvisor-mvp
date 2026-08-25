@@ -145,8 +145,23 @@ const gymNoLogo = renderAdvisorSessionEmail({
 });
 assert.match(gymNoLogo.html, /GymAdvisor®/);
 assert.match(gymNoLogo.html, /VUKA Fitness/);
+assert.match(gymNoLogo.html, /See you on the floor/);
+assert.match(gymNoLogo.html, /Open VUKA Fitness app/);
+assert.match(gymNoLogo.html, /Before class/);
+assert.doesNotMatch(gymNoLogo.html, /medical aid/);
+assert.doesNotMatch(gymNoLogo.html, /clinician/);
+assert.doesNotMatch(gymNoLogo.html, /SA Member/);
 assert.match(gymNoLogo.html, /sa-logo\.png/);
 assert.doesNotMatch(gymNoLogo.html, /cdn\.example\.com/);
+const gymChrome = clientEmailChrome({ moduleKey: 'fitgraph' });
+assert.equal(gymChrome.ctaBg, '#111111');
+assert.equal(gymChrome.ctaInk.toLowerCase(), '#e8e830');
+const gymAvif = clientEmailChrome({
+  moduleKey: 'fitgraph',
+  logoUrl:
+    'https://cdn.example.supabase.co/storage/v1/object/public/company-documents/110/logo.avif',
+});
+assert.match(String(gymAvif.companyLogo), /render\/image\/public/);
 
 const coreOnly = renderAdvisorNoticeEmail({
   brand: 'Acme Trading',

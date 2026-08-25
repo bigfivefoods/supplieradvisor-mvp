@@ -4,6 +4,7 @@
  * waitlist, invite and follow-up mail.
  */
 import { SA_LOGO_SRC } from '@/lib/brand/assets';
+import { preferPngLogoUrl } from '@/lib/business/company-logo';
 import { getAppUrl, getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 
 export type AdvisorEmailKind = 'pre' | 'post';
@@ -174,15 +175,38 @@ export type ClientEmailChrome = {
  * No company mark + Advisor module → that Advisor's colours / wordmark.
  * No module → SupplierAdvisor® logo.
  */
+export function isGymEmailModule(
+  moduleKey?: string | null,
+  moduleLabel?: string | null
+): boolean {
+  const raw = `${moduleKey || ''} ${moduleLabel || ''}`.toLowerCase();
+  return raw.includes('fitgraph') || raw.includes('gymadvisor') || /\bgym\b/.test(raw);
+}
+
 export function clientEmailChrome(opts: {
   moduleKey?: string | null;
   moduleLabel?: string | null;
   logoUrl?: string | null;
+  accentHex?: string | null;
 }): ClientEmailChrome {
-  const skin = advisorEmailSkin(opts.moduleKey || opts.moduleLabel);
+  const base = advisorEmailSkin(opts.moduleKey || opts.moduleLabel);
+  const gym = isGymEmailModule(opts.moduleKey, opts.moduleLabel);
+  const accent = String(opts.accentHex || '').trim();
+  const skin: AdvisorEmailSkin =
+    /^#[0-9a-fA-F]{6}$/.test(accent)
+      ? {
+          ...base,
+          accent,
+          accentDark: gym ? '#111111' : base.accentDark,
+          accentSoft: gym ? '#fefce8' : base.accentSoft,
+        }
+      : gym
+        ? { ...base, accentDark: '#111111' }
+        : base;
   const hasModule = skin.moduleKey !== 'supplier';
-  const companyLogo = absolutePublicUrl(opts.logoUrl);
+  const companyLogo = absolutePublicUrl(preferPngLogoUrl(opts.logoUrl) || opts.logoUrl);
   const light = hexLuminance(skin.accent) > 0.62;
+  const gymCta = gym && light;
   return {
     skin,
     hasModule,
@@ -190,8 +214,8 @@ export function clientEmailChrome(opts: {
     platformLogo: supplierAdvisorLogoUrl(),
     ink: light ? '#0f172a' : '#ffffff',
     muted: light ? 'rgba(15,23,42,0.72)' : 'rgba(255,255,255,0.8)',
-    ctaBg: light ? skin.accentDark : skin.accent,
-    ctaInk: '#ffffff',
+    ctaBg: gymCta ? '#111111' : light ? skin.accentDark : skin.accent,
+    ctaInk: gymCta ? skin.accent : '#ffffff',
   };
 }
 
@@ -213,6 +237,7 @@ export type ClientEmailLayoutInput = {
   moduleLabel?: string | null;
   brand: string;
   logoUrl?: string | null;
+  accentHex?: string | null;
   preheader?: string;
   headline: string;
   leadHtml: string;
@@ -304,7 +329,12 @@ export function renderClientEmailLayout(input: ClientEmailLayoutInput): string {
                 ${escapeEmailHtml(skin.product)}${chrome.hasModule ? ' · powered by SupplierAdvisor®' : ' · Verified. Transparent. Accelerating humanity.'}
               </p>
               <p style="margin:10px 0 0;font-size:11px;line-height:1.5;color:#94a3b8;">
-                ${escapeEmailHtml(input.footerNote || `Sent on behalf of ${brand}. Replies go to hello@supplieradvisor.com.`)}
+                ${escapeEmailHtml(
+                  input.footerNote ||
+                    (isGymEmailModule(input.moduleKey, input.moduleLabel)
+                      ? `From ${brand}. GymAdvisor® is the operating system behind this gym.`
+                      : `Sent on behalf of ${brand}. Replies go to hello@supplieradvisor.com.`)
+                )}
               </p>
             </td>
           </tr>
@@ -351,6 +381,7 @@ export type AdvisorSessionEmailInput = {
   location?: string | null;
   practitionerName?: string | null;
   logoUrl?: string | null;
+  accentHex?: string | null;
   ctaUrl: string;
   moduleKey?: string | null;
   moduleLabel?: string | null;
@@ -366,18 +397,40 @@ export function renderAdvisorSessionEmail(input: AdvisorSessionEmailInput): {
   const name = input.personName || 'there';
   const cta = absolutePublicUrl(input.ctaUrl) || getAppUrl();
   const pre = input.kind === 'pre';
+  const gym = isGymEmailModule(input.moduleKey, input.moduleLabel);
   const subject = pre
-    ? `Reminder · ${input.eventTitle} at ${brand} · ${when}`
-    : `How was your visit at ${brand}?`;
+    ? gym
+      ? `${brand} · ${input.eventTitle} · ${when}`
+      : `Reminder · ${input.eventTitle} at ${brand} · ${when}`
+    : gym
+      ? `How was ${input.eventTitle} at ${brand}?`
+      : `How was your visit at ${brand}?`;
   const headline = pre
-    ? `See you soon, ${escapeEmailHtml(name)}`
+    ? gym
+      ? `See you on the floor, ${escapeEmailHtml(name)}`
+      : `See you soon, ${escapeEmailHtml(name)}`
     : `Thank you, ${escapeEmailHtml(name)}`;
   const lead = pre
-    ? `This is a reminder from <strong>${escapeEmailHtml(brand)}</strong> on ${escapeEmailHtml(skin.product)}. Please arrive a few minutes early and bring your medical aid card if you use one.`
-    : `We hope your visit with <strong>${escapeEmailHtml(brand)}</strong> went well. A minute of feedback helps the team look after you — and the practice — even better next time.`;
+    ? gym
+      ? `Your class at <strong>${escapeEmailHtml(brand)}</strong> is coming up. Arrive a few minutes early, bring water, and check in on the <strong>${escapeEmailHtml(brand)}</strong> app.`
+      : `This is a reminder from <strong>${escapeEmailHtml(brand)}</strong> on ${escapeEmailHtml(skin.product)}. Please arrive a few minutes early and bring your medical aid card if you use one.`
+    : gym
+      ? `Hope <strong>${escapeEmailHtml(input.eventTitle)}</strong> at <strong>${escapeEmailHtml(brand)}</strong> felt strong. A 20-second rating helps your coaches tune the next session.`
+      : `We hope your visit with <strong>${escapeEmailHtml(brand)}</strong> went well. A minute of feedback helps the team look after you — and the practice — even better next time.`;
   const profileUrl = absolutePublicUrl('/me') || `${getAppUrl()}/me`;
   const extra = pre
-    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 4px;background:#fffbeb;border:1px solid #fde68a;border-radius:18px;">
+    ? gym
+      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 4px;background:#111111;border-radius:18px;">
+         <tr>
+           <td style="padding:16px 18px;font-family:${FONT};">
+             <p style="margin:0;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:${skin.accent};">Before class</p>
+             <p style="margin:8px 0 0;font-size:14px;line-height:1.6;color:#e2e8f0;">
+               Open the <strong>${escapeEmailHtml(brand)}</strong> app on your phone to check in, see the plan, and flag any niggles so your coach can modify.
+             </p>
+           </td>
+         </tr>
+       </table>`
+      : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 4px;background:#fffbeb;border:1px solid #fde68a;border-radius:18px;">
          <tr>
            <td style="padding:16px 18px;font-family:${FONT};">
              <p style="margin:0;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#92400e;">Before you come</p>
@@ -395,7 +448,7 @@ export function renderAdvisorSessionEmail(input: AdvisorSessionEmailInput): {
            </td>
          </tr>
        </table>`
-    : `<p style="margin:18px 0 6px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:${skin.accentDark};">Rate your session</p>
+    : `<p style="margin:18px 0 6px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:${skin.accentDark};">${gym ? 'Rate this class' : 'Rate your session'}</p>
        <p style="margin:0 0 16px;">
          ${[1, 2, 3, 4, 5]
            .map(
@@ -404,7 +457,7 @@ export function renderAdvisorSessionEmail(input: AdvisorSessionEmailInput): {
            )
            .join('')}
        </p>
-       <p style="margin:0 0 6px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:${skin.accentDark};">Rate the practice</p>
+       <p style="margin:0 0 6px;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:${skin.accentDark};">${gym ? `Rate ${escapeEmailHtml(brand)}` : 'Rate the practice'}</p>
        <p style="margin:0 0 8px;">
          ${[1, 2, 3, 4, 5]
            .map(
@@ -419,24 +472,41 @@ export function renderAdvisorSessionEmail(input: AdvisorSessionEmailInput): {
     moduleLabel: input.moduleLabel,
     brand,
     logoUrl: input.logoUrl,
+    accentHex: input.accentHex,
     preheader: subject,
     headline,
     leadHtml: lead,
     detailHtml: detailCard({
       skin,
-      kicker: pre ? 'Upcoming visit' : 'Your visit',
+      kicker: pre
+        ? gym
+          ? 'Upcoming class'
+          : 'Upcoming visit'
+        : gym
+          ? 'Your class'
+          : 'Your visit',
       title: escapeEmailHtml(input.eventTitle),
       lines: [
         escapeEmailHtml(when),
         input.practitionerName
-          ? escapeEmailHtml(`with ${input.practitionerName}`)
+          ? escapeEmailHtml(
+              gym
+                ? `Coach ${input.practitionerName}`
+                : `with ${input.practitionerName}`
+            )
           : '',
         input.location ? escapeEmailHtml(input.location) : '',
       ],
     }),
     extraHtml: extra,
     ctaUrl: cta,
-    ctaLabel: pre ? 'View / manage booking' : 'Rate this visit',
+    ctaLabel: pre
+      ? gym
+        ? `Open ${brand} app`
+        : 'View / manage booking'
+      : gym
+        ? 'Rate this class'
+        : 'Rate this visit',
   });
 
   return { subject, html };
@@ -473,7 +543,9 @@ export function renderAdvisorInvoiceEmail(input: AdvisorInvoiceEmailInput): {
     logoUrl: input.logoUrl,
     preheader: subject,
     headline: `Invoice ready, ${escapeEmailHtml(name)}`,
-    leadHtml: `<strong>${escapeEmailHtml(brand)}</strong> sent you an invoice. It is on your SA Member profile so you can view it, pay by card, or send proof of payment.`,
+    leadHtml: isGymEmailModule(input.moduleKey, input.moduleLabel)
+      ? `<strong>${escapeEmailHtml(brand)}</strong> sent you an invoice. Open the app to view it, pay by card, or send proof of payment.`
+      : `<strong>${escapeEmailHtml(brand)}</strong> sent you an invoice. It is on your SA Member profile so you can view it, pay by card, or send proof of payment.`,
     detailHtml: detailCard({
       skin,
       kicker: inv || 'Invoice',
@@ -484,7 +556,9 @@ export function renderAdvisorInvoiceEmail(input: AdvisorInvoiceEmailInput): {
       ],
     }),
     ctaUrl: input.ctaUrl,
-    ctaLabel: 'View invoice in SA Member',
+    ctaLabel: isGymEmailModule(input.moduleKey, input.moduleLabel)
+      ? `View invoice in ${brand}`
+      : 'View invoice in SA Member',
   });
   return { subject, html };
 }
@@ -500,11 +574,13 @@ export type AdvisorNoticeEmailInput = {
   detailLines?: string[];
   extraHtml?: string;
   logoUrl?: string | null;
+  accentHex?: string | null;
   ctaUrl?: string | null;
   ctaLabel?: string;
   moduleKey?: string | null;
   moduleLabel?: string | null;
   subject: string;
+  footerNote?: string;
 };
 
 export function renderAdvisorNoticeEmail(input: AdvisorNoticeEmailInput): {
@@ -518,6 +594,7 @@ export function renderAdvisorNoticeEmail(input: AdvisorNoticeEmailInput): {
     moduleLabel: input.moduleLabel,
     brand,
     logoUrl: input.logoUrl,
+    accentHex: input.accentHex,
     preheader: input.subject,
     kicker: input.kicker,
     headline: input.headline,
@@ -534,6 +611,7 @@ export function renderAdvisorNoticeEmail(input: AdvisorNoticeEmailInput): {
     extraHtml: input.extraHtml,
     ctaUrl: input.ctaUrl,
     ctaLabel: input.ctaLabel,
+    footerNote: input.footerNote,
   });
   return { subject: input.subject, html };
 }
