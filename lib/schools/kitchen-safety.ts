@@ -802,6 +802,10 @@ export type KitchenRegisterRow = {
   emis_number?: string | null;
   district?: string | null;
   province?: string | null;
+  circuit?: string | null;
+  cmc?: string | null;
+  quintile?: number | null;
+  local_municipality?: string | null;
   coa_status: CoaStatus;
   coa_expires_on?: string | null;
   r638_band?: SafetyBand | null;
@@ -848,6 +852,16 @@ export function registerRowFromSchool(
     emis_number: school.emis_number != null ? String(school.emis_number) : null,
     district: school.district != null ? String(school.district) : null,
     province: school.province != null ? String(school.province) : null,
+    circuit: school.circuit != null ? String(school.circuit) : null,
+    cmc: school.cmc != null ? String(school.cmc) : null,
+    quintile:
+      school.quintile != null && Number.isFinite(Number(school.quintile))
+        ? Number(school.quintile)
+        : null,
+    local_municipality:
+      school.local_municipality != null
+        ? String(school.local_municipality)
+        : null,
     coa_status: risk.coa_status,
     coa_expires_on: passport.coa_expires_on || null,
     r638_band: passport.r638_band || null,
@@ -910,5 +924,28 @@ export function kitchenSafetySummary(rows: KitchenRegisterRow[]) {
             monthScores.reduce((a, b) => a + b, 0) / monthScores.length
           )
         : null,
+  };
+}
+
+export function kitchenSafetyRollups(rows: KitchenRegisterRow[]) {
+  const group = (keyFn: (r: KitchenRegisterRow) => string) => {
+    const map = new Map<string, KitchenRegisterRow[]>();
+    for (const r of rows) {
+      const k = keyFn(r) || 'Unknown';
+      const list = map.get(k) || [];
+      list.push(r);
+      map.set(k, list);
+    }
+    return [...map.entries()]
+      .map(([key, list]) => ({ key, ...kitchenSafetySummary(list) }))
+      .sort((a, b) => b.red - a.red || b.none_coa - a.none_coa || b.schools - a.schools);
+  };
+  return {
+    byProvince: group((r) => String(r.province || '').trim() || 'Unknown'),
+    byDistrict: group((r) => String(r.district || '').trim() || 'Unknown'),
+    byCircuit: group((r) => String(r.circuit || '').trim() || 'Unknown'),
+    byCoa: group((r) => String(r.coa_status || 'none')),
+    byRisk: group((r) => String(r.risk_band || 'unknown')),
+    byAudit: group((r) => String(r.monthly_audit_status || 'none')),
   };
 }

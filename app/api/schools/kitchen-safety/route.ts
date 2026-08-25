@@ -14,7 +14,10 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import { getOrCreateSchoolProfile } from '@/lib/schools/school-context';
-import { fetchAgencySchoolLinks } from '@/lib/schools/supabase-page';
+import {
+  fetchAgencySchoolLinks,
+  fetchByIds,
+} from '@/lib/schools/supabase-page';
 import {
   DEFAULT_KITCHEN_POLICY,
   buildAuditCalendarMonth,
@@ -100,46 +103,47 @@ export async function GET(request: NextRequest) {
           links.map((l) => Number(l.school_profile_id)).filter(Boolean)
         ),
       ];
-      const rows = [];
-      for (let i = 0; i < schoolIds.length; i += 80) {
-        const slice = schoolIds.slice(i, i + 80);
-        const { data: schools } = await supabase
-          .from('school_profiles')
-          .select(
-            'id, school_name, emis_number, district, province, metadata, profile_id'
-          )
-          .in('id', slice)
-          .limit(100);
-        for (const s of schools || []) {
-          rows.push(
-            registerRowFromSchool(s as Record<string, unknown>, policy)
+      let schoolsRaw: Array<Record<string, unknown>> = [];
+      if (schoolIds.length) {
+        try {
+          schoolsRaw = await fetchByIds(
+            supabase,
+            'school_profiles',
+            'id, school_name, emis_number, district, province, circuit, cmc, quintile, local_municipality, metadata, profile_id',
+            schoolIds
+          );
+        } catch {
+          schoolsRaw = await fetchByIds(
+            supabase,
+            'school_profiles',
+            'id, school_name, emis_number, district, province, metadata, profile_id',
+            schoolIds
           );
         }
       }
+      const rows = schoolsRaw.map((s) => registerRowFromSchool(s, policy));
       rows.sort((a, b) => {
         const rank = (x: string) =>
           x === 'red' ? 0 : x === 'amber' ? 1 : x === 'green' ? 2 : 3;
         return rank(a.risk_band) - rank(b.risk_band);
       });
-      const filter = String(sp.get('filter') || 'all');
-      const filtered =
-        filter === 'red'
-          ? rows.filter((r) => r.risk_band === 'red')
-          : filter === 'no_coa'
-            ? rows.filter((r) => r.coa_status === 'none')
-            : filter === 'expired'
-              ? rows.filter((r) => r.coa_status === 'expired')
-              : filter === 'amber'
-                ? rows.filter((r) => r.risk_band === 'amber')
-                : filter === 'audit_overdue'
-                  ? rows.filter((r) => r.monthly_audit_status === 'overdue')
-                  : filter === 'audit_missing'
-                    ? rows.filter(
-                        (r) =>
-                          !r.monthly_audit_status ||
-                          r.monthly_audit_status === 'none'
-                      )
-                    : rows;
+      const uniq = (vals: Array<string | null | undefined>) =>
+        [...new Set(vals.map((v) => String(v || '').trim()).filter(Boolean))].sort(
+          (a, b) => a.localeCompare(b)
+        );
+      const facets = {
+        provinces: uniq(rows.map((r) => r.province)),
+        districts: uniq(rows.map((r) => r.district)),
+        circuits: uniq(rows.map((r) => r.circuit)),
+        municipalities: uniq(rows.map((r) => r.local_municipality)),
+        quintiles: [
+          ...new Set(
+            rows
+              .map((r) => r.quintile)
+              .filter((n): n is number => n != null && n >= 1 && n <= 5)
+          ),
+        ].sort((a, b) => a - b),
+      };
 
       return NextResponse.json({
         success: true,
@@ -147,8 +151,9 @@ export async function GET(request: NextRequest) {
         policy,
         checklist: R638_CHECKLIST,
         summary: kitchenSafetySummary(rows),
-        rows: filtered,
+        rows,
         total: rows.length,
+        facets,
       });
     }
 

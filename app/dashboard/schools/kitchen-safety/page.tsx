@@ -3,15 +3,18 @@
 /**
  * School kitchen food safety — CoA (R638) passport + monthly self-audit.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertTriangle,
   CheckCircle2,
+  Download,
+  Filter,
   Loader2,
   RefreshCw,
   Save,
   ShieldAlert,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -23,10 +26,15 @@ import {
 import type {
   CoaStatus,
   KitchenMonthlyAudit,
+  KitchenRegisterRow,
   KitchenSafetyPassport,
   R638Answer,
   R638ItemId,
   SafetyBand,
+} from '@/lib/schools/kitchen-safety';
+import {
+  kitchenSafetyRollups,
+  kitchenSafetySummary,
 } from '@/lib/schools/kitchen-safety';
 
 type ChecklistItem = { id: R638ItemId; label: string; guidance: string };
@@ -45,6 +53,12 @@ export default function KitchenSafetyPage() {
       <Inner />
     </CompanyRequired>
   );
+}
+
+function csv(v: unknown) {
+  const s = v == null ? '' : String(v);
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
 }
 
 function bandClass(b?: SafetyBand | null) {
@@ -94,17 +108,34 @@ function Inner() {
   );
   const [register, setRegister] = useState<{
     summary?: Record<string, number | null>;
-    rows?: Array<Record<string, unknown>>;
+    rows?: KitchenRegisterRow[];
     policy?: Record<string, unknown>;
+    facets?: {
+      provinces: string[];
+      districts: string[];
+      circuits: string[];
+      municipalities: string[];
+      quintiles: number[];
+    };
   } | null>(null);
   const [filter, setFilter] = useState('all');
+  const [province, setProvince] = useState('');
+  const [district, setDistrict] = useState('');
+  const [circuit, setCircuit] = useState('');
+  const [quintile, setQuintile] = useState('');
+  const [coa, setCoa] = useState('');
+  const [peu, setPeu] = useState('');
+  const [q, setQ] = useState('');
+  const [sliceGroup, setSliceGroup] = useState<
+    'district' | 'province' | 'circuit' | 'coa' | 'risk' | 'audit'
+  >('district');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       // Try agency register first
       const regRes = await fetch(
-        `/api/schools/kitchen-safety?companyId=${companyId}&view=register&filter=${encodeURIComponent(filter)}`,
+        `/api/schools/kitchen-safety?companyId=${companyId}&view=register`,
         { cache: 'no-store' }
       );
       if (regRes.ok) {
@@ -140,7 +171,7 @@ function Inner() {
     } finally {
       setLoading(false);
     }
-  }, [companyId, filter, calYear, calMonth]);
+  }, [companyId, calYear, calMonth]);
 
   useEffect(() => {
     void load();
@@ -271,6 +302,180 @@ function Inner() {
     }
   };
 
+  const allRows = register?.rows || [];
+  const slicedRows = useMemo(() => {
+    let list = allRows;
+    const p = province.trim().toLowerCase();
+    const d = district.trim().toLowerCase();
+    const c = circuit.trim().toLowerCase();
+    const qq = q.trim().toLowerCase();
+    if (p) {
+      list = list.filter((r) => String(r.province || '').toLowerCase() === p);
+    }
+    if (d) {
+      list = list.filter((r) => String(r.district || '').toLowerCase() === d);
+    }
+    if (c) {
+      list = list.filter((r) => String(r.circuit || '').toLowerCase() === c);
+    }
+    if (quintile) {
+      list = list.filter((r) => String(r.quintile || '') === quintile);
+    }
+    if (coa) {
+      list = list.filter((r) => String(r.coa_status || '') === coa);
+    }
+    if (peu) {
+      list = list.filter(
+        (r) => String(r.peu_verify_status || 'none') === peu
+      );
+    }
+    if (filter === 'red') list = list.filter((r) => r.risk_band === 'red');
+    else if (filter === 'amber')
+      list = list.filter((r) => r.risk_band === 'amber');
+    else if (filter === 'green')
+      list = list.filter((r) => r.risk_band === 'green');
+    else if (filter === 'no_coa')
+      list = list.filter((r) => r.coa_status === 'none');
+    else if (filter === 'expired')
+      list = list.filter((r) => r.coa_status === 'expired');
+    else if (filter === 'audit_overdue')
+      list = list.filter((r) => r.monthly_audit_status === 'overdue');
+    else if (filter === 'audit_missing')
+      list = list.filter(
+        (r) => !r.monthly_audit_status || r.monthly_audit_status === 'none'
+      );
+    if (qq) {
+      list = list.filter((r) => {
+        const hay = [
+          r.school_name,
+          r.emis_number,
+          r.province,
+          r.district,
+          r.circuit,
+          r.cmc,
+          r.local_municipality,
+          r.pic_name,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return hay.includes(qq);
+      });
+    }
+    return list;
+  }, [
+    allRows,
+    province,
+    district,
+    circuit,
+    quintile,
+    coa,
+    peu,
+    filter,
+    q,
+  ]);
+
+  const sliceSummary = useMemo(
+    () => kitchenSafetySummary(slicedRows),
+    [slicedRows]
+  );
+  const rollups = useMemo(
+    () => kitchenSafetyRollups(slicedRows),
+    [slicedRows]
+  );
+  const hasSlice =
+    Boolean(province || district || circuit || quintile || coa || peu || q.trim()) ||
+    filter !== 'all';
+
+  const sliceFacets = useMemo(() => {
+    const base = province
+      ? allRows.filter(
+          (r) =>
+            String(r.province || '').toLowerCase() === province.toLowerCase()
+        )
+      : allRows;
+    const inDistrict = district
+      ? base.filter(
+          (r) =>
+            String(r.district || '').toLowerCase() === district.toLowerCase()
+        )
+      : base;
+    const uniq = (vals: Array<string | null | undefined>) =>
+      [...new Set(vals.map((v) => String(v || '').trim()).filter(Boolean))].sort(
+        (a, b) => a.localeCompare(b)
+      );
+    return {
+      provinces: uniq(allRows.map((r) => r.province)),
+      districts: uniq(base.map((r) => r.district)),
+      circuits: uniq(inDistrict.map((r) => r.circuit)),
+      quintiles: [
+        ...new Set(
+          allRows
+            .map((r) => r.quintile)
+            .filter((n): n is number => n != null && n >= 1 && n <= 5)
+        ),
+      ].sort((a, b) => a - b),
+    };
+  }, [allRows, province, district]);
+
+  const clearSlice = () => {
+    setProvince('');
+    setDistrict('');
+    setCircuit('');
+    setQuintile('');
+    setCoa('');
+    setPeu('');
+    setQ('');
+    setFilter('all');
+  };
+
+  const downloadSliceCsv = () => {
+    const header = [
+      'school',
+      'emis',
+      'province',
+      'district',
+      'circuit',
+      'quintile',
+      'coa',
+      'r638_score',
+      'r638_band',
+      'monthly_audit',
+      'monthly_score',
+      'pic',
+      'peu_verify',
+      'risk',
+    ];
+    const lines = [
+      header.join(','),
+      ...slicedRows.map((r) =>
+        [
+          csv(r.school_name),
+          csv(r.emis_number),
+          csv(r.province),
+          csv(r.district),
+          csv(r.circuit),
+          r.quintile ?? '',
+          csv(r.coa_status),
+          r.r638_score ?? '',
+          csv(r.r638_band),
+          csv(r.monthly_audit_status),
+          r.monthly_audit_score ?? '',
+          csv(r.pic_name),
+          csv(r.peu_verify_status),
+          csv(r.risk_band),
+        ].join(',')
+      ),
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `kitchen-safety-slice-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (loading) {
     return (
       <SchoolsPage>
@@ -282,24 +487,175 @@ function Inner() {
   }
 
   if (role === 'agency' && register) {
-    const s = register.summary || {};
+    const s = sliceSummary;
+    const groupRows =
+      sliceGroup === 'province'
+        ? rollups.byProvince
+        : sliceGroup === 'circuit'
+          ? rollups.byCircuit
+          : sliceGroup === 'coa'
+            ? rollups.byCoa
+            : sliceGroup === 'risk'
+              ? rollups.byRisk
+              : sliceGroup === 'audit'
+                ? rollups.byAudit
+                : rollups.byDistrict;
     return (
       <SchoolsPage>
         <SchoolsHeader
           title="Kitchen safety register"
           titleAccent="R638 · CoA"
-          description="DBE/PEU view of Certificate of Acceptability, monthly R638 audit compliance, and kitchen risk across linked schools."
+          description="Slice CoA, R638 and monthly audits by province, district, circuit and quintile. Claim gate applies across the programme."
           mode="agency"
           action={
-            <button
-              type="button"
-              onClick={() => void load()}
-              className="btn-secondary !py-2 !px-3 text-xs"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={downloadSliceCsv}
+                className="btn-secondary !py-2 !px-3 text-xs inline-flex items-center gap-1"
+              >
+                <Download className="h-3.5 w-3.5" /> CSV
+              </button>
+              <button
+                type="button"
+                onClick={() => void load()}
+                className="btn-secondary !py-2 !px-3 text-xs"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+              </button>
+            </div>
           }
         />
+
+        <div className="mb-4 rounded-3xl border border-sky-200 bg-sky-50/80 p-4 dark:!border-sky-400 dark:!bg-sky-950">
+          <div className="mb-2 flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-500">
+            <Filter className="h-3.5 w-3.5" /> Slice &amp; dice
+          </div>
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="text-[10px] font-bold uppercase text-slate-400">
+              Province
+              <select
+                value={province}
+                onChange={(e) => {
+                  setProvince(e.target.value);
+                  setDistrict('');
+                  setCircuit('');
+                }}
+                className="mt-0.5 block min-w-[9rem] rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-sm"
+              >
+                <option value="">All</option>
+                {sliceFacets.provinces.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-[10px] font-bold uppercase text-slate-400">
+              District
+              <select
+                value={district}
+                onChange={(e) => {
+                  setDistrict(e.target.value);
+                  setCircuit('');
+                }}
+                className="mt-0.5 block min-w-[9rem] rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-sm"
+              >
+                <option value="">All</option>
+                {sliceFacets.districts.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-[10px] font-bold uppercase text-slate-400">
+              Circuit
+              <select
+                value={circuit}
+                onChange={(e) => setCircuit(e.target.value)}
+                className="mt-0.5 block min-w-[8rem] rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-sm"
+              >
+                <option value="">All</option>
+                {sliceFacets.circuits.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-[10px] font-bold uppercase text-slate-400">
+              Quintile
+              <select
+                value={quintile}
+                onChange={(e) => setQuintile(e.target.value)}
+                className="mt-0.5 block min-w-[5rem] rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-sm"
+              >
+                <option value="">All</option>
+                {sliceFacets.quintiles.map((qn) => (
+                  <option key={qn} value={String(qn)}>
+                    Q{qn}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-[10px] font-bold uppercase text-slate-400">
+              CoA
+              <select
+                value={coa}
+                onChange={(e) => setCoa(e.target.value)}
+                className="mt-0.5 block min-w-[7rem] rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-sm"
+              >
+                <option value="">All</option>
+                <option value="valid">Valid</option>
+                <option value="none">None</option>
+                <option value="applied">Applied</option>
+                <option value="expired">Expired</option>
+                <option value="revoked">Revoked</option>
+              </select>
+            </label>
+            <label className="text-[10px] font-bold uppercase text-slate-400">
+              PEU verify
+              <select
+                value={peu}
+                onChange={(e) => setPeu(e.target.value)}
+                className="mt-0.5 block min-w-[8rem] rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-sm"
+              >
+                <option value="">All</option>
+                <option value="verified">Verified</option>
+                <option value="conditional">Conditional</option>
+                <option value="noncompliant">Non-compliant</option>
+                <option value="none">Not verified</option>
+              </select>
+            </label>
+            <label className="min-w-[10rem] flex-1 text-[10px] font-bold uppercase text-slate-400">
+              Search
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="School, EMIS, PIC…"
+                className="mt-0.5 block w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-sm"
+              />
+            </label>
+            {hasSlice ? (
+              <button
+                type="button"
+                onClick={clearSlice}
+                className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"
+              >
+                <X className="h-3.5 w-3.5" /> Clear
+              </button>
+            ) : null}
+          </div>
+          <p className="mt-2 text-[11px] text-slate-600">
+            {hasSlice ? 'Slice' : 'Programme'}:{' '}
+            <strong>{s.schools.toLocaleString('en-ZA')}</strong> of{' '}
+            {(register.summary?.schools ?? allRows.length).toLocaleString('en-ZA')}{' '}
+            schools · Valid CoA <strong>{s.valid_coa_pct}%</strong> · Red{' '}
+            <strong>{s.red}</strong>
+          </p>
+        </div>
+
         <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
           {[
             { l: 'Schools', v: s.schools ?? 0 },
@@ -335,6 +691,7 @@ function Inner() {
           {[
             'all',
             'red',
+            'green',
             'no_coa',
             'expired',
             'amber',
@@ -371,72 +728,201 @@ function Inner() {
             Claims: hard gate
           </button>
         </div>
+
+        <div className="mb-4 overflow-hidden rounded-3xl border border-sky-300 bg-white dark:!border-sky-400 dark:!bg-sky-950">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
+            <p className="text-sm font-black">Break down this slice</p>
+            <div className="flex flex-wrap gap-1">
+              {(
+                [
+                  ['district', 'District'],
+                  ['province', 'Province'],
+                  ['circuit', 'Circuit'],
+                  ['coa', 'CoA'],
+                  ['risk', 'Risk'],
+                  ['audit', 'Month audit'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setSliceGroup(id)}
+                  className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
+                    sliceGroup === id
+                      ? 'border-slate-900 bg-slate-900 text-white'
+                      : 'border-slate-200 bg-white text-slate-600'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead className="border-b bg-slate-50 text-[10px] font-black uppercase text-slate-500">
+                <tr>
+                  <th className="px-3 py-2">Slice</th>
+                  <th className="px-3 py-2">Schools</th>
+                  <th className="px-3 py-2">Valid CoA %</th>
+                  <th className="px-3 py-2">No CoA</th>
+                  <th className="px-3 py-2">Red</th>
+                  <th className="px-3 py-2">Audits done</th>
+                  <th className="px-3 py-2">Overdue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groupRows.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="px-3 py-8 text-center text-slate-400"
+                    >
+                      No schools in this slice.
+                    </td>
+                  </tr>
+                ) : (
+                  groupRows.map((g) => (
+                    <tr
+                      key={g.key}
+                      className="cursor-pointer border-b border-slate-100 hover:bg-sky-50/60"
+                      onClick={() => {
+                        if (sliceGroup === 'province') {
+                          setProvince(g.key === 'Unknown' ? '' : g.key);
+                          setDistrict('');
+                          setCircuit('');
+                        } else if (sliceGroup === 'district') {
+                          setDistrict(g.key === 'Unknown' ? '' : g.key);
+                          setCircuit('');
+                        } else if (sliceGroup === 'circuit') {
+                          setCircuit(g.key === 'Unknown' ? '' : g.key);
+                        } else if (sliceGroup === 'coa') {
+                          setCoa(g.key === 'none' ? 'none' : g.key);
+                        } else if (sliceGroup === 'risk') {
+                          setFilter(g.key === 'unknown' ? 'all' : g.key);
+                        } else if (sliceGroup === 'audit') {
+                          if (g.key === 'overdue') setFilter('audit_overdue');
+                          else if (g.key === 'none') setFilter('audit_missing');
+                          else setFilter('all');
+                        }
+                      }}
+                    >
+                      <td className="px-3 py-2 font-semibold capitalize">
+                        {g.key.replace(/_/g, ' ')}
+                      </td>
+                      <td className="px-3 py-2 tabular-nums font-bold">
+                        {g.schools}
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">
+                        {g.valid_coa_pct}%
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">{g.none_coa}</td>
+                      <td className="px-3 py-2 tabular-nums font-bold text-rose-700">
+                        {g.red}
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">
+                        {g.monthly_audit_done_pct}%
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">
+                        {g.monthly_audit_overdue}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[800px] text-left text-sm">
             <thead className="border-b bg-slate-50 text-[10px] font-black uppercase text-slate-500">
               <tr>
                 <th className="px-3 py-2">School</th>
                 <th className="px-3 py-2">District</th>
+                <th className="px-3 py-2">Circuit</th>
                 <th className="px-3 py-2">CoA</th>
                 <th className="px-3 py-2">R638</th>
                 <th className="px-3 py-2">This month audit</th>
                 <th className="px-3 py-2">PIC</th>
+                <th className="px-3 py-2">PEU</th>
                 <th className="px-3 py-2">Risk</th>
               </tr>
             </thead>
             <tbody>
-              {(register.rows || []).map((r) => (
-                <tr
-                  key={String(r.school_profile_id)}
-                  className="border-b border-slate-100"
-                >
-                  <td className="px-3 py-2 font-semibold">
-                    {String(r.school_name)}
-                    {r.emis_number ? (
-                      <div className="text-[10px] text-slate-400">
-                        EMIS {String(r.emis_number)}
-                      </div>
-                    ) : null}
-                  </td>
-                  <td className="px-3 py-2 text-xs">{String(r.district || '—')}</td>
-                  <td className="px-3 py-2 text-xs font-bold uppercase">
-                    {String(r.coa_status)}
-                  </td>
-                  <td className="px-3 py-2 text-xs">
-                    {r.r638_score != null ? `${r.r638_score}%` : '—'}{' '}
-                    <span className="uppercase opacity-70">
-                      {String(r.r638_band || '')}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-xs">
-                    <span className="font-bold uppercase">
-                      {String(r.monthly_audit_status || 'none')}
-                    </span>
-                    {r.monthly_audit_planned_date ? (
-                      <div className="text-[10px] text-slate-400">
-                        {String(r.monthly_audit_planned_date).slice(0, 10)}
-                        {r.monthly_audit_score != null
-                          ? ` · ${r.monthly_audit_score}%`
-                          : ''}
-                      </div>
-                    ) : null}
-                  </td>
-                  <td className="px-3 py-2 text-xs">{String(r.pic_name || '—')}</td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${bandClass(r.risk_band as SafetyBand)}`}
-                    >
-                      {String(r.risk_band)}
-                    </span>
+              {slicedRows.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={9}
+                    className="px-3 py-10 text-center text-slate-400"
+                  >
+                    No kitchens match this slice.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                slicedRows.map((r) => (
+                  <tr
+                    key={String(r.school_profile_id)}
+                    className="border-b border-slate-100"
+                  >
+                    <td className="px-3 py-2 font-semibold">
+                      {String(r.school_name)}
+                      {r.emis_number ? (
+                        <div className="text-[10px] text-slate-400">
+                          EMIS {String(r.emis_number)}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2 text-xs">
+                      {String(r.district || '—')}
+                    </td>
+                    <td className="px-3 py-2 text-xs">
+                      {String(r.circuit || '—')}
+                    </td>
+                    <td className="px-3 py-2 text-xs font-bold uppercase">
+                      {String(r.coa_status)}
+                    </td>
+                    <td className="px-3 py-2 text-xs">
+                      {r.r638_score != null ? `${r.r638_score}%` : '—'}{' '}
+                      <span className="uppercase opacity-70">
+                        {String(r.r638_band || '')}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-xs">
+                      <span className="font-bold uppercase">
+                        {String(r.monthly_audit_status || 'none')}
+                      </span>
+                      {r.monthly_audit_planned_date ? (
+                        <div className="text-[10px] text-slate-400">
+                          {String(r.monthly_audit_planned_date).slice(0, 10)}
+                          {r.monthly_audit_score != null
+                            ? ` · ${r.monthly_audit_score}%`
+                            : ''}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2 text-xs">
+                      {String(r.pic_name || '—')}
+                    </td>
+                    <td className="px-3 py-2 text-xs capitalize">
+                      {String(r.peu_verify_status || '—')}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${bandClass(r.risk_band as SafetyBand)}`}
+                      >
+                        {String(r.risk_band)}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
         <p className="mt-3 text-[11px] text-slate-500">
-          Headline KPI vs News24 signal: track <strong>Valid CoA %</strong> by
-          district. Soft gate shows risk on claims; hard gate blocks submit.
+          Click a slice row to drill in. Soft gate shows risk on claims; hard
+          gate blocks submit.
         </p>
       </SchoolsPage>
     );
