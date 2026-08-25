@@ -67,6 +67,7 @@ import type {
 } from '@/lib/fitness/class-challenges';
 import { GymClassLeaderboards } from '@/components/fitness/GymClassLeaderboards';
 import {
+  healthHasActiveInjury,
   injuriesForPerson,
   parsePersonalBests,
 } from '@/lib/fitness/person-records';
@@ -915,8 +916,7 @@ export default function CoachFitgraphPortalPage() {
           {(() => {
             const care = portal.members.filter(
               (m) =>
-                m.health?.injured ||
-                (m.health?.injury_areas || []).length > 0 ||
+                healthHasActiveInjury(m.health) ||
                 (portal.special_dates || []).some(
                   (d) => d.client_id === m.id && d.days_until <= 7
                 )
@@ -936,7 +936,7 @@ export default function CoachFitgraphPortalPage() {
                       {m.name}
                     </p>
                     <p className="text-[11px] font-semibold text-rose-800 dark:text-rose-200">
-                      {m.health?.injured || (m.health?.injury_areas || []).length
+                      {healthHasActiveInjury(m.health)
                         ? 'Injury / modification — they update this in their app'
                         : 'Birthday or anniversary this week'}
                     </p>
@@ -1112,7 +1112,7 @@ export default function CoachFitgraphPortalPage() {
                   {m.plan_names?.length
                     ? m.plan_names.join(' · ')
                     : m.membership_status || 'Member'}
-                  {m.health?.injured ? ' · injured' : ''}
+                  {healthHasActiveInjury(m.health) ? ' · injured' : ''}
                   {(() => {
                     const hit = (portal.special_dates || []).find(
                       (d) => d.client_id === m.id && d.days_until <= 7
@@ -1871,7 +1871,7 @@ export default function CoachFitgraphPortalPage() {
                               ? ' · won’t attend'
                               : ''}
                         </div>
-                        {(r.injured || r.health_label) && (
+                        {r.injured ? (
                           <div
                             className="mt-0.5 text-[10px] font-bold text-rose-300/90"
                             title={
@@ -1882,7 +1882,7 @@ export default function CoachFitgraphPortalPage() {
                           >
                             ⚠ {r.health_label || 'Injured'}
                           </div>
-                        )}
+                        ) : null}
                       </div>
                       <div className="flex gap-1">
                         <button

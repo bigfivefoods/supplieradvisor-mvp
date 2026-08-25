@@ -381,11 +381,15 @@ function injuryLabel(client?: FitClient | null): { injured: boolean; label: stri
   }
   const health = client?.health;
   if (!health) return { injured: false, label: '' };
+  const status = String(health.injury_status || '').toLowerCase();
+  if (status === 'cleared' || status === 'none') {
+    return { injured: false, label: '' };
+  }
   const areas = health.injury_areas || [];
-  const status = String(health.injury_status || '');
   const injured =
     health.injured === true ||
-    (areas.length > 0 && status !== 'cleared' && status !== 'none');
+    areas.length > 0 ||
+    ['acute', 'recovering', 'chronic'].includes(status);
   if (!injured) return { injured: false, label: '' };
   return {
     injured: true,
@@ -416,7 +420,7 @@ export function buildChallengeBoard(
       value: s.value,
       division: s.division,
       pct: challengePct(s.value, challenge.target, challenge.win),
-      injured: s.injured === true || inj.injured,
+      injured: inj.injured,
       injury_label: inj.label || undefined,
       updated_at: s.updated_at,
     };

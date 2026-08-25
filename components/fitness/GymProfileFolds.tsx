@@ -16,6 +16,7 @@ import {
 import {
   PB_TITLE_PRESETS,
   PB_UNITS,
+  injuryIsActive,
   type FitInjuryEntry,
   type FitPersonalBest,
 } from '@/lib/fitness/person-records';
@@ -132,6 +133,7 @@ export function GymProfileFolds({
   const [addingInj, setAddingInj] = useState(false);
   const [customUnit, setCustomUnit] = useState(false);
   const pbTitleRef = useRef<HTMLInputElement>(null);
+  const activeInjuries = injuries.filter((i) => injuryIsActive(i.status));
 
   const editPb = (row: FitPersonalBest) => {
     const unit = row.unit || '';
@@ -422,15 +424,17 @@ export function GymProfileFolds({
       <GymExpandSection
         title="Injuries"
         hint={
-          injuries.length
-            ? `${injuries.length} on file — add or update so sessions can be adapted`
-            : 'Add and update injuries so coaches know how to adapt'
+          activeInjuries.length
+            ? `${activeInjuries.length} active — add or update so sessions can be adapted`
+            : injuries.length
+              ? 'All cleared — no alert on the floor'
+              : 'Add and update injuries so coaches know how to adapt'
         }
         icon={<AlertTriangle className="h-4 w-4" />}
         badge={
-          injuries.length ? (
+          activeInjuries.length ? (
             <span className="shrink-0 rounded-full bg-rose-600 px-2.5 py-0.5 text-[10px] font-black tabular-nums text-white">
-              {injuries.length}
+              {activeInjuries.length}
             </span>
           ) : undefined
         }
@@ -439,20 +443,34 @@ export function GymProfileFolds({
       >
         {injuries.length ? (
           <ul className="space-y-2">
-            {injuries.map((row) => (
+            {injuries.map((row) => {
+              const active = injuryIsActive(row.status);
+              return (
               <li
                 key={row.id}
-                className="flex items-start justify-between gap-2 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2.5 dark:border-rose-500/30 dark:bg-rose-950/30"
+                className={`flex items-start justify-between gap-2 rounded-2xl border px-3 py-2.5 ${
+                  active
+                    ? 'border-rose-100 bg-rose-50 dark:border-rose-500/30 dark:bg-rose-950/30'
+                    : 'border-slate-100 bg-slate-50 dark:border-white/10 dark:bg-white/5'
+                }`}
               >
                 <div className="min-w-0">
                   <p className="text-sm font-black text-slate-900 dark:text-white">
                     {row.area}
                     {row.side && row.side !== 'n/a' ? ` · ${row.side}` : ''}
                   </p>
-                  <p className="text-[11px] font-semibold text-rose-800 dark:text-rose-200">
+                  <p
+                    className={`text-[11px] font-semibold ${
+                      active
+                        ? 'text-rose-800 dark:text-rose-200'
+                        : 'text-slate-500'
+                    }`}
+                  >
                     {row.status || 'noted'}
                     {row.onset ? ` · since ${row.onset}` : ''}
-                    {row.pain_score != null ? ` · pain ${row.pain_score}/10` : ''}
+                    {active && row.pain_score != null
+                      ? ` · pain ${row.pain_score}/10`
+                      : ''}
                   </p>
                   {row.notes ? (
                     <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
@@ -473,7 +491,8 @@ export function GymProfileFolds({
                   Edit
                 </button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         ) : (
           <p className="text-sm text-slate-500">

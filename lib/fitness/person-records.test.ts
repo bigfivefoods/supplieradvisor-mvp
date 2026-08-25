@@ -45,7 +45,10 @@ const cleared = upsertInjuryEntry(inj.list, {
   area: 'Knee',
   status: 'cleared',
 });
-assert.equal(healthFromInjuries(cleared.list).injured, false);
+const afterClear = healthFromInjuries(cleared.list);
+assert.equal(afterClear.injured, false);
+assert.equal(afterClear.injury_status, 'cleared');
+assert.deepEqual(afterClear.injury_areas, []);
 
 const gone = removeInjuryEntry(cleared.list, inj.row.id);
 assert.equal(gone.length, 0);

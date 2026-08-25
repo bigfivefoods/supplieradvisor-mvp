@@ -192,41 +192,51 @@ export function removeInjuryEntry(
 
 const ACTIVE_STATUS = new Set(['acute', 'recovering', 'chronic']);
 
+export function injuryIsActive(status?: string | null): boolean {
+  return ACTIVE_STATUS.has(String(status || '').toLowerCase());
+}
+
+export function healthHasActiveInjury(
+  h?: PersonHealthProfile | null
+): boolean {
+  if (!h) return false;
+  const status = String(h.injury_status || '').toLowerCase();
+  if (status === 'cleared' || status === 'none') return false;
+  return (
+    h.injured === true ||
+    (h.injury_areas || []).length > 0 ||
+    injuryIsActive(status)
+  );
+}
+
 export function healthFromInjuries(
   entries: FitInjuryEntry[],
   prev?: PersonHealthProfile | null
 ): PersonHealthProfile {
   const next = { ...(prev || emptyHealthProfile()) };
-  const active = entries.filter((e) => ACTIVE_STATUS.has(String(e.status || '')));
-  const source = active[0] || entries[0];
+  const active = entries.filter((e) => injuryIsActive(e.status));
+  const source = active[0] || null;
   next.injured = active.length > 0;
   next.injury_areas = [
     ...new Set(active.map((e) => e.area).filter(Boolean)),
   ];
-  if (!next.injury_areas.length && source?.area) {
-    next.injury_areas = [source.area];
-  }
-  next.injury_side = source?.side || next.injury_side || 'n/a';
+  next.injury_side = source?.side || 'n/a';
   next.injury_status = active.length
     ? source?.status || 'recovering'
     : entries.length
       ? 'cleared'
       : 'none';
   next.injury_onset = source?.onset || null;
-  next.injury_notes = entries
-    .map((e) =>
-      [e.area, e.notes].filter(Boolean).join(': ')
-    )
+  next.injury_notes = active
+    .map((e) => [e.area, e.notes].filter(Boolean).join(': '))
     .filter(Boolean)
     .join('\n');
-  next.training_modifications = entries
+  next.training_modifications = active
     .map((e) => e.modifications)
     .filter(Boolean)
     .join(' · ');
   next.pain_score =
-    active.find((e) => e.pain_score != null)?.pain_score ??
-    source?.pain_score ??
-    null;
+    active.find((e) => e.pain_score != null)?.pain_score ?? null;
   next.updated_at = new Date().toISOString();
   return next;
 }

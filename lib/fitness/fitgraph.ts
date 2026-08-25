@@ -2858,11 +2858,15 @@ export function buildCoachPortalPayload(
           phone: client?.phone || b.guest_phone,
           health: client?.health,
           injured: client?.health
-            ? client.health.injured === true ||
-              (Array.isArray(client.health.injury_areas) &&
-                client.health.injury_areas.length > 0 &&
-                client.health.injury_status !== 'cleared' &&
-                client.health.injury_status !== 'none')
+            ? (() => {
+                const status = String(client.health.injury_status || '');
+                if (status === 'cleared' || status === 'none') return false;
+                return (
+                  client.health.injured === true ||
+                  (Array.isArray(client.health.injury_areas) &&
+                    client.health.injury_areas.length > 0)
+                );
+              })()
             : false,
           health_label: client?.health
             ? [
