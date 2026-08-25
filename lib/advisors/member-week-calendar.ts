@@ -14,6 +14,8 @@ export type MemberCalendarEvent = {
   full?: boolean;
   can_book?: boolean;
   book_hint?: string | null;
+  /** Coach diary: class vs own workout vs private client */
+  kind?: 'class' | 'workout' | 'client';
 };
 
 export function mondayOf(iso: string): string {

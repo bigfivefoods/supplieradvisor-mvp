@@ -32,6 +32,9 @@ export function FitClassFeedbackForm({
   role,
   title,
   description,
+  enjoymentLabel,
+  againLabel,
+  commentPlaceholder,
   initial,
   busy,
   onSubmit,
@@ -45,6 +48,9 @@ export function FitClassFeedbackForm({
   role: 'member' | 'coach';
   title?: string;
   description?: string;
+  enjoymentLabel?: string;
+  againLabel?: string;
+  commentPlaceholder?: string;
   initial?: Partial<FitClassFeedback> | null;
   busy?: boolean;
   onSubmit: (v: FeedbackFormValue) => void | Promise<void>;
@@ -166,7 +172,7 @@ export function FitClassFeedbackForm({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <div className="flex justify-between items-baseline gap-2">
-            <span className={label}>Enjoyment</span>
+            <span className={label}>{enjoymentLabel || 'Enjoyment'}</span>
             <span className={`text-[11px] font-bold ${muted}`}>
               {v.enjoyment}/5
             </span>
@@ -185,7 +191,8 @@ export function FitClassFeedbackForm({
         <div>
           <div className="flex justify-between items-baseline gap-2">
             <span className={label}>
-              {role === 'coach' ? 'Would teach again' : 'Would do again'}
+              {againLabel ||
+                (role === 'coach' ? 'Would teach again' : 'Would do again')}
             </span>
             <span className={`text-[11px] font-bold ${muted}`}>
               {v.would_return}/5
@@ -231,9 +238,10 @@ export function FitClassFeedbackForm({
       <textarea
         className={input + ' min-h-[4rem] resize-y'}
         placeholder={
-          role === 'coach'
+          commentPlaceholder ||
+          (role === 'coach'
             ? 'Notes for the owner (energy, equipment, class flow…)'
-            : 'Anything else? (optional)'
+            : 'Anything else? (optional)')
         }
         value={v.comment}
         onChange={(e) => setV((cur) => ({ ...cur, comment: e.target.value }))}

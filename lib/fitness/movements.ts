@@ -106,6 +106,8 @@ export type FitProgramme = {
   session_ids?: string[];
   /** Coach’s own training plan (personal time / self PT) */
   personal_for_coach?: boolean;
+  /** Other coaches who can follow / run this workout */
+  shared_coach_ids?: string[] | null;
   /** Duration in weeks (calendar length). */
   weeks?: number | null;
   /** Week × weekday sessions. Empty = use `items` as week 1 Monday. */
@@ -331,6 +333,22 @@ export function movementsForCoach(
   );
 }
 
+export function shareProgrammeWithCoaches(
+  programmes: FitProgramme[],
+  programmeId: string | null | undefined,
+  coachIds: string[]
+) {
+  const id = String(programmeId || '');
+  if (!id) return;
+  const p = programmes.find((x) => x.id === id);
+  if (!p) return;
+  const set = new Set(p.shared_coach_ids || []);
+  for (const cid of coachIds) {
+    if (cid && cid !== p.coach_id) set.add(cid);
+  }
+  p.shared_coach_ids = [...set];
+}
+
 export function programmesForCoach(
   programmes: FitProgramme[],
   coachId: string
@@ -338,7 +356,9 @@ export function programmesForCoach(
   return programmes.filter(
     (p) =>
       p.active !== false &&
-      (!p.coach_id || p.coach_id === coachId)
+      (!p.coach_id ||
+        p.coach_id === coachId ||
+        (p.shared_coach_ids || []).includes(coachId))
   );
 }
 
@@ -538,6 +558,10 @@ export function upsertProgramme(
       rec.personal_for_coach !== undefined
         ? rec.personal_for_coach === true
         : prev?.personal_for_coach === true,
+    shared_coach_ids:
+      rec.shared_coach_ids !== undefined
+        ? parseStringIds(rec.shared_coach_ids)
+        : prev?.shared_coach_ids || [],
     price_zar:
       rec.price_zar !== undefined
         ? rec.price_zar == null || rec.price_zar === ''

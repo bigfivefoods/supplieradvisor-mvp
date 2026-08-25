@@ -12,8 +12,10 @@ import {
   buildClassJoinPath,
   buildCoachPortalPayload as buildCoachPortalPayloadBase,
   coachPersonalBookingError,
+  coachCanSeeSession,
   createSessionsFromTemplate,
   ensureSessionShareCode,
+  normalizeIdList,
   resolveClassTypeForSession,
   resolveSessionTimes,
   sessionKindOf,
@@ -28,7 +30,7 @@ import {
   type FitRecurrence,
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
-import { mergeHealthProfile } from '@/lib/health/body-map';
+import { shareProgrammeWithCoaches } from '@/lib/fitness/movements';
 import {
   activeClassSubscriptions,
   buildClassSubscriptionReport,
@@ -539,81 +541,21 @@ export async function POST(request: NextRequest) {
     }
 
     /**
-     * Member profile + injury awareness — coaches update so the floor knows
-     * what to adapt. Does not require can_manage_classes.
+     * Member / client details are owned by the person in their member PWA.
+     * Coaches cannot edit name, contact, or health from the coach app.
      */
     if (
       action === 'update_client' ||
       action === 'update_client_health' ||
       action === 'update_member'
     ) {
-      const clientId = String(body.client_id || body.id || '').trim();
-      if (!clientId) {
-        return NextResponse.json(
-          { error: 'client_id required' },
-          { status: 400 }
-        );
-      }
-      const idx = store.clients.findIndex((c) => c.id === clientId);
-      if (idx < 0) {
-        return NextResponse.json({ error: 'Client not found' }, { status: 404 });
-      }
-      const prev = store.clients[idx];
-      if (body.name != null && String(body.name).trim()) {
-        prev.name = String(body.name).trim();
-      }
-      if (body.email !== undefined) {
-        prev.email = body.email ? String(body.email).trim() : undefined;
-      }
-      if (body.phone !== undefined) {
-        prev.phone = body.phone ? String(body.phone).trim() : undefined;
-      }
-      if (body.emergency_contact !== undefined) {
-        prev.emergency_contact = body.emergency_contact
-          ? String(body.emergency_contact).trim()
-          : undefined;
-      }
-      if (body.notes !== undefined) {
-        prev.notes = body.notes ? String(body.notes) : undefined;
-      }
-      const healthPatch =
-        body.health !== undefined ||
-        body.injured !== undefined ||
-        body.injury_areas !== undefined ||
-        body.injury_notes !== undefined ||
-        body.injury_status !== undefined ||
-        body.injury_side !== undefined ||
-        body.injury_onset !== undefined ||
-        body.training_modifications !== undefined ||
-        body.goals !== undefined ||
-        body.pain_score !== undefined ||
-        body.medical_clearance !== undefined;
-      if (healthPatch) {
-        prev.health = mergeHealthProfile(prev.health, body, {
-          now,
-          updatedBy: `coach:${coach.name}`,
-        });
-      }
-      prev.updated_at = now;
-      store.clients[idx] = prev;
-      await saveStore(companyId, meta, store);
-      const from = body.from ? String(body.from) : undefined;
-      const to = body.to ? String(body.to) : undefined;
-      return NextResponse.json({
-        success: true,
-        message: 'Member profile updated',
-        client: {
-          id: prev.id,
-          code: prev.code,
-          name: prev.name,
-          email: prev.email,
-          phone: prev.phone,
-          emergency_contact: prev.emergency_contact,
-          notes: prev.notes,
-          health: prev.health,
+      return NextResponse.json(
+        {
+          error:
+            'Member and client details are updated in the member app, not by the coach.',
         },
-        portal: buildCoachPortalPayload(store, coach, from, to),
-      });
+        { status: 403 }
+      );
     }
 
     /**
@@ -793,10 +735,26 @@ export async function POST(request: NextRequest) {
 
     if (action === 'update_session') {
       const session = store.sessions.find(
-        (s) => s.id === sessionId && s.coach_id === coach.id
+        (s) => s.id === sessionId && coachCanSeeSession(s, coach.id)
       );
       if (!session) {
         return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+      }
+      const ownsSession = session.coach_id === coach.id;
+      if (!ownsSession) {
+        if (
+          body.status === 'cancelled' ||
+          body.status === 'completed' ||
+          body.status === 'scheduled'
+        ) {
+          session.status = body.status;
+        }
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          message: 'Session updated',
+          portal: buildCoachPortalPayload(store, coach),
+        });
       }
       if (body.class_type_id != null && String(body.class_type_id).trim()) {
         const ctId = String(body.class_type_id);
@@ -865,6 +823,19 @@ export async function POST(request: NextRequest) {
         session.programme_id = body.programme_id
           ? String(body.programme_id)
           : null;
+      }
+      if (body.shared_coach_ids !== undefined) {
+        const ids = normalizeIdList(body.shared_coach_ids).filter(
+          (id) => id !== session.coach_id
+        );
+        session.shared_coach_ids = ids;
+        if (session.programme_id) {
+          shareProgrammeWithCoaches(
+            store.programmes || [],
+            session.programme_id,
+            ids
+          );
+        }
       }
       if (body.notes != null) session.notes = String(body.notes);
       if (body.public_notes != null) session.public_notes = String(body.public_notes);
@@ -1137,7 +1108,7 @@ export async function POST(request: NextRequest) {
     ) {
       const sid = String(body.session_id || sessionId || '');
       const session = store.sessions.find(
-        (s) => s.id === sid && s.coach_id === coach.id
+        (s) => s.id === sid && coachCanSeeSession(s, coach.id)
       );
       if (!session) {
         return NextResponse.json(
@@ -1421,6 +1392,9 @@ export async function POST(request: NextRequest) {
             body.programme_id != null && String(body.programme_id).trim()
               ? String(body.programme_id)
               : null,
+          shared_coach_ids: normalizeIdList(body.shared_coach_ids).filter(
+            (id) => id !== coach.id
+          ),
           date,
           start_time: startTime,
           end_time: body.end_time != null ? String(body.end_time) : null,
@@ -1445,6 +1419,16 @@ export async function POST(request: NextRequest) {
       );
       store.sessions.push(...created);
       stampCatalogSeriesAndBookSubscribers(store, created, now);
+      const sharedIds = normalizeIdList(body.shared_coach_ids).filter(
+        (id) => id !== coach.id
+      );
+      if (sharedIds.length && body.programme_id) {
+        shareProgrammeWithCoaches(
+          store.programmes || [],
+          String(body.programme_id),
+          sharedIds
+        );
+      }
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,

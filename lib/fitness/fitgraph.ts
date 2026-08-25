@@ -704,8 +704,29 @@ export type FitSession = {
   origin?: 'one_off' | 'series' | 'owner' | 'coach' | string;
   /** Optional programme override for this occurrence */
   programme_id?: string | null;
+  /** Other coaches who can do this workout on their diary too */
+  shared_coach_ids?: string[] | null;
   created_at: string;
 };
+
+export function normalizeIdList(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return [...new Set(raw.map((x) => String(x || '').trim()).filter(Boolean))];
+  }
+  const s = String(raw || '').trim();
+  return s ? [s] : [];
+}
+
+export function coachCanSeeSession(
+  session: {
+    coach_id?: string | null;
+    shared_coach_ids?: string[] | null;
+  },
+  coachId: string
+): boolean {
+  if (session.coach_id === coachId) return true;
+  return (session.shared_coach_ids || []).includes(coachId);
+}
 
 /** @deprecated Prefer ScheduleRecurrence from @/lib/schedule/recurrence */
 export type FitRecurrence = import('@/lib/schedule/recurrence').ScheduleRecurrence;
@@ -2621,6 +2642,7 @@ export function createSessionsFromTemplate(
     class_plan?: string;
     origin?: string;
     programme_id?: string | null;
+    shared_coach_ids?: string[] | null;
     /** Reuse a catalog series so class-specific plans still match. */
     series_id?: string | null;
   },
@@ -2680,6 +2702,9 @@ export function createSessionsFromTemplate(
         template.origin ||
         (dates.length > 1 ? 'series' : 'one_off'),
       programme_id: template.programme_id ?? null,
+      shared_coach_ids: (template.shared_coach_ids || []).filter(
+        (id) => id && id !== coachId
+      ),
       created_at: now,
     };
   });
@@ -2743,7 +2768,7 @@ export function buildCoachPortalPayload(
   const mySessions: CoachSessionCard[] = store.sessions
     .filter(
       (s) =>
-        s.coach_id === coach.id &&
+        coachCanSeeSession(s, coach.id) &&
         s.date >= start &&
         s.date <= end &&
         s.status !== 'cancelled'
@@ -2846,8 +2871,63 @@ export function buildCoachPortalPayload(
         : a.session.date.localeCompare(b.session.date)
     );
 
+  /** This coach's class book + private clients only — not the whole gym. */
+  const classMemberIds = new Set<string>();
+  const privateClientIds = new Set<string>();
+  const classNamesByMember = new Map<string, Set<string>>();
+  const addClassMember = (clientId: string, className?: string | null) => {
+    const id = String(clientId || '').trim();
+    if (!id) return;
+    classMemberIds.add(id);
+    const label = String(className || '').trim() || 'Class';
+    let names = classNamesByMember.get(id);
+    if (!names) {
+      names = new Set();
+      classNamesByMember.set(id, names);
+    }
+    names.add(label);
+  };
+  for (const c of store.clients || []) {
+    if (c.active === false) continue;
+    if (c.coach_id === coach.id) privateClientIds.add(c.id);
+  }
+  for (const s of store.sessions || []) {
+    if (s.status === 'cancelled') continue;
+    if (!coachCanSeeSession(s, coach.id)) continue;
+    const kind = sessionKindOf(store, s);
+    if (kind === 'coach_personal') continue;
+    const className = classTypeById(store, s.class_type_id)?.name || null;
+    for (const b of store.bookings || []) {
+      if (b.session_id !== s.id || b.status === 'cancelled') continue;
+      if (!b.client_id) continue;
+      if (kind === 'private_pt') privateClientIds.add(b.client_id);
+      else addClassMember(b.client_id, className);
+    }
+  }
+  for (const e of store.programme_enrollments || []) {
+    if (e.coach_id !== coach.id) continue;
+    if (String(e.status || '') === 'cancelled') continue;
+    const p = (store.programmes || []).find((x) => x.id === e.programme_id);
+    if (p?.kind === 'personal_pt' || p?.personal_for_coach) {
+      privateClientIds.add(e.client_id);
+    } else {
+      const typeNames = (p?.class_type_ids || [])
+        .map((id) => classTypeById(store, id)?.name)
+        .filter((n): n is string => Boolean(n));
+      if (typeNames.length) {
+        typeNames.forEach((n) => addClassMember(e.client_id, n));
+      } else {
+        addClassMember(e.client_id, p?.name || 'Class');
+      }
+    }
+  }
+
   const members = store.clients
-    .filter((c) => c.active !== false)
+    .filter(
+      (c) =>
+        c.active !== false &&
+        (classMemberIds.has(c.id) || privateClientIds.has(c.id))
+    )
     .map((c) => ({
       id: c.id,
       code: c.code,
@@ -2861,6 +2941,11 @@ export function buildCoachPortalPayload(
       date_of_birth: c.date_of_birth || c.passport?.date_of_birth || null,
       start_date: c.start_date || null,
       health: c.health,
+      in_classes: classMemberIds.has(c.id),
+      is_client: privateClientIds.has(c.id),
+      class_names: [...(classNamesByMember.get(c.id) || [])].sort((a, b) =>
+        a.localeCompare(b)
+      ),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -2938,6 +3023,7 @@ export function buildCoachPortalPayload(
     specialty_options: getCoachSpecialtyOptions(store),
     from: start,
     to: end,
+    working_hours: store.settings?.working_hours || null,
     sessions: mySessions,
     by_date: byDate,
     members,
@@ -2947,11 +3033,12 @@ export function buildCoachPortalPayload(
         m.active !== false &&
         (!m.coach_id || m.coach_id === coach.id)
     ),
-    programmes: (store.programmes || []).filter(
-      (p) =>
-        p.active !== false &&
-        (!p.coach_id || p.coach_id === coach.id)
-    ),
+    programmes: (store.programmes || []).filter((p) => {
+      if (p.active === false) return false;
+      if (!p.coach_id || p.coach_id === coach.id) return true;
+      if ((p.shared_coach_ids || []).includes(coach.id)) return true;
+      return mySessions.some((c) => c.session.programme_id === p.id);
+    }),
     programme_follows: buildProgrammeFollowRoster({
       programmes: store.programmes || [],
       enrollments: store.programme_enrollments || [],

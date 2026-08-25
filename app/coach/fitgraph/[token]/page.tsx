@@ -7,11 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
-  CalendarDays,
   Check,
-  ChevronLeft,
-  ChevronRight,
-  Dumbbell,
   Loader2,
   MessageSquare,
   Plus,
@@ -42,12 +38,6 @@ import type { MemberSpecialDate } from '@/lib/fitness/member-special-dates';
 import { PersonQualificationsEditor } from '@/components/services/PersonQualificationsEditor';
 import type { PersonQualification } from '@/lib/services/person-qualifications';
 import type { PersonHealthProfile } from '@/lib/health/body-map';
-import {
-  InjuryProfileFields,
-  formToHealthPayload,
-  healthToForm,
-  type InjuryFormState,
-} from '@/components/health/InjuryProfileFields';
 import { PortalIdentityVerify } from '@/components/identity/PortalIdentityVerify';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { CoachMovementStudio } from '@/components/fitness/CoachMovementStudio';
@@ -64,6 +54,7 @@ import {
   GymSectionTitle,
 } from '@/components/fitness/GymMemberPwaUi';
 import { isoDateInZone } from '@/lib/fitness/gym-local-time';
+import { hourBounds, type WorkingHours } from '@/lib/schedule/working-hours';
 import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
 import { AdvisorPwaSignOutButton } from '@/components/advisors/AdvisorPwaSignOutButton';
 import type {
@@ -105,11 +96,13 @@ type PortalSession = {
     status: string;
     series_id?: string | null;
     session_kind?: import('@/lib/fitness/session-times').FitSessionKind;
+    coach_id?: string | null;
     origin?: string | null;
     notes?: string;
     class_plan?: string;
     public_notes?: string;
     programme_id?: string | null;
+    shared_coach_ids?: string[] | null;
   };
   programme?: FitHydratedProgramme | null;
   class_name?: string;
@@ -173,6 +166,7 @@ type SessionEditForm = {
   class_plan: string;
   notes: string;
   programme_id: string;
+  shared_coach_id: string;
 };
 
 type Portal = {
@@ -218,6 +212,7 @@ type Portal = {
   specialty_options?: string[];
   from: string;
   to: string;
+  working_hours?: WorkingHours | null;
   sessions: PortalSession[];
   by_date: Record<string, PortalSession[]>;
   members: Array<{
@@ -233,6 +228,9 @@ type Portal = {
     health?: PersonHealthProfile;
     plan_names?: string[];
     monthly_zar?: number;
+    in_classes?: boolean;
+    is_client?: boolean;
+    class_names?: string[];
   }>;
   special_dates?: MemberSpecialDate[];
   class_report?: import('@/lib/fitness/vuka-class-catalog').ClassSubscriptionReport;
@@ -309,130 +307,35 @@ function mondayOf(iso: string) {
   return d.toISOString().slice(0, 10);
 }
 
-const WEEK_DAY_LABELS = [
-  'Mon',
-  'Tue',
-  'Wed',
-  'Thu',
-  'Fri',
-  'Sat',
-  'Sun',
-] as const;
+type CoachLaneId = 'workouts' | 'classes' | 'clients';
 
-type CoachLaneId = 'all' | 'workouts' | 'classes' | 'clients';
-
-function laneOf(card: PortalSession): Exclude<CoachLaneId, 'all'> {
+function laneOf(card: PortalSession): CoachLaneId {
   const kind = card.session.session_kind;
   if (kind === 'coach_personal') return 'workouts';
   if (kind === 'private_pt') return 'clients';
   return 'classes';
 }
 
-const COACH_LANES: Array<{
-  id: CoachLaneId;
-  title: string;
-  hint: string;
-  icon: typeof CalendarDays;
-}> = [
-  {
-    id: 'all',
-    title: 'All',
-    hint: 'Full view of your schedule',
-    icon: CalendarDays,
-  },
-  {
-    id: 'workouts',
-    title: 'Workouts',
-    hint: 'Your planned training',
-    icon: Dumbbell,
-  },
-  {
-    id: 'classes',
-    title: 'Classes',
-    hint: 'Classes you are scheduled to take',
-    icon: Users,
-  },
-  {
-    id: 'clients',
-    title: 'Clients',
-    hint: 'Private client sessions',
-    icon: User,
-  },
-];
-
-function CoachWeekStrip({
-  weekStart,
-  todayIso,
-  selectedIso,
-  onPrev,
-  onNext,
-  onSelectDay,
-  arrows = true,
-  prevLabel = 'Previous week',
-  nextLabel = 'Next week',
-}: {
-  weekStart: string;
-  todayIso: string;
-  selectedIso?: string;
-  onPrev?: () => void;
-  onNext?: () => void;
-  onSelectDay?: (iso: string) => void;
-  arrows?: boolean;
-  prevLabel?: string;
-  nextLabel?: string;
-}) {
-  const days = Array.from({ length: 7 }, (_, i) => addDaysIso(weekStart, i));
-  return (
-    <div className="flex items-stretch gap-1">
-      {arrows ? (
-        <button
-          type="button"
-          aria-label={prevLabel}
-          onClick={onPrev}
-          className="flex w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-neutral-900 dark:text-white"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-      ) : null}
-      <div className="grid min-w-0 flex-1 grid-cols-7 gap-0.5">
-        {days.map((iso, i) => {
-          const isToday = iso === todayIso;
-          const on = selectedIso ? iso === selectedIso : isToday;
-          return (
-            <button
-              key={iso}
-              type="button"
-              onClick={() => onSelectDay?.(iso)}
-              className={`rounded-2xl px-0.5 py-1.5 text-center ${
-                on
-                  ? 'bg-[#E8E830] text-slate-950 shadow-sm'
-                  : isToday
-                    ? 'border border-[#E8E830] bg-white text-slate-900 dark:bg-neutral-900 dark:text-white'
-                    : 'bg-white text-slate-500 dark:bg-neutral-900 dark:text-slate-400'
-              }`}
-            >
-              <span className="block text-[8px] font-black uppercase tracking-wide">
-                {WEEK_DAY_LABELS[i]}
-              </span>
-              <span className="block text-[13px] font-black tabular-nums leading-tight">
-                {Number(iso.slice(8, 10))}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-      {arrows ? (
-        <button
-          type="button"
-          aria-label={nextLabel}
-          onClick={onNext}
-          className="flex w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-neutral-900 dark:text-white"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      ) : null}
-    </div>
-  );
+function programmesForLane(
+  programmes: FitProgramme[],
+  kind: FitSessionKind
+) {
+  return programmes.filter((p) => {
+    if (kind === 'class') {
+      return (
+        (p.kind === 'class' || p.kind === 'both') &&
+        p.personal_for_coach !== true
+      );
+    }
+    if (kind === 'private_pt') {
+      return p.kind === 'personal_pt' || p.kind === 'both';
+    }
+    return (
+      p.kind === 'personal_pt' ||
+      p.kind === 'both' ||
+      p.personal_for_coach === true
+    );
+  });
 }
 
 export default function CoachFitgraphPortalPage() {
@@ -482,6 +385,7 @@ export default function CoachFitgraphPortalPage() {
     weekdays: [] as number[],
     public: false,
     programme_id: '',
+    shared_coach_id: '',
   });
   const [classPlanDraft, setClassPlanDraft] = useState('');
   const [sessionEdit, setSessionEdit] = useState<SessionEditForm | null>(null);
@@ -496,38 +400,17 @@ export default function CoachFitgraphPortalPage() {
     specialties: [] as string[],
     qualifications: [] as import('@/lib/services/person-qualifications').PersonQualification[],
   });
-  const [memberEdit, setMemberEdit] = useState<{
-    id: string;
-    code: string;
-    name: string;
-    email: string;
-    phone: string;
-    emergency_contact: string;
-    notes: string;
-    health: InjuryFormState;
-  } | null>(null);
   const [enrollClientId, setEnrollClientId] = useState('');
   const [enrollProgrammeId, setEnrollProgrammeId] = useState('');
   const [enrollStart, setEnrollStart] = useState(
     new Date().toISOString().slice(0, 10)
   );
   const [workTab, setWorkTab] = useState<AdvisorWorkTab>('today');
-  const [diaryLaneOpen, setDiaryLaneOpen] = useState<Record<CoachLaneId, boolean>>(
-    {
-      all: true,
-      workouts: false,
-      classes: false,
-      clients: false,
-    }
-  );
-  const [todayLaneOpen, setTodayLaneOpen] = useState<Record<CoachLaneId, boolean>>(
-    {
-      all: true,
-      workouts: false,
-      classes: false,
-      clients: false,
-    }
-  );
+  const [peopleClassOpen, setPeopleClassOpen] = useState(true);
+  const [peopleClientOpen, setPeopleClientOpen] = useState(true);
+  const [peopleClassGroupOpen, setPeopleClassGroupOpen] = useState<
+    Record<string, boolean>
+  >({});
   const [focusDate, setFocusDate] = useState(() =>
     isoDateInZone('Africa/Johannesburg')
   );
@@ -545,29 +428,6 @@ export default function CoachFitgraphPortalPage() {
   const [msgTargetId, setMsgTargetId] = useState('');
   const [msgBody, setMsgBody] = useState('');
   const [classMsg, setClassMsg] = useState('');
-
-  const openMemberEdit = (m: {
-    id: string;
-    code?: string;
-    name: string;
-    email?: string;
-    phone?: string;
-    emergency_contact?: string;
-    notes?: string;
-    health?: PersonHealthProfile;
-  }) => {
-    if (!m.id || m.id.startsWith('guest')) return;
-    setMemberEdit({
-      id: m.id,
-      code: m.code || '',
-      name: m.name || '',
-      email: m.email || '',
-      phone: m.phone || '',
-      emergency_contact: m.emergency_contact || '',
-      notes: m.notes || '',
-      health: healthToForm(m.health),
-    });
-  };
 
   const weekEnd = useMemo(() => addDaysIso(weekStart, 6), [weekStart]);
   const days = useMemo(
@@ -727,6 +587,7 @@ export default function CoachFitgraphPortalPage() {
         class_plan: openCard.session.class_plan || '',
         notes: openCard.session.notes || '',
         programme_id: openCard.session.programme_id || '',
+        shared_coach_id: (openCard.session.shared_coach_ids || [])[0] || '',
       });
     } else {
       setSessionEdit(null);
@@ -744,6 +605,8 @@ export default function CoachFitgraphPortalPage() {
     openCard?.session.end_time,
     openCard?.session.session_kind,
     openCard?.session.notes,
+    openCard?.session.programme_id,
+    openCard?.session.shared_coach_ids,
     openCard?.capacity,
     portal?.class_types,
   ]);
@@ -778,6 +641,11 @@ export default function CoachFitgraphPortalPage() {
       class_plan: sessionEdit.class_plan,
       notes: sessionEdit.notes,
       programme_id: sessionEdit.programme_id || null,
+      shared_coach_ids:
+        sessionEdit.session_kind === 'coach_personal' &&
+        sessionEdit.shared_coach_id
+          ? [sessionEdit.shared_coach_id]
+          : [],
     });
     setClassPlanDraft(sessionEdit.class_plan);
     void load();
@@ -848,8 +716,6 @@ export default function CoachFitgraphPortalPage() {
     .sort((a, b) =>
       String(a.session.start_time).localeCompare(String(b.session.start_time))
     );
-  const cardsInLane = (cards: PortalSession[], lane: CoachLaneId) =>
-    lane === 'all' ? cards : cards.filter((c) => laneOf(c) === lane);
   const slotBadge = (card: PortalSession) => {
     if (card.session.session_kind === 'coach_personal') return 'Personal';
     if (slotSource(card) === 'owner') return 'Gym booked';
@@ -865,22 +731,31 @@ export default function CoachFitgraphPortalPage() {
       : null,
     title:
       card.session.session_kind === 'coach_personal'
-        ? card.session.notes?.split('\n')[0] || 'Personal time'
+        ? card.session.notes?.split('\n')[0] || 'Workout'
         : card.session.session_kind === 'private_pt'
-          ? `PT · ${card.class_name || 'PT'}`
+          ? `PT · ${card.class_name || 'Client'}`
           : card.class_name || 'Class',
-    person: slotBadge(card),
-    my_status: 'scheduled' as const,
+    person:
+      laneOf(card) === 'workouts'
+        ? 'Workout'
+        : laneOf(card) === 'clients'
+          ? 'Client'
+          : 'Class',
+    kind:
+      laneOf(card) === 'workouts'
+        ? 'workout'
+        : laneOf(card) === 'clients'
+          ? 'client'
+          : 'class',
   });
-  const nowMs = Date.now();
-  const nextToday =
-    todayCards.find((s) => {
-      const t = new Date(
-        `${s.session.date}T${String(s.session.start_time).slice(0, 5)}:00`
-      ).getTime();
-      return Number.isFinite(t) && t >= nowMs - 20 * 60 * 1000;
-    }) || todayCards[0];
-
+  const gymHours = (() => {
+    if (!portal.working_hours) return { start: 5, end: 21 };
+    const b = hourBounds(portal.working_hours);
+    return {
+      start: b.startHour,
+      end: Math.max(b.startHour + 1, Math.ceil(b.endMinute / 60)),
+    };
+  })();
   return (
     <>
     <AdvisorPwaMemberBinder
@@ -912,29 +787,8 @@ export default function CoachFitgraphPortalPage() {
     >
       {workTab === 'today' ? (
         <div className="space-y-4">
-          <CoachWeekStrip
-            weekStart={mondayOf(focusDate)}
-            todayIso={todayIso}
-            selectedIso={focusDate}
-            onPrev={() => {
-              const n = addDaysIso(focusDate, -1);
-              setFocusDate(n);
-              setWeekStart(mondayOf(n));
-            }}
-            onNext={() => {
-              const n = addDaysIso(focusDate, 1);
-              setFocusDate(n);
-              setWeekStart(mondayOf(n));
-            }}
-            onSelectDay={(iso) => {
-              setFocusDate(iso);
-              setWeekStart(mondayOf(iso));
-            }}
-            prevLabel="Previous day"
-            nextLabel="Next day"
-          />
           <div className="flex items-start justify-between gap-3">
-            <GymSectionTitle hint="This day’s schedule by type.">
+            <GymSectionTitle hint="Gym open to close. Class · workout · client.">
               {focusDate === todayIso
                 ? 'Today'
                 : new Date(`${focusDate}T12:00:00`).toLocaleDateString(
@@ -960,6 +814,24 @@ export default function CoachFitgraphPortalPage() {
               </button>
               <button
                 type="button"
+                onClick={() => {
+                  setCreate((f) => ({
+                    ...patchFormForSessionKind(
+                      f,
+                      'coach_personal',
+                      portal.class_types
+                    ),
+                    date: focusDate,
+                    shared_coach_id: '',
+                  }));
+                  setShowCreate(true);
+                }}
+                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-700 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-200"
+              >
+                Workout
+              </button>
+              <button
+                type="button"
                 onClick={() => setShowCreate(true)}
                 className="rounded-full bg-[#E8E830] px-3 py-1.5 text-[11px] font-black text-slate-950"
               >
@@ -968,100 +840,29 @@ export default function CoachFitgraphPortalPage() {
             </div>
           </div>
 
-          {nextToday ? (
-            <button
-              type="button"
-              onClick={() => setOpenId(nextToday.session.id)}
-              className="w-full overflow-hidden rounded-3xl p-4 text-left shadow-sm"
-              style={{ backgroundColor: '#E8E830', color: '#0f172a' }}
-            >
-              <p className="text-[10px] font-black uppercase tracking-widest opacity-70">
-                Next up · {slotBadge(nextToday)}
-              </p>
-              <p className="mt-1 text-lg font-black leading-tight">
-                {String(nextToday.session.start_time).slice(0, 5)}
-                {nextToday.session.end_time
-                  ? `–${String(nextToday.session.end_time).slice(0, 5)}`
-                  : ''}{' '}
-                · {nextToday.class_name || 'Session'}
-              </p>
-              <p className="mt-1 text-sm font-bold opacity-80">
-                {nextToday.planned} booked
-                {nextToday.waitlist ? ` · ${nextToday.waitlist} waitlist` : ''}
-                {nextToday.pending
-                  ? ` · ${nextToday.pending} to mark`
-                  : nextToday.attended
-                    ? ` · ${nextToday.attended} in`
-                    : ''}
-              </p>
-              <p className="mt-3 text-[11px] font-black">Open roster →</p>
-            </button>
-          ) : (
-            <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500 dark:border-white/15 dark:bg-neutral-900">
-              {focusDate === todayIso
+          <MemberPortalWeekCalendar
+            theme="light"
+            color="#E8E830"
+            columns="day"
+            selectedDay={focusDate}
+            onSelectedDay={(iso) => {
+              setFocusDate(iso);
+              setWeekStart(mondayOf(iso));
+            }}
+            weekStart={mondayOf(focusDate)}
+            onWeekChange={setWeekStart}
+            hourStart={gymHours.start}
+            hourEnd={gymHours.end}
+            kindLegend
+            hidePeek
+            events={todayCards.map(toCalEvent)}
+            onSelect={(ev) => setOpenId(ev.id)}
+            emptyLabel={
+              focusDate === todayIso
                 ? 'Nothing on the floor today.'
-                : 'Nothing on the floor this day.'}
-            </div>
-          )}
-
-          {COACH_LANES.map((lane) => {
-            const cards = cardsInLane(todayCards, lane.id);
-            const open = todayLaneOpen[lane.id];
-            const Icon = lane.icon;
-            return (
-              <GymExpandSection
-                key={lane.id}
-                title={lane.title}
-                hint={lane.hint}
-                icon={<Icon className="h-4 w-4" />}
-                badge={
-                  <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-black tabular-nums text-white dark:bg-white dark:text-slate-900">
-                    {cards.length}
-                  </span>
-                }
-                open={open}
-                onToggle={() =>
-                  setTodayLaneOpen((s) => ({ ...s, [lane.id]: !open }))
-                }
-              >
-                {cards.length ? (
-                  cards.map((card) => (
-                    <button
-                      key={card.session.id}
-                      type="button"
-                      onClick={() => setOpenId(card.session.id)}
-                      className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left dark:border-white/10 dark:bg-neutral-900"
-                    >
-                      <div>
-                        <p className="text-sm font-black text-slate-900 dark:text-white">
-                          {String(card.session.start_time).slice(0, 5)}
-                          {card.session.end_time
-                            ? `–${String(card.session.end_time).slice(0, 5)}`
-                            : ''}{' '}
-                          ·{' '}
-                          {card.session.session_kind === 'coach_personal'
-                            ? card.session.notes?.split('\n')[0] ||
-                              'Personal time'
-                            : card.class_name || 'Session'}
-                        </p>
-                        <p className="text-[11px] text-slate-500">
-                          {slotBadge(card)}
-                          {card.session.session_kind === 'coach_personal'
-                            ? ''
-                            : ` · ${card.planned} booked`}
-                          {card.pending ? ` · ${card.pending} to mark` : ''}
-                        </p>
-                      </div>
-                    </button>
-                  ))
-                ) : (
-                  <p className="text-xs text-slate-500">
-                    Nothing in {lane.title.toLowerCase()} this day.
-                  </p>
-                )}
-              </GymExpandSection>
-            );
-          })}
+                : 'Nothing on the floor this day.'
+            }
+          />
 
           <MemberSpecialDatesPanel
             tone="coach"
@@ -1074,7 +875,7 @@ export default function CoachFitgraphPortalPage() {
 
       {workTab === 'people' ? (
         <div className="space-y-5">
-          <GymSectionTitle hint="Care flags, programmes, then your book.">
+          <GymSectionTitle hint="Your class members and private clients. They update their own details in the member app.">
             People
           </GymSectionTitle>
           {(() => {
@@ -1093,10 +894,8 @@ export default function CoachFitgraphPortalPage() {
                   Needs care
                 </p>
                 {care.map((m) => (
-                  <button
+                  <div
                     key={`care-${m.id}`}
-                    type="button"
-                    onClick={() => openMemberEdit(m)}
                     className="w-full rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-left dark:border-rose-500/30 dark:bg-rose-950/30"
                   >
                     <p className="text-sm font-black text-slate-900 dark:text-white">
@@ -1104,10 +903,10 @@ export default function CoachFitgraphPortalPage() {
                     </p>
                     <p className="text-[11px] font-semibold text-rose-800 dark:text-rose-200">
                       {m.health?.injured || (m.health?.injury_areas || []).length
-                        ? 'Injury / modification — tap to update'
+                        ? 'Injury / modification — they update this in their app'
                         : 'Birthday or anniversary this week'}
                     </p>
-                  </button>
+                  </div>
                 ))}
               </div>
             );
@@ -1122,7 +921,7 @@ export default function CoachFitgraphPortalPage() {
                 value={enrollClientId}
                 onChange={(e) => setEnrollClientId(e.target.value)}
               >
-                <option value="">Member…</option>
+                <option value="">Your member…</option>
                 {portal.members.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.name}
@@ -1210,29 +1009,39 @@ export default function CoachFitgraphPortalPage() {
               title="Your class subscriptions"
             />
           ) : null}
-          <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
-            Members
-          </p>
-          {portal.members.map((m) => (
-            <div
-              key={m.id}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-neutral-900"
-            >
-              <button
-                type="button"
-                onClick={() => openMemberEdit(m)}
-                className="w-full text-left"
+          {(() => {
+            const classMembers = portal.members.filter((m) => m.in_classes);
+            const clients = portal.members.filter((m) => m.is_client);
+            const classGroups = (() => {
+              const map = new Map<string, typeof classMembers>();
+              for (const m of classMembers) {
+                const names = (m.class_names || []).filter((n) => n.trim());
+                const keys = names.length ? names : ['Class'];
+                for (const name of keys) {
+                  const list = map.get(name) || [];
+                  if (!list.some((x) => x.id === m.id)) list.push(m);
+                  map.set(name, list);
+                }
+              }
+              return [...map.entries()]
+                .sort((a, b) => a[0].localeCompare(b[0]))
+                .map(([name, members]) => ({ name, members }));
+            })();
+            const personCard = (
+              m: (typeof portal.members)[number],
+              keyPrefix = ''
+            ) => (
+              <div
+                key={`${keyPrefix}${m.id}`}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-neutral-900"
               >
-                <div className="font-bold text-slate-900 dark:text-white">
+                <p className="font-bold text-slate-900 dark:text-white">
                   {m.name}
-                </div>
-                <div className="text-[11px] text-slate-400">
+                </p>
+                <p className="text-[11px] text-slate-400">
                   {m.plan_names?.length
                     ? m.plan_names.join(' · ')
                     : m.membership_status || 'Member'}
-                  {m.monthly_zar
-                    ? ` · R${m.monthly_zar.toLocaleString('en-ZA')}/pm`
-                    : ''}
                   {m.health?.injured ? ' · injured' : ''}
                   {(() => {
                     const hit = (portal.special_dates || []).find(
@@ -1240,47 +1049,99 @@ export default function CoachFitgraphPortalPage() {
                     );
                     return hit ? ` · ${hit.label}` : '';
                   })()}
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setBookWith({
-                    client_id: m.id,
-                    date: todayIso,
-                    start_time: '09:00',
-                    end_time: '10:00',
-                    notes: '',
-                  })
-                }
-                className="mt-2 w-full rounded-xl bg-[#E8E830] py-2 text-[11px] font-black text-slate-950"
-              >
-                Schedule with me
-              </button>
-            </div>
-          ))}
-          {!portal.members.length ? (
-            <p className="text-sm text-slate-500">No gym members yet.</p>
-          ) : null}
+                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setBookWith({
+                      client_id: m.id,
+                      date: todayIso,
+                      start_time: '09:00',
+                      end_time: '10:00',
+                      notes: '',
+                    })
+                  }
+                  className="mt-2 w-full rounded-xl bg-[#E8E830] py-2 text-[11px] font-black text-slate-950"
+                >
+                  Schedule with me
+                </button>
+              </div>
+            );
+            return (
+              <>
+                <GymExpandSection
+                  title="Classes"
+                  hint="People booked on your group classes"
+                  icon={<Users className="h-4 w-4" />}
+                  badge={
+                    <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-black tabular-nums text-white dark:bg-white dark:text-slate-900">
+                      {classMembers.length}
+                    </span>
+                  }
+                  open={peopleClassOpen}
+                  onToggle={() => setPeopleClassOpen((v) => !v)}
+                >
+                  {classGroups.length ? (
+                    classGroups.map((g, i) => {
+                      const open = peopleClassGroupOpen[g.name] ?? i === 0;
+                      return (
+                        <GymExpandSection
+                          key={g.name}
+                          nested
+                          title={g.name}
+                          badge={
+                            <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-black tabular-nums text-slate-800 dark:bg-white/15 dark:text-white">
+                              {g.members.length}
+                            </span>
+                          }
+                          open={open}
+                          onToggle={() =>
+                            setPeopleClassGroupOpen((prev) => ({
+                              ...prev,
+                              [g.name]: !open,
+                            }))
+                          }
+                        >
+                          {g.members.map((m) => personCard(m, `${g.name}-`))}
+                        </GymExpandSection>
+                      );
+                    })
+                  ) : (
+                    <p className="text-xs text-slate-500">
+                      No class members on your sessions yet.
+                    </p>
+                  )}
+                </GymExpandSection>
+                <GymExpandSection
+                  title="Clients"
+                  hint="Your private PT clients"
+                  icon={<User className="h-4 w-4" />}
+                  badge={
+                    <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-black tabular-nums text-white dark:bg-white dark:text-slate-900">
+                      {clients.length}
+                    </span>
+                  }
+                  open={peopleClientOpen}
+                  onToggle={() => setPeopleClientOpen((v) => !v)}
+                >
+                  {clients.length ? (
+                    clients.map((m) => personCard(m, 'client-'))
+                  ) : (
+                    <p className="text-xs text-slate-500">
+                      No private clients assigned to you yet.
+                    </p>
+                  )}
+                </GymExpandSection>
+              </>
+            );
+          })()}
         </div>
       ) : null}
 
       {workTab === 'diary' ? (
       <div className="space-y-3">
-      <CoachWeekStrip
-        weekStart={weekStart}
-        todayIso={todayIso}
-        selectedIso={
-          days.includes(todayIso) ? todayIso : undefined
-        }
-        onPrev={() => setWeekStart(addDaysIso(weekStart, -7))}
-        onNext={() => setWeekStart(addDaysIso(weekStart, 7))}
-        onSelectDay={(iso) => {
-          setWeekStart(mondayOf(iso));
-        }}
-      />
       <div className="flex items-start justify-between gap-3">
-        <GymSectionTitle hint="Gym classes, your PT, and personal time.">
+        <GymSectionTitle hint="Full week, gym open to close. Class · workout · client.">
           Diary
         </GymSectionTitle>
         <div className="flex gap-1">
@@ -1290,6 +1151,24 @@ export default function CoachFitgraphPortalPage() {
             className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-700 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-200"
           >
             Library
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setCreate((f) => ({
+                ...patchFormForSessionKind(
+                  f,
+                  'coach_personal',
+                  portal.class_types
+                ),
+                date: weekStart,
+                shared_coach_id: '',
+              }));
+              setShowCreate(true);
+            }}
+            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-700 dark:border-white/10 dark:bg-neutral-900 dark:text-slate-200"
+          >
+            Workout
           </button>
           <button
             type="button"
@@ -1307,49 +1186,22 @@ export default function CoachFitgraphPortalPage() {
           </div>
         ) : null}
 
-        {COACH_LANES.map((lane) => {
-          const cards = cardsInLane(
-            days.flatMap((d) => portal.by_date?.[d] || []),
-            lane.id
-          );
-          const open = diaryLaneOpen[lane.id];
-          const Icon = lane.icon;
-          return (
-            <GymExpandSection
-              key={lane.id}
-              title={lane.title}
-              hint={lane.hint}
-              icon={<Icon className="h-4 w-4" />}
-              badge={
-                <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-black tabular-nums text-white dark:bg-white dark:text-slate-900">
-                  {cards.length}
-                </span>
-              }
-              open={open}
-              onToggle={() =>
-                setDiaryLaneOpen((s) => ({ ...s, [lane.id]: !open }))
-              }
-            >
-              <MemberPortalWeekCalendar
-                theme="light"
-                color="#E8E830"
-                hideNav
-                weekStart={weekStart}
-                events={cards.map(toCalEvent)}
-                onSelect={(ev) => setOpenId(ev.id)}
-                emptyLabel={
-                  lane.id === 'workouts'
-                    ? 'No planned workouts this week. Add personal time from Add.'
-                    : lane.id === 'classes'
-                      ? 'No classes scheduled this week.'
-                      : lane.id === 'clients'
-                        ? 'No private client sessions this week.'
-                        : 'Nothing this week. Tap Add for a class, PT, or your own training.'
-                }
-              />
-            </GymExpandSection>
-          );
-        })}
+        <MemberPortalWeekCalendar
+          theme="light"
+          color="#E8E830"
+          weekStart={weekStart}
+          onWeekChange={setWeekStart}
+          selectedDay={days.includes(todayIso) ? todayIso : undefined}
+          hourStart={gymHours.start}
+          hourEnd={gymHours.end}
+          kindLegend
+          hidePeek
+          events={days
+            .flatMap((d) => portal.by_date?.[d] || [])
+            .map(toCalEvent)}
+          onSelect={(ev) => setOpenId(ev.id)}
+          emptyLabel="Nothing this week. Tap Add for a class, PT, or Workout."
+        />
       </div>
       ) : null}
 
@@ -1369,9 +1221,27 @@ export default function CoachFitgraphPortalPage() {
                 <h3 className="text-lg font-black text-slate-900 dark:text-white">
                   {openCard.session.session_kind === 'coach_personal'
                     ? openCard.session.notes?.split('\n')[0] ||
-                      'Coach personal time'
+                      'Your workout'
                     : openCard.class_name || 'Class'}
                 </h3>
+                {openCard.session.session_kind === 'coach_personal' &&
+                (openCard.session.shared_coach_ids || []).length ? (
+                  <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                    {openCard.session.coach_id === portal.coach.id
+                      ? `Shared with ${
+                          (portal.peer_coaches || []).find(
+                            (c) =>
+                              c.id ===
+                              (openCard.session.shared_coach_ids || [])[0]
+                          )?.name || 'another coach'
+                        } — you can both do it`
+                      : `Shared workout from ${
+                          (portal.peer_coaches || []).find(
+                            (c) => c.id === openCard.session.coach_id
+                          )?.name || 'a coach'
+                        }`}
+                  </p>
+                ) : null}
                 <p className="text-xs text-slate-400">
                   {openCard.session.location || '—'} · Plan {openCard.planned}/
                   {openCard.capacity} · Actual attended {openCard.attended} ·
@@ -1455,10 +1325,21 @@ export default function CoachFitgraphPortalPage() {
               </button>
             </div>
 
-            {sessionEdit && sessionEdit.session_kind !== 'coach_personal' ? (
+            {sessionEdit ? (
               <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                  Today&apos;s programme · members see this
+                  {sessionEdit.session_kind === 'coach_personal'
+                    ? 'Your workout'
+                    : sessionEdit.session_kind === 'private_pt'
+                      ? 'Client workout'
+                      : 'Class programme · members see this'}
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  {sessionEdit.session_kind === 'coach_personal'
+                    ? 'Attach a programme, write the session, then mark it done and log how you felt.'
+                    : sessionEdit.session_kind === 'private_pt'
+                      ? 'The workout this private client follows with you.'
+                      : 'Update the programme and plan members see on this class.'}
                 </p>
                 <select
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-neutral-950"
@@ -1469,8 +1350,17 @@ export default function CoachFitgraphPortalPage() {
                     )
                   }
                 >
-                  <option value="">No programme on this class</option>
-                  {(portal.programmes || []).map((p) => (
+                  <option value="">
+                    {sessionEdit.session_kind === 'coach_personal'
+                      ? 'No workout programme'
+                      : sessionEdit.session_kind === 'private_pt'
+                        ? 'No client workout programme'
+                        : 'No programme on this class'}
+                  </option>
+                  {programmesForLane(
+                    portal.programmes || [],
+                    sessionEdit.session_kind
+                  ).map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
                     </option>
@@ -1479,7 +1369,11 @@ export default function CoachFitgraphPortalPage() {
                 <textarea
                   className="min-h-[4.5rem] w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-neutral-950"
                   placeholder={
-                    'Class plan members see, e.g.\n• Warm-up\n• Strength\n• Finisher'
+                    sessionEdit.session_kind === 'coach_personal'
+                      ? 'Workout for you, e.g.\n• Warm-up\n• Strength\n• Conditioning'
+                      : sessionEdit.session_kind === 'private_pt'
+                        ? 'Client workout, e.g.\n• Warm-up\n• Strength\n• Finisher'
+                        : 'Class plan members see, e.g.\n• Warm-up\n• Strength\n• Finisher'
                   }
                   value={sessionEdit.class_plan}
                   onChange={(e) => {
@@ -1490,14 +1384,36 @@ export default function CoachFitgraphPortalPage() {
                     setClassPlanDraft(v);
                   }}
                 />
-                <div className="flex gap-2">
+                {sessionEdit.session_kind === 'coach_personal' ? (
+                  <select
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-neutral-950"
+                    value={sessionEdit.shared_coach_id}
+                    onChange={(e) =>
+                      setSessionEdit((f) =>
+                        f ? { ...f, shared_coach_id: e.target.value } : f
+                      )
+                    }
+                  >
+                    <option value="">Keep this workout to yourself</option>
+                    {(portal.peer_coaches || []).map((c) => (
+                      <option key={c.id} value={c.id}>
+                        Share with {c.name} — you can both do it
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     disabled={busy}
                     className="min-h-10 flex-1 rounded-xl bg-[#E8E830] text-[11px] font-black text-slate-950 disabled:opacity-50"
                     onClick={() => void saveSessionEdit()}
                   >
-                    Save for members
+                    {sessionEdit.session_kind === 'coach_personal'
+                      ? 'Save workout'
+                      : sessionEdit.session_kind === 'private_pt'
+                        ? 'Save client workout'
+                        : 'Save for members'}
                   </button>
                   <button
                     type="button"
@@ -1510,6 +1426,32 @@ export default function CoachFitgraphPortalPage() {
                     Movements
                   </button>
                 </div>
+                {sessionEdit.session_kind === 'coach_personal' &&
+                sessionEdit.status !== 'completed' ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    className="min-h-10 w-full rounded-xl bg-slate-900 text-[11px] font-black text-white disabled:opacity-50 dark:bg-white dark:text-slate-900"
+                    onClick={() => {
+                      setSessionEdit((f) =>
+                        f ? { ...f, status: 'completed' } : f
+                      );
+                      void post({
+                        action: 'update_session',
+                        session_id: openCard.session.id,
+                        status: 'completed',
+                      }).then(() => void load());
+                    }}
+                  >
+                    Mark workout complete
+                  </button>
+                ) : null}
+                {sessionEdit.session_kind === 'coach_personal' &&
+                sessionEdit.status === 'completed' ? (
+                  <p className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                    Completed — log how you felt below.
+                  </p>
+                ) : null}
               </div>
             ) : null}
 
@@ -1781,25 +1723,7 @@ export default function CoachFitgraphPortalPage() {
                       className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-700 px-3 py-2"
                     >
                       <div className="min-w-0">
-                        <button
-                          type="button"
-                          className="text-sm font-bold text-left hover:text-amber-300"
-                          title="Edit member profile & injury notes"
-                          onClick={() =>
-                            openMemberEdit({
-                              id: r.client_id,
-                              code: member?.code,
-                              name: r.name,
-                              email: r.email || member?.email,
-                              phone: r.phone || member?.phone,
-                              emergency_contact: member?.emergency_contact,
-                              notes: member?.notes,
-                              health: r.health || member?.health,
-                            })
-                          }
-                        >
-                          {r.name}
-                        </button>
+                        <p className="text-sm font-bold">{r.name}</p>
                         <div className="text-[10px] uppercase text-slate-500">
                           Plan {r.status} · Actual{' '}
                           {actual === 'pending' ? '—' : actual}
@@ -1818,31 +1742,11 @@ export default function CoachFitgraphPortalPage() {
                               ''
                             }
                           >
-                            ⚠ {r.health_label || 'Injured — tap name to update'}
+                            ⚠ {r.health_label || 'Injured'}
                           </div>
                         )}
                       </div>
                       <div className="flex gap-1">
-                        <button
-                          type="button"
-                          disabled={busy}
-                          className="p-1.5 rounded-lg border border-slate-600 text-xs"
-                          title="Health profile"
-                          onClick={() =>
-                            openMemberEdit({
-                              id: r.client_id,
-                              code: member?.code,
-                              name: r.name,
-                              email: r.email || member?.email,
-                              phone: r.phone || member?.phone,
-                              emergency_contact: member?.emergency_contact,
-                              notes: member?.notes,
-                              health: r.health || member?.health,
-                            })
-                          }
-                        >
-                          <User className="w-3.5 h-3.5" />
-                        </button>
                         <button
                           type="button"
                           className={`inline-flex min-h-10 items-center gap-1 rounded-xl border px-3 text-xs font-bold ${
@@ -2051,11 +1955,34 @@ export default function CoachFitgraphPortalPage() {
                 initial={openCard.my_feedback}
                 busy={busy}
                 title={
-                  openCard.my_feedback
-                    ? 'Update your coach check-in'
-                    : 'After you trained this class'
+                  sessionEdit?.session_kind === 'coach_personal'
+                    ? openCard.my_feedback
+                      ? 'Update how this workout felt'
+                      : 'How did this workout feel?'
+                    : openCard.my_feedback
+                      ? 'Update your coach check-in'
+                      : 'After you trained this class'
                 }
-                description="How you feel after teaching, and how intense the session was. Owner sees this with member scores."
+                description={
+                  sessionEdit?.session_kind === 'coach_personal'
+                    ? 'How you felt after the session, then rate it. Saving also marks it complete.'
+                    : 'How you feel after teaching, and how intense the session was. Owner sees this with member scores.'
+                }
+                enjoymentLabel={
+                  sessionEdit?.session_kind === 'coach_personal'
+                    ? 'Rate this workout'
+                    : 'Enjoyment'
+                }
+                againLabel={
+                  sessionEdit?.session_kind === 'coach_personal'
+                    ? 'Would do this workout again'
+                    : undefined
+                }
+                commentPlaceholder={
+                  sessionEdit?.session_kind === 'coach_personal'
+                    ? 'What went well, what to change next time…'
+                    : undefined
+                }
                 onSubmit={async (v) => {
                   await post({
                     action: 'coach_feedback',
@@ -2067,6 +1994,7 @@ export default function CoachFitgraphPortalPage() {
                     comment: v.comment || undefined,
                     tags: v.tags,
                   });
+                  void load();
                 }}
               />
             </div>
@@ -2527,7 +2455,7 @@ export default function CoachFitgraphPortalPage() {
                     value={msgTargetId}
                     onChange={(e) => setMsgTargetId(e.target.value)}
                   >
-                    <option value="">Member…</option>
+                    <option value="">Your member…</option>
                     {portal.members.map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.code} · {m.name}
@@ -2727,142 +2655,18 @@ export default function CoachFitgraphPortalPage() {
         </div>
       ) : null}
 
-      {/* Member profile + injury awareness (coach can update) */}
-      {memberEdit && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-3">
-          <div className="w-full max-w-md max-h-[92dvh] overflow-y-auto rounded-3xl border border-slate-700 bg-slate-900 p-5 space-y-3">
-            <div className="flex justify-between items-center">
-              <h3 className="font-black">Member profile</h3>
-              <button type="button" onClick={() => setMemberEdit(null)}>
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <p className="text-[11px] text-slate-400">
-              Update contact details and injury / recovery notes so you and other
-              coaches know where they are injured and how to help them improve
-              safely.
-            </p>
-            <div>
-              <p className="text-[10px] font-black uppercase text-amber-400 mb-1">
-                Pick member
-              </p>
-              <select
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-                value={memberEdit.id}
-                onChange={(e) => {
-                  const m = portal.members.find((x) => x.id === e.target.value);
-                  if (m) openMemberEdit(m);
-                }}
-              >
-                {portal.members.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.code} · {m.name}
-                    {m.health?.injured ||
-                    (m.health?.injury_areas || []).length
-                      ? ' ⚠'
-                      : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <input
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              placeholder="Name"
-              value={memberEdit.name}
-              onChange={(e) =>
-                setMemberEdit((f) =>
-                  f ? { ...f, name: e.target.value } : f
-                )
-              }
-            />
-            <input
-              type="email"
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              placeholder="Email"
-              value={memberEdit.email}
-              onChange={(e) =>
-                setMemberEdit((f) =>
-                  f ? { ...f, email: e.target.value } : f
-                )
-              }
-            />
-            <input
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              placeholder="Phone"
-              value={memberEdit.phone}
-              onChange={(e) =>
-                setMemberEdit((f) =>
-                  f ? { ...f, phone: e.target.value } : f
-                )
-              }
-            />
-            <input
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
-              placeholder="Emergency contact"
-              value={memberEdit.emergency_contact}
-              onChange={(e) =>
-                setMemberEdit((f) =>
-                  f ? { ...f, emergency_contact: e.target.value } : f
-                )
-              }
-            />
-            <textarea
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[2.5rem] resize-y"
-              placeholder="Coach / desk notes"
-              value={memberEdit.notes}
-              onChange={(e) =>
-                setMemberEdit((f) =>
-                  f ? { ...f, notes: e.target.value } : f
-                )
-              }
-            />
-            <InjuryProfileFields
-              dark
-              variant="coach"
-              value={memberEdit.health}
-              onChange={(health) =>
-                setMemberEdit((f) => (f ? { ...f, health } : f))
-              }
-            />
-            <button
-              type="button"
-              disabled={busy || !memberEdit.name.trim()}
-              className="w-full rounded-xl bg-rose-500 text-white py-2.5 text-sm font-black disabled:opacity-50"
-              onClick={() => {
-                const health = formToHealthPayload(memberEdit.health);
-                void post({
-                  action: 'update_client',
-                  client_id: memberEdit.id,
-                  name: memberEdit.name.trim(),
-                  email: memberEdit.email.trim() || null,
-                  phone: memberEdit.phone.trim() || null,
-                  emergency_contact:
-                    memberEdit.emergency_contact.trim() || null,
-                  notes: memberEdit.notes || null,
-                  health,
-                  from: weekStart,
-                  to: weekEnd,
-                }).then(() => {
-                  setMemberEdit(null);
-                  void load();
-                });
-              }}
-            >
-              {busy ? (
-                <Loader2 className="w-4 h-4 animate-spin inline" />
-              ) : null}{' '}
-              Save member profile
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Create class */}
       {showCreate && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-3">
           <div className="w-full max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-5 space-y-3">
             <div className="flex justify-between">
-              <h3 className="font-black">New session</h3>
+              <h3 className="font-black">
+                {create.session_kind === 'coach_personal'
+                  ? 'Plan workout'
+                  : create.session_kind === 'private_pt'
+                    ? 'Private client session'
+                    : 'New class'}
+              </h3>
               <button type="button" onClick={() => setShowCreate(false)}>
                 <X className="w-5 h-5" />
               </button>
@@ -2913,7 +2717,8 @@ export default function CoachFitgraphPortalPage() {
               </select>
             ) : (
               <p className="text-[10px] text-slate-400">
-                Blocks your diary for own training or other personal time.
+                Plan a workout for you. Mark it complete afterwards and log how
+                you felt.
               </p>
             )}
             <div className="grid grid-cols-3 gap-2">
@@ -2962,14 +2767,30 @@ export default function CoachFitgraphPortalPage() {
               }
             />
             {create.session_kind === 'coach_personal' ? (
-              <textarea
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[4rem] resize-y"
-                placeholder="What this time is for (own training, admin…)"
-                value={create.notes}
-                onChange={(e) =>
-                  setCreate((f) => ({ ...f, notes: e.target.value }))
-                }
-              />
+              <>
+                <textarea
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[4rem] resize-y"
+                  placeholder="Workout for you, e.g. warm-up, strength, engine…"
+                  value={create.notes}
+                  onChange={(e) =>
+                    setCreate((f) => ({ ...f, notes: e.target.value }))
+                  }
+                />
+                <select
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                  value={create.shared_coach_id}
+                  onChange={(e) =>
+                    setCreate((f) => ({ ...f, shared_coach_id: e.target.value }))
+                  }
+                >
+                  <option value="">Keep this workout to yourself</option>
+                  {(portal.peer_coaches || []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      Share with {c.name} — you can both do it
+                    </option>
+                  ))}
+                </select>
+              </>
             ) : (
               <textarea
                 className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[4rem] resize-y"
@@ -3070,8 +2891,17 @@ export default function CoachFitgraphPortalPage() {
                 setCreate((f) => ({ ...f, programme_id: e.target.value }))
               }
             >
-              <option value="">Programme (optional)…</option>
-              {(portal.programmes || []).map((p) => (
+              <option value="">
+                {create.session_kind === 'coach_personal'
+                  ? 'Workout programme (optional)…'
+                  : create.session_kind === 'private_pt'
+                    ? 'Client workout programme (optional)…'
+                    : 'Class programme (optional)…'}
+              </option>
+              {programmesForLane(
+                portal.programmes || [],
+                create.session_kind
+              ).map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>
@@ -3101,6 +2931,11 @@ export default function CoachFitgraphPortalPage() {
                   class_type_id: create.class_type_id,
                   session_kind: create.session_kind,
                   programme_id: create.programme_id || null,
+                  shared_coach_ids:
+                    create.session_kind === 'coach_personal' &&
+                    create.shared_coach_id
+                      ? [create.shared_coach_id]
+                      : [],
                   date: create.date,
                   start_time: times.start_time,
                   end_time: times.end_time,
@@ -3149,7 +2984,7 @@ export default function CoachFitgraphPortalPage() {
                 )
               }
             >
-              <option value="">Gym member…</option>
+              <option value="">Your member…</option>
               {portal.members.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.code} · {m.name}

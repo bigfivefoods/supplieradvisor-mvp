@@ -9,7 +9,9 @@ import {
   programmeBlockForWeekday,
   normalizeProgrammeKind,
   parseProgrammeItems,
+  programmesForCoach,
   resolveProgrammeForSession,
+  shareProgrammeWithCoaches,
   upsertMovement,
   upsertProgramme,
   videoEmbedSrc,
@@ -109,5 +111,12 @@ const me = resolveProgrammeForSession(list, {
 });
 assert.equal(me?.id, 'prg_me');
 assert.equal(memberFacingProgramme(hydrateProgramme(personal, [])), null);
+
+shareProgrammeWithCoaches(list, 'prg_me', ['coh_2', 'coh_1']);
+assert.deepEqual(
+  list.find((p) => p.id === 'prg_me')?.shared_coach_ids,
+  ['coh_2']
+);
+assert.equal(programmesForCoach(list, 'coh_2').some((p) => p.id === 'prg_me'), true);
 
 console.log('movements ok');

@@ -282,6 +282,7 @@ function MiniFold({
   hint,
   badge,
   open,
+  nested,
   skin,
   children,
 }: {
@@ -289,11 +290,12 @@ function MiniFold({
   hint?: string;
   badge?: string;
   open?: boolean;
+  nested?: boolean;
   skin: ReturnType<typeof previewSkin>;
   children?: ReactNode;
 }) {
   return (
-    <div className={`${skin.card} overflow-hidden`}>
+    <div className={`${skin.card} overflow-hidden ${nested ? 'shadow-none' : ''}`}>
       <div className="flex items-center gap-1.5 px-2.5 py-2">
         <div className="min-w-0 flex-1">
           <p className={`text-[10px] font-black ${skin.title}`}>{title}</p>
@@ -304,6 +306,9 @@ function MiniFold({
             {badge}
           </span>
         ) : null}
+        <span className={`text-[9px] font-black ${skin.kicker}`}>
+          {open ? '▾' : '▸'}
+        </span>
       </div>
       {open && children ? (
         <div className="space-y-1.5 border-t border-black/5 px-2.5 py-2 dark:border-white/10">
@@ -692,7 +697,7 @@ function GymCoachDock({
   ink,
   skin,
 }: {
-  active: 'today' | 'diary';
+  active: 'today' | 'diary' | 'people' | 'inbox';
   color: string;
   ink: string;
   skin: ReturnType<typeof previewSkin>;
@@ -760,16 +765,15 @@ function GymCoachPwaMock({
   logoUrl?: string | null;
   color: string;
   dark?: boolean;
-  screen?: 'today' | 'diary';
+  screen?: 'today' | 'diary' | 'people' | 'inbox';
 }) {
   const ink = advisorBrandInk(color);
   const skin = previewSkin(Boolean(dark));
-  const lanes = [
-    { title: 'All', hint: 'Full view of your schedule', n: 4 },
-    { title: 'Workouts', hint: 'Your planned training', n: 1 },
-    { title: 'Classes', hint: 'Classes you take', n: 2 },
-    { title: 'Clients', hint: 'Private client sessions', n: 1 },
-  ];
+  const hours = ['05', '06', '07', '08', '09'];
+  const dockActive =
+    screen === 'people' || screen === 'inbox' || screen === 'diary'
+      ? screen
+      : 'today';
   return (
     <div className={skin.pageGym}>
       <GymAppHeader
@@ -781,75 +785,141 @@ function GymCoachPwaMock({
         sub="Jordan · coach"
       />
       <div className="min-h-0 flex-1 space-y-1.5 overflow-hidden p-2.5">
-        <MiniWeekStrip
-          skin={skin}
-          color={color}
-          ink={ink}
-          selected={2}
-          arrows
-        />
-        <p className={`text-[11px] font-black ${skin.title}`}>
-          {screen === 'diary' ? 'Diary' : 'Today'}
-        </p>
-        {screen === 'today' ? (
-          <div
-            className="rounded-2xl p-2 shadow-sm"
-            style={{ backgroundColor: color, color: ink }}
-          >
-            <p className="text-[7px] font-black uppercase tracking-widest opacity-70">
-              Next up · Gym
+        {screen === 'today' || screen === 'diary' ? (
+          <>
+            <MiniWeekStrip
+              skin={skin}
+              color={color}
+              ink={ink}
+              selected={2}
+              arrows
+            />
+            <p className={`text-[11px] font-black ${skin.title}`}>
+              {screen === 'diary' ? 'Diary' : 'Today'}
             </p>
-            <p className="text-[12px] font-black leading-tight">
-              {copy.staffSample}
-            </p>
-            <p className="text-[8px] font-bold opacity-80">Open roster →</p>
-          </div>
-        ) : (
-          <div className={`${skin.card} px-2 py-1.5`}>
-            <div className="grid grid-cols-7 gap-0.5">
-              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+            <div className={`${skin.card} overflow-hidden`}>
+              {hours.map((h, i) => (
                 <div
-                  key={`${d}-${i}`}
-                  className={`rounded py-1 text-center text-[7px] font-black ${
-                    i === 2 ? '' : skin.weekOff
-                  }`}
-                  style={
-                    i === 2 ? { backgroundColor: color, color: ink } : undefined
-                  }
+                  key={h}
+                  className="flex items-stretch border-t border-black/5 first:border-t-0"
                 >
-                  {d}
+                  <span className={`w-8 shrink-0 py-1.5 text-center text-[7px] font-bold ${skin.kicker}`}>
+                    {h}
+                  </span>
+                  <div className="min-h-[22px] flex-1 px-1 py-0.5">
+                    {i === 1 && screen === 'diary' ? (
+                      <span
+                        className="inline-block rounded px-1 py-0.5 text-[7px] font-black"
+                        style={{ backgroundColor: color, color: ink }}
+                      >
+                        Class · strength
+                      </span>
+                    ) : null}
+                    {i === 1 && screen === 'today' ? (
+                      <span
+                        className="inline-block rounded px-1 py-0.5 text-[7px] font-black"
+                        style={{ backgroundColor: color, color: ink }}
+                      >
+                        Class · {copy.sampleTitle}
+                      </span>
+                    ) : null}
+                    {i === 4 ? (
+                      <span className="inline-block rounded bg-teal-200 px-1 py-0.5 text-[7px] font-black text-teal-900">
+                        Client · Ada PT
+                      </span>
+                    ) : null}
+                    {i === 2 ? (
+                      <span className="inline-block rounded bg-indigo-200 px-1 py-0.5 text-[7px] font-black text-indigo-900">
+                        Workout · lift
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               ))}
             </div>
-            <p className={`mt-1 text-[8px] ${skin.muted}`}>
-              Week calendar · tap a session
+            <div className={`flex gap-2 text-[7px] font-bold ${skin.muted}`}>
+              <span>Class</span>
+              <span className="text-indigo-600">Workout</span>
+              <span className="text-teal-700">Client</span>
+            </div>
+          </>
+        ) : null}
+        {screen === 'people' ? (
+          <>
+            <p className={`text-[11px] font-black ${skin.title}`}>People</p>
+            <p className={`text-[8px] ${skin.muted}`}>
+              Your book only · they update their own details
             </p>
-          </div>
-        )}
-        {lanes.map((lane, i) => (
-          <MiniFold
-            key={lane.title}
-            title={lane.title}
-            hint={lane.hint}
-            badge={`${lane.n}`}
-            open={i === 0}
-            skin={skin}
-          >
-            {i === 0 ? (
-              <div className={`${skin.card} px-2 py-1.5`}>
-                <p className={`text-[11px] font-black ${skin.title}`}>
-                  {screen === 'diary' ? 'Wed · 06:00 strength' : '09:00 PT · Ada'}
-                </p>
-                <p className={`text-[8px] ${skin.muted}`}>
-                  {screen === 'diary' ? 'Class · 12 booked' : 'Clients · 1 booked'}
-                </p>
+            <MiniFold
+              title="Classes"
+              hint="Booked on your group classes"
+              badge="5"
+              open
+              skin={skin}
+            >
+              <MiniFold
+                title="Morning strength"
+                badge="3"
+                open
+                nested
+                skin={skin}
+              >
+                <p className={`text-[11px] font-black ${skin.title}`}>Alex</p>
+                <p className={`text-[8px] ${skin.muted}`}>Class member</p>
+                <p className={`mt-1 text-[11px] font-black ${skin.title}`}>Priya</p>
+                <p className={`text-[8px] ${skin.muted}`}>Class member</p>
+              </MiniFold>
+              <MiniFold title="Engine" badge="2" nested skin={skin} />
+            </MiniFold>
+            <MiniFold
+              title="Clients"
+              hint="Your private PT clients"
+              badge="2"
+              open
+              skin={skin}
+            >
+              <p className={`text-[11px] font-black ${skin.title}`}>Ada</p>
+              <p className={`text-[8px] ${skin.muted}`}>Private PT</p>
+            </MiniFold>
+          </>
+        ) : null}
+        {screen === 'inbox' ? (
+          <>
+            <div className="flex items-center justify-between">
+              <p className={`text-[11px] font-black ${skin.title}`}>Inbox</p>
+              <span
+                className="rounded-full px-1.5 py-0.5 text-[7px] font-black"
+                style={{ backgroundColor: color, color: ink }}
+              >
+                New
+              </span>
+            </div>
+            <div className={`${skin.card} px-2.5 py-2`}>
+              <div className="flex items-center justify-between gap-1">
+                <p className={`text-[11px] font-black ${skin.title}`}>Alex</p>
+                <span className="text-[7px] font-black text-rose-500">1 new</span>
               </div>
-            ) : null}
-          </MiniFold>
-        ))}
+              <p className={`text-[8px] ${skin.muted}`}>
+                Will I need bands tomorrow?
+              </p>
+            </div>
+            <div className={`${skin.card} px-2.5 py-2`}>
+              <p className={`text-[11px] font-black ${skin.title}`}>Front desk</p>
+              <p className={`text-[8px] ${skin.muted}`}>
+                New intro booked on Thursday
+              </p>
+            </div>
+            <div className={`${skin.card} px-2.5 py-2`}>
+              <p className={`text-[11px] font-black ${skin.title}`}>Sam · coach</p>
+              <p className={`text-[8px] ${skin.muted}`}>
+                Shared Friday engine workout
+              </p>
+            </div>
+          </>
+        ) : null}
       </div>
       <GymCoachDock
-        active={screen === 'diary' ? 'diary' : 'today'}
+        active={dockActive}
         color={color}
         ink={ink}
         skin={skin}
@@ -1593,7 +1663,7 @@ export function AdvisorGrowPreviews({
             title={gym ? 'Coach app' : `${copy.staffRole} PWA`}
             hint={
               gym
-                ? 'What a contracted coach sees: Today and Diary with Mon–Sun dates, All / Workouts / Classes / Clients, and You in the raised centre. Use the slider to click through each screen. Issued from People, not the public website.'
+                ? 'What a contracted coach sees: Today and Diary (open-to-close, class / workout / client colours), People (their class members and private clients), Inbox. Use the slider to click through each screen. Issued from People, not the public website.'
                 : `What a contracted ${copy.staffRole.replace('contracted ', '')} sees on their phone — today's floor, week diary, people, inbox. Issued from People, not the public website.`
             }
           >
@@ -1627,6 +1697,34 @@ export function AdvisorGrowPreviews({
                         color={color}
                         dark={dark}
                         screen="diary"
+                      />
+                    ),
+                  },
+                  {
+                    id: 'people',
+                    title: 'People',
+                    phone: (
+                      <GymCoachPwaMock
+                        copy={copy}
+                        brand={brand}
+                        logoUrl={logoUrl}
+                        color={color}
+                        dark={dark}
+                        screen="people"
+                      />
+                    ),
+                  },
+                  {
+                    id: 'inbox',
+                    title: 'Inbox',
+                    phone: (
+                      <GymCoachPwaMock
+                        copy={copy}
+                        brand={brand}
+                        logoUrl={logoUrl}
+                        color={color}
+                        dark={dark}
+                        screen="inbox"
                       />
                     ),
                   },
