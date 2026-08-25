@@ -365,7 +365,6 @@ export function upsertChallengeScore(
 }
 
 function injuryLabel(client?: FitClient | null): { injured: boolean; label: string } {
-  const h = client?.health;
   const listed = client?.injuries || [];
   const active = listed.filter((e) =>
     ['acute', 'recovering', 'chronic'].includes(String(e.status || ''))
@@ -380,19 +379,18 @@ function injuryLabel(client?: FitClient | null): { injured: boolean; label: stri
         .join(', '),
     };
   }
-  if (
-    h &&
-    (h.injured ||
-      ((h.injury_areas || []).length > 0 &&
-        h.injury_status !== 'cleared' &&
-        h.injury_status !== 'none'))
-  ) {
-    return {
-      injured: true,
-      label: (h.injury_areas || []).slice(0, 2).join(', ') || 'Injured',
-    };
-  }
-  return { injured: false, label: '' };
+  const health = client?.health;
+  if (!health) return { injured: false, label: '' };
+  const areas = health.injury_areas || [];
+  const status = String(health.injury_status || '');
+  const injured =
+    health.injured === true ||
+    (areas.length > 0 && status !== 'cleared' && status !== 'none');
+  if (!injured) return { injured: false, label: '' };
+  return {
+    injured: true,
+    label: areas.slice(0, 2).join(', ') || 'Injured',
+  };
 }
 
 export function buildChallengeBoard(
