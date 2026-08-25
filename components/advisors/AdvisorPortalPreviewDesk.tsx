@@ -77,7 +77,7 @@ export function AdvisorPortalPreviewDesk({
       />
       <p className="text-xs text-slate-600 dark:text-slate-300">
         {module === 'fitgraph'
-          ? 'Members install your gym’s own home-screen app (your brand, not generic SA Member). Click through the member and coach screens with the slider, toggle light and dark, and preview the optional public website. Tick what to show on the website, save, then the live preview refreshes if you have published it.'
+          ? 'Members install your gym’s own home-screen app (your brand, not generic SA Member). Click through the member and coach screens with the slider (coach: Today, Diary, You, People, Inbox), toggle light and dark, and preview the optional public website. Tick what to show on the website, save, then the live preview refreshes if you have published it.'
           : `${copy.audience.charAt(0).toUpperCase()}${copy.audience.slice(1)} install your branded home-screen app — not generic SA Member. Tick what to show on the website, save, then the live preview refreshes if you have published it.`}
       </p>
 

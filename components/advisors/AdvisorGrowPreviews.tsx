@@ -691,13 +691,30 @@ function GymMemberPwaMock({
   );
 }
 
+function coachKindFill(
+  kind: 'class' | 'workout' | 'client',
+  color: string,
+  ink: string,
+  dark: boolean
+) {
+  if (kind === 'class') return { backgroundColor: color, color: ink };
+  if (kind === 'workout') {
+    return dark
+      ? { backgroundColor: '#3730a3', color: '#e0e7ff' }
+      : { backgroundColor: '#c7d2fe', color: '#312e81' };
+  }
+  return dark
+    ? { backgroundColor: '#0f766e', color: '#ccfbf1' }
+    : { backgroundColor: '#99f6e4', color: '#115e59' };
+}
+
 function GymCoachDock({
   active,
   color,
   ink,
   skin,
 }: {
-  active: 'today' | 'diary' | 'people' | 'inbox';
+  active: 'today' | 'diary' | 'you' | 'people' | 'inbox';
   color: string;
   ink: string;
   skin: ReturnType<typeof previewSkin>;
@@ -727,7 +744,10 @@ function GymCoachDock({
               >
                 J
               </span>
-              <span className={`text-[8px] font-black ${skin.youLabel}`}>
+              <span
+                className={`text-[8px] font-black ${on ? '' : skin.youLabel}`}
+                style={on ? { color } : undefined}
+              >
                 {t.label}
               </span>
             </div>
@@ -765,15 +785,27 @@ function GymCoachPwaMock({
   logoUrl?: string | null;
   color: string;
   dark?: boolean;
-  screen?: 'today' | 'diary' | 'people' | 'inbox';
+  screen?: 'today' | 'diary' | 'you' | 'people' | 'inbox';
 }) {
   const ink = advisorBrandInk(color);
-  const skin = previewSkin(Boolean(dark));
+  const isDark = Boolean(dark);
+  const skin = previewSkin(isDark);
   const hours = ['05', '06', '07', '08', '09'];
   const dockActive =
-    screen === 'people' || screen === 'inbox' || screen === 'diary'
+    screen === 'people' ||
+    screen === 'inbox' ||
+    screen === 'diary' ||
+    screen === 'you'
       ? screen
       : 'today';
+  const chip = (kind: 'class' | 'workout' | 'client', label: string) => (
+    <span
+      className="inline-block max-w-full truncate rounded px-1 py-0.5 text-[7px] font-black"
+      style={coachKindFill(kind, color, ink, isDark)}
+    >
+      {label}
+    </span>
+  );
   return (
     <div className={skin.pageGym}>
       <GymAppHeader
@@ -785,7 +817,7 @@ function GymCoachPwaMock({
         sub="Jordan · coach"
       />
       <div className="min-h-0 flex-1 space-y-1.5 overflow-hidden p-2.5">
-        {screen === 'today' || screen === 'diary' ? (
+        {screen === 'today' ? (
           <>
             <MiniWeekStrip
               skin={skin}
@@ -794,53 +826,174 @@ function GymCoachPwaMock({
               selected={2}
               arrows
             />
-            <p className={`text-[11px] font-black ${skin.title}`}>
-              {screen === 'diary' ? 'Diary' : 'Today'}
-            </p>
+            <div className="flex items-center justify-between">
+              <p className={`text-[11px] font-black ${skin.title}`}>Today</p>
+              <span
+                className="rounded-full px-1.5 py-0.5 text-[7px] font-black"
+                style={{ backgroundColor: color, color: ink }}
+              >
+                Add
+              </span>
+            </div>
             <div className={`${skin.card} overflow-hidden`}>
               {hours.map((h, i) => (
                 <div
                   key={h}
-                  className="flex items-stretch border-t border-black/5 first:border-t-0"
+                  className="flex items-stretch border-t border-black/5 first:border-t-0 dark:border-white/10"
                 >
-                  <span className={`w-8 shrink-0 py-1.5 text-center text-[7px] font-bold ${skin.kicker}`}>
+                  <span
+                    className={`w-8 shrink-0 py-1.5 text-center text-[7px] font-bold ${skin.kicker}`}
+                  >
                     {h}
                   </span>
                   <div className="min-h-[22px] flex-1 px-1 py-0.5">
-                    {i === 1 && screen === 'diary' ? (
-                      <span
-                        className="inline-block rounded px-1 py-0.5 text-[7px] font-black"
-                        style={{ backgroundColor: color, color: ink }}
-                      >
-                        Class · strength
-                      </span>
-                    ) : null}
-                    {i === 1 && screen === 'today' ? (
-                      <span
-                        className="inline-block rounded px-1 py-0.5 text-[7px] font-black"
-                        style={{ backgroundColor: color, color: ink }}
-                      >
-                        Class · {copy.sampleTitle}
-                      </span>
-                    ) : null}
-                    {i === 4 ? (
-                      <span className="inline-block rounded bg-teal-200 px-1 py-0.5 text-[7px] font-black text-teal-900">
-                        Client · Ada PT
-                      </span>
-                    ) : null}
-                    {i === 2 ? (
-                      <span className="inline-block rounded bg-indigo-200 px-1 py-0.5 text-[7px] font-black text-indigo-900">
-                        Workout · lift
-                      </span>
-                    ) : null}
+                    {i === 1 ? chip('class', `Class · ${copy.sampleTitle}`) : null}
+                    {i === 2 ? chip('workout', 'Workout · lift') : null}
+                    {i === 4 ? chip('client', 'Client · Ada PT') : null}
                   </div>
                 </div>
               ))}
             </div>
             <div className={`flex gap-2 text-[7px] font-bold ${skin.muted}`}>
+              <span className="inline-flex items-center gap-0.5">
+                <span
+                  className="h-1.5 w-1.5 rounded-sm"
+                  style={{ backgroundColor: color }}
+                />
+                Class
+              </span>
+              <span className="inline-flex items-center gap-0.5">
+                <span
+                  className="h-1.5 w-1.5 rounded-sm"
+                  style={coachKindFill('workout', color, ink, isDark)}
+                />
+                Workout
+              </span>
+              <span className="inline-flex items-center gap-0.5">
+                <span
+                  className="h-1.5 w-1.5 rounded-sm"
+                  style={coachKindFill('client', color, ink, isDark)}
+                />
+                Client
+              </span>
+            </div>
+          </>
+        ) : null}
+        {screen === 'diary' ? (
+          <>
+            <MiniWeekStrip
+              skin={skin}
+              color={color}
+              ink={ink}
+              selected={2}
+              arrows
+            />
+            <div className="flex items-center justify-between">
+              <p className={`text-[11px] font-black ${skin.title}`}>Diary</p>
+              <span
+                className="rounded-full px-1.5 py-0.5 text-[7px] font-black"
+                style={{ backgroundColor: color, color: ink }}
+              >
+                Add
+              </span>
+            </div>
+            <div className={`${skin.card} overflow-hidden`}>
+              <div className="grid grid-cols-[18px_repeat(7,minmax(0,1fr))]">
+                <span />
+                {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+                  <span
+                    key={`${d}-${i}`}
+                    className={`py-1 text-center text-[7px] font-black ${
+                      i === 2 ? '' : skin.kicker
+                    }`}
+                    style={i === 2 ? { color } : undefined}
+                  >
+                    {d}
+                  </span>
+                ))}
+                {['06', '07', '09'].map((h, row) => (
+                  <div key={h} className="contents">
+                    <span
+                      className={`py-1.5 text-center text-[7px] font-bold ${skin.kicker}`}
+                    >
+                      {h}
+                    </span>
+                    {Array.from({ length: 7 }, (_, col) => (
+                      <div
+                        key={`${h}-${col}`}
+                        className="min-h-[18px] border-t border-black/5 px-0.5 py-0.5 dark:border-white/10"
+                      >
+                        {row === 0 && col === 2
+                          ? chip('class', 'Class')
+                          : row === 1 && col === 3
+                            ? chip('workout', 'Lift')
+                            : row === 2 && col === 4
+                              ? chip('client', 'Ada')
+                              : null}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className={`flex gap-2 text-[7px] font-bold ${skin.muted}`}>
               <span>Class</span>
-              <span className="text-indigo-600">Workout</span>
-              <span className="text-teal-700">Client</span>
+              <span>Workout</span>
+              <span>Client</span>
+            </div>
+          </>
+        ) : null}
+        {screen === 'you' ? (
+          <>
+            <p className={`text-[11px] font-black ${skin.title}`}>You</p>
+            <p className={`text-[8px] ${skin.muted}`}>
+              What members see in Shop, plus your work details
+            </p>
+            <div className={skin.amber}>
+              <p className={`text-[8px] font-semibold leading-snug ${skin.amberInk}`}>
+                Contractor — this work app is your diary. Gym-booked slots and
+                your private PT live here.
+              </p>
+            </div>
+            <div className={`${skin.card} px-2.5 py-2`}>
+              <p className={`text-[7px] font-black uppercase ${skin.kicker}`}>
+                Engagement & rate
+              </p>
+              <p className={`text-[10px] font-bold ${skin.title}`}>
+                2025-01-01 → present
+              </p>
+              <p className={`text-[8px] ${skin.muted}`}>R450 / per class</p>
+            </div>
+            <div className={`${skin.card} flex items-center gap-2 px-2.5 py-2`}>
+              <span
+                className="flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-black"
+                style={{ backgroundColor: color, color: ink }}
+              >
+                J
+              </span>
+              <div className="min-w-0">
+                <p className={`text-[11px] font-black ${skin.title}`}>Jordan</p>
+                <p className={`text-[8px] ${skin.muted}`}>jordan@studio.co</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {['Strength', 'Hyrox'].map((s) => (
+                <span
+                  key={s}
+                  className="rounded-full px-2 py-0.5 text-[8px] font-black"
+                  style={{ backgroundColor: color, color: ink }}
+                >
+                  {s}
+                </span>
+              ))}
+            </div>
+            <div className={`${skin.card} px-2.5 py-2`}>
+              <p className={`text-[7px] font-black uppercase ${skin.kicker}`}>
+                Public bio
+              </p>
+              <p className={`text-[8px] leading-snug ${skin.body}`}>
+                Morning strength and engine sessions. Members book in Shop.
+              </p>
             </div>
           </>
         ) : null}
@@ -866,7 +1019,9 @@ function GymCoachPwaMock({
               >
                 <p className={`text-[11px] font-black ${skin.title}`}>Alex</p>
                 <p className={`text-[8px] ${skin.muted}`}>Class member</p>
-                <p className={`mt-1 text-[11px] font-black ${skin.title}`}>Priya</p>
+                <p className={`mt-1 text-[11px] font-black ${skin.title}`}>
+                  Priya
+                </p>
                 <p className={`text-[8px] ${skin.muted}`}>Class member</p>
               </MiniFold>
               <MiniFold title="Engine" badge="2" nested skin={skin} />
@@ -910,7 +1065,9 @@ function GymCoachPwaMock({
               </p>
             </div>
             <div className={`${skin.card} px-2.5 py-2`}>
-              <p className={`text-[11px] font-black ${skin.title}`}>Sam · coach</p>
+              <p className={`text-[11px] font-black ${skin.title}`}>
+                Sam · coach
+              </p>
               <p className={`text-[8px] ${skin.muted}`}>
                 Shared Friday engine workout
               </p>
@@ -1663,8 +1820,8 @@ export function AdvisorGrowPreviews({
             title={gym ? 'Coach app' : `${copy.staffRole} PWA`}
             hint={
               gym
-                ? 'What a contracted coach sees: Today and Diary (open-to-close, class / workout / client colours), People (their class members and private clients), Inbox. Use the slider to click through each screen. Issued from People, not the public website.'
-                : `What a contracted ${copy.staffRole.replace('contracted ', '')} sees on their phone — today's floor, week diary, people, inbox. Issued from People, not the public website.`
+                ? 'What a contracted coach sees: Today, Diary, You, People, Inbox. Toggle light and dark. Issued from People, not the public website.'
+                : `What a contracted ${copy.staffRole.replace('contracted ', '')} sees on their phone — today's floor, week diary, you, people, inbox. Issued from People, not the public website.`
             }
           >
             {gym ? (
@@ -1697,6 +1854,20 @@ export function AdvisorGrowPreviews({
                         color={color}
                         dark={dark}
                         screen="diary"
+                      />
+                    ),
+                  },
+                  {
+                    id: 'you',
+                    title: 'You',
+                    phone: (
+                      <GymCoachPwaMock
+                        copy={copy}
+                        brand={brand}
+                        logoUrl={logoUrl}
+                        color={color}
+                        dark={dark}
+                        screen="you"
                       />
                     ),
                   },
