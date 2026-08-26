@@ -10,7 +10,10 @@ import {
   normalizeEnabledModules,
   resolveVisibleModules,
 } from './company-modules';
-import { functionalSidebarModules } from '@/lib/chrome/functional-nav';
+import {
+  ADVISOR_OS_MODULE_IDS,
+  functionalSidebarModules,
+} from '@/lib/chrome/functional-nav';
 import { readPackagingFromMetadata } from '@/lib/product/architecture';
 
 const emptyChrome = normalizeEnabledModules({});
@@ -72,6 +75,33 @@ assert.ok(
     .find((m) => m.id === 'fitgraph')
     ?.sub.some((s) => s.href === '/dashboard/fitgraph/calendar'),
   'gym process steps stay on the hub'
+);
+assert.equal(sidebar[0]?.id, 'fitgraph', 'GymAdvisor is pinned at the top');
+assert.ok(
+  !sidebar.some((m) => m.id === 'industry_tools'),
+  'Industry Tools is not in the sidenav'
+);
+
+const advisorSet = new Set<string>(ADVISOR_OS_MODULE_IDS);
+const allOn = functionalSidebarModules({
+  isModuleEnabled: () => true,
+  packaging: {
+    packIds: ['fitness_gym', 'dental', 'logistics_containers'],
+  } as never,
+  simplifiedSchool: false,
+  moduleOrder: ['home', 'my-business', 'fitgraph', 'schools'],
+});
+const firstNonAdvisor = allOn.findIndex((m) => !advisorSet.has(m.id));
+const advisorCount = allOn.filter((m) => advisorSet.has(m.id)).length;
+assert.ok(advisorCount > 0, 'all-on workspace still shows Advisor hubs');
+assert.equal(
+  firstNonAdvisor,
+  advisorCount,
+  'every Advisor hub sits above Control Tower and Core'
+);
+assert.ok(
+  !allOn.some((m) => m.id === 'industry_tools'),
+  'Industry Tools stays off the sidenav when packs are on'
 );
 
 console.log('company-modules-visibility.test.ts ok');

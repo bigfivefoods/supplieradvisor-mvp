@@ -112,7 +112,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     return modules
       .filter((mod) => {
         // Functional shells always allowed if present; module gates applied when building
-        if (mod.id === 'industry_tools' || mod.id === 'multi_entity') {
+        if (mod.id === 'multi_entity') {
           return true;
         }
         // Company profile module toggles (default all on)

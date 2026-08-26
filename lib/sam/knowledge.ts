@@ -117,15 +117,14 @@ ${principles}
 - **Core OS:** **R${CORE_OS_MONTHLY_ZAR}/month** (same as R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}) after **${COMPANY_TRIAL_DAYS}-day free trial**.
 - **Industry Packs:** **+R${INDUSTRY_PACK_MONTHLY_ZAR}/mo each** (Agri, Food Mfg, Logistics/Containers, Fitness, Dental, Allied Health, Impact, Public Procurement).
 - Prepaid terms on Core: ${pricing}.
-- Modules & packs: /dashboard/my-business/modules · Industry Tools: /dashboard/industry-tools
+- Modules & packs: /dashboard/my-business/modules
 - Billing UI: /dashboard/my-business/billing
 - Public pricing & referral: /#pricing and /#referral (same homepage)
 - Sales contractor portal access is a separate fee (about R${SALES_SUBSCRIPTION_MONTHLY_ZAR}/mo term product) after agreement.
 
 ## Product architecture (Core → Sector → Pack → Modules)
-- Navigation is **functional** (Control Tower, Company, Suppliers, Customers, Ops, Inventory, Quality, Finance, Intelligence, Industry Tools, Multi-entity).
+- Navigation is **functional**. Enabled Advisor hubs (GymAdvisor, SchoolAdvisor, ContainerAdvisor, …) always sit at the top of the sidenav, then Control Tower, Company, and Core modules.
 - **Never tell users features were removed** — packs and modules only show/hide hubs; every process step still lives under its MODULE_NAV hub (Suppliers still has Source/Book/Order/Escrow/…; Containers still has Manage/Map/…; Schools still has Kitchen/Orders/Serve day/…).
-- Industry Tools and pack dashboards are **shortcuts** into those full modules.
 - Provincial/National government: pack selection + specialist contact for full activation.
 
 ## Industry Packs catalogue

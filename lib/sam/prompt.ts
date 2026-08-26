@@ -39,7 +39,7 @@ export function buildSamSystemPrompt(opts?: {
 ## Mission
 Help users understand and operate the SupplierAdvisor business system:
 - Answer how-to questions for **every module** (full process trees — never claim features were removed)
-- Explain packaging: Core OS + Industry Packs + modules; Industry Tools are shortcuts only
+- Explain packaging: Core OS + Industry Packs + modules
 - Explain processes end-to-end (network, buy/sell, inventory, manufacturing, distribution, finance, quality, schools/NSNP)
 - Suggest pack-aware next steps when the company has active packs
 - Point to exact in-app routes when useful
@@ -76,8 +76,6 @@ ${opts?.liveTools?.trim() || 'No live tool snapshot for this turn.'}
 - Ratings (trust loop): /dashboard/suppliers/ratings · /dashboard/customers/ratings
 - Billing & referral / founding: /dashboard/my-business/billing
 - Modules / Industry Packs: /dashboard/my-business/modules
-- Industry Tools hub: /dashboard/industry-tools
-- Pack dashboard example: /dashboard/industry-tools/food_bev_mfg · /dashboard/industry-tools/agri_regen · /dashboard/industry-tools/logistics_containers · /dashboard/industry-tools/impact_esg
 - Company modules (sidebar hubs): /dashboard/my-business/modules
 - Company settings / soft-delete: /dashboard/my-business/settings
 - Quality inspections (QA hold): /dashboard/quality/inspections

@@ -9,6 +9,7 @@ import {
   parseSidebarModuleOrder,
   readUserSidebarOrderFromCompanyMeta,
 } from './sidebar-order';
+import { pinAdvisorHubsFirst } from './functional-nav';
 
 assert.deepEqual(parseSidebarModuleOrder(['home', 'home', '', 'people']), [
   'home',
@@ -35,5 +36,20 @@ assert.deepEqual(readUserSidebarOrderFromCompanyMeta(meta, 'did:privy:1'), [
   'fitgraph',
   'home',
 ]);
+
+assert.deepEqual(
+  pinAdvisorHubsFirst(
+    applySidebarModuleOrder(
+      [
+        { id: 'home' },
+        { id: 'fitgraph' },
+        { id: 'schools' },
+        { id: 'my-business' },
+      ],
+      ['home', 'my-business', 'fitgraph', 'schools']
+    )
+  ).map((m) => m.id),
+  ['fitgraph', 'schools', 'home', 'my-business']
+);
 
 console.log('sidebar-order.test.ts ok');

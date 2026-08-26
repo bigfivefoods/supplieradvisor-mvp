@@ -4,21 +4,16 @@
  * CRITICAL: Never fold multiple MODULE_NAV hubs into one item.
  * Each existing module keeps its full step tree (Source, Book, Order, …).
  * We only reorder + rename labels for functional clarity.
- * Industry Tools is additive when packs are active.
+ * Advisor OS hubs always sit at the top of the sidenav.
  */
 import { MODULE_NAV, type ModuleNav } from '@/lib/chrome/module-nav';
 import { applySidebarModuleOrder } from '@/lib/chrome/sidebar-order';
 import { ADVISOR_CORE_COMPANIONS } from '@/lib/product/advisor-core-unlocks';
 import {
-  INDUSTRY_PACKS,
   readPackagingFromMetadata,
   type PackagingSelection,
 } from '@/lib/product/architecture';
-import {
-  Layers,
-  Network,
-  type LucideIcon,
-} from 'lucide-react';
+import { Network, type LucideIcon } from 'lucide-react';
 
 /**
  * Advisor / programme OS hubs. When a company has one of these enabled
@@ -58,7 +53,7 @@ const PACK_TO_ADVISOR_MODULE: Record<string, AdvisorOsModuleId> = {
 
 /**
  * This company's Advisor OS module(s), primary pack first.
- * Empty when the workspace is a generic / all-modules company.
+ * Always returned when enabled so they stay pinned at the top of the sidenav.
  */
 export function advisorModulesForCompany(opts: {
   isModuleEnabled: (id: string) => boolean;
@@ -83,24 +78,33 @@ export function advisorModulesForCompany(opts: {
       ...enabled.filter((id) => !fromPacks.includes(id)),
     ];
   }
-  // Platform / all-on workspace — keep the default functional order
-  if (enabled.length >= 6) return [];
   return [...enabled];
+}
+
+function isAdvisorOsModule(id: string): boolean {
+  return (ADVISOR_OS_MODULE_IDS as readonly string[]).includes(id);
+}
+
+/** Keep Advisor hubs first; preserve relative order among them and among the rest. */
+export function pinAdvisorHubsFirst<T extends { id: string }>(modules: T[]): T[] {
+  const advisors: T[] = [];
+  const rest: T[] = [];
+  for (const m of modules) {
+    if (isAdvisorOsModule(m.id)) advisors.push(m);
+    else rest.push(m);
+  }
+  if (!advisors.length) return modules;
+  return [...advisors, ...rest];
 }
 
 /**
  * Functional ordering of existing MODULE_NAV ids (1:1, full trees preserved).
- * 1) This company's Advisor OS (GymAdvisor, PhysioAdvisor, …) when enabled
+ * 1) Advisor OS hubs (always pinned to the top of the sidenav)
  * 2) Control Tower (+ Platform admin)
- * 3) Other industry / programme OS
- * 4) Core modules
+ * 3) Core modules
  */
 export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
-  // 1 — Command / Control Tower
-  'home', // Control Tower
-  'platform', // Platform admin — under Control Tower (SupplierAdvisor business)
-
-  // 2 — Industry-specific / programme modules
+  // 1 — Advisor OS hubs (pinned first when enabled)
   'fitgraph', // GymAdvisor® gym / studio OS
   'physiograph', // PhysioAdvisor® clinic / physio OS
   'dentalgraph', // DentalAdvisor® dental practice OS
@@ -111,8 +115,12 @@ export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
   'quarrygraph', // QuarryAdvisor® aggregates OS
   'fieldgraph', // CropAdvisor® agri OS
   'schools', // SchoolAdvisor® (public sector / NSNP)
-  'health', // DoH programme (with industry/programmes)
-  'containers', // Industry vertical (packs)
+  'health', // HealthAdvisor (public sector / provincial)
+  'containers', // ContainerAdvisor
+
+  // 2 — Command / Control Tower
+  'home', // Control Tower
+  'platform', // Platform admin — under Control Tower (SupplierAdvisor business)
 
   // 3 — Core modules
   'my-business', // Company
@@ -227,8 +235,7 @@ function stepsFromModule(m: ModuleNav): SidebarModuleShape['sub'] {
 /**
  * Build sidebar modules:
  * - Every enabled MODULE_NAV hub is its own item with complete steps
- * - Ordered for functional daily work
- * - Industry Tools added when packs active (does not replace ContainerAdvisor / SchoolAdvisor)
+ * - Advisor OS hubs always sit at the top (even after a saved custom order)
  * - Multi-entity shortcut without removing Company → Group
  */
 export function functionalSidebarModules(opts: {
@@ -238,11 +245,14 @@ export function functionalSidebarModules(opts: {
   moduleOrder?: string[] | null;
 }): SidebarModuleShape[] {
   const packIds = opts.packaging?.packIds || [];
-  const hasPacks = packIds.length > 0;
   const out: SidebarModuleShape[] = [];
   const seen = new Set<string>();
   const pinnedAdvisors = advisorModulesForCompany(opts);
-  const companionCore: string[] = pinnedAdvisors.length
+  // People / members / finance sit with the Advisor hub on focused workspaces.
+  // All-on / platform companies already list every Advisor at the top.
+  const focusedAdvisorWorkspace =
+    pinnedAdvisors.length > 0 && pinnedAdvisors.length < 6;
+  const companionCore: string[] = focusedAdvisorWorkspace
     ? ADVISOR_CORE_COMPANIONS.filter(
         (id) => opts.isModuleEnabled(id) && !pinnedAdvisors.includes(id)
       )
@@ -299,54 +309,6 @@ export function functionalSidebarModules(opts: {
     seen.add(m.id);
   }
 
-  // Industry Tools — additive hub (packs + deep links into existing modules)
-  if (hasPacks) {
-    const tools = buildIndustryToolsSubs(packIds, opts.isModuleEnabled);
-    if (tools.length) {
-      // After industry block (containers / schools / health), before core Company
-      const insertAt = (() => {
-        const afterIndustry = [
-          'containers',
-          'health',
-          'schools',
-          'fieldgraph',
-          'quarrygraph',
-          'fitgraph',
-          'physiograph',
-          'dentalgraph',
-          'psychiatrygraph',
-          'medicalgraph',
-          'hiregraph',
-          'retailgraph',
-        ];
-        for (const id of afterIndustry) {
-          const idx = out.findIndex((x) => x.id === id);
-          if (idx >= 0) return idx + 1;
-        }
-        const companyIdx = out.findIndex((x) => x.id === 'my-business');
-        if (companyIdx >= 0) return companyIdx;
-        return Math.min(out.length, 2);
-      })();
-      const item: SidebarModuleShape = {
-        id: 'industry_tools',
-        name: 'Industry Tools',
-        icon: Layers,
-        href: '/dashboard/industry-tools',
-        sub: [
-          {
-            name: 'Overview',
-            href: '/dashboard/industry-tools',
-            exact: true,
-            desc: 'Packs & vertical tools',
-          },
-          ...tools,
-        ],
-        functionalId: 'industry_tools',
-      };
-      out.splice(insertAt, 0, item);
-    }
-  }
-
   // Multi-entity shortcut (does not remove Company → Group step) — sit just after Company
   const multi: SidebarModuleShape = {
     id: 'multi_entity',
@@ -375,49 +337,7 @@ export function functionalSidebarModules(opts: {
     else out.push(multi);
   }
 
-  return applySidebarModuleOrder(out, opts.moduleOrder);
-}
-
-/** Collect pack tool links + preserve entry points into full modules */
-function buildIndustryToolsSubs(
-  packIds: string[],
-  isModuleEnabled: (id: string) => boolean
-): SidebarModuleShape['sub'] {
-  const tools: SidebarModuleShape['sub'] = [];
-  const seenHref = new Set<string>();
-
-  const push = (name: string, href: string, desc?: string) => {
-    if (seenHref.has(href)) return;
-    seenHref.add(href);
-    tools.push({ name, href, desc });
-  };
-
-  for (const pid of packIds) {
-    const pack = INDUSTRY_PACKS.find((p) => p.id === pid);
-    if (!pack) continue;
-    for (const t of pack.industryToolsHrefs) {
-      push(`${pack.shortName}: ${t.name}`, t.href, t.desc);
-    }
-  }
-
-  // When containers module on, expose hub (full module still in main nav)
-  if (isModuleEnabled('containers')) {
-    push('ContainerAdvisor hub', '/dashboard/containers', 'Full container OS');
-  }
-  if (isModuleEnabled('schools')) {
-    push('SchoolAdvisor® hub', '/dashboard/schools', 'Public sector NSNP programme');
-  }
-  if (isModuleEnabled('health')) {
-    push('HealthAdvisor hub', '/dashboard/health', 'Public sector health programme');
-  }
-  if (isModuleEnabled('manufacturing')) {
-    push('Make · MPS/MRP', '/dashboard/manufacturing', 'Full manufacturing');
-  }
-  if (isModuleEnabled('sustainability')) {
-    push('Impact / ESG', '/dashboard/sustainability', 'Full impact module');
-  }
-
-  return tools;
+  return pinAdvisorHubsFirst(applySidebarModuleOrder(out, opts.moduleOrder));
 }
 
 export function packagingFromCompanyMeta(
