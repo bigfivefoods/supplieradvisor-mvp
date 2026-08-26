@@ -156,6 +156,12 @@ export const ADVISOR_MODULE_CORE_HREF: Record<
     book: '/dashboard/medicalgraph/patients',
     money: '/dashboard/medicalgraph/accounts',
   },
+  vetgraph: {
+    label: 'VetAdvisor',
+    staff: '/dashboard/vetgraph/practitioners',
+    book: '/dashboard/vetgraph/patients',
+    money: '/dashboard/vetgraph/accounts',
+  },
   hiregraph: {
     label: 'HireAdvisor',
     staff: '/dashboard/hiregraph/suppliers',
