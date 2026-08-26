@@ -13,7 +13,8 @@ type ModuleId =
   | 'dentalgraph'
   | 'medicalgraph'
   | 'physiograph'
-  | 'psychiatrygraph';
+  | 'psychiatrygraph'
+  | 'vetgraph';
 
 type Props = {
   companyId: number | string | null | undefined;
