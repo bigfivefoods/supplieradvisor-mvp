@@ -53,6 +53,7 @@ export const PERSONAL_WALLET_KINDS: B2cMembershipKind[] = [
   'dental',
   'medical',
   'psychiatry',
+  'vet',
 ];
 
 /** Desks a shopper can link (includes retail for stores they do not run). */
@@ -143,6 +144,7 @@ export function moduleLabels(kinds: Array<B2cMembershipKind | string>): string {
     dental: 'Dental',
     medical: 'Medical',
     psychiatry: 'Psychiatry',
+    vet: 'Vet',
     retail: 'Retail',
   };
   return kinds

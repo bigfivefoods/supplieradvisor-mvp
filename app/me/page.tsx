@@ -168,7 +168,7 @@ function kindActionLabel(kind: string) {
 }
 
 function isClinicKind(kind: string) {
-  return ['physio', 'dental', 'medical', 'psychiatry'].includes(kind);
+  return ['physio', 'dental', 'medical', 'psychiatry', 'vet'].includes(kind);
 }
 
 function membershipBookHref(m: Membership) {

@@ -218,7 +218,7 @@ export async function GET(request: NextRequest) {
         hire: memberships.filter((m) => m.kind === 'hire').length,
         gym: memberships.filter((m) => m.kind === 'gym').length,
         clinic: memberships.filter((m) =>
-          ['physio', 'dental', 'medical', 'psychiatry'].includes(m.kind)
+          ['physio', 'dental', 'medical', 'psychiatry', 'vet'].includes(m.kind)
         ).length,
         needs_attention: docs.length,
         open_hires: journeys.filter((j) => j.open).length,

@@ -310,7 +310,7 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
       continue;
     }
 
-    if (!['physio', 'dental', 'medical', 'psychiatry'].includes(mem.kind)) {
+    if (!['physio', 'dental', 'medical', 'psychiatry', 'vet'].includes(mem.kind)) {
       continue;
     }
 

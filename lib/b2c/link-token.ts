@@ -579,6 +579,8 @@ export function kindLabel(kind: B2cMembershipKind | string): string {
       return 'Medical';
     case 'psychiatry':
       return 'Psychiatry';
+    case 'vet':
+      return 'Vet';
     case 'account':
       return 'Account';
     default:
@@ -593,5 +595,6 @@ export const B2C_ADVISOR_KINDS: B2cMembershipKind[] = [
   'dental',
   'medical',
   'psychiatry',
+  'vet',
   'retail',
 ];

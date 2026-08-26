@@ -272,7 +272,7 @@ export async function acceptBrandJoin(opts: {
     const r = await joinRetail({ ...ctx, profile });
     profile = r.profile;
   }
-  for (const clinic of ['physio', 'dental', 'medical', 'psychiatry'] as const) {
+  for (const clinic of ['physio', 'dental', 'medical', 'psychiatry', 'vet'] as const) {
     if (!modules.includes(clinic)) continue;
     const r = await joinClinic({ ...ctx, profile, kind: clinic });
     profile = r.profile;
@@ -594,7 +594,7 @@ function recordClinicJoin<T extends {
 async function finishClinicJoin(opts: {
   company: CompanyRow;
   profile: Awaited<ReturnType<typeof ensureB2cProfile>>;
-  kind: 'physio' | 'dental' | 'medical' | 'psychiatry';
+  kind: 'physio' | 'dental' | 'medical' | 'psychiatry' | 'vet';
   path: string;
   brand: string;
   person: ClinicPerson;
@@ -651,7 +651,7 @@ async function joinClinic(opts: {
   email: string | null;
   phone: string | null;
   displayName: string;
-  kind: 'physio' | 'dental' | 'medical' | 'psychiatry';
+  kind: 'physio' | 'dental' | 'medical' | 'psychiatry' | 'vet';
 }) {
   const shared = {
     userId: opts.userId,
