@@ -42,6 +42,10 @@ import {
   readPsychiatrygraphFromMetadata,
   writePsychiatrygraphToMetadata,
 } from '@/lib/clinic/psychiatrygraph';
+import {
+  readVetgraphFromMetadata,
+  writeVetgraphToMetadata,
+} from '@/lib/clinic/vetgraph';
 import { identityFromProfile } from '@/lib/b2c/identity';
 import { linkPlatformUserId } from '@/lib/messaging/link-platform-user';
 import type { PersonIdentityVerification } from '@/lib/identity/person-verification';
@@ -90,7 +94,7 @@ export type DeskPerson = {
   updated_at?: string;
 };
 
-export type DeskKind = 'gym' | 'physio' | 'dental' | 'medical' | 'psychiatry';
+export type DeskKind = 'gym' | 'physio' | 'dental' | 'medical' | 'psychiatry' | 'vet';
 
 const DESK_KINDS: DeskKind[] = [
   'gym',
@@ -436,7 +440,8 @@ function membershipDeskKind(m: B2cMembership): DeskKind | null {
     m.kind === 'physio' ||
     m.kind === 'dental' ||
     m.kind === 'medical' ||
-    m.kind === 'psychiatry'
+    m.kind === 'psychiatry' ||
+    m.kind === 'vet'
   ) {
     return m.kind;
   }
@@ -494,6 +499,17 @@ function deskBundle(
       write: (people) => {
         store.patients = people as typeof store.patients;
         return writeMedicalgraphToMetadata(meta, store);
+      },
+    };
+  }
+  if (kind === 'vet') {
+    const store = readVetgraphFromMetadata(meta);
+    return {
+      kind,
+      people: (store.patients || []) as DeskPerson[],
+      write: (people) => {
+        store.patients = people as typeof store.patients;
+        return writeVetgraphToMetadata(meta, store);
       },
     };
   }

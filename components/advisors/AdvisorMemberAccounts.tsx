@@ -409,6 +409,7 @@ const MODULE_KIND: Record<AdvisorAccountModule, string> = {
   dentalgraph: 'dental',
   medicalgraph: 'medical',
   psychiatrygraph: 'psychiatry',
+  vetgraph: 'vet',
   hiregraph: 'hire',
   retailgraph: 'retail',
 };

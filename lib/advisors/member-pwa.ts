@@ -14,6 +14,7 @@ export const ADVISOR_PWA_MODULES = [
   'dentalgraph',
   'medicalgraph',
   'psychiatrygraph',
+  'vetgraph',
   'hiregraph',
   'retailgraph',
 ] as const;
@@ -36,6 +37,7 @@ const ADVISOR_LABEL: Record<AdvisorPwaModule, string> = {
   dentalgraph: 'DentalAdvisor®',
   medicalgraph: 'MedicalAdvisor®',
   psychiatrygraph: 'PsychiatryAdvisor®',
+  vetgraph: 'VetAdvisor®',
   hiregraph: 'HireAdvisor®',
   retailgraph: 'RetailAdvisor®',
 };
@@ -46,6 +48,7 @@ export const ADVISOR_PWA_INDEX_KEYS: Record<AdvisorPwaModule, string[]> = {
   dentalgraph: ['dentalgraph_public_token'],
   medicalgraph: ['medicalgraph_public_token'],
   psychiatrygraph: ['psychiatrygraph_public_token'],
+  vetgraph: ['vetgraph_public_token'],
   hiregraph: ['hiregraph_public_token'],
   retailgraph: ['retailgraph_public_token'],
 };
@@ -57,6 +60,7 @@ export const ADVISOR_PWA_PORTAL_INDEX_KEYS: Record<AdvisorPwaModule, string[]> =
   dentalgraph: ['dentalgraph_patient_tokens', 'dentalgraph_public_token'],
   medicalgraph: ['medicalgraph_patient_tokens', 'medicalgraph_public_token'],
   psychiatrygraph: ['psychiatrygraph_patient_tokens', 'psychiatrygraph_public_token'],
+  vetgraph: ['vetgraph_patient_tokens', 'vetgraph_public_token'],
   hiregraph: ['hiregraph_customer_tokens', 'hiregraph_public_token'],
   retailgraph: ['retailgraph_customer_tokens', 'retailgraph_public_token'],
 };
@@ -67,6 +71,7 @@ const JOIN_KIND: Record<AdvisorPwaModule, string> = {
   dentalgraph: 'dental',
   medicalgraph: 'medical',
   psychiatrygraph: 'psychiatry',
+  vetgraph: 'vet',
   hiregraph: 'hire',
   retailgraph: 'retail',
 };
@@ -222,6 +227,7 @@ const CLINIC_PWA_MODULES: AdvisorPwaModule[] = [
   'dentalgraph',
   'medicalgraph',
   'psychiatrygraph',
+  'vetgraph',
 ];
 
 /** Member, coach, clinician, or hire portal — token prefix decides the view. */

@@ -20,6 +20,7 @@ import {
   getCanonicalUserId,
 } from '@/lib/auth/identity';
 import { peekOauthReturnParams } from '@/lib/auth/oauth-return';
+import { clinicPwaCopy, isClinicPwaModule } from '@/lib/clinic/clinic-pwa-copy';
 
 function ghostBtn(pageInk: string): CSSProperties {
   const light = pageInk === '#ffffff';
@@ -53,26 +54,22 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
   const joining = useRef(false);
   const gym = brand.module === 'fitgraph';
   const hire = brand.module === 'hiregraph';
-  const clinic = [
-    'physiograph',
-    'dentalgraph',
-    'medicalgraph',
-    'psychiatrygraph',
-  ].includes(brand.module);
+  const clinic = isClinicPwaModule(brand.module);
+  const clinicCopy = clinic ? clinicPwaCopy(brand.module) : null;
   const rosterSignIn = brand.module !== 'retailgraph';
   const staffDesk = gym || clinic;
   const staffLabel = gym
     ? 'Coach'
-    : brand.module === 'dentalgraph'
-      ? 'Clinician'
-      : clinic
-        ? 'Practitioner'
-        : 'Staff';
+    : clinicCopy
+      ? clinicCopy.staffSingular.replace(/^./, (c) => c.toUpperCase())
+      : 'Staff';
   const staffListLabel = gym
     ? 'Coaches'
-    : brand.module === 'dentalgraph'
-      ? 'Staff'
-      : 'Practitioners';
+    : clinicCopy
+      ? clinicCopy.staffPlural
+      : 'Staff';
+  const memberAppLabel = clinicCopy?.memberAppLabel || 'member / client app';
+  const openingLabel = clinicCopy?.openingApp || `Opening your ${memberAppLabel}…`;
 
   useEffect(() => {
     setSamsung(/SamsungBrowser/i.test(navigator.userAgent));
@@ -327,9 +324,9 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
 
         {opening && memberHref ? (
           <p className="mt-8 text-sm font-bold opacity-80" style={{ color: pageInk }}>
-            Opening your{' '}
-            {isAdvisorStaffPortalPath(memberHref) ? 'work' : 'member / client'}{' '}
-            app…
+            {isAdvisorStaffPortalPath(memberHref)
+              ? 'Opening your work app…'
+              : openingLabel}
           </p>
         ) : (
           <>
@@ -338,7 +335,9 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
             className="mt-6 w-full rounded-2xl border px-3 py-2 text-left text-xs font-semibold opacity-90"
             style={ghostBtn(pageInk)}
           >
-            Signed out. Sign in as a member, or as a {staffLabel.toLowerCase()}.
+            {clinicCopy
+              ? clinicCopy.signedOutHint
+              : `Signed out. Sign in as a member, or as a ${staffLabel.toLowerCase()}.`}
           </p>
         ) : null}
           <div className="mt-8 flex w-full flex-col gap-2">
@@ -351,7 +350,7 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
                 Open my{' '}
                 {isAdvisorStaffPortalPath(memberHref)
                   ? 'work app'
-                  : 'member / client app'}
+                  : memberAppLabel}
               </a>
             ) : null}
 
@@ -366,6 +365,8 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
                 <p className="text-[11px] opacity-80" style={{ color: pageInk }}>
                   {hire
                     ? 'New here? Create an account to search, hire kit and track when it is coming. Already a customer? Sign in with the name and email on your file.'
+                    : clinicCopy
+                      ? clinicCopy.joinHint
                     : 'Sign in, then you join this app — profile, bookings and the rest live here, not on a separate website.'}
                 </p>
                 {authenticated ? (
@@ -418,7 +419,8 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
                 <p className="text-xs font-black" style={{ color: pageInk }}>
                   {signInAs === 'staff'
                     ? `I work here — name and email on ${staffListLabel} (employed or contractor)`
-                    : 'Member / client — name and email on your file'}
+                    : clinicCopy?.signInMember ||
+                      'Member / client — name and email on your file'}
                 </p>
                 <input
                   className="w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm text-slate-900"
@@ -441,7 +443,7 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
                   <p className="text-[11px] opacity-70" style={{ color: pageInk }}>
                     {signInAs === 'staff'
                       ? 'This opens the work app — diary, roster, attendance. Same view if you are employed or a contractor.'
-                      : `This opens the member / client app.`}
+                      : `This opens the ${memberAppLabel}.`}
                   </p>
                 )}
                 <button

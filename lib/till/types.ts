@@ -10,6 +10,7 @@ export const TILL_MODULES = [
   'dentalgraph',
   'medicalgraph',
   'psychiatrygraph',
+  'vetgraph',
   'hiregraph',
 ] as const;
 

@@ -2,7 +2,7 @@
  * Public portal identity verification (token auth).
  *
  * POST {
- *   module: fitgraph | physiograph | dentalgraph | medicalgraph | psychiatrygraph
+ *   module: fitgraph | physiograph | dentalgraph | medicalgraph | psychiatrygraph | vetgraph
  *   role: member | patient | coach
  *   token: portal token
  *   action: status | verifynow | didit_start | didit_refresh
@@ -46,6 +46,7 @@ const MODULES: ServiceIdentityModule[] = [
   'dentalgraph',
   'medicalgraph',
   'psychiatrygraph',
+  'vetgraph',
 ];
 const ROLES: ServiceIdentityRole[] = ['member', 'patient', 'coach'];
 

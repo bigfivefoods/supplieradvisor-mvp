@@ -49,7 +49,8 @@ function modOf(v: unknown): FeedbackModule | null {
     m === 'physiograph' ||
     m === 'dentalgraph' ||
     m === 'psychiatrygraph' ||
-    m === 'medicalgraph'
+    m === 'medicalgraph' ||
+    m === 'vetgraph'
   )
     return m;
   return null;
@@ -379,6 +380,14 @@ export async function GET(request: NextRequest) {
       resolved = resolvePhysio(readPhysiographFromMetadata(loaded.meta), token);
     } else if (module === 'medicalgraph') {
       resolved = resolveMedical(readMedicalgraphFromMetadata(loaded.meta), token);
+    } else if (module === 'vetgraph') {
+      const hit = resolveMedical(
+        (await import('@/lib/clinic/vetgraph')).readVetgraphFromMetadata(
+          loaded.meta
+        ) as never,
+        token
+      );
+      resolved = hit ? { ...hit, module: 'vetgraph' } : null;
     } else if (module === 'psychiatrygraph') {
       resolved = resolvePsychiatry(
         readPsychiatrygraphFromMetadata(loaded.meta),
@@ -569,6 +578,26 @@ export async function POST(request: NextRequest) {
       const early = clinicFeedbackEarlyResponse(result);
       if (early) return early;
       await saveMeta(companyId, writeMedicalgraphToMetadata(meta, store));
+      return NextResponse.json({
+        success: true,
+        message: 'Thanks — your feedback helps the practice improve',
+        feedback_id: result.kind === 'saved' ? result.feedbackId : undefined,
+      });
+    }
+
+    if (module === 'vetgraph') {
+      const vet = await import('@/lib/clinic/vetgraph');
+      const store = vet.readVetgraphFromMetadata(meta);
+      const result = applyClinicVisitFeedback(store, {
+        token,
+        now,
+        statusOk: feedbackStatusOk,
+        body,
+        includePractice: true,
+      });
+      const early = clinicFeedbackEarlyResponse(result);
+      if (early) return early;
+      await saveMeta(companyId, vet.writeVetgraphToMetadata(meta, store));
       return NextResponse.json({
         success: true,
         message: 'Thanks — your feedback helps the practice improve',

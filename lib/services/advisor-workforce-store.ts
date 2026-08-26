@@ -23,6 +23,11 @@ import {
   type MedicalPractitioner,
 } from '@/lib/clinic/medicalgraph';
 import {
+  VETGRAPH_META_KEY,
+  readVetgraphFromMetadata,
+  writeVetgraphToMetadata,
+} from '@/lib/clinic/vetgraph';
+import {
   PSYCHIATRYGRAPH_META_KEY,
   readPsychiatrygraphFromMetadata,
   writePsychiatrygraphToMetadata,
@@ -158,6 +163,17 @@ export async function loadAdvisorWorkforce(
     return wrapClinic(companyId, module, brand, store, {
       key: MEDICALGRAPH_META_KEY,
       write: writeMedicalgraphToMetadata,
+    });
+  }
+  if (module === 'vetgraph') {
+    const { store } = await loadAdvisorModuleStore(
+      companyId,
+      VETGRAPH_META_KEY,
+      readVetgraphFromMetadata
+    );
+    return wrapClinic(companyId, module, brand, store, {
+      key: VETGRAPH_META_KEY,
+      write: writeVetgraphToMetadata,
     });
   }
   if (module === 'psychiatrygraph') {

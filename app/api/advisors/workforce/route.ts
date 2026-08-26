@@ -323,6 +323,7 @@ export async function POST(request: NextRequest) {
                   | 'dentalgraph'
                   | 'medicalgraph'
                   | 'psychiatrygraph'
+                  | 'vetgraph'
               );
       }
       const joinLink = buildAdvisorWorkJoinLink(moduleRaw, token);

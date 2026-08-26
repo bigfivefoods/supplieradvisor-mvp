@@ -28,6 +28,7 @@ const ADVISORS: AdvisorReportId[] = [
   'physiograph',
   'dentalgraph',
   'medicalgraph',
+  'vetgraph',
   'psychiatrygraph',
   'fieldgraph',
   'quarrygraph',

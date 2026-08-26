@@ -2,6 +2,7 @@ import {
   PORTAL_SECTIONS,
   type AdvisorPortalModule,
 } from '@/lib/advisors/portal-sections';
+import { clinicPwaCopy } from '@/lib/clinic/clinic-pwa-copy';
 
 export type GrowPreviewSettings = {
   enabled?: boolean;
@@ -72,78 +73,30 @@ export function growPreviewCopy(module: AdvisorPortalModule): GrowPreviewCopy {
         programmeHint:
           'You build a week-by-week calendar of movements, sell or assign it, and members log feel and effort after each day.',
       };
-    case 'physiograph':
-      return {
-        audience: 'patients',
-        audienceSingular: 'patient',
-        pwaEyebrow: 'Patient portal · PhysioAdvisor®',
-        pwaTabs: ['Open diary', 'My bookings', 'My care', 'Messages', 'My profile'],
-        pwaActiveTab: 'Open diary',
-        sampleTitle: 'Follow-up consult',
-        sampleWhen: 'Wed · 09:30',
-        sampleHint: 'Book an open slot, see rehab, and message the clinic.',
-        websiteCta: 'Book a visit',
-        showWeekDiary: true,
-        color: '#0d9488',
-        staffRole: 'contracted practitioner',
-        staffEyebrow: 'Practitioner PWA · PhysioAdvisor®',
-        staffTabs: ['Today', 'Diary', 'You', 'People', 'Inbox'],
-        staffSample: 'Today · 09:30 Follow-up · 1 patient',
-      };
-    case 'dentalgraph':
-      return {
-        audience: 'patients',
-        audienceSingular: 'patient',
-        pwaEyebrow: 'Patient portal · DentalAdvisor®',
-        pwaTabs: ['Open diary', 'My bookings', 'My care', 'Messages', 'My profile'],
-        pwaActiveTab: 'Open diary',
-        sampleTitle: 'Hygiene visit',
-        sampleWhen: 'Thu · 11:00',
-        sampleHint: 'Book, see visit notes the practice shares, and pay.',
-        websiteCta: 'Book a visit',
-        showWeekDiary: true,
-        color: '#0284c7',
-        staffRole: 'contracted clinician',
-        staffEyebrow: 'Clinician PWA · DentalAdvisor®',
-        staffTabs: ['Today', 'Diary', 'You', 'People', 'Inbox'],
-        staffSample: 'Today · 11:00 Hygiene · chair 2',
-      };
-    case 'psychiatrygraph':
-      return {
-        audience: 'patients',
-        audienceSingular: 'patient',
-        pwaEyebrow: 'Patient portal · PsychiatryAdvisor®',
-        pwaTabs: ['Book', 'My bookings', 'My records', 'Messages', 'My profile'],
-        pwaActiveTab: 'Book',
-        sampleTitle: 'Review session',
-        sampleWhen: 'Fri · 14:00',
-        sampleHint: 'Book, keep care notes private to this practice.',
-        websiteCta: 'Book a session',
-        showWeekDiary: true,
-        color: '#6366f1',
-        staffRole: 'contracted practitioner',
-        staffEyebrow: 'Practitioner PWA · PsychiatryAdvisor®',
-        staffTabs: ['Today', 'Diary', 'You', 'People', 'Inbox'],
-        staffSample: 'Today · 14:00 Review session',
-      };
     case 'medicalgraph':
+    case 'physiograph':
+    case 'dentalgraph':
+    case 'psychiatrygraph':
+    case 'vetgraph': {
+      const clinic = clinicPwaCopy(module);
       return {
-        audience: 'patients',
-        audienceSingular: 'patient',
-        pwaEyebrow: 'Patient portal · MedicalAdvisor®',
-        pwaTabs: ['Book', 'My bookings', 'Visit history', 'My records', 'Messages'],
-        pwaActiveTab: 'Book',
-        sampleTitle: 'GP consult',
-        sampleWhen: 'Mon · 08:15',
-        sampleHint: 'Book, update ailments, and rate the visit after.',
-        websiteCta: 'Book a consult',
+        audience: clinic.audience,
+        audienceSingular: clinic.audienceSingular,
+        pwaEyebrow: clinic.pwaEyebrow,
+        pwaTabs: clinic.pwaTabs,
+        pwaActiveTab: clinic.pwaActiveTab,
+        sampleTitle: clinic.sampleTitle,
+        sampleWhen: clinic.sampleWhen,
+        sampleHint: clinic.sampleHint,
+        websiteCta: clinic.websiteCta,
         showWeekDiary: true,
-        color: '#059669',
-        staffRole: 'contracted practitioner',
-        staffEyebrow: 'Practitioner PWA · MedicalAdvisor®',
-        staffTabs: ['Today', 'Diary', 'You', 'People', 'Inbox'],
-        staffSample: 'Today · 08:15 GP consult',
+        color: clinic.color,
+        staffRole: clinic.staffRole,
+        staffEyebrow: clinic.staffEyebrow,
+        staffTabs: clinic.staffTabs,
+        staffSample: clinic.staffSample,
       };
+    }
     case 'hiregraph':
       return {
         audience: 'customers',

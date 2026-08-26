@@ -51,6 +51,7 @@ import {
   writeClinicTabToUrl,
   type ClinicMemberTabId,
 } from '@/components/clinic/ClinicMemberPwaUi';
+import { clinicPwaCopy } from '@/lib/clinic/clinic-pwa-copy';
 
 type Slot = {
   id: string;
@@ -324,7 +325,9 @@ export default function MemberPhysiographPortalPage() {
   }
   if (!portal) return null;
 
+  const copy = clinicPwaCopy('physiograph');
   const dock = clinicMemberDockTabs({
+    module: 'physiograph',
     messagesUnread: portal.messages_unread,
     photoUrl: portal.patient.photo_url,
   });
@@ -388,8 +391,8 @@ export default function MemberPhysiographPortalPage() {
 
         {tab === 'care' && (
           <ClinicExpandSection
-            title="Care"
-            hint="Rehab, plans and advice your physio has prescribed on your file."
+            title={copy.careTitle}
+            hint={copy.careHint}
             icon={<HeartPulse className="h-4 w-4" />}
             defaultOpen
           >
@@ -509,8 +512,8 @@ export default function MemberPhysiographPortalPage() {
 
         {tab === 'mine' && (
           <div className="space-y-3">
-            <ClinicSectionTitle hint="Your next visits. Tap a card for details, cancel, or rate after the appointment.">
-              Book
+            <ClinicSectionTitle hint={copy.bookHint}>
+              {copy.dockBook}
             </ClinicSectionTitle>
             <ClinicMemberBookList
               bookings={portal.my_bookings}

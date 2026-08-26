@@ -25,6 +25,8 @@ export const KIND_FROM_MODULE: Record<string, CoreCustomerKind> = {
   medical: 'clinic_patient',
   psychiatrygraph: 'clinic_patient',
   psychiatry: 'clinic_patient',
+  vetgraph: 'clinic_patient',
+  vet: 'clinic_patient',
   hiregraph: 'hire_customer',
   hire: 'hire_customer',
   retailgraph: 'retail_customer',
@@ -37,6 +39,7 @@ export const MODULE_LABEL: Record<string, string> = {
   dentalgraph: 'DentalAdvisor',
   medicalgraph: 'MedicalAdvisor',
   psychiatrygraph: 'PsychiatryAdvisor',
+  vetgraph: 'VetAdvisor',
   hiregraph: 'HireAdvisor',
   retailgraph: 'RetailAdvisor',
   fieldgraph: 'CropAdvisor',
@@ -57,6 +60,7 @@ export const DIARY_HREF: Record<string, string> = {
   dentalgraph: '/dashboard/dentalgraph/calendar',
   medicalgraph: '/dashboard/medicalgraph/calendar',
   psychiatrygraph: '/dashboard/psychiatrygraph/calendar',
+  vetgraph: '/dashboard/vetgraph/calendar',
   hiregraph: '/dashboard/hiregraph/calendar',
 };
 

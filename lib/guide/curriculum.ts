@@ -1885,6 +1885,103 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     related: ['psychiatrygraph', 'physiograph', 'dentalgraph', 'customers', 'golden-path'],
   },
   {
+    slug: 'vetgraph',
+    moduleId: 'vetgraph',
+    title: 'VetAdvisor®',
+    tagline: 'Vets → rooms → waitlist → marketplace',
+    purpose:
+      'Tertiary veterinary OS on one Core book: vets (People workforce; leave blocks the diary), clients on Customers 360, packs with VAT invoices, exclusive diaries + company calendar, waitlist, attendance → CRM + Intelligence, SA Member, website + marketplace. Process design PDF on the hub.',
+    who: ['Practice owner', 'Veterinarian', 'Veterinary nurse', 'Front desk', 'Client (public)'],
+    principles: [
+      {
+        title: 'No double-book per vet',
+        body: 'Each vet diary is exclusive; practice view can run many vets in parallel.',
+      },
+      {
+        title: 'Public = published',
+        body: 'Only public appointments and a published website profile are ready for portal / online booking.',
+      },
+      {
+        title: 'Messages: system ID first',
+        body: 'Once a client is on SupplierAdvisor, care threads deliver in-app by platform user ID.',
+      },
+      {
+        title: 'One money book',
+        body: 'Consult and pack fees post CRM + Finance (AR, revenue, VAT). Card / Apple Pay 1% admin to the practice bank.',
+      },
+    ],
+    outcomes: [
+      'Vets registered with disciplines',
+      'Services + at least one package',
+      'Diary slots scheduled with a vet',
+      'Client booked and portal understood',
+    ],
+    flow: [
+      { id: 'a', label: 'People', hint: 'Vets · POPIA', tone: 'cyan' },
+      { id: 'b', label: 'Services', hint: 'Packs · vaccines', tone: 'emerald' },
+      { id: 'c', label: 'Diary', hint: 'Rooms · vet', tone: 'cyan' },
+      { id: 'd', label: 'Floor', hint: 'Waitlist · recall', tone: 'rose' },
+      { id: 'e', label: 'Messages', hint: 'System ID', tone: 'violet' },
+      { id: 'f', label: 'Website', hint: 'Marketplace', tone: 'violet' },
+    ],
+    processes: [
+      {
+        name: 'Open the diary with rooms',
+        href: '/dashboard/vetgraph/calendar',
+        summary: 'Rooms + vet exclusive books + public slots.',
+        steps: [
+          'Website — define rooms / resources',
+          'Services — catalogue with duration',
+          'Calendar — practice vs vet view; schedule; assign; mark public',
+          'Confirm no double-book on the same vet',
+        ],
+      },
+      {
+        name: 'Book, waitlist, attend, recall',
+        href: '/dashboard/vetgraph/bookings',
+        summary: 'Waitlist desk → reminders → attendance → care plan → feedback.',
+        steps: [
+          'Clients — create with POPIA consent; invite portal',
+          'Bookings — book client or household animal; other vet if preferred full',
+          'Waitlist desk — slot queue + next-available practice queue',
+          'Send 24h reminders; mark attended / no-show',
+          'Treatment plan on client record — Book next when due',
+        ],
+      },
+      {
+        name: 'Marketplace, messages & staff Today',
+        href: '/dashboard/vetgraph/website',
+        summary: 'Public list; in-app care; mobile today board.',
+        steps: [
+          'Website — ops policies + list on /marketplace/advisors',
+          'Messages — care threads (system user ID when on-platform)',
+          'Hub / staff Today PWA for the floor',
+        ],
+        tip: 'Download Landscape/Portrait process design PDF from the VetAdvisor® hub.',
+      },
+    ],
+    concepts: [
+      { term: 'Waitlist desk', meaning: 'Slot waitlist plus next-available practice queue with promote/contact actions.' },
+      { term: 'Treatment plan', meaning: 'Step plan on the client with one-click book of the next open diary slot.' },
+      { term: 'System user ID', meaning: 'Platform user id that delivers care messages in-app once the client is on SupplierAdvisor.' },
+      {
+        term: 'Veterinarian',
+        meaning: 'Vet, veterinary nurse or specialist with disciplines, rate and public bio.',
+      },
+      {
+        term: 'Client portal',
+        meaning: 'Token URL so a registered client can book open public diary slots for their animals.',
+      },
+    ],
+    checklist: [
+      'Vet + service + scheduled appointment',
+      'One client booking or demo seed loaded',
+      'Waitlist desk / treatment plan understood',
+      'Opened process design once',
+    ],
+    related: ['medicalgraph', 'physiograph', 'dentalgraph', 'customers', 'golden-path'],
+  },
+  {
     slug: 'people',
     moduleId: 'people',
     title: 'People (HR)',
@@ -2165,7 +2262,8 @@ export function buildGuideNavSteps(
       id === 'physiograph' ||
       id === 'dentalgraph' ||
       id === 'psychiatrygraph' ||
-      id === 'medicalgraph'
+      id === 'medicalgraph' ||
+      id === 'vetgraph'
     )
       return 'Services';
     if (id === 'accounting') return 'Money';
@@ -2194,6 +2292,7 @@ export function buildGuideNavSteps(
     dentalgraph: 'DentalAdvisor',
     psychiatrygraph: 'PsychiatryAdvisor',
     medicalgraph: 'MedicalAdvisor',
+    vetgraph: 'VetAdvisor',
     quality: 'Assure',
     finance: 'Money',
     projects: 'Projects',

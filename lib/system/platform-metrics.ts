@@ -96,6 +96,7 @@ export type ManagementReport = {
     dentalgraphEnabled: number;
     medicalgraphEnabled: number;
     psychiatrygraphEnabled: number;
+    vetgraphEnabled: number;
     hiregraphEnabled: number;
     retailgraphEnabled: number;
   };
@@ -249,6 +250,7 @@ export async function loadPlatformConsoleReports(): Promise<PlatformConsolePaylo
   let dentalgraphEnabled = 0;
   let medicalgraphEnabled = 0;
   let psychiatrygraphEnabled = 0;
+  let vetgraphEnabled = 0;
   let hiregraphEnabled = 0;
   let retailgraphEnabled = 0;
 
@@ -358,6 +360,7 @@ export async function loadPlatformConsoleReports(): Promise<PlatformConsolePaylo
       if (em?.dentalgraph === true) dentalgraphEnabled += 1;
       if (em?.medicalgraph === true) medicalgraphEnabled += 1;
       if (em?.psychiatrygraph === true) psychiatrygraphEnabled += 1;
+      if (em?.vetgraph === true) vetgraphEnabled += 1;
       if (em?.hiregraph === true) hiregraphEnabled += 1;
       if (em?.retailgraph === true) retailgraphEnabled += 1;
 
@@ -534,6 +537,7 @@ export async function loadPlatformConsoleReports(): Promise<PlatformConsolePaylo
       dentalgraphEnabled,
       medicalgraphEnabled,
       psychiatrygraphEnabled,
+      vetgraphEnabled,
       hiregraphEnabled,
       retailgraphEnabled,
     },

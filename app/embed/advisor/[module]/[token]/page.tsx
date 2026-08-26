@@ -67,6 +67,7 @@ const MODULE_LABEL: Record<string, string> = {
   physiograph: 'PhysioAdvisor®',
   medicalgraph: 'MedicalAdvisor®',
   psychiatrygraph: 'PsychiatryAdvisor®',
+  vetgraph: 'VetAdvisor®',
 };
 
 export default function EmbedClinicAdvisorPage() {

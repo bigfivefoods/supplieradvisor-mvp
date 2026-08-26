@@ -24,6 +24,10 @@ import {
   writePsychiatrygraphToMetadata,
 } from '@/lib/clinic/psychiatrygraph';
 import {
+  readVetgraphFromMetadata,
+  writeVetgraphToMetadata,
+} from '@/lib/clinic/vetgraph';
+import {
   readFitgraphFromMetadata,
   writeFitgraphToMetadata,
 } from '@/lib/fitness/fitgraph';
@@ -47,7 +51,7 @@ import {
   ensureClientRatingTokens,
 } from '@/lib/services/booking-feedback';
 function isClinicKindHref(kind: string) {
-  return ['physio', 'dental', 'medical', 'psychiatry'].includes(kind);
+  return ['physio', 'dental', 'medical', 'psychiatry', 'vet'].includes(kind);
 }
 
 function daysAgoIso(iso: string, days: number) {
@@ -60,7 +64,8 @@ type ClinicCareKey =
   | 'physiograph'
   | 'dentalgraph'
   | 'medicalgraph'
-  | 'psychiatrygraph';
+  | 'psychiatrygraph'
+  | 'vetgraph';
 
 type ClinicCareStore = {
   patients: Array<{
@@ -130,6 +135,14 @@ async function loadClinicCareStore(
     );
     return { clinicKey: 'psychiatrygraph', store: store as ClinicCareStore };
   }
+  if (kind === 'vet') {
+    const { store } = await loadAdvisorModuleStore(
+      companyId,
+      'vetgraph',
+      (meta: Record<string, unknown>) => readVetgraphFromMetadata(meta)
+    );
+    return { clinicKey: 'vetgraph', store: store as ClinicCareStore };
+  }
   return null;
 }
 
@@ -145,6 +158,9 @@ function writeClinicCareStore(
   }
   if (clinicKey === 'medicalgraph') {
     return writeMedicalgraphToMetadata({}, store as never);
+  }
+  if (clinicKey === 'vetgraph') {
+    return writeVetgraphToMetadata({}, store as never);
   }
   return writePsychiatrygraphToMetadata({}, store as never);
 }

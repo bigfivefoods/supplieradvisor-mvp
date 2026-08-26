@@ -27,6 +27,7 @@ import { readPhysiographFromMetadata } from '@/lib/clinic/physiograph';
 import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
 import { readMedicalgraphFromMetadata } from '@/lib/clinic/medicalgraph';
 import { readPsychiatrygraphFromMetadata } from '@/lib/clinic/psychiatrygraph';
+import { readVetgraphFromMetadata } from '@/lib/clinic/vetgraph';
 import { buildPatientMedicalShare } from '@/lib/clinic/medical-share';
 import { healthSummaryLabel } from '@/lib/health/body-map';
 import {
@@ -232,6 +233,8 @@ export async function buildShareSnapshot(opts: {
         ? readDentalgraphFromMetadata(company.meta)
         : opts.kind === 'medical'
           ? readMedicalgraphFromMetadata(company.meta)
+          : opts.kind === 'vet'
+            ? readVetgraphFromMetadata(company.meta)
           : readPsychiatrygraphFromMetadata(company.meta);
   const patient = (store.patients || []).find((p) => p.id === opts.refId);
   if (!patient) return null;

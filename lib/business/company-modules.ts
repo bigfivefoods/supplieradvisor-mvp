@@ -58,6 +58,8 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
     'PsychiatryAdvisor® (tertiary services) — clinicians, patients, therapy packs, diary, medical chart, scripts, portal, bookings & messages',
   medicalgraph:
     'MedicalAdvisor® (tertiary services) — GPs & nurses, patients, consults, care packs, diary, scripts, medical chart, portal & messages',
+  vetgraph:
+    'VetAdvisor® (tertiary services) — vets & veterinary nurses, clients, animals, consults, vaccines, diary, pet medical aid, portal & messages',
   hiregraph:
     'HireAdvisor® — hire/rental marketplace: suppliers list gear, people rent free (B2C), category requirements, 2.5% on the listing business',
   retailgraph:
@@ -186,13 +188,14 @@ export const MODULE_CATEGORIES: ModuleCategory[] = [
     band: 'industry',
     title: 'Services',
     blurb:
-      'GymAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, MedicalAdvisor®, HireAdvisor®, RetailAdvisor® and ContainerAdvisor®.',
+      'GymAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, MedicalAdvisor®, VetAdvisor®, HireAdvisor®, RetailAdvisor® and ContainerAdvisor®.',
     moduleIds: [
       'fitgraph',
       'physiograph',
       'dentalgraph',
       'psychiatrygraph',
       'medicalgraph',
+      'vetgraph',
       'hiregraph',
       'retailgraph',
       'containers',
@@ -390,6 +393,7 @@ export const INDUSTRY_ADVISOR_MODULE_IDS = [
   'dentalgraph',
   'psychiatrygraph',
   'medicalgraph',
+  'vetgraph',
   'hiregraph',
   'retailgraph',
   'containers',
@@ -450,6 +454,7 @@ export const SECTOR_VERTICAL_MODULE_IDS: Record<string, readonly string[]> = {
     'dentalgraph',
     'psychiatrygraph',
     'medicalgraph',
+    'vetgraph',
     'hiregraph',
     'retailgraph',
   ],
@@ -757,6 +762,7 @@ export function normalizeEnabledModules(
         id === 'dentalgraph' ||
         id === 'psychiatrygraph' ||
         id === 'medicalgraph' ||
+        id === 'vetgraph' ||
         id === 'hiregraph' ||
         id === 'retailgraph' ||
         id === 'containers' ||
@@ -801,6 +807,7 @@ export function isModuleEnabled(
       moduleId !== 'dentalgraph' &&
       moduleId !== 'psychiatrygraph' &&
       moduleId !== 'medicalgraph' &&
+      moduleId !== 'vetgraph' &&
       moduleId !== 'hiregraph' &&
       moduleId !== 'retailgraph' &&
       moduleId !== 'containers' &&
@@ -820,6 +827,7 @@ export function isModuleEnabled(
     moduleId !== 'dentalgraph' &&
     moduleId !== 'psychiatrygraph' &&
     moduleId !== 'medicalgraph' &&
+    moduleId !== 'vetgraph' &&
     moduleId !== 'hiregraph' &&
     moduleId !== 'retailgraph' &&
     moduleId !== 'containers' &&
@@ -883,6 +891,7 @@ export function moduleIdForPath(pathname: string | null | undefined): string | n
   if (pathname.startsWith('/dashboard/dentalgraph')) return 'dentalgraph';
   if (pathname.startsWith('/dashboard/psychiatrygraph')) return 'psychiatrygraph';
   if (pathname.startsWith('/dashboard/medicalgraph')) return 'medicalgraph';
+  if (pathname.startsWith('/dashboard/vetgraph')) return 'vetgraph';
   if (pathname.startsWith('/dashboard/hiregraph')) return 'hiregraph';
   if (pathname.startsWith('/dashboard/retailgraph')) return 'retailgraph';
   if (pathname.startsWith('/dashboard/schools')) return 'schools';

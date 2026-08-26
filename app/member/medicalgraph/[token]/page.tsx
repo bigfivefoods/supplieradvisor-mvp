@@ -53,6 +53,7 @@ import {
   writeClinicTabToUrl,
   type ClinicMemberTabId,
 } from '@/components/clinic/ClinicMemberPwaUi';
+import { clinicPwaCopy } from '@/lib/clinic/clinic-pwa-copy';
 
 type Slot = {
   id: string;
@@ -324,7 +325,9 @@ export default function MemberMedicalgraphPortalPage() {
   }
   if (!portal) return null;
 
+  const copy = clinicPwaCopy('medicalgraph');
   const dock = clinicMemberDockTabs({
+    module: 'medicalgraph',
     messagesUnread: portal.messages_unread,
     photoUrl: portal.patient.photo_url,
   });
@@ -444,8 +447,8 @@ export default function MemberMedicalgraphPortalPage() {
 
         {tab === 'care' && (
           <ClinicExpandSection
-            title="Care"
-            hint="Scripts, plans and advice your doctor has prescribed on your file."
+            title={copy.careTitle}
+            hint={copy.careHint}
             icon={<HeartPulse className="h-4 w-4" />}
             defaultOpen
           >
@@ -456,7 +459,7 @@ export default function MemberMedicalgraphPortalPage() {
               advice={portal.shared_advice}
               followUps={portal.follow_ups}
               tone="emerald"
-              heading="Prescribed scripts"
+              heading={copy.careHeading}
             />
           </ClinicExpandSection>
         )}
@@ -501,12 +504,12 @@ export default function MemberMedicalgraphPortalPage() {
 
         {tab === 'history' && (
           <div className="space-y-3">
-            <ClinicSectionTitle hint="Past appointments and visit notes the practice has shared with you.">
-              Appointment history
+            <ClinicSectionTitle hint={copy.historyHint}>
+              {copy.historyTitle}
             </ClinicSectionTitle>
             <PatientVisitHistory
               visits={portal.visit_history || []}
-              emptyLabel="No past visits yet. After you attend, notes and scripts appear here."
+              emptyLabel={copy.historyEmpty}
               rateHref={(v) =>
                 publicRatePath('medicalgraph', companyId, v.feedback_token)
               }
@@ -518,8 +521,8 @@ export default function MemberMedicalgraphPortalPage() {
 
         {tab === 'mine' && (
           <div className="space-y-3">
-            <ClinicSectionTitle hint="Your next visits. Tap a card for details, cancel, or rate after the appointment.">
-              Book
+            <ClinicSectionTitle hint={copy.bookHint}>
+              {copy.dockBook}
             </ClinicSectionTitle>
             <ClinicMemberBookList
               bookings={portal.my_bookings}

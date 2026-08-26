@@ -9,6 +9,7 @@ import { readPhysiographFromMetadata } from '@/lib/clinic/physiograph';
 import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
 import { readMedicalgraphFromMetadata } from '@/lib/clinic/medicalgraph';
 import { readPsychiatrygraphFromMetadata } from '@/lib/clinic/psychiatrygraph';
+import { readVetgraphFromMetadata } from '@/lib/clinic/vetgraph';
 import { readHiregraphFromMetadata } from '@/lib/hire/hiregraph';
 import { readRetailgraphFromMetadata } from '@/lib/retail/retailgraph';
 import { readAdvisorEvents } from '@/lib/services/advisor-events';
@@ -83,6 +84,7 @@ export function advisorStoresFromMeta(meta: Record<string, unknown>) {
     dental: readDentalgraphFromMetadata(meta),
     medical: readMedicalgraphFromMetadata(meta),
     psychiatry: readPsychiatrygraphFromMetadata(meta),
+    vet: readVetgraphFromMetadata(meta),
     hire: readHiregraphFromMetadata(meta),
     retail: readRetailgraphFromMetadata(meta),
     events: readAdvisorEvents(meta),
@@ -225,6 +227,27 @@ export async function loadCustomer360Bundle(
         name: s.name,
       })),
     },
+    {
+      module: 'vetgraph',
+      patients: clinicPatients(stores.vet.patients || []),
+      appointments: (stores.vet.appointments || []).map((a) => ({
+        id: a.id,
+        date: a.date,
+        start_time: a.start_time,
+        class_type_id: a.service_id,
+        status: a.status,
+      })),
+      bookings: (stores.vet.bookings || []).map((b) => ({
+        id: b.id,
+        appointment_id: b.appointment_id,
+        patient_id: b.patient_id,
+        status: b.status,
+      })),
+      services: (stores.vet.services || []).map((s) => ({
+        id: s.id,
+        name: s.name,
+      })),
+    },
   ];
 
   let list = customers;
@@ -359,6 +382,11 @@ export async function loadPeople360Bundle(companyId: number): Promise<{
       module: 'psychiatrygraph',
       email: c.email || null,
     })),
+    ...(stores.vet.practitioners || []).map((c) => ({
+      ...c,
+      module: 'vetgraph',
+      email: c.email || null,
+    })),
   ];
   const unsynced = unsyncedAdvisorStaff(staffAll, emps).map((s) => ({
     id: s.id,
@@ -461,6 +489,12 @@ export async function loadCompanyCalendarBundle(
         appointments: stores.psychiatry.appointments || [],
         staff: stores.psychiatry.practitioners || [],
         services: stores.psychiatry.services || [],
+      },
+      {
+        module: 'vetgraph',
+        appointments: stores.vet.appointments || [],
+        staff: stores.vet.practitioners || [],
+        services: stores.vet.services || [],
       },
     ],
     hire: { bookings: stores.hire.bookings || [] },

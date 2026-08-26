@@ -194,6 +194,9 @@ async function loadAdvisorPwaBrandFromPortalTokenUncached(
   } else if (moduleRaw === 'medicalgraph') {
     parseCompanyId = (await import('@/lib/clinic/medicalgraph'))
       .parseMedicalCompanyIdFromToken;
+  } else if (moduleRaw === 'vetgraph') {
+    parseCompanyId = (await import('@/lib/clinic/vetgraph'))
+      .parseVetCompanyIdFromToken;
   } else if (moduleRaw === 'psychiatrygraph') {
     parseCompanyId = (await import('@/lib/clinic/psychiatrygraph'))
       .parsePsychiatryCompanyIdFromToken;

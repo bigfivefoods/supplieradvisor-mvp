@@ -14,6 +14,7 @@ export const ADVISOR_WORKFORCE_MODULES = [
   'physiograph',
   'dentalgraph',
   'medicalgraph',
+  'vetgraph',
   'psychiatrygraph',
   'hiregraph',
   'retailgraph',
@@ -107,6 +108,7 @@ const MODULE_SHORT: Record<AdvisorWorkforceModule, string> = {
   physiograph: 'phy',
   dentalgraph: 'den',
   medicalgraph: 'med',
+  vetgraph: 'vet',
   psychiatrygraph: 'psy',
   hiregraph: 'hir',
   retailgraph: 'ret',
@@ -117,6 +119,7 @@ const MODULE_LABEL: Record<AdvisorWorkforceModule, string> = {
   physiograph: 'PhysioAdvisor®',
   dentalgraph: 'DentalAdvisor®',
   medicalgraph: 'MedicalAdvisor®',
+  vetgraph: 'VetAdvisor®',
   psychiatrygraph: 'PsychiatryAdvisor®',
   hiregraph: 'HireAdvisor®',
   retailgraph: 'RetailAdvisor®',
@@ -139,7 +142,7 @@ export function parseAdvisorWorkInviteToken(token: string): {
   module: AdvisorWorkforceModule | null;
   companyId: number | null;
 } {
-  const m = /^winv_(fit|phy|den|med|psy|hir|ret)_(\d+)_/.exec(
+  const m = /^winv_(fit|phy|den|med|vet|psy|hir|ret)_(\d+)_/.exec(
     String(token || '').trim()
   );
   if (!m) return { module: null, companyId: null };
@@ -148,6 +151,7 @@ export function parseAdvisorWorkInviteToken(token: string): {
     phy: 'physiograph',
     den: 'dentalgraph',
     med: 'medicalgraph',
+    vet: 'vetgraph',
     psy: 'psychiatrygraph',
     hir: 'hiregraph',
     ret: 'retailgraph',

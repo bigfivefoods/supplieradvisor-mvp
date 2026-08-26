@@ -27,7 +27,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
-type ModuleKey = 'fitgraph' | 'dentalgraph' | 'physiograph' | 'medicalgraph' | 'psychiatrygraph';
+type ModuleKey = 'fitgraph' | 'dentalgraph' | 'physiograph' | 'medicalgraph' | 'psychiatrygraph' | 'vetgraph';
 
 async function runForCompany(
   companyId: number,
@@ -215,6 +215,28 @@ async function runForCompany(
     nextMeta = writeMedicalgraphToMetadata(nextMeta, store);
   }
 
+  if (meta.vetgraph) {
+    modules.push('vetgraph');
+    const { readVetgraphFromMetadata, writeVetgraphToMetadata } = await import(
+      '@/lib/clinic/vetgraph'
+    );
+    const store = readVetgraphFromMetadata(meta);
+    applyCompanyLogoToSettings(store, profile?.logo_url || null);
+    const { sent } = await clinicSendReminders(
+      store,
+      {
+        moduleLabel: 'VetAdvisor®',
+        portalPath: 'vetgraph',
+        brandFallback: profile?.trading_name || 'Practice',
+        companyId,
+        logoUrl: profile?.logo_url || logoUrlFromSettings(store.settings),
+      },
+      now
+    );
+    reminders += sent;
+    nextMeta = writeVetgraphToMetadata(nextMeta, store);
+  }
+
   // Clinic modules — generic structure
   for (const key of ['physiograph', 'psychiatrygraph'] as ModuleKey[]) {
     const raw = meta[key];
@@ -357,6 +379,17 @@ async function runForCompany(
         writePsychiatrygraphToMetadata
       );
     }
+    if (modules.includes('vetgraph')) {
+      const { readVetgraphFromMetadata, writeVetgraphToMetadata } = await import(
+        '@/lib/clinic/vetgraph'
+      );
+      await saveAdvisorModuleStore(
+        companyId,
+        'vetgraph',
+        readVetgraphFromMetadata(nextMeta),
+        writeVetgraphToMetadata
+      );
+    }
   }
   if (modules.length) {
     await mergeProfileMetadata(companyId, {
@@ -395,6 +428,7 @@ async function run(request: NextRequest) {
       'physiograph',
       'medicalgraph',
       'psychiatrygraph',
+      'vetgraph',
     ])
     .order('updated_at', { ascending: false })
     .limit(400);

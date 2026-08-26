@@ -123,7 +123,8 @@ type Props = {
       | 'dentalgraph'
       | 'medicalgraph'
       | 'physiograph'
-      | 'psychiatrygraph';
+      | 'psychiatrygraph'
+      | 'vetgraph';
     personId?: string | null;
   };
   /** Start on month so the whole month is visible (Outlook / Google). */

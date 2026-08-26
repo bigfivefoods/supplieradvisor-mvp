@@ -11,6 +11,7 @@ import { readMedicalgraphFromMetadata } from '@/lib/clinic/medicalgraph';
 import { readPhysiographFromMetadata } from '@/lib/clinic/physiograph';
 import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
 import { readPsychiatrygraphFromMetadata } from '@/lib/clinic/psychiatrygraph';
+import { readVetgraphFromMetadata } from '@/lib/clinic/vetgraph';
 import { billingFromSettings } from '@/lib/clinic/medical-aid-claims';
 import { buildMedicalAidClaimPdf } from '@/lib/clinic/medical-aid-claim-pdf';
 
@@ -47,6 +48,8 @@ export async function GET(request: NextRequest) {
           ? readDentalgraphFromMetadata(meta)
           : module === 'psychiatrygraph'
             ? readPsychiatrygraphFromMetadata(meta)
+            : module === 'vetgraph'
+              ? readVetgraphFromMetadata(meta)
             : readMedicalgraphFromMetadata(meta);
     const patient = store.patients.find((p) => p.id === patientId);
     const claim = (patient?.medical?.claims || []).find((c) => c.id === claimId);
@@ -66,6 +69,8 @@ export async function GET(request: NextRequest) {
             ? 'DentalAdvisor®'
             : module === 'psychiatrygraph'
               ? 'PsychiatryAdvisor®'
+              : module === 'vetgraph'
+                ? 'VetAdvisor®'
               : 'MedicalAdvisor®',
     });
     const name = `${claim.claim_number || 'claim'}.pdf`;

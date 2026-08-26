@@ -20,6 +20,7 @@ const MODULE_LABEL: Record<string, string> = {
   physiograph: 'PhysioAdvisor®',
   medicalgraph: 'MedicalAdvisor®',
   psychiatrygraph: 'PsychiatryAdvisor®',
+  vetgraph: 'VetAdvisor®',
 };
 
 export default function AdvisorMarketplacePage() {
@@ -95,6 +96,7 @@ export default function AdvisorMarketplacePage() {
             <option value="physiograph">PhysioAdvisor</option>
             <option value="medicalgraph">MedicalAdvisor</option>
             <option value="psychiatrygraph">PsychiatryAdvisor</option>
+            <option value="vetgraph">VetAdvisor</option>
           </select>
           <button
             type="button"

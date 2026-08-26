@@ -28,6 +28,11 @@ import {
   writePsychiatrygraphToMetadata,
   newId as psychNewId,
 } from '@/lib/clinic/psychiatrygraph';
+import {
+  readVetgraphFromMetadata,
+  writeVetgraphToMetadata,
+  newId as vetNewId,
+} from '@/lib/clinic/vetgraph';
 
 export async function loadClinicModuleStore(
   companyId: number,
@@ -46,6 +51,7 @@ export async function loadClinicModuleStore(
   if (module === 'physiograph') return readPhysiographFromMetadata(meta);
   if (module === 'dentalgraph') return readDentalgraphFromMetadata(meta);
   if (module === 'medicalgraph') return readMedicalgraphFromMetadata(meta);
+  if (module === 'vetgraph') return readVetgraphFromMetadata(meta);
   return readPsychiatrygraphFromMetadata(meta);
 }
 
@@ -81,6 +87,15 @@ export async function saveClinicModuleStore(
     );
     return;
   }
+  if (module === 'vetgraph') {
+    await saveAdvisorModuleStore(
+      companyId,
+      'vetgraph',
+      store as never,
+      writeVetgraphToMetadata
+    );
+    return;
+  }
   await saveAdvisorModuleStore(
     companyId,
     'psychiatrygraph',
@@ -93,6 +108,7 @@ export function clinicNewId(module: ClinicModuleKey, prefix: string) {
   if (module === 'physiograph') return physioNewId(prefix);
   if (module === 'dentalgraph') return dentalNewId(prefix);
   if (module === 'medicalgraph') return medicalNewId(prefix);
+  if (module === 'vetgraph') return vetNewId(prefix);
   return psychNewId(prefix);
 }
 

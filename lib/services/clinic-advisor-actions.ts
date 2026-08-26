@@ -184,7 +184,8 @@ export async function clinicSendReminders(
     cfg.portalPath === 'physiograph' ||
     cfg.portalPath === 'dentalgraph' ||
     cfg.portalPath === 'psychiatrygraph' ||
-    cfg.portalPath === 'medicalgraph'
+    cfg.portalPath === 'medicalgraph' ||
+    cfg.portalPath === 'vetgraph'
       ? cfg.portalPath
       : null;
   for (const { patient, follow_up } of dueFollowUps(
@@ -232,7 +233,7 @@ export async function clinicSendReminders(
     ).patient;
     sent += 1;
   }
-  if (cfg.portalPath === 'medicalgraph') {
+  if (cfg.portalPath === 'medicalgraph' || cfg.portalPath === 'vetgraph') {
     const post = await clinicSendPostSessionEmails(store, cfg, now);
     sent += post.sent;
     skipped += post.skipped;
@@ -277,7 +278,7 @@ export async function clinicSendPostSessionEmails(
     const feedbackPath =
       companyId > 0 && b.feedback_token
         ? buildPublicFeedbackPath(
-            cfg.portalPath as 'medicalgraph',
+            cfg.portalPath as 'medicalgraph' | 'vetgraph',
             companyId,
             b.feedback_token
           )
@@ -431,7 +432,10 @@ export async function clinicMarkAttendance(
         '@/lib/services/booking-feedback'
       );
       Object.assign(booking, issueFeedbackPrompt(booking, now));
-      if (opts.cfg.portalPath === 'medicalgraph') {
+      if (
+        opts.cfg.portalPath === 'medicalgraph' ||
+        opts.cfg.portalPath === 'vetgraph'
+      ) {
         await clinicSendPostSessionEmails(store, opts.cfg, now);
       }
     }

@@ -14,6 +14,7 @@ export const ADVISOR_META_KEYS: Array<{
   { key: 'dentalgraph', kind: 'dental' },
   { key: 'medicalgraph', kind: 'medical' },
   { key: 'psychiatrygraph', kind: 'psychiatry' },
+  { key: 'vetgraph', kind: 'vet' },
   { key: 'retailgraph', kind: 'retail' },
 ];
 

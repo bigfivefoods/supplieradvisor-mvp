@@ -22,7 +22,8 @@ type Props = {
     | 'physiograph'
     | 'dentalgraph'
     | 'medicalgraph'
-    | 'psychiatrygraph';
+    | 'psychiatrygraph'
+    | 'vetgraph';
   role: 'member' | 'patient' | 'coach';
   token: string;
   /** Current ID number from profile form (SA) */

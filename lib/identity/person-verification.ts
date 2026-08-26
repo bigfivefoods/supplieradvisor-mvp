@@ -121,7 +121,8 @@ export type ServiceIdentityModule =
   | 'physiograph'
   | 'dentalgraph'
   | 'medicalgraph'
-  | 'psychiatrygraph';
+  | 'psychiatrygraph'
+  | 'vetgraph';
 
 export type ServiceIdentityRole = 'member' | 'patient' | 'coach';
 
@@ -155,6 +156,7 @@ export function parseDiditVendorData(
     'dentalgraph',
     'medicalgraph',
     'psychiatrygraph',
+    'vetgraph',
   ];
   const roles: ServiceIdentityRole[] = ['member', 'patient', 'coach'];
   if (!modules.includes(module) || !roles.includes(role)) return null;

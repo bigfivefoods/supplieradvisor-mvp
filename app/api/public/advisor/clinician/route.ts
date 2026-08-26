@@ -27,6 +27,10 @@ import {
   writePsychiatrygraphToMetadata,
 } from '@/lib/clinic/psychiatrygraph';
 import {
+  readVetgraphFromMetadata,
+  writeVetgraphToMetadata,
+} from '@/lib/clinic/vetgraph';
+import {
   applyAttendanceToPersonStats,
   promoteNextWaitlist,
 } from '@/lib/services/advisor-booking';
@@ -135,6 +139,19 @@ async function resolveClinician(
       writeMedicalgraphToMetadata(
         m,
         s as unknown as Parameters<typeof writeMedicalgraphToMetadata>[1]
+      );
+  } else if (module === 'vetgraph') {
+    const loaded = await loadAdvisorModuleStore(
+      companyId,
+      module,
+      readVetgraphFromMetadata
+    );
+    meta = loaded.meta;
+    store = loaded.store as unknown as ClinicianStoreLike;
+    write = (m, s) =>
+      writeVetgraphToMetadata(
+        m,
+        s as unknown as Parameters<typeof writeVetgraphToMetadata>[1]
       );
   } else {
     const loaded = await loadAdvisorModuleStore(

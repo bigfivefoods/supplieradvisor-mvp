@@ -13,6 +13,7 @@ import { readPhysiographFromMetadata } from '@/lib/clinic/physiograph';
 import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
 import { readMedicalgraphFromMetadata } from '@/lib/clinic/medicalgraph';
 import { readPsychiatrygraphFromMetadata } from '@/lib/clinic/psychiatrygraph';
+import { readVetgraphFromMetadata } from '@/lib/clinic/vetgraph';
 import type { B2cMembership } from '@/lib/b2c/types';
 import type { CalendarLinkEvent } from '@/lib/b2c/calendar-links';
 
@@ -171,7 +172,8 @@ export async function buildMemberCalendar(
         mem.kind === 'physio' ||
         mem.kind === 'dental' ||
         mem.kind === 'medical' ||
-        mem.kind === 'psychiatry'
+        mem.kind === 'psychiatry' ||
+        mem.kind === 'vet'
       ) {
         const store =
           mem.kind === 'physio'
@@ -180,6 +182,8 @@ export async function buildMemberCalendar(
               ? readDentalgraphFromMetadata(raw)
               : mem.kind === 'medical'
                 ? readMedicalgraphFromMetadata(raw)
+                : mem.kind === 'vet'
+                  ? readVetgraphFromMetadata(raw)
                 : readPsychiatrygraphFromMetadata(raw);
         const bookings = store.bookings || [];
         const appointments = store.appointments || [];

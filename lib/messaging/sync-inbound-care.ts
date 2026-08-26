@@ -44,6 +44,7 @@ const MODULES: Array<{
   { id: 'dentalgraph', metaKey: 'dentalgraph', peopleKey: 'patients' },
   { id: 'psychiatrygraph', metaKey: 'psychiatrygraph', peopleKey: 'patients' },
   { id: 'medicalgraph', metaKey: 'medicalgraph', peopleKey: 'patients' },
+  { id: 'vetgraph', metaKey: 'vetgraph', peopleKey: 'patients' },
 ];
 
 function emailLocal(email: string): string {

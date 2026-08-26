@@ -51,6 +51,7 @@ import {
   writeClinicTabToUrl,
   type ClinicMemberTabId,
 } from '@/components/clinic/ClinicMemberPwaUi';
+import { clinicPwaCopy } from '@/lib/clinic/clinic-pwa-copy';
 
 type Slot = {
   id: string;
@@ -331,7 +332,9 @@ export default function MemberDentalgraphPortalPage() {
   }
   if (!portal) return null;
 
+  const copy = clinicPwaCopy('dentalgraph');
   const dock = clinicMemberDockTabs({
+    module: 'dentalgraph',
     messagesUnread: portal.messages_unread,
     photoUrl: portal.patient.photo_url,
   });
@@ -395,8 +398,8 @@ export default function MemberDentalgraphPortalPage() {
 
         {tab === 'care' && (
           <ClinicExpandSection
-            title="Care"
-            hint="Scripts, plans and advice your dentist has prescribed on your file."
+            title={copy.careTitle}
+            hint={copy.careHint}
             icon={<HeartPulse className="h-4 w-4" />}
             defaultOpen
           >
@@ -407,7 +410,7 @@ export default function MemberDentalgraphPortalPage() {
               advice={portal.shared_advice}
               followUps={portal.follow_ups}
               tone="sky"
-              heading="Prescribed scripts"
+              heading={copy.careHeading}
             />
           </ClinicExpandSection>
         )}
@@ -564,8 +567,8 @@ export default function MemberDentalgraphPortalPage() {
 
         {tab === 'mine' && (
           <div className="space-y-3">
-            <ClinicSectionTitle hint="Your next visits. Tap a card for details, cancel, or rate after the appointment.">
-              Book
+            <ClinicSectionTitle hint={copy.bookHint}>
+              {copy.dockBook}
             </ClinicSectionTitle>
             <ClinicMemberBookList
               bookings={portal.my_bookings}

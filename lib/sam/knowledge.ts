@@ -123,7 +123,7 @@ ${principles}
 - Sales contractor portal access is a separate fee (about R${SALES_SUBSCRIPTION_MONTHLY_ZAR}/mo term product) after agreement.
 
 ## Product architecture (Core → Sector → Pack → Modules)
-- Navigation is **functional**. Enabled Advisor hubs (GymAdvisor, SchoolAdvisor, ContainerAdvisor, …) always sit at the top of the sidenav, then Control Tower, Company, and Core modules.
+- Navigation is **functional**. Enabled Advisor hubs (GymAdvisor, SchoolAdvisor, ContainerAdvisor, VetAdvisor, …) always sit at the top of the sidenav, then Control Tower, Company, and Core modules.
 - **Never tell users features were removed** — packs and modules only show/hide hubs; every process step still lives under its MODULE_NAV hub (Suppliers still has Source/Book/Order/Escrow/…; Containers still has Manage/Map/…; Schools still has Kitchen/Orders/Serve day/…).
 - Provincial/National government: pack selection + specialist contact for full activation.
 

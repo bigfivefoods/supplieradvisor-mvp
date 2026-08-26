@@ -28,6 +28,7 @@ import { readPhysiographFromMetadata } from '@/lib/clinic/physiograph';
 import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
 import { readMedicalgraphFromMetadata } from '@/lib/clinic/medicalgraph';
 import { readPsychiatrygraphFromMetadata } from '@/lib/clinic/psychiatrygraph';
+import { readVetgraphFromMetadata } from '@/lib/clinic/vetgraph';
 import { linkPlatformUserId } from '@/lib/messaging/link-platform-user';
 import type { B2cProfile } from '@/lib/b2c/types';
 import { upsertMembership } from '@/lib/b2c/profile-store';
@@ -333,7 +334,7 @@ export async function discoverAndAttachMemberships(
 
     // Clinics
     const clinics: Array<{
-      kind: 'physio' | 'dental' | 'medical' | 'psychiatry';
+      kind: 'physio' | 'dental' | 'medical' | 'psychiatry' | 'vet';
       path: string;
       patients: Array<{
         id: string;
@@ -358,6 +359,11 @@ export async function discoverAndAttachMemberships(
         kind: 'medical',
         path: 'medicalgraph',
         patients: readMedicalgraphFromMetadata(company.meta).patients || [],
+      },
+      {
+        kind: 'vet',
+        path: 'vetgraph',
+        patients: readVetgraphFromMetadata(company.meta).patients || [],
       },
       {
         kind: 'psychiatry',

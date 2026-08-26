@@ -39,6 +39,7 @@ import { readFitgraphFromMetadata } from '@/lib/fitness/fitgraph';
 import { readPhysiographFromMetadata } from '@/lib/clinic/physiograph';
 import { readMedicalgraphFromMetadata } from '@/lib/clinic/medicalgraph';
 import { readPsychiatrygraphFromMetadata } from '@/lib/clinic/psychiatrygraph';
+import { readVetgraphFromMetadata } from '@/lib/clinic/vetgraph';
 import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
 import { readHiregraphFromMetadata } from '@/lib/hire/hiregraph';
 import { readRetailgraphFromMetadata } from '@/lib/retail/retailgraph';
@@ -97,6 +98,8 @@ function listMembers(
         ? readDentalgraphFromMetadata(meta)
         : module === 'psychiatrygraph'
           ? readPsychiatrygraphFromMetadata(meta)
+          : module === 'vetgraph'
+            ? readVetgraphFromMetadata(meta)
           : readMedicalgraphFromMetadata(meta);
   return (store.patients || []).map((p) => ({
     ref_id: p.id,

@@ -1011,6 +1011,44 @@ export function PsychiatrygraphMock() {
   );
 }
 
+/** Industry — veterinary practice OS */
+export function VetgraphMock() {
+  return (
+    <Frame title="dashboard/vetgraph">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[9px] font-bold uppercase tracking-widest text-orange-700">
+            VetAdvisor® · Veterinary
+          </div>
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
+            Rooms · waitlist · vaccines.
+          </div>
+        </div>
+        <span className="rounded-full border border-orange-200 bg-orange-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
+          Tertiary
+        </span>
+      </div>
+      <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
+        <Telemetry label="Clients" value="860" tone="emerald" />
+        <Telemetry label="Queue" value="9" tone="cyan" />
+        <Telemetry label="Vaccines" value="31" tone="amber" />
+        <Telemetry label="Rooms" value="5" tone="violet" />
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+        {['Waitlist', 'Vaccines', 'Book next'].map((t) => (
+          <div
+            key={t}
+            className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] text-center shadow-sm sm:p-3"
+          >
+            <div className="text-[11px] font-bold text-slate-800 sm:text-xs dark:text-white">{t}</div>
+            <div className="mt-2 h-8 rounded-lg bg-gradient-to-br from-orange-50 to-amber-50" />
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
 /** Industry — medical / GP practice OS */
 export function MedicalgraphMock() {
   return (
@@ -1073,6 +1111,7 @@ export function NavMock() {
         'DentalAdvisor®',
         'PsychiatryAdvisor®',
         'MedicalAdvisor®',
+        'VetAdvisor®',
       ],
     },
     {

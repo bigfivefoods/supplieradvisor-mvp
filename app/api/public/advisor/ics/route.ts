@@ -149,6 +149,10 @@ export async function GET(req: NextRequest) {
         store = readPhysiographFromMetadata(meta) as unknown as ClinicianStoreLike;
       } else if (module === 'medicalgraph') {
         store = readMedicalgraphFromMetadata(meta) as unknown as ClinicianStoreLike;
+      } else if (module === 'vetgraph') {
+        store = (await import('@/lib/clinic/vetgraph')).readVetgraphFromMetadata(
+          meta
+        ) as unknown as ClinicianStoreLike;
       } else {
         store = readPsychiatrygraphFromMetadata(
           meta

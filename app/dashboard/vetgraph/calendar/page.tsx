@@ -1,0 +1,1088 @@
+'use client';
+
+import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { toast } from 'sonner';
+import {
+  LoadingBlock,
+  VetgraphWorkbench,
+  useVetgraph,
+} from '@/components/clinic/VetgraphWorkbench';
+import { DataTable, FormCard, StatRow, fc } from '@/components/clinic/VetForm';
+import {
+  PracticeScheduleCalendar,
+  type DiaryScope,
+  type ScheduleEvent,
+} from '@/components/schedule/PracticeScheduleCalendar';
+import { WorkingHoursEditor } from '@/components/schedule/WorkingHoursEditor';
+import { PracticeProfilePdfButton } from '@/components/schedule/PracticeProfilePdfButton';
+import { ScheduleEventPeek } from '@/components/schedule/ScheduleEventPeek';
+import {
+  RecurrenceFields,
+  emptyRecurrenceForm,
+  recurrenceApiPayload,
+  validateRecurrenceForm,
+  type RecurrenceFormValue,
+} from '@/components/schedule/RecurrenceFields';
+import { normalizeWorkingHours } from '@/lib/schedule/working-hours';
+import { AdvisorWaitlistDesk } from '@/components/services/AdvisorWaitlistDesk';
+import {
+  buildDeskQueueRows,
+  buildDeskSlotWaitlist,
+} from '@/lib/services/advisor-waitlist-desk';
+import { ClinicDiaryKindFields } from '@/components/clinic/ClinicDiaryKindFields';
+import { ClinicAppointmentVisitDesk } from '@/components/clinic/ClinicAppointmentVisitDesk';
+import { appointmentVisitPatients } from '@/lib/clinic/appointment-visit';
+import { ClinicBookedRoster } from '@/components/clinic/ClinicBookedRoster';
+import {
+  clinicRosterRows,
+  findClinicAppointmentSeat,
+} from '@/lib/clinic/clinic-bookings';
+import { clinicRoomNames } from '@/lib/clinic/clinic-rooms';
+import { AdvisorExpandablePanel } from '@/components/advisors/AdvisorExpandablePanel';
+import {
+  appointmentKindLabel,
+  appointmentKindOf,
+  clinicAppointmentSaveFields,
+  consultServices,
+  patchFormForAppointmentKind,
+  type ClinicAppointmentKind,
+  type ClinicPersonalReason,
+} from '@/lib/clinic/appointment-kind';
+
+export default function CalendarPage() {
+  const { companyId, store, loading, saving, post, summary, load } =
+    useVetgraph();
+  const search = useSearchParams();
+  const openedFromUrl = useRef(false);
+  const [personFilter, setPersonFilter] = useState('');
+  const [diaryScope, setDiaryScope] = useState<DiaryScope>('practice');
+  /** null = create mode; set = open appointment for view/edit (main practice diary) */
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [form, setForm] = useState({
+    appointment_kind: 'consult' as ClinicAppointmentKind,
+    personal_reason: 'personal' as ClinicPersonalReason,
+    notes: '',
+    service_id: '',
+    practitioner_id: '',
+    date: new Date().toISOString().slice(0, 10),
+    start_time: '09:00',
+    end_time: '09:45',
+    duration_min: '45',
+    location: '',
+    public: true,
+    status: 'scheduled',
+    patient_id: '',
+    family_member_id: '',
+  });
+  const [recurrence, setRecurrence] = useState<RecurrenceFormValue>(
+    emptyRecurrenceForm
+  );
+  const [statsOpen, setStatsOpen] = useState(true);
+  const [calendarOpen, setCalendarOpen] = useState(true);
+  const [waitlistOpen, setWaitlistOpen] = useState(true);
+  const [slotEditorOpen, setSlotEditorOpen] = useState(true);
+  const [attendOverride, setAttendOverride] = useState<
+    Record<string, 'attended' | 'no_show'>
+  >({});
+  const attendChain = useRef(Promise.resolve());
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+
+  const closeEditor = () => {
+    setEditorOpen(false);
+    setSelectedId(null);
+  };
+
+  const openAppointment = (id: string) => {
+    const a = store?.appointments.find((x) => x.id === id);
+    if (!a) {
+      toast.error('Appointment not found');
+      return;
+    }
+    const svc = store?.services.find((s) => s.id === a.service_id);
+    const kind = appointmentKindOf(a, store?.services || []);
+    setSelectedId(a.id);
+    setRecurrence(emptyRecurrenceForm());
+    setForm({
+      appointment_kind: kind,
+      personal_reason: (a.personal_reason as ClinicPersonalReason) || 'personal',
+      notes: a.notes || '',
+      service_id: a.service_id || '',
+      practitioner_id: a.practitioner_id || '',
+      date: a.date,
+      start_time: String(a.start_time || '09:00').slice(0, 5),
+      end_time: String(a.end_time || '').slice(0, 5),
+      duration_min: String(
+        a.duration_min ?? svc?.default_duration_min ?? 45
+      ),
+      location: a.location || '',
+      public: kind === 'personal' ? false : a.public === true,
+      status: a.status || 'scheduled',
+      patient_id: '',
+      family_member_id: '',
+    });
+    const booked = (store?.bookings || []).some(
+      (b) =>
+        b.appointment_id === a.id &&
+        b.status !== 'cancelled' &&
+        b.patient_id
+    );
+    setSlotEditorOpen(!booked);
+    setEditorOpen(true);
+  };
+
+  const startCreate = (partial?: {
+    date?: string;
+    start_time?: string;
+    practitioner_id?: string;
+  }) => {
+    setSelectedId(null);
+    setRecurrence(emptyRecurrenceForm());
+    setForm((f) => ({
+      ...f,
+      appointment_kind: 'consult',
+      personal_reason: 'personal',
+      notes: '',
+      service_id: f.service_id,
+      practitioner_id:
+        partial?.practitioner_id || personFilter || f.practitioner_id || '',
+      date: partial?.date || f.date,
+      start_time: partial?.start_time || '09:00',
+      end_time: f.end_time || '09:45',
+      duration_min: f.duration_min || '45',
+      location: '',
+      public: true,
+      status: 'scheduled',
+      patient_id: '',
+      family_member_id: '',
+    }));
+    setSlotEditorOpen(true);
+    setEditorOpen(true);
+  };
+
+  useEffect(() => {
+    const id = search.get('appointment');
+    if (!id || !store || openedFromUrl.current) return;
+    if (!store.appointments.some((a) => a.id === id)) return;
+    openedFromUrl.current = true;
+    openAppointment(id);
+  }, [store, search]);
+
+  const events: ScheduleEvent[] = useMemo(() => {
+    if (!store) return [];
+    return store.appointments.map((a) => {
+      const kind = appointmentKindOf(a, store.services);
+      const svc = store.services.find((s) => s.id === a.service_id);
+      const prac = store.practitioners.find((p) => p.id === a.practitioner_id);
+      const booked = store.bookings.filter(
+        (b) =>
+          b.appointment_id === a.id &&
+          b.status !== 'cancelled' &&
+          b.patient_id
+      );
+      const patients = booked
+        .map((b) => store.patients.find((p) => p.id === b.patient_id)?.name)
+        .filter(Boolean)
+        .join(', ');
+      const personalTitle = appointmentKindLabel(kind, a.personal_reason);
+      return {
+        id: a.id,
+        date: a.date,
+        start_time: a.start_time,
+        end_time: a.end_time,
+        duration_min: a.duration_min ?? svc?.default_duration_min ?? 45,
+        title:
+          kind === 'personal'
+            ? a.notes?.split('\n')[0] || personalTitle
+            : svc?.name || 'Appointment',
+        subtitle: a.location || undefined,
+        person_id: a.practitioner_id || null,
+        person_name: prac?.name,
+        status: a.status,
+        public: a.public === true,
+        meta:
+          kind === 'personal'
+            ? personalTitle
+            : patients
+              ? patients
+              : a.public
+                ? 'Open public slot'
+                : undefined,
+        tone: kind === 'personal' ? ('indigo' as const) : ('emerald' as const),
+      };
+    });
+  }, [store]);
+
+  const people = useMemo(
+    () =>
+      (store?.practitioners || [])
+        .filter((p) => p.active !== false)
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          role: (p.disciplines || [])
+            .slice(0, 2)
+            .join(', ') || undefined,
+        })),
+    [store]
+  );
+
+  const workingHours = useMemo(
+    () => normalizeWorkingHours(store?.settings?.working_hours),
+    [store?.settings?.working_hours]
+  );
+
+  const deskQueue = useMemo(() => {
+    if (!store) return [];
+    return buildDeskQueueRows(
+      store.waitlist_queue,
+      store.patients,
+      store.practitioners
+    );
+  }, [store]);
+
+  const deskSlotWaitlist = useMemo(() => {
+    if (!store) return [];
+    return buildDeskSlotWaitlist({
+      bookings: store.bookings,
+      appointments: store.appointments,
+      people: store.patients,
+      services: store.services,
+      clinicians: store.practitioners,
+    });
+  }, [store]);
+
+  const rosterOnSelected = useMemo(() => {
+    if (!store || !selectedId) return [];
+    return clinicRosterRows(store.bookings, selectedId, store.patients).map(
+      (r) => ({
+        ...r,
+        status: attendOverride[r.booking_id] || r.status,
+      })
+    );
+  }, [store, selectedId, attendOverride]);
+
+  const markRoster = (
+    bookingId: string,
+    status: 'attended' | 'no_show',
+    patientId: string
+  ) => {
+    setAttendOverride((prev) => ({ ...prev, [bookingId]: status }));
+    attendChain.current = attendChain.current.then(() =>
+      post(
+        {
+          action: 'mark_attendance',
+          booking_id: bookingId,
+          status,
+          appointment_id: selectedIdRef.current,
+          patient_id: patientId,
+        },
+        { quiet: true }
+      )
+        .then(() => {
+          setAttendOverride((prev) => {
+            const next = { ...prev };
+            if (next[bookingId] === status) delete next[bookingId];
+            return next;
+          });
+        })
+        .catch((e: unknown) => {
+          setAttendOverride((prev) => {
+            const next = { ...prev };
+            if (next[bookingId] === status) delete next[bookingId];
+            return next;
+          });
+          toast.error(
+            e instanceof Error ? e.message : 'Could not update attendance'
+          );
+        })
+    );
+  };
+
+  const saveHours = async (hours: typeof workingHours) => {
+    await post({
+      action: 'update_settings',
+      settings: {
+        ...(store?.settings || {}),
+        working_hours: hours,
+      },
+    });
+    toast.success('Working hours saved');
+  };
+
+  const selectedPatientFamily = useMemo(() => {
+    if (!store || !form.patient_id) return [];
+    const p = store.patients.find((x) => x.id === form.patient_id);
+    return (p?.family || []).filter((m) => m.active !== false);
+  }, [store, form.patient_id]);
+
+
+  const deleteSelected = async () => {
+    if (!selectedId || !store) return;
+    const prev = store.appointments.find((x) => x.id === selectedId);
+    if (!prev) {
+      toast.error('Appointment not found');
+      return;
+    }
+    const seriesCount = prev.series_id
+      ? store.appointments.filter((a) => a.series_id === prev.series_id).length
+      : 0;
+    if (
+      !confirm(
+        `Delete this appointment on ${prev.date} at ${String(prev.start_time).slice(0, 5)}? Bookings on it will be removed.`
+      )
+    ) {
+      return;
+    }
+    let deleteSeries = false;
+    if (seriesCount > 1) {
+      deleteSeries = confirm(
+        `This appointment is part of a series (${seriesCount}). OK = delete the entire series, Cancel = delete only this date.`
+      );
+    }
+    try {
+      const data = await post({
+        entity: 'appointments',
+        action: 'delete',
+        id: selectedId,
+        delete_series: deleteSeries,
+      });
+      toast.success(
+        (data as { message?: string })?.message ||
+          (deleteSeries ? 'Series deleted' : 'Appointment deleted')
+      );
+      setSelectedId(null);
+      setRecurrence(emptyRecurrenceForm());
+      setEditorOpen(false);
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : 'Could not delete appointment'
+      );
+    }
+  };
+
+  const save = async () => {
+    const personal = form.appointment_kind === 'personal';
+    if (!personal && !form.service_id) {
+      toast.error('Pick a service');
+      return;
+    }
+    if (!form.practitioner_id) {
+      toast.error('Assign a practitioner');
+      return;
+    }
+    const fields = clinicAppointmentSaveFields({
+      kind: form.appointment_kind,
+      reason: form.personal_reason,
+      notes: form.notes,
+      start_time: form.start_time,
+      end_time: form.end_time,
+      duration_min: form.duration_min,
+      service_id: form.service_id,
+      public: form.public,
+      services: store?.services || [],
+    });
+
+    if (!selectedId && recurrence.frequency !== 'none') {
+      const recErr = validateRecurrenceForm(recurrence);
+      if (recErr) {
+        toast.error(recErr);
+        return;
+      }
+      const payload = recurrenceApiPayload(recurrence, form.date);
+      try {
+        const data = await post({
+          action: 'create_appointment_series',
+          service_id: fields.service_id,
+          practitioner_id: form.practitioner_id,
+          date: form.date,
+          start_time: fields.start_time,
+          end_time: fields.end_time,
+          duration_min: fields.duration_min,
+          location: form.location || undefined,
+          public: fields.public,
+          appointment_kind: fields.appointment_kind,
+          personal_reason: fields.personal_reason,
+          notes: fields.notes,
+          patient_id: personal ? undefined : form.patient_id || undefined,
+          family_member_id: personal ? null : form.family_member_id || null,
+          ...payload,
+        });
+        const appointments = (data.appointments || []) as Array<{ id: string }>;
+        const firstId = appointments[0]?.id || null;
+        toast.success(
+          data.message ||
+            (form.patient_id
+              ? 'Series scheduled and patient booked'
+              : 'Series scheduled')
+        );
+        setRecurrence(emptyRecurrenceForm());
+        if (firstId) {
+          setSelectedId(firstId);
+          setForm((f) => ({ ...f, patient_id: '', family_member_id: '' }));
+        }
+      } catch (e) {
+        toast.error(
+          e instanceof Error ? e.message : 'Could not schedule series'
+        );
+      }
+      return;
+    }
+
+    const { findClinicianDiaryConflict } = await import(
+      '@/lib/schedule/clinician-diary'
+    );
+    const conflict = findClinicianDiaryConflict({
+      appointments: store?.appointments || [],
+      clinicianId: form.practitioner_id,
+      clinicianField: 'practitioner_id',
+      date: form.date,
+      start_time: fields.start_time,
+      end_time: fields.end_time,
+      duration_min: fields.duration_min,
+      excludeId: selectedId || undefined,
+    });
+    if (conflict.conflict) {
+      toast.error(conflict.message);
+      return;
+    }
+
+    const appointmentId =
+      selectedId ||
+      `apt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const prev = selectedId
+      ? store?.appointments.find((x) => x.id === selectedId)
+      : null;
+
+    try {
+      await post({
+        entity: 'appointments',
+        action: 'upsert',
+        record: {
+          ...(prev || {}),
+          id: appointmentId,
+          service_id: fields.service_id,
+          practitioner_id: form.practitioner_id,
+          date: form.date,
+          start_time: fields.start_time,
+          end_time: fields.end_time,
+          duration_min: fields.duration_min,
+          location: form.location,
+          public: fields.public,
+          appointment_kind: fields.appointment_kind,
+          personal_reason: fields.personal_reason,
+          notes: fields.notes,
+          status: form.status || 'scheduled',
+        },
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not save appointment');
+      return;
+    }
+
+    const alreadyBooked = findClinicAppointmentSeat(
+      store?.bookings || [],
+      appointmentId,
+      form.patient_id,
+      form.family_member_id
+    );
+    if (
+      !personal &&
+      form.patient_id &&
+      (!alreadyBooked || alreadyBooked.status === 'cancelled')
+    ) {
+      await post({
+        entity: 'bookings',
+        action: 'upsert',
+        record: {
+          appointment_id: appointmentId,
+          patient_id: form.patient_id,
+          family_member_id: form.family_member_id || null,
+          status: 'booked',
+          source: 'desk',
+        },
+      });
+      toast.success(
+        selectedId
+          ? form.family_member_id
+            ? 'Appointment updated — family member booked'
+            : 'Appointment updated and patient booked'
+          : form.family_member_id
+            ? 'Appointment scheduled — family member booked'
+            : 'Appointment scheduled and patient booked'
+      );
+    } else {
+      toast.success(
+        selectedId ? 'Appointment updated' : 'Appointment scheduled'
+      );
+    }
+
+    setSelectedId(appointmentId);
+    setForm((f) => ({ ...f, patient_id: '', family_member_id: '' }));
+  };
+
+  return (
+    <VetgraphWorkbench
+      title="Calendar"
+      titleAccent="main practice diary"
+      description="Stats, then this week’s clinic diary, then waitlist, then working hours. Click an appointment to open it. Exclusive clinician books — no double-booking."
+    >
+      {loading || !store ? (
+        <LoadingBlock />
+      ) : (
+        <div className="space-y-6">
+          <AdvisorExpandablePanel
+            title={`Today ${Number(summary?.appointmentsToday) || 0} · Upcoming ${Number(summary?.appointmentsUpcoming) || 0} · Waitlist ${deskQueue.length} · On board ${events.filter((e) => e.status === 'scheduled').length}`}
+            description="Diary counts for this practice. Collapse to focus on the week view."
+            open={statsOpen}
+            onToggle={() => setStatsOpen((v) => !v)}
+            accentClass="border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/30"
+            titleClass="text-emerald-950 dark:text-emerald-50"
+            hintClass="text-emerald-800/80 dark:text-emerald-200/80"
+          >
+            <StatRow
+              items={[
+                {
+                  label: 'Today',
+                  value: Number(summary?.appointmentsToday) || 0,
+                },
+                {
+                  label: 'Upcoming',
+                  value: Number(summary?.appointmentsUpcoming) || 0,
+                },
+                {
+                  label: 'Waitlist queue',
+                  value: deskQueue.length,
+                },
+                {
+                  label: 'On board',
+                  value: events.filter((e) => e.status === 'scheduled').length,
+                },
+              ]}
+            />
+          </AdvisorExpandablePanel>
+
+          <AdvisorExpandablePanel
+            title="Clinic schedule · this week"
+            description="Default is this week. Click an appointment to open it; click empty time to schedule."
+            open={calendarOpen}
+            onToggle={() => setCalendarOpen((v) => !v)}
+            accentClass="border-emerald-200 bg-white dark:border-emerald-800 dark:bg-neutral-950"
+            titleClass="text-emerald-950 dark:text-emerald-50"
+            hintClass="text-emerald-800/80 dark:text-emerald-200/80"
+          >
+            <PracticeScheduleCalendar
+              title="Clinic schedule"
+              defaultView="week"
+              printBrand={
+                store.settings?.brand_name || 'VetAdvisor · SupplierAdvisor'
+              }
+              pdfExport={{
+                companyId,
+                module: 'vetgraph',
+                personId: personFilter || null,
+              }}
+              accent="emerald"
+              events={events}
+              people={people}
+              peopleLabel="Practitioner"
+              workingHours={workingHours}
+              diaryScope={diaryScope}
+              onDiaryScopeChange={(scope) => {
+                setDiaryScope(scope);
+                if (scope === 'practice') setPersonFilter('');
+              }}
+              showDiaryScopeToggle
+              personFilter={personFilter}
+              onPersonFilterChange={(id) => {
+                setPersonFilter(id);
+                if (id) setForm((f) => ({ ...f, practitioner_id: id }));
+              }}
+              initialDate={form.date}
+              emptyLabel="No appointments"
+              slotHint="Click empty time to add · click an appointment to open"
+              selectedEventId={selectedId}
+              onSelectDate={(date) => setForm((f) => ({ ...f, date }))}
+              onSelectSlot={(slot) => {
+                startCreate({
+                  date: slot.date,
+                  start_time: slot.start_time.slice(0, 5),
+                  practitioner_id:
+                    slot.person_id || personFilter || undefined,
+                });
+                toast.message('New appointment slot', {
+                  description: `${slot.date} at ${slot.start_time.slice(0, 5)} — finish details in the pop-out`,
+                });
+              }}
+              onSelectEvent={(ev) => {
+                openAppointment(ev.id);
+                toast.message('Appointment open', {
+                  description: `${ev.start_time.slice(0, 5)} · ${ev.title} — edit in the pop-out`,
+                });
+              }}
+            />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-slate-500">
+                Switch to day or month from the diary toolbar. Expand to fill
+                the screen.
+              </p>
+              <button
+                type="button"
+                className="rounded-xl border border-emerald-300 bg-white px-3 py-2 text-xs font-bold text-emerald-800"
+                onClick={() => startCreate({ date: form.date })}
+              >
+                + New appointment
+              </button>
+            </div>
+          </AdvisorExpandablePanel>
+
+          <AdvisorExpandablePanel
+            title={`Waitlist & next-available queue · ${deskQueue.length}`}
+            description="People waiting on a full slot and the next-available practice queue. Open by default."
+            open={waitlistOpen}
+            onToggle={() => setWaitlistOpen((v) => !v)}
+            accentClass="border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/30"
+            titleClass="text-emerald-950 dark:text-emerald-50"
+            hintClass="text-emerald-800/80 dark:text-emerald-200/80"
+          >
+            <AdvisorWaitlistDesk
+              queue={deskQueue}
+              slotWaitlist={deskSlotWaitlist}
+              accentClass="border-emerald-200"
+              embedded
+              post={async (body) => {
+                await post(body);
+              }}
+              onRefresh={() => {
+                void load();
+              }}
+              calendarHref="/dashboard/vetgraph/calendar"
+            />
+            <p className="text-xs text-slate-500">
+              Front desk tools:{' '}
+              <Link
+                href="/dashboard/vetgraph/bookings"
+                className="font-bold text-emerald-700 underline"
+              >
+                Desk · bookings
+              </Link>{' '}
+              (mark attended, feedback links) · this calendar is the main diary.
+            </p>
+          </AdvisorExpandablePanel>
+
+          <WorkingHoursEditor
+            value={workingHours}
+            defaultCollapsed
+            onSave={saveHours}
+            saving={saving}
+            title="Clinic working hours"
+            description="Open days and times for this veterinary practice. Closed days are dimmed; day view uses your open window."
+            accentClass="border-emerald-200 dark:border-emerald-800"
+          />
+
+          <div className="flex flex-wrap items-center gap-2 -mt-2">
+            <PracticeProfilePdfButton
+              companyId={companyId}
+              module="vetgraph"
+              label="Download practice PDF"
+            />
+            <span className="text-[11px] text-slate-500">
+              Practice sheet (hours, team, services). Schedule PDFs: A4 PDF on the calendar.
+            </span>
+          </div>
+
+          <ScheduleEventPeek
+            open={editorOpen}
+            title={
+              selectedId
+                ? `Open appointment · ${form.date} ${form.start_time}`
+                : 'Schedule appointment'
+            }
+            subtitle={
+              selectedId
+                ? rosterOnSelected.length
+                  ? 'This visit — notes, script, invoice and claim. Edit the slot only if you need to move it.'
+                  : 'Open appointment. Book a patient onto this slot, then complete the visit.'
+                : 'New appointment on the diary'
+            }
+            onClose={closeEditor}
+          >
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-slate-500">
+                {selectedId
+                  ? 'This appointment is open. Visit notes sit above. Expand Edit this slot only to move the time or room.'
+                  : 'Create a new appointment, or click an existing one on the calendar to open it.'}
+              </p>
+              {selectedId ? (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="rounded-xl border border-emerald-300 bg-white px-3 py-1.5 text-xs font-bold text-emerald-800"
+                    onClick={() => startCreate({ date: form.date })}
+                  >
+                    + New appointment
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-800 hover:bg-rose-100 disabled:opacity-50"
+                    onClick={() => void deleteSelected()}
+                  >
+                    Delete appointment
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
+            {selectedId && form.appointment_kind !== 'personal' ? (
+              <ClinicAppointmentVisitDesk
+                module="vetgraph"
+                companyId={companyId}
+                appointmentId={selectedId}
+                date={form.date}
+                startTime={form.start_time}
+                serviceName={
+                  store.services.find((s) => s.id === form.service_id)?.name
+                }
+                serviceId={form.service_id || null}
+                servicePriceZar={
+                  store.services.find((s) => s.id === form.service_id)
+                    ?.price_zar
+                }
+                treatingName={
+                  store.practitioners.find((p) => p.id === form.practitioner_id)
+                    ?.name
+                }
+                treatingId={form.practitioner_id || null}
+                patients={appointmentVisitPatients({
+                  appointmentId: selectedId,
+                  bookings: store.bookings,
+                  patients: store.patients,
+                })}
+                visitNotes={store.visit_notes}
+                post={post}
+                saving={saving}
+                accent="emerald"
+                onRefresh={() => {
+                  void load();
+                }}
+              />
+            ) : null}
+
+            <AdvisorExpandablePanel
+              title={
+                selectedId
+                  ? 'Edit this slot'
+                  : 'Schedule appointment'
+              }
+              description={
+                selectedId
+                  ? 'Move time, room or practitioner. Do not use this to create a new visit.'
+                  : 'New diary slot. Optionally book a patient now.'
+              }
+              open={slotEditorOpen}
+              onToggle={() => setSlotEditorOpen((v) => !v)}
+              accentClass="border-emerald-200 bg-white dark:border-emerald-800 dark:bg-neutral-950"
+              titleClass="text-emerald-950 dark:text-emerald-50"
+              hintClass="text-emerald-800/80 dark:text-emerald-200/80"
+            >
+            <FormCard
+              title={
+                selectedId
+                  ? `Open appointment · ${form.date} ${form.start_time}`
+                  : 'Schedule appointment'
+              }
+              onSubmit={() => void save()}
+              saving={saving}
+              submitLabel={
+                selectedId
+                  ? 'Save changes'
+                  : recurrence.frequency !== 'none'
+                    ? 'Schedule series'
+                    : 'Schedule'
+              }
+            >
+              <ClinicDiaryKindFields
+                kind={form.appointment_kind}
+                reason={form.personal_reason}
+                notes={form.notes}
+                endTime={form.end_time}
+                inputClass={fc()}
+                peopleWord="practitioner"
+                onKind={(kind) =>
+                  setForm((f) =>
+                    patchFormForAppointmentKind(f, kind, store.services)
+                  )
+                }
+                onReason={(reason) =>
+                  setForm((f) =>
+                    patchFormForAppointmentKind(
+                      { ...f, personal_reason: reason },
+                      'personal',
+                      store.services
+                    )
+                  )
+                }
+                onNotes={(notes) => setForm((f) => ({ ...f, notes }))}
+                onEndTime={(end_time) => setForm((f) => ({ ...f, end_time }))}
+              />
+              {form.appointment_kind !== 'personal' ? (
+              <select
+                className={fc()}
+                value={form.service_id}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, service_id: e.target.value }))
+                }
+              >
+                <option value="">Service…</option>
+                {consultServices(store.services).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.code} · {s.name}
+                  </option>
+                ))}
+              </select>
+              ) : null}
+              <select
+                className={fc()}
+                value={form.practitioner_id}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, practitioner_id: e.target.value }))
+                }
+              >
+                <option value="">Practitioner…</option>
+                {store.practitioners.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                className={fc()}
+                type="date"
+                value={form.date}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, date: e.target.value }))
+                }
+              />
+              <input
+                className={fc()}
+                type="time"
+                value={form.start_time}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, start_time: e.target.value }))
+                }
+              />
+              <input
+                className={fc()}
+                type="number"
+                min={5}
+                placeholder="Duration min"
+                value={form.duration_min}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, duration_min: e.target.value }))
+                }
+              />
+              <div className="space-y-1">
+                {clinicRoomNames(store.settings?.rooms).length > 0 ? (
+                  <select
+                    className={fc()}
+                    value={form.location}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, location: e.target.value }))
+                    }
+                  >
+                    <option value="">Room / resource…</option>
+                    {clinicRoomNames(store.settings?.rooms).map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                    {form.location &&
+                    !clinicRoomNames(store.settings?.rooms).includes(
+                      form.location
+                    ) ? (
+                      <option value={form.location}>{form.location}</option>
+                    ) : null}
+                  </select>
+                ) : (
+                  <input
+                    className={fc()}
+                    placeholder="Location / room"
+                    value={form.location}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, location: e.target.value }))
+                    }
+                  />
+                )}
+                <Link
+                  href="/dashboard/vetgraph/rooms"
+                  className="text-[11px] font-bold text-emerald-700 underline"
+                >
+                  {clinicRoomNames(store.settings?.rooms).length
+                    ? 'Manage rooms'
+                    : 'Add rooms on the Rooms desk'}
+                </Link>
+              </div>
+              {selectedId ? (
+                <select
+                  className={fc()}
+                  value={form.status}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, status: e.target.value }))
+                  }
+                >
+                  <option value="scheduled">Status: scheduled</option>
+                  <option value="completed">Status: completed</option>
+                  <option value="cancelled">Status: cancelled</option>
+                </select>
+              ) : (
+                <RecurrenceFields
+                  value={recurrence}
+                  onChange={setRecurrence}
+                  startDate={form.date}
+                  inputClass={fc()}
+                  accent="emerald"
+                  unitLabel="appointments"
+                />
+              )}
+              {form.appointment_kind !== 'personal' ? (
+              <>
+              <select
+                className={fc()}
+                value={form.patient_id}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    patient_id: e.target.value,
+                    family_member_id: '',
+                  }))
+                }
+              >
+                <option value="">
+                  {selectedId
+                    ? 'Book another patient (desk)…'
+                    : 'Book patient (optional)…'}
+                </option>
+                {store.patients
+                  .filter((p) => p.active !== false)
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                      {p.booking_soft_block ? ' ⚠ no-shows' : ''}
+                      {p.email ? ` · ${p.email}` : ''}
+                    </option>
+                  ))}
+              </select>
+              {form.patient_id && selectedPatientFamily.length > 0 ? (
+                <select
+                  className={fc()}
+                  value={form.family_member_id}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      family_member_id: e.target.value,
+                    }))
+                  }
+                >
+                  <option value="">Attendee: account holder</option>
+                  {selectedPatientFamily.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                      {m.relationship ? ` · ${m.relationship}` : ''}
+                      {m.is_minor ? ' (child)' : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              </>
+              ) : null}
+              {form.date && form.start_time ? (
+                <a
+                  className="text-xs font-bold text-emerald-700 underline"
+                  href={`/api/public/advisor/ics?module=vetgraph&date=${encodeURIComponent(form.date)}&start=${encodeURIComponent(form.start_time)}&title=${encodeURIComponent('VetAdvisor appointment')}&duration=${encodeURIComponent(form.duration_min || '45')}&location=${encodeURIComponent(form.location || '')}`}
+                >
+                  Download .ics (add to calendar)
+                </a>
+              ) : null}
+              {form.appointment_kind !== 'personal' ? (
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={form.public}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, public: e.target.checked }))
+                  }
+                />
+                Public slot
+              </label>
+              ) : null}
+              {selectedId && form.appointment_kind !== 'personal' ? (
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <ClinicBookedRoster
+                    roster={rosterOnSelected}
+                    onMark={markRoster}
+                  />
+                </div>
+              ) : null}
+            </FormCard>
+            </AdvisorExpandablePanel>
+          </div>
+          </ScheduleEventPeek>
+
+          <DataTable
+            headers={[
+              'Date',
+              'Time',
+              'Service',
+              'Practitioner',
+              'Status',
+              'Public',
+              '',
+            ]}
+            rows={[...store.appointments]
+              .sort((a, b) =>
+                a.date === b.date
+                  ? a.start_time.localeCompare(b.start_time)
+                  : b.date.localeCompare(a.date)
+              )
+              .map((a) => {
+                const svc = store.services.find((s) => s.id === a.service_id);
+                const prac = store.practitioners.find(
+                  (p) => p.id === a.practitioner_id
+                );
+                return {
+                  id: a.id,
+                  cells: [
+                    a.date,
+                    a.start_time,
+                    svc?.name || '—',
+                    prac?.name || '—',
+                    a.status,
+                    a.public ? 'Yes' : 'No',
+                    (
+                      <button
+                        key="open"
+                        type="button"
+                        className="text-[11px] font-bold text-emerald-700"
+                        onClick={() => openAppointment(a.id)}
+                      >
+                        Open
+                      </button>
+                    ),
+                  ],
+                };
+              })}
+            onDelete={(id) => {
+              if (selectedId === id) closeEditor();
+              void post({ entity: 'appointments', action: 'delete', id });
+            }}
+          />
+        </div>
+      )}
+    </VetgraphWorkbench>
+  );
+}

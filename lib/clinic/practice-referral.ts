@@ -4,6 +4,7 @@
  */
 import { buildPatientMedicalShare } from '@/lib/clinic/medical-share';
 import { readMedicalgraphFromMetadata } from '@/lib/clinic/medicalgraph';
+import { readVetgraphFromMetadata } from '@/lib/clinic/vetgraph';
 import { readPhysiographFromMetadata } from '@/lib/clinic/physiograph';
 import { readPsychiatrygraphFromMetadata } from '@/lib/clinic/psychiatrygraph';
 import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
@@ -46,6 +47,7 @@ function clinicStore(kind: AdvisorShareKind, meta: Record<string, unknown>) {
   if (kind === 'physio') return readPhysiographFromMetadata(meta);
   if (kind === 'dental') return readDentalgraphFromMetadata(meta);
   if (kind === 'psychiatry') return readPsychiatrygraphFromMetadata(meta);
+  if (kind === 'vet') return readVetgraphFromMetadata(meta);
   return readMedicalgraphFromMetadata(meta);
 }
 

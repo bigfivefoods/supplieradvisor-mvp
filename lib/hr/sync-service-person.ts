@@ -17,6 +17,7 @@ export type ServicePersonSource =
   | 'dentalgraph_staff'
   | 'physiograph_practitioner'
   | 'medicalgraph_practitioner'
+  | 'vetgraph_practitioner'
   | 'psychiatrygraph_practitioner'
   | 'fieldgraph_gang'
   | 'quarrygraph_crew';
@@ -73,6 +74,8 @@ function sourceLabel(source: ServicePersonSource): string {
       return 'PhysioAdvisor practitioner';
     case 'medicalgraph_practitioner':
       return 'MedicalAdvisor practitioner';
+    case 'vetgraph_practitioner':
+      return 'VetAdvisor veterinarian';
     case 'psychiatrygraph_practitioner':
       return 'PsychiatryAdvisor practitioner';
     case 'fieldgraph_gang':
@@ -94,6 +97,8 @@ function departmentDefault(source: ServicePersonSource): string {
       return 'Physiotherapy';
     case 'medicalgraph_practitioner':
       return 'Medical';
+    case 'vetgraph_practitioner':
+      return 'Veterinary';
     case 'psychiatrygraph_practitioner':
       return 'Psychiatry';
     case 'fieldgraph_gang':
@@ -119,6 +124,8 @@ function jobTitleDefault(
       return 'Physiotherapist';
     case 'medicalgraph_practitioner':
       return 'Medical practitioner';
+    case 'vetgraph_practitioner':
+      return 'Veterinarian';
     case 'psychiatrygraph_practitioner':
       return 'Psychiatrist / psychologist';
     case 'fieldgraph_gang':

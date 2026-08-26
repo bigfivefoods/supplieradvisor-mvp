@@ -17,13 +17,15 @@ export type ClinicianModule =
   | 'dentalgraph'
   | 'physiograph'
   | 'medicalgraph'
-  | 'psychiatrygraph';
+  | 'psychiatrygraph'
+  | 'vetgraph';
 
 export const CLINICIAN_MODULES: ClinicianModule[] = [
   'dentalgraph',
   'physiograph',
   'medicalgraph',
   'psychiatrygraph',
+  'vetgraph',
 ];
 
 export function isClinicianModule(v: string): v is ClinicianModule {
@@ -40,6 +42,8 @@ export function clinicianModuleLabel(mod: ClinicianModule): string {
       return 'MedicalAdvisor';
     case 'psychiatrygraph':
       return 'PsychiatryAdvisor';
+    case 'vetgraph':
+      return 'VetAdvisor';
   }
 }
 

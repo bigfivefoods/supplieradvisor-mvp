@@ -34,6 +34,12 @@ import {
   writeMedicalgraphToMetadata,
 } from '@/lib/clinic/medicalgraph';
 import {
+  VETGRAPH_PATIENT_TOKENS_KEY,
+  parseVetCompanyIdFromToken,
+  readVetgraphFromMetadata,
+  writeVetgraphToMetadata,
+} from '@/lib/clinic/vetgraph';
+import {
   PSYCHIATRYGRAPH_PATIENT_TOKENS_KEY,
   parsePsychiatryCompanyIdFromToken,
   readPsychiatrygraphFromMetadata,
@@ -287,6 +293,11 @@ export async function resolveIdentityPerson(opts: {
         write: typeof writeMedicalgraphToMetadata;
       }
     | {
+        module: 'vetgraph';
+        read: typeof readVetgraphFromMetadata;
+        write: typeof writeVetgraphToMetadata;
+      }
+    | {
         module: 'psychiatrygraph';
         read: typeof readPsychiatrygraphFromMetadata;
         write: typeof writePsychiatrygraphToMetadata;
@@ -309,6 +320,11 @@ export async function resolveIdentityPerson(opts: {
       write: writeMedicalgraphToMetadata,
     },
     {
+      module: 'vetgraph',
+      read: readVetgraphFromMetadata,
+      write: writeVetgraphToMetadata,
+    },
+    {
       module: 'psychiatrygraph',
       read: readPsychiatrygraphFromMetadata,
       write: writePsychiatrygraphToMetadata,
@@ -323,6 +339,7 @@ export async function resolveIdentityPerson(opts: {
     if (opts.module === 'physiograph') companyId = parsePhysioCompanyIdFromToken(token);
     else if (opts.module === 'dentalgraph') companyId = parseDentalCompanyIdFromToken(token);
     else if (opts.module === 'medicalgraph') companyId = parseMedicalCompanyIdFromToken(token);
+    else if (opts.module === 'vetgraph') companyId = parseVetCompanyIdFromToken(token);
     else if (opts.module === 'psychiatrygraph')
       companyId = parsePsychiatryCompanyIdFromToken(token);
 
@@ -340,6 +357,8 @@ export async function resolveIdentityPerson(opts: {
             ? DENTALGRAPH_PATIENT_TOKENS_KEY
             : opts.module === 'medicalgraph'
               ? MEDICALGRAPH_PATIENT_TOKENS_KEY
+              : opts.module === 'vetgraph'
+                ? VETGRAPH_PATIENT_TOKENS_KEY
               : PSYCHIATRYGRAPH_PATIENT_TOKENS_KEY;
       for (const row of rows || []) {
         const meta =
@@ -501,6 +520,10 @@ export async function resolveIdentityPersonByIds(opts: {
     medicalgraph: {
       read: readMedicalgraphFromMetadata as never,
       write: writeMedicalgraphToMetadata as never,
+    },
+    vetgraph: {
+      read: readVetgraphFromMetadata as never,
+      write: writeVetgraphToMetadata as never,
     },
     psychiatrygraph: {
       read: readPsychiatrygraphFromMetadata as never,

@@ -964,6 +964,87 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     ],
   },
   {
+    id: 'veterinary',
+    name: 'Veterinary Practice (Services)',
+    shortName: 'Vet',
+    description:
+      'Tertiary / services industry pack for veterinary practices — VetAdvisor®: vets, client invites & portal, consults, wellness packs, diary, clinical chart, vaccines, bookings, messages and practice website, plus procurement.',
+    monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
+    priority: 1,
+    recommendSectors: ['tertiary', 'quaternary'],
+    recommendEntities: ['private_company'],
+    modules: [
+      {
+        id: 'vet_os',
+        name: 'VetAdvisor® practice OS',
+        description:
+          'Vets, client invites & portal, consults, wellness packs, diary, clinical chart, vaccines, bookings and messages.',
+        unlocks: ['vetgraph', 'customers', 'people'],
+      },
+      {
+        id: 'vet_procure',
+        name: 'Practice procurement',
+        description: 'Order from veterinary suppliers, pharmacies and labs.',
+        unlocks: ['suppliers', 'inventory', 'vetgraph'],
+      },
+      {
+        id: 'vet_compliance',
+        name: 'Clinical compliance',
+        description: 'Docs, quality, and SHEQ light.',
+        unlocks: ['quality', 'sheq', 'vetgraph'],
+      },
+    ],
+    industryToolsHrefs: [
+      { name: 'VetAdvisor®', href: '/dashboard/vetgraph', desc: 'Practice OS' },
+      {
+        name: 'Vets',
+        href: '/dashboard/vetgraph/practitioners',
+        desc: 'Vets · nurses · specialists',
+      },
+      {
+        name: 'Clients',
+        href: '/dashboard/vetgraph/patients',
+        desc: 'Register · invites · animals · vaccines',
+      },
+      {
+        name: 'Services',
+        href: '/dashboard/vetgraph/services',
+        desc: 'Consults · vaccines · procedures',
+      },
+      {
+        name: 'Calendar',
+        href: '/dashboard/vetgraph/calendar',
+        desc: 'Diary',
+      },
+      {
+        name: 'Rooms',
+        href: '/dashboard/vetgraph/rooms',
+        desc: 'Floor · assets · assign vets',
+      },
+      {
+        name: 'Bookings',
+        href: '/dashboard/vetgraph/bookings',
+        desc: 'Book · attend',
+      },
+      {
+        name: 'Messages',
+        href: '/dashboard/vetgraph/messages',
+        desc: 'Team · clients',
+      },
+      {
+        name: 'Website',
+        href: '/dashboard/vetgraph/website',
+        desc: 'Practice profile',
+      },
+      {
+        name: 'Comms',
+        href: '/dashboard/vetgraph/comms',
+        desc: 'Ads · notices to clients',
+      },
+      { name: 'Suppliers', href: '/dashboard/suppliers', desc: 'Veterinary supply' },
+    ],
+  },
+  {
     id: 'psychiatry',
     name: 'Psychiatry & Psychology (Services)',
     shortName: 'Psychiatry',
@@ -1450,6 +1531,16 @@ export function enabledModulesMapFromPacks(
     unlocked.add('people');
     unlocked.add('quality');
   }
+  // Veterinary practice → VetAdvisor
+  if (packIds.includes('veterinary')) {
+    unlocked.add('vetgraph');
+    unlocked.add('suppliers');
+    unlocked.add('customers');
+    unlocked.add('operations');
+    unlocked.add('inventory');
+    unlocked.add('people');
+    unlocked.add('quality');
+  }
   // Psychiatry & psychology → PsychiatryAdvisor
   if (packIds.includes('psychiatry')) {
     unlocked.add('psychiatrygraph');
@@ -1799,6 +1890,15 @@ export function appModulesUnlockedByPack(pack: IndustryPackDef): string[] {
   }
   if (pack.id === 'medical_practice' || pack.id === 'medical') {
     ids.add('medicalgraph');
+    ids.add('suppliers');
+    ids.add('customers');
+    ids.add('operations');
+    ids.add('inventory');
+    ids.add('people');
+    ids.add('quality');
+  }
+  if (pack.id === 'veterinary') {
+    ids.add('vetgraph');
     ids.add('suppliers');
     ids.add('customers');
     ids.add('operations');

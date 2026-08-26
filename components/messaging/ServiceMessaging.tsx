@@ -154,7 +154,8 @@ export type ServiceMessagingProps = {
     | 'physiograph'
     | 'dentalgraph'
     | 'psychiatrygraph'
-    | 'medicalgraph';
+    | 'medicalgraph'
+    | 'vetgraph';
   threads: ServiceThread[];
   directory: MessagingDirectory;
   saving?: boolean;

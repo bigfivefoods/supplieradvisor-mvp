@@ -440,6 +440,7 @@ export function resourceForPath(pathname: string | null | undefined): Permission
   if (pathname.startsWith('/dashboard/retailgraph')) return 'operations';
   if (pathname.startsWith('/dashboard/medicalgraph')) return 'operations';
   if (pathname.startsWith('/dashboard/psychiatrygraph')) return 'operations';
+  if (pathname.startsWith('/dashboard/vetgraph')) return 'operations';
   if (pathname.startsWith('/dashboard/invite-business')) return 'network';
   if (pathname.startsWith('/dashboard/procurement')) return 'suppliers';
   if (pathname.startsWith('/dashboard/supplychain')) return 'operations';

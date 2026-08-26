@@ -119,13 +119,15 @@ export type ClinicModuleKey =
   | 'physiograph'
   | 'dentalgraph'
   | 'medicalgraph'
-  | 'psychiatrygraph';
+  | 'psychiatrygraph'
+  | 'vetgraph';
 
 export const CLINIC_KIND_TO_MODULE: Record<string, ClinicModuleKey> = {
   physio: 'physiograph',
   dental: 'dentalgraph',
   medical: 'medicalgraph',
   psychiatry: 'psychiatrygraph',
+  vet: 'vetgraph',
 };
 
 export function moduleToClinicKind(module: string): string {
@@ -133,6 +135,7 @@ export function moduleToClinicKind(module: string): string {
   if (module === 'dentalgraph') return 'dental';
   if (module === 'medicalgraph') return 'medical';
   if (module === 'psychiatrygraph') return 'psychiatry';
+  if (module === 'vetgraph') return 'vet';
   return module;
 }
 
@@ -141,6 +144,7 @@ export function isClinicModule(m: string): m is ClinicModuleKey {
     m === 'physiograph' ||
     m === 'dentalgraph' ||
     m === 'medicalgraph' ||
+    m === 'vetgraph' ||
     m === 'psychiatrygraph'
   );
 }

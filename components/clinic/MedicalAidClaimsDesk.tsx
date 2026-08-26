@@ -18,6 +18,7 @@ const MODULE_PATH: Record<ClinicClaimsModule, string> = {
   physiograph: '/dashboard/physiograph/patients',
   dentalgraph: '/dashboard/dentalgraph/patients',
   psychiatrygraph: '/dashboard/psychiatrygraph/patients',
+  vetgraph: '/dashboard/vetgraph/patients',
 };
 
 export function MedicalAidClaimsDesk({

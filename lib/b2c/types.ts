@@ -18,6 +18,7 @@ export type B2cMembershipKind =
   | 'dental'
   | 'medical'
   | 'psychiatry'
+  | 'vet'
   | 'retail'
   | 'account'
   | 'other';

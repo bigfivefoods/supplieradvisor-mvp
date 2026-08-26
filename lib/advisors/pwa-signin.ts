@@ -656,6 +656,50 @@ async function loadClinicStore(
     };
   }
 
+  if (moduleKey === 'vetgraph') {
+    const m = await import('@/lib/clinic/vetgraph');
+    const loaded = await loadAdvisorStoreForPublicToken({
+      token,
+      moduleKey: m.VETGRAPH_META_KEY,
+      read: m.readVetgraphFromMetadata,
+      parseCompanyId: m.parseVetCompanyIdFromToken,
+      indexKeys,
+    });
+    if (!loaded || loaded.store.settings?.public_token !== token) return null;
+    return {
+      companyId: loaded.companyId,
+      patients: loaded.store.patients || [],
+      practitioners: loaded.store.practitioners || [],
+      issueToken: m.issuePatientPortalToken,
+      issueStaffToken: m.issuePractitionerPortalToken,
+      save: async (portalToken, idx) => {
+        loaded.store.patients[idx] = {
+          ...loaded.store.patients[idx],
+          portal_token: portalToken,
+        };
+        await saveAdvisorModuleStore(
+          loaded.companyId,
+          m.VETGRAPH_META_KEY,
+          loaded.store,
+          m.writeVetgraphToMetadata
+        );
+      },
+      saveStaff: async (portalToken, idx) => {
+        loaded.store.practitioners[idx] = {
+          ...loaded.store.practitioners[idx],
+          portal_token: portalToken,
+          can_manage: true,
+        };
+        await saveAdvisorModuleStore(
+          loaded.companyId,
+          m.VETGRAPH_META_KEY,
+          loaded.store,
+          m.writeVetgraphToMetadata
+        );
+      },
+    };
+  }
+
   const m = await import('@/lib/clinic/psychiatrygraph');
   const loaded = await loadAdvisorStoreForPublicToken({
     token,

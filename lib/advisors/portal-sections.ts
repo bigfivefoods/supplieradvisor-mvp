@@ -9,6 +9,7 @@ export type AdvisorPortalModule =
   | 'dentalgraph'
   | 'psychiatrygraph'
   | 'medicalgraph'
+  | 'vetgraph'
   | 'hiregraph'
   | 'retailgraph';
 
@@ -51,6 +52,14 @@ export const PORTAL_SECTIONS: Record<AdvisorPortalModule, PortalSectionDef[]> = 
     { id: 'contact', label: 'Contact' },
   ],
   medicalgraph: [
+    { id: 'diary', label: 'Open diary' },
+    { id: 'team', label: 'Team' },
+    { id: 'services', label: 'Services' },
+    { id: 'pricing', label: 'Pricing' },
+    { id: 'hours', label: 'Hours & visit' },
+    { id: 'contact', label: 'Contact' },
+  ],
+  vetgraph: [
     { id: 'diary', label: 'Open diary' },
     { id: 'team', label: 'Team' },
     { id: 'services', label: 'Services' },
@@ -140,7 +149,8 @@ export function portalSectionsToLegacyFlags(
     module === 'physiograph' ||
     module === 'dentalgraph' ||
     module === 'psychiatrygraph' ||
-    module === 'medicalgraph'
+    module === 'medicalgraph' ||
+    module === 'vetgraph'
   ) {
     if (sections.team !== undefined) {
       flags.show_practitioners = sections.team !== false;

@@ -1,0 +1,503 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import {
+  CalendarDays,
+  ClipboardCheck,
+  CreditCard,
+  Globe,
+  HeartPulse,
+  Loader2,
+  Package,
+  Sparkles,
+  MessageSquare,
+  PawPrint,
+  UserRound,
+  Users,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { getSelectedCompanyId } from '@/lib/containers/company';
+import {
+  VetgraphPage,
+  VetgraphRequired,
+} from '@/components/clinic/VetgraphShell';
+import VetgraphSystemFlow from '@/components/clinic/VetgraphSystemFlow';
+import AdvisorSystemOverview from '@/components/advisors/AdvisorSystemOverview';
+import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
+import { AdvisorOutcomesPanel } from '@/components/services/AdvisorOutcomesPanel';
+import { AdvisorRecallPanel } from '@/components/services/AdvisorRecallPanel';
+import { AdvisorTodayBoard } from '@/components/services/AdvisorTodayBoard';
+import { AdvisorBillingClarityCard } from '@/components/services/AdvisorBillingClarityCard';
+import { AdvisorMemberJoinInbox } from '@/components/advisors/AdvisorMemberJoinInbox';
+import {
+  HubModuleGrid,
+  HubTelemetryGrid,
+  TelemetryCard,
+  type HubModule,
+} from '@/components/chrome/CommandHubChrome';
+import { AdvisorCommandBookingCards } from '@/components/advisors/AdvisorCommandBookingCards';
+import { VetAddRoomCard } from '@/components/clinic/VetAddRoomCard';
+
+const MODULES: HubModule[] = [
+  {
+    href: '/dashboard/vetgraph/practitioners',
+    icon: PawPrint,
+    code: '01',
+    title: 'Vets',
+    desc: 'Vets, veterinary nurses, specialists — disciplines, rates, bios.',
+    accent: 'from-emerald-50 to-white border-emerald-100',
+  },
+  {
+    href: '/dashboard/vetgraph/patients',
+    icon: Users,
+    code: '02',
+    title: 'Clients',
+    desc: 'Client register, animals, assigned vet.',
+    accent: 'from-sky-50 to-white border-sky-100',
+  },
+  {
+    href: '/dashboard/vetgraph/services',
+    icon: HeartPulse,
+    code: '03',
+    title: 'Services',
+    desc: 'Assessments, treatments, home visits — duration & price.',
+    accent: 'from-cyan-50 to-white border-cyan-100',
+  },
+  {
+    href: '/dashboard/vetgraph/packages',
+    icon: CreditCard,
+    code: '04',
+    title: 'Packages',
+    desc: 'Vaccine, wellness and multi-visit bundles.',
+    accent: 'from-emerald-50 to-white border-emerald-100',
+  },
+  {
+    href: '/dashboard/vetgraph/calendar',
+    icon: CalendarDays,
+    code: '05',
+    title: 'Calendar',
+    desc: 'Main practice diary — click an appointment to open (view/edit).',
+    accent: 'from-violet-50 to-white border-violet-100',
+  },
+  {
+    href: '/dashboard/vetgraph/rooms',
+    icon: PawPrint,
+    code: '05b',
+    title: 'Rooms',
+    desc: 'Consult rooms, surgeries, and equipment in each room.',
+    accent: 'from-emerald-50 to-white border-emerald-100',
+  },
+  {
+    href: '/dashboard/vetgraph/bookings',
+    icon: ClipboardCheck,
+    code: '06',
+    title: 'Desk',
+    desc: 'Front desk: waitlist queue, book clients, mark attended.',
+    accent: 'from-amber-50 to-white border-amber-100',
+  },
+  {
+    href: '/dashboard/vetgraph/messages',
+    icon: MessageSquare,
+    code: '07',
+    title: 'Messages',
+    desc: 'Desk · vets · clients — care and team threads.',
+    accent: 'from-fuchsia-50 to-white border-fuchsia-100',
+  },
+  {
+    href: '/dashboard/vetgraph/website',
+    icon: Globe,
+    code: '08',
+    title: 'Website',
+    desc: 'Public clinic profile, booking settings, embed token.',
+    accent: 'from-indigo-50 to-white border-indigo-100',
+  },
+  {
+    href: '/dashboard/vetgraph/report',
+    icon: Sparkles,
+    code: '09',
+    title: 'Management report',
+    desc: 'Vets, clients, consult utilisation.',
+    accent: 'from-slate-50 to-white border-slate-200',
+  },
+];
+
+export default function VetgraphHubPage() {
+  return (
+    <VetgraphRequired>
+      <Inner />
+    </VetgraphRequired>
+  );
+}
+
+function Inner() {
+  const companyId = getSelectedCompanyId()!;
+  const [summary, setSummary] = useState<
+    Record<string, number | boolean | string | null | undefined> | null
+  >(null);
+  const [store, setStore] = useState<{
+    appointments?: Array<{
+      id: string;
+      date: string;
+      start_time: string;
+      service_id?: string;
+      practitioner_id?: string | null;
+      status?: string;
+      location?: string;
+    }>;
+    bookings?: Array<{
+      id: string;
+      appointment_id: string;
+      patient_id: string;
+      status: string;
+      family_member_name?: string | null;
+    }>;
+    patients?: Array<{ id: string; name: string }>;
+    practitioners?: Array<{ id: string; name: string }>;
+    services?: Array<{ id: string; name: string }>;
+  } | null>(null);
+  const [outcomes, setOutcomes] = useState<
+    import('@/lib/services/advisor-outcomes').OutcomesSnapshot | null
+  >(null);
+  const [recalls, setRecalls] = useState<
+    Array<{
+      id: string;
+      name: string;
+      email?: string;
+      last_attended: string | null;
+      days_since: number | null;
+    }>
+  >([]);
+  const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
+  const [remindersBusy, setRemindersBusy] = useState(false);
+  const [markBusy, setMarkBusy] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `/api/clinic/vetgraph?companyId=${companyId}`,
+        { cache: 'no-store' }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Load failed');
+      setSummary(data.summary || null);
+      setStore(data.store || null);
+      const oRes = await fetch('/api/clinic/vetgraph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, action: 'outcomes', period_days: 30 }),
+      });
+      const oData = await oRes.json();
+      if (oRes.ok) {
+        setOutcomes(oData.outcomes || null);
+        setRecalls(oData.recalls || []);
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Load failed');
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const seed = async () => {
+    setSeeding(true);
+    try {
+      const res = await fetch('/api/clinic/vetgraph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, action: 'seed_demo' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Seed failed');
+      setSummary(data.summary || null);
+      toast.success('Demo clinic loaded — practitioners, patients, diary');
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Seed failed');
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  const sendReminders = async () => {
+    setRemindersBusy(true);
+    try {
+      const res = await fetch('/api/clinic/vetgraph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, action: 'send_reminders' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Reminders failed');
+      toast.success(data.message || 'Reminders sent');
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Reminders failed');
+    } finally {
+      setRemindersBusy(false);
+    }
+  };
+
+  const markBooking = async (
+    bookingId: string,
+    status: 'attended' | 'no_show' | 'cancelled'
+  ) => {
+    setMarkBusy(bookingId);
+    try {
+      const res = await fetch('/api/clinic/vetgraph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          action: 'mark_attendance',
+          booking_id: bookingId,
+          status,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Update failed');
+      if (data.message) toast.success(data.message);
+      else toast.success(`Marked ${status.replace('_', ' ')}`);
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Update failed');
+    } finally {
+      setMarkBusy(null);
+    }
+  };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const todayRows = (() => {
+    if (!store) return [];
+    const appts = (store.appointments || []).filter(
+      (a) => a.date === today && a.status !== 'cancelled'
+    );
+    const rows: import('@/components/services/AdvisorTodayBoard').TodayBoardRow[] =
+      [];
+    for (const a of appts) {
+      const svc = store.services?.find((s) => s.id === a.service_id);
+      const prac = store.practitioners?.find((p) => p.id === a.practitioner_id);
+      const books = (store.bookings || []).filter(
+        (b) => b.appointment_id === a.id && b.status !== 'cancelled'
+      );
+      if (books.length === 0) {
+        rows.push({
+          id: `a-${a.id}`,
+          time: a.start_time,
+          title: svc?.name || 'Appointment',
+          person: prac?.name,
+          status: 'open',
+          meta: a.location,
+          href: '/dashboard/vetgraph/calendar',
+        });
+      } else {
+        for (const b of books) {
+          const patient = store.patients?.find((p) => p.id === b.patient_id);
+          rows.push({
+            id: b.id,
+            time: a.start_time,
+            title: svc?.name || 'Appointment',
+            person: prac?.name,
+            attendee: b.family_member_name || patient?.name,
+            status: b.status,
+            meta: a.location,
+            href: '/dashboard/vetgraph/bookings',
+          });
+        }
+      }
+    }
+    return rows.sort((a, b) => a.time.localeCompare(b.time));
+  })();
+
+  return (
+    <VetgraphPage>
+      <RelationshipHeader
+        eyebrow="Tertiary · Services · Veterinary practice"
+        title="VetAdvisor"
+        titleAccent="®"
+        description="Veterinary practice OS for GPs and clinics: practitioners, patients, consults, care packages, diary, bookings, portal and website."
+        action={
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/dashboard/vetgraph/calendar"
+              className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
+            >
+              <CalendarDays className="w-4 h-4" /> Diary
+            </Link>
+            <Link
+              href="/dashboard/vetgraph/rooms"
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
+            >
+              <PawPrint className="w-4 h-4" /> Rooms
+            </Link>
+            <Link
+              href="/dashboard/vetgraph/website"
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
+            >
+              <Globe className="w-4 h-4" /> Website
+            </Link>
+            <button
+              type="button"
+              disabled={seeding}
+              onClick={() => void seed()}
+              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
+            >
+              {seeding ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Package className="w-4 h-4" />
+              )}
+              Load demo clinic
+            </button>
+          </div>
+        }
+      />
+
+      <AdvisorBillingClarityCard
+        brand={
+          (store as { settings?: { brand_name?: string } } | null)?.settings
+            ?.brand_name || 'your practice'
+        }
+        moduleLabel="VetAdvisor®"
+        accountsHref="/dashboard/vetgraph/accounts"
+        accentClass="border-emerald-200 bg-emerald-50/70 dark:border-emerald-800 dark:bg-emerald-950/30"
+      />
+
+      <AdvisorMemberJoinInbox
+        companyId={companyId}
+        module="vetgraph"
+        patientsHref="/dashboard/vetgraph/patients"
+      />
+
+      {loading ? (
+        <div className="py-12 flex justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+        </div>
+      ) : (
+        <>
+          <HubTelemetryGrid>
+            <TelemetryCard
+              label="Practitioners"
+              value={String(summary?.practitionerCount ?? 0)}
+              sub="Active team"
+            />
+            <TelemetryCard
+              label="Patients"
+              value={String(summary?.patientCount ?? 0)}
+              sub={`${summary?.activePatients ?? 0} active / new`}
+            />
+            <AdvisorCommandBookingCards
+              summary={summary}
+              calendarHref="/dashboard/vetgraph/calendar"
+            />
+          </HubTelemetryGrid>
+          <div className="mt-4">
+            <VetAddRoomCard
+              rooms={
+                (store as { settings?: { rooms?: unknown } } | null)?.settings
+                  ?.rooms
+              }
+              saving={false}
+              onAdd={async (name) => {
+                const res = await fetch('/api/clinic/vetgraph', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    companyId,
+                    action: 'add_room',
+                    name,
+                  }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Add room failed');
+                setStore(data.store || null);
+                setSummary(data.summary || null);
+              }}
+            />
+          </div>
+          <div className="space-y-4 mb-6 mt-6">
+            <AdvisorOutcomesPanel
+              outcomes={outcomes}
+              accent="emerald"
+              title="VetAdvisor outcomes (30 days)"
+              onRefresh={() => void load()}
+              onSendReminders={() => void sendReminders()}
+              remindersBusy={remindersBusy}
+            />
+            <AdvisorTodayBoard
+              date={today}
+              rows={todayRows}
+              title="Today's treatment board"
+              accentClass="border-emerald-200 dark:border-emerald-800"
+              onMark={(id, status) => {
+                if (id.startsWith('a-')) {
+                  toast.message('Open diary to book a patient into this slot');
+                  return;
+                }
+                void markBooking(id, status);
+              }}
+              markBusyId={markBusy}
+            />
+            <AdvisorRecallPanel
+              rows={recalls}
+              title="Rehab / review recalls"
+              description="Patients due for a follow-up visit."
+              onBook={() => {
+                window.location.href = '/dashboard/vetgraph/calendar';
+              }}
+            />
+          </div>
+        </>
+      )}
+
+      <div className="mt-8 space-y-3">
+        <AdvisorSystemOverview module="vetgraph" />
+        <VetgraphSystemFlow defaultCollapsed />
+      </div>
+
+      <div className="my-8 grid sm:grid-cols-2 gap-3">
+        {[
+          {
+            t: 'Patients · history · referral',
+            b: 'Injury & recovery sub-card; visit history on desk and SA Member PWA; consented share to another practice (GP → physio / psychiatry).',
+          },
+          {
+            t: 'Rooms · diary · open visit',
+            b: 'Rooms with assets; click a booked slot to open that visit (never a second appointment); waitlist default-open.',
+          },
+          {
+            t: 'Branded emails · board',
+            b: '24h VetAdvisor® mail (logo): update SA Member + ailments. After visit: rate session + practice. Outcomes, today board, recalls.',
+          },
+          {
+            t: 'Card / Apple Pay · website',
+            b: 'Card / Apple Pay already works. Add a bank on Accounts for where split funds go. Company SaaS stays on SupplierAdvisor.',
+          },
+        ].map((x) => (
+          <div
+            key={x.t}
+            className="rounded-2xl border border-emerald-300 bg-emerald-50/50 px-4 py-3 dark:!border-emerald-400 dark:!bg-emerald-950 dark:ring-1 dark:ring-emerald-500/40"
+          >
+            <div className="text-sm font-black text-slate-900 dark:text-emerald-50">
+              {x.t}
+            </div>
+            <p className="text-[12px] text-slate-600 dark:text-emerald-100/85 mt-1 leading-relaxed">
+              {x.b}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <h2 className="text-sm font-black uppercase tracking-widest text-emerald-800/70 dark:text-emerald-200 mb-4">
+        Workbenches
+      </h2>
+      <HubModuleGrid modules={MODULES} />
+    </VetgraphPage>
+  );
+}

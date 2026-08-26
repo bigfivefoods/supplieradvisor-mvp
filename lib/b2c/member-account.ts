@@ -8,6 +8,7 @@ import {
 import { readPhysiographFromMetadata } from '@/lib/clinic/physiograph';
 import { readMedicalgraphFromMetadata } from '@/lib/clinic/medicalgraph';
 import { readPsychiatrygraphFromMetadata } from '@/lib/clinic/psychiatrygraph';
+import { readVetgraphFromMetadata } from '@/lib/clinic/vetgraph';
 import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
 import { readHiregraphFromMetadata } from '@/lib/hire/hiregraph';
 import {
@@ -308,6 +309,9 @@ export function collectSuggestions(
   } else if (module === 'psychiatrygraph') {
     store = readPsychiatrygraphFromMetadata(meta) as never;
     kind = 'psychiatry';
+  } else if (module === 'vetgraph') {
+    store = readVetgraphFromMetadata(meta) as never;
+    kind = 'vet';
   } else {
     store = readMedicalgraphFromMetadata(meta);
     kind = 'medical';

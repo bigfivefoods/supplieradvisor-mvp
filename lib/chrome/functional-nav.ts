@@ -25,6 +25,7 @@ export const ADVISOR_OS_MODULE_IDS = [
   'dentalgraph',
   'psychiatrygraph',
   'medicalgraph',
+  'vetgraph',
   'hiregraph',
   'retailgraph',
   'quarrygraph',
@@ -49,6 +50,7 @@ const PACK_TO_ADVISOR_MODULE: Record<string, AdvisorOsModuleId> = {
   agri_regen: 'fieldgraph',
   public_procurement: 'schools',
   logistics_containers: 'containers',
+  veterinary: 'vetgraph',
 };
 
 /**
@@ -110,6 +112,7 @@ export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
   'dentalgraph', // DentalAdvisor® dental practice OS
   'psychiatrygraph', // PsychiatryAdvisor® mental health OS
   'medicalgraph', // MedicalAdvisor® medical practice OS
+  'vetgraph', // VetAdvisor® veterinary practice OS
   'hiregraph', // HireAdvisor® hire / rental marketplace (members free)
   'retailgraph', // RetailAdvisor® B2C till OS
   'quarrygraph', // QuarryAdvisor® aggregates OS
@@ -172,6 +175,7 @@ export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
   containers: 'ContainerAdvisor',
   schools: 'SchoolAdvisor',
   health: 'HealthAdvisor',
+  vetgraph: 'VetAdvisor (Vet)',
   network: 'Network',
   people: 'People',
   guide: 'Guide',

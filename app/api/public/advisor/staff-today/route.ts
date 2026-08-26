@@ -1,6 +1,6 @@
 /**
  * Public staff PWA API — token-scoped today board for coaches/clinicians.
- * GET ?module=fitgraph|dentalgraph|physiograph|medicalgraph|psychiatrygraph&token=
+ * GET ?module=fitgraph|dentalgraph|physiograph|medicalgraph|psychiatrygraph|vetgraph&token=
  * POST mark attendance { module, token, booking_id, status }
  */
 import { NextRequest, NextResponse } from 'next/server';
@@ -30,6 +30,10 @@ import {
   readPsychiatrygraphFromMetadata,
   writePsychiatrygraphToMetadata,
 } from '@/lib/clinic/psychiatrygraph';
+import {
+  readVetgraphFromMetadata,
+  writeVetgraphToMetadata,
+} from '@/lib/clinic/vetgraph';
 import {
   applyAttendanceToPersonStats,
   promoteNextWaitlist,
@@ -250,6 +254,11 @@ export async function GET(req: NextRequest) {
         key: 'psychiatrygraph' as const,
         read: readPsychiatrygraphFromMetadata,
         label: 'PsychiatryAdvisor',
+      },
+      {
+        key: 'vetgraph' as const,
+        read: readVetgraphFromMetadata,
+        label: 'VetAdvisor',
       },
     ]) {
       if (module !== cfg.key || !meta[cfg.key]) continue;
@@ -627,7 +636,7 @@ export async function POST(req: NextRequest) {
           care_packs?: Parameters<typeof consumePackSession>[0];
         },
       >(
-        key: 'physiograph' | 'medicalgraph' | 'psychiatrygraph',
+        key: 'physiograph' | 'medicalgraph' | 'psychiatrygraph' | 'vetgraph',
         read: (meta: Record<string, unknown>) => TStore,
         write: (
           meta: Record<string, unknown>,
@@ -698,6 +707,11 @@ export async function POST(req: NextRequest) {
           'psychiatrygraph',
           readPsychiatrygraphFromMetadata,
           writePsychiatrygraphToMetadata
+        ) ||
+        clinicAttendance(
+          'vetgraph',
+          readVetgraphFromMetadata,
+          writeVetgraphToMetadata
         );
       if (clinicSaved) {
         if ('error' in clinicSaved) {

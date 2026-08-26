@@ -272,6 +272,14 @@ export default function SystemGuideHome() {
               MedicalAdvisor®
             </Link>
           )}
+          {isCompanyModuleEnabled('vetgraph') && (
+            <Link
+              href="/dashboard/guide/vetgraph"
+              className="font-bold text-orange-700 hover:underline"
+            >
+              VetAdvisor®
+            </Link>
+          )}
         </div>
       </section>
 

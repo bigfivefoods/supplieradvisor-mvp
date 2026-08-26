@@ -14,7 +14,8 @@ export type ServiceMemberModule =
   | 'physiograph'
   | 'dentalgraph'
   | 'medicalgraph'
-  | 'psychiatrygraph';
+  | 'psychiatrygraph'
+  | 'vetgraph';
 
 export const SERVICE_MEMBER_INVITE_STATUSES = [
   'none',
@@ -49,6 +50,7 @@ const MODULE_SHORT: Record<ServiceMemberModule, string> = {
   dentalgraph: 'den',
   medicalgraph: 'med',
   psychiatrygraph: 'psy',
+  vetgraph: 'vet',
 };
 
 const MODULE_LABEL: Record<ServiceMemberModule, string> = {
@@ -57,6 +59,7 @@ const MODULE_LABEL: Record<ServiceMemberModule, string> = {
   dentalgraph: 'DentalAdvisor® practice patient portal',
   medicalgraph: 'MedicalAdvisor® practice patient portal',
   psychiatrygraph: 'PsychiatryAdvisor® practice patient portal',
+  vetgraph: 'VetAdvisor® practice client portal',
 };
 
 const MODULE_ROLE: Record<ServiceMemberModule, string> = {
@@ -65,6 +68,7 @@ const MODULE_ROLE: Record<ServiceMemberModule, string> = {
   dentalgraph: 'patient',
   medicalgraph: 'patient',
   psychiatrygraph: 'patient',
+  vetgraph: 'client',
 };
 
 const MODULE_PORTAL_PATH: Record<ServiceMemberModule, string> = {
@@ -73,6 +77,7 @@ const MODULE_PORTAL_PATH: Record<ServiceMemberModule, string> = {
   dentalgraph: '/member/dentalgraph',
   medicalgraph: '/member/medicalgraph',
   psychiatrygraph: '/member/psychiatrygraph',
+  vetgraph: '/member/vetgraph',
 };
 
 export function isServiceMemberModule(
@@ -84,7 +89,8 @@ export function isServiceMemberModule(
     m === 'physiograph' ||
     m === 'dentalgraph' ||
     m === 'medicalgraph' ||
-    m === 'psychiatrygraph'
+    m === 'psychiatrygraph' ||
+    m === 'vetgraph'
   );
 }
 
@@ -103,7 +109,7 @@ export function parseServiceMemberInviteToken(token: string): {
   module: ServiceMemberModule | null;
   companyId: number | null;
 } {
-  const m = /^sinv_(fit|phy|den|med|psy)_(\d+)_/.exec(
+  const m = /^sinv_(fit|phy|den|med|psy|vet)_(\d+)_/.exec(
     String(token || '').trim()
   );
   if (!m) return { module: null, companyId: null };
@@ -120,6 +126,8 @@ export function parseServiceMemberInviteToken(token: string): {
             ? 'medicalgraph'
             : short === 'psy'
               ? 'psychiatrygraph'
+              : short === 'vet'
+                ? 'vetgraph'
               : null;
   return {
     module,
@@ -164,6 +172,8 @@ export function serviceMemberAdvisorName(module: ServiceMemberModule): string {
       return 'MedicalAdvisor®';
     case 'psychiatrygraph':
       return 'PsychiatryAdvisor®';
+    case 'vetgraph':
+      return 'VetAdvisor®';
     default:
       return 'SupplierAdvisor®';
   }

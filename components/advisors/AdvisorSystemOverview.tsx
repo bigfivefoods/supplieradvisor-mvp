@@ -46,6 +46,12 @@ const ACCENT: Record<
     kicker: 'text-indigo-800 dark:text-indigo-300',
     border: 'border-indigo-200 dark:border-indigo-800',
   },
+  vetgraph: {
+    hero: 'from-orange-950 via-orange-800 to-amber-700',
+    card: 'border-orange-200 bg-orange-50/50 dark:border-orange-800 dark:bg-orange-950/40',
+    kicker: 'text-orange-800 dark:text-orange-300',
+    border: 'border-orange-200 dark:border-orange-800',
+  },
   fitgraph: {
     hero: 'from-amber-950 via-amber-800 to-yellow-700',
     card: 'border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/40',

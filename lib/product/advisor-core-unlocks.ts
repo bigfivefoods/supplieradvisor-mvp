@@ -8,6 +8,7 @@ export const ADVISOR_OS_MODULE_IDS = [
   'dentalgraph',
   'psychiatrygraph',
   'medicalgraph',
+  'vetgraph',
   'hiregraph',
   'retailgraph',
 ] as const;
@@ -72,6 +73,16 @@ export const ADVISOR_PACK_UNLOCKS: Record<string, readonly string[]> = {
   ],
   medical: [
     'medicalgraph',
+    'people',
+    'customers',
+    'accounting',
+    'suppliers',
+    'operations',
+    'inventory',
+    'quality',
+  ],
+  veterinary: [
+    'vetgraph',
     'people',
     'customers',
     'accounting',

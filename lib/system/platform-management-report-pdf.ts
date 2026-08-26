@@ -126,6 +126,7 @@ export async function buildPlatformManagementReportPdf(
     ['DentalAdvisor®', mod.dentalgraphEnabled],
     ['MedicalAdvisor®', mod.medicalgraphEnabled],
     ['PsychiatryAdvisor®', mod.psychiatrygraphEnabled],
+    ['VetAdvisor®', mod.vetgraphEnabled],
     ['HireAdvisor®', mod.hiregraphEnabled],
     ['RetailAdvisor®', mod.retailgraphEnabled],
   ];

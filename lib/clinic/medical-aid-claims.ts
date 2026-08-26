@@ -21,7 +21,8 @@ export type ClinicClaimsModule =
   | 'medicalgraph'
   | 'physiograph'
   | 'dentalgraph'
-  | 'psychiatrygraph';
+  | 'psychiatrygraph'
+  | 'vetgraph';
 
 export type PracticeBilling = {
   practice_number?: string;

@@ -26,6 +26,10 @@ import {
   writePsychiatrygraphToMetadata,
 } from '@/lib/clinic/psychiatrygraph';
 import {
+  readVetgraphFromMetadata,
+  writeVetgraphToMetadata,
+} from '@/lib/clinic/vetgraph';
+import {
   applyClaimAmend,
   applyClaimOutcome,
   applyClaimSubmit,
@@ -54,6 +58,7 @@ const MODULES: ClinicClaimsModule[] = [
   'physiograph',
   'dentalgraph',
   'psychiatrygraph',
+  'vetgraph',
 ];
 
 const LABELS: Record<ClinicClaimsModule, string> = {
@@ -61,6 +66,7 @@ const LABELS: Record<ClinicClaimsModule, string> = {
   physiograph: 'PhysioAdvisor®',
   dentalgraph: 'DentalAdvisor®',
   psychiatrygraph: 'PsychiatryAdvisor®',
+  vetgraph: 'VetAdvisor®',
 };
 
 function parseModule(v: unknown): ClinicClaimsModule | null {
@@ -74,6 +80,7 @@ function readStore(module: ClinicClaimsModule, meta: Record<string, unknown>) {
   if (module === 'physiograph') return readPhysiographFromMetadata(meta);
   if (module === 'dentalgraph') return readDentalgraphFromMetadata(meta);
   if (module === 'psychiatrygraph') return readPsychiatrygraphFromMetadata(meta);
+  if (module === 'vetgraph') return readVetgraphFromMetadata(meta);
   return readMedicalgraphFromMetadata(meta);
 }
 
@@ -90,6 +97,9 @@ function writeStore(
   }
   if (module === 'psychiatrygraph') {
     return writePsychiatrygraphToMetadata(meta, store as never);
+  }
+  if (module === 'vetgraph') {
+    return writeVetgraphToMetadata(meta, store as never);
   }
   return writeMedicalgraphToMetadata(meta, store as never);
 }

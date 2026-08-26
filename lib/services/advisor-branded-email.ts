@@ -33,6 +33,13 @@ export const ADVISOR_EMAIL_SKINS: Record<string, AdvisorEmailSkin> = {
     accentDark: '#3730a3',
     accentSoft: '#eef2ff',
   },
+  vetgraph: {
+    moduleKey: 'vetgraph',
+    product: 'VetAdvisor®',
+    accent: '#c2410c',
+    accentDark: '#9a3412',
+    accentSoft: '#fff7ed',
+  },
   physiograph: {
     moduleKey: 'physiograph',
     product: 'PhysioAdvisor®',
@@ -105,6 +112,7 @@ export function advisorEmailSkin(
   if (!raw) return SUPPLIER_EMAIL_SKIN;
   if (ADVISOR_EMAIL_SKINS[raw]) return ADVISOR_EMAIL_SKINS[raw];
   if (raw.includes('medical')) return ADVISOR_EMAIL_SKINS.medicalgraph;
+  if (raw.includes('vet')) return ADVISOR_EMAIL_SKINS.vetgraph;
   if (raw.includes('physio')) return ADVISOR_EMAIL_SKINS.physiograph;
   if (raw.includes('dental')) return ADVISOR_EMAIL_SKINS.dentalgraph;
   if (raw.includes('psych')) return ADVISOR_EMAIL_SKINS.psychiatrygraph;

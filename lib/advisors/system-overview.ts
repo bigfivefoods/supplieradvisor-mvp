@@ -10,6 +10,7 @@ export const ADVISOR_OVERVIEW_MODULES = [
   'physiograph',
   'dentalgraph',
   'psychiatrygraph',
+  'vetgraph',
   'fitgraph',
   'hiregraph',
   'retailgraph',
@@ -197,6 +198,87 @@ const BY_MODULE: Record<AdvisorOverviewModule, AdvisorSystemOverviewCopy> = {
       {
         title: 'A fuller diary',
         body: 'Waitlist, 24h reminders and recalls fill cancellations and bring people back.',
+      },
+      {
+        title: 'A brand they remember',
+        body: 'Logo on mail, website and ratings - one practice from invite to feedback.',
+      },
+      {
+        title: 'Money that posts once',
+        body: 'CRM and Finance show the same fee. Card / Apple Pay lands in your bank.',
+      },
+    ],
+    closer: CLOSER,
+  },
+  vetgraph: {
+    module: 'vetgraph',
+    brand: 'VetAdvisor®',
+    clientNoun: 'clients',
+    headline:
+      'Run the practice on VetAdvisor. Run the company on Core. Clients use SA Member.',
+    promise:
+      'One workspace instead of a diary, a spreadsheet, a WhatsApp group and a separate accounts pack. The floor, the books and the client app stay in step - so you keep the relationship after they leave the consult room.',
+    core: CORE_CLINIC,
+    advisor: [
+      {
+        title: 'Rooms & assets',
+        body: 'Consult rooms, theatre and kennels on the Rooms desk, with equipment assigned to each room.',
+      },
+      {
+        title: 'Diary that opens the consult',
+        body: 'Click a booked slot to open that consult. Empty slots book new - never a second record on the profile.',
+      },
+      {
+        title: 'Floor',
+        body: 'Rooms with equipment, optionally assigned to a vet. Waitlist, 30-day outcomes, the treatment board today and vaccine recalls.',
+      },
+      {
+        title: 'Branded session emails',
+        body: 'Practice-logo mail 24h before (update SA Member + animals) and after (rate the consult and the practice).',
+      },
+      {
+        title: 'Consented referral',
+        body: 'With client consent, share selected patient + practice info with another practice (vet to specialist).',
+      },
+      {
+        title: 'Website & pay-out',
+        body: 'Public profile, booking and marketplace listing. Card / Apple Pay already works; add a bank for where split funds go.',
+      },
+    ],
+    clients: [
+      {
+        title: 'Free SA Member app',
+        body: 'Profile, household animals and vaccines on their phone - reminded before each consult to keep it current.',
+      },
+      {
+        title: 'Book, waitlist, family',
+        body: 'Open slots with a preferred vet, or another when allowed. Household animals on the same book.',
+      },
+      {
+        title: 'Consult history',
+        body: 'The same past consults and notes the practice sees - on the desk and on the PWA.',
+      },
+      {
+        title: 'Rate consult + practice',
+        body: 'After the visit, branded mail to score the consult and the practice. Feedback lands on your outcomes.',
+      },
+      {
+        title: 'Messages & pay',
+        body: 'In-app care when they are on SupplierAdvisor. Card / Apple Pay to your bank, or cash at the practice.',
+      },
+      {
+        title: 'Consented share',
+        body: 'When referred, they choose what another practice may see. No silent hand-off of the chart.',
+      },
+    ],
+    enhance: [
+      {
+        title: 'One book of truth',
+        body: 'Stop re-typing the same client into a diary, a sheet and an invoice.',
+      },
+      {
+        title: 'A fuller diary',
+        body: 'Waitlist, 24h reminders and vaccine recalls fill cancellations and bring people back.',
       },
       {
         title: 'A brand they remember',

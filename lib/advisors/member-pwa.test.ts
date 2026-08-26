@@ -78,6 +78,12 @@ assert.equal(
   '/clinician/dentalgraph/clin_9_dent_abc'
 );
 assert.equal(
+  advisorPwaOpenPath('vetgraph', 'clin_9_vet_abc'),
+  '/clinician/vetgraph/clin_9_vet_abc'
+);
+assert.ok(ADVISOR_PWA_MODULES.includes('vetgraph'));
+assert.equal(advisorModuleFromJoinKind('vet'), 'vetgraph');
+assert.equal(
   advisorPwaOpenPath('physiograph', 'ppat_9_abc'),
   '/member/physiograph/ppat_9_abc'
 );

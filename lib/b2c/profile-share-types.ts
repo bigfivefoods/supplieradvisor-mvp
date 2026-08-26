@@ -4,6 +4,7 @@ export const ADVISOR_SHARE_KINDS = [
   'dental',
   'medical',
   'psychiatry',
+  'vet',
 ] as const;
 
 export type AdvisorShareKind = (typeof ADVISOR_SHARE_KINDS)[number];
@@ -14,6 +15,7 @@ export const SHARE_KIND_LABEL: Record<AdvisorShareKind, string> = {
   dental: 'DentalAdvisor®',
   medical: 'MedicalAdvisor®',
   psychiatry: 'PsychiatryAdvisor®',
+  vet: 'VetAdvisor®',
 };
 
 export type ProfileShareStatus =

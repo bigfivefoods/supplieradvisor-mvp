@@ -117,6 +117,8 @@ export default function JoinServiceMemberPage() {
           ? 'from-indigo-500 to-slate-800'
           : invite?.module === 'psychiatrygraph'
             ? 'from-rose-500 to-fuchsia-800'
+            : invite?.module === 'vetgraph'
+              ? 'from-orange-500 to-amber-800'
             : 'from-violet-500 to-indigo-600';
 
   return (

@@ -26,6 +26,9 @@ export function parseClinicMemberTab(
     t === 'rehab' ||
     t === 'scripts' ||
     t === 'records' ||
+    t === 'chart' ||
+    t === 'pets' ||
+    t === 'animals' ||
     t === 'shop'
   ) {
     return 'care';

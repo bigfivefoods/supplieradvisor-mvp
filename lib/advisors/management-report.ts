@@ -8,6 +8,7 @@ export type AdvisorReportId =
   | 'physiograph'
   | 'dentalgraph'
   | 'medicalgraph'
+  | 'vetgraph'
   | 'psychiatrygraph'
   | 'fieldgraph'
   | 'quarrygraph'
@@ -38,6 +39,11 @@ export const ADVISOR_REPORT_META: Record<
     brand: 'MedicalAdvisor®',
     product: 'Medical practice',
     defaultHref: '/dashboard/medicalgraph/report',
+  },
+  vetgraph: {
+    brand: 'VetAdvisor®',
+    product: 'Veterinary practice',
+    defaultHref: '/dashboard/vetgraph/report',
   },
   psychiatrygraph: {
     brand: 'PsychiatryAdvisor®',

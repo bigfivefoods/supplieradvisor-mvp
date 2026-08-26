@@ -9,6 +9,7 @@ import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
 import { readPhysiographFromMetadata } from '@/lib/clinic/physiograph';
 import { readMedicalgraphFromMetadata } from '@/lib/clinic/medicalgraph';
 import { readPsychiatrygraphFromMetadata } from '@/lib/clinic/psychiatrygraph';
+import { readVetgraphFromMetadata } from '@/lib/clinic/vetgraph';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -177,6 +178,18 @@ export async function GET(req: NextRequest) {
         specialtiesFallback: store.settings?.practitioner_disciplines,
         brandFallback: 'Psychiatry practice',
         bookPath: tok ? `/embed/advisor/psychiatrygraph/${tok}` : null,
+      });
+    }
+    if (meta.vetgraph) {
+      const store = readVetgraphFromMetadata(meta);
+      const tok = store.settings?.public_token;
+      pushIfListed(listings, {
+        ...base,
+        module: 'vetgraph',
+        settings: store.settings,
+        specialtiesFallback: store.settings?.practitioner_disciplines,
+        brandFallback: 'Veterinary practice',
+        bookPath: tok ? `/embed/advisor/vetgraph/${tok}` : null,
       });
     }
   }

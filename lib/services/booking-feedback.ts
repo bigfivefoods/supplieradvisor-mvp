@@ -11,7 +11,8 @@ export type FeedbackModule =
   | 'physiograph'
   | 'dentalgraph'
   | 'psychiatrygraph'
-  | 'medicalgraph';
+  | 'medicalgraph'
+  | 'vetgraph';
 
 export type BookingFeedbackPrompt = {
   feedback_token?: string | null;

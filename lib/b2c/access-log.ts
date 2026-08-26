@@ -57,6 +57,7 @@ export const SURFACE_LABELS: Record<string, string> = {
   dental: 'DentalAdvisor',
   medical: 'MedicalAdvisor',
   psychiatry: 'PsychiatryAdvisor',
+  vet: 'VetAdvisor',
   hire: 'HireAdvisor',
   retail: 'RetailAdvisor',
   other: 'Other site',
@@ -108,6 +109,7 @@ export function normalizeSurface(
   if (s === 'physio' || s === 'physiograph') return 'physio';
   if (s === 'dental' || s === 'dentalgraph') return 'dental';
   if (s === 'medical' || s === 'medicalgraph') return 'medical';
+  if (s === 'vet' || s === 'vetgraph') return 'vet';
   if (s === 'psychiatry' || s === 'psychiatrygraph') return 'psychiatry';
   if (s === 'hire' || s === 'hiregraph') return 'hire';
   if (s === 'retail' || s === 'retailgraph') return 'retail';
@@ -115,6 +117,7 @@ export function normalizeSurface(
   if (p.includes('/physiograph')) return 'physio';
   if (p.includes('/dentalgraph')) return 'dental';
   if (p.includes('/medicalgraph')) return 'medical';
+  if (p.includes('/vetgraph')) return 'vet';
   if (p.includes('/psychiatrygraph')) return 'psychiatry';
   if (p.includes('/hire')) return 'hire';
   if (p.includes('/retail')) return 'retail';

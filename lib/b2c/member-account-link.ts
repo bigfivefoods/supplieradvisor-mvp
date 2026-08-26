@@ -32,6 +32,11 @@ import {
   writeMedicalgraphToMetadata,
 } from '@/lib/clinic/medicalgraph';
 import {
+  issuePatientPortalToken as issueVetToken,
+  readVetgraphFromMetadata,
+  writeVetgraphToMetadata,
+} from '@/lib/clinic/vetgraph';
+import {
   issuePatientPortalToken as issuePsychiatryToken,
   readPsychiatrygraphFromMetadata,
   writePsychiatrygraphToMetadata,
@@ -64,6 +69,7 @@ function brandAndLogo(
       return readDentalgraphFromMetadata(meta).settings;
     if (module === 'medicalgraph')
       return readMedicalgraphFromMetadata(meta).settings;
+    if (module === 'vetgraph') return readVetgraphFromMetadata(meta).settings;
     if (module === 'psychiatrygraph')
       return readPsychiatrygraphFromMetadata(meta).settings;
     if (module === 'fitgraph') return readFitgraphFromMetadata(meta).settings;
@@ -124,6 +130,11 @@ function findDeskPerson(
   if (module === 'medicalgraph') {
     return asDeskPerson(
       (readMedicalgraphFromMetadata(meta).patients || []).find((p) => p.id === refId)
+    );
+  }
+  if (module === 'vetgraph') {
+    return asDeskPerson(
+      (readVetgraphFromMetadata(meta).patients || []).find((p) => p.id === refId)
     );
   }
   if (module === 'psychiatrygraph') {
@@ -191,6 +202,15 @@ function stampDeskPerson(
       issueMedicalToken(companyId)
     );
     return { meta: writeMedicalgraphToMetadata(meta, store), token };
+  }
+  if (module === 'vetgraph') {
+    const store = readVetgraphFromMetadata(meta);
+    const person = (store.patients || []).find((p) => p.id === refId);
+    if (!person) return { meta, token: null };
+    const token = stampPatientFields(person, userId, () =>
+      issueVetToken(companyId)
+    );
+    return { meta: writeVetgraphToMetadata(meta, store), token };
   }
   if (module === 'psychiatrygraph') {
     const store = readPsychiatrygraphFromMetadata(meta);

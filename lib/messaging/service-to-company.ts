@@ -32,7 +32,8 @@ export type ServiceModuleId =
   | 'physiograph'
   | 'dentalgraph'
   | 'psychiatrygraph'
-  | 'medicalgraph';
+  | 'medicalgraph'
+  | 'vetgraph';
 
 type ClientLike = {
   id: string;

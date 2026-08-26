@@ -2,7 +2,7 @@
 
 /**
  * Clinician diary portal — parity with GymAdvisor coach portal.
- * /clinician/{dentalgraph|physiograph|medicalgraph|psychiatrygraph}/{token}
+ * /clinician/{dentalgraph|physiograph|medicalgraph|psychiatrygraph|vetgraph}/{token}
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -292,6 +292,8 @@ export default function ClinicianPortalPage() {
         ? '#0284c7'
         : mod === 'psychiatrygraph'
           ? '#6366f1'
+          : mod === 'vetgraph'
+            ? '#c2410c'
           : '#059669';
 
   return (

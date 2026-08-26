@@ -42,6 +42,11 @@ import {
   writeMedicalgraphToMetadata,
 } from '@/lib/clinic/medicalgraph';
 import {
+  parseVetCompanyIdFromToken,
+  readVetgraphFromMetadata,
+  writeVetgraphToMetadata,
+} from '@/lib/clinic/vetgraph';
+import {
   parsePsychiatryCompanyIdFromToken,
   readPsychiatrygraphFromMetadata,
   writePsychiatrygraphToMetadata,
@@ -79,6 +84,7 @@ function extractTokenFromUrl(raw: string): string {
     /\/member\/physiograph\/([^/?#]+)/i,
     /\/member\/dentalgraph\/([^/?#]+)/i,
     /\/member\/medicalgraph\/([^/?#]+)/i,
+    /\/member\/vetgraph\/([^/?#]+)/i,
     /\/member\/psychiatrygraph\/([^/?#]+)/i,
     /\/member\/retailgraph\/([^/?#]+)/i,
     /\/join\/member\/[^/]+\/([^/?#]+)/i,
@@ -416,6 +422,30 @@ export async function resolveAndLinkPortalToken(
       meta: company.meta,
       store,
       write: writeMedicalgraphToMetadata,
+    });
+  }
+
+  // ── VetAdvisor ───────────────────────────────────────────────────
+  if (token.startsWith('vetp_') || token.startsWith('vetg_')) {
+    const companyId = parseVetCompanyIdFromToken(token);
+    if (!companyId) return { ok: false, error: 'Invalid vet portal token' };
+    const company = await loadCompany(companyId);
+    if (!company) return { ok: false, error: 'Company not found' };
+    const store = readVetgraphFromMetadata(company.meta);
+    return linkClinicPatient({
+      token,
+      platformUserId,
+      kind: 'vet',
+      path: 'vetgraph',
+      label: 'Vet',
+      companyId,
+      companyIdNum: company.id,
+      companyName: company.name,
+      brand: store.settings?.brand_name || company.name,
+      patients: store.patients || [],
+      meta: company.meta,
+      store,
+      write: writeVetgraphToMetadata,
     });
   }
 

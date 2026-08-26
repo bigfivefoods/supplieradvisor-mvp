@@ -19,6 +19,7 @@ export const CLINIC_FOLLOW_UP_MODULES = [
   'physiograph',
   'dentalgraph',
   'psychiatrygraph',
+  'vetgraph',
 ] as const;
 
 export type ClinicFollowUpModule = (typeof CLINIC_FOLLOW_UP_MODULES)[number];
@@ -30,6 +31,7 @@ const BRAND: Record<ClinicFollowUpModule, string> = {
   physiograph: 'PhysioAdvisor®',
   dentalgraph: 'DentalAdvisor®',
   psychiatrygraph: 'PsychiatryAdvisor®',
+  vetgraph: 'VetAdvisor®',
 };
 
 export function clinicFollowUpPaths(module: ClinicFollowUpModule, opts: {

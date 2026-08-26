@@ -15,6 +15,10 @@ import { AdvisorSharePanel } from '@/components/advisors/AdvisorSharePanel';
 import { advisorBrandInk } from '@/lib/advisors/brand-ink';
 import type { ClinicPortalCarePack } from '@/lib/clinic/clinic-portal-shop';
 import type { ClinicMemberTabId } from '@/lib/clinic/clinic-member-tabs';
+import {
+  clinicPwaCopy,
+  type ClinicPwaModule,
+} from '@/lib/clinic/clinic-pwa-copy';
 
 export type { ClinicMemberTabId } from '@/lib/clinic/clinic-member-tabs';
 export {
@@ -26,13 +30,16 @@ export {
 export function clinicMemberDockTabs({
   messagesUnread,
   photoUrl,
+  module,
 }: {
   messagesUnread?: number;
   photoUrl?: string | null;
+  module?: ClinicPwaModule | string;
 }): {
   tabs: MemberAdvisorTab<ClinicMemberTabId>[];
   mobileTabs: MemberAdvisorTab<ClinicMemberTabId>[];
 } {
+  const copy = clinicPwaCopy(module);
   const unread = messagesUnread || undefined;
   const youIcon = photoUrl ? (
     // eslint-disable-next-line @next/next/no-img-element
@@ -45,36 +52,36 @@ export function clinicMemberDockTabs({
     <User />
   );
   const tabs: MemberAdvisorTab<ClinicMemberTabId>[] = [
-    { id: 'mine', label: 'Book', icon: <CalendarCheck /> },
-    { id: 'open', label: 'Schedule', icon: <CalendarDays /> },
+    { id: 'mine', label: copy.dockBook, icon: <CalendarCheck /> },
+    { id: 'open', label: copy.dockDiary, icon: <CalendarDays /> },
     {
       id: 'profile',
-      label: 'You',
+      label: copy.dockYou,
       icon: <User />,
       covers: ['history'] as ClinicMemberTabId[],
     },
-    { id: 'care', label: 'Care', icon: <HeartPulse /> },
-    { id: 'share', label: 'Share', icon: <Share2 /> },
+    { id: 'care', label: copy.dockCare, icon: <HeartPulse /> },
+    { id: 'share', label: copy.dockShare, icon: <Share2 /> },
     {
       id: 'messages',
-      label: 'Inbox',
+      label: copy.dockInbox,
       icon: <MessageSquare />,
       badge: unread,
     },
   ];
   const mobileTabs: MemberAdvisorTab<ClinicMemberTabId>[] = [
-    { id: 'mine', label: 'Book', icon: <CalendarCheck /> },
-    { id: 'open', label: 'Schedule', icon: <CalendarDays /> },
+    { id: 'mine', label: copy.dockBook, icon: <CalendarCheck /> },
+    { id: 'open', label: copy.dockDiary, icon: <CalendarDays /> },
     {
       id: 'profile',
-      label: 'You',
+      label: copy.dockYou,
       icon: youIcon,
       badge: unread,
       covers: ['profile', 'messages', 'history'] as ClinicMemberTabId[],
       emphasis: true,
     },
-    { id: 'care', label: 'Care', icon: <HeartPulse /> },
-    { id: 'share', label: 'Share', icon: <Share2 /> },
+    { id: 'care', label: copy.dockCare, icon: <HeartPulse /> },
+    { id: 'share', label: copy.dockShare, icon: <Share2 /> },
   ];
   return { tabs, mobileTabs };
 }

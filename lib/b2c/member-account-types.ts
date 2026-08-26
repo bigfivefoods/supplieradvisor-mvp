@@ -9,6 +9,7 @@ export const ADVISOR_ACCOUNT_KINDS = [
   'dental',
   'medical',
   'psychiatry',
+  'vet',
   'hire',
   'retail',
 ] as const;
@@ -21,6 +22,7 @@ export const ADVISOR_ACCOUNT_MODULES = [
   'dentalgraph',
   'medicalgraph',
   'psychiatrygraph',
+  'vetgraph',
   'hiregraph',
   'retailgraph',
 ] as const;
@@ -33,6 +35,7 @@ export const KIND_TO_MODULE: Record<AdvisorAccountKind, AdvisorAccountModule> = 
   dental: 'dentalgraph',
   medical: 'medicalgraph',
   psychiatry: 'psychiatrygraph',
+  vet: 'vetgraph',
   hire: 'hiregraph',
   retail: 'retailgraph',
 };
@@ -43,6 +46,7 @@ export const MODULE_TO_KIND: Record<AdvisorAccountModule, AdvisorAccountKind> = 
   dentalgraph: 'dental',
   medicalgraph: 'medical',
   psychiatrygraph: 'psychiatry',
+  vetgraph: 'vet',
   hiregraph: 'hire',
   retailgraph: 'retail',
 };

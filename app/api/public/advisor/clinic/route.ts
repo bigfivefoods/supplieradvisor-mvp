@@ -30,6 +30,11 @@ import {
   newId as psychNewId,
 } from '@/lib/clinic/psychiatrygraph';
 import {
+  readVetgraphFromMetadata,
+  writeVetgraphToMetadata,
+  newId as vetNewId,
+} from '@/lib/clinic/vetgraph';
+import {
   isAdvisorCardPayReady,
   readAdvisorPayout,
 } from '@/lib/billing/advisor-payout';
@@ -43,6 +48,7 @@ const MODULES = [
   'physiograph',
   'medicalgraph',
   'psychiatrygraph',
+  'vetgraph',
 ] as const;
 
 type ModuleKey = (typeof MODULES)[number];
@@ -56,6 +62,7 @@ const CLINIC_TOKEN_RE: Record<ModuleKey, RegExp> = {
   dentalgraph: /^dg_(\d+)_/,
   medicalgraph: /^medg_(\d+)_/,
   psychiatrygraph: /^psyg_(\d+)_/,
+  vetgraph: /^vetg_(\d+)_/,
 };
 
 function parseClinicCompanyId(module: ModuleKey, token: string): number | null {
@@ -74,6 +81,7 @@ function storeFromMeta(
   if (module === 'dentalgraph') return readDentalgraphFromMetadata(meta);
   if (module === 'physiograph') return readPhysiographFromMetadata(meta);
   if (module === 'medicalgraph') return readMedicalgraphFromMetadata(meta);
+  if (module === 'vetgraph') return readVetgraphFromMetadata(meta);
   return readPsychiatrygraphFromMetadata(meta);
 }
 
@@ -150,6 +158,15 @@ async function saveModule(
       module,
       store as never,
       writeMedicalgraphToMetadata
+    );
+    return;
+  }
+  if (module === 'vetgraph') {
+    await saveAdvisorModuleStore(
+      companyId,
+      module,
+      store as never,
+      writeVetgraphToMetadata
     );
     return;
   }
@@ -292,6 +309,8 @@ export async function POST(req: NextRequest) {
         ? physioNewId
         : module === 'medicalgraph'
           ? medicalNewId
+          : module === 'vetgraph'
+            ? vetNewId
           : psychNewId;
 
   const now = new Date().toISOString();

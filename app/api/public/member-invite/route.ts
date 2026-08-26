@@ -42,6 +42,13 @@ import {
   type PsychiatrygraphStore,
 } from '@/lib/clinic/psychiatrygraph';
 import {
+  issuePatientPortalToken as issueVetToken,
+  readVetgraphFromMetadata,
+  writeVetgraphToMetadata,
+  type VetPatient,
+  type VetgraphStore,
+} from '@/lib/clinic/vetgraph';
+import {
   buildServiceMemberPortalLink,
   isInviteExpired,
   isServiceMemberModule,
@@ -69,7 +76,8 @@ type ResolvedInvite = {
     | PhysioPatient
     | DentalPatient
     | MedicalPatient
-    | PsychiatryPatient;
+    | PsychiatryPatient
+    | VetPatient;
   personKind: 'client' | 'patient';
 };
 
@@ -159,6 +167,21 @@ async function resolveInvite(
 
   if (module === 'medicalgraph') {
     const store = readMedicalgraphFromMetadata(meta);
+    const brand = store.settings?.brand_name || businessName;
+    const person = store.patients.find((p) => p.invite_token === clean);
+    if (!person || person.active === false) return null;
+    return {
+      module,
+      companyId: Number(prof.id),
+      meta,
+      businessName: brand,
+      person,
+      personKind: 'patient',
+    };
+  }
+
+  if (module === 'vetgraph') {
+    const store = readVetgraphFromMetadata(meta);
     const brand = store.settings?.brand_name || businessName;
     const person = store.patients.find((p) => p.invite_token === clean);
     if (!person || person.active === false) return null;
@@ -429,6 +452,31 @@ export async function POST(request: NextRequest) {
         store,
         writeMedicalgraphToMetadata
       );
+    } else if (resolved.module === 'vetgraph') {
+      const store = readVetgraphFromMetadata(resolved.meta) as VetgraphStore;
+      const idx = store.patients.findIndex((p) => p.invite_token === token);
+      if (idx < 0) {
+        return NextResponse.json({ error: 'Invite not found' }, { status: 404 });
+      }
+      if (!store.patients[idx].portal_token) {
+        store.patients[idx].portal_token = issueVetToken(resolved.companyId);
+      }
+      store.patients[idx].invite_status = 'accepted';
+      store.patients[idx].invite_accepted_at = now;
+      store.patients[idx].updated_at = now;
+      if (claimUserId) {
+        const { linkPlatformUserId } = await import(
+          '@/lib/messaging/link-platform-user'
+        );
+        linkPlatformUserId(store.patients[idx], claimUserId);
+      }
+      portalToken = store.patients[idx].portal_token!;
+      await saveAdvisorModuleStore(
+        resolved.companyId,
+        'vetgraph',
+        store,
+        writeVetgraphToMetadata
+      );
     } else if (resolved.module === 'psychiatrygraph') {
       const store = readPsychiatrygraphFromMetadata(
         resolved.meta
@@ -503,6 +551,8 @@ export async function POST(request: NextRequest) {
             ? 'medical'
             : resolved.module === 'psychiatrygraph'
               ? 'psychiatry'
+              : resolved.module === 'vetgraph'
+                ? 'vet'
               : 'dental';
     const person = resolved.person as {
       id: string;

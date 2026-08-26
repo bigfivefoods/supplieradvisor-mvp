@@ -82,6 +82,12 @@ import {
   writePsychiatrygraphToMetadata,
 } from '@/lib/clinic/psychiatrygraph';
 import {
+  issuePatientPortalToken as issueVetToken,
+  newId as newVetId,
+  readVetgraphFromMetadata,
+  writeVetgraphToMetadata,
+} from '@/lib/clinic/vetgraph';
+import {
   markPatientJoined,
   newDeskNotice,
   pushDeskNotice,
@@ -137,6 +143,12 @@ function brandFromCompany(company: CompanyRow, hint?: string | null): string {
   if (kind === 'medical' || hasMetaModule(company.meta, 'medicalgraph')) {
     return (
       readMedicalgraphFromMetadata(company.meta).settings?.brand_name ||
+      company.name
+    );
+  }
+  if (kind === 'vet' || hasMetaModule(company.meta, 'vetgraph')) {
+    return (
+      readVetgraphFromMetadata(company.meta).settings?.brand_name ||
       company.name
     );
   }
@@ -728,6 +740,35 @@ async function joinClinic(opts: {
       profile: opts.profile,
       kind: 'medical',
       path: 'medicalgraph',
+      brand: store.settings?.brand_name || opts.company.name,
+      person: stamped,
+      email: opts.email,
+      phone: opts.phone,
+    });
+  }
+
+  if (opts.kind === 'vet') {
+    const store = readVetgraphFromMetadata(opts.company.meta);
+    const { patients, person, created, newlyLinked } = upsertClinicPatient(
+      store.patients || [],
+      {
+        ...shared,
+        newId: () => newVetId('pat'),
+        issueToken: () => issueVetToken(opts.company.id),
+      }
+    );
+    const stamped = await stampSnapshotOnPerson(person, opts.profile);
+    store.patients = patients.map((p) => (p.id === stamped.id ? stamped : p));
+    recordClinicJoin(store, stamped, { created, newlyLinked });
+    await saveMeta(
+      opts.company.id,
+      writeVetgraphToMetadata(opts.company.meta, store)
+    );
+    return finishClinicJoin({
+      company: opts.company,
+      profile: opts.profile,
+      kind: 'vet',
+      path: 'vetgraph',
       brand: store.settings?.brand_name || opts.company.name,
       person: stamped,
       email: opts.email,

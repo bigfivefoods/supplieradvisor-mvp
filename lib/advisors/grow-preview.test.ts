@@ -14,7 +14,15 @@ assert.ok(gym.programmeName);
 
 const physio = growPreviewCopy('physiograph');
 assert.equal(physio.audienceSingular, 'patient');
-assert.ok(physio.pwaTabs.includes('Open diary'));
+assert.ok(physio.pwaTabs.includes('Rehab'));
+const dental = growPreviewCopy('dentalgraph');
+assert.ok(dental.pwaTabs.includes('Chart'));
+const medical = growPreviewCopy('medicalgraph');
+assert.ok(medical.pwaTabs.includes('Records'));
+const vet = growPreviewCopy('vetgraph');
+assert.equal(vet.audienceSingular, 'client');
+assert.ok(vet.pwaTabs.includes('Pets'));
+assert.equal(vet.websiteCta, 'Book a consult');
 const hire = growPreviewCopy('hiregraph');
 assert.equal(hire.audienceSingular, 'customer');
 assert.equal(hire.pwaEyebrow, 'Customer portal · HireAdvisor®');

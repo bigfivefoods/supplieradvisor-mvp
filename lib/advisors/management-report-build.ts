@@ -2225,6 +2225,15 @@ export async function buildAdvisorManagementReport(opts: {
       companyName,
       filters
     );
+  } else if (advisor === 'vetgraph') {
+    const { readVetgraphFromMetadata } = await import('@/lib/clinic/vetgraph');
+    core = buildClinicReport(
+      advisor,
+      readVetgraphFromMetadata(meta) as ClinicLikeStore,
+      companyId,
+      companyName,
+      filters
+    );
   } else if (advisor === 'psychiatrygraph') {
     const { readPsychiatrygraphFromMetadata } = await import(
       '@/lib/clinic/psychiatrygraph'

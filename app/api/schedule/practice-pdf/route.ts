@@ -44,7 +44,8 @@ type ModuleId =
   | 'dentalgraph'
   | 'medicalgraph'
   | 'physiograph'
-  | 'psychiatrygraph';
+  | 'psychiatrygraph'
+  | 'vetgraph';
 
 const MODULE_LABEL: Record<ModuleId, string> = {
   fitgraph: 'GymAdvisor',
@@ -52,6 +53,7 @@ const MODULE_LABEL: Record<ModuleId, string> = {
   medicalgraph: 'MedicalAdvisor',
   physiograph: 'PhysioAdvisor',
   psychiatrygraph: 'PsychiatryAdvisor',
+  vetgraph: 'VetAdvisor',
 };
 
 function moduleBrandPaint(moduleId: ModuleId) {
@@ -260,6 +262,8 @@ export async function GET(request: NextRequest) {
             ? readMedicalgraphFromMetadata(meta)
             : moduleRaw === 'physiograph'
               ? readPhysiographFromMetadata(meta)
+              : moduleRaw === 'vetgraph'
+                ? (await import('@/lib/clinic/vetgraph')).readVetgraphFromMetadata(meta)
               : readPsychiatrygraphFromMetadata(meta);
         brand = store.settings?.brand_name || brand;
         bio = store.settings?.public_bio || '';
@@ -342,6 +346,8 @@ export async function GET(request: NextRequest) {
           ? readMedicalgraphFromMetadata(meta)
           : moduleRaw === 'physiograph'
             ? readPhysiographFromMetadata(meta)
+            : moduleRaw === 'vetgraph'
+              ? (await import('@/lib/clinic/vetgraph')).readVetgraphFromMetadata(meta)
             : readPsychiatrygraphFromMetadata(meta);
       brand = store.settings?.brand_name || brand;
       workingHours = normalizeWorkingHours(store.settings?.working_hours);
