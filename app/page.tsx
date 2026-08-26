@@ -141,7 +141,7 @@ const MODULE_BAND_META: Record<
   industry: {
     title: 'Industry',
     blurb:
-      'Vertical OS modules for agri, extractives, and services — CropAdvisor®, QuarryAdvisor®, GymAdvisor®, HireAdvisor® and clinic Advisors with diaries, waitlists, treatment plans, rooms, marketplace, and in-app care.',
+      'Vertical OS modules for agri, extractives, and services — CropAdvisor®, QuarryAdvisor®, GymAdvisor®, HireAdvisor®, RetailAdvisor®, ContainerAdvisor® and clinic Advisors including VetAdvisor®, with diaries, waitlists, industry PWAs, rooms, marketplace, and in-app care.',
     accent:
       'text-emerald-800 border-emerald-200 bg-emerald-50/80 dark:text-emerald-300 dark:border-emerald-500/40 dark:bg-emerald-500/10',
     step: '03',
@@ -150,7 +150,7 @@ const MODULE_BAND_META: Record<
   government: {
     title: 'Government',
     blurb:
-      'Public-sector programmes only — SchoolAdvisor® (DBE / NSNP: department · school kitchen · SP) and Health (DoH facilities). National → Provincial → Municipal → Local packaging, not private company modules.',
+      'Public-sector programmes only — SchoolAdvisor® (DBE / NSNP: department · school kitchen · SP) and HealthAdvisor® (DoH facilities). National → Provincial → Municipal → Local packaging, not private company modules.',
     accent:
       'text-violet-800 border-violet-200 bg-violet-50/80 dark:text-violet-300 dark:border-violet-500/40 dark:bg-violet-500/10',
     step: '04',
@@ -214,8 +214,8 @@ const MODULE_OPTIONS: Array<{
     iconTone: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300',
     bullets: [
       'CropAdvisor® agri · QuarryAdvisor® aggregates',
-      'GymAdvisor® · rooms · waitlist · marketplace',
-      'Clinic Advisors · exclusive diaries · treatment plans',
+      'GymAdvisor® · HireAdvisor® · RetailAdvisor® · ContainerAdvisor®',
+      'Clinic Advisors including VetAdvisor® · diaries · PWAs',
     ],
     href: '#modules-industry',
     cta: 'Explore Industry modules',
@@ -226,12 +226,12 @@ const MODULE_OPTIONS: Array<{
     title: 'Government',
     price: 'Specialist setup',
     eyebrow: 'Public programmes',
-    body: 'National → Provincial → Municipal → Local programme workspaces — SchoolAdvisor® (DBE / NSNP), DoH facilities, multi-entity roles. Schools always run the public-sector government process.',
+    body: 'National → Provincial → Municipal → Local programme workspaces — SchoolAdvisor® (DBE / NSNP), HealthAdvisor® (DoH), multi-entity roles. Schools always run the public-sector government process.',
     tone: 'border-violet-200 bg-gradient-to-br from-violet-50/80 to-white dark:border-violet-500/30 dark:from-violet-500/10 dark:to-black',
     iconTone: 'bg-violet-100 text-violet-800 dark:bg-violet-500/15 dark:text-violet-300',
     bullets: [
       'SchoolAdvisor® (NSNP / DBE · public sector)',
-      'Health (DoH facilities)',
+      'HealthAdvisor® (DoH facilities)',
       'National · Provincial · Municipal · Local',
     ],
     href: '#modules-government',
@@ -632,13 +632,13 @@ const MODULE_SECTION_BANDS: Array<{
     id: 'industry',
     title: 'Industry',
     blurb:
-      'Vertical depth — CropAdvisor®, QuarryAdvisor®, and service Advisors (Fit · Physio · Dental · Psychiatry · Medical) with diaries, waitlist desks, treatment plans, rooms, portals, marketplace listings, and in-app care messages — not brochure modules.',
+      'Vertical depth — CropAdvisor®, QuarryAdvisor®, GymAdvisor®, HireAdvisor®, RetailAdvisor®, ContainerAdvisor®, and clinic Advisors (Physio · Dental · Psychiatry · Medical · Vet) with diaries, waitlist desks, industry PWAs, rooms, marketplace listings, and in-app care messages — not brochure modules.',
   },
   {
     id: 'government',
     title: 'Government',
     blurb:
-      'Public programmes — SchoolAdvisor® (DBE · school kitchen · SP · NSNP) and Health (DoH). Always Public Sector packaging: National → Provincial → Municipal → Local. Specialist-led setup for agencies; self-serve local school kitchens.',
+      'Public programmes — SchoolAdvisor® (DBE · school kitchen · SP · NSNP) and HealthAdvisor® (DoH). Always Public Sector packaging: National → Provincial → Municipal → Local. Specialist-led setup for agencies; self-serve local school kitchens.',
   },
 ];
 

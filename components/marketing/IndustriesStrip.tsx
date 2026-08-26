@@ -15,90 +15,45 @@ import {
   BrainCircuit,
   Hospital,
   Mountain,
-  School,
+  Store,
+  BriefcaseBusiness,
+  Container,
+  PawPrint,
+  type LucideIcon,
 } from 'lucide-react';
+import {
+  INDUSTRIES as CATALOGUE,
+  type IndustrySlug,
+} from '@/lib/marketing/industries';
 
-/** Prefer /industries/[slug] so home strip matches the industries hub */
-const INDUSTRIES = [
-  {
-    slug: 'food-beverage',
-    name: 'Food & beverage',
-    desc: 'Lots, HACCP, holds, cold chain, and outlet impact that feeds people.',
-    icon: ShoppingBag,
-  },
-  {
-    slug: 'agriculture',
-    name: 'Agriculture & inputs',
-    desc: 'CropAdvisor® — multi-crop fields, harvest, inputs, fleet fuel, regen, and farm-to-buyer trade.',
-    icon: Leaf,
-  },
-  {
-    slug: 'quarry-aggregates',
-    name: 'Quarry & aggregates',
-    desc: 'QuarryAdvisor® — sites, reserves, plant, weighbridge, fleet, QA, and permits.',
-    icon: Mountain,
-  },
-  {
-    slug: 'manufacturing',
-    name: 'Manufacturing',
-    desc: 'BOM, MPS, MRP, work cells, cost centres, and labour on the balance sheet.',
-    icon: Factory,
-  },
-  {
-    slug: 'distribution',
-    name: 'Distribution & logistics',
-    desc: 'Inbound/outbound, carriers, fleet, OTIF, and live shipment events.',
-    icon: Truck,
-  },
-  {
-    slug: 'fitness-gyms',
-    name: 'Fitness & gyms',
-    desc: 'GymAdvisor® — rooms, waitlist, freeze & packs, in-app messages by system ID, marketplace listing, coach-led or front desk.',
-    icon: Dumbbell,
-  },
-  {
-    slug: 'physio-allied-health',
-    name: 'Physio & allied health',
-    desc: 'PhysioAdvisor® — exclusive diaries + rooms, waitlist desk, treatment-plan book next, chart/scripts, marketplace.',
-    icon: Stethoscope,
-  },
-  {
-    slug: 'dental',
-    name: 'Dental practices',
-    desc: 'DentalAdvisor® — multi-chair practice diary, waitlist desk, treatment plans, chart/scripts, marketplace.',
-    icon: Smile,
-  },
-  {
-    slug: 'mental-health',
-    name: 'Mental health',
-    desc: 'PsychiatryAdvisor® — exclusive diaries, waitlist, treatment plans, portal, marketplace.',
-    icon: BrainCircuit,
-  },
-  {
-    slug: 'medical-practices',
-    name: 'Medical practices',
-    desc: 'MedicalAdvisor® — multi-room diaries, waitlist, treatment plans, Rx on visits, marketplace.',
-    icon: Hospital,
-  },
-  {
-    slug: 'public-sector',
-    name: 'Public sector (B2G)',
-    desc: 'SchoolAdvisor® (NSNP / DBE · public sector), Health (DoH), transparent procurement, and audit-ready packs.',
-    icon: Landmark,
-  },
-  {
-    slug: 'public-sector',
-    name: 'SchoolAdvisor®',
-    desc: 'School kitchens, learners, approved brands, SPs and serve day — government process only.',
-    icon: School,
-  },
-  {
-    slug: 'multi-entity',
-    name: 'Groups & brands',
-    desc: 'Separate company workspaces, roles, and membership-scoped data.',
-    icon: Building2,
-  },
-];
+const ICONS: Record<IndustrySlug, LucideIcon> = {
+  'food-beverage': ShoppingBag,
+  agriculture: Leaf,
+  'quarry-aggregates': Mountain,
+  manufacturing: Factory,
+  distribution: Truck,
+  containers: Container,
+  'fitness-gyms': Dumbbell,
+  'physio-allied-health': Stethoscope,
+  dental: Smile,
+  'mental-health': BrainCircuit,
+  'medical-practices': Hospital,
+  'veterinary-practices': PawPrint,
+  'hire-rental': BriefcaseBusiness,
+  'retail-shop': Store,
+  'public-sector': Landmark,
+  'multi-entity': Building2,
+  'staffing-recruitment': BriefcaseBusiness,
+};
+
+const HIDE = new Set<IndustrySlug>(['staffing-recruitment']);
+
+const INDUSTRIES = CATALOGUE.filter((i) => !HIDE.has(i.slug)).map((i) => ({
+  slug: i.slug,
+  name: i.name,
+  desc: i.cardBlurb || i.subhead,
+  icon: ICONS[i.slug] || Building2,
+}));
 
 export default function IndustriesStrip() {
   return (
@@ -115,23 +70,20 @@ export default function IndustriesStrip() {
             One OS. Sector-ready depth.
           </h2>
           <p className="mt-4 text-base text-slate-600 sm:text-lg">
-            Same platform fabric — Core OS, Industry Advisors (agri, extractives,
-            gyms, clinics), and government programmes like SchoolAdvisor®
-            (NSNP · public sector): exclusive diaries & rooms, kitchens,
-            waitlist desks, portals, and marketplace — SA bills the company
-            subscription, not patient fees.
+            Same platform fabric — Core OS, Industry Advisors (CropAdvisor®,
+            QuarryAdvisor®, GymAdvisor®, PhysioAdvisor®, DentalAdvisor®,
+            PsychiatryAdvisor®, MedicalAdvisor®, VetAdvisor®, HireAdvisor®,
+            RetailAdvisor®, ContainerAdvisor®), and government programmes
+            (SchoolAdvisor® · HealthAdvisor®). Exclusive diaries &amp; rooms,
+            industry PWAs, waitlist desks, kitchens, and marketplace — SA bills
+            the company subscription, not member or patient fees.
           </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {INDUSTRIES.map((ind) => {
-            const href =
-              'href' in ind && ind.href
-                ? ind.href
-                : `/industries/${'slug' in ind ? ind.slug : ''}`;
-            return (
+          {INDUSTRIES.map((ind) => (
             <Link
-              key={ind.name}
-              href={href}
+              key={ind.slug}
+              href={`/industries/${ind.slug}`}
               className="group rounded-3xl border border-slate-200 bg-gradient-to-b from-white to-sky-50/30 p-6 shadow-sm transition-all hover:border-[#00b4d8]/45 hover:shadow-md"
             >
               <ind.icon className="mb-3 h-5 w-5 text-[#00b4d8]" />
@@ -145,8 +97,7 @@ export default function IndustriesStrip() {
                 Explore <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
               </span>
             </Link>
-            );
-          })}
+          ))}
         </div>
       </div>
     </section>

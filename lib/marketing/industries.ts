@@ -14,9 +14,11 @@ export type IndustrySlug =
   | 'dental'
   | 'mental-health'
   | 'medical-practices'
+  | 'veterinary-practices'
   | 'staffing-recruitment'
   | 'hire-rental'
   | 'retail-shop'
+  | 'containers'
   | 'public-sector'
   | 'multi-entity';
 
@@ -186,13 +188,43 @@ export const INDUSTRIES: IndustryPage[] = [
     ],
   },
   {
+    slug: 'containers',
+    name: 'Container last-mile',
+    headline: 'Outlets · contractors · impact — one last-mile OS.',
+    subhead:
+      'ContainerAdvisor® runs container sites, resellers, contractors, GPS, and jobs/meals impact on the same Core books as POs, inventory, and finance — not a second ERP.',
+    cardBlurb:
+      'ContainerAdvisor® — sites, resellers, contractors, GPS, jobs and meals impact.',
+    pack: 'ContainerAdvisor®',
+    pains: [
+      'Outlet lists in spreadsheets, GPS nowhere near the books',
+      'Contractor payouts and impact metrics in a side file',
+      'No shared last-mile view with inventory and finance',
+    ],
+    wins: [
+      'Container sites and resellers on one map',
+      'Contractors, payouts and performance on Core People + Finance',
+      'Jobs / meals impact next to the same stock and invoices',
+      'Process design and management pack on the hub',
+    ],
+    modules: [
+      'ContainerAdvisor®',
+      'Inventory',
+      'Suppliers',
+      'People',
+      'Finance',
+      'Impact',
+      'Operations',
+    ],
+  },
+  {
     slug: 'fitness-gyms',
     name: 'Fitness & gyms',
     headline: 'Coaches · members · classes — one gym OS.',
     subhead:
       'GymAdvisor® coaches (employed + contractors in People; leave blocks the diary), members on Customers 360 (class subscriptions, debit bank, invoices), rooms on the calendar, waitlist and recalls that write CRM activity, SA Member, website embed and marketplace — VAT journals and debit-order file on Finance.',
     cardBlurb:
-      'GymAdvisor® — coaches, rooms, waitlist, in-app messages, marketplace.',
+      'GymAdvisor® — coaches, rooms, waitlist, member PWA, marketplace.',
     pack: 'GymAdvisor®',
     pains: [
       'Membership spreadsheets and lost class bookings',
@@ -206,6 +238,7 @@ export const INDUSTRIES: IndustryPage[] = [
       'In-app care & class groups by system user ID',
       'Reminders, recalls, staff Today PWA',
       'Website embed + marketplace listing',
+      'Installable member PWA (Class · Progress · You)',
     ],
     modules: [
       'GymAdvisor®',
@@ -225,7 +258,7 @@ export const INDUSTRIES: IndustryPage[] = [
     subhead:
       'PhysioAdvisor® for physio, OT, biokinetics and allied practices: practitioners, patient invites & portal (POPIA), rehab packs & treatment plans, exclusive clinician diaries with rooms, waitlist desk, medical chart (aid, docs, scripts, claims), in-app messaging by system user ID, marketplace listing, and clinic website.',
     cardBlurb:
-      'PhysioAdvisor® — rooms, waitlist, treatment plans, portal, marketplace.',
+      'PhysioAdvisor® — rooms, waitlist, treatment plans, Rehab PWA, marketplace.',
     pack: 'PhysioAdvisor®',
     pains: [
       'Paper charts and scattered medical-aid claims',
@@ -238,6 +271,7 @@ export const INDUSTRIES: IndustryPage[] = [
       'Exclusive clinician diaries + rooms; no double-book',
       'Waitlist desk, 24h reminders, treatment-plan book next',
       'In-app care messages by system user ID; marketplace listing',
+      'Patient PWA with industry language (Book · Diary · Rehab)',
       'End-to-end process design + printable PDF on the hub',
     ],
     modules: [
@@ -258,7 +292,7 @@ export const INDUSTRIES: IndustryPage[] = [
     subhead:
       'DentalAdvisor® dentists, hygienists and staff, patient invites & portal, treatment catalogue, care packs & treatment plans, multi-chair practice diary (exclusive clinician books), waitlist desk, medical chart with scripts, in-app messaging, marketplace listing, and practice website.',
     cardBlurb:
-      'DentalAdvisor® — staff, portal, chairs, waitlist, treatment plans, marketplace.',
+      'DentalAdvisor® — chairs, waitlist, treatment plans, Chart PWA, marketplace.',
     pack: 'DentalAdvisor®',
     pains: [
       'Care plans and charts in different systems',
@@ -271,6 +305,7 @@ export const INDUSTRIES: IndustryPage[] = [
       'Practice multi-chair diary without double-booking a clinician',
       'Waitlist desk, reminders, treatment-plan book next',
       'In-app messaging + marketplace listing',
+      'Patient PWA with industry language (Book · Diary · Chart)',
     ],
     modules: [
       'DentalAdvisor®',
@@ -290,7 +325,7 @@ export const INDUSTRIES: IndustryPage[] = [
     subhead:
       'PsychiatryAdvisor® for psychiatry and psychology: clinicians, patients (POPIA), therapy packages & treatment plans, exclusive clinician diaries with rooms, waitlist desk, medical chart with scripts, patient portal, in-app messaging by system user ID, marketplace listing, and practice website.',
     cardBlurb:
-      'PsychiatryAdvisor® — diaries, waitlist, treatment plans, portal, marketplace.',
+      'PsychiatryAdvisor® — diaries, waitlist, treatment plans, Records PWA, marketplace.',
     pack: 'PsychiatryAdvisor®',
     pains: [
       'Session notes and scripts split across tools',
@@ -303,6 +338,7 @@ export const INDUSTRIES: IndustryPage[] = [
       'Waitlist desk, treatment-plan book next, recalls',
       'Patient portal and shared care summary (when enabled)',
       'In-app messaging + marketplace listing',
+      'Patient PWA with industry language (Book · Diary · Records)',
     ],
     modules: [
       'PsychiatryAdvisor®',
@@ -322,7 +358,7 @@ export const INDUSTRIES: IndustryPage[] = [
     subhead:
       'MedicalAdvisor® for GPs, specialists and nurses: patients (POPIA), consults, care packs & treatment plans, multi-room exclusive clinician diaries, waitlist desk, medical chart with prescriptions linked to visits, patient portal, in-app messaging, marketplace listing, and practice website.',
     cardBlurb:
-      'MedicalAdvisor® — rooms, waitlist, Rx on visits, portal, marketplace.',
+      'MedicalAdvisor® — rooms, waitlist, Rx on visits, Records PWA, marketplace.',
     pack: 'MedicalAdvisor®',
     pains: [
       'Scripts not tied to the appointment',
@@ -335,6 +371,7 @@ export const INDUSTRIES: IndustryPage[] = [
       'Exclusive clinician diaries + rooms; waitlist desk',
       'Treatment-plan book next; patient portal',
       'In-app messaging + marketplace listing',
+      'Patient PWA with industry language (Book · Diary · Records)',
     ],
     modules: [
       'MedicalAdvisor®',
@@ -348,13 +385,45 @@ export const INDUSTRIES: IndustryPage[] = [
     ],
   },
   {
+    slug: 'veterinary-practices',
+    name: 'Veterinary practices',
+    headline: 'Consults · vaccines · client app — vet OS.',
+    subhead:
+      'VetAdvisor® for vets, veterinary nurses and specialists: clients, animals, consults, wellness packs, multi-room exclusive diaries, waitlist desk, clinical chart with vaccines linked to visits, client PWA, in-app messaging, marketplace listing, and practice website.',
+    cardBlurb:
+      'VetAdvisor® — vets, clients, vaccines, waitlist, Pets PWA, marketplace.',
+    pack: 'VetAdvisor®',
+    pains: [
+      'Client and animal records in different books',
+      'Vaccine recalls chasing WhatsApp',
+      'No client self-booking on the phone',
+      'Pet medical-aid packs assembled after the consult',
+    ],
+    wins: [
+      'Vets, clients and animals on one practice OS',
+      'Exclusive diaries + rooms; waitlist desk; vaccine recalls',
+      'Client PWA with industry language (Book · Diary · Pets)',
+      'Pet medical aid, marketplace listing, in-app care messages',
+    ],
+    modules: [
+      'VetAdvisor®',
+      'Vets',
+      'Clients · animals · vaccines',
+      'Wellness packs',
+      'Calendar & waitlist desk',
+      'Messages',
+      'Website · marketplace',
+      'Reports',
+    ],
+  },
+  {
     slug: 'retail-shop',
     name: 'Retail till',
     headline: 'Ring up · tap or scan · pay bills at the counter.',
     subhead:
       'RetailAdvisor® is a B2C till OS: catalogue, cash, or QR / NFC so the customer pays on SA Member. The same till can open their gym, clinic and hire bills. GymAdvisor and clinic desks reuse the same present-to-pay path.',
     cardBlurb:
-      'RetailAdvisor® — till, QR/NFC phone pay, collect SA Member bills at the counter.',
+      'RetailAdvisor® — till, QR/NFC phone pay, shopper PWA, collect SA Member bills at the counter.',
     pack: 'RetailAdvisor®',
     pains: [
       'Card machines and WhatsApp proofs that never match the till',
@@ -382,9 +451,9 @@ export const INDUSTRIES: IndustryPage[] = [
     name: 'Hire & rental',
     headline: 'List gear · people rent free · 2.5% on the business.',
     subhead:
-      'HireAdvisor® is a hire/rental marketplace: suppliers list plant, vehicles, tools, kids party gear (jumping castles, soft play), events kit and more; customers (people) rent B2C on SA Member for free. Categories enforce different requirements — e.g. jumping castles need flat ground, power, adult supervision and age/weight limits. The listing business pays 2.5% on rental GMV. Members pay rental + refundable deposit only.',
+      'HireAdvisor® is a hire/rental marketplace: suppliers list plant, vehicles, tools, kids party gear (jumping castles, soft play), events kit and more; people rent B2C on SA Member for free. Categories enforce different requirements — e.g. jumping castles need flat ground, power, adult supervision and age/weight limits. The listing business pays a 2.5% take-rate on hire GMV. Members pay rental + refundable deposit only — no platform fee.',
     cardBlurb:
-      'HireAdvisor® — jumping castles, plant, tools; B2C hire free for members; 2.5% on the business.',
+      'HireAdvisor® — jumping castles, plant, tools; members hire free; 2.5% on the listing business.',
     pack: 'HireAdvisor®',
     pains: [
       'WhatsApp hire books and lost deposits',
@@ -396,8 +465,8 @@ export const INDUSTRIES: IndustryPage[] = [
     wins: [
       'Kids party category (jumping castles · soft play · slides)',
       'Category stacks (plant · vehicles · tools · events…)',
-      'B2C bookings with dual fee quote before OUT',
-      '2.5% supplier + 2.5% customer on rental GMV',
+      'B2C hire on the free SA Member app / Hire PWA',
+      '2.5% take-rate on the listing business — members pay no platform fee',
       'Handover OUT/RETURN + management pack + process PDF',
     ],
     modules: [
@@ -434,10 +503,10 @@ export const INDUSTRIES: IndustryPage[] = [
     name: 'Public sector (B2G)',
     headline: 'Procurement and programmes that face scrutiny.',
     subhead:
-      'Transparent supplier discovery, documented trade, verification, export packs — plus SchoolAdvisor® (NSNP / DBE · public sector only) and Health (DoH) programme pathways on the same platform.',
+      'Transparent supplier discovery, documented trade, verification, export packs — plus SchoolAdvisor® (NSNP / DBE · public sector only) and HealthAdvisor® (DoH) programme pathways on the same platform. Government programmes are set up by SupplierAdvisor admin.',
     cardBlurb:
-      'SchoolAdvisor® NSNP, Health (DoH), transparent procurement, audit-ready packs.',
-    pack: 'SchoolAdvisor®',
+      'SchoolAdvisor® NSNP and HealthAdvisor® (DoH) — government programmes, audit-ready packs.',
+    pack: 'SchoolAdvisor® · HealthAdvisor®',
     pains: [
       'Opaque supplier selection',
       'Audit packs assembled after the fact',
@@ -450,13 +519,13 @@ export const INDUSTRIES: IndustryPage[] = [
       'OTIFEF and SHEQ / NCR trails for oversight',
       'SchoolAdvisor® process design (DBE · school kitchen · SP)',
       'Always Public Sector packaging for schools',
-      'Health facility pathways on the OS',
+      'HealthAdvisor® facility pathways on the OS',
     ],
     modules: [
       'SchoolAdvisor®',
+      'HealthAdvisor®',
       'Network',
       'Suppliers',
-      'Health (DoH)',
       'SHEQ',
       'Quality',
       'Finance',
@@ -480,7 +549,7 @@ export const INDUSTRIES: IndustryPage[] = [
       'Company switcher + roles',
       'Scoped COA, inventory, people',
       'Invite partners without sharing the group',
-      'Industry packs per company (Field · Fit · clinic…)',
+      'Industry packs per company (Crop · Gym · clinic · Vet · Hire…)',
     ],
     modules: [
       'Company',

@@ -284,7 +284,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'GymAdvisor® · gym & fitness services',
-        hint: 'Coaches, rooms, packs, waitlist, phone check-in QR, SA Member app QR for signup, in-app messages, marketplace',
+        hint: 'Coaches, rooms, packs, waitlist, phone check-in QR, member PWA (Class · Progress), marketplace',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -292,7 +292,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'PhysioAdvisor® · physio & allied health',
-        hint: 'Exclusive diaries + rooms, waitlist, treatment plans, POPIA, chart, SA Member app QR, marketplace',
+        hint: 'Exclusive diaries + rooms, waitlist, treatment plans, POPIA, patient PWA (Rehab), marketplace',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -300,7 +300,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'DentalAdvisor® · dental practice OS',
-        hint: 'Multi-chair diary, waitlist, treatment plans, chart, SA Member app QR for patients, marketplace',
+        hint: 'Multi-chair diary, waitlist, treatment plans, patient PWA (Chart), marketplace',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -308,7 +308,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'PsychiatryAdvisor® · mental health OS',
-        hint: 'Exclusive diaries + rooms, waitlist, treatment plans, portal, SA Member app QR, marketplace',
+        hint: 'Exclusive diaries + rooms, waitlist, treatment plans, patient PWA (Records), marketplace',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -316,7 +316,23 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'MedicalAdvisor® · GP & medical practice OS',
-        hint: 'Multi-room diaries, waitlist, treatment plans, Rx, portal, SA Member app QR, marketplace',
+        hint: 'Multi-room diaries, waitlist, treatment plans, Rx, patient PWA (Records), marketplace',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'VetAdvisor® · veterinary practice OS',
+        hint: 'Vets, clients, animals, consults, vaccines, exclusive diaries, waitlist, client PWA (Pets), marketplace',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'ContainerAdvisor® · last-mile container outlets',
+        hint: 'Container sites, resellers, contractors, GPS, jobs/meals impact — not a second ERP',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -371,8 +387,16 @@ const SECTIONS: Section[] = [
         sa: 'strong',
       },
       {
-        capability: 'Member / patient self-serve portals',
-        hint: 'Tokenised portals — book, waitlist, family, identity, feedback, shared medical summary; POPIA notice',
+        capability: 'Industry-branded member / client PWA',
+        hint: 'Installable phone app per practice — Gym, Physio, Dental, Psychiatry, Medical, Vet, Hire, Retail with that industry’s language',
+        excel: 'no',
+        xero: 'no',
+        erp: 'no',
+        sa: 'strong',
+      },
+      {
+        capability: 'Member / patient / client self-serve portals',
+        hint: 'Tokenised PWAs — book, waitlist, household, identity, feedback, shared care summary; POPIA notice',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
@@ -395,8 +419,8 @@ const SECTIONS: Section[] = [
         sa: 'strong',
       },
       {
-        capability: 'Public programmes · Schools NSNP & Health',
-        hint: 'DBE / PEU schools feeding and DoH facility pathways',
+        capability: 'SchoolAdvisor® + HealthAdvisor® (government)',
+        hint: 'NSNP / DBE school kitchens and HealthAdvisor® DoH facility pathways — admin-set-up programmes, not private packs',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
@@ -449,7 +473,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Book Advisor appointments',
-        hint: 'Medical, dental, physio, psychiatry and gym diaries — members book from SA Member',
+        hint: 'Gym, physio, dental, psychiatry, medical and vet diaries — members book from SA Member or the practice PWA',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
@@ -549,8 +573,8 @@ const SECTIONS: Section[] = [
     title: 'Trust fabric & last-mile',
     rows: [
       {
-        capability: 'Container last-mile & impact metrics',
-        hint: 'Outlets, contractors, jobs / meals impact',
+        capability: 'ContainerAdvisor® last-mile & impact metrics',
+        hint: 'Outlets, contractors, GPS, jobs / meals impact on the same Core books',
         excel: 'no',
         xero: 'no',
         erp: 'no',
@@ -595,7 +619,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'Industry packs opt-in (vertical hubs)',
-        hint: 'Enable CropAdvisor, QuarryAdvisor, GymAdvisor, PhysioAdvisor, DentalAdvisor, PsychiatryAdvisor, MedicalAdvisor only when you need them',
+        hint: 'Enable CropAdvisor, QuarryAdvisor, GymAdvisor, clinic Advisors (Physio · Dental · Psychiatry · Medical · Vet), HireAdvisor, RetailAdvisor, ContainerAdvisor only when you need them',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
@@ -828,12 +852,15 @@ export default function ComparePlatforms() {
               internal and external in-app messaging
             </strong>
             , ops, finance (budgets &amp; group hierarchy), quality, people,
-            trust, and industry hubs (CropAdvisor®, QuarryAdvisor®, GymAdvisor®
-            and clinic Advisors with waitlist desks, treatment plans, rooms, and
-            marketplace listings) — plus a free SA Member B2C app (check-in,
-            family book, waitlist, .ics, pay & proof, consent-to-share records)
-            and referral earnings when you onboard your chain (up to 10% · L1 ·
-            L2 · L3).
+            trust, and Industry Advisors (CropAdvisor®, QuarryAdvisor®,
+            GymAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®,
+            MedicalAdvisor®, VetAdvisor®, HireAdvisor®, RetailAdvisor®,
+            ContainerAdvisor®) with waitlist desks, treatment plans, rooms,
+            industry PWAs, and marketplace listings — plus SchoolAdvisor® and
+            HealthAdvisor® for government, a free SA Member B2C app (check-in,
+            household book, waitlist, .ics, pay &amp; proof, consent-to-share
+            records) and referral earnings when you onboard your chain (up to
+            10% · L1 · L2 · L3).
           </p>
         </div>
 
@@ -861,7 +888,7 @@ export default function ComparePlatforms() {
             {
               name: 'SupplierAdvisor®',
               who: 'The supply-chain OS',
-              body: `Network + in-app messaging (system user ID) + ops + finance with live bank feeds on selected banks + people + service Advisors + free SA Member (gym QR check-in, family book, waitlist, .ics, pay & proof, consent-to-share records). Onboard your chain and earn up to 10% back (L1 6% · L2 3% · L3 1%). ${COMPANY_TRIAL_DAYS}-day trial. From R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo.`,
+              body: `Network + in-app messaging (system user ID) + ops + finance with live bank feeds on selected banks + people + Industry Advisors (including VetAdvisor®) + branded PWAs + free SA Member (gym QR check-in, household book, waitlist, .ics, pay & proof, consent-to-share records). Onboard your chain and earn up to 10% back (L1 6% · L2 3% · L3 1%). ${COMPANY_TRIAL_DAYS}-day trial. From R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo.`,
               icon: Sparkles,
               highlight: true,
             },
