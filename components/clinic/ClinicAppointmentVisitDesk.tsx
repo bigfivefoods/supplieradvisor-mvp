@@ -91,6 +91,7 @@ const PATIENT_PATH: Record<ClinicClaimsModule, string> = {
   dentalgraph: '/dashboard/dentalgraph/patients',
   medicalgraph: '/dashboard/medicalgraph/patients',
   psychiatrygraph: '/dashboard/psychiatrygraph/patients',
+  vetgraph: '/dashboard/vetgraph/patients',
 };
 
 export function ClinicAppointmentVisitDesk({
