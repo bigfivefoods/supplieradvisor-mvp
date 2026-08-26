@@ -416,6 +416,103 @@ export function isGovernmentProgrammeModule(id: string): boolean {
   return (GOVERNMENT_PROGRAMME_MODULE_IDS as readonly string[]).includes(id);
 }
 
+export type GovernmentProgrammeKind = 'education' | 'health';
+
+type GovernmentKindHints = {
+  metadata?: unknown;
+  packaging?: {
+    entityTypeId?: string | null;
+    businessTypeId?: string | null;
+    businessTypeIds?: string[] | null;
+    moduleIds?: string[] | null;
+  } | null;
+};
+
+/**
+ * SchoolAdvisor (DBE / NSNP) and HealthAdvisor (DoH) share the public
+ * procurement pack but are XOR on one company. Prefer identity fields —
+ * never treat the pack itself as "both programmes".
+ */
+export function governmentProgrammeKindFromContext(
+  opts: GovernmentKindHints
+): GovernmentProgrammeKind | null {
+  const meta =
+    opts.metadata &&
+    typeof opts.metadata === 'object' &&
+    !Array.isArray(opts.metadata)
+      ? (opts.metadata as Record<string, unknown>)
+      : {};
+  const pack = opts.packaging || {};
+  const entityKind = String(meta.entity_kind || '').toLowerCase();
+  const programme = String(meta.programme || '').toLowerCase();
+  const org = String(meta.org_type || '').toLowerCase();
+  const entityType = String(
+    pack.entityTypeId || meta.os_entity_type || ''
+  ).toLowerCase();
+  const biz = [
+    pack.businessTypeId,
+    ...(pack.businessTypeIds || []),
+    meta.os_business_type_id,
+    ...(Array.isArray(meta.os_business_type_ids)
+      ? meta.os_business_type_ids
+      : []),
+  ]
+    .map((v) => String(v || '').toLowerCase())
+    .join(' ');
+  const blob = `${entityKind} ${programme} ${org} ${entityType} ${biz}`;
+
+  if (
+    programme === 'health' ||
+    entityKind.includes('health') ||
+    org.includes('government_health') ||
+    org.includes('department_of_health') ||
+    /\b(doh|prov_health|nat_doh|health_facility)\b/.test(blob)
+  ) {
+    return 'health';
+  }
+  if (
+    programme === 'education' ||
+    programme === 'schooladvisor' ||
+    entityKind.includes('education') ||
+    entityKind === 'school' ||
+    org.includes('government_education') ||
+    entityType === 'school' ||
+    /\b(dbe|peu|nsnp|nat_doe|prov_dbe|public_school|special_school)\b/.test(
+      blob
+    )
+  ) {
+    return 'education';
+  }
+
+  const mods = [
+    ...(pack.moduleIds || []),
+    ...(Array.isArray(meta.industry_modules) ? meta.industry_modules : []),
+  ].map((id) => String(id || '').toLowerCase());
+  const wantsSchools = mods.includes('schools') || mods.includes('pp_nsnp');
+  const wantsHealth = mods.includes('health') || mods.includes('pp_health');
+  if (wantsHealth && !wantsSchools) return 'health';
+  if (wantsSchools && !wantsHealth) return 'education';
+  return null;
+}
+
+/** Keep only the government programme this org actually runs. */
+export function applyGovernmentProgrammeXor(
+  map: EnabledModulesMap,
+  opts: GovernmentKindHints
+): EnabledModulesMap {
+  const kind = governmentProgrammeKindFromContext(opts);
+  if (!kind) return map;
+  const next: EnabledModulesMap = { ...map };
+  if (kind === 'health') {
+    next.health = true;
+    next.schools = false;
+  } else {
+    next.schools = true;
+    next.health = false;
+  }
+  return next;
+}
+
 /** True for the SupplierAdvisor control-plane company (management console). */
 export function isSupplierAdvisorPlatformCompany(opts: {
   tradingName?: string | null;
@@ -528,7 +625,11 @@ export function applyAdvisorVisibility(opts: {
     const pack = getIndustryPack(String(pid));
     if (!pack) continue;
     for (const id of appModulesUnlockedByPack(pack)) {
-      if (VERTICAL_ID_SET.has(id)) next[id] = true;
+      // SchoolAdvisor / HealthAdvisor share public_procurement — do not
+      // force both hubs on. XOR below picks the org's programme.
+      if (VERTICAL_ID_SET.has(id) && !isGovernmentProgrammeModule(id)) {
+        next[id] = true;
+      }
     }
   }
   if (
@@ -549,7 +650,13 @@ export function applyAdvisorVisibility(opts: {
 
 export function resolveVisibleModules(opts: {
   stored?: unknown;
-  packaging?: { packIds?: string[] | null } | null;
+  packaging?: {
+    packIds?: string[] | null;
+    moduleIds?: string[] | null;
+    entityTypeId?: string | null;
+    businessTypeId?: string | null;
+    businessTypeIds?: string[] | null;
+  } | null;
   metadata?: unknown;
   companyId?: number | null;
   companyName?: string | null;
@@ -571,7 +678,10 @@ export function resolveVisibleModules(opts: {
   });
   if (platformCo) next.platform = true;
   else next.platform = false;
-  return next;
+  return applyGovernmentProgrammeXor(next, {
+    metadata: opts.metadata,
+    packaging: opts.packaging,
+  });
 }
 
 function uniqueExistingIds(
@@ -911,7 +1021,7 @@ export function mergeEnabledModulesIntoMetadata(
     !Array.isArray(existingMetadata)
       ? { ...(existingMetadata as Record<string, unknown>) }
       : {};
-  return {
+  const mergedMeta = {
     ...prev,
     enabled_modules: normalizeEnabledModules(enabledModules),
     ...(opts?.markConfigured !== false
@@ -921,6 +1031,11 @@ export function mergeEnabledModulesIntoMetadata(
         }
       : {}),
   };
+  mergedMeta.enabled_modules = applyGovernmentProgrammeXor(
+    mergedMeta.enabled_modules as EnabledModulesMap,
+    { metadata: mergedMeta }
+  );
+  return mergedMeta;
 }
 
 /** Type guard helper for MODULE_NAV export usage */

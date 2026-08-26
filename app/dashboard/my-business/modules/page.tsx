@@ -36,6 +36,7 @@ import { SectionLabel } from '@/components/relationship/RelationshipChrome';
 import {
   countEnabledOptionalModules,
   extractEnabledModulesFromMetadata,
+  governmentProgrammeKindFromContext,
   groupWorkspaceModules,
   hasModulesConfigured,
   isAlwaysOnModule,
@@ -195,21 +196,12 @@ function ModulesInner() {
 
   const programmeForced = useMemo(() => {
     const s = new Set<string>();
-    const packMods = packaging?.moduleIds || [];
-    const prog = String(metadata.programme || '');
-    const entity = String(packaging?.entityTypeId || '');
-    if (
-      packMods.includes('schools') ||
-      prog === 'schooladvisor' ||
-      entity === 'school' ||
-      entity === 'provincial' ||
-      entity === 'national'
-    ) {
-      s.add('schools');
-    }
-    if (packMods.includes('health') || prog === 'health') {
-      s.add('health');
-    }
+    const kind = governmentProgrammeKindFromContext({
+      metadata,
+      packaging,
+    });
+    if (kind === 'education') s.add('schools');
+    if (kind === 'health') s.add('health');
     return s;
   }, [metadata, packaging]);
 
@@ -252,6 +244,9 @@ function ModulesInner() {
     if (id === 'platform') return true;
     if (isGovernmentProgrammeModule(id)) {
       if (programmeForced.has(id)) return true;
+      // The other government programme may be turned off (DBE dropping
+      // HealthAdvisor). Turning it on still needs platform admin.
+      if (enabled[id] === true) return false;
       return !platformOperator;
     }
     if (isIndustryAdvisorModule(id)) {

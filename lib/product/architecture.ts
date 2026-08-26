@@ -1454,12 +1454,19 @@ export function enabledModulesMapFromPacks(
   for (const id of opts?.basePresetEnable || []) {
     unlocked.add(id);
   }
-  // School / public procurement packs always include schools programme module
+  // School / public procurement packs include SchoolAdvisor by default.
+  // HealthAdvisor is a separate DoH programme — only when explicitly picked.
   if (
     packIds.includes('public_procurement') ||
-    moduleIds.includes('pp_nsnp')
+    moduleIds.includes('pp_nsnp') ||
+    moduleIds.includes('schools')
   ) {
     unlocked.add('schools');
+  }
+  if (moduleIds.includes('pp_health') || moduleIds.includes('health')) {
+    unlocked.add('health');
+  } else if (packIds.includes('public_procurement')) {
+    unlocked.delete('health');
   }
   // Logistics pack → full containers hub (all container features)
   if (packIds.includes('logistics_containers')) {

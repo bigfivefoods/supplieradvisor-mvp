@@ -104,4 +104,43 @@ assert.ok(
   'Industry Tools stays off the sidenav when packs are on'
 );
 
+const publicPack = resolveVisibleModules({
+  stored: { customers: true, schools: false, health: false },
+  packaging: { packIds: ['public_procurement'] },
+});
+assert.equal(
+  publicPack.health,
+  false,
+  'public procurement pack does not force HealthAdvisor on'
+);
+
+const dbe = extractEnabledModulesFromMetadata({
+  enabled_modules: { schools: true, health: true, customers: true },
+  entity_kind: 'government_education',
+  programme: 'education',
+  industry_packs: ['public_procurement'],
+});
+assert.equal(dbe.schools, true, 'DBE keeps SchoolAdvisor');
+assert.equal(dbe.health, false, 'DBE cannot keep HealthAdvisor on');
+
+const doh = extractEnabledModulesFromMetadata({
+  enabled_modules: { schools: true, health: true, customers: true },
+  entity_kind: 'government_health',
+  programme: 'health',
+  industry_packs: ['public_procurement'],
+});
+assert.equal(doh.health, true, 'DoH keeps HealthAdvisor');
+assert.equal(doh.schools, false, 'DoH does not keep SchoolAdvisor');
+
+const dbeBiz = resolveVisibleModules({
+  stored: { health: true, schools: true },
+  packaging: {
+    packIds: ['public_procurement'],
+    entityTypeId: 'provincial',
+    businessTypeIds: ['prov_dbe'],
+  },
+});
+assert.equal(dbeBiz.health, false);
+assert.equal(dbeBiz.schools, true);
+
 console.log('company-modules-visibility.test.ts ok');
