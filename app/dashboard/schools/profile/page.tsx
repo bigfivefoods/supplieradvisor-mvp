@@ -13,6 +13,7 @@ import {
   SchoolsPage,
 } from '@/components/schools/SchoolsShell';
 import NsnpSystemFlow from '@/components/schools/NsnpSystemFlow';
+import NsnpSystemOverview from '@/components/schools/NsnpSystemOverview';
 
 export default function SchoolProfilePage() {
   return (
@@ -212,6 +213,7 @@ function Inner() {
         </div>
       ) : (
         <>
+        <NsnpSystemOverview />
         <NsnpSystemFlow audience="school" defaultCollapsed />
         <div className="space-y-4 max-w-3xl">
           {/* Photo hero */}

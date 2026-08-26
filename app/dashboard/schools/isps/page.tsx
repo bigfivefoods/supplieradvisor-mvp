@@ -24,6 +24,7 @@ import {
   SchoolsPage,
 } from '@/components/schools/SchoolsShell';
 import NsnpSystemFlow from '@/components/schools/NsnpSystemFlow';
+import NsnpSystemOverview from '@/components/schools/NsnpSystemOverview';
 
 type ViewRole = 'school' | 'isp' | 'agency' | 'loading';
 
@@ -398,7 +399,10 @@ function Inner() {
       </div>
 
       {!loading && role !== 'agency' ? (
-        <NsnpSystemFlow audience={isIsp ? 'isp' : 'school'} />
+        <>
+          <NsnpSystemOverview />
+          <NsnpSystemFlow audience={isIsp ? 'isp' : 'school'} />
+        </>
       ) : null}
 
       {loading ? (

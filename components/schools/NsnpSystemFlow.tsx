@@ -395,8 +395,8 @@ const PHASES: Phase[] = [
 ];
 
 const ROLE_CARDS: Array<{
-  tone: 'dbe' | 'school' | 'sp';
-  audienceKey: Audience;
+  tone: 'dbe' | 'school' | 'sp' | 'children';
+  audienceKey: Audience | 'children';
   icon: typeof Landmark;
   title: string;
   subtitle: string;
@@ -466,6 +466,25 @@ const ROLE_CARDS: Array<{
       'Does not serve children in the kitchen',
     ],
     href: '/dashboard/schools/isps',
+  },
+  {
+    tone: 'children',
+    audienceKey: 'children',
+    icon: Users,
+    title: 'Children',
+    subtitle: 'Authorised safe meals on the plate',
+    does: [
+      'Receive the DBE-authorised breakfast or lunch',
+      'Approved catalogue food only — nutrition on the dish',
+      'Cooked in a CoA / R638 kitchen with a daily safety log',
+      'Every serve day written: present, served, waste',
+      'Programme money gated until evidence is on the OS',
+    ],
+    doesNot: [
+      'Does not depend on a side WhatsApp as the record',
+      'Does not eat off-catalogue or unlogged meals as the plan',
+    ],
+    href: '/dashboard/schools/serve-day',
   },
 ];
 
@@ -619,6 +638,7 @@ export default function NsnpSystemFlow({
                     ['dbe', 'DBE / PEU'],
                     ['school', 'Schools'],
                     ['sp', 'Service providers'],
+                    ['children', 'Children'],
                   ] as const
                 ).map(([key, label]) => (
                   <span
@@ -634,12 +654,15 @@ export default function NsnpSystemFlow({
                 ))}
               </div>
             </div>
-            <div className="grid lg:grid-cols-3 gap-3">
+            <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
               {ROLE_CARDS.map((card) => (
                 <RoleCard
                   key={card.title}
                   {...card}
-                  highlighted={audience === card.audienceKey}
+                  highlighted={
+                    card.audienceKey !== 'children' &&
+                    audience === card.audienceKey
+                  }
                 />
               ))}
             </div>
@@ -801,6 +824,20 @@ const ROLE_STYLES = {
     swatch: 'bg-amber-500 dark:bg-amber-400',
     label: 'SP',
   },
+  children: {
+    card:
+      'border-rose-300 bg-rose-50/50 dark:border-rose-400/40 dark:bg-gradient-to-br dark:from-rose-950 dark:via-[#9f1239] dark:to-rose-400/45 dark:ring-1 dark:ring-rose-400/40',
+    badge: 'bg-rose-600 dark:bg-rose-500',
+    chip:
+      'bg-rose-600 text-white dark:bg-rose-500 dark:text-rose-950',
+    title: 'text-slate-900 dark:text-rose-50',
+    subtitle: 'text-slate-500 dark:text-rose-200/80',
+    doesLabel: 'text-rose-800 dark:text-rose-300',
+    doesText: 'text-slate-700 dark:text-rose-50/90',
+    link: 'text-rose-800 dark:text-rose-300',
+    swatch: 'bg-rose-500 dark:bg-rose-400',
+    label: 'Outcome',
+  },
 } as const;
 
 function roleToneFromStepRole(
@@ -822,7 +859,7 @@ function RoleCard({
   href,
   highlighted,
 }: {
-  tone: 'dbe' | 'school' | 'sp';
+  tone: 'dbe' | 'school' | 'sp' | 'children';
   icon: typeof Landmark;
   title: string;
   subtitle: string;

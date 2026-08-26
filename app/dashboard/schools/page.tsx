@@ -34,6 +34,7 @@ import {
 import type { SchoolReadiness } from '@/lib/schools/process';
 import GoldenPathStrip from '@/components/schools/GoldenPathStrip';
 import NsnpSystemFlow from '@/components/schools/NsnpSystemFlow';
+import NsnpSystemOverview from '@/components/schools/NsnpSystemOverview';
 import ProcessGuidePdfButtons from '@/components/schools/ProcessGuidePdfButtons';
 import SchoolTodayBoard from '@/components/schools/SchoolTodayBoard';
 import { SchoolAdvisorBillingCard } from '@/components/schools/SchoolAdvisorBillingCard';
@@ -175,6 +176,7 @@ function Inner() {
           <SchoolAdvisorBillingCard brand="your SP business" />
         </div>
         <GoldenPathStrip companyId={companyId} />
+        <NsnpSystemOverview />
         <NsnpSystemFlow audience="isp" />
         <div className="mb-4 flex flex-wrap gap-2 items-center">
           <ProcessGuidePdfButtons variant="inline" />
@@ -335,6 +337,7 @@ function Inner() {
         </div>
         <GoldenPathStrip companyId={companyId} />
         <AgencyExceptionBoard companyId={companyId} />
+        <NsnpSystemOverview />
         <NsnpSystemFlow audience="dbe" />
 
         <div className="mb-4 flex flex-wrap gap-2 items-center">
@@ -569,6 +572,7 @@ function Inner() {
         <SchoolFieldLinks companyId={companyId} />
       </div>
       <GoldenPathStrip companyId={companyId} />
+      <NsnpSystemOverview />
       <NsnpSystemFlow audience="school" />
       <div className="mb-4 flex flex-wrap gap-2 items-center">
         <ProcessGuidePdfButtons variant="inline" />
