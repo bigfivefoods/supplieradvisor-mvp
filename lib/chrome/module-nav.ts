@@ -385,7 +385,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
   },
   {
     id: 'containers',
-    name: 'Containers',
+    name: 'ContainerAdvisor',
     icon: Container,
     href: '/dashboard/containers',
     resource: 'containers',
@@ -955,7 +955,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
   },
   {
     id: 'health',
-    name: 'Health',
+    name: 'HealthAdvisor',
     icon: HeartPulse,
     href: '/dashboard/health',
     resource: 'schools',

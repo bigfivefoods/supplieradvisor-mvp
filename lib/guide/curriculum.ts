@@ -2186,7 +2186,7 @@ export function buildGuideNavSteps(
     operations: 'Ops',
     make: 'Make',
     ship: 'Ship',
-    containers: 'Containers',
+    containers: 'ContainerAdvisor',
     fieldgraph: 'CropAdvisor',
     quarrygraph: 'QuarryAdvisor',
     fitgraph: 'GymAdvisor',
@@ -2206,7 +2206,7 @@ export function buildGuideNavSteps(
     people: 'People',
     sheq: 'SHEQ',
     schools: 'SchoolAdvisor',
-    health: 'Health',
+    health: 'HealthAdvisor',
   };
 
   for (const s of sections) {

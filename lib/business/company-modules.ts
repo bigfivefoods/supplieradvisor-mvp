@@ -7,7 +7,6 @@
 import type { ModuleNav } from '@/lib/chrome/module-nav';
 import { MODULE_NAV } from '@/lib/chrome/module-nav';
 import {
-  OS_SECTORS,
   appModulesUnlockedByPack,
   getIndustryPack,
 } from '@/lib/product/architecture';
@@ -33,7 +32,8 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   network: 'Connections, pricing agreements, marketplace, invites',
   suppliers: 'SRM: source, connect, procure, rate & report suppliers',
   customers: 'CRM: source, connect, quote, invoice, rate & report buyers — includes Advisor members',
-  containers: 'Container outlets, resellers, contractors & impact',
+  containers:
+    'ContainerAdvisor® — container outlets, resellers, contractors & impact',
   inventory: 'Products, stock, lots, transfers & counts',
   operations: 'Inbound, warehouse, production, outbound control tower',
   manufacturing: 'MPS, MRP, BOM, production orders & work centres',
@@ -66,7 +66,7 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   schools:
     'SchoolAdvisor® (public sector) — NSNP kitchen, learners, SPs, catalogue, feeding, prizes (DBE / PEU / schools)',
   health:
-    'Department of Health: clinics, hospitals, SPs, approved foods & nutrition',
+    'HealthAdvisor® (public sector) — DoH clinics, hospitals, SPs, approved foods & nutrition',
   platform:
     'SupplierAdvisor platform admin console — system & management reports for the whole network',
   home: 'Command centre home',
@@ -138,13 +138,12 @@ export const MODULE_CATEGORIES: ModuleCategory[] = [
     id: 'core_operate',
     band: 'core',
     title: 'Operate',
-    blurb: 'Inventory, ops tower, make, ship, and containers.',
+    blurb: 'Inventory, ops tower, make, and ship.',
     moduleIds: [
       'inventory',
       'operations',
       'manufacturing',
       'distribution',
-      'containers',
     ],
   },
   {
@@ -187,7 +186,7 @@ export const MODULE_CATEGORIES: ModuleCategory[] = [
     band: 'industry',
     title: 'Services',
     blurb:
-      'GymAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, MedicalAdvisor®, HireAdvisor® and RetailAdvisor® (till · QR/NFC pay).',
+      'GymAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, MedicalAdvisor®, HireAdvisor®, RetailAdvisor® and ContainerAdvisor®.',
     moduleIds: [
       'fitgraph',
       'physiograph',
@@ -196,13 +195,15 @@ export const MODULE_CATEGORIES: ModuleCategory[] = [
       'medicalgraph',
       'hiregraph',
       'retailgraph',
+      'containers',
     ],
   },
   {
     id: 'ind_programme',
     band: 'industry',
     title: 'Public programmes',
-    blurb: 'SchoolAdvisor® (NSNP / DBE) and Health (DoH) — government process only.',
+    blurb:
+      'SchoolAdvisor® (NSNP / DBE) and HealthAdvisor® (DoH) — government process only.',
     moduleIds: ['schools', 'health'],
   },
 ];
@@ -380,8 +381,8 @@ export function isGovernmentCoreModule(id: string): boolean {
   return (GOVERNMENT_CORE_MODULE_IDS as readonly string[]).includes(id);
 }
 
-/** Vertical OS hubs — belong to a sector / industry, not Core OS. */
-export const VERTICAL_MODULE_IDS = [
+/** Industry Advisors — pack-subscribed verticals (not government programmes). */
+export const INDUSTRY_ADVISOR_MODULE_IDS = [
   'fieldgraph',
   'quarrygraph',
   'fitgraph',
@@ -392,9 +393,53 @@ export const VERTICAL_MODULE_IDS = [
   'hiregraph',
   'retailgraph',
   'containers',
-  'schools',
-  'health',
 ] as const;
+
+/** SchoolAdvisor® + HealthAdvisor® — platform admin sets up government orgs. */
+export const GOVERNMENT_PROGRAMME_MODULE_IDS = ['schools', 'health'] as const;
+
+/** Vertical OS hubs — belong to a sector / industry, not Core OS. */
+export const VERTICAL_MODULE_IDS = [
+  ...INDUSTRY_ADVISOR_MODULE_IDS,
+  ...GOVERNMENT_PROGRAMME_MODULE_IDS,
+] as const;
+
+export function isIndustryAdvisorModule(id: string): boolean {
+  return (INDUSTRY_ADVISOR_MODULE_IDS as readonly string[]).includes(id);
+}
+
+export function isGovernmentProgrammeModule(id: string): boolean {
+  return (GOVERNMENT_PROGRAMME_MODULE_IDS as readonly string[]).includes(id);
+}
+
+/** True for the SupplierAdvisor control-plane company (management console). */
+export function isSupplierAdvisorPlatformCompany(opts: {
+  tradingName?: string | null;
+  legalName?: string | null;
+  metadata?: unknown;
+}): boolean {
+  const meta =
+    opts.metadata && typeof opts.metadata === 'object' && !Array.isArray(opts.metadata)
+      ? (opts.metadata as Record<string, unknown>)
+      : {};
+  if (
+    meta.is_platform_company === true ||
+    meta.platform_console === true ||
+    String(meta.slug || '').toLowerCase() === 'supplieradvisor'
+  ) {
+    return true;
+  }
+  const names = [opts.tradingName, opts.legalName]
+    .map((n) => String(n || '').trim())
+    .filter(Boolean);
+  for (const name of names) {
+    const compact = name.replace(/\s+/g, '');
+    if (/^supplier\s*advisor$/i.test(name) || /^supplieradvisor$/i.test(compact)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 export const SECTOR_VERTICAL_MODULE_IDS: Record<string, readonly string[]> = {
   primary: ['fieldgraph', 'quarrygraph'],
@@ -411,7 +456,7 @@ export const SECTOR_VERTICAL_MODULE_IDS: Record<string, readonly string[]> = {
   public_sector: ['schools', 'health'],
 };
 
-export type WorkspaceModuleLayer = 'core' | 'sector' | 'industry';
+export type WorkspaceModuleLayer = 'core' | 'industry' | 'government';
 
 export type WorkspaceModuleGroup = {
   layer: WorkspaceModuleLayer;
@@ -420,7 +465,6 @@ export type WorkspaceModuleGroup = {
   moduleIds: string[];
 };
 
-const CORE_ID_SET = new Set<string>(CORE_WORKSPACE_MODULE_IDS);
 const VERTICAL_ID_SET = new Set<string>(VERTICAL_MODULE_IDS);
 
 function uniqueStrings(ids: readonly string[]): string[] {
@@ -510,12 +554,19 @@ export function resolveVisibleModules(opts: {
     ...(opts.packaging?.packIds || []),
     ...industryPackIdsFromMetadata(opts.metadata),
   ]);
-  return applyAdvisorVisibility({
+  const next = applyAdvisorVisibility({
     map,
     packIds,
     companyId: opts.companyId,
     companyName: opts.companyName,
   });
+  const platformCo = isSupplierAdvisorPlatformCompany({
+    tradingName: opts.companyName,
+    metadata: opts.metadata,
+  });
+  if (platformCo) next.platform = true;
+  else next.platform = false;
+  return next;
 }
 
 function uniqueExistingIds(
@@ -549,82 +600,52 @@ export function verticalModuleIdsForPacks(packIds: readonly string[]): string[] 
 }
 
 /**
- * Group workspace hubs: Core → Sector → Industry.
- * Each module id appears in at most one group.
- * Industry (selected) wins over sector so the company's industries are explicit.
+ * Group workspace hubs: Core → Industry Advisors → Government.
+ * Every subscriber sees all Core OS hubs. Industry Advisors list in full
+ * (unlock by pack). SchoolAdvisor / HealthAdvisor are platform-admin only.
  */
-export function groupWorkspaceModules(opts: {
+export function groupWorkspaceModules(opts?: {
   sectorId?: string | null;
   industryIds?: string[];
   knownModuleIds?: string[];
+  showPlatform?: boolean;
 }): WorkspaceModuleGroup[] {
   const known = new Set(
-    opts.knownModuleIds?.length
+    opts?.knownModuleIds?.length
       ? opts.knownModuleIds
       : MODULE_NAV.map((m) => m.id)
   );
-  const industryPackIds = [
-    ...new Set(
-      (opts.industryIds || []).flatMap((id) => getIndustry(id)?.packIds || [])
-    ),
-  ];
-  const industryIds = uniqueExistingIds(
-    verticalModuleIdsForPacks(industryPackIds),
+  const coreList = CORE_WORKSPACE_MODULE_IDS.filter(
+    (id) => id !== 'platform' || opts?.showPlatform
+  );
+  const coreIds = uniqueExistingIds(coreList, known);
+  const industryIds = uniqueExistingIds(INDUSTRY_ADVISOR_MODULE_IDS, known);
+  const governmentIds = uniqueExistingIds(
+    GOVERNMENT_PROGRAMME_MODULE_IDS,
     known
   );
-  const industrySet = new Set(industryIds);
-
-  const sectorVerticals = SECTOR_VERTICAL_MODULE_IDS[String(opts.sectorId || '')] || [];
-  const sectorIds = uniqueExistingIds(
-    sectorVerticals.filter((id) => !industrySet.has(id)),
-    known
-  );
-  const placed = new Set<string>([...industryIds, ...sectorIds]);
-
-  const coreIds = uniqueExistingIds(
-    CORE_WORKSPACE_MODULE_IDS.filter((id) => !placed.has(id)),
-    known
-  );
-  for (const id of coreIds) placed.add(id);
-
-  // Leftover nav hubs (future modules) — never duplicate
-  for (const m of MODULE_NAV) {
-    if (placed.has(m.id) || !known.has(m.id)) continue;
-    if (CORE_ID_SET.has(m.id)) coreIds.push(m.id);
-    else if (VERTICAL_ID_SET.has(m.id)) sectorIds.push(m.id);
-    else coreIds.push(m.id);
-    placed.add(m.id);
-  }
-
-  const sectorMeta = OS_SECTORS.find((s) => s.id === opts.sectorId);
-  const industryLabels = (opts.industryIds || [])
-    .map((id) => getIndustry(id)?.label)
-    .filter(Boolean) as string[];
 
   return [
     {
       layer: 'core',
-      title: 'Core',
-      blurb: 'Platform hubs every company can turn on — trade, ops, finance, people.',
+      title: 'Core OS',
+      blurb:
+        'Available to every subscriber — trade, ops, finance, people, assure, and insight. Tick the hubs this company uses.',
       moduleIds: coreIds,
     },
     {
-      layer: 'sector',
-      title: sectorMeta ? `Sector · ${sectorMeta.label}` : 'Sector',
-      blurb: sectorMeta
-        ? `Other ${sectorMeta.label.toLowerCase()} verticals you can enable (not already listed under your industries).`
-        : 'Set a sector above to see sector verticals.',
-      moduleIds: sectorIds,
+      layer: 'industry',
+      title: 'Industry Advisors',
+      blurb:
+        'Crop, quarry, gym, clinic, hire, retail and ContainerAdvisor. Subscribe to an Advisor pack to unlock, then tick the hub on.',
+      moduleIds: industryIds,
     },
     {
-      layer: 'industry',
-      title: industryLabels.length
-        ? `Industry · ${industryLabels.join(' · ')}`
-        : 'Industry',
-      blurb: industryLabels.length
-        ? 'Hubs for the industries you selected.'
-        : 'Select industries above to pin industry hubs here.',
-      moduleIds: industryIds,
+      layer: 'government',
+      title: 'Government programmes',
+      blurb:
+        'SchoolAdvisor® and HealthAdvisor®. Only SupplierAdvisor admin can set up a government organisation.',
+      moduleIds: governmentIds,
     },
   ];
 }
@@ -738,6 +759,7 @@ export function normalizeEnabledModules(
         id === 'medicalgraph' ||
         id === 'hiregraph' ||
         id === 'retailgraph' ||
+        id === 'containers' ||
         id === 'platform'
           ? false
           : true;
@@ -781,6 +803,7 @@ export function isModuleEnabled(
       moduleId !== 'medicalgraph' &&
       moduleId !== 'hiregraph' &&
       moduleId !== 'retailgraph' &&
+      moduleId !== 'containers' &&
       moduleId !== 'platform'
     );
   }
@@ -799,6 +822,7 @@ export function isModuleEnabled(
     moduleId !== 'medicalgraph' &&
     moduleId !== 'hiregraph' &&
     moduleId !== 'retailgraph' &&
+    moduleId !== 'containers' &&
     moduleId !== 'platform'
   );
 }

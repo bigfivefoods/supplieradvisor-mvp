@@ -161,9 +161,9 @@ export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
   medicalgraph: 'MedicalAdvisor (Medical)',
   hiregraph: 'HireAdvisor (Hire / rent)',
   retailgraph: 'RetailAdvisor (Till)',
-  containers: 'Containers',
+  containers: 'ContainerAdvisor',
   schools: 'SchoolAdvisor',
-  health: 'Health',
+  health: 'HealthAdvisor',
   network: 'Network',
   people: 'People',
   guide: 'Guide',
@@ -228,7 +228,7 @@ function stepsFromModule(m: ModuleNav): SidebarModuleShape['sub'] {
  * Build sidebar modules:
  * - Every enabled MODULE_NAV hub is its own item with complete steps
  * - Ordered for functional daily work
- * - Industry Tools added when packs active (does not replace Containers / Schools)
+ * - Industry Tools added when packs active (does not replace ContainerAdvisor / SchoolAdvisor)
  * - Multi-entity shortcut without removing Company → Group
  */
 export function functionalSidebarModules(opts: {
@@ -402,10 +402,13 @@ function buildIndustryToolsSubs(
 
   // When containers module on, expose hub (full module still in main nav)
   if (isModuleEnabled('containers')) {
-    push('Containers hub', '/dashboard/containers', 'Full container OS');
+    push('ContainerAdvisor hub', '/dashboard/containers', 'Full container OS');
   }
   if (isModuleEnabled('schools')) {
     push('SchoolAdvisor® hub', '/dashboard/schools', 'Public sector NSNP programme');
+  }
+  if (isModuleEnabled('health')) {
+    push('HealthAdvisor hub', '/dashboard/health', 'Public sector health programme');
   }
   if (isModuleEnabled('manufacturing')) {
     push('Make · MPS/MRP', '/dashboard/manufacturing', 'Full manufacturing');

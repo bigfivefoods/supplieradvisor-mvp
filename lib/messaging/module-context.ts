@@ -73,9 +73,9 @@ const CTX: Record<string, ModuleMessageContext> = {
   },
   containers: {
     from: 'containers',
-    label: 'Containers',
+    label: 'ContainerAdvisor',
     backHref: '/dashboard/containers',
-    backLabel: 'Containers',
+    backLabel: 'ContainerAdvisor',
     titleAccent: 'network partners',
     description: 'Coordinate with contractors, resellers, and your team.',
     defaultCompose: 'connection',
@@ -218,9 +218,9 @@ const CTX: Record<string, ModuleMessageContext> = {
   },
   health: {
     from: 'health',
-    label: 'Health',
+    label: 'HealthAdvisor',
     backHref: '/dashboard/health',
-    backLabel: 'Health',
+    backLabel: 'HealthAdvisor',
     titleAccent: 'DoH · facility · SP',
     description:
       'Programme messaging for health facilities and service providers.',

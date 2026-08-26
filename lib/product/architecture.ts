@@ -1226,6 +1226,13 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
         unlocks: ['schools'],
       },
       {
+        id: 'pp_health',
+        name: 'HealthAdvisor® (DoH provincial + facilities)',
+        description:
+          'HealthAdvisor® hub — DoH programme views and clinic/hospital kitchens. Public sector government process only.',
+        unlocks: ['health'],
+      },
+      {
         id: 'pp_compliance',
         name: 'Procurement compliance',
         description: 'Quality, SHEQ, and audit trails.',
@@ -1814,6 +1821,7 @@ export function appModulesUnlockedByPack(pack: IndustryPackDef): string[] {
   }
   if (pack.id === 'public_procurement') {
     ids.add('schools');
+    ids.add('health');
   }
   addAdvisorPackUnlocks(ids, [pack.id]);
   return [...ids];

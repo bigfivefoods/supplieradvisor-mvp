@@ -288,35 +288,64 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    // Public-sector companies may tick Core OS hubs (Finance, Inventory, …).
-    // Programme vertical stays on; other industry Advisors stay off.
+    // Module rules:
+    //  - Core OS: any subscriber may tick
+    //  - Industry Advisors: pack-subscribed (not clamped here)
+    //  - Government programmes: platform admin only; gov orgs keep their programme on
+    //  - Platform console: SupplierAdvisor company only
     if (safe.metadata != null) {
-      const { isGovernmentOrgType, clampGovernmentModules } = await import(
-        '@/lib/system/platform-control'
+      const {
+        isGovernmentOrgType,
+        clampGovernmentModules,
+        isPlatformOperatorUserId,
+      } = await import('@/lib/system/platform-control');
+      const { isSupplierAdvisorPlatformCompany } = await import(
+        '@/lib/business/company-modules'
       );
+      const prevMeta =
+        existing.metadata && typeof existing.metadata === 'object'
+          ? (existing.metadata as Record<string, unknown>)
+          : {};
+      const incoming =
+        typeof safe.metadata === 'object' && safe.metadata
+          ? (safe.metadata as Record<string, unknown>)
+          : {};
+      const mergedModules = {
+        ...((prevMeta.enabled_modules as Record<string, boolean>) || {}),
+        ...((incoming.enabled_modules as Record<string, boolean>) || {}),
+      };
+      const platformCo = isSupplierAdvisorPlatformCompany({
+        tradingName: String(existing.trading_name || ''),
+        legalName: String(existing.legal_name || ''),
+        metadata: { ...prevMeta, ...incoming },
+      });
       const orgType = String(existing.org_type || existing.business_type || '');
       if (isGovernmentOrgType(orgType, String(existing.business_type || ''))) {
-        const prevMeta =
-          existing.metadata && typeof existing.metadata === 'object'
-            ? (existing.metadata as Record<string, unknown>)
-            : {};
-        const incoming =
-          typeof safe.metadata === 'object' && safe.metadata
-            ? (safe.metadata as Record<string, unknown>)
-            : {};
         const kind =
           orgType.includes('health') ||
           String(existing.business_type || '').includes('health')
             ? 'health'
             : 'education';
-        const mergedModules = {
-          ...((prevMeta.enabled_modules as Record<string, boolean>) || {}),
-          ...((incoming.enabled_modules as Record<string, boolean>) || {}),
-        };
+        const clamped = clampGovernmentModules(mergedModules, kind);
+        clamped.platform = platformCo;
         safe.metadata = {
           ...prevMeta,
           ...incoming,
-          enabled_modules: clampGovernmentModules(mergedModules, kind),
+          enabled_modules: clamped,
+        };
+      } else {
+        const operator = await isPlatformOperatorUserId(mem.userId);
+        const nextMods = { ...mergedModules };
+        if (!platformCo) nextMods.platform = false;
+        else nextMods.platform = true;
+        if (!operator) {
+          nextMods.schools = false;
+          nextMods.health = false;
+        }
+        safe.metadata = {
+          ...prevMeta,
+          ...incoming,
+          enabled_modules: nextMods,
         };
       }
     }

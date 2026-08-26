@@ -509,7 +509,7 @@ export function resourceLabel(resource: PermissionResource): string {
     invites: 'Invites',
     customers: 'Customers',
     suppliers: 'Suppliers',
-    containers: 'Containers',
+    containers: 'ContainerAdvisor',
     network: 'Network',
     inventory: 'Inventory',
     operations: 'Operations',

@@ -39,7 +39,9 @@ import {
   groupWorkspaceModules,
   hasModulesConfigured,
   isAlwaysOnModule,
-  isGovernmentCoreModule,
+  isGovernmentProgrammeModule,
+  isIndustryAdvisorModule,
+  isSupplierAdvisorPlatformCompany,
   listCompanyModuleOptions,
   mergeEnabledModulesIntoMetadata,
   normalizeEnabledModules,
@@ -182,6 +184,15 @@ function ModulesInner() {
     [metadata]
   );
 
+  const isPlatformCo = useMemo(
+    () =>
+      isSupplierAdvisorPlatformCompany({
+        tradingName,
+        metadata,
+      }),
+    [tradingName, metadata]
+  );
+
   const programmeForced = useMemo(() => {
     const s = new Set<string>();
     const packMods = packaging?.moduleIds || [];
@@ -201,13 +212,6 @@ function ModulesInner() {
     }
     return s;
   }, [metadata, packaging]);
-
-  const moduleToggleLocked = (id: string) => {
-    if (isAlwaysOnModule(id)) return true;
-    if (programmeForced.has(id)) return true;
-    if (!govLocked) return false;
-    return !isGovernmentCoreModule(id);
-  };
 
   // Prefill draft classification from existing packaging
   useEffect(() => {
@@ -239,6 +243,24 @@ function ModulesInner() {
     () => new Set(packaging?.packIds || []),
     [packaging]
   );
+
+  const industryPackUnlocked = (id: string) =>
+    packsUnlockingAppModule(id).some((p) => subscribedPackIds.has(p.id));
+
+  const moduleToggleLocked = (id: string) => {
+    if (isAlwaysOnModule(id)) return true;
+    if (id === 'platform') return true;
+    if (isGovernmentProgrammeModule(id)) {
+      if (programmeForced.has(id)) return true;
+      return !platformOperator;
+    }
+    if (isIndustryAdvisorModule(id)) {
+      if (govLocked && !platformOperator) return true;
+      if (platformOperator) return false;
+      return !industryPackUnlocked(id);
+    }
+    return false;
+  };
   const selectedPackIds = useMemo(
     () => new Set(selectedPacks),
     [selectedPacks]
@@ -326,11 +348,10 @@ function ModulesInner() {
   const workspaceGroups = useMemo(
     () =>
       groupWorkspaceModules({
-        sectorId: yourSectorId,
-        industryIds: companyIndustries.map((i) => i.id),
         knownModuleIds: [...optionsById.keys()],
+        showPlatform: isPlatformCo,
       }),
-    [yourSectorId, companyIndustries, optionsById]
+    [optionsById, isPlatformCo]
   );
 
   const selectedHubs = useMemo(() => {
@@ -733,7 +754,7 @@ function ModulesInner() {
           <span className="min-w-0">
             <span className="block text-sm font-bold text-slate-900">
               {opt.name}
-              {opt.alwaysOn ? (
+              {opt.alwaysOn || opt.id === 'platform' ? (
                 <span className="ml-1.5 text-[9px] font-black uppercase tracking-wide text-neutral-400">
                   always on
                 </span>
@@ -742,6 +763,20 @@ function ModulesInner() {
             <span className="block text-[11px] text-neutral-500 leading-snug mt-0.5">
               {opt.description}
             </span>
+            {isIndustryAdvisorModule(opt.id) &&
+            moduleToggleLocked(opt.id) &&
+            !govLocked ? (
+              <span className="mt-1.5 inline-flex rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-900">
+                Subscribe to unlock
+              </span>
+            ) : null}
+            {isGovernmentProgrammeModule(opt.id) &&
+            !platformOperator &&
+            !programmeForced.has(opt.id) ? (
+              <span className="mt-1.5 inline-flex rounded-full border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-900">
+                SupplierAdvisor admin only
+              </span>
+            ) : null}
             {viaPacks.length > 0 ? (
               <span className="mt-1.5 flex flex-wrap gap-1">
                 {viaPacks.map((p) => (
@@ -775,7 +810,7 @@ function ModulesInner() {
       <BusinessHeader
         title="Workspace"
         titleAccent="modules"
-        description={`${tradingName || 'Your company'} — modules you turn on here are what the team can open after login (Control Tower, GymAdvisor, CropAdvisor, QuarryAdvisor, DBE, core hubs). Fine-tune per person under Team. Set sector/packs below, then toggle hubs.`}
+        description={`${tradingName || 'Your company'} — Core OS hubs are available to every subscriber. Industry Advisors unlock when you subscribe to that pack. SchoolAdvisor and HealthAdvisor are set up by SupplierAdvisor admin. Fine-tune per person under Team.`}
         action={
           <div className="flex flex-wrap gap-2">
             <Link
@@ -822,7 +857,7 @@ function ModulesInner() {
       {govLocked ? (
         <div className="mb-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950">
           {lockMessage ||
-            'SchoolAdvisor® stays on the public-sector process (you cannot re-package as a private company). You can still tick Core OS hubs such as Finance.'}
+            'This is a government organisation. Core OS hubs stay selectable. SchoolAdvisor / HealthAdvisor are set up by SupplierAdvisor admin. Industry Advisors stay off.'}
         </div>
       ) : null}
 
@@ -1241,9 +1276,9 @@ function ModulesInner() {
         const header =
           group.layer === 'core'
             ? 'bg-slate-900 text-white'
-            : group.layer === 'sector'
-              ? 'bg-[#0077b6] text-white'
-              : 'bg-violet-800 text-white';
+            : group.layer === 'industry'
+              ? 'bg-violet-800 text-white'
+              : 'bg-emerald-800 text-white';
         return (
           <div key={group.layer} className="mb-8">
             <div
@@ -1279,9 +1314,9 @@ function ModulesInner() {
             ) : (
               <p className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">
                 {group.layer === 'industry'
-                  ? 'Select industries at the top of this page to list industry hubs here.'
-                  : group.layer === 'sector'
-                    ? 'Set a sector to see remaining sector verticals.'
+                  ? 'Industry Advisors appear here.'
+                  : group.layer === 'government'
+                    ? 'SchoolAdvisor and HealthAdvisor are set up by SupplierAdvisor admin.'
                     : 'No core hubs available.'}
               </p>
             )}
