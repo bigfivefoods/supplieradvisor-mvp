@@ -283,8 +283,8 @@ export const MODULE_PRESETS: Array<{
     id: 'dbe_agency',
     label: 'SchoolAdvisor · DBE / PEU',
     description:
-      'Provincial/national education agency — approve schools, catalogue, PEU visits, claims. (Not DoH.)',
-    enable: ['schools', 'network', 'intelligence'],
+      'Provincial/national education agency — approve schools, catalogue, PEU visits, claims, finance. (Not DoH.)',
+    enable: ['schools', 'network', 'intelligence', 'accounting'],
   },
   {
     id: 'nsnp_isp',
@@ -353,6 +353,32 @@ export const CORE_WORKSPACE_MODULE_IDS = [
   'intelligence',
   'sustainability',
 ] as const;
+
+/**
+ * Core OS hubs a public-sector company (DBE, school, NSNP SP, DoH) may tick
+ * on Company → Modules. Programme verticals stay forced on; other Advisors stay off.
+ */
+export const GOVERNMENT_CORE_MODULE_IDS = [
+  'network',
+  'suppliers',
+  'customers',
+  'sales-portal',
+  'inventory',
+  'operations',
+  'manufacturing',
+  'distribution',
+  'accounting',
+  'people',
+  'sheq',
+  'quality',
+  'projects',
+  'intelligence',
+  'sustainability',
+] as const;
+
+export function isGovernmentCoreModule(id: string): boolean {
+  return (GOVERNMENT_CORE_MODULE_IDS as readonly string[]).includes(id);
+}
 
 /** Vertical OS hubs — belong to a sector / industry, not Core OS. */
 export const VERTICAL_MODULE_IDS = [

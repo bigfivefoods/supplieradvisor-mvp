@@ -10,6 +10,7 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { userIdMatchVariants } from '@/lib/auth/identity';
+import { GOVERNMENT_CORE_MODULE_IDS } from '@/lib/business/company-modules';
 
 /**
  * Default operators when PLATFORM_OPERATOR_EMAILS is unset.
@@ -135,18 +136,14 @@ export const PUBLIC_HEALTH_AGENCY_TYPES = [
 
 /** Modules a government education org may enable (plus always-on). */
 export const GOV_EDUCATION_MODULE_IDS = [
+  ...GOVERNMENT_CORE_MODULE_IDS,
   'schools',
-  'network',
-  'intelligence',
-  'suppliers',
 ] as const;
 
 /** Modules a government health org may enable (plus always-on). */
 export const GOV_HEALTH_MODULE_IDS = [
+  ...GOVERNMENT_CORE_MODULE_IDS,
   'health',
-  'network',
-  'intelligence',
-  'suppliers',
 ] as const;
 
 export function allowedModulesForGovernment(
@@ -158,8 +155,10 @@ export function allowedModulesForGovernment(
 }
 
 /**
- * Clamp enabled_modules map for government orgs so only programme modules
- * (education OR health) plus always-on can be on.
+ * Clamp enabled_modules for government orgs:
+ *  - programme vertical (schools XOR health) stays on
+ *  - Core OS hubs (Finance, Inventory, People, …) keep the company's ticks
+ *  - other industry Advisors stay off
  */
 export function clampGovernmentModules(
   map: Record<string, boolean>,
@@ -172,13 +171,17 @@ export function clampGovernmentModules(
     ...allowedModulesForGovernment(kind),
   ]);
   const next: Record<string, boolean> = {};
-  for (const [k, v] of Object.entries(map)) {
+  for (const [k, v] of Object.entries(map || {})) {
     if (allowed.has(k)) next[k] = Boolean(v);
     else next[k] = false;
   }
-  // Ensure programme module is on
-  if (kind === 'health') next.health = true;
-  else next.schools = true;
+  if (kind === 'health') {
+    next.health = true;
+    next.schools = false;
+  } else {
+    next.schools = true;
+    next.health = false;
+  }
   next.home = true;
   next['my-business'] = true;
   next.guide = true;
@@ -190,4 +193,4 @@ export const GOV_PENDING_MESSAGE =
   'This department registration is pending platform activation. Programme tools unlock after approval.';
 
 export const GOV_MODULE_LOCK_MESSAGE =
-  'Programme modules for government departments are managed centrally and cannot be changed here.';
+  'Public-sector packaging stays government process (SchoolAdvisor / Health) and cannot be switched to a private company here. You can still turn on Core OS hubs such as Finance.';

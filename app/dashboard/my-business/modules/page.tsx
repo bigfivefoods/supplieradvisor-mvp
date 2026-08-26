@@ -39,6 +39,7 @@ import {
   groupWorkspaceModules,
   hasModulesConfigured,
   isAlwaysOnModule,
+  isGovernmentCoreModule,
   listCompanyModuleOptions,
   mergeEnabledModulesIntoMetadata,
   normalizeEnabledModules,
@@ -180,6 +181,33 @@ function ModulesInner() {
     () => readPackagingFromMetadata(metadata),
     [metadata]
   );
+
+  const programmeForced = useMemo(() => {
+    const s = new Set<string>();
+    const packMods = packaging?.moduleIds || [];
+    const prog = String(metadata.programme || '');
+    const entity = String(packaging?.entityTypeId || '');
+    if (
+      packMods.includes('schools') ||
+      prog === 'schooladvisor' ||
+      entity === 'school' ||
+      entity === 'provincial' ||
+      entity === 'national'
+    ) {
+      s.add('schools');
+    }
+    if (packMods.includes('health') || prog === 'health') {
+      s.add('health');
+    }
+    return s;
+  }, [metadata, packaging]);
+
+  const moduleToggleLocked = (id: string) => {
+    if (isAlwaysOnModule(id)) return true;
+    if (programmeForced.has(id)) return true;
+    if (!govLocked) return false;
+    return !isGovernmentCoreModule(id);
+  };
 
   // Prefill draft classification from existing packaging
   useEffect(() => {
@@ -324,13 +352,6 @@ function ModulesInner() {
   const persist = async (map: EnabledModulesMap, silent?: boolean) => {
     if (!privyUserId) {
       toast.error('Sign in required');
-      return;
-    }
-    if (govLocked) {
-      toast.message(
-        lockMessage ||
-          'SchoolAdvisor® and other government programmes use the public-sector process and are managed centrally.'
-      );
       return;
     }
     setSaving(true);
@@ -706,7 +727,7 @@ function ModulesInner() {
             type="checkbox"
             className="mt-1 rounded border-neutral-300 text-[#00b4d8] focus:ring-[#00b4d8] shrink-0"
             checked={on}
-            disabled={opt.alwaysOn || saving || govLocked}
+            disabled={saving || moduleToggleLocked(opt.id)}
             onChange={(e) => toggle(opt.id, e.target.checked)}
           />
           <span className="min-w-0">
@@ -801,8 +822,7 @@ function ModulesInner() {
       {govLocked ? (
         <div className="mb-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950">
           {lockMessage ||
-            'SchoolAdvisor® (schools / DBE / NSNP SP) and other government programmes use the public-sector process and cannot be re-packaged as private companies here.'}
-          {platformOperator ? null : null}
+            'SchoolAdvisor® stays on the public-sector process (you cannot re-package as a private company). You can still tick Core OS hubs such as Finance.'}
         </div>
       ) : null}
 
@@ -1188,9 +1208,9 @@ function ModulesInner() {
               <button
                 key={h.id}
                 type="button"
-                disabled={isAlwaysOnModule(h.id) || saving || govLocked}
+                disabled={saving || moduleToggleLocked(h.id)}
                 onClick={() => {
-                  if (isAlwaysOnModule(h.id)) return;
+                  if (moduleToggleLocked(h.id)) return;
                   toggle(h.id, false);
                 }}
                 className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-white px-2.5 py-1 text-[11px] font-bold text-emerald-950 disabled:opacity-70"
