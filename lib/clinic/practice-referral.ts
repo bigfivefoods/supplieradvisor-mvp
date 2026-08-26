@@ -174,6 +174,10 @@ export function writeInboundReferral(
 export function isClinicShareKind(v: unknown): v is AdvisorShareKind {
   return (
     isAdvisorShareKind(v) &&
-    (v === 'medical' || v === 'physio' || v === 'dental' || v === 'psychiatry')
+    (v === 'medical' ||
+      v === 'physio' ||
+      v === 'dental' ||
+      v === 'psychiatry' ||
+      v === 'vet')
   );
 }

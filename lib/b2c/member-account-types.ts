@@ -164,6 +164,7 @@ export function kindAccountLabel(kind: string): string {
   if (kind === 'dental') return 'Dental account';
   if (kind === 'medical') return 'Medical account';
   if (kind === 'psychiatry') return 'Psychiatry account';
+  if (kind === 'vet') return 'Vet account';
   if (kind === 'hire') return 'Hire account';
   if (kind === 'retail') return 'Retail account';
   return 'Account';

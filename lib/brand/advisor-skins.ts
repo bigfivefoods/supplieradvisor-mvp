@@ -18,6 +18,7 @@ export type AdvisorSkinId =
   | 'dental'
   | 'medical'
   | 'psychiatry'
+  | 'vet'
   | 'crop'
   | 'quarry'
   | 'school';

@@ -332,6 +332,7 @@ export function kindSiteLabel(kind?: string | null): string {
   if (k === 'dental') return 'Dental';
   if (k === 'medical') return 'Medical';
   if (k === 'psychiatry') return 'Psychiatry';
+  if (k === 'vet') return 'Vet';
   if (k === 'hire') return 'Hire';
   if (k === 'retail') return 'Retail';
   if (k === 'account') return 'Brand';

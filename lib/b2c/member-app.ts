@@ -17,6 +17,7 @@ export type MemberAppJoinKind =
   | 'dental'
   | 'medical'
   | 'psychiatry'
+  | 'vet'
   | 'retail'
   | 'customer'
   | 'supplier';

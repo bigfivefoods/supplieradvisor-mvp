@@ -57,4 +57,19 @@ assert.equal(
   '/dashboard/psychiatrygraph'
 );
 
+assert.equal(
+  landingAdvisorSkins({
+    enabledModules: { vetgraph: true },
+  })[0]?.id,
+  'vet'
+);
+
+assert.equal(
+  advisorLandingPath({
+    packIds: ['veterinary'],
+    enabledModules: { vetgraph: true, medicalgraph: true },
+  }),
+  '/dashboard/vetgraph'
+);
+
 console.log('advisor-skins.test.ts ok');

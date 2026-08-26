@@ -144,6 +144,7 @@ function kindIcon(kind: string) {
   if (kind === 'dental') return Sparkles;
   if (kind === 'medical') return Stethoscope;
   if (kind === 'psychiatry') return Brain;
+  if (kind === 'vet') return HeartPulse;
   if (kind === 'retail') return Store;
   return WalletCards;
 }
@@ -156,6 +157,7 @@ function kindTone(kind: string) {
   if (kind === 'dental') return 'from-sky-400 to-blue-800 border-sky-200';
   if (kind === 'medical') return 'from-indigo-500 to-slate-800 border-indigo-200';
   if (kind === 'psychiatry') return 'from-rose-500 to-fuchsia-900 border-rose-200';
+  if (kind === 'vet') return 'from-orange-600 to-amber-900 border-orange-200';
   if (kind === 'retail') return 'from-orange-500 to-amber-800 border-orange-200';
   return 'from-slate-500 to-slate-700 border-slate-200';
 }

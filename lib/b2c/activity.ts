@@ -177,7 +177,8 @@ export async function buildB2cActivity(
         mem.kind === 'physio' ||
         mem.kind === 'dental' ||
         mem.kind === 'medical' ||
-        mem.kind === 'psychiatry'
+        mem.kind === 'psychiatry' ||
+        mem.kind === 'vet'
       ) {
         items.push({
           id: `clinic-${mem.id}`,
@@ -191,7 +192,9 @@ export async function buildB2cActivity(
                 ? 'Dental visits'
                 : mem.kind === 'medical'
                   ? 'Practice bookings'
-                  : 'Psychiatry sessions',
+                  : mem.kind === 'vet'
+                    ? 'Vet visits'
+                    : 'Psychiatry sessions',
           href: mem.portal_path,
           badge: 'Open diary',
         });
