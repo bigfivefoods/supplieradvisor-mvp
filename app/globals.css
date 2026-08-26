@@ -1356,7 +1356,7 @@ html.dark[data-advisor]:not([data-advisor='supplier']) .sa-member-lockup .sa-off
   pointer-events: none;
 }
 .sa-wordmark {
-  color: #203878;
+  color: #000000;
   white-space: nowrap;
 }
 html.dark .sa-wordmark {
