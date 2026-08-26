@@ -516,21 +516,21 @@ async function gatherCounts(
         statuses: ['active'],
         limit: 80,
       }).catch(() => []),
-      supabase
-        .from('riad_logs')
-        .select('id, status')
-        .contains('metadata', { raised_by_agency_profile_id: companyId })
-        .limit(80)
-        .then((r) => r)
-        .catch(() => ({ data: [] as Array<{ id?: number; status?: string }> })),
-      supabase
-        .from('nsnp_isp_agency_links')
-        .select('isp_profile_id, status, metadata')
-        .eq('agency_profile_id', companyId)
-        .eq('status', 'active')
-        .limit(200)
-        .then((r) => r)
-        .catch(() => ({ data: [] as Array<Record<string, unknown>> })),
+      Promise.resolve(
+        supabase
+          .from('riad_logs')
+          .select('id, status')
+          .contains('metadata', { raised_by_agency_profile_id: companyId })
+          .limit(80)
+      ).catch(() => ({ data: [] as Array<{ id?: number; status?: string }> })),
+      Promise.resolve(
+        supabase
+          .from('nsnp_isp_agency_links')
+          .select('isp_profile_id, status, metadata')
+          .eq('agency_profile_id', companyId)
+          .eq('status', 'active')
+          .limit(200)
+      ).catch(() => ({ data: [] as Array<Record<string, unknown>> })),
     ]);
 
     c.pendingAssociations =
