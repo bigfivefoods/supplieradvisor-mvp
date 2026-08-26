@@ -3,11 +3,16 @@
  */
 import assert from 'node:assert/strict';
 import {
+  formatChainTermsSummary,
   groupSoItemsByChain,
+  lineMoqError,
   mapChainSetup,
+  maxLeadTimeDays,
   pickSetupForLine,
   productIdsOnCustomerChains,
   scoreChainSetup,
+  serializeProductTerms,
+  termsForProduct,
 } from './chain-setup';
 
 const a = mapChainSetup({
@@ -64,5 +69,43 @@ assert.equal(groups.find((g) => g.srmSupplierId == null)?.items.length, 1);
 const allowed = productIdsOnCustomerChains([a, b, anyCust], 44);
 assert.deepEqual([...allowed].sort((x, y) => x - y), [101, 102, 201]);
 assert.equal(productIdsOnCustomerChains([a, b, anyCust], 99).size, 0);
+
+const withTerms = mapChainSetup({
+  id: 4,
+  profile_id: 9,
+  customer_id: 44,
+  srm_supplier_id: 12,
+  product_ids: [101, 102],
+  status: 'active',
+  metadata: {
+    product_terms: {
+      '101': { moq: 24, lead_time_days: 14 },
+      '102': { moq: 12, lead_time_days: 7 },
+    },
+  },
+})!;
+assert.equal(termsForProduct(withTerms, 101).moq, 24);
+assert.equal(termsForProduct(withTerms, 101).lead_time_days, 14);
+assert.equal(maxLeadTimeDays([withTerms], 44, [101, 102]), 14);
+assert.match(formatChainTermsSummary(withTerms), /MoQ/);
+assert.equal(
+  lineMoqError(
+    [{ product_id: 101, qty: 10, name: 'Brand meal' }],
+    [withTerms],
+    44
+  ),
+  'Brand meal minimum order is 24. Increase the quantity.'
+);
+assert.equal(
+  lineMoqError(
+    [{ product_id: 101, qty: 24, name: 'Brand meal' }],
+    [withTerms],
+    44
+  ),
+  null
+);
+assert.deepEqual(serializeProductTerms(withTerms.product_terms, [101]), {
+  '101': { moq: 24, lead_time_days: 14 },
+});
 
 console.log('chain-setup.test.ts ok');

@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Loader2, Plus, Save, Trash2 } from 'lucide-react';
 import { readCustomerBrand } from '@/lib/inventory/customer-brand';
-import type { OrderChainSetup } from '@/lib/orders/chain-setup';
+import {
+  formatChainTermsSummary,
+  type OrderChainSetup,
+} from '@/lib/orders/chain-setup';
 import { isPortalFinishedGood } from '@/lib/portals/trade-portal-workspace';
 
 type CustomerOpt = {
@@ -27,12 +30,56 @@ type ProductOpt = {
   metadata?: Record<string, unknown> | null;
 };
 
+type TermDraft = { moq: string; lead_time_days: string };
+
 type Draft = {
   id?: number;
   customer_id: string;
   srm_supplier_id: string;
   product_ids: number[];
+  product_terms: Record<number, TermDraft>;
 };
+
+function emptyTerm(): TermDraft {
+  return { moq: '', lead_time_days: '' };
+}
+
+function termsFromProductMeta(p: ProductOpt): TermDraft {
+  const m = asMeta(p.metadata);
+  const moq = Number(m.moq ?? m.min_order_qty);
+  const lead = Number(m.lead_time_days);
+  return {
+    moq: Number.isFinite(moq) && moq > 0 ? String(moq) : '',
+    lead_time_days: Number.isFinite(lead) && lead > 0 ? String(lead) : '',
+  };
+}
+
+function termsFromSetup(setup: OrderChainSetup): Record<number, TermDraft> {
+  const out: Record<number, TermDraft> = {};
+  for (const id of setup.product_ids) {
+    const t = setup.product_terms?.[id];
+    out[id] = {
+      moq: t?.moq != null ? String(t.moq) : '',
+      lead_time_days: t?.lead_time_days != null ? String(t.lead_time_days) : '',
+    };
+  }
+  return out;
+}
+
+function payloadTerms(d: Draft) {
+  const out: Record<number, { moq: number | null; lead_time_days: number | null }> =
+    {};
+  for (const id of d.product_ids) {
+    const t = d.product_terms[id] || emptyTerm();
+    const moq = Number(t.moq);
+    const lead = Number(t.lead_time_days);
+    out[id] = {
+      moq: Number.isFinite(moq) && moq > 0 ? moq : null,
+      lead_time_days: Number.isFinite(lead) && lead > 0 ? lead : null,
+    };
+  }
+  return out;
+}
 
 function asMeta(raw: unknown): Record<string, unknown> {
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
@@ -62,6 +109,7 @@ export function OrderChainSetupBoard({
     customer_id: '',
     srm_supplier_id: '',
     product_ids: [],
+    product_terms: {},
   });
 
   const qs = useMemo(
@@ -146,13 +194,19 @@ export function OrderChainSetupBoard({
           srm_supplier_id,
           supplier_name: supplierName(srm_supplier_id),
           product_ids: row.product_ids,
+          product_terms: payloadTerms(row),
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Save failed');
       if (!row.id) {
         setComposer(false);
-        setDraft({ customer_id: '', srm_supplier_id: '', product_ids: [] });
+        setDraft({
+          customer_id: '',
+          srm_supplier_id: '',
+          product_ids: [],
+          product_terms: {},
+        });
       }
       await load();
     } catch (e: unknown) {
@@ -201,9 +255,9 @@ export function OrderChainSetupBoard({
           <h2 className="text-lg font-black text-slate-900">Order chains</h2>
           <p className="text-sm text-slate-500 max-w-2xl">
             Each chain is three cards: the customer, which of your finished
-            goods they order, and the supplier who makes those goods. You can
-            have many chains — different products can go to different
-            suppliers.
+            goods they order (with MoQ and lead time), and the supplier who
+            makes those goods. You can have many chains — different products
+            can go to different suppliers.
           </p>
         </div>
         <button
@@ -256,9 +310,9 @@ export function OrderChainSetupBoard({
 
       {!setups.length && !composer ? (
         <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500 text-center">
-          No routing yet. Add a chain: pick the customer, tick the products,
-          pick the supplier. The next portal purchase order for those products
-          raises a linked PO to that supplier.
+          No routing yet. Add a chain: pick the customer, tick the products
+          (MoQ and lead time), pick the supplier. The next portal purchase
+          order for those products raises a linked PO to that supplier.
         </p>
       ) : null}
     </div>
@@ -290,14 +344,16 @@ function SavedChain({
     customer_id: setup.customer_id ? String(setup.customer_id) : '',
     srm_supplier_id: setup.srm_supplier_id ? String(setup.srm_supplier_id) : '',
     product_ids: setup.product_ids,
+    product_terms: termsFromSetup(setup),
   });
   useEffect(() => {
     setDraft({
       customer_id: setup.customer_id ? String(setup.customer_id) : '',
       srm_supplier_id: setup.srm_supplier_id ? String(setup.srm_supplier_id) : '',
       product_ids: setup.product_ids,
+      product_terms: termsFromSetup(setup),
     });
-  }, [setup.id, setup.customer_id, setup.srm_supplier_id, setup.product_ids]);
+  }, [setup.id, setup.customer_id, setup.srm_supplier_id, setup.product_ids, setup.product_terms]);
 
   const customer =
     customers.find((c) => c.id === setup.customer_id)?.trading_name ||
@@ -308,6 +364,7 @@ function SavedChain({
     setup.supplier_name ||
     'Supplier';
   const n = setup.product_ids.length;
+  const termsHint = formatChainTermsSummary(setup);
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -326,7 +383,8 @@ function SavedChain({
         <span className="min-w-0 flex-1">
           <span className="block font-black text-slate-900">{customer}</span>
           <span className="block text-xs text-slate-500 mt-0.5">
-            {n} product{n === 1 ? '' : 's'} · {supplier}
+            {n} product{n === 1 ? '' : 's'}
+            {termsHint ? ` · ${termsHint}` : ''} · {supplier}
             {expanded ? '' : ' · open to edit'}
           </span>
         </span>
@@ -391,11 +449,34 @@ function ChainTriple({
 
   const toggle = (id: number) => {
     const has = draft.product_ids.includes(id);
+    if (has) {
+      const nextTerms = { ...draft.product_terms };
+      delete nextTerms[id];
+      onChange({
+        ...draft,
+        product_ids: draft.product_ids.filter((x) => x !== id),
+        product_terms: nextTerms,
+      });
+      return;
+    }
+    const product = products.find((p) => p.id === id);
     onChange({
       ...draft,
-      product_ids: has
-        ? draft.product_ids.filter((x) => x !== id)
-        : [...draft.product_ids, id],
+      product_ids: [...draft.product_ids, id],
+      product_terms: {
+        ...draft.product_terms,
+        [id]: draft.product_terms[id] || (product ? termsFromProductMeta(product) : emptyTerm()),
+      },
+    });
+  };
+
+  const setTerm = (id: number, patch: Partial<TermDraft>) => {
+    onChange({
+      ...draft,
+      product_terms: {
+        ...draft.product_terms,
+        [id]: { ...(draft.product_terms[id] || emptyTerm()), ...patch },
+      },
     });
   };
 
@@ -408,10 +489,18 @@ function ChainTriple({
         if (tag.customer_brand && tag.customer_id === cid) auto.push(p.id);
       }
     }
+    const product_ids = auto.length ? auto : draft.product_ids;
+    const product_terms = { ...draft.product_terms };
+    for (const pid of product_ids) {
+      if (product_terms[pid]) continue;
+      const product = products.find((p) => p.id === pid);
+      product_terms[pid] = product ? termsFromProductMeta(product) : emptyTerm();
+    }
     onChange({
       ...draft,
       customer_id: id,
-      product_ids: auto.length ? auto : draft.product_ids,
+      product_ids,
+      product_terms,
     });
   };
 
@@ -455,23 +544,27 @@ function ChainTriple({
             What goes on this chain
           </p>
           <p className="mt-1 text-[11px] text-slate-500">
-            {draft.product_ids.length} selected. Customer-brand SKUs are listed
-            first when a customer is picked.
+            {draft.product_ids.length} selected. Set MoQ and lead time on each
+            SKU — the customer portal uses these when they raise a PO.
           </p>
-          <div className="mt-3 max-h-56 overflow-y-auto space-y-3 pr-1">
+          <div className="mt-3 max-h-72 overflow-y-auto space-y-3 pr-1">
             {sorted.branded.length ? (
               <ProductChecks
                 title="Customer brand"
                 products={sorted.branded}
                 selected={draft.product_ids}
+                terms={draft.product_terms}
                 onToggle={toggle}
+                onTerms={setTerm}
               />
             ) : null}
             <ProductChecks
               title={sorted.branded.length ? 'Other finished goods' : 'Finished goods'}
               products={sorted.rest}
               selected={draft.product_ids}
+              terms={draft.product_terms}
               onToggle={toggle}
+              onTerms={setTerm}
             />
             {!products.length ? (
               <p className="text-[11px] text-amber-800">
@@ -540,12 +633,16 @@ function ProductChecks({
   title,
   products,
   selected,
+  terms,
   onToggle,
+  onTerms,
 }: {
   title: string;
   products: ProductOpt[];
   selected: number[];
+  terms: Record<number, TermDraft>;
   onToggle: (id: number) => void;
+  onTerms: (id: number, patch: Partial<TermDraft>) => void;
 }) {
   if (!products.length) return null;
   return (
@@ -556,16 +653,17 @@ function ProductChecks({
       <ul className="space-y-1">
         {products.map((p) => {
           const on = selected.includes(p.id);
+          const t = terms[p.id] || emptyTerm();
           return (
-            <li key={p.id}>
-              <label className="flex items-start gap-2 rounded-lg px-1.5 py-1 text-sm hover:bg-white cursor-pointer">
+            <li key={p.id} className="rounded-lg px-1.5 py-1 hover:bg-white">
+              <label className="flex items-start gap-2 text-sm cursor-pointer">
                 <input
                   type="checkbox"
                   className="mt-1"
                   checked={on}
                   onChange={() => onToggle(p.id)}
                 />
-                <span>
+                <span className="min-w-0 flex-1">
                   <span className="font-semibold text-slate-800">{p.name}</span>
                   {p.sku ? (
                     <span className="block text-[11px] text-slate-500">
@@ -574,6 +672,36 @@ function ProductChecks({
                   ) : null}
                 </span>
               </label>
+              {on ? (
+                <div className="mt-1.5 ml-6 grid grid-cols-2 gap-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    MoQ
+                    <input
+                      type="number"
+                      min={1}
+                      step="1"
+                      className="input mt-0.5 w-full !py-1 !px-2 !text-xs"
+                      placeholder="e.g. 24"
+                      value={t.moq}
+                      onChange={(e) => onTerms(p.id, { moq: e.target.value })}
+                    />
+                  </label>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Lead days
+                    <input
+                      type="number"
+                      min={1}
+                      step="1"
+                      className="input mt-0.5 w-full !py-1 !px-2 !text-xs"
+                      placeholder="e.g. 14"
+                      value={t.lead_time_days}
+                      onChange={(e) =>
+                        onTerms(p.id, { lead_time_days: e.target.value })
+                      }
+                    />
+                  </label>
+                </div>
+              ) : null}
             </li>
           );
         })}

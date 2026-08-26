@@ -1249,17 +1249,24 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      const { productIdsOnCustomerChains } = await import(
-        '@/lib/orders/chain-setup'
-      );
+      const {
+        mapChainSetup,
+        productIdsOnCustomerChains,
+        lineMoqError,
+        maxLeadTimeDays,
+        termsForCustomerProduct,
+      } = await import('@/lib/orders/chain-setup');
       const setupsHit = await supabase
         .from('order_chain_setups')
-        .select('customer_id, product_ids, status')
+        .select('*')
         .eq('profile_id', portal.profile_id)
         .eq('status', 'active')
         .limit(200);
+      const chainSetups = (setupsHit.data || [])
+        .map(mapChainSetup)
+        .filter((s): s is NonNullable<typeof s> => Boolean(s));
       const allowed = productIdsOnCustomerChains(
-        setupsHit.data || [],
+        chainSetups,
         viewer.customer_id
       );
       if (!allowed.size) {
@@ -1283,6 +1290,27 @@ export async function POST(request: NextRequest) {
           );
         }
       }
+      const moqErr = lineMoqError(lines, chainSetups, viewer.customer_id);
+      if (moqErr) {
+        return NextResponse.json({ error: moqErr }, { status: 400 });
+      }
+      for (const line of lines) {
+        const id = Number(line.product_id);
+        const terms = termsForCustomerProduct(
+          chainSetups,
+          viewer.customer_id,
+          id
+        );
+        if (terms.moq != null) line.moq = terms.moq;
+        if (terms.lead_time_days != null) {
+          line.lead_time_days = terms.lead_time_days;
+        }
+      }
+      const leadDays = maxLeadTimeDays(
+        chainSetups,
+        viewer.customer_id,
+        lines.map((l) => Number(l.product_id))
+      );
       const qty = lines.reduce((n, l) => n + Number(l.qty || 0), 0);
       const { calcDocTotals, normalizeItems, docNumber } = await import(
         '@/lib/customers/documents'
@@ -1309,7 +1337,11 @@ export async function POST(request: NextRequest) {
       }
       const promised = body.promised_date
         ? String(body.promised_date).slice(0, 10)
-        : null;
+        : leadDays
+          ? new Date(Date.now() + leadDays * 86400000)
+              .toISOString()
+              .slice(0, 10)
+          : null;
       const attachment = body.attachment_url
         ? String(body.attachment_url).slice(0, 2000)
         : null;
@@ -1354,6 +1386,7 @@ export async function POST(request: NextRequest) {
           contact_phone: String(body.contact_phone || viewer.phone || '').slice(0, 40) || null,
           po_date: body.po_date ? String(body.po_date).slice(0, 10) : null,
           requested_by: stamp.noteTag,
+          lead_time_days: leadDays,
         },
         created_at: now,
         updated_at: now,

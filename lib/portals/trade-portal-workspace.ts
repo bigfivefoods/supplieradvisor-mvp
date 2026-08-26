@@ -4,7 +4,11 @@ import {
   productVisibleOnCustomerPortal,
 } from '@/lib/inventory/customer-brand';
 import { isMissingRelation } from '@/lib/business/company-data';
-import { productIdsOnCustomerChains } from '@/lib/orders/chain-setup';
+import {
+  mapChainSetup,
+  productIdsOnCustomerChains,
+  termsForCustomerProduct,
+} from '@/lib/orders/chain-setup';
 import { otifefForLine, rollupOtifef } from '@/lib/portals/otifef-line';
 import { dateEnvelope } from '@/lib/projects/waterfall';
 import { enrichChainDoc } from '@/lib/orders/chain-path';
@@ -127,6 +131,10 @@ export type PortalCatalogueItem = {
   customer_brand?: boolean;
   /** Product sits on a saved order chain for this customer. */
   on_chain?: boolean;
+  /** Chain MoQ for this customer (units). */
+  moq?: number | null;
+  /** Chain lead time in calendar days. */
+  lead_time_days?: number | null;
 };
 
 export function isPortalFinishedGood(
@@ -302,7 +310,7 @@ async function loadHostCatalogue(
   const supabase = getSupabaseServer();
   const setups = await supabase
     .from('order_chain_setups')
-    .select('product_ids, customer_id, status')
+    .select('*')
     .eq('profile_id', companyId)
     .eq('status', 'active')
     .limit(200);
@@ -312,7 +320,10 @@ async function loadHostCatalogue(
     }
     return [];
   }
-  const chainIds = productIdsOnCustomerChains(setups.data || [], customerId);
+  const chainRows = (setups.data || [])
+    .map(mapChainSetup)
+    .filter((s): s is NonNullable<typeof s> => Boolean(s));
+  const chainIds = productIdsOnCustomerChains(chainRows, customerId);
   if (!chainIds.size) return [];
 
   const { data, error } = await supabase
@@ -343,6 +354,13 @@ async function loadHostCatalogue(
       Number(raw.sell_price) > 0
         ? Number(raw.sell_price)
         : Number(raw.cost_price) || 0;
+    const chainTerms = termsForCustomerProduct(
+      chainRows,
+      customerId,
+      Number(raw.id)
+    );
+    const productMoq = Number(meta.moq ?? meta.min_order_qty);
+    const productLead = Number(meta.lead_time_days);
     out.push({
       id: Number(raw.id),
       name: String(raw.name || 'Product'),
@@ -357,6 +375,12 @@ async function loadHostCatalogue(
         raw.primary_image_url != null ? String(raw.primary_image_url) : null,
       customer_brand: branded,
       on_chain: true,
+      moq:
+        chainTerms.moq ??
+        (Number.isFinite(productMoq) && productMoq > 0 ? productMoq : null),
+      lead_time_days:
+        chainTerms.lead_time_days ??
+        (Number.isFinite(productLead) && productLead > 0 ? productLead : null),
     });
   }
   return portalPoCatalogue(out);

@@ -5,6 +5,8 @@ import { isMissingRelation } from '@/lib/business/company-data';
 import {
   mapChainSetup,
   parseProductIds,
+  parseProductTerms,
+  serializeProductTerms,
 } from '@/lib/orders/chain-setup';
 
 async function gate(privyUserId: string | null, companyId: number) {
@@ -84,6 +86,10 @@ export async function POST(req: NextRequest) {
       );
     }
     const now = new Date().toISOString();
+    const productTerms = serializeProductTerms(
+      parseProductTerms(body.product_terms),
+      productIds
+    );
     const row = {
       profile_id: companyId,
       name: body.name != null ? String(body.name).slice(0, 160) : null,
@@ -94,17 +100,29 @@ export async function POST(req: NextRequest) {
       supplier_name:
         body.supplier_name != null ? String(body.supplier_name).slice(0, 160) : null,
       product_ids: productIds,
+      metadata: { product_terms: productTerms },
       status: 'active',
       created_by: privyUserId,
       created_at: now,
       updated_at: now,
     };
     const supabase = getSupabaseServer();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('order_chain_setups')
       .insert(row)
       .select('*')
       .single();
+    if (error && /column|schema cache|metadata/i.test(error.message)) {
+      const { metadata: _drop, ...soft } = row;
+      void _drop;
+      const retry = await supabase
+        .from('order_chain_setups')
+        .insert(soft)
+        .select('*')
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
     if (error) {
       if (isMissingRelation(error)) {
         return NextResponse.json(
@@ -173,6 +191,31 @@ export async function PATCH(req: NextRequest) {
       updates.status = String(body.status);
     }
     const supabase = getSupabaseServer();
+    if (body.product_terms !== undefined || body.product_ids !== undefined) {
+      const existing = await supabase
+        .from('order_chain_setups')
+        .select('product_ids, metadata')
+        .eq('id', id)
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      const prevMeta =
+        existing.data?.metadata &&
+        typeof existing.data.metadata === 'object' &&
+        !Array.isArray(existing.data.metadata)
+          ? { ...(existing.data.metadata as Record<string, unknown>) }
+          : {};
+      const ids = parseProductIds(
+        updates.product_ids !== undefined
+          ? updates.product_ids
+          : existing.data?.product_ids
+      );
+      const incoming =
+        body.product_terms !== undefined
+          ? parseProductTerms(body.product_terms)
+          : parseProductTerms(prevMeta.product_terms);
+      prevMeta.product_terms = serializeProductTerms(incoming, ids);
+      updates.metadata = prevMeta;
+    }
     const { data, error } = await supabase
       .from('order_chain_setups')
       .update(updates)

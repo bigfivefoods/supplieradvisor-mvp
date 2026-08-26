@@ -84,6 +84,8 @@ function CatalogueTile({
           {[
             item.sku,
             item.uom,
+            item.moq != null ? `MoQ ${item.moq}` : null,
+            item.lead_time_days != null ? `lead ${item.lead_time_days}d` : null,
             item.on_chain
               ? 'On your order chain'
               : item.customer_brand
@@ -234,12 +236,16 @@ export function PortalPurchaseOrder({
   const totals = calcDocTotals(items, taxRate);
 
   const addFromCatalogue = (c: PortalCatalogueItem) => {
-    const qty = Math.max(1, Number(chipQty) || 1);
+    const moq = c.moq != null && c.moq > 0 ? c.moq : 1;
+    const qty = Math.max(moq, Number(chipQty) || 1);
     setLines((prev) => {
       const idx = prev.findIndex((l) => l.product_id === c.id);
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = { ...next[idx], qty: Number(next[idx].qty || 0) + qty };
+        next[idx] = {
+          ...next[idx],
+          qty: Math.max(moq, Number(next[idx].qty || 0) + qty),
+        };
         return next;
       }
       return [
@@ -255,12 +261,26 @@ export function PortalPurchaseOrder({
         },
       ];
     });
+    if (c.lead_time_days != null && c.lead_time_days > 0) {
+      const minBy = addDays(isoDay(new Date()), c.lead_time_days);
+      setDeliveryDate((cur) => (cur && cur >= minBy ? cur : minBy));
+    }
   };
 
   const headerOk = Boolean(poNumber.trim() && poDate && deliveryDate);
+  const moqFor = (productId: number | null) => {
+    if (productId == null) return 1;
+    const hit = catalogue.find((c) => c.id === productId);
+    return hit?.moq != null && hit.moq > 0 ? hit.moq : 1;
+  };
   const linesOk =
     lines.length > 0 &&
-    lines.every((l) => l.qty > 0 && l.product_id != null && l.product_id > 0);
+    lines.every(
+      (l) =>
+        l.product_id != null &&
+        l.product_id > 0 &&
+        l.qty >= moqFor(l.product_id)
+    );
   const deliveryOk = Boolean((shipSame ? billTo : shipTo).trim() && contactName.trim());
 
   const canNext =
@@ -519,6 +539,12 @@ export function PortalPurchaseOrder({
               PO number, date, and required-by date are mandatory.
             </p>
           ) : null}
+          {catalogue.some((c) => c.lead_time_days != null) ? (
+            <p className="text-[11px] text-slate-500">
+              Required-by moves to the longest lead time when you add a product.
+              You can still set a later date.
+            </p>
+          ) : null}
         </div>
       ) : null}
 
@@ -531,7 +557,8 @@ export function PortalPurchaseOrder({
                   Catalogue
                 </p>
                 <p className="text-sm text-slate-600">
-                  Products on your order chain. Same SKU merges quantity.
+                  Products on your order chain. Same SKU merges quantity. MoQ
+                  and lead time come from the chain.
                 </p>
               </div>
               <label className="inline-flex items-center gap-1.5 text-xs font-semibold">
@@ -620,19 +647,26 @@ export function PortalPurchaseOrder({
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {lines.map((l) => (
+                    {lines.map((l) => {
+                      const moq = moqFor(l.product_id);
+                      const cat = catalogue.find((c) => c.id === l.product_id);
+                      return (
                       <tr key={l.key}>
                         <td className="px-4 py-2.5">
                           <p className="font-bold text-slate-900">{l.name}</p>
                           <p className="text-[11px] text-neutral-500">
                             {l.sku || 'SKU'}
+                            {moq > 1 ? ` · MoQ ${moq}` : ''}
+                            {cat?.lead_time_days
+                              ? ` · lead ${cat.lead_time_days}d`
+                              : ''}
                           </p>
                         </td>
                         <td className="px-3 py-2.5 text-neutral-600">{l.uom || 'ea'}</td>
                         <td className="px-3 py-2.5">
                           <input
                             type="number"
-                            min={1}
+                            min={moq}
                             className="input w-full !py-1.5 !px-2 !text-sm"
                             value={l.qty}
                             onChange={(e) =>
@@ -641,7 +675,10 @@ export function PortalPurchaseOrder({
                                   x.key === l.key
                                     ? {
                                         ...x,
-                                        qty: Math.max(1, Number(e.target.value) || 1),
+                                        qty: Math.max(
+                                          moq,
+                                          Number(e.target.value) || moq
+                                        ),
                                       }
                                     : x
                                 )
@@ -685,7 +722,8 @@ export function PortalPurchaseOrder({
                           </button>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -855,6 +893,9 @@ export function PortalPurchaseOrder({
                   <p className="text-[11px] text-neutral-500">
                     {l.qty} {l.uom || 'ea'} · {money(l.unit_price, currency)}
                     {l.sku ? ` · ${l.sku}` : ''}
+                    {moqFor(l.product_id) > 1
+                      ? ` · MoQ ${moqFor(l.product_id)}`
+                      : ''}
                   </p>
                 </div>
                 <p className="font-black tabular-nums">

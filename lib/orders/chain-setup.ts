@@ -3,6 +3,11 @@
  * + which supplier fulfills them.
  */
 
+export type ChainProductTerm = {
+  moq: number | null;
+  lead_time_days: number | null;
+};
+
 export type OrderChainSetup = {
   id: number;
   profile_id: number;
@@ -12,6 +17,7 @@ export type OrderChainSetup = {
   srm_supplier_id: number | null;
   supplier_name: string | null;
   product_ids: number[];
+  product_terms: Record<number, ChainProductTerm>;
   status: string;
   notes: string | null;
 };
@@ -36,6 +42,142 @@ export function parseProductIds(raw: unknown): number[] {
   return ids;
 }
 
+function positiveQty(raw: unknown): number | null {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
+function positiveDays(raw: unknown): number | null {
+  const n = Math.round(Number(raw));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
+export function parseProductTerms(raw: unknown): Record<number, ChainProductTerm> {
+  const out: Record<number, ChainProductTerm> = {};
+  if (Array.isArray(raw)) {
+    for (const row of raw) {
+      const o = asObject(row);
+      const id = Number(o.product_id ?? o.id);
+      if (!Number.isFinite(id) || id <= 0) continue;
+      out[id] = {
+        moq: positiveQty(o.moq ?? o.min_order_qty),
+        lead_time_days: positiveDays(o.lead_time_days),
+      };
+    }
+    return out;
+  }
+  for (const [k, v] of Object.entries(asObject(raw))) {
+    const id = Number(k);
+    if (!Number.isFinite(id) || id <= 0) continue;
+    const o = asObject(v);
+    out[id] = {
+      moq: positiveQty(o.moq ?? o.min_order_qty),
+      lead_time_days: positiveDays(o.lead_time_days),
+    };
+  }
+  return out;
+}
+
+export function serializeProductTerms(
+  terms: Record<number, ChainProductTerm> | null | undefined,
+  productIds: number[]
+): Record<string, ChainProductTerm> {
+  const allowed = new Set(productIds);
+  const out: Record<string, ChainProductTerm> = {};
+  for (const [k, v] of Object.entries(terms || {})) {
+    const id = Number(k);
+    if (!allowed.has(id)) continue;
+    const moq = positiveQty(v?.moq);
+    const lead = positiveDays(v?.lead_time_days);
+    if (moq == null && lead == null) continue;
+    out[String(id)] = { moq, lead_time_days: lead };
+  }
+  return out;
+}
+
+export function termsForProduct(
+  setup: Pick<OrderChainSetup, 'product_terms'> | null | undefined,
+  productId: number | null
+): ChainProductTerm {
+  if (!setup || productId == null) return { moq: null, lead_time_days: null };
+  return (
+    setup.product_terms?.[productId] || { moq: null, lead_time_days: null }
+  );
+}
+
+export function termsForCustomerProduct(
+  setups: OrderChainSetup[],
+  customerId: number | null,
+  productId: number | null
+): ChainProductTerm {
+  return termsForProduct(pickSetupForLine(setups, customerId, productId), productId);
+}
+
+export function lineMoqError(
+  lines: Array<{
+    product_id?: unknown;
+    qty?: unknown;
+    quantity?: unknown;
+    name?: unknown;
+  }>,
+  setups: OrderChainSetup[],
+  customerId: number | null
+): string | null {
+  for (const line of lines) {
+    const id = Number(line.product_id);
+    if (!Number.isFinite(id) || id <= 0) continue;
+    const qty = Number(line.qty ?? line.quantity);
+    const moq = termsForCustomerProduct(setups, customerId, id).moq;
+    if (moq == null) continue;
+    if (!Number.isFinite(qty) || qty < moq) {
+      const label = String(line.name || 'This product');
+      return `${label} minimum order is ${moq}. Increase the quantity.`;
+    }
+  }
+  return null;
+}
+
+export function maxLeadTimeDays(
+  setups: OrderChainSetup[],
+  customerId: number | null,
+  productIds: Array<number | null | undefined>
+): number | null {
+  let max: number | null = null;
+  for (const raw of productIds) {
+    const id = Number(raw);
+    if (!Number.isFinite(id) || id <= 0) continue;
+    const days = termsForCustomerProduct(setups, customerId, id).lead_time_days;
+    if (days == null) continue;
+    max = max == null ? days : Math.max(max, days);
+  }
+  return max;
+}
+
+export function formatChainTermsSummary(
+  setup: Pick<OrderChainSetup, 'product_ids' | 'product_terms'>
+): string {
+  const moqs: number[] = [];
+  const leads: number[] = [];
+  for (const id of setup.product_ids) {
+    const t = termsForProduct(setup, id);
+    if (t.moq != null) moqs.push(t.moq);
+    if (t.lead_time_days != null) leads.push(t.lead_time_days);
+  }
+  const parts: string[] = [];
+  if (moqs.length) {
+    const lo = Math.min(...moqs);
+    const hi = Math.max(...moqs);
+    parts.push(lo === hi ? `MoQ ${lo}` : `MoQ ${lo}–${hi}`);
+  }
+  if (leads.length) {
+    const hi = Math.max(...leads);
+    parts.push(`lead ${hi}d`);
+  }
+  return parts.join(' · ');
+}
+
 export function mapChainSetup(raw: unknown): OrderChainSetup | null {
   const r = asObject(raw);
   const id = Number(r.id);
@@ -55,6 +197,9 @@ export function mapChainSetup(raw: unknown): OrderChainSetup | null {
         : null,
     supplier_name: r.supplier_name != null ? String(r.supplier_name) : null,
     product_ids: parseProductIds(r.product_ids),
+    product_terms: parseProductTerms(
+      asObject(r.metadata).product_terms ?? r.product_terms
+    ),
     status: String(r.status || 'active'),
     notes: r.notes != null ? String(r.notes) : null,
   };
