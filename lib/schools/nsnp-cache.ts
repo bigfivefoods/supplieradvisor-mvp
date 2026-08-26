@@ -4,10 +4,11 @@
  */
 import { ttlDel, ttlGet, ttlSet } from '@/lib/system/memory-ttl';
 
-const ROLE_MS = 45_000;
-const CTX_MS = 45_000;
-const AGENCY_MS = 45_000;
-const CATALOGUE_MS = 30_000;
+const ROLE_MS = 120_000;
+const CTX_MS = 120_000;
+const AGENCY_MS = 120_000;
+const CATALOGUE_MS = 60_000;
+const HUB_MS = 25_000;
 
 export function nsnpCacheGet<T>(key: string): T | null {
   return ttlGet<T>(key);
@@ -23,6 +24,9 @@ export function nsnpCacheDelCompany(companyId: number) {
   ttlDel(`nsnp:ctx:${companyId}`);
   ttlDel(`nsnp:agency:${companyId}`);
   ttlDel(`nsnp:products:${companyId}`);
+  ttlDel(`nsnp:summary:${companyId}`);
+  ttlDel(`nsnp:geo:${companyId}`);
+  ttlDel(`nsnp:ops:${companyId}`);
 }
 
 export const NSNP_TTL = {
@@ -30,4 +34,5 @@ export const NSNP_TTL = {
   ctx: CTX_MS,
   agency: AGENCY_MS,
   products: CATALOGUE_MS,
+  hub: HUB_MS,
 } as const;

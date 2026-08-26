@@ -14,7 +14,13 @@ import {
   applyApprovedProductClaimIncentive,
   CLAIM_APPROVED_MIN_PCT,
 } from '@/lib/schools/incentives';
-import { fetchAgencySchoolLinks } from '@/lib/schools/supabase-page';
+import {
+  fetchAgencySchoolLinks,
+  fetchAgencySchoolLinksSlice,
+  loadAgencyGeoRollup,
+  loadAgencyLinkSummary,
+  loadAgencyNetworkOps,
+} from '@/lib/schools/supabase-page';
 import { computeClaimAmount, countWeekdays } from '@/lib/schools/process';
 import { computeOtifRisk } from '@/lib/schools/brand-pick-gate';
 
@@ -83,7 +89,7 @@ export async function GET(request: NextRequest) {
       }
       return NextResponse.json(
         await exceptionsView(supabase, companyId, {
-          lite: sp.get('lite') === '1' || sp.get('lite') === 'true',
+          full: sp.get('full') === '1' || sp.get('full') === 'true',
         })
       );
     }
@@ -349,21 +355,22 @@ async function gatherCounts(
   const todayStr = today();
 
   if (role === 'isp') {
-    const { data: pos } = await supabase
-      .from('school_purchase_orders')
-      .select('id, status')
-      .eq('isp_profile_id', companyId)
-      .in('status', ['submitted', 'confirmed', 'open', 'dispatched'])
-      .limit(100);
-    c.openPos = (pos || []).length;
-
-    const { data: dels } = await supabase
-      .from('school_nsnp_deliveries')
-      .select('id, status, metadata, expected_date, otif')
-      .eq('isp_profile_id', companyId)
-      .in('status', ['draft', 'confirmed', 'dispatched', 'delivered'])
-      .limit(200);
-    const list = dels || [];
+    const [posRes, delsRes] = await Promise.all([
+      supabase
+        .from('school_purchase_orders')
+        .select('id, status')
+        .eq('isp_profile_id', companyId)
+        .in('status', ['submitted', 'confirmed', 'open', 'dispatched'])
+        .limit(100),
+      supabase
+        .from('school_nsnp_deliveries')
+        .select('id, status, metadata, expected_date, otif')
+        .eq('isp_profile_id', companyId)
+        .in('status', ['draft', 'confirmed', 'dispatched', 'delivered'])
+        .limit(200),
+    ]);
+    c.openPos = (posRes.data || []).length;
+    const list = delsRes.data || [];
     c.openDns = list.filter((d) =>
       ['draft', 'confirmed'].includes(String(d.status))
     ).length;
@@ -388,14 +395,39 @@ async function gatherCounts(
     if (!school) return c;
     const sid = Number(school.id);
 
-    // Kitchen stock vs cover / zero — drives "check stock vs DBE menu"
-    try {
-      const { data: stock } = await supabase
+    const [stockRes, posRes, delsRes, feedRes, recsRes] = await Promise.all([
+      supabase
         .from('school_kitchen_stock')
-        .select('id, qty_on_hand, reorder_level, metadata')
+        .select('id, qty_on_hand, reorder_level')
         .eq('school_profile_id', sid)
-        .limit(500);
-      const rows = stock || [];
+        .limit(500),
+      supabase
+        .from('school_purchase_orders')
+        .select('id')
+        .eq('school_profile_id', sid)
+        .in('status', ['submitted', 'confirmed', 'open', 'dispatched', 'draft'])
+        .limit(50),
+      supabase
+        .from('school_nsnp_deliveries')
+        .select('id, status, metadata, received_at, expected_date')
+        .eq('school_profile_id', sid)
+        .limit(100),
+      supabase
+        .from('school_feeding_days')
+        .select('id')
+        .eq('school_profile_id', sid)
+        .eq('feed_date', todayStr)
+        .maybeSingle(),
+      supabase
+        .from('school_kitchen_receipts')
+        .select('compliance_ok')
+        .eq('school_profile_id', sid)
+        .gte('received_at', wk)
+        .limit(50),
+    ]);
+
+    try {
+      const rows = stockRes.data || [];
       c.stockShort = rows.filter((s) => {
         const qty = Number(s.qty_on_hand || 0);
         const reorder = Number(
@@ -405,7 +437,6 @@ async function gatherCounts(
         return qty <= 0;
       }).length;
       c.stockOk = c.stockShort === 0 && rows.length > 0;
-      // No stock rows yet → still need a stock check
       if (rows.length === 0) {
         c.stockOk = false;
         c.stockShort = 0;
@@ -414,20 +445,8 @@ async function gatherCounts(
       c.stockOk = false;
     }
 
-    const { data: pos } = await supabase
-      .from('school_purchase_orders')
-      .select('id')
-      .eq('school_profile_id', sid)
-      .in('status', ['submitted', 'confirmed', 'open', 'dispatched', 'draft'])
-      .limit(50);
-    c.openPos = (pos || []).length;
-
-    const { data: dels } = await supabase
-      .from('school_nsnp_deliveries')
-      .select('id, status, metadata, received_at, expected_date')
-      .eq('school_profile_id', sid)
-      .limit(100);
-    const list = dels || [];
+    c.openPos = (posRes.data || []).length;
+    const list = delsRes.data || [];
     c.openDns = list.filter((d) =>
       ['draft', 'confirmed', 'dispatched', 'delivered'].includes(String(d.status))
     ).length;
@@ -455,13 +474,7 @@ async function gatherCounts(
       );
     }).length;
 
-    const { data: feed } = await supabase
-      .from('school_feeding_days')
-      .select('id')
-      .eq('school_profile_id', sid)
-      .eq('feed_date', todayStr)
-      .maybeSingle();
-    c.serveToday = Boolean(feed);
+    c.serveToday = Boolean(feedRes.data);
 
     // Kitchen CoA / R638 passport risk (drives golden-path safety step)
     try {
@@ -482,122 +495,70 @@ async function gatherCounts(
       c.kitchenSafetyOk = undefined;
     }
 
-    const { data: recs } = await supabase
-      .from('school_kitchen_receipts')
-      .select('compliance_ok')
-      .eq('school_profile_id', sid)
-      .gte('received_at', wk)
-      .limit(50);
-    const bad = (recs || []).filter((r) => r.compliance_ok === false).length;
-    c.claimsBlocked = bad > 0 && (recs || []).length > 0;
+    const recs = recsRes.data || [];
+    const bad = recs.filter((r) => r.compliance_ok === false).length;
+    c.claimsBlocked = bad > 0 && recs.length > 0;
     c.claimsReady = c.serveToday && !c.claimsBlocked && c.receivedThisWeek > 0;
   } else {
-    // agency (DBE / PEU) — programme governance counts only.
-    // Do NOT map openPos / awaitingReceive as if DBE orders or receives food.
-    const links = await fetchAgencySchoolLinks(supabase, companyId, [
-      'active',
-      'pending',
-    ]).catch(() => []);
-    c.pendingAssociations = links.filter((l) => l.status === 'pending').length;
-    c.activeSchools = links.filter((l) => l.status === 'active').length;
-    const schoolIds = links
-      .map((l) => Number(l.school_profile_id))
-      .filter(Boolean);
-
-    // Pending SP joins (same desk)
-    try {
-      const { data: ispPending } = await supabase
+    // agency (DBE / PEU) — counts via RPCs. Never page 5k school links on the hub.
+    const [summary, netOps, slice, riadsRes, ispLinksRes] = await Promise.all([
+      loadAgencyLinkSummary(supabase, companyId).catch(() => ({
+        schoolCount: 0,
+        activeLinks: 0,
+        pendingLinks: 0,
+        suspendedLinks: 0,
+        totalLearners: 0,
+        totalVerified: 0,
+        totalNsnpApproved: 0,
+      })),
+      loadAgencyNetworkOps(supabase, companyId, todayStr),
+      fetchAgencySchoolLinksSlice(supabase, companyId, {
+        statuses: ['active'],
+        limit: 80,
+      }).catch(() => []),
+      supabase
+        .from('riad_logs')
+        .select('id, status')
+        .contains('metadata', { raised_by_agency_profile_id: companyId })
+        .limit(80)
+        .then((r) => r)
+        .catch(() => ({ data: [] as Array<{ id?: number; status?: string }> })),
+      supabase
         .from('nsnp_isp_agency_links')
-        .select('id')
+        .select('isp_profile_id, status, metadata')
         .eq('agency_profile_id', companyId)
-        .eq('status', 'pending')
-        .limit(100);
-      c.pendingAssociations += (ispPending || []).length;
-    } catch {
-      /* soft */
-    }
+        .eq('status', 'active')
+        .limit(200)
+        .then((r) => r)
+        .catch(() => ({ data: [] as Array<Record<string, unknown>> })),
+    ]);
 
-    const { data: claims } = await supabase
-      .from('nsnp_claim_packs')
-      .select('id')
-      .eq('agency_profile_id', companyId)
-      .eq('status', 'submitted')
-      .limit(50);
-    c.submittedClaims = (claims || []).length;
+    c.pendingAssociations =
+      summary.pendingLinks + Number(netOps.pendingIspLinks || 0);
+    c.activeSchools = summary.activeLinks;
+    c.submittedClaims = netOps.submittedClaims;
     c.claimsReady = c.submittedClaims > 0;
+    c.catalogueProducts = netOps.catalogueProducts;
+    c.menuConfigured = netOps.menus > 0;
+    c.recipesConfigured = netOps.recipes > 0;
+    c.calendarConfigured = netOps.calendars > 0;
+    c.lateDeliveries = netOps.lateDeliveries;
 
-    // Approved catalogue (agency-owned products)
-    try {
-      const { count } = await supabase
-        .from('nsnp_approved_products')
-        .select('id', { count: 'exact', head: true })
-        .eq('agency_profile_id', companyId);
-      c.catalogueProducts = count ?? 0;
-    } catch {
-      try {
-        // Fallback column name on older catalogues
-        const { data: products } = await supabase
-          .from('nsnp_approved_products')
-          .select('id')
-          .eq('profile_id', companyId)
-          .limit(500);
-        c.catalogueProducts = (products || []).length;
-      } catch {
-        c.catalogueProducts = 0;
-      }
-    }
-
-    // Menu cycle mandated by agency (school_menu_cycles.agency_profile_id)
-    try {
-      const { data: menus } = await supabase
-        .from('school_menu_cycles')
-        .select('id')
-        .eq('agency_profile_id', companyId)
-        .limit(1);
-      c.menuConfigured = (menus || []).length > 0;
-    } catch {
-      c.menuConfigured = false;
-    }
-
-    // Recipes / BOMs (nsnp_recipes)
-    try {
-      const { data: recipes } = await supabase
-        .from('nsnp_recipes')
-        .select('id')
-        .eq('agency_profile_id', companyId)
-        .limit(1);
-      c.recipesConfigured = (recipes || []).length > 0;
-    } catch {
-      c.recipesConfigured = false;
-    }
-
-    // Feeding calendar (nsnp_feeding_calendars)
-    try {
-      const { data: cal } = await supabase
-        .from('nsnp_feeding_calendars')
-        .select('id')
-        .eq('agency_profile_id', companyId)
-        .limit(1);
-      c.calendarConfigured = (cal || []).length > 0;
-    } catch {
-      c.calendarConfigured = false;
-    }
-
-    // Kitchen CoA / R638 at-risk schools (golden-path + register signal)
     try {
       const {
         readKitchenPassport,
         evaluateKitchenRisk,
       } = await import('@/lib/schools/kitchen-safety');
-      const activeIds = schoolIds.slice(0, 200);
+      const sampleIds = slice
+        .map((l) => Number(l.school_profile_id))
+        .filter((n) => Number.isFinite(n) && n > 0)
+        .slice(0, 80);
       let atRisk = 0;
-      for (let i = 0; i < activeIds.length; i += 80) {
-        const slice = activeIds.slice(i, i + 80);
+      if (sampleIds.length) {
         const { data: schools } = await supabase
           .from('school_profiles')
           .select('id, metadata')
-          .in('id', slice)
-          .limit(100);
+          .in('id', sampleIds);
         for (const s of schools || []) {
           const meta =
             s.metadata && typeof s.metadata === 'object'
@@ -618,55 +579,21 @@ async function gatherCounts(
       c.kitchenCoaAtRisk = 0;
     }
 
-    // Oversight only: late deliveries in network (DBE monitors, does not GRN)
-    if (schoolIds.length) {
-      const slice = schoolIds.slice(0, 200);
-      const { data: dels } = await supabase
-        .from('school_nsnp_deliveries')
-        .select('id, status, expected_date')
-        .in('school_profile_id', slice)
-        .in('status', ['dispatched', 'delivered', 'confirmed'])
-        .limit(300);
-      c.lateDeliveries = (dels || []).filter(
-        (d) =>
-          d.expected_date &&
-          String(d.expected_date).slice(0, 10) < todayStr
-      ).length;
-    }
+    const riadRows = (riadsRes as { data?: Array<{ status?: string }> }).data || [];
+    c.openRiads = riadRows.filter(
+      (r) =>
+        !['closed', 'resolved'].includes(String(r.status || '').toLowerCase())
+    ).length;
 
-    try {
-      const { data: riads } = await supabase
-        .from('riad_logs')
-        .select('id, status')
-        .contains('metadata', { raised_by_agency_profile_id: companyId })
-        .limit(100);
-      c.openRiads = (riads || []).filter(
-        (r) =>
-          !['closed', 'resolved'].includes(
-            String(r.status || '').toLowerCase()
-          )
-      ).length;
-    } catch {
-      c.openRiads = 0;
-    }
-
-    try {
-      const { data: ispLinks } = await supabase
-        .from('nsnp_isp_agency_links')
-        .select('isp_profile_id, status, metadata')
-        .eq('agency_profile_id', companyId)
-        .eq('status', 'active')
-        .limit(200);
-      c.probationSps = (ispLinks || []).filter((l) => {
-        const meta = (l.metadata || {}) as { probation?: boolean; tier?: string };
-        return (
-          meta.probation === true ||
-          String(meta.tier || '').toLowerCase() === 'probation'
-        );
-      }).length;
-    } catch {
-      c.probationSps = 0;
-    }
+    const ispRows =
+      (ispLinksRes as { data?: Array<{ metadata?: unknown }> }).data || [];
+    c.probationSps = ispRows.filter((l) => {
+      const meta = (l.metadata || {}) as { probation?: boolean; tier?: string };
+      return (
+        meta.probation === true ||
+        String(meta.tier || '').toLowerCase() === 'probation'
+      );
+    }).length;
   }
 
   return c;
@@ -814,22 +741,21 @@ async function fulfilView(
 async function exceptionsView(
   supabase: ReturnType<typeof getSupabaseServer>,
   companyId: number,
-  opts?: { lite?: boolean }
+  opts?: { lite?: boolean; full?: boolean }
 ) {
-  if (opts?.lite) {
-    const {
-      loadAgencyLinkSummary,
-      fetchPendingAgencyLinks,
-    } = await import('@/lib/schools/supabase-page');
-    const [summary, pendingLinks, claims] = await Promise.all([
+  const useFull = opts?.full === true;
+  if (!useFull) {
+    const { fetchPendingAgencyLinks } = await import(
+      '@/lib/schools/supabase-page'
+    );
+    const [summary, pendingLinks, netOps] = await Promise.all([
       loadAgencyLinkSummary(supabase, companyId),
       fetchPendingAgencyLinks(supabase, companyId, 40).catch(() => []),
-      supabase
-        .from('nsnp_claim_packs')
-        .select('id', { count: 'exact', head: true })
-        .eq('agency_profile_id', companyId)
-        .eq('status', 'submitted'),
+      loadAgencyNetworkOps(supabase, companyId),
     ]);
+    const claims = {
+      count: netOps.submittedClaims,
+    };
     const exceptions: Array<Record<string, unknown>> = [
       {
         kind: 'network_scope',
@@ -860,6 +786,36 @@ async function exceptionsView(
         count: submitted,
       });
     }
+    if (netOps.lateDeliveries > 0) {
+      exceptions.push({
+        kind: 'delivery_late_rollup',
+        severity: 'high',
+        title: `${netOps.lateDeliveries.toLocaleString('en-ZA')} late delivery note(s) across the network`,
+        href: '/dashboard/schools/ops',
+        count: netOps.lateDeliveries,
+      });
+    }
+    if (netOps.offCatalogueReceipts14d > 0) {
+      exceptions.push({
+        kind: 'off_catalogue_rollup',
+        severity: 'high',
+        title: `${netOps.offCatalogueReceipts14d.toLocaleString('en-ZA')} off-catalogue GRN(s) in the last 14 days`,
+        href: '/dashboard/schools/ops',
+        count: netOps.offCatalogueReceipts14d,
+      });
+    }
+    if (pendingLinks.length) {
+      for (const l of pendingLinks.slice(0, 20)) {
+        exceptions.push({
+          kind: 'school_pending',
+          severity: 'medium',
+          title: 'School join pending',
+          subject_id: l.school_profile_id,
+          href: '/dashboard/schools/join',
+          age_hint: l.created_at || l.updated_at,
+        });
+      }
+    }
     return {
       success: true,
       role: 'agency',
@@ -869,6 +825,8 @@ async function exceptionsView(
         schools_active: summary.activeLinks,
         schools_pending: summary.pendingLinks,
         claims_submitted: submitted,
+        late_deliveries: netOps.lateDeliveries,
+        off_catalogue_14d: netOps.offCatalogueReceipts14d,
       },
     };
   }
@@ -1594,40 +1552,19 @@ async function districtView(
   supabase: ReturnType<typeof getSupabaseServer>,
   companyId: number
 ) {
-  const links = await fetchAgencySchoolLinks(supabase, companyId, [
-    'active',
-  ]).catch(() => []);
-  const schoolIds = links
-    .map((l) => Number(l.school_profile_id))
-    .filter(Boolean);
-
-  const schools =
-    schoolIds.length > 0
-      ? await import('@/lib/schools/supabase-page').then(({ fetchByIds }) =>
-          fetchByIds(
-            supabase,
-            'school_profiles',
-            'id, school_name, district, province, learner_count_enrolled',
-            schoolIds
-          )
-        )
-      : [];
-
+  const geo = await loadAgencyGeoRollup(supabase, companyId);
   const byDistrict = new Map<
     string,
     { district: string; schools: number; learners: number }
   >();
-  for (const s of schools) {
-    const d = String(s.district || 'Unknown');
-    const row = byDistrict.get(d) || {
-      district: d,
-      schools: 0,
-      learners: 0,
-    };
-    row.schools += 1;
-    row.learners += Number(s.learner_count_enrolled || 0);
-    byDistrict.set(d, row);
+  for (const row of geo.byDistrict) {
+    byDistrict.set(row.key, {
+      district: row.key,
+      schools: row.schools,
+      learners: row.learners,
+    });
   }
+  const schoolCount = geo.byDistrict.reduce((n, r) => n + r.schools, 0);
 
   // SPs by district/cluster
   const { data: ispLinks } = await supabase
@@ -1691,7 +1628,7 @@ async function districtView(
     })),
     gaps,
     kpis: {
-      schools: schools.length,
+      schools: schoolCount,
       sps: sps.length,
       districts: byDistrict.size,
       clusters: byCluster.size,
@@ -2613,43 +2550,48 @@ async function provincialExportView(
   from: string,
   to: string
 ) {
-  const ex = await exceptionsView(supabase, companyId);
-  const dist = await districtView(supabase, companyId);
-  const cons = await consistencyView(supabase, companyId);
+  const [ex, dist, cons, slice] = await Promise.all([
+    exceptionsView(supabase, companyId),
+    districtView(supabase, companyId),
+    consistencyView(supabase, companyId),
+    fetchAgencySchoolLinksSlice(supabase, companyId, {
+      statuses: ['active'],
+      limit: 40,
+    }).catch(() => []),
+  ]);
 
-  const links = await fetchAgencySchoolLinks(supabase, companyId, [
-    'active',
-  ]).catch(() => []);
-  const schoolIds = [
+  const sampleIds = [
     ...new Set(
-      links.map((l) => Number(l.school_profile_id)).filter(Boolean)
+      slice
+        .map((l) => Number(l.school_profile_id))
+        .filter((n) => Number.isFinite(n) && n > 0)
     ),
   ];
-
-  // Sample schools for claim readiness (cap)
-  const sampleIds = schoolIds.slice(0, 40);
   const schoolRows: Array<Record<string, unknown>> = [];
   if (sampleIds.length) {
     const { data: schools } = await supabase
       .from('school_profiles')
       .select('id, school_name, emis_number, district, province')
       .in('id', sampleIds);
-    for (const s of schools || []) {
-      const { count: feedDays } = await supabase
-        .from('school_feeding_days')
-        .select('*', { count: 'exact', head: true })
-        .eq('school_profile_id', s.id)
-        .gte('feed_date', from)
-        .lte('feed_date', to);
-      schoolRows.push({
-        id: s.id,
-        name: s.school_name,
-        emis: s.emis_number,
-        district: s.district,
-        province: s.province,
-        feed_days_in_period: feedDays || 0,
-      });
-    }
+    const feedCounts = await Promise.all(
+      (schools || []).map(async (s) => {
+        const { count: feedDays } = await supabase
+          .from('school_feeding_days')
+          .select('id', { count: 'exact', head: true })
+          .eq('school_profile_id', s.id)
+          .gte('feed_date', from)
+          .lte('feed_date', to);
+        return {
+          id: s.id,
+          name: s.school_name,
+          emis: s.emis_number,
+          district: s.district,
+          province: s.province,
+          feed_days_in_period: feedDays || 0,
+        };
+      })
+    );
+    schoolRows.push(...feedCounts);
   }
 
   const { data: claims } = await supabase
@@ -2668,7 +2610,7 @@ async function provincialExportView(
     agency_profile_id: companyId,
     period: { from, to },
     kpis: {
-      schools: schoolIds.length,
+      schools: (dist.kpis as { schools?: number } | undefined)?.schools || 0,
       districts: (dist.kpis as { districts?: number } | undefined)?.districts,
       exceptions: (ex.summary as { total?: number } | undefined)?.total,
       claims: (claims || []).length,

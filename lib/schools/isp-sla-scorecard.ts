@@ -102,19 +102,25 @@ export async function loadIspSlaScorecard(
   const { from, to } = opts;
   const agency = await getAgencyRegistration(supabase, companyId);
 
-  let schoolIds: number[] = [];
   let role: IspSlaRole = 'school';
+  let scopeKind: 'isp' | 'school' = 'school';
+  let scopeIds: number[] = [];
   if (agency) {
     role = 'agency';
-    const { data: links } = await supabase
-      .from('school_agency_links')
-      .select('school_profile_id')
+    scopeKind = 'isp';
+    const { data: ispLinks } = await supabase
+      .from('nsnp_isp_agency_links')
+      .select('isp_profile_id')
       .eq('agency_profile_id', companyId)
-      .eq('status', 'active')
-      .limit(2000);
-    schoolIds = (links || [])
-      .map((l) => Number(l.school_profile_id))
-      .filter(Boolean);
+      .in('status', ['active', 'approved'])
+      .limit(500);
+    scopeIds = [
+      ...new Set(
+        (ispLinks || [])
+          .map((l) => Number(l.isp_profile_id))
+          .filter((n) => Number.isFinite(n) && n > 0)
+      ),
+    ];
   } else {
     const { data: ispRow } = await supabase
       .from('nsnp_isp_profiles')
@@ -123,18 +129,14 @@ export async function loadIspSlaScorecard(
       .maybeSingle();
     if (ispRow) {
       role = 'isp';
-      const { data: sl } = await supabase
-        .from('school_isp_links')
-        .select('school_profile_id')
-        .eq('isp_profile_id', companyId)
-        .eq('status', 'active')
-        .limit(500);
-      schoolIds = (sl || [])
-        .map((l) => Number(l.school_profile_id))
-        .filter(Boolean);
+      scopeKind = 'isp';
+      scopeIds = [companyId];
     } else {
       const { school } = await getOrCreateSchoolProfile(supabase, companyId);
-      if (school) schoolIds = [Number(school.id)];
+      if (school) {
+        scopeKind = 'school';
+        scopeIds = [Number(school.id)];
+      }
     }
   }
 
@@ -147,7 +149,7 @@ export async function loadIspSlaScorecard(
     probation: 0,
   };
 
-  if (!schoolIds.length) {
+  if (!scopeIds.length) {
     return {
       role,
       period: { from, to },
@@ -174,38 +176,40 @@ export async function loadIspSlaScorecard(
     return byIsp.get(id)!;
   };
 
-  for (let i = 0; i < schoolIds.length; i += 100) {
-    const chunk = schoolIds.slice(i, i + 100);
+  const col = scopeKind === 'isp' ? 'isp_profile_id' : 'school_profile_id';
+  const chunkSize = scopeKind === 'isp' ? 40 : 80;
+  for (let i = 0; i < scopeIds.length; i += chunkSize) {
+    const chunk = scopeIds.slice(i, i + chunkSize);
     const [recRes, ordRes, delRes, rateRes] = await Promise.all([
       supabase
         .from('school_kitchen_receipts')
         .select('isp_profile_id, compliance_ok, received_at, lines, po_id')
-        .in('school_profile_id', chunk)
+        .in(col, chunk)
         .gte('received_at', from)
         .lte('received_at', to)
-        .limit(5000),
+        .limit(4000),
       supabase
         .from('school_purchase_orders')
         .select(
           'id, isp_profile_id, total_amount, status, order_date, expected_date, compliance_ok, lines'
         )
-        .in('school_profile_id', chunk)
+        .in(col, chunk)
         .gte('order_date', from)
         .lte('order_date', to)
-        .limit(5000),
+        .limit(4000),
       supabase
         .from('school_nsnp_deliveries')
         .select(
           'isp_profile_id, otif, expected_date, delivered_at, received_at, status, compliance_ok, pod_photo_url, lines, po_id'
         )
-        .in('school_profile_id', chunk)
+        .in(col, chunk)
         .gte('expected_date', from)
         .lte('expected_date', to)
-        .limit(5000),
+        .limit(4000),
       supabase
         .from('school_isp_ratings')
         .select('isp_profile_id, overall_rating, created_at')
-        .in('school_profile_id', chunk)
+        .in(col, chunk)
         .gte('created_at', `${from}T00:00:00`)
         .lte('created_at', `${to}T23:59:59`)
         .limit(2000),
@@ -285,11 +289,11 @@ export async function loadIspSlaScorecard(
     }
   }
 
-  if (role === 'school' && schoolIds[0]) {
+  if (role === 'school' && scopeIds[0]) {
     const { data: links } = await supabase
       .from('school_isp_links')
       .select('isp_profile_id')
-      .eq('school_profile_id', schoolIds[0])
+      .eq('school_profile_id', scopeIds[0])
       .eq('status', 'active')
       .limit(50);
     for (const l of links || []) {

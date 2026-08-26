@@ -118,7 +118,7 @@ function Inner() {
         const qs = `companyId=${companyId}&from=${period.from}&to=${period.to}`;
         const [ex, dist, cons, burn] = await Promise.all([
           fetch(
-            `/api/schools/ops?companyId=${companyId}&view=exceptions`,
+            `/api/schools/ops?companyId=${companyId}&view=exceptions&lite=1`,
             { cache: 'no-store', credentials: 'same-origin' }
           ).then((x) => x.json()),
           fetch(

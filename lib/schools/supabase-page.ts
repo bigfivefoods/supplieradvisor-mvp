@@ -155,6 +155,24 @@ export async function loadAgencyLinkSummary(
   supabase: SupabaseClient,
   agencyCompanyId: number
 ): Promise<AgencyLinkSummary> {
+  try {
+    const { nsnpCacheGet, nsnpCacheSet, NSNP_TTL } = await import(
+      '@/lib/schools/nsnp-cache'
+    );
+    const ck = `nsnp:summary:${agencyCompanyId}`;
+    const hit = nsnpCacheGet<AgencyLinkSummary>(ck);
+    if (hit) return hit;
+    const loaded = await loadAgencyLinkSummaryUncached(supabase, agencyCompanyId);
+    return nsnpCacheSet(ck, loaded, NSNP_TTL.hub);
+  } catch {
+    return loadAgencyLinkSummaryUncached(supabase, agencyCompanyId);
+  }
+}
+
+async function loadAgencyLinkSummaryUncached(
+  supabase: SupabaseClient,
+  agencyCompanyId: number
+): Promise<AgencyLinkSummary> {
   const { data, error } = await supabase.rpc('sa_nsnp_agency_summary', {
     p_agency_profile_id: agencyCompanyId,
   });
@@ -227,4 +245,190 @@ export async function fetchAgencySchoolLinksSlice(
     .limit(limit);
   if (error) throw new Error(`school_agency_links: ${error.message}`);
   return asRows(data);
+}
+
+export type GeoRollupRow = {
+  key: string;
+  schools: number;
+  learners: number;
+  verified: number;
+};
+
+export type AgencyGeoRollup = {
+  byDistrict: GeoRollupRow[];
+  byProvince: GeoRollupRow[];
+  byQuintile: GeoRollupRow[];
+};
+
+function parseGeoRows(raw: unknown, keyField: string): GeoRollupRow[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((row) => {
+    const o = (row || {}) as Record<string, unknown>;
+    return {
+      key: String(o[keyField] || o.key || 'Unknown'),
+      schools: Number(o.schools || 0),
+      learners: Number(o.learners || 0),
+      verified: Number(o.verified || 0),
+    };
+  });
+}
+
+export async function loadAgencyGeoRollup(
+  supabase: SupabaseClient,
+  agencyCompanyId: number
+): Promise<AgencyGeoRollup> {
+  const empty: AgencyGeoRollup = {
+    byDistrict: [],
+    byProvince: [],
+    byQuintile: [],
+  };
+  try {
+    const { nsnpCacheGet, nsnpCacheSet, NSNP_TTL } = await import(
+      '@/lib/schools/nsnp-cache'
+    );
+    const ck = `nsnp:geo:${agencyCompanyId}`;
+    const hit = nsnpCacheGet<AgencyGeoRollup>(ck);
+    if (hit) return hit;
+    const { data, error } = await supabase.rpc('sa_nsnp_geo_rollup', {
+      p_agency_profile_id: agencyCompanyId,
+    });
+    if (error || !data || typeof data !== 'object') return empty;
+    const o = data as Record<string, unknown>;
+    const loaded: AgencyGeoRollup = {
+      byDistrict: parseGeoRows(o.byDistrict, 'district'),
+      byProvince: parseGeoRows(o.byProvince, 'province'),
+      byQuintile: parseGeoRows(o.byQuintile, 'quintile'),
+    };
+    return nsnpCacheSet(ck, loaded, NSNP_TTL.hub);
+  } catch {
+    return empty;
+  }
+}
+
+export type AgencyNetworkOps = {
+  lateDeliveries: number;
+  offCatalogueReceipts14d: number;
+  submittedClaims: number;
+  pendingIspLinks: number;
+  activeIspLinks: number;
+  catalogueProducts: number;
+  menus: number;
+  recipes: number;
+  calendars: number;
+};
+
+function emptyNetworkOps(): AgencyNetworkOps {
+  return {
+    lateDeliveries: 0,
+    offCatalogueReceipts14d: 0,
+    submittedClaims: 0,
+    pendingIspLinks: 0,
+    activeIspLinks: 0,
+    catalogueProducts: 0,
+    menus: 0,
+    recipes: 0,
+    calendars: 0,
+  };
+}
+
+export async function loadAgencyNetworkOps(
+  supabase: SupabaseClient,
+  agencyCompanyId: number,
+  asOf = new Date().toISOString().slice(0, 10)
+): Promise<AgencyNetworkOps> {
+  const empty = emptyNetworkOps();
+  try {
+    const { nsnpCacheGet, nsnpCacheSet, NSNP_TTL } = await import(
+      '@/lib/schools/nsnp-cache'
+    );
+    const ck = `nsnp:ops:${agencyCompanyId}:${asOf}`;
+    const hit = nsnpCacheGet<AgencyNetworkOps>(ck);
+    if (hit) return hit;
+    const { data, error } = await supabase.rpc('sa_nsnp_network_ops', {
+      p_agency_profile_id: agencyCompanyId,
+      p_as_of: asOf,
+    });
+    if (!error && data && typeof data === 'object') {
+      const o = data as Record<string, unknown>;
+      const loaded: AgencyNetworkOps = {
+        lateDeliveries: Number(o.lateDeliveries || 0),
+        offCatalogueReceipts14d: Number(o.offCatalogueReceipts14d || 0),
+        submittedClaims: Number(o.submittedClaims || 0),
+        pendingIspLinks: Number(o.pendingIspLinks || 0),
+        activeIspLinks: Number(o.activeIspLinks || 0),
+        catalogueProducts: Number(o.catalogueProducts || 0),
+        menus: Number(o.menus || 0),
+        recipes: Number(o.recipes || 0),
+        calendars: Number(o.calendars || 0),
+      };
+      return nsnpCacheSet(ck, loaded, NSNP_TTL.hub);
+    }
+    const fallback = await loadAgencyNetworkOpsFallback(
+      supabase,
+      agencyCompanyId
+    );
+    return nsnpCacheSet(ck, fallback, NSNP_TTL.hub);
+  } catch {
+    return empty;
+  }
+}
+
+/** Cheap counts that do not require joining 5k school ids. */
+async function loadAgencyNetworkOpsFallback(
+  supabase: SupabaseClient,
+  agencyCompanyId: number
+): Promise<AgencyNetworkOps> {
+  const out = emptyNetworkOps();
+  const [
+    claims,
+    ispPending,
+    ispActive,
+    cat,
+    menus,
+    recipes,
+    cals,
+  ] = await Promise.all([
+    supabase
+      .from('nsnp_claim_packs')
+      .select('id', { count: 'exact', head: true })
+      .eq('agency_profile_id', agencyCompanyId)
+      .eq('status', 'submitted'),
+    supabase
+      .from('nsnp_isp_agency_links')
+      .select('id', { count: 'exact', head: true })
+      .eq('agency_profile_id', agencyCompanyId)
+      .eq('status', 'pending'),
+    supabase
+      .from('nsnp_isp_agency_links')
+      .select('id', { count: 'exact', head: true })
+      .eq('agency_profile_id', agencyCompanyId)
+      .eq('status', 'active'),
+    supabase
+      .from('nsnp_approved_products')
+      .select('id', { count: 'exact', head: true })
+      .eq('agency_profile_id', agencyCompanyId),
+    supabase
+      .from('school_menu_cycles')
+      .select('id')
+      .eq('agency_profile_id', agencyCompanyId)
+      .limit(1),
+    supabase
+      .from('nsnp_recipes')
+      .select('id')
+      .eq('agency_profile_id', agencyCompanyId)
+      .limit(1),
+    supabase
+      .from('nsnp_feeding_calendars')
+      .select('id')
+      .eq('agency_profile_id', agencyCompanyId)
+      .limit(1),
+  ]);
+  out.submittedClaims = Number(claims.count || 0);
+  out.pendingIspLinks = Number(ispPending.count || 0);
+  out.activeIspLinks = Number(ispActive.count || 0);
+  out.catalogueProducts = Number(cat.count || 0);
+  out.menus = (menus.data || []).length;
+  out.recipes = (recipes.data || []).length;
+  out.calendars = (cals.data || []).length;
+  return out;
 }

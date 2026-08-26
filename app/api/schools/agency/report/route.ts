@@ -7,7 +7,10 @@ import {
 
 import {
   fetchAgencySchoolLinks,
+  fetchAgencySchoolLinksSlice,
   fetchByIds,
+  loadAgencyGeoRollup,
+  loadAgencyLinkSummary,
 } from '@/lib/schools/supabase-page';
 
 export const runtime = 'nodejs';
@@ -68,7 +71,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const needFullMembers = new Set([
+      'members',
+      'map',
+      'register',
+      'prizes',
+      'feeding',
+      'learners',
+      'compliance',
+    ]);
+    const wantFullList =
+      needFullMembers.has(report) ||
+      sp.get('all') === '1' ||
+      sp.get('all') === 'true';
+
     let links: Array<Record<string, unknown>>;
+    const [summaryCounts, geoRollup] = await Promise.all([
+      loadAgencyLinkSummary(supabase, companyId).catch(() => null),
+      loadAgencyGeoRollup(supabase, companyId),
+    ]);
     try {
       const statuses =
         linkStatus === 'all'
@@ -76,7 +97,12 @@ export async function GET(request: NextRequest) {
           : linkStatus === 'pending'
             ? ['pending']
             : ['active'];
-      links = await fetchAgencySchoolLinks(supabase, companyId, statuses);
+      links = wantFullList
+        ? await fetchAgencySchoolLinks(supabase, companyId, statuses)
+        : await fetchAgencySchoolLinksSlice(supabase, companyId, {
+            statuses,
+            limit: 250,
+          });
     } catch (e: unknown) {
       return NextResponse.json(
         {
@@ -449,13 +475,17 @@ export async function GET(request: NextRequest) {
       (m) => !['hospital', 'clinic', 'shelter'].includes(m.member_type)
     );
     const kpis = {
-      organisations: schoolMembers.length,
-      schools: schoolMembers.length,
+      organisations: summaryCounts?.activeLinks ?? schoolMembers.length,
+      schools: summaryCounts?.activeLinks ?? schoolMembers.length,
       // legacy key kept for UI compatibility — always 0 (schools module only)
       hospitals: 0,
       other_orgs: 0,
-      totalLearners: members.reduce((n, m) => n + m.learners_enrolled, 0),
-      totalVerified: members.reduce((n, m) => n + m.learners_verified, 0),
+      totalLearners:
+        summaryCounts?.totalLearners ??
+        members.reduce((n, m) => n + m.learners_enrolled, 0),
+      totalVerified:
+        summaryCounts?.totalVerified ??
+        members.reduce((n, m) => n + m.learners_verified, 0),
       totalEligible: members.reduce((n, m) => n + m.learners_eligible, 0),
       totalStaff: members.reduce((n, m) => n + m.staff, 0),
       mealsServed: members.reduce((n, m) => n + m.meals_served, 0),
@@ -487,23 +517,47 @@ export async function GET(request: NextRequest) {
       withGps: members.filter(
         (m) => m.lat != null && m.lng != null && Number.isFinite(m.lat)
       ).length,
-      pendingApprovals: links.filter((l) => l.status === 'pending').length,
+      pendingApprovals:
+        summaryCounts?.pendingLinks ??
+        links.filter((l) => l.status === 'pending').length,
       isps: ispCoverage.summary.total,
       isps_active: ispCoverage.summary.active,
       isps_pending: ispCoverage.summary.pending,
-      provinces_with_schools: new Set(
-        members.map((m) => m.province).filter(Boolean)
-      ).size,
-      districts_with_schools: new Set(
-        members.map((m) => m.district).filter(Boolean)
-      ).size,
+      provinces_with_schools:
+        geoRollup.byProvince.filter((r) => r.key !== 'Unknown').length ||
+        new Set(members.map((m) => m.province).filter(Boolean)).size,
+      districts_with_schools:
+        geoRollup.byDistrict.filter((r) => r.key !== 'Unknown').length ||
+        new Set(members.map((m) => m.district).filter(Boolean)).size,
     };
 
-    // Groupings — schools by geography
-    const byProvince = groupSum(members, (m) => m.province || 'Unknown');
-    const byDistrict = groupSum(members, (m) =>
-      [m.district, m.province].filter(Boolean).join(', ') || 'Unknown'
-    );
+    // Groupings — schools by geography (SQL rollup is complete at 5k; member sample is not)
+    const byProvince = geoRollup.byProvince.length
+      ? geoRollup.byProvince.map((r) => ({
+          key: r.key,
+          organisations: r.schools,
+          learners: r.learners,
+          verified: r.verified,
+          meals_served: 0,
+          po_spend: 0,
+          avg_prize: null as number | null,
+        }))
+      : groupSum(members, (m) => m.province || 'Unknown');
+    const byDistrict = geoRollup.byDistrict.length
+      ? geoRollup.byDistrict.map((r) => ({
+          key: r.key,
+          organisations: r.schools,
+          learners: r.learners,
+          verified: r.verified,
+          meals_served: 0,
+          po_spend: 0,
+          avg_prize: null as number | null,
+        }))
+      : groupSum(
+          members,
+          (m) =>
+            [m.district, m.province].filter(Boolean).join(', ') || 'Unknown'
+        );
     const byCircuit = groupSum(members, (m) => {
       if (m.circuit) {
         return [m.circuit, m.district, m.province].filter(Boolean).join(', ');
@@ -871,6 +925,8 @@ export async function GET(request: NextRequest) {
       hierarchyTree,
       kpis,
       members,
+      members_total: summaryCounts?.activeLinks || members.length,
+      members_sampled: !wantFullList,
       byProvince,
       byDistrict,
       byCircuit,
