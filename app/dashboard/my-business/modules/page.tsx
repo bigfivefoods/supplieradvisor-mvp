@@ -19,6 +19,7 @@ import {
   Package,
   CreditCard,
   Layers,
+  ChevronDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
@@ -116,6 +117,17 @@ function ModulesInner() {
   );
   const [draftLegalForm, setDraftLegalForm] = useState('');
   const payTermId: BillingTermId = 'monthly';
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    classify: true,
+    presets: false,
+    core: true,
+    industry: true,
+    government: false,
+    industries: false,
+    packs: false,
+  });
+  const toggleSection = (id: string) =>
+    setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -267,6 +279,8 @@ function ModulesInner() {
     if (isIndustryAdvisorModule(id)) {
       if (govLocked && !platformOperator) return true;
       if (platformOperator) return false;
+      // Always allow hiding a hub that is already on (e.g. ContainerAdvisor).
+      if (enabled[id] === true) return false;
       return !industryPackUnlocked(id);
     }
     return false;
@@ -885,7 +899,11 @@ function ModulesInner() {
             : 'border-slate-200 bg-white'
         }`}
       >
-        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+        <button
+          type="button"
+          onClick={() => toggleSection('classify')}
+          className="mb-4 flex w-full flex-wrap items-start justify-between gap-3 text-left"
+        >
           <div>
             <p className="text-[11px] font-black uppercase tracking-widest text-[#0077b6]">
               {!draftLegalForm || !yourSectorId || !companyIndustries.length
@@ -904,8 +922,14 @@ function ModulesInner() {
               Identity.
             </p>
           </div>
-        </div>
+          <ChevronDown
+            className={`mt-1 h-5 w-5 shrink-0 text-slate-500 transition-transform ${
+              openSections.classify ? 'rotate-180' : ''
+            }`}
+          />
+        </button>
 
+        {openSections.classify ? (
         <div className="space-y-4">
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
@@ -1079,6 +1103,7 @@ function ModulesInner() {
             Save classification
           </button>
         </div>
+        ) : null}
       </div>
 
       {/* Subscriptions + packaging summary */}
@@ -1233,12 +1258,26 @@ function ModulesInner() {
 
       {sectorIndustryPresets.length > 0 ? (
         <div className="mb-6 rounded-3xl border border-neutral-200 bg-white p-5">
-          <SectionLabel>Quick presets</SectionLabel>
-          <p className="text-xs text-neutral-500 mt-1 mb-2">
-            Only your registered sector
-            {companyIndustries.length ? ' and industries' : ''} — not the full
-            preset catalogue.
-          </p>
+          <button
+            type="button"
+            onClick={() => toggleSection('presets')}
+            className="flex w-full items-start justify-between gap-3 text-left"
+          >
+            <div>
+              <SectionLabel>Quick presets</SectionLabel>
+              <p className="text-xs text-neutral-500 mt-1 mb-2">
+                Only your registered sector
+                {companyIndustries.length ? ' and industries' : ''} — not the full
+                preset catalogue.
+              </p>
+            </div>
+            <ChevronDown
+              className={`mt-0.5 h-5 w-5 shrink-0 text-slate-400 transition-transform ${
+                openSections.presets ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+          {openSections.presets ? (
           <div className="grid sm:grid-cols-2 gap-2 mt-2">
             {sectorIndustryPresets.map((p) => (
               <button
@@ -1260,6 +1299,7 @@ function ModulesInner() {
               </button>
             ))}
           </div>
+          ) : null}
         </div>
       ) : (
         <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
@@ -1329,10 +1369,13 @@ function ModulesInner() {
             : group.layer === 'industry'
               ? 'bg-violet-800 text-white'
               : 'bg-emerald-800 text-white';
+        const sectionOpen = openSections[group.layer] !== false;
         return (
           <div key={group.layer} className="mb-8">
-            <div
-              className={`mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl px-4 py-3 ${header}`}
+            <button
+              type="button"
+              onClick={() => toggleSection(group.layer)}
+              className={`mb-4 flex w-full flex-wrap items-center justify-between gap-2 rounded-2xl px-4 py-3 text-left ${header}`}
             >
               <div>
                 <div className="text-[10px] font-black uppercase tracking-widest text-white/70">
@@ -1345,31 +1388,40 @@ function ModulesInner() {
                   {group.blurb}
                 </p>
               </div>
-              <div className="shrink-0 text-right">
-                <div className="text-xl font-black tabular-nums">
-                  {onCount}
-                  <span className="text-sm font-bold text-white/60">
-                    /{ids.length}
-                  </span>
+              <div className="flex shrink-0 items-center gap-3">
+                <div className="text-right">
+                  <div className="text-xl font-black tabular-nums">
+                    {onCount}
+                    <span className="text-sm font-bold text-white/60">
+                      /{ids.length}
+                    </span>
+                  </div>
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-white/60">
+                    selected
+                  </div>
                 </div>
-                <div className="text-[10px] font-bold uppercase tracking-wide text-white/60">
-                  selected
-                </div>
+                <ChevronDown
+                  className={`h-5 w-5 shrink-0 text-white/80 transition-transform ${
+                    sectionOpen ? 'rotate-180' : ''
+                  }`}
+                />
               </div>
-            </div>
-            {ids.length ? (
-              <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                {ids.map((id) => renderModuleToggle(id, true))}
-              </ul>
-            ) : (
-              <p className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">
-                {group.layer === 'industry'
-                  ? 'Industry Advisors appear here.'
-                  : group.layer === 'government'
-                    ? 'SchoolAdvisor and HealthAdvisor are set up by SupplierAdvisor admin.'
-                    : 'No core hubs available.'}
-              </p>
-            )}
+            </button>
+            {sectionOpen ? (
+              ids.length ? (
+                <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {ids.map((id) => renderModuleToggle(id, true))}
+                </ul>
+              ) : (
+                <p className="rounded-2xl border border-dashed border-neutral-200 px-4 py-6 text-sm text-neutral-500">
+                  {group.layer === 'industry'
+                    ? 'Industry Advisors appear here.'
+                    : group.layer === 'government'
+                      ? 'SchoolAdvisor and HealthAdvisor are set up by SupplierAdvisor admin.'
+                      : 'No core hubs available.'}
+                </p>
+              )
+            ) : null}
           </div>
         );
       })}
@@ -1377,12 +1429,23 @@ function ModulesInner() {
       {/* Sector industries (registered sector only) */}
       {yourSectorId && sectorIndustries.length > 0 ? (
         <div className="mb-6">
-          <div className="mb-2 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => toggleSection('industries')}
+            className="mb-2 flex w-full items-center gap-2 text-left"
+          >
             <Layers className="w-4 h-4 text-[#0077b6]" />
             <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">
               Industries in {sectorLabel}
             </h3>
-          </div>
+            <ChevronDown
+              className={`ml-auto h-5 w-5 text-slate-400 transition-transform ${
+                openSections.industries ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+          {openSections.industries ? (
+          <>
           <p className="text-xs text-neutral-500 mb-3 max-w-2xl">
             Your registered industry is highlighted. Packs below match this sector.
           </p>
@@ -1426,11 +1489,17 @@ function ModulesInner() {
               );
             })}
           </div>
+          </>
+          ) : null}
         </div>
       ) : null}
 
       {/* Sector + Industry Packs (registered sector only; programmes under Public Sector) */}
-      <div className="mt-8 mb-2 flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => toggleSection('packs')}
+        className="mt-8 mb-2 flex w-full items-center gap-2 text-left"
+      >
         <Package className="w-4 h-4 text-[#0077b6]" />
         <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">
           {sectorLabel !== 'Not set' ? `${sectorLabel} · Industry packs` : 'Industry packs'}
@@ -1438,7 +1507,14 @@ function ModulesInner() {
         <span className="text-[11px] text-neutral-500">
           +R{INDUSTRY_PACK_MONTHLY_ZAR}/mo each
         </span>
-      </div>
+        <ChevronDown
+          className={`ml-auto h-5 w-5 text-slate-400 transition-transform ${
+            openSections.packs ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
+      {openSections.packs ? (
+      <>
       <p className="text-xs text-neutral-500 mb-4 max-w-2xl">
         {yourSectorId
           ? `Select packs for ${sectorLabel}, then Save packs. Packs unlock recommended hubs below (and Core OS modules further up).`
@@ -1828,6 +1904,8 @@ function ModulesInner() {
           </div>
         );
       })}
+      </>
+      ) : null}
 
       <div className="mt-6 rounded-3xl border border-neutral-200 bg-white p-5 sm:p-6">
         <h3 className="font-black text-slate-900 text-lg mb-1">

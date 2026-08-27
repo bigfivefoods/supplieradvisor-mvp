@@ -614,11 +614,26 @@ export function failOpenEnabledModules(): EnabledModulesMap {
  * Slim chrome writes (sidenav order only) used to drop enabled_modules,
  * and missing Advisor keys default off — VUKA then lost GymAdvisor.
  */
+function storedModuleFlag(stored: unknown, id: string): boolean | null {
+  if (Array.isArray(stored)) {
+    return stored.map(String).includes(id);
+  }
+  if (!stored || typeof stored !== 'object') return null;
+  const src = stored as Record<string, unknown>;
+  if (!Object.prototype.hasOwnProperty.call(src, id)) return null;
+  const v = src[id];
+  if (v === false || v === 'false' || v === 0) return false;
+  if (v === true || v === 'true' || v === 1) return true;
+  return null;
+}
+
 export function applyAdvisorVisibility(opts: {
   map: EnabledModulesMap;
   packIds?: readonly string[] | null;
   companyId?: number | null;
   companyName?: string | null;
+  /** Raw enabled_modules blob — used so an explicit off is not pack-forced back on */
+  stored?: unknown;
 }): EnabledModulesMap {
   const next: EnabledModulesMap = { ...opts.map };
   for (const pid of opts.packIds || []) {
@@ -628,6 +643,7 @@ export function applyAdvisorVisibility(opts: {
       // SchoolAdvisor / HealthAdvisor share public_procurement — do not
       // force both hubs on. XOR below picks the org's programme.
       if (VERTICAL_ID_SET.has(id) && !isGovernmentProgrammeModule(id)) {
+        if (storedModuleFlag(opts.stored, id) === false) continue;
         next[id] = true;
       }
     }
@@ -671,6 +687,7 @@ export function resolveVisibleModules(opts: {
     packIds,
     companyId: opts.companyId,
     companyName: opts.companyName,
+    stored: opts.stored,
   });
   const platformCo = isSupplierAdvisorPlatformCompany({
     tradingName: opts.companyName,

@@ -44,7 +44,31 @@ const fromPack = resolveVisibleModules({
   stored: { fitgraph: false, customers: true },
   packaging: { packIds: ['fitness_gym'] },
 });
-assert.equal(fromPack.fitgraph, true, 'fitness pack turns GymAdvisor back on');
+assert.equal(
+  fromPack.fitgraph,
+  false,
+  'explicit off stays off even with a subscribed pack'
+);
+
+const packUnlocksMissing = resolveVisibleModules({
+  stored: { customers: true },
+  packaging: { packIds: ['fitness_gym'] },
+});
+assert.equal(
+  packUnlocksMissing.fitgraph,
+  true,
+  'fitness pack turns GymAdvisor on when the hub was never configured'
+);
+
+const containersOff = resolveVisibleModules({
+  stored: { containers: false, customers: true },
+  packaging: { packIds: ['logistics_containers'] },
+});
+assert.equal(
+  containersOff.containers,
+  false,
+  'ContainerAdvisor can be turned off with the logistics pack still subscribed'
+);
 
 const fromMetaPack = extractEnabledModulesFromMetadata({
   industry_packs: ['fitness_gym'],
