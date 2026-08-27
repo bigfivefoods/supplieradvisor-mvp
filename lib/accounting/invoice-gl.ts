@@ -45,6 +45,17 @@ function asMeta(raw: unknown): Record<string, unknown> {
   return {};
 }
 
+/** Cash already on a bank allocation — do not recognise or settle again. */
+export function invoiceKeepsBankAllocation(meta: unknown): boolean {
+  const m = asMeta(meta);
+  return Boolean(
+    m.skip_recognition ||
+      m.skip_settlement ||
+      m.books_keep_bank_allocation ||
+      m.cash_allocated_journal_id
+  );
+}
+
 export async function pickOpenEntryDate(
   profileId: number,
   preferred: string
@@ -175,6 +186,14 @@ export async function recognizeInvoiceIfNeeded(opts: {
     return { ok: true, skipped: true };
   }
   const meta = asMeta(inv.metadata);
+  if (invoiceKeepsBankAllocation(meta)) {
+    const keep = Number(meta.cash_allocated_journal_id || meta.recognition_journal_id || 0);
+    return {
+      ok: true,
+      skipped: true,
+      journalId: keep > 0 ? keep : undefined,
+    };
+  }
   if (meta.recognition_journal_id) {
     return {
       ok: true,
@@ -412,6 +431,9 @@ export async function settleInvoicePayment(opts: {
 }> {
   const amount = round2(Math.abs(Number(opts.amount || 0)));
   if (amount < 0.005) return { ok: true, skipped: true };
+  if (invoiceKeepsBankAllocation(opts.invoice.metadata)) {
+    return { ok: true, skipped: true };
+  }
 
   const recognized = await recognizeInvoiceIfNeeded({
     profileId: opts.profileId,
