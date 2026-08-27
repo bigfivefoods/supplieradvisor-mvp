@@ -1,20 +1,17 @@
 'use client';
 
-import { Building2, ChevronRight, MapPin, Package, Search } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
+import { ChevronDown, ChevronRight, Map, MapPin, Search } from 'lucide-react';
 import { ProductPhoto } from '@/components/inventory/ProductPhoto';
-import type { HirePwaSupplier } from '@/lib/hire/hire-customer-pwa';
+import {
+  coordsForHireArea,
+  type HirePwaSupplier,
+} from '@/lib/hire/hire-customer-pwa';
 
-type KitItem = {
-  id: string;
-  title: string;
-  supplier_name?: string;
-  location?: string;
-  photo_url?: string | null;
-  category_short?: string;
-  category_name?: string;
-  rate_zar: number;
-  rate_unit: string;
-};
+const LocationMap = dynamic(() => import('@/components/LocationMap'), {
+  ssr: false,
+});
 
 export function HireAdvisorSearchTab({
   search,
@@ -23,10 +20,9 @@ export function HireAdvisorSearchTab({
   onArea,
   areaOptions,
   suppliers,
-  kit,
   zar,
   onOpenSupplier,
-  onOpenItem,
+  depot,
 }: {
   search: string;
   onSearch: (q: string) => void;
@@ -34,74 +30,158 @@ export function HireAdvisorSearchTab({
   onArea: (area: string) => void;
   areaOptions: string[];
   suppliers: HirePwaSupplier[];
-  kit: KitItem[];
   zar: (n: number | null | undefined) => string;
   onOpenSupplier: (supplier: HirePwaSupplier) => void;
-  onOpenItem: (item: KitItem) => void;
+  depot?: {
+    lat?: number | null;
+    lng?: number | null;
+    label?: string | null;
+  };
 }) {
-  const q = search.trim();
+  const [mapView, setMapView] = useState(false);
+  const [locationOpen, setLocationOpen] = useState(false);
+
+  const pins = useMemo(() => {
+    const out: Array<{
+      id: string;
+      position: [number, number];
+      label: string;
+      subtitle?: string;
+    }> = [];
+    const seen = new Set<string>();
+    for (const s of suppliers) {
+      const pos = coordsForHireArea(s.location, depot);
+      if (!pos) continue;
+      const key = `${s.key}:${pos[0]}:${pos[1]}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        id: s.key,
+        position: pos,
+        label: s.name,
+        subtitle: s.location || undefined,
+      });
+    }
+    if (!out.length) {
+      const pos = coordsForHireArea(depot?.label, depot);
+      if (pos) {
+        out.push({
+          id: 'depot',
+          position: pos,
+          label: depot?.label || 'Hire desk',
+        });
+      }
+    }
+    return out;
+  }, [depot, suppliers]);
+
+  const mapCenter = pins[0]?.position ||
+    coordsForHireArea(null, depot) || [-26.2041, 28.0473];
+
+  const locationLabel = areaFilter.trim() || 'Location';
+  const locationOn = Boolean(areaFilter.trim());
 
   return (
     <div className="space-y-3">
-      <div className="rounded-3xl border border-cyan-100 bg-gradient-to-br from-cyan-50 to-white p-4 shadow-sm">
-        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-700">
-          HireAdvisor
-        </p>
-        <h2 className="mt-0.5 text-lg font-black text-slate-900">
-          Search suppliers
-        </h2>
-        <p className="mt-1 text-[12px] text-slate-600">
-          Find the owner of the gear, then hire it and track when it is coming.
-        </p>
-        <div className="relative mt-3">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            className="w-full rounded-2xl border border-cyan-100 bg-white py-3 pl-10 pr-3 text-sm font-medium shadow-sm"
-            placeholder="Supplier, plant, jumping castle, suburb…"
-            value={search}
-            onChange={(e) => onSearch(e.target.value)}
-            autoComplete="off"
-            inputMode="search"
-          />
-        </div>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <input
+          className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-10 pr-3 text-sm font-medium shadow-sm"
+          placeholder="Search suppliers…"
+          value={search}
+          onChange={(e) => onSearch(e.target.value)}
+          autoComplete="off"
+          inputMode="search"
+        />
       </div>
 
-      {areaOptions.length ? (
-        <div className="flex gap-1.5 overflow-x-auto pb-1">
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+        <button
+          type="button"
+          onClick={() => {
+            setMapView((v) => !v);
+            setLocationOpen(false);
+          }}
+          className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-bold ${
+            mapView
+              ? 'bg-cyan-700 text-white'
+              : 'border border-slate-200 bg-white text-slate-600'
+          }`}
+        >
+          <Map className="h-3.5 w-3.5" />
+          Map view
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            onArea('');
+            setLocationOpen(false);
+          }}
+          className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold ${
+            !locationOn
+              ? 'bg-cyan-700 text-white'
+              : 'border border-slate-200 bg-white text-slate-600'
+          }`}
+        >
+          Any area
+        </button>
+        <div className="relative shrink-0">
           <button
             type="button"
-            onClick={() => onArea('')}
-            className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold ${
-              !areaFilter
+            onClick={() => setLocationOpen((o) => !o)}
+            className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-bold ${
+              locationOn
                 ? 'bg-cyan-700 text-white'
                 : 'border border-slate-200 bg-white text-slate-600'
             }`}
           >
-            Any area
+            <MapPin className="h-3.5 w-3.5" />
+            {locationLabel}
+            <ChevronDown className="h-3 w-3" />
           </button>
-          {areaOptions.map((a) => (
-            <button
-              key={a}
-              type="button"
-              onClick={() => onArea(areaFilter === a ? '' : a)}
-              className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold ${
-                areaFilter === a
-                  ? 'bg-cyan-700 text-white'
-                  : 'border border-slate-200 bg-white text-slate-600'
-              }`}
-            >
-              {a}
-            </button>
-          ))}
+          {locationOpen ? (
+            <ul className="absolute right-0 z-20 mt-1 max-h-56 min-w-[10rem] overflow-y-auto rounded-2xl border border-slate-200 bg-white py-1 shadow-lg">
+              {areaOptions.length === 0 ? (
+                <li className="px-3 py-2 text-[11px] text-slate-500">
+                  No areas listed yet
+                </li>
+              ) : (
+                areaOptions.map((a) => (
+                  <li key={a}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onArea(a);
+                        setLocationOpen(false);
+                      }}
+                      className={`block w-full px-3 py-2 text-left text-[12px] font-bold ${
+                        areaFilter === a
+                          ? 'bg-cyan-50 text-cyan-800'
+                          : 'text-slate-700'
+                      }`}
+                    >
+                      {a}
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          ) : null}
+        </div>
+      </div>
+
+      {mapView ? (
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <LocationMap
+            pins={pins}
+            center={mapCenter}
+            zoom={pins.length > 1 ? 10 : 12}
+            height="220px"
+            interactive
+            className="w-full"
+          />
         </div>
       ) : null}
-
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-black text-slate-900">Suppliers</h3>
-        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-          {suppliers.length} to hire
-        </span>
-      </div>
 
       {suppliers.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
@@ -158,56 +238,6 @@ export function HireAdvisorSearchTab({
           ))}
         </ul>
       )}
-
-      {q && kit.length > 0 ? (
-        <div className="space-y-2">
-          <h3 className="flex items-center gap-1.5 text-sm font-black text-slate-900">
-            <Package className="h-4 w-4 text-cyan-700" /> Matching kit
-          </h3>
-          <ul className="space-y-2">
-            {kit.slice(0, 8).map((item) => (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  onClick={() => onOpenItem(item)}
-                  className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 text-left shadow-sm"
-                >
-                  {item.photo_url ? (
-                    <ProductPhoto
-                      src={item.photo_url}
-                      className="h-12 w-12 shrink-0 rounded-xl"
-                    />
-                  ) : (
-                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-100">
-                      <Building2 className="h-4 w-4 text-slate-400" />
-                    </span>
-                  )}
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-bold text-slate-900">
-                      {item.title}
-                    </span>
-                    <span className="block truncate text-[11px] text-slate-500">
-                      {[
-                        item.supplier_name,
-                        item.location,
-                        item.category_short || item.category_name,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-right text-xs font-black text-cyan-800">
-                    {zar(item.rate_zar)}
-                    <span className="block text-[10px] font-bold text-slate-400">
-                      / {item.rate_unit}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
     </div>
   );
 }

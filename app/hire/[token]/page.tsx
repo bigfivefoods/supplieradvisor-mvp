@@ -196,6 +196,8 @@ type Portal = {
   primary_color?: string;
   allow_booking?: boolean;
   depot_address?: string | null;
+  depot_lat?: number | null;
+  depot_lng?: number | null;
   service_radius_km?: number | null;
   cancellation_policy?: string | null;
   commercial: {
@@ -919,17 +921,12 @@ export default function HireCustomerPortalPage() {
             onArea={setAreaFilter}
             areaOptions={areaOptions}
             suppliers={suppliers}
-            kit={portal.catalogue.filter((i) => {
-              const q = search.trim().toLowerCase();
-              if (!q) return false;
-              const loc = `${i.location || ''} ${i.supplier_name || ''} ${i.category_name || ''}`.toLowerCase();
-              return (
-                i.title.toLowerCase().includes(q) ||
-                i.code.toLowerCase().includes(q) ||
-                loc.includes(q)
-              );
-            })}
             zar={zar}
+            depot={{
+              lat: portal.depot_lat,
+              lng: portal.depot_lng,
+              label: portal.city || portal.depot_address,
+            }}
             onOpenSupplier={(s) => {
               setSupplierFilter(s.key);
               setCategoryFilter('');
@@ -937,14 +934,6 @@ export default function HireCustomerPortalPage() {
               setTab('hire');
               setMsg(null);
               setError(null);
-            }}
-            onOpenItem={(item) => {
-              const full = portal.catalogue.find((i) => i.id === item.id);
-              if (full) {
-                setSelectedItem(full);
-                setMsg(null);
-                setError(null);
-              }
             }}
           />
         )}

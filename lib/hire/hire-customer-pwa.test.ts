@@ -3,6 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import {
+  coordsForHireArea,
   filterHireSuppliers,
   groupHireSuppliers,
   hireSupplierKey,
@@ -11,6 +12,12 @@ import {
   normalizeHireCustomerTab,
   HIRE_CUSTOMER_PWA_DOCK,
 } from './hire-customer-pwa';
+import {
+  buildHireCustomerPortalPayload,
+  emptyHiregraphStore,
+  type HireCustomerPortal,
+  type HireItem,
+} from './hiregraph';
 
 assert.equal(HIRE_CUSTOMER_PWA_DOCK[2], 'you');
 assert.deepEqual([...HIRE_CUSTOMER_PWA_DOCK], [
@@ -20,12 +27,6 @@ assert.deepEqual([...HIRE_CUSTOMER_PWA_DOCK], [
   'track',
   'nearby',
 ]);
-import {
-  buildHireCustomerPortalPayload,
-  emptyHiregraphStore,
-  type HireCustomerPortal,
-  type HireItem,
-} from './hiregraph';
 
 assert.equal(normalizeHireCustomerTab('shop'), 'hire');
 assert.equal(normalizeHireCustomerTab('browse'), 'hire');
@@ -97,6 +98,11 @@ assert.equal(
   'Party Hire SA'
 );
 assert.equal(filterHireSuppliers(grouped, '', 'sandton').length, 1);
+assert.deepEqual(coordsForHireArea('Sandton'), [-26.1076, 28.0567]);
+assert.deepEqual(
+  coordsForHireArea('Depot', { lat: -26.2, lng: 28.0, label: 'Depot' }),
+  [-26.2, 28.0]
+);
 
 const store = emptyHiregraphStore();
 const now = '2026-08-01T00:00:00.000Z';

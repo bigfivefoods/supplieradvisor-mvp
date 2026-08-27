@@ -1000,14 +1000,11 @@ function HireMemberPwaMock({
       <div className="min-h-0 flex-1 space-y-2 overflow-hidden p-2.5">
         {screen === 'search' ? (
           <>
-            <p className={`text-[11px] font-black ${skin.title}`}>Search suppliers</p>
             <div className={`${skin.card} px-2 py-1.5`}>
-              <p className={`text-[8px] ${skin.muted}`}>
-                Supplier, plant, jumping castle, suburb…
-              </p>
+              <p className={`text-[8px] ${skin.muted}`}>Search suppliers…</p>
             </div>
             <div className="flex gap-1">
-              {['Any area', 'Sandton', 'Randburg'].map((a, i) => (
+              {['Map view', 'Any area', 'Location'].map((a, i) => (
                 <span
                   key={a}
                   className={`rounded-full px-2 py-0.5 text-[7px] font-black ${

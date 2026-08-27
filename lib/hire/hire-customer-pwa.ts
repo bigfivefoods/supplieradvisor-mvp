@@ -160,3 +160,61 @@ export function isHireYouTab(tab: string | null | undefined): boolean {
   const t = normalizeHireCustomerTab(tab);
   return t === 'you' || t === 'requirements' || t === 'calendar';
 }
+
+/** Common SA hire areas — used for the Search map when a supplier has a place name. */
+const ZA_HIRE_AREA_COORDS: Record<string, [number, number]> = {
+  sandton: [-26.1076, 28.0567],
+  randburg: [-26.0937, 27.9804],
+  midrand: [-25.9752, 28.1267],
+  centurion: [-25.8603, 28.1894],
+  pretoria: [-25.7479, 28.2293],
+  johannesburg: [-26.2041, 28.0473],
+  'cape town': [-33.9249, 18.4241],
+  durban: [-29.8587, 31.0218],
+  soweto: [-26.2678, 27.8585],
+  roodepoort: [-26.1625, 27.8725],
+  kempton: [-26.1, 28.23],
+  'kempton park': [-26.1, 28.23],
+  benoni: [-26.1885, 28.3208],
+  springs: [-26.25, 28.4],
+  alberton: [-26.2678, 28.1211],
+  fourways: [-26.0177, 28.0106],
+  rosebank: [-26.1447, 28.0416],
+  bryanston: [-26.0534, 28.0246],
+  hatfield: [-25.748, 28.238],
+  stellenbosch: [-33.9321, 18.8602],
+  paarl: [-33.7274, 18.9756],
+  somerset: [-34.074, 18.848],
+  'somerset west': [-34.074, 18.848],
+  bloemfontein: [-29.0852, 26.1596],
+  polokwane: [-23.9045, 29.4689],
+  nelspruit: [-25.4753, 30.9694],
+  mbombela: [-25.4753, 30.9694],
+  port: [-33.9608, 25.6022],
+  'port elizabeth': [-33.9608, 25.6022],
+  gqeberha: [-33.9608, 25.6022],
+  east: [-33.0153, 27.9116],
+  'east london': [-33.0153, 27.9116],
+  kimberley: [-28.7282, 24.7499],
+  rustenburg: [-25.6676, 27.2421],
+};
+
+export function coordsForHireArea(
+  name: string | null | undefined,
+  depot?: { lat?: number | null; lng?: number | null; label?: string | null }
+): [number, number] | null {
+  const lat = Number(depot?.lat);
+  const lng = Number(depot?.lng);
+  const depotOk = Number.isFinite(lat) && Number.isFinite(lng);
+  const raw = String(name || '').trim().toLowerCase();
+  const depotLabel = String(depot?.label || '').trim().toLowerCase();
+  if (depotOk && raw && depotLabel && (raw.includes(depotLabel) || depotLabel.includes(raw))) {
+    return [lat, lng];
+  }
+  if (!raw) return depotOk ? [lat, lng] : null;
+  if (ZA_HIRE_AREA_COORDS[raw]) return ZA_HIRE_AREA_COORDS[raw];
+  for (const [key, pos] of Object.entries(ZA_HIRE_AREA_COORDS)) {
+    if (raw.includes(key) || key.includes(raw)) return pos;
+  }
+  return depotOk ? [lat, lng] : null;
+}

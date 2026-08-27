@@ -1142,6 +1142,10 @@ export function buildHireCustomerPortalPayload(
     timezone: settings.timezone || 'Africa/Johannesburg',
     allow_booking: settings.allow_portal_booking !== false,
     depot_address: settings.depot_address || '',
+    depot_lat:
+      settings.depot_lat != null ? Number(settings.depot_lat) : null,
+    depot_lng:
+      settings.depot_lng != null ? Number(settings.depot_lng) : null,
     service_radius_km:
       settings.service_radius_km != null
         ? Number(settings.service_radius_km)
