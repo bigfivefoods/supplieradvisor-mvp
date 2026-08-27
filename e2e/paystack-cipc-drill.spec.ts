@@ -29,7 +29,7 @@ test.describe('Paystack + CIPC drill (public)', () => {
     const res = await request.get(`${base}/api/system/health`);
     expect(res.status()).toBe(200);
     const j = await res.json();
-    expect(j.checks?.paystack).toBeTruthy();
+    expect(j.ok).toBeTruthy();
     const pulse = j.checks?.paystack?.detail?.webhookPulse;
     expect(pulse === undefined || typeof pulse === 'object').toBeTruthy();
   });

@@ -90,7 +90,10 @@ test.describe('Major bets auth', () => {
     const res = await request.get(`${base}/api/system/health`);
     expect([200, 503]).toContain(res.status());
     const j = await res.json();
-    expect(j.deploy).toBeTruthy();
-    expect(j.checks?.cron_secret || j.checks?.env).toBeTruthy();
+    expect(j.ok).toBeTruthy();
+    // Full deploy/checks require CRON_SECRET or platform console
+    if (j.checks) {
+      expect(j.checks?.cron_secret || j.checks?.env).toBeTruthy();
+    }
   });
 });

@@ -10,14 +10,13 @@ const base =
   'http://localhost:3000';
 
 test.describe('Major bets smoke (unauth)', () => {
-  test('health includes deploy + paystack detail', async ({ request }) => {
+  test('unauth health is liveness only (no paystack leak)', async ({ request }) => {
     const res = await request.get(`${base}/api/system/health`);
     expect([200, 503]).toContain(res.status());
     const j = await res.json();
-    expect(j.deploy?.commitShort || j.deploy?.commit).toBeTruthy();
-    expect(j.checks).toBeTruthy();
-    // paystack check object present (ok may be false without secret)
-    expect(j.checks.paystack).toBeTruthy();
+    expect(j.ok).toBeTruthy();
+    expect(j.checks).toBeFalsy();
+    expect(j.deploy).toBeFalsy();
   });
 
   test('verify status requires auth', async ({ request }) => {

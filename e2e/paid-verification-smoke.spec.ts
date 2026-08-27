@@ -12,10 +12,8 @@ test.describe('paid verification smoke', () => {
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     expect(body).toHaveProperty('ok');
-    expect(body).toHaveProperty('deploy');
-    expect(body.checks).toBeTruthy();
-    // schemaColumnsOk may be false if migrations pending — still a valid response
-    expect(typeof body.schemaColumnsOk === 'boolean' || body.schemaColumnsOk === undefined).toBeTruthy();
+    // Unauth health is liveness only (no deploy/checks leak)
+    expect(body.checks).toBeFalsy();
   });
 
   test('CIPC verify requires payment without free path', async ({ request }) => {

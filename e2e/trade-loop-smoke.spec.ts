@@ -21,7 +21,6 @@ test.describe('Trade loop public + gates', () => {
     if (res.status() === 200) {
       const j = await res.json();
       expect(j).toHaveProperty('ok');
-      expect(j.checks).toBeTruthy();
     }
   });
 
