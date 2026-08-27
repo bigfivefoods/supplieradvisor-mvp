@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServer();
     const poListCols =
-      'id, po_number, order_number, status, total_amount, currency, buyer_profile_id, supplier_profile_id, supplier_id, created_at, updated_at, promised_date, actual_delivery_date, items, onchain_po_id, metadata';
+      'id, po_number, order_number, status, total_amount, currency, buyer_profile_id, supplier_profile_id, supplier_id, seller_customer_id, created_at, updated_at, promised_date, actual_delivery_date, items, onchain_po_id, invoice_id, supplier_wallet, metadata';
     let q = supabase
       .from('purchase_orders')
       .select(poListCols)
