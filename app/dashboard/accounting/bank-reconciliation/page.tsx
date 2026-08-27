@@ -49,6 +49,7 @@ import {
 } from '@/components/accounting/AccountingShell';
 import { Panel, SectionLabel } from '@/components/relationship/RelationshipChrome';
 import { ChartCard, MixDoughnut } from '@/components/accounting/AccountingCharts';
+import { AllocGlSelect } from '@/components/accounting/AllocGlSelect';
 
 type Pulse = {
   unallocated: number;
@@ -1690,24 +1691,13 @@ function Inner() {
           </select>
           {selectedIds.size > 0 && (
             <>
-              <select
+              <AllocGlSelect
                 value={bulkGl}
-                onChange={(e) => setBulkGl(e.target.value)}
-                className="rounded-2xl border border-neutral-200 px-3 py-2 text-xs bg-white max-w-[200px]"
-              >
-                <option value="">Bulk GL account…</option>
-                {plAccounts
-                  .filter((a) =>
-                    ['revenue', 'expense', 'cogs', 'liability', 'equity'].includes(
-                      String(a.account_type)
-                    )
-                  )
-                  .map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.code} · {a.name}
-                    </option>
-                  ))}
-              </select>
+                onChange={setBulkGl}
+                accounts={coa}
+                emptyLabel="Bulk GL account…"
+                className="rounded-2xl border border-neutral-200 px-3 py-2 text-xs bg-white max-w-[220px]"
+              />
               <button
                 type="button"
                 onClick={() => void bulkAllocate()}
@@ -1740,24 +1730,13 @@ function Inner() {
           <span className="font-semibold text-slate-800">
             {selectedIds.size} line{selectedIds.size === 1 ? '' : 's'} selected
           </span>
-          <select
+          <AllocGlSelect
             value={bulkGl}
-            onChange={(e) => setBulkGl(e.target.value)}
-            className="rounded-2xl border border-neutral-200 px-3 py-2 text-xs bg-white min-w-[200px]"
-          >
-            <option value="">Choose GL account…</option>
-            {plAccounts
-              .filter((a) =>
-                ['revenue', 'expense', 'cogs', 'liability', 'equity'].includes(
-                  String(a.account_type)
-                )
-              )
-              .map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.code} · {a.name}
-                </option>
-              ))}
-          </select>
+            onChange={setBulkGl}
+            accounts={coa}
+            emptyLabel="Choose GL account…"
+            className="rounded-2xl border border-neutral-200 px-3 py-2 text-xs bg-white min-w-[220px]"
+          />
           <button
             type="button"
             onClick={() => void bulkAllocate()}
@@ -2273,34 +2252,18 @@ function Inner() {
                         </span>
                       </label>
                       <div className="sm:w-56 flex-shrink-0">
-                        <select
+                        <AllocGlSelect
                           value={massGlByGroup[g.key] || ''}
-                          onChange={(e) => {
-                            setMassGlByGroup((m) => ({ ...m, [g.key]: e.target.value }));
-                            if (e.target.value) {
+                          onChange={(next) => {
+                            setMassGlByGroup((m) => ({ ...m, [g.key]: next }));
+                            if (next) {
                               setMassSelected((prev) => new Set(prev).add(g.key));
                             }
                           }}
+                          accounts={coa}
+                          emptyLabel="GL account…"
                           className="input !py-1.5 text-xs w-full"
-                        >
-                          <option value="">GL account…</option>
-                          {plAccounts
-                            .filter((a) =>
-                              [
-                                'revenue',
-                                'expense',
-                                'cogs',
-                                'liability',
-                                'equity',
-                                'asset',
-                              ].includes(String(a.account_type))
-                            )
-                            .map((a) => (
-                              <option key={a.id} value={a.id}>
-                                {a.code} · {a.name}
-                              </option>
-                            ))}
-                        </select>
+                        />
                         {g.suggestedGlLabel && (
                           <div className="text-[10px] text-emerald-700 mt-0.5 truncate">
                             Suggested: {g.suggestedGlLabel}
@@ -2504,18 +2467,11 @@ function Inner() {
               </Field>
               {ruleForm.target_type === 'gl_account' && (
                 <Field label="GL account" required>
-                  <select
-                    className="input"
+                  <AllocGlSelect
                     value={ruleForm.target_id}
-                    onChange={(e) => setRuleForm({ ...ruleForm, target_id: e.target.value })}
-                  >
-                    <option value="">Select…</option>
-                    {plAccounts.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.code} · {a.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(next) => setRuleForm({ ...ruleForm, target_id: next })}
+                    accounts={coa}
+                  />
                 </Field>
               )}
               <Field label="Priority">
@@ -2942,34 +2898,16 @@ function Inner() {
               {showAllocate.txn_date} · {showAllocate.description}
               <br />
               {Number(showAllocate.amount) > 0
-                ? 'Inflow → credit income (or other) account'
-                : 'Outflow → debit expense (or other) account'}
+                ? 'Inflow against an invoice → customer AR (not Sales). Uninvoiced cash → income.'
+                : 'Outflow against a bill → supplier AP. Other spend → expense.'}
             </p>
             <Field label="GL account" required>
-              <select
+              <AllocGlSelect
                 required
                 value={allocForm.gl_account_id}
-                onChange={(e) => setAllocForm({ ...allocForm, gl_account_id: e.target.value })}
-                className="input"
-              >
-                <option value="">Select…</option>
-                <optgroup label="Income / expense">
-                  {incomeExpenseAccounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.code} · {a.name} ({a.account_type})
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="Other">
-                  {plAccounts
-                    .filter((a) => !['revenue', 'expense', 'cogs'].includes(String(a.account_type)))
-                    .map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.code} · {a.name}
-                      </option>
-                    ))}
-                </optgroup>
-              </select>
+                onChange={(next) => setAllocForm({ ...allocForm, gl_account_id: next })}
+                accounts={coa}
+              />
             </Field>
             <Field label="Memo">
               <input

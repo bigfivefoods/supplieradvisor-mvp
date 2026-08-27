@@ -44,6 +44,7 @@ function Inner() {
   const [accounts, setAccounts] = useState<CoaAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
+  const [ensuringParty, setEnsuringParty] = useState(false);
   const [q, setQ] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
@@ -97,6 +98,38 @@ function Inner() {
       toast.error(err instanceof Error ? err.message : 'Seed failed');
     } finally {
       setSeeding(false);
+    }
+  }
+
+  async function ensurePartyAccounts() {
+    setEnsuringParty(true);
+    try {
+      const res = await fetch('/api/accounting/chart-of-accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, privyUserId, ensure_party: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      const created = Number(data.created || 0);
+      const linked = Number(data.linked || 0);
+      if (created > 0) {
+        toast.success(
+          `Created ${created} customer/supplier account${created === 1 ? '' : 's'}`
+        );
+      } else if (linked > 0) {
+        toast.success('Customer and supplier accounts already on the chart');
+      } else {
+        toast.message(
+          data.warning ||
+            'Add customers and suppliers first, then create their accounts here'
+        );
+      }
+      void load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setEnsuringParty(false);
     }
   }
 
@@ -167,6 +200,19 @@ function Inner() {
                 <Sparkles className="w-4 h-4" />
               )}
               Seed defaults
+            </button>
+            <button
+              type="button"
+              onClick={() => void ensurePartyAccounts()}
+              disabled={ensuringParty}
+              className="btn-secondary !py-2.5 !px-5 text-sm"
+            >
+              {ensuringParty ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Plus className="w-4 h-4" />
+              )}
+              Customer & supplier accounts
             </button>
             <button
               type="button"

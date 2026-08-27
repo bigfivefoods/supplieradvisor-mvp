@@ -368,7 +368,13 @@ export async function POST(request: NextRequest) {
           })
           .select('id')
           .single();
-        if (created?.id) customerId = Number(created.id);
+        if (created?.id) {
+          customerId = Number(created.id);
+          const { ensurePartyGlAccountsSafe } = await import(
+            '@/lib/accounting/party-gl-accounts'
+          );
+          await ensurePartyGlAccountsSafe(companyId);
+        }
       }
 
       const customer = await loadCustomer(supabase, customerId);

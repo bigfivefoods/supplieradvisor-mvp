@@ -499,6 +499,10 @@ export async function bootstrapFirstTrade(opts: {
       customerId = Number(created!.id);
       createdCustomer = true;
     }
+    const { ensurePartyGlAccountsSafe } = await import(
+      '@/lib/accounting/party-gl-accounts'
+    );
+    await ensurePartyGlAccountsSafe(opts.companyId);
   }
 
   // Existing draft starter invoice?

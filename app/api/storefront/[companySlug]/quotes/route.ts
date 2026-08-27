@@ -214,7 +214,13 @@ export async function POST(
           })
           .select('id')
           .single();
-        if (created?.id) customerId = Number(created.id);
+        if (created?.id) {
+          customerId = Number(created.id);
+          const { ensurePartyGlAccountsSafe } = await import(
+            '@/lib/accounting/party-gl-accounts'
+          );
+          await ensurePartyGlAccountsSafe(seller.id);
+        }
       }
     }
 

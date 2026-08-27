@@ -124,6 +124,10 @@ export async function ensureAdvisorCrmCustomer(opts: {
     console.warn('[member-account] CRM customer', error?.message);
     return null;
   }
+  const { ensurePartyGlAccountsSafe } = await import(
+    '@/lib/accounting/party-gl-accounts'
+  );
+  await ensurePartyGlAccountsSafe(opts.companyId);
   return {
     id: Number(data.id),
     name: String(data.trading_name || opts.name),

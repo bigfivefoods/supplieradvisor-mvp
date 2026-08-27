@@ -4,6 +4,7 @@
  */
 
 import type { BankTransaction, CoaAccount } from './types';
+import { suggestPartyGlForDescription } from '@/lib/accounting/party-gl-accounts';
 
 export type MassAllocGroup = {
   key: string;
@@ -212,6 +213,9 @@ export function suggestGlForDescription(
 
   const isIn = amount > 0;
   const desc = description || '';
+
+  const partyHit = suggestPartyGlForDescription(desc, amount, usable);
+  if (partyHit) return partyHit;
 
   for (const rule of DEFAULT_ALLOC_RULES) {
     if (!rule.pattern.test(desc)) continue;

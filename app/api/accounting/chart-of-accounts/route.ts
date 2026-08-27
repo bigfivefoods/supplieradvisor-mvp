@@ -31,6 +31,10 @@ export async function GET(request: NextRequest) {
       const r = await ensureDefaultCoa(companyId);
       seeded = r.seeded;
       seedWarning = r.warning;
+      const { ensurePartyGlAccountsSafe } = await import(
+        '@/lib/accounting/party-gl-accounts'
+      );
+      await ensurePartyGlAccountsSafe(companyId);
       if (seeded) invalidateAccountingReads(companyId);
     }
 
@@ -97,7 +101,25 @@ export async function POST(request: NextRequest) {
     if (body.seed) {
       const r = await ensureDefaultCoa(companyId);
       invalidateAccountingReads(companyId);
-      return NextResponse.json({ success: true, ...r });
+      let party: { created: number; linked: number; warning?: string } | undefined;
+      try {
+        const { ensurePartyGlAccounts } = await import(
+          '@/lib/accounting/party-gl-accounts'
+        );
+        party = await ensurePartyGlAccounts(companyId);
+      } catch {
+        party = undefined;
+      }
+      return NextResponse.json({ success: true, ...r, party });
+    }
+
+    if (body.ensure_party) {
+      const { ensurePartyGlAccounts } = await import(
+        '@/lib/accounting/party-gl-accounts'
+      );
+      const party = await ensurePartyGlAccounts(companyId);
+      invalidateAccountingReads(companyId);
+      return NextResponse.json({ success: true, ...party });
     }
 
     if (!body.code || !body.name || !body.account_type) {

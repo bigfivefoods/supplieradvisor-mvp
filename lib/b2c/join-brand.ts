@@ -351,6 +351,12 @@ async function ensureAccountLink(opts: {
     } else if (ins.data?.id) {
       crmId = Number(ins.data.id);
     }
+    if (crmId) {
+      const { ensurePartyGlAccountsSafe } = await import(
+        '@/lib/accounting/party-gl-accounts'
+      );
+      await ensurePartyGlAccountsSafe(opts.company.id);
+    }
   }
 
   if (!opts.card) return { profile: opts.profile };
@@ -899,6 +905,12 @@ async function joinHire(opts: {
       crmId = Number(retry.data.id);
     } else {
       crmId = Number(ins.data.id);
+    }
+    if (crmId) {
+      const { ensurePartyGlAccountsSafe } = await import(
+        '@/lib/accounting/party-gl-accounts'
+      );
+      await ensurePartyGlAccountsSafe(opts.company.id);
     }
   } else if (existingCrm) {
     const patch: Record<string, unknown> = {

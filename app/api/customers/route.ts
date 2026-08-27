@@ -274,6 +274,10 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+    const { ensurePartyGlAccountsSafe } = await import(
+      '@/lib/accounting/party-gl-accounts'
+    );
+    await ensurePartyGlAccountsSafe(companyId);
     return NextResponse.json({ success: true, customer: data });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
@@ -483,6 +487,12 @@ export async function PATCH(request: NextRequest) {
       error = retry.error;
     }
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (Number.isFinite(companyId) && companyId > 0) {
+      const { ensurePartyGlAccountsSafe } = await import(
+        '@/lib/accounting/party-gl-accounts'
+      );
+      await ensurePartyGlAccountsSafe(companyId);
+    }
     return NextResponse.json({ success: true, customer: data });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
