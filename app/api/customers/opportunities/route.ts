@@ -57,6 +57,35 @@ function toDateOnly(iso: string | null | undefined): string | null {
   }
 }
 
+function searchHay(v: unknown): string {
+  return v == null ? '' : String(v);
+}
+
+type OpportunityListItem = {
+  name?: unknown;
+  contact_name?: unknown;
+  company_name?: unknown;
+  contact_email?: unknown;
+  contact_phone?: unknown;
+  product_interest?: unknown;
+  stage: string;
+  amount: number;
+  probability: number;
+  open_date: string | null;
+  expected_close_date: string | null;
+  actual_close_date: string | null;
+  location: unknown;
+  description: unknown;
+  weighted_amount: number;
+  days_to_expected: number | null;
+  days_to_close: number | null;
+  days_open: number | null;
+  source_company_id: number;
+  source_company_name: string | null;
+  group_rollup: boolean;
+  [key: string]: unknown;
+};
+
 export async function GET(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
@@ -90,24 +119,37 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    let opportunities = (data || []).map((o) => {
-      const st = normalizeStage(o.stage, o.status);
+    let opportunities: OpportunityListItem[] = (data || []).map((raw) => {
+      const o = raw as Record<string, unknown>;
+      const st = normalizeStage(
+        o.stage as string | null,
+        o.status as string | null
+      );
       const amount = Number(o.amount ?? o.opportunity_size ?? 0);
       const probability =
         o.probability != null ? Number(o.probability) : stageProbability(st);
       const openDate =
-        toDateOnly(o.open_date) || toDateOnly(o.created_at) || null;
-      const expectedClose =
-        toDateOnly(o.expected_close_date) ||
-        toDateOnly(o.estimated_date) ||
+        toDateOnly(o.open_date as string | null) ||
+        toDateOnly(o.created_at as string | null) ||
         null;
-      const actualClose = toDateOnly(o.actual_close_date);
+      const expectedClose =
+        toDateOnly(o.expected_close_date as string | null) ||
+        toDateOnly(o.estimated_date as string | null) ||
+        null;
+      const actualClose = toDateOnly(o.actual_close_date as string | null);
+      const annotated = annotateGroupOpportunity(
+        { ...o, stage: st, amount, probability },
+        companyId,
+        tree.names
+      );
       return {
-        ...annotateGroupOpportunity(
-          { ...o, stage: st, amount, probability } as Record<string, unknown>,
-          companyId,
-          tree.names
-        ),
+        ...o,
+        ...annotated,
+        name: o.name ?? null,
+        contact_name: o.contact_name ?? null,
+        company_name: o.company_name ?? null,
+        contact_email: o.contact_email ?? null,
+        product_interest: o.product_interest ?? null,
         stage: st,
         amount,
         probability,
@@ -118,7 +160,6 @@ export async function GET(request: NextRequest) {
         location: o.location || o.opportunity_location || null,
         description: o.description || o.notes || null,
         weighted_amount: Math.round((amount * probability) / 100),
-        /** Days from open to expected close (planned cycle) */
         days_to_expected:
           openDate && expectedClose
             ? Math.round(
@@ -127,7 +168,6 @@ export async function GET(request: NextRequest) {
                   (24 * 60 * 60 * 1000)
               )
             : null,
-        /** Days from open to actual close (realized cycle) */
         days_to_close:
           openDate && actualClose
             ? Math.round(
@@ -136,7 +176,6 @@ export async function GET(request: NextRequest) {
                   (24 * 60 * 60 * 1000)
               )
             : null,
-        /** Days open so far (if not closed) */
         days_open:
           openDate && !actualClose
             ? Math.round(
@@ -156,15 +195,14 @@ export async function GET(request: NextRequest) {
     if (q) {
       opportunities = opportunities.filter((o) => {
         const hay = [
-          o.name,
-          o.contact_name,
-          o.company_name,
-          o.contact_email,
-          o.contact_phone,
-          o.stage,
-          o.product_interest,
+          searchHay(o.name),
+          searchHay(o.contact_name),
+          searchHay(o.company_name),
+          searchHay(o.contact_email),
+          searchHay(o.contact_phone),
+          searchHay(o.stage),
+          searchHay(o.product_interest),
         ]
-          .filter(Boolean)
           .join(' ')
           .toLowerCase();
         return hay.includes(q);

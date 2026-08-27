@@ -138,7 +138,7 @@ export async function loadHoldingSubtree(
   };
 }
 
-export function annotateGroupOpportunity<T extends Record<string, unknown>>(
+export function annotateGroupOpportunity<T extends object>(
   row: T,
   viewerCompanyId: number,
   names: Map<number, string>
@@ -147,7 +147,9 @@ export function annotateGroupOpportunity<T extends Record<string, unknown>>(
   source_company_name: string | null;
   group_rollup: boolean;
 } {
-  const pid = Number(row.profile_id || viewerCompanyId);
+  const pid = Number(
+    (row as { profile_id?: unknown }).profile_id || viewerCompanyId
+  );
   const rollup = pid > 0 && pid !== viewerCompanyId;
   return {
     ...row,
