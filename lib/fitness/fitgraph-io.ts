@@ -77,16 +77,20 @@ export async function loadFitgraphMerged(
     ),
     loadFitgraphLibraryRow(companyId),
   ]);
+  const store = mergeFitgraphLibrary(core.store, lib);
+  const { hydrateGoalsFromPeople } = await import('@/lib/fitness/member-goals');
+  hydrateGoalsFromPeople(store);
   return {
     meta: core.meta,
-    store: mergeFitgraphLibrary(core.store, lib),
+    store,
   };
 }
 
 export async function saveFitgraphMerged(
   companyId: number,
   store: FitgraphStore
-): Promise<void> {
+): Promise<FitgraphStore> {
+  let saved = store;
   await withFitgraphWriteLock(companyId, async () => {
     let next = store;
     try {
@@ -95,6 +99,8 @@ export async function saveFitgraphMerged(
     } catch {
       next = store;
     }
+    const { hydrateGoalsFromPeople } = await import('@/lib/fitness/member-goals');
+    hydrateGoalsFromPeople(next);
     const { core, lib } = splitFitgraphLibrary(next);
     try {
       await Promise.all([
@@ -119,5 +125,8 @@ export async function saveFitgraphMerged(
         writeFitgraphToMetadata
       );
     }
+    saved = next;
+    Object.assign(store, next);
   });
+  return saved;
 }

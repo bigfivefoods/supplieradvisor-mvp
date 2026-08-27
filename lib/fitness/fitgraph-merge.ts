@@ -20,6 +20,9 @@ const ID_ARRAYS: Array<keyof FitgraphStore> = [
   'journey_events',
   'class_challenges',
   'class_challenge_scores',
+  'leaderboard_activities',
+  'leaderboard_assignments',
+  'leaderboard_scores',
 ];
 
 function asRows(v: unknown): Array<Record<string, unknown>> {
@@ -108,7 +111,10 @@ export function mergeFitgraphStores(
     settings: mergeSettings(latest.settings, incoming.settings),
   };
   for (const key of ID_ARRAYS) {
-    const merged = mergeRowsById(latest[key], incoming[key]);
+    const merged =
+      key === 'goals'
+        ? mergeGoalRows(latest[key], incoming[key])
+        : mergeRowsById(latest[key], incoming[key]);
     (next as unknown as Record<string, unknown>)[key] = merged;
   }
   if (!(incoming.movements || []).length && (latest.movements || []).length) {
@@ -117,4 +123,74 @@ export function mergeFitgraphStores(
   dedupeFitgraphBookings(next);
   next.updated_at = new Date().toISOString();
   return next;
+}
+
+function mergeGoalRows(latest: unknown, incoming: unknown) {
+  const latestRows = asRows(latest);
+  const incomingRows = asRows(incoming);
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const row of latestRows) {
+    const id = String(row?.id || '');
+    if (id) byId.set(id, row);
+  }
+  for (const row of incomingRows) {
+    const id = String(row?.id || '');
+    if (!id) continue;
+    const prev = byId.get(id);
+    if (!prev) {
+      byId.set(id, row);
+      continue;
+    }
+    const checks = mergeRowsById(prev.check_ins, row.check_ins);
+    const newer =
+      bookingStamp(row) >= bookingStamp(prev) ? row : prev;
+    const older = newer === row ? prev : row;
+    const lastCheck = [...checks].sort((a, b) =>
+      String(a.at || '').localeCompare(String(b.at || ''))
+    ).slice(-1)[0];
+    const fromCheck =
+      lastCheck?.metric_value != null &&
+      Number.isFinite(Number(lastCheck.metric_value))
+        ? Number(lastCheck.metric_value)
+        : null;
+    const current =
+      fromCheck ??
+      (newer.current_value != null && Number.isFinite(Number(newer.current_value))
+        ? newer.current_value
+        : older.current_value);
+    const start =
+      older.start_value != null && Number.isFinite(Number(older.start_value))
+        ? older.start_value
+        : newer.start_value;
+    byId.set(id, {
+      ...older,
+      ...newer,
+      start_value: start,
+      current_value: current,
+      check_ins: checks,
+      updated_at:
+        bookingStamp(row) >= bookingStamp(prev)
+          ? row.updated_at || prev.updated_at
+          : prev.updated_at || row.updated_at,
+    });
+  }
+  const out: Array<Record<string, unknown>> = [];
+  const seen = new Set<string>();
+  for (const row of incomingRows) {
+    const id = String(row?.id || '');
+    if (!id) {
+      out.push(row);
+      continue;
+    }
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(byId.get(id) || row);
+  }
+  for (const row of latestRows) {
+    const id = String(row?.id || '');
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(byId.get(id) || row);
+  }
+  return out;
 }

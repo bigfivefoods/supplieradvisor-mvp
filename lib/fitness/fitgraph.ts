@@ -344,6 +344,8 @@ export type FitCoach = {
   portal_token?: string | null;
   /** Can manage own sessions (edit capacity, cancel, share) */
   can_manage_classes?: boolean;
+  /** Coach personal goals (logged in the work PWA). */
+  goals?: import('@/lib/fitness/fitgraph-relationship').FitGoal[];
   active?: boolean;
   /** Lower first on shop, website, and the coaches desk. */
   sort_order?: number;
@@ -573,6 +575,8 @@ export type FitClient = {
   health?: FitClientHealth;
   /** Member-owned personal bests (You → PBs). */
   personal_bests?: import('@/lib/fitness/person-records').FitPersonalBest[];
+  /** Goal copies on the person so progress survives gym-blob merges. */
+  goals?: import('@/lib/fitness/fitgraph-relationship').FitGoal[];
   /** Member-owned injury list (You → Injuries). */
   injuries?: import('@/lib/fitness/person-records').FitInjuryEntry[];
   /** Garmin Connect + watch session ingest (tokens stay server-side). */
@@ -1609,6 +1613,10 @@ export interface FitgraphStore {
   /** Coach-set tests on a class (leaderboard). */
   class_challenges?: import('@/lib/fitness/class-challenges').FitClassChallenge[];
   class_challenge_scores?: import('@/lib/fitness/class-challenges').FitClassChallengeScore[];
+  /** Owner gym leadership board (age × sex benchmarks). */
+  leaderboard_activities?: import('@/lib/fitness/gym-leaderboard').GymBoardActivity[];
+  leaderboard_assignments?: import('@/lib/fitness/gym-leaderboard').GymBoardAssignment[];
+  leaderboard_scores?: import('@/lib/fitness/gym-leaderboard').GymBoardScore[];
   /** Session / clinical stickiness */
   visit_notes?: import('@/lib/services/advisor-clinical').VisitNote[];
   outcome_scores?: import('@/lib/services/advisor-clinical').OutcomeScore[];
@@ -1794,6 +1802,9 @@ export function emptyFitgraphStore(): FitgraphStore {
     class_feedback: [],
     class_challenges: [],
     class_challenge_scores: [],
+    leaderboard_activities: [],
+    leaderboard_assignments: [],
+    leaderboard_scores: [],
     visit_notes: [],
     outcome_scores: [],
     treatment_plans: [],
@@ -1859,6 +1870,9 @@ export function readFitgraphFromMetadata(
     'garmin_oauth_pending',
     'class_challenges',
     'class_challenge_scores',
+    'leaderboard_activities',
+    'leaderboard_assignments',
+    'leaderboard_scores',
   ]) {
     if (Array.isArray(extra[key])) {
       (e as unknown as Record<string, unknown>)[key] = extra[key];

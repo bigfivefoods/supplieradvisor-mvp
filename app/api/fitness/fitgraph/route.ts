@@ -2151,6 +2151,147 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (action === 'log_goal' || action === 'goal_actual') {
+      const {
+        applyGoalToStore,
+        logGoalActual,
+        parseGoalNumber,
+      } = await import('@/lib/fitness/member-goals');
+      const value = parseGoalNumber(body.value ?? body.actual);
+      if (value == null) {
+        return NextResponse.json({ error: 'Enter an actual number' }, { status: 400 });
+      }
+      const prev = (store.goals || []).find(
+        (g) => g.id === String(body.goal_id || body.id || '')
+      );
+      if (!prev) {
+        return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
+      }
+      const next = logGoalActual(prev, value, {
+        by_role: 'owner',
+        source: 'desk',
+        nowIso: now,
+      });
+      applyGoalToStore(store, next);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        goal: next,
+        message:
+          next.status === 'achieved' ? 'Goal hit — well done' : 'Actual saved',
+      });
+    }
+
+    if (action === 'upsert_leaderboard_activity') {
+      const { upsertGymBoardActivity } = await import(
+        '@/lib/fitness/gym-leaderboard'
+      );
+      const result = upsertGymBoardActivity(
+        store.leaderboard_activities,
+        { ...body, ...(body.record as object), source: 'owner' },
+        now
+      );
+      if (result.error) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      store.leaderboard_activities = result.list;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        activity: result.row,
+        message: 'Leadership activity saved',
+      });
+    }
+
+    if (action === 'assign_leaderboard_activity') {
+      const { assignGymBoardActivity } = await import(
+        '@/lib/fitness/gym-leaderboard'
+      );
+      const result = assignGymBoardActivity(
+        store.leaderboard_assignments,
+        {
+          activity_id: String(body.activity_id || ''),
+          class_type_id: String(body.class_type_id || ''),
+          session_id: body.session_id ? String(body.session_id) : null,
+        },
+        now
+      );
+      if (result.error) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      store.leaderboard_assignments = result.list;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        assignment: result.row,
+        message: 'Activity added to class',
+      });
+    }
+
+    if (action === 'unassign_leaderboard_activity') {
+      const { unassignGymBoardActivity } = await import(
+        '@/lib/fitness/gym-leaderboard'
+      );
+      store.leaderboard_assignments = unassignGymBoardActivity(
+        store.leaderboard_assignments,
+        String(body.id || body.assignment_id || '')
+      );
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        message: 'Activity removed from class',
+      });
+    }
+
+    if (action === 'log_leaderboard_score') {
+      const { parseGymBoardActivities, parseChallengeValue, upsertGymBoardScore } =
+        await import('@/lib/fitness/gym-leaderboard');
+      const activity = parseGymBoardActivities(store.leaderboard_activities).find(
+        (a) => a.id === String(body.activity_id || '') && a.active
+      );
+      if (!activity) {
+        return NextResponse.json({ error: 'Activity not found' }, { status: 404 });
+      }
+      const parsed = parseChallengeValue(
+        body.value ?? body.display,
+        activity.win
+      );
+      if ('error' in parsed) {
+        return NextResponse.json({ error: parsed.error }, { status: 400 });
+      }
+      const scored = upsertGymBoardScore(
+        store.leaderboard_scores,
+        {
+          activity_id: activity.id,
+          client_id: String(body.client_id || ''),
+          session_id: body.session_id ? String(body.session_id) : null,
+          class_type_id: body.class_type_id
+            ? String(body.class_type_id)
+            : null,
+          value: parsed.value,
+          display: parsed.display,
+        },
+        now
+      );
+      store.leaderboard_scores = scored.list;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        score: scored.row,
+        message: 'Score logged',
+      });
+    }
+
     /** Owner desk: record member or coach class feedback */
     if (
       action === 'submit_class_feedback' ||
@@ -2337,6 +2478,11 @@ export async function POST(request: NextRequest) {
             e.updated_at = now;
           }
         }
+      }
+      if (entity === 'leaderboard_activities') {
+        store.leaderboard_assignments = (store.leaderboard_assignments || []).filter(
+          (a) => a.activity_id !== id
+        );
       }
       if (Array.isArray(list)) {
         // Optional: delete whole class series when series_id matches

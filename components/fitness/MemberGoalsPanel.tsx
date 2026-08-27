@@ -217,18 +217,39 @@ export function MemberGoalsPanel({
                   />
                   <button
                     type="button"
-                    disabled={busy || !actualDraft[g.id]}
+                    disabled={busy || !String(actualDraft[g.id] || '').trim()}
                     onClick={() => {
                       const v = actualDraft[g.id];
-                      void Promise.resolve(onLogActual(g.id, v)).then(() => {
-                        setActualDraft((cur) => ({ ...cur, [g.id]: '' }));
-                      });
+                      void Promise.resolve(onLogActual(g.id, v))
+                        .then(() => {
+                          setActualDraft((cur) => ({ ...cur, [g.id]: '' }));
+                        })
+                        .catch(() => undefined);
                     }}
                     className="rounded-xl bg-slate-900 px-3 py-1.5 text-[11px] font-black text-white disabled:opacity-50"
                   >
-                    Log
+                    {busy ? 'Saving…' : 'Log'}
                   </button>
                 </div>
+              ) : null}
+              {(g.check_ins || []).length ? (
+                <ol className="space-y-0.5 text-[11px] text-slate-500">
+                  {[...g.check_ins]
+                    .slice(-6)
+                    .reverse()
+                    .map((c) => (
+                      <li key={c.id} className="flex justify-between gap-2">
+                        <span>
+                          {String(c.at || '').slice(0, 10)}
+                          {c.source ? ` · ${c.source}` : ''}
+                        </span>
+                        <span className="font-black tabular-nums text-slate-800 dark:text-slate-100">
+                          {c.metric_value ?? '—'}
+                          {g.unit ? ` ${g.unit}` : ''}
+                        </span>
+                      </li>
+                    ))}
+                </ol>
               ) : null}
               {onHideGoal && g.status !== 'abandoned' ? (
                 <button

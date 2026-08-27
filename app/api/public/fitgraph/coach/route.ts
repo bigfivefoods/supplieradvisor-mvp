@@ -40,6 +40,10 @@ import {
   upsertClassChallenge,
 } from '@/lib/fitness/class-challenges';
 import {
+  gymBoardCatalogueForCoach,
+  gymBoardForSession,
+} from '@/lib/fitness/gym-leaderboard';
+import {
   activeClassSubscriptions,
   buildClassSubscriptionReport,
   memberMayBookSession,
@@ -61,6 +65,7 @@ import { applyGymAttendanceMark } from '@/lib/fitness/apply-gym-attendance';
 import { findSessionSeat } from '@/lib/fitness/gym-bookings';
 import { notifyMemberToRateClass } from '@/lib/fitness/notify-class-feedback';
 import { memberSpecialDatesForStore } from '@/lib/fitness/member-special-dates';
+import { memberFacingGoals } from '@/lib/fitness/member-goals';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -82,6 +87,7 @@ function buildCoachPortalPayload(
         subscribed: [],
         subscribed_not_booked: [],
         challenge: challengeOnSessionId(store, card.session.id),
+        gym_board: gymBoardForSession(store, card.session),
       };
     }
     const subscribed = subscribersForSession(store, session).map((r) => ({
@@ -96,6 +102,7 @@ function buildCoachPortalPayload(
       subscribed,
       subscribed_not_booked: subscribed.filter((s) => !s.booked),
       challenge: challengeOnSessionId(store, session.id),
+      gym_board: gymBoardForSession(store, session),
     };
   });
   const members = (portal.members || []).map((m) => {
@@ -111,6 +118,8 @@ function buildCoachPortalPayload(
     sessions,
     members,
     leaderboards: openChallengesGroupedForCoach(store, coach.id),
+    goals: memberFacingGoals(store, coach.id),
+    gym_board_catalogue: gymBoardCatalogueForCoach(store),
     special_dates: memberSpecialDatesForStore(store, {
       days: 14,
       ...(portal.sees_all_people ? {} : { coachId: coach.id }),
@@ -728,6 +737,181 @@ export async function POST(request: NextRequest) {
         success: true,
         message: 'Class test saved',
         challenge: result.row,
+        portal: buildCoachPortalPayload(store, coach),
+      });
+    }
+
+    if (action === 'upsert_leaderboard_activity') {
+      const {
+        upsertGymBoardActivity,
+        assignGymBoardActivity,
+      } = await import('@/lib/fitness/gym-leaderboard');
+      const session = store.sessions.find(
+        (s) =>
+          s.id === String(body.session_id || sessionId || '') &&
+          coachCanSeeSession(s, coach.id)
+      );
+      const classTypeId = String(
+        body.class_type_id || session?.class_type_id || ''
+      ).trim();
+      const made = upsertGymBoardActivity(
+        store.leaderboard_activities,
+        {
+          ...body,
+          source: 'coach',
+          coach_id: coach.id,
+        },
+        now
+      );
+      if (made.error) {
+        return NextResponse.json({ error: made.error }, { status: 400 });
+      }
+      store.leaderboard_activities = made.list;
+      if (classTypeId) {
+        const pin = assignGymBoardActivity(
+          store.leaderboard_assignments,
+          {
+            activity_id: made.row.id,
+            class_type_id: classTypeId,
+            session_id:
+              body.pin_session === true ? session?.id || null : null,
+            coach_id: coach.id,
+          },
+          now
+        );
+        if (!pin.error) store.leaderboard_assignments = pin.list;
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        message: 'Activity added to the leadership board',
+        activity: made.row,
+        portal: buildCoachPortalPayload(store, coach),
+      });
+    }
+
+    if (action === 'assign_leaderboard_activity') {
+      const { assignGymBoardActivity } = await import(
+        '@/lib/fitness/gym-leaderboard'
+      );
+      const session = store.sessions.find(
+        (s) =>
+          s.id === String(body.session_id || sessionId || '') &&
+          coachCanSeeSession(s, coach.id)
+      );
+      const classTypeId = String(
+        body.class_type_id || session?.class_type_id || ''
+      ).trim();
+      const result = assignGymBoardActivity(
+        store.leaderboard_assignments,
+        {
+          activity_id: String(body.activity_id || ''),
+          class_type_id: classTypeId,
+          session_id: body.pin_session === true ? session?.id || null : null,
+          coach_id: coach.id,
+        },
+        now
+      );
+      if (result.error) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      store.leaderboard_assignments = result.list;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        message: 'Activity pinned on this class',
+        portal: buildCoachPortalPayload(store, coach),
+      });
+    }
+
+    if (action === 'unassign_leaderboard_activity') {
+      const { unassignGymBoardActivity } = await import(
+        '@/lib/fitness/gym-leaderboard'
+      );
+      store.leaderboard_assignments = unassignGymBoardActivity(
+        store.leaderboard_assignments,
+        String(body.id || body.assignment_id || '')
+      );
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        message: 'Activity removed from class',
+        portal: buildCoachPortalPayload(store, coach),
+      });
+    }
+
+    if (action === 'upsert_goal' || action === 'save_goal') {
+      const {
+        applyGoalToStore,
+        createMemberGoal,
+        parseGoalNumber,
+      } = await import('@/lib/fitness/member-goals');
+      const subjectId = String(body.client_id || body.member_id || coach.id);
+      const may =
+        subjectId === coach.id ||
+        store.clients.some((c) => c.id === subjectId);
+      if (!may) {
+        return NextResponse.json({ error: 'Member not on your book' }, { status: 403 });
+      }
+      const goal = createMemberGoal({
+        client_id: subjectId,
+        coach_id: coach.id,
+        kind: String(body.kind || 'custom'),
+        title: String(body.title || ''),
+        category: body.category != null ? String(body.category) : undefined,
+        unit: body.unit != null ? String(body.unit) : undefined,
+        start_value: parseGoalNumber(body.start_value),
+        target_value: parseGoalNumber(body.target_value),
+        target_date: body.target_date
+          ? String(body.target_date).slice(0, 10)
+          : null,
+        created_by_role: 'coach',
+        nowIso: now,
+      });
+      applyGoalToStore(store, goal, `Goal set · ${goal.title}`);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        message: 'Goal saved',
+        goal,
+        portal: buildCoachPortalPayload(store, coach),
+      });
+    }
+
+    if (action === 'log_goal' || action === 'goal_actual') {
+      const {
+        applyGoalToStore,
+        logGoalActual,
+        parseGoalNumber,
+      } = await import('@/lib/fitness/member-goals');
+      const value = parseGoalNumber(body.value ?? body.actual);
+      if (value == null) {
+        return NextResponse.json({ error: 'Enter an actual number' }, { status: 400 });
+      }
+      const goalId = String(body.goal_id || body.id || '');
+      const prev = (store.goals || []).find((g) => g.id === goalId);
+      if (!prev) {
+        return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
+      }
+      const may =
+        prev.client_id === coach.id ||
+        store.clients.some((c) => c.id === prev.client_id);
+      if (!may) {
+        return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
+      }
+      const next = logGoalActual(prev, value, {
+        by_role: 'coach',
+        by_id: coach.id,
+        source: 'coach',
+        nowIso: now,
+      });
+      applyGoalToStore(store, next);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        message:
+          next.status === 'achieved' ? 'Goal hit — well done' : 'Actual saved',
+        goal: next,
         portal: buildCoachPortalPayload(store, coach),
       });
     }

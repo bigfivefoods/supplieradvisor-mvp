@@ -76,6 +76,11 @@ import {
   leaderboardHint,
 } from '@/components/fitness/GymClassLeaderboards';
 import type { ChallengeView } from '@/lib/fitness/class-challenges';
+import type {
+  GymBoardActivityView,
+  GymBoardDivision,
+} from '@/lib/fitness/gym-leaderboard';
+import { GymLeadershipBoard } from '@/components/fitness/GymLeadershipBoard';
 import {
   injuriesForPerson,
   parsePersonalBests,
@@ -346,6 +351,10 @@ type Portal = {
   }>;
   invoices?: MemberPortalInvoice[];
   leaderboards?: ChallengeView[];
+  gym_board?: {
+    division: GymBoardDivision;
+    activities: GymBoardActivityView[];
+  };
   goals?: MemberGoalView[];
   wearable?: {
     garmin_available?: boolean;
@@ -387,6 +396,7 @@ export default function MemberFitgraphPortalPage() {
   const [debitBank, setDebitBank] = useState<DebitBankForm>(emptyDebitBankForm);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [progressBoardOpen, setProgressBoardOpen] = useState(true);
+  const [gymBoardOpen, setGymBoardOpen] = useState(true);
   const [journeyOpen, setJourneyOpen] = useState(true);
   const [journeyMonthOpen, setJourneyMonthOpen] = useState<
     Record<string, boolean>
@@ -1674,6 +1684,59 @@ export default function MemberFitgraphPortalPage() {
 
         {tab === 'progress' && (
           <div className="space-y-6">
+            <GymExpandSection
+              title="Gym board"
+              hint={
+                portal.gym_board?.division.need_profile
+                  ? 'Add birthday and sex on You to join your age group'
+                  : portal.gym_board?.division.band_label
+                    ? `${portal.gym_board.division.sex === 'female' ? 'Women' : 'Men'} · ${portal.gym_board.division.band_label}`
+                    : 'Log scores from classes your coach pinned'
+              }
+              icon={<Medal className="h-4 w-4" />}
+              badge={
+                (portal.gym_board?.activities || []).length ? (
+                  <span className="shrink-0 rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] font-black tabular-nums text-white dark:bg-white dark:text-slate-900">
+                    {(portal.gym_board?.activities || []).length}
+                  </span>
+                ) : undefined
+              }
+              open={gymBoardOpen}
+              onToggle={() => setGymBoardOpen((v) => !v)}
+            >
+              <GymLeadershipBoard
+                division={
+                  portal.gym_board?.division || {
+                    sex: null,
+                    age: null,
+                    band_id: null,
+                    band_label: null,
+                    need_profile: true,
+                  }
+                }
+                activities={portal.gym_board?.activities || []}
+                busy={busyId === 'board'}
+                color={color}
+                onLog={async (activityId, value) => {
+                  setBusyId('board');
+                  setError(null);
+                  try {
+                    const data = await post({
+                      action: 'log_leaderboard_score',
+                      activity_id: activityId,
+                      value,
+                    });
+                    setMsg(data.message || 'Score logged');
+                  } catch (e: unknown) {
+                    setError(
+                      e instanceof Error ? e.message : 'Could not log score'
+                    );
+                  } finally {
+                    setBusyId(null);
+                  }
+                }}
+              />
+            </GymExpandSection>
             <GymExpandSection
               title="Leaderboard"
               hint={leaderboardHint(portal.leaderboards)}

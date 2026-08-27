@@ -61,11 +61,14 @@ import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBi
 import { AdvisorPwaSignOutButton } from '@/components/advisors/AdvisorPwaSignOutButton';
 import { GymProfileFolds } from '@/components/fitness/GymProfileFolds';
 import { GymClassChallengeBoard } from '@/components/fitness/GymClassChallengeBoard';
+import { GymBoardCoachPanel } from '@/components/fitness/GymBoardCoachPanel';
 import type {
   ChallengeView,
   CoachClassLeaderboard,
 } from '@/lib/fitness/class-challenges';
 import { GymClassLeaderboards } from '@/components/fitness/GymClassLeaderboards';
+import { MemberGoalsPanel } from '@/components/fitness/MemberGoalsPanel';
+import type { MemberGoalView } from '@/lib/fitness/member-goals';
 import {
   healthHasActiveInjury,
   injuriesForPerson,
@@ -166,6 +169,17 @@ type PortalSession = {
     booked: boolean;
   }>;
   challenge?: ChallengeView | null;
+  gym_board?: Array<{
+    id: string;
+    name: string;
+    unit: string;
+    win: 'higher' | 'faster';
+    source: 'owner' | 'coach';
+    class_name?: string | null;
+    assignment_id?: string | null;
+    session_pinned?: boolean;
+    field?: number;
+  }>;
 };
 
 type SessionEditForm = {
@@ -262,6 +276,14 @@ type Portal = {
   }>;
   sees_all_people?: boolean;
   leaderboards?: CoachClassLeaderboard[];
+  gym_board_catalogue?: Array<{
+    id: string;
+    name: string;
+    unit: string;
+    win: 'higher' | 'faster';
+    source: 'owner' | 'coach';
+  }>;
+  goals?: MemberGoalView[];
   special_dates?: MemberSpecialDate[];
   class_report?: import('@/lib/fitness/vuka-class-catalog').ClassSubscriptionReport;
   class_types: Array<{
@@ -1792,6 +1814,38 @@ export default function CoachFitgraphPortalPage() {
 
             {openCard.session.session_kind !== 'coach_personal' &&
             openCard.session.session_kind !== 'private_pt' ? (
+              <>
+              <GymBoardCoachPanel
+                catalogue={portal.gym_board_catalogue || []}
+                assigned={(openCard.gym_board || []) as never}
+                busy={busy}
+                onAssign={(activityId, pinSession) =>
+                  post({
+                    action: 'assign_leaderboard_activity',
+                    activity_id: activityId,
+                    session_id: openCard.session.id,
+                    class_type_id: openCard.session.class_type_id,
+                    pin_session: pinSession,
+                  })
+                }
+                onUnassign={(assignmentId) =>
+                  post({
+                    action: 'unassign_leaderboard_activity',
+                    id: assignmentId,
+                  })
+                }
+                onCreateExtra={(v) =>
+                  post({
+                    action: 'upsert_leaderboard_activity',
+                    session_id: openCard.session.id,
+                    class_type_id: openCard.session.class_type_id,
+                    name: v.name,
+                    unit: v.unit,
+                    win: v.win,
+                    pin_session: v.pin_session,
+                  })
+                }
+              />
               <GymClassChallengeBoard
                 key={`${openCard.session.id}-${openCard.challenge?.id || 'new'}`}
                 challenge={openCard.challenge || null}
@@ -1822,6 +1876,7 @@ export default function CoachFitgraphPortalPage() {
                     : undefined
                 }
               />
+              </>
             ) : null}
 
             <div>
@@ -2295,6 +2350,42 @@ export default function CoachFitgraphPortalPage() {
                 : 'Contractor — this work app is your diary. Gym-booked slots and your private PT live here.'}
             </p>
             <OwnerWorkspaceCta companyId={companyId} brand={brand} />
+            <MemberGoalsPanel
+              goals={portal.goals || []}
+              wearable={null}
+              watchSessions={[]}
+              pastClasses={[]}
+              busy={recordBusy === 'goals'}
+              color="#E8E830"
+              onSaveGoal={async (v) => {
+                setRecordBusy('goals');
+                try {
+                  await post({
+                    action: 'upsert_goal',
+                    client_id: portal.coach.id,
+                    ...v,
+                  });
+                } finally {
+                  setRecordBusy(null);
+                }
+              }}
+              onLogActual={async (goalId, value) => {
+                setRecordBusy('goals');
+                try {
+                  await post({
+                    action: 'log_goal',
+                    goal_id: goalId,
+                    value,
+                  });
+                } finally {
+                  setRecordBusy(null);
+                }
+              }}
+              onWatchLog={async () => undefined}
+              onGarminConnect={async () => undefined}
+              onGarminImport={async () => undefined}
+              onGarminDisconnect={async () => undefined}
+            />
             <GymProfileFolds
               pbs={parsePersonalBests(portal.coach.personal_bests)}
               injuries={injuriesForPerson({

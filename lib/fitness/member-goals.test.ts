@@ -54,8 +54,13 @@ assert.equal(parseGoalNumber(''), null);
 assert.equal(parseGoalNumber('  '), null);
 assert.equal(parseGoalNumber('90.5'), 90.5);
 assert.equal(parseGoalNumber(0), 0);
+assert.equal(parseGoalNumber('85 kg'), 85);
+assert.equal(parseGoalNumber('2:30'), 2.5);
 
 const persist = emptyFitgraphStore();
+persist.clients = [
+  { id: 'c1', name: 'Ada', code: 'A', created_at: '', updated_at: '' } as never,
+];
 const saved = createMemberGoal({
   client_id: 'c1',
   kind: 'weight',
@@ -74,6 +79,9 @@ const blob2 = writeFitgraphToMetadata({}, reloaded);
 const again = readFitgraphFromMetadata(blob2);
 assert.equal(again.goals?.[0].current_value, 85);
 assert.equal(again.goals?.[0].check_ins?.length, 1);
+applyGoalToStore(persist, withActual);
+assert.equal(persist.clients[0].goals?.[0].current_value, 85);
+assert.equal(persist.clients[0].goals?.[0].check_ins?.length, 1);
 
 const store = emptyFitgraphStore();
 store.sessions.push({

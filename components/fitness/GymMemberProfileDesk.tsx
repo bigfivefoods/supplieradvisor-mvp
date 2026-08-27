@@ -417,19 +417,66 @@ export function GymMemberProfileDesk({
               </ul>
             ) : null}
             {goals.length ? (
-              <ul className="space-y-1 text-sm">
+              <ul className="space-y-2 text-sm">
                 {goals.map((g) => (
-                  <li key={g.id} className="flex flex-wrap gap-x-2">
-                    <span className="font-semibold">{g.title}</span>
-                    <span className="text-[11px] text-slate-500">
-                      {g.status}
-                      {g.current_value != null
-                        ? ` · now ${g.current_value}${g.unit ? ` ${g.unit}` : ''}`
-                        : ''}
-                      {g.target_value != null
-                        ? ` · target ${g.target_value}`
-                        : ''}
-                    </span>
+                  <li key={g.id} className="rounded-xl border border-amber-100 bg-white px-3 py-2 dark:border-amber-900 dark:bg-amber-950/40">
+                    <div className="flex flex-wrap gap-x-2">
+                      <span className="font-semibold">{g.title}</span>
+                      <span className="text-[11px] text-slate-500">
+                        {g.status}
+                        {g.current_value != null
+                          ? ` · now ${g.current_value}${g.unit ? ` ${g.unit}` : ''}`
+                          : ''}
+                        {g.target_value != null
+                          ? ` · target ${g.target_value}`
+                          : ''}
+                      </span>
+                    </div>
+                    {(g.check_ins || []).length ? (
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        {(g.check_ins || [])
+                          .slice(-4)
+                          .map(
+                            (c) =>
+                              `${String(c.at).slice(0, 10)}: ${c.metric_value}`
+                          )
+                          .join(' · ')}
+                      </p>
+                    ) : null}
+                    <div className="mt-2 flex gap-2">
+                      <input
+                        className="input flex-1 !py-1 !px-2 !text-xs"
+                        placeholder="Log actual"
+                        defaultValue=""
+                        id={`goal-actual-${g.id}`}
+                      />
+                      <button
+                        type="button"
+                        disabled={saving}
+                        className="rounded-lg bg-slate-900 px-2 py-1 text-[10px] font-black text-white"
+                        onClick={() => {
+                          const el = document.getElementById(
+                            `goal-actual-${g.id}`
+                          ) as HTMLInputElement | null;
+                          const value = String(el?.value || '').trim();
+                          if (!value) {
+                            toast.error('Enter an actual');
+                            return;
+                          }
+                          void post({
+                            action: 'log_goal',
+                            goal_id: g.id,
+                            value,
+                          }).then(() => {
+                            toast.success('Actual saved');
+                            if (el) el.value = '';
+                            onRefresh?.();
+                          });
+                        }}
+                      >
+                        Log
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>

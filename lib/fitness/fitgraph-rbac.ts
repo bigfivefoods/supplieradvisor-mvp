@@ -454,6 +454,13 @@ export const FIT_SCREEN_ACCESS: Record<
     member: false,
     desk: false,
   },
+  '/dashboard/fitgraph/leaderboard': {
+    owner: true,
+    coach: true,
+    member: false,
+    desk: false,
+    notes: 'Owner sets activities + benchmarks; coaches pin them on classes',
+  },
   '/dashboard/fitgraph/calendar': {
     owner: true,
     coach: true,

@@ -122,4 +122,47 @@ assert.equal(pwaMerged.settings?.pwa_name, 'VUKA Fitness');
 assert.equal(pwaMerged.settings?.pwa_theme_color, '#e8e830');
 assert.equal(pwaMerged.settings?.pwa_background_color, '#a3aaae');
 
+const goalLatest = emptyFitgraphStore();
+goalLatest.goals = [
+  {
+    id: 'g1',
+    client_id: 'c1',
+    title: 'Lose weight',
+    category: 'physical',
+    status: 'active',
+    start_value: 90,
+    current_value: 90,
+    target_value: 80,
+    check_ins: [],
+    created_at: '2026-08-01T00:00:00Z',
+    updated_at: '2026-08-24T12:00:00Z',
+  } as never,
+];
+const goalIncoming = emptyFitgraphStore();
+goalIncoming.goals = [
+  {
+    id: 'g1',
+    client_id: 'c1',
+    title: 'Lose weight',
+    category: 'physical',
+    status: 'active',
+    start_value: 90,
+    current_value: 85,
+    target_value: 80,
+    check_ins: [
+      {
+        id: 'gci1',
+        at: '2026-08-24T11:00:00Z',
+        by_role: 'member',
+        metric_value: 85,
+      },
+    ],
+    created_at: '2026-08-01T00:00:00Z',
+    updated_at: '2026-08-24T11:00:00Z',
+  } as never,
+];
+const goalMerged = mergeFitgraphStores(goalLatest, goalIncoming);
+assert.equal(goalMerged.goals?.[0].current_value, 85);
+assert.equal((goalMerged.goals?.[0].check_ins || []).length, 1);
+
 console.log('fitgraph-merge.test.ts ok');

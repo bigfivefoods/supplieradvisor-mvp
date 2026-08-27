@@ -116,6 +116,14 @@ function hubModules(
     accent: 'from-orange-50 to-white border-orange-100',
   },
   {
+    href: '/dashboard/fitgraph/leaderboard',
+    icon: Sparkles,
+    code: '05d',
+    title: 'Leadership board',
+    desc: 'Owner activities, men/women age benchmarks, member PWA scores.',
+    accent: 'from-yellow-50 to-white border-yellow-100',
+  },
+  {
     href: '/dashboard/fitgraph/calendar',
     icon: CalendarDays,
     code: '06',

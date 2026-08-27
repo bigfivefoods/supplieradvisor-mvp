@@ -68,7 +68,14 @@ export function parseGoalNumber(raw: unknown): number | null {
   if (raw == null) return null;
   const s = String(raw).trim();
   if (!s) return null;
-  const n = Number(s);
+  if (s.includes(':')) {
+    const parts = s.split(':').map((p) => Number(p));
+    if (parts.some((n) => !Number.isFinite(n) || n < 0)) return null;
+    if (parts.length === 2) return parts[0] + parts[1] / 60;
+    if (parts.length === 3) return parts[0] * 60 + parts[1] + parts[2] / 60;
+    return null;
+  }
+  const n = Number(s.replace(/[^\d.eE+-]/g, ''));
   return Number.isFinite(n) ? n : null;
 }
 
@@ -290,9 +297,83 @@ export function upsertMemberGoalOnStore(
 ): void {
   const goals = [...(store.goals || [])];
   const idx = goals.findIndex((g) => g.id === goal.id);
-  if (idx >= 0) goals[idx] = { ...goal, updated_at: new Date().toISOString() };
-  else goals.unshift(goal);
+  const next = { ...goal, updated_at: new Date().toISOString() };
+  if (idx >= 0) goals[idx] = next;
+  else goals.unshift(next);
   store.goals = goals;
+  stampGoalOnPerson(store, next);
+}
+
+function stampGoalOnPerson(store: FitgraphStore, goal: FitGoal) {
+  const client = (store.clients || []).find((c) => c.id === goal.client_id);
+  if (client) {
+    const list = [...(client.goals || [])];
+    const i = list.findIndex((g) => g.id === goal.id);
+    if (i >= 0) list[i] = goal;
+    else list.unshift(goal);
+    client.goals = list;
+  }
+  const coach = (store.coaches || []).find((c) => c.id === goal.client_id);
+  if (coach) {
+    const list = [...(coach.goals || [])];
+    const i = list.findIndex((g) => g.id === goal.id);
+    if (i >= 0) list[i] = goal;
+    else list.unshift(goal);
+    coach.goals = list;
+  }
+}
+
+/** Pull goal copies off people if the gym blob dropped them. */
+export function hydrateGoalsFromPeople(store: FitgraphStore): void {
+  const map = new Map<string, FitGoal>();
+  for (const g of store.goals || []) {
+    if (g?.id) map.set(g.id, g);
+  }
+  const people = [
+    ...(store.clients || []),
+    ...(store.coaches || []),
+  ] as Array<{ id: string; goals?: FitGoal[] }>;
+  for (const person of people) {
+    for (const g of person.goals || []) {
+      if (!g?.id) continue;
+      const prev = map.get(g.id);
+      if (!prev) {
+        map.set(g.id, g);
+        continue;
+      }
+      map.set(g.id, mergeGoalProgress(prev, g));
+    }
+  }
+  store.goals = [...map.values()];
+  for (const g of store.goals) stampGoalOnPerson(store, g);
+}
+
+export function mergeGoalProgress(a: FitGoal, b: FitGoal): FitGoal {
+  const checks = new Map<string, FitGoalCheckIn>();
+  for (const c of [...(a.check_ins || []), ...(b.check_ins || [])]) {
+    if (!c?.id) continue;
+    const prev = checks.get(c.id);
+    if (!prev || String(c.at || '') >= String(prev.at || '')) checks.set(c.id, c);
+  }
+  const newer = String(b.updated_at || '') >= String(a.updated_at || '') ? b : a;
+  const older = newer === b ? a : b;
+  const current =
+    newer.current_value != null && Number.isFinite(Number(newer.current_value))
+      ? Number(newer.current_value)
+      : older.current_value ?? null;
+  const start =
+    older.start_value != null && Number.isFinite(Number(older.start_value))
+      ? Number(older.start_value)
+      : newer.start_value ?? null;
+  return {
+    ...older,
+    ...newer,
+    start_value: start,
+    current_value: current,
+    check_ins: [...checks.values()].sort((x, y) =>
+      String(x.at).localeCompare(String(y.at))
+    ),
+  };
 }
 
 export function applyGoalToStore(

@@ -44,6 +44,13 @@ import {
   stampPbFromChallenge,
   upsertChallengeScore,
 } from '@/lib/fitness/class-challenges';
+import {
+  clientEligibleForGymBoard,
+  gymBoardForClient,
+  parseChallengeValue as parseBoardValue,
+  parseGymBoardActivities,
+  upsertGymBoardScore,
+} from '@/lib/fitness/gym-leaderboard';
 import { notifyGymClassRsvp } from '@/lib/fitness/notify-class-rsvp';
 import { notifyPatientBookingPush } from '@/lib/b2c/member-push';
 import { portalInvoicesForPerson } from '@/lib/b2c/member-account-portal';
@@ -319,6 +326,7 @@ function decorateMemberPortal(
       })),
     diary_open: store.settings?.share_member_calendar !== false,
     leaderboards: openChallengesForClient(store, client.id),
+    gym_board: gymBoardForClient(store, client),
     purchase_history: memberPurchaseHistory(store, client),
     check_ins: (store.check_ins || [])
       .filter((c) => c.client_id === client.id)
@@ -774,6 +782,56 @@ export async function POST(request: NextRequest) {
           meta
         ),
         message: portalProfileSaveMessage(result, body, 'gym records'),
+      });
+    }
+
+    if (action === 'log_leaderboard_score') {
+      const activity = parseGymBoardActivities(store.leaderboard_activities).find(
+        (a) => a.id === String(body.activity_id || '') && a.active
+      );
+      if (!activity) {
+        return NextResponse.json(
+          { error: 'This activity is not open.' },
+          { status: 404 }
+        );
+      }
+      const eligible = clientEligibleForGymBoard(
+        store,
+        activity.id,
+        client.id,
+        body.session_id ? String(body.session_id) : null
+      );
+      if (!eligible.ok) {
+        return NextResponse.json({ error: eligible.error }, { status: 403 });
+      }
+      const parsed = parseBoardValue(body.value ?? body.display, activity.win);
+      if ('error' in parsed) {
+        return NextResponse.json({ error: parsed.error }, { status: 400 });
+      }
+      const scored = upsertGymBoardScore(
+        store.leaderboard_scores,
+        {
+          activity_id: activity.id,
+          client_id: client.id,
+          session_id: eligible.session_id,
+          class_type_id: eligible.class_type_id,
+          value: parsed.value,
+          display: parsed.display,
+        },
+        now
+      );
+      store.leaderboard_scores = scored.list;
+      await saveStore(companyId, meta, store);
+      const person = store.clients[ci];
+      return NextResponse.json({
+        success: true,
+        message: 'Score logged on the gym board',
+        portal: decorateMemberPortal(
+          store,
+          person,
+          buildMemberPortalPayloadBase(store, person),
+          meta
+        ),
       });
     }
 
