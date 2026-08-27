@@ -13,6 +13,7 @@ export const FOUNDER_LIFETIME_COMPANY_IDS: number[] = [
   123, // Big Five Foods Kenya
   124, // Big Five Direct (Pty)
   125, // Big Five Access
+  5748, // Big Five Group (holding)
 ];
 
 /**
@@ -21,6 +22,7 @@ export const FOUNDER_LIFETIME_COMPANY_IDS: number[] = [
  */
 export const FOUNDER_LIFETIME_NAME_PATTERNS: RegExp[] = [
   /^big\s*five\s*foods/i,
+  /^big\s*five\s*group/i,
   /^big\s*five\s*direct/i,
   /^big\s*five\s*access/i,
   /^easta?\s*africa\s*big\s*five/i,
