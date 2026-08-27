@@ -302,23 +302,28 @@ export async function ensurePlatformCompany(opts?: {
       }
     }
   } else {
-    // Refresh flags / modules without clobbering other metadata
+    // Refresh flags / modules without clobbering the owner-edited profile.
+    // Trading / legal name used to be forced back to "SupplierAdvisor" on every
+    // /api/me/companies load, so Company → Profile saves never stuck.
     const meta = platformMetadataBlob(
       company.metadata as Record<string, unknown> | null
     );
     const updatePayload: Record<string, unknown> = {
-      trading_name: PLATFORM_COMPANY_TRADING_NAME,
-      legal_name: company.legal_name || PLATFORM_COMPANY_LEGAL_NAME,
       is_discoverable: false,
       relationship_type: 'platform',
       org_type: 'platform',
       business_type: 'platform',
-      website: 'https://www.supplieradvisor.com',
       subscription_status: 'lifetime',
       subscription_plan: LIFETIME_PLAN_FOUNDER,
       metadata: meta,
       updated_at: now,
     };
+    if (!String(company.trading_name || '').trim()) {
+      updatePayload.trading_name = PLATFORM_COMPANY_TRADING_NAME;
+    }
+    if (!String(company.legal_name || '').trim()) {
+      updatePayload.legal_name = PLATFORM_COMPANY_LEGAL_NAME;
+    }
     let { error: upErr } = await db
       .from('profiles')
       .update(updatePayload)
