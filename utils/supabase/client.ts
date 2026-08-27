@@ -1,6 +1,6 @@
-import { createBrowserClient, type SupabaseClient } from '@supabase/ssr';
+import { createBrowserClient } from '@supabase/ssr';
 
-let browserClient: SupabaseClient | null = null;
+let browserClient: ReturnType<typeof createBrowserClient> | null = null;
 
 /** Memoized browser anon client — uploads / leftover client reads. Prefer /api/*. */
 export function createClient() {
