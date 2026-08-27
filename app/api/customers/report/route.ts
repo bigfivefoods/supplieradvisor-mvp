@@ -38,41 +38,25 @@ export async function GET(request: NextRequest) {
     const { loadHoldingSubtree } = await import(
       '@/lib/business/holding-pipeline'
     );
-    const tree = await loadHoldingSubtree(companyId);
-
-    const [
-      custRes,
-      leadRes,
-      oppRes,
-      invInviteRes,
-      orderRes,
-      crmInvRes,
-      arRes,
-      ratingsRes,
-      claimRes,
-      feedbackRes,
-    ] = await Promise.all([
+    const treePromise = loadHoldingSubtree(companyId);
+    const independentPromise = Promise.all([
       supabase
         .from('customers')
         .select(
           'id, trading_name, legal_name, status, invite_status, linked_profile_id, email, city, country'
         )
-        .eq('profile_id', companyId),
+        .eq('profile_id', companyId)
+        .limit(800),
       supabase
         .from('leads')
         .select('id, status, value_estimate, next_action_date')
-        .eq('profile_id', companyId),
-      supabase
-        .from('opportunities')
-        .select(
-          'id, stage, status, amount, opportunity_size, probability, customer_id, linked_profile_id'
-        )
-        .in('profile_id', tree.ids),
+        .eq('profile_id', companyId)
+        .limit(800),
       supabase
         .from('customer_invitations')
         .select('id, status')
-        .eq('profile_id', companyId),
-      // Orders — load without strict date first if needed; filter in JS using created_at
+        .eq('profile_id', companyId)
+        .limit(500),
       supabase
         .from('sales_orders')
         .select(
@@ -80,8 +64,7 @@ export async function GET(request: NextRequest) {
         )
         .eq('profile_id', companyId)
         .order('created_at', { ascending: false })
-        .limit(5000),
-      // CRM commercial invoices (DocumentWorkspace / INV-*)
+        .limit(2000),
       supabase
         .from('customer_invoices')
         .select(
@@ -89,8 +72,7 @@ export async function GET(request: NextRequest) {
         )
         .eq('profile_id', companyId)
         .order('created_at', { ascending: false })
-        .limit(5000),
-      // Accounting AR invoices (legacy / finance module)
+        .limit(2000),
       supabase
         .from('invoices')
         .select(
@@ -118,6 +100,21 @@ export async function GET(request: NextRequest) {
         .eq('profile_id', companyId)
         .order('created_at', { ascending: false })
         .limit(1000),
+    ]);
+
+    const tree = await treePromise;
+    const [
+      [custRes, leadRes, invInviteRes, orderRes, crmInvRes, arRes, ratingsRes, claimRes, feedbackRes],
+      oppRes,
+    ] = await Promise.all([
+      independentPromise,
+      supabase
+        .from('opportunities')
+        .select(
+          'id, stage, status, amount, opportunity_size, probability, customer_id, linked_profile_id'
+        )
+        .in('profile_id', tree.ids)
+        .limit(800),
     ]);
 
     const customers = custRes.data || [];

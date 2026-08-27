@@ -61,12 +61,9 @@ export async function GET(request: NextRequest) {
     const { loadHoldingSubtree } = await import(
       '@/lib/business/holding-pipeline'
     );
-    const tree = await loadHoldingSubtree(companyId);
-
-    const [leadsR, custR, oppR, quotesR, invR, ledgerR] = await Promise.all([
+    const [leadsR, custR, quotesR, invR, ledgerR, tree] = await Promise.all([
       supabase.from('leads').select('*').eq('profile_id', companyId).limit(800),
       supabase.from('customers').select('*').eq('profile_id', companyId).limit(800),
-      supabase.from('opportunities').select('*').in('profile_id', tree.ids).limit(2000),
       supabase
         .from('customer_quotes')
         .select('*')
@@ -84,7 +81,13 @@ export async function GET(request: NextRequest) {
         .in('sales_rep_user_id', variants)
         .order('created_at', { ascending: false })
         .limit(200),
+      loadHoldingSubtree(companyId),
     ]);
+    const oppR = await supabase
+      .from('opportunities')
+      .select('*')
+      .in('profile_id', tree.ids)
+      .limit(2000);
 
     const filterMine = <T extends Record<string, unknown>>(rows: T[] | null | undefined) => {
       const list = rows || [];

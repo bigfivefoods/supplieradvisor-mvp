@@ -245,7 +245,9 @@ export async function GET(request: NextRequest) {
           supabase,
           'nsnp_isp_agency_links',
           'isp_profile_id, status',
-          (q) => q.eq('agency_profile_id', companyId)
+          (q) => q.eq('agency_profile_id', companyId),
+          1000,
+          3000
         );
 
         const ispIds = [

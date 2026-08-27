@@ -31,9 +31,12 @@ export async function GET(request: NextRequest) {
 
     let levelsQuery = supabase
       .from('stock_levels')
-      .select('*')
+      .select(
+        'id, profile_id, product_id, warehouse_id, qty_on_hand, qty_reserved, reorder_level, lot_number, expiry_date, bin_location, updated_at'
+      )
       .eq('profile_id', companyId)
-      .order('updated_at', { ascending: false });
+      .order('updated_at', { ascending: false })
+      .limit(2000);
 
     if (warehouseIdFilter === 'none') {
       levelsQuery = levelsQuery.is('warehouse_id', null);

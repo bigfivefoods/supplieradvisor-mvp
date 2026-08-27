@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
+import { jsonNoStore } from '@/lib/http/response-cache';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { getPaystackSecretKey } from '@/lib/billing/paystack';
 import { clawbackReferralForSourceRef } from '@/lib/billing/referral-controls';
@@ -40,13 +41,13 @@ export async function POST(request: NextRequest) {
       const a = Buffer.from(hash);
       const b = Buffer.from(signature);
       if (a.length !== b.length || !timingSafeEqual(a, b)) {
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+        return jsonNoStore({ error: 'Invalid signature' }, { status: 401 });
       }
     } else if (
       process.env.NODE_ENV === 'production' ||
       process.env.VERCEL_ENV === 'production'
     ) {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: 'PAYSTACK_SECRET_KEY not configured' },
         { status: 503 }
       );
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
         data?: Record<string, unknown>;
       };
     } catch {
-      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+      return jsonNoStore({ error: 'Invalid payload' }, { status: 400 });
     }
     const eventName = String(event.event || '').toLowerCase();
     const data = event.data || {};
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
     ).trim();
 
     const retry = (body: Record<string, unknown>, status = 503) =>
-      NextResponse.json(body, {
+      jsonNoStore(body, {
         status,
         headers: { 'Retry-After': '30' },
       });
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
       });
     }
     if (claim && claim.ok && !claim.first && claim.handled) {
-      return NextResponse.json({
+      return jsonNoStore({
         received: true,
         handled: 'already',
         duplicate: true,
@@ -163,7 +164,7 @@ export async function POST(request: NextRequest) {
       }
 
       await markPaystackWebhook(reference, eventName, 'referral_clawback');
-      return NextResponse.json({
+      return jsonNoStore({
         received: true,
         handled: 'referral_clawback',
         reference,
@@ -264,7 +265,7 @@ export async function POST(request: NextRequest) {
           }
 
           await markPaystackWebhook(reference, eventName, 'cipc_after_payment');
-          return NextResponse.json({
+          return jsonNoStore({
             received: true,
             handled: 'cipc_after_payment',
             reference,
@@ -387,7 +388,7 @@ export async function POST(request: NextRequest) {
                 eventName,
                 'subscription_already'
               );
-              return NextResponse.json({
+              return jsonNoStore({
                 received: true,
                 handled: 'subscription_already',
                 reference,
@@ -481,7 +482,7 @@ export async function POST(request: NextRequest) {
               ? 'packs_activated'
               : 'subscription_activated';
             await markPaystackWebhook(reference, eventName, handled);
-            return NextResponse.json({
+            return jsonNoStore({
               received: true,
               handled,
               reference,
@@ -550,7 +551,7 @@ export async function POST(request: NextRequest) {
             });
           }
           await markPaystackWebhook(reference, eventName, handled);
-          return NextResponse.json({
+          return jsonNoStore({
             received: true,
             handled,
             reference,
@@ -635,7 +636,7 @@ export async function POST(request: NextRequest) {
             eventName,
             'member_account_paid'
           );
-          return NextResponse.json({
+          return jsonNoStore({
             received: true,
             handled: 'member_account_paid',
             reference,
@@ -656,7 +657,7 @@ export async function POST(request: NextRequest) {
     if (reference) {
       await markPaystackWebhook(reference, eventName || 'unknown', 'ignored');
     }
-    return NextResponse.json({
+    return jsonNoStore({
       received: true,
       handled: 'ignored',
       event: eventName,
@@ -664,7 +665,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (e: unknown) {
     console.error('Paystack webhook error:', e);
-    return NextResponse.json(
+    return jsonNoStore(
       { error: e instanceof Error ? e.message : 'Webhook error' },
       { status: 500 }
     );
@@ -689,14 +690,14 @@ export async function GET(request: NextRequest) {
       metadata: { source: 'GET /api/paystack/webhook?ping=1' },
     });
     const pulse = await loadPaystackWebhookPulse();
-    return NextResponse.json({
+    return jsonNoStore({
       ok: true,
       service: 'paystack-webhook',
       path: '/api/paystack/webhook',
       pulse,
     });
   }
-  return NextResponse.json({
+  return jsonNoStore({
     ok: true,
     service: 'paystack-webhook',
   });

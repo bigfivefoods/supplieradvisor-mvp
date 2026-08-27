@@ -187,6 +187,27 @@ export async function computeBuyerOtifef(opts: {
 /**
  * Persist scorecard snapshots for a buyer and refresh srm_suppliers.otifef_pct / trust_score.
  */
+export function scorecardInsertRows(opts: {
+  buyerProfileId: number;
+  fromDate: string;
+  toDate: string;
+  rows: SupplierOtifefRow[];
+  now: string;
+}) {
+  return opts.rows.map((row) => ({
+    buyer_profile_id: opts.buyerProfileId,
+    supplier_profile_id: row.supplier_id,
+    period_start: opts.fromDate,
+    period_end: opts.toDate,
+    total_pos: row.total_pos,
+    on_time_pct: row.ot_percent,
+    in_full_pct: row.if_percent,
+    error_free_pct: row.ef_percent,
+    otifef_pct: row.overall,
+    updated_at: opts.now,
+  }));
+}
+
 export async function persistScorecards(opts: {
   buyerProfileId: number;
   fromDate: string;
@@ -197,35 +218,31 @@ export async function persistScorecards(opts: {
   const supabase = getSupabaseServer();
   const now = new Date().toISOString();
 
-  for (const row of opts.rows) {
-    await supabase.from('supplier_scorecards').insert({
-      buyer_profile_id: opts.buyerProfileId,
-      supplier_profile_id: row.supplier_id,
-      period_start: opts.fromDate,
-      period_end: opts.toDate,
-      total_pos: row.total_pos,
-      on_time_pct: row.ot_percent,
-      in_full_pct: row.if_percent,
-      error_free_pct: row.ef_percent,
-      otifef_pct: row.overall,
-      updated_at: now,
-    });
+  await supabase.from('supplier_scorecards').insert(
+    scorecardInsertRows({ ...opts, now })
+  );
 
-    // Update book entries linked to this platform profile
-    const trust = computeTrustScore({
-      otifef: row.overall,
-      ratingAvg: null,
-      verified: null,
-    });
-    await supabase
-      .from('srm_suppliers')
-      .update({
-        otifef_pct: row.overall,
-        trust_score: trust,
-        updated_at: now,
+  const CHUNK = 8;
+  for (let i = 0; i < opts.rows.length; i += CHUNK) {
+    const slice = opts.rows.slice(i, i + CHUNK);
+    await Promise.all(
+      slice.map((row) => {
+        const trust = computeTrustScore({
+          otifef: row.overall,
+          ratingAvg: null,
+          verified: null,
+        });
+        return supabase
+          .from('srm_suppliers')
+          .update({
+            otifef_pct: row.overall,
+            trust_score: trust,
+            updated_at: now,
+          })
+          .eq('profile_id', opts.buyerProfileId)
+          .eq('linked_profile_id', row.supplier_id);
       })
-      .eq('profile_id', opts.buyerProfileId)
-      .eq('linked_profile_id', row.supplier_id);
+    );
   }
 }
 

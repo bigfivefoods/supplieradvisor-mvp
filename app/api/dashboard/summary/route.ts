@@ -4,6 +4,9 @@ import { computeProfileCompleteness } from '@/lib/business/completeness';
 import { isListedTeamMember, normalizeProfileRow } from '@/lib/business/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import { OPPORTUNITY_STAGES, stageProbability } from '@/lib/customers/types';
+import { jsonKpi } from '@/lib/http/response-cache';
+import { withCompanyKpiCache } from '@/lib/dashboard/kpi-cache';
+import { loadCompanyKpiSnapshot } from '@/lib/dashboard/company-kpi-snapshot';
 
 export type DashboardActivity = {
   id: string;
@@ -37,69 +40,36 @@ export async function POST(request: NextRequest) {
     const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
     if (!_gate.ok) return _gate.response;
 
-    const supabase = getSupabaseServer();
+    const payload = await withCompanyKpiCache(companyId, 'dashboard', () =>
+      assembleDashboardSummary(companyId)
+    );
+    return jsonKpi(payload);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Error';
+    if (message === 'Company not found') {
+      return NextResponse.json({ error: message }, { status: 404 });
+    }
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
 
-    // Full row so profile completeness matches My Business hub / profile page
-    const { data: company, error: companyError } = await supabase
+async function assembleDashboardSummary(companyId: number) {
+    const supabase = getSupabaseServer();
+    const { loadHoldingSubtree } = await import(
+      '@/lib/business/holding-pipeline'
+    );
+
+    // Company + holding walk + shared KPI snapshot start together.
+    // Independent queries do not wait for the BFS to finish.
+    const companyPromise = supabase
       .from('profiles')
       .select('*')
       .eq('id', companyId)
       .maybeSingle();
+    const treePromise = loadHoldingSubtree(companyId);
+    const snapPromise = loadCompanyKpiSnapshot(companyId);
 
-    if (companyError) {
-      return NextResponse.json({ error: companyError.message }, { status: 500 });
-    }
-    if (!company) {
-      return NextResponse.json({ error: 'Company not found' }, { status: 404 });
-    }
-
-    const did = company.user_id ? String(company.user_id) : null;
-    const { loadHoldingSubtree } = await import(
-      '@/lib/business/holding-pipeline'
-    );
-    const tree = await loadHoldingSubtree(companyId);
-
-    const [
-      teamRes,
-      invitesRes,
-      riadByProfile,
-      riadByOwner,
-      productsRes,
-      projectsRes,
-      documentsRes,
-      companyDocsRes,
-      suppliersRes,
-      connectionsProfileRes,
-      connectionsDidRes,
-      containersRes,
-      contractorsRes,
-      containerInvRes,
-      containerSalesRes,
-      stockLevelsRes,
-      warehousesRes,
-      // CRM
-      customersRes,
-      leadsRes,
-      opportunitiesRes,
-      customerInvitesRes,
-      // SRM
-      srmSuppliersRes,
-      srmInvitesRes,
-      srmPosRes,
-      customerRiadRes,
-      supplierRiadRes,
-      // Network trade expansion
-      pricingAgreementsRes,
-      customerQuotesRes,
-      customerInvoicesRes,
-      productsFullRes,
-      accountingInvoicesRes,
-      marketplaceListingsRes,
-      // CRM feedback stars
-      invoiceFeedbackRes,
-      customerPeerRatingsRes,
-      dashboardRollupRes,
-    ] = await Promise.all([
+    const independentPromise = Promise.all([
       supabase
         .from('business_users')
         .select('id, name, email, invited_email, role, status, created_at, joined_at, invited_at')
@@ -133,11 +103,6 @@ export async function POST(request: NextRequest) {
         .limit(40),
 
       supabase
-        .from('products')
-        .select('id', { count: 'exact', head: true })
-        .eq('profile_id', companyId),
-
-      supabase
         .from('projects')
         .select('id, title, status, progress, updated_at')
         .eq('profile_id', companyId)
@@ -162,22 +127,6 @@ export async function POST(request: NextRequest) {
         .or('relationship_type.eq.supplier,is_supplier.eq.true')
         .order('created_at', { ascending: false })
         .limit(100),
-
-      supabase
-        .from('business_connections')
-        .select(
-          'id, status, requested_at, accepted_at, requester_profile_id, requestee_profile_id, requester_id, requestee_id'
-        )
-        .or(`requester_profile_id.eq.${companyId},requestee_profile_id.eq.${companyId}`)
-        .limit(200),
-
-      did
-        ? supabase
-            .from('business_connections')
-            .select('id, status, requested_at, accepted_at, requester_id, requestee_id, message')
-            .or(`requester_id.eq.${did},requestee_id.eq.${did}`)
-            .limit(200)
-        : Promise.resolve({ data: [] as Record<string, unknown>[], error: null }),
 
       supabase
         .from('containers')
@@ -209,41 +158,6 @@ export async function POST(request: NextRequest) {
         .limit(100),
 
       supabase
-        .from('stock_levels')
-        .select('id, qty_on_hand, qty_reserved, reorder_level, product_id')
-        .eq('profile_id', companyId)
-        .limit(500),
-
-      supabase
-        .from('warehouses')
-        .select('id, name, status')
-        .eq('profile_id', companyId)
-        .limit(100),
-
-      supabase
-        .from('customers')
-        .select('id, status, invite_status, trading_name, created_at')
-        .eq('profile_id', companyId)
-        .order('created_at', { ascending: false })
-        .limit(200),
-
-      supabase
-        .from('leads')
-        .select('id, status, name, created_at')
-        .eq('profile_id', companyId)
-        .order('created_at', { ascending: false })
-        .limit(100),
-
-      supabase
-        .from('opportunities')
-        .select(
-          'id, stage, status, amount, opportunity_size, probability, name, updated_at'
-        )
-        .in('profile_id', tree.ids)
-        .order('updated_at', { ascending: false })
-        .limit(800),
-
-      supabase
         .from('customer_invitations')
         .select('id, status, email, company_name, created_at')
         .eq('profile_id', companyId)
@@ -251,27 +165,11 @@ export async function POST(request: NextRequest) {
         .limit(50),
 
       supabase
-        .from('srm_suppliers')
-        .select(
-          'id, trading_name, status, invite_status, trust_score, otifef_pct, verified, linked_profile_id, created_at'
-        )
-        .eq('profile_id', companyId)
-        .order('updated_at', { ascending: false })
-        .limit(200),
-
-      supabase
         .from('supplier_invitations')
         .select('id, status, email, company_name, created_at')
         .eq('profile_id', companyId)
         .order('created_at', { ascending: false })
         .limit(50),
-
-      supabase
-        .from('purchase_orders')
-        .select('id, status, total_amount, supplier_id, created_at, onchain_po_id')
-        .eq('buyer_profile_id', companyId)
-        .order('created_at', { ascending: false })
-        .limit(100),
 
       supabase
         .from('customer_riad')
@@ -295,13 +193,6 @@ export async function POST(request: NextRequest) {
         .limit(100),
 
       supabase
-        .from('customer_quotes')
-        .select('id, status, total_amount, currency, created_at')
-        .eq('profile_id', companyId)
-        .order('created_at', { ascending: false })
-        .limit(100),
-
-      supabase
         .from('customer_invoices')
         .select(
           'id, status, total_amount, amount_paid, currency, created_at, due_date'
@@ -311,25 +202,11 @@ export async function POST(request: NextRequest) {
         .limit(100),
 
       supabase
-        .from('products')
-        .select('id, base_currency, prices, sell_price, name, status')
-        .eq('profile_id', companyId)
-        .limit(500),
-
-      supabase
-        .from('invoices')
-        .select('id, direction, status, total_amount, amount_paid, currency, created_at')
-        .eq('profile_id', companyId)
-        .order('created_at', { ascending: false })
-        .limit(200),
-
-      supabase
         .from('marketplace_listings')
         .select('id, status, title, unit_price, currency, created_at')
         .eq('seller_profile_id', companyId)
         .limit(100),
 
-      // Customer feedback from invoice QR (rate / OTIFEF)
       supabase
         .from('invoice_feedback')
         .select('id, rating, otifef_score, feedback_type, created_at')
@@ -337,7 +214,6 @@ export async function POST(request: NextRequest) {
         .order('created_at', { ascending: false })
         .limit(500),
 
-      // Peer stars you gave buyers (company_ratings)
       supabase
         .from('company_ratings')
         .select('id, overall, status, ratee_role')
@@ -350,6 +226,75 @@ export async function POST(request: NextRequest) {
         p_profile_id: companyId,
       }),
     ]);
+
+    const [companyRes, tree] = await Promise.all([companyPromise, treePromise]);
+    const { data: company, error: companyError } = companyRes;
+
+    if (companyError) {
+      throw new Error(companyError.message);
+    }
+    if (!company) {
+      throw new Error('Company not found');
+    }
+
+    const did = company.user_id ? String(company.user_id) : null;
+
+    const [snap, independent, opportunitiesRes, connectionsDidRes] = await Promise.all([
+      snapPromise,
+      independentPromise,
+      supabase
+        .from('opportunities')
+        .select(
+          'id, stage, status, amount, opportunity_size, probability, name, updated_at'
+        )
+        .in('profile_id', tree.ids)
+        .order('updated_at', { ascending: false })
+        .limit(800),
+      did
+        ? supabase
+            .from('business_connections')
+            .select('id, status, requested_at, accepted_at, requester_id, requestee_id, message')
+            .or(`requester_id.eq.${did},requestee_id.eq.${did}`)
+            .limit(200)
+        : Promise.resolve({ data: [] as Record<string, unknown>[], error: null }),
+    ]);
+
+    const [
+      teamRes,
+      invitesRes,
+      riadByProfile,
+      riadByOwner,
+      projectsRes,
+      documentsRes,
+      companyDocsRes,
+      suppliersRes,
+      containersRes,
+      contractorsRes,
+      containerInvRes,
+      containerSalesRes,
+      customerInvitesRes,
+      srmInvitesRes,
+      customerRiadRes,
+      supplierRiadRes,
+      pricingAgreementsRes,
+      customerInvoicesRes,
+      marketplaceListingsRes,
+      invoiceFeedbackRes,
+      customerPeerRatingsRes,
+      dashboardRollupRes,
+    ] = independent;
+
+    const productsRes = { count: snap.productsCount, data: snap.products, error: null };
+    const connectionsProfileRes = { data: snap.connections, error: null };
+    const stockLevelsRes = { data: snap.stock, error: null };
+    const warehousesRes = { data: snap.warehouses, error: null };
+    const customersRes = { data: snap.customers, error: null };
+    const leadsRes = { data: snap.leads, error: null };
+    const srmSuppliersRes = { data: snap.srmSuppliers, error: null };
+    const srmPosRes = { data: snap.buyerPos, error: null };
+    const customerQuotesRes = { data: snap.quotes, error: null };
+    const productsFullRes = { data: snap.products, error: null };
+    const accountingInvoicesRes = { data: snap.invoices, error: null };
 
     const team = (teamRes.data || []).filter((m) =>
       isListedTeamMember((m as { status?: string | null }).status)
@@ -1216,7 +1161,7 @@ export async function POST(request: NextRequest) {
       return tb - ta;
     });
 
-    return NextResponse.json({
+    return {
       success: true,
       company: {
         id: company.id,
@@ -1479,10 +1424,5 @@ export async function POST(request: NextRequest) {
       contractorsPreview: contractors.slice(0, 5),
       projectsPreview: projects.slice(0, 4),
       generatedAt: new Date().toISOString(),
-    });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Dashboard summary failed';
-    console.error('dashboard summary error:', err);
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+    };
 }

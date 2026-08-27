@@ -53,17 +53,29 @@ export async function GET(request: NextRequest) {
           : ['active', 'pending', 'suspended', 'rejected'];
 
     let links: Array<Record<string, unknown>>;
+    let linksTotal = 0;
     try {
-      links = await fetchAllPaged(
-        supabase,
-        'nsnp_isp_agency_links',
-        'id, isp_profile_id, agency_profile_id, status, accepted_at, requested_at, notes, updated_at',
-        (qb) =>
-          qb
-            .eq('agency_profile_id', companyId)
-            .in('status', statuses)
-            .order('updated_at', { ascending: false })
-      );
+      const [countRes, pagedLinks] = await Promise.all([
+        supabase
+          .from('nsnp_isp_agency_links')
+          .select('id', { count: 'exact', head: true })
+          .eq('agency_profile_id', companyId)
+          .in('status', statuses),
+        fetchAllPaged(
+          supabase,
+          'nsnp_isp_agency_links',
+          'id, isp_profile_id, agency_profile_id, status, accepted_at, requested_at, notes, updated_at',
+          (qb) =>
+            qb
+              .eq('agency_profile_id', companyId)
+              .in('status', statuses)
+              .order('updated_at', { ascending: false }),
+          500,
+          500
+        ),
+      ]);
+      linksTotal = Number(countRes.count || 0);
+      links = pagedLinks;
     } catch (e: unknown) {
       return NextResponse.json({
         success: true,
@@ -223,7 +235,7 @@ export async function GET(request: NextRequest) {
     });
 
     const kpis = {
-      sps: sps.length,
+      sps: !filterDistrict && !q ? linksTotal || sps.length : sps.length,
       active: sps.filter((s) => s.link_status === 'active').length,
       pending: sps.filter((s) => s.link_status === 'pending').length,
       with_csd: sps.filter((s) => s.csd_number).length,
@@ -265,6 +277,8 @@ export async function GET(request: NextRequest) {
         type: agency.agency_type,
       },
       kpis,
+      truncated: linksTotal > links.length,
+      total: linksTotal,
       byDistrict,
       byCluster,
       byStatus,
