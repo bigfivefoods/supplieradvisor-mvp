@@ -6,9 +6,12 @@ import {
   groupCoaForAllocation,
   isCustomerAllocAccount,
   isSupplierAllocAccount,
+  isTradeParty,
   normalizePartyKey,
   nextFreeCode,
   partyDisplayName,
+  pickRecognitionControlAccount,
+  pickSettlementControlAccount,
   planPartyGlAccounts,
   suggestPartyGlForDescription,
 } from './party-gl-accounts';
@@ -25,6 +28,24 @@ assert.equal(
   partyDisplayName({ trading_name: 'Buze', name: 'ignored' }),
   'Buze'
 );
+assert.equal(
+  isTradeParty({ id: 1, trading_name: 'Boxer', status: 'active' }),
+  true
+);
+assert.equal(
+  isTradeParty({
+    id: 2,
+    trading_name: 'Jarryd',
+    customer_type: 'consumer',
+    source: 'sa_member_wallet',
+    status: 'active',
+  }),
+  false
+);
+assert.equal(pickRecognitionControlAccount(161, 5), 161);
+assert.equal(pickRecognitionControlAccount(null, 5), 5);
+assert.equal(pickSettlementControlAccount(161, 5), 161);
+assert.equal(pickSettlementControlAccount(null, 5), 5);
 
 const plan = planPartyGlAccounts({
   customers: [
@@ -32,6 +53,13 @@ const plan = planPartyGlAccounts({
     { id: 14, trading_name: 'Restore Africa Foundation', legal_name: 'Restore Africa Foundation Npc', status: 'prospect' },
     { id: 6, trading_name: 'Buze', status: 'active' },
     { id: 99, trading_name: 'Gone Co', status: 'inactive' },
+    {
+      id: 200,
+      trading_name: 'Walk-in member',
+      customer_type: 'consumer',
+      source: 'advisor_member',
+      status: 'active',
+    },
   ],
   suppliers: [
     { id: 8, trading_name: 'Holtz', status: 'prospect' },
@@ -53,6 +81,7 @@ assert.ok(plan.create.some((c) => c.name === 'AP — Holtz Group'));
 assert.ok(plan.create.some((c) => c.name === 'AP — Kelpack Manufacturing (Pty) Ltd'));
 assert.equal(plan.create.filter((c) => c.name.startsWith('AP — Holtz')).length, 1);
 assert.ok(!plan.create.some((c) => /Gone/.test(c.name)));
+assert.ok(!plan.create.some((c) => /Walk-in/.test(c.name)));
 assert.ok(!plan.create.some((c) => c.code === '1130' || c.name === 'Accounts receivable'));
 
 const buzeLinks = plan.links.filter((l) => l.id === 6 && l.kind === 'ar');

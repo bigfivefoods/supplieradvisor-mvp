@@ -275,8 +275,18 @@ export async function allocatePurchaseOrderCost(opts: {
   const entryNumbers: string[] = [];
   let lastWarning: string | undefined;
 
-  // Prefer AP credit for procurement (2110), fall back to accrued
+  // Prefer the named supplier AP account, then 2110, then accrued
+  const { resolvePartyControlAccountId } = await import(
+    '@/lib/accounting/party-gl-accounts'
+  );
+  const partyAp = await resolvePartyControlAccountId({
+    profileId: opts.companyId,
+    kind: 'ap',
+    partyId: Number(po.supplier_id || po.srm_supplier_id || 0),
+    counterpartyName: po.supplier_name ? String(po.supplier_name) : null,
+  });
   const creditId =
+    partyAp ||
     (await resolveCoaAccountIdByCode(opts.companyId, '2110')) ||
     (await resolveManufacturingCreditAccount(opts.companyId));
 

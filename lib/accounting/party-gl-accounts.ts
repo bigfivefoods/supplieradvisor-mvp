@@ -8,6 +8,7 @@
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { invalidateAccountingReads } from '@/lib/accounting/read-cache';
+import { ttlGet, ttlSet } from '@/lib/system/memory-ttl';
 import type { CoaAccount } from '@/lib/accounting/types';
 
 export const PARTY_AR_CODE_START = 1181;
@@ -23,6 +24,22 @@ const SKIP_STATUS = new Set([
   'void',
 ]);
 
+/** Wallet / PWA members are CRM rows, not trade parties for bank allocation. */
+const SKIP_CUSTOMER_TYPES = new Set([
+  'consumer',
+  'member',
+  'patient',
+  'walk_in',
+]);
+const SKIP_SOURCES = new Set([
+  'sa_member_wallet',
+  'member_app_qr',
+  'advisor_member',
+]);
+
+const PARTY_GL_CACHE_MS = 120_000;
+const partyGlCacheKey = (profileId: number) => `party-gl:${profileId}`;
+
 const CONTROL_AR = new Set(['1130', '1135']);
 const CONTROL_AP = new Set(['2110']);
 
@@ -32,6 +49,8 @@ export type PartyBookRow = {
   legal_name?: string | null;
   name?: string | null;
   status?: string | null;
+  customer_type?: string | null;
+  source?: string | null;
   metadata?: Record<string, unknown> | null;
 };
 
@@ -93,6 +112,42 @@ export function isSkippedPartyStatus(status?: string | null): boolean {
   return SKIP_STATUS.has(String(status || '').trim().toLowerCase());
 }
 
+export function isTradeParty(row: PartyBookRow): boolean {
+  if (!row?.id || isSkippedPartyStatus(row.status)) return false;
+  if (SKIP_CUSTOMER_TYPES.has(String(row.customer_type || '').trim().toLowerCase())) {
+    return false;
+  }
+  if (SKIP_SOURCES.has(String(row.source || '').trim().toLowerCase())) {
+    return false;
+  }
+  return Boolean(partyDisplayName(row));
+}
+
+/** New invoices post to the named party account when one exists. */
+export function pickRecognitionControlAccount(
+  partyAccountId: number | null | undefined,
+  fallbackId: number | null | undefined
+): number | null {
+  const party = Number(partyAccountId || 0);
+  if (party > 0) return party;
+  const fallback = Number(fallbackId || 0);
+  return fallback > 0 ? fallback : null;
+}
+
+/**
+ * Settlement must hit the same AR/AP leaf the invoice was recognised to.
+ * Old invoices without a stamp stay on 1130 / 2110.
+ */
+export function pickSettlementControlAccount(
+  stampedId: number | null | undefined,
+  fallbackId: number | null | undefined
+): number | null {
+  const stamped = Number(stampedId || 0);
+  if (stamped > 0) return stamped;
+  const fallback = Number(fallbackId || 0);
+  return fallback > 0 ? fallback : null;
+}
+
 function stripPartyPrefix(name: string): string {
   return String(name || '')
     .replace(/^AR\s+[—-]\s+/i, '')
@@ -138,7 +193,7 @@ function collectParties(
 ): Map<string, { key: string; name: string; ids: number[] }> {
   const map = new Map<string, { key: string; name: string; ids: number[]; names: string[] }>();
   for (const row of rows) {
-    if (!row?.id || isSkippedPartyStatus(row.status)) continue;
+    if (!isTradeParty(row)) continue;
     const display = partyDisplayName(row);
     if (!display) continue;
     const key = normalizePartyKey(display);
@@ -341,6 +396,38 @@ function asRecord(raw: unknown): Record<string, unknown> {
   return {};
 }
 
+async function loadBookRows(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  table: 'customers' | 'srm_suppliers',
+  profileId: number,
+  extraCols?: string
+): Promise<{ data: PartyBookRow[] | null; error: { message: string } | null }> {
+  const base = 'id, trading_name, legal_name, status, metadata';
+  const select = extraCols ? `${base}, ${extraCols}` : base;
+  const first = await supabase
+    .from(table)
+    .select(select)
+    .eq('profile_id', profileId);
+  if (
+    first.error &&
+    extraCols &&
+    /column|schema cache|does not exist/i.test(first.error.message || '')
+  ) {
+    const retry = await supabase
+      .from(table)
+      .select(base)
+      .eq('profile_id', profileId);
+    return {
+      data: (retry.data || null) as PartyBookRow[] | null,
+      error: retry.error,
+    };
+  }
+  return {
+    data: (first.data || null) as PartyBookRow[] | null,
+    error: first.error,
+  };
+}
+
 export async function ensurePartyGlAccounts(
   profileId: number
 ): Promise<{ created: number; linked: number; warning?: string }> {
@@ -350,14 +437,8 @@ export async function ensurePartyGlAccounts(
   const supabase = getSupabaseServer();
   const [{ data: customers, error: cErr }, { data: suppliers, error: sErr }, { data: coa, error: aErr }] =
     await Promise.all([
-      supabase
-        .from('customers')
-        .select('id, trading_name, legal_name, status, metadata')
-        .eq('profile_id', profileId),
-      supabase
-        .from('srm_suppliers')
-        .select('id, trading_name, legal_name, status, metadata')
-        .eq('profile_id', profileId),
+      loadBookRows(supabase, 'customers', profileId, 'customer_type, source'),
+      loadBookRows(supabase, 'srm_suppliers', profileId),
       supabase
         .from('chart_of_accounts')
         .select('id, code, name, account_type, subtype, is_header, is_active')
@@ -448,6 +529,7 @@ export async function ensurePartyGlAccounts(
   }
 
   if (created || linked) invalidateAccountingReads(profileId);
+  ttlSet(partyGlCacheKey(profileId), 1, PARTY_GL_CACHE_MS);
   return { created, linked };
 }
 
@@ -458,4 +540,60 @@ export async function ensurePartyGlAccountsSafe(profileId: number): Promise<void
   } catch (err) {
     console.warn('[party-gl] ensure failed', profileId, err);
   }
+}
+
+/** Same as safe, but skip if this company was provisioned recently. */
+export async function ensurePartyGlAccountsCached(profileId: number): Promise<void> {
+  if (!Number.isFinite(profileId) || profileId <= 0) return;
+  if (ttlGet(partyGlCacheKey(profileId))) return;
+  ttlSet(partyGlCacheKey(profileId), 1, PARTY_GL_CACHE_MS);
+  await ensurePartyGlAccountsSafe(profileId);
+}
+
+export async function resolvePartyControlAccountId(opts: {
+  profileId: number;
+  kind: 'ar' | 'ap';
+  partyId?: number | null;
+  counterpartyName?: string | null;
+}): Promise<number | null> {
+  await ensurePartyGlAccountsCached(opts.profileId);
+  const supabase = getSupabaseServer();
+  const table = opts.kind === 'ar' ? 'customers' : 'srm_suppliers';
+  const partyId = Number(opts.partyId || 0);
+  if (partyId > 0) {
+    const { data } = await supabase
+      .from(table)
+      .select('metadata, trading_name, legal_name')
+      .eq('id', partyId)
+      .eq('profile_id', opts.profileId)
+      .maybeSingle();
+    const linked = Number(asRecord(data?.metadata).gl_account_id);
+    if (linked > 0) return linked;
+  }
+
+  const display = String(opts.counterpartyName || '').replace(/\s+/g, ' ').trim();
+  if (!display) return null;
+  const prefix = opts.kind === 'ar' ? PARTY_AR_PREFIX : PARTY_AP_PREFIX;
+  const want = `${prefix}${display}`;
+  const { data: exact } = await supabase
+    .from('chart_of_accounts')
+    .select('id, name')
+    .eq('profile_id', opts.profileId)
+    .eq('is_active', true)
+    .eq('name', want)
+    .maybeSingle();
+  if (exact?.id) return Number(exact.id);
+
+  const { data: named } = await supabase
+    .from('chart_of_accounts')
+    .select('id, name')
+    .eq('profile_id', opts.profileId)
+    .eq('is_active', true)
+    .ilike('name', `${prefix}%`)
+    .limit(400);
+  const key = normalizePartyKey(display);
+  const hit = (named || []).find(
+    (a) => normalizePartyKey(stripPartyPrefix(String(a.name || ''))) === key
+  );
+  return hit?.id ? Number(hit.id) : null;
 }

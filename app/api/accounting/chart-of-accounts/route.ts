@@ -31,12 +31,12 @@ export async function GET(request: NextRequest) {
       const r = await ensureDefaultCoa(companyId);
       seeded = r.seeded;
       seedWarning = r.warning;
-      const { ensurePartyGlAccountsSafe } = await import(
-        '@/lib/accounting/party-gl-accounts'
-      );
-      await ensurePartyGlAccountsSafe(companyId);
       if (seeded) invalidateAccountingReads(companyId);
     }
+    const { ensurePartyGlAccountsCached } = await import(
+      '@/lib/accounting/party-gl-accounts'
+    );
+    await ensurePartyGlAccountsCached(companyId);
 
     let accounts = await getCachedCoa(companyId);
     if (type && type !== 'all') {

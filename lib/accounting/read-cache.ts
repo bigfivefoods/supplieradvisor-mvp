@@ -16,6 +16,7 @@ export function invalidateAccountingReads(companyId: number): void {
   if (!Number.isFinite(companyId) || companyId <= 0) return;
   ttlDel(settingsKey(companyId));
   ttlDel(coaKey(companyId));
+  ttlDel(`party-gl:${companyId}`);
 }
 
 export async function getCachedSettings(

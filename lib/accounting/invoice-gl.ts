@@ -18,6 +18,11 @@ import {
 } from '@/lib/accounting/post-journal';
 import { isPeriodLocked } from '@/lib/accounting/period-lock';
 import { round2 } from '@/lib/accounting/server';
+import {
+  pickRecognitionControlAccount,
+  pickSettlementControlAccount,
+  resolvePartyControlAccountId,
+} from '@/lib/accounting/party-gl-accounts';
 
 const ISSUED = new Set([
   'sent',
@@ -242,6 +247,18 @@ export async function recognizeInvoiceIfNeeded(opts: {
 
   const accts = await invoiceAccounts(opts.profileId);
   const isAr = String(inv.direction || '') !== 'payable';
+  const partyGl = await resolvePartyControlAccountId({
+    profileId: opts.profileId,
+    kind: isAr ? 'ar' : 'ap',
+    partyId: isAr ? Number(inv.customer_id || 0) : Number(inv.supplier_id || 0),
+    counterpartyName: inv.counterparty_name
+      ? String(inv.counterparty_name)
+      : null,
+  });
+  const control = pickRecognitionControlAccount(
+    partyGl,
+    isAr ? accts.ar : accts.ap
+  );
   const entryDate = await pickOpenEntryDate(
     opts.profileId,
     String(inv.issue_date || new Date().toISOString()).slice(0, 10)
@@ -257,14 +274,14 @@ export async function recognizeInvoiceIfNeeded(opts: {
 
   const lines: JournalLineInput[] = [];
   if (isAr) {
-    if (!accts.ar || !accts.revenue) {
+    if (!control || !accts.revenue) {
       return {
         ok: false,
         error: 'COA missing AR (1130) or sales revenue (4100) — seed Chart of Accounts',
       };
     }
     lines.push({
-      accountId: accts.ar,
+      accountId: control,
       debit: total,
       credit: 0,
       memo,
@@ -301,7 +318,7 @@ export async function recognizeInvoiceIfNeeded(opts: {
       });
     }
   } else {
-    if (!accts.ap || !accts.expense) {
+    if (!control || !accts.expense) {
       return {
         ok: false,
         error: 'COA missing AP (2110) or an expense account — seed Chart of Accounts',
@@ -338,7 +355,7 @@ export async function recognizeInvoiceIfNeeded(opts: {
       });
     }
     lines.push({
-      accountId: accts.ap,
+      accountId: control,
       debit: 0,
       credit: total,
       memo,
@@ -358,6 +375,7 @@ export async function recognizeInvoiceIfNeeded(opts: {
       invoice_id: inv.id,
       direction: inv.direction,
       invoice_number: inv.invoice_number,
+      control_account_id: control,
     },
     lines,
   });
@@ -366,11 +384,13 @@ export async function recognizeInvoiceIfNeeded(opts: {
   await stampInvoiceMeta(Number(inv.id), opts.profileId, meta, {
     recognition_journal_id: posted.journalId,
     recognized_at: new Date().toISOString(),
+    control_account_id: control,
   });
   inv.metadata = {
     ...meta,
     recognition_journal_id: posted.journalId,
     recognized_at: new Date().toISOString(),
+    control_account_id: control,
   };
 
   return { ok: true, journalId: posted.journalId };
@@ -415,7 +435,10 @@ export async function settleInvoicePayment(opts: {
   const accts = await invoiceAccounts(opts.profileId);
   const bankGl = await resolveBankGl(opts.profileId, opts.bankAccountId);
   const isAr = String(opts.invoice.direction || '') !== 'payable';
-  const control = isAr ? accts.ar : accts.ap;
+  const control = pickSettlementControlAccount(
+    Number(meta.control_account_id),
+    isAr ? accts.ar : accts.ap
+  );
   if (!bankGl || !control) {
     return {
       ok: false,

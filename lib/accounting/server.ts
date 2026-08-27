@@ -171,6 +171,21 @@ export function linesAreBalanced(
   return { ok: Math.abs(debit - credit) < 0.005, debit, credit };
 }
 
+async function withPartyAccounts(
+  profileId: number,
+  result: { seeded: number; warning?: string }
+): Promise<{ seeded: number; warning?: string }> {
+  try {
+    const { ensurePartyGlAccountsCached } = await import(
+      '@/lib/accounting/party-gl-accounts'
+    );
+    await ensurePartyGlAccountsCached(profileId);
+  } catch {
+    /* party GL is additive */
+  }
+  return result;
+}
+
 /** Seed default CoA + tax rates if empty for this company */
 export async function ensureDefaultCoa(profileId: number): Promise<{ seeded: number; warning?: string }> {
   const supabase = getSupabaseServer();
@@ -190,7 +205,7 @@ export async function ensureDefaultCoa(profileId: number): Promise<{ seeded: num
       .eq('profile_id', profileId);
     const codes = new Set((have || []).map((r) => String(r.code)));
     const missing = DEFAULT_CHART_OF_ACCOUNTS.filter((a) => !codes.has(a.code));
-    if (!missing.length) return { seeded: 0 };
+    if (!missing.length) return withPartyAccounts(profileId, { seeded: 0 });
     const rows = missing.map((a, i) => ({
       profile_id: profileId,
       code: a.code,
@@ -209,7 +224,10 @@ export async function ensureDefaultCoa(profileId: number): Promise<{ seeded: num
       .from('chart_of_accounts')
       .insert(rows)
       .select('id');
-    return { seeded: data?.length || 0, warning: fillErr?.message };
+    return withPartyAccounts(profileId, {
+      seeded: data?.length || 0,
+      warning: fillErr?.message,
+    });
   }
 
   const rows = DEFAULT_CHART_OF_ACCOUNTS.map((a, i) => ({
@@ -282,7 +300,7 @@ export async function ensureDefaultCoa(profileId: number): Promise<{ seeded: num
 
   await getOrCreateSettings(profileId);
 
-  return { seeded: data?.length || rows.length };
+  return withPartyAccounts(profileId, { seeded: data?.length || rows.length });
 }
 
 export function monthBounds(d = new Date()): { start: string; end: string } {
