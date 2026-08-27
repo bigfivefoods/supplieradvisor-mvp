@@ -724,7 +724,9 @@ export async function POST(request: NextRequest) {
         (q) =>
           q
             .in('member_type', ['hospital', 'clinic', 'shelter'])
-            .order('school_name', { ascending: true })
+            .order('school_name', { ascending: true }),
+        1000,
+        2000
       );
 
       const links = await fetchAgencySchoolLinks(supabase, companyId, [

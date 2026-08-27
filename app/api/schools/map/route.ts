@@ -88,7 +88,9 @@ export async function GET(request: NextRequest) {
                 .lte('lat', Math.max(south, north));
             }
             return q;
-          }
+          },
+          1000,
+          4000
         );
       }
     } catch (e: unknown) {

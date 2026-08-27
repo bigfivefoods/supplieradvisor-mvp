@@ -800,7 +800,9 @@ async function loadAgencyRiadLog(
     (q) =>
       q
         .eq('agency_profile_id', agencyCompanyId)
-        .in('status', ['active', 'pending'])
+        .in('status', ['active', 'pending']),
+    1000,
+    2000
   ).catch(() => [] as Array<Record<string, unknown>>);
 
   const ispIds = [

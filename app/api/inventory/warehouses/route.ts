@@ -24,7 +24,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
     const supabase = getSupabaseServer();
-    let q = supabase.from('warehouses').select('*').eq('profile_id', companyId).order('name');
+    let q = supabase
+      .from('warehouses')
+      .select(
+        'id, profile_id, name, code, owner_type, partner_name, city, warehouse_type, status, is_default, address, country'
+      )
+      .eq('profile_id', companyId)
+      .order('name')
+      .limit(200);
     if (ownerType && ownerType !== 'all') q = q.eq('owner_type', ownerType);
 
     const { data, error } = await q;

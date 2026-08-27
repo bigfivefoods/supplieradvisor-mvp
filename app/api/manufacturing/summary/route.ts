@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { jsonKpi } from '@/lib/http/response-cache';
+import { withCompanyKpiCache } from '@/lib/dashboard/kpi-cache';
+import { loadCompanyKpiSnapshot, snapOk } from '@/lib/dashboard/company-kpi-snapshot';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,43 +15,40 @@ export async function GET(request: NextRequest) {
     const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
     if (!_gate.ok) return _gate.response;
 
+    const payload = await withCompanyKpiCache(companyId, 'manufacturing', () =>
+      assembleManufacturingSummary(companyId)
+    );
+    return jsonKpi(payload);
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Error' },
+      { status: 500 }
+    );
+  }
+}
+
+async function assembleManufacturingSummary(companyId: number) {
     const supabase = getSupabaseServer();
 
-    const [
-      bomsRes,
-      ordersRes,
-      mpsRes,
-      mrpRes,
-      wcRes,
-      stockRes,
-    ] = await Promise.all([
-      supabase
-        .from('manufacturing_boms')
-        .select('id, status')
-        .eq('profile_id', companyId),
-      supabase
-        .from('manufacturing_production_orders')
-        .select('id, status, qty_planned, qty_completed, qty_scrapped, priority')
-        .eq('profile_id', companyId),
+    const [snap, mpsRes, mrpRes] = await Promise.all([
+      loadCompanyKpiSnapshot(companyId),
       supabase
         .from('manufacturing_mps_plans')
         .select('id, status')
-        .eq('profile_id', companyId),
+        .eq('profile_id', companyId)
+        .limit(200),
       supabase
         .from('manufacturing_mrp_runs')
         .select('id, status, run_number, completed_at, summary')
         .eq('profile_id', companyId)
         .order('created_at', { ascending: false })
         .limit(1),
-      supabase
-        .from('manufacturing_work_centers')
-        .select('id, status')
-        .eq('profile_id', companyId),
-      supabase
-        .from('stock_levels')
-        .select('qty_on_hand')
-        .eq('profile_id', companyId),
     ]);
+
+    const bomsRes = snapOk(snap.mfgBoms);
+    const ordersRes = snapOk(snap.mfgOrders);
+    const wcRes = snapOk(snap.mfgWorkCenters);
+    const stockRes = snapOk(snap.stock);
 
     const schemaWarning =
       bomsRes.error?.message ||
@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
 
     const lastMrp = mrpRes.data?.[0] || null;
 
-    return NextResponse.json({
+    return {
       success: true,
       warning: schemaWarning || undefined,
       summary: {
@@ -118,11 +118,5 @@ export async function GET(request: NextRequest) {
         unitsOnHand: Math.round(unitsOnHand * 100) / 100,
         lastMrp,
       },
-    });
-  } catch (e: unknown) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Error' },
-      { status: 500 }
-    );
-  }
+    };
 }

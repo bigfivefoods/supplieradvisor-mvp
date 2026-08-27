@@ -45,3 +45,31 @@ export function ttlDel(keyOrPrefix: string): void {
     if (k.startsWith(prefix)) store.delete(k);
   }
 }
+
+const inflight = new Map<string, Promise<unknown>>();
+
+/**
+ * Process-local get-or-load with single-flight. Concurrent callers share one
+ * loader so dashboard + ops + intel + accounting do not stampede the same rows.
+ */
+export async function ttlGetOrLoad<T>(
+  key: string,
+  ttlMs: number,
+  load: () => Promise<T>
+): Promise<T> {
+  const hit = ttlGet<T>(key);
+  if (hit !== null) return hit;
+  const existing = inflight.get(key);
+  if (existing) return existing as Promise<T>;
+  const pending = (async () => {
+    try {
+      const value = await load();
+      ttlSet(key, value, ttlMs);
+      return value;
+    } finally {
+      inflight.delete(key);
+    }
+  })();
+  inflight.set(key, pending);
+  return pending;
+}

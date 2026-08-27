@@ -5,6 +5,8 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { displayCompanyName } from '@/lib/business/company-groups';
 import { STRUCTURE_MAX_DEPTH, STRUCTURE_MAX_NODES } from '@/lib/business/group-structure';
+import { ttlGetOrLoad } from '@/lib/system/memory-ttl';
+import { HOLDING_TTL_MS } from '@/lib/dashboard/kpi-cache';
 
 export const PIPELINE_ROLLUP_LINK_TYPES = [
   'holding',
@@ -64,18 +66,33 @@ export type HoldingSubtree = {
 export async function loadHoldingSubtree(
   companyId: number
 ): Promise<HoldingSubtree> {
-  const names = new Map<number, string>();
-  const ids = [companyId];
   if (!Number.isFinite(companyId) || companyId <= 0) {
     return {
-      ids,
-      names,
+      ids: [companyId],
+      names: new Map(),
       descendantCount: 0,
       parentCompanyId: null,
       isSubsidiary: false,
     };
   }
+  const cached = await ttlGetOrLoad(
+    `holding:${companyId}`,
+    HOLDING_TTL_MS,
+    () => loadHoldingSubtreeUncached(companyId)
+  );
+  return {
+    ids: [...cached.ids],
+    names: new Map(cached.names),
+    descendantCount: cached.descendantCount,
+    parentCompanyId: cached.parentCompanyId,
+    isSubsidiary: cached.isSubsidiary,
+  };
+}
 
+async function loadHoldingSubtreeUncached(
+  companyId: number
+): Promise<HoldingSubtree> {
+  const names = new Map<number, string>();
   const supabase = getSupabaseServer();
   try {
     const { data: me } = await supabase

@@ -10,6 +10,20 @@ type AnyQuery = any;
 const PAGE = 1000;
 const ID_CHUNK = 200;
 const PARALLEL = 6;
+/** Hard cap so agency/SP register paths never walk tens of thousands of rows. */
+export const FETCH_ALL_HARD_CAP = 5000;
+
+/** Offsets after the first page. Exported for tests. */
+export function pagedOffsets(
+  total: number,
+  size: number,
+  maxRows: number
+): number[] {
+  const cap = Math.min(total, Math.max(size, maxRows));
+  const starts: number[] = [];
+  for (let from = size; from < cap; from += size) starts.push(from);
+  return starts;
+}
 
 async function mapInBatches<T, R>(
   items: T[],
@@ -41,9 +55,11 @@ export async function fetchAllPaged(
   table: string,
   select: string,
   apply?: (q: AnyQuery) => AnyQuery,
-  pageSize = PAGE
+  pageSize = PAGE,
+  maxRows = FETCH_ALL_HARD_CAP
 ): Promise<Array<Record<string, unknown>>> {
   const size = Math.min(1000, Math.max(50, pageSize));
+  const hardCap = Math.min(200000, Math.max(size, maxRows));
   const firstQ = () => {
     let q = supabase
       .from(table)
@@ -58,17 +74,17 @@ export async function fetchAllPaged(
   const total = typeof count === 'number' ? count : all.length;
   if (all.length < size || total <= size) return all;
 
-  const starts: number[] = [];
-  for (let from = size; from < Math.min(total, 200000); from += size) {
-    starts.push(from);
-  }
-  const pages = await mapInBatches(starts, PARALLEL, async (from) => {
-    let q = supabase.from(table).select(select).range(from, from + size - 1);
-    if (apply) q = apply(q);
-    const res = await q;
-    if (res.error) throw new Error(`${table}: ${res.error.message}`);
-    return asRows(res.data);
-  });
+  const pages = await mapInBatches(
+    pagedOffsets(total, size, hardCap),
+    PARALLEL,
+    async (from) => {
+      let q = supabase.from(table).select(select).range(from, from + size - 1);
+      if (apply) q = apply(q);
+      const res = await q;
+      if (res.error) throw new Error(`${table}: ${res.error.message}`);
+      return asRows(res.data);
+    }
+  );
   for (const page of pages) {
     for (const row of page) {
       all.push({ ...(row as object) } as Record<string, unknown>);
@@ -124,7 +140,9 @@ export async function fetchAgencySchoolLinks(
       q
         .eq('agency_profile_id', agencyCompanyId)
         .in('status', statuses)
-        .order('id', { ascending: true })
+        .order('id', { ascending: true }),
+    PAGE,
+    4000
   );
 }
 

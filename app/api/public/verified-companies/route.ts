@@ -3,8 +3,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { SEED_CONTINENTS, SEED_COUNTRIES } from '@/lib/geo/world-seed';
 import { continentFromCountry } from '@/lib/geo/continent-from-country';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+export const revalidate = 60;
 
 export type PublicCompany = {
   id: number;
@@ -550,24 +549,31 @@ export async function GET(request: NextRequest) {
       ? companies.slice(start, start + pageSize)
       : companies;
 
-    return NextResponse.json({
-      success: true,
-      companies: paged,
-      allCount: filteredTotal,
-      facets,
-      page: wantsPage ? pageSafe : 1,
-      pageSize: wantsPage ? pageSize : filteredTotal || pageSize,
-      pageCount: wantsPage ? pageCount : 1,
-      feedbackLoop:
-        'Companies are rated by their suppliers and customers — a continuous loop of feedback that helps every business improve.',
-      counts: {
-        shown: paged.length,
-        verified: verifiedCount,
-        network: networkCount,
-        total: filteredTotal,
-        platformTotal,
+    return NextResponse.json(
+      {
+        success: true,
+        companies: paged,
+        allCount: filteredTotal,
+        facets,
+        page: wantsPage ? pageSafe : 1,
+        pageSize: wantsPage ? pageSize : filteredTotal || pageSize,
+        pageCount: wantsPage ? pageCount : 1,
+        feedbackLoop:
+          'Companies are rated by their suppliers and customers — a continuous loop of feedback that helps every business improve.',
+        counts: {
+          shown: paged.length,
+          verified: verifiedCount,
+          network: networkCount,
+          total: filteredTotal,
+          platformTotal,
+        },
       },
-    });
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+        },
+      }
+    );
   } catch (e: unknown) {
     return NextResponse.json(
       {

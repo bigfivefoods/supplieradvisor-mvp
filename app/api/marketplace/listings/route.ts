@@ -78,7 +78,8 @@ export async function GET(request: NextRequest) {
       .from('business_connections')
       .select('requester_profile_id, requestee_profile_id, status, metadata')
       .or(`requester_profile_id.eq.${companyId},requestee_profile_id.eq.${companyId}`)
-      .eq('status', 'accepted');
+      .eq('status', 'accepted')
+      .limit(500);
 
     const connectedIds = new Set<number>();
     for (const c of conns || []) {

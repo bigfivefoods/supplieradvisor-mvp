@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { jsonNoStore } from '@/lib/http/response-cache';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import {
   getCanonicalUserId,
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
     if (!_auth.ok) return _auth.response;
     const userId = getCanonicalUserId(_auth.userId);
     if (!token || !userId) {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: 'Invitation token and authenticated user are required.' },
         { status: 400 }
       );
@@ -68,11 +69,11 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
 
       if (error || !invite) {
-        return NextResponse.json({ error: 'Invalid or already used invitation.' }, { status: 404 });
+        return jsonNoStore({ error: 'Invalid or already used invitation.' }, { status: 404 });
       }
 
       if (invite.status === 'active' && invite.user_id === userId) {
-        return NextResponse.json({
+        return jsonNoStore({
           success: true,
           alreadyMember: true,
           profileId: invite.profile_id,
@@ -81,16 +82,16 @@ export async function POST(request: NextRequest) {
       }
 
       if (invite.status !== 'invited' && invite.status !== 'pending') {
-        return NextResponse.json({ error: 'This invitation has already been accepted.' }, { status: 409 });
+        return jsonNoStore({ error: 'This invitation has already been accepted.' }, { status: 409 });
       }
 
       if (isInviteExpired(invite.invited_at || invite.created_at)) {
-        return NextResponse.json({ error: 'This invitation has expired.' }, { status: 410 });
+        return jsonNoStore({ error: 'This invitation has expired.' }, { status: 410 });
       }
 
       const inviteEmail = (invite.invited_email || invite.email || '').toLowerCase();
       if (inviteEmail && jwtEmails.length && !jwtEmails.includes(inviteEmail)) {
-        return NextResponse.json(
+        return jsonNoStore(
           {
             error: `Please sign in with the invited email (${inviteEmail}).`,
             expectedEmail: inviteEmail,
@@ -117,16 +118,16 @@ export async function POST(request: NextRequest) {
 
       if (updateError) {
         console.error('Team claim update error:', updateError);
-        return NextResponse.json({ error: 'Failed to accept invitation.', details: updateError.message }, { status: 500 });
+        return jsonNoStore({ error: 'Failed to accept invitation.', details: updateError.message }, { status: 500 });
       }
       if (!claimed) {
-        return NextResponse.json(
+        return jsonNoStore(
           { error: 'This invitation has already been accepted.' },
           { status: 409 }
         );
       }
 
-      return NextResponse.json({
+      return jsonNoStore({
         success: true,
         kind: 'team',
         profileId: invite.profile_id,
@@ -137,7 +138,7 @@ export async function POST(request: NextRequest) {
 
     if (kind === 'customer') {
       if (!isCustomerInvitesEnabled()) {
-        return NextResponse.json(
+        return jsonNoStore(
           { error: 'Customer invites are disabled', code: 'CUSTOMER_INVITES_DISABLED' },
           { status: 503 }
         );
@@ -162,7 +163,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (profileError || !profile) {
-      return NextResponse.json({ error: 'Invalid or already used invitation.' }, { status: 404 });
+      return jsonNoStore({ error: 'Invalid or already used invitation.' }, { status: 404 });
     }
 
     if (profile.supplier_status !== 'invited' && profile.supplier_status !== 'pending') {
@@ -176,7 +177,7 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
 
       if (existing) {
-        return NextResponse.json({
+        return jsonNoStore({
           success: true,
           alreadyMember: true,
           profileId: profile.id,
@@ -184,16 +185,16 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      return NextResponse.json({ error: 'This invitation has already been claimed.' }, { status: 409 });
+      return jsonNoStore({ error: 'This invitation has already been claimed.' }, { status: 409 });
     }
 
     if (isInviteExpired(profile.invited_at || profile.created_at)) {
-      return NextResponse.json({ error: 'This invitation has expired.' }, { status: 410 });
+      return jsonNoStore({ error: 'This invitation has expired.' }, { status: 410 });
     }
 
     const inviteEmail = (profile.email || '').toLowerCase();
     if (inviteEmail && jwtEmails.length && !jwtEmails.includes(inviteEmail)) {
-      return NextResponse.json(
+      return jsonNoStore(
         {
           error: `Please sign in with the invited email (${inviteEmail}).`,
           expectedEmail: inviteEmail,
@@ -222,13 +223,13 @@ export async function POST(request: NextRequest) {
 
     if (updateProfileError) {
       console.error('Business claim profile error:', updateProfileError);
-      return NextResponse.json(
+      return jsonNoStore(
         { error: 'Failed to claim business profile.', details: updateProfileError.message },
         { status: 500 }
       );
     }
     if (!claimedProfile) {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: 'This invitation has already been claimed.' },
         { status: 409 }
       );
@@ -271,7 +272,7 @@ export async function POST(request: NextRequest) {
 
       if (membershipError) {
         console.error('Business claim membership error:', membershipError);
-        return NextResponse.json(
+        return jsonNoStore(
           {
             error: 'Failed to create ownership membership.',
             details: membershipError.message,
@@ -432,7 +433,7 @@ export async function POST(request: NextRequest) {
       console.warn('assignReferrerIfEmpty soft-fail:', refErr);
     }
 
-    return NextResponse.json({
+    return jsonNoStore({
       success: true,
       kind: 'business',
       profileId: profile.id,
@@ -444,7 +445,7 @@ export async function POST(request: NextRequest) {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Claim failed';
     console.error('Invite claim error:', err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return jsonNoStore({ error: message }, { status: 500 });
   }
 }
 
@@ -487,10 +488,10 @@ async function claimCustomerInvite(opts: {
 
   if (loadErr) {
     console.error('Customer claim load error:', loadErr);
-    return NextResponse.json({ error: 'Failed to load invitation.' }, { status: 500 });
+    return jsonNoStore({ error: 'Failed to load invitation.' }, { status: 500 });
   }
   if (!invitePreview) {
-    return NextResponse.json({ error: 'Invalid or already used invitation.' }, { status: 404 });
+    return jsonNoStore({ error: 'Invalid or already used invitation.' }, { status: 404 });
   }
 
   // Idempotent: already accepted by this user
@@ -508,7 +509,7 @@ async function claimCustomerInvite(opts: {
         .maybeSingle();
       const buyerProfileId =
         customer?.linked_profile_id || invitePreview.target_profile_id || null;
-      return NextResponse.json({
+      return jsonNoStore({
         success: true,
         alreadyMember: true,
         kind: 'customer',
@@ -518,14 +519,14 @@ async function claimCustomerInvite(opts: {
       });
     }
 
-    return NextResponse.json(
+    return jsonNoStore(
       { error: 'This invitation has already been accepted.' },
       { status: 409 }
     );
   }
 
   if (invitePreview.status === 'declined' || invitePreview.status === 'revoked') {
-    return NextResponse.json(
+    return jsonNoStore(
       { error: `This invitation was ${invitePreview.status}.` },
       { status: 409 }
     );
@@ -535,7 +536,7 @@ async function claimCustomerInvite(opts: {
     invitePreview.status === 'expired' ||
     isInviteExpired(invitePreview.created_at, invitePreview.expires_at)
   ) {
-    return NextResponse.json({ error: 'This invitation has expired.' }, { status: 410 });
+    return jsonNoStore({ error: 'This invitation has expired.' }, { status: 410 });
   }
 
   // Hard email rule for kind=customer — JWT emails only
@@ -543,7 +544,7 @@ async function claimCustomerInvite(opts: {
     .toLowerCase()
     .trim();
   if (!inviteEmail || !jwtEmails.includes(inviteEmail)) {
-    return NextResponse.json(
+    return jsonNoStore(
       {
         error: `Please sign in with the invited email (${inviteEmail || 'unknown'}).`,
         expectedEmail: inviteEmail || undefined,
@@ -559,7 +560,7 @@ async function claimCustomerInvite(opts: {
     const sameUser =
       invitePreview.user_id && variants.includes(String(invitePreview.user_id));
     if (!sameUser) {
-      return NextResponse.json(
+      return jsonNoStore(
         { error: 'This invitation is already being claimed. Please try again shortly.' },
         { status: 409 }
       );
@@ -604,7 +605,7 @@ async function claimCustomerInvite(opts: {
         });
       }
 
-      return NextResponse.json({
+      return jsonNoStore({
         success: true,
         kind: 'customer',
         buyerProfileId: linkedCustomer.linked_profile_id,
@@ -620,7 +621,7 @@ async function claimCustomerInvite(opts: {
       : 0;
     const claimingAgeMs = Date.now() - claimingStartedAt;
     if (!claimingStartedAt || claimingAgeMs < CLAIMING_STALE_MS) {
-      return NextResponse.json(
+      return jsonNoStore(
         {
           error:
             'This invitation is already being claimed. Please try again shortly.',
@@ -632,7 +633,7 @@ async function claimCustomerInvite(opts: {
     // Stale claiming + same user + CRM not linked → restore pending for full retry
     await restoreInvitationPending(supabase, Number(invitePreview.id));
   } else if (invitePreview.status !== 'pending') {
-    return NextResponse.json(
+    return jsonNoStore(
       { error: 'This invitation is no longer available.' },
       { status: 409 }
     );
@@ -655,13 +656,13 @@ async function claimCustomerInvite(opts: {
 
   if (lockErr) {
     console.error('Customer claim lock error:', lockErr);
-    return NextResponse.json(
+    return jsonNoStore(
       { error: 'Failed to claim invitation.', details: lockErr.message },
       { status: 500 }
     );
   }
   if (!locked) {
-    return NextResponse.json(
+    return jsonNoStore(
       { error: 'Invitation already used, expired, or in-flight.' },
       { status: 409 }
     );
@@ -687,14 +688,14 @@ async function claimCustomerInvite(opts: {
     if (custErr) {
       console.error('Customer claim CRM load error:', custErr);
       await restoreInvitationPending(supabase, invitationId);
-      return NextResponse.json(
+      return jsonNoStore(
         { error: 'Failed to load customer record.', details: custErr.message },
         { status: 500 }
       );
     }
     if (!customer) {
       await restoreInvitationPending(supabase, invitationId);
-      return NextResponse.json(
+      return jsonNoStore(
         { error: 'Customer record not found for this invitation.' },
         { status: 404 }
       );
@@ -727,7 +728,7 @@ async function claimCustomerInvite(opts: {
 
       if (linkMembership && linkMembership.length > 0) {
         // Idempotent success when claimer belongs to the already-linked buyer company
-        return NextResponse.json({
+        return jsonNoStore({
           success: true,
           alreadyMember: true,
           kind: 'customer',
@@ -738,7 +739,7 @@ async function claimCustomerInvite(opts: {
         });
       }
 
-      return NextResponse.json(
+      return jsonNoStore(
         {
           error:
             'This customer is already connected to a company profile. Contact the seller if you need help.',
@@ -763,14 +764,14 @@ async function claimCustomerInvite(opts: {
       if (memErr) {
         console.error('Customer claim membership check error:', memErr);
         await restoreInvitationPending(supabase, invitationId);
-        return NextResponse.json(
+        return jsonNoStore(
           { error: 'Failed to verify company membership.' },
           { status: 500 }
         );
       }
       if (!membership || membership.length === 0) {
         await restoreInvitationPending(supabase, invitationId);
-        return NextResponse.json(
+        return jsonNoStore(
           {
             error:
               'You must be an active member of the invited company to accept this invitation.',
@@ -788,7 +789,7 @@ async function claimCustomerInvite(opts: {
       );
       if (membershipMatch.ok === false) {
         await restoreInvitationPending(supabase, invitationId);
-        return NextResponse.json(
+        return jsonNoStore(
           { error: membershipMatch.error },
           { status: membershipMatch.status }
         );
@@ -856,7 +857,7 @@ async function claimCustomerInvite(opts: {
         if (profileInsertErr || !newProfile) {
           console.error('Customer claim profile insert error:', profileInsertErr);
           await restoreInvitationPending(supabase, invitationId);
-          return NextResponse.json(
+          return jsonNoStore(
             {
               error: 'Failed to create buyer company profile.',
               details: profileInsertErr?.message,
@@ -885,7 +886,7 @@ async function claimCustomerInvite(opts: {
           await supabase.from('profiles').delete().eq('id', createdProfileId);
           createdProfileId = null;
           await restoreInvitationPending(supabase, invitationId);
-          return NextResponse.json(
+          return jsonNoStore(
             {
               error: 'Failed to create company ownership.',
               details: ownerErr.message,
@@ -898,7 +899,7 @@ async function claimCustomerInvite(opts: {
 
     if (!buyerProfileId) {
       await restoreInvitationPending(supabase, invitationId);
-      return NextResponse.json(
+      return jsonNoStore(
         { error: 'Could not resolve buyer company profile.' },
         { status: 500 }
       );
@@ -933,7 +934,7 @@ async function claimCustomerInvite(opts: {
         createdProfileId,
         userId,
       });
-      return NextResponse.json(
+      return jsonNoStore(
         { error: 'Failed to load connection.', details: connLoadErr.message },
         { status: 500 }
       );
@@ -981,7 +982,7 @@ async function claimCustomerInvite(opts: {
           createdProfileId,
           userId,
         });
-        return NextResponse.json(
+        return jsonNoStore(
           {
             error: 'Failed to update business connection.',
             details: connUpdErr?.message,
@@ -1030,7 +1031,7 @@ async function claimCustomerInvite(opts: {
           createdProfileId,
           userId,
         });
-        return NextResponse.json(
+        return jsonNoStore(
           {
             error: 'Failed to create business connection.',
             details: connInsErr?.message,
@@ -1067,7 +1068,7 @@ async function claimCustomerInvite(opts: {
         userId,
         connectionId,
       });
-      return NextResponse.json(
+      return jsonNoStore(
         {
           error: 'Failed to link customer CRM row.',
           details: crmErr.message,
@@ -1088,7 +1089,7 @@ async function claimCustomerInvite(opts: {
         userId,
         connectionId,
       });
-      return NextResponse.json(
+      return jsonNoStore(
         {
           error:
             'Customer could not be linked (already connected or missing). Try again or contact support.',
@@ -1115,7 +1116,7 @@ async function claimCustomerInvite(opts: {
     if (acceptErr) {
       console.error('Customer claim final accept error:', acceptErr);
       // CRM already linked — leave as-is for retry; surface error
-      return NextResponse.json(
+      return jsonNoStore(
         {
           error: 'Failed to finalize invitation acceptance.',
           details: acceptErr.message,
@@ -1127,7 +1128,7 @@ async function claimCustomerInvite(opts: {
     }
     if (!accepted) {
       // Rare race: treat as 409
-      return NextResponse.json(
+      return jsonNoStore(
         { error: 'Invitation claim conflicted. Please try again.' },
         { status: 409 }
       );
@@ -1149,7 +1150,7 @@ async function claimCustomerInvite(opts: {
       },
     });
 
-    return NextResponse.json({
+    return jsonNoStore({
       success: true,
       kind: 'customer',
       buyerProfileId,
@@ -1165,7 +1166,7 @@ async function claimCustomerInvite(opts: {
       createdProfileId,
       userId,
     });
-    return NextResponse.json(
+    return jsonNoStore(
       { error: err instanceof Error ? err.message : 'Claim failed' },
       { status: 500 }
     );

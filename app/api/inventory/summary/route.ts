@@ -18,12 +18,18 @@ export async function GET(request: NextRequest) {
       supabase
         .from('products')
         .select('id, status, onchain_status, product_type')
-        .eq('profile_id', companyId),
-      supabase.from('warehouses').select('id, status').eq('profile_id', companyId),
+        .eq('profile_id', companyId)
+        .limit(500),
+      supabase
+        .from('warehouses')
+        .select('id, status')
+        .eq('profile_id', companyId)
+        .limit(100),
       supabase
         .from('stock_levels')
         .select('id, qty_on_hand, reorder_level, product_id')
-        .eq('profile_id', companyId),
+        .eq('profile_id', companyId)
+        .limit(500),
       supabase
         .from('stock_movements')
         .select('id, movement_type, quantity, created_at')

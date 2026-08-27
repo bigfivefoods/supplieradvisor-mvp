@@ -12,7 +12,7 @@ export async function POST() {
         'Stripe checkout is disabled. Company billing uses Paystack (including Apple Pay).',
       code: 'STRIPE_DISABLED',
     },
-    { status: 410 }
+    { status: 410, headers: { 'Cache-Control': 'private, no-store' } }
   );
 }
 

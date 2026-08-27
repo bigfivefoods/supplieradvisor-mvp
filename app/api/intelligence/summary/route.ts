@@ -13,6 +13,9 @@ import {
 import { filterHealedInsights } from '@/lib/intelligence/insight-lifecycle';
 import { loadGoldenPath } from '@/lib/business/golden-path';
 import { daysUntil } from '@/lib/sustainability/types';
+import { jsonKpi } from '@/lib/http/response-cache';
+import { withCompanyKpiCache } from '@/lib/dashboard/kpi-cache';
+import { loadCompanyKpiSnapshot, snapOk } from '@/lib/dashboard/company-kpi-snapshot';
 
 /**
  * Live BI snapshot from Supabase company data + rule-based insights engine.
@@ -24,42 +27,24 @@ async function buildSummary(request: NextRequest, companyId: number, legacyPrivy
   });
   if (!gate.ok) return gate.response;
 
+  const payload = await withCompanyKpiCache(companyId, 'intelligence', () =>
+    assembleIntelligenceSummary(companyId)
+  );
+  return jsonKpi(payload);
+}
+
+async function assembleIntelligenceSummary(companyId: number) {
   const supabase = getSupabaseServer();
   const { loadHoldingSubtree } = await import(
     '@/lib/business/holding-pipeline'
   );
-  const tree = await loadHoldingSubtree(companyId);
+  const treePromise = loadHoldingSubtree(companyId);
+  const snapPromise = loadCompanyKpiSnapshot(companyId);
   const now = Date.now();
   const d30 = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
   const d60 = new Date(now - 60 * 24 * 60 * 60 * 1000).toISOString();
 
-  const [
-    profileRes,
-    connectionsRes,
-    srmRes,
-    customersRes,
-    posRes,
-    quotesRes,
-    acctInvRes,
-    productsRes,
-    stockRes,
-    pricingRes,
-    leadsRes,
-    oppsRes,
-    containerSalesRes,
-    srmRatingsLike,
-    inspRes,
-    haccpRes,
-    sheqIncRes,
-    sheqNcrRes,
-    emissionsRes,
-    targetsRes,
-    certsRes,
-    projectsRes,
-    riadsRes,
-    shipsRes,
-    mfgRes,
-  ] = await Promise.all([
+  const independentPromise = Promise.all([
     supabase
       .from('profiles')
       .select(
@@ -68,67 +53,10 @@ async function buildSummary(request: NextRequest, companyId: number, legacyPrivy
       .eq('id', companyId)
       .maybeSingle(),
     supabase
-      .from('business_connections')
-      .select(
-        'id, status, requester_profile_id, requestee_profile_id, connection_type, metadata, updated_at'
-      )
-      .or(`requester_profile_id.eq.${companyId},requestee_profile_id.eq.${companyId}`),
-    supabase
-      .from('srm_suppliers')
-      .select(
-        'id, trading_name, status, invite_status, trust_score, otifef_pct, verified, linked_profile_id, rating_avg, rating_count'
-      )
-      .eq('profile_id', companyId)
-      .limit(300),
-    supabase
-      .from('customers')
-      .select('id, status, invite_status, trading_name, created_at')
-      .eq('profile_id', companyId)
-      .limit(300),
-    supabase
-      .from('purchase_orders')
-      .select(
-        'id, status, total_amount, currency, created_at, onchain_po_id, supplier_profile_id, buyer_profile_id'
-      )
-      .eq('buyer_profile_id', companyId)
-      .order('created_at', { ascending: false })
-      .limit(200),
-    supabase
-      .from('customer_quotes')
-      .select('id, status, total_amount, currency, created_at')
-      .eq('profile_id', companyId)
-      .order('created_at', { ascending: false })
-      .limit(150),
-    supabase
-      .from('invoices')
-      .select('id, direction, status, total_amount, amount_paid, currency, created_at')
-      .eq('profile_id', companyId)
-      .limit(200),
-    supabase
-      .from('products')
-      .select('id, name, base_currency, prices, sell_price, cost_price, status')
-      .eq('profile_id', companyId)
-      .limit(500),
-    supabase
-      .from('stock_levels')
-      .select('id, qty_on_hand, reorder_level, product_id')
-      .eq('profile_id', companyId)
-      .limit(500),
-    supabase
       .from('pricing_agreements')
       .select('id, status, seller_profile_id, buyer_profile_id, currency, updated_at')
       .or(`seller_profile_id.eq.${companyId},buyer_profile_id.eq.${companyId}`)
       .limit(100),
-    supabase
-      .from('leads')
-      .select('id, status, created_at')
-      .eq('profile_id', companyId)
-      .limit(200),
-    supabase
-      .from('opportunities')
-      .select('id, stage, status, amount, updated_at')
-      .in('profile_id', tree.ids)
-      .limit(800),
     supabase
       .from('container_sales')
       .select('id, gross_amount, sale_date, created_at')
@@ -140,6 +68,7 @@ async function buildSummary(request: NextRequest, companyId: number, legacyPrivy
       .select('id, overall_rating, reviewee_profile_id, reviewer_profile_id, created_at')
       .or(`reviewer_profile_id.eq.${companyId},reviewee_profile_id.eq.${companyId}`)
       .limit(100),
+    loadGoldenPath(companyId, 30).catch(() => null),
     // Soft domains — errors ignored
     supabase
       .from('quality_inspections')
@@ -186,21 +115,51 @@ async function buildSummary(request: NextRequest, companyId: number, legacyPrivy
       .select('id, status')
       .eq('profile_id', companyId)
       .limit(200),
-    supabase
-      .from('shipments')
-      .select('id, status')
-      .eq('profile_id', companyId)
-      .limit(200),
-    supabase
-      .from('manufacturing_production_orders')
-      .select('id, status')
-      .eq('profile_id', companyId)
-      .limit(100),
   ]);
+
+  const tree = await treePromise;
+  const [snap, independent, oppsRes] = await Promise.all([
+    snapPromise,
+    independentPromise,
+    supabase
+      .from('opportunities')
+      .select('id, stage, status, amount, updated_at')
+      .in('profile_id', tree.ids)
+      .limit(800),
+  ]);
+
+  const [
+    profileRes,
+    pricingRes,
+    containerSalesRes,
+    srmRatingsLike,
+    goldenPathRes,
+    inspRes,
+    haccpRes,
+    sheqIncRes,
+    sheqNcrRes,
+    emissionsRes,
+    targetsRes,
+    certsRes,
+    projectsRes,
+    riadsRes,
+  ] = independent;
+
+  const connectionsRes = snapOk(snap.connections);
+  const srmRes = snapOk(snap.srmSuppliers);
+  const customersRes = snapOk(snap.customers);
+  const posRes = snapOk(snap.buyerPos);
+  const quotesRes = snapOk(snap.quotes);
+  const acctInvRes = snapOk(snap.invoices);
+  const productsRes = snapOk(snap.products);
+  const stockRes = snapOk(snap.stock);
+  const leadsRes = snapOk(snap.leads);
+  const shipsRes = snapOk(snap.shipments);
+  const mfgRes = snapOk(snap.mfgOrders);
 
   const company = profileRes.data;
   if (!company) {
-    return NextResponse.json({ error: 'Company not found' }, { status: 404 });
+    throw new Error('Company not found');
   }
 
   const conns = (connectionsRes.data || []).filter((c) => {
@@ -255,10 +214,16 @@ async function buildSummary(request: NextRequest, companyId: number, legacyPrivy
     openPoStatuses.has(String(p.status || '').toLowerCase())
   );
   const poValue30 = pos
-    .filter((p) => p.created_at && p.created_at >= d30)
+    .filter((p) => {
+      const at = String(p.created_at || '');
+      return at && at >= d30;
+    })
     .reduce((s, p) => s + Number(p.total_amount || 0), 0);
   const poValuePrev30 = pos
-    .filter((p) => p.created_at && p.created_at >= d60 && p.created_at < d30)
+    .filter((p) => {
+      const at = String(p.created_at || '');
+      return at && at >= d60 && at < d30;
+    })
     .reduce((s, p) => s + Number(p.total_amount || 0), 0);
   const onchainPos = pos.filter(
     (p) => p.onchain_po_id != null && p.onchain_po_id !== ''
@@ -421,13 +386,10 @@ async function buildSummary(request: NextRequest, companyId: number, legacyPrivy
   let stuckReceive = 0;
   let stuckSettle = 0;
   let escrowAwaitingRelease = 0;
-  try {
-    const gp = await loadGoldenPath(companyId, 30);
-    stuckReceive = gp.summary.stuck_receive;
-    stuckSettle = gp.summary.stuck_settle;
-    escrowAwaitingRelease = gp.summary.escrow_awaiting_release;
-  } catch {
-    /* soft */
+  if (goldenPathRes && typeof goldenPathRes === 'object' && 'summary' in goldenPathRes) {
+    stuckReceive = goldenPathRes.summary.stuck_receive;
+    stuckSettle = goldenPathRes.summary.stuck_settle;
+    escrowAwaitingRelease = goldenPathRes.summary.escrow_awaiting_release;
   }
 
   // Super-Cube® leadership faces from saved progress
@@ -554,7 +516,7 @@ async function buildSummary(request: NextRequest, companyId: number, legacyPrivy
       ? Math.round(sales30 * (1 + (sales30 - salesPrev) / Math.max(salesPrev, 1)))
       : Math.round(sales30 * 1.05);
 
-  return NextResponse.json({
+  return {
     success: true,
     generatedAt: new Date().toISOString(),
     company: {
@@ -641,7 +603,7 @@ async function buildSummary(request: NextRequest, companyId: number, legacyPrivy
       projects: !projectsRes.error,
       manufacturing: !mfgRes.error,
     },
-  });
+  };
 }
 
 export async function GET(request: NextRequest) {
@@ -656,8 +618,12 @@ export async function GET(request: NextRequest) {
       legacyPrivyFrom(request)
     );
   } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Intelligence error';
+    if (message === 'Company not found') {
+      return NextResponse.json({ error: message }, { status: 404 });
+    }
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Intelligence error' },
+      { error: message },
       { status: 500 }
     );
   }
@@ -676,6 +642,10 @@ export async function POST(request: NextRequest) {
       legacyPrivyFrom(request, body)
     );
   } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Intelligence error';
+    if (message === 'Company not found') {
+      return NextResponse.json({ error: message }, { status: 404 });
+    }
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Intelligence error' },
       { status: 500 }

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { jsonKpi } from '@/lib/http/response-cache';
+import { withCompanyKpiCache } from '@/lib/dashboard/kpi-cache';
+import { loadCompanyKpiSnapshot, snapOk } from '@/lib/dashboard/company-kpi-snapshot';
 
 /**
  * GET ?companyId=
@@ -16,89 +19,56 @@ export async function GET(request: NextRequest) {
     const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
     if (!_gate.ok) return _gate.response;
 
+    const payload = await withCompanyKpiCache(companyId, 'operations', () =>
+      assembleOperationsSummary(companyId)
+    );
+    return jsonKpi(payload);
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Error' },
+      { status: 500 }
+    );
+  }
+}
+
+async function assembleOperationsSummary(companyId: number) {
     const supabase = getSupabaseServer();
 
-    const [
-      buyerPos,
-      sellerPos,
-      mfgOrders,
-      mfgBoms,
-      mfgWc,
-      ships,
-      transfers,
-      stock,
-      warehouses,
-      products,
-      containers,
-      carriers,
-      quality,
-      srmSuppliers,
-      customers,
-    ] = await Promise.all([
-      supabase
-        .from('purchase_orders')
-        .select('id, status, total, currency, created_at, po_number')
-        .eq('buyer_profile_id', companyId)
-        .order('created_at', { ascending: false })
-        .limit(200),
-      supabase
-        .from('purchase_orders')
-        .select('id, status, total, currency, created_at, po_number')
-        .or(`supplier_profile_id.eq.${companyId},supplier_id.eq.${companyId}`)
-        .order('created_at', { ascending: false })
-        .limit(200),
-      supabase
-        .from('manufacturing_production_orders')
-        .select('id, status, qty_planned, qty_completed, order_number, priority')
-        .eq('profile_id', companyId),
-      supabase
-        .from('manufacturing_boms')
-        .select('id, status')
-        .eq('profile_id', companyId),
-      supabase
-        .from('manufacturing_work_centers')
-        .select('id, status')
-        .eq('profile_id', companyId),
-      supabase
-        .from('shipments')
-        .select('id, direction, status, mode, eta, shipment_number, progress_pct')
-        .eq('profile_id', companyId),
+    const [snap, transfers, containers, carriers, quality] = await Promise.all([
+      loadCompanyKpiSnapshot(companyId),
       supabase
         .from('stock_transfer_orders')
         .select('id, status')
         .eq('profile_id', companyId)
         .limit(200),
       supabase
-        .from('stock_levels')
-        .select('qty_on_hand, product_id')
-        .eq('profile_id', companyId),
-      supabase.from('warehouses').select('id, status').eq('profile_id', companyId),
-      supabase
-        .from('products')
-        .select('id, product_type, is_active')
-        .eq('profile_id', companyId),
-      supabase
         .from('containers')
         .select('id, status')
         .eq('profile_id', companyId)
         .limit(100),
-      supabase.from('carriers').select('id, is_active, status').eq('profile_id', companyId),
+      supabase
+        .from('carriers')
+        .select('id, is_active, status')
+        .eq('profile_id', companyId)
+        .limit(200),
       supabase
         .from('quality_inspections')
         .select('id, status')
         .eq('profile_id', companyId)
         .limit(100),
-      supabase
-        .from('srm_suppliers')
-        .select('id, status')
-        .eq('profile_id', companyId)
-        .limit(200),
-      supabase
-        .from('customers')
-        .select('id, status')
-        .eq('profile_id', companyId)
-        .limit(200),
     ]);
+
+    const buyerPos = snapOk(snap.buyerPos);
+    const sellerPos = snapOk(snap.sellerPos);
+    const mfgOrders = snapOk(snap.mfgOrders);
+    const mfgBoms = snapOk(snap.mfgBoms);
+    const mfgWc = snapOk(snap.mfgWorkCenters);
+    const ships = snapOk(snap.shipments);
+    const stock = snapOk(snap.stock);
+    const warehouses = snapOk(snap.warehouses);
+    const products = snapOk(snap.products);
+    const srmSuppliers = snapOk(snap.srmSuppliers);
+    const customers = snapOk(snap.customers);
 
     const warnings = [
       buyerPos.error?.message,
@@ -237,7 +207,7 @@ export async function GET(request: NextRequest) {
         )
       ) || 0;
 
-    return NextResponse.json({
+    return {
       success: true,
       warning: warnings[0] || undefined,
       summary: {
@@ -289,11 +259,5 @@ export async function GET(request: NextRequest) {
         throughput,
         recent: recent.slice(0, 12),
       },
-    });
-  } catch (e: unknown) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Error' },
-      { status: 500 }
-    );
-  }
+    };
 }
