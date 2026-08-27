@@ -180,10 +180,10 @@ export async function PATCH(request: NextRequest) {
     }
     businessTypeIds = [...new Set(businessTypeIds)];
 
+    const requestedEntity =
+      body.entityTypeId != null ? String(body.entityTypeId) : null;
     let entityTypeId =
-      body.entityTypeId != null
-        ? String(body.entityTypeId)
-        : current?.entityTypeId || 'private_company';
+      requestedEntity || current?.entityTypeId || 'private_company';
     const industryLabels: string[] = [];
     let profileBusinessType: string | null = null;
     try {
@@ -204,17 +204,20 @@ export async function PATCH(request: NextRequest) {
           }
         }
       }
-      // Resolve entity from first matching business type
-      for (const btid of businessTypeIds) {
-        for (const iid of industryIds) {
-          const bt = getBusinessType(iid, btid);
-          if (bt) {
-            entityTypeId = bt.entityTypeId;
-            profileBusinessType = bt.profileBusinessType;
-            break;
+      // Catalogue business types may infer entity — never override an
+      // explicit org type (NPO, government, school) the user just saved.
+      if (!requestedEntity) {
+        for (const btid of businessTypeIds) {
+          for (const iid of industryIds) {
+            const bt = getBusinessType(iid, btid);
+            if (bt) {
+              entityTypeId = bt.entityTypeId;
+              profileBusinessType = bt.profileBusinessType;
+              break;
+            }
           }
+          if (profileBusinessType) break;
         }
-        if (profileBusinessType) break;
       }
     } catch {
       /* soft */
@@ -283,7 +286,28 @@ export async function PATCH(request: NextRequest) {
       profilePatch.industries = industryLabels;
       profilePatch.industry = industryLabels[0];
     }
-    if (profileBusinessType) profilePatch.business_type = profileBusinessType;
+    const legalForm =
+      body.legal_form != null ? String(body.legal_form) : null;
+    if (legalForm) nextMeta.legal_form = legalForm;
+    try {
+      const { resolveB2bOrgType } = await import('@/lib/product/org-types');
+      const org =
+        body.legal_form != null || requestedEntity
+          ? resolveB2bOrgType(legalForm || requestedEntity)
+          : null;
+      if (org) {
+        nextMeta.legal_form = org.id;
+        nextMeta.entity_kind = org.businessType;
+        profilePatch.org_type = org.orgType;
+        profilePatch.business_type = org.businessType;
+        profilePatch.category = org.businessType;
+      } else if (profileBusinessType) {
+        profilePatch.business_type = profileBusinessType;
+      }
+    } catch {
+      if (profileBusinessType) profilePatch.business_type = profileBusinessType;
+    }
+    profilePatch.metadata = nextMeta;
     // Surface sector on profile row when column exists; always in metadata via packBlob
     if (sectorId) {
       profilePatch.sector = sectorId;
@@ -294,9 +318,11 @@ export async function PATCH(request: NextRequest) {
       .update(profilePatch)
       .eq('id', companyId);
 
-    // Retry without sector column if schema lacks it
-    if (error && /sector|column/i.test(String(error.message || ''))) {
+    // Retry without optional columns if schema lacks them
+    if (error && /sector|org_type|category|column/i.test(String(error.message || ''))) {
       delete profilePatch.sector;
+      if (/org_type/i.test(String(error.message || ''))) delete profilePatch.org_type;
+      if (/category/i.test(String(error.message || ''))) delete profilePatch.category;
       const retry = await supabase
         .from('profiles')
         .update(profilePatch)

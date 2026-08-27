@@ -39,6 +39,7 @@ import {
   industriesForSector,
   sectorLabel,
 } from '@/lib/product/business-catalogue';
+import { B2B_ORG_TYPES } from '@/lib/product/org-types';
 
 const B2B_STEPS = [
   'Account',
@@ -51,38 +52,6 @@ const B2B_STEPS = [
 ] as const;
 
 const B2G_STEPS = ['Account', 'Government', 'Details', 'Review'] as const;
-
-const B2B_ORG_TYPES = [
-  {
-    id: 'private',
-    label: 'Private company',
-    description:
-      'Pty Ltd, close corporation, partnership or sole trader. Most businesses start here.',
-    entityTypeId: 'private_company',
-    businessType: 'business',
-  },
-  {
-    id: 'public',
-    label: 'Public company',
-    description: 'Listed or public company (Ltd) trading on the network.',
-    entityTypeId: 'private_company',
-    businessType: 'business',
-  },
-  {
-    id: 'npo',
-    label: 'NPO / NPC',
-    description: 'Non-profit, NPC, NGO or foundation.',
-    entityTypeId: 'private_company',
-    businessType: 'consumer_org',
-  },
-  {
-    id: 'association',
-    label: 'Association / co-op',
-    description: 'Industry body, co-operative or member group.',
-    entityTypeId: 'private_company',
-    businessType: 'association',
-  },
-] as const;
 
 const B2G_ORG_TYPES = [
   {

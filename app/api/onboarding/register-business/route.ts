@@ -421,7 +421,9 @@ export async function POST(request: NextRequest) {
                   ? 'provincial'
                   : entityKind.id === 'national_government'
                     ? 'national'
-                    : 'private_company'),
+                    : entityKind.id === 'consumer_org'
+                      ? 'npo'
+                      : 'private_company'),
           sectorId: os_sector ? String(os_sector) : null,
           industryId: os_industry ? String(os_industry) : null,
           industryIds: Array.isArray(os_industries)
@@ -473,6 +475,31 @@ export async function POST(request: NextRequest) {
               join_lane: 'b2g',
               legal_form: legal_form ? String(legal_form) : null,
               approval_required: true,
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', profile.id);
+      } catch {
+        /* soft */
+      }
+    } else if (legal_form) {
+      try {
+        const { data: existingMeta } = await supabase
+          .from('profiles')
+          .select('metadata')
+          .eq('id', profile.id)
+          .maybeSingle();
+        const prev =
+          existingMeta?.metadata && typeof existingMeta.metadata === 'object'
+            ? (existingMeta.metadata as Record<string, unknown>)
+            : {};
+        await supabase
+          .from('profiles')
+          .update({
+            metadata: {
+              ...prev,
+              legal_form: String(legal_form),
+              join_lane: String(join_lane || 'b2b'),
             },
             updated_at: new Date().toISOString(),
           })

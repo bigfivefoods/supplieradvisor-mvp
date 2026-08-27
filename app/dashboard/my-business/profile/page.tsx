@@ -42,6 +42,10 @@ import {
   searchIndustries,
   subIndustriesFor,
 } from '@/lib/business/industries';
+import {
+  NPO_PROFILE_LABEL,
+  orgTypeFromCompany,
+} from '@/lib/product/org-types';
 import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
 import SearchVisibilityCard from '@/components/business/SearchVisibilityCard';
 
@@ -204,7 +208,37 @@ function ProfileInner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load');
       const profile = (data.profile || {}) as Partial<CompanyProfile>;
-      setForm(profile);
+      const profileMeta =
+        profile.metadata && typeof profile.metadata === 'object'
+          ? (profile.metadata as Record<string, unknown>)
+          : {};
+      const orgHit = orgTypeFromCompany({
+        legal_form:
+          profileMeta.legal_form != null
+            ? String(profileMeta.legal_form)
+            : null,
+        os_entity_type:
+          profileMeta.os_entity_type != null
+            ? String(profileMeta.os_entity_type)
+            : null,
+        entity_kind:
+          profileMeta.entity_kind != null
+            ? String(profileMeta.entity_kind)
+            : null,
+        org_type: profile.org_type != null ? String(profile.org_type) : null,
+        business_type:
+          profile.business_type != null
+            ? String(profile.business_type)
+            : profile.category != null
+              ? String(profile.category)
+              : null,
+      });
+      setForm({
+        ...profile,
+        ...(orgHit?.id === 'npo'
+          ? { business_type: NPO_PROFILE_LABEL, category: NPO_PROFILE_LABEL }
+          : {}),
+      });
 
       const inds = Array.isArray(profile.industries)
         ? profile.industries.map(String)
@@ -1686,8 +1720,9 @@ function ProfileInner() {
                     ))}
                   </select>
                   <p className="text-[10px] text-neutral-400 mt-1">
-                    Legal form, trade role, or public-sector kind (government,
-                    school, hospital, SP, NGO…).
+                    For a foundation or NPC pick <strong>NPO / NPC (non-profit)</strong>.
+                    You can also set this under Company → Modules (organisation
+                    type, then sector and industry).
                   </p>
                 </Field>
                 <Field label="Registration no. (CIPC)">

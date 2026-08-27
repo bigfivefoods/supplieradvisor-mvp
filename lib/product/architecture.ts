@@ -383,6 +383,16 @@ export const OS_ENTITY_TYPES = [
     publicSectorTier: null as PublicSectorTierId | null,
   },
   {
+    id: 'npo',
+    label: 'NPO / NPC',
+    shortLabel: 'NPO',
+    description: 'Non-profit organisation, NPC, NGO or foundation.',
+    businessType: 'consumer_org',
+    setupPath: 'self_serve' as const,
+    publicSector: false,
+    publicSectorTier: null as PublicSectorTierId | null,
+  },
+  {
     id: 'national',
     label: 'National',
     shortLabel: 'National',
@@ -1737,8 +1747,10 @@ export function readPackagingFromMetadata(
   );
   const setupStatus = String(meta.setup_status || 'active') as PackagingSelection['setupStatus'];
   // Coerce legacy school packaging off private sectors onto public_sector
-  let ent = entityTypeId || 'private_company';
-  let sec = sectorId || 'secondary';
+  let ent = entityTypeId || '';
+  let sec = sectorId || '';
+  if (!sec && (packIds.length || industryIds.length)) sec = 'secondary';
+  if (!ent && (sec || packIds.length)) ent = 'private_company';
   let packs = packIds;
   let mods = moduleIds;
   const looksSchool =

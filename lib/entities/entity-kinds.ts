@@ -299,6 +299,16 @@ export function resolveEntityKind(
   if (t === 'private_company' || t === 'private' || t === 'company') {
     return BY_ID.get('business')!;
   }
+  if (
+    t === 'npo' ||
+    t === 'npc' ||
+    t === 'ngo' ||
+    t === 'non_profit' ||
+    t === 'nonprofit' ||
+    t === 'foundation'
+  ) {
+    return BY_ID.get('consumer_org')!;
+  }
   if (t === 'municipal' || t === 'local_government' || t === 'municipality') {
     return BY_ID.get('municipal_government')!;
   }

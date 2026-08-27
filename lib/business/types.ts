@@ -45,6 +45,7 @@ export type CompanyProfile = {
   sub_industry?: string | null;
   category?: string | null;
   business_type?: string | null;
+  org_type?: string | null;
   description?: string | null;
   about?: string | null;
   short_description?: string | null;
@@ -269,6 +270,7 @@ export const PROFILE_EDITABLE_FIELDS = [
   'sub_industries',
   'category',
   'business_type',
+  'org_type',
   'description',
   'about',
   'short_description',

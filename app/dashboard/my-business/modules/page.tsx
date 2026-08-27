@@ -72,6 +72,7 @@ import {
   industriesForSector,
   packIdsForSector,
 } from '@/lib/product/business-catalogue';
+import { B2B_ORG_TYPES, orgTypeFromCompany } from '@/lib/product/org-types';
 import {
   getPaystackPublicKey,
   openPaystackCheckout,
@@ -113,6 +114,7 @@ function ModulesInner() {
   const [draftBusinessTypeIds, setDraftBusinessTypeIds] = useState<string[]>(
     []
   );
+  const [draftLegalForm, setDraftLegalForm] = useState('');
   const payTermId: BillingTermId = 'monthly';
 
   const load = useCallback(async () => {
@@ -141,6 +143,19 @@ function ModulesInner() {
       );
       const packSel = readPackagingFromMetadata(meta);
       setSelectedPacks(packSel?.packIds || []);
+      const orgHit = orgTypeFromCompany({
+        legal_form:
+          meta.legal_form != null ? String(meta.legal_form) : null,
+        os_entity_type: packSel?.entityTypeId || null,
+        entity_kind:
+          meta.entity_kind != null ? String(meta.entity_kind) : null,
+        org_type: profile.org_type != null ? String(profile.org_type) : null,
+        business_type:
+          profile.business_type != null
+            ? String(profile.business_type)
+            : null,
+      });
+      setDraftLegalForm(orgHit?.id || '');
       setPacksDirty(false);
       const org = `${profile.org_type || ''} ${profile.business_type || ''}`.toLowerCase();
       const packagingSector = String(packSel?.sectorId || '');
@@ -504,6 +519,10 @@ function ModulesInner() {
   }, [draftSelectedIndustryDefs]);
 
   const saveClassification = async () => {
+    if (!draftLegalForm) {
+      toast.error('Select organisation type (private, public, NPO, or association)');
+      return;
+    }
     if (!draftSector) {
       toast.error('Select a sector');
       return;
@@ -521,6 +540,7 @@ function ModulesInner() {
       const nextPacks = [
         ...new Set([...selectedPacks, ...industryPacks]),
       ];
+      const org = B2B_ORG_TYPES.find((o) => o.id === draftLegalForm);
       const res = await fetch('/api/business/packaging', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -534,14 +554,15 @@ function ModulesInner() {
           businessTypeId: draftBusinessTypeIds[0] || null,
           packIds: nextPacks,
           moduleIds: packaging?.moduleIds || [],
-          entityTypeId: packaging?.entityTypeId,
+          entityTypeId: org?.entityTypeId || packaging?.entityTypeId,
+          legal_form: draftLegalForm,
           suggestIndustryPacks: true,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not save');
       toast.success(
-        'Sector & industries saved — company profile updated'
+        'Organisation type, sector and industries saved'
       );
       window.dispatchEvent(new Event('sa:company-changed'));
       await load();
@@ -856,10 +877,10 @@ function ModulesInner() {
         </div>
       ) : null}
 
-      {/* Existing companies: set or change sector + industry */}
+      {/* Existing companies: org type (NPO / private / …) then sector + industry */}
       <div
         className={`mb-6 rounded-3xl border p-5 sm:p-6 ${
-          !yourSectorId || !companyIndustries.length
+          !draftLegalForm || !yourSectorId || !companyIndustries.length
             ? 'border-amber-200 bg-amber-50/80'
             : 'border-slate-200 bg-white'
         }`}
@@ -867,23 +888,56 @@ function ModulesInner() {
         <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
           <div>
             <p className="text-[11px] font-black uppercase tracking-widest text-[#0077b6]">
-              {!yourSectorId || !companyIndustries.length
+              {!draftLegalForm || !yourSectorId || !companyIndustries.length
                 ? 'Action required · classification'
-                : 'Your sector & industries'}
+                : 'Your organisation'}
             </p>
             <h2 className="text-lg font-black text-slate-900 tracking-tight">
-              {!yourSectorId || !companyIndustries.length
-                ? 'Select sector and industries'
-                : 'Update sector and industries'}
+              {!draftLegalForm || !yourSectorId || !companyIndustries.length
+                ? 'Select organisation type, sector and industries'
+                : 'Update organisation type, sector and industries'}
             </h2>
             <p className="text-sm text-slate-600 mt-1 max-w-2xl">
-              Choose one sector and one or more industries. Saving updates
-              Company → Identity (profile industries) as well.
+              Companies set up before this step can choose organisation type
+              here — private, public, <strong>NPO / NPC</strong> or association
+              — then sector and industries. Saving also updates Company →
+              Identity.
             </p>
           </div>
         </div>
 
         <div className="space-y-4">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+              Organisation type
+            </p>
+            <div className="grid sm:grid-cols-2 gap-2">
+              {B2B_ORG_TYPES.map((row) => {
+                const on = draftLegalForm === row.id;
+                return (
+                  <button
+                    key={row.id}
+                    type="button"
+                    disabled={classifying || govLocked}
+                    onClick={() => setDraftLegalForm(row.id)}
+                    className={`text-left rounded-xl border-2 px-3 py-2.5 transition ${
+                      on
+                        ? 'border-[#00b4d8] bg-sky-50'
+                        : 'border-neutral-200 bg-white hover:border-neutral-300'
+                    }`}
+                  >
+                    <div className="text-sm font-bold text-slate-900">
+                      {row.label}
+                    </div>
+                    <div className="text-[10px] text-neutral-500 leading-snug">
+                      {row.description}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
               Sector
@@ -1010,6 +1064,7 @@ function ModulesInner() {
             disabled={
               classifying ||
               govLocked ||
+              !draftLegalForm ||
               !draftSector ||
               !draftIndustryIds.length
             }
@@ -1021,7 +1076,7 @@ function ModulesInner() {
             ) : (
               <Save className="w-4 h-4" />
             )}
-            Save sector & industries
+            Save classification
           </button>
         </div>
       </div>

@@ -190,6 +190,26 @@ export async function PATCH(request: NextRequest) {
     if (updates.category != null && updates.business_type === undefined) {
       updates.business_type = updates.category;
     }
+    let resolvedOrg: {
+      id: string;
+      businessType: string;
+      orgType: string;
+      entityTypeId: string;
+    } | null = null;
+    try {
+      const { resolveB2bOrgType } = await import('@/lib/product/org-types');
+      const org = resolveB2bOrgType(
+        String(updates.business_type || updates.category || '')
+      );
+      if (org) {
+        resolvedOrg = org;
+        updates.business_type = org.businessType;
+        updates.category = org.businessType;
+        updates.org_type = org.orgType;
+      }
+    } catch {
+      /* org-type mapping is additive */
+    }
     // Normalize structured certs + keep name arrays aligned (preserve file_url always)
     if (Array.isArray(updates.uploaded_certificates)) {
       const normalized = (updates.uploaded_certificates as Array<Record<string, unknown>>)
@@ -348,6 +368,21 @@ export async function PATCH(request: NextRequest) {
           enabled_modules: nextMods,
         };
       }
+    }
+
+    if (resolvedOrg && existingKeys.has('metadata')) {
+      const base =
+        safe.metadata && typeof safe.metadata === 'object'
+          ? (safe.metadata as Record<string, unknown>)
+          : existing.metadata && typeof existing.metadata === 'object'
+            ? { ...(existing.metadata as Record<string, unknown>) }
+            : {};
+      safe.metadata = {
+        ...base,
+        legal_form: resolvedOrg.id,
+        os_entity_type: resolvedOrg.entityTypeId,
+        entity_kind: resolvedOrg.businessType,
+      };
     }
 
     // export_licenses column may be missing — park in metadata
