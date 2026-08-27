@@ -174,8 +174,14 @@ function kpisFromInvoiceRows(
       !['paid', 'void', 'cancelled'].includes(String(i.status || '')) &&
       invoiceBalance(i) > 0
   );
-  const overdueAr = openAr.filter((i) => isOverdue(i));
-  const overdueAp = openAp.filter((i) => isOverdue(i));
+  const asInvoice = (i: (typeof invRows)[number]) => ({
+    status: String(i.status || ''),
+    due_date: i.due_date ?? null,
+    total_amount: i.total_amount ?? null,
+    amount_paid: i.amount_paid ?? null,
+  });
+  const overdueAr = openAr.filter((i) => isOverdue(asInvoice(i)));
+  const overdueAp = openAp.filter((i) => isOverdue(asInvoice(i)));
   const sumBal = (
     rows: typeof invRows
   ) => rows.reduce((s, i) => s + invoiceBalance(i), 0);
