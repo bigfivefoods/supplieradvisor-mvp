@@ -23,9 +23,9 @@ export const runtime = 'nodejs';
  * POST /api/paystack/webhook
  * Verify Paystack signature; on charge.success run CIPC; always record pulse.
  *
- * Configure in Paystack Dashboard → Settings → Webhooks (either URL works):
+ * Configure in Paystack Dashboard → Settings → Webhooks (canonical only):
  *   https://www.supplieradvisor.com/api/paystack/webhook
- *   https://www.supplieradvisor.com/api/billing/webhook   (alias)
+ * Do not also register /api/billing/webhook — it is a thin alias of this handler.
  *
  * Must stay public (no Privy) — middleware allows paths containing /webhook.
  */

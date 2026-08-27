@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     },
     webhook: {
       canonical: 'https://www.supplieradvisor.com/api/paystack/webhook',
-      alias: 'https://www.supplieradvisor.com/api/billing/webhook',
+      note: 'Do not register /api/billing/webhook in Paystack Dashboard (alias only).',
     },
     opsOk,
   });

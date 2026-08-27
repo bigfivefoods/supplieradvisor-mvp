@@ -26,25 +26,66 @@ export async function GET(request: NextRequest) {
     );
     const tree = await loadHoldingSubtree(companyId);
 
+    const rollup = await supabase.rpc('sa_customers_hub_summary', {
+      p_profile_id: companyId,
+      p_tree_ids: tree.ids,
+    });
+    if (!rollup.error && rollup.data && typeof rollup.data === 'object') {
+      const o = rollup.data as Record<string, unknown>;
+      const n = (k: string) => Number(o[k] || 0);
+      return NextResponse.json({
+        success: true,
+        summary: {
+          customers: n('customers'),
+          customersActive: n('customers_active'),
+          leads: n('leads'),
+          leadsOpen: n('leads_open'),
+          opportunities: n('opportunities'),
+          opportunitiesOpen: n('opportunities_open'),
+          pipelineValue: n('pipeline_value'),
+          weightedPipeline: n('weighted_pipeline'),
+          wonValue: n('won_value'),
+          wonCount: 0,
+          pipelineIncludesGroup: tree.descendantCount > 0,
+          pipelineGroupCompanies: tree.descendantCount,
+          overdueFollowups: 0,
+          invitePending: n('invite_pending'),
+          inviteAccepted: n('invite_accepted'),
+          inviteSuspended: n('invite_suspended'),
+          inviteExpired: n('invite_expired'),
+          inviteDeclined: n('invite_declined'),
+          inviteNotInvited: n('invite_not_invited'),
+          invitationsPending: n('invitations_pending'),
+          invitationsClaiming: n('invitations_claiming'),
+          invitationsExpired: n('invitations_expired'),
+          invitationsTotal: n('invitations_total'),
+        },
+      });
+    }
+
     const [customers, leads, opportunities, invitations] = await Promise.all([
       supabase
         .from('customers')
         .select('id, status, invite_status')
-        .eq('profile_id', companyId),
+        .eq('profile_id', companyId)
+        .limit(500),
       supabase
         .from('leads')
         .select('id, status, value_estimate, priority, next_action_date')
-        .eq('profile_id', companyId),
+        .eq('profile_id', companyId)
+        .limit(500),
       supabase
         .from('opportunities')
         .select(
           'id, stage, status, amount, opportunity_size, probability, expected_close_date, estimated_date'
         )
-        .in('profile_id', tree.ids),
+        .in('profile_id', tree.ids)
+        .limit(800),
       supabase
         .from('customer_invitations')
         .select('id, status')
-        .eq('profile_id', companyId),
+        .eq('profile_id', companyId)
+        .limit(500),
     ]);
 
     const cust = customers.data || [];

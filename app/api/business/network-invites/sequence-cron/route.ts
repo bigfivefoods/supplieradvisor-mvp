@@ -89,41 +89,59 @@ export async function GET(request: NextRequest) {
       if (age >= day7) {
         const sk = `network.invite_seq_7:${row.profile_id}:${email}`;
         if (seqKeys.has(sk)) continue;
-        await resend.emails.send({
-          from: getResendFrom(),
-          to: [email],
-          subject: 'Still joining SupplierAdvisor? (day 7)',
-          html: `<p>Your invite is still open. <a href="${inviteHref}">Accept →</a></p>`,
-        });
-        await supabase.from('activity_log').insert({
-          profile_id: row.profile_id,
-          action: 'network.invite_seq_7',
-          entity_type: 'invite',
-          entity_id: email,
-          summary: `Invite sequence day7 → ${email}`,
-          metadata: { email, status: 'seq_7' },
-        });
+        const { data: reserved7 } = await supabase
+          .from('activity_log')
+          .insert({
+            profile_id: row.profile_id,
+            action: 'network.invite_seq_7',
+            entity_type: 'invite',
+            entity_id: email,
+            summary: `Invite sequence day7 → ${email}`,
+            metadata: { email, status: 'seq_7' },
+          })
+          .select('id')
+          .maybeSingle();
+        if (!reserved7) continue;
         seqKeys.add(sk);
-        sent7 += 1;
+        try {
+          await resend.emails.send({
+            from: getResendFrom(),
+            to: [email],
+            subject: 'Still joining SupplierAdvisor? (day 7)',
+            html: `<p>Your invite is still open. <a href="${inviteHref}">Accept →</a></p>`,
+          });
+          sent7 += 1;
+        } catch {
+          /* reserved — retry would duplicate */
+        }
       } else if (age >= day3) {
         const sk = `network.invite_seq_3:${row.profile_id}:${email}`;
         if (seqKeys.has(sk)) continue;
-        await resend.emails.send({
-          from: getResendFrom(),
-          to: [email],
-          subject: 'Reminder: join SupplierAdvisor (day 3)',
-          html: `<p>Friendly reminder to accept your invite. <a href="${inviteHref}">Accept →</a></p>`,
-        });
-        await supabase.from('activity_log').insert({
-          profile_id: row.profile_id,
-          action: 'network.invite_seq_3',
-          entity_type: 'invite',
-          entity_id: email,
-          summary: `Invite sequence day3 → ${email}`,
-          metadata: { email, status: 'seq_3' },
-        });
+        const { data: reserved3 } = await supabase
+          .from('activity_log')
+          .insert({
+            profile_id: row.profile_id,
+            action: 'network.invite_seq_3',
+            entity_type: 'invite',
+            entity_id: email,
+            summary: `Invite sequence day3 → ${email}`,
+            metadata: { email, status: 'seq_3' },
+          })
+          .select('id')
+          .maybeSingle();
+        if (!reserved3) continue;
         seqKeys.add(sk);
-        sent3 += 1;
+        try {
+          await resend.emails.send({
+            from: getResendFrom(),
+            to: [email],
+            subject: 'Reminder: join SupplierAdvisor (day 3)',
+            html: `<p>Friendly reminder to accept your invite. <a href="${inviteHref}">Accept →</a></p>`,
+          });
+          sent3 += 1;
+        } catch {
+          /* reserved — retry would duplicate */
+        }
       }
     }
 
@@ -135,9 +153,9 @@ export async function GET(request: NextRequest) {
       at: new Date().toISOString(),
     });
   } catch (e: unknown) {
-    return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : 'Error' },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      ok: false,
+      error: e instanceof Error ? e.message : 'Error',
+    });
   }
 }

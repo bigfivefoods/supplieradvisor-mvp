@@ -210,12 +210,7 @@ test.describe('Settle mutate golden path', () => {
 
   test('settle-smoke + payment-proof auth gate', async ({ request }) => {
     const smoke = await request.get(`${base}/api/system/settle-smoke`);
-    // Public or service-role: should not 404
-    expect([200, 401, 403, 500]).toContain(smoke.status());
-    if (smoke.status() === 200) {
-      const j = await smoke.json();
-      expect(j.checks).toBeTruthy();
-    }
+    expect([401, 403, 503]).toContain(smoke.status());
 
     // Proof upload requires auth + multipart — reject empty without file
     const proof = await request.post(`${base}/api/buyer/payment-proof`, {

@@ -14,18 +14,13 @@ const companyId = process.env.E2E_COMPANY_ID || '';
 const mutate = process.env.E2E_MUTATE === '1';
 
 test.describe('Growth settles — public / unauth', () => {
-  test('health deploy + paystack + P0 readiness shape', async ({ request }) => {
+  test('unauth health is liveness only', async ({ request }) => {
     const res = await request.get(`${base}/api/system/health`);
     expect([200, 503]).toContain(res.status());
     const j = await res.json();
-    expect(j.deploy?.commitShort || j.deploy?.commit).toBeTruthy();
-    expect(j.checks?.paystack).toBeTruthy();
-    // p0Readiness is public ops gate (may have blockers in non-prod)
-    if (j.p0Readiness) {
-      expect(typeof j.p0Readiness.ok).toBe('boolean');
-      expect(Array.isArray(j.p0Readiness.blockers)).toBeTruthy();
-      expect(Array.isArray(j.p0Readiness.warnings)).toBeTruthy();
-    }
+    expect(j.ok).toBeTruthy();
+    expect(j.checks).toBeFalsy();
+    expect(j.p0Readiness).toBeFalsy();
   });
 
   test('verification-sla public', async ({ request }) => {

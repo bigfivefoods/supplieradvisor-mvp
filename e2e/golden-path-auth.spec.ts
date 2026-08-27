@@ -27,13 +27,14 @@ test.describe('Golden path auth (optional token)', () => {
     'Content-Type': 'application/json',
   });
 
-  test('health + trade-loop-smoke still public', async ({ request }) => {
+  test('health liveness public; trade-loop-smoke gated', async ({ request }) => {
     const h = await request.get(`${base}/api/system/health`);
     expect([200, 503]).toContain(h.status());
+    const hj = await h.json();
+    expect(hj.ok).toBeTruthy();
+    expect(hj.checks).toBeFalsy();
     const s = await request.get(`${base}/api/system/trade-loop-smoke`);
-    expect(s.status()).toBe(200);
-    const j = await s.json();
-    expect(j.deploy?.commitShort || j.deploy?.commit).toBeTruthy();
+    expect([401, 403, 503]).toContain(s.status());
   });
 
   test('seller inbound POs (accept → invoice path)', async ({ request }) => {

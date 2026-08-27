@@ -10,30 +10,20 @@ const base =
   'http://localhost:3000';
 
 test.describe('Golden path smoke (public)', () => {
-  test('system health returns deploy identity', async ({ request }) => {
+  test('system health liveness is public (no secret leak)', async ({ request }) => {
     const res = await request.get(`${base}/api/system/health`);
     expect([200, 503]).toContain(res.status());
     const j = await res.json();
     expect(j).toHaveProperty('ok');
-    expect(j.deploy).toBeTruthy();
-    expect(j.deploy.commitShort || j.deploy.commit).toBeTruthy();
-    expect(j.checks).toBeTruthy();
+    expect(j.checks).toBeFalsy();
+    expect(j.deploy).toBeFalsy();
   });
 
-  test('trade-loop-smoke is public and reports schema path', async ({
+  test('trade-loop-smoke is not public', async ({
     request,
   }) => {
     const res = await request.get(`${base}/api/system/trade-loop-smoke`);
-    expect(res.status()).toBe(200);
-    const j = await res.json();
-    expect(j).toHaveProperty('ok');
-    expect(j.deploy?.commitShort || j.deploy?.commit).toBeTruthy();
-    expect(j.path).toMatch(/discover/i);
-    expect(j.checks).toBeTruthy();
-    // Schema tables should pass even if env secrets missing
-    if (j.checks?.table_profiles) {
-      expect(j.checks.table_profiles.ok).toBe(true);
-    }
+    expect([401, 403, 503]).toContain(res.status());
   });
 
   test('retired directory redirects home', async ({ request }) => {
@@ -100,7 +90,7 @@ test.describe('Golden path smoke (public)', () => {
       expect(j.golden_loop).toHaveProperty('ok');
       expect(Array.isArray(j.golden_loop.missing) || j.golden_loop.ok).toBeTruthy();
     }
-    expect(j.checks?.purchase_orders || j.ok !== undefined).toBeTruthy();
+    expect(j.ok !== undefined).toBeTruthy();
   });
 
   test('golden-path without auth → 401', async ({ request }) => {

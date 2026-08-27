@@ -9,8 +9,12 @@ APP_URL="${APP_URL%/}"
 echo "=== Trade loop smoke against $APP_URL ==="
 
 echo -n "Health… "
-HEALTH=$(curl -sS "$APP_URL/api/system/health" || true)
-echo "$HEALTH" | python3 -c "import sys,json; d=json.load(sys.stdin); print('ok=',d.get('ok'),'cron=',d.get('checks',{}).get('cron_secret',{}).get('ok'),'resend=',d.get('checks',{}).get('resend',{}).get('ok'))" 2>/dev/null || echo "$HEALTH" | head -c 200
+if [[ -n "${CRON_SECRET:-}" ]]; then
+  HEALTH=$(curl -sS -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/system/health" || true)
+else
+  HEALTH=$(curl -sS "$APP_URL/api/system/health" || true)
+fi
+echo "$HEALTH" | python3 -c "import sys,json; d=json.load(sys.stdin); print('ok=',d.get('ok'),'service=',d.get('service'),'cron=',d.get('checks',{}).get('cron_secret',{}).get('ok'),'resend=',d.get('checks',{}).get('resend',{}).get('ok'))" 2>/dev/null || echo "$HEALTH" | head -c 200
 
 echo -n "Founding slots… "
 curl -sS "$APP_URL/api/public/founding-waitlist" | python3 -c "import sys,json; d=json.load(sys.stdin); print('limit',d.get('limit'),'remaining',d.get('remaining'),'full',d.get('full'))" 2>/dev/null || true

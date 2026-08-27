@@ -22,6 +22,28 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServer();
 
+    const rollup = await supabase.rpc('sa_containers_hub_summary', {
+      p_profile_id: companyId,
+    });
+    if (!rollup.error && rollup.data && typeof rollup.data === 'object') {
+      const o = rollup.data as Record<string, unknown>;
+      const n = (k: string) => Number(o[k] || 0);
+      return NextResponse.json({
+        success: true,
+        total: n('total'),
+        active: n('active'),
+        mapped: n('mapped'),
+        unmapped: n('unmapped'),
+        withContractor: n('with_contractor'),
+        contractors: n('contractors'),
+        contractorsVerified: n('contractors_verified'),
+        trainingCertified: n('training_certified'),
+        trainingPending: n('training_pending'),
+        resellers: n('resellers'),
+        resellersVerified: n('resellers_verified'),
+      });
+    }
+
     const [cRes, tRes, rRes] = await Promise.all([
       supabase
         .from('containers')

@@ -55,6 +55,7 @@ async function runForCompany(
       const session = store.sessions.find((s) => s.id === b.session_id);
       if (!session || session.status === 'cancelled') continue;
       if (!needsReminder(b, session.date, session.start_time, 24)) continue;
+      b.reminded_at = now;
       const client = store.clients.find((c) => c.id === b.client_id);
       if (!client || (!client.email && !client.platform_user_id)) continue;
       const ct = store.class_types.find((t) => t.id === session.class_type_id);

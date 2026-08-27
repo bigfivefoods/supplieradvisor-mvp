@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { usePrivy } from '@privy-io/react-auth';
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 interface SupplierProfile {
@@ -15,9 +16,26 @@ interface SupplierProfile {
 }
 
 export default function JoinSupplierPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+        </div>
+      }
+    >
+      <JoinSupplierInner />
+    </Suspense>
+  );
+}
+
+function JoinSupplierInner() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const publicId = params.public_id as string;
+  const inviteToken = String(searchParams.get('token') || searchParams.get('invite') || '').trim();
+  const { ready, authenticated, login, getAccessToken } = usePrivy();
 
   const [supplier, setSupplier] = useState<SupplierProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,8 +47,6 @@ export default function JoinSupplierPage() {
   const [formData, setFormData] = useState({
     contact_name: '',
     contact_phone: '',
-    password: '',
-    confirmPassword: '',
   });
 
   // Fetch via public API (service role) — never query tables with anon key
@@ -76,28 +92,31 @@ export default function JoinSupplierPage() {
     setError(null);
 
     if (!supplier) return;
-
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match.');
+    if (!inviteToken) {
+      setError('This invitation link is missing its token. Open the link from your email.');
       return;
     }
-
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters.');
+    if (!ready) return;
+    if (!authenticated) {
+      login();
       return;
     }
 
     setSubmitting(true);
 
     try {
+      const access = await getAccessToken();
       const res = await fetch('/api/public/join-claim', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(access ? { Authorization: `Bearer ${access}` } : {}),
+        },
         body: JSON.stringify({
           public_id: supplier.public_id,
+          invite_token: inviteToken,
           contact_name: formData.contact_name,
           contact_phone: formData.contact_phone,
-          password: formData.password,
         }),
       });
       const data = await res.json();
@@ -107,8 +126,8 @@ export default function JoinSupplierPage() {
 
       // Redirect to Privy login after claim
       setTimeout(() => {
-        router.push('/login?claimed=true');
-      }, 2500);
+        router.push('/dashboard');
+      }, 1500);
     } catch (err: unknown) {
       console.error(err);
       setError(
@@ -203,38 +222,14 @@ export default function JoinSupplierPage() {
             <div className="pt-4 border-t">
               <h3 className="font-semibold text-xl tracking-tight mb-6">Confirm &amp; continue</h3>
               <p className="text-sm text-neutral-500 mb-6">
-                After claiming this profile you will sign in with SupplierAdvisor
-                (Privy). Set a temporary access code to confirm the claim.
+                Sign in with SupplierAdvisor (Privy) to claim this invited profile.
+                No password is stored here.
               </p>
-
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">Access code</label>
-                  <input
-                    type="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    required
-                    minLength={6}
-                    className="w-full px-6 py-4 bg-white border border-neutral-200 rounded-2xl text-lg focus:outline-none focus:border-[#00b4d8]"
-                    placeholder="Create an access code"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">Confirm access code</label>
-                  <input
-                    type="password"
-                    name="confirmPassword"
-                    value={formData.confirmPassword}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-6 py-4 bg-white border border-neutral-200 rounded-2xl text-lg focus:outline-none focus:border-[#00b4d8]"
-                    placeholder="Confirm your password"
-                  />
-                </div>
-              </div>
+              {!inviteToken ? (
+                <p className="text-sm text-amber-700 mb-4">
+                  This page needs the invite token from your email link.
+                </p>
+              ) : null}
             </div>
 
             {error && (
@@ -250,8 +245,10 @@ export default function JoinSupplierPage() {
             >
               {submitting ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" /> Creating Account...
+                  <Loader2 className="w-5 h-5 animate-spin" /> Claiming…
                 </>
+              ) : !authenticated ? (
+                'Sign in to claim'
               ) : (
                 'Join SupplierAdvisor'
               )}

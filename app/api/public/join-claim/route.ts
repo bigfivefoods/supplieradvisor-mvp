@@ -1,34 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
+import { requireVerifiedUser, legacyPrivyFrom } from '@/lib/auth/api-auth';
+import { getCanonicalUserId } from '@/lib/auth/identity';
 
 /**
- * POST { public_id, contact_name, contact_phone, password }
- * Completes supplier join claim via service role (no direct client table writes).
- *
- * Note: Primary platform auth is Privy. This legacy join flow updates the
- * profile claim fields; user should continue with Privy login after claim.
+ * POST { public_id, invite_token, contact_name?, contact_phone? }
+ * Activates an invited supplier. Requires Privy session + high-entropy invite token
+ * (same bar as /api/invites/claim). Dummy passwords are not collected.
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const publicId = String(body.public_id || '').trim();
+    const inviteToken = String(body.invite_token || body.token || '').trim();
     const contactName = String(body.contact_name || '').trim();
     const contactPhone = String(body.contact_phone || '').trim();
-    const password = String(body.password || '');
 
     if (!publicId) {
       return NextResponse.json({ error: 'public_id required' }, { status: 400 });
     }
-    if (password.length < 6) {
+    if (inviteToken.length < 16) {
       return NextResponse.json(
-        { error: 'Password must be at least 6 characters' },
+        { error: 'A valid invite token is required.' },
         { status: 400 }
       );
     }
 
+    const auth = await requireVerifiedUser(request, {
+      legacyPrivyUserId: body.privyUserId || legacyPrivyFrom(request),
+    });
+    if (!auth.ok) return auth.response;
+    const userId = getCanonicalUserId(auth.userId);
+    if (!userId) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
     const rl = checkRateLimit({
-      key: `join-claim:${request.headers.get('x-forwarded-for') || 'ip'}`,
+      key: `join-claim:${userId}`,
       limit: 10,
       windowMs: 60 * 60 * 1000,
     });
@@ -40,8 +49,9 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseServer();
     const { data: profile, error: findErr } = await supabase
       .from('profiles')
-      .select('id, public_id, trading_name, supplier_status, email')
+      .select('id, public_id, trading_name, supplier_status, email, invite_token')
       .eq('public_id', publicId)
+      .eq('invite_token', inviteToken)
       .maybeSingle();
 
     if (findErr) {
@@ -67,28 +77,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { error: updateError } = await supabase
+    const now = new Date().toISOString();
+    const { data: claimed, error: updateError } = await supabase
       .from('profiles')
       .update({
         supplier_status: 'active',
-        claimed_at: new Date().toISOString(),
+        claimed_at: now,
         contact_name: contactName || null,
         contact_phone: contactPhone || null,
-        updated_at: new Date().toISOString(),
+        user_id: userId,
+        invite_token: null,
+        updated_at: now,
       })
       .eq('id', profile.id)
-      .eq('public_id', publicId);
+      .eq('public_id', publicId)
+      .eq('invite_token', inviteToken)
+      .in('supplier_status', ['invited', 'pending'])
+      .select('id')
+      .maybeSingle();
 
     if (updateError) {
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
+    if (!claimed) {
+      return NextResponse.json(
+        { error: 'This invitation has already been claimed.' },
+        { status: 409 }
+      );
+    }
 
-    // Optional: create auth user if email present and admin client available
-    // Primary product login is Privy — claim only activates the profile.
     return NextResponse.json({
       success: true,
-      message: 'Profile claimed. Continue with SupplierAdvisor login.',
+      message: 'Profile claimed.',
       trading_name: profile.trading_name,
+      profileId: profile.id,
     });
   } catch (e: unknown) {
     return NextResponse.json(
