@@ -78,7 +78,7 @@ const PHASES = [
         n: '2a',
         title: 'Core Customers + portal',
         who: 'Customer',
-        desc: 'Renters live on Customers 360. Portal to browse, request, KYC and track on SA Member.',
+        desc: 'Renters live on Customers 360. Customer PWA: search suppliers, hire kit, track it — You in the centre.',
         href: '/dashboard/hiregraph/customers',
         icon: UserRound,
       },

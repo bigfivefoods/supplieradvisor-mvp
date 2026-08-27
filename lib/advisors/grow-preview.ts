@@ -28,6 +28,8 @@ export type GrowPreviewCopy = {
   pwaEyebrow: string;
   pwaTabs: string[];
   pwaActiveTab: string;
+  /** Desk preview slider — every customer PWA screen (HireAdvisor). */
+  pwaPreviewScreens?: Array<{ id: string; title: string }>;
   sampleTitle: string;
   sampleWhen: string;
   sampleHint: string;
@@ -101,12 +103,22 @@ export function growPreviewCopy(module: AdvisorPortalModule): GrowPreviewCopy {
       return {
         audience: 'customers',
         audienceSingular: 'customer',
-        pwaEyebrow: 'Customer portal · HireAdvisor®',
-        pwaTabs: ['Shop', 'Coming', 'You', 'History', 'Nearby'],
-        pwaActiveTab: 'Shop',
-        sampleTitle: 'Mini excavator',
-        sampleWhen: 'Available today',
-        sampleHint: 'Search kit near you, hire it, and track when it is coming.',
+        pwaEyebrow: 'Customer app · HireAdvisor®',
+        pwaTabs: ['Search', 'Hire', 'You', 'Track', 'Nearby'],
+        pwaActiveTab: 'Search',
+        pwaPreviewScreens: [
+          { id: 'search', title: 'Search' },
+          { id: 'hire', title: 'Hire' },
+          { id: 'you', title: 'You' },
+          { id: 'docs', title: 'Docs' },
+          { id: 'calendar', title: 'Calendar' },
+          { id: 'track', title: 'Track' },
+          { id: 'history', title: 'History' },
+          { id: 'nearby', title: 'Nearby' },
+        ],
+        sampleTitle: 'Acme Plant',
+        sampleWhen: '2 items · from R950 / day',
+        sampleHint: 'Search suppliers, hire kit, and track when it is coming.',
         websiteCta: 'Browse catalogue',
         showWeekDiary: false,
         color: '#0891b2',

@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * HireAdvisor® B2C customer portal — mobile-first PWA surface.
- * Browse catalogue · request hire · KYC · track status · handovers.
+ * HireAdvisor® customer PWA — Search suppliers · Hire kit · Track it.
+ * Phone dock: Search · Hire · You · Track · Nearby (You in the centre).
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -32,6 +32,16 @@ import { AdvisorAnnouncementFeed } from '@/components/services/AdvisorAnnounceme
 import { B2cHireHowItWorks } from '@/components/b2c/B2cHireJourney';
 import { B2cDiaryView, type MemberCalEvent } from '@/components/b2c/B2cMemberCalendar';
 import { MemberAdvisorShell } from '@/components/advisors/MemberAdvisorShell';
+import { HireAdvisorSearchTab } from '@/components/hire/HireAdvisorSearchTab';
+import { ProductPhoto } from '@/components/inventory/ProductPhoto';
+import {
+  filterHireSuppliers,
+  groupHireSuppliers,
+  hireSupplierKey,
+  hireTrackViewFromTab,
+  normalizeHireCustomerTab,
+  type HireCustomerTab,
+} from '@/lib/hire/hire-customer-pwa';
 import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
 import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
 import { VerifiedBadge } from '@/components/services/VerifiedBadge';
@@ -107,6 +117,7 @@ type CatalogueItem = {
   default_deposit_pct?: number | null;
   location?: string;
   supplier_name?: string;
+  srm_supplier_id?: number | null;
   needs_delivery?: boolean;
   high_value?: boolean;
   requirements: ReqChip[];
@@ -216,6 +227,16 @@ type Portal = {
     short: string;
     item_count: number;
   }>;
+  suppliers?: Array<{
+    key: string;
+    srm_supplier_id: number | null;
+    name: string;
+    location: string | null;
+    item_count: number;
+    categories: string[];
+    min_rate_zar: number | null;
+    photo_url: string | null;
+  }>;
   catalogue: CatalogueItem[];
   my_bookings: MyBooking[];
   stats: {
@@ -265,18 +286,10 @@ export default function HireCustomerPortalPage() {
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  type HireTab =
-    | 'shop'
-    | 'coming'
-    | 'you'
-    | 'history'
-    | 'nearby'
-    | 'calendar'
-    | 'browse'
-    | 'hires'
-    | 'requirements'
-    | 'account';
-  const [tab, setTab] = useState<HireTab>('shop');
+  type HireTab = HireCustomerTab;
+  const [tab, setTab] = useState<HireTab>('search');
+  const [trackView, setTrackView] = useState<'coming' | 'history'>('coming');
+  const [supplierFilter, setSupplierFilter] = useState('');
   const [extendEnd, setExtendEnd] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [search, setSearch] = useState('');
@@ -354,19 +367,11 @@ export default function HireCustomerPortalPage() {
 
   useEffect(() => {
     const t = searchParams.get('tab');
-    if (
-      t === 'shop' ||
-      t === 'coming' ||
-      t === 'you' ||
-      t === 'history' ||
-      t === 'nearby' ||
-      t === 'calendar' ||
-      t === 'browse' ||
-      t === 'hires' ||
-      t === 'requirements' ||
-      t === 'account'
-    ) {
-      setTab(t === 'browse' ? 'shop' : t === 'hires' ? 'coming' : t === 'account' || t === 'requirements' ? 'you' : t);
+    if (!t) return;
+    const next = normalizeHireCustomerTab(t);
+    setTab(next);
+    if (t === 'history' || next === 'track') {
+      setTrackView(hireTrackViewFromTab(t));
     }
   }, [searchParams]);
 
@@ -486,6 +491,7 @@ export default function HireCustomerPortalPage() {
     const area = areaFilter.trim().toLowerCase();
     return portal.catalogue.filter((i) => {
       if (categoryFilter && i.category_id !== categoryFilter) return false;
+      if (supplierFilter && hireSupplierKey(i) !== supplierFilter) return false;
       const loc =
         `${i.location || ''} ${portal.city || ''} ${portal.depot_address || ''}`.toLowerCase();
       if (area && !loc.includes(area)) return false;
@@ -494,11 +500,21 @@ export default function HireCustomerPortalPage() {
         i.title.toLowerCase().includes(q) ||
         i.code.toLowerCase().includes(q) ||
         i.category_name.toLowerCase().includes(q) ||
+        (i.supplier_name || '').toLowerCase().includes(q) ||
         (i.description || '').toLowerCase().includes(q) ||
         loc.includes(q)
       );
     });
-  }, [portal, categoryFilter, search, areaFilter]);
+  }, [portal, categoryFilter, supplierFilter, search, areaFilter]);
+
+  const suppliers = useMemo(() => {
+    if (!portal) return [];
+    const grouped =
+      portal.suppliers && portal.suppliers.length
+        ? portal.suppliers
+        : groupHireSuppliers(portal.catalogue, portal.brand);
+    return filterHireSuppliers(grouped, search, areaFilter);
+  }, [portal, search, areaFilter]);
 
   const upcomingHires = useMemo(() => {
     if (!portal) return [];
@@ -551,7 +567,8 @@ export default function HireCustomerPortalPage() {
       });
       setMsg(data.message || 'Hire requested');
       setSelectedItem(null);
-      setTab('coming');
+      setTrackView('coming');
+      setTab('track');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Request failed');
     } finally {
@@ -663,32 +680,26 @@ export default function HireCustomerPortalPage() {
       }}
       mobileNav="bottom"
       tabs={[
-        { id: 'shop', label: 'Shop', icon: <Package /> },
-        {
-          id: 'coming',
-          label: 'Coming',
-          icon: <Truck />,
-          badge: upcomingHires.length || undefined,
-        },
+        { id: 'search', label: 'Search', icon: <Search /> },
+        { id: 'hire', label: 'Hire', icon: <Package /> },
         {
           id: 'you',
           label: 'You',
           icon: <User />,
-          covers: ['you', 'account', 'requirements', 'calendar'],
+          covers: ['you', 'requirements', 'calendar'],
           badge: portal.stats.needs_docs || undefined,
         },
-        { id: 'history', label: 'History', icon: <ClipboardList /> },
-        { id: 'nearby', label: 'Nearby', icon: <MapPin /> },
-        { id: 'calendar', label: 'Calendar', icon: <CalendarDays /> },
-      ]}
-      mobileTabs={[
-        { id: 'shop', label: 'Shop', icon: <Package /> },
         {
-          id: 'coming',
-          label: 'Coming',
+          id: 'track',
+          label: 'Track',
           icon: <Truck />,
           badge: upcomingHires.length || undefined,
         },
+        { id: 'nearby', label: 'Nearby', icon: <MapPin /> },
+      ]}
+      mobileTabs={[
+        { id: 'search', label: 'Search', icon: <Search /> },
+        { id: 'hire', label: 'Hire', icon: <Package /> },
         {
           id: 'you',
           label: 'You',
@@ -704,11 +715,16 @@ export default function HireCustomerPortalPage() {
               {(portal.customer.name || 'Y').trim().charAt(0).toUpperCase()}
             </span>
           ),
-          covers: ['you', 'account', 'requirements', 'calendar'],
+          covers: ['you', 'requirements', 'calendar'],
           badge: portal.stats.needs_docs || undefined,
           emphasis: true,
         },
-        { id: 'history', label: 'History', icon: <ClipboardList /> },
+        {
+          id: 'track',
+          label: 'Track',
+          icon: <Truck />,
+          badge: upcomingHires.length || undefined,
+        },
         { id: 'nearby', label: 'Nearby', icon: <MapPin /> },
       ]}
       header={
@@ -716,7 +732,7 @@ export default function HireCustomerPortalPage() {
           <MemberPortalBrandLockup
             logoUrl={portal.logo_url}
             brand={portal.brand}
-            eyebrow="Customer portal · HireAdvisor®"
+            eyebrow="Customer app · HireAdvisor®"
           />
           {portal.bio ? (
             <p className="mt-1 max-w-2xl text-sm text-white/90 md:line-clamp-3 line-clamp-2">
@@ -793,7 +809,46 @@ export default function HireCustomerPortalPage() {
           </div>
         )}
 
-        {(tab === 'shop' || tab === 'browse') && (
+        {tab === 'search' && (
+          <HireAdvisorSearchTab
+            search={search}
+            onSearch={setSearch}
+            areaFilter={areaFilter}
+            onArea={setAreaFilter}
+            areaOptions={areaOptions}
+            suppliers={suppliers}
+            kit={portal.catalogue.filter((i) => {
+              const q = search.trim().toLowerCase();
+              if (!q) return false;
+              const loc = `${i.location || ''} ${i.supplier_name || ''} ${i.category_name || ''}`.toLowerCase();
+              return (
+                i.title.toLowerCase().includes(q) ||
+                i.code.toLowerCase().includes(q) ||
+                loc.includes(q)
+              );
+            })}
+            deskName={portal.brand}
+            zar={zar}
+            onOpenSupplier={(s) => {
+              setSupplierFilter(s.key);
+              setCategoryFilter('');
+              setSearch('');
+              setTab('hire');
+              setMsg(null);
+              setError(null);
+            }}
+            onOpenItem={(item) => {
+              const full = portal.catalogue.find((i) => i.id === item.id);
+              if (full) {
+                setSelectedItem(full);
+                setMsg(null);
+                setError(null);
+              }
+            }}
+          />
+        )}
+
+        {tab === 'hire' && (
           <div className="space-y-3">
             <B2cHireHowItWorks compact />
             <div className="rounded-2xl border border-cyan-100 bg-white p-3">
@@ -803,8 +858,30 @@ export default function HireCustomerPortalPage() {
               </p>
             </div>
 
+            {supplierFilter ? (
+              <button
+                type="button"
+                onClick={() => setSupplierFilter('')}
+                className="flex w-full items-center justify-between rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-left"
+              >
+                <span>
+                  <span className="block text-[10px] font-black uppercase tracking-wide text-cyan-800">
+                    Hiring from
+                  </span>
+                  <span className="text-sm font-black text-cyan-950">
+                    {suppliers.find((s) => s.key === supplierFilter)?.name ||
+                      portal.catalogue.find(
+                        (i) => hireSupplierKey(i) === supplierFilter
+                      )?.supplier_name ||
+                      'Selected supplier'}
+                  </span>
+                </span>
+                <span className="text-[11px] font-bold text-cyan-800">Clear</span>
+              </button>
+            ) : null}
+
             <p className="text-sm text-slate-600">
-              Search kit, open a product, then hire it for your dates.
+              Open a product, pick dates, then hire it.
             </p>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -899,11 +976,10 @@ export default function HireCustomerPortalPage() {
                       className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition hover:border-cyan-300"
                     >
                       {item.photo_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
+                        <ProductPhoto
                           src={item.photo_url}
                           alt=""
-                          className="h-36 w-full object-cover"
+                          className="h-36 w-full"
                         />
                       ) : null}
                       <div className="p-3">
@@ -1089,7 +1165,7 @@ export default function HireCustomerPortalPage() {
             </p>
             {hirePlaces.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-                No kit in this area yet. Try another suburb or open Shop.
+                No kit in this area yet. Try another suburb or Search.
               </div>
             ) : (
               <ul className="space-y-3">
@@ -1149,9 +1225,16 @@ export default function HireCustomerPortalPage() {
                         href={item.href}
                         className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
                       >
+                        {item.image_url ? (
+                          <ProductPhoto
+                            src={item.image_url}
+                            className="h-11 w-11 shrink-0 rounded-xl"
+                          />
+                        ) : (
                         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-600 text-[10px] font-black text-white">
                           Hire
                         </span>
+                        )}
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-black text-slate-900">
                             {item.title}
@@ -1172,9 +1255,33 @@ export default function HireCustomerPortalPage() {
           </div>
         )}
 
-        {(tab === 'coming' || tab === 'history' || tab === 'hires') && (
+        {tab === 'track' && (
           <div className="space-y-3">
-            {tab !== 'history' ? (
+            <div className="flex gap-1 rounded-2xl border border-slate-200 bg-white p-1">
+              {(
+                [
+                  ['coming', 'Coming'],
+                  ['history', 'History'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setTrackView(id)}
+                  className={`min-h-9 flex-1 rounded-xl px-2 text-[11px] font-black ${
+                    trackView === id
+                      ? 'bg-cyan-700 text-white'
+                      : 'text-slate-600'
+                  }`}
+                >
+                  {label}
+                  {id === 'coming' && upcomingHires.length
+                    ? ` · ${upcomingHires.length}`
+                    : ''}
+                </button>
+              ))}
+            </div>
+            {trackView !== 'history' ? (
               <p className="text-sm text-slate-600">
                 Track when kit is coming for your hire date, and follow delivery
                 or collection.
@@ -1184,26 +1291,26 @@ export default function HireCustomerPortalPage() {
                 Past hires — returned, completed or cancelled.
               </p>
             )}
-            {(tab === 'history' ? pastHires : upcomingHires).length === 0 ? (
+            {(trackView === 'history' ? pastHires : upcomingHires).length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
                 <ClipboardList className="mx-auto h-8 w-8 text-slate-300" />
                 <p className="mt-2 text-sm font-bold text-slate-700">
-                  {tab === 'history' ? 'No hire history yet' : 'Nothing coming yet'}
+                  {trackView === 'history' ? 'No hire history yet' : 'Nothing coming yet'}
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
-                  Search the shop, open a product, and hire it for your dates.
+                  Search suppliers, open a product, and hire it for your dates.
                 </p>
                 <button
                   type="button"
-                  onClick={() => setTab('shop')}
+                  onClick={() => setTab('search')}
                   className="mt-4 rounded-full bg-cyan-700 px-4 py-2 text-xs font-bold text-white"
                 >
-                  Shop hire
+                  Search suppliers
                 </button>
               </div>
             ) : (
               <ul className="space-y-3">
-                {(tab === 'history' ? pastHires : upcomingHires).map((b) => (
+                {(trackView === 'history' ? pastHires : upcomingHires).map((b) => (
                   <li
                     key={b.id}
                     className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
@@ -1232,7 +1339,7 @@ export default function HireCustomerPortalPage() {
                                 .join(' → ') ||
                               'Dates TBC'}
                           </p>
-                          {tab !== 'history' ? (
+                          {trackView !== 'history' ? (
                             <p className="mt-1 text-sm font-black text-cyan-800">
                               {comingHeadline(b)}
                             </p>
@@ -1545,7 +1652,7 @@ export default function HireCustomerPortalPage() {
                     end_date: String(b.end_date || b.start_date).slice(0, 10),
                     all_day: true,
                     location: b.delivery_address || portal.city || portal.brand,
-                    href: `?tab=coming`,
+                    href: `?tab=track`,
                     status: b.status_label,
                     description: `${portal.brand} · ${b.status_label}`,
                   };
@@ -1560,7 +1667,7 @@ export default function HireCustomerPortalPage() {
         )}
 
         {/* ── You: profile · docs · calendar ───────────────────── */}
-        {(tab === 'you' || tab === 'account' || tab === 'requirements') && (
+        {(tab === 'you' || tab === 'requirements') && (
           <div className="space-y-3">
             <div className="flex gap-1.5 overflow-x-auto pb-0.5">
               <button
@@ -1753,7 +1860,10 @@ export default function HireCustomerPortalPage() {
             {upcomingHires[0] ? (
               <button
                 type="button"
-                onClick={() => setTab('coming')}
+                onClick={() => {
+                  setTrackView('coming');
+                  setTab('track');
+                }}
                 className="w-full rounded-2xl border border-cyan-200 bg-cyan-50 p-3 text-left"
               >
                 <p className="text-[10px] font-black uppercase tracking-wider text-cyan-800">
@@ -1789,11 +1899,10 @@ export default function HireCustomerPortalPage() {
         <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
           <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
             {selectedItem.photo_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <ProductPhoto
                 src={selectedItem.photo_url}
                 alt=""
-                className="h-48 w-full object-cover"
+                className="h-48 w-full"
               />
             ) : null}
             <div className="p-5">

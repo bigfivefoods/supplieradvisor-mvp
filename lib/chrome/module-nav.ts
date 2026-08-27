@@ -893,7 +893,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Settlements', href: '/dashboard/hiregraph/settlements', desc: '2.5% + 2.5% on marketplace hire', section: 'Money' },
       { name: 'Accounts', href: '/dashboard/hiregraph/accounts', desc: 'Hirer fees · pay · proof', section: 'Money' },
       { name: 'Comms', href: '/dashboard/hiregraph/comms', desc: 'Ads · notices to all hirers', section: 'Grow' },
-      { name: 'View portal', href: '/dashboard/hiregraph/portal', desc: 'Hirer PWA · website preview · pick sections', section: 'Grow' },
+      { name: 'View portal', href: '/dashboard/hiregraph/portal', desc: 'Customer PWA · Search · Hire · You · Track', section: 'Grow' },
       { name: 'Website', href: '/dashboard/hiregraph/website', desc: 'Optional public site · hirer app QR · catalogue', section: 'Grow' },
       { name: 'Management report', href: '/dashboard/hiregraph/management', desc: 'A4 landscape PDF · GMV', section: 'Insights' },
       { name: 'Messages', href: '/dashboard/messages?from=hiregraph&channel=connection', desc: 'Supplier · renter threads', section: 'Ops', rail: false },

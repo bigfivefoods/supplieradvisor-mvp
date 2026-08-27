@@ -618,14 +618,14 @@ const BY_MODULE: Record<AdvisorOverviewModule, AdvisorSystemOverviewCopy> = {
         body: 'Out and return on the same booking. Settlement to Finance.',
       },
       {
-        title: 'B2C portal',
-        body: 'Customers browse, request, complete docs and track hires on SA Member.',
+        title: 'Customer PWA',
+        body: 'Branded home-screen app: Search suppliers, Hire kit, Track the job — You in the centre.',
       },
     ],
     clients: [
       {
-        title: 'Free SA Member app',
-        body: 'Browse the catalogue and track hires on their phone.',
+        title: 'HireAdvisor customer app',
+        body: 'Search suppliers, hire products, and track them on the phone — You sits in the centre of the dock.',
       },
       {
         title: 'Request & docs',

@@ -308,7 +308,7 @@ export function B2cHireJourneyCard({
           ) : null}
 
           <Link
-            href={`${journey.portal_path}${journey.can_extend ? '?tab=hires' : ''}`}
+            href={`${journey.portal_path}${journey.can_extend ? '?tab=track' : ''}`}
             className="flex items-center justify-center gap-1 rounded-2xl bg-[#0077b6] py-3 text-sm font-black text-white"
           >
             {journey.can_extend

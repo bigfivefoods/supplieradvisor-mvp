@@ -10,11 +10,15 @@ import {
   Globe,
   Inbox,
   ListChecks,
+  MapPin,
   Moon,
+  Package,
+  Search,
   Share2,
   ShoppingBag,
   Smartphone,
   Sun,
+  Truck,
   UserRound,
   Users,
 } from 'lucide-react';
@@ -35,6 +39,9 @@ function previewSkin(dark: boolean) {
     pageGym: dark
       ? 'flex h-full flex-col bg-gradient-to-b from-slate-950 to-black text-slate-100'
       : 'flex h-full flex-col bg-gradient-to-b from-yellow-50 to-slate-50 text-slate-900',
+    pageHire: dark
+      ? 'flex h-full flex-col bg-gradient-to-b from-slate-950 to-black text-slate-100'
+      : 'flex h-full flex-col bg-gradient-to-b from-cyan-50 to-slate-50 text-slate-900',
     page: dark
       ? 'flex h-full flex-col bg-gradient-to-b from-slate-950 to-black text-slate-100'
       : 'flex h-full flex-col bg-slate-50 text-slate-900',
@@ -82,9 +89,11 @@ function previewSkin(dark: boolean) {
 function PreviewThemeToggle({
   theme,
   onTheme,
+  hint = 'Light and dark as they see on their phone.',
 }: {
   theme: PreviewTheme;
   onTheme: (t: PreviewTheme) => void;
+  hint?: string;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-neutral-950">
@@ -92,9 +101,7 @@ function PreviewThemeToggle({
         <p className="text-sm font-black text-slate-900 dark:text-white">
           Preview theme
         </p>
-        <p className="text-[11px] text-slate-500">
-          Light and dark as members and coaches see on their phone.
-        </p>
+        <p className="text-[11px] text-slate-500">{hint}</p>
       </div>
       <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-0.5 dark:border-white/15 dark:bg-white/5">
         {(['light', 'dark'] as const).map((t) => {
@@ -799,6 +806,431 @@ function GymMemberPwaMock({
   );
 }
 
+type HirePreviewScreen =
+  | 'search'
+  | 'hire'
+  | 'you'
+  | 'docs'
+  | 'calendar'
+  | 'track'
+  | 'history'
+  | 'nearby';
+
+function HireMemberDock({
+  active,
+  color,
+  ink,
+  skin,
+}: {
+  active: 'search' | 'hire' | 'you' | 'track' | 'nearby';
+  color: string;
+  ink: string;
+  skin: ReturnType<typeof previewSkin>;
+}) {
+  const dock: Array<{
+    id: 'search' | 'hire' | 'you' | 'track' | 'nearby';
+    label: string;
+    icon?: typeof Search;
+    emphasis?: boolean;
+  }> = [
+    { id: 'search', label: 'Search', icon: Search },
+    { id: 'hire', label: 'Hire', icon: Package },
+    { id: 'you', label: 'You', emphasis: true },
+    { id: 'track', label: 'Track', icon: Truck },
+    { id: 'nearby', label: 'Nearby', icon: MapPin },
+  ];
+  return (
+    <div className={skin.dock}>
+      {dock.map((t) => {
+        const on = t.id === active;
+        if (t.emphasis) {
+          return (
+            <div key={t.id} className="-mt-4 flex flex-col items-center">
+              <span
+                className={`flex h-11 w-11 items-center justify-center overflow-hidden rounded-full text-[12px] font-black shadow-lg ${skin.youRing}`}
+                style={{ backgroundColor: color, color: ink }}
+              >
+                A
+              </span>
+              <span
+                className={`text-[8px] font-black ${on ? '' : skin.youLabel}`}
+                style={on ? { color } : undefined}
+              >
+                {t.label}
+              </span>
+            </div>
+          );
+        }
+        const Icon = t.icon;
+        if (!Icon) return null;
+        return (
+          <div
+            key={t.id}
+            className={`flex flex-col items-center gap-0.5 px-1 text-[8px] font-black ${
+              on ? '' : skin.dockOff
+            }`}
+            style={on ? { color } : undefined}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            {t.label}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function HireYouChips({
+  current,
+  color,
+  ink,
+  skin,
+}: {
+  current: 'you' | 'docs' | 'calendar';
+  color: string;
+  ink: string;
+  skin: ReturnType<typeof previewSkin>;
+}) {
+  return (
+    <div className={`flex w-full gap-1 ${skin.chipTrack}`}>
+      {(['you', 'docs', 'calendar'] as const).map((id) => {
+        const label = id === 'you' ? 'Profile' : id === 'docs' ? 'Docs' : 'Calendar';
+        const on = current === id;
+        return (
+          <span
+            key={id}
+            className={`flex-1 rounded-full py-0.5 text-center text-[8px] font-black ${
+              on ? '' : skin.chipOff
+            }`}
+            style={on ? { backgroundColor: color, color: ink } : undefined}
+          >
+            {label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function HireTrackChips({
+  current,
+  color,
+  ink,
+  skin,
+}: {
+  current: 'track' | 'history';
+  color: string;
+  ink: string;
+  skin: ReturnType<typeof previewSkin>;
+}) {
+  return (
+    <div className={`flex w-full gap-1 ${skin.chipTrack}`}>
+      {(['track', 'history'] as const).map((id) => {
+        const on = current === id;
+        return (
+          <span
+            key={id}
+            className={`flex-1 rounded-full py-0.5 text-center text-[8px] font-black ${
+              on ? '' : skin.chipOff
+            }`}
+            style={on ? { backgroundColor: color, color: ink } : undefined}
+          >
+            {id === 'track' ? 'Coming · 1' : 'History'}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function HireTimeline({ filled, skin }: { filled: number; skin: ReturnType<typeof previewSkin> }) {
+  return (
+    <div className="mt-1.5 flex gap-0.5">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <span
+          key={i}
+          className={`h-1 flex-1 rounded-full ${
+            i < filled ? '' : skin.track
+          }`}
+          style={i < filled ? { backgroundColor: '#0891b2' } : undefined}
+        />
+      ))}
+    </div>
+  );
+}
+
+function HireMemberPwaMock({
+  copy,
+  brand,
+  logoUrl,
+  color,
+  dark,
+  screen = 'search',
+}: {
+  copy: GrowPreviewCopy;
+  brand: string;
+  logoUrl?: string | null;
+  color: string;
+  dark?: boolean;
+  screen?: HirePreviewScreen;
+}) {
+  const ink = advisorBrandInk(color);
+  const skin = previewSkin(Boolean(dark));
+  const dockActive: 'search' | 'hire' | 'you' | 'track' | 'nearby' =
+    screen === 'hire'
+      ? 'hire'
+      : screen === 'you' || screen === 'docs' || screen === 'calendar'
+        ? 'you'
+        : screen === 'track' || screen === 'history'
+          ? 'track'
+          : screen === 'nearby'
+            ? 'nearby'
+            : 'search';
+
+  return (
+    <div className={skin.pageHire}>
+      <GymAppHeader
+        eyebrow={copy.pwaEyebrow}
+        brand={brand}
+        logoUrl={logoUrl}
+        color={color}
+        ink={ink}
+        sub="Hi Alex"
+      />
+      <div className="min-h-0 flex-1 space-y-2 overflow-hidden p-2.5">
+        {screen === 'search' ? (
+          <>
+            <p className={`text-[11px] font-black ${skin.title}`}>Search suppliers</p>
+            <div className={`${skin.card} px-2 py-1.5`}>
+              <p className={`text-[8px] ${skin.muted}`}>
+                Supplier, plant, jumping castle, suburb…
+              </p>
+            </div>
+            <div className="flex gap-1">
+              {['Any area', 'Sandton', 'Randburg'].map((a, i) => (
+                <span
+                  key={a}
+                  className={`rounded-full px-2 py-0.5 text-[7px] font-black ${
+                    i === 1 ? '' : skin.weekOff
+                  }`}
+                  style={i === 1 ? { backgroundColor: color, color: ink } : undefined}
+                >
+                  {a}
+                </span>
+              ))}
+            </div>
+            <div
+              className="rounded-2xl p-2.5 shadow-sm"
+              style={{ backgroundColor: color, color: ink }}
+            >
+              <p className="text-[8px] font-black uppercase tracking-widest opacity-70">
+                Supplier
+              </p>
+              <p className="text-[13px] font-black leading-tight">{copy.sampleTitle}</p>
+              <p className="mt-0.5 text-[10px] font-bold opacity-80">
+                Sandton · {copy.sampleWhen}
+              </p>
+            </div>
+            <div className={`${skin.card} px-2.5 py-2`}>
+              <p className={`text-[11px] font-black ${skin.title}`}>Party Hire SA</p>
+              <p className={`text-[8px] ${skin.muted}`}>
+                Randburg · 4 items · kids party
+              </p>
+            </div>
+          </>
+        ) : null}
+
+        {screen === 'hire' ? (
+          <>
+            <p className={`text-[11px] font-black ${skin.title}`}>Hire kit</p>
+            <div
+              className="rounded-xl px-2 py-1"
+              style={{ backgroundColor: color, color: ink }}
+            >
+              <p className="text-[7px] font-black uppercase tracking-wide opacity-70">
+                Hiring from
+              </p>
+              <p className="text-[10px] font-black">{copy.sampleTitle}</p>
+            </div>
+            <div className={`${skin.card} overflow-hidden`}>
+              <div
+                className="flex h-12 items-center justify-center text-[8px] font-black"
+                style={{ backgroundColor: color, color: ink }}
+              >
+                Mini excavator
+              </div>
+              <div className="px-2.5 py-2">
+                <p className={`text-[11px] font-black ${skin.title}`}>Mini excavator</p>
+                <p className={`text-[8px] ${skin.muted}`}>Plant · Sandton · docs ready</p>
+                <p className={`mt-0.5 text-[10px] font-black ${skin.title}`}>R 1 800 / day</p>
+              </div>
+            </div>
+            <div className={`${skin.card} px-2.5 py-2`}>
+              <p className={`text-[11px] font-black ${skin.title}`}>Dumper</p>
+              <p className={`text-[8px] ${skin.muted}`}>Plant · from R 950 / day</p>
+            </div>
+          </>
+        ) : null}
+
+        {screen === 'you' ? (
+          <>
+            <HireYouChips current="you" color={color} ink={ink} skin={skin} />
+            <p className={`text-[11px] font-black ${skin.title}`}>Your profile</p>
+            <MiniFold
+              title="Alex Customer"
+              hint="Verified · Sandton"
+              badge="You"
+              open
+              skin={skin}
+            >
+              <p className={`text-[8px] ${skin.muted}`}>alex@example.com · 082 000 0000</p>
+              <p className={`mt-1 text-[8px] font-bold ${skin.title}`}>
+                Default site: 12 Rivonia Rd
+              </p>
+            </MiniFold>
+            <MiniFold title="Hire requirements" hint="2 docs still needed" badge="2" skin={skin} />
+            <div className={`${skin.card} px-2.5 py-2`}>
+              <p className={`text-[8px] font-black uppercase ${skin.kicker}`}>Next hire</p>
+              <p className={`text-[11px] font-black ${skin.title}`}>Mini excavator</p>
+              <p className={`text-[8px] ${skin.muted}`}>Coming 28 Aug · Sandton</p>
+            </div>
+          </>
+        ) : null}
+
+        {screen === 'docs' ? (
+          <>
+            <HireYouChips current="docs" color={color} ink={ink} skin={skin} />
+            <p className={`text-[11px] font-black ${skin.title}`}>Hire requirements</p>
+            <p className={`text-[8px] ${skin.muted}`}>
+              Tick what you already have. Different gear needs different checks.
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {(
+                [
+                  ['Valid ID', true],
+                  ['Proof of address', true],
+                  ["Driver's licence", false],
+                  ['Age 18+', true],
+                  ['Flat ground', false],
+                  ['220V power', false],
+                ] as const
+              ).map(([label, on]) => (
+                <span
+                  key={label}
+                  className={`rounded-full px-2 py-0.5 text-[7px] font-black ${
+                    on ? '' : skin.weekOff
+                  }`}
+                  style={on ? { backgroundColor: color, color: ink } : undefined}
+                >
+                  {on ? '✓ ' : ''}
+                  {label}
+                </span>
+              ))}
+            </div>
+            <div
+              className="rounded-xl py-2 text-center text-[9px] font-black"
+              style={{ backgroundColor: color, color: ink }}
+            >
+              Save requirements
+            </div>
+          </>
+        ) : null}
+
+        {screen === 'calendar' ? (
+          <>
+            <HireYouChips current="calendar" color={color} ink={ink} skin={skin} />
+            <p className={`text-[11px] font-black ${skin.title}`}>Your hire dates</p>
+            <MiniWeekStrip skin={skin} color={color} ink={ink} selected={3} />
+            <div className={`${skin.card} px-2.5 py-2`}>
+              <p className={`text-[8px] font-black uppercase ${skin.kicker}`}>Thu 27</p>
+              <p className={`text-[11px] font-black ${skin.title}`}>Mini excavator</p>
+              <p className={`text-[8px] ${skin.muted}`}>All day · Sandton · paid</p>
+            </div>
+            <p className={`text-[8px] ${skin.muted}`}>Add to Google · Outlook · Apple</p>
+          </>
+        ) : null}
+
+        {screen === 'track' ? (
+          <>
+            <HireTrackChips current="track" color={color} ink={ink} skin={skin} />
+            <p className={`text-[8px] ${skin.muted}`}>
+              Track when kit is coming, and follow delivery or collection.
+            </p>
+            <div
+              className="rounded-2xl p-2.5 shadow-sm"
+              style={{ backgroundColor: color, color: ink }}
+            >
+              <p className="text-[8px] font-black uppercase tracking-widest opacity-70">
+                HX-104 · Paid
+              </p>
+              <p className="text-[13px] font-black leading-tight">Mini excavator</p>
+              <p className="mt-0.5 text-[10px] font-bold opacity-80">
+                Coming 28 Aug · Sandton
+              </p>
+            </div>
+            <div className={`${skin.card} px-2.5 py-2`}>
+              <p className={`text-[11px] font-black ${skin.title}`}>Mini excavator</p>
+              <p className={`text-[8px] ${skin.muted}`}>2 days · You pay R 3 600 + deposit</p>
+              <HireTimeline filled={4} skin={skin} />
+            </div>
+          </>
+        ) : null}
+
+        {screen === 'history' ? (
+          <>
+            <HireTrackChips current="history" color={color} ink={ink} skin={skin} />
+            <p className={`text-[8px] ${skin.muted}`}>
+              Past hires — returned, completed or cancelled.
+            </p>
+            <MiniFold
+              title="Jumping castle"
+              hint="Returned 12 Aug · deposit released"
+              badge="Done"
+              open
+              skin={skin}
+            >
+              <p className={`text-[8px] ${skin.muted}`}>Party Hire SA · Randburg</p>
+              <HireTimeline filled={6} skin={skin} />
+            </MiniFold>
+            <MiniFold
+              title="Ladder set"
+              hint="Cancelled · no charge"
+              skin={skin}
+            />
+          </>
+        ) : null}
+
+        {screen === 'nearby' ? (
+          <>
+            <p className={`text-[11px] font-black ${skin.title}`}>Nearby</p>
+            <p className={`text-[8px] ${skin.muted}`}>
+              Search by area · connect · hire
+            </p>
+            <div className={`${skin.card} px-2.5 py-2`}>
+              <p className={`text-[11px] font-black ${skin.title}`}>Connect with {brand}</p>
+              <p className={`text-[8px] ${skin.muted}`}>Sandton · 25 km radius</p>
+              <p className={`mt-1 text-[8px] font-bold ${skin.title}`}>Call · WhatsApp · Map</p>
+            </div>
+            <p className={`text-[8px] font-black uppercase ${skin.kicker}`}>Places to hire</p>
+            <div className={`${skin.card} px-2.5 py-2`}>
+              <p className={`text-[11px] font-black ${skin.title}`}>Sandton</p>
+              <p className={`text-[8px] ${skin.muted}`}>2 items · Mini excavator · Dumper</p>
+            </div>
+            <p className={`text-[8px] font-black uppercase ${skin.kicker}`}>
+              Other hire in the area
+            </p>
+            <div className={`${skin.card} px-2.5 py-2`}>
+              <p className={`text-[11px] font-black ${skin.title}`}>Party Hire SA</p>
+              <p className={`text-[8px] ${skin.muted}`}>Randburg · jumping castles</p>
+            </div>
+          </>
+        ) : null}
+      </div>
+      <HireMemberDock active={dockActive} color={color} ink={ink} skin={skin} />
+    </div>
+  );
+}
+
 function coachKindFill(
   kind: 'class' | 'workout' | 'client',
   color: string,
@@ -1391,6 +1823,57 @@ function GymWebsiteMock({
   );
 }
 
+function YouCenterDock({
+  tabs,
+  active,
+  color,
+  ink,
+  skin,
+}: {
+  tabs: string[];
+  active: string;
+  color: string;
+  ink: string;
+  skin: ReturnType<typeof previewSkin>;
+}) {
+  return (
+    <div className={skin.dock}>
+      {tabs.map((t) => {
+        const on = t === active;
+        if (t === 'You') {
+          return (
+            <div key={t} className="-mt-4 flex flex-col items-center">
+              <span
+                className={`flex h-11 w-11 items-center justify-center overflow-hidden rounded-full text-[12px] font-black shadow-lg ${skin.youRing}`}
+                style={{ backgroundColor: color, color: ink }}
+              >
+                A
+              </span>
+              <span
+                className={`text-[8px] font-black ${on ? '' : skin.youLabel}`}
+                style={on ? { color } : undefined}
+              >
+                You
+              </span>
+            </div>
+          );
+        }
+        return (
+          <div
+            key={t}
+            className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 px-0.5 text-[8px] font-black ${
+              on ? '' : skin.dockOff
+            }`}
+            style={on ? { color } : undefined}
+          >
+            {t}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function MemberPwaMock({
   copy,
   brand,
@@ -1406,6 +1889,8 @@ function MemberPwaMock({
 }) {
   const ink = advisorBrandInk(color);
   const skin = previewSkin(Boolean(dark));
+  const youCenter =
+    copy.pwaTabs.indexOf('You') === 2 && copy.pwaTabs.length === 5;
   return (
     <div className={skin.page}>
       <div
@@ -1439,6 +1924,7 @@ function MemberPwaMock({
           </div>
         </div>
       </div>
+      {youCenter ? null : (
       <div className={skin.tabBar}>
         {copy.pwaTabs.map((t) => {
           const on = t === copy.pwaActiveTab;
@@ -1455,11 +1941,12 @@ function MemberPwaMock({
           );
         })}
       </div>
-      <div className="space-y-2 p-2.5">
+      )}
+      <div className="flex-1 space-y-2 p-2.5">
         <p className={`text-[10px] font-bold ${skin.muted}`}>{copy.sampleHint}</p>
         <div className={`${skin.card} p-2.5 shadow-sm`}>
           <p className={`text-[9px] font-black uppercase tracking-wide ${skin.kicker}`}>
-            Next
+            {copy.pwaTabs.includes('Search') ? 'Supplier' : 'Next'}
           </p>
           <p className={`text-[13px] font-black ${skin.title}`}>
             {copy.sampleTitle}
@@ -1499,6 +1986,15 @@ function MemberPwaMock({
           </>
         ) : null}
       </div>
+      {youCenter ? (
+        <YouCenterDock
+          tabs={copy.pwaTabs}
+          active={copy.pwaActiveTab}
+          color={color}
+          ink={ink}
+          skin={skin}
+        />
+      ) : null}
     </div>
   );
 }
@@ -1745,6 +2241,8 @@ export function AdvisorGrowPreviews({
   const onWebsitePage = placement === 'website-settings';
   const showLiveSite = !onWebsitePage && published && Boolean(liveHref);
   const gym = module === 'fitgraph';
+  const hire = module === 'hiregraph';
+  const hireScreens = copy.pwaPreviewScreens || [];
 
   const websiteBlock = (
     <PreviewCard
@@ -1754,7 +2252,13 @@ export function AdvisorGrowPreviews({
         published
           ? `Live public site ${copy.audience} can open in a browser${
               ownSite ? ` — or embed on ${ownSite}` : ''
-            }. Classes, join, and programmes for sale.`
+            }. ${
+              gym
+                ? 'Classes, join, and programmes for sale.'
+                : hire
+                  ? 'Catalogue, hours, and the customer app QR.'
+                  : ''
+            }`
           : `Optional public site. Until you publish, ${copy.audience} use the app. Tick sections below.`
       }
     >
@@ -1833,7 +2337,17 @@ export function AdvisorGrowPreviews({
 
   return (
     <div className="space-y-4">
-      <PreviewThemeToggle theme={previewTheme} onTheme={setPreviewTheme} />
+      <PreviewThemeToggle
+        theme={previewTheme}
+        onTheme={setPreviewTheme}
+        hint={
+          gym
+            ? 'Light and dark as members and coaches see on their phone.'
+            : hire
+              ? 'Light and dark as customers see on their phone. There is no coach app.'
+              : 'Light and dark as they see on their phone.'
+        }
+      />
       <div
         className={`grid gap-6 lg:grid-cols-2 ${
           gym || copy.staffRole ? 'xl:grid-cols-2' : ''
@@ -1845,7 +2359,9 @@ export function AdvisorGrowPreviews({
           hint={
             gym
               ? `What ${copy.audience} see: Class, After class, Progress (leaderboard + journey), Programme, You (PBs, injuries, feedback, leaderboard, admin), Shop, Share. Toggle light and dark.`
-              : `What ${copy.audience} see on their phone after they join ${brand}. ${copy.sampleHint} Branded preview, not a live client record.`
+              : hire
+                ? `What ${copy.audience} see: Search, Hire, You (profile, docs, calendar), Track (coming + history), Nearby. Toggle light and dark. There is no coach app.`
+                : `What ${copy.audience} see on their phone after they join ${brand}. ${copy.sampleHint} Branded preview, not a live client record.`
           }
         >
           {gym ? (
@@ -1945,6 +2461,25 @@ export function AdvisorGrowPreviews({
                   ),
                 },
               ]}
+            />
+          ) : hire && hireScreens.length ? (
+            <ScreenSlider
+              dark={dark}
+              labelPrefix={`${eyebrow} · customer`}
+              screens={hireScreens.map((s) => ({
+                id: s.id,
+                title: s.title,
+                phone: (
+                  <HireMemberPwaMock
+                    copy={copy}
+                    brand={brand}
+                    logoUrl={logoUrl}
+                    color={color}
+                    dark={dark}
+                    screen={s.id as HirePreviewScreen}
+                  />
+                ),
+              }))}
             />
           ) : (
             <PhoneChrome label={`${eyebrow} · member phone`} dark={dark}>

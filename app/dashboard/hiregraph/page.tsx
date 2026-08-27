@@ -179,7 +179,7 @@ export default function HiregraphHubPage() {
           eyebrow="HireAdvisor® · rental marketplace"
           title="Hire command"
           titleAccent="B2C + suppliers"
-          description={`Gear owners and renters live in Core Suppliers (SRM) and Core Customers (CRM). Issue B2C portals so customers browse, request, complete docs and track hires on their phones — free for the member. Platform earns ${HIRE_SUPPLIER_COMMISSION_PCT}% from the listing business on hire rental value.`}
+          description={`Gear owners and renters live in Core Suppliers (SRM) and Core Customers (CRM). Publish the customer PWA so they search suppliers, hire kit and track it — You in the centre of the dock. Free for the member. Platform earns ${HIRE_SUPPLIER_COMMISSION_PCT}% from the listing business on hire rental value.`}
         />
 
         <AdvisorBillingClarityCard

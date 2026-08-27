@@ -91,13 +91,13 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
       true
     );
     if (!mapped) {
-      if (wantJoin && brand.module !== 'hiregraph') setStep('join');
+      if (wantJoin) setStep('join');
       return;
     }
     const href = advisorPwaOpenPath(brand.module, mapped);
     setMemberHref(href);
     if (stayHome) return;
-    if (wantJoin && brand.module !== 'hiregraph') return;
+    if (wantJoin) return;
     setOpening(true);
     const go = window.setTimeout(() => {
       window.location.replace(href);

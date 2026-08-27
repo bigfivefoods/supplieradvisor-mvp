@@ -20,7 +20,7 @@ export default function HiregraphPortalPage() {
     <HiregraphWorkbench
       title="View portal"
       titleAccent="customer app · website"
-      description="Publish a branded home-screen app for customers, then preview the customer PWA and optional public website."
+      description="Publish a branded home-screen app. Customers search suppliers, hire kit and track it — with You in the centre of the dock."
     >
       {loading || !store ? (
         <LoadingBlock />

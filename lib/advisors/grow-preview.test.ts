@@ -25,8 +25,14 @@ assert.ok(vet.pwaTabs.includes('Pets'));
 assert.equal(vet.websiteCta, 'Book a consult');
 const hire = growPreviewCopy('hiregraph');
 assert.equal(hire.audienceSingular, 'customer');
-assert.equal(hire.pwaEyebrow, 'Customer portal · HireAdvisor®');
-assert.deepEqual(hire.pwaTabs, ['Shop', 'Coming', 'You', 'History', 'Nearby']);
+assert.equal(hire.pwaEyebrow, 'Customer app · HireAdvisor®');
+assert.deepEqual(hire.pwaTabs, ['Search', 'Hire', 'You', 'Track', 'Nearby']);
+assert.equal(hire.pwaActiveTab, 'Search');
+assert.deepEqual(
+  (hire.pwaPreviewScreens || []).map((s) => s.title),
+  ['Search', 'Hire', 'You', 'Docs', 'Calendar', 'Track', 'History', 'Nearby']
+);
+assert.equal(hire.staffRole, null);
 
 assert.deepEqual(growWebsiteNav('fitgraph').slice(0, 2), [
   'Class timetable',
@@ -46,5 +52,6 @@ assert.equal(
   'contracted practitioner'
 );
 assert.equal(growPreviewCopy('hiregraph').staffRole, null);
+assert.equal(growPreviewCopy('fitgraph').pwaPreviewScreens, undefined);
 
 console.log('grow-preview.test.ts ok');

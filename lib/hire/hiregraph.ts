@@ -16,6 +16,7 @@ import {
   HIRE_SUPPLIER_COMMISSION_PCT,
 } from '@/lib/hire/commercial';
 import { applyDateUnits, busyDatesForItem } from '@/lib/hire/availability';
+import { groupHireSuppliers } from '@/lib/hire/hire-customer-pwa';
 import {
   normalizeAnnouncements,
   publishedAnnouncements,
@@ -1016,6 +1017,7 @@ export function buildHireCustomerPortalPayload(
         qty_available: item.qty_available ?? null,
         location: item.location || '',
         photo_url: item.photo_url || null,
+        srm_supplier_id: item.srm_supplier_id ?? null,
         supplier_name: item.supplier_name || '',
         status: item.status || 'listed',
         needs_delivery: Boolean(cat?.needsDelivery),
@@ -1191,6 +1193,7 @@ export function buildHireCustomerPortalPayload(
     },
     announcements: publishedAnnouncements(store.announcements),
     categories,
+    suppliers: groupHireSuppliers(catalogue, brand),
     catalogue,
     catalogue_count: catalogue.length,
     my_bookings,

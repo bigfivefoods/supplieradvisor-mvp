@@ -139,7 +139,7 @@ export default function HireCustomersPage() {
     <HiregraphWorkbench
       title="Hire customers"
       titleAccent="B2C portal · Core CRM"
-      description="Renters live in Core Customers. Issue a portal link — customers use the SA Member app (/me) on their phone to order, track, and complete docs."
+      description="Renters live in Core Customers. Issue a portal link — they get the HireAdvisor PWA to search suppliers, hire kit, and track it (You in the centre of the dock)."
     >
       {loading || !store ? (
         <LoadingBlock />
