@@ -22,6 +22,7 @@ import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identi
 import { fetchLoginRole } from '@/lib/auth/login-role';
 import { defaultHomePathForRole } from '@/lib/business/permissions';
 import { toast } from 'sonner';
+import { sortCompaniesForSwitcher } from '@/lib/business/company-switcher-order';
 import {
   HubHero,
   HubPrinciples,
@@ -154,25 +155,9 @@ export default function SelectCompanyPage() {
         return;
       }
 
-      // Pin SupplierAdvisor platform company first (API also sorts; belt-and-braces)
       const list: Company[] = Array.isArray(data.companies)
-        ? [...data.companies]
+        ? sortCompaniesForSwitcher([...data.companies])
         : [];
-      list.sort((a, b) => {
-        const aPlat =
-          a.entity_kind === 'platform' ||
-          String(a.org_type || '').toLowerCase() === 'platform' ||
-          String(a.business_type || '').toLowerCase() === 'platform' ||
-          /^supplier\s*advisor$/i.test(String(a.trading_name || '').trim());
-        const bPlat =
-          b.entity_kind === 'platform' ||
-          String(b.org_type || '').toLowerCase() === 'platform' ||
-          String(b.business_type || '').toLowerCase() === 'platform' ||
-          /^supplier\s*advisor$/i.test(String(b.trading_name || '').trim());
-        if (aPlat && !bPlat) return -1;
-        if (!aPlat && bPlat) return 1;
-        return 0;
-      });
       setCompanies(list);
       setDeletedCompanies(data.deletedCompanies || []);
       await mePromise;
