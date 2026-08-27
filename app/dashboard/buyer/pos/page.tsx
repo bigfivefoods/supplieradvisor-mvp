@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePrivy } from '@privy-io/react-auth';
-import { createClient } from '@/utils/supabase/client';
+
 import {
   useAccount,
   useWriteContract,
@@ -94,7 +94,6 @@ interface PurchaseOrder {
 
 export default function BuyerPurchaseOrdersPage() {
   const { user } = usePrivy();
-  const supabase = createClient();
   const companyId = getSelectedCompanyId();
   const companyName = getSelectedCompanyName();
   const privyUserId = getCanonicalUserId(user?.id);
@@ -170,59 +169,36 @@ export default function BuyerPurchaseOrdersPage() {
 
   const loadSuppliers = useCallback(async () => {
     if (!companyId) return;
-    // Buyer is requestee; seller (supplier) is requester; type=customer
-    const { data: conns, error } = await supabase
-      .from('business_connections')
-      .select('id, requester_profile_id, requestee_profile_id, status, connection_type, metadata')
-      .eq('requestee_profile_id', companyId)
-      .eq('connection_type', 'customer')
-      .eq('status', 'accepted');
-
-    if (error) {
-      console.error(error);
-      toast.error('Failed to load connected suppliers');
+    const res = await fetch(
+      `/api/connections?companyId=${companyId}&type=customer&status=accepted`
+    );
+    const json = await res.json();
+    if (!res.ok) {
+      toast.error(json.error || 'Failed to load connected suppliers');
       return;
     }
-
-    const rows = conns || [];
-    const supplierIds = rows.map((c: { requester_profile_id: number }) => c.requester_profile_id);
-    let profiles: {
-      id: number;
-      trading_name: string | null;
-      legal_name: string | null;
-      wallet_address: string | null;
-    }[] = [];
-    if (supplierIds.length) {
-      const { data: p } = await supabase
-        .from('profiles')
-        .select('id, trading_name, legal_name, wallet_address')
-        .in('id', supplierIds);
-      profiles = p || [];
-    }
-
-    const list: ConnectedSupplier[] = rows.map(
-      (c: {
+    const list: ConnectedSupplier[] = (json.edges || []).map(
+      (e: {
         id: number;
-        requester_profile_id: number;
-        metadata?: Record<string, unknown> | null;
-      }) => {
-        const meta =
-          c.metadata && typeof c.metadata === 'object' && !Array.isArray(c.metadata)
-            ? c.metadata
-            : {};
-        const profile = profiles.find((p) => p.id === c.requester_profile_id);
-        return {
-          connectionId: c.id,
-          supplierProfileId: c.requester_profile_id,
-          trading_name: profile?.trading_name ?? null,
-          legal_name: profile?.legal_name ?? null,
-          wallet_address: profile?.wallet_address ?? null,
-          suspended: meta.suspended === true || meta.suspended === 'true',
+        peerId?: number;
+        peer?: {
+          id?: number;
+          trading_name?: string | null;
+          legal_name?: string | null;
+          wallet_address?: string | null;
         };
-      }
-    );
+        suspended?: boolean;
+      }) => ({
+        connectionId: e.id,
+        supplierProfileId: Number(e.peer?.id || e.peerId || 0),
+        trading_name: e.peer?.trading_name ?? null,
+        legal_name: e.peer?.legal_name ?? null,
+        wallet_address: e.peer?.wallet_address ?? null,
+        suspended: e.suspended === true,
+      })
+    ).filter((s: ConnectedSupplier) => s.supplierProfileId > 0);
     setSuppliers(list);
-  }, [companyId, supabase]);
+  }, [companyId]);
 
   const loadPOs = useCallback(async () => {
     if (!companyId || !privyUserId) return;
@@ -236,44 +212,9 @@ export default function BuyerPurchaseOrdersPage() {
       toast.error(json.error || 'Failed to load purchase orders');
       return;
     }
-    let pos = (json.purchaseOrders || []) as PurchaseOrder[];
-    // Enrich line items with product passport public_id when product_id is set
-    const productIds = new Set<number>();
-    for (const po of pos) {
-      for (const it of po.items || []) {
-        if (it.product_id != null && Number.isFinite(Number(it.product_id))) {
-          productIds.add(Number(it.product_id));
-        }
-      }
-    }
-    if (productIds.size > 0) {
-      try {
-        const { data: prods } = await supabase
-          .from('products')
-          .select('id, public_id')
-          .in('id', [...productIds]);
-        const map = new Map(
-          (prods || []).map((p: { id: number; public_id?: string | null }) => [
-            Number(p.id),
-            p.public_id ? String(p.public_id) : null,
-          ])
-        );
-        pos = pos.map((po) => ({
-          ...po,
-          items: (po.items || []).map((it) => ({
-            ...it,
-            public_id:
-              it.public_id ||
-              (it.product_id != null ? map.get(Number(it.product_id)) : null) ||
-              null,
-          })),
-        }));
-      } catch {
-        /* soft — passport optional */
-      }
-    }
+    const pos = (json.purchaseOrders || []) as PurchaseOrder[];
     setPurchaseOrders(pos);
-  }, [companyId, privyUserId, supabase]);
+  }, [companyId, privyUserId]);
 
   useEffect(() => {
     if (!companyId) {

@@ -13,7 +13,11 @@ EXPECT_COMMIT="${EXPECT_COMMIT:-}"
 
 echo "=== P0 ops-live check · $APP_URL ==="
 
-HEALTH=$(curl -sS "$APP_URL/api/system/health" || true)
+AUTH=()
+if [[ -n "${CRON_SECRET:-}" ]]; then
+  AUTH=(-H "Authorization: Bearer $CRON_SECRET")
+fi
+HEALTH=$(curl -sS "${AUTH[@]}" "$APP_URL/api/system/health" || true)
 if [[ -z "$HEALTH" ]]; then
   echo "FAIL  health unreachable"
   exit 1
@@ -23,6 +27,9 @@ python3 - <<'PY' "$HEALTH" "$EXPECT_COMMIT"
 import json, sys
 raw, expect = sys.argv[1], sys.argv[2]
 d = json.loads(raw)
+if d.get("service") == "health" and "checks" not in d:
+    print("health liveness ok — pass CRON_SECRET for full P0 board")
+    sys.exit(0)
 p0 = d.get("p0Readiness") or {}
 deploy = d.get("deploy") or {}
 commit = deploy.get("commitShort") or deploy.get("commit") or ""
@@ -58,15 +65,15 @@ PY
 
 echo
 echo "=== settle-smoke ==="
-SETTLE=$(curl -sS "$APP_URL/api/system/settle-smoke" || true)
+SETTLE=$(curl -sS "${AUTH[@]}" "$APP_URL/api/system/settle-smoke" || true)
 if [[ -z "$SETTLE" ]]; then
   echo "FAIL  settle-smoke unreachable"
 else
   python3 - <<'PY' "$SETTLE"
 import json, sys
 d = json.loads(sys.argv[1])
-if d.get("code") == "UNAUTHORIZED" or d.get("error", "").startswith("Authentication"):
-    print("FAIL  settle-smoke returns 401 — deploy tip that public-paths includes /api/system/settle-smoke")
+if d.get("code") == "UNAUTHORIZED" or str(d.get("error", "")).startswith("Authentication"):
+    print("FAIL  settle-smoke 401 — pass CRON_SECRET (no longer public)")
     sys.exit(3)
 print(f"settleLive = {d.get('settleLive')}  ok = {d.get('ok')}")
 for b in d.get("blockers") or []:

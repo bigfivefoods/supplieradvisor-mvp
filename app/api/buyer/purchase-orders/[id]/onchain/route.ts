@@ -176,7 +176,17 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       updated_at: now,
     };
 
-    const hasCreateTx = po.onchain_tx != null && String(po.onchain_tx).trim() !== '';
+    const existingTx = po.onchain_tx != null ? String(po.onchain_tx).trim() : '';
+    if (existingTx && existingTx.toLowerCase() === onchainTx.toLowerCase()) {
+      return NextResponse.json({
+        success: true,
+        purchaseOrder: po,
+        idempotent: true,
+        kind,
+      });
+    }
+
+    const hasCreateTx = existingTx !== '';
     if (kind === 'create' || !hasCreateTx) {
       updates.onchain_tx = onchainTx;
     }
@@ -212,13 +222,15 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     if (kind === 'release') prevMeta.release_tx = onchainTx;
     updates.metadata = prevMeta;
 
-    let { data, error } = await supabase
+    let cas = supabase
       .from('purchase_orders')
       .update(updates)
       .eq('id', poId)
-      .eq('buyer_profile_id', buyerCompanyId)
-      .select('*')
-      .maybeSingle();
+      .eq('buyer_profile_id', buyerCompanyId);
+    if (updates.status) {
+      cas = cas.eq('status', String(po.status ?? ''));
+    }
+    let { data, error } = await cas.select('*').maybeSingle();
 
     if (error && /column|schema cache|does not exist/i.test(error.message)) {
       console.warn('PO onchain update retry without optional columns:', error.message);

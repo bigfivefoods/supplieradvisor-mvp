@@ -46,17 +46,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate unique invite token
-    const inviteToken = randomUUID();
+    const email = String(contact_email).toLowerCase().trim();
+    const { data: existingInvited } = await supabase
+      .from('profiles')
+      .select('id, invite_token, supplier_status')
+      .eq('email', email)
+      .eq('supplier_status', 'invited')
+      .limit(1)
+      .maybeSingle();
 
-    // Create supplier record
-    // TODO: Replace 'profiles' with your dedicated 'suppliers' table when ready
-    const { data: newSupplier, error: insertError } = await supabase
+    const inviteToken = existingInvited?.invite_token
+      ? String(existingInvited.invite_token)
+      : randomUUID();
+
+    let newSupplier = existingInvited;
+    if (!existingInvited) {
+    const { data: inserted, error: insertError } = await supabase
       .from('profiles')
       .insert({
         trading_name,
         legal_name: trading_name,
-        email: contact_email,
+        email,
         contact_name,
         contact_phone,
         category,
@@ -73,6 +83,8 @@ export async function POST(request: NextRequest) {
     if (insertError) {
       console.error('Supabase insert error:', insertError);
       return NextResponse.json({ error: 'Failed to create supplier record' }, { status: 500 });
+    }
+    newSupplier = inserted;
     }
 
     // Build personalized invite link
@@ -131,7 +143,13 @@ export async function POST(request: NextRequest) {
 
     if (emailError) {
       console.error('Resend error:', emailError);
-      return NextResponse.json({ error: 'Failed to send invitation email' }, { status: 500 });
+      return NextResponse.json({
+        success: true,
+        warning: 'Supplier created but email failed. Share the invite link manually.',
+        supplierId: newSupplier?.id,
+        inviteToken,
+        inviteLink,
+      });
     }
 
     // Optional company context for golden path (body.companyId / inviterProfileId)

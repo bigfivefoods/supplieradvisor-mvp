@@ -1,13 +1,7 @@
 /**
- * Alias for Paystack webhooks.
- *
- * Canonical path (configure in Paystack Dashboard):
+ * Thin alias of POST/GET /api/paystack/webhook.
+ * Configure Paystack Dashboard to the canonical path only:
  *   https://www.supplieradvisor.com/api/paystack/webhook
- *
- * Also accepted:
- *   https://www.supplieradvisor.com/api/billing/webhook
- *
- * Handlers are re-exported; `runtime` must be declared here (Next.js forbids re-exporting route segment config).
  */
 export const runtime = 'nodejs';
 

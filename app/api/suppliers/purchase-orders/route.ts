@@ -197,22 +197,40 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    const countHead = (statusIn: string[]) =>
+      supabase
+        .from('purchase_orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('buyer_profile_id', companyId)
+        .in('status', statusIn);
+
+    const [totalC, openC, completedC, invoicedC, cancelledC] = await Promise.all([
+      supabase
+        .from('purchase_orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('buyer_profile_id', companyId),
+      countHead(['sent', 'accepted', 'funded', 'invoiced']),
+      countHead(['completed', 'paid']),
+      countHead(['invoiced']),
+      countHead(['cancelled']),
+    ]);
+
     const counts = {
-      total: enriched.length,
+      total: totalC.count ?? enriched.length,
       draft: enriched.filter((p) => p.status === 'draft').length,
-      open: enriched.filter((p) =>
+      open: openC.count ?? enriched.filter((p) =>
         ['sent', 'accepted', 'funded', 'invoiced'].includes(String(p.status))
       ).length,
-      completed: enriched.filter((p) =>
+      completed: completedC.count ?? enriched.filter((p) =>
         ['completed', 'paid'].includes(String(p.status))
       ).length,
-      invoiced: enriched.filter((p) => String(p.status) === 'invoiced').length,
+      invoiced: invoicedC.count ?? enriched.filter((p) => String(p.status) === 'invoiced').length,
       awaiting_invoice_share: enriched.filter(
         (p) =>
           String(p.status) === 'invoiced' && p.invoice_shared === false
       ).length,
       onchain: enriched.filter((p) => p.onchain_po_id != null && p.onchain_po_id !== '').length,
-      cancelled: enriched.filter((p) => p.status === 'cancelled').length,
+      cancelled: cancelledC.count ?? enriched.filter((p) => p.status === 'cancelled').length,
       hubs: enriched.filter((p) => parseOrderKind(p.order_kind) === 'hub').length,
       call_offs: enriched.filter((p) => parseOrderKind(p.order_kind) === 'call_off')
         .length,

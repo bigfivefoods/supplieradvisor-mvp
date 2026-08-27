@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { createClient } from '@/utils/supabase/client';
+
 import { useReadContract } from 'wagmi';
 import { SupplierRegistryABI } from '@/lib/contracts/SupplierRegistryABI';
 import { Search, Plus, Users, RefreshCw, ArrowRight } from 'lucide-react';
@@ -30,29 +30,22 @@ export default function SupplierDirectory() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'invited'>('all');
 
-  // Create Supabase client (modern pattern)
-  const supabase = createClient();
-
   const fetchSuppliers = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, public_id, trading_name, email, contact_name, category, supplier_status, invited_at, claimed_at, created_at, wallet_address')
-      .eq('relationship_type', 'supplier')
-      .order('trading_name', { ascending: true });
-
-    if (error) {
-      console.error('Error loading suppliers:', error);
+    const res = await fetch('/api/suppliers/directory');
+    const json = await res.json();
+    if (!res.ok) {
+      console.error('Error loading suppliers:', json.error);
     } else {
-      setSuppliers(data as Supplier[]);
-      setFilteredSuppliers(data as Supplier[]);
+      setSuppliers((json.suppliers || []) as Supplier[]);
+      setFilteredSuppliers((json.suppliers || []) as Supplier[]);
     }
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchSuppliers();
-  }, [supabase]);
+    void fetchSuppliers();
+  }, []);
 
   // Search + Filter
   useEffect(() => {

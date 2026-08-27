@@ -6,8 +6,6 @@ export const PUBLIC_API_PREFIXES = [
   '/api/public/',
   '/api/fx/rates',
   '/api/system/health',
-  '/api/system/trade-loop-smoke',
-  '/api/system/settle-smoke',
   '/api/system/apple-pay-domain-status',
   '/api/invites/validate',
   '/api/banking/webhooks/',
@@ -23,8 +21,6 @@ export const PUBLIC_API_PREFIXES = [
 /** Public readiness / smoke endpoints (no Privy) — keep in sync with middleware. */
 const PUBLIC_EXACT = new Set([
   '/api/system/health',
-  '/api/system/trade-loop-smoke',
-  '/api/system/settle-smoke',
   '/api/system/apple-pay-domain-status',
   '/api/fx/rates',
   '/api/invites/validate',

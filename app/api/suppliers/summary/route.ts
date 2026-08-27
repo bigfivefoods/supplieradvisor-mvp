@@ -17,8 +17,28 @@ export async function GET(request: NextRequest) {
     if (!_gate.ok) return _gate.response;
     const supabase = getSupabaseServer();
 
+    const rollup = await supabase.rpc('sa_suppliers_hub_summary', {
+      p_profile_id: companyId,
+    });
+    let fromRpc: Record<string, number> | null = null;
+    if (!rollup.error && rollup.data && typeof rollup.data === 'object') {
+      const o = rollup.data as Record<string, unknown>;
+      fromRpc = {
+        total: Number(o.total || 0),
+        active: Number(o.active || 0),
+        preferred: Number(o.preferred || 0),
+        connected: Number(o.connected || 0),
+        invited: Number(o.invited || 0),
+        verified: Number(o.verified || 0),
+        avgTrust: Number(o.avg_trust || 0),
+        openPos: Number(o.open_pos || 0),
+      };
+    }
+
     const [{ data: suppliers, error }, openRiad, pendingInvites] = await Promise.all([
-      supabase.from('srm_suppliers').select('id, status, invite_status, otifef_pct, trust_score, verified, linked_profile_id').eq('profile_id', companyId),
+      fromRpc
+        ? Promise.resolve({ data: [] as Array<Record<string, unknown>>, error: null })
+        : supabase.from('srm_suppliers').select('id, status, invite_status, otifef_pct, trust_score, verified, linked_profile_id').eq('profile_id', companyId).limit(400),
       supabase
         .from('riad_logs')
         .select('id', { count: 'exact', head: true })
@@ -50,20 +70,31 @@ export async function GET(request: NextRequest) {
       toDate: to.toISOString().slice(0, 10),
     });
 
-    const connected = list.filter((s) => s.invite_status === 'accepted' || s.linked_profile_id).length;
-    const preferred = list.filter((s) => s.status === 'preferred').length;
-    const active = list.filter((s) => s.status === 'active' || s.status === 'preferred').length;
-    const invited = list.filter((s) => s.invite_status === 'invited').length;
-    const verified = list.filter((s) => s.verified).length;
-    const avgTrust =
-      list.length > 0
+    const connected = fromRpc
+      ? fromRpc.connected
+      : list.filter((s) => s.invite_status === 'accepted' || s.linked_profile_id).length;
+    const preferred = fromRpc
+      ? fromRpc.preferred
+      : list.filter((s) => s.status === 'preferred').length;
+    const active = fromRpc
+      ? fromRpc.active
+      : list.filter((s) => s.status === 'active' || s.status === 'preferred').length;
+    const invited = fromRpc
+      ? fromRpc.invited
+      : list.filter((s) => s.invite_status === 'invited').length;
+    const verified = fromRpc
+      ? fromRpc.verified
+      : list.filter((s) => s.verified).length;
+    const avgTrust = fromRpc
+      ? fromRpc.avgTrust
+      : list.length > 0
         ? list.reduce((a, s) => a + Number(s.trust_score || 0), 0) / list.length
         : 0;
 
     return NextResponse.json({
       success: true,
       summary: {
-        total: list.length,
+        total: fromRpc ? fromRpc.total : list.length,
         active,
         preferred,
         connected,
@@ -71,6 +102,7 @@ export async function GET(request: NextRequest) {
         invitePending: pendingInvites.count || invited,
         verified,
         openRiads: openRiad.count || 0,
+        openPos: fromRpc?.openPos ?? 0,
         avgTrust: Math.round(avgTrust * 10) / 10,
         otifef: otifef.summary,
         topSuppliers: otifef.rows.slice(0, 5),
@@ -92,6 +124,7 @@ function emptySummary() {
     invitePending: 0,
     verified: 0,
     openRiads: 0,
+    openPos: 0,
     avgTrust: 0,
     otifef: {
       overall: 0,

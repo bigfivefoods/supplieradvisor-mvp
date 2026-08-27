@@ -162,6 +162,80 @@ async function run(request: NextRequest) {
       }
     }
 
+    const replayed: Array<{ reference: string; handled: string | null; replay?: string }> =
+      [];
+    try {
+      const supabase = getSupabaseServer();
+      const { data: failedWh } = await supabase
+        .from('paystack_webhook_events')
+        .select('reference, event, handled')
+        .eq('event', 'charge.success')
+        .in('handled', [
+          'gym_sale_verify_failed',
+          'gym_sale_failed',
+          'member_account_verify_failed',
+          'member_account_failed',
+          'subscription_verify_failed',
+          'cipc_verify_failed',
+        ])
+        .limit(rerunLimit);
+      if (failedWh?.length) {
+        const { verifyPaystackTransaction } = await import('@/lib/billing/paystack');
+        for (const row of failedWh) {
+          const ref = String(row.reference || '');
+          if (!ref) continue;
+          const v = await verifyPaystackTransaction(ref, { expectedCurrency: 'ZAR' });
+          if (!v.ok) {
+            replayed.push({ reference: ref, handled: String(row.handled), replay: 'still_unverified' });
+            continue;
+          }
+          const raw =
+            v.raw && typeof v.raw === 'object'
+              ? (v.raw as Record<string, unknown>)
+              : {};
+          const data: Record<string, unknown> = {
+            ...raw,
+            reference: ref,
+            metadata: v.metadata,
+            amount: v.amount,
+          };
+          let replay = 'skipped';
+          try {
+            if (ref.startsWith('gym-sale-') || String(row.handled).includes('gym')) {
+              const { applyGymSalePaystack } = await import(
+                '@/lib/b2c/gym-sale-apply-paystack'
+              );
+              const applied = await applyGymSalePaystack({ data, reference: ref });
+              replay = applied.ok ? 'gym_sale_paid' : applied.error || 'gym_failed';
+            } else if (String(row.handled).includes('member')) {
+              const { applyMemberAccountPaystack } = await import(
+                '@/lib/b2c/member-account-apply-paystack'
+              );
+              const applied = await applyMemberAccountPaystack({
+                data,
+                reference: ref,
+                amountCents: v.amount,
+              });
+              replay = applied.ok ? 'member_account_paid' : applied.error || 'member_failed';
+            } else if (
+              ref.startsWith('sa-co-') ||
+              ref.startsWith('sa-packs-') ||
+              String(row.handled).includes('subscription')
+            ) {
+              replay = 'subscription_needs_webhook_payload';
+            } else if (String(row.handled).includes('cipc')) {
+              replay = 'cipc_via_sla_loop';
+            }
+          } catch (e) {
+            replay = e instanceof Error ? e.message : 'replay_error';
+          }
+          replayed.push({ reference: ref, handled: String(row.handled), replay });
+        }
+      }
+    } catch {
+      /* table may be missing */
+    }
+
     const { getOpsAlertEmails } = await import('@/lib/system/ops-alert-email');
     const opsEmail = getOpsAlertEmails();
 
@@ -222,6 +296,7 @@ async function run(request: NextRequest) {
       pulse,
       deadLetterCount: deadLetter.length,
       slaBreaches: breaches.length,
+      replayed: replayed.slice(0, 20),
       autoRerun,
       rerunSample: deadLetter.filter((d) => d.rerun).slice(0, 10),
       emailed,

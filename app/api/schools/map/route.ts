@@ -28,6 +28,16 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseServer();
     const province = request.nextUrl.searchParams.get('province');
     const district = request.nextUrl.searchParams.get('district');
+    const bboxRaw = request.nextUrl.searchParams.get('bbox');
+    const bbox = bboxRaw
+      ? bboxRaw.split(',').map((x) => Number(x.trim()))
+      : [];
+    const hasBbox =
+      bbox.length === 4 && bbox.every((n) => Number.isFinite(n));
+    const west = hasBbox ? bbox[0] : null;
+    const south = hasBbox ? bbox[1] : null;
+    const east = hasBbox ? bbox[2] : null;
+    const north = hasBbox ? bbox[3] : null;
 
     const { data: agency } = await supabase
       .from('nsnp_agency_profiles')
@@ -52,6 +62,16 @@ export async function GET(request: NextRequest) {
         );
         rows = rows.filter((s) => String(s.status || 'active') === 'active');
       } else {
+        if (!province && !district && !hasBbox) {
+          return NextResponse.json({
+            success: true,
+            schools: [],
+            withCoords: 0,
+            total: 0,
+            error: 'province, district, or bbox is required',
+            code: 'MAP_SCOPE_REQUIRED',
+          });
+        }
         rows = await fetchAllPaged(
           supabase,
           'school_profiles',
@@ -60,6 +80,13 @@ export async function GET(request: NextRequest) {
             q = q.eq('status', 'active').order('id', { ascending: true });
             if (province) q = q.eq('province', province);
             if (district) q = q.eq('district', district);
+            if (hasBbox && west != null && south != null && east != null && north != null) {
+              q = q
+                .gte('lng', Math.min(west, east))
+                .lte('lng', Math.max(west, east))
+                .gte('lat', Math.min(south, north))
+                .lte('lat', Math.max(south, north));
+            }
             return q;
           }
         );

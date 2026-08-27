@@ -1,6 +1,6 @@
 /**
  * Signed public tokens for commercial document PDF links (WhatsApp / email).
- * HMAC with DOC_SHARE_SECRET or CRON_SECRET or RESEND_API_KEY fallback.
+ * Production requires DOC_SHARE_SECRET — no CRON/Resend/dev fallbacks.
  */
 import { createHmac, timingSafeEqual } from 'crypto';
 import { appBaseUrl } from '@/lib/customers/invoice-feedback-token';
@@ -12,13 +12,20 @@ export type DocSharePayload = {
   exp: number; // unix seconds
 };
 
-function secret(): string {
+function isProd(): boolean {
   return (
-    process.env.DOC_SHARE_SECRET ||
-    process.env.CRON_SECRET ||
-    process.env.RESEND_API_KEY ||
-    'supplieradvisor-doc-share-dev'
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL_ENV === 'production'
   );
+}
+
+function secret(): string {
+  const dedicated = String(process.env.DOC_SHARE_SECRET || '').trim();
+  if (dedicated) return dedicated;
+  if (isProd()) {
+    throw new Error('DOC_SHARE_SECRET is required in production');
+  }
+  return 'supplieradvisor-doc-share-dev';
 }
 
 function b64url(buf: Buffer | string): string {

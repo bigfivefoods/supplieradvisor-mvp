@@ -1,12 +1,26 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer, hasServiceRole } from '@/lib/supabase/server-client';
 import { deploymentMeta } from '@/lib/system/schema-probe';
+import { assertCronSecret } from '@/lib/auth/api-auth';
 
 /**
  * GET /api/system/settle-smoke
  * Non-mutating readiness for live settle: claims, ledger, installments, money path.
+ * Auth: CRON_SECRET or platform console (not public).
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const cron = assertCronSecret(request);
+  if (!cron.ok) {
+    try {
+      const { requirePlatformConsoleAccess } = await import(
+        '@/lib/system/platform-console-gate'
+      );
+      const gate = await requirePlatformConsoleAccess(request);
+      if (!gate.ok) return gate.response;
+    } catch {
+      return cron.response;
+    }
+  }
   const deploy = deploymentMeta();
   const checks: Record<
     string,

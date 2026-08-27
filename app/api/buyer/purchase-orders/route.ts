@@ -113,6 +113,26 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServer();
     const now = new Date().toISOString();
+    const idempotencyKey = String(
+      body.idempotencyKey ||
+        request.headers.get('idempotency-key') ||
+        ''
+    ).trim().slice(0, 120);
+    if (idempotencyKey) {
+      const { data: existing } = await supabase
+        .from('purchase_orders')
+        .select('*')
+        .eq('buyer_profile_id', buyerCompanyId)
+        .eq('idempotency_key', idempotencyKey)
+        .maybeSingle();
+      if (existing) {
+        return NextResponse.json({
+          success: true,
+          purchaseOrder: existing,
+          idempotent: true,
+        });
+      }
+    }
 
     // Resolve seller CRM customer row for bridge
     let sellerCustomerId: number | null = null;
@@ -152,10 +172,12 @@ export async function POST(request: NextRequest) {
       promised_date: body.promised_date ? String(body.promised_date).slice(0, 10) : null,
       seller_customer_id: sellerCustomerId,
       source: 'customer_portal',
+      idempotency_key: idempotencyKey || null,
       metadata: {
         invitation_connection: true,
         connection_id: conn.connection.id,
         use_escrow: body.useEscrow === true,
+        idempotency_key: idempotencyKey || null,
       },
       created_at: now,
       updated_at: now,
@@ -166,6 +188,21 @@ export async function POST(request: NextRequest) {
       .insert(payload)
       .select('*')
       .single();
+    if (error && idempotencyKey && /unique|duplicate/i.test(error.message || '')) {
+      const { data: raced } = await supabase
+        .from('purchase_orders')
+        .select('*')
+        .eq('buyer_profile_id', buyerCompanyId)
+        .eq('idempotency_key', idempotencyKey)
+        .maybeSingle();
+      if (raced) {
+        return NextResponse.json({
+          success: true,
+          purchaseOrder: raced,
+          idempotent: true,
+        });
+      }
+    }
 
     // Retry without newer columns if schema cache is behind
     if (error && /column|schema cache|does not exist/i.test(error.message)) {

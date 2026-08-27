@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer, hasServiceRole } from '@/lib/supabase/server-client';
 import { publicReadLimit } from '@/lib/security/rate-limit';
+import { assertCronSecret } from '@/lib/auth/api-auth';
 import { ADVISOR_SKINS } from '@/lib/brand/advisor-skins';
 import {
   deploymentMeta,
@@ -29,6 +30,25 @@ export async function GET(request: NextRequest) {
       }
     );
   }
+
+  const liveOnly = request.nextUrl.searchParams.get('live') === '1';
+  const cron = assertCronSecret(request);
+  let ops = false;
+  if (!cron.ok && !liveOnly) {
+    try {
+      const { requirePlatformConsoleAccess } = await import(
+        '@/lib/system/platform-console-gate'
+      );
+      const gate = await requirePlatformConsoleAccess(request);
+      ops = gate.ok;
+    } catch {
+      ops = false;
+    }
+  }
+  if (liveOnly || (!cron.ok && !ops)) {
+    return NextResponse.json({ ok: true, service: 'health' });
+  }
+
   const started = Date.now();
   const deploy = deploymentMeta();
   const checks: Record<

@@ -87,6 +87,36 @@ async function runDunning(limit = 80) {
       continue;
     }
 
+    const { data: reserved, error: reserveErr } = await supabase
+      .from('invoice_dunning_sends')
+      .insert({ invoice_id: inv.id, dunning_day: step.day })
+      .select('invoice_id')
+      .maybeSingle();
+    if (reserveErr && /unique|duplicate/i.test(reserveErr.message || '')) {
+      skipped += 1;
+      results.push({ id: inv.id, skipped: true, reason: 'already_reserved' });
+      continue;
+    }
+    if (reserveErr && /does not exist|schema cache/i.test(reserveErr.message || '')) {
+      const lineReserve = `${markerPrefix} ${today}] reserved`;
+      const { data: noteReserved } = await supabase
+        .from('customer_invoices')
+        .update({
+          notes: notes ? `${notes}\n${lineReserve}` : lineReserve,
+          updated_at: now,
+        })
+        .eq('id', inv.id)
+        .select('id')
+        .maybeSingle();
+      if (!noteReserved) {
+        skipped += 1;
+        continue;
+      }
+    } else if (reserveErr || !reserved) {
+      skipped += 1;
+      continue;
+    }
+
     const toCustomer = String(inv.contact_email || '').trim();
     const profileId = Number(inv.profile_id);
     const invNum = inv.invoice_number || `#${inv.id}`;
@@ -176,7 +206,8 @@ async function runDunning(limit = 80) {
     } catch (e) {
       results.push({
         id: inv.id,
-        error: e instanceof Error ? e.message : 'send failed',
+        skipped: true,
+        reason: e instanceof Error ? e.message : 'send failed',
       });
     }
   }

@@ -26,23 +26,25 @@ export async function GET() {
 
 function garminWebhookAuthorized(req: NextRequest): boolean {
   const secret = String(process.env.GARMIN_WEBHOOK_SECRET || '').trim();
-  if (secret) {
-    const got =
-      req.headers.get('x-garmin-secret') ||
-      req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
-      '';
-    if (got.length === secret.length) {
-      try {
-        if (timingSafeEqual(Buffer.from(got), Buffer.from(secret))) return true;
-      } catch {
-        /* fall through to Connect-configured ping */
-      }
+  const prod =
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL_ENV === 'production';
+  if (!secret) {
+    // Production must fail closed (same bar as BankLink / Didit).
+    return !prod && garminConfigured();
+  }
+  const got =
+    req.headers.get('x-garmin-secret') ||
+    req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
+    '';
+  if (got.length === secret.length) {
+    try {
+      if (timingSafeEqual(Buffer.from(got), Buffer.from(secret))) return true;
+    } catch {
+      return false;
     }
   }
-  // Garmin Activity ping/pull has no custom HMAC. Accept POST only when
-  // Connect credentials exist; we only persist after a successful Garmin pull
-  // for a member whose stored user_id matches the ping.
-  return garminConfigured();
+  return false;
 }
 
 export async function POST(req: NextRequest) {
