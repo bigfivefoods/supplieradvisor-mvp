@@ -102,9 +102,17 @@ export function normalizeFeedbackToken(raw: unknown): string {
   return t.trim();
 }
 
+export type ParsedInvoiceFeedback = {
+  companyId: number;
+  invoiceId: number;
+  invoiceNumber: string;
+  /** HMAC tokens must not use id-only invoice lookup. */
+  signed: boolean;
+};
+
 function parseHmacInvoiceFeedbackToken(
   t: string
-): { companyId: number; invoiceId: number; invoiceNumber: string } | null {
+): ParsedInvoiceFeedback | null {
   if (!t.startsWith('i1.')) return null;
   const parts = t.split('.');
   if (parts.length !== 3) return null;
@@ -124,6 +132,7 @@ function parseHmacInvoiceFeedbackToken(
       companyId: Number(payload.companyId),
       invoiceId: Number(payload.invoiceId),
       invoiceNumber: String(payload.invoiceNumber || ''),
+      signed: true,
     };
   } catch {
     return null;
@@ -132,13 +141,14 @@ function parseHmacInvoiceFeedbackToken(
 
 function parseLegacyInvoiceFeedbackToken(
   t: string
-): { companyId: number; invoiceId: number; invoiceNumber: string } | null {
+): ParsedInvoiceFeedback | null {
   const v1 = /^v1_(\d+)_(\d+)(?:_([A-Za-z0-9]+))?$/.exec(t);
   if (v1) {
     return {
       companyId: Number(v1[1]),
       invoiceId: Number(v1[2]),
       invoiceNumber: v1[3] || '',
+      signed: false,
     };
   }
 
@@ -153,6 +163,7 @@ function parseLegacyInvoiceFeedbackToken(
       companyId: Number(m[1]),
       invoiceId: Number(m[2]),
       invoiceNumber: m[3] || '',
+      signed: false,
     };
   } catch {
     return null;
@@ -161,7 +172,7 @@ function parseLegacyInvoiceFeedbackToken(
 
 export function parseInvoiceFeedbackToken(
   token: string
-): { companyId: number; invoiceId: number; invoiceNumber: string } | null {
+): ParsedInvoiceFeedback | null {
   const t = normalizeFeedbackToken(token);
   if (!t) return null;
 

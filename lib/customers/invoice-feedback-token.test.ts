@@ -20,6 +20,7 @@ const parsed = parseInvoiceFeedbackToken(token);
 assert.equal(parsed?.companyId, 102);
 assert.equal(parsed?.invoiceId, 9);
 assert.equal(parsed?.invoiceNumber, 'M1WD');
+assert.equal(parsed?.signed, true);
 
 const tampered = token.slice(0, -2) + 'ab';
 assert.equal(parseInvoiceFeedbackToken(tampered), null);
@@ -35,6 +36,7 @@ assert.deepEqual(parseInvoiceFeedbackToken('v1_102_9_M1WD'), {
   companyId: 102,
   invoiceId: 9,
   invoiceNumber: 'M1WD',
+  signed: false,
 });
 
 process.env.INVOICE_FEEDBACK_ALLOW_LEGACY = 'false';

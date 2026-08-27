@@ -247,6 +247,22 @@ export async function POST(request: NextRequest) {
             /* soft */
           }
 
+          const cipcDurable =
+            result.ok ||
+            result.status === 'verified' ||
+            result.status === 'mismatch' ||
+            result.status === 'skipped' ||
+            result.status === 'failed';
+          if (!cipcDurable) {
+            return retry({
+              received: true,
+              handled: 'cipc_apply_failed',
+              reference,
+              companyId,
+              cipc: result,
+            });
+          }
+
           await markPaystackWebhook(reference, eventName, 'cipc_after_payment');
           return NextResponse.json({
             received: true,

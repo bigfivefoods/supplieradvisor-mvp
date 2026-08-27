@@ -276,19 +276,19 @@ type InvoiceRow = {
 };
 
 /**
- * Resolve invoice flexibly: id+company, then id only, then number+company.
- * Handles workspace id mismatches and legacy tokens.
+ * HMAC tokens bind companyId + invoiceId. Legacy unsigned tokens still allow
+ * looser lookup so printed v1_ QRs keep working during the transition.
  */
 async function resolveInvoice(parsed: {
   companyId: number;
   invoiceId: number;
   invoiceNumber: string;
+  signed?: boolean;
 }): Promise<InvoiceRow | null> {
   const supabase = getSupabaseServer();
   const select =
     'id, invoice_number, total_amount, currency, customer_name, status, profile_id, customer_id';
 
-  // 1) Exact match (preferred)
   {
     const { data } = await supabase
       .from('customer_invoices')
@@ -299,7 +299,9 @@ async function resolveInvoice(parsed: {
     if (data) return data as InvoiceRow;
   }
 
-  // 2) By invoice id alone (company id may have drifted / wrong selected company at print time)
+  if (parsed.signed) return null;
+
+  // Legacy only: id-only (company id may have drifted at print time)
   {
     const { data } = await supabase
       .from('customer_invoices')
