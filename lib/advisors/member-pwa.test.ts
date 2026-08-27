@@ -144,12 +144,16 @@ const hireBrand = buildAdvisorPwaBrand({
   publicToken: 'hire_pub_1_abc',
   companyId: 1,
   settings: {
-    brand_name: 'Acme Hire',
-    company_logo_url: 'https://cdn.example/hire-logo.png',
+    brand_name: 'VUKA Fitness',
+    company_logo_url: 'https://cdn.example/vuka.png',
+    pwa_name: 'VUKA Fitness',
   },
 });
-assert.equal(hireBrand.iconUrl, 'https://cdn.example/hire-logo.png');
-assert.ok(!hireBrand.iconUrl.includes('sa-icon'));
+assert.equal(hireBrand.brandName, 'HireAdvisor®');
+assert.equal(hireBrand.shortName, 'HireAdvisor');
+assert.equal(hireBrand.iconUrl, '/sa-icon-512.png');
+assert.doesNotMatch(hireBrand.brandName, /VUKA/);
+assert.ok(!hireBrand.iconUrl.includes('vuka'));
 assert.equal(brand.joinKind, 'gym');
 assert.equal(brand.joinPath, '/pwa/fitgraph/fg_110_abc?join=1');
 assert.equal(advisorPwaJoinPath('physiograph', 'pg_1'), '/pwa/physiograph/pg_1?join=1');

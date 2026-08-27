@@ -6,6 +6,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
+import { usePrivy } from '@privy-io/react-auth';
 import {
   CalendarDays,
   Check,
@@ -46,6 +47,7 @@ import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBi
 import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
 import { VerifiedBadge } from '@/components/services/VerifiedBadge';
 import { B2cIdentityCard } from '@/components/b2c/B2cIdentityCard';
+import { AuthLoginActions } from '@/components/auth/AuthLoginActions';
 import {
   downloadMemberEventIcs,
   googleCalendarUrl,
@@ -183,6 +185,8 @@ type MyBooking = {
 
 type Portal = {
   brand: string;
+  app_name?: string;
+  desk_name?: string;
   public_token?: string;
   logo_url?: string | null;
   bio?: string;
@@ -281,6 +285,7 @@ type Quote = {
 export default function HireCustomerPortalPage() {
   const { token } = useParams() as { token: string };
   const searchParams = useSearchParams();
+  const { ready, authenticated, getAccessToken } = usePrivy();
   const [portal, setPortal] = useState<Portal | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -314,6 +319,17 @@ export default function HireCustomerPortalPage() {
   const [nearbyMarket, setNearbyMarket] = useState<NearbyMarketItem[]>([]);
   const [idNumber, setIdNumber] = useState('');
 
+  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    const headers: Record<string, string> = {};
+    try {
+      const t = await getAccessToken();
+      if (t) headers.Authorization = `Bearer ${t}`;
+    } catch {
+      /* guest */
+    }
+    return headers;
+  }, [getAccessToken]);
+
   const load = useCallback(async () => {
     if (!token) return;
     if (String(token).startsWith('hire_pub_')) {
@@ -325,9 +341,10 @@ export default function HireCustomerPortalPage() {
     setLoading(true);
     setError(null);
     try {
+      const headers = await authHeaders();
       const res = await fetch(
         `/api/public/hiregraph/customer?token=${encodeURIComponent(token)}`,
-        { cache: 'no-store' }
+        { cache: 'no-store', credentials: 'include', headers }
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Portal not found');
@@ -359,11 +376,92 @@ export default function HireCustomerPortalPage() {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [authHeaders, token]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!ready || !authenticated || !token) return;
+    if (String(token).startsWith('hire_pub_')) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const headers = await authHeaders();
+        const me = await fetch('/api/b2c/me?include=lite', {
+          cache: 'no-store',
+          credentials: 'include',
+          headers,
+        });
+        const data = await me.json().catch(() => ({}));
+        const p = data.profile as
+          | {
+              full_name?: string | null;
+              email?: string | null;
+              phone?: string | null;
+              photo_url?: string | null;
+              city?: string | null;
+              id_number?: string | null;
+            }
+          | undefined;
+        const verification = data.verification as
+          | {
+              is_verified?: boolean;
+              status?: string;
+              provider?: string | null;
+              passport?: { full_name?: string | null };
+            }
+          | undefined;
+        if (!cancelled && p) {
+          setPortal((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  customer: {
+                    ...prev.customer,
+                    name: p.full_name || prev.customer.name,
+                    email: p.email || prev.customer.email,
+                    phone: p.phone || prev.customer.phone,
+                    photo_url: p.photo_url || prev.customer.photo_url,
+                    city: p.city || prev.customer.city,
+                    id_number: p.id_number || prev.customer.id_number,
+                    identity: verification
+                      ? {
+                          ...prev.customer.identity,
+                          is_verified: Boolean(verification.is_verified),
+                          status: verification.status,
+                          provider: verification.provider,
+                          verified_name:
+                            verification.passport?.full_name ||
+                            prev.customer.identity?.verified_name,
+                        }
+                      : prev.customer.identity,
+                  },
+                }
+              : prev
+          );
+          setProfile((cur) => ({
+            email: p.email || cur.email,
+            phone: p.phone || cur.phone,
+            delivery_default: cur.delivery_default,
+          }));
+          if (p.id_number) setIdNumber(String(p.id_number));
+        }
+        await fetch('/api/public/hiregraph/customer', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', ...headers },
+          body: JSON.stringify({ token, action: 'link_wallet' }),
+        }).catch(() => null);
+      } catch {
+        /* guest hire still works */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authHeaders, authenticated, ready, token]);
 
   useEffect(() => {
     const t = searchParams.get('tab');
@@ -398,9 +496,11 @@ export default function HireCustomerPortalPage() {
   }, [tab, areaFilter, search, portal?.city]);
 
   const post = async (body: Record<string, unknown>) => {
+    const headers = await authHeaders();
     const res = await fetch('/api/public/hiregraph/customer', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ token, ...body }),
     });
     const data = await res.json();
@@ -425,9 +525,11 @@ export default function HireCustomerPortalPage() {
       delivery?: string
     ) => {
       try {
+        const headers = await authHeaders();
         const res = await fetch('/api/public/hiregraph/customer', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', ...headers },
           body: JSON.stringify({
             token,
             action: 'quote',
@@ -445,7 +547,7 @@ export default function HireCustomerPortalPage() {
         /* soft */
       }
     },
-    [token]
+    [authHeaders, token]
   );
 
   useEffect(() => {
@@ -664,9 +766,9 @@ export default function HireCustomerPortalPage() {
       module="hiregraph"
       memberToken={token}
       publicToken={portal.public_token}
-      brandName={portal.brand}
+      brandName={portal.app_name || portal.brand || 'HireAdvisor'}
       themeColor={color}
-      iconUrl={portal.logo_url}
+      iconUrl={null}
     />
     <MemberAdvisorShell
       color={color}
@@ -730,9 +832,9 @@ export default function HireCustomerPortalPage() {
       header={
         <div>
           <MemberPortalBrandLockup
-            logoUrl={portal.logo_url}
-            brand={portal.brand}
-            eyebrow="Customer app · HireAdvisor®"
+            logoUrl="/sa-logo.png"
+            brand={portal.app_name || portal.brand || 'HireAdvisor'}
+            eyebrow="Customer app"
           />
           {portal.bio ? (
             <p className="mt-1 max-w-2xl text-sm text-white/90 md:line-clamp-3 line-clamp-2">
@@ -827,7 +929,6 @@ export default function HireCustomerPortalPage() {
                 loc.includes(q)
               );
             })}
-            deskName={portal.brand}
             zar={zar}
             onOpenSupplier={(s) => {
               setSupplierFilter(s.key);
@@ -1110,7 +1211,7 @@ export default function HireCustomerPortalPage() {
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <p className="text-sm font-black text-slate-900">
-                Connect with {portal.brand}
+                Connect with this hire desk
               </p>
               <p className="mt-1 text-[12px] text-slate-600">
                 {[portal.depot_address, portal.city]
@@ -1760,6 +1861,11 @@ export default function HireCustomerPortalPage() {
                 HireAdvisor uses the name, email and phone on your SA Member
                 wallet. Verify with VerifyNow so the hire desk can trust you.
               </p>
+              {ready && !authenticated ? (
+                <div className="mt-3">
+                  <AuthLoginActions appName="HireAdvisor" />
+                </div>
+              ) : null}
             </div>
             <B2cIdentityCard
               initial={portal.customer.identity}

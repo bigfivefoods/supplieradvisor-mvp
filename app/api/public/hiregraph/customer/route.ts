@@ -153,6 +153,62 @@ async function saveStore(
   );
 }
 
+async function stampWalletFromRequest(
+  request: NextRequest,
+  store: HiregraphStore,
+  portal: HireCustomerPortal,
+  customer: HireCorePartyRef
+): Promise<{
+  store: HiregraphStore;
+  portal: HireCustomerPortal;
+  customer: HireCorePartyRef;
+}> {
+  try {
+    const auth = await requireVerifiedUser(request, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!auth.ok) return { store, portal, customer };
+    const userId = getCanonicalUserId(auth.userId);
+    const wallet = userId ? await loadB2cProfile(userId) : null;
+    if (!wallet) return { store, portal, customer };
+    const stamped = applyWalletToHirePortal(
+      store,
+      portal.crm_customer_id,
+      {
+        user_id: wallet.user_id,
+        full_name: wallet.full_name,
+        email: wallet.email,
+        phone: wallet.phone,
+        photo_url: wallet.photo_url,
+        city: wallet.city,
+        id_number: wallet.id_number,
+        identity: identityFromProfile(wallet),
+      }
+    );
+    const nextCustomer = wallet.full_name
+      ? {
+          ...customer,
+          name: wallet.full_name,
+          email: wallet.email || customer.email,
+          phone: wallet.phone || customer.phone,
+          city: wallet.city || customer.city,
+        }
+      : {
+          ...customer,
+          email: wallet.email || customer.email,
+          phone: wallet.phone || customer.phone,
+          city: wallet.city || customer.city,
+        };
+    return {
+      store: stamped.store,
+      portal: { ...stamped.portal, last_seen_at: portal.last_seen_at },
+      customer: nextCustomer,
+    };
+  } catch {
+    return { store, portal, customer };
+  }
+}
+
 function portalJson(
   store: HiregraphStore,
   portal: HireCustomerPortal,
@@ -218,44 +274,15 @@ export async function GET(request: NextRequest) {
         [key]: portal,
       },
     };
-    try {
-      const auth = await requireVerifiedUser(request, {
-        legacyPrivyUserId: legacyPrivyFrom(request),
-      });
-      if (auth.ok) {
-        const userId = getCanonicalUserId(auth.userId);
-        const wallet = userId ? await loadB2cProfile(userId) : null;
-        if (wallet) {
-          const stamped = applyWalletToHirePortal(
-            store,
-            resolved.portal.crm_customer_id,
-            {
-              user_id: wallet.user_id,
-              full_name: wallet.full_name,
-              email: wallet.email,
-              phone: wallet.phone,
-              photo_url: wallet.photo_url,
-              city: wallet.city,
-              id_number: wallet.id_number,
-              identity: identityFromProfile(wallet),
-            }
-          );
-          store = stamped.store;
-          portal = { ...stamped.portal, last_seen_at: portal.last_seen_at };
-          if (wallet.full_name) {
-            resolved.customer = {
-              ...resolved.customer,
-              name: wallet.full_name,
-              email: wallet.email || resolved.customer.email,
-              phone: wallet.phone || resolved.customer.phone,
-              city: wallet.city || resolved.customer.city,
-            };
-          }
-        }
-      }
-    } catch {
-      /* portal works without a wallet session */
-    }
+    const stamped = await stampWalletFromRequest(
+      request,
+      store,
+      portal,
+      resolved.customer
+    );
+    store = stamped.store;
+    portal = stamped.portal;
+    resolved.customer = stamped.customer;
     try {
       await saveStore(resolved.companyId, resolved.meta, store);
     } catch {
@@ -384,6 +411,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         ...portalJson(store, portal, customer, companyName, companyId),
         message: 'Hire requirements updated',
+      });
+    }
+
+    if (action === 'link_wallet' || action === 'sync_wallet') {
+      const stamped = await stampWalletFromRequest(
+        request,
+        store,
+        portal,
+        customer
+      );
+      store = stamped.store;
+      portal = stamped.portal;
+      customer = stamped.customer;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        ...portalJson(store, portal, customer, companyName, companyId),
+        message: 'SA Member profile linked',
       });
     }
 

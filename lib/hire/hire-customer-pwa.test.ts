@@ -133,5 +133,10 @@ assert.equal(payload.catalogue[0]?.srm_supplier_id, 10);
 assert.equal(payload.suppliers.length, 1);
 assert.equal(payload.suppliers[0]?.name, 'Acme Plant');
 assert.equal(payload.suppliers[0]?.item_count, 1);
+assert.equal(payload.brand, 'HireAdvisor®');
+assert.equal(payload.app_name, 'HireAdvisor®');
+assert.equal(payload.desk_name, 'Big Five Hire');
+assert.equal(payload.logo_url, null);
+assert.doesNotMatch(String(payload.brand), /VUKA|Acme Hire|Big Five/i);
 
 console.log('hire-customer-pwa.test.ts ok');

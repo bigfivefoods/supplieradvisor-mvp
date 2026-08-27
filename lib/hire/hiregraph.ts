@@ -16,7 +16,10 @@ import {
   HIRE_SUPPLIER_COMMISSION_PCT,
 } from '@/lib/hire/commercial';
 import { applyDateUnits, busyDatesForItem } from '@/lib/hire/availability';
-import { groupHireSuppliers } from '@/lib/hire/hire-customer-pwa';
+import {
+  groupHireSuppliers,
+  HIRE_PWA_APP_MARK,
+} from '@/lib/hire/hire-customer-pwa';
 import {
   normalizeAnnouncements,
   publishedAnnouncements,
@@ -987,10 +990,11 @@ export function buildHireCustomerPortalPayload(
     ...defaultHirePublicSettings(),
     ...(store.settings || {}),
   };
-  const brand =
+  const deskName =
     settings.brand_name ||
     opts?.companyName ||
-    'Hire marketplace';
+    'Hire desk';
+  const brand = HIRE_PWA_APP_MARK;
 
   const catalogue = (store.items || [])
     .filter(
@@ -1126,10 +1130,10 @@ export function buildHireCustomerPortalPayload(
 
   return {
     brand,
+    app_name: HIRE_PWA_APP_MARK,
+    desk_name: deskName,
     public_token: settings.public_token || null,
-    logo_url: logoUrlFromSettings(
-      settings as { company_logo_url?: string | null }
-    ),
+    logo_url: null,
     bio: settings.public_bio || '',
     contact_email: settings.contact_email || customer.email || null,
     contact_phone: settings.contact_phone || customer.phone || null,

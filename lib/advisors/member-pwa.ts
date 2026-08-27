@@ -353,18 +353,28 @@ export function buildAdvisorPwaBrand(opts: {
     String(opts.settings.pwa_theme_color || opts.settings.embed_primary_color || opts.settings.primary_color || ''),
     defaultTheme(opts.module)
   );
-  const brandName =
-    String(opts.settings.pwa_name || opts.settings.brand_name || '').trim() ||
-    ADVISOR_LABEL[opts.module];
-  const short =
-    String(opts.settings.pwa_short_name || '').trim() || pwaShortName(brandName);
-  const desc =
-    String(opts.settings.pwa_description || opts.settings.public_bio || '').trim() ||
-    `${brandName} — ${copy.audienceSingular} app on your phone.`;
-  const icon =
-    preferPngLogoUrl(String(opts.settings.pwa_icon_url || '').trim()) ||
-    logoUrlFromSettings(opts.settings) ||
-    '/sa-icon-512.png';
+  const hire = opts.module === 'hiregraph';
+  const companyLogo = logoUrlFromSettings(opts.settings);
+  const customPwaName = String(opts.settings.pwa_name || '').trim();
+  const listingName = String(opts.settings.brand_name || '').trim();
+  const brandName = hire
+    ? ADVISOR_LABEL.hiregraph
+    : customPwaName || listingName || ADVISOR_LABEL[opts.module];
+  const short = hire
+    ? 'HireAdvisor'
+    : String(opts.settings.pwa_short_name || '').trim() || pwaShortName(brandName);
+  const desc = hire
+    ? 'Search suppliers, hire kit, and track it on your phone.'
+    : String(opts.settings.pwa_description || opts.settings.public_bio || '').trim() ||
+      `${brandName} — ${copy.audienceSingular} app on your phone.`;
+  const customIcon = preferPngLogoUrl(
+    String(opts.settings.pwa_icon_url || '').trim()
+  );
+  const icon = hire
+    ? customIcon && customIcon !== companyLogo
+      ? customIcon
+      : '/sa-icon-512.png'
+    : customIcon || companyLogo || '/sa-icon-512.png';
   const enabled = opts.settings.pwa_enabled !== false;
   return {
     module: opts.module,

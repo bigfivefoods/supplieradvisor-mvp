@@ -24,7 +24,6 @@ export function HireAdvisorSearchTab({
   areaOptions,
   suppliers,
   kit,
-  deskName,
   zar,
   onOpenSupplier,
   onOpenItem,
@@ -36,7 +35,6 @@ export function HireAdvisorSearchTab({
   areaOptions: string[];
   suppliers: HirePwaSupplier[];
   kit: KitItem[];
-  deskName: string;
   zar: (n: number | null | undefined) => string;
   onOpenSupplier: (supplier: HirePwaSupplier) => void;
   onOpenItem: (item: KitItem) => void;
@@ -101,7 +99,7 @@ export function HireAdvisorSearchTab({
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-black text-slate-900">Suppliers</h3>
         <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-          {suppliers.length} on {deskName}
+          {suppliers.length} to hire
         </span>
       </div>
 

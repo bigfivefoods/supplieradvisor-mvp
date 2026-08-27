@@ -1,7 +1,11 @@
 /**
  * HireAdvisor® customer PWA — Search · Hire · You · Track · Nearby
  * with You lifted in the centre of the phone dock.
+ * Chrome is the HireAdvisor product — never the listing company (e.g. a gym).
  */
+
+export const HIRE_PWA_APP_NAME = 'HireAdvisor';
+export const HIRE_PWA_APP_MARK = 'HireAdvisor®';
 
 export const HIRE_CUSTOMER_PWA_DOCK = [
   'search',

@@ -2472,8 +2472,8 @@ export function AdvisorGrowPreviews({
                 phone: (
                   <HireMemberPwaMock
                     copy={copy}
-                    brand={brand}
-                    logoUrl={logoUrl}
+                    brand="HireAdvisor"
+                    logoUrl={null}
                     color={color}
                     dark={dark}
                     screen={s.id as HirePreviewScreen}
