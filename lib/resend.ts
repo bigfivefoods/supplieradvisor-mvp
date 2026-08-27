@@ -57,7 +57,8 @@ export function getResend(): Resend {
       const { wrapSystemNotificationHtml } = await import(
         '@/lib/services/advisor-branded-email'
       );
-      next.html = wrapSystemNotificationHtml(raw.html);
+      const { unstretchEmailLogos } = await import('@/lib/email/email-logos');
+      next.html = unstretchEmailLogos(wrapSystemNotificationHtml(raw.html));
     }
     if (!next.from) next.from = from;
     if (next.replyTo == null && next.reply_to == null) {

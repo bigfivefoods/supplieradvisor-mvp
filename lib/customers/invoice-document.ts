@@ -474,10 +474,12 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
     .logo {
       max-height: 56px;
       max-width: 180px;
+      width: auto;
+      height: auto;
       object-fit: contain;
+      object-position: left center;
       display: block;
       margin-bottom: 10px;
-      border-radius: 6px;
     }
     .logo-fallback {
       width: 48px;
@@ -671,7 +673,7 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
       .pad { padding: 0 0 4mm; }
       .topbar { height: 4px; }
       .hero { margin-bottom: 8px; gap: 10px; }
-      .logo { max-height: 48px; max-width: 160px; margin-bottom: 6px; }
+      .logo { max-height: 48px; max-width: 160px; width: auto; height: auto; object-fit: contain; margin-bottom: 6px; }
       .logo-fallback { width: 40px; height: 40px; font-size: 16px; margin-bottom: 6px; }
       h1 { font-size: 18px; }
       .parties { gap: 8px; margin-bottom: 8px; }

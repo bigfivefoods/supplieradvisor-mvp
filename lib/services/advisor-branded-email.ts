@@ -4,6 +4,12 @@
  * waitlist, invite and follow-up mail.
  */
 import { SA_LOGO_SRC } from '@/lib/brand/assets';
+import {
+  emailContainLogo,
+  emailSaWordmark,
+  isSaWordmarkSrc,
+  unstretchEmailLogos,
+} from '@/lib/email/email-logos';
 import { preferPngLogoUrl } from '@/lib/business/company-logo';
 import { getAppUrl, getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 
@@ -231,13 +237,33 @@ const FONT =
   "ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
 function logoPlate(src: string, alt: string, maxHeight = 64): string {
+  const img = isSaWordmarkSrc(src)
+    ? emailSaWordmark({
+        src,
+        alt,
+        height: maxHeight,
+        maxWidth: 240,
+        margin: '0 auto',
+      })
+    : emailContainLogo({ src, alt, maxHeight, maxWidth: 240 });
   return `<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 14px;">
     <tr>
       <td style="background:#ffffff;border-radius:20px;padding:14px 22px;box-shadow:0 10px 28px rgba(15,23,42,0.14);">
-        <img src="${escapeEmailHtml(src)}" alt="${escapeEmailHtml(alt)}" height="${maxHeight}" style="display:block;margin:0 auto;max-height:${maxHeight}px;max-width:240px;width:auto;height:auto;border:0;outline:none;" />
+        ${img}
       </td>
     </tr>
   </table>`;
+}
+
+/** Footer wordmark — native 640×277, never a square box. */
+function platformFooterMark(src: string, height = 36): string {
+  return emailSaWordmark({
+    src,
+    alt: 'SupplierAdvisor',
+    height,
+    maxWidth: 180,
+    margin: '16px auto 10px',
+  });
 }
 
 export type ClientEmailLayoutInput = {
@@ -281,7 +307,7 @@ export function renderClientEmailLayout(input: ClientEmailLayoutInput): string {
          </p>`
       : '';
 
-  return `<!DOCTYPE html>
+  return unstretchEmailLogos(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -329,7 +355,7 @@ export function renderClientEmailLayout(input: ClientEmailLayoutInput): string {
           </tr>
           <tr>
             <td style="padding:4px 36px 32px;font-family:${FONT};text-align:center;">
-              <img src="${escapeEmailHtml(chrome.platformLogo)}" alt="SupplierAdvisor" width="40" height="40" style="display:block;margin:16px auto 10px;width:40px;height:40px;border:0;border-radius:12px;background:#ffffff;" />
+              ${platformFooterMark(chrome.platformLogo)}
               <p style="margin:0;font-size:13px;font-weight:800;letter-spacing:-0.2px;color:#0f172a;">
                 SupplierAdvisor®
               </p>
@@ -351,7 +377,7 @@ export function renderClientEmailLayout(input: ClientEmailLayoutInput): string {
     </tr>
   </table>
 </body>
-</html>`;
+</html>`);
 }
 
 function detailCard(opts: {
@@ -648,7 +674,7 @@ export function wrapSystemNotificationHtml(
 ): string {
   const raw = String(html || '');
   if (!raw.trim()) return raw;
-  if (raw.includes(SYSTEM_EMAIL_CHROME_MARK)) return raw;
+  if (raw.includes(SYSTEM_EMAIL_CHROME_MARK)) return unstretchEmailLogos(raw);
 
   const inner = extractEmailInnerHtml(raw);
   const chrome = clientEmailChrome({
@@ -667,7 +693,7 @@ export function wrapSystemNotificationHtml(
     mark = logoPlate(chrome.platformLogo, 'SupplierAdvisor', 58);
   }
 
-  return `<!DOCTYPE html>
+  return unstretchEmailLogos(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -701,7 +727,7 @@ export function wrapSystemNotificationHtml(
           </tr>
           <tr>
             <td style="padding:4px 36px 32px;font-family:${FONT};text-align:center;">
-              <img src="${escapeEmailHtml(chrome.platformLogo)}" alt="SupplierAdvisor" width="40" height="40" style="display:block;margin:16px auto 10px;width:40px;height:40px;border:0;border-radius:12px;background:#ffffff;" />
+              ${platformFooterMark(chrome.platformLogo)}
               <p style="margin:0;font-size:13px;font-weight:800;letter-spacing:-0.2px;color:#0f172a;">
                 SupplierAdvisor®
               </p>
@@ -715,7 +741,7 @@ export function wrapSystemNotificationHtml(
     </tr>
   </table>
 </body>
-</html>`;
+</html>`);
 }
 
 function tryResend() {

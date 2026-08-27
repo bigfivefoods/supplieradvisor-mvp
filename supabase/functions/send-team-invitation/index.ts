@@ -52,7 +52,7 @@ serve(async (req: Request) => {
       html: `
         <div data-sa-email-chrome="1" style="font-family: system-ui, sans-serif; max-width: 620px; margin: 0 auto; padding: 40px;">
           <div style="text-align:center;margin-bottom:24px;">
-            <img src="${appUrl}/sa-logo.png" alt="SupplierAdvisor" width="48" height="48" style="display:block;margin:0 auto 8px;border:0;" />
+            <img src="${appUrl}/sa-logo.png" alt="SupplierAdvisor" width="83" height="36" style="display:block;margin:0 auto 8px;width:83px;height:36px;max-width:180px;border:0;outline:none;" />
             <p style="margin:0;font-size:11px;letter-spacing:.18em;font-weight:800;text-transform:uppercase;color:#0077b6;">SupplierAdvisor®</p>
             <p style="margin:8px 0 0;font-size:18px;font-weight:800;color:#0f172a;">${company_name}</p>
           </div>

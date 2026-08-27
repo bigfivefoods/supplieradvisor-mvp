@@ -2,6 +2,7 @@
  * Run: npx --yes tsx lib/services/advisor-branded-email.test.ts
  */
 import assert from 'node:assert/strict';
+import { saLogoBox } from '@/lib/brand/assets';
 import {
   advisorEmailSkin,
   appointmentEndMs,
@@ -14,6 +15,10 @@ import {
   supplierAdvisorLogoUrl,
   wrapSystemNotificationHtml,
 } from './advisor-branded-email';
+
+assert.deepEqual(saLogoBox(36), { width: 83, height: 36 });
+assert.deepEqual(saLogoBox(58), { width: 134, height: 58 });
+assert.notEqual(saLogoBox(40).width, 40);
 
 assert.equal(advisorEmailSkin('medicalgraph').product, 'MedicalAdvisor®');
 assert.equal(advisorEmailSkin('MedicalAdvisor®').accent, '#4f46e5');
@@ -44,6 +49,8 @@ assert.match(pre.html, /SA Member/);
 assert.match(pre.html, /ailments/);
 assert.match(pre.html, /Update SA Member profile/);
 assert.doesNotMatch(pre.html, /Rate your session/);
+assert.doesNotMatch(pre.html, /width="40" height="40"/);
+assert.match(pre.html, /width="83" height="36"/);
 
 const post = renderAdvisorSessionEmail({
   kind: 'post',
@@ -125,6 +132,8 @@ assert.match(invoice.html, /View invoice in SA Member/);
 assert.match(invoice.html, /R850/);
 assert.match(invoice.html, /PhysioAdvisor®/);
 assert.match(invoice.html, /sa-logo\.png/);
+assert.doesNotMatch(invoice.html, /width="40" height="40"/);
+assert.match(invoice.html, /width="83" height="36"/);
 
 const withLogo = clientEmailChrome({
   moduleKey: 'fitgraph',
@@ -152,6 +161,8 @@ assert.doesNotMatch(gymNoLogo.html, /medical aid/);
 assert.doesNotMatch(gymNoLogo.html, /clinician/);
 assert.doesNotMatch(gymNoLogo.html, /SA Member/);
 assert.match(gymNoLogo.html, /sa-logo\.png/);
+assert.doesNotMatch(gymNoLogo.html, /width="40" height="40"/);
+assert.match(gymNoLogo.html, /width="83" height="36"/);
 assert.doesNotMatch(gymNoLogo.html, /cdn\.example\.com/);
 const gymChrome = clientEmailChrome({ moduleKey: 'fitgraph' });
 assert.equal(gymChrome.ctaBg, '#111111');
@@ -177,6 +188,9 @@ assert.doesNotMatch(coreOnly.html, /GymAdvisor/);
 assert.ok(supplierAdvisorLogoUrl().includes('sa-logo.png'));
 assert.match(supplierAdvisorLogoUrl(), /https:\/\/www\.supplieradvisor\.com\/sa-logo\.png/);
 assert.match(coreOnly.html, /data-sa-email-chrome/);
+assert.doesNotMatch(coreOnly.html, /width="40" height="40"/);
+assert.match(coreOnly.html, /width="83" height="36"/);
+assert.match(coreOnly.html, /width="134" height="58"/);
 
 const wrapped = wrapSystemNotificationHtml(
   '<p>Your PO was accepted.</p>',
@@ -197,5 +211,13 @@ const wrappedLogo = wrapSystemNotificationHtml('<p>Hello</p>', {
 assert.match(wrappedLogo, /uploads\/clinic\.png/);
 assert.match(wrappedLogo, /MedicalAdvisor/);
 assert.match(wrappedLogo, /sa-logo\.png/);
+assert.match(wrappedLogo, /object-fit:contain/);
+assert.doesNotMatch(wrappedLogo, /width="40" height="40"/);
+
+const oldSquareFooter = wrapSystemNotificationHtml(
+  `<body data-sa-email-chrome="1"><img src="https://www.supplieradvisor.com/sa-logo.png" alt="SupplierAdvisor" width="40" height="40" style="width:40px;height:40px;" /></body>`
+);
+assert.match(oldSquareFooter, /width="83" height="36"/);
+assert.doesNotMatch(oldSquareFooter, /width="40" height="40"/);
 
 console.log('advisor-branded-email.test.ts ok');
