@@ -14,7 +14,7 @@ import {
   buildCustomerInviteLink,
   customerInviteEmailHtml,
 } from '@/lib/invites/email';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 
 /**
  * POST /api/customers/invites/resend
@@ -33,7 +33,6 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const companyId = Number(body.companyId);
-    const privyUserId = body.privyUserId;
     let customerId = body.customerId != null ? Number(body.customerId) : NaN;
     const invitationId =
       body.invitationId != null ? Number(body.invitationId) : null;
@@ -42,10 +41,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
     }
 
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: body.privyUserId || legacyPrivyFrom(request),
+    });
     if (!_gate.ok) return _gate.response;
 
-    const member = await assertCustomersAccess(privyUserId, companyId, 'write');
+    const member = await assertCustomersAccess(_gate.userId, companyId, 'write');
     if (!member.ok) {
       return NextResponse.json({ error: member.error }, { status: member.status });
     }

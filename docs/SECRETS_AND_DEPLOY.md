@@ -13,6 +13,10 @@
 | `VERIFYNOW_MODE` | `production` or `sandbox` |
 | `NEXT_PUBLIC_PRIVY_APP_ID` | Auth |
 | `PRIVY_*` | Privy server secrets as configured |
+| `PLATFORM_OWNER_EMAILS` | Comma-separated control-plane owner inboxes (no git defaults) |
+| `PLATFORM_OPERATOR_EMAILS` | Comma-separated platform operators (optional; owners fall back to this list) |
+| `INVOICE_FEEDBACK_SECRET` | HMAC for invoice QR tokens (else `DOC_SHARE_SECRET` / `CRON_SECRET`) |
+| `INVOICE_FEEDBACK_ALLOW_LEGACY` | Default true; set `false` after re-issuing printed invoice QRs |
 | `INVENTORY_PASSPORT_ADDRESS` | On-chain product passport |
 | `PRIVATE_KEY` | Sepolia/Base minter (never commit) |
 | `CRON_SECRET` | Cron routes |

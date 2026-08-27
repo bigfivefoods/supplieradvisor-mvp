@@ -24,18 +24,9 @@ export async function requirePlatformConsoleAccess(request: NextRequest): Promis
   });
   if (!gate.ok) return { ok: false, response: gate.response };
 
-  const hintEmail = (
-    request.nextUrl.searchParams.get('email') ||
-    request.headers.get('x-platform-email') ||
-    ''
-  )
-    .trim()
-    .toLowerCase();
-
-  let emails = await resolveEmailsForUserId(gate.userId);
-  if (hintEmail && hintEmail.includes('@') && !emails.includes(hintEmail)) {
-    emails = [...emails, hintEmail];
-  }
+  const emails = [
+    ...new Set([...(gate.emails || []), ...(await resolveEmailsForUserId(gate.userId))]),
+  ];
 
   const emailIsOwner = emails.some(
     (e) => isPlatformOwnerEmail(e) || isPlatformOperatorEmail(e)

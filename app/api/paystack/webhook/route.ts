@@ -74,16 +74,39 @@ export async function POST(request: NextRequest) {
         ''
     ).trim();
 
+    const retry = (body: Record<string, unknown>, status = 503) =>
+      NextResponse.json(body, {
+        status,
+        headers: { 'Retry-After': '30' },
+      });
+
     const claim = reference
       ? await claimPaystackWebhook(reference, eventName || 'unknown')
       : null;
-    if (claim && !claim.first && claim.handled) {
+    if (reference && (!claim || !claim.ok)) {
+      return retry({
+        error: 'Webhook claim unavailable — run RUN_THIS_FOR_SECURITY_RELIABILITY.sql',
+        code: 'WEBHOOK_CLAIM_UNAVAILABLE',
+        reference,
+        reason: claim && !claim.ok ? claim.error : 'missing_reference',
+      });
+    }
+    if (claim && claim.ok && !claim.first && claim.handled) {
       return NextResponse.json({
         received: true,
         handled: 'already',
         duplicate: true,
         reference,
         previous: claim.handled,
+        hits: claim.hits,
+      });
+    }
+    if (claim && claim.ok && claim.inFlight) {
+      return retry({
+        received: true,
+        handled: 'in_flight',
+        code: 'WEBHOOK_IN_FLIGHT',
+        reference,
         hits: claim.hits,
       });
     }
@@ -176,13 +199,13 @@ export async function POST(request: NextRequest) {
                 event: eventName,
                 reference,
                 companyId,
-                handled: 'cipc_verify_skipped',
+                handled: 'cipc_verify_failed',
                 action: 'billing.paystack_cipc_webhook',
-                summary: `CIPC skipped: ${v.error}`,
+                summary: `CIPC verify failed: ${v.error}`,
               });
-              return NextResponse.json({
+              return retry({
                 received: true,
-                handled: 'cipc_verify_skipped',
+                handled: 'cipc_verify_failed',
                 reason: v.error,
                 reference,
                 companyId,
@@ -282,7 +305,7 @@ export async function POST(request: NextRequest) {
                 handled: 'subscription_verify_failed',
                 summary: v.error,
               });
-              return NextResponse.json({
+              return retry({
                 received: true,
                 handled: 'subscription_verify_failed',
                 reason: v.error,
@@ -454,7 +477,13 @@ export async function POST(request: NextRequest) {
           }
         }
       } catch (e) {
-        console.warn('[paystack webhook] subscription/packs soft-fail', e);
+        console.warn('[paystack webhook] subscription/packs apply failed', e);
+        return retry({
+          received: true,
+          handled: 'subscription_apply_failed',
+          reference,
+          error: e instanceof Error ? e.message : 'subscription_apply_failed',
+        });
       }
 
       try {
@@ -475,7 +504,7 @@ export async function POST(request: NextRequest) {
               handled: 'gym_sale_verify_failed',
               summary: v.error,
             });
-            return NextResponse.json({
+            return retry({
               received: true,
               handled: 'gym_sale_verify_failed',
               reason: v.error,
@@ -487,9 +516,6 @@ export async function POST(request: NextRequest) {
             reference,
           });
           const handled = applied.ok ? 'gym_sale_paid' : 'gym_sale_failed';
-          if (applied.ok) {
-            await markPaystackWebhook(reference, eventName, handled);
-          }
           void recordPaystackWebhookPulse({
             event: eventName,
             reference,
@@ -499,6 +525,15 @@ export async function POST(request: NextRequest) {
               ? `Gym sale ${applied.saleId}`
               : applied.error,
           });
+          if (!applied.ok) {
+            return retry({
+              received: true,
+              handled,
+              reference,
+              ...applied,
+            });
+          }
+          await markPaystackWebhook(reference, eventName, handled);
           return NextResponse.json({
             received: true,
             handled,
@@ -507,7 +542,13 @@ export async function POST(request: NextRequest) {
           });
         }
       } catch (e) {
-        console.warn('[paystack webhook] gym-sale soft-fail', e);
+        console.warn('[paystack webhook] gym-sale apply failed', e);
+        return retry({
+          received: true,
+          handled: 'gym_sale_apply_failed',
+          reference,
+          error: e instanceof Error ? e.message : 'gym_sale_apply_failed',
+        });
       }
 
       try {
@@ -528,7 +569,7 @@ export async function POST(request: NextRequest) {
               handled: 'member_account_verify_failed',
               summary: v.error,
             });
-            return NextResponse.json({
+            return retry({
               received: true,
               handled: 'member_account_verify_failed',
               reason: v.error,
@@ -565,27 +606,40 @@ export async function POST(request: NextRequest) {
                 : null,
             },
           });
-          if (applied.ok) {
-            await markPaystackWebhook(
+          if (!applied.ok) {
+            return retry({
+              received: true,
+              handled: 'member_account_failed',
               reference,
-              eventName,
-              'member_account_paid'
-            );
+              ...applied,
+            });
           }
+          await markPaystackWebhook(
+            reference,
+            eventName,
+            'member_account_paid'
+          );
           return NextResponse.json({
             received: true,
-            handled: applied.ok
-              ? 'member_account_paid'
-              : 'member_account_failed',
+            handled: 'member_account_paid',
             reference,
             ...applied,
           });
         }
       } catch (e) {
-        console.warn('[paystack webhook] member-account soft-fail', e);
+        console.warn('[paystack webhook] member-account apply failed', e);
+        return retry({
+          received: true,
+          handled: 'member_account_apply_failed',
+          reference,
+          error: e instanceof Error ? e.message : 'member_account_apply_failed',
+        });
       }
     }
 
+    if (reference) {
+      await markPaystackWebhook(reference, eventName || 'unknown', 'ignored');
+    }
     return NextResponse.json({
       received: true,
       handled: 'ignored',

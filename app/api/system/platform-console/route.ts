@@ -7,7 +7,7 @@ import {
   canAccessPlatformConsole,
   ensurePlatformCompany,
   isPlatformOwnerEmail,
-  PLATFORM_OWNER_EMAILS,
+  platformOwnerEmails,
 } from '@/lib/system/platform-company';
 import { loadPlatformConsoleReports } from '@/lib/system/platform-metrics';
 import {
@@ -29,19 +29,12 @@ export async function GET(request: NextRequest) {
     });
     if (!gate.ok) return gate.response;
 
-    const hintEmail = (
-      request.nextUrl.searchParams.get('email') ||
-      request.headers.get('x-platform-email') ||
-      ''
-    )
-      .trim()
-      .toLowerCase();
-
-    // Seed access from membership emails + optional Privy email hint
-    let emails = await resolveEmailsForUserId(gate.userId);
-    if (hintEmail && hintEmail.includes('@') && !emails.includes(hintEmail)) {
-      emails = [...emails, hintEmail];
-    }
+    const emails = [
+      ...new Set([
+        ...(gate.emails || []),
+        ...(await resolveEmailsForUserId(gate.userId)),
+      ]),
+    ];
 
     const emailIsOwner = emails.some(
       (e) => isPlatformOwnerEmail(e) || isPlatformOperatorEmail(e)
@@ -68,7 +61,7 @@ export async function GET(request: NextRequest) {
     if (ensure || !access.companyId || emailIsOwner) {
       ensureResult = await ensurePlatformCompany({
         userId: gate.userId,
-        email: emails[0] || hintEmail || null,
+        jwtEmails: emails,
       });
       access = await canAccessPlatformConsole(gate.userId);
       // After ensure, owner email hint is enough
@@ -86,7 +79,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       access,
-      owner_emails: PLATFORM_OWNER_EMAILS,
+      owner_emails: platformOwnerEmails(),
       ensure: ensureResult
         ? {
             created: ensureResult.created,

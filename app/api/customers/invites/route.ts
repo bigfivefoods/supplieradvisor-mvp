@@ -15,7 +15,7 @@ import {
   buildCustomerInviteLink,
   customerInviteEmailHtml,
 } from '@/lib/invites/email';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 
 /**
  * POST /api/customers/invites
@@ -34,7 +34,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const companyId = Number(body.companyId);
     const customerId = Number(body.customerId);
-    const privyUserId = body.privyUserId;
 
     if (!Number.isFinite(companyId) || !Number.isFinite(customerId)) {
       return NextResponse.json(
@@ -43,7 +42,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const member = await assertCustomersAccess(privyUserId, companyId, 'write');
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: body.privyUserId || legacyPrivyFrom(request),
+    });
+    if (!_gate.ok) return _gate.response;
+
+    const member = await assertCustomersAccess(_gate.userId, companyId, 'write');
     if (!member.ok) {
       return NextResponse.json({ error: member.error }, { status: member.status });
     }
@@ -280,7 +284,6 @@ export async function GET(request: NextRequest) {
 
     const sp = request.nextUrl.searchParams;
     const companyId = Number(sp.get('companyId'));
-    const privyUserId = sp.get('privyUserId');
     const status = sp.get('status');
     const customerId = sp.get('customerId') ? Number(sp.get('customerId')) : null;
 
@@ -288,10 +291,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
     }
 
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
     if (!_gate.ok) return _gate.response;
 
-    const member = await assertCustomersAccess(privyUserId, companyId, 'view');
+    const member = await assertCustomersAccess(_gate.userId, companyId, 'view');
     if (!member.ok) {
       return NextResponse.json({ error: member.error }, { status: member.status });
     }

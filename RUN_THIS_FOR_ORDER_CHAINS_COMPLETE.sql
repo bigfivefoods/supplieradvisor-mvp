@@ -93,15 +93,14 @@ CREATE INDEX IF NOT EXISTS idx_order_chain_setups_supplier
 ALTER TABLE public.order_chain_setups ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE schemaname='public' AND tablename='order_chain_setups' AND policyname='order_chain_setups_all'
+  IF EXISTS (
+    SELECT 1 FROM pg_proc
+    WHERE proname = 'sa_lock_table' AND pg_function_is_visible(oid)
   ) THEN
-    CREATE POLICY order_chain_setups_all ON public.order_chain_setups
-      FOR ALL USING (true) WITH CHECK (true);
+    PERFORM public.sa_lock_table('order_chain_setups');
   END IF;
 EXCEPTION WHEN others THEN
-  RAISE NOTICE 'order_chain_setups policy skip: %', SQLERRM;
+  RAISE NOTICE 'sa_lock_table order_chain_setups skip: %', SQLERRM;
 END $$;
 
 -- ── order_links (SO ↔ manufacturer PO) ───────────────────────────────────────
@@ -159,14 +158,14 @@ SELECT public.sa_create_index('idx_order_links_status', 'order_links', 'company_
 ALTER TABLE public.order_links ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE schemaname='public' AND tablename='order_links' AND policyname='order_links_all'
+  IF EXISTS (
+    SELECT 1 FROM pg_proc
+    WHERE proname = 'sa_lock_table' AND pg_function_is_visible(oid)
   ) THEN
-    CREATE POLICY order_links_all ON public.order_links FOR ALL USING (true) WITH CHECK (true);
+    PERFORM public.sa_lock_table('order_links');
   END IF;
 EXCEPTION WHEN others THEN
-  RAISE NOTICE 'order_links policy skip: %', SQLERRM;
+  RAISE NOTICE 'sa_lock_table order_links skip: %', SQLERRM;
 END $$;
 
 -- ── Production cascade on sales_orders ───────────────────────────────────────
@@ -231,14 +230,14 @@ SELECT public.sa_create_index('idx_order_batches_batch', 'order_batches', 'batch
 ALTER TABLE public.order_batches ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE schemaname='public' AND tablename='order_batches' AND policyname='order_batches_all'
+  IF EXISTS (
+    SELECT 1 FROM pg_proc
+    WHERE proname = 'sa_lock_table' AND pg_function_is_visible(oid)
   ) THEN
-    CREATE POLICY order_batches_all ON public.order_batches FOR ALL USING (true) WITH CHECK (true);
+    PERFORM public.sa_lock_table('order_batches');
   END IF;
 EXCEPTION WHEN others THEN
-  RAISE NOTICE 'order_batches policy skip: %', SQLERRM;
+  RAISE NOTICE 'sa_lock_table order_batches skip: %', SQLERRM;
 END $$;
 
 -- ── supplier_payments (optional POP on a manufacturer PO) ────────────────────
@@ -286,14 +285,14 @@ SELECT public.sa_create_index('idx_supplier_payments_status', 'supplier_payments
 ALTER TABLE public.supplier_payments ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE schemaname='public' AND tablename='supplier_payments' AND policyname='supplier_payments_all'
+  IF EXISTS (
+    SELECT 1 FROM pg_proc
+    WHERE proname = 'sa_lock_table' AND pg_function_is_visible(oid)
   ) THEN
-    CREATE POLICY supplier_payments_all ON public.supplier_payments FOR ALL USING (true) WITH CHECK (true);
+    PERFORM public.sa_lock_table('supplier_payments');
   END IF;
 EXCEPTION WHEN others THEN
-  RAISE NOTICE 'supplier_payments policy skip: %', SQLERRM;
+  RAISE NOTICE 'sa_lock_table supplier_payments skip: %', SQLERRM;
 END $$;
 
 SELECT public.sa_add_column('manufacturing_production_orders', 'purchase_order_id', 'bigint');

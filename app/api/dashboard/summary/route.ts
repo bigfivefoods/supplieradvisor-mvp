@@ -98,12 +98,14 @@ export async function POST(request: NextRequest) {
       // CRM feedback stars
       invoiceFeedbackRes,
       customerPeerRatingsRes,
+      dashboardRollupRes,
     ] = await Promise.all([
       supabase
         .from('business_users')
         .select('id, name, email, invited_email, role, status, created_at, joined_at, invited_at')
         .eq('profile_id', companyId)
-        .order('created_at', { ascending: false }),
+        .order('created_at', { ascending: false })
+        .limit(200),
 
       supabase
         .from('invitations')
@@ -166,20 +168,23 @@ export async function POST(request: NextRequest) {
         .select(
           'id, status, requested_at, accepted_at, requester_profile_id, requestee_profile_id, requester_id, requestee_id'
         )
-        .or(`requester_profile_id.eq.${companyId},requestee_profile_id.eq.${companyId}`),
+        .or(`requester_profile_id.eq.${companyId},requestee_profile_id.eq.${companyId}`)
+        .limit(200),
 
       did
         ? supabase
             .from('business_connections')
             .select('id, status, requested_at, accepted_at, requester_id, requestee_id, message')
             .or(`requester_id.eq.${did},requestee_id.eq.${did}`)
+            .limit(200)
         : Promise.resolve({ data: [] as Record<string, unknown>[], error: null }),
 
       supabase
         .from('containers')
         .select('id, name, container_code, status, city, contractor_id, assigned_contractor, created_at')
         .eq('profile_id', companyId)
-        .order('created_at', { ascending: false }),
+        .order('created_at', { ascending: false })
+        .limit(200),
 
       supabase
         .from('container_contractors')
@@ -187,12 +192,14 @@ export async function POST(request: NextRequest) {
           'id, full_name, email, status, portal_status, verification_status, training_status, created_at, contract_accepted_at, id_number'
         )
         .eq('profile_id', companyId)
-        .order('created_at', { ascending: false }),
+        .order('created_at', { ascending: false })
+        .limit(200),
 
       supabase
         .from('container_inventory')
         .select('id, qty_on_hand, reorder_level, product_name, container_id')
-        .eq('profile_id', companyId),
+        .eq('profile_id', companyId)
+        .limit(500),
 
       supabase
         .from('container_sales')
@@ -204,12 +211,14 @@ export async function POST(request: NextRequest) {
       supabase
         .from('stock_levels')
         .select('id, qty_on_hand, qty_reserved, reorder_level, product_id')
-        .eq('profile_id', companyId),
+        .eq('profile_id', companyId)
+        .limit(500),
 
       supabase
         .from('warehouses')
         .select('id, name, status')
-        .eq('profile_id', companyId),
+        .eq('profile_id', companyId)
+        .limit(100),
 
       supabase
         .from('customers')
@@ -336,6 +345,10 @@ export async function POST(request: NextRequest) {
         .eq('ratee_role', 'customer')
         .eq('status', 'published')
         .limit(500),
+
+      supabase.rpc('sa_dashboard_home_rollup', {
+        p_profile_id: companyId,
+      }),
     ]);
 
     const team = (teamRes.data || []).filter((m) =>
@@ -401,18 +414,18 @@ export async function POST(request: NextRequest) {
       requestee_profile_id?: number | null;
     }>;
 
-    const teamActive = team.filter((m) => m.status === 'active').length;
-    const teamInvited = team.filter((m) => m.status === 'invited' || m.status === 'pending').length;
+    let teamActive = team.filter((m) => m.status === 'active').length;
+    let teamInvited = team.filter((m) => m.status === 'invited' || m.status === 'pending').length;
 
-    const connectionsAccepted = connections.filter(
+    let connectionsAccepted = connections.filter(
       (c) => c.status === 'accepted' || c.status === 'approved'
     ).length;
-    const connectionsPending = connections.filter((c) => c.status === 'pending').length;
-    const networkPendingIn = connections.filter(
+    let connectionsPending = connections.filter((c) => c.status === 'pending').length;
+    let networkPendingIn = connections.filter(
       (c) =>
         c.status === 'pending' && Number(c.requestee_profile_id) === companyId
     ).length;
-    const networkPendingOut = connections.filter(
+    let networkPendingOut = connections.filter(
       (c) =>
         c.status === 'pending' && Number(c.requester_profile_id) === companyId
     ).length;
@@ -443,7 +456,7 @@ export async function POST(request: NextRequest) {
     const productsCount = productsRes.count ?? 0;
     const documentsCount = (documentsRes.count ?? 0) + (companyDocsRes.count ?? 0);
 
-    const containersActive = containers.filter(
+    let containersActive = containers.filter(
       (c) => !c.status || c.status === 'active'
     ).length;
     const contractorsActive = contractors.filter((c) => c.status === 'active').length;
@@ -454,7 +467,7 @@ export async function POST(request: NextRequest) {
       (c) => c.portal_status === 'active' || c.contract_accepted_at
     ).length;
 
-    const containerLowStock = containerInv.filter(
+    let containerLowStock = containerInv.filter(
       (i) => Number(i.qty_on_hand) <= Number(i.reorder_level || 0)
     ).length;
     const containerUnits = containerInv.reduce((s, i) => s + Number(i.qty_on_hand || 0), 0);
@@ -468,9 +481,31 @@ export async function POST(request: NextRequest) {
       (s, i) => s + Number(i.qty_on_hand || 0),
       0
     );
-    const warehouseLowStock = stockLevels.filter(
+    let warehouseLowStock = stockLevels.filter(
       (i) => Number(i.qty_on_hand) <= Number(i.reorder_level || 0)
     ).length;
+
+    const rollupRaw =
+      !dashboardRollupRes.error &&
+      dashboardRollupRes.data &&
+      typeof dashboardRollupRes.data === 'object'
+        ? (dashboardRollupRes.data as Record<string, unknown>)
+        : null;
+    if (rollupRaw) {
+      const n = (k: string, fallback: number) => {
+        const v = Number(rollupRaw[k]);
+        return Number.isFinite(v) ? v : fallback;
+      };
+      teamActive = n('team_active', teamActive);
+      teamInvited = n('team_invited', teamInvited);
+      containersActive = n('containers_active', containersActive);
+      containerLowStock = n('container_inv_low', containerLowStock);
+      warehouseLowStock = n('stock_low', warehouseLowStock);
+      connectionsAccepted = n('connections_accepted', connectionsAccepted);
+      networkPendingIn = n('connections_pending_in', networkPendingIn);
+      networkPendingOut = n('connections_pending_out', networkPendingOut);
+      connectionsPending = networkPendingIn + networkPendingOut;
+    }
 
     // Activity feed
     const activity: DashboardActivity[] = [];

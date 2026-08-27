@@ -1,5 +1,7 @@
 -- Hot-path indexes + gym movement library module.
 -- Paste in the Supabase SQL editor. Safe to re-run.
+-- For PO/container/dashboard indexes + rollup RPC, also paste
+-- RUN_THIS_FOR_SECURITY_RELIABILITY.sql
 
 CREATE INDEX IF NOT EXISTS idx_customers_profile_email
   ON public.customers (profile_id, lower(email))

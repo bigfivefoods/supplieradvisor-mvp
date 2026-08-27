@@ -19,22 +19,14 @@ export async function GET(request: NextRequest) {
       .from('containers')
       .select('*')
       .eq('profile_id', companyId)
-      .order('updated_at', { ascending: false });
+      .order('updated_at', { ascending: false })
+      .limit(200);
 
-    // Fallback: if no profile-scoped rows, return all (legacy) then client can re-save
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    let rows = data || [];
-    if (rows.length === 0) {
-      const { data: legacy } = await supabase
-        .from('containers')
-        .select('*')
-        .is('profile_id', null)
-        .order('updated_at', { ascending: false });
-      rows = legacy || [];
-    }
+    const rows = data || [];
 
     return NextResponse.json({ success: true, containers: rows });
   } catch (e: unknown) {

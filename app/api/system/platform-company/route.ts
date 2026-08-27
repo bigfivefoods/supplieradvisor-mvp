@@ -7,7 +7,7 @@ import {
   canAccessPlatformConsole,
   ensurePlatformCompany,
   findPlatformCompany,
-  PLATFORM_OWNER_EMAILS,
+  platformOwnerEmails,
 } from '@/lib/system/platform-company';
 import { resolveEmailsForUserId } from '@/lib/system/platform-control';
 
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       success: true,
       access,
       company,
-      owner_emails: PLATFORM_OWNER_EMAILS,
+      owner_emails: platformOwnerEmails(),
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -68,10 +68,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const emails = await resolveEmailsForUserId(gate.userId);
+    const emails = [
+      ...new Set([
+        ...(gate.emails || []),
+        ...(await resolveEmailsForUserId(gate.userId)),
+      ]),
+    ];
     const result = await ensurePlatformCompany({
       userId: gate.userId,
-      email: emails[0] || null,
+      jwtEmails: emails,
     });
 
     return NextResponse.json({
@@ -79,7 +84,7 @@ export async function POST(request: NextRequest) {
       created: result.created,
       company: result.company,
       ownersAttached: result.ownersAttached,
-      owner_emails: PLATFORM_OWNER_EMAILS,
+      owner_emails: platformOwnerEmails(),
       message: result.created
         ? 'SupplierAdvisor platform company created.'
         : 'SupplierAdvisor platform company ready.',

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { getCanonicalUserId } from '@/lib/auth/identity';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { requireVerifiedUser } from '@/lib/auth/api-auth';
 import {
   COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
   COMPANY_SUBSCRIPTION_PLAN,
@@ -22,6 +22,7 @@ import {
   detectSelfReferral,
   recordReferralAttribution,
 } from '@/lib/billing/referral-controls';
+import { isMissingRelation } from '@/lib/business/company-data';
 
 /**
  * POST /api/onboarding/register-business
@@ -187,7 +188,9 @@ export async function POST(request: NextRequest) {
     const nowDate = new Date();
     const now = nowDate.toISOString();
     const trialEnds = addDays(nowDate, COMPANY_TRIAL_DAYS).toISOString();
-    const email = String(contact_email).toLowerCase().trim();
+    const jwtEmail =
+      (_auth.emails || []).find((e) => String(e).includes('@')) || null;
+    const email = String(jwtEmail || contact_email).toLowerCase().trim();
     const tradingNameTrim = String(trading_name).trim();
     const legalNameTrim = legal_name
       ? String(legal_name).trim()
@@ -317,8 +320,65 @@ export async function POST(request: NextRequest) {
 
     let profile: { id: number; trading_name: string } | null = null;
     let profileError: { message?: string } | null = null;
+    let createdViaRpc = false;
 
-    {
+    const rpc = await supabase.rpc('sa_register_company_with_owner', {
+      p_user_id: userId,
+      p_email: email,
+      p_name: contact_name ? String(contact_name) : null,
+      p_profile: {
+        trading_name: tradingNameTrim,
+        legal_name: legalNameTrim,
+        country: country || 'South Africa',
+        city: city || null,
+        website: website || null,
+        contact_name: contact_name || null,
+        contact_phone: contact_phone || null,
+        industry: industriesList[0] || industry || entityKind.group || null,
+        business_type: entityKind.business_type,
+        org_type: entityKind.org_type,
+        short_description: short_description || null,
+        registration_number: registration_number || null,
+      },
+    });
+
+    if (!rpc.error && rpc.data && typeof rpc.data === 'object') {
+      const pid = Number((rpc.data as { profile_id?: unknown }).profile_id);
+      if (Number.isFinite(pid) && pid > 0) {
+        createdViaRpc = true;
+        profile = { id: pid, trading_name: tradingNameTrim };
+        const extraPatch = { ...baseInsert };
+        delete extraPatch.user_id;
+        delete extraPatch.created_at;
+        const { error: patchErr } = await supabase
+          .from('profiles')
+          .update(extraPatch)
+          .eq('id', pid);
+        if (patchErr && /column|subscription_|schema cache/i.test(patchErr.message || '')) {
+          const {
+            subscription_status: _s,
+            subscription_trial_ends_at: _t,
+            subscription_starts_at: _st,
+            subscription_ends_at: _e,
+            subscription_plan: _p,
+            subscription_amount_zar: _a,
+            ...withoutSub
+          } = extraPatch;
+          await supabase.from('profiles').update(withoutSub).eq('id', pid);
+        }
+      }
+    } else if (rpc.error && !isMissingRelation(rpc.error)) {
+      console.error('Register business RPC error:', rpc.error);
+      return NextResponse.json(
+        {
+          error: 'Failed to create company profile.',
+          details: rpc.error.message,
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!profile) {
       const res = await supabase
         .from('profiles')
         .insert(baseInsert)
@@ -370,27 +430,29 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const { error: membershipError } = await supabase.from('business_users').insert({
-      user_id: userId,
-      profile_id: profile.id,
-      role: 'owner',
-      status: 'active',
-      name: contact_name || null,
-      email,
-      joined_at: now,
-      created_at: now,
-    });
+    if (!createdViaRpc) {
+      const { error: membershipError } = await supabase.from('business_users').insert({
+        user_id: userId,
+        profile_id: profile.id,
+        role: 'owner',
+        status: 'active',
+        name: contact_name || null,
+        email,
+        joined_at: now,
+        created_at: now,
+      });
 
-    if (membershipError) {
-      console.error('Register business membership error:', membershipError);
-      return NextResponse.json(
-        {
-          error: 'Company created but ownership link failed.',
-          details: membershipError.message,
-          profileId: profile.id,
-        },
-        { status: 500 }
-      );
+      if (membershipError) {
+        console.error('Register business membership error:', membershipError);
+        await supabase.from('profiles').delete().eq('id', profile.id).eq('user_id', userId);
+        return NextResponse.json(
+          {
+            error: 'Failed to create company ownership.',
+            details: membershipError.message,
+          },
+          { status: 500 }
+        );
+      }
     }
 
     // Provision school / DBE / SP domain rows + module presets + packaging

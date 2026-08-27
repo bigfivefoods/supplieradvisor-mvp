@@ -33,6 +33,8 @@ export type AuthOk = {
   userId: string;
   /** true when JWT verified; false only in legacy relaxed mode */
   verified: boolean;
+  /** Emails from the verified Privy JWT only (never request body). */
+  emails: string[];
 };
 
 export type AuthFail = {
@@ -54,7 +56,7 @@ export function assertCronSecret(request: NextRequest): AuthOk | AuthFail {
   const header = request.headers.get('x-cron-secret') || '';
   const bearer = auth.replace(/^Bearer\s+/i, '').trim();
   if (bearer === secret || header === secret) {
-    return { ok: true, userId: 'cron:system', verified: true };
+    return { ok: true, userId: 'cron:system', verified: true, emails: [] };
   }
   return fail(401, 'Invalid cron secret', 'CRON_UNAUTHORIZED');
 }
@@ -94,7 +96,12 @@ export async function requireVerifiedUser(
         return fail(403, 'privyUserId does not match access token', 'USER_MISMATCH');
       }
     }
-    return { ok: true, userId: verified.user.userId, verified: true };
+    return {
+      ok: true,
+      userId: verified.user.userId,
+      verified: true,
+      emails: verified.user.emails || [],
+    };
   }
 
   // Strict mode: no token = 401
@@ -111,7 +118,7 @@ export async function requireVerifiedUser(
     const legacy = getCanonicalUserId(opts?.legacyPrivyUserId);
     if (legacy) {
       console.warn('[auth] LEGACY privyUserId accepted (AUTH_STRICT=false)');
-      return { ok: true, userId: legacy, verified: false };
+      return { ok: true, userId: legacy, verified: false, emails: [] };
     }
   }
 
@@ -142,7 +149,13 @@ export async function requireCompanyAccess(
     return fail(mem.status, mem.error, 'NOT_MEMBER');
   }
 
-  return { ok: true, userId: mem.userId, verified: auth.verified, member: true };
+  return {
+    ok: true,
+    userId: mem.userId,
+    verified: auth.verified,
+    emails: auth.emails,
+    member: true,
+  };
 }
 
 /**
@@ -171,6 +184,7 @@ export async function requireCompanyPermission(
     ok: true,
     userId: mem.userId,
     verified: auth.verified,
+    emails: auth.emails,
     memberId: mem.memberId,
     role: mem.role,
     status: mem.status,
@@ -213,6 +227,7 @@ export async function requireCompanyRoles(
     ok: true,
     userId: mem.userId,
     verified: auth.verified,
+    emails: auth.emails,
     memberId: mem.memberId,
     role: mem.role,
     status: mem.status,

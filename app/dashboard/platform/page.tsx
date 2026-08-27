@@ -9,7 +9,7 @@ import {
 
 /**
  * SupplierAdvisor platform admin console — system-wide control plane.
- * Owners: craig@bigfivefoods.com · craig@bigfivegroup.africa
+ * Owners come from env PLATFORM_OWNER_EMAILS (never hardcoded inboxes).
  */
 export default function PlatformConsolePage() {
   const { data, loading, error, forbidden, load, switchToPlatform } =

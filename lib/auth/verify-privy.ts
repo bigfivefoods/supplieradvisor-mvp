@@ -9,8 +9,32 @@ export type VerifiedPrivyUser = {
   userId: string;
   sessionId?: string;
   appId?: string;
+  emails: string[];
   raw: JWTPayload;
 };
+
+/** Emails asserted on a verified Privy access token — never from the request body. */
+export function emailsFromJwtPayload(payload: JWTPayload | null | undefined): string[] {
+  if (!payload || typeof payload !== 'object') return [];
+  const out = new Set<string>();
+  const add = (v: unknown) => {
+    const e = String(v || '').trim().toLowerCase();
+    if (e.includes('@') && e.length <= 254) out.add(e);
+  };
+  add((payload as { email?: unknown }).email);
+  const emails = (payload as { emails?: unknown }).emails;
+  if (Array.isArray(emails)) emails.forEach(add);
+  const linked = (payload as { linked_accounts?: unknown }).linked_accounts;
+  if (Array.isArray(linked)) {
+    for (const a of linked) {
+      if (!a || typeof a !== 'object') continue;
+      const row = a as { type?: string; address?: string; email?: string };
+      add(row.email);
+      if (String(row.type || '') === 'email') add(row.address);
+    }
+  }
+  return [...out];
+}
 
 let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
 
@@ -132,6 +156,7 @@ export async function verifyPrivyAccessToken(
           ? (payload as { session_id?: string }).session_id
           : undefined,
       appId,
+      emails: emailsFromJwtPayload(payload),
       raw: payload,
     },
   };

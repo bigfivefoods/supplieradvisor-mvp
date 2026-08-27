@@ -28,23 +28,39 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
     }
 
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: privyUserId || legacyPrivyFrom(request),
+    });
     if (!_gate.ok) return _gate.response;
-    const member = await assertCompanyMember(privyUserId, companyId);
+    const member = await assertCompanyMember(_gate.userId, companyId);
     if (!member.ok) {
       return NextResponse.json({ error: member.error }, { status: member.status });
     }
 
     const supabase = getSupabaseServer();
+    const poListCols =
+      'id, po_number, order_number, status, total_amount, currency, buyer_profile_id, supplier_profile_id, supplier_id, created_at, updated_at, promised_date, actual_delivery_date, items, onchain_po_id, metadata';
     let q = supabase
       .from('purchase_orders')
-      .select('*')
+      .select(poListCols)
       .eq('buyer_profile_id', companyId)
       .order('created_at', { ascending: false })
-      .limit(300);
+      .limit(200);
     if (status && status !== 'all') q = q.eq('status', status);
 
-    const { data, error } = await q;
+    let { data, error } = await q;
+    if (error && /column|schema cache/i.test(error.message || '')) {
+      let retryQ = supabase
+        .from('purchase_orders')
+        .select('*')
+        .eq('buyer_profile_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (status && status !== 'all') retryQ = retryQ.eq('status', status);
+      const retry = await retryQ;
+      data = retry.data as typeof data;
+      error = retry.error;
+    }
     if (error) {
       console.error('GET suppliers purchase-orders:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
