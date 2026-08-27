@@ -17,6 +17,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import {
   isListedTeamMember,
   memberStatusClass,
@@ -70,6 +71,7 @@ function TeamInner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
+  const { withAuth, withAuthJson } = useApiAuth();
 
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [companyName, setCompanyName] = useState('');
@@ -85,6 +87,7 @@ function TeamInner() {
   const [busyId, setBusyId] = useState<number | null>(null);
   const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', email: '', role: 'member' });
+  const [inviteModules, setInviteModules] = useState<EnabledModulesMap>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -151,10 +154,13 @@ function TeamInner() {
     setInviting(true);
     setLastInviteLink(null);
     try {
-      const res = await fetch('/api/invite-team-member', {
+      const inheritAll =
+        form.role === 'owner' ||
+        assignableModules.length === 0 ||
+        !assignableModules.some((o) => inviteModules[o.id] === false);
+      const res = await withAuth('/api/invite-team-member', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        jsonBody: {
           companyId,
           privyUserId,
           name: form.name,
@@ -165,7 +171,9 @@ function TeamInner() {
             user?.email?.address ||
             (user as { google?: { name?: string } })?.google?.name ||
             'Your teammate',
-        }),
+          allowedModules:
+            inheritAll || form.role === 'owner' ? undefined : inviteModules,
+        },
       });
       const data = await res.json();
       if (data.inviteLink) setLastInviteLink(String(data.inviteLink));
@@ -202,6 +210,11 @@ function TeamInner() {
       );
       toastGoldenPathFromResponse(data);
       setForm({ name: '', email: '', role: 'member' });
+      setInviteModules((prev) => {
+        const seed: EnabledModulesMap = {};
+        for (const [k] of Object.entries(prev)) seed[k] = true;
+        return seed;
+      });
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Invite failed');
@@ -230,13 +243,10 @@ function TeamInner() {
     }
     setBusyId(memberId);
     try {
-      const res = await fetch('/api/business/team', {
+      await withAuthJson('/api/business/team', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId, privyUserId, memberId, role }),
+        jsonBody: { companyId, privyUserId, memberId, role },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Update failed');
       toast.success(
         role === 'owner' && myMemberId === memberId
           ? 'You are now Owner'
@@ -358,6 +368,19 @@ function TeamInner() {
       isModuleEnabled(companyModules, o.id)
   );
 
+  useEffect(() => {
+    if (!assignableModules.length) return;
+    setInviteModules((prev) => {
+      const next: EnabledModulesMap = {};
+      let changed = Object.keys(prev).length !== assignableModules.length;
+      for (const opt of assignableModules) {
+        if (prev[opt.id] === undefined) changed = true;
+        next[opt.id] = prev[opt.id] === undefined ? true : prev[opt.id] === true;
+      }
+      return changed ? next : prev;
+    });
+  }, [companyModules, moduleOptions]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const openModuleEditor = (m: TeamMember) => {
     if (String(m.role || '').toLowerCase() === 'owner') {
       toast.message('Owners always see all company modules');
@@ -387,19 +410,16 @@ function TeamInner() {
     }
     setBusyId(memberId);
     try {
-      const res = await fetch('/api/business/team', {
+      await withAuthJson('/api/business/team', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        jsonBody: {
           companyId,
           privyUserId,
           memberId,
           clearModuleAccess: inherit,
           allowedModules: inherit ? null : draftModules,
-        }),
+        },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Update failed');
       toast.success(
         inherit
           ? 'User will see all company modules on login'
@@ -478,6 +498,44 @@ function TeamInner() {
             </select>
             {roleHelp && (
               <p className="text-[11px] text-neutral-500 leading-relaxed">{roleHelp.description}</p>
+            )}
+            {form.role !== 'owner' && assignableModules.length > 0 && (
+              <div className="rounded-xl border border-violet-100 bg-violet-50/50 p-3 space-y-2">
+                <p className="text-[11px] font-semibold text-violet-900">
+                  Modules they can use
+                </p>
+                <p className="text-[10px] text-violet-900/70 leading-relaxed">
+                  Saved on this person’s team profile. Leave all ticked to give
+                  every company module.
+                </p>
+                <div className="grid grid-cols-1 gap-1 max-h-44 overflow-y-auto">
+                  {assignableModules.map((opt) => {
+                    const on = inviteModules[opt.id] === true;
+                    return (
+                      <label
+                        key={opt.id}
+                        className="flex items-start gap-2 rounded-lg bg-white/80 px-2 py-1.5 cursor-pointer text-xs"
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={on}
+                          disabled={!canManage}
+                          onChange={() =>
+                            setInviteModules((prev) => ({
+                              ...prev,
+                              [opt.id]: !on,
+                            }))
+                          }
+                        />
+                        <span className="font-semibold text-slate-800">
+                          {opt.name}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
             )}
             <button
               type="button"

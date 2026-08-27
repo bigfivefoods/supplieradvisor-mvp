@@ -7,7 +7,7 @@ import {
   invalidateCompanyMembershipMemo,
 } from '@/lib/business/access';
 import { canView, normalizeTeamRole } from '@/lib/business/permissions';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 import {
   extractEnabledModulesFromMetadata,
   listCompanyModuleOptions,
@@ -149,7 +149,11 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const companyId = Number(body.companyId);
     const memberId = Number(body.memberId || body.id);
-    const mem = await assertCanManageTeam(body.privyUserId, companyId);
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
+    const mem = await assertCanManageTeam(gate.userId, companyId);
     if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
     if (!Number.isFinite(memberId)) {
       return NextResponse.json({ error: 'memberId required' }, { status: 400 });
@@ -267,8 +271,11 @@ export async function DELETE(request: NextRequest) {
     const sp = request.nextUrl.searchParams;
     const companyId = Number(sp.get('companyId'));
     const memberId = Number(sp.get('memberId'));
-    const privyUserId = sp.get('privyUserId');
-    const mem = await assertCanManageTeam(privyUserId, companyId);
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!gate.ok) return gate.response;
+    const mem = await assertCanManageTeam(gate.userId, companyId);
     if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
     if (!Number.isFinite(memberId)) {
       return NextResponse.json({ error: 'memberId required' }, { status: 400 });

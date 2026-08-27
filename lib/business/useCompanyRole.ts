@@ -141,13 +141,20 @@ export function useCompanyRole(): CompanyRoleState {
         data.packaging && typeof data.packaging === 'object'
           ? (data.packaging as PackagingSelection)
           : null;
+      // Membership already returns company ∩ this user's allow-list.
+      // Do not re-run pack visibility on that map — it would turn
+      // unchecked hubs back on.
+      const fromMember = data.enabledModules;
       setEnabledModules(
-        resolveVisibleModules({
-          stored: data.enabledModules,
-          packaging: packagingNext,
-          companyId: selectedId,
-          companyName: data.companyName != null ? String(data.companyName) : null,
-        })
+        fromMember && typeof fromMember === 'object' && !Array.isArray(fromMember)
+          ? (fromMember as EnabledModulesMap)
+          : resolveVisibleModules({
+              stored: data.companyModules,
+              packaging: packagingNext,
+              companyId: selectedId,
+              companyName:
+                data.companyName != null ? String(data.companyName) : null,
+            })
       );
       setPackaging(packagingNext);
       setBusinessType(

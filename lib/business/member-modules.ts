@@ -4,8 +4,8 @@
  * Stored on business_users.permissions jsonb:
  *   { allowed_modules?: Record<moduleId, boolean> | null }
  *
- * - null / missing / empty → inherit all company-enabled modules
- * - non-empty map → only modules set true (∩ company-enabled)
+ * - null / missing → inherit all company-enabled modules
+ * - present map (including {}) → only modules set true (∩ company-enabled)
  * - Always-on modules (home, my-business, guide) always on
  * - Owners always inherit company modules (cannot be locked out)
  */
@@ -71,23 +71,36 @@ export function parseMemberPermissions(raw: unknown): MemberPermissionsBlob {
   return {};
 }
 
-/** True when the member has an explicit custom module allow-list */
+/**
+ * True when the member has an explicit custom module allow-list.
+ * Empty `{}` means “only always-on modules” (not inherit-all).
+ */
 export function hasCustomModuleAccess(permissions: unknown): boolean {
   const p = parseMemberPermissions(permissions);
   const m = p.allowed_modules;
-  if (!m || typeof m !== 'object' || Array.isArray(m)) return false;
-  return Object.keys(m).length > 0;
+  return Boolean(m) && typeof m === 'object' && !Array.isArray(m);
 }
 
 /**
- * Extract allowed_modules map from permissions (null = inherit company).
+ * Slim allow-list of module ids set true. Missing keys are OFF.
+ * Do not run this through normalizeEnabledModules — that map defaults
+ * unset core hubs to on, which undoes every unchecked box on reload.
+ * null = inherit all company-enabled modules.
  */
 export function extractAllowedModules(
   permissions: unknown
 ): EnabledModulesMap | null {
   if (!hasCustomModuleAccess(permissions)) return null;
   const p = parseMemberPermissions(permissions);
-  return normalizeEnabledModules(p.allowed_modules || {});
+  const m = p.allowed_modules;
+  if (!m || typeof m !== 'object' || Array.isArray(m)) return null;
+  const slim: EnabledModulesMap = {};
+  for (const [k, v] of Object.entries(m)) {
+    const id = String(k || '').trim();
+    if (!id) continue;
+    if (v === true || v === 'true' || v === 1) slim[id] = true;
+  }
+  return slim;
 }
 
 /**
@@ -135,21 +148,16 @@ export function mergeAllowedModulesIntoPermissions(
   allowed: EnabledModulesMap | null
 ): MemberPermissionsBlob {
   const base = parseMemberPermissions(existing);
-  if (!allowed || Object.keys(allowed).length === 0) {
+  if (allowed === null) {
     const next = { ...base };
     delete next.allowed_modules;
     return next;
   }
-  // Only store explicit trues for selectable modules
+  // Only store explicit trues. Empty map = custom, always-on only.
   const slim: EnabledModulesMap = {};
   for (const [k, v] of Object.entries(allowed)) {
     if ((ALWAYS_ON_MODULE_IDS as readonly string[]).includes(k)) continue;
-    if (v) slim[k] = true;
-  }
-  if (Object.keys(slim).length === 0) {
-    const next = { ...base };
-    delete next.allowed_modules;
-    return next;
+    if (v === true || v === 'true' || v === 1) slim[k] = true;
   }
   return { ...base, allowed_modules: slim };
 }

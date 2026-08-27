@@ -23,10 +23,12 @@ import {
 import type { TeamRole } from '@/lib/business/permissions';
 import { auditLog } from '@/lib/audit/log';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
+import { mergeAllowedModulesIntoPermissions } from '@/lib/business/member-modules';
+import type { EnabledModulesMap } from '@/lib/business/company-modules';
 
 /**
  * POST /api/invite-team-member
- * Body: { companyId, privyUserId, email, name?, role?, companyName?, inviterName? }
+ * Body: { companyId, privyUserId, email, name?, role?, companyName?, inviterName?, allowedModules? }
  *
  * Creates/refreshes a business_users invite row and sends email via Resend.
  */
@@ -111,7 +113,7 @@ export async function POST(request: NextRequest) {
     // Avoid duplicate active memberships
     const { data: existingRows, error: listErr } = await supabaseAdmin
       .from('business_users')
-      .select('id, status, invited_email, email, role, user_id')
+      .select('id, status, invited_email, email, role, user_id, permissions')
       .eq('profile_id', companyId);
 
     if (listErr) {
@@ -151,6 +153,15 @@ export async function POST(request: NextRequest) {
       expires_at: expiresAt,
       updated_at: now,
     };
+
+    if (role !== 'owner' && body.allowedModules !== undefined) {
+      invitePayload.permissions = mergeAllowedModulesIntoPermissions(
+        existing?.permissions,
+        body.allowedModules === null
+          ? null
+          : (body.allowedModules as EnabledModulesMap)
+      );
+    }
 
     let memberId: number | null = existing?.id ? Number(existing.id) : null;
 
