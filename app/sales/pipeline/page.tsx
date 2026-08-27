@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   Loader2,
@@ -29,6 +29,12 @@ import {
 import CommissionBadge from '@/components/sales/CommissionBadge';
 import OpportunityPipelineBoard from '@/components/sales/OpportunityPipelineBoard';
 import TeamDealsReport from '@/components/sales/TeamDealsReport';
+import GroupPipelineSwitcher from '@/components/sales/GroupPipelineSwitcher';
+import {
+  filterOpportunitiesByGroupView,
+  type GroupPipelineMeta,
+  type GroupPipelineView,
+} from '@/lib/business/group-pipeline-view';
 import {
   calculateCommission,
   DEFAULT_COMMISSION_TIERS,
@@ -57,6 +63,10 @@ export default function SalesPipelinePage() {
   const [tab, setTab] = useState<Tab>('map');
   const [leads, setLeads] = useState<LeadRecord[]>([]);
   const [opps, setOpps] = useState<OpportunityRecord[]>([]);
+  const [group, setGroup] = useState<GroupPipelineMeta | null>(null);
+  const [userGroupView, setUserGroupView] = useState<GroupPipelineView | null>(
+    null
+  );
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [tiers, setTiers] = useState<CommissionTier[]>(DEFAULT_COMMISSION_TIERS);
   const [loading, setLoading] = useState(true);
@@ -122,6 +132,13 @@ export default function SalesPipelinePage() {
       const oData = await oRes.json();
       setLeads(lData.leads || []);
       setOpps(oData.opportunities || []);
+      const nextGroup =
+        oData.group &&
+        typeof oData.group === 'object' &&
+        Array.isArray((oData.group as GroupPipelineMeta).companies)
+          ? (oData.group as GroupPipelineMeta)
+          : null;
+      setGroup(nextGroup);
       if (tRes.ok) {
         const tData = await tRes.json();
         setTeamMembers(
@@ -152,6 +169,18 @@ export default function SalesPipelinePage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const groupView: GroupPipelineView =
+    userGroupView ?? group?.defaultView ?? 'all';
+
+  useEffect(() => {
+    setUserGroupView(null);
+  }, [companyId]);
+
+  const visibleOpps = useMemo(
+    () => filterOpportunitiesByGroupView(opps, groupView),
+    [opps, groupView]
+  );
 
   const patchOpp = async (
     id: number,
@@ -734,6 +763,14 @@ export default function SalesPipelinePage() {
         ))}
       </div>
 
+      {tab !== 'leads' ? (
+        <GroupPipelineSwitcher
+          group={group}
+          view={groupView}
+          onView={setUserGroupView}
+        />
+      ) : null}
+
       {showForm && (
         <div className="rounded-3xl border border-neutral-200 bg-white p-5 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1241,8 +1278,9 @@ export default function SalesPipelinePage() {
         </div>
       ) : tab === 'map' ? (
         <OpportunityPipelineBoard
-          opportunities={opps}
+          opportunities={visibleOpps}
           showCommission
+          showSourceCompany={groupView === 'all' && Boolean(group?.includesSubsidiaries)}
           commissionTiers={tiers}
           teamMembers={teamMembers}
           onMove={moveOpp}
@@ -1258,7 +1296,7 @@ export default function SalesPipelinePage() {
         />
       ) : tab === 'team' ? (
         <TeamDealsReport
-          opportunities={opps}
+          opportunities={visibleOpps}
           members={teamMembers}
           commissionTiers={tiers}
         />
@@ -1291,11 +1329,11 @@ export default function SalesPipelinePage() {
         </div>
       ) : (
         <div className="rounded-3xl border border-neutral-200 bg-white overflow-hidden">
-          {opps.length === 0 ? (
+          {visibleOpps.length === 0 ? (
             <p className="p-12 text-center text-neutral-500 text-sm">No opportunities yet.</p>
           ) : (
             <ul className="divide-y divide-neutral-100">
-              {opps.map((o) => {
+              {visibleOpps.map((o) => {
                 const amount = Number(
                   (o as { amount?: number }).amount ||
                     (o as { opportunity_size?: number }).opportunity_size ||
@@ -1312,6 +1350,9 @@ export default function SalesPipelinePage() {
                       <div className="font-semibold text-slate-900">{o.name}</div>
                       <div className="text-xs text-neutral-500">
                         {o.company_name || '—'} · {o.stage || 'prospecting'}
+                        {o.source_company_name
+                          ? ` · ${o.source_company_name}`
+                          : ''}
                       </div>
                     </div>
                     <div className="flex flex-col sm:items-end gap-1.5">

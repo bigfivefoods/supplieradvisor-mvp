@@ -57,6 +57,8 @@ export type HoldingSubtree = {
   ids: number[];
   names: Map<number, string>;
   descendantCount: number;
+  parentCompanyId: number | null;
+  isSubsidiary: boolean;
 };
 
 export async function loadHoldingSubtree(
@@ -65,7 +67,13 @@ export async function loadHoldingSubtree(
   const names = new Map<number, string>();
   const ids = [companyId];
   if (!Number.isFinite(companyId) || companyId <= 0) {
-    return { ids, names, descendantCount: 0 };
+    return {
+      ids,
+      names,
+      descendantCount: 0,
+      parentCompanyId: null,
+      isSubsidiary: false,
+    };
   }
 
   const supabase = getSupabaseServer();
@@ -131,10 +139,38 @@ export async function loadHoldingSubtree(
     }
   }
 
+  let parentCompanyId: number | null = null;
+  try {
+    const { data: parentLink } = await supabase
+      .from('company_group_links')
+      .select('parent_profile_id')
+      .eq('child_profile_id', companyId)
+      .eq('status', 'active')
+      .in('link_type', [...PIPELINE_ROLLUP_LINK_TYPES])
+      .limit(1)
+      .maybeSingle();
+    const fromLink = Number(parentLink?.parent_profile_id || 0);
+    if (fromLink > 0 && fromLink !== companyId) {
+      parentCompanyId = fromLink;
+    } else {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('parent_profile_id')
+        .eq('id', companyId)
+        .maybeSingle();
+      const fromProf = Number(prof?.parent_profile_id || 0);
+      if (fromProf > 0 && fromProf !== companyId) parentCompanyId = fromProf;
+    }
+  } catch {
+    /* soft */
+  }
+
   return {
     ids: [companyId, ...descendants],
     names,
     descendantCount: descendants.length,
+    parentCompanyId,
+    isSubsidiary: parentCompanyId != null,
   };
 }
 

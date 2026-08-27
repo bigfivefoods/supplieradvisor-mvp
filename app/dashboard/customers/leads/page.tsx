@@ -34,7 +34,13 @@ import {
 import { CompanyRequired, CustomersHeader } from '@/components/customers/CustomersShell';
 import OpportunityPipelineBoard from '@/components/sales/OpportunityPipelineBoard';
 import TeamDealsReport from '@/components/sales/TeamDealsReport';
+import GroupPipelineSwitcher from '@/components/sales/GroupPipelineSwitcher';
 import GeoSelectFields, { type GeoValue } from '@/components/geo/GeoSelectFields';
+import {
+  filterOpportunitiesByGroupView,
+  type GroupPipelineMeta,
+  type GroupPipelineView,
+} from '@/lib/business/group-pipeline-view';
 
 type Tab = 'leads' | 'pipeline' | 'team';
 
@@ -115,6 +121,10 @@ function LeadsInner() {
   const [leads, setLeads] = useState<LeadRecord[]>([]);
   const [opps, setOpps] = useState<OpportunityRecord[]>([]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
+  const [group, setGroup] = useState<GroupPipelineMeta | null>(null);
+  const [userGroupView, setUserGroupView] = useState<GroupPipelineView | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -140,6 +150,13 @@ function LeadsInner() {
       setLeads(l.leads || []);
       setOpps(o.opportunities || []);
       setCustomers(c.customers || []);
+      const nextGroup =
+        o.group &&
+        typeof o.group === 'object' &&
+        Array.isArray((o.group as GroupPipelineMeta).companies)
+          ? (o.group as GroupPipelineMeta)
+          : null;
+      setGroup(nextGroup);
       if (l.warning || o.warning) {
         toast.message(l.warning || o.warning, {
           description: l.hint || o.hint || 'Run 20260709_crm_leads_opportunities.sql',
@@ -166,15 +183,27 @@ function LeadsInner() {
     return rows;
   }, [leads, statusFilter]);
 
+  const groupView: GroupPipelineView =
+    userGroupView ?? group?.defaultView ?? 'all';
+
+  useEffect(() => {
+    setUserGroupView(null);
+  }, [companyId]);
+
+  const visibleOpps = useMemo(
+    () => filterOpportunitiesByGroupView(opps, groupView),
+    [opps, groupView]
+  );
+
   const pipelineStats = useMemo(() => {
-    const open = opps.filter((o) => !['closed_won', 'closed_lost'].includes(String(o.stage)));
+    const open = visibleOpps.filter((o) => !['closed_won', 'closed_lost'].includes(String(o.stage)));
     const value = open.reduce((s, o) => s + Number(o.amount || 0), 0);
     const weighted = open.reduce((s, o) => s + Number(o.weighted_amount || 0), 0);
-    const won = opps
+    const won = visibleOpps
       .filter((o) => o.stage === 'closed_won')
       .reduce((s, o) => s + Number(o.amount || 0), 0);
     return { open: open.length, value, weighted, won };
-  }, [opps]);
+  }, [visibleOpps]);
 
   const openLeadCreate = () => {
     setEditingLead(null);
@@ -437,8 +466,8 @@ function LeadsInner() {
       downloadCsv('leads-export.csv', header + rows);
     } else {
       const header =
-        'Name,Company,Contact,Phone,Stage,Amount,Probability,Weighted,Close date,Type,Owner\n';
-      const rows = opps
+        'Name,Company,Contact,Phone,Stage,Amount,Probability,Weighted,Close date,Type,Owner,Source company\n';
+      const rows = visibleOpps
         .map((o) =>
           [
             o.name,
@@ -452,6 +481,7 @@ function LeadsInner() {
             o.expected_close_date,
             o.opportunity_type,
             o.owner_name,
+            o.source_company_name || '',
           ]
             .map((x) => `"${String(x ?? '').replace(/"/g, '""')}"`)
             .join(',')
@@ -466,8 +496,10 @@ function LeadsInner() {
       <CustomersHeader
         title="Leads & opportunities"
         description={
-          opps.some((o) => o.group_rollup)
-            ? 'Holding view: this pipeline includes open deals from subsidiary companies in your group.'
+          group?.includesSubsidiaries
+            ? group?.isSubsidiary
+              ? 'Your company’s pipeline. Open All companies to include subsidiaries.'
+              : 'Holding pipeline: start with a consolidated group view, then drill into a subsidiary.'
             : 'Capture every prospect with full detail, qualify leads, and run a complete sales pipeline through to closed-won.'
         }
         action={
@@ -554,6 +586,16 @@ function LeadsInner() {
         )}
       </div>
 
+      {tab !== 'leads' && (
+        <div className="mb-4">
+          <GroupPipelineSwitcher
+            group={group}
+            view={groupView}
+            onView={setUserGroupView}
+          />
+        </div>
+      )}
+
       {loading ? (
         <div className="p-16 flex justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
@@ -567,14 +609,15 @@ function LeadsInner() {
           onCreate={openLeadCreate}
         />
       ) : tab === 'team' ? (
-        <TeamDealsReport opportunities={opps} members={[]} />
+        <TeamDealsReport opportunities={visibleOpps} members={[]} />
       ) : (
         <OpportunityPipelineBoard
-          opportunities={opps}
+          opportunities={visibleOpps}
           onEdit={openOppEdit}
           onMove={moveStage}
           onDelete={deleteOpp}
           onCreate={openOppCreate}
+          showSourceCompany={groupView === 'all' && Boolean(group?.includesSubsidiaries)}
         />
       )}
 

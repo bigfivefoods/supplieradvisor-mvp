@@ -209,13 +209,21 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const { summarizeGroupPipeline } = await import(
+      '@/lib/business/group-pipeline-view'
+    );
+    const group = summarizeGroupPipeline({
+      viewerCompanyId: companyId,
+      names: tree.names,
+      companyIds: tree.ids,
+      isSubsidiary: tree.isSubsidiary,
+      opportunities,
+    });
+
     return NextResponse.json({
       success: true,
       opportunities,
-      group: {
-        includesSubsidiaries: tree.descendantCount > 0,
-        companies: tree.descendantCount,
-      },
+      group,
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });

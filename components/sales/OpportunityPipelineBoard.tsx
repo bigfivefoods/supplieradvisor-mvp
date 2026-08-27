@@ -49,6 +49,8 @@ export type OpportunityPipelineBoardProps = {
   showCommission?: boolean;
   commissionTiers?: CommissionTier[] | null;
   compact?: boolean;
+  /** Show originating company on each card (holding consolidated view). */
+  showSourceCompany?: boolean;
 };
 
 function dealAmount(o: OpportunityRecord): number {
@@ -88,6 +90,7 @@ export default function OpportunityPipelineBoard({
   showCommission = false,
   commissionTiers,
   compact = false,
+  showSourceCompany = false,
 }: OpportunityPipelineBoardProps) {
   const tiers = commissionTiers?.length ? commissionTiers : DEFAULT_COMMISSION_TIERS;
   const [draggingId, setDraggingId] = useState<number | null>(null);
@@ -279,7 +282,8 @@ export default function OpportunityPipelineBoard({
                             <div className="text-xs text-neutral-500 mt-0.5">
                               {o.company_name || o.contact_name || '—'}
                             </div>
-                            {o.group_rollup && o.source_company_name ? (
+                            {(showSourceCompany || o.group_rollup) &&
+                            o.source_company_name ? (
                               <div className="mt-0.5 text-[10px] font-semibold text-[#0077b6]">
                                 {o.source_company_name}
                               </div>
