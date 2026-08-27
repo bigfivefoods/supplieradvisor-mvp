@@ -263,7 +263,7 @@ export async function GET(request: NextRequest) {
     // Touch last_seen and, if this visitor is an SA Member, stamp wallet details.
     const key = String(resolved.portal.crm_customer_id);
     let store = resolved.store;
-    let portal = {
+    let portal: HireCustomerPortal = {
       ...resolved.portal,
       last_seen_at: new Date().toISOString(),
     };
