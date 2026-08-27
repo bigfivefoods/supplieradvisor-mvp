@@ -5,7 +5,7 @@ import {
   isCustomerInvitesEnabled,
   logActivity,
 } from '@/lib/customers/access';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 
 /**
  * POST /api/customers/invites/suspend
@@ -31,10 +31,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const companyId = Number(body.companyId);
 
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: body.privyUserId || legacyPrivyFrom(request),
+    });
     if (!_gate.ok) return _gate.response;
     const customerId = Number(body.customerId);
-    const privyUserId = body.privyUserId;
 
     if (!Number.isFinite(companyId) || !Number.isFinite(customerId)) {
       return NextResponse.json(
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const member = await assertCustomersAccess(privyUserId, companyId, 'write');
+    const member = await assertCustomersAccess(_gate.userId, companyId, 'write');
     if (!member.ok) {
       return NextResponse.json({ error: member.error }, { status: member.status });
     }

@@ -11,9 +11,11 @@ import { userIdMatchVariants } from '@/lib/auth/identity';
 import {
   isPlatformOperatorEmail,
   isPlatformOperatorUserId,
-  platformOperatorEmails,
+  platformOwnerEmails,
   resolveEmailsForUserId,
 } from '@/lib/system/platform-control';
+
+export { platformOwnerEmails };
 import { LIFETIME_PLAN_FOUNDER } from '@/lib/billing/lifetime';
 import { MODULE_NAV } from '@/lib/chrome/module-nav';
 
@@ -30,13 +32,10 @@ export const PLATFORM_COMPANY_META_FLAG = 'is_platform_company';
 export const PLATFORM_COMPANY_SLUG = 'supplieradvisor';
 
 /**
- * Designated owners of the SupplierAdvisor platform company.
- * Also treated as platform operators when env PLATFORM_OPERATOR_EMAILS is unset.
+ * @deprecated Use platformOwnerEmails() — env PLATFORM_OWNER_EMAILS only.
+ * Empty array kept so JSON fields do not leak personal inboxes from git.
  */
-export const PLATFORM_OWNER_EMAILS = [
-  'craig@bigfivefoods.com',
-  'craig@bigfivegroup.africa',
-] as const;
+export const PLATFORM_OWNER_EMAILS: readonly string[] = [];
 
 export type PlatformCompanyRow = {
   id: number;
@@ -51,11 +50,11 @@ export type PlatformCompanyRow = {
 export function isPlatformOwnerEmail(email?: string | null): boolean {
   if (!email) return false;
   const e = String(email).trim().toLowerCase();
-  return (PLATFORM_OWNER_EMAILS as readonly string[]).includes(e);
+  return platformOwnerEmails().includes(e);
 }
 
 export function allPlatformOwnerEmails(): string[] {
-  return [...new Set([...PLATFORM_OWNER_EMAILS, ...platformOperatorEmails()])];
+  return platformOwnerEmails();
 }
 
 export function isPlatformCompanyMetadata(
@@ -193,7 +192,7 @@ function platformMetadataBlob(
  */
 export async function ensurePlatformCompany(opts?: {
   userId?: string | null;
-  email?: string | null;
+  jwtEmails?: string[] | null;
 }): Promise<{
   company: PlatformCompanyRow;
   created: boolean;
@@ -216,7 +215,7 @@ export async function ensurePlatformCompany(opts?: {
       country: 'South Africa',
       city: 'Cape Town',
       website: 'https://www.supplieradvisor.com',
-      email: PLATFORM_OWNER_EMAILS[0],
+      email: allPlatformOwnerEmails()[0] || 'hello@supplieradvisor.com',
       contact_name: 'Craig',
       short_description:
         'SupplierAdvisor® platform control plane — system administration, management reports, and ops console for the entire network.',
@@ -351,7 +350,7 @@ export async function ensurePlatformCompany(opts?: {
 
   const ownersAttached = await attachPlatformOwners(db, company.id, {
     userId: opts?.userId,
-    email: opts?.email,
+    jwtEmails: opts?.jwtEmails,
   });
 
   return { company, created, ownersAttached };
@@ -363,39 +362,37 @@ export async function ensurePlatformCompany(opts?: {
 export async function attachPlatformOwners(
   supabase: SupabaseClient,
   profileId: number,
-  opts?: { userId?: string | null; email?: string | null }
+  opts?: {
+    userId?: string | null;
+    /** Emails from the verified Privy JWT only — never a client body list. */
+    jwtEmails?: string[] | null;
+  }
 ): Promise<string[]> {
   const now = new Date().toISOString();
   const attached: string[] = [];
   const ownerEmails = allPlatformOwnerEmails();
 
-  // Attach current user if they match an owner email or are already an operator
   if (opts?.userId) {
-    const emails = await resolveEmailsForUserId(opts.userId);
-    if (opts.email) {
-      const e = String(opts.email).trim().toLowerCase();
-      if (e.includes('@') && !emails.includes(e)) emails.push(e);
-    }
+    const jwtEmails = (opts.jwtEmails || [])
+      .map((e) => String(e || '').trim().toLowerCase())
+      .filter((e) => e.includes('@'));
+    const stored = await resolveEmailsForUserId(opts.userId);
+    const emails = [...new Set([...jwtEmails, ...stored])];
     const match =
       emails.find((e) => isPlatformOwnerEmail(e) || isPlatformOperatorEmail(e)) ||
       null;
-    const hintIsOwner =
-      opts.email &&
-      (isPlatformOwnerEmail(opts.email) || isPlatformOperatorEmail(opts.email));
 
-    if (match || hintIsOwner || (await isPlatformOperatorUserId(opts.userId))) {
-      const email =
-        match ||
-        (hintIsOwner ? String(opts.email).trim().toLowerCase() : null) ||
-        emails[0] ||
-        PLATFORM_OWNER_EMAILS[0];
-      await upsertOwnerMembership(supabase, {
-        profileId,
-        userId: opts.userId,
-        email,
-        now,
-      });
-      if (!attached.includes(email)) attached.push(email);
+    if (match || (await isPlatformOperatorUserId(opts.userId))) {
+      const email = match || emails[0] || ownerEmails[0] || '';
+      if (email) {
+        await upsertOwnerMembership(supabase, {
+          profileId,
+          userId: opts.userId,
+          email,
+          now,
+        });
+        if (!attached.includes(email)) attached.push(email);
+      }
     }
   }
 
@@ -453,6 +450,14 @@ async function upsertOwnerMembership(
     );
 
   if (existing?.id) {
+    const existingUid = String(existing.user_id || '').trim();
+    if (existingUid && !variants.includes(existingUid)) {
+      console.warn(
+        '[platform-company] skip membership rewrite — row belongs to another user',
+        existing.id
+      );
+      return;
+    }
     const { error: upErr } = await supabase
       .from('business_users')
       .update({

@@ -4,32 +4,38 @@
  * Government department registration (DBE / PEU / DoH) and programme-module
  * assignment for those orgs require a platform operator identity.
  *
- * Configure via env PLATFORM_OPERATOR_EMAILS (comma-separated). Defaults are
- * used when unset so production operators can work without redeploying secrets.
+ * Configure via env PLATFORM_OPERATOR_EMAILS (comma-separated).
+ * Empty when unset — never hard-code personal inboxes in the repo.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { userIdMatchVariants } from '@/lib/auth/identity';
 import { GOVERNMENT_CORE_MODULE_IDS } from '@/lib/business/company-modules';
 
-/**
- * Default operators when PLATFORM_OPERATOR_EMAILS is unset.
- * Prefer env in production — do not hard-code personal inboxes.
- */
-const DEFAULT_OPERATOR_EMAILS = [
-  'craig@bigfivefoods.com',
-  'craig@bigfivegroup.africa',
-  'craig@supplieradvisor.com',
-];
+function parseEmailList(raw: string): string[] {
+  return [
+    ...new Set(
+      String(raw || '')
+        .split(/[,;\s]+/)
+        .map((s) => s.trim().toLowerCase())
+        .filter((e) => e.includes('@'))
+    ),
+  ];
+}
 
+/**
+ * Platform operators from env only (PLATFORM_OPERATOR_EMAILS).
+ * Empty when unset — never hard-code personal inboxes in the repo.
+ */
 export function platformOperatorEmails(): string[] {
-  const raw = process.env.PLATFORM_OPERATOR_EMAILS || '';
-  const fromEnv = raw
-    .split(/[,;\s]+/)
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  const list = fromEnv.length ? fromEnv : DEFAULT_OPERATOR_EMAILS;
-  return [...new Set(list)];
+  return parseEmailList(process.env.PLATFORM_OPERATOR_EMAILS || '');
+}
+
+/** Designated platform-company owners from env PLATFORM_OWNER_EMAILS (falls back to operator list). */
+export function platformOwnerEmails(): string[] {
+  const owners = parseEmailList(process.env.PLATFORM_OWNER_EMAILS || '');
+  if (owners.length) return owners;
+  return platformOperatorEmails();
 }
 
 export function isPlatformOperatorEmail(

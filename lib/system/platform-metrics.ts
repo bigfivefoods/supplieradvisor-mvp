@@ -6,7 +6,7 @@ import { loadOpsBoard, type OpsBoardSnapshot } from '@/lib/system/ops-board';
 import { deploymentMeta } from '@/lib/system/schema-probe';
 import {
   PLATFORM_COMPANY_TRADING_NAME,
-  PLATFORM_OWNER_EMAILS,
+  platformOwnerEmails,
   findPlatformCompany,
   type PlatformCompanyRow,
 } from '@/lib/system/platform-company';
@@ -208,7 +208,7 @@ export async function loadPlatformConsoleReports(): Promise<PlatformConsolePaylo
     company: {
       id: company?.id ?? null,
       trading_name: company?.trading_name || PLATFORM_COMPANY_TRADING_NAME,
-      owners: PLATFORM_OWNER_EMAILS,
+      owners: platformOwnerEmails(),
     },
     deploy,
     health: {

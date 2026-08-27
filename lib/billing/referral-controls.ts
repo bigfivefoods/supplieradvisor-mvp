@@ -81,7 +81,13 @@ export async function requireReferralOps(
       '';
     const bearer = auth.replace(/^Bearer\s+/i, '').trim();
     if (bearer === opsSecret || header === opsSecret) {
-      return { ok: true, userId: 'ops:system', verified: true, via: 'secret' };
+      return {
+        ok: true,
+        userId: 'ops:system',
+        verified: true,
+        emails: [],
+        via: 'secret',
+      };
     }
   }
 
@@ -111,6 +117,7 @@ export async function requireReferralOps(
         ok: true,
         userId: user.userId,
         verified: user.verified,
+        emails: user.emails || [],
         via: 'root_owner',
       };
     }
@@ -129,6 +136,7 @@ export async function requireReferralOps(
         ok: true,
         userId: user.userId,
         verified: user.verified,
+        emails: user.emails || [],
         via: 'root_owner',
       };
     }

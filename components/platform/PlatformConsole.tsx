@@ -396,7 +396,7 @@ export function PlatformGateState({
         </p>
         <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
           {error ||
-            'This admin portal is only for SupplierAdvisor owners (craig@bigfivefoods.com and craig@bigfivegroup.africa).'}
+            'This admin portal is only for SupplierAdvisor platform owners.'}
         </p>
         <button
           type="button"
@@ -435,18 +435,25 @@ export function PlatformOverview({
               Admin and management console for the entire SupplierAdvisor® system —
               system health, commercial footprint, network growth, and ops readiness.
             </p>
-            <p className="mt-3 text-xs text-slate-500">
-              Owners:{' '}
-              <span className="font-semibold text-slate-700">
-                {(data.owner_emails || []).join(' · ') ||
-                  'craig@bigfivefoods.com · craig@bigfivegroup.africa'}
-              </span>
-              {data.access?.via ? (
-                <span className="ml-2 rounded-full bg-white px-2 py-0.5 font-bold text-[#0077b6] border border-cyan-100">
+            {(data.owner_emails || []).length > 0 ? (
+              <p className="mt-3 text-xs text-slate-500">
+                Owners:{' '}
+                <span className="font-semibold text-slate-700">
+                  {(data.owner_emails || []).join(' · ')}
+                </span>
+                {data.access?.via ? (
+                  <span className="ml-2 rounded-full bg-white px-2 py-0.5 font-bold text-[#0077b6] border border-cyan-100">
+                    via {data.access.via}
+                  </span>
+                ) : null}
+              </p>
+            ) : data.access?.via ? (
+              <p className="mt-3 text-xs text-slate-500">
+                <span className="rounded-full bg-white px-2 py-0.5 font-bold text-[#0077b6] border border-cyan-100">
                   via {data.access.via}
                 </span>
-              ) : null}
-            </p>
+              </p>
+            ) : null}
           </div>
           <button
             type="button"

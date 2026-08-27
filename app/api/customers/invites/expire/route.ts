@@ -5,6 +5,11 @@ import {
   isCustomerInvitesEnabled,
   logActivity,
 } from '@/lib/customers/access';
+import {
+  assertCronSecret,
+  legacyPrivyFrom,
+  requireCompanyAccess,
+} from '@/lib/auth/api-auth';
 
 /** Stuck claiming lease window — matches claim route reaper (5 minutes). */
 const CLAIMING_STALE_MS = 5 * 60 * 1000;
@@ -85,22 +90,13 @@ async function runExpire(request: NextRequest) {
       if (sp.get('privyUserId')) body.privyUserId = sp.get('privyUserId');
     }
 
-    const cronSecret =
-      process.env.CRON_SECRET || process.env.CUSTOMER_INVITE_EXPIRE_SECRET || '';
-    const authHeader = request.headers.get('authorization') || '';
-    const bearer = authHeader.toLowerCase().startsWith('bearer ')
-      ? authHeader.slice(7).trim()
-      : '';
-    const headerSecret = (request.headers.get('x-cron-secret') || '').trim();
-    const isCron =
-      Boolean(cronSecret) &&
-      (bearer === cronSecret || headerSecret === cronSecret);
+    const cron = assertCronSecret(request);
 
     let companyId: number | null = null;
     let actorUserId: string | null = null;
     let mode: 'cron' | 'member';
 
-    if (isCron) {
+    if (cron.ok) {
       mode = 'cron';
       const scoped = body.companyId != null ? Number(body.companyId) : null;
       if (scoped != null && Number.isFinite(scoped) && scoped > 0) {
@@ -112,17 +108,18 @@ async function runExpire(request: NextRequest) {
         return NextResponse.json(
           {
             error:
-              'Authentication required: pass companyId + privyUserId, or set CRON_SECRET and send Authorization: Bearer <secret>',
+              'Authentication required: pass companyId with a Privy Bearer token, or send Authorization: Bearer $CRON_SECRET',
             code: 'AUTH_REQUIRED',
           },
           { status: 401 }
         );
       }
-      const member = await assertCustomersAccess(
-        body.privyUserId as string | undefined,
-        cid,
-        'write'
-      );
+      const gate = await requireCompanyAccess(request, cid, {
+        legacyPrivyUserId:
+          (body.privyUserId as string | undefined) || legacyPrivyFrom(request),
+      });
+      if (!gate.ok) return gate.response;
+      const member = await assertCustomersAccess(gate.userId, cid, 'write');
       if (!member.ok) {
         return NextResponse.json({ error: member.error }, { status: member.status });
       }

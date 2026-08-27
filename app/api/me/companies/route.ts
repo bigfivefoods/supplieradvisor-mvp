@@ -14,7 +14,7 @@ import {
   ensurePlatformCompany,
   isPlatformCompanyProfile,
   isPlatformOwnerEmail,
-  PLATFORM_OWNER_EMAILS,
+  platformOwnerEmails,
 } from '@/lib/system/platform-company';
 import { canAppearInCompanySwitcher } from '@/lib/business/permissions';
 import { sortCompaniesForSwitcher } from '@/lib/business/company-switcher-order';
@@ -31,7 +31,8 @@ import {
  * Uses service role so RLS never hides rows when there is no Supabase session
  * (auth is Privy-only). Also matches by email for legacy / cross-device rows.
  *
- * Body: { privyUserId: string, email?: string | null, emails?: string[] }
+ * Body: { privyUserId?: string, includeDeleted?: boolean }
+ * Identity and owner emails come from the verified Privy JWT only.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -41,24 +42,17 @@ export async function POST(request: NextRequest) {
       legacyPrivyUserId: body.privyUserId || legacyPrivyFrom(request),
     });
     if (!_auth.ok) return _auth.response;
-    const userId =
-      getCanonicalUserId(_auth.userId) || getCanonicalUserId(body.privyUserId);
-    const email = body.email ? String(body.email).toLowerCase().trim() : null;
-    const bodyEmails: string[] = Array.isArray(body.emails)
-      ? body.emails.map((e: unknown) => String(e).toLowerCase().trim()).filter(Boolean)
-      : [];
-
+    const userId = getCanonicalUserId(_auth.userId);
     if (!userId) {
-      return NextResponse.json({ error: 'privyUserId is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
     const supabase = getSupabaseAdmin();
     const variants = userIdMatchVariants(userId);
 
-    // Resolve all known emails for this user (body + business_users history)
-    const knownEmails = new Set<string>();
-    if (email) knownEmails.add(email);
-    for (const e of bodyEmails) knownEmails.add(e);
+    // Emails from verified JWT + memberships already bound to this user_id.
+    // Never trust body.email / body.emails for platform ownership or membership rewrite.
+    const knownEmails = new Set<string>(_auth.emails || []);
     try {
       for (const e of await resolveEmailsForUserId(userId)) knownEmails.add(e);
     } catch {
@@ -66,7 +60,6 @@ export async function POST(request: NextRequest) {
     }
 
     const primaryEmail =
-      email ||
       [...knownEmails].find(
         (e) => isPlatformOwnerEmail(e) || isPlatformOperatorEmail(e)
       ) ||
@@ -79,9 +72,9 @@ export async function POST(request: NextRequest) {
       ) || (await isPlatformOperatorUserId(userId));
 
     /**
-     * Platform owners (craig@bigfivefoods.com / craig@bigfivegroup.africa):
-     * ensure SupplierAdvisor control-plane company exists and this user is
-     * an active owner so it always appears in Switch company.
+     * Platform owners (PLATFORM_OWNER_EMAILS / PLATFORM_OPERATOR_EMAILS):
+     * ensure the control-plane company exists and this user is an active owner
+     * so it always appears in Switch company.
      */
     let platformBootstrap: {
       companyId?: number;
@@ -94,9 +87,7 @@ export async function POST(request: NextRequest) {
       try {
         const result = await ensurePlatformCompany({
           userId,
-          email:
-            primaryEmail ||
-            PLATFORM_OWNER_EMAILS[0],
+          jwtEmails: [...knownEmails],
         });
         platformBootstrap = {
           companyId: result.company.id,
@@ -168,9 +159,12 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Heal user_id on email-matched rows so future lookups are fast/consistent
+      // Bind user_id only on unmatched invite rows (empty user_id). Never steal
+      // an existing membership that belongs to another user_id.
       for (const row of emailMatches) {
-        if (row.user_id && !variants.includes(String(row.user_id))) {
+        const existingUid = String(row.user_id || '').trim();
+        if (existingUid && !variants.includes(existingUid)) continue;
+        if (!existingUid) {
           await supabase
             .from('business_users')
             .update({
@@ -178,7 +172,8 @@ export async function POST(request: NextRequest) {
               email: primaryEmail || row.email,
               status: 'active',
             })
-            .eq('id', row.id);
+            .eq('id', row.id)
+            .is('user_id', null);
         }
       }
     }
@@ -214,7 +209,7 @@ export async function POST(request: NextRequest) {
         success: true,
         companies: [],
         userId,
-        email,
+        email: primaryEmail,
         debug: { matchedByUser: (byUser || []).length, variants },
       });
     }
@@ -376,7 +371,7 @@ export async function POST(request: NextRequest) {
           try {
             await ensurePlatformCompany({
               userId,
-              email: primaryEmail || PLATFORM_OWNER_EMAILS[0],
+              jwtEmails: [...knownEmails],
             });
           } catch {
             /* already logged in bootstrap */
@@ -426,7 +421,7 @@ export async function POST(request: NextRequest) {
       companies,
       deletedCompanies,
       userId,
-      email,
+      email: primaryEmail,
       count: companies.length,
       platformBootstrap,
     });

@@ -8,7 +8,7 @@ import {
 import { isCustomerInvitesEnabled, logActivity } from '@/lib/customers/access';
 import { upsertSupplierConnection } from '@/lib/suppliers/access';
 import { syncBooksOnAccept } from '@/lib/connections/sync';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import { invalidateCompanyMembershipMemo } from '@/lib/business/access';
 import {
   assignReferrerIfEmpty,
@@ -35,9 +35,13 @@ const CLAIMING_STALE_MS = 5 * 60 * 1000;
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { token, kind = 'business', privyUserId, email, name, phone } = body;
+    const { token, kind = 'business', name, phone } = body;
 
-    const userId = getCanonicalUserId(privyUserId);
+    const _auth = await requireVerifiedUser(request, {
+      legacyPrivyUserId: body.privyUserId || legacyPrivyFrom(request),
+    });
+    if (!_auth.ok) return _auth.response;
+    const userId = getCanonicalUserId(_auth.userId);
     if (!token || !userId) {
       return NextResponse.json(
         { error: 'Invitation token and authenticated user are required.' },
@@ -47,7 +51,14 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
     const now = new Date().toISOString();
-    const normalizedEmail = email ? String(email).toLowerCase().trim() : null;
+    const jwtEmails = [
+      ...new Set(
+        (_auth.emails || [])
+          .map((e) => String(e || '').toLowerCase().trim())
+          .filter((e) => e.includes('@'))
+      ),
+    ];
+    const normalizedEmail = jwtEmails[0] || null;
 
     if (kind === 'team') {
       const { data: invite, error } = await supabase
@@ -77,9 +88,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'This invitation has expired.' }, { status: 410 });
       }
 
-      // Soft email check when both known
       const inviteEmail = (invite.invited_email || invite.email || '').toLowerCase();
-      if (normalizedEmail && inviteEmail && normalizedEmail !== inviteEmail) {
+      if (inviteEmail && jwtEmails.length && !jwtEmails.includes(inviteEmail)) {
         return NextResponse.json(
           {
             error: `Please sign in with the invited email (${inviteEmail}).`,
@@ -89,7 +99,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const { error: updateError } = await supabase
+      const { data: claimed, error: updateError } = await supabase
         .from('business_users')
         .update({
           user_id: userId,
@@ -100,11 +110,20 @@ export async function POST(request: NextRequest) {
           joined_at: now,
         })
         .eq('id', invite.id)
-        .eq('invite_token', token);
+        .eq('invite_token', token)
+        .in('status', ['invited', 'pending'])
+        .select('id')
+        .maybeSingle();
 
       if (updateError) {
         console.error('Team claim update error:', updateError);
         return NextResponse.json({ error: 'Failed to accept invitation.', details: updateError.message }, { status: 500 });
+      }
+      if (!claimed) {
+        return NextResponse.json(
+          { error: 'This invitation has already been accepted.' },
+          { status: 409 }
+        );
       }
 
       return NextResponse.json({
@@ -128,6 +147,7 @@ export async function POST(request: NextRequest) {
         token,
         userId,
         normalizedEmail,
+        jwtEmails,
         name,
         phone,
         now,
@@ -172,7 +192,7 @@ export async function POST(request: NextRequest) {
     }
 
     const inviteEmail = (profile.email || '').toLowerCase();
-    if (normalizedEmail && inviteEmail && normalizedEmail !== inviteEmail) {
+    if (inviteEmail && jwtEmails.length && !jwtEmails.includes(inviteEmail)) {
       return NextResponse.json(
         {
           error: `Please sign in with the invited email (${inviteEmail}).`,
@@ -182,7 +202,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { error: updateProfileError } = await supabase
+    const { data: claimedProfile, error: updateProfileError } = await supabase
       .from('profiles')
       .update({
         supplier_status: 'active',
@@ -195,13 +215,22 @@ export async function POST(request: NextRequest) {
         is_discoverable: profile.is_discoverable !== false,
       })
       .eq('id', profile.id)
-      .eq('invite_token', token);
+      .eq('invite_token', token)
+      .in('supplier_status', ['invited', 'pending'])
+      .select('id')
+      .maybeSingle();
 
     if (updateProfileError) {
       console.error('Business claim profile error:', updateProfileError);
       return NextResponse.json(
         { error: 'Failed to claim business profile.', details: updateProfileError.message },
         { status: 500 }
+      );
+    }
+    if (!claimedProfile) {
+      return NextResponse.json(
+        { error: 'This invitation has already been claimed.' },
+        { status: 409 }
       );
     }
 
@@ -242,13 +271,14 @@ export async function POST(request: NextRequest) {
 
       if (membershipError) {
         console.error('Business claim membership error:', membershipError);
-        // Profile is claimed; surface soft warning
-        return NextResponse.json({
-          success: true,
-          profileId: profile.id,
-          warning: 'Profile claimed but membership link failed. Contact support if companies do not appear.',
-          details: membershipError.message,
-        });
+        return NextResponse.json(
+          {
+            error: 'Failed to create ownership membership.',
+            details: membershipError.message,
+            profileId: profile.id,
+          },
+          { status: 500 }
+        );
       }
     }
 
@@ -440,11 +470,14 @@ async function claimCustomerInvite(opts: {
   token: string;
   userId: string;
   normalizedEmail: string | null;
+  jwtEmails: string[];
   name?: string;
   phone?: string;
   now: string;
 }): Promise<NextResponse> {
-  const { supabase, token, userId, normalizedEmail, name, phone, now } = opts;
+  const { supabase, token, userId, jwtEmails, name, phone, now } = opts;
+  let normalizedEmail =
+    jwtEmails.find((e) => e.includes('@')) || opts.normalizedEmail;
 
   const { data: invitePreview, error: loadErr } = await supabase
     .from('customer_invitations')
@@ -505,20 +538,11 @@ async function claimCustomerInvite(opts: {
     return NextResponse.json({ error: 'This invitation has expired.' }, { status: 410 });
   }
 
-  // Hard email rule for kind=customer
+  // Hard email rule for kind=customer — JWT emails only
   const inviteEmail = String(invitePreview.email || '')
     .toLowerCase()
     .trim();
-  if (!normalizedEmail) {
-    return NextResponse.json(
-      {
-        error: 'Sign in with the invited email.',
-        expectedEmail: inviteEmail || undefined,
-      },
-      { status: 403 }
-    );
-  }
-  if (!inviteEmail || normalizedEmail !== inviteEmail) {
+  if (!inviteEmail || !jwtEmails.includes(inviteEmail)) {
     return NextResponse.json(
       {
         error: `Please sign in with the invited email (${inviteEmail || 'unknown'}).`,
@@ -527,6 +551,7 @@ async function claimCustomerInvite(opts: {
       { status: 403 }
     );
   }
+  normalizedEmail = inviteEmail;
 
   // Same-user claiming recovery: finalize if CRM linked; else restore only when lease is stale
   if (invitePreview.status === 'claiming') {

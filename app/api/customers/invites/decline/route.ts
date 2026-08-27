@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { getCanonicalUserId, isInviteExpired } from '@/lib/auth/identity';
 import { isCustomerInvitesEnabled, logActivity } from '@/lib/customers/access';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  extractAccessToken,
+  verifyPrivyAccessToken,
+} from '@/lib/auth/verify-privy';
 
 /**
  * POST /api/customers/invites/decline
@@ -28,10 +31,21 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServer();
     const now = new Date().toISOString();
-    const actorUserId = getCanonicalUserId(body.privyUserId) || null;
-    const normalizedEmail = body.email
-      ? String(body.email).toLowerCase().trim()
-      : null;
+    let actorUserId: string | null = null;
+    let jwtEmails: string[] = [];
+    const accessToken = extractAccessToken(
+      request.headers,
+      request.headers.get('cookie')
+    );
+    if (accessToken) {
+      const verified = await verifyPrivyAccessToken(accessToken);
+      if (verified.ok) {
+        actorUserId = getCanonicalUserId(verified.user.userId);
+        jwtEmails = (verified.user.emails || []).map((e) =>
+          String(e).toLowerCase().trim()
+        );
+      }
+    }
 
     const { data: invitation, error: loadErr } = await supabase
       .from('customer_invitations')
@@ -96,11 +110,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Optional soft email check when provided
     const inviteEmail = String(invitation.email || '')
       .toLowerCase()
       .trim();
-    if (normalizedEmail && inviteEmail && normalizedEmail !== inviteEmail) {
+    if (jwtEmails.length && inviteEmail && !jwtEmails.includes(inviteEmail)) {
       return NextResponse.json(
         {
           error: `Please use the invited email (${inviteEmail}) to decline.`,

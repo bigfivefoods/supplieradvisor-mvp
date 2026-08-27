@@ -5,7 +5,7 @@ import {
   isCustomerInvitesEnabled,
   logActivity,
 } from '@/lib/customers/access';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 
 /** Statuses that may be revoked by the seller. Stuck `claiming` is for the expiry/reap job. */
 const REVOCABLE_STATUSES = new Set(['pending', 'expired']);
@@ -26,10 +26,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const companyId = Number(body.companyId);
 
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: body.privyUserId || legacyPrivyFrom(request),
+    });
     if (!_gate.ok) return _gate.response;
     const invitationId = Number(body.invitationId);
-    const privyUserId = body.privyUserId;
 
     if (!Number.isFinite(companyId) || !Number.isFinite(invitationId)) {
       return NextResponse.json(
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const member = await assertCustomersAccess(privyUserId, companyId, 'write');
+    const member = await assertCustomersAccess(_gate.userId, companyId, 'write');
     if (!member.ok) {
       return NextResponse.json({ error: member.error }, { status: member.status });
     }
