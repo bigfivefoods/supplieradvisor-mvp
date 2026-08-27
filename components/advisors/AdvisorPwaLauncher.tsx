@@ -166,11 +166,14 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
   }, [ready, authenticated, brand.companyId, brand.joinKind, brand.module]);
 
   const openMemberApp = (path: string, portal: string) => {
-    rememberAdvisorPwaMember({
-      module: brand.module,
-      memberToken: portal,
-      publicToken: brand.publicToken,
-    });
+    const desk = path.startsWith('/dashboard');
+    if (!desk) {
+      rememberAdvisorPwaMember({
+        module: brand.module,
+        memberToken: portal,
+        publicToken: brand.publicToken,
+      });
+    }
     window.location.assign(path);
   };
 
@@ -411,7 +414,7 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
               >
                 <p className="text-xs font-black" style={{ color: pageInk }}>
                   {signInAs === 'staff'
-                    ? `I work here — name and email on ${staffListLabel} (employed or contractor)`
+                    ? `Owner / coach — name and email on the gym file`
                     : clinicCopy?.signInMember ||
                       'Member / client — name and email on your file'}
                 </p>
@@ -435,7 +438,7 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
                 ) : (
                   <p className="text-[11px] opacity-70" style={{ color: pageInk }}>
                     {signInAs === 'staff'
-                      ? 'This opens the work app — diary, roster, attendance. Same view if you are employed or a contractor.'
+                      ? `This opens the ${brand.shortName} work app for owners and coaches.`
                       : `This opens the ${memberAppLabel}.`}
                   </p>
                 )}
@@ -560,14 +563,14 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
                       ) : (
                         <Stethoscope className="h-4 w-4" />
                       )}
-                      I work or contract here
+                      I own, coach or contract here
                     </button>
                     <p
                       className="text-left text-[11px] opacity-70"
                       style={{ color: pageInk }}
                     >
-                      Employed or contractor — same work app. Use the name and
-                      email on {staffListLabel} in {brand.advisorLabel}.
+                      Owner, employed coach or contractor — same {brand.shortName}{' '}
+                      app. Use the name and email on the gym file.
                     </p>
                   </>
                 ) : null}

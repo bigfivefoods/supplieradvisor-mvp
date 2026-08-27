@@ -110,6 +110,21 @@ export function resolveAdvisorPwaLane(opts: {
   };
 }
 
+async function matchGymCompanyOwner(
+  companyId: number,
+  email: string
+): Promise<{ name: string } | null> {
+  const key = String(email || '').trim().toLowerCase();
+  if (!key.includes('@')) return null;
+  const { resolveCompanyEmails } = await import('@/lib/billing/company-emails');
+  const { emails, tradingName } = await resolveCompanyEmails(companyId, {
+    roleAllowlist: ['owner', 'admin'],
+    limit: 20,
+  });
+  if (!emails.includes(key)) return null;
+  return { name: tradingName || 'Owner' };
+}
+
 export function findStaffForPortalSignIn<T extends RosterPerson>(
   people: T[],
   lookup: { name?: string | null; email?: string | null }
@@ -136,7 +151,7 @@ export type AdvisorPwaSignInOk = {
   name: string;
   portal_token: string;
   path: string;
-  role?: 'member' | 'coach' | 'patient' | 'customer' | 'practitioner';
+  role?: 'member' | 'coach' | 'owner' | 'patient' | 'customer' | 'practitioner';
 };
 
 export type AdvisorPwaSignInErr = {
@@ -362,15 +377,25 @@ async function signInGym(opts: {
     name: opts.name,
     email: opts.email,
   });
+  const owner = await matchGymCompanyOwner(loaded.companyId, opts.email);
   const lane = resolveAdvisorPwaLane({
     expectRole: opts.expectRole,
-    hasStaff: Boolean(coach),
+    hasStaff: Boolean(coach) || Boolean(owner),
     hasMember: Boolean(client),
     staffLabel: 'Coach',
     staffListLabel: 'Coaches',
   });
   if (!lane.ok) {
     return { ok: false, status: 404, error: lane.error };
+  }
+  if (lane.lane === 'staff' && !coach && owner) {
+    return {
+      ok: true,
+      name: String(opts.name || owner.name || 'Owner').trim().split(/\s+/)[0],
+      portal_token: loaded.store.settings?.public_token || opts.token,
+      path: '/dashboard/fitgraph',
+      role: 'owner',
+    };
   }
   if (lane.lane === 'staff' && coach) {
     let portalToken = String(coach.portal_token || '').trim();

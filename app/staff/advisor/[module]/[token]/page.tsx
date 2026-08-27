@@ -7,7 +7,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Loader2, RefreshCw, Smartphone } from 'lucide-react';
-import { B2cInstallPrompt } from '@/components/b2c/B2cInstallPrompt';
+import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
+import { isAdvisorPwaModule } from '@/lib/advisors/member-pwa';
 
 type Row = {
   booking_id: string | null;
@@ -27,6 +28,8 @@ export default function StaffAdvisorTodayPage() {
     token: string;
   };
   const [brand, setBrand] = useState('');
+  const [publicToken, setPublicToken] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
   const [staffName, setStaffName] = useState('');
   const [date, setDate] = useState('');
   const [rows, setRows] = useState<Row[]>([]);
@@ -50,6 +53,8 @@ export default function StaffAdvisorTodayPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load');
       setBrand(data.brand || 'Advisor');
+      setPublicToken(String(data.public_token || '').trim());
+      setLogoUrl(String(data.logo_url || '').trim());
       setStaffName(data.staff?.name || 'Staff');
       setDate(data.date || '');
       setRows(data.rows || []);
@@ -159,8 +164,19 @@ export default function StaffAdvisorTodayPage() {
     }
   };
 
+  const pwaModule = isAdvisorPwaModule(mod) ? mod : null;
+
   return (
     <div className="min-h-screen bg-slate-950 text-white">
+      {pwaModule ? (
+        <AdvisorPwaMemberBinder
+          module={pwaModule}
+          memberToken={token}
+          publicToken={publicToken || undefined}
+          brandName={brand}
+          iconUrl={logoUrl || undefined}
+        />
+      ) : null}
       <header className="sticky top-0 z-10 border-b border-white/10 bg-slate-950/95 backdrop-blur px-4 py-3">
         <div className="flex items-center justify-between gap-2 max-w-lg mx-auto">
           <div>

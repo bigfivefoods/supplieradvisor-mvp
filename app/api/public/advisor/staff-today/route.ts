@@ -169,10 +169,13 @@ export async function GET(req: NextRequest) {
         module: 'fitgraph',
         companyId: row.id,
         brand:
+          store.settings?.pwa_name ||
           store.settings?.brand_name ||
           row.company_name ||
           row.name ||
           'GymAdvisor',
+        public_token: store.settings?.public_token || null,
+        logo_url: logoUrlFromSettings(store.settings),
         staff: { id: coach.id, name: coach.name, role: 'coach' },
         date: day,
         rows: rowsOut,
