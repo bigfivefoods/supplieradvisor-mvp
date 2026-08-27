@@ -342,6 +342,8 @@ export type FitCoach = {
   photo_url?: string;
   /** Token for coach self-service portal (share classes with members) */
   portal_token?: string | null;
+  /** Linked SA Member / platform login */
+  platform_user_id?: string | null;
   /** Can manage own sessions (edit capacity, cancel, share) */
   can_manage_classes?: boolean;
   /** Coach personal goals (logged in the work PWA). */
