@@ -6,7 +6,7 @@ import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/li
 import { OPPORTUNITY_STAGES, stageProbability } from '@/lib/customers/types';
 import { jsonKpi } from '@/lib/http/response-cache';
 import { withCompanyKpiCache } from '@/lib/dashboard/kpi-cache';
-import { loadCompanyKpiSnapshot } from '@/lib/dashboard/company-kpi-snapshot';
+import { loadCompanyKpiSnapshot, snapOk } from '@/lib/dashboard/company-kpi-snapshot';
 
 export type DashboardActivity = {
   id: string;
@@ -284,17 +284,17 @@ async function assembleDashboardSummary(companyId: number) {
       dashboardRollupRes,
     ] = independent;
 
-    const productsRes = { count: snap.productsCount, data: snap.products, error: null };
-    const connectionsProfileRes = { data: snap.connections, error: null };
-    const stockLevelsRes = { data: snap.stock, error: null };
-    const warehousesRes = { data: snap.warehouses, error: null };
-    const customersRes = { data: snap.customers, error: null };
-    const leadsRes = { data: snap.leads, error: null };
-    const srmSuppliersRes = { data: snap.srmSuppliers, error: null };
-    const srmPosRes = { data: snap.buyerPos, error: null };
-    const customerQuotesRes = { data: snap.quotes, error: null };
-    const productsFullRes = { data: snap.products, error: null };
-    const accountingInvoicesRes = { data: snap.invoices, error: null };
+    const productsRes = snapOk(snap.products, snap.productsCount);
+    const connectionsProfileRes = snapOk(snap.connections);
+    const stockLevelsRes = snapOk(snap.stock);
+    const warehousesRes = snapOk(snap.warehouses);
+    const customersRes = snapOk(snap.customers);
+    const leadsRes = snapOk(snap.leads);
+    const srmSuppliersRes = snapOk(snap.srmSuppliers);
+    const srmPosRes = snapOk(snap.buyerPos);
+    const customerQuotesRes = snapOk(snap.quotes);
+    const productsFullRes = snapOk(snap.products);
+    const accountingInvoicesRes = snapOk(snap.invoices);
 
     const team = (teamRes.data || []).filter((m) =>
       isListedTeamMember((m as { status?: string | null }).status)

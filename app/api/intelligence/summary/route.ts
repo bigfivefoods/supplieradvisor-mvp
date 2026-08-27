@@ -15,7 +15,7 @@ import { loadGoldenPath } from '@/lib/business/golden-path';
 import { daysUntil } from '@/lib/sustainability/types';
 import { jsonKpi } from '@/lib/http/response-cache';
 import { withCompanyKpiCache } from '@/lib/dashboard/kpi-cache';
-import { loadCompanyKpiSnapshot } from '@/lib/dashboard/company-kpi-snapshot';
+import { loadCompanyKpiSnapshot, snapOk } from '@/lib/dashboard/company-kpi-snapshot';
 
 /**
  * Live BI snapshot from Supabase company data + rule-based insights engine.
@@ -145,17 +145,17 @@ async function assembleIntelligenceSummary(companyId: number) {
     riadsRes,
   ] = independent;
 
-  const connectionsRes = { data: snap.connections, error: null };
-  const srmRes = { data: snap.srmSuppliers, error: null };
-  const customersRes = { data: snap.customers, error: null };
-  const posRes = { data: snap.buyerPos, error: null };
-  const quotesRes = { data: snap.quotes, error: null };
-  const acctInvRes = { data: snap.invoices, error: null };
-  const productsRes = { data: snap.products, error: null };
-  const stockRes = { data: snap.stock, error: null };
-  const leadsRes = { data: snap.leads, error: null };
-  const shipsRes = { data: snap.shipments, error: null };
-  const mfgRes = { data: snap.mfgOrders, error: null };
+  const connectionsRes = snapOk(snap.connections);
+  const srmRes = snapOk(snap.srmSuppliers);
+  const customersRes = snapOk(snap.customers);
+  const posRes = snapOk(snap.buyerPos);
+  const quotesRes = snapOk(snap.quotes);
+  const acctInvRes = snapOk(snap.invoices);
+  const productsRes = snapOk(snap.products);
+  const stockRes = snapOk(snap.stock);
+  const leadsRes = snapOk(snap.leads);
+  const shipsRes = snapOk(snap.shipments);
+  const mfgRes = snapOk(snap.mfgOrders);
 
   const company = profileRes.data;
   if (!company) {

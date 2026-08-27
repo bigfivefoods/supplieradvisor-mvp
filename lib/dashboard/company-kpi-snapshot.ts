@@ -11,6 +11,15 @@ import { KPI_TTL_MS } from '@/lib/dashboard/kpi-cache';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type KpiRow = Record<string, any>;
 
+/** Snapshot rows never carry a PostgREST error; keep the field typed for callers. */
+export function snapOk<T>(data: T[], count?: number) {
+  return {
+    data,
+    count,
+    error: null as { message: string } | null,
+  };
+}
+
 export type CompanyKpiSnapshot = {
   products: KpiRow[];
   productsCount: number;

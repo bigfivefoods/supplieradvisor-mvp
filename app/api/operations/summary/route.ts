@@ -3,7 +3,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import { jsonKpi } from '@/lib/http/response-cache';
 import { withCompanyKpiCache } from '@/lib/dashboard/kpi-cache';
-import { loadCompanyKpiSnapshot } from '@/lib/dashboard/company-kpi-snapshot';
+import { loadCompanyKpiSnapshot, snapOk } from '@/lib/dashboard/company-kpi-snapshot';
 
 /**
  * GET ?companyId=
@@ -58,17 +58,17 @@ async function assembleOperationsSummary(companyId: number) {
         .limit(100),
     ]);
 
-    const buyerPos = { data: snap.buyerPos, error: null };
-    const sellerPos = { data: snap.sellerPos, error: null };
-    const mfgOrders = { data: snap.mfgOrders, error: null };
-    const mfgBoms = { data: snap.mfgBoms, error: null };
-    const mfgWc = { data: snap.mfgWorkCenters, error: null };
-    const ships = { data: snap.shipments, error: null };
-    const stock = { data: snap.stock, error: null };
-    const warehouses = { data: snap.warehouses, error: null };
-    const products = { data: snap.products, error: null };
-    const srmSuppliers = { data: snap.srmSuppliers, error: null };
-    const customers = { data: snap.customers, error: null };
+    const buyerPos = snapOk(snap.buyerPos);
+    const sellerPos = snapOk(snap.sellerPos);
+    const mfgOrders = snapOk(snap.mfgOrders);
+    const mfgBoms = snapOk(snap.mfgBoms);
+    const mfgWc = snapOk(snap.mfgWorkCenters);
+    const ships = snapOk(snap.shipments);
+    const stock = snapOk(snap.stock);
+    const warehouses = snapOk(snap.warehouses);
+    const products = snapOk(snap.products);
+    const srmSuppliers = snapOk(snap.srmSuppliers);
+    const customers = snapOk(snap.customers);
 
     const warnings = [
       buyerPos.error?.message,

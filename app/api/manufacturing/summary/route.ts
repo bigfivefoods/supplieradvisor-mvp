@@ -3,7 +3,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import { jsonKpi } from '@/lib/http/response-cache';
 import { withCompanyKpiCache } from '@/lib/dashboard/kpi-cache';
-import { loadCompanyKpiSnapshot } from '@/lib/dashboard/company-kpi-snapshot';
+import { loadCompanyKpiSnapshot, snapOk } from '@/lib/dashboard/company-kpi-snapshot';
 
 export async function GET(request: NextRequest) {
   try {
@@ -45,10 +45,10 @@ async function assembleManufacturingSummary(companyId: number) {
         .limit(1),
     ]);
 
-    const bomsRes = { data: snap.mfgBoms, error: null as { message: string } | null };
-    const ordersRes = { data: snap.mfgOrders, error: null as { message: string } | null };
-    const wcRes = { data: snap.mfgWorkCenters, error: null as { message: string } | null };
-    const stockRes = { data: snap.stock, error: null as { message: string } | null };
+    const bomsRes = snapOk(snap.mfgBoms);
+    const ordersRes = snapOk(snap.mfgOrders);
+    const wcRes = snapOk(snap.mfgWorkCenters);
+    const stockRes = snapOk(snap.stock);
 
     const schemaWarning =
       bomsRes.error?.message ||
