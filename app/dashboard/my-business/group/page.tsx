@@ -330,8 +330,8 @@ function GroupInner() {
             <div>
               <SectionLabel>Group structure</SectionLabel>
               <p className="text-xs text-neutral-500 -mt-1 mb-2">
-                Full chain visibility: Holding → subsidiary → sub-sub, with ownership %
-                on each link when set. Associations list members under the body.
+                Full chain with ownership % on each link when set. Every company
+                is named the same way.
               </p>
             </div>
           </div>

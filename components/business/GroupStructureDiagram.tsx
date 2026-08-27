@@ -60,11 +60,10 @@ export default function GroupStructureDiagram({
             <div className="flex flex-wrap items-center gap-2 border-b border-neutral-100 bg-slate-50/80 px-4 py-2.5">
               <Icon className="h-4 w-4 text-[#0077b6]" />
               <span className="text-xs font-black uppercase tracking-wider text-slate-700">
-                {tree.label}
+                {tree.link_type === 'holding' ? 'Group' : tree.label}
               </span>
               <span className="text-[11px] text-neutral-500">
-                {tree.parentLabel} → {tree.childLabel}
-                {tree.showOwnership ? ' · shareholding %' : ''}
+                {tree.showOwnership ? 'Shareholding % on each link' : tree.label}
               </span>
             </div>
             <div className={`overflow-x-auto ${compact ? 'px-3 py-5' : 'px-4 py-8 sm:px-6'}`}>
@@ -73,7 +72,6 @@ export default function GroupStructureDiagram({
                   node={tree.root}
                   showOwnership={tree.showOwnership}
                   isRoot
-                  childLabel={tree.childLabel}
                 />
               </div>
             </div>
@@ -88,12 +86,10 @@ function TreeNode({
   node,
   showOwnership,
   isRoot = false,
-  childLabel,
 }: {
   node: StructureNode;
   showOwnership: boolean;
   isRoot?: boolean;
-  childLabel: string;
 }) {
   const hasChildren = node.children.length > 0;
   const own = formatOwnership(node.ownership_pct);
@@ -104,21 +100,14 @@ function TreeNode({
       {!isRoot && (
         <div className="flex flex-col items-center">
           <div className="h-4 w-px bg-slate-300" />
-          {(own || node.role_label) && (
+          {own && showOwnership ? (
             <div className="relative z-[1] my-0.5 flex flex-col items-center gap-0.5">
-              {own && showOwnership ? (
-                <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-0.5 text-[11px] font-black tabular-nums text-violet-900 shadow-sm">
-                  {own}
-                </span>
-              ) : null}
-              {!showOwnership || node.role_label ? (
-                <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500">
-                  {node.role_label || childLabel}
-                </span>
-              ) : null}
+              <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-0.5 text-[11px] font-black tabular-nums text-violet-900 shadow-sm">
+                {own}
+              </span>
             </div>
-          )}
-          {!own && !node.role_label && showOwnership && (
+          ) : null}
+          {!own && showOwnership && (
             <span className="my-0.5 rounded-full border border-dashed border-slate-200 bg-slate-50 px-2 py-0.5 text-[9px] font-semibold text-slate-400">
               % n/a
             </span>
@@ -156,7 +145,6 @@ function TreeNode({
                   <TreeNode
                     node={child}
                     showOwnership={showOwnership}
-                    childLabel={childLabel}
                   />
                 </div>
               ))}
@@ -193,16 +181,6 @@ function NodeCard({ node }: { node: StructureNode }) {
       {node.isSelf && (
         <p className="mt-0.5 text-[9px] font-black uppercase tracking-wider text-[#00b4d8]">
           You
-        </p>
-      )}
-      {node.subtitle && !node.isSelf && (
-        <p className="mt-0.5 text-[10px] text-neutral-500 line-clamp-1">
-          {node.subtitle}
-        </p>
-      )}
-      {node.isSelf && node.subtitle && (
-        <p className="mt-0.5 text-[10px] text-neutral-500 line-clamp-1">
-          {node.subtitle}
         </p>
       )}
     </div>

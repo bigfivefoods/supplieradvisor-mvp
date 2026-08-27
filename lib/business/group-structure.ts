@@ -44,6 +44,36 @@ export type StructureEdge = {
 
 const OWNERSHIP_TYPES = new Set(['holding', 'joint_venture', 'affiliate']);
 
+/** Parent-role names that must never be shown on a child node. */
+const PARENT_ROLE_ALIASES = new Set([
+  'holding company',
+  'holding',
+  'group head',
+  'parent organisation',
+  'parent organization',
+  'franchisor',
+  'association / industry body',
+  'principal',
+]);
+
+/**
+ * Label for a child in the diagram. A holding link's role_label is sometimes
+ * mistakenly set to "Holding company" (the parent's role) — always prefer
+ * Subsidiary / Member / etc. in that case.
+ */
+export function childRoleLabel(
+  edge: { role_label?: string | null; link_type?: string | null },
+  childLabel: string,
+  parentLabel: string
+): string {
+  const raw = String(edge.role_label || '').trim();
+  if (!raw) return childLabel;
+  const n = raw.toLowerCase();
+  if (n === parentLabel.toLowerCase()) return childLabel;
+  if (PARENT_ROLE_ALIASES.has(n)) return childLabel;
+  return raw;
+}
+
 /** Max hops when expanding the connected group graph */
 export const STRUCTURE_MAX_DEPTH = 8;
 /** Safety cap on companies in one diagram */
@@ -213,14 +243,10 @@ export function buildGroupStructureTrees(
         meta.childLabel,
         visited
       );
-      // Ensure root name is solid
+      // Company cards use the trading name only — no Holding / Subsidiary labels
       root.name = nameById.get(rootId) || root.name;
-      root.subtitle =
-        rootId === companyId
-          ? componentEdges.some((e) => e.parent_id === companyId)
-            ? meta.parentLabel
-            : meta.childLabel
-          : meta.parentLabel;
+      root.subtitle = null;
+      root.role_label = null;
 
       trees.push({
         link_type: linkType,
@@ -347,10 +373,8 @@ function buildNode(
       childVisited
     );
     node.ownership_pct = e.ownership_pct;
-    node.role_label = e.role_label;
-    if (!node.subtitle) {
-      node.subtitle = e.role_label || childLabel;
-    }
+    node.role_label = null;
+    node.subtitle = null;
     return node;
   });
 
