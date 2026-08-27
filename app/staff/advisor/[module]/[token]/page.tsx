@@ -354,7 +354,6 @@ export default function StaffAdvisorTodayPage() {
           </ul>
         )}
       </main>
-      <B2cInstallPrompt />
     </div>
   );
 }
