@@ -343,7 +343,6 @@ async function signInGym(opts: {
     issueCoachPortalToken,
     parseCompanyIdFromToken,
     readFitgraphFromMetadata,
-    writeFitgraphToMetadata,
   } = await import('@/lib/fitness/fitgraph');
   const loaded = await loadAdvisorStoreForPublicToken({
     token: opts.token,
@@ -384,12 +383,10 @@ async function signInGym(opts: {
           portal_token: portalToken,
           can_manage_classes: true,
         };
-        await saveAdvisorModuleStore(
-          loaded.companyId,
-          FITGRAPH_META_KEY,
-          loaded.store,
-          writeFitgraphToMetadata
+        const { saveFitgraphMerged } = await import(
+          '@/lib/fitness/fitgraph-io'
         );
+        await saveFitgraphMerged(loaded.companyId, loaded.store);
       }
     }
     return {
@@ -417,12 +414,10 @@ async function signInGym(opts: {
         ...loaded.store.clients[idx],
         portal_token: portalToken,
       };
-      await saveAdvisorModuleStore(
-        loaded.companyId,
-        FITGRAPH_META_KEY,
-        loaded.store,
-        writeFitgraphToMetadata
+      const { saveFitgraphMerged } = await import(
+        '@/lib/fitness/fitgraph-io'
       );
+      await saveFitgraphMerged(loaded.companyId, loaded.store);
     }
   }
   return {

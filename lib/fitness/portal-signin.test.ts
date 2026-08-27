@@ -3,8 +3,10 @@
  */
 import assert from 'node:assert/strict';
 import {
+  ensureClientPortalToken,
   findClientForPortalSignIn,
   namesMatchForPortalSignIn,
+  rememberClientPortalToken,
   type FitClient,
   type FitgraphStore,
 } from './fitgraph';
@@ -71,5 +73,13 @@ assert.equal(
   })?.id,
   'cli_inv'
 );
+
+const live = {
+  portal_token: 'member_110_live',
+} as FitClient;
+assert.equal(ensureClientPortalToken(live, 110), 'member_110_live');
+rememberClientPortalToken(live, 'member_110_next');
+assert.equal(live.portal_token, 'member_110_next');
+assert.deepEqual(live.portal_token_aliases, ['member_110_live']);
 
 console.log('portal-signin tests ok');

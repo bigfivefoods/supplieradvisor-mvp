@@ -165,4 +165,51 @@ const goalMerged = mergeFitgraphStores(goalLatest, goalIncoming);
 assert.equal(goalMerged.goals?.[0].current_value, 85);
 assert.equal((goalMerged.goals?.[0].check_ins || []).length, 1);
 
+const desk = emptyFitgraphStore();
+desk.clients.push({
+  id: 'cli_keep',
+  name: 'Roster',
+  email: 'roster@gym.test',
+  code: 'R1',
+  created_at: '2026-08-01',
+} as never);
+const wallet = emptyFitgraphStore();
+wallet.clients.push({
+  id: 'cli_join',
+  name: 'Jarryd',
+  email: 'jlunn45@gmail.com',
+  portal_token: 'member_110_old',
+  code: 'J1',
+  created_at: '2026-08-27',
+} as never);
+const joined = mergeFitgraphStores(desk, wallet);
+assert.ok(joined.clients.some((c) => c.id === 'cli_keep'));
+assert.equal(
+  joined.clients.find((c) => c.id === 'cli_join')?.portal_token,
+  'member_110_old'
+);
+
+const tokenLatest = emptyFitgraphStore();
+tokenLatest.clients.push({
+  id: 'cli_1',
+  name: 'Member',
+  portal_token: 'member_110_live',
+  updated_at: '2026-08-27T05:00:00Z',
+  code: 'M1',
+  created_at: '2026-08-01',
+} as never);
+const tokenIncoming = emptyFitgraphStore();
+tokenIncoming.clients.push({
+  id: 'cli_1',
+  name: 'Member',
+  portal_token: 'member_110_new',
+  updated_at: '2026-08-27T06:00:00Z',
+  code: 'M1',
+  created_at: '2026-08-01',
+} as never);
+const tokenMerged = mergeFitgraphStores(tokenLatest, tokenIncoming);
+const tokenRow = tokenMerged.clients.find((c) => c.id === 'cli_1');
+assert.equal(tokenRow?.portal_token, 'member_110_new');
+assert.ok((tokenRow?.portal_token_aliases || []).includes('member_110_live'));
+
 console.log('fitgraph-merge.test.ts ok');

@@ -114,7 +114,9 @@ export function mergeFitgraphStores(
     const merged =
       key === 'goals'
         ? mergeGoalRows(latest[key], incoming[key])
-        : mergeRowsById(latest[key], incoming[key]);
+        : key === 'clients'
+          ? mergeClientRows(latest[key], incoming[key])
+          : mergeRowsById(latest[key], incoming[key]);
     (next as unknown as Record<string, unknown>)[key] = merged;
   }
   if (!(incoming.movements || []).length && (latest.movements || []).length) {
@@ -123,6 +125,52 @@ export function mergeFitgraphStores(
   dedupeFitgraphBookings(next);
   next.updated_at = new Date().toISOString();
   return next;
+}
+
+function portalTokenList(row: Record<string, unknown>): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const aliases = Array.isArray(row.portal_token_aliases)
+    ? row.portal_token_aliases
+    : [];
+  for (const raw of [row.portal_token, ...aliases]) {
+    const t = String(raw || '').trim();
+    if (!t || seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+  }
+  return out;
+}
+
+/** Same-id clients: newer row wins, but every portal token is kept. */
+function mergeClientRows(latest: unknown, incoming: unknown) {
+  const merged = mergeRowsById(latest, incoming);
+  const latestById = new Map<string, Record<string, unknown>>();
+  const incomingById = new Map<string, Record<string, unknown>>();
+  for (const row of asRows(latest)) {
+    const id = String(row?.id || '');
+    if (id) latestById.set(id, row);
+  }
+  for (const row of asRows(incoming)) {
+    const id = String(row?.id || '');
+    if (id) incomingById.set(id, row);
+  }
+  return merged.map((row) => {
+    const id = String(row?.id || '');
+    if (!id) return row;
+    const tokens = [
+      ...portalTokenList(row),
+      ...portalTokenList(latestById.get(id) || {}),
+      ...portalTokenList(incomingById.get(id) || {}),
+    ];
+    const unique = [...new Set(tokens)];
+    if (!unique.length) return row;
+    return {
+      ...row,
+      portal_token: unique[0],
+      portal_token_aliases: unique.slice(1),
+    };
+  });
 }
 
 function mergeGoalRows(latest: unknown, incoming: unknown) {

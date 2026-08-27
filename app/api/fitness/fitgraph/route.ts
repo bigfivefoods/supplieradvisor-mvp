@@ -28,6 +28,7 @@ import {
   sessionKindOf,
   issueCoachPortalToken,
   issueClientPortalToken,
+  ensureClientPortalToken,
   newId,
   reopenCoachEngagement,
   readFitgraphFromMetadata,
@@ -460,8 +461,7 @@ export async function POST(request: NextRequest) {
       if (!client) {
         return NextResponse.json({ error: 'Client not found' }, { status: 404 });
       }
-      const portalToken = issueClientPortalToken(companyId);
-      client.portal_token = portalToken;
+      const portalToken = ensureClientPortalToken(client, companyId);
       await saveStore(companyId, meta, store);
       void import('@/lib/b2c/directory').then(({ indexBrandPerson }) =>
         indexBrandPerson({

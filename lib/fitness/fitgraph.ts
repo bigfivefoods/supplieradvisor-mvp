@@ -1968,6 +1968,34 @@ export function issueClientPortalToken(companyId: number): string {
   return `member_${companyId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** Keep every portal token that already opened this member's PWA. */
+export function rememberClientPortalToken(
+  client: Pick<FitClient, 'portal_token'> & {
+    portal_token_aliases?: string[] | null;
+  },
+  token?: string | null
+): string | null {
+  const next = String(token || '').trim();
+  const existing = clientPortalTokens(client);
+  if (!next) return existing[0] || null;
+  const rest = existing.filter((t) => t !== next);
+  client.portal_token = next;
+  client.portal_token_aliases = rest.length ? rest : undefined;
+  return next;
+}
+
+/** Reuse the live token so home-screen PWAs keep working. */
+export function ensureClientPortalToken(
+  client: Pick<FitClient, 'portal_token'> & {
+    portal_token_aliases?: string[] | null;
+  },
+  companyId: number
+): string {
+  const existing = String(client.portal_token || '').trim();
+  if (existing) return existing;
+  return rememberClientPortalToken(client, issueClientPortalToken(companyId))!;
+}
+
 /** Parse companyId from coach_* , member_* or fg_{companyId}_* tokens when present. */
 export function parseCompanyIdFromToken(token: string): number | null {
   const coach = /^coach_(\d+)_/.exec(token);

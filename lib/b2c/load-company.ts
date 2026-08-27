@@ -126,7 +126,22 @@ export async function saveWalletCompanyMeta(
     leftover[k] = v;
   }
   await Promise.all([
-    ...modules.map((m) => saveModuleSlice(companyId, m.key, m.slice)),
+    ...modules.map(async (m) => {
+      if (m.key === 'fitgraph') {
+        const { readFitgraphFromMetadata } = await import(
+          '@/lib/fitness/fitgraph'
+        );
+        const { saveFitgraphMerged } = await import(
+          '@/lib/fitness/fitgraph-io'
+        );
+        await saveFitgraphMerged(
+          companyId,
+          readFitgraphFromMetadata(m.slice)
+        );
+        return;
+      }
+      await saveModuleSlice(companyId, m.key, m.slice);
+    }),
     Object.keys(leftover).length
       ? mergeProfileMetadata(companyId, leftover)
       : Promise.resolve(),
