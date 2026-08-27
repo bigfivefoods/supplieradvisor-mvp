@@ -127,7 +127,8 @@ type Entity =
   | 'movements'
   | 'programmes'
   | 'programme_enrollments'
-  | 'programme_logs';
+  | 'programme_logs'
+  | 'leaderboard_activities';
 
 async function loadStore(companyId: number, opts?: { fresh?: boolean }) {
   return loadFitgraphMerged(companyId, opts);
