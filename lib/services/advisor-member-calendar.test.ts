@@ -8,6 +8,7 @@ import {
   parseVirtualSlotId,
   pushDeskNotice,
   newDeskNotice,
+  toPortalOpenSlots,
   virtualSlotId,
   type ClinicMemberStore,
 } from './advisor-member-calendar';
@@ -138,6 +139,62 @@ if (booked.ok) {
     assert.equal(promoted?.status, 'booked');
   }
 }
+
+const stackedBooked: ClinicMemberStore = {
+  ...store,
+  settings: { ...store.settings, generate_member_slots: false },
+  appointments: [
+    {
+      id: 'apt_a',
+      service_id: 'svc_1',
+      date,
+      start_time: '09:00',
+      end_time: '10:00',
+      duration_min: 60,
+      status: 'scheduled',
+      public: true,
+      practitioner_id: 'pr_1',
+    },
+    {
+      id: 'apt_b',
+      service_id: 'svc_1',
+      date,
+      start_time: '09:00',
+      end_time: '10:00',
+      duration_min: 60,
+      status: 'scheduled',
+      public: true,
+      practitioner_id: 'pr_2',
+    },
+  ],
+  practitioners: [
+    { id: 'pr_1', name: 'Dr Lane', active: true },
+    { id: 'pr_2', name: 'Dr Kim', active: true },
+  ],
+  bookings: [
+    {
+      id: 'bk_a',
+      appointment_id: 'apt_a',
+      patient_id: 'pat_x',
+      status: 'booked',
+    },
+    {
+      id: 'bk_b',
+      appointment_id: 'apt_b',
+      patient_id: 'pat_y',
+      status: 'booked',
+    },
+  ],
+};
+const portalSlots = toPortalOpenSlots(stackedBooked, {
+  patientId: 'pat_1',
+  from: date,
+  to: date,
+});
+assert.equal(portalSlots.length, 1, 'booked clinicians collapse to one block');
+assert.equal(portalSlots[0].service_name, 'Booked');
+assert.equal(portalSlots[0].full, true);
+assert.equal(portalSlots[0].clinician_name, null);
 
 const closed = generateAdvisorMemberSlots({
   ...store,

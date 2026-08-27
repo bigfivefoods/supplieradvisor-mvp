@@ -3,6 +3,7 @@
  * Guest book creates/finds patient by email and books open slots.
  */
 import { generateAdvisorMemberSlots } from '@/lib/services/advisor-member-calendar';
+import { consolidateClinicDiarySlots } from '@/lib/clinic/consolidate-diary-slots';
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { compactWorkingHours } from '@/lib/schedule/working-hours';
 import { isPortalSectionOn } from '@/lib/advisors/portal-sections';
@@ -161,19 +162,21 @@ export function buildClinicPublicCalendar(opts: {
   const showContact = isPortalSectionOn(store.settings, 'contact');
 
   const generated = generateAdvisorMemberSlots(store, { from: start, to: end });
-  const slots: ClinicPublicSlot[] = generated.map((s) => ({
-    id: s.id,
-    date: s.date,
-    start_time: s.start_time,
-    end_time: s.end_time,
-    duration_min: s.duration_min,
-    service_name: s.service_name,
-    clinician_name: s.practitioner_name || undefined,
-    location: s.location,
-    spots_left: s.spots_left,
-    full: s.full,
-    public_notes: s.public_notes,
-  }));
+  const slots: ClinicPublicSlot[] = consolidateClinicDiarySlots(
+    generated.map((s) => ({
+      id: s.id,
+      date: s.date,
+      start_time: s.start_time,
+      end_time: s.end_time,
+      duration_min: s.duration_min,
+      service_name: s.service_name,
+      clinician_name: s.practitioner_name || undefined,
+      location: s.location,
+      spots_left: s.spots_left,
+      full: s.full,
+      public_notes: s.public_notes,
+    }))
+  );
 
   return {
     module: opts.module,

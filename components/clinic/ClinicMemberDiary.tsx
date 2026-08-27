@@ -9,6 +9,7 @@ import {
   slotsToMemberCalendarEvents,
   type MemberCalendarEvent,
 } from '@/lib/advisors/member-week-calendar';
+import { consolidateClinicDiarySlots } from '@/lib/clinic/consolidate-diary-slots';
 
 export type ClinicDiarySlot = {
   id: string;
@@ -53,24 +54,30 @@ export function ClinicMemberDiary({
   onBook: (slotId: string, waitlist: boolean) => void;
   emptyLabel?: string;
 }) {
+  const diarySlots = useMemo(
+    () => consolidateClinicDiarySlots(slots),
+    [slots]
+  );
   const events = useMemo(
     () =>
       mergeMemberCalendarEvents(
-        slotsToMemberCalendarEvents(slots),
+        slotsToMemberCalendarEvents(diarySlots),
         bookingsToMemberCalendarEvents(bookings)
       ),
-    [slots, bookings]
+    [diarySlots, bookings]
   );
   const [active, setActive] = useState<MemberCalendarEvent | null>(null);
   const slot = active
-    ? slots.find((s) => s.id === active.id) || null
+    ? diarySlots.find((s) => s.id === active.id) ||
+      slots.find((s) => s.id === active.id) ||
+      null
     : null;
 
   return (
     <div className="space-y-3">
       <p className="text-sm text-slate-600">
-        This week’s diary — free appointments and the ones you already hold.
-        Tap a block to book or join the waitlist.
+        Booked times show as one block. Open times are the appointments you
+        can take. Tap a block to book or join the waitlist.
       </p>
       <MemberPortalWeekCalendar
         events={events}
@@ -85,7 +92,11 @@ export function ClinicMemberDiary({
           <p className="font-black text-slate-900">{slot.service_name}</p>
           <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
             <User className="h-3.5 w-3.5" />
-            {slot.practitioner_name || slot.clinician_name || 'Clinician TBC'}
+            {slot.full && !slot.my_status
+            ? 'Fully booked'
+            : slot.practitioner_name ||
+              slot.clinician_name ||
+              'Clinician TBC'}
             {slot.is_preferred_clinician ? ' · your clinician' : ''}
           </p>
           {slot.location ? (
