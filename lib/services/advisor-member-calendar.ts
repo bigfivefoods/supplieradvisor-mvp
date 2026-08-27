@@ -8,6 +8,7 @@ import {
   consultServices,
   isSystemPersonalService,
 } from '@/lib/clinic/appointment-kind';
+import { consolidateClinicDiarySlots } from '@/lib/clinic/consolidate-diary-slots';
 import {
   normalizeWorkingHours,
   openCloseOn,
@@ -686,7 +687,7 @@ export function toPortalOpenSlots(
     to?: string;
   }
 ) {
-  return generateAdvisorMemberSlots(store, {
+  const rows = generateAdvisorMemberSlots(store, {
     from: opts.from,
     to: opts.to,
   }).map((s) => {
@@ -725,4 +726,5 @@ export function toPortalOpenSlots(
       virtual: s.virtual,
     };
   });
+  return consolidateClinicDiarySlots(rows);
 }
