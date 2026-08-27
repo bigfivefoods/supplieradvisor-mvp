@@ -24,6 +24,10 @@ export type MemberPermissionsBlob = {
   [key: string]: unknown;
 };
 
+function isAllowedTrue(v: unknown): boolean {
+  return v === true || v === 1 || v === 'true';
+}
+
 export function extractSidebarModuleOrder(
   permissions: unknown
 ): string[] {
@@ -98,7 +102,7 @@ export function extractAllowedModules(
   for (const [k, v] of Object.entries(m)) {
     const id = String(k || '').trim();
     if (!id) continue;
-    if (v === true || v === 'true' || v === 1) slim[id] = true;
+    if (isAllowedTrue(v)) slim[id] = true;
   }
   return slim;
 }
@@ -157,7 +161,7 @@ export function mergeAllowedModulesIntoPermissions(
   const slim: EnabledModulesMap = {};
   for (const [k, v] of Object.entries(allowed)) {
     if ((ALWAYS_ON_MODULE_IDS as readonly string[]).includes(k)) continue;
-    if (v === true || v === 'true' || v === 1) slim[k] = true;
+    if (isAllowedTrue(v)) slim[k] = true;
   }
   return { ...base, allowed_modules: slim };
 }
