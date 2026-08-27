@@ -465,7 +465,11 @@ function LeadsInner() {
     <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
       <CustomersHeader
         title="Leads & opportunities"
-        description="Capture every prospect with full detail, qualify leads, and run a complete sales pipeline through to closed-won."
+        description={
+          opps.some((o) => o.group_rollup)
+            ? 'Holding view: this pipeline includes open deals from subsidiary companies in your group.'
+            : 'Capture every prospect with full detail, qualify leads, and run a complete sales pipeline through to closed-won.'
+        }
         action={
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={exportCSV} className="btn-secondary !py-2.5 !px-4 text-sm">
@@ -488,7 +492,10 @@ function LeadsInner() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <MiniKpi label="Open leads" value={String(leads.filter((l) => !['converted', 'unqualified', 'recycled'].includes(String(l.status))).length)} />
         <MiniKpi label="Open deals" value={String(pipelineStats.open)} />
-        <MiniKpi label="Pipeline" value={formatMoney(pipelineStats.value)} />
+        <MiniKpi
+          label="Pipeline"
+          value={formatMoney(pipelineStats.value)}
+        />
         <MiniKpi label="Weighted" value={formatMoney(pipelineStats.weighted)} />
       </div>
 

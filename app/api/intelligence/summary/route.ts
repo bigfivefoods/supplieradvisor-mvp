@@ -25,6 +25,10 @@ async function buildSummary(request: NextRequest, companyId: number, legacyPrivy
   if (!gate.ok) return gate.response;
 
   const supabase = getSupabaseServer();
+  const { loadHoldingSubtree } = await import(
+    '@/lib/business/holding-pipeline'
+  );
+  const tree = await loadHoldingSubtree(companyId);
   const now = Date.now();
   const d30 = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
   const d60 = new Date(now - 60 * 24 * 60 * 60 * 1000).toISOString();
@@ -123,8 +127,8 @@ async function buildSummary(request: NextRequest, companyId: number, legacyPrivy
     supabase
       .from('opportunities')
       .select('id, stage, status, amount, updated_at')
-      .eq('profile_id', companyId)
-      .limit(200),
+      .in('profile_id', tree.ids)
+      .limit(800),
     supabase
       .from('container_sales')
       .select('id, gross_amount, sale_date, created_at')

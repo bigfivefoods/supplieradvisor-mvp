@@ -35,6 +35,10 @@ export async function GET(request: NextRequest) {
     const toIso = `${to}T23:59:59.999Z`;
 
     const supabase = getSupabaseServer();
+    const { loadHoldingSubtree } = await import(
+      '@/lib/business/holding-pipeline'
+    );
+    const tree = await loadHoldingSubtree(companyId);
 
     const [
       custRes,
@@ -63,7 +67,7 @@ export async function GET(request: NextRequest) {
         .select(
           'id, stage, status, amount, opportunity_size, probability, customer_id, linked_profile_id'
         )
-        .eq('profile_id', companyId),
+        .in('profile_id', tree.ids),
       supabase
         .from('customer_invitations')
         .select('id, status')

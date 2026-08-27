@@ -42,6 +42,8 @@ type Summary = {
   wonValue: number;
   wonCount: number;
   overdueFollowups: number;
+  pipelineIncludesGroup?: boolean;
+  pipelineGroupCompanies?: number;
   invitePending?: number;
   inviteAccepted?: number;
   inviteSuspended?: number;
@@ -165,7 +167,13 @@ function HubInner() {
         <TelemetryCard
           label="Open pipeline"
           value={formatMoney(s?.pipelineValue ?? 0)}
-          sub={`${s?.opportunitiesOpen ?? 0} deals · wtd ${formatMoney(s?.weightedPipeline ?? 0)}`}
+          sub={`${s?.opportunitiesOpen ?? 0} deals · wtd ${formatMoney(s?.weightedPipeline ?? 0)}${
+            s?.pipelineIncludesGroup
+              ? ` · incl. ${s.pipelineGroupCompanies} group ${
+                  s.pipelineGroupCompanies === 1 ? 'company' : 'companies'
+                }`
+              : ''
+          }`}
           accent="cyan"
           icon={TrendingUp}
           href="/dashboard/customers/leads?tab=pipeline"

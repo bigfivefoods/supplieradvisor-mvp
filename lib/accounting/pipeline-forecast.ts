@@ -243,12 +243,16 @@ export async function buildPipelineForecast(opts: {
   to: string;
 }): Promise<PipelineForecast> {
   const supabase = getSupabaseServer();
+  const { loadHoldingSubtree } = await import(
+    '@/lib/business/holding-pipeline'
+  );
+  const tree = await loadHoldingSubtree(opts.profileId);
   const { data, error } = await supabase
     .from('opportunities')
     .select(
       'id, name, stage, status, amount, opportunity_size, probability, expected_close_date, estimated_date, actual_close_date, company_name, currency, created_at'
     )
-    .eq('profile_id', opts.profileId)
+    .in('profile_id', tree.ids)
     .limit(2000);
 
   const pack = buildPipelineForecastFromRows({

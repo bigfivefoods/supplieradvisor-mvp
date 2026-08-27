@@ -922,13 +922,17 @@ export async function GET(request: NextRequest) {
       let pipelineWarning: string | undefined;
 
       if (includePipeline) {
+        const { loadHoldingSubtree } = await import(
+          '@/lib/business/holding-pipeline'
+        );
+        const tree = await loadHoldingSubtree(companyId);
         const { data: opps, error: oppErr } = await supabase
           .from('opportunities')
           .select(
             'id, name, stage, status, amount, opportunity_size, probability, expected_close_date, estimated_date, actual_close_date, company_name, currency, created_at'
           )
-          .eq('profile_id', companyId)
-          .limit(1000);
+          .in('profile_id', tree.ids)
+          .limit(2000);
 
         if (oppErr) {
           pipelineWarning = oppErr.message;

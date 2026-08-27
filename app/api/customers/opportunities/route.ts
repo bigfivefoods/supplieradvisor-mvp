@@ -66,12 +66,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
     const supabase = getSupabaseServer();
+    const { loadHoldingSubtree, annotateGroupOpportunity } = await import(
+      '@/lib/business/holding-pipeline'
+    );
+    const tree = await loadHoldingSubtree(companyId);
     let query = supabase
       .from('opportunities')
       .select('*')
-      .eq('profile_id', companyId)
+      .in('profile_id', tree.ids)
       .order('updated_at', { ascending: false })
-      .limit(500);
+      .limit(2000);
     if (stage && stage !== 'all') {
       query = query.or(`stage.eq.${stage},status.eq.${stage}`);
     }
@@ -99,7 +103,11 @@ export async function GET(request: NextRequest) {
         null;
       const actualClose = toDateOnly(o.actual_close_date);
       return {
-        ...o,
+        ...annotateGroupOpportunity(
+          { ...o, stage: st, amount, probability } as Record<string, unknown>,
+          companyId,
+          tree.names
+        ),
         stage: st,
         amount,
         probability,
@@ -163,7 +171,14 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ success: true, opportunities });
+    return NextResponse.json({
+      success: true,
+      opportunities,
+      group: {
+        includesSubsidiaries: tree.descendantCount > 0,
+        companies: tree.descendantCount,
+      },
+    });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
   }

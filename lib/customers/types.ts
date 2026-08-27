@@ -127,6 +127,10 @@ export type OpportunityRecord = {
   updated_at?: string;
   /** weighted = amount * probability / 100 */
   weighted_amount?: number;
+  /** Holding roll-up: company that owns this deal */
+  source_company_id?: number | null;
+  source_company_name?: string | null;
+  group_rollup?: boolean;
 };
 
 /** Denormalized platform-invite phase on the seller CRM customer row (not invitation attempt status). */

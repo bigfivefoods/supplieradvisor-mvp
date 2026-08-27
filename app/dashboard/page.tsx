@@ -67,6 +67,8 @@ type Kpis = {
   customersTotal?: number;
   leadsOpen?: number;
   pipelineValue?: number;
+  pipelineIncludesGroup?: boolean;
+  pipelineGroupCompanies?: number;
   opportunitiesOpen?: number;
   crmRiadOpen?: number;
   srmBookTotal?: number;
@@ -244,6 +246,8 @@ export default function DashboardCommandCenter() {
     customers: number;
     pipelineValue: number;
     pipelineWeighted?: number;
+    pipelineIncludesGroup?: boolean;
+    pipelineGroupCompanies?: number;
     opportunitiesOpen: number;
     opportunitiesTotal?: number;
     leadsOpen: number;
@@ -946,7 +950,14 @@ export default function DashboardCommandCenter() {
                   {
                     label: 'Pipeline',
                     value: money(crm?.pipelineValue ?? kpis?.pipelineValue ?? 0, baseCcy),
-                    sub: 'Open opportunity amount',
+                    sub:
+                      crm?.pipelineIncludesGroup || kpis?.pipelineIncludesGroup
+                        ? `Incl. ${crm?.pipelineGroupCompanies ?? kpis?.pipelineGroupCompanies ?? 0} group ${
+                            (crm?.pipelineGroupCompanies ?? kpis?.pipelineGroupCompanies ?? 0) === 1
+                              ? 'company'
+                              : 'companies'
+                          }`
+                        : 'Open opportunity amount',
                     href: '/dashboard/customers/leads?tab=pipeline',
                     tone: 'good',
                   },

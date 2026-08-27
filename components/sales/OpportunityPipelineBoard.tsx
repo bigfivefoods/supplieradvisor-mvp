@@ -279,6 +279,11 @@ export default function OpportunityPipelineBoard({
                             <div className="text-xs text-neutral-500 mt-0.5">
                               {o.company_name || o.contact_name || '—'}
                             </div>
+                            {o.group_rollup && o.source_company_name ? (
+                              <div className="mt-0.5 text-[10px] font-semibold text-[#0077b6]">
+                                {o.source_company_name}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                         <div className="text-sm font-bold text-emerald-700 mt-1">

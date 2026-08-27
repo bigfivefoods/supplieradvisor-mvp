@@ -54,6 +54,10 @@ export async function POST(request: NextRequest) {
     }
 
     const did = company.user_id ? String(company.user_id) : null;
+    const { loadHoldingSubtree } = await import(
+      '@/lib/business/holding-pipeline'
+    );
+    const tree = await loadHoldingSubtree(companyId);
 
     const [
       teamRes,
@@ -226,9 +230,9 @@ export async function POST(request: NextRequest) {
         .select(
           'id, stage, status, amount, opportunity_size, probability, name, updated_at'
         )
-        .eq('profile_id', companyId)
+        .in('profile_id', tree.ids)
         .order('updated_at', { ascending: false })
-        .limit(200),
+        .limit(800),
 
       supabase
         .from('customer_invitations')
@@ -1243,6 +1247,8 @@ export async function POST(request: NextRequest) {
         opportunitiesOpen: openOpps.length,
         pipelineValue: Math.round(pipelineValue),
         pipelineWeighted: Math.round(pipelineWeighted),
+        pipelineIncludesGroup: tree.descendantCount > 0,
+        pipelineGroupCompanies: tree.descendantCount,
         wonCount: wonOpps.length,
         wonValue: Math.round(wonValue),
         invoicedCount: invoicedOpps.length,
@@ -1341,6 +1347,8 @@ export async function POST(request: NextRequest) {
         opportunitiesOpen: openOpps.length,
         pipelineValue: Math.round(pipelineValue),
         pipelineWeighted: Math.round(pipelineWeighted),
+        pipelineIncludesGroup: tree.descendantCount > 0,
+        pipelineGroupCompanies: tree.descendantCount,
         wonCount: wonOpps.length,
         wonValue: Math.round(wonValue),
         invoicedCount: invoicedOpps.length,

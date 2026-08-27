@@ -21,6 +21,10 @@ export async function GET(request: NextRequest) {
       }
     }
     const supabase = getSupabaseServer();
+    const { loadHoldingSubtree } = await import(
+      '@/lib/business/holding-pipeline'
+    );
+    const tree = await loadHoldingSubtree(companyId);
 
     const [customers, leads, opportunities, invitations] = await Promise.all([
       supabase
@@ -36,7 +40,7 @@ export async function GET(request: NextRequest) {
         .select(
           'id, stage, status, amount, opportunity_size, probability, expected_close_date, estimated_date'
         )
-        .eq('profile_id', companyId),
+        .in('profile_id', tree.ids),
       supabase
         .from('customer_invitations')
         .select('id, status')
@@ -127,6 +131,8 @@ export async function GET(request: NextRequest) {
         weightedPipeline: Math.round(weightedPipeline),
         wonValue,
         wonCount: won.length,
+        pipelineIncludesGroup: tree.descendantCount > 0,
+        pipelineGroupCompanies: tree.descendantCount,
         overdueFollowups,
         // Platform invite relationship phase (CRM)
         invitePending,
