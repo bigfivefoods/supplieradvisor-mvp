@@ -389,7 +389,7 @@ function BrowseInner() {
               <img
                 src={selected.primary_image_url}
                 alt=""
-                className="w-full h-40 object-cover rounded-2xl border border-neutral-100 mb-4"
+                className="sa-product-photo w-full h-52 object-contain bg-[#f8f7f5] rounded-2xl border border-neutral-100 mb-4"
               />
             )}
 
@@ -540,7 +540,7 @@ function ListingCard({
           <img
             src={l.primary_image_url}
             alt=""
-            className="absolute inset-0 w-full h-full object-cover"
+            className="sa-product-photo absolute inset-0 w-full h-full object-contain bg-[#f8f7f5]"
           />
         ) : (
           <Package className="w-10 h-10 text-[#00b4d8]/40" />

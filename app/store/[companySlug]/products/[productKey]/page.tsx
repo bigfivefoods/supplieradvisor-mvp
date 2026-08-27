@@ -81,13 +81,13 @@ export default async function StoreProductPage({ params, searchParams }: Props) 
 
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Full pack visible — contain, constrained so it doesn’t dominate */}
-        <div className="rounded-3xl border border-slate-200 bg-[#f8f7f5] flex items-center justify-center p-6 sm:p-8 min-h-[200px] lg:min-h-[240px]">
+        <div className="rounded-3xl border border-slate-200 bg-[#f8f7f5] flex items-center justify-center p-6 sm:p-8 min-h-[280px] lg:min-h-[360px]">
           {product.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={product.imageUrl}
               alt={product.name}
-              className="w-full max-w-[280px] sm:max-w-[320px] max-h-[280px] sm:max-h-[320px] object-contain object-center"
+              className="sa-product-photo w-full max-w-[360px] max-h-[420px] object-contain object-center"
             />
           ) : (
             <div className="flex items-center justify-center text-slate-400 font-semibold min-h-[160px]">

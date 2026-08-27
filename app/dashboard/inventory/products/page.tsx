@@ -41,6 +41,7 @@ import {
   uploadProductSpecSheet,
 } from '@/lib/inventory/uploadProductAssets';
 import { writeCustomerBrand } from '@/lib/inventory/customer-brand';
+import { ProductPhoto } from '@/components/inventory/ProductPhoto';
 
 type CategoryRow = {
   id: number;
@@ -637,11 +638,10 @@ function ProductsInner() {
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-11 h-11 rounded-xl bg-neutral-100 border overflow-hidden flex-shrink-0 flex items-center justify-center">
                           {p.primary_image_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
+                            <ProductPhoto
                               src={p.primary_image_url}
                               alt=""
-                              className="w-full h-full object-cover"
+                              className="h-full w-full"
                             />
                           ) : (
                             <ImageIcon className="w-4 h-4 text-neutral-400" />
@@ -874,9 +874,12 @@ function ProductsInner() {
                         <input type="file" accept="image/*" className="hidden" onChange={onImagePick} />
                       </label>
                     ) : (
-                      <div className="relative rounded-2xl overflow-hidden border h-[120px] bg-neutral-100">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                      <div className="relative rounded-2xl overflow-hidden border min-h-[160px] h-[200px] bg-[#f8f7f5]">
+                        <ProductPhoto
+                          src={imagePreview}
+                          alt="Preview"
+                          className="h-full w-full"
+                        />
                         <button
                           type="button"
                           onClick={() => {

@@ -10,6 +10,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Product / SKU photos: never crop headers, footers, or pack-shot labels. */
+img.sa-product-photo {
+  object-fit: contain;
+  object-position: center;
+}
+
 /* ============================================
    DESIGN TOKENS — Light (default) + Dark
    Current product look is the light theme.

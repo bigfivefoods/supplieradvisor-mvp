@@ -1961,7 +1961,7 @@ function Inner() {
                         <img
                           src={p.image_url}
                           alt={p.name}
-                          className="w-10 h-10 rounded-lg object-cover border border-slate-100 shrink-0"
+                          className="sa-product-photo w-10 h-10 rounded-lg object-contain bg-[#f8f7f5] border border-slate-100 shrink-0"
                         />
                       ) : null;
                     })()}

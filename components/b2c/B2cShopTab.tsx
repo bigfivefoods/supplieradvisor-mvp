@@ -227,7 +227,7 @@ export function B2cShopTab({
                     <img
                       src={item.image_url}
                       alt=""
-                      className="h-24 w-24 shrink-0 object-cover"
+                      className="sa-product-photo h-24 w-24 shrink-0 object-contain bg-[#f8f7f5]"
                     />
                   ) : (
                     <span

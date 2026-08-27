@@ -759,7 +759,7 @@ function Inner() {
                     <img
                       src={imagePreview}
                       alt="Product"
-                      className="w-full h-full object-cover"
+                      className="sa-product-photo w-full h-full object-contain"
                     />
                   ) : (
                     <ImageIcon className="w-8 h-8 text-slate-300" />
@@ -899,7 +899,7 @@ function Inner() {
                           <img
                             src={p.image_url}
                             alt={p.name}
-                            className="w-full h-full object-cover"
+                            className="sa-product-photo w-full h-full object-contain"
                             loading="lazy"
                           />
                         ) : (

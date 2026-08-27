@@ -71,7 +71,7 @@ function CatalogueTile({
         <img
           src={item.primary_image_url}
           alt=""
-          className="h-12 w-12 rounded-xl border border-white object-cover"
+          className="sa-product-photo h-12 w-12 rounded-xl border border-white object-contain bg-white"
         />
       ) : (
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-[10px] font-black text-slate-400">

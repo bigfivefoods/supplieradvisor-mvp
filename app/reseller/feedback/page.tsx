@@ -586,7 +586,7 @@ function ProductThumb({
       <img
         src={url}
         alt={name}
-        className={`${dim} rounded-xl object-cover border border-slate-200 bg-white shrink-0`}
+        className={`${dim} sa-product-photo rounded-xl object-contain border border-slate-200 bg-[#f8f7f5] shrink-0`}
       />
     );
   }

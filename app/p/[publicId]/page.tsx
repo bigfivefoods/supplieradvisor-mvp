@@ -61,7 +61,7 @@ export default function PublicProductPage() {
           <img
             src={String(product.primary_image_url)}
             alt={String(product.name)}
-            className="w-full h-48 object-cover"
+            className="sa-product-photo w-full max-h-80 object-contain bg-[#f8f7f5]"
           />
         ) : null}
         <div className="p-6 space-y-4">

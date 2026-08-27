@@ -223,7 +223,7 @@ export default function HirePublicEmbedPage() {
                   <img
                     src={item.photo_url}
                     alt=""
-                    className="h-40 w-full object-cover"
+                    className="sa-product-photo h-44 w-full object-contain bg-[#f8f7f5]"
                   />
                 ) : (
                   <div

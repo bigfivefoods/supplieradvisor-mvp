@@ -186,7 +186,7 @@ export function GymShopPay({
           <img
             src={item.image_url}
             alt=""
-            className="h-32 w-full object-cover"
+            className="sa-product-photo h-40 w-full object-contain bg-[#f8f7f5]"
           />
         ) : null}
         <div className="flex flex-1 flex-col px-4 py-4">

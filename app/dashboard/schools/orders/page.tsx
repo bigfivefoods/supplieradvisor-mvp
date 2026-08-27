@@ -1062,7 +1062,7 @@ function Inner() {
                   <img
                     src={selected.image_url}
                     alt={selected.name}
-                    className="w-14 h-14 rounded-xl object-cover border border-slate-100"
+                    className="sa-product-photo w-14 h-14 rounded-xl object-contain bg-[#f8f7f5] border border-slate-100"
                   />
                 ) : null}
                 <div className="min-w-0">

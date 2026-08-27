@@ -144,7 +144,7 @@ export default function PublicMarketplacePage() {
                   <img
                     src={l.primary_image_url}
                     alt=""
-                    className="w-full h-36 object-cover"
+                    className="sa-product-photo w-full h-44 object-contain bg-[#f8f7f5]"
                   />
                 ) : (
                   <div className="h-36 bg-slate-50 flex items-center justify-center">

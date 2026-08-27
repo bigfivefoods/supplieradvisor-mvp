@@ -170,14 +170,14 @@ export function ProductCard({
       href={href}
       className="group rounded-3xl border border-slate-200 bg-white overflow-hidden hover:border-[#00b4d8]/50 hover:shadow-md transition-all flex flex-col"
     >
-      {/* Full pack visible — contain on light plate, no crop */}
-      <div className="relative flex h-24 sm:h-28 items-center justify-center bg-[#f8f7f5] px-2.5 py-2 border-b border-black/[0.06]">
+      {/* Full pack visible — contain on a tall plate so headers/footers stay in frame */}
+      <div className="relative flex aspect-[4/5] max-h-64 w-full items-center justify-center bg-[#f8f7f5] px-3 py-3 border-b border-black/[0.06]">
         {product.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={product.imageUrl}
             alt={product.name}
-            className="h-full w-full max-w-[7rem] object-contain object-center"
+            className="sa-product-photo max-h-full max-w-full object-contain object-center"
           />
         ) : (
           <span className="text-slate-300 text-sm font-semibold">

@@ -2056,7 +2056,7 @@ function Inner() {
                                 <img
                                   src={f.file_url}
                                   alt=""
-                                  className="w-16 h-16 object-cover shrink-0"
+                                  className="sa-product-photo w-16 h-16 object-contain bg-[#f8f7f5] shrink-0"
                                 />
                               ) : (
                                 <div className="w-16 h-16 flex items-center justify-center bg-white border-r border-slate-100 shrink-0">
