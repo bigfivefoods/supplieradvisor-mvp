@@ -144,6 +144,15 @@ export async function sendDunningForInvoice(opts: {
     return { ok: true, skipped: true, reason: 'already_sent', day: step.day };
   }
 
+  if (!opts.force) {
+    const { error: reserveErr } = await supabase
+      .from('invoice_dunning_sends')
+      .insert({ invoice_id: inv.id, dunning_day: step.day });
+    if (reserveErr && /unique|duplicate/i.test(reserveErr.message || '')) {
+      return { ok: true, skipped: true, reason: 'already_sent', day: step.day };
+    }
+  }
+
   const toCustomer = String(inv.contact_email || '').trim();
   const profileId = Number(inv.profile_id);
   const invNum = inv.invoice_number || `#${inv.id}`;

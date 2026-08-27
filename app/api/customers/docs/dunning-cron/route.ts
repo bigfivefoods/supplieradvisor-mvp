@@ -243,9 +243,10 @@ export async function POST(request: NextRequest) {
     const result = await runDunning(Number(body.limit || 80));
     return NextResponse.json({ success: result.ok, ...result });
   } catch (e: unknown) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Error' },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: false,
+      ok: false,
+      error: e instanceof Error ? e.message : 'Error',
+    });
   }
 }

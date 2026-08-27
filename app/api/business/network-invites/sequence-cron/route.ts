@@ -153,9 +153,9 @@ export async function GET(request: NextRequest) {
       at: new Date().toISOString(),
     });
   } catch (e: unknown) {
-    return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : 'Error' },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      ok: false,
+      error: e instanceof Error ? e.message : 'Error',
+    });
   }
 }

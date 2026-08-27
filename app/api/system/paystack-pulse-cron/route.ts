@@ -166,7 +166,7 @@ async function run(request: NextRequest) {
       [];
     try {
       const supabase = getSupabaseServer();
-      const { data: failedWh } = await supabase
+      const failedQ = supabase
         .from('paystack_webhook_events')
         .select('reference, event, handled')
         .eq('event', 'charge.success')
@@ -179,6 +179,17 @@ async function run(request: NextRequest) {
           'cipc_verify_failed',
         ])
         .limit(rerunLimit);
+      const openQ = supabase
+        .from('paystack_webhook_events')
+        .select('reference, event, handled')
+        .eq('event', 'charge.success')
+        .is('handled', null)
+        .limit(rerunLimit);
+      const [failedRes, openRes] = await Promise.all([failedQ, openQ]);
+      const failedWh = [
+        ...(failedRes.data || []),
+        ...(openRes.data || []),
+      ].slice(0, rerunLimit);
       if (failedWh?.length) {
         const { verifyPaystackTransaction } = await import('@/lib/billing/paystack');
         for (const row of failedWh) {
