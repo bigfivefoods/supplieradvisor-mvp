@@ -74,6 +74,7 @@ import { setSelectedCompanyId } from '@/lib/containers/company';
 import { defaultHomePathForRole } from '@/lib/business/permissions';
 import {
   groupWalletAccounts,
+  gymMemberCard,
   primaryPortal,
   shopHref,
 } from '@/lib/b2c/wallet-accounts';
@@ -1365,7 +1366,7 @@ function MeAppInner() {
                   a.cards.find((c) => c.kind !== 'account') || a.cards[0];
                 const Icon = kindIcon(lead?.kind || 'account');
                 const clinic = a.cards.find((c) => isClinicKind(c.kind));
-                const gym = a.cards.find((c) => c.kind === 'gym');
+                const gym = gymMemberCard(a);
                 const hire = a.cards.find((c) => c.kind === 'hire');
                 const bookCard = clinic || gym || hire;
                 const theyOperate = ownedCompanyIds.has(a.company_id);

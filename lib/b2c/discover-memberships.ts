@@ -20,10 +20,10 @@ import {
   writeRetailgraphToMetadata,
 } from '@/lib/retail/retailgraph';
 import {
-  gymCheckinPath,
   readFitgraphFromMetadata,
   writeFitgraphToMetadata,
 } from '@/lib/fitness/fitgraph';
+import { linkGymPersonToPwa } from '@/lib/fitness/gym-pwa-roster';
 import { readPhysiographFromMetadata } from '@/lib/clinic/physiograph';
 import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
 import { readMedicalgraphFromMetadata } from '@/lib/clinic/medicalgraph';
@@ -287,49 +287,58 @@ export async function discoverAndAttachMemberships(
       }
     }
 
-    // Gym
+    // Gym — owner coaches list → coach PWA; members list → member PWA.
     const fit = readFitgraphFromMetadata(company.meta);
-    const client = (fit.clients || []).find(
-      (c) => c.active !== false && personMatch(c, email, phone)
-    );
-    if (client?.portal_token) {
-      linkPlatformUserId(client, opts.platformUserId);
-      const ci = fit.clients.findIndex((c) => c.id === client.id);
-      if (ci >= 0) fit.clients[ci] = client;
+    const gymLinked = linkGymPersonToPwa(fit, {
+      companyId,
+      email,
+      phone,
+      userId: opts.platformUserId,
+      displayName:
+        next.full_name || email?.split('@')[0] || company.name,
+      createIfMissing: false,
+    });
+    if (gymLinked.links.length) {
+      for (const link of gymLinked.links) {
+        if (link.role === 'coach') {
+          const coach = fit.coaches.find((c) => c.id === link.ref_id);
+          if (coach) linkPlatformUserId(coach, opts.platformUserId);
+        } else {
+          const client = fit.clients.find((c) => c.id === link.ref_id);
+          if (client) linkPlatformUserId(client, opts.platformUserId);
+        }
+        const before = next.memberships.length;
+        next = upsertMembership(next, {
+          kind: 'gym',
+          company_id: companyId,
+          company_name: company.name,
+          brand: fit.settings?.brand_name || company.name,
+          portal_token: link.portal_token,
+          portal_path: link.portal_path,
+          checkin_path: link.checkin_path,
+          ref_id: link.ref_id,
+          ref_label: link.ref_label,
+          email: link.email || email,
+          capabilities: link.capabilities,
+          active: true,
+        });
+        if (next.memberships.length > before) attached += 1;
+        void indexBrandPerson({
+          kind: 'gym',
+          companyId,
+          companyName: company.name,
+          brand: fit.settings?.brand_name || company.name,
+          refId: link.ref_id,
+          refLabel: link.ref_label,
+          email: link.email || email,
+          phone: link.phone || phone,
+          portalToken: link.portal_token,
+          portalPath: link.portal_path,
+          checkinPath: link.checkin_path,
+          capabilities: link.capabilities,
+        });
+      }
       company.meta = writeFitgraphToMetadata(company.meta, fit);
-      next = upsertMembership(next, {
-        kind: 'gym',
-        company_id: companyId,
-        company_name: company.name,
-        brand: fit.settings?.brand_name || company.name,
-        portal_token: client.portal_token,
-        portal_path: `/member/fitgraph/${encodeURIComponent(client.portal_token)}`,
-        checkin_path: fit.settings?.public_token
-          ? gymCheckinPath(fit.settings.public_token)
-          : null,
-        ref_id: client.id,
-        ref_label: client.name,
-        email: client.email || email,
-        capabilities: ['book', 'checkin', 'messages', 'review', 'track'],
-        active: true,
-      });
-      attached += 1;
-      void indexBrandPerson({
-        kind: 'gym',
-        companyId,
-        companyName: company.name,
-        brand: fit.settings?.brand_name || company.name,
-        refId: client.id,
-        refLabel: client.name,
-        email: client.email || email,
-        phone: client.phone || phone,
-        portalToken: client.portal_token,
-        portalPath: `/member/fitgraph/${encodeURIComponent(client.portal_token)}`,
-        checkinPath: fit.settings?.public_token
-          ? gymCheckinPath(fit.settings.public_token)
-          : null,
-        capabilities: ['book', 'checkin', 'messages', 'review', 'track'],
-      });
     }
 
     // Clinics

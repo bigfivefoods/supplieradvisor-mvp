@@ -225,22 +225,15 @@ export function AdvisorPwaLauncher({ brand }: { brand: AdvisorPwaBrand }) {
             token: brand.publicToken,
             name: joinName,
             email: joinEmail,
-            expect_role: signInAs === 'staff' ? 'staff' : 'member',
+            expect_role: signInAs === 'staff' ? 'staff' : undefined,
           }),
         });
         const rosterData = await roster.json().catch(() => ({}));
         const path = String(rosterData.path || '');
         const portal = String(rosterData.portal_token || '');
         if (roster.ok && path && portal) {
-          const staffPath = isAdvisorStaffPortalPath(path);
-          if (signInAs === 'staff' && staffPath) {
-            openMemberApp(path, portal);
-            return;
-          }
-          if (signInAs !== 'staff' && !staffPath) {
-            openMemberApp(path, portal);
-            return;
-          }
+          openMemberApp(path, portal);
+          return;
         }
         if (signInAs === 'staff') {
           throw new Error(

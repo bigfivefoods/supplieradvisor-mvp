@@ -35,12 +35,14 @@ import {
   stampSnapshotOnPerson,
 } from '@/lib/b2c/wallet-household';
 import {
-  gymCheckinPath,
-  issueClientPortalToken,
-  newId as newFitId,
   readFitgraphFromMetadata,
   writeFitgraphToMetadata,
 } from '@/lib/fitness/fitgraph';
+import {
+  linkGymPersonToPwa,
+  preferredGymPwaLink,
+  type GymPwaLink,
+} from '@/lib/fitness/gym-pwa-roster';
 import { appendJoinEvent } from '@/lib/fitness/member-profile';
 import {
   applyWalletToHirePortal,
@@ -386,6 +388,63 @@ async function ensureAccountLink(opts: {
   return { profile: next };
 }
 
+function gymLinkToMembership(
+  company: CompanyRow,
+  brand: string,
+  link: GymPwaLink,
+  email: string | null
+) {
+  return {
+    kind: 'gym' as const,
+    company_id: company.id,
+    company_name: company.name,
+    brand,
+    portal_token: link.portal_token,
+    portal_path: link.portal_path,
+    checkin_path: link.checkin_path,
+    ref_id: link.ref_id,
+    ref_label: link.ref_label,
+    email: link.email || email,
+    capabilities: link.capabilities,
+    active: true,
+  };
+}
+
+function applyGymPwaLinks(opts: {
+  company: CompanyRow;
+  profile: Awaited<ReturnType<typeof ensureB2cProfile>>;
+  brand: string;
+  links: GymPwaLink[];
+  email: string | null;
+  phone: string | null;
+}) {
+  let next = opts.profile;
+  for (const link of opts.links) {
+    const membership = gymLinkToMembership(
+      opts.company,
+      opts.brand,
+      link,
+      opts.email
+    );
+    next = upsertMembership(next, membership);
+    void indexBrandPerson({
+      kind: 'gym',
+      companyId: opts.company.id,
+      companyName: opts.company.name,
+      brand: opts.brand,
+      refId: link.ref_id,
+      refLabel: link.ref_label,
+      email: link.email || opts.email,
+      phone: link.phone || opts.phone,
+      portalToken: link.portal_token,
+      portalPath: link.portal_path,
+      checkinPath: link.checkin_path,
+      capabilities: link.capabilities,
+    });
+  }
+  return next;
+}
+
 async function joinGym(opts: {
   company: CompanyRow;
   profile: Awaited<ReturnType<typeof ensureB2cProfile>>;
@@ -395,110 +454,81 @@ async function joinGym(opts: {
   displayName: string;
 }) {
   const store = readFitgraphFromMetadata(opts.company.meta);
-  let client = (store.clients || []).find(
-    (c) =>
-      c.active !== false &&
-      personMatch(c, opts.email, opts.phone, opts.userId)
-  );
   const now = new Date().toISOString();
-  const created = !client;
-  if (!client) {
-    client = {
-      id: newFitId('cli'),
-      code: `M${Date.now().toString(36).slice(-5).toUpperCase()}`,
-      name: opts.displayName,
-      email: opts.email || undefined,
-      phone: opts.phone || undefined,
-      membership_status: 'active',
-      start_date: now.slice(0, 10),
-      active: true,
-      created_at: now,
-      updated_at: now,
-    };
-    store.clients = [...(store.clients || []), client];
-  }
-  if (!client.portal_token) {
-    client.portal_token = issueClientPortalToken(opts.company.id);
-  }
-  linkPlatformUserId(client, opts.userId);
-  if (opts.email && !client.email) client.email = opts.email;
-  if (opts.phone && !client.phone) client.phone = opts.phone;
-  if (!client.name) client.name = opts.displayName;
-  if (!client.start_date) client.start_date = now.slice(0, 10);
-  client = await stampSnapshotOnPerson(client, opts.profile);
-  client.invite_status = 'accepted';
-  client.invite_accepted_at = now;
-  client.join_events = appendJoinEvent(client, {
-    at: now,
-    kind: created ? 'joined_pwa' : 'wallet_linked',
-    title: created ? 'Joined from SA Member' : 'Linked SA Member wallet',
-    source: 'pwa',
+  const linked = linkGymPersonToPwa(store, {
+    companyId: opts.company.id,
+    email: opts.email,
+    phone: opts.phone,
+    userId: opts.userId,
+    displayName: opts.displayName,
+    createIfMissing: true,
+    now,
   });
-  client.updated_at = now;
-  if (!client.created_at) client.created_at = now;
-  store.desk_notices = pushDeskNotice(
-    store.desk_notices,
-    newDeskNotice({
-      kind: 'member_joined',
-      person_id: client.id,
-      person_name: client.name,
-      email: client.email,
-      phone: client.phone,
-      source: 'pwa',
-      note: created
-        ? 'New member from SA Member'
-        : 'Linked their SA Member wallet',
-    })
-  );
-  const ci = store.clients.findIndex((c) => c.id === client!.id);
-  if (ci >= 0) store.clients[ci] = client;
+  const memberLink = linked.links.find((l) => l.role === 'member');
+  const coachLink = linked.links.find((l) => l.role === 'coach');
+  if (coachLink) {
+    const coach = store.coaches.find((c) => c.id === coachLink.ref_id);
+    if (coach) linkPlatformUserId(coach, opts.userId);
+  }
+  if (memberLink) {
+    let client = store.clients.find((c) => c.id === memberLink.ref_id);
+    if (client) {
+      linkPlatformUserId(client, opts.userId);
+      client = await stampSnapshotOnPerson(client, opts.profile);
+      client.invite_status = 'accepted';
+      client.invite_accepted_at = now;
+      client.join_events = appendJoinEvent(client, {
+        at: now,
+        kind: linked.createdMember ? 'joined_pwa' : 'wallet_linked',
+        title: linked.createdMember
+          ? 'Joined from SA Member'
+          : 'Linked SA Member wallet',
+        source: 'pwa',
+      });
+      client.updated_at = now;
+      const ci = store.clients.findIndex((c) => c.id === client!.id);
+      if (ci >= 0) store.clients[ci] = client;
+      if (linked.createdMember) {
+        store.desk_notices = pushDeskNotice(
+          store.desk_notices,
+          newDeskNotice({
+            kind: 'member_joined',
+            person_id: client.id,
+            person_name: client.name,
+            email: client.email,
+            phone: client.phone,
+            source: 'pwa',
+            note: 'New member from SA Member',
+          })
+        );
+      }
+    }
+  }
+  if (!linked.links.length) {
+    throw new Error('Could not link your gym profile');
+  }
   const meta = writeFitgraphToMetadata(opts.company.meta, store);
   await saveMeta(opts.company.id, meta);
 
   const brand = store.settings?.brand_name || opts.company.name;
-  const caps: B2cCapability[] = [
-    'book',
-    'checkin',
-    'messages',
-    'review',
-    'track',
-  ];
-  const membership = {
-    kind: 'gym' as const,
-    company_id: opts.company.id,
-    company_name: opts.company.name,
+  const next = applyGymPwaLinks({
+    company: opts.company,
+    profile: opts.profile,
     brand,
-    portal_token: client.portal_token,
-    portal_path: `/member/fitgraph/${encodeURIComponent(client.portal_token!)}`,
-    checkin_path: store.settings?.public_token
-      ? gymCheckinPath(store.settings.public_token)
-      : null,
-    ref_id: client.id,
-    ref_label: client.name,
-    email: client.email || opts.email,
-    capabilities: caps,
-    active: true,
-  };
-  const next = upsertMembership(opts.profile, membership);
-  await saveB2cProfile(next);
-  void indexBrandPerson({
-    kind: 'gym',
-    companyId: opts.company.id,
-    companyName: opts.company.name,
-    brand,
-    refId: client.id,
-    refLabel: client.name,
-    email: client.email || opts.email,
-    phone: client.phone || opts.phone,
-    portalToken: client.portal_token,
-    portalPath: membership.portal_path,
-    checkinPath: membership.checkin_path,
-    capabilities: caps,
+    links: linked.links,
+    email: opts.email,
+    phone: opts.phone,
   });
+  await saveB2cProfile(next);
+  const preferred = preferredGymPwaLink(linked.links)!;
   return {
-    membership: next.memberships.find(
-      (m) => m.company_id === opts.company.id && m.kind === 'gym'
-    ) || next.memberships[0],
+    membership:
+      next.memberships.find(
+        (m) =>
+          m.company_id === opts.company.id &&
+          m.kind === 'gym' &&
+          m.ref_id === preferred.ref_id
+      ) || next.memberships[0],
     already: false,
     brand,
     profile: next,

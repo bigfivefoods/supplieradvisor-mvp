@@ -55,7 +55,11 @@ export const ADVISOR_PWA_INDEX_KEYS: Record<AdvisorPwaModule, string[]> = {
 
 /** Public + member/patient tokens so /member/... pages can brand the install. */
 export const ADVISOR_PWA_PORTAL_INDEX_KEYS: Record<AdvisorPwaModule, string[]> = {
-  fitgraph: ['fitgraph_client_tokens', 'fitgraph_public_token'],
+  fitgraph: [
+    'fitgraph_client_tokens',
+    'fitgraph_coach_tokens',
+    'fitgraph_public_token',
+  ],
   physiograph: ['physiograph_patient_tokens', 'physiograph_public_token'],
   dentalgraph: ['dentalgraph_patient_tokens', 'dentalgraph_public_token'],
   medicalgraph: ['medicalgraph_patient_tokens', 'medicalgraph_public_token'],

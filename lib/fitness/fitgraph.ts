@@ -1996,6 +1996,18 @@ export function ensureClientPortalToken(
   return rememberClientPortalToken(client, issueClientPortalToken(companyId))!;
 }
 
+/** Reuse the live coach work-app token. */
+export function ensureCoachPortalToken(
+  coach: Pick<FitCoach, 'portal_token'>,
+  companyId: number
+): string {
+  const existing = String(coach.portal_token || '').trim();
+  if (existing) return existing;
+  const issued = issueCoachPortalToken(companyId);
+  coach.portal_token = issued;
+  return issued;
+}
+
 /** Parse companyId from coach_* , member_* or fg_{companyId}_* tokens when present. */
 export function parseCompanyIdFromToken(token: string): number | null {
   const coach = /^coach_(\d+)_/.exec(token);

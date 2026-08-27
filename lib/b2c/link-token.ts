@@ -21,11 +21,13 @@ import {
 } from '@/lib/retail/retailgraph';
 import {
   clientMatchesPortalToken,
+  coachEngagementIsLive,
   parseCompanyIdFromToken,
   readFitgraphFromMetadata,
   writeFitgraphToMetadata,
   gymCheckinPath,
 } from '@/lib/fitness/fitgraph';
+import { gymCoachPortalPath } from '@/lib/fitness/gym-pwa-roster';
 import {
   parsePhysioCompanyIdFromToken,
   readPhysiographFromMetadata,
@@ -486,6 +488,49 @@ export async function resolveAndLinkPortalToken(
       const company = await loadCompany(companyId);
       if (!company) return { ok: false, error: 'Company not found' };
       const store = readFitgraphFromMetadata(company.meta);
+      const coach = (store.coaches || []).find(
+        (c) =>
+          String(c.portal_token || '').trim() === token &&
+          coachEngagementIsLive(c)
+      );
+      if (coach) {
+        linkPlatformUserId(coach, platformUserId);
+        const idx = store.coaches.findIndex((c) => c.id === coach.id);
+        if (idx >= 0) store.coaches[idx] = coach;
+        await saveMeta(companyId, writeFitgraphToMetadata(company.meta, store));
+        const brand = store.settings?.brand_name || company.name;
+        const membership = {
+          kind: 'gym' as const,
+          company_id: companyId,
+          company_name: company.name,
+          brand,
+          portal_token: token,
+          portal_path: gymCoachPortalPath(token),
+          checkin_path: store.settings?.public_token
+            ? gymCheckinPath(store.settings.public_token)
+            : null,
+          ref_id: coach.id,
+          ref_label: coach.name,
+          email: coach.email || null,
+          capabilities: ['checkin', 'messages', 'track'] as B2cCapability[],
+          active: true,
+        };
+        void indexBrandPerson({
+          kind: 'gym',
+          companyId,
+          companyName: company.name,
+          brand,
+          refId: coach.id,
+          refLabel: coach.name,
+          email: coach.email || null,
+          phone: coach.phone || null,
+          portalToken: token,
+          portalPath: membership.portal_path,
+          checkinPath: membership.checkin_path,
+          capabilities: membership.capabilities,
+        });
+        return { ok: true, brand, membership };
+      }
       const client = store.clients.find(
         (c) => clientMatchesPortalToken(c, token) && c.active !== false
       );

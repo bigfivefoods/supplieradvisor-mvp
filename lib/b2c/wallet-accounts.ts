@@ -45,9 +45,31 @@ export function groupWalletAccounts<T extends WalletCard>(
   });
 }
 
+export function isGymCoachPortalPath(path?: string | null): boolean {
+  return String(path || '').includes('/coach/fitgraph/');
+}
+
+export function gymCoachCard<T extends WalletCard>(
+  account: WalletAccount<T>
+): T | undefined {
+  return account.cards.find(
+    (c) => c.kind === 'gym' && isGymCoachPortalPath(c.portal_path)
+  );
+}
+
+export function gymMemberCard<T extends WalletCard>(
+  account: WalletAccount<T>
+): T | undefined {
+  return account.cards.find(
+    (c) => c.kind === 'gym' && !isGymCoachPortalPath(c.portal_path)
+  );
+}
+
 export function primaryPortal<T extends WalletCard>(
   account: WalletAccount<T>
 ): string {
+  const coach = gymCoachCard(account);
+  if (coach?.portal_path) return coach.portal_path;
   const pref =
     account.cards.find((c) => c.kind !== 'account' && c.portal_path) ||
     account.cards[0];

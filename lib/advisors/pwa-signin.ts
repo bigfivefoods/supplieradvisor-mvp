@@ -339,8 +339,8 @@ async function signInGym(opts: {
     FITGRAPH_PUBLIC_TOKEN_KEY,
     findClientForPortalSignIn,
     findCoachForPortalSignIn,
-    issueClientPortalToken,
-    issueCoachPortalToken,
+    ensureClientPortalToken,
+    ensureCoachPortalToken,
     parseCompanyIdFromToken,
     readFitgraphFromMetadata,
   } = await import('@/lib/fitness/fitgraph');
@@ -375,7 +375,7 @@ async function signInGym(opts: {
   if (lane.lane === 'staff' && coach) {
     let portalToken = String(coach.portal_token || '').trim();
     if (!portalToken) {
-      portalToken = issueCoachPortalToken(loaded.companyId);
+      portalToken = ensureCoachPortalToken(coach, loaded.companyId);
       const idx = loaded.store.coaches.findIndex((c) => c.id === coach.id);
       if (idx >= 0) {
         loaded.store.coaches[idx] = {
@@ -407,7 +407,7 @@ async function signInGym(opts: {
   }
   let portalToken = String(client.portal_token || '').trim();
   if (!portalToken) {
-    portalToken = issueClientPortalToken(loaded.companyId);
+    portalToken = ensureClientPortalToken(client, loaded.companyId);
     const idx = loaded.store.clients.findIndex((c) => c.id === client.id);
     if (idx >= 0) {
       loaded.store.clients[idx] = {
