@@ -1,23 +1,25 @@
-import type { ReactNode } from 'react';
 import type { Metadata, Viewport } from 'next';
+import type { ReactNode } from 'react';
+import {
+  generateAdvisorPortalTokenMetadata,
+  generateAdvisorPortalTokenViewport,
+} from '@/lib/advisors/load-advisor-pwa';
 
-export const metadata: Metadata = {
-  title: 'Coach work app',
-  applicationName: 'Advisor Work',
-  appleWebApp: {
-    capable: true,
-    title: 'Coach',
-    statusBarStyle: 'black-translucent',
-  },
-  manifest: '/member-app.webmanifest',
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: { token: string } | Promise<{ token: string }>;
+}): Promise<Metadata> {
+  return generateAdvisorPortalTokenMetadata('fitgraph', params);
+}
 
-export const viewport: Viewport = {
-  themeColor: '#0f172a',
-  width: 'device-width',
-  initialScale: 1,
-  viewportFit: 'cover',
-};
+export async function generateViewport({
+  params,
+}: {
+  params: { token: string } | Promise<{ token: string }>;
+}): Promise<Viewport> {
+  return generateAdvisorPortalTokenViewport('fitgraph', params);
+}
 
 export default function CoachWorkLayout({ children }: { children: ReactNode }) {
   return children;

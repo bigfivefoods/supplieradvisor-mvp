@@ -160,6 +160,21 @@ assert.equal(brand.joinPrivatePath, '/join/fitgraph/fg_110_abc?kind=private');
 assert.equal(brand.enabled, true);
 assert.equal(brand.shortName, 'VUKA Fitness');
 
+const named = buildAdvisorPwaBrand({
+  module: 'fitgraph',
+  publicToken: 'fg_110_abc',
+  companyId: 110,
+  settings: {
+    brand_name: 'VUKA Fitness',
+    pwa_name: 'VUKA',
+    pwa_short_name: 'VUKA',
+  },
+});
+assert.equal(named.brandName, 'VUKA');
+assert.equal(named.shortName, 'VUKA');
+assert.equal(advisorPwaWebManifest(named).name, 'VUKA');
+assert.equal(advisorPwaWebManifest(named).short_name, 'VUKA');
+
 const manifest = advisorPwaWebManifest(brand);
 assert.equal(manifest.id, '/pwa/fitgraph/fg_110_abc');
 assert.equal(manifest.start_url, '/pwa/fitgraph/fg_110_abc?source=pwa');

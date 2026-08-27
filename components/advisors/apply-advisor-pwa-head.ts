@@ -8,60 +8,51 @@ import {
   type AdvisorPwaBrand,
 } from '@/lib/advisors/member-pwa';
 
-/** Swap SA root PWA tags for the company install (name, icons, manifest). */
+function removeAll(selector: string) {
+  document.querySelectorAll(selector).forEach((el) => el.remove());
+}
+
+function addLink(rel: string, href: string, extra?: Record<string, string>) {
+  const l = document.createElement('link');
+  l.setAttribute('rel', rel);
+  l.setAttribute('href', href);
+  if (extra) {
+    for (const [k, v] of Object.entries(extra)) l.setAttribute(k, v);
+  }
+  document.head.appendChild(l);
+}
+
+function addMeta(name: string, content: string) {
+  const el = document.createElement('meta');
+  el.setAttribute('name', name);
+  el.setAttribute('content', content);
+  document.head.appendChild(el);
+}
+
+/** Replace root SA PWA tags so Add to Home Screen uses the gym brand. */
 export function applyAdvisorPwaDocumentHead(brand: AdvisorPwaBrand): void {
   if (typeof document === 'undefined') return;
   const stamp = advisorPwaBrandStamp(brand);
   const appleIcon = advisorPwaIconPath(brand.module, brand.publicToken, 180, stamp);
   const splash = advisorPwaSplashPath(brand.module, brand.publicToken, stamp);
-  const setMeta = (name: string, content: string) => {
-    let el = document.querySelector(`meta[name="${name}"]`);
-    if (!el) {
-      el = document.createElement('meta');
-      el.setAttribute('name', name);
-      document.head.appendChild(el);
-    }
-    el.setAttribute('content', content);
-  };
-  setMeta('apple-mobile-web-app-title', brand.shortName);
-  setMeta('application-name', brand.shortName);
-  setMeta('theme-color', brand.themeColor);
-  setMeta('msapplication-TileColor', brand.backgroundColor);
-
-  const appleStartup = document.querySelectorAll(
-    'link[rel="apple-touch-startup-image"]'
-  );
-  if (appleStartup.length) {
-    appleStartup.forEach((l) => l.setAttribute('href', splash));
-  } else {
-    const l = document.createElement('link');
-    l.setAttribute('rel', 'apple-touch-startup-image');
-    l.setAttribute('href', splash);
-    document.head.appendChild(l);
-  }
-
-  const appleLinks = document.querySelectorAll('link[rel="apple-touch-icon"]');
-  if (appleLinks.length) {
-    appleLinks.forEach((l) => l.setAttribute('href', appleIcon));
-  } else {
-    const l = document.createElement('link');
-    l.setAttribute('rel', 'apple-touch-icon');
-    l.setAttribute('href', appleIcon);
-    document.head.appendChild(l);
-  }
-
   const manifestHref = advisorPwaManifestPath(
     brand.module,
     brand.publicToken,
     stamp
   );
-  const manifests = document.querySelectorAll('link[rel="manifest"]');
-  if (manifests.length) {
-    manifests.forEach((l) => l.setAttribute('href', manifestHref));
-  } else {
-    const l = document.createElement('link');
-    l.setAttribute('rel', 'manifest');
-    l.setAttribute('href', manifestHref);
-    document.head.appendChild(l);
-  }
+
+  removeAll('link[rel="manifest"]');
+  removeAll('link[rel="apple-touch-icon"]');
+  removeAll('link[rel="apple-touch-startup-image"]');
+  removeAll('meta[name="apple-mobile-web-app-title"]');
+  removeAll('meta[name="application-name"]');
+
+  document.title = brand.brandName;
+  addMeta('apple-mobile-web-app-title', brand.shortName);
+  addMeta('application-name', brand.shortName);
+  addMeta('theme-color', brand.themeColor);
+  addMeta('msapplication-TileColor', brand.backgroundColor);
+  addLink('apple-touch-startup-image', splash);
+  addLink('apple-touch-icon', appleIcon, { sizes: '180x180' });
+  addLink('manifest', manifestHref);
 }

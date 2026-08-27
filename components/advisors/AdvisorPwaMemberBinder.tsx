@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
+  pwaShortName,
   rememberAdvisorPwaMember,
   type AdvisorPwaBrand,
   type AdvisorPwaModule,
@@ -78,7 +79,7 @@ export function AdvisorPwaMemberBinder({
       audience: 'members',
       audienceSingular: 'member',
       brandName,
-      shortName: brandName.slice(0, 12),
+      shortName: pwaShortName(brandName),
       description: '',
       themeColor: themeColor || '#0c4a6e',
       backgroundColor: backgroundColor || '#0c4a6e',

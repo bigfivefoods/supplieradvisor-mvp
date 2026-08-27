@@ -97,7 +97,6 @@ export const metadata: Metadata = {
   },
   other: {
     'msapplication-TileColor': '#00b4d8',
-    'apple-mobile-web-app-title': 'SupplierAdvisor',
     'apple-mobile-web-app-capable': 'yes',
     'mobile-web-app-capable': 'yes',
     'apple-mobile-web-app-status-bar-style': 'default',
@@ -124,15 +123,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <JsonLd />
         {/* Apply stored theme before paint — avoids light flash in dark mode */}
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
-        {/* Explicit PWA / iOS home-screen tags.
-            Manifest comes from route metadata so /me can serve member-app.webmanifest. */}
-        <link rel="apple-touch-icon" href="/apple-icon.png" sizes="180x180" />
-        <link rel="apple-touch-icon" href="/sa-icon-192.png" sizes="192x192" />
+        {/* Capable flags only — name/icon/manifest come from the route so a
+            gym PWA (VUKA) is not installed as SupplierAdvisor. */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="SupplierAdvisor" />
         <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="application-name" content="SupplierAdvisor" />
         {/* Register SW as early as possible (Android install criteria) */}
         <script
           dangerouslySetInnerHTML={{
