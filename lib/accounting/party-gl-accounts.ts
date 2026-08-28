@@ -689,7 +689,7 @@ export function planPartyGlAccounts(opts: {
               ? `AR account ${code} — ${party.name}. Bank receipts for this person post here when invoiced.`
               : `AP account ${code} — ${party.name}. Bank payments for this party post here when a bill is already recognised.`,
           metadata: {
-            party_kind: account_type === 'asset' ? 'member_ar' : 'supplier_ap',
+            party_kind: account_type === 'asset' ? 'customer_ar' : 'supplier_ap',
             party_key: party.code,
             party_ids: [party.id],
             ar_account_number: account_type === 'asset' ? code : undefined,
@@ -754,7 +754,7 @@ export function planPartyGlAccounts(opts: {
         normal_balance: 'debit',
         parentCode: '1100',
         sort: 840,
-        kind: 'member_ar_header',
+        kind: 'customer_ar_header',
         description:
           'Customer AR header. Each customer is {parent}-0000001 … Income still posts to 4100/4200/4400 (IFRS 15).',
       });
@@ -1092,7 +1092,7 @@ export async function ensureMemberArLeaf(opts: {
       sort: 840,
       description:
         'Customer AR header. Each customer is 1180-0000001 … Income posts to 4100/4200/4400 (IFRS 15).',
-      metadata: { party_kind: 'member_ar_header' },
+      metadata: { party_kind: 'customer_ar_header' },
     });
   } else if (!headerId) {
     const { data: parent } = await supabase
@@ -1124,7 +1124,7 @@ export async function ensureMemberArLeaf(opts: {
         parent_id: headerId,
         description: `AR account ${want} — ${name}. Receipts for this person post here when invoiced.`,
         metadata: {
-          party_kind: 'member_ar',
+          party_kind: 'customer_ar',
           party_ids: [opts.customerId],
           ar_account_number: want,
         },
@@ -1159,7 +1159,7 @@ export async function ensureMemberArLeaf(opts: {
         sort_order: 841,
         description: `AR account ${want} — ${name}. Receipts for this person post here when invoiced.`,
         metadata: {
-          party_kind: 'member_ar',
+          party_kind: 'customer_ar',
           party_ids: [opts.customerId],
           ar_account_number: want,
         },
@@ -1326,7 +1326,7 @@ async function recodeLegacyMemberArLeaves(profileId: number): Promise<number> {
     sort: 840,
     description:
       'Customer AR header. Each customer is 1180-0000001 …',
-    metadata: { party_kind: 'member_ar_header' },
+    metadata: { party_kind: 'customer_ar_header' },
   });
   let moved = 0;
   for (const leaf of leaves) {

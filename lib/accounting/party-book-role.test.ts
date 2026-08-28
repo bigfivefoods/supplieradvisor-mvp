@@ -32,7 +32,7 @@ assert.equal(
     is_header: true,
     account_type: 'asset',
   }),
-  'member_ar'
+  'customer_ar'
 );
 assert.equal(
   classifyCoaParty({

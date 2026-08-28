@@ -180,14 +180,14 @@ export function classifyCoaParty(a: {
   if (code === '2110') return 'control_ap';
   if (a.is_header) {
     if (code === '1180' || /members|patients|^customers$/i.test(name)) {
-      return 'member_ar';
+      return 'customer_ar';
     }
     if (code === '2180' || /supplier|contractor|payable/i.test(name)) {
       return 'supplier_ap';
     }
     return null;
   }
-  if (isMemberArAccountCode(code)) return 'member_ar';
+  if (isMemberArAccountCode(code)) return 'customer_ar';
   if (isSupplierApAccountCode(code)) return 'supplier_ap';
   if (/^AR\s+[—-]\s+/i.test(name)) return 'customer_ar';
   if (/^AP\s+[—-]\s+/i.test(name)) return 'supplier_ap';
@@ -203,11 +203,10 @@ export function classifyCoaParty(a: {
 export function coaPartyLabel(kind: CoaPartyKind): string | null {
   switch (kind) {
     case 'customer_ar':
-      return 'Customer · AR';
     case 'member_ar':
-      return 'Member · AR';
+      return 'customer-ar';
     case 'supplier_ap':
-      return 'Supplier · AP';
+      return 'supplier-ap';
     case 'control_ar':
       return 'AR control';
     case 'control_ap':
