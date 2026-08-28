@@ -56,6 +56,8 @@ export type DocRenderInput = {
   contactName?: string | null;
   contactEmail?: string | null;
   contactPhone?: string | null;
+  /** Buyer VAT — shown on Bill to when the customer has one on file. */
+  customerVatNumber?: string | null;
   notes?: string | null;
   terms?: string | null;
   paymentTerms?: string | null;
@@ -276,6 +278,43 @@ export function resolveCustomerContact(
       c.mobile
     ),
   };
+}
+
+/** Buyer VAT from CRM book, document stamp, or linked company profile. */
+export function resolveCustomerVatNumber(
+  customer: Record<string, unknown> | null | undefined,
+  doc: Record<string, unknown> = {},
+  linkedProfile?: Record<string, unknown> | null
+): string | null {
+  const c = customer || {};
+  const meta =
+    c.metadata && typeof c.metadata === 'object' && !Array.isArray(c.metadata)
+      ? (c.metadata as Record<string, unknown>)
+      : {};
+  const lp = linkedProfile || {};
+  const lpMeta =
+    lp.metadata && typeof lp.metadata === 'object' && !Array.isArray(lp.metadata)
+      ? (lp.metadata as Record<string, unknown>)
+      : {};
+  const pick = (...vals: unknown[]) => {
+    for (const v of vals) {
+      if (v != null && String(v).trim()) return String(v).trim();
+    }
+    return null;
+  };
+  return pick(
+    doc.customer_vat_number,
+    doc.customer_vat,
+    c.vat_number,
+    c.vat_no,
+    c.tax_number,
+    meta.vat_number,
+    meta.vat_no,
+    lp.vat_number,
+    lp.vat_no,
+    lp.tax_number,
+    lpMeta.vat_number
+  );
 }
 
 export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
@@ -762,6 +801,11 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
             <div class="muted">${esc(doc.contactName || '')}</div>
             <div class="muted">${esc(doc.contactEmail || '')}</div>
             <div class="muted">${esc(doc.contactPhone || '')}</div>
+            ${
+              doc.customerVatNumber
+                ? `<div class="muted"><strong>VAT</strong> ${esc(doc.customerVatNumber)}</div>`
+                : ''
+            }
           </div>
           <div class="card">
             <div class="card-label">Document</div>
