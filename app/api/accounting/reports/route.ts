@@ -48,10 +48,13 @@ export async function GET(request: NextRequest) {
       const direction = report === 'ar_aging' ? 'receivable' : 'payable';
       const { data: invoices, error } = await supabase
         .from('invoices')
-        .select('*')
+        .select(
+          'id, invoice_number, counterparty_name, due_date, issue_date, total_amount, amount_paid, status, currency'
+        )
         .eq('profile_id', companyId)
         .eq('direction', direction)
-        .not('status', 'in', '("paid","void","cancelled")');
+        .not('status', 'in', '("paid","void","cancelled")')
+        .limit(2000);
 
       if (error) {
         return NextResponse.json({ success: true, report, rows: [], warning: error.message });
@@ -169,7 +172,7 @@ export async function GET(request: NextRequest) {
       {
         const active = await supabase
           .from('chart_of_accounts')
-          .select('*')
+          .select('id, code, name, account_type, subtype, is_header, is_active, parent_id, normal_balance')
           .eq('profile_id', companyId)
           .eq('is_active', true)
           .order('code');
@@ -609,7 +612,7 @@ export async function GET(request: NextRequest) {
 
       const { data: accounts, error: accErr } = await supabase
         .from('chart_of_accounts')
-        .select('*')
+        .select('id, code, name, account_type, subtype, is_header, is_active, parent_id, normal_balance')
         .eq('profile_id', companyId)
         .order('code');
       if (accErr) {
@@ -1051,7 +1054,7 @@ export async function GET(request: NextRequest) {
     // GL-based reports: trial balance, P&L, balance sheet
     const { data: accounts, error: accErr } = await supabase
       .from('chart_of_accounts')
-      .select('*')
+      .select('id, code, name, account_type, subtype, is_header, is_active, parent_id, normal_balance')
       .eq('profile_id', companyId)
       .eq('is_active', true)
       .order('code');
