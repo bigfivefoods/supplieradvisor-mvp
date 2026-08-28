@@ -8,6 +8,10 @@ import {
   invalidateAccountingReads,
 } from '@/lib/accounting/read-cache';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  filterOperatingCoa,
+  parseCoaListLimit,
+} from '@/lib/accounting/coa-list';
 
 export const maxDuration = 60;
 
@@ -39,28 +43,14 @@ export async function GET(request: NextRequest) {
     if (type && type !== 'all') {
       accounts = accounts.filter((a) => a.account_type === type);
     }
-    if (q) {
-      const n = q.toLowerCase();
-      accounts = accounts.filter(
-        (a) =>
-          a.code?.toLowerCase().includes(n) ||
-          a.name?.toLowerCase().includes(n) ||
-          a.account_type?.toLowerCase().includes(n)
-      );
-    }
 
     const includePartyLeaves =
       request.nextUrl.searchParams.get('party_leaves') === '1';
-    const FACE = new Set(['1130', '1135', '2110', '2140', '2180', '1180']);
-    if (!includePartyLeaves && !q) {
-      accounts = accounts.filter((a) => {
-        const code = String(a.code || '');
-        if (/^(1180|2180|4400)-/.test(code)) return false;
-        return a.is_header || FACE.has(code);
-      });
-    }
-    const limitRaw = Number(request.nextUrl.searchParams.get('limit') || 50);
-    const limit = Math.min(Math.max(Number.isFinite(limitRaw) ? limitRaw : 50, 1), 100);
+    accounts = filterOperatingCoa(accounts, {
+      partyLeaves: includePartyLeaves,
+      q,
+    });
+    const limit = parseCoaListLimit(request.nextUrl.searchParams.get('limit'));
     const offset = Math.max(0, Number(request.nextUrl.searchParams.get('offset') || 0) || 0);
     accounts = accounts.slice(offset, offset + limit);
 
