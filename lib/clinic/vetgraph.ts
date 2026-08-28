@@ -31,6 +31,7 @@ import {
   type ContractorCommercialFields,
 } from '@/lib/clinic/contractor-commercial';
 import { clinicPortalShop } from '@/lib/clinic/clinic-portal-shop';
+import { normalizeWorkingHours } from '@/lib/schedule/working-hours';
 
 export const VETGRAPH_MODULE_ID = 'vetgraph' as const;
 export const VETGRAPH_META_KEY = 'vetgraph';
@@ -681,6 +682,7 @@ export function buildPatientPortalPayload(
     public_token: store.settings?.public_token || null,
     bio: store.settings?.public_bio,
     timezone: store.settings?.timezone || 'Africa/Johannesburg',
+    working_hours: normalizeWorkingHours(store.settings?.working_hours),
     allow_booking: store.settings?.allow_public_booking !== false,
     contact_email: store.settings?.contact_email,
     contact_phone: store.settings?.contact_phone,

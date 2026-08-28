@@ -20,7 +20,7 @@ import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
 import { MemberAdvisorShell } from '@/components/advisors/MemberAdvisorShell';
 import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
 import { AdvisorPwaSignOutButton } from '@/components/advisors/AdvisorPwaSignOutButton';
-import { ClinicMemberDiary } from '@/components/clinic/ClinicMemberDiary';
+
 import {
   MemberPortalInvoices,
   mergePortalInvoices,
@@ -41,9 +41,9 @@ import {
   ClinicCarePacks,
   ClinicExpandSection,
   ClinicFlash,
+  ClinicOpenDiary,
   ClinicSectionTitle,
   ClinicSharePanel,
-  ClinicWaitlistJoin,
   ClinicYouSubnav,
   clinicMemberDockTabs,
   isClinicYouTab,
@@ -124,6 +124,7 @@ type Portal = {
   }>;
   treatment_plans?: SharedTreatmentPlan[];
   open_slots: Slot[];
+  working_hours?: import('@/lib/schedule/working-hours').WorkingHours;
   waitlist_queue?: Array<{ id: string; position: number }>;
   can_book_other_clinicians?: boolean;
   my_bookings: Array<{
@@ -434,32 +435,21 @@ export default function MemberPhysiographPortalPage() {
         ) : null}
 
         {tab === 'open' && (
-          <div className="space-y-3">
-            <ClinicSectionTitle hint="Look at the clinic calendar to book a session or join the waitlist.">
-              Schedule
-            </ClinicSectionTitle>
-            <p className="text-sm text-slate-600">
-              Book your regular clinician or another available practitioner. Full slots: join waitlist (practice is notified). </p>
-
-            {portal.allow_booking ? (
-              <ClinicWaitlistJoin
-                position={(portal.waitlist_queue || [])[0]?.position}
-                busy={busyId === 'queue'}
-                onJoin={() => void joinQueue()}
-                onLeave={() =>
-                  void leaveQueue((portal.waitlist_queue || [])[0]?.id)
-                }
-              />
-            ) : null}
-            <ClinicMemberDiary
-              slots={portal.open_slots}
-              bookings={portal.my_bookings}
-              color={color}
-              allowBooking={portal.allow_booking}
-              busyId={busyId}
-              onBook={(id) => void book(id)}
-            />
-          </div>
+          <ClinicOpenDiary
+            slots={portal.open_slots}
+            bookings={portal.my_bookings}
+            color={color}
+            allowBooking={portal.allow_booking}
+            busyId={busyId}
+            onBook={(id) => void book(id)}
+            workingHours={portal.working_hours}
+            waitlistPosition={(portal.waitlist_queue || [])[0]?.position}
+            waitlistBusy={busyId === 'queue'}
+            onJoinWaitlist={() => void joinQueue()}
+            onLeaveWaitlist={() =>
+              void leaveQueue((portal.waitlist_queue || [])[0]?.id)
+            }
+          />
         )}
 
         {tab === 'messages' && (

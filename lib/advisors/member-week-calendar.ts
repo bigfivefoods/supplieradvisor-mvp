@@ -30,6 +30,42 @@ export function weekDays(weekStart: string): string[] {
   return Array.from({ length: 7 }, (_, i) => addDaysIso(weekStart, i));
 }
 
+const SHORT_MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+] as const;
+
+function isoDayMonth(iso: string): string {
+  const month = SHORT_MONTHS[Math.max(0, Number(iso.slice(5, 7)) - 1)] || '';
+  return `${Number(iso.slice(8, 10))} ${month}`;
+}
+
+/** Locale-stable week caption, e.g. "17–23 Aug" or "28 Jul – 3 Aug". */
+export function weekRangeLabel(weekStart: string): string {
+  const days = weekDays(weekStart);
+  const a = days[0];
+  const b = days[6];
+  if (!a || !b) return weekStart;
+  if (a.slice(0, 7) === b.slice(0, 7)) {
+    return `${Number(a.slice(8, 10))}–${isoDayMonth(b)}`;
+  }
+  return `${isoDayMonth(a)} – ${isoDayMonth(b)}`;
+}
+
+/** Shared week-grid template: time gutter + 7 equal day columns. */
+export const WEEK_CALENDAR_COLUMNS = '2.25rem repeat(7, minmax(0, 1fr))';
+export const DAY_CALENDAR_COLUMNS = '2.25rem minmax(0, 1fr)';
+
 export function minutesFromMidnight(t: string): number {
   const [h, m] = String(t || '00:00')
     .slice(0, 5)

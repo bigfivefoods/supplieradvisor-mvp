@@ -20,7 +20,7 @@ import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
 import { MemberAdvisorShell } from '@/components/advisors/MemberAdvisorShell';
 import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
 import { AdvisorPwaSignOutButton } from '@/components/advisors/AdvisorPwaSignOutButton';
-import { ClinicMemberDiary } from '@/components/clinic/ClinicMemberDiary';
+
 import {
   MemberPortalInvoices,
   mergePortalInvoices,
@@ -41,9 +41,9 @@ import {
   ClinicCarePacks,
   ClinicExpandSection,
   ClinicFlash,
+  ClinicOpenDiary,
   ClinicSectionTitle,
   ClinicSharePanel,
-  ClinicWaitlistJoin,
   ClinicYouSubnav,
   clinicMemberDockTabs,
   isClinicYouTab,
@@ -121,6 +121,7 @@ type Portal = {
   }>;
   treatment_plans?: SharedTreatmentPlan[];
   open_slots: Slot[];
+  working_hours?: import('@/lib/schedule/working-hours').WorkingHours;
   waitlist_queue?: Array<{
     id: string;
     position: number;
@@ -441,17 +442,58 @@ export default function MemberDentalgraphPortalPage() {
         ) : null}
 
         {tab === 'open' && (
-          <div className="space-y-3">
-            <ClinicSectionTitle hint="Look at the practice calendar to book a session or join the waitlist.">
-              Schedule
-            </ClinicSectionTitle>
-            <p className="text-sm text-slate-600">
-              Book your regular clinician when free — or any other open
-              dentist at the practice. Full slots: join the waitlist (we notify
-              the desk).
-            </p>
+          <ClinicOpenDiary
+            slots={portal.open_slots.filter((s) => {
+              if (slotFilter === 'preferred') return s.is_preferred_clinician;
+              if (slotFilter === 'other') return !s.is_preferred_clinician;
+              return true;
+            })}
+            bookings={portal.my_bookings}
+            color={color}
+            allowBooking={portal.allow_booking}
+            busyId={busyId}
+            onBook={(id, waitlist) => void book(id, waitlist)}
+            emptyLabel={
+              slotFilter === 'preferred'
+                ? 'No open times with your regular clinician this week — try Other clinicians or the waitlist.'
+                : 'No public diary slots this week. Ask the practice to publish open slots, or join the waitlist.'
+            }
+            workingHours={portal.working_hours}
+            waitlistPosition={(portal.waitlist_queue || [])[0]?.position}
+            waitlistBusy={busyId === 'queue'}
+            onJoinWaitlist={() => void joinQueue()}
+            onLeaveWaitlist={() =>
+              void leaveQueue((portal.waitlist_queue || [])[0]?.id)
+            }
+            scheduleHint="Look at the practice calendar to book a session or join the waitlist."
+            scheduleBody="Book your regular clinician when free — or any other open dentist at the practice. Full slots: join the waitlist (we notify the desk)."
+            toolbar={
+              <div className="flex flex-wrap gap-1">
+                {(
+                  [
+                    ['all', 'All clinicians'],
+                    ['preferred', 'My clinician'],
+                    ['other', 'Other clinicians'],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setSlotFilter(id)}
+                    className={`rounded-full px-3 py-1 text-[11px] font-bold border ${
+                      slotFilter === id
+                        ? 'bg-sky-600 text-white border-sky-600'
+                        : 'border-slate-200 text-slate-600 bg-white'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            }
+          >
             {portal.patient.preferred_clinician_name ? (
-              <p className="text-xs text-slate-500 rounded-xl border border-sky-100 bg-sky-50 px-3 py-2">
+              <p className="rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs text-slate-500">
                 Your regular clinician:{' '}
                 <strong>{portal.patient.preferred_clinician_name}</strong>
                 {portal.can_book_other_clinicians !== false
@@ -459,59 +501,7 @@ export default function MemberDentalgraphPortalPage() {
                   : ''}
               </p>
             ) : null}
-
-            {portal.allow_booking ? (
-              <ClinicWaitlistJoin
-                position={(portal.waitlist_queue || [])[0]?.position}
-                busy={busyId === 'queue'}
-                onJoin={() => void joinQueue()}
-                onLeave={() =>
-                  void leaveQueue((portal.waitlist_queue || [])[0]?.id)
-                }
-              />
-            ) : null}
-
-            <div className="flex flex-wrap gap-1">
-              {(
-                [
-                  ['all', 'All clinicians'],
-                  ['preferred', 'My clinician'],
-                  ['other', 'Other clinicians'],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setSlotFilter(id)}
-                  className={`rounded-full px-3 py-1 text-[11px] font-bold border ${
-                    slotFilter === id
-                      ? 'bg-sky-600 text-white border-sky-600'
-                      : 'border-slate-200 text-slate-600 bg-white'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <ClinicMemberDiary
-              slots={portal.open_slots.filter((s) => {
-                if (slotFilter === 'preferred') return s.is_preferred_clinician;
-                if (slotFilter === 'other') return !s.is_preferred_clinician;
-                return true;
-              })}
-              bookings={portal.my_bookings}
-              color={color}
-              allowBooking={portal.allow_booking}
-              busyId={busyId}
-              onBook={(id, waitlist) => void book(id, waitlist)}
-              emptyLabel={
-                slotFilter === 'preferred'
-                  ? 'No open times with your regular clinician this week — try Other clinicians or the waitlist.'
-                  : 'No public diary slots this week. Ask the practice to publish open slots, or join the waitlist.'
-              }
-            />
-          </div>
+          </ClinicOpenDiary>
         )}
 
         {tab === 'messages' && (

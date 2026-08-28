@@ -93,23 +93,25 @@ export function dayHours(
   };
 }
 
+/** JS weekday (0 = Sunday … 6 = Saturday) for a YYYY-MM-DD. */
+export function weekdayFromIso(isoDate: string): number {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1).getDay();
+}
+
 /** True if practice is closed on this YYYY-MM-DD */
 export function isClosedOn(
   hours: WorkingHours | null | undefined,
   isoDate: string
 ): boolean {
-  const [y, m, d] = isoDate.split('-').map(Number);
-  const wd = new Date(y, (m || 1) - 1, d || 1).getDay();
-  return dayHours(hours, wd).closed === true;
+  return dayHours(hours, weekdayFromIso(isoDate)).closed === true;
 }
 
 export function openCloseOn(
   hours: WorkingHours | null | undefined,
   isoDate: string
 ): { closed: boolean; open: string; close: string } {
-  const [y, m, d] = isoDate.split('-').map(Number);
-  const wd = new Date(y, (m || 1) - 1, d || 1).getDay();
-  const day = dayHours(hours, wd);
+  const day = dayHours(hours, weekdayFromIso(isoDate));
   return {
     closed: day.closed === true,
     open: (day.open || '08:00').slice(0, 5),
@@ -183,6 +185,29 @@ export function hourBounds(
       Math.floor(startMinute / 60),
       Math.ceil(endMinute / 60) - (endMinute % 60 === 0 ? 1 : 0)
     ),
+  };
+}
+
+/** Week timeline window for member/clinic diaries (hourEnd is exclusive). */
+export type DiaryWeekWindow = {
+  hourStart: number;
+  hourEnd: number;
+  closedWeekdays: number[];
+};
+
+export function diaryWeekWindow(
+  hours: WorkingHours | null | undefined
+): DiaryWeekWindow {
+  const h = normalizeWorkingHours(hours);
+  const b = hourBounds(h, undefined, { pad: false });
+  const closedWeekdays: number[] = [];
+  for (let i = 0; i <= 6; i++) {
+    if (dayHours(h, i).closed === true) closedWeekdays.push(i);
+  }
+  return {
+    hourStart: b.startHour,
+    hourEnd: Math.max(b.startHour + 1, Math.ceil(b.endMinute / 60)),
+    closedWeekdays,
   };
 }
 

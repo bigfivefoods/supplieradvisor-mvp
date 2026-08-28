@@ -10,11 +10,14 @@ import {
   mondayOf,
   slotsToMemberCalendarEvents,
   weekDays,
+  weekRangeLabel,
 } from './member-week-calendar';
 
 assert.equal(mondayOf('2026-08-19'), '2026-08-17');
 assert.equal(weekDays('2026-08-17').length, 7);
 assert.equal(weekDays('2026-08-17')[6], '2026-08-23');
+assert.equal(weekRangeLabel('2026-08-17'), '17–23 Aug');
+assert.equal(weekRangeLabel('2026-07-27'), '27 Jul – 2 Aug');
 
 const slot = slotsToMemberCalendarEvents([
   {

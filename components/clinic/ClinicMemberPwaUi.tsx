@@ -19,6 +19,12 @@ import {
   clinicPwaCopy,
   type ClinicPwaModule,
 } from '@/lib/clinic/clinic-pwa-copy';
+import {
+  ClinicMemberDiary,
+  type ClinicDiaryBooking,
+  type ClinicDiarySlot,
+} from '@/components/clinic/ClinicMemberDiary';
+import type { WorkingHours } from '@/lib/schedule/working-hours';
 
 export type { ClinicMemberTabId } from '@/lib/clinic/clinic-member-tabs';
 export {
@@ -158,6 +164,77 @@ export function ClinicExpandSection({
         </div>
       ) : null}
     </section>
+  );
+}
+
+export function ClinicOpenDiary({
+  slots,
+  bookings,
+  color,
+  allowBooking,
+  busyId,
+  onBook,
+  emptyLabel,
+  workingHours,
+  waitlistPosition,
+  waitlistBusy,
+  onJoinWaitlist,
+  onLeaveWaitlist,
+  scheduleHint = 'Look at the clinic calendar to book a session or join the waitlist.',
+  scheduleBody = 'Book your regular clinician or another available practitioner. Full slots: join waitlist (practice is notified).',
+  toolbar,
+  children,
+}: {
+  slots: ClinicDiarySlot[];
+  bookings?: ClinicDiaryBooking[];
+  color: string;
+  allowBooking: boolean;
+  busyId?: string | null;
+  onBook: (slotId: string, waitlist: boolean) => void;
+  emptyLabel?: string;
+  workingHours?: WorkingHours | null;
+  waitlistPosition?: number | null;
+  waitlistBusy?: boolean;
+  onJoinWaitlist?: () => void;
+  onLeaveWaitlist?: () => void;
+  scheduleHint?: string;
+  scheduleBody?: string;
+  toolbar?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="space-y-4">
+      {toolbar}
+      <ClinicMemberDiary
+        slots={slots}
+        bookings={bookings}
+        color={color}
+        allowBooking={allowBooking}
+        busyId={busyId}
+        onBook={onBook}
+        emptyLabel={emptyLabel}
+        workingHours={workingHours}
+      />
+      <div className="space-y-3">
+        <ClinicSectionTitle hint={scheduleHint}>Schedule</ClinicSectionTitle>
+        {scheduleBody ? (
+          <p className="text-sm text-slate-600">{scheduleBody}</p>
+        ) : null}
+        {children}
+        {allowBooking && onJoinWaitlist ? (
+          <ClinicWaitlistJoin
+            position={waitlistPosition}
+            busy={waitlistBusy}
+            onJoin={onJoinWaitlist}
+            onLeave={onLeaveWaitlist}
+          />
+        ) : null}
+        <p className="text-sm text-slate-600">
+          One practice calendar — only free times, across all clinicians. Tap a
+          slot to book it.
+        </p>
+      </div>
+    </div>
   );
 }
 

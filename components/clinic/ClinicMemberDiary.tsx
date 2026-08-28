@@ -10,6 +10,11 @@ import {
   type MemberCalendarEvent,
 } from '@/lib/advisors/member-week-calendar';
 import { consolidateClinicDiarySlots } from '@/lib/clinic/consolidate-diary-slots';
+import {
+  compactWorkingHours,
+  diaryWeekWindow,
+  type WorkingHours,
+} from '@/lib/schedule/working-hours';
 
 export type ClinicDiarySlot = {
   id: string;
@@ -45,6 +50,7 @@ export function ClinicMemberDiary({
   busyId,
   onBook,
   emptyLabel = 'No public diary slots in the next weeks. Ask the clinic to publish open times.',
+  workingHours,
 }: {
   slots: ClinicDiarySlot[];
   bookings?: ClinicDiaryBooking[];
@@ -53,6 +59,7 @@ export function ClinicMemberDiary({
   busyId?: string | null;
   onBook: (slotId: string, waitlist: boolean) => void;
   emptyLabel?: string;
+  workingHours?: WorkingHours | null;
 }) {
   const diarySlots = useMemo(
     () => consolidateClinicDiarySlots(slots, { availableOnly: true }),
@@ -66,6 +73,14 @@ export function ClinicMemberDiary({
       ),
     [diarySlots, bookings]
   );
+  const hours = useMemo(() => diaryWeekWindow(workingHours), [workingHours]);
+  const hoursHint = useMemo(
+    () =>
+      compactWorkingHours(workingHours)
+        .map((g) => `${g.days} ${g.hours}`)
+        .join(' · '),
+    [workingHours]
+  );
   const [active, setActive] = useState<MemberCalendarEvent | null>(null);
   const slot = active
     ? diarySlots.find((s) => s.id === active.id) ||
@@ -75,10 +90,6 @@ export function ClinicMemberDiary({
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-slate-600">
-        One practice calendar — only free times, across all clinicians. Tap a
-        slot to book it.
-      </p>
       <MemberPortalWeekCalendar
         events={events}
         color={color}
@@ -86,17 +97,22 @@ export function ClinicMemberDiary({
         busyId={busyId}
         emptyLabel={emptyLabel}
         onSelect={setActive}
+        hourStart={hours.hourStart}
+        hourEnd={hours.hourEnd}
+        closedWeekdays={hours.closedWeekdays}
+        hoursHint={hoursHint}
+        hidePeek
       />
       {slot ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-3">
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
           <p className="font-black text-slate-900">{slot.service_name}</p>
           <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
             <User className="h-3.5 w-3.5" />
             {slot.full && !slot.my_status
-            ? 'Fully booked'
-            : slot.practitioner_name ||
-              slot.clinician_name ||
-              'Available clinician'}
+              ? 'Fully booked'
+              : slot.practitioner_name ||
+                slot.clinician_name ||
+                'Available clinician'}
             {slot.is_preferred_clinician ? ' · your clinician' : ''}
           </p>
           {slot.location ? (
@@ -133,7 +149,7 @@ export function ClinicMemberDiary({
           </div>
         </div>
       ) : (
-        <p className="text-xs text-slate-500">
+        <p className="text-center text-xs text-slate-500">
           Tap a free slot on the calendar to book it.
         </p>
       )}
