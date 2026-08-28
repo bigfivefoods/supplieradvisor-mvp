@@ -179,7 +179,7 @@ export async function GET(request: NextRequest) {
         if (active.error) {
           const all = await supabase
             .from('chart_of_accounts')
-            .select('*')
+            .select('id, code, name, account_type, subtype, is_header, is_active, parent_id, normal_balance')
             .eq('profile_id', companyId)
             .order('code');
           if (all.error) {
