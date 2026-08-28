@@ -22,6 +22,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS: CoaSeed[] = [
   { code: '1140', name: 'Inventory', account_type: 'asset', subtype: 'inventory', normal_balance: 'debit' },
   { code: '1150', name: 'VAT input (recoverable)', account_type: 'asset', subtype: 'tax', normal_balance: 'debit' },
   { code: '1160', name: 'Prepayments', account_type: 'asset', subtype: 'current', normal_balance: 'debit' },
+  { code: '1180', name: 'Members & patients (AR)', account_type: 'asset', subtype: 'receivable', is_header: true, normal_balance: 'debit', description: 'IFRS 9 trade receivables sub-ledger. Each member/client/patient is 1180-0000001 … Control remains 1130.' },
   { code: '1200', name: 'Non-current assets', account_type: 'asset', subtype: 'fixed', is_header: true, normal_balance: 'debit' },
   { code: '1210', name: 'Property, plant & equipment', account_type: 'asset', subtype: 'fixed', normal_balance: 'debit' },
   { code: '1220', name: 'Accumulated depreciation', account_type: 'asset', subtype: 'contra_asset', normal_balance: 'credit' },
@@ -35,6 +36,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS: CoaSeed[] = [
   { code: '2120', name: 'VAT output (payable)', account_type: 'liability', subtype: 'tax', normal_balance: 'credit' },
   { code: '2130', name: 'Accrued expenses', account_type: 'liability', subtype: 'current', normal_balance: 'credit' },
   { code: '2140', name: 'Customer deposits', account_type: 'liability', subtype: 'current', normal_balance: 'credit' },
+  { code: '2180', name: 'Suppliers & contractors (AP)', account_type: 'liability', subtype: 'payable', is_header: true, normal_balance: 'credit', description: 'IFRS 9 trade payables sub-ledger. Each supplier/contractor is 2180-0000001 … Control remains 2110. Employed staff stay on 6100 (IAS 19).' },
   { code: '2200', name: 'Non-current liabilities', account_type: 'liability', subtype: 'long_term', is_header: true, normal_balance: 'credit' },
   { code: '2210', name: 'Long-term loans', account_type: 'liability', subtype: 'long_term', normal_balance: 'credit' },
 
@@ -50,7 +52,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS: CoaSeed[] = [
   { code: '4200', name: 'Service revenue', account_type: 'revenue', subtype: 'service', normal_balance: 'credit' },
   { code: '4300', name: 'Other income', account_type: 'revenue', subtype: 'other', normal_balance: 'credit' },
   { code: '4310', name: 'Gain on disposal of assets', account_type: 'revenue', subtype: 'other', normal_balance: 'credit', description: 'IAS 16 disposal gain (proceeds above carrying amount)' },
-  { code: '4400', name: 'Members & patients', account_type: 'revenue', subtype: 'service', is_header: true, normal_balance: 'credit', description: 'AR sub-ledger for members, clients and patients. Each person is 4400-0000001 …' },
+  { code: '4400', name: 'Membership & care revenue', account_type: 'revenue', subtype: 'service', normal_balance: 'credit', description: 'IFRS 15 income from memberships, sessions and care. Receivables live under 1180, not here.' },
 
   // Cost of sales
   { code: '5000', name: 'Cost of sales', account_type: 'cogs', is_header: true, normal_balance: 'debit' },

@@ -1,6 +1,6 @@
 /**
  * Dual-write every gym/clinic/retail person onto CRM so CoA can
- * create nested Member — leaves under Revenue.
+ * create nested AR leaves under 1180 Members & patients (AR).
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { loadAdvisorModuleStore } from '@/lib/business/company-data';

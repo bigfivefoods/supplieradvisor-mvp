@@ -50,7 +50,7 @@ export function AllocGlSelect({
         </optgroup>
       ) : null}
       {groups.suppliers.length > 0 ? (
-        <optgroup label="Suppliers (payable)">
+        <optgroup label="Suppliers & contractors (AP)">
           {groups.suppliers.map((a) => (
             <Option key={a.id} a={a} />
           ))}

@@ -5,7 +5,9 @@ import { isPeriodLocked } from '@/lib/accounting/period-lock';
 import { postBalancedJournal, reversePostedJournal } from '@/lib/accounting/post-journal';
 import {
   isMemberArAccountCode,
+  isSupplierApAccountCode,
   parseMemberArCustomerId,
+  parseSupplierApSupplierId,
 } from '@/lib/accounting/party-gl-accounts';
 
 /**
@@ -121,8 +123,8 @@ async function allocateInflowToInvoiceIfRecognised(opts: {
 }
 
 /**
- * Receipt coded to 4400-NNNNNNN: settle that person's open invoice when the
- * amount matches, otherwise fall through to Dr bank · Cr their AR leaf.
+ * Receipt coded to 1180-/4400-NNNNNNN: settle that person's open invoice when
+ * the amount matches, otherwise fall through to Dr bank · Cr their AR leaf.
  */
 async function matchBankInflowToMemberAccount(opts: {
   profileId: number;
@@ -196,6 +198,58 @@ async function matchBankInflowToMemberAccount(opts: {
     ok: true,
     journalId: Number(txn?.matched_journal_id || 0),
     entryNumber: 'AR-SETTLE',
+  };
+}
+
+/**
+ * Payment coded to 2180-NNNNNNN: settle that supplier's open bill when the
+ * amount matches, otherwise fall through to Dr their AP leaf · Cr bank.
+ */
+async function matchBankOutflowToSupplierAccount(opts: {
+  profileId: number;
+  bankTxnId: number | string;
+  glCode: string;
+  amount: number;
+  privyUserId?: string | null;
+}): Promise<{ ok: true; journalId: number; entryNumber: string } | null> {
+  const supplierId = parseSupplierApSupplierId(opts.glCode);
+  if (!supplierId) return null;
+  const supabase = getSupabaseServer();
+  const want = round2(Math.abs(opts.amount));
+  const { data: invoices } = await supabase
+    .from('invoices')
+    .select('id, total_amount, amount_paid, status, supplier_id')
+    .eq('profile_id', opts.profileId)
+    .eq('direction', 'payable')
+    .eq('supplier_id', supplierId)
+    .limit(50);
+  const open = (invoices || []).filter((inv) => {
+    const st = String(inv.status || '').toLowerCase();
+    if (['paid', 'void', 'cancelled', 'canceled', 'draft'].includes(st)) {
+      return false;
+    }
+    const due = round2(Number(inv.total_amount || 0) - Number(inv.amount_paid || 0));
+    return Math.abs(due - want) < 0.05 || Math.abs(Number(inv.total_amount || 0) - want) < 0.05;
+  });
+  const invoiceId = open[0] ? Number(open[0].id) : 0;
+  if (!invoiceId) return null;
+  const matched = await matchBankToInvoice({
+    profileId: opts.profileId,
+    bankTxnId: opts.bankTxnId,
+    invoiceId,
+    privyUserId: opts.privyUserId,
+  });
+  if (!matched.ok) return null;
+  const { data: txn } = await supabase
+    .from('bank_transactions')
+    .select('matched_journal_id')
+    .eq('id', opts.bankTxnId)
+    .eq('profile_id', opts.profileId)
+    .maybeSingle();
+  return {
+    ok: true,
+    journalId: Number(txn?.matched_journal_id || 0),
+    entryNumber: 'AP-SETTLE',
   };
 }
 
@@ -309,6 +363,24 @@ export async function allocateBankTransaction(params: AllocateParams): Promise<
         privyUserId: params.privyUserId,
       });
       if (matched) return matched;
+    }
+  } else if (amount < 0) {
+    const { data: glAcct } = await supabase
+      .from('chart_of_accounts')
+      .select('id, code, account_type, subtype')
+      .eq('id', Number(params.glAccountId))
+      .eq('profile_id', params.profileId)
+      .maybeSingle();
+    const glCode = String(glAcct?.code || '');
+    if (isSupplierApAccountCode(glCode)) {
+      const supplierMatch = await matchBankOutflowToSupplierAccount({
+        profileId: params.profileId,
+        bankTxnId: params.bankTxnId,
+        glCode,
+        amount,
+        privyUserId: params.privyUserId,
+      });
+      if (supplierMatch) return supplierMatch;
     }
   }
 

@@ -1694,6 +1694,14 @@ export async function POST(request: NextRequest) {
                 person.engagement === 'employed' ? 'full_time' : 'contract',
             },
           });
+          const { attachApToAdvisorContractor } = await import(
+            '@/lib/b2c/advisor-ap-sync'
+          );
+          await attachApToAdvisorContractor({
+            companyId,
+            kind: 'dentalgraph_staff',
+            person,
+          });
         }
       }
 
@@ -1796,6 +1804,18 @@ function upsert(
             ? Number(rec.hr_employee_id)
             : null
           : prev?.hr_employee_id ?? null,
+      srm_supplier_id:
+        rec.srm_supplier_id !== undefined
+          ? rec.srm_supplier_id
+            ? Number(rec.srm_supplier_id)
+            : null
+          : prev?.srm_supplier_id ?? null,
+      ap_account_code:
+        rec.ap_account_code !== undefined
+          ? rec.ap_account_code
+            ? String(rec.ap_account_code)
+            : null
+          : prev?.ap_account_code ?? null,
       roles: Array.isArray(rec.roles)
         ? (rec.roles as string[])
         : rec.skills

@@ -331,6 +331,10 @@ export type FitCoach = {
   id_number?: string;
   /** Linked People / HR employee id (dual-write) */
   hr_employee_id?: number | null;
+  /** Linked Core supplier (contractor AP) */
+  srm_supplier_id?: number | null;
+  /** CoA AP number under 2180, e.g. 2180-0000123 */
+  ap_account_code?: string | null;
   /** VerifyNow (SA) or Didit (international) self-serve identity check */
   identity?: import('@/lib/identity/person-verification').PersonIdentityVerification;
   specialties?: string[];
@@ -531,7 +535,7 @@ export type FitClient = {
   membership_plan_id?: string | null;
   /** Linked Core CRM customer (Customers module) */
   crm_customer_id?: number | null;
-  /** CoA AR number under 4400, e.g. 4400-0000123 */
+  /** CoA AR number under 1180, e.g. 1180-0000123 */
   ar_account_code?: string | null;
   membership_status?: (typeof MEMBERSHIP_STATUSES)[number] | string;
   /** Programmes this member paid for / was allocated */

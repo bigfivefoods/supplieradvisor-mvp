@@ -117,6 +117,10 @@ export type VetPractitioner = {
   identity?: import('@/lib/identity/person-verification').PersonIdentityVerification;
   /** Linked People / HR employee id (dual-write) */
   hr_employee_id?: number | null;
+  /** Linked Core supplier (contractor AP) */
+  srm_supplier_id?: number | null;
+  /** CoA AP number under 2180, e.g. 2180-0000123 */
+  ap_account_code?: string | null;
   /** Skills / disciplines (owner-managed catalogue) */
   disciplines?: string[];
   bio?: string;
@@ -354,7 +358,7 @@ export type VetPatient = {
   identity?: import('@/lib/identity/person-verification').PersonIdentityVerification;
   start_date?: string | null;
   crm_customer_id?: number | null;
-  /** CoA AR number under 4400, e.g. 4400-0000123 */
+  /** CoA AR number under 1180, e.g. 1180-0000123 */
   ar_account_code?: string | null;
   active?: boolean;
   created_at: string;
