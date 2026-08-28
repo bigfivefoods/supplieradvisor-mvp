@@ -32,7 +32,9 @@ export function isLivePosted(j: {
   );
 }
 
-export function extraRecognitionJournalIds(opts: {
+export function extraPostedJournalsForSource(opts: {
+  source: string;
+  stampField: string;
   journals: Array<{
     id: number;
     source?: string | null;
@@ -44,7 +46,7 @@ export function extraRecognitionJournalIds(opts: {
 }): number[] {
   const keepByInvoice = new Map<number, number>();
   for (const inv of opts.invoices) {
-    const stamped = Number(asMeta(inv.metadata).recognition_journal_id);
+    const stamped = Number(asMeta(inv.metadata)[opts.stampField]);
     if (stamped > 0) keepByInvoice.set(Number(inv.id), stamped);
   }
   const reversed = new Set<number>();
@@ -54,7 +56,7 @@ export function extraRecognitionJournalIds(opts: {
   }
   const groups = new Map<number, number[]>();
   for (const j of opts.journals) {
-    if (String(j.source || '') !== 'invoice_recognition' || !isLivePosted(j)) {
+    if (String(j.source || '') !== opts.source || !isLivePosted(j)) {
       continue;
     }
     if (reversed.has(Number(j.id))) continue;
@@ -74,6 +76,40 @@ export function extraRecognitionJournalIds(opts: {
     for (const id of uniq) if (id !== keeper) reverse.push(id);
   }
   return reverse;
+}
+
+export function extraRecognitionJournalIds(opts: {
+  journals: Array<{
+    id: number;
+    source?: string | null;
+    source_id?: string | null;
+    status?: string | null;
+    metadata?: unknown;
+  }>;
+  invoices: Array<{ id: number; metadata?: unknown }>;
+}): number[] {
+  return extraPostedJournalsForSource({
+    ...opts,
+    source: 'invoice_recognition',
+    stampField: 'recognition_journal_id',
+  });
+}
+
+export function extraCogsJournalIds(opts: {
+  journals: Array<{
+    id: number;
+    source?: string | null;
+    source_id?: string | null;
+    status?: string | null;
+    metadata?: unknown;
+  }>;
+  invoices: Array<{ id: number; metadata?: unknown }>;
+}): number[] {
+  return extraPostedJournalsForSource({
+    ...opts,
+    source: 'invoice_cogs',
+    stampField: 'cogs_journal_id',
+  });
 }
 
 export function bankIncomeMatchesInvoice(opts: {
@@ -101,7 +137,7 @@ export function bankIncomeMatchesInvoice(opts: {
 }
 
 export type DedupeAction = {
-  kind: 'reverse_recognition' | 'unallocate_bank_income' | 'settle_ar';
+  kind: 'reverse_recognition' | 'reverse_cogs' | 'unallocate_bank_income' | 'settle_ar';
   journalId?: number;
   invoiceId?: number;
   invoiceNumber?: string | null;
@@ -155,15 +191,24 @@ export async function planInvoiceDedupe(
     'id, entry_number, entry_date, memo, status, source, source_id, metadata',
     profileId
   );
+  const journalLite = journals.map((j) => ({
+    id: Number(j.id),
+    source: j.source != null ? String(j.source) : null,
+    source_id: j.source_id != null ? String(j.source_id) : null,
+    status: j.status != null ? String(j.status) : null,
+    metadata: j.metadata,
+  }));
+  const invoiceLite = invoices.map((i) => ({
+    id: Number(i.id),
+    metadata: i.metadata,
+  }));
   const recExtra = extraRecognitionJournalIds({
-    journals: journals.map((j) => ({
-      id: Number(j.id),
-      source: j.source != null ? String(j.source) : null,
-      source_id: j.source_id != null ? String(j.source_id) : null,
-      status: j.status != null ? String(j.status) : null,
-      metadata: j.metadata,
-    })),
-    invoices: invoices.map((i) => ({ id: Number(i.id), metadata: i.metadata })),
+    journals: journalLite,
+    invoices: invoiceLite,
+  });
+  const cogsExtra = extraCogsJournalIds({
+    journals: journalLite,
+    invoices: invoiceLite,
   });
   const invById = new Map(invoices.map((i) => [Number(i.id), i]));
   const actions: DedupeAction[] = [];
@@ -175,6 +220,20 @@ export async function planInvoiceDedupe(
     const inv = invById.get(invId);
     actions.push({
       kind: 'reverse_recognition',
+      journalId: jid,
+      invoiceId: invId,
+      invoiceNumber: inv?.invoice_number != null ? String(inv.invoice_number) : null,
+      memo: je?.memo != null ? String(je.memo) : undefined,
+    });
+  }
+  for (const jid of cogsExtra) {
+    const je = journals.find((j) => Number(j.id) === jid);
+    const invId = Number(
+      je?.source_id || asMeta(je?.metadata).invoice_id
+    );
+    const inv = invById.get(invId);
+    actions.push({
+      kind: 'reverse_cogs',
       journalId: jid,
       invoiceId: invId,
       invoiceNumber: inv?.invoice_number != null ? String(inv.invoice_number) : null,
@@ -302,16 +361,21 @@ export async function applyInvoiceDedupe(opts: {
   const supabase = getSupabaseServer();
   for (const a of actions) {
     try {
-      if (a.kind === 'reverse_recognition' && a.journalId) {
+      if (
+        (a.kind === 'reverse_recognition' || a.kind === 'reverse_cogs') &&
+        a.journalId
+      ) {
+        const label = a.kind === 'reverse_cogs' ? 'COGS' : 'recognition';
         const r = await reversePostedJournal({
           profileId: opts.profileId,
           journalId: a.journalId,
           createdBy: opts.createdBy,
-          memo: `Reverse duplicate invoice recognition ${a.invoiceNumber || a.invoiceId}`,
+          memo: `Reverse duplicate invoice ${label} ${a.invoiceNumber || a.invoiceId}`,
           metadata: {
             invoice_id: a.invoiceId,
             invoice_number: a.invoiceNumber,
             dedupe: true,
+            invoice_cogs: a.kind === 'reverse_cogs',
           },
         });
         if (!r.ok) {
@@ -319,7 +383,7 @@ export async function applyInvoiceDedupe(opts: {
           continue;
         }
         report.results.push(
-          `Reversed duplicate recognition ${a.invoiceNumber} (JE ${a.journalId})`
+          `Reversed duplicate ${label} ${a.invoiceNumber} (JE ${a.journalId})`
         );
       } else if (a.kind === 'unallocate_bank_income' && a.bankTxnId) {
         const r = await unallocateBankTransaction({
