@@ -1,19 +1,13 @@
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
 import { ArrowRight } from 'lucide-react';
 import LandingNav from '@/components/marketing/LandingNav';
 import HeroAudienceStage from '@/components/marketing/HeroAudienceStage';
+import HomeBelowFoldLazy from '@/components/marketing/HomeBelowFoldLazy';
 import { COMPANY_TRIAL_DAYS } from '@/lib/billing/company-subscription';
-
-const HomeBelowFold = dynamic(
-  () => import('@/components/marketing/HomeBelowFold'),
-  { ssr: false }
-);
 
 /**
  * Brief 10 — first HTML is hero + CTA + nav only.
- * Product mocks, architecture catalogue, and referral server code stay off
- * this module graph (loaded below the fold, client-only).
+ * Product mocks load in a client island (HomeBelowFoldLazy) with ssr: false.
  */
 export default function LandingPage() {
   return (
@@ -35,7 +29,7 @@ export default function LandingPage() {
           </Link>
         </div>
       </section>
-      <HomeBelowFold />
+      <HomeBelowFoldLazy />
     </div>
   );
 }

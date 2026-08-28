@@ -32,6 +32,7 @@ assert.doesNotMatch(page, /from 'wagmi'/);
 assert.doesNotMatch(page, /ProductMocks/);
 assert.doesNotMatch(page, /supply-chain-referral/);
 assert.doesNotMatch(page, /getSupabaseServer/);
+assert.doesNotMatch(page, /next\/dynamic/);
 
 const pub = src('components/PublicProviders.tsx');
 assert.doesNotMatch(pub, /@privy-io\/react-auth/);
