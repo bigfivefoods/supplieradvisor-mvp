@@ -145,17 +145,16 @@ const plan = planPartyGlAccounts({
 });
 
 assert.equal(plan.create.filter((c) => c.account_type === 'asset' && !c.is_header).length, 3);
-assert.ok(!plan.create.some((c) => String(c.name).startsWith('AR — ')));
-assert.ok(plan.create.some((c) => c.code === '1180-0000010' && c.name === 'Restore Africa Foundation'));
+assert.ok(plan.create.some((c) => c.code === '1180-0000010' && c.name === 'AR — Restore Africa Foundation'));
 assert.ok(plan.create.some((c) => c.code === '1180-0000014'));
-assert.ok(!plan.create.some((c) => c.name === 'AR — Walk-in member'));
+assert.ok(!plan.create.some((c) => c.code === '1182'));
 const memberHeader = plan.create.find((c) => c.code === '1180');
 assert.ok(memberHeader);
 assert.equal(memberHeader?.is_header, true);
 assert.equal(memberHeader?.account_type, 'asset');
 assert.equal(memberHeader?.parent_code, '1100');
 assert.equal(memberHeader?.name, 'Members & patients (AR)');
-const memberLeaf = plan.create.find((c) => c.name === 'Walk-in member');
+const memberLeaf = plan.create.find((c) => c.name === 'AR — Walk-in member');
 assert.ok(memberLeaf);
 assert.equal(memberLeaf?.account_type, 'asset');
 assert.equal(memberLeaf?.subtype, 'receivable');
@@ -170,10 +169,9 @@ assert.equal(
   plan.create.filter((c) => String(c.code).startsWith('2180-')).map((c) => c.code).sort().join(','),
   '2180-0000008,2180-0000009,2180-0000012,2180-0000022'
 );
-assert.ok(plan.create.some((c) => c.code === '2180-0000008' && c.name === 'Holtz'));
-assert.ok(plan.create.some((c) => c.code === '2180-0000009' && c.name === 'Holtz Group'));
-assert.ok(plan.create.some((c) => c.code === '2180-0000022' && c.name === 'Coach Alex'));
-assert.ok(!plan.create.some((c) => c.name.startsWith('AP — Holtz')));
+assert.ok(plan.create.some((c) => c.code === '2180-0000008' && c.name === 'AP — Holtz'));
+assert.ok(plan.create.some((c) => c.code === '2180-0000009' && c.name === 'AP — Holtz Group'));
+assert.ok(plan.create.some((c) => c.code === '2180-0000022' && c.name === 'AP — Coach Alex'));
 assert.ok(!plan.create.some((c) => /Gone/.test(c.name)));
 assert.ok(!plan.create.some((c) => c.code === '1130' || c.name === 'Accounts receivable'));
 
@@ -222,8 +220,8 @@ const mapped = planPartyGlAccounts({
     contractorCode: '2180',
   },
 });
-assert.equal(mapped.create.find((c) => c.name === 'Walk-in member')?.code, '1180-0000200');
-assert.equal(mapped.create.find((c) => c.name === 'Walk-in member')?.parent_code, '1180');
+assert.equal(mapped.create.find((c) => c.name === 'AR — Walk-in member')?.code, '1180-0000200');
+assert.equal(mapped.create.find((c) => c.name === 'AR — Walk-in member')?.parent_code, '1180');
 assert.equal(mapped.create.find((c) => c.code === '1130-0000010')?.parent_code, '1130');
 assert.equal(mapped.create.find((c) => c.code === '2110-0000008')?.parent_code, '2110');
 

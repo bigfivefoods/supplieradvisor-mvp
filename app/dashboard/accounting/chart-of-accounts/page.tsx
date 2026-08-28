@@ -21,6 +21,12 @@ import {
   type CoaAccount,
 } from '@/lib/accounting/types';
 import {
+  classifyCoaParty,
+  coaPartyLabel,
+  isCustomerCoaKind,
+  isSupplierCoaKind,
+} from '@/lib/accounting/party-roles';
+import {
   AccountingHeader,
   AccountingPage,
   AccountingStat,
@@ -47,6 +53,7 @@ function Inner() {
   const [ensuringParty, setEnsuringParty] = useState(false);
   const [q, setQ] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [partyFilter, setPartyFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -247,6 +254,15 @@ function Inner() {
             </option>
           ))}
         </select>
+        <select
+          value={partyFilter}
+          onChange={(e) => setPartyFilter(e.target.value)}
+          className="rounded-2xl border border-neutral-200 px-3 py-2.5 text-sm bg-white"
+        >
+          <option value="all">Customers & suppliers</option>
+          <option value="customers">Customers (AR) only</option>
+          <option value="suppliers">Suppliers (AP) only</option>
+        </select>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 mb-4">
@@ -333,13 +349,22 @@ function Inner() {
                   <th className="px-4 py-3 font-semibold">Code</th>
                   <th className="px-4 py-3 font-semibold">Name</th>
                   <th className="px-4 py-3 font-semibold">Type</th>
+                  <th className="px-4 py-3 font-semibold">Book</th>
                   <th className="px-4 py-3 font-semibold text-right">Balance</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 font-semibold text-right">Active</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-50">
-                {accounts.map((a) => {
+                {accounts
+                  .filter((a) => {
+                    if (partyFilter === 'all') return true;
+                    const kind = classifyCoaParty(a);
+                    if (partyFilter === 'customers') return isCustomerCoaKind(kind);
+                    if (partyFilter === 'suppliers') return isSupplierCoaKind(kind);
+                    return true;
+                  })
+                  .map((a) => {
                   const byId = new Map(
                     accounts.map((x) => [Number(x.id), x] as const)
                   );
@@ -375,6 +400,23 @@ function Inner() {
                       {a.subtype ? (
                         <span className="text-neutral-400"> · {a.subtype}</span>
                       ) : null}
+                    </td>
+                    <td className="px-4 py-3">
+                      {(() => {
+                        const label = coaPartyLabel(classifyCoaParty(a));
+                        if (!label) return <span className="text-neutral-300">—</span>;
+                        const kind = classifyCoaParty(a);
+                        const cls = isSupplierCoaKind(kind)
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-100'
+                          : 'bg-sky-50 text-sky-800 border-sky-100';
+                        return (
+                          <span
+                            className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${cls}`}
+                          >
+                            {label}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums font-medium">
                       {a.is_header ? '—' : formatMoney(a.balance || 0, a.currency || 'ZAR')}

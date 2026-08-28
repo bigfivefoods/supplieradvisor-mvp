@@ -306,6 +306,7 @@ export type CustomerRecord = {
   invited_at?: string | null;
   invite_accepted_at?: string | null;
   invited_email?: string | null;
+  metadata?: Record<string, unknown> | null;
   created_at?: string;
   updated_at?: string;
 };

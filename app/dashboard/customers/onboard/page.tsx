@@ -325,7 +325,7 @@ function OnboardInner() {
       <CustomersHeader
         title={editId ? 'Edit' : 'Onboard'}
         titleAccent="customer"
-        description="Create a full customer account with commercial and contact details. Invite to the platform after save when you are ready to connect."
+        description="Customers are who you sell to (AR). If you buy from this firm, add them under Suppliers as well — they stay two books, two unique accounts."
         action={
           <button
             type="button"

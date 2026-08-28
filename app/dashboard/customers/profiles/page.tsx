@@ -28,6 +28,8 @@ import {
 import { CompanyRequired, CustomersHeader } from '@/components/customers/CustomersShell';
 import InviteCustomerButton from '@/components/customers/InviteCustomerButton';
 import { AccountLogoField } from '@/components/relationship/AccountLogoField';
+import type { PartyRoleRow } from '@/lib/accounting/party-roles';
+import { glCodeFromMeta } from '@/lib/accounting/party-roles';
 
 export default function CustomerProfilesPage() {
   return (
@@ -47,6 +49,9 @@ function ProfilesInner() {
   const [status, setStatus] = useState('all');
   const [inviteOpenId, setInviteOpenId] = useState<number | null>(null);
   const [actionId, setActionId] = useState<number | null>(null);
+  const [partyByCustomer, setPartyByCustomer] = useState<
+    Record<number, PartyRoleRow>
+  >({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,6 +63,19 @@ function ProfilesInner() {
       const data = await res.json();
       setCustomers(data.customers || []);
       if (data.warning) toast.message(data.warning, { description: data.hint });
+      try {
+        const partyRes = await fetch(
+          `/api/accounting/parties?companyId=${companyId}`
+        );
+        const partyData = await partyRes.json();
+        const idx: Record<number, PartyRoleRow> = {};
+        for (const row of (partyData.parties || []) as PartyRoleRow[]) {
+          if (row.customer_id) idx[row.customer_id] = row;
+        }
+        setPartyByCustomer(idx);
+      } catch {
+        setPartyByCustomer({});
+      }
     } finally {
       setLoading(false);
     }
@@ -311,6 +329,7 @@ function ProfilesInner() {
                   <th className="px-5 py-3 font-semibold">Customer</th>
                   <th className="px-3 py-3 font-semibold">Contact</th>
                   <th className="px-3 py-3 font-semibold">Type</th>
+                  <th className="px-3 py-3 font-semibold">Book</th>
                   <th className="px-3 py-3 font-semibold">Location</th>
                   <th className="px-3 py-3 font-semibold">Status</th>
                   <th className="px-3 py-3 font-semibold">Connection</th>
@@ -356,6 +375,24 @@ function ProfilesInner() {
                     </td>
                     <td className="px-3 py-3 capitalize text-xs">
                       {(c.customer_type || 'business').replace(/_/g, ' ')}
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-sky-800">
+                        Customer · sell
+                      </div>
+                      <div className="font-mono text-[11px] text-neutral-500">
+                        {partyByCustomer[c.id]?.ar_account_code ||
+                          glCodeFromMeta(c.metadata) ||
+                          '—'}
+                      </div>
+                      {partyByCustomer[c.id]?.supplier_id ? (
+                        <Link
+                          href={`/dashboard/suppliers/network?id=${partyByCustomer[c.id].supplier_id}`}
+                          className="text-[11px] font-semibold text-emerald-700 hover:underline"
+                        >
+                          Also a supplier
+                        </Link>
+                      ) : null}
                     </td>
                     <td className="px-3 py-3 text-xs text-neutral-600">
                       {[c.city, c.country].filter(Boolean).join(', ') || '—'}

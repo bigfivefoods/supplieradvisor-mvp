@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Scale,
   Wallet,
+  Users,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -123,9 +124,17 @@ function HubInner() {
       metricLabel: 'active',
     },
     {
+      href: '/dashboard/accounting/parties',
+      icon: Users,
+      code: '02',
+      title: 'Customers & suppliers',
+      desc: 'Who you sell to (AR) vs who you buy from (AP). Same firm can be both — two accounts, never netted.',
+      accent: 'from-indigo-50 to-white border-indigo-100',
+    },
+    {
       href: '/dashboard/accounting/journal-entries',
       icon: FileText,
-      code: '02',
+      code: '03',
       title: 'Journal entries',
       desc: 'Double-entry journals — draft, post, void with balance checks.',
       accent: 'from-sky-50 to-white border-sky-100',

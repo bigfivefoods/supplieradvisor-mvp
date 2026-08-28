@@ -503,6 +503,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Overview', href: '/dashboard/accounting', exact: true, desc: 'Books · Advisor fees', section: 'Home' },
       { name: 'Chart', href: '/dashboard/accounting/chart-of-accounts', desc: 'Chart of accounts', section: 'Books' },
       {
+        name: 'Parties',
+        href: '/dashboard/accounting/parties',
+        desc: 'Customers (AR) vs suppliers (AP)',
+        section: 'Books',
+      },
+      {
         name: 'Journals',
         href: '/dashboard/accounting/journal-entries',
         desc: 'Post · review likely mis-posts',

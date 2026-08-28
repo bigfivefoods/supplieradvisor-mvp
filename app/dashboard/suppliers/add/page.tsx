@@ -158,7 +158,7 @@ function AddInner() {
     <div className="pb-8">
       <SuppliersHeader
         title="Add or invite supplier"
-        description="Add a supplier to your book immediately. Invite them to SupplierAdvisor so they claim the profile, complete verification, and take over their own data — while your connection stays live."
+        description="Suppliers are who you buy from (AP). If you also sell to this firm, onboard them under Customers too — AR and AP stay separate. Invite them onto the platform when you are ready."
       />
 
       <div className="max-w-2xl bg-white border rounded-3xl p-6 space-y-4">

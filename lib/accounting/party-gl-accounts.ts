@@ -631,7 +631,7 @@ export function planPartyGlAccounts(opts: {
         usedCodes.add(code);
         create.push({
           code,
-          name: party.name,
+          name: `${account_type === 'asset' ? PARTY_AR_PREFIX : PARTY_AP_PREFIX}${party.name}`,
           account_type,
           subtype,
           normal_balance: account_type === 'asset' ? 'debit' : 'credit',
@@ -1005,7 +1005,10 @@ export async function ensureMemberArLeaf(opts: {
   const want = memberArAccountCode(opts.customerId, headerCode);
   const legacy = legacyMemberArAccountCode(opts.customerId);
   const classic = memberArAccountCode(opts.customerId, MEMBER_AR_HEADER_CODE);
-  const name = partyDisplayName({ trading_name: opts.name }) || 'Member';
+  const rawName = partyDisplayName({ trading_name: opts.name }) || 'Member';
+  const name = /^AR\s+[—-]\s+/i.test(rawName)
+    ? rawName
+    : `${PARTY_AR_PREFIX}${rawName}`;
   if (!want || !Number.isFinite(opts.profileId) || opts.profileId <= 0) return null;
   const supabase = getSupabaseServer();
   const { data: existingRows } = await supabase
@@ -1162,7 +1165,10 @@ export async function ensureSupplierApLeaf(opts: {
     ).trim() || SUPPLIER_AP_HEADER_CODE;
   const code = supplierApAccountCode(opts.supplierId, headerCode);
   const classic = supplierApAccountCode(opts.supplierId, SUPPLIER_AP_HEADER_CODE);
-  const name = partyDisplayName({ trading_name: opts.name }) || 'Supplier';
+  const rawName = partyDisplayName({ trading_name: opts.name }) || 'Supplier';
+  const name = /^AP\s+[—-]\s+/i.test(rawName)
+    ? rawName
+    : `${PARTY_AP_PREFIX}${rawName}`;
   if (!code || !Number.isFinite(opts.profileId) || opts.profileId <= 0) return null;
   const supabase = getSupabaseServer();
   const { data: existingRows } = await supabase
