@@ -77,7 +77,15 @@ export async function GET(request: NextRequest) {
     const srmIds = [
       ...new Set(
         pos
-          .map((p) => Number(p.supplier_id))
+          .flatMap((p) => {
+            const meta =
+              p.metadata &&
+              typeof p.metadata === 'object' &&
+              !Array.isArray(p.metadata)
+                ? (p.metadata as Record<string, unknown>)
+                : {};
+            return [Number(p.supplier_id), Number(meta.srm_supplier_id)];
+          })
           .filter((id) => Number.isFinite(id) && id > 0)
       ),
     ];
@@ -85,6 +93,7 @@ export async function GET(request: NextRequest) {
     const walletMap: Record<number, string | null> = {};
     const phoneBySrm: Record<number, string | null> = {};
     const contactBySrm: Record<number, string | null> = {};
+    const emailBySrm: Record<number, string | null> = {};
     const nameBySrm: Record<number, string> = {};
     /** phone keyed by linked platform profile id (from srm book) */
     const phoneByLinkedProfile: Record<number, string | null> = {};
@@ -103,13 +112,14 @@ export async function GET(request: NextRequest) {
     if (srmIds.length) {
       const { data: srmRows } = await supabase
         .from('srm_suppliers')
-        .select('id, trading_name, phone, contact_name, linked_profile_id')
+        .select('id, trading_name, phone, contact_name, email, linked_profile_id')
         .in('id', srmIds);
       for (const s of srmRows || []) {
         const id = Number(s.id);
         nameBySrm[id] = s.trading_name || `Supplier ${id}`;
         phoneBySrm[id] = (s.phone as string) || null;
         contactBySrm[id] = (s.contact_name as string) || null;
+        emailBySrm[id] = (s.email as string) || null;
         const lp = Number(s.linked_profile_id);
         if (lp > 0 && s.trading_name && !nameMap[lp]) {
           nameMap[lp] = s.trading_name;
@@ -160,7 +170,14 @@ export async function GET(request: NextRequest) {
 
     const enriched = pos.map((p) => {
       const profileId = Number(p.supplier_profile_id);
-      const srmId = Number(p.supplier_id);
+      const meta =
+        p.metadata && typeof p.metadata === 'object' && !Array.isArray(p.metadata)
+          ? (p.metadata as Record<string, unknown>)
+          : {};
+      const srmId =
+        Number(meta.srm_supplier_id) > 0
+          ? Number(meta.srm_supplier_id)
+          : Number(p.supplier_id);
       const inv = invByPoId.get(Number(p.id));
       const invoiceId =
         Number(p.invoice_id) > 0
@@ -183,6 +200,7 @@ export async function GET(request: NextRequest) {
         supplier_phone:
           phoneBySrm[srmId] || phoneByLinkedProfile[profileId] || null,
         supplier_contact_name: contactBySrm[srmId] || null,
+        supplier_email: emailBySrm[srmId] || null,
         invoice_id: invoiceId ?? p.invoice_id ?? null,
         invoice_number: inv?.invoice_number ?? null,
         invoice_shared: invoiceShared,

@@ -26,6 +26,7 @@ import {
   Clock,
   Star,
   ExternalLink,
+  Mail,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -162,6 +163,9 @@ type PurchaseOrder = {
   supplier_name?: string | null;
   supplier_phone?: string | null;
   supplier_contact_name?: string | null;
+  supplier_email?: string | null;
+  po_number?: string | null;
+  order_number?: string | null;
   total_amount?: number | null;
   status: string;
   description?: string | null;
@@ -1452,6 +1456,15 @@ function PoInner() {
   };
 
   const resolvePoSupplier = (po: PurchaseOrder): BookSupplier | null => {
+    const metaSrm = Number(
+      po.metadata && typeof po.metadata === 'object'
+        ? (po.metadata as Record<string, unknown>).srm_supplier_id
+        : 0
+    );
+    if (metaSrm > 0) {
+      const byMeta = suppliers.find((s) => Number(s.id) === metaSrm);
+      if (byMeta) return byMeta;
+    }
     if (po.supplier_id) {
       const byId = suppliers.find((s) => Number(s.id) === Number(po.supplier_id));
       if (byId) return byId;
@@ -1463,6 +1476,13 @@ function PoInner() {
       if (byProfile) return byProfile;
     }
     return null;
+  };
+
+  const resolvePoEmail = (po: PurchaseOrder): string => {
+    const fromPo = String(po.supplier_email || '').trim();
+    if (fromPo.includes('@')) return fromPo;
+    const sup = resolvePoSupplier(po);
+    return String(sup?.email || '').trim();
   };
 
   const resolvePoPhone = (po: PurchaseOrder): string | null => {
@@ -1498,6 +1518,57 @@ function PoInner() {
     });
   };
 
+  const emailPurchaseOrder = async (po: PurchaseOrder) => {
+    let to = resolvePoEmail(po);
+    if (!to.includes('@')) {
+      const typed = window.prompt(
+        `Email this purchase order to ${
+          po.supplier_name || 'the supplier'
+        }. You will be copied. Enter their email:`,
+        ''
+      );
+      to = String(typed || '').trim();
+    }
+    if (!to.includes('@')) {
+      toast.error('Supplier email is required to send the purchase order');
+      return;
+    }
+    setBusyId(po.id);
+    try {
+      const res = await withAuth('/api/suppliers/purchase-orders/send', {
+        method: 'POST',
+        jsonBody: {
+          id: po.id,
+          to,
+          ccMe: true,
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          (data as { error?: string; hint?: string }).error ||
+            (data as { hint?: string }).hint ||
+            'Failed to email purchase order'
+        );
+      }
+      const cc = Array.isArray((data as { cc?: string[] }).cc)
+        ? (data as { cc: string[] }).cc
+        : [];
+      toast.success(
+        cc.length
+          ? `Purchase order emailed to ${to} (you were copied)`
+          : `Purchase order emailed to ${to}`
+      );
+      await load();
+    } catch (e: unknown) {
+      toast.error(
+        e instanceof Error ? e.message : 'Failed to email purchase order'
+      );
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   /** Buyer-facing next step for pipeline cards */
   function buyerNextStep(po: PurchaseOrder): {
     title: string;
@@ -1507,8 +1578,8 @@ function PoInner() {
     const st = String(po.status || '').toLowerCase();
     if (st === 'draft') {
       return {
-        title: 'Next: Send PO',
-        body: 'Supplier cannot see drafts. Send when lines and promised date are ready.',
+        title: 'Next: Email this purchase order',
+        body: 'Suppliers cannot see drafts. Email the PO (you will be copied) — this is an order, not an invoice.',
         tone: 'slate',
       };
     }
@@ -3273,6 +3344,16 @@ function PoInner() {
                             label="WhatsApp"
                             title="Share this PO on WhatsApp with your supplier"
                           />
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void emailPurchaseOrder(po)}
+                            className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+                            title="Email this purchase order to the supplier. You will be copied."
+                          >
+                            <Mail className="w-3.5 h-3.5" />
+                            Email PO
+                          </button>
                           {!po.cost_allocated_at &&
                             (po.business_unit_id ||
                               po.work_center_id ||
