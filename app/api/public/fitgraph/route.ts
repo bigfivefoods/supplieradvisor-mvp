@@ -348,14 +348,15 @@ export async function POST(request: NextRequest) {
         source: 'onboarding' as const,
         signature_name: body.signature_name ? String(body.signature_name) : name,
       };
-      let client = store.clients.find(
+      const existingClient = store.clients.find(
         (c) =>
           c.active !== false &&
           ((idNumber && c.id_number === idNumber) ||
             (email && c.email && c.email.toLowerCase() === email))
       );
-      if (!client) {
-        client = {
+      let client =
+        existingClient ||
+        ({
           id: newId('cli'),
           code: `M${Date.now().toString(36).slice(-5).toUpperCase()}`,
           name,
@@ -363,9 +364,8 @@ export async function POST(request: NextRequest) {
           active: true,
           created_at: now,
           updated_at: now,
-        };
-        store.clients.push(client);
-      }
+        } as FitClient);
+      if (!existingClient) store.clients.push(client);
       for (const k of kinds.length ? kinds : [kind]) {
         client = applyContractToClient(client, { ...sub, kind: k }, now);
         if (body.signature_name) {
@@ -382,7 +382,7 @@ export async function POST(request: NextRequest) {
           source: 'pwa',
         });
       }
-      const idx = store.clients.findIndex((c) => c.id === client!.id);
+      const idx = store.clients.findIndex((c) => c.id === client.id);
       if (idx >= 0) store.clients[idx] = client;
       {
         const { attachCrmToAdvisorPerson } = await import(
@@ -393,8 +393,8 @@ export async function POST(request: NextRequest) {
           kind: 'gym',
           person: client,
         });
-        const stamped = store.clients.findIndex((c) => c.id === client.id);
-        if (stamped >= 0) store.clients[stamped] = client;
+        const stampedIdx = store.clients.findIndex((c) => c.id === client.id);
+        if (stampedIdx >= 0) store.clients[stampedIdx] = client;
       }
       store.desk_notices = pushDeskNotice(
         store.desk_notices,

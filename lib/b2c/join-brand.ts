@@ -477,10 +477,10 @@ async function joinGym(opts: {
     if (coach) linkPlatformUserId(coach, opts.userId);
   }
   if (memberLink) {
-    let client = store.clients.find((c) => c.id === memberLink.ref_id);
-    if (client) {
-      linkPlatformUserId(client, opts.userId);
-      client = await stampSnapshotOnPerson(client, opts.profile);
+    const found = store.clients.find((c) => c.id === memberLink.ref_id);
+    if (found) {
+      linkPlatformUserId(found, opts.userId);
+      const client = await stampSnapshotOnPerson(found, opts.profile);
       client.invite_status = 'accepted';
       client.invite_accepted_at = now;
       client.join_events = appendJoinEvent(client, {
@@ -492,7 +492,7 @@ async function joinGym(opts: {
         source: 'pwa',
       });
       client.updated_at = now;
-      const ci = store.clients.findIndex((c) => c.id === client!.id);
+      const ci = store.clients.findIndex((c) => c.id === client.id);
       if (ci >= 0) store.clients[ci] = client;
       {
         const { attachCrmToAdvisorPerson } = await import(
