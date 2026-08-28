@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import {
   bankIncomeMatchesInvoice,
+  extraCogsJournalIds,
   extraRecognitionJournalIds,
   isLivePosted,
 } from './dedupe-invoice-books';
@@ -40,6 +41,15 @@ const extras = extraRecognitionJournalIds({
   ],
 });
 assert.deepEqual(extras.sort((a, b) => a - b), [465, 467]);
+
+const cogsExtras = extraCogsJournalIds({
+  invoices: [{ id: 9, metadata: { cogs_journal_id: 729 } }],
+  journals: [
+    { id: 729, source: 'invoice_cogs', source_id: '9', status: 'posted', metadata: { invoice_id: 9 } },
+    { id: 730, source: 'invoice_cogs', source_id: '9', status: 'posted', metadata: { invoice_id: 9 } },
+  ],
+});
+assert.deepEqual(cogsExtras, [730]);
 
 assert.equal(
   bankIncomeMatchesInvoice({

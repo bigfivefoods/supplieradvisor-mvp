@@ -2,8 +2,9 @@
  * IAS 2 (simplified): when an AR sales invoice sells goods that already sit
  * on 1140 at a known unit cost, post Dr 5100 · Cr 1140.
  *
- * Cost is resolved from real fields only (line unit_cost, products.cost_price,
- * last stock_movements.unit_cost). Selling price is never used as cost.
+ * Cost is resolved from real fields only (line unit_cost, then last
+ * stock_movements.unit_cost). Catalogue cost_price is not IAS 2 stock cost
+ * unless a movement recorded it. Selling price is never used as cost.
  * Unknown / zero cost → skip and stamp. Services and membership → no COGS.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
@@ -325,9 +326,10 @@ async function loadProductCosts(opts: {
       },
       opts.currency
     );
-    const catalogue = Number(priced.cost_price || 0);
     const fromMove = moveCost.get(id) || 0;
-    const costPrice = catalogue > 0.00005 ? catalogue : fromMove;
+    // IAS 2 carrying amount = last inbound/stock movement cost.
+    // Catalogue cost_price alone is a price list, not proof stock sits on 1140.
+    const costPrice = fromMove > 0.00005 ? fromMove : 0;
     const sku = r.sku != null ? String(r.sku) : null;
     const rec: ProductCostLookup = {
       productId: id,
@@ -339,6 +341,44 @@ async function loadProductCosts(opts: {
     if (sku) bySku.set(sku.trim().toLowerCase(), rec);
   }
   return { byId, bySku };
+}
+
+async function loadLiveCogsJournals(
+  profileId: number,
+  invoiceId: number
+): Promise<Array<{ id: number }>> {
+  const supabase = getSupabaseServer();
+  const { data: existing } = await supabase
+    .from('journal_entries')
+    .select('id, metadata, status, source, source_id')
+    .eq('profile_id', profileId)
+    .eq('source', COGS_SOURCE)
+    .eq('source_id', String(invoiceId))
+    .eq('status', 'posted');
+  const ids = (existing || []).map((j) => Number(j.id)).filter((n) => n > 0);
+  const reversed = new Set<number>();
+  if (ids.length) {
+    const { data: revs } = await supabase
+      .from('journal_entries')
+      .select('source_id, metadata')
+      .eq('profile_id', profileId)
+      .eq('source', 'reversal')
+      .in('source_id', ids.map(String));
+    for (const r of revs || []) {
+      const rid = Number(
+        r.source_id || asMeta(r.metadata).reverses_journal_id
+      );
+      if (rid > 0) reversed.add(rid);
+    }
+  }
+  return (existing || [])
+    .filter((j) => {
+      const id = Number(j.id);
+      return !asMeta(j.metadata).reversed_by_journal_id && !reversed.has(id);
+    })
+    .map((j) => ({ id: Number(j.id) }))
+    .filter((j) => j.id > 0)
+    .sort((a, b) => a.id - b.id);
 }
 
 export async function postCogsOnInvoice(opts: {
@@ -357,6 +397,58 @@ export async function postCogsOnInvoice(opts: {
     return { ok: true, skipped: true, applied: 0 };
   }
   const meta = asMeta(inv.metadata);
+  const invId = Number(inv.id);
+  if (Number.isFinite(invId) && invId > 0) {
+    const live = await loadLiveCogsJournals(opts.profileId, invId);
+    if (live.length > 1) {
+      const { reversePostedJournal } = await import(
+        '@/lib/accounting/post-journal'
+      );
+      const keep = live[0];
+      for (const j of live.slice(1)) {
+        await reversePostedJournal({
+          profileId: opts.profileId,
+          journalId: j.id,
+          createdBy: opts.createdBy,
+          memo: `Reverse duplicate COGS ${inv.invoice_number || invId}`,
+          metadata: { invoice_id: invId, dedupe: true, invoice_cogs: true },
+        });
+      }
+      const stamp = {
+        ...meta,
+        cogs_journal_id: keep.id,
+        cogs_amount: round2(Number(meta.cogs_amount || 0)),
+        cogs_posted_at: new Date().toISOString(),
+        cogs_skipped: null,
+      };
+      await stampCogsMeta(opts.profileId, invId, stamp);
+      inv.metadata = stamp;
+      return {
+        ok: true,
+        skipped: true,
+        journalId: keep.id,
+        applied: round2(Number(meta.cogs_amount || 0)),
+      };
+    }
+    if (live.length === 1) {
+      const keep = live[0];
+      if (Number(meta.cogs_journal_id) !== keep.id) {
+        const stamp = {
+          ...meta,
+          cogs_journal_id: keep.id,
+          cogs_skipped: null,
+        };
+        await stampCogsMeta(opts.profileId, invId, stamp);
+        inv.metadata = stamp;
+      }
+      return {
+        ok: true,
+        skipped: true,
+        journalId: keep.id,
+        applied: round2(Number(meta.cogs_amount || 0)),
+      };
+    }
+  }
   if (alreadyPostedCogs(meta)) {
     return {
       ok: true,
