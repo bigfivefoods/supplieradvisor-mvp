@@ -422,6 +422,7 @@ export function planPartyGlAccounts(opts: {
         code: c.code,
         name: c.name,
         is_header: c.is_header || false,
+        is_active: true,
         account_type: c.account_type,
       })),
     ];
@@ -454,6 +455,7 @@ export function planPartyGlAccounts(opts: {
           code: c.code,
           name: c.name,
           is_header: c.is_header || false,
+          is_active: true as boolean | null,
         }))].find(
           (a) =>
             !a.is_header &&
