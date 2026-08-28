@@ -9,6 +9,7 @@ import {
   isAdvisorPersonCustomerType,
   type CoreCustomerKind,
 } from './kinds';
+import { memberArAccountCode } from '@/lib/accounting/party-gl-accounts';
 import { emailsMatch, mergeIdentity, type IdentityLinks } from './identity';
 import { memberDebitBankComplete } from '@/lib/fitness/member-debit-bank';
 
@@ -31,6 +32,7 @@ export type LoosePerson = {
   email?: string | null;
   phone?: string | null;
   crm_customer_id?: number | null;
+  ar_account_code?: string | null;
   platform_user_id?: string | null;
   hr_employee_id?: number | null;
   family?: LooseFamily[];
@@ -107,6 +109,7 @@ export type Customer360 = {
   logo_url?: string | null;
   party: 'individual' | 'business';
   customer_type: string | null;
+  ar_account_code?: string | null;
   kinds: CoreCustomerKind[];
   identity: IdentityLinks;
   memberships: Customer360Membership[];
@@ -259,6 +262,7 @@ export function assembleCustomer360(opts: {
     customer_type?: string | null;
     linked_profile_id?: number | null;
     logo_url?: string | null;
+    gl_account_code?: string | null;
   };
   invoices?: LooseInvoice[];
   gym?: {
@@ -508,6 +512,10 @@ export function assembleCustomer360(opts: {
     logo_url: c.logo_url || null,
     party,
     customer_type: c.customer_type || (party === 'individual' ? 'individual' : 'business'),
+    ar_account_code:
+      personKind && Number(c.id) > 0
+        ? String(c.gl_account_code || memberArAccountCode(c.id) || '') || null
+        : c.gl_account_code || null,
     kinds: [...kinds],
     identity,
     memberships,

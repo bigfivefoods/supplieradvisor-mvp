@@ -588,6 +588,141 @@ async function loadBookRows(
   };
 }
 
+/** Create/link one 4400-0000001 leaf for this CRM person. Safe to call on every add. */
+export async function ensureMemberArLeaf(opts: {
+  profileId: number;
+  customerId: number;
+  name: string;
+}): Promise<{ code: string; accountId: number } | null> {
+  const code = memberArAccountCode(opts.customerId);
+  const name = partyDisplayName({ trading_name: opts.name }) || 'Member';
+  if (!code || !Number.isFinite(opts.profileId) || opts.profileId <= 0) return null;
+  const supabase = getSupabaseServer();
+  const { data: existing } = await supabase
+    .from('chart_of_accounts')
+    .select('id, code')
+    .eq('profile_id', opts.profileId)
+    .eq('code', code)
+    .maybeSingle();
+  let accountId = existing?.id ? Number(existing.id) : 0;
+
+  let headerId: number | null = null;
+  const { data: header } = await supabase
+    .from('chart_of_accounts')
+    .select('id, code')
+    .eq('profile_id', opts.profileId)
+    .eq('code', MEMBER_AR_HEADER_CODE)
+    .maybeSingle();
+  if (header?.id) {
+    headerId = Number(header.id);
+  } else {
+    const { data: rev } = await supabase
+      .from('chart_of_accounts')
+      .select('id')
+      .eq('profile_id', opts.profileId)
+      .eq('code', '4000')
+      .maybeSingle();
+    const ins = await supabase
+      .from('chart_of_accounts')
+      .insert({
+        profile_id: opts.profileId,
+        code: MEMBER_AR_HEADER_CODE,
+        name: MEMBER_AR_HEADER_NAME,
+        account_type: 'revenue',
+        is_header: true,
+        is_active: true,
+        is_system: false,
+        normal_balance: 'credit',
+        parent_id: rev?.id ? Number(rev.id) : null,
+        currency: 'ZAR',
+        sort_order: 840,
+        description:
+          'AR sub-ledger for members, clients and patients. Each person is 4400-0000001 …',
+        metadata: { party_kind: 'member_ar_header' },
+      })
+      .select('id')
+      .maybeSingle();
+    if (ins.data?.id) headerId = Number(ins.data.id);
+    if (ins.error && /duplicate|unique/i.test(ins.error.message || '')) {
+      const { data: again } = await supabase
+        .from('chart_of_accounts')
+        .select('id')
+        .eq('profile_id', opts.profileId)
+        .eq('code', MEMBER_AR_HEADER_CODE)
+        .maybeSingle();
+      if (again?.id) headerId = Number(again.id);
+    }
+  }
+
+  if (!accountId) {
+    const ins = await supabase
+      .from('chart_of_accounts')
+      .insert({
+        profile_id: opts.profileId,
+        code,
+        name,
+        account_type: 'asset',
+        subtype: 'receivable',
+        is_header: false,
+        is_active: true,
+        is_system: false,
+        normal_balance: 'debit',
+        parent_id: headerId,
+        currency: 'ZAR',
+        sort_order: 841,
+        description: `AR account ${code} — ${name}. Receipts for this person post here when invoiced.`,
+        metadata: {
+          party_kind: 'member_ar',
+          party_ids: [opts.customerId],
+          ar_account_number: code,
+        },
+      })
+      .select('id, code')
+      .maybeSingle();
+    if (ins.data?.id) {
+      accountId = Number(ins.data.id);
+    } else if (ins.error && /duplicate|unique/i.test(ins.error.message || '')) {
+      const { data: again } = await supabase
+        .from('chart_of_accounts')
+        .select('id')
+        .eq('profile_id', opts.profileId)
+        .eq('code', code)
+        .maybeSingle();
+      if (again?.id) accountId = Number(again.id);
+    }
+  }
+  if (!accountId) return null;
+
+  const { data: book } = await supabase
+    .from('customers')
+    .select('metadata')
+    .eq('id', opts.customerId)
+    .eq('profile_id', opts.profileId)
+    .maybeSingle();
+  const meta = asRecord(book?.metadata);
+  if (
+    Number(meta.gl_account_id) !== accountId ||
+    String(meta.gl_account_code || '') !== code
+  ) {
+    await supabase
+      .from('customers')
+      .update({
+        metadata: {
+          ...meta,
+          gl_account_id: accountId,
+          gl_account_code: code,
+          gl_account_name: name,
+          gl_account_kind: 'ar',
+          ar_account_number: code,
+        },
+      })
+      .eq('id', opts.customerId)
+      .eq('profile_id', opts.profileId);
+  }
+  invalidateAccountingReads(opts.profileId);
+  return { code, accountId };
+}
+
 export async function ensurePartyGlAccounts(
   profileId: number
 ): Promise<{ created: number; linked: number; warning?: string }> {
@@ -740,6 +875,27 @@ export async function resolvePartyControlAccountId(opts: {
       .maybeSingle();
     const linked = Number(asRecord(data?.metadata).gl_account_id);
     if (linked > 0) return linked;
+    if (opts.kind === 'ar') {
+      const code = memberArAccountCode(partyId);
+      if (code) {
+        const { data: byCode } = await supabase
+          .from('chart_of_accounts')
+          .select('id')
+          .eq('profile_id', opts.profileId)
+          .eq('code', code)
+          .maybeSingle();
+        if (byCode?.id) return Number(byCode.id);
+        const leaf = await ensureMemberArLeaf({
+          profileId: opts.profileId,
+          customerId: partyId,
+          name: partyDisplayName({
+            trading_name: data?.trading_name,
+            legal_name: data?.legal_name,
+          }),
+        });
+        if (leaf?.accountId) return leaf.accountId;
+      }
+    }
   }
 
   const display = String(opts.counterpartyName || '').replace(/\s+/g, ' ').trim();

@@ -32,6 +32,8 @@ export type RetailCustomer = {
   photo_url?: string | null;
   portal_token?: string | null;
   crm_customer_id?: number | null;
+  /** CoA AR number under 4400, e.g. 4400-0000123 */
+  ar_account_code?: string | null;
   updated_at?: string;
 };
 

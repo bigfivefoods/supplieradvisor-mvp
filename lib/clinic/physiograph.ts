@@ -361,6 +361,8 @@ export type PhysioPatient = {
   start_date?: string | null;
   /** Linked Core CRM customer */
   crm_customer_id?: number | null;
+  /** CoA AR number under 4400, e.g. 4400-0000123 */
+  ar_account_code?: string | null;
   active?: boolean;
   created_at: string;
   updated_at: string;

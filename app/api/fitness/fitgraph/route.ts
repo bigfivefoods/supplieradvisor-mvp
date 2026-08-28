@@ -2916,6 +2916,12 @@ function upsert(
             ? Number(rec.crm_customer_id)
             : null
           : prev?.crm_customer_id ?? null,
+      ar_account_code:
+        rec.ar_account_code !== undefined
+          ? rec.ar_account_code
+            ? String(rec.ar_account_code)
+            : null
+          : prev?.ar_account_code ?? null,
       membership_status: String(
         rec.membership_status || prev?.membership_status || 'active'
       ),

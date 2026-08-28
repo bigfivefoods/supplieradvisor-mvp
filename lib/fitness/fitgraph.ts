@@ -531,6 +531,8 @@ export type FitClient = {
   membership_plan_id?: string | null;
   /** Linked Core CRM customer (Customers module) */
   crm_customer_id?: number | null;
+  /** CoA AR number under 4400, e.g. 4400-0000123 */
+  ar_account_code?: string | null;
   membership_status?: (typeof MEMBERSHIP_STATUSES)[number] | string;
   /** Programmes this member paid for / was allocated */
   purchased_programme_ids?: string[];

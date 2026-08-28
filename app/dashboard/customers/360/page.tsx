@@ -167,6 +167,11 @@ function Inner() {
                     <div className="min-w-0">
                     <p className="font-black text-slate-900">{r.name}</p>
                     <p className="text-[12px] text-slate-500">
+                      {r.ar_account_code ? (
+                        <span className="mr-2 font-mono font-bold text-slate-700">
+                          {r.ar_account_code}
+                        </span>
+                      ) : null}
                       {r.email || '—'}
                       {r.next_session
                         ? ` · next ${r.next_session.date} ${r.next_session.title}`

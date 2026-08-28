@@ -403,6 +403,14 @@ export async function loadCustomer360Bundle(
         customer_type: c.customer_type,
         linked_profile_id: c.linked_profile_id,
         logo_url: (c as { logo_url?: string | null }).logo_url || null,
+        gl_account_code: (() => {
+          const meta = c.metadata;
+          if (meta && typeof meta === 'object' && !Array.isArray(meta)) {
+            const code = (meta as { gl_account_code?: unknown }).gl_account_code;
+            return code ? String(code) : null;
+          }
+          return null;
+        })(),
       },
       ...assembleOpts,
     })

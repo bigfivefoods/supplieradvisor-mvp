@@ -119,6 +119,7 @@ assert.equal(c360.open_ar, 910);
 assert.equal(c360.identity.crm_customer_id, 9);
 assert.equal(c360.party, 'individual');
 assert.equal(c360.customer_type, 'individual');
+assert.equal(c360.ar_account_code, '4400-0000009');
 
 assert.deepEqual(advisorKindAliases('gym').sort(), ['fitgraph', 'gym'].sort());
 assert.deepEqual(
