@@ -1250,6 +1250,12 @@ export async function GET(request: NextRequest) {
         .filter((r) => r.amount !== 0)
         .sort((a, b) => String(a.code).localeCompare(String(b.code)));
 
+      const { collapseBsStatementRows } = await import(
+        '@/lib/accounting/statement-rollups'
+      );
+      const ledgerRows = rows;
+      const statementRows = collapseBsStatementRows(rows);
+
       // Roll net income into equity for BS equation
       const plTypes = new Set(['revenue', 'expense', 'cogs']);
       let netIncome = 0;
@@ -1339,7 +1345,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         report,
-        rows,
+        rows: statementRows,
+        ledger_rows: ledgerRows,
         sections,
         sectionLabels: BS_SECTION_LABELS,
         allocationByBu,

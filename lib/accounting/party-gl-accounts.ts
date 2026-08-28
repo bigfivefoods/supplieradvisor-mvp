@@ -115,6 +115,53 @@ export function isSupplierApAccountCode(code?: string | null): boolean {
   return Boolean(hyphen && hyphen.header === SUPPLIER_AP_HEADER_CODE);
 }
 
+/**
+ * IAS 1 tree: trade 1181+ under 1130; members 1180-* under 1180;
+ * suppliers 2180-* / 2181+ under 2180. Never parent AR under 4400.
+ */
+export function statementParentForPartyLeaf(
+  code: string,
+  mappingParent?: string | null
+): string {
+  const c = String(code || '').trim();
+  const hyphen = parseHyphenSubAccount(c);
+  if (hyphen) {
+    if (
+      hyphen.header === MEMBER_AR_HEADER_CODE ||
+      hyphen.header === MEMBER_AR_LEGACY_HEADER_CODE
+    ) {
+      return MEMBER_AR_HEADER_CODE;
+    }
+    if (hyphen.header === SUPPLIER_AP_HEADER_CODE) {
+      return SUPPLIER_AP_HEADER_CODE;
+    }
+    if (hyphen.header === MEMBERSHIP_REVENUE_CODE) {
+      return MEMBER_AR_HEADER_CODE;
+    }
+    return hyphen.header;
+  }
+  if (/^\d+$/.test(c)) {
+    const n = Number(c);
+    if (n >= 1181 && n < 2000) return '1130';
+    if (n >= 2181 && n < 3000) return SUPPLIER_AP_HEADER_CODE;
+  }
+  const mapped = String(mappingParent || '').trim();
+  if (mapped === MEMBERSHIP_REVENUE_CODE) return MEMBER_AR_HEADER_CODE;
+  if (mapped) return mapped;
+  return MEMBER_AR_HEADER_CODE;
+}
+
+export function isPartyStatementLeaf(code: string): boolean {
+  const c = String(code || '').trim();
+  if (isMemberArAccountCode(c) || isSupplierApAccountCode(c)) return true;
+  if (isHyphenSubAccountCode(c)) return true;
+  if (/^\d+$/.test(c)) {
+    const n = Number(c);
+    return (n >= 1181 && n < 2000) || (n >= 2181 && n < 3000);
+  }
+  return false;
+}
+
 const SKIP_STATUS = new Set([
   'inactive',
   'archived',
@@ -647,7 +694,7 @@ export function planPartyGlAccounts(opts: {
             ap_account_number: account_type === 'liability' ? code : undefined,
           },
           sort_order: sortBase + i,
-          parent_code: party.parentCode,
+          parent_code: statementParentForPartyLeaf(code, party.parentCode),
         });
         i += 1;
       }
@@ -1517,6 +1564,37 @@ export async function ensurePartyGlAccounts(
     await convertLegacyRevenueHeader(profileId);
   } catch (err) {
     console.warn('[party-gl] legacy 4400 migrate', err);
+  }
+
+  try {
+    const { data: tree } = await supabase
+      .from('chart_of_accounts')
+      .select('id, code, parent_id, is_header')
+      .eq('profile_id', profileId);
+    const ids = new Map<string, number>();
+    for (const row of tree || []) {
+      ids.set(String(row.code), Number(row.id));
+    }
+    for (const row of tree || []) {
+      const code = String(row.code || '');
+      let want: string | null = null;
+      if (code === MEMBER_AR_HEADER_CODE) want = '1100';
+      else if (code === SUPPLIER_AP_HEADER_CODE) want = '2100';
+      else if (code === '1135') want = '1100';
+      else if (isPartyStatementLeaf(code) && row.is_header !== true) {
+        want = statementParentForPartyLeaf(code);
+      }
+      if (!want || want === code || want === MEMBERSHIP_REVENUE_CODE) continue;
+      const pid = ids.get(want);
+      if (!pid || Number(row.parent_id) === pid) continue;
+      await supabase
+        .from('chart_of_accounts')
+        .update({ parent_id: pid })
+        .eq('id', Number(row.id))
+        .eq('profile_id', profileId);
+    }
+  } catch (err) {
+    console.warn('[party-gl] statement parent backfill', err);
   }
 
   if (created || linked) invalidateAccountingReads(profileId);

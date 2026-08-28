@@ -474,6 +474,7 @@ export async function allocatePurchaseOrderCost(opts: {
       ...(typeof po.metadata === 'object' && po.metadata && !Array.isArray(po.metadata)
         ? (po.metadata as object)
         : {}),
+      ap_allocated_journal_id: journalIds[0] ?? null,
       cost_allocation: {
         cost_entry_ids: costEntryIds,
         journal_ids: journalIds,

@@ -45,6 +45,49 @@ function asMeta(raw: unknown): Record<string, unknown> {
   return {};
 }
 
+export function mapApCostCategoryToCode(category?: string | null): string {
+  const c = String(category || '').toLowerCase().trim();
+  if (!c) return '1140';
+  if (/material|inventory|stock|raw_?material/.test(c)) return '1140';
+  if (/cogs|goods|resale/.test(c)) return '5100';
+  if (/ppe|capital|fixed|equipment|machinery|\basset\b/.test(c)) return '1210';
+  return '';
+}
+
+export function invoiceLinkedPurchaseOrderId(
+  inv: Record<string, unknown>
+): number | null {
+  const meta = asMeta(inv.metadata);
+  const n = Number(
+    inv.source_po_id ||
+      inv.purchase_order_id ||
+      meta.purchase_order_id ||
+      meta.source_po_id ||
+      meta.po_id ||
+      0
+  );
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+export function isPoApAlreadyAllocated(
+  po: Record<string, unknown> | null | undefined
+): { allocated: boolean; journalId: number | null } {
+  if (!po) return { allocated: false, journalId: null };
+  const meta = asMeta(po.metadata);
+  const fromMetaAlloc = asMeta(meta.cost_allocation);
+  const rawIds = fromMetaAlloc.journal_ids;
+  const firstMeta =
+    Array.isArray(rawIds) && rawIds.length ? Number(rawIds[0]) : 0;
+  const jid = Number(
+    po.cost_journal_entry_id || meta.ap_allocated_journal_id || firstMeta || 0
+  );
+  if (Number.isFinite(jid) && jid > 0) {
+    return { allocated: true, journalId: jid };
+  }
+  if (po.cost_allocated_at) return { allocated: true, journalId: null };
+  return { allocated: false, journalId: null };
+}
+
 /** Cash already on a bank allocation — do not recognise or settle again. */
 export function invoiceKeepsBankAllocation(meta: unknown): boolean {
   const m = asMeta(meta);
@@ -266,6 +309,37 @@ export async function recognizeInvoiceIfNeeded(opts: {
 
   const accts = await invoiceAccounts(opts.profileId);
   const isAr = String(inv.direction || '') !== 'payable';
+  if (!isAr) {
+    const poId = invoiceLinkedPurchaseOrderId(inv);
+    if (poId) {
+      const { data: po } = await supabase
+        .from('purchase_orders')
+        .select('id, cost_journal_entry_id, cost_allocated_at, cost_category, metadata')
+        .eq('id', poId)
+        .maybeSingle();
+      const alloc = isPoApAlreadyAllocated(
+        (po || null) as Record<string, unknown> | null
+      );
+      if (alloc.allocated) {
+        await stampInvoiceMeta(invId, opts.profileId, meta, {
+          skip_recognition: true,
+          po_allocation_journal_id: alloc.journalId,
+          recognition_skipped_reason: 'po_already_allocated',
+        });
+        inv.metadata = {
+          ...meta,
+          skip_recognition: true,
+          po_allocation_journal_id: alloc.journalId,
+          recognition_skipped_reason: 'po_already_allocated',
+        };
+        return {
+          ok: true,
+          skipped: true,
+          journalId: alloc.journalId || undefined,
+        };
+      }
+    }
+  }
   const partyGl = await resolvePartyControlAccountId({
     profileId: opts.profileId,
     kind: isAr ? 'ar' : 'ap',
@@ -292,6 +366,7 @@ export async function recognizeInvoiceIfNeeded(opts: {
   const useSplits = splits.length > 0 && Math.abs(splitTotal - net) < 0.05;
 
   const lines: JournalLineInput[] = [];
+  let used6990 = false;
   if (isAr) {
     if (!control || !accts.revenue) {
       return {
@@ -337,10 +412,38 @@ export async function recognizeInvoiceIfNeeded(opts: {
       });
     }
   } else {
-    if (!control || !accts.expense) {
+    let apDebit = accts.expense;
+    if (!useSplits) {
+      const poId = invoiceLinkedPurchaseOrderId(inv);
+      let poCategory: string | null = null;
+      if (poId) {
+        const { data: po } = await supabase
+          .from('purchase_orders')
+          .select('cost_category, metadata')
+          .eq('id', poId)
+          .maybeSingle();
+        poCategory = po?.cost_category != null ? String(po.cost_category) : null;
+      }
+      const category = String(
+        inv.cost_category || meta.cost_category || poCategory || 'materials'
+      );
+      const mapped = mapApCostCategoryToCode(category);
+      const code = mapped || '1140';
+      const mappedId = await resolveCoaAccountIdByCode(opts.profileId, code);
+      const inv1140 = await resolveCoaAccountIdByCode(opts.profileId, '1140');
+      if (mappedId) {
+        apDebit = mappedId;
+      } else if (inv1140) {
+        apDebit = inv1140;
+      } else {
+        apDebit = accts.expense;
+        used6990 = Boolean(accts.expense);
+      }
+    }
+    if (!control || !apDebit) {
       return {
         ok: false,
-        error: 'COA missing AP (2110) or an expense account — seed Chart of Accounts',
+        error: 'COA missing AP (2110) or an inventory/expense account — seed Chart of Accounts',
       };
     }
     if (useSplits) {
@@ -355,7 +458,7 @@ export async function recognizeInvoiceIfNeeded(opts: {
       }
     } else {
       lines.push({
-        accountId: accts.expense,
+        accountId: apDebit,
         debit: net,
         credit: 0,
         memo,
@@ -400,16 +503,16 @@ export async function recognizeInvoiceIfNeeded(opts: {
   });
   if (!posted.ok) return { ok: false, error: posted.error };
 
-  await stampInvoiceMeta(Number(inv.id), opts.profileId, meta, {
+  const extraMeta: Record<string, unknown> = {
     recognition_journal_id: posted.journalId,
     recognized_at: new Date().toISOString(),
     control_account_id: control,
-  });
+  };
+  if (!isAr && used6990) extraMeta.ap_default_6990 = true;
+  await stampInvoiceMeta(Number(inv.id), opts.profileId, meta, extraMeta);
   inv.metadata = {
     ...meta,
-    recognition_journal_id: posted.journalId,
-    recognized_at: new Date().toISOString(),
-    control_account_id: control,
+    ...extraMeta,
   };
 
   return { ok: true, journalId: posted.journalId };
@@ -541,8 +644,13 @@ export async function reverseInvoiceBooks(opts: {
     }
   }
   const unique = [...new Set(journalIds.filter((n) => Number.isFinite(n) && n > 0))];
+  const skipPoAlloc = Number(meta.po_allocation_journal_id || 0);
 
   for (const jid of unique) {
+    if (skipPoAlloc > 0 && jid === skipPoAlloc) continue;
+    if (meta.recognition_skipped_reason === 'po_already_allocated' && jid === skipPoAlloc) {
+      continue;
+    }
     const reversed = await reversePostedJournal({
       profileId: opts.profileId,
       journalId: jid,
