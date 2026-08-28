@@ -24,7 +24,7 @@ export default function RaiseInvoiceFromSo({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [asDraft, setAsDraft] = useState(false);
+  const [asDraft, setAsDraft] = useState(true);
 
   async function raise() {
     setBusy(true);
@@ -43,8 +43,11 @@ export default function RaiseInvoiceFromSo({
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to raise invoice');
+      const invNo = json.invoice?.invoice_number || json.invoice?.id;
       setSuccess(
-        `Invoice ${json.invoice?.invoice_number || json.invoice?.id} created`
+        asDraft
+          ? `Draft invoice ${invNo} ready — review and send from Invoices`
+          : `Invoice ${invNo} created`
       );
       onRaised?.(json.invoice);
     } catch (e: unknown) {
@@ -77,7 +80,7 @@ export default function RaiseInvoiceFromSo({
           onChange={(e) => setAsDraft(e.target.checked)}
           className="rounded border-neutral-300"
         />
-        Save as draft (do not mark sent)
+        Save as draft (review on Invoices before sending)
       </label>
       <button
         type="button"
