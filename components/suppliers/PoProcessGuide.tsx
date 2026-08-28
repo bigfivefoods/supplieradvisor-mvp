@@ -19,8 +19,11 @@ export default function PoProcessGuide({
         </div>
         <h3 className="font-bold text-lg mb-2">Standard PO process</h3>
         <ol className="text-sm text-neutral-600 space-y-2 list-decimal list-inside">
-          <li>Select a connected supplier from your book</li>
-          <li>Add line items, promised date, payment terms</li>
+          <li>Select a supplier from your book (linked or book-only)</li>
+          <li>
+            Add line items from their catalogue, your inventory, or free text —
+            promised date, payment terms
+          </li>
           <li>
             Allocate cost — business unit, work centre, station, and/or asset
             (posts to cost centres + GL on complete)

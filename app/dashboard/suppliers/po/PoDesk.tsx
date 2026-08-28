@@ -81,10 +81,10 @@ function productTypeLabel(type: string | null | undefined): string {
   return PRODUCT_TYPE_LABELS[key] || key.replace(/_/g, ' ');
 }
 
-/** Sellable line from supplier agreement catalogue or supplier inventory */
+/** Sellable line from supplier agreement, supplier inventory, or buyer stock */
 type SupplierCatalogueItem = {
   key: string;
-  source: 'agreement' | 'inventory';
+  source: 'agreement' | 'inventory' | 'buyer_inventory';
   seller_product_id: number | null;
   product_name: string;
   sku: string | null;
@@ -100,6 +100,33 @@ type SupplierCatalogueItem = {
   onchain_tx_hash?: string | null;
   onchain_chain?: string | null;
 };
+
+const CATALOGUE_TYPE_ORDER = [
+  'finished_good',
+  'service',
+  'raw_material',
+  'component',
+  'packaging',
+  'other',
+];
+
+function groupCatalogueByType(rows: SupplierCatalogueItem[]) {
+  const byType = new Map<string, SupplierCatalogueItem[]>();
+  for (const p of rows) {
+    const key = String(p.product_type || 'other').toLowerCase() || 'other';
+    const list = byType.get(key) || [];
+    list.push(p);
+    byType.set(key, list);
+  }
+  const typeKeys = [
+    ...CATALOGUE_TYPE_ORDER.filter((k) => byType.has(k)),
+    ...[...byType.keys()].filter((k) => !CATALOGUE_TYPE_ORDER.includes(k)).sort(),
+  ];
+  return typeKeys.map((k) => ({
+    type: k,
+    items: byType.get(k) || [],
+  }));
+}
 
 const PO_ESCROW_ADDRESS = getPoEscrowAddress() || CONTRACTS.POEscrowV2.address;
 /** Demo ZAR→ETH rate for fundPO msg.value — override via NEXT_PUBLIC_ETH_DEMO_RATE */
@@ -505,35 +532,25 @@ function PoInner() {
   const catalogueGroups = useMemo(() => {
     const agreement = filteredCatalogue.filter((i) => i.source === 'agreement');
     const inventory = filteredCatalogue.filter((i) => i.source === 'inventory');
-    const byType = new Map<string, SupplierCatalogueItem[]>();
-    for (const p of inventory) {
-      const key = String(p.product_type || 'other').toLowerCase() || 'other';
-      const list = byType.get(key) || [];
-      list.push(p);
-      byType.set(key, list);
-    }
-    const typeOrder = [
-      'finished_good',
-      'service',
-      'raw_material',
-      'component',
-      'packaging',
-      'other',
-    ];
-    const typeKeys = [
-      ...typeOrder.filter((k) => byType.has(k)),
-      ...[...byType.keys()].filter((k) => !typeOrder.includes(k)).sort(),
-    ];
+    const buyerInventory = filteredCatalogue.filter(
+      (i) => i.source === 'buyer_inventory'
+    );
+    const supplierTotal = supplierCatalogue.filter(
+      (i) => i.source === 'agreement' || i.source === 'inventory'
+    ).length;
+    const buyerTotal = supplierCatalogue.filter(
+      (i) => i.source === 'buyer_inventory'
+    ).length;
     return {
       agreement,
-      inventoryByType: typeKeys.map((k) => ({
-        type: k,
-        items: byType.get(k) || [],
-      })),
+      inventoryByType: groupCatalogueByType(inventory),
+      buyerInventoryByType: groupCatalogueByType(buyerInventory),
+      supplierTotal,
+      buyerTotal,
       total: filteredCatalogue.length,
       unfilteredTotal: supplierCatalogue.length,
     };
-  }, [filteredCatalogue, supplierCatalogue.length]);
+  }, [filteredCatalogue, supplierCatalogue]);
 
   const applyCatalogueItem = (
     idx: number,
@@ -610,7 +627,9 @@ function PoInner() {
     toast.success(
       item.source === 'agreement'
         ? `Added ${item.product_name} at agreed list price`
-        : `Added ${item.product_name} from supplier catalogue`
+        : item.source === 'buyer_inventory'
+          ? `Added ${item.product_name} from your inventory`
+          : `Added ${item.product_name} from supplier catalogue`
     );
   };
 
@@ -1865,7 +1884,7 @@ function PoInner() {
                   <option key={s.id} value={s.id}>
                     {s.trading_name}
                     {!s.linked_profile_id
-                      ? ' (book only — invite to unlock catalogue/escrow)'
+                      ? ' (book only — order from your inventory)'
                       : s.verified
                         ? ' ✓'
                         : ' · linked'}
@@ -2005,11 +2024,13 @@ function PoInner() {
               {selectedSupplier && (
                 <div className="mt-3 p-3 rounded-2xl border border-[#00b4d8]/20 bg-[#00b4d8]/5">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-[#0077b6] mb-1">
-                    Supplier catalogue
+                    {!selectedSupplier.linked_profile_id
+                      ? 'Your inventory'
+                      : 'Supplier catalogue'}
                     {catalogueLoading
                       ? ' · loading…'
                       : catalogueGroups.unfilteredTotal
-                        ? ` · ${catalogueGroups.unfilteredTotal} sellable`
+                        ? ` · ${catalogueGroups.unfilteredTotal} items`
                         : ''}
                     {catalogueReadiness
                       ? ` · ${catalogueReadiness.label} (${catalogueReadiness.score})`
@@ -2041,62 +2062,77 @@ function PoInner() {
                     </div>
                   )}
                   <p className="text-[10px] text-neutral-600 mb-2 leading-relaxed">
-                    PO lines pull from this supplier’s{' '}
-                    <strong>agreed price list</strong> and their published{' '}
-                    <strong>inventory</strong> (finished goods, services, …) —
-                    not your own stock. Prices follow PO currency when available.
-                    Free-text lines remain below.
+                    {selectedSupplier.linked_profile_id
+                      ? (
+                        <>
+                          PO lines pull from this supplier’s{' '}
+                          <strong>agreed price list</strong> and their published{' '}
+                          <strong>inventory</strong>, plus{' '}
+                          <strong>your inventory</strong> SKUs. Prices follow PO
+                          currency when available. Free-text lines remain below.
+                        </>
+                      )
+                      : (
+                        <>
+                          This supplier has not accepted yet. Raise the order now
+                          from <strong>your inventory catalogue</strong> (or
+                          free-text). Invite later to buy from their catalogue
+                          and use escrow.
+                        </>
+                      )}
                   </p>
                   {!selectedSupplier.linked_profile_id && (
-                    <div className="text-[11px] text-amber-900 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mb-2 space-y-1">
-                      <p className="font-bold">Supplier not linked to the platform</p>
+                    <div className="text-[11px] text-sky-950 bg-sky-50 border border-sky-100 rounded-xl px-3 py-2 mb-2 space-y-1">
+                      <p className="font-bold">Book only — order from your inventory</p>
                       <p>
-                        Invite them or accept a network connection so you can buy
-                        from their catalogue. Free-text lines still work.
+                        They do not need to accept the invite before you send a
+                        standard PO. Pick SKUs below, then Send. Escrow still
+                        needs a platform link.
                       </p>
                       <div className="flex flex-wrap gap-2 pt-1">
                         <Link
-                          href="/dashboard/suppliers/invites"
+                          href="/dashboard/inventory/products"
                           className="font-bold text-[#00b4d8] underline"
                         >
-                          Invite supplier
+                          Inventory products
                         </Link>
                         <Link
-                          href="/dashboard/connections"
+                          href="/dashboard/suppliers/invites"
                           className="font-bold text-slate-600 underline"
                         >
-                          Network
+                          Invite status
                         </Link>
                       </div>
                     </div>
                   )}
                   {selectedSupplier.linked_profile_id &&
                     !catalogueLoading &&
-                    catalogueGroups.unfilteredTotal === 0 && (
+                    catalogueGroups.supplierTotal === 0 && (
                       <div className="text-[11px] text-amber-900 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mb-2 space-y-1">
-                        <p className="font-bold">No sellable catalogue yet</p>
+                        <p className="font-bold">No supplier catalogue yet</p>
                         <p>
-                          {catalogueWarning ||
-                            'Ask the supplier to publish finished goods/services or share a price list with you.'}
+                          {catalogueGroups.buyerTotal > 0
+                            ? 'They have not published a list — pick from your inventory below, or use free text.'
+                            : catalogueWarning ||
+                              'Ask the supplier to publish finished goods/services or share a price list with you.'}
                         </p>
                         <div className="flex flex-wrap gap-2 pt-1">
                           <Link
-                            href="/dashboard/connections/pricing"
+                            href="/dashboard/inventory/products"
                             className="font-bold text-[#00b4d8] underline"
                           >
-                            Pricing agreements
+                            Your inventory
                           </Link>
                           <Link
-                            href="/dashboard/connections"
+                            href="/dashboard/connections/pricing"
                             className="font-bold text-slate-600 underline"
                           >
-                            Network
+                            Pricing agreements
                           </Link>
                         </div>
                       </div>
                     )}
-                  {selectedSupplier.linked_profile_id &&
-                    catalogueGroups.unfilteredTotal > 0 && (
+                  {catalogueGroups.unfilteredTotal > 0 && (
                       <input
                         type="search"
                         className="input !p-2 !text-sm w-full mb-2 bg-white"
@@ -2188,12 +2224,56 @@ function PoInner() {
                       </div>
                     </>
                   )}
+                  {catalogueGroups.buyerInventoryByType.length > 0 && (
+                    <>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 mt-2">
+                        Your inventory (
+                        {catalogueGroups.buyerInventoryByType.reduce(
+                          (s, g) => s + g.items.length,
+                          0
+                        )}
+                        )
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                        {catalogueGroups.buyerInventoryByType
+                          .flatMap((g) => g.items)
+                          .slice(0, 48)
+                          .map((l) => (
+                            <button
+                              key={l.key}
+                              type="button"
+                              onClick={() => addCatalogueLine(l)}
+                              className="text-[11px] font-semibold px-2.5 py-1 rounded-full border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                              title={`${productTypeLabel(l.product_type)} · add from your inventory`}
+                            >
+                              {l.product_name}
+                              {l.sku ? (
+                                <span className="text-neutral-400 font-normal ml-1">
+                                  {l.sku}
+                                </span>
+                              ) : null}
+                              <span className="text-neutral-400 font-normal ml-1">
+                                @ {Number(l.unit_price).toFixed(2)}{' '}
+                                {l.currency || poCurrency}
+                              </span>
+                            </button>
+                          ))}
+                      </div>
+                    </>
+                  )}
                   <p className="text-[10px] text-neutral-500 mt-2">
+                    <Link
+                      href="/dashboard/inventory/products"
+                      className="text-[#00b4d8] underline"
+                    >
+                      Your inventory
+                    </Link>
+                    {' · '}
                     <Link
                       href="/dashboard/connections/pricing"
                       className="text-[#00b4d8] underline"
                     >
-                      Manage pricing agreements
+                      Pricing agreements
                     </Link>
                     {' · '}
                     <Link
@@ -2454,11 +2534,14 @@ function PoInner() {
                   <p className="text-[10px] text-neutral-500 mt-0.5">
                     {selectedSrmId
                       ? catalogueLoading
-                        ? 'Loading this supplier’s catalogue…'
+                        ? 'Loading catalogue…'
                         : supplierCatalogue.length
-                          ? `Pick from ${selectedSupplier?.trading_name || 'supplier'} catalogue (${supplierCatalogue.length}) or free text.`
-                          : 'No supplier catalogue yet — free-text lines still work. Connect them and share pricing/inventory.'
-                      : 'Select a supplier first to load their catalogue.'}
+                          ? catalogueGroups.supplierTotal === 0 &&
+                            catalogueGroups.buyerTotal > 0
+                            ? `Pick from your inventory (${catalogueGroups.buyerTotal}) or free text. ${selectedSupplier?.trading_name || 'Supplier'} has not published a catalogue yet.`
+                            : `Pick from catalogue (${supplierCatalogue.length}) or free text.`
+                          : 'No catalogue yet — add SKUs under Inventory or use free-text lines.'
+                      : 'Select a supplier first to load the catalogue.'}
                   </p>
                 </div>
                 <button
@@ -2536,8 +2619,26 @@ function PoInner() {
                           {catalogueGroups.inventoryByType.map(
                             ({ type, items }) => (
                               <optgroup
-                                key={type}
+                                key={`sup-${type}`}
                                 label={`Supplier · ${productTypeLabel(type)}`}
+                              >
+                                {items.map((p) => (
+                                  <option key={p.key} value={p.key}>
+                                    {p.product_name}
+                                    {p.sku ? ` (${p.sku})` : ''}
+                                    {p.unit_price > 0
+                                      ? ` · ${p.currency} ${Number(p.unit_price).toFixed(2)}`
+                                      : ''}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )
+                          )}
+                          {catalogueGroups.buyerInventoryByType.map(
+                            ({ type, items }) => (
+                              <optgroup
+                                key={`mine-${type}`}
+                                label={`My inventory · ${productTypeLabel(type)}`}
                               >
                                 {items.map((p) => (
                                   <option key={p.key} value={p.key}>
@@ -2581,7 +2682,9 @@ function PoInner() {
                             {' · '}
                             {linked?.source === 'agreement'
                               ? 'Agreed list'
-                              : productTypeLabel(linked?.product_type)}
+                              : linked?.source === 'buyer_inventory'
+                                ? 'Your inventory'
+                                : productTypeLabel(linked?.product_type)}
                             {linked?.sku ? ` · SKU ${linked.sku}` : ''}
                             {linked?.agreement_title
                               ? ` · ${linked.agreement_title}`
