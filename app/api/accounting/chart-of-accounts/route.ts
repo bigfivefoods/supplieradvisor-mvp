@@ -35,11 +35,6 @@ export async function GET(request: NextRequest) {
       seedWarning = r.warning;
       if (seeded) invalidateAccountingReads(companyId);
     }
-    const { ensurePartyGlAccountsCached } = await import(
-      '@/lib/accounting/party-gl-accounts'
-    );
-    await ensurePartyGlAccountsCached(companyId);
-
     let accounts = await getCachedCoa(companyId);
     if (type && type !== 'all') {
       accounts = accounts.filter((a) => a.account_type === type);
@@ -54,8 +49,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const includePartyLeaves =
+      request.nextUrl.searchParams.get('party_leaves') === '1' || Boolean(q);
+    if (!includePartyLeaves) {
+      const headers = accounts.filter((a) => a.is_header);
+      const rest = accounts.filter(
+        (a) =>
+          !a.is_header &&
+          !/^1180-|^2180-|^4400-/.test(String(a.code || ''))
+      );
+      accounts = [...headers, ...rest];
+    }
+    const limitRaw = Number(request.nextUrl.searchParams.get('limit') || 0);
+    if (Number.isFinite(limitRaw) && limitRaw > 0) {
+      const limit = Math.min(limitRaw, 2000);
+      const offset = Math.max(0, Number(request.nextUrl.searchParams.get('offset') || 0) || 0);
+      accounts = accounts.slice(offset, offset + limit);
+    }
+
+    // Totals are opt-in — never scan every journal on the CoA list.
     const wantBalances =
-      request.nextUrl.searchParams.get('balances') !== '0';
+      request.nextUrl.searchParams.get('balances') === '1';
     const bal: Record<number, number> = {};
     if (wantBalances) {
       const totals = await fetchAccountTotals({ profileId: companyId });
@@ -105,10 +119,10 @@ export async function POST(request: NextRequest) {
       invalidateAccountingReads(companyId);
       let party: { created: number; linked: number; warning?: string } | undefined;
       try {
-        const { ensurePartyGlAccounts } = await import(
+        const { backfillPartyGlAccounts } = await import(
           '@/lib/accounting/party-gl-accounts'
         );
-        party = await ensurePartyGlAccounts(companyId);
+        party = await backfillPartyGlAccounts(companyId);
       } catch {
         party = undefined;
       }
@@ -116,10 +130,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (body.ensure_party) {
-      const { ensurePartyGlAccounts } = await import(
+      const { backfillPartyGlAccounts } = await import(
         '@/lib/accounting/party-gl-accounts'
       );
-      const party = await ensurePartyGlAccounts(companyId);
+      const party = await backfillPartyGlAccounts(companyId);
       invalidateAccountingReads(companyId);
       return NextResponse.json({ success: true, ...party });
     }

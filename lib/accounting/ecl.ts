@@ -73,7 +73,8 @@ export async function buildEclWorksheet(opts: {
     )
     .eq('profile_id', opts.profileId)
     .eq('direction', 'receivable')
-    .not('status', 'in', '("paid","void","cancelled","draft")');
+    .not('status', 'in', '("paid","void","cancelled","draft")')
+    .limit(500);
 
   const rows: EclInvoiceRow[] = [];
   const byBucket = Object.fromEntries(

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { Providers } from '@/components/Providers';
 import { B2cInstallPrompt } from '@/components/b2c/B2cInstallPrompt';
 
 export const metadata: Metadata = {
@@ -46,9 +47,9 @@ export default function MeAppLayout({
   children: React.ReactNode;
 }) {
   return (
-    <>
+    <Providers>
       {children}
       <B2cInstallPrompt />
-    </>
+    </Providers>
   );
 }

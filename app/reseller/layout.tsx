@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Providers } from '@/components/Providers';
 import AuthGate from '@/components/AuthGate';
 import {
   Package,
@@ -34,6 +35,7 @@ export default function ResellerLayout({
   const hideNav = path.startsWith('/reseller/invite');
 
   return (
+    <Providers>
     <AuthGate>
       <div className="min-h-screen bg-[#f8fafc]">
         {!hideNav && (
@@ -114,5 +116,6 @@ export default function ResellerLayout({
         )}
       </div>
     </AuthGate>
+    </Providers>
   );
 }

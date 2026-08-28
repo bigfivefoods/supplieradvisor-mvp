@@ -48,10 +48,13 @@ export async function GET(request: NextRequest) {
       const direction = report === 'ar_aging' ? 'receivable' : 'payable';
       const { data: invoices, error } = await supabase
         .from('invoices')
-        .select('*')
+        .select(
+          'id, invoice_number, counterparty_name, due_date, issue_date, total_amount, amount_paid, status, currency'
+        )
         .eq('profile_id', companyId)
         .eq('direction', direction)
-        .not('status', 'in', '("paid","void","cancelled")');
+        .not('status', 'in', '("paid","void","cancelled")')
+        .limit(2000);
 
       if (error) {
         return NextResponse.json({ success: true, report, rows: [], warning: error.message });
@@ -153,52 +156,14 @@ export async function GET(request: NextRequest) {
     }
 
     if (report === 'management_accounts') {
-      // Accrue issued CRM invoices that are not yet on the GL
-      let crmBooksNote: string | undefined;
-      try {
-        const { recognizeIssuedCrmInvoices } = await import(
-          '@/lib/accounting/crm-invoice-gl'
-        );
-        const sync = await recognizeIssuedCrmInvoices({
-          profileId: companyId,
-          from: from || null,
-          to: to || null,
-        });
-        if (sync.errors.length) {
-          crmBooksNote = `Invoice books: ${sync.errors[0]}`;
-        }
-      } catch (e) {
-        crmBooksNote = e instanceof Error ? e.message : 'Invoice books sync failed';
-      }
-
-      let invoiceRepair: {
-        count: number;
-        results: string[];
-        errors: string[];
-      } | undefined;
-      try {
-        const { applyInvoiceDedupe } = await import(
-          '@/lib/accounting/dedupe-invoice-books'
-        );
-        const repair = await applyInvoiceDedupe({
-          profileId: companyId,
-          createdBy: _gate.userId,
-          apply: true,
-        });
-        if (repair.actions.length || repair.results.length || repair.errors.length) {
-          invoiceRepair = {
-            count: repair.actions.length,
-            results: repair.results,
-            errors: repair.errors,
-          };
-          if (repair.results.length && !crmBooksNote) {
-            crmBooksNote = repair.results[0];
+      const crmBooksNote: string | undefined = undefined;
+      const invoiceRepair:
+        | {
+            count: number;
+            results: string[];
+            errors: string[];
           }
-        }
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Invoice dedupe failed';
-        invoiceRepair = { count: 0, results: [], errors: [msg] };
-      }
+        | undefined = undefined;
 
       // P&L from posted journals + bank allocation pulse
       // Prefer active accounts; fall back if is_active column filter is empty/mis-set
@@ -207,14 +172,14 @@ export async function GET(request: NextRequest) {
       {
         const active = await supabase
           .from('chart_of_accounts')
-          .select('*')
+          .select('id, code, name, account_type, subtype, is_header, is_active, parent_id, normal_balance')
           .eq('profile_id', companyId)
           .eq('is_active', true)
           .order('code');
         if (active.error) {
           const all = await supabase
             .from('chart_of_accounts')
-            .select('*')
+            .select('id, code, name, account_type, subtype, is_header, is_active, parent_id, normal_balance')
             .eq('profile_id', companyId)
             .order('code');
           if (all.error) {
@@ -236,7 +201,7 @@ export async function GET(request: NextRequest) {
           if (accounts.length === 0) {
             const all = await supabase
               .from('chart_of_accounts')
-              .select('*')
+              .select('id, code, name, account_type, subtype, is_header, is_active, parent_id, normal_balance')
               .eq('profile_id', companyId)
               .order('code');
             accounts = (all.data || []) as Array<Record<string, unknown>>;
@@ -647,7 +612,7 @@ export async function GET(request: NextRequest) {
 
       const { data: accounts, error: accErr } = await supabase
         .from('chart_of_accounts')
-        .select('*')
+        .select('id, code, name, account_type, subtype, is_header, is_active, parent_id, normal_balance')
         .eq('profile_id', companyId)
         .order('code');
       if (accErr) {
@@ -1089,7 +1054,7 @@ export async function GET(request: NextRequest) {
     // GL-based reports: trial balance, P&L, balance sheet
     const { data: accounts, error: accErr } = await supabase
       .from('chart_of_accounts')
-      .select('*')
+      .select('id, code, name, account_type, subtype, is_header, is_active, parent_id, normal_balance')
       .eq('profile_id', companyId)
       .eq('is_active', true)
       .order('code');

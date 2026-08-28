@@ -370,10 +370,14 @@ export async function POST(request: NextRequest) {
           .single();
         if (created?.id) {
           customerId = Number(created.id);
-          const { ensurePartyGlAccountsSafe } = await import(
+          const { ensureCustomerArLeaf } = await import(
             '@/lib/accounting/party-gl-accounts'
           );
-          await ensurePartyGlAccountsSafe(companyId);
+          await ensureCustomerArLeaf({
+            profileId: companyId,
+            customerId,
+            name: name || 'Customer',
+          });
         }
       }
 

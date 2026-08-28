@@ -216,10 +216,14 @@ export async function POST(
           .single();
         if (created?.id) {
           customerId = Number(created.id);
-          const { ensurePartyGlAccountsSafe } = await import(
+          const { ensureCustomerArLeaf } = await import(
             '@/lib/accounting/party-gl-accounts'
           );
-          await ensurePartyGlAccountsSafe(seller.id);
+          await ensureCustomerArLeaf({
+            profileId: seller.id,
+            customerId: Number(created.id),
+            name: tradingName || 'Customer',
+          });
         }
       }
     }

@@ -7,8 +7,17 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useEffect } from 'react';
 import { LayoutDashboard, LogOut, Loader2, GraduationCap } from 'lucide-react';
 import { extractEmailFromPrivyUser } from '@/lib/auth/identity';
+import { Providers } from '@/components/Providers';
 
 export default function ContractorLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Providers>
+      <ContractorLayoutInner>{children}</ContractorLayoutInner>
+    </Providers>
+  );
+}
+
+function ContractorLayoutInner({ children }: { children: React.ReactNode }) {
   const { ready, authenticated, logout, user } = usePrivy();
   const pathname = usePathname();
   const router = useRouter();

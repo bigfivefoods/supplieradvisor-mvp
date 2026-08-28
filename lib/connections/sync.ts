@@ -210,10 +210,16 @@ export async function ensureSrmBookEntry(opts: {
     console.warn('ensureSrmBookEntry insert:', error.message);
     return null;
   }
-  const { ensurePartyGlAccountsSafe } = await import(
-    '@/lib/accounting/party-gl-accounts'
-  );
-  await ensurePartyGlAccountsSafe(opts.buyerProfileId);
+  if (created?.id) {
+    const { ensureSupplierApLeaf } = await import(
+      '@/lib/accounting/party-gl-accounts'
+    );
+    await ensureSupplierApLeaf({
+      profileId: opts.buyerProfileId,
+      supplierId: Number(created.id),
+      name: String(opts.peer?.trading_name || opts.peer?.legal_name || 'Supplier'),
+    });
+  }
   return created?.id ? Number(created.id) : null;
 }
 
@@ -315,10 +321,16 @@ export async function ensureCrmBookEntry(opts: {
     console.warn('ensureCrmBookEntry insert:', error.message);
     return null;
   }
-  const { ensurePartyGlAccountsSafe } = await import(
-    '@/lib/accounting/party-gl-accounts'
-  );
-  await ensurePartyGlAccountsSafe(opts.sellerProfileId);
+  if (created?.id) {
+    const { ensureCustomerArLeaf } = await import(
+      '@/lib/accounting/party-gl-accounts'
+    );
+    await ensureCustomerArLeaf({
+      profileId: opts.sellerProfileId,
+      customerId: Number(created.id),
+      name: String(opts.peer?.trading_name || opts.peer?.legal_name || 'Customer'),
+    });
+  }
   return created?.id ? Number(created.id) : null;
 }
 

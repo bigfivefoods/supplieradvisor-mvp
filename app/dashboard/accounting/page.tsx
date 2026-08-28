@@ -68,10 +68,7 @@ function HubInner() {
     try {
       const params = new URLSearchParams({ companyId: String(companyId) });
       if (privyUserId) params.set('privyUserId', privyUserId);
-      const [res, taxRes] = await Promise.all([
-        fetch(`/api/accounting/summary?${params}`),
-        fetch(`/api/accounting/tax?${params}&includeUnclassified=0`).catch(() => null),
-      ]);
+      const res = await fetch(`/api/accounting/summary?${params}`);
       const data = await res.json();
       setSummary(data.summary || null);
       setWarning(
@@ -80,24 +77,9 @@ function HubInner() {
           : data.warning || null
       );
       setHint(data.hint || null);
-
-      if (taxRes?.ok) {
-        const t = await taxRes.json();
-        const box = t.returnBox || t.summary || null;
-        if (box) {
-          setVatNet(
-            box.netVat != null
-              ? Number(box.netVat)
-              : Number(box.outputVat || 0) - Number(box.inputVat || 0)
-          );
-          setVatOutput(box.outputVat != null ? Number(box.outputVat) : null);
-          setVatInput(box.inputVat != null ? Number(box.inputVat) : null);
-        } else {
-          setVatNet(null);
-          setVatOutput(null);
-          setVatInput(null);
-        }
-      }
+      setVatNet(null);
+      setVatOutput(null);
+      setVatInput(null);
     } catch {
       setSummary(null);
     } finally {

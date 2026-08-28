@@ -205,20 +205,7 @@ export async function loadCustomer360Bundle(
   events: ReturnType<typeof readAdvisorEvents>;
 }> {
   const { name: _n, meta, stores } = await loadAdvisorStoresFor360(companyId);
-  let { customers, invoices } = await loadCustomersAndInvoices(companyId);
-  try {
-    const { stampAdvisorCustomersAsIndividuals } = await import(
-      '@/lib/b2c/member-account-ar'
-    );
-    const flipped = await stampAdvisorCustomersAsIndividuals(companyId);
-    if (flipped) {
-      const retyped = await loadCustomersAndInvoices(companyId);
-      customers = retyped.customers;
-      invoices = retyped.invoices;
-    }
-  } catch (err) {
-    console.warn('[customer-360] individual types', err);
-  }
+  const { customers, invoices } = await loadCustomersAndInvoices(companyId);
   const people = collectAdvisorCustomerPeople({
     gymClients: stores.gym.clients || [],
     clinics: [
@@ -242,17 +229,6 @@ export async function loadCustomer360Bundle(
       email: c.email ? String(c.email) : null,
       notes: c.notes ? String(c.notes) : null,
     }));
-  try {
-    const { ensurePartyGlAccounts } = await import(
-      '@/lib/accounting/party-gl-accounts'
-    );
-    await ensurePartyGlAccounts(companyId);
-    const reloaded = await loadCustomersAndInvoices(companyId);
-    customers = reloaded.customers;
-    invoices = reloaded.invoices;
-  } catch (err) {
-    console.warn('[customer-360] CRM / CoA backfill', err);
-  }
   const clinics = [
     {
       module: 'physiograph',

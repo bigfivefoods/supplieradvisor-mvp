@@ -190,6 +190,17 @@ export async function registerPaystackApplePayDomains(): Promise<
 }
 
 export async function applePaySetupSnapshot() {
+  const { ttlGet, ttlSet } = await import('@/lib/system/memory-ttl');
+  const cached = ttlGet<Awaited<ReturnType<typeof snapshotUncached>>>(
+    'apple-pay-setup'
+  );
+  if (cached) return cached;
+  const snap = await snapshotUncached();
+  ttlSet('apple-pay-setup', snap, 10 * 60 * 1000);
+  return snap;
+}
+
+async function snapshotUncached() {
   const cert = parseBrokerCertExpiry();
   const hosted = await Promise.all(
     APPLE_PAY_DOMAINS.map((d) => probeApplePayHosted(d))

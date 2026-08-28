@@ -240,7 +240,7 @@ async function stampSupplierTag(
 async function finishAdvisorSupplier(
   companyId: number,
   supplier: { id: number; name: string },
-  skipFullCoa?: boolean
+  _skipFullCoa?: boolean
 ): Promise<{
   id: number;
   name: string;
@@ -258,12 +258,6 @@ async function finishAdvisorSupplier(
       contractor: true,
     });
     ap_account_code = leaf?.code || supplierApAccountCode(supplier.id) || null;
-    if (!skipFullCoa) {
-      const { ensurePartyGlAccountsSafe } = await import(
-        '@/lib/accounting/party-gl-accounts'
-      );
-      await ensurePartyGlAccountsSafe(companyId);
-    }
   } catch (err) {
     console.warn('[advisor-ap] AP leaf', err);
   }
