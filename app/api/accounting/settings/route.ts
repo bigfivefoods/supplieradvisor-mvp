@@ -3,9 +3,19 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertAccountingAccess } from '@/lib/accounting/access';
 import { getOrCreateSettings, parseCompanyId } from '@/lib/accounting/server';
 import {
+  getCachedCoa,
   getCachedSettings,
   invalidateAccountingReads,
 } from '@/lib/accounting/read-cache';
+import {
+  eligibleApParent,
+  eligibleArParent,
+  mergePartyLedgerMetadata,
+  parsePartyLedgerStored,
+  partyLedgerValidationError,
+  resolvePartyLedgerParents,
+  storedFromPatch,
+} from '@/lib/accounting/party-ledger-settings';
 import {
   requireCompanyAccess,
   requireCompanyRoles,
@@ -27,6 +37,12 @@ export async function GET(request: NextRequest) {
     if (!_gate.ok) return _gate.response;
 
     const settings = await getCachedSettings(companyId);
+    const coa = await getCachedCoa(companyId);
+    const stored = parsePartyLedgerStored(settings?.metadata);
+    const party_ledger = {
+      ...stored,
+      parents: resolvePartyLedgerParents(stored, coa),
+    };
 
     const supabase = getSupabaseServer();
     const { data: periods } = await supabase
@@ -39,6 +55,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       settings,
+      party_ledger,
+      ar_parents: coa.filter((a) => eligibleArParent(a)),
+      ap_parents: coa.filter((a) => eligibleApParent(a)),
       periods: periods || [],
     });
   } catch (e: unknown) {
@@ -76,7 +95,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    await getOrCreateSettings(companyId);
+    const current = await getOrCreateSettings(companyId);
 
     const allowed = [
       'base_currency',
@@ -94,6 +113,22 @@ export async function PATCH(request: NextRequest) {
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
     for (const k of allowed) {
       if (body[k] !== undefined) patch[k] = body[k];
+    }
+
+    if (body.party_ledger !== undefined) {
+      const coa = await getCachedCoa(companyId);
+      const raw =
+        body.party_ledger && typeof body.party_ledger === 'object'
+          ? (body.party_ledger as Record<string, unknown>)
+          : {};
+      const stored = storedFromPatch(raw, coa);
+      const invalid = partyLedgerValidationError(stored, coa);
+      if (invalid) {
+        return NextResponse.json({ error: invalid }, { status: 400 });
+      }
+      const prevMeta =
+        patch.metadata !== undefined ? patch.metadata : current.metadata;
+      patch.metadata = mergePartyLedgerMetadata(prevMeta, stored);
     }
 
     const supabase = getSupabaseServer();

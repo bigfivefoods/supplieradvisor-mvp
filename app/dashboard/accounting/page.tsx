@@ -288,7 +288,7 @@ function HubInner() {
       icon: Settings,
       code: '19',
       title: 'Settings',
-      desc: 'FY start, periods, lock date, document prefixes.',
+      desc: 'FY start, periods, lock date, prefixes, customer AR and supplier AP parents.',
       accent: 'from-cyan-50 to-white border-cyan-100',
     },
   ];

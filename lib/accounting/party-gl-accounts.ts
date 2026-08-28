@@ -15,6 +15,12 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { invalidateAccountingReads } from '@/lib/accounting/read-cache';
 import { ttlGet, ttlSet } from '@/lib/system/memory-ttl';
 import type { CoaAccount } from '@/lib/accounting/types';
+import {
+  DEFAULT_PARTY_LEDGER,
+  parsePartyLedgerStored,
+  resolvePartyLedgerParents,
+  type PartyLedgerParents,
+} from '@/lib/accounting/party-ledger-settings';
 
 export const PARTY_AR_CODE_START = 1181;
 export const PARTY_AP_CODE_START = 2181;
@@ -53,9 +59,12 @@ function parsePaddedPartyId(code: string, headers: string[]): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-/** Stable AR sub-account under 1180, e.g. customer 1 → 1180-0000001. */
-export function memberArAccountCode(customerId: number): string {
-  return paddedPartyCode(MEMBER_AR_HEADER_CODE, customerId);
+/** Stable AR sub-account, e.g. customer 1 under 1180 → 1180-0000001. */
+export function memberArAccountCode(
+  customerId: number,
+  headerCode: string = MEMBER_AR_HEADER_CODE
+): string {
+  return paddedPartyCode(headerCode || MEMBER_AR_HEADER_CODE, customerId);
 }
 
 export function legacyMemberArAccountCode(customerId: number): string {
@@ -73,17 +82,37 @@ export function isMemberArAccountCode(code?: string | null): boolean {
   return parseMemberArCustomerId(String(code || '')) != null;
 }
 
-/** Stable AP sub-account under 2180, e.g. supplier 8 → 2180-0000008. */
-export function supplierApAccountCode(supplierId: number): string {
-  return paddedPartyCode(SUPPLIER_AP_HEADER_CODE, supplierId);
+/** Stable AP sub-account, e.g. supplier 8 under 2180 → 2180-0000008. */
+export function supplierApAccountCode(
+  supplierId: number,
+  headerCode: string = SUPPLIER_AP_HEADER_CODE
+): string {
+  return paddedPartyCode(headerCode || SUPPLIER_AP_HEADER_CODE, supplierId);
+}
+
+export function parseHyphenSubAccount(
+  code: string
+): { header: string; id: number } | null {
+  const m = /^(\d+)-(\d+)$/.exec(String(code || '').trim());
+  if (!m) return null;
+  const id = Number(m[2]);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  return { header: m[1], id };
+}
+
+export function isHyphenSubAccountCode(code?: string | null): boolean {
+  return parseHyphenSubAccount(String(code || '')) != null;
 }
 
 export function parseSupplierApSupplierId(code: string): number | null {
-  return parsePaddedPartyId(code, [SUPPLIER_AP_HEADER_CODE]);
+  const hyphen = parseHyphenSubAccount(code);
+  if (!hyphen) return null;
+  return hyphen.id;
 }
 
 export function isSupplierApAccountCode(code?: string | null): boolean {
-  return parseSupplierApSupplierId(String(code || '')) != null;
+  const hyphen = parseHyphenSubAccount(String(code || ''));
+  return Boolean(hyphen && hyphen.header === SUPPLIER_AP_HEADER_CODE);
 }
 
 const SKIP_STATUS = new Set([
@@ -246,7 +275,11 @@ export function isCustomerAllocAccount(a: PartyCoaRow): boolean {
   if (a.is_header || a.is_active === false) return false;
   const code = String(a.code || '');
   if (CONTROL_AR.has(code)) return code === '1130';
-  if (isMemberArAccountCode(code)) return true;
+  if (isMemberArAccountCode(code) || isHyphenSubAccountCode(code)) {
+    if (String(a.subtype || '').toLowerCase() === 'payable') return false;
+    if (String(a.account_type || '').toLowerCase() === 'liability') return false;
+    return true;
+  }
   if (String(a.subtype || '').toLowerCase() === 'receivable') return true;
   return /^AR\s+[—-]\s+/i.test(String(a.name || ''));
 }
@@ -255,7 +288,13 @@ export function isSupplierAllocAccount(a: PartyCoaRow): boolean {
   if (a.is_header || a.is_active === false) return false;
   const code = String(a.code || '');
   if (CONTROL_AP.has(code)) return code === '2110';
-  if (isSupplierApAccountCode(code)) return true;
+  if (isSupplierApAccountCode(code) || isHyphenSubAccountCode(code)) {
+    if (String(a.subtype || '').toLowerCase() === 'receivable') return false;
+    if (String(a.account_type || '').toLowerCase() === 'asset') return false;
+    return String(a.subtype || '').toLowerCase() === 'payable' ||
+      String(a.account_type || '').toLowerCase() === 'liability' ||
+      isSupplierApAccountCode(code);
+  }
   if (String(a.subtype || '').toLowerCase() === 'payable') return true;
   return /^AP\s+[—-]\s+/i.test(String(a.name || ''));
 }
@@ -273,43 +312,6 @@ export function nextFreeCode(used: Set<string>, start: number): string {
   let n = start;
   while (used.has(String(n))) n += 1;
   return String(n);
-}
-
-function pickDisplayName(names: string[]): string {
-  const cleaned = names.map((n) => n.replace(/\s+/g, ' ').trim()).filter(Boolean);
-  cleaned.sort((a, b) => b.length - a.length || a.localeCompare(b));
-  return cleaned[0] || '';
-}
-
-function collectParties(
-  rows: PartyBookRow[],
-  keep: (row: PartyBookRow) => boolean
-): Map<string, { key: string; name: string; ids: number[] }> {
-  const map = new Map<string, { key: string; name: string; ids: number[]; names: string[] }>();
-  for (const row of rows) {
-    if (!keep(row)) continue;
-    const display = partyDisplayName(row);
-    if (!display) continue;
-    const key = normalizePartyKey(display);
-    if (!key) continue;
-    const cur = map.get(key);
-    if (cur) {
-      cur.ids.push(Number(row.id));
-      cur.names.push(display);
-    } else {
-      map.set(key, {
-        key,
-        name: display,
-        ids: [Number(row.id)],
-        names: [display],
-      });
-    }
-  }
-  const out = new Map<string, { key: string; name: string; ids: number[] }>();
-  for (const [key, cur] of map) {
-    out.set(key, { key, name: pickDisplayName(cur.names), ids: cur.ids });
-  }
-  return out;
 }
 
 function findExistingPartyAccount(
@@ -383,72 +385,98 @@ function linkedGlCode(row: PartyBookRow): string {
   return String(asRecord(row.metadata).gl_account_code || '').trim();
 }
 
-function collectAdvisorAccounts(
-  rows: PartyBookRow[],
-  coa: PartyCoaRow[]
-): Array<{ id: number; name: string; code: string }> {
-  const out: Array<{ id: number; name: string; code: string }> = [];
-  for (const row of rows) {
-    if (!isAdvisorParty(row)) continue;
-    const name = partyDisplayName(row);
-    const want = memberArAccountCode(Number(row.id));
-    const legacy = legacyMemberArAccountCode(Number(row.id));
-    if (!name || !want) continue;
-    const existing =
-      coa.find((a) => !a.is_header && a.is_active !== false && String(a.code) === want) ||
-      coa.find((a) => !a.is_header && a.is_active !== false && String(a.code) === legacy) ||
-      null;
-    out.push({
-      id: Number(row.id),
-      name,
-      code: existing?.code || want,
-    });
-  }
-  out.sort((a, b) => a.code.localeCompare(b.code) || a.name.localeCompare(b.name));
-  return out;
+function isContractorSupplier(row: PartyBookRow): boolean {
+  const notes = String(row.notes || '');
+  if (notes.includes('advisor_ap:')) return true;
+  const meta = asRecord(row.metadata);
+  return meta.advisor_ap === true || String(meta.party_kind || '') === 'contractor';
 }
 
-function collectUniqueSuppliers(
+type UniqueParty = {
+  id: number;
+  name: string;
+  code: string;
+  accountId: number | null;
+  parentCode: string;
+  kind: 'ar' | 'ap';
+};
+
+function pickExistingLeaf(
+  coa: PartyCoaRow[],
+  codes: string[]
+): PartyCoaRow | null {
+  for (const code of codes) {
+    if (!code) continue;
+    const hit = coa.find(
+      (a) => !a.is_header && a.is_active !== false && String(a.code) === code
+    );
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function collectUniqueCustomers(
   rows: PartyBookRow[],
-  coa: PartyCoaRow[]
-): Array<{ id: number; name: string; code: string; accountId: number | null }> {
-  const out: Array<{
-    id: number;
-    name: string;
-    code: string;
-    accountId: number | null;
-  }> = [];
+  coa: PartyCoaRow[],
+  arCode: string,
+  memberCode: string
+): UniqueParty[] {
+  const out: UniqueParty[] = [];
   for (const row of rows) {
     if (!row?.id || isSkippedPartyStatus(row.status)) continue;
+    const advisor = isAdvisorParty(row);
+    const trade = isTradeParty(row);
+    if (!advisor && !trade) continue;
     const name = partyDisplayName(row);
-    const want = supplierApAccountCode(Number(row.id));
+    const parentCode = advisor ? memberCode : arCode;
+    const want = memberArAccountCode(Number(row.id), parentCode);
+    const legacy = legacyMemberArAccountCode(Number(row.id));
+    const classic = memberArAccountCode(Number(row.id), MEMBER_AR_HEADER_CODE);
     if (!name || !want) continue;
     const linked = linkedGlCode(row);
     const linkedId = Number(asRecord(row.metadata).gl_account_id || 0);
-    const existingWant =
-      coa.find((a) => !a.is_header && a.is_active !== false && String(a.code) === want) ||
-      null;
     const existingLinked =
       linked &&
       coa.find(
-        (a) =>
-          !a.is_header &&
-          a.is_active !== false &&
-          String(a.code) === linked
+        (a) => !a.is_header && a.is_active !== false && String(a.code) === linked
       );
+    const existingWant = pickExistingLeaf(coa, [want, classic, legacy]);
+    const named =
+      !advisor
+        ? findExistingPartyAccount(
+            coa,
+            'ar',
+            normalizePartyKey(name),
+            name
+          )
+        : null;
     if (existingLinked) {
       out.push({
         id: Number(row.id),
         name,
         code: String(existingLinked.code),
-        accountId: existingLinked.id > 0 ? Number(existingLinked.id) : linkedId || null,
+        accountId:
+          existingLinked.id > 0 ? Number(existingLinked.id) : linkedId || null,
+        parentCode,
+        kind: 'ar',
       });
     } else if (existingWant) {
       out.push({
         id: Number(row.id),
         name,
-        code: want,
+        code: String(existingWant.code),
         accountId: existingWant.id > 0 ? Number(existingWant.id) : null,
+        parentCode,
+        kind: 'ar',
+      });
+    } else if (named) {
+      out.push({
+        id: Number(row.id),
+        name,
+        code: String(named.code),
+        accountId: named.id > 0 ? Number(named.id) : null,
+        parentCode,
+        kind: 'ar',
       });
     } else {
       out.push({
@@ -456,6 +484,8 @@ function collectUniqueSuppliers(
         name,
         code: want,
         accountId: null,
+        parentCode,
+        kind: 'ar',
       });
     }
   }
@@ -463,79 +493,84 @@ function collectUniqueSuppliers(
   return out;
 }
 
+function collectUniqueSuppliers(
+  rows: PartyBookRow[],
+  coa: PartyCoaRow[],
+  apCode: string,
+  contractorCode: string
+): UniqueParty[] {
+  const out: UniqueParty[] = [];
+  for (const row of rows) {
+    if (!row?.id || isSkippedPartyStatus(row.status)) continue;
+    const name = partyDisplayName(row);
+    const parentCode = isContractorSupplier(row) ? contractorCode : apCode;
+    const want = supplierApAccountCode(Number(row.id), parentCode);
+    const classic = supplierApAccountCode(Number(row.id), SUPPLIER_AP_HEADER_CODE);
+    if (!name || !want) continue;
+    const linked = linkedGlCode(row);
+    const linkedId = Number(asRecord(row.metadata).gl_account_id || 0);
+    const existingLinked =
+      linked &&
+      coa.find(
+        (a) => !a.is_header && a.is_active !== false && String(a.code) === linked
+      );
+    const existingWant = pickExistingLeaf(coa, [want, classic]);
+    if (existingLinked) {
+      out.push({
+        id: Number(row.id),
+        name,
+        code: String(existingLinked.code),
+        accountId:
+          existingLinked.id > 0 ? Number(existingLinked.id) : linkedId || null,
+        parentCode,
+        kind: 'ap',
+      });
+    } else if (existingWant) {
+      out.push({
+        id: Number(row.id),
+        name,
+        code: String(existingWant.code),
+        accountId: existingWant.id > 0 ? Number(existingWant.id) : null,
+        parentCode,
+        kind: 'ap',
+      });
+    } else {
+      out.push({
+        id: Number(row.id),
+        name,
+        code: want,
+        accountId: null,
+        parentCode,
+        kind: 'ap',
+      });
+    }
+  }
+  out.sort((a, b) => a.code.localeCompare(b.code) || a.name.localeCompare(b.name));
+  return out;
+}
+
+export type PartyGlMapping = {
+  arCode?: string;
+  memberCode?: string;
+  apCode?: string;
+  contractorCode?: string;
+};
+
 export function planPartyGlAccounts(opts: {
   customers: PartyBookRow[];
   suppliers: PartyBookRow[];
   coa: PartyCoaRow[];
+  mapping?: PartyGlMapping | null;
 }): { create: PartyGlCreate[]; links: PartyGlLink[] } {
   const usedCodes = new Set(
     (opts.coa || []).map((a) => String(a.code || '').trim()).filter(Boolean)
   );
   const create: PartyGlCreate[] = [];
   const links: PartyGlLink[] = [];
-
-  const addKind = (
-    table: 'customers' | 'srm_suppliers',
-    kind: 'ar' | 'ap',
-    parties: Map<string, { key: string; name: string; ids: number[] }>,
-    start: number,
-    sortBase: number
-  ) => {
-    const prefix = kind === 'ar' ? PARTY_AR_PREFIX : PARTY_AP_PREFIX;
-    let i = 0;
-    const sorted = [...parties.values()].sort((a, b) => a.name.localeCompare(b.name));
-    for (const party of sorted) {
-      const existing = findExistingPartyAccount(
-        asCoaView(opts.coa || [], create),
-        kind,
-        party.key,
-        party.name
-      );
-      let code = existing?.code || '';
-      let accountId = existing && existing.id > 0 ? Number(existing.id) : null;
-      if (!existing) {
-        code = nextFreeCode(usedCodes, start);
-        usedCodes.add(code);
-        create.push({
-          code,
-          name: `${prefix}${party.name}`,
-          account_type: kind === 'ar' ? 'asset' : 'liability',
-          subtype: kind === 'ar' ? 'receivable' : 'payable',
-          normal_balance: kind === 'ar' ? 'debit' : 'credit',
-          description:
-            kind === 'ar'
-              ? `Customer receivable — allocate bank receipts here (not 4100 Sales) if this is already invoiced.`
-              : `Supplier payable — allocate bank payments here when settling a bill.`,
-          metadata: {
-            party_kind: kind === 'ar' ? 'customer' : 'supplier',
-            party_key: party.key,
-            party_ids: party.ids,
-          },
-          sort_order: sortBase + i,
-        });
-        i += 1;
-      }
-      for (const id of party.ids) {
-        links.push({
-          table,
-          id,
-          kind,
-          key: party.key,
-          name: `${prefix}${party.name}`,
-          code,
-          accountId,
-        });
-      }
-    }
-  };
-
-  addKind(
-    'customers',
-    'ar',
-    collectParties(opts.customers || [], isTradeParty),
-    PARTY_AR_CODE_START,
-    900
-  );
+  const arCode = opts.mapping?.arCode || MEMBER_AR_HEADER_CODE;
+  const memberCode = opts.mapping?.memberCode || arCode;
+  const apCode = opts.mapping?.apCode || SUPPLIER_AP_HEADER_CODE;
+  const contractorCode = opts.mapping?.contractorCode || apCode;
 
   const ensureHeader = (optsH: {
     code: string;
@@ -570,21 +605,15 @@ export function planPartyGlAccounts(opts: {
     return optsH.code;
   };
 
-  const suppliers = collectUniqueSuppliers(opts.suppliers || [], opts.coa || []);
-  if (suppliers.length) {
-    const headerCode = ensureHeader({
-      code: SUPPLIER_AP_HEADER_CODE,
-      name: SUPPLIER_AP_HEADER_NAME,
-      account_type: 'liability',
-      normal_balance: 'credit',
-      parentCode: '2100',
-      sort: 850,
-      kind: 'supplier_ap_header',
-      description:
-        'AP sub-ledger for suppliers and independent contractors. Each party is 2180-0000001 … Employed staff stay on payroll (IAS 19).',
-    });
+  const pushLeaves = (
+    parties: UniqueParty[],
+    table: 'customers' | 'srm_suppliers',
+    account_type: 'asset' | 'liability',
+    subtype: 'receivable' | 'payable',
+    sortBase: number
+  ) => {
     let i = 0;
-    for (const party of suppliers) {
+    for (const party of parties) {
       const existing =
         asCoaView(opts.coa || [], create).find(
           (a) =>
@@ -603,88 +632,85 @@ export function planPartyGlAccounts(opts: {
         create.push({
           code,
           name: party.name,
-          account_type: 'liability',
-          subtype: 'payable',
-          normal_balance: 'credit',
-          description: `AP account ${code} — ${party.name}. Bank payments for this party post here when a bill is already recognised.`,
+          account_type,
+          subtype,
+          normal_balance: account_type === 'asset' ? 'debit' : 'credit',
+          description:
+            account_type === 'asset'
+              ? `AR account ${code} — ${party.name}. Bank receipts for this person post here when invoiced.`
+              : `AP account ${code} — ${party.name}. Bank payments for this party post here when a bill is already recognised.`,
           metadata: {
-            party_kind: 'supplier_ap',
+            party_kind: account_type === 'asset' ? 'member_ar' : 'supplier_ap',
             party_key: party.code,
             party_ids: [party.id],
-            ap_account_number: code,
+            ar_account_number: account_type === 'asset' ? code : undefined,
+            ap_account_number: account_type === 'liability' ? code : undefined,
           },
-          sort_order: 851 + i,
-          parent_code: headerCode,
+          sort_order: sortBase + i,
+          parent_code: party.parentCode,
         });
         i += 1;
       }
       links.push({
-        table: 'srm_suppliers',
+        table,
         id: party.id,
-        kind: 'ap',
+        kind: party.kind,
         key: party.code,
         name: party.name,
         code,
         accountId,
       });
     }
+  };
+
+  const suppliers = collectUniqueSuppliers(
+    opts.suppliers || [],
+    opts.coa || [],
+    apCode,
+    contractorCode
+  );
+  if (suppliers.length) {
+    const headers = [...new Set(suppliers.map((s) => s.parentCode))];
+    for (const headerCode of headers) {
+      const isDefault = headerCode === SUPPLIER_AP_HEADER_CODE;
+      ensureHeader({
+        code: headerCode,
+        name: isDefault ? SUPPLIER_AP_HEADER_NAME : `Supplier payables (${headerCode})`,
+        account_type: 'liability',
+        normal_balance: 'credit',
+        parentCode: '2100',
+        sort: 850,
+        kind: 'supplier_ap_header',
+        description:
+          'AP sub-ledger for suppliers and independent contractors. Each party is {parent}-0000001 … Employed staff stay on payroll (IAS 19).',
+      });
+    }
+    pushLeaves(suppliers, 'srm_suppliers', 'liability', 'payable', 851);
   }
 
-  const advisors = collectAdvisorAccounts(opts.customers || [], opts.coa || []);
-  if (advisors.length) {
-    const headerCode = ensureHeader({
-      code: MEMBER_AR_HEADER_CODE,
-      name: MEMBER_AR_HEADER_NAME,
-      account_type: 'asset',
-      normal_balance: 'debit',
-      parentCode: '1100',
-      sort: 840,
-      kind: 'member_ar_header',
-      description:
-        'AR sub-accounts for gym members, clinic patients and retail shoppers. Each person is 1180-0000001 … Income still posts to 4100/4200/4400 (IFRS 15).',
-    });
-    let i = 0;
-    for (const party of advisors) {
-      const existing =
-        asCoaView(opts.coa || [], create).find(
-          (a) =>
-            !a.is_header &&
-            a.is_active !== false &&
-            String(a.code) === party.code
-        ) || null;
-      let code = existing?.code || party.code;
-      let accountId = existing && existing.id > 0 ? Number(existing.id) : null;
-      if (!existing) {
-        if (usedCodes.has(code)) continue;
-        usedCodes.add(code);
-        create.push({
-          code,
-          name: party.name,
-          account_type: 'asset',
-          subtype: 'receivable',
-          normal_balance: 'debit',
-          description: `AR account ${code} — ${party.name}. Bank receipts for this person post here (not 4100 Sales) when already invoiced.`,
-          metadata: {
-            party_kind: 'member_ar',
-            party_key: party.code,
-            party_ids: [party.id],
-            ar_account_number: code,
-          },
-          sort_order: 841 + i,
-          parent_code: headerCode,
-        });
-        i += 1;
-      }
-      links.push({
-        table: 'customers',
-        id: party.id,
-        kind: 'ar',
-        key: party.code,
-        name: party.name,
-        code,
-        accountId,
+  const customers = collectUniqueCustomers(
+    opts.customers || [],
+    opts.coa || [],
+    arCode,
+    memberCode
+  );
+  if (customers.length) {
+    const headers = [...new Set(customers.map((s) => s.parentCode))];
+    for (const headerCode of headers) {
+      const isDefault = headerCode === MEMBER_AR_HEADER_CODE;
+      ensureHeader({
+        code: headerCode,
+        name: isDefault ? MEMBER_AR_HEADER_NAME : `Customer receivables (${headerCode})`,
+        account_type: 'asset',
+        normal_balance: 'debit',
+        parentCode: '1100',
+        sort: 840,
+        kind: 'member_ar_header',
+        description:
+          'AR sub-accounts for customers, members, clients and patients. Each party is {parent}-0000001 … Income still posts to 4100/4200/4400 (IFRS 15).',
       });
     }
+    pushLeaves(customers, 'customers', 'asset', 'receivable', 841);
   }
 
   return { create, links };
@@ -706,9 +732,17 @@ function sortByCode(a: CoaAccount, b: CoaAccount): number {
 
 export function groupCoaForAllocation(accounts: CoaAccount[]): AllocGlGroup {
   const live = (accounts || []).filter((a) => !a.is_header && a.is_active !== false);
-  const members = live.filter((a) => isMemberArAccountCode(String(a.code || ''))).sort(sortByCode);
+  const members = live
+    .filter(
+      (a) =>
+        isHyphenSubAccountCode(String(a.code || '')) && isCustomerAllocAccount(a)
+    )
+    .sort(sortByCode);
   const customers = live
-    .filter((a) => isCustomerAllocAccount(a) && !isMemberArAccountCode(String(a.code || '')))
+    .filter(
+      (a) =>
+        isCustomerAllocAccount(a) && !isHyphenSubAccountCode(String(a.code || ''))
+    )
     .sort(sortByCode);
   const suppliers = live.filter((a) => isSupplierAllocAccount(a)).sort(sortByCode);
   const used = new Set(
@@ -742,12 +776,7 @@ export function suggestPartyGlForDescription(
 
   for (const a of pool) {
     const code = String(a.code || '').toLowerCase();
-    if (
-      (code.startsWith('1180-') ||
-        code.startsWith('4400-') ||
-        code.startsWith('2180-')) &&
-      desc.includes(code)
-    ) {
+    if (isHyphenSubAccountCode(code) && desc.includes(code)) {
       return { id: Number(a.id), label: `${a.code} · ${a.name}` };
     }
   }
@@ -931,14 +960,51 @@ async function stampBookGl(opts: {
     .eq('profile_id', opts.profileId);
 }
 
-/** Create/link one 1180-0000001 leaf for this CRM person. Safe to call on every add. */
-export async function ensureMemberArLeaf(opts: {
+async function loadPartyParents(profileId: number): Promise<PartyLedgerParents> {
+  try {
+    const { getCachedSettings, getCachedCoa } = await import(
+      '@/lib/accounting/read-cache'
+    );
+    const [settings, coa] = await Promise.all([
+      getCachedSettings(profileId),
+      getCachedCoa(profileId),
+    ]);
+    return resolvePartyLedgerParents(
+      parsePartyLedgerStored(settings?.metadata),
+      coa
+    );
+  } catch {
+    return resolvePartyLedgerParents(DEFAULT_PARTY_LEDGER, []);
+  }
+}
+
+/** Trade customer AR leaf under the company's customer (AR) parent. */
+export async function ensureCustomerArLeaf(opts: {
   profileId: number;
   customerId: number;
   name: string;
 }): Promise<{ code: string; accountId: number } | null> {
-  const want = memberArAccountCode(opts.customerId);
+  const parents = await loadPartyParents(opts.profileId);
+  return ensureMemberArLeaf({
+    ...opts,
+    headerCode: parents.ar.code,
+  });
+}
+
+/** Create/link one unique AR leaf for this CRM person. Safe to call on every add. */
+export async function ensureMemberArLeaf(opts: {
+  profileId: number;
+  customerId: number;
+  name: string;
+  headerCode?: string | null;
+}): Promise<{ code: string; accountId: number } | null> {
+  const parents = await loadPartyParents(opts.profileId);
+  const headerCode =
+    String(opts.headerCode || parents.members.code || MEMBER_AR_HEADER_CODE).trim() ||
+    MEMBER_AR_HEADER_CODE;
+  const want = memberArAccountCode(opts.customerId, headerCode);
   const legacy = legacyMemberArAccountCode(opts.customerId);
+  const classic = memberArAccountCode(opts.customerId, MEMBER_AR_HEADER_CODE);
   const name = partyDisplayName({ trading_name: opts.name }) || 'Member';
   if (!want || !Number.isFinite(opts.profileId) || opts.profileId <= 0) return null;
   const supabase = getSupabaseServer();
@@ -946,7 +1012,7 @@ export async function ensureMemberArLeaf(opts: {
     .from('chart_of_accounts')
     .select('id, code, parent_id, account_type')
     .eq('profile_id', opts.profileId)
-    .in('code', [want, legacy]);
+    .in('code', [...new Set([want, classic, legacy].filter(Boolean))]);
   const rows = (existingRows || []) as Array<{
     id: number;
     code: string;
@@ -954,7 +1020,7 @@ export async function ensureMemberArLeaf(opts: {
     account_type?: string | null;
   }>;
   const modern = rows.find((r) => String(r.code) === want);
-  const old = rows.find((r) => String(r.code) === legacy);
+  const old = rows.find((r) => String(r.code) !== want);
   let accountId = modern?.id
     ? Number(modern.id)
     : old?.id
@@ -962,20 +1028,37 @@ export async function ensureMemberArLeaf(opts: {
       : 0;
   let code = modern?.code || (accountId && old ? String(old.code) : want);
 
-  const headerId = await ensureHeaderRow({
-    profileId: opts.profileId,
-    code: MEMBER_AR_HEADER_CODE,
-    name: MEMBER_AR_HEADER_NAME,
-    account_type: 'asset',
-    normal_balance: 'debit',
-    parentCode: '1100',
-    sort: 840,
-    description:
-      'AR sub-ledger for members, clients and patients. Each person is 1180-0000001 … Income posts to 4100/4200/4400 (IFRS 15).',
-    metadata: { party_kind: 'member_ar_header' },
-  });
+  let headerId = parents.members.id;
+  if (!headerId && headerCode === MEMBER_AR_HEADER_CODE) {
+    headerId = await ensureHeaderRow({
+      profileId: opts.profileId,
+      code: MEMBER_AR_HEADER_CODE,
+      name: MEMBER_AR_HEADER_NAME,
+      account_type: 'asset',
+      normal_balance: 'debit',
+      parentCode: '1100',
+      sort: 840,
+      description:
+        'AR sub-ledger for members, clients and patients. Each person is 1180-0000001 … Income posts to 4100/4200/4400 (IFRS 15).',
+      metadata: { party_kind: 'member_ar_header' },
+    });
+  } else if (!headerId) {
+    const { data: parent } = await supabase
+      .from('chart_of_accounts')
+      .select('id')
+      .eq('profile_id', opts.profileId)
+      .eq('code', headerCode)
+      .maybeSingle();
+    if (parent?.id) headerId = Number(parent.id);
+  }
 
-  if (accountId && code !== want && !modern) {
+  if (
+    accountId &&
+    code !== want &&
+    !modern &&
+    parseHyphenSubAccount(String(code))?.header === MEMBER_AR_LEGACY_HEADER_CODE &&
+    headerCode === MEMBER_AR_HEADER_CODE
+  ) {
     const recode = await supabase
       .from('chart_of_accounts')
       .update({
@@ -1062,36 +1145,60 @@ export async function ensureMemberArLeaf(opts: {
   return { code, accountId };
 }
 
-/** Create/link one 2180-0000001 leaf for this supplier / contractor. */
+/** Create/link one unique AP leaf for this supplier / contractor. */
 export async function ensureSupplierApLeaf(opts: {
   profileId: number;
   supplierId: number;
   name: string;
+  headerCode?: string | null;
+  contractor?: boolean;
 }): Promise<{ code: string; accountId: number } | null> {
-  const code = supplierApAccountCode(opts.supplierId);
+  const parents = await loadPartyParents(opts.profileId);
+  const headerCode =
+    String(
+      opts.headerCode ||
+        (opts.contractor ? parents.contractors.code : parents.ap.code) ||
+        SUPPLIER_AP_HEADER_CODE
+    ).trim() || SUPPLIER_AP_HEADER_CODE;
+  const code = supplierApAccountCode(opts.supplierId, headerCode);
+  const classic = supplierApAccountCode(opts.supplierId, SUPPLIER_AP_HEADER_CODE);
   const name = partyDisplayName({ trading_name: opts.name }) || 'Supplier';
   if (!code || !Number.isFinite(opts.profileId) || opts.profileId <= 0) return null;
   const supabase = getSupabaseServer();
-  const { data: existing } = await supabase
+  const { data: existingRows } = await supabase
     .from('chart_of_accounts')
     .select('id, code')
     .eq('profile_id', opts.profileId)
-    .eq('code', code)
-    .maybeSingle();
+    .in('code', [...new Set([code, classic].filter(Boolean))]);
+  const existing =
+    (existingRows || []).find((r) => String(r.code) === code) ||
+    (existingRows || [])[0] ||
+    null;
   let accountId = existing?.id ? Number(existing.id) : 0;
 
-  const headerId = await ensureHeaderRow({
-    profileId: opts.profileId,
-    code: SUPPLIER_AP_HEADER_CODE,
-    name: SUPPLIER_AP_HEADER_NAME,
-    account_type: 'liability',
-    normal_balance: 'credit',
-    parentCode: '2100',
-    sort: 850,
-    description:
-      'AP sub-ledger for suppliers and independent contractors. Each party is 2180-0000001 …',
-    metadata: { party_kind: 'supplier_ap_header' },
-  });
+  let headerId = opts.contractor ? parents.contractors.id : parents.ap.id;
+  if (!headerId && headerCode === SUPPLIER_AP_HEADER_CODE) {
+    headerId = await ensureHeaderRow({
+      profileId: opts.profileId,
+      code: SUPPLIER_AP_HEADER_CODE,
+      name: SUPPLIER_AP_HEADER_NAME,
+      account_type: 'liability',
+      normal_balance: 'credit',
+      parentCode: '2100',
+      sort: 850,
+      description:
+        'AP sub-ledger for suppliers and independent contractors. Each party is 2180-0000001 …',
+      metadata: { party_kind: 'supplier_ap_header' },
+    });
+  } else if (!headerId) {
+    const { data: parent } = await supabase
+      .from('chart_of_accounts')
+      .select('id')
+      .eq('profile_id', opts.profileId)
+      .eq('code', headerCode)
+      .maybeSingle();
+    if (parent?.id) headerId = Number(parent.id);
+  }
 
   if (!accountId) {
     const ins = await supabase
@@ -1280,10 +1387,29 @@ export async function ensurePartyGlAccounts(
   }
   if (aErr) return { created: 0, linked: 0, warning: aErr.message };
 
+  let mapping: PartyGlMapping | null = null;
+  try {
+    const { getCachedSettings } = await import('@/lib/accounting/read-cache');
+    const settings = await getCachedSettings(profileId);
+    const parents = resolvePartyLedgerParents(
+      parsePartyLedgerStored(settings?.metadata),
+      (coa || []) as CoaAccount[]
+    );
+    mapping = {
+      arCode: parents.ar.code,
+      memberCode: parents.members.code,
+      apCode: parents.ap.code,
+      contractorCode: parents.contractors.code,
+    };
+  } catch {
+    mapping = null;
+  }
+
   const plan = planPartyGlAccounts({
     customers: (customers || []) as PartyBookRow[],
     suppliers: ((sErr ? [] : suppliers) || []) as PartyBookRow[],
     coa: (coa || []) as PartyCoaRow[],
+    mapping,
   });
 
   for (const [code, parentCode] of [

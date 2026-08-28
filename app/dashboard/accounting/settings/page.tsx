@@ -11,6 +11,7 @@ import {
   statusClass,
   type AccountingPeriod,
   type AccountingSettings,
+  type CoaAccount,
 } from '@/lib/accounting/types';
 import {
   AccountingHeader,
@@ -50,6 +51,15 @@ function Inner() {
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [partyLedger, setPartyLedger] = useState({
+    ar_parent_code: '1180',
+    member_ar_parent_code: '',
+    ap_parent_code: '2180',
+    contractor_ap_parent_code: '',
+  });
+  const [arParents, setArParents] = useState<CoaAccount[]>([]);
+  const [apParents, setApParents] = useState<CoaAccount[]>([]);
+  const [ensuringParty, setEnsuringParty] = useState(false);
   const [showPeriod, setShowPeriod] = useState(false);
   const [periodForm, setPeriodForm] = useState({
     name: '',
@@ -73,6 +83,15 @@ function Inner() {
       const lockData = await lockRes.json();
       setSettings(data.settings || null);
       setPeriods(data.periods || []);
+      const pl = data.party_ledger || {};
+      setPartyLedger({
+        ar_parent_code: String(pl.ar_parent_code || pl.parents?.ar?.code || '1180'),
+        member_ar_parent_code: String(pl.member_ar_parent_code || ''),
+        ap_parent_code: String(pl.ap_parent_code || pl.parents?.ap?.code || '2180'),
+        contractor_ap_parent_code: String(pl.contractor_ap_parent_code || ''),
+      });
+      setArParents(data.ar_parents || []);
+      setApParents(data.ap_parents || []);
       setMonthLocks(lockData.locks || []);
       setSuggestions(lockData.suggestions || []);
       setTb(lockData.trial_balance || null);
@@ -159,6 +178,12 @@ function Inner() {
           next_journal_number: Number(settings.next_journal_number || 1),
           lock_date: settings.lock_date || null,
           require_balanced_journals: settings.require_balanced_journals !== false,
+          party_ledger: {
+            ar_parent_code: partyLedger.ar_parent_code,
+            member_ar_parent_code: partyLedger.member_ar_parent_code || null,
+            ap_parent_code: partyLedger.ap_parent_code,
+            contractor_ap_parent_code: partyLedger.contractor_ap_parent_code || null,
+          },
         }),
       });
       const data = await res.json();
@@ -169,6 +194,37 @@ function Inner() {
       toast.error(err instanceof Error ? err.message : 'Failed');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function ensurePartyNow() {
+    setEnsuringParty(true);
+    try {
+      const res = await fetch('/api/accounting/chart-of-accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, privyUserId, ensure_party: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      const created = Number(data.created || 0);
+      const linked = Number(data.linked || 0);
+      if (created > 0) {
+        toast.success(
+          `Created ${created} unique customer/supplier account${created === 1 ? '' : 's'}`
+        );
+      } else if (linked > 0) {
+        toast.success('Customer and supplier accounts already on the chart');
+      } else {
+        toast.message(
+          data.warning ||
+            'Add customers and suppliers first, then create their accounts here'
+        );
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setEnsuringParty(false);
     }
   }
 
@@ -213,7 +269,7 @@ function Inner() {
       <AccountingHeader
         title="Accounting"
         titleAccent="settings"
-        description="Periods, currencies, document number prefixes, and system defaults."
+        description="Periods, currencies, prefixes, and where new customers and suppliers land on the chart of accounts."
       />
 
       <SectionLabel>IFRS / SA GAAP close checklist</SectionLabel>
@@ -484,6 +540,115 @@ function Inner() {
         </form>
       </Panel>
 
+      <SectionLabel>Customer & supplier accounts</SectionLabel>
+      <Panel className="mb-8">
+        <form onSubmit={saveSettings} className="p-5 sm:p-6 space-y-4">
+          <p className="text-sm text-neutral-600 leading-relaxed">
+            Pick the CoA parent for new parties. Each customer and supplier then gets a unique
+            sub-account under that parent — for example{' '}
+            <code className="text-xs bg-slate-50 px-1 py-0.5 rounded">
+              {partyLedger.ar_parent_code || '1180'}-0000042
+            </code>{' '}
+            — used for invoices and bank recon. AR must be an asset; AP must be a liability
+            (IAS 1). Employed staff stay on payroll, not AP.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Field label="Customers (AR) parent">
+              <ParentSelect
+                value={partyLedger.ar_parent_code}
+                onChange={(code) =>
+                  setPartyLedger((s) => ({ ...s, ar_parent_code: code }))
+                }
+                accounts={arParents}
+                fallbackCode="1180"
+                fallbackName="Members & patients (AR)"
+              />
+              <p className="mt-1 text-[11px] text-neutral-500">
+                New CRM customers nest here and receive a unique AR number.
+              </p>
+            </Field>
+            <Field label="Members, clients & patients (AR)">
+              <ParentSelect
+                value={partyLedger.member_ar_parent_code}
+                onChange={(code) =>
+                  setPartyLedger((s) => ({ ...s, member_ar_parent_code: code }))
+                }
+                accounts={arParents}
+                fallbackCode="1180"
+                fallbackName="Members & patients (AR)"
+                sameAsLabel="Same as customers"
+              />
+              <p className="mt-1 text-[11px] text-neutral-500">
+                Gym / clinic / retail people. Leave as “same as customers” unless you want them
+                on a separate header.
+              </p>
+            </Field>
+            <Field label="Suppliers (AP) parent">
+              <ParentSelect
+                value={partyLedger.ap_parent_code}
+                onChange={(code) =>
+                  setPartyLedger((s) => ({ ...s, ap_parent_code: code }))
+                }
+                accounts={apParents}
+                fallbackCode="2180"
+                fallbackName="Suppliers & contractors (AP)"
+              />
+              <p className="mt-1 text-[11px] text-neutral-500">
+                New suppliers nest here and receive a unique AP number.
+              </p>
+            </Field>
+            <Field label="Contractors — coaches & clinicians (AP)">
+              <ParentSelect
+                value={partyLedger.contractor_ap_parent_code}
+                onChange={(code) =>
+                  setPartyLedger((s) => ({ ...s, contractor_ap_parent_code: code }))
+                }
+                accounts={apParents}
+                fallbackCode="2180"
+                fallbackName="Suppliers & contractors (AP)"
+                sameAsLabel="Same as suppliers"
+              />
+              <p className="mt-1 text-[11px] text-neutral-500">
+                Independent contractors only. Employed coaches/clinicians stay on 6100 salaries
+                (IAS 19).
+              </p>
+            </Field>
+          </div>
+          <p className="text-[11px] text-neutral-500">
+            Need a different header? Create it on the{' '}
+            <Link href="/dashboard/accounting/chart-of-accounts" className="font-bold text-[#0077b6] underline">
+              chart of accounts
+            </Link>
+            , then pick it here. Changing the parent applies to new parties; existing unique
+            accounts stay put so history is not rewritten.
+          </p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              disabled={ensuringParty || !canAccountingWrite}
+              onClick={() => void ensurePartyNow()}
+              className="btn-secondary !py-2.5 !px-5 text-sm disabled:opacity-50"
+            >
+              {ensuringParty ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Plus className="w-4 h-4" />
+              )}
+              Create missing accounts
+            </button>
+            <button
+              type="submit"
+              disabled={saving || !canAccountingWrite}
+              className="btn-primary !py-2.5 !px-5 text-sm disabled:opacity-50"
+              title={!canAccountingWrite ? 'Write access required' : undefined}
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Save settings
+            </button>
+          </div>
+        </form>
+      </Panel>
+
       <SectionLabel
         action={
           <button
@@ -605,5 +770,43 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {label}
       {children}
     </label>
+  );
+}
+
+function ParentSelect({
+  value,
+  onChange,
+  accounts,
+  fallbackCode,
+  fallbackName,
+  sameAsLabel,
+}: {
+  value: string;
+  onChange: (code: string) => void;
+  accounts: CoaAccount[];
+  fallbackCode: string;
+  fallbackName: string;
+  sameAsLabel?: string;
+}) {
+  const hasFallback = accounts.some((a) => String(a.code) === fallbackCode);
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="field"
+    >
+      {sameAsLabel ? <option value="">{sameAsLabel}</option> : null}
+      {!hasFallback ? (
+        <option value={fallbackCode}>
+          {fallbackCode} · {fallbackName} (default)
+        </option>
+      ) : null}
+      {accounts.map((a) => (
+        <option key={a.id} value={String(a.code)}>
+          {a.code} · {a.name}
+          {a.is_header ? ' (header)' : ''}
+        </option>
+      ))}
+    </select>
   );
 }

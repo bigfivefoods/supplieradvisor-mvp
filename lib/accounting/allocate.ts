@@ -6,6 +6,7 @@ import { postBalancedJournal, reversePostedJournal } from '@/lib/accounting/post
 import {
   isMemberArAccountCode,
   isSupplierApAccountCode,
+  parseHyphenSubAccount,
   parseMemberArCustomerId,
   parseSupplierApSupplierId,
 } from '@/lib/accounting/party-gl-accounts';
@@ -134,7 +135,8 @@ async function matchBankInflowToMemberAccount(opts: {
   amount: number;
   privyUserId?: string | null;
 }): Promise<{ ok: true; journalId: number; entryNumber: string } | null> {
-  const customerId = parseMemberArCustomerId(opts.glCode);
+  const customerId =
+    parseHyphenSubAccount(opts.glCode)?.id || parseMemberArCustomerId(opts.glCode);
   if (!customerId) return null;
   const supabase = getSupabaseServer();
   const want = round2(opts.amount);
@@ -212,7 +214,8 @@ async function matchBankOutflowToSupplierAccount(opts: {
   amount: number;
   privyUserId?: string | null;
 }): Promise<{ ok: true; journalId: number; entryNumber: string } | null> {
-  const supplierId = parseSupplierApSupplierId(opts.glCode);
+  const supplierId =
+    parseHyphenSubAccount(opts.glCode)?.id || parseSupplierApSupplierId(opts.glCode);
   if (!supplierId) return null;
   const supabase = getSupabaseServer();
   const want = round2(Math.abs(opts.amount));
@@ -339,7 +342,11 @@ export async function allocateBankTransaction(params: AllocateParams): Promise<
       .eq('profile_id', params.profileId)
       .maybeSingle();
     const glCode = String(glAcct?.code || '');
-    if (isMemberArAccountCode(glCode)) {
+    const hyphen = parseHyphenSubAccount(glCode);
+    const receivable =
+      String(glAcct?.subtype || '').toLowerCase() === 'receivable' ||
+      (hyphen && String(glAcct?.account_type || '').toLowerCase() === 'asset');
+    if (isMemberArAccountCode(glCode) || (hyphen && receivable)) {
       const memberMatch = await matchBankInflowToMemberAccount({
         profileId: params.profileId,
         bankTxnId: params.bankTxnId,
@@ -372,7 +379,11 @@ export async function allocateBankTransaction(params: AllocateParams): Promise<
       .eq('profile_id', params.profileId)
       .maybeSingle();
     const glCode = String(glAcct?.code || '');
-    if (isSupplierApAccountCode(glCode)) {
+    const hyphen = parseHyphenSubAccount(glCode);
+    const payable =
+      String(glAcct?.subtype || '').toLowerCase() === 'payable' ||
+      (hyphen && String(glAcct?.account_type || '').toLowerCase() === 'liability');
+    if (isSupplierApAccountCode(glCode) || (hyphen && payable)) {
       const supplierMatch = await matchBankOutflowToSupplierAccount({
         profileId: params.profileId,
         bankTxnId: params.bankTxnId,

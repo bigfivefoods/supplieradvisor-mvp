@@ -255,6 +255,7 @@ async function finishAdvisorSupplier(
       profileId: companyId,
       supplierId: supplier.id,
       name: supplier.name,
+      contractor: true,
     });
     ap_account_code = leaf?.code || supplierApAccountCode(supplier.id) || null;
     if (!skipFullCoa) {

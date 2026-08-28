@@ -274,11 +274,20 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-    const { ensurePartyGlAccountsSafe } = await import(
+    const { ensureCustomerArLeaf, ensurePartyGlAccountsSafe } = await import(
       '@/lib/accounting/party-gl-accounts'
     );
+    const leaf = await ensureCustomerArLeaf({
+      profileId: companyId,
+      customerId: Number(data.id),
+      name: String(data.trading_name || payload.trading_name || 'Customer'),
+    });
     await ensurePartyGlAccountsSafe(companyId);
-    return NextResponse.json({ success: true, customer: data });
+    return NextResponse.json({
+      success: true,
+      customer: data,
+      ar_account_code: leaf?.code || null,
+    });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
   }

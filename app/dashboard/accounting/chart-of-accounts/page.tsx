@@ -185,7 +185,7 @@ function Inner() {
       <AccountingHeader
         title="Chart of"
         titleAccent="Accounts"
-        description="Manage your flexible GL structure — assets, liabilities, equity, revenue, and expenses with live balances from posted journals."
+        description="Manage your flexible GL structure. Set where new customers and suppliers nest in Accounting → Settings — each party then gets a unique AR/AP number."
         action={
           <>
             <button

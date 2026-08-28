@@ -144,9 +144,10 @@ const plan = planPartyGlAccounts({
   ],
 });
 
-assert.equal(plan.create.filter((c) => c.account_type === 'asset' && !c.is_header).length, 2);
-assert.equal(plan.create[0].name, 'AR — Restore Africa Foundation');
-assert.equal(plan.create[0].code, '1182');
+assert.equal(plan.create.filter((c) => c.account_type === 'asset' && !c.is_header).length, 3);
+assert.ok(!plan.create.some((c) => String(c.name).startsWith('AR — ')));
+assert.ok(plan.create.some((c) => c.code === '1180-0000010' && c.name === 'Restore Africa Foundation'));
+assert.ok(plan.create.some((c) => c.code === '1180-0000014'));
 assert.ok(!plan.create.some((c) => c.name === 'AR — Walk-in member'));
 const memberHeader = plan.create.find((c) => c.code === '1180');
 assert.ok(memberHeader);
@@ -192,9 +193,39 @@ assert.equal(buzeLinks.length, 1);
 assert.equal(buzeLinks[0].code, '1181');
 assert.equal(buzeLinks[0].accountId, 40);
 
-const restoreLinks = plan.links.filter((l) => l.kind === 'ar' && l.key === 'restore africa foundation');
+const restoreLinks = plan.links.filter((l) => l.kind === 'ar' && (l.id === 10 || l.id === 14));
 assert.equal(restoreLinks.length, 2);
-assert.equal(restoreLinks[0].code, restoreLinks[1].code);
+assert.notEqual(restoreLinks[0].code, restoreLinks[1].code);
+
+const mapped = planPartyGlAccounts({
+  customers: [
+    {
+      id: 200,
+      trading_name: 'Walk-in member',
+      customer_type: 'consumer',
+      source: 'advisor_member',
+      status: 'active',
+    },
+    { id: 10, trading_name: 'Restore Africa Foundation', status: 'active' },
+  ],
+  suppliers: [{ id: 8, trading_name: 'Holtz', status: 'active' }],
+  coa: [
+    { id: 2, code: '1100', name: 'Current assets', is_header: true, account_type: 'asset' },
+    { id: 3, code: '2100', name: 'Current liabilities', is_header: true, account_type: 'liability' },
+    { id: 5, code: '1130', name: 'Accounts receivable', subtype: 'receivable', account_type: 'asset' },
+    { id: 15, code: '2110', name: 'Accounts payable', subtype: 'payable', account_type: 'liability' },
+  ],
+  mapping: {
+    arCode: '1130',
+    memberCode: '1180',
+    apCode: '2110',
+    contractorCode: '2180',
+  },
+});
+assert.equal(mapped.create.find((c) => c.name === 'Walk-in member')?.code, '1180-0000200');
+assert.equal(mapped.create.find((c) => c.name === 'Walk-in member')?.parent_code, '1180');
+assert.equal(mapped.create.find((c) => c.code === '1130-0000010')?.parent_code, '1130');
+assert.equal(mapped.create.find((c) => c.code === '2110-0000008')?.parent_code, '2110');
 
 const legacyPlan = planPartyGlAccounts({
   customers: [

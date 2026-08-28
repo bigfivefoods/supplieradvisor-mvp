@@ -255,11 +255,20 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-    const { ensurePartyGlAccountsSafe } = await import(
+    const { ensureSupplierApLeaf, ensurePartyGlAccountsSafe } = await import(
       '@/lib/accounting/party-gl-accounts'
     );
+    const leaf = await ensureSupplierApLeaf({
+      profileId: companyId,
+      supplierId: Number(data.id),
+      name: String(data.trading_name || payload.trading_name || 'Supplier'),
+    });
     await ensurePartyGlAccountsSafe(companyId);
-    return NextResponse.json({ success: true, supplier: data });
+    return NextResponse.json({
+      success: true,
+      supplier: data,
+      ap_account_code: leaf?.code || null,
+    });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
   }
