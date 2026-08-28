@@ -893,7 +893,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Enter an actual number' }, { status: 400 });
       }
       const goalId = String(body.goal_id || body.id || '');
-      const prev = (store.goals || []).find((g) => g.id === goalId);
+      const prev =
+        (store.goals || []).find((g) => g.id === goalId) ||
+        (coach.goals || []).find((g) => g.id === goalId) ||
+        store.clients.flatMap((c) => c.goals || []).find((g) => g.id === goalId) ||
+        null;
       if (!prev) {
         return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
       }

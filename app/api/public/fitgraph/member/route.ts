@@ -835,8 +835,19 @@ export async function POST(request: NextRequest) {
         now
       );
       store.leaderboard_scores = scored.list;
-      await saveStore(companyId, meta, store);
       const person = store.clients[ci];
+      const { appendResultLog } = await import('@/lib/fitness/person-records');
+      appendResultLog(person, {
+        kind: 'board',
+        title: activity.name,
+        value: parsed.display,
+        numeric: parsed.value,
+        unit: activity.unit || null,
+        at: now,
+        source_id: activity.id,
+      });
+      store.clients[ci] = person;
+      await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
         message: 'Score logged on the gym board',
@@ -897,6 +908,16 @@ export async function POST(request: NextRequest) {
       );
       store.class_challenge_scores = scored.list;
       stampPbFromChallenge(person, challenge, parsed.display, now);
+      const { appendResultLog } = await import('@/lib/fitness/person-records');
+      appendResultLog(person, {
+        kind: 'challenge',
+        title: challenge.title,
+        value: parsed.display,
+        numeric: parsed.value,
+        unit: challenge.unit || null,
+        at: now,
+        source_id: challenge.id,
+      });
       store.clients[ci] = person;
       await saveStore(companyId, meta, store);
       return NextResponse.json({
@@ -1527,9 +1548,12 @@ export async function POST(request: NextRequest) {
       if (value == null) {
         return NextResponse.json({ error: 'Enter an actual number' }, { status: 400 });
       }
-      const prev = (store.goals || []).find(
-        (g) => g.id === goalId && g.client_id === client.id
-      );
+      const prev =
+        (store.goals || []).find(
+          (g) => g.id === goalId && g.client_id === client.id
+        ) ||
+        (client.goals || []).find((g) => g.id === goalId) ||
+        null;
       if (!prev) {
         return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
       }

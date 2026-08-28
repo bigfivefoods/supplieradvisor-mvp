@@ -24,6 +24,16 @@ const again = upsertPersonalBest(pbs.list, {
 assert.equal(again.list.length, 1);
 assert.equal(again.row.value, '145');
 assert.equal(parsePersonalBests(again.list)[0].unit, 'kg');
+assert.ok((again.row.history || []).length >= 2);
+assert.equal((again.row.history || []).map((h) => h.value).join(','), '140,145');
+const sameLift = upsertPersonalBest(again.list, {
+  title: 'Back squat',
+  value: '150',
+  unit: 'kg',
+});
+assert.equal(sameLift.list.length, 1);
+assert.equal(sameLift.row.value, '150');
+assert.equal((sameLift.row.history || []).length, 3);
 
 const miss = upsertPersonalBest([], { title: 'Bench' });
 assert.ok(miss.error);

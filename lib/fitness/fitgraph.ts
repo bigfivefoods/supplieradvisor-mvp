@@ -377,6 +377,7 @@ export type FitCoach = {
   history?: FitCoachEngagement[];
   /** Coach's own PBs and injuries (You → profile). */
   personal_bests?: import('@/lib/fitness/person-records').FitPersonalBest[];
+  result_logs?: import('@/lib/fitness/person-records').FitResultLog[];
   injuries?: import('@/lib/fitness/person-records').FitInjuryEntry[];
   health?: FitClientHealth;
   created_at: string;
@@ -577,6 +578,8 @@ export type FitClient = {
   health?: FitClientHealth;
   /** Member-owned personal bests (You → PBs). */
   personal_bests?: import('@/lib/fitness/person-records').FitPersonalBest[];
+  /** Append-only logged results (goal actuals, PBs, board scores). */
+  result_logs?: import('@/lib/fitness/person-records').FitResultLog[];
   /** Goal copies on the person so progress survives gym-blob merges. */
   goals?: import('@/lib/fitness/fitgraph-relationship').FitGoal[];
   /** Member-owned injury list (You → Injuries). */
@@ -2203,6 +2206,7 @@ export function buildMemberPortalPayload(
       })(),
       family: Array.isArray(client.family) ? client.family : [],
       personal_bests: client.personal_bests || [],
+      result_logs: client.result_logs || [],
       injuries: client.injuries || [],
       health: client.health || null,
     },
@@ -3170,6 +3174,7 @@ export function buildCoachPortalPayload(
         is_verified: coach.identity?.status === 'verified',
       },
       personal_bests: coach.personal_bests || [],
+      result_logs: coach.result_logs || [],
       injuries: coach.injuries || [],
       health: coach.health || null,
     },

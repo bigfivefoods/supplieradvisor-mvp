@@ -5,6 +5,10 @@
  */
 import type { FitgraphStore, FitPublicSettings } from '@/lib/fitness/fitgraph';
 import { bookingStamp, dedupeFitgraphBookings } from '@/lib/fitness/gym-bookings';
+import {
+  parsePersonalBests,
+  parseResultLogs,
+} from '@/lib/fitness/person-records';
 
 /** Live operational rows that concurrent writers must not drop. */
 const ID_ARRAYS: Array<keyof FitgraphStore> = [
@@ -175,10 +179,14 @@ function mergeClientRows(latest: unknown, incoming: unknown) {
           }
         : {}),
       goals: mergeGoalRows(latestRow.goals, incomingRow.goals),
-      personal_bests: mergeRowsById(
-        latestRow.personal_bests,
-        incomingRow.personal_bests
-      ),
+      personal_bests: parsePersonalBests([
+        ...asRows(latestRow.personal_bests),
+        ...asRows(incomingRow.personal_bests),
+      ]),
+      result_logs: parseResultLogs([
+        ...asRows(latestRow.result_logs),
+        ...asRows(incomingRow.result_logs),
+      ]),
       injuries: mergeRowsById(latestRow.injuries, incomingRow.injuries),
     };
   });

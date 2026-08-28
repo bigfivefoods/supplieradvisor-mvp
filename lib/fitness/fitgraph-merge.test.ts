@@ -248,4 +248,49 @@ assert.equal((profileRow?.goals || []).length, 1);
 assert.equal((profileRow?.goals || [])[0]?.id, 'g_keep');
 assert.equal((profileMerged.goals || []).length, 1);
 
+const pbLatest = emptyFitgraphStore();
+pbLatest.clients.push({
+  id: 'cli_pb',
+  name: 'Ada',
+  code: 'A',
+  created_at: '2026-08-01',
+  updated_at: '2026-08-01T00:00:00Z',
+  personal_bests: [
+    {
+      id: 'pb1',
+      title: 'Back squat',
+      value: '140',
+      unit: 'kg',
+      updated_at: '2026-08-01T00:00:00Z',
+      history: [
+        { id: 'pbl1', value: '140', unit: 'kg', at: '2026-08-01T00:00:00Z' },
+      ],
+    },
+  ],
+} as never);
+const pbIncoming = emptyFitgraphStore();
+pbIncoming.clients.push({
+  id: 'cli_pb',
+  name: 'Ada',
+  code: 'A',
+  created_at: '2026-08-01',
+  updated_at: '2026-08-28T12:00:00Z',
+  personal_bests: [
+    {
+      id: 'pb1',
+      title: 'Back squat',
+      value: '150',
+      unit: 'kg',
+      updated_at: '2026-08-28T12:00:00Z',
+      history: [
+        { id: 'pbl2', value: '150', unit: 'kg', at: '2026-08-28T12:00:00Z' },
+      ],
+    },
+  ],
+} as never);
+const pbMerged = mergeFitgraphStores(pbLatest, pbIncoming);
+const pbRow = pbMerged.clients.find((c) => c.id === 'cli_pb');
+assert.equal(pbRow?.personal_bests?.length, 1);
+assert.ok((pbRow?.personal_bests?.[0]?.history || []).length >= 2);
+
 console.log('fitgraph-merge.test.ts ok');

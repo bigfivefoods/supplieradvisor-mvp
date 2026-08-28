@@ -9,6 +9,7 @@ import {
   type FitGoalCheckIn,
 } from '@/lib/fitness/fitgraph-relationship';
 import { newId, type FitgraphStore } from '@/lib/fitness/fitgraph';
+import { appendResultLog } from '@/lib/fitness/person-records';
 
 export const MEMBER_GOAL_PRESETS = [
   {
@@ -270,6 +271,19 @@ export function createMemberGoal(input: {
   goal.direction = input.direction || preset.direction;
   goal.start_value = input.start_value ?? null;
   goal.current_value = input.start_value ?? null;
+  if (goal.start_value != null && Number.isFinite(Number(goal.start_value))) {
+    const at = input.nowIso || new Date().toISOString();
+    goal.check_ins = [
+      {
+        id: newId('gci'),
+        at,
+        by_role: input.created_by_role || 'member',
+        by_id: input.client_id,
+        metric_value: Number(goal.start_value),
+        source: 'start',
+      },
+    ];
+  }
   return goal;
 }
 
@@ -396,6 +410,20 @@ export function applyGoalToStore(
   journeyTitle?: string
 ): void {
   upsertMemberGoalOnStore(store, goal);
+  const person =
+    (store.clients || []).find((c) => c.id === goal.client_id) ||
+    (store.coaches || []).find((c) => c.id === goal.client_id);
+  if (person && goal.current_value != null) {
+    appendResultLog(person, {
+      kind: 'goal',
+      title: goal.title,
+      value: String(goal.current_value),
+      numeric: Number(goal.current_value),
+      unit: goal.unit || null,
+      at: goal.updated_at || new Date().toISOString(),
+      source_id: goal.id,
+    });
+  }
   const event = {
     id: newId('je'),
     client_id: goal.client_id,

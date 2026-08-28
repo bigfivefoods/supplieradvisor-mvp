@@ -212,13 +212,29 @@ export function GymProfileFolds({
                   {row.notes ? (
                     <p className="mt-0.5 text-xs text-slate-500">{row.notes}</p>
                   ) : null}
+                  {(row.history || []).length > 1 ? (
+                    <ol className="mt-1 space-y-0.5 text-[11px] text-slate-500">
+                      {[...(row.history || [])]
+                        .slice(-6)
+                        .reverse()
+                        .map((h) => (
+                          <li key={h.id} className="flex justify-between gap-2">
+                            <span>{String(h.at || '').slice(0, 10)}</span>
+                            <span className="font-black tabular-nums text-slate-800 dark:text-slate-100">
+                              {h.value}
+                              {h.unit || row.unit ? ` ${h.unit || row.unit}` : ''}
+                            </span>
+                          </li>
+                        ))}
+                    </ol>
+                  ) : null}
                 </div>
                 <button
                   type="button"
                   className="shrink-0 text-[11px] font-black text-slate-500"
                   onClick={() => editPb(row)}
                 >
-                  Edit
+                  Log
                 </button>
               </li>
             ))}
@@ -378,7 +394,7 @@ export function GymProfileFolds({
                 className="min-h-11 flex-1 rounded-xl text-sm font-black disabled:opacity-50"
                 style={{ backgroundColor: color, color: ink }}
               >
-                {busyId === 'pb' ? 'Saving…' : 'Save PB'}
+                {busyId === 'pb' ? 'Saving…' : 'Save result'}
               </button>
               {pbForm.id ? (
                 <button

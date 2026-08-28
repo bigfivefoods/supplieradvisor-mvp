@@ -80,10 +80,12 @@ applyGoalToStore(reloaded, withActual);
 const blob2 = writeFitgraphToMetadata({}, reloaded);
 const again = readFitgraphFromMetadata(blob2);
 assert.equal(again.goals?.[0].current_value, 85);
-assert.equal(again.goals?.[0].check_ins?.length, 1);
+assert.ok((again.goals?.[0].check_ins || []).length >= 2);
 applyGoalToStore(persist, withActual);
 assert.equal(persist.clients[0].goals?.[0].current_value, 85);
-assert.equal(persist.clients[0].goals?.[0].check_ins?.length, 1);
+assert.equal((persist.clients[0].goals?.[0].check_ins || []).length >= 2, true);
+assert.equal((persist.clients[0].result_logs || []).length >= 1, true);
+assert.equal(weight.check_ins?.length, 1);
 
 const fromProfile = emptyFitgraphStore();
 fromProfile.clients = [

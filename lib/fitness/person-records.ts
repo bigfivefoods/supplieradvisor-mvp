@@ -10,6 +10,26 @@ function recId(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+export type FitResultLog = {
+  id: string;
+  kind: 'goal' | 'pb' | 'board' | 'challenge' | 'watch';
+  title: string;
+  value: string;
+  numeric?: number | null;
+  unit?: string | null;
+  at: string;
+  source_id?: string | null;
+  notes?: string;
+};
+
+export type FitPersonalBestLog = {
+  id: string;
+  value: string;
+  unit?: string;
+  at: string;
+  notes?: string;
+};
+
 export type FitPersonalBest = {
   id: string;
   title: string;
@@ -18,6 +38,8 @@ export type FitPersonalBest = {
   achieved_on?: string | null;
   notes?: string;
   updated_at: string;
+  /** Every logged result for this lift/test — used for trends. */
+  history?: FitPersonalBestLog[];
 };
 
 export type FitInjuryEntry = {
@@ -51,16 +73,61 @@ function asIsoDate(raw: unknown): string | null {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
 }
 
+function pbKey(title: string, unit?: string | null) {
+  return `${String(title || '').trim().toLowerCase()}|${String(unit || '').trim().toLowerCase()}`;
+}
+
+export function parsePbHistory(raw: unknown): FitPersonalBestLog[] {
+  if (!Array.isArray(raw)) return [];
+  const out: FitPersonalBestLog[] = [];
+  const seen = new Set<string>();
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue;
+    const r = row as Record<string, unknown>;
+    const value = String(r.value || '').trim();
+    if (!value) continue;
+    const id = String(r.id || '').trim() || recId('pbl');
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({
+      id,
+      value,
+      unit: String(r.unit || '').trim() || undefined,
+      at: String(r.at || r.achieved_on || r.updated_at || ''),
+      notes: String(r.notes || '').trim() || undefined,
+    });
+  }
+  return out.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+}
+
+function withCurrentInHistory(row: FitPersonalBest): FitPersonalBestLog[] {
+  const history = parsePbHistory(row.history);
+  const at =
+    row.achieved_on && /^\d{4}-\d{2}-\d{2}$/.test(row.achieved_on)
+      ? `${row.achieved_on}T12:00:00.000Z`
+      : row.updated_at;
+  const last = history[history.length - 1];
+  if (last && last.value === row.value) return history;
+  history.push({
+    id: recId('pbl'),
+    value: row.value,
+    unit: row.unit,
+    at,
+    notes: row.notes,
+  });
+  return history;
+}
+
 export function parsePersonalBests(raw: unknown): FitPersonalBest[] {
   if (!Array.isArray(raw)) return [];
-  const out: FitPersonalBest[] = [];
+  const byKey = new Map<string, FitPersonalBest>();
   for (const row of raw) {
     if (!row || typeof row !== 'object') continue;
     const r = row as Record<string, unknown>;
     const title = String(r.title || r.movement || r.name || '').trim();
     const value = String(r.value || '').trim();
     if (!title || !value) continue;
-    out.push({
+    const parsed: FitPersonalBest = {
       id: String(r.id || '').trim() || recId('pb'),
       title,
       value,
@@ -68,9 +135,28 @@ export function parsePersonalBests(raw: unknown): FitPersonalBest[] {
       achieved_on: asIsoDate(r.achieved_on || r.date),
       notes: String(r.notes || '').trim() || undefined,
       updated_at: String(r.updated_at || new Date().toISOString()),
-    });
+      history: parsePbHistory(r.history),
+    };
+    parsed.history = withCurrentInHistory(parsed);
+    const key = pbKey(parsed.title, parsed.unit);
+    const prev = byKey.get(key);
+    if (!prev) {
+      byKey.set(key, parsed);
+      continue;
+    }
+    const newer =
+      String(parsed.updated_at) >= String(prev.updated_at) ? parsed : prev;
+    const older = newer === parsed ? prev : parsed;
+    const histMap = new Map<string, FitPersonalBestLog>();
+    for (const h of [...(older.history || []), ...(newer.history || [])]) {
+      histMap.set(h.id, h);
+    }
+    newer.history = [...histMap.values()].sort((a, b) =>
+      String(a.at).localeCompare(String(b.at))
+    );
+    byKey.set(key, newer);
   }
-  return out.sort((a, b) =>
+  return [...byKey.values()].sort((a, b) =>
     String(b.achieved_on || b.updated_at).localeCompare(
       String(a.achieved_on || a.updated_at)
     )
@@ -86,21 +172,56 @@ export function upsertPersonalBest(
   const value = String(patch.value || '').trim();
   if (!title) return { list: list || [], row: list?.[0] as FitPersonalBest, error: 'Name the PB (e.g. Back squat)' };
   if (!value) return { list: list || [], row: list?.[0] as FitPersonalBest, error: 'Add the result' };
-  const id = String(patch.id || '').trim() || recId('pb');
+  const unit = String(patch.unit || '').trim() || undefined;
+  const prev = parsePersonalBests(list);
+  const id = String(patch.id || '').trim();
+  let idx = id ? prev.findIndex((x) => x.id === id) : -1;
+  if (idx < 0) idx = prev.findIndex((x) => pbKey(x.title, x.unit) === pbKey(title, unit));
+  const logAt = asIsoDate(patch.achieved_on)
+    ? `${asIsoDate(patch.achieved_on)}T12:00:00.000Z`
+    : now;
+  const log: FitPersonalBestLog = {
+    id: recId('pbl'),
+    value,
+    unit,
+    at: logAt,
+    notes: String(patch.notes || '').trim() || undefined,
+  };
+  if (idx < 0) {
+    const row: FitPersonalBest = {
+      id: id || recId('pb'),
+      title,
+      value,
+      unit,
+      achieved_on: asIsoDate(patch.achieved_on),
+      notes: String(patch.notes || '').trim() || undefined,
+      updated_at: now,
+      history: [log],
+    };
+    return { list: parsePersonalBests([row, ...prev]), row };
+  }
+  const existing = prev[idx];
+  const history = parsePbHistory(existing.history);
+  const last = history[history.length - 1];
+  if (
+    !last ||
+    last.value !== value ||
+    Math.abs(Date.parse(last.at || '') - Date.parse(log.at)) > 1500
+  ) {
+    history.push(log);
+  }
   const row: FitPersonalBest = {
-    id,
+    ...existing,
     title,
     value,
-    unit: String(patch.unit || '').trim() || undefined,
-    achieved_on: asIsoDate(patch.achieved_on),
-    notes: String(patch.notes || '').trim() || undefined,
+    unit,
+    achieved_on: asIsoDate(patch.achieved_on) || existing.achieved_on,
+    notes: String(patch.notes || '').trim() || existing.notes,
     updated_at: now,
+    history,
   };
-  const prev = parsePersonalBests(list);
-  const idx = prev.findIndex((x) => x.id === id);
   const next = [...prev];
-  if (idx >= 0) next[idx] = row;
-  else next.unshift(row);
+  next[idx] = row;
   return { list: parsePersonalBests(next), row };
 }
 
@@ -241,6 +362,70 @@ export function healthFromInjuries(
   return next;
 }
 
+export function parseResultLogs(raw: unknown): FitResultLog[] {
+  if (!Array.isArray(raw)) return [];
+  const out: FitResultLog[] = [];
+  const seen = new Set<string>();
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue;
+    const r = row as Record<string, unknown>;
+    const title = String(r.title || '').trim();
+    const value = String(r.value || '').trim();
+    if (!title || !value) continue;
+    const id = String(r.id || '').trim() || recId('rlog');
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const kindRaw = String(r.kind || 'pb');
+    const kind: FitResultLog['kind'] =
+      kindRaw === 'goal' ||
+      kindRaw === 'board' ||
+      kindRaw === 'challenge' ||
+      kindRaw === 'watch'
+        ? kindRaw
+        : 'pb';
+    const numeric =
+      r.numeric == null || r.numeric === ''
+        ? null
+        : Number(r.numeric);
+    out.push({
+      id,
+      kind,
+      title,
+      value,
+      numeric: numeric != null && Number.isFinite(numeric) ? numeric : null,
+      unit: r.unit != null ? String(r.unit) : null,
+      at: String(r.at || r.updated_at || ''),
+      source_id: r.source_id ? String(r.source_id) : null,
+      notes: String(r.notes || '').trim() || undefined,
+    });
+  }
+  return out.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+}
+
+export function appendResultLog(
+  person: { result_logs?: FitResultLog[] },
+  entry: Omit<FitResultLog, 'id'> & { id?: string }
+): FitResultLog {
+  const log: FitResultLog = {
+    id: entry.id || recId('rlog'),
+    kind: entry.kind,
+    title: entry.title,
+    value: String(entry.value),
+    numeric:
+      entry.numeric != null && Number.isFinite(Number(entry.numeric))
+        ? Number(entry.numeric)
+        : null,
+    unit: entry.unit ?? null,
+    at: entry.at,
+    source_id: entry.source_id ?? null,
+    notes: entry.notes,
+  };
+  const list = parseResultLogs(person.result_logs);
+  if (!list.some((x) => x.id === log.id)) list.unshift(log);
+  person.result_logs = list.slice(0, 2000);
+  return log;
+}
+
 export function isPersonRecordAction(action: string) {
   return (
     action === 'upsert_personal_best' ||
@@ -255,6 +440,7 @@ export function applyPersonRecordAction(
     personal_bests?: FitPersonalBest[];
     injuries?: FitInjuryEntry[];
     health?: PersonHealthProfile;
+    result_logs?: FitResultLog[];
     updated_at?: string;
   },
   action: string,
@@ -265,8 +451,17 @@ export function applyPersonRecordAction(
     const result = upsertPersonalBest(person.personal_bests, body, now);
     if (result.error) return { ok: false, error: result.error };
     person.personal_bests = result.list;
+    appendResultLog(person, {
+      kind: 'pb',
+      title: result.row.title,
+      value: result.row.value,
+      unit: result.row.unit || null,
+      at: now,
+      source_id: result.row.id,
+      notes: result.row.notes,
+    });
     person.updated_at = now;
-    return { ok: true, message: 'PB saved' };
+    return { ok: true, message: 'Result saved' };
   }
   if (action === 'delete_personal_best') {
     const id = String(body.id || '').trim();
