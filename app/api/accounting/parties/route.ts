@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { parseCompanyId } from '@/lib/accounting/server';
 import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
+import { parseListLimit } from '@/lib/http/tenant-list';
 import { assemblePartyRoles } from '@/lib/accounting/party-roles';
 import {
   applyPartyBookRole,
@@ -22,22 +23,25 @@ export async function GET(request: NextRequest) {
     if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
+    const limit = parseListLimit(request.nextUrl.searchParams.get('limit'));
     const [{ data: customers, error: cErr }, { data: suppliers, error: sErr }] =
       await Promise.all([
         supabase
           .from('customers')
           .select(
-            'id, trading_name, legal_name, email, status, linked_profile_id, metadata'
+            'id, trading_name, legal_name, email, status, linked_profile_id'
           )
           .eq('profile_id', companyId)
-          .limit(5000),
+          .order('id', { ascending: false })
+          .limit(limit),
         supabase
           .from('srm_suppliers')
           .select(
-            'id, trading_name, legal_name, email, status, linked_profile_id, metadata'
+            'id, trading_name, legal_name, email, status, linked_profile_id'
           )
           .eq('profile_id', companyId)
-          .limit(5000),
+          .order('id', { ascending: false })
+          .limit(limit),
       ]);
 
     const parties = assemblePartyRoles(customers || [], sErr ? [] : suppliers || []);

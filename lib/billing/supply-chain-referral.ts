@@ -33,10 +33,17 @@ import {
   REFERRAL_KYC_THRESHOLD_ZAR,
   type AttributionSource,
 } from '@/lib/billing/referral-controls';
+import {
+  REFERRAL_LEVEL_RATES_PCT,
+  REFERRAL_MAX_LEVELS,
+  REFERRAL_TOTAL_CAP_PCT,
+} from '@/lib/billing/referral-rates';
 
-export const REFERRAL_MAX_LEVELS = 3;
-/** Hard cap across all levels combined */
-export const REFERRAL_TOTAL_CAP_PCT = 10;
+export {
+  REFERRAL_LEVEL_RATES_PCT,
+  REFERRAL_MAX_LEVELS,
+  REFERRAL_TOTAL_CAP_PCT,
+} from '@/lib/billing/referral-rates';
 
 /**
  * Big Five Foods — first company to launch the supply-chain referral programme.
@@ -66,16 +73,6 @@ export function isReferralProgramRoot(
 export function getReferralProgramRootId(): number {
   return REFERRAL_PROGRAM_ROOT_PROFILE_ID;
 }
-
-/**
- * Suggested commercial split — rewards direct invites most,
- * still pays two generations deeper (total 10%).
- */
-export const REFERRAL_LEVEL_RATES_PCT: readonly [number, number, number] = [
-  6, // L1 — direct invite
-  3, // L2
-  1, // L3
-];
 
 export const REFERRAL_LEVEL_LABELS: readonly [string, string, string] = [
   'Direct invite (L1)',

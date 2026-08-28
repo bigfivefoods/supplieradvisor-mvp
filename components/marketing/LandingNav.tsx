@@ -10,7 +10,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Menu, X } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
-import ThemeToggle from '@/components/theme/ThemeToggle';
+import AppearanceToggle from '@/components/theme/AppearanceToggle';
 import { useTheme } from '@/components/theme/ThemeProvider';
 
 /**
@@ -384,7 +384,7 @@ export default function LandingNav() {
           </nav>
 
           <div className="hidden items-center gap-2 lg:flex shrink-0">
-            <ThemeToggle />
+            <AppearanceToggle />
             <button
               type="button"
               onClick={goMember}
@@ -409,7 +409,7 @@ export default function LandingNav() {
           </div>
 
           <div className="hidden md:flex lg:hidden items-center gap-1.5 shrink-0">
-            <ThemeToggle />
+            <AppearanceToggle />
             <button
               type="button"
               onClick={goMember}
@@ -439,7 +439,7 @@ export default function LandingNav() {
             >
               Free trial
             </Link>
-            <ThemeToggle className="md:hidden" />
+            <AppearanceToggle className="md:hidden" />
             <button
               type="button"
               className="relative z-[210] inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 touch-manipulation dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
