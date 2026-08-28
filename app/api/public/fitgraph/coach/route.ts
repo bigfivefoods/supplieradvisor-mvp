@@ -65,7 +65,10 @@ import { applyGymAttendanceMark } from '@/lib/fitness/apply-gym-attendance';
 import { findSessionSeat } from '@/lib/fitness/gym-bookings';
 import { notifyMemberToRateClass } from '@/lib/fitness/notify-class-feedback';
 import { memberSpecialDatesForStore } from '@/lib/fitness/member-special-dates';
-import { memberFacingGoals } from '@/lib/fitness/member-goals';
+import {
+  hydrateGoalsFromPeople,
+  memberFacingGoals,
+} from '@/lib/fitness/member-goals';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -157,6 +160,7 @@ async function resolveCoach(
   const { mergeFitgraphLibrary } = await import('@/lib/fitness/fitgraph');
   const lib = await loadFitgraphLibraryRow(loaded.companyId);
   const store = mergeFitgraphLibrary(loaded.store, lib);
+  hydrateGoalsFromPeople(store);
   const coach = store.coaches.find((c) => c.portal_token === clean);
   if (!coach || coach.active === false) return null;
 
@@ -211,7 +215,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'token required' }, { status: 400 });
     }
 
-    const resolved = await resolveCoach(token);
+    const resolved = await resolveCoach(token, { fresh: true });
     if (!resolved) {
       return NextResponse.json(
         { error: 'Coach portal not found' },
@@ -286,7 +290,7 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      const resolved = await resolveCoach(token);
+      const resolved = await resolveCoach(token, { fresh: true });
       if (!resolved) {
         return NextResponse.json(
           { error: 'Coach portal not found' },

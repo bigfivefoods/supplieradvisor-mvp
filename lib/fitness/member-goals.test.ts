@@ -7,8 +7,10 @@ import {
   createMemberGoal,
   goalProgressPct,
   goalReached,
+  hydrateGoalsFromPeople,
   latestGoalActual,
   logGoalActual,
+  memberFacingGoals,
   parseGoalNumber,
 } from './member-goals';
 import { matchWatchToSession } from './wearables';
@@ -82,6 +84,36 @@ assert.equal(again.goals?.[0].check_ins?.length, 1);
 applyGoalToStore(persist, withActual);
 assert.equal(persist.clients[0].goals?.[0].current_value, 85);
 assert.equal(persist.clients[0].goals?.[0].check_ins?.length, 1);
+
+const fromProfile = emptyFitgraphStore();
+fromProfile.clients = [
+  {
+    id: 'c1',
+    name: 'Ada',
+    code: 'A',
+    created_at: '',
+    updated_at: '',
+    goals: [persist.clients[0].goals![0]],
+  } as never,
+];
+fromProfile.goals = [];
+hydrateGoalsFromPeople(fromProfile);
+assert.equal(fromProfile.goals?.length, 1);
+assert.equal(memberFacingGoals(fromProfile, 'c1').length, 1);
+assert.equal(memberFacingGoals(fromProfile, 'c1')[0]?.actual, 85);
+
+const onlyOnPerson = emptyFitgraphStore();
+onlyOnPerson.clients = [
+  {
+    id: 'c1',
+    name: 'Ada',
+    code: 'A',
+    created_at: '',
+    updated_at: '',
+    goals: [persist.clients[0].goals![0]],
+  } as never,
+];
+assert.equal(memberFacingGoals(onlyOnPerson, 'c1')[0]?.target_value, 80);
 
 const store = emptyFitgraphStore();
 store.sessions.push({

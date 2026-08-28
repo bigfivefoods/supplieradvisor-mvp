@@ -7,12 +7,20 @@ import type { PortalInvoice } from '@/lib/b2c/member-account-portal';
 
 export type MemberPortalInvoice = PortalInvoice;
 
-export function mergePortalInvoices<T extends { invoices?: MemberPortalInvoice[] }>(
-  next: T,
-  prev: T | null | undefined
-): T {
-  if (next.invoices?.length || !prev?.invoices?.length) return next;
-  return { ...next, invoices: prev.invoices };
+export function mergePortalInvoices<
+  T extends {
+    invoices?: MemberPortalInvoice[];
+    statements?: unknown[];
+  },
+>(next: T, prev: T | null | undefined): T {
+  let out = next;
+  if (!next.invoices?.length && prev?.invoices?.length) {
+    out = { ...out, invoices: prev.invoices };
+  }
+  if (!next.statements?.length && prev?.statements?.length) {
+    out = { ...out, statements: prev.statements };
+  }
+  return out;
 }
 
 export function MemberPortalInvoices({

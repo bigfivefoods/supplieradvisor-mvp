@@ -212,4 +212,40 @@ const tokenRow = tokenMerged.clients.find((c) => c.id === 'cli_1');
 assert.equal(tokenRow?.portal_token, 'member_110_new');
 assert.ok((tokenRow?.portal_token_aliases || []).includes('member_110_live'));
 
+const profileLatest = emptyFitgraphStore();
+profileLatest.clients.push({
+  id: 'cli_g',
+  name: 'Ada',
+  code: 'A',
+  created_at: '2026-08-01',
+  updated_at: '2026-08-01T00:00:00Z',
+  goals: [
+    {
+      id: 'g_keep',
+      client_id: 'cli_g',
+      title: 'Lose weight',
+      category: 'physical',
+      status: 'active',
+      start_value: 90,
+      target_value: 80,
+      created_at: '2026-08-01',
+      updated_at: '2026-08-01',
+    },
+  ],
+} as never);
+profileLatest.goals = [...(profileLatest.clients[0].goals || [])] as never;
+const profileIncoming = emptyFitgraphStore();
+profileIncoming.clients.push({
+  id: 'cli_g',
+  name: 'Ada',
+  code: 'A',
+  created_at: '2026-08-01',
+  updated_at: '2026-08-28T12:00:00Z',
+} as never);
+const profileMerged = mergeFitgraphStores(profileLatest, profileIncoming);
+const profileRow = profileMerged.clients.find((c) => c.id === 'cli_g');
+assert.equal((profileRow?.goals || []).length, 1);
+assert.equal((profileRow?.goals || [])[0]?.id, 'g_keep');
+assert.equal((profileMerged.goals || []).length, 1);
+
 console.log('fitgraph-merge.test.ts ok');

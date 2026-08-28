@@ -15,7 +15,16 @@ import {
   type MemberAccountSuggestion,
 } from '@/lib/b2c/member-account-types';
 
-type MemberOpt = { ref_id: string; name: string; email?: string | null };
+type MemberOpt = {
+  ref_id: string;
+  name: string;
+  email?: string | null;
+  group?: 'member' | 'private' | 'left';
+  private_client?: boolean;
+  membership?: boolean;
+  active?: boolean;
+  status?: string | null;
+};
 
 export function AdvisorMemberAccounts({
   module,
@@ -38,6 +47,11 @@ export function AdvisorMemberAccounts({
   const [filter, setFilter] = useState('open');
   const [tillChargeIds, setTillChargeIds] = useState<string[]>([]);
   const [presentTill, setPresentTill] = useState(false);
+  const [query, setQuery] = useState('');
+  const [selectedRef, setSelectedRef] = useState('');
+  const [payAmount, setPayAmount] = useState('');
+  const [payMethod, setPayMethod] = useState<'cash' | 'eft'>('eft');
+  const [payRef, setPayRef] = useState('');
   const [form, setForm] = useState({
     ref_id: '',
     description: '',
@@ -78,7 +92,7 @@ export function AdvisorMemberAccounts({
   }, [load]);
 
   const act = async (body: Record<string, unknown>) => {
-    if (!companyId) return;
+    if (!companyId) return false;
     setBusy(true);
     try {
       const data = await withAuthJson<{ message?: string }>('/api/advisors/member-accounts', {
@@ -87,19 +101,70 @@ export function AdvisorMemberAccounts({
       });
       toast.success(data.message || 'Saved');
       await load();
+      return true;
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Save failed');
+      return false;
     } finally {
       setBusy(false);
     }
   };
 
+  const selected = members.find((m) => m.ref_id === selectedRef) || null;
+
+  const peopleHits = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const rows = q
+      ? members.filter(
+          (m) =>
+            m.name.toLowerCase().includes(q) ||
+            String(m.email || '')
+              .toLowerCase()
+              .includes(q)
+        )
+      : members;
+    const groups: Record<'member' | 'private' | 'left', MemberOpt[]> = {
+      member: [],
+      private: [],
+      left: [],
+    };
+    for (const m of rows) {
+      const g = m.group || 'member';
+      groups[g].push(m);
+    }
+    return groups;
+  }, [members, query]);
+
+  const personCharges = useMemo(() => {
+    if (!selectedRef) return charges;
+    return charges.filter((c) => c.ref_id === selectedRef);
+  }, [charges, selectedRef]);
+
+  const personPayments = useMemo(() => {
+    if (!selectedRef) return payments;
+    const ids = new Set(personCharges.map((c) => c.id));
+    return payments.filter(
+      (p) =>
+        p.ref_id === selectedRef ||
+        (p.charge_ids || []).some((id) => ids.has(id))
+    );
+  }, [payments, personCharges, selectedRef]);
+
   const shown = useMemo(() => {
-    if (filter === 'all') return charges;
-    if (filter === 'pending') return charges.filter((c) => c.status === 'pending_pop');
-    if (filter === 'paid') return charges.filter((c) => c.status === 'paid');
-    return charges.filter((c) => c.status === 'open');
-  }, [charges, filter]);
+    if (filter === 'all') return personCharges;
+    if (filter === 'pending')
+      return personCharges.filter((c) => c.status === 'pending_pop');
+    if (filter === 'paid') return personCharges.filter((c) => c.status === 'paid');
+    return personCharges.filter((c) => c.status === 'open');
+  }, [personCharges, filter]);
+
+  const personSuggestions = useMemo(
+    () =>
+      selectedRef
+        ? suggestions.filter((s) => s.ref_id === selectedRef)
+        : suggestions,
+    [suggestions, selectedRef]
+  );
 
   const pendingPops = payments.filter(
     (p) => p.status === 'pending' && p.method === 'pop'
@@ -198,27 +263,96 @@ export function AdvisorMemberAccounts({
         </div>
       ) : null}
 
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,280px)_minmax(0,1fr)]">
+        <section className="rounded-2xl border border-slate-200 bg-white p-3">
+          <h3 className="text-sm font-black text-slate-900">Accounts</h3>
+          <p className="mt-0.5 text-[11px] text-slate-500">
+            {members.length} people · members, private clients, and people who
+            left stay on file.
+          </p>
+          <input
+            className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+            placeholder="Search name or email"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <div className="mt-2 max-h-[28rem] space-y-3 overflow-y-auto pr-1">
+            {(
+              [
+                ['member', 'Members'],
+                ['private', 'Private'],
+                ['left', 'Left'],
+              ] as const
+            ).map(([g, label]) =>
+              peopleHits[g].length ? (
+                <div key={g}>
+                  <p className="px-1 text-[10px] font-black uppercase tracking-wide text-slate-400">
+                    {label} · {peopleHits[g].length}
+                  </p>
+                  <ul className="mt-1 space-y-0.5">
+                    {peopleHits[g].map((m) => {
+                      const on = selectedRef === m.ref_id;
+                      return (
+                        <li key={m.ref_id}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedRef(m.ref_id);
+                              setForm((f) => ({ ...f, ref_id: m.ref_id }));
+                            }}
+                            className={`w-full rounded-xl px-2.5 py-2 text-left text-sm ${
+                              on
+                                ? 'bg-slate-900 text-white'
+                                : 'hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className="block truncate font-bold">
+                              {m.name}
+                            </span>
+                            <span
+                              className={`block truncate text-[10px] ${
+                                on ? 'text-white/70' : 'text-slate-500'
+                              }`}
+                            >
+                              {m.private_client && m.membership
+                                ? 'Member + private'
+                                : m.private_client
+                                  ? 'Private client'
+                                  : m.email || 'Member'}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ) : null
+            )}
+            {!peopleHits.member.length &&
+            !peopleHits.private.length &&
+            !peopleHits.left.length ? (
+              <p className="px-2 py-6 text-center text-xs text-slate-500">
+                No people match that search.
+              </p>
+            ) : null}
+          </div>
+        </section>
+
+        <div className="space-y-4">
       <section className="rounded-2xl border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-black text-slate-900">Raise a charge</h3>
+        <h3 className="text-sm font-black text-slate-900">
+          {selected
+            ? `Charge · ${selected.name}`
+            : 'Raise a charge'}
+        </h3>
         <p className="mt-0.5 text-[11px] text-slate-500">
-          Adds a line to the member’s {kindAccountLabel(MODULE_KIND[module])} and
-          an invoice in Customers → Invoices.
+          Adds a line to the {kindAccountLabel(MODULE_KIND[module])}
+          {selected ? ` for ${selected.name}` : ''} and an invoice in Customers
+          → Invoices. Select a person on the left first.
         </p>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <select
-            className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
-            value={form.ref_id}
-            onChange={(e) => setForm((f) => ({ ...f, ref_id: e.target.value }))}
-          >
-            <option value="">Select member</option>
-            {members.map((m) => (
-              <option key={m.ref_id} value={m.ref_id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
           <input
-            className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+            className="rounded-xl border border-slate-200 px-3 py-2 text-sm sm:col-span-2"
             placeholder="Description (e.g. April membership)"
             value={form.description}
             onChange={(e) =>
@@ -243,11 +377,11 @@ export function AdvisorMemberAccounts({
         </div>
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || !selectedRef}
           onClick={() =>
             void act({
               action: 'raise',
-              ref_id: form.ref_id,
+              ref_id: selectedRef || form.ref_id,
               description: form.description,
               amount_zar: Number(form.amount_zar),
               due_date: form.due_date || null,
@@ -259,25 +393,85 @@ export function AdvisorMemberAccounts({
         </button>
       </section>
 
-      {suggestions.length > 0 ? (
+      {selectedRef ? (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4">
+          <h3 className="text-sm font-black text-slate-900">
+            Allocate a payment
+          </h3>
+          <p className="mt-0.5 text-[11px] text-slate-500">
+            Cash or EFT onto this account — covers the oldest open charges that
+            the amount can pay in full.
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <input
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              placeholder="Amount ZAR"
+              inputMode="decimal"
+              value={payAmount}
+              onChange={(e) => setPayAmount(e.target.value)}
+            />
+            <select
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              value={payMethod}
+              onChange={(e) =>
+                setPayMethod(e.target.value === 'cash' ? 'cash' : 'eft')
+              }
+            >
+              <option value="eft">EFT</option>
+              <option value="cash">Cash</option>
+            </select>
+            <input
+              className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              placeholder="Bank / receipt ref"
+              value={payRef}
+              onChange={(e) => setPayRef(e.target.value)}
+            />
+          </div>
+          <button
+            type="button"
+            disabled={busy || !Number(payAmount)}
+            onClick={() => {
+              void act({
+                action: 'record_member_payment',
+                ref_id: selectedRef,
+                amount_zar: Number(payAmount),
+                method: payMethod,
+                reference: payRef || null,
+              }).then((ok) => {
+                if (ok) {
+                  setPayAmount('');
+                  setPayRef('');
+                }
+              });
+            }}
+            className="mt-3 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-black text-white disabled:opacity-50"
+          >
+            Allocate to account
+          </button>
+        </section>
+      ) : null}
+
+      {personSuggestions.length > 0 ? (
         <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-sm font-black text-slate-900">
               {module === 'fitgraph'
-                ? `Unbilled monthly memberships (${suggestions.length})`
-                : `Unbilled visits / fees (${suggestions.length})`}
+                ? `Unbilled this month (${personSuggestions.length})`
+                : `Unbilled visits / fees (${personSuggestions.length})`}
             </h3>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void act({ action: 'bill_all_suggestions' })}
-              className="text-xs font-black text-sky-800"
-            >
-              Bill all
-            </button>
+            {!selectedRef ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void act({ action: 'bill_all_suggestions' })}
+                className="text-xs font-black text-sky-800"
+              >
+                Bill all
+              </button>
+            ) : null}
           </div>
           <ul className="mt-2 space-y-1.5">
-            {suggestions.slice(0, 12).map((s) => (
+            {personSuggestions.slice(0, selectedRef ? 40 : 12).map((s) => (
               <li
                 key={s.source_id}
                 className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm"
@@ -305,7 +499,11 @@ export function AdvisorMemberAccounts({
       ) : null}
 
       <section>
-        <div className="mb-2 flex flex-wrap gap-2">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-black text-slate-900">
+            {selected ? `Account history · ${selected.name}` : 'Charges'}
+          </h3>
+        <div className="flex flex-wrap gap-2">
           {(['open', 'pending', 'paid', 'all'] as const).map((f) => (
             <button
               key={f}
@@ -320,6 +518,7 @@ export function AdvisorMemberAccounts({
               {f}
             </button>
           ))}
+        </div>
         </div>
         <ul className="space-y-2">
           {shown.length === 0 ? (
@@ -382,7 +581,28 @@ export function AdvisorMemberAccounts({
             ))
           )}
         </ul>
+        {selectedRef && personPayments.length ? (
+          <ul className="mt-3 space-y-1.5 border-t border-slate-100 pt-3">
+            {personPayments.slice(0, 24).map((p) => (
+              <li
+                key={p.id}
+                className="flex items-center justify-between gap-2 text-[12px] text-slate-600"
+              >
+                <span>
+                  {String(p.paid_at || '').slice(0, 10)} ·{' '}
+                  {p.method === 'eft' ? 'EFT' : p.method} · {p.status}
+                  {p.reference ? ` · ${p.reference}` : ''}
+                </span>
+                <span className="font-black text-slate-900">
+                  {formatZar(p.amount_zar)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </section>
+        </div>
+      </div>
 
       {presentTill && tillAmount > 0 ? (
         <TillPresentPay

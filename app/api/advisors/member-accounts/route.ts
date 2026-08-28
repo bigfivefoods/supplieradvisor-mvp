@@ -16,8 +16,12 @@ import {
   addCharge,
   collectSuggestions,
   existingSourceIds,
+  gymAccountPeople,
+  isSuggestionBilled,
+  openChargesCoveredByAmount,
   patchCharge,
   patchPayment,
+  paymentsForMember,
   readMemberAccountStore,
   reopenCharges,
   suggestionToCharge,
@@ -56,6 +60,11 @@ type MemberOpt = {
   name: string;
   email?: string | null;
   platform_user_id?: string | null;
+  group?: 'member' | 'private' | 'left';
+  private_client?: boolean;
+  membership?: boolean;
+  active?: boolean;
+  status?: string | null;
 };
 
 function listMembers(
@@ -63,12 +72,7 @@ function listMembers(
   meta: Record<string, unknown>
 ): MemberOpt[] {
   if (module === 'fitgraph') {
-    return (readFitgraphFromMetadata(meta).clients || []).map((c) => ({
-      ref_id: c.id,
-      name: c.name,
-      email: c.email || null,
-      platform_user_id: c.platform_user_id || null,
-    }));
+    return gymAccountPeople(meta);
   }
   if (module === 'retailgraph') {
     return (readRetailgraphFromMetadata(meta).customers || []).map((c) => ({
@@ -130,14 +134,23 @@ export async function GET(request: NextRequest) {
     }
     const store = readMemberAccountStore(company.meta);
     const kind = MODULE_TO_KIND[moduleRaw];
-    const charges = store.charges.filter((c) => c.kind === kind);
-    const chargeIds = new Set(charges.map((c) => c.id));
-    const payments = store.payments.filter((p) =>
-      (p.charge_ids || []).some((id) => chargeIds.has(id))
+    const refId = String(request.nextUrl.searchParams.get('refId') || '').trim();
+    const charges = store.charges.filter(
+      (c) =>
+        c.kind === kind &&
+        (!refId || String(c.ref_id) === refId)
     );
+    const chargeIds = new Set(charges.map((c) => c.id));
+    const payments = refId
+      ? paymentsForMember(store, { kind, ref_id: refId })
+      : store.payments.filter((p) =>
+          (p.charge_ids || []).some((id) => chargeIds.has(id))
+        );
     const billed = existingSourceIds(store);
     const suggestions = collectSuggestions(moduleRaw, company.meta).filter(
-      (s) => !billed.has(s.source_id)
+      (s) =>
+        !isSuggestionBilled(billed, s.source_id) &&
+        (!refId || s.ref_id === refId)
     );
     const members = listMembers(moduleRaw, company.meta);
     const openZar = charges.reduce((n, c) => n + chargeBalance(c), 0);
@@ -269,7 +282,7 @@ export async function POST(request: NextRequest) {
       const suggestions = collectSuggestions(moduleRaw, company.meta);
       const billed = existingSourceIds(store);
       const match = suggestions.find(
-        (s) => s.source_id === sourceId && !billed.has(s.source_id)
+        (s) => s.source_id === sourceId && !isSuggestionBilled(billed, s.source_id)
       );
       if (!match) {
         return NextResponse.json(
@@ -300,7 +313,7 @@ export async function POST(request: NextRequest) {
     if (action === 'bill_all_suggestions') {
       const billed = existingSourceIds(store);
       const suggestions = collectSuggestions(moduleRaw, company.meta).filter(
-        (s) => !billed.has(s.source_id)
+        (s) => !isSuggestionBilled(billed, s.source_id)
       );
       let n = 0;
       let emailed = 0;
@@ -400,6 +413,64 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         message: 'Proof rejected — charge is open again',
+      });
+    }
+
+    if (action === 'record_member_payment') {
+      const refId = String(body.ref_id || '').trim();
+      const amount = Number(body.amount_zar);
+      const methodRaw = String(body.method || 'cash');
+      const method =
+        methodRaw === 'eft' || methodRaw === 'pop' || methodRaw === 'paystack'
+          ? methodRaw
+          : 'cash';
+      if (!refId || !(amount > 0)) {
+        return NextResponse.json(
+          { error: 'Member and amount required' },
+          { status: 400 }
+        );
+      }
+      const members = listMembers(moduleRaw, company.meta);
+      const member = members.find((m) => m.ref_id === refId);
+      const open = store.charges.filter(
+        (c) =>
+          c.kind === kind &&
+          c.ref_id === refId &&
+          (c.status === 'open' || c.status === 'pending_pop')
+      );
+      const wanted = Array.isArray(body.charge_ids)
+        ? open.filter((c) => (body.charge_ids as unknown[]).map(String).includes(c.id))
+        : openChargesCoveredByAmount(open, amount);
+      if (!wanted.length) {
+        return NextResponse.json(
+          {
+            error:
+              'No open charges this amount can cover. Raise a membership or private charge first, then allocate the payment.',
+          },
+          { status: 400 }
+        );
+      }
+      const applied = await confirmMemberAccountPayment({
+        companyId,
+        store,
+        charges: wanted,
+        method,
+        amountZar: amount,
+        reference: body.reference ? String(body.reference) : method,
+        notes: body.notes
+          ? String(body.notes)
+          : `Allocated to ${member?.name || 'member'} account`,
+        actorUserId: gate.userId,
+        memberName: member?.name || wanted[0]?.member_name,
+        memberEmail: member?.email || wanted[0]?.member_email,
+        memberUserId: member?.platform_user_id || wanted[0]?.member_user_id,
+      });
+      store = applied.store;
+      await persist();
+      return NextResponse.json({
+        success: true,
+        payment: applied.payment,
+        message: `Payment allocated to ${wanted.length} charge${wanted.length === 1 ? '' : 's'}`,
       });
     }
 

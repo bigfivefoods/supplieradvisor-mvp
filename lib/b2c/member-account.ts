@@ -54,8 +54,8 @@ export function writeMemberAccountStore(
   return {
     ...meta,
     member_accounts: {
-      charges: store.charges.slice(0, 2000),
-      payments: store.payments.slice(0, 2000),
+      charges: store.charges.slice(0, 8000),
+      payments: store.payments.slice(0, 8000),
       updated_at: new Date().toISOString(),
     },
   };
@@ -106,6 +106,62 @@ export function paymentsForCharges(
   );
 }
 
+export function paymentsForMember(
+  store: MemberAccountStore,
+  opts: {
+    kind?: AdvisorAccountKind | null;
+    ref_id?: string | null;
+    email?: string | null;
+    userId?: string | null;
+  }
+): MemberAccountPayment[] {
+  const charges = chargesForMember(store, opts);
+  const ids = new Set(charges.map((c) => c.id));
+  const email = String(opts.email || '')
+    .trim()
+    .toLowerCase();
+  const uid = String(opts.userId || '').trim();
+  const ref = String(opts.ref_id || '').trim();
+  const seen = new Set<string>();
+  const out: MemberAccountPayment[] = [];
+  for (const p of store.payments) {
+    if (!p?.id || seen.has(p.id)) continue;
+    const hit =
+      (p.charge_ids || []).some((id) => ids.has(id)) ||
+      (ref && p.ref_id === ref) ||
+      (uid && p.member_user_id === uid) ||
+      (email &&
+        p.member_email &&
+        String(p.member_email).toLowerCase() === email);
+    if (!hit) continue;
+    if (opts.kind && p.kind && p.kind !== opts.kind) continue;
+    seen.add(p.id);
+    out.push(p);
+  }
+  return out.sort((a, b) =>
+    String(b.paid_at || '').localeCompare(String(a.paid_at || ''))
+  );
+}
+
+/** Oldest open charges that the amount can cover in full (FIFO). */
+export function openChargesCoveredByAmount(
+  charges: MemberAccountCharge[],
+  amountZar: number
+): MemberAccountCharge[] {
+  const open = charges
+    .filter((c) => c.status === 'open' || c.status === 'pending_pop')
+    .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+  const picked: MemberAccountCharge[] = [];
+  let left = Math.round((Number(amountZar) || 0) * 100) / 100;
+  for (const c of open) {
+    const amt = Math.round((Number(c.amount_zar) || 0) * 100) / 100;
+    if (!(amt > 0) || left + 0.009 < amt) break;
+    picked.push(c);
+    left = Math.round((left - amt) * 100) / 100;
+  }
+  return picked;
+}
+
 export function summarizeCharges(
   companyId: number,
   brand: string,
@@ -137,6 +193,76 @@ export function existingSourceIds(store: MemberAccountStore): Set<string> {
     if (c.source_id && c.status !== 'void') s.add(c.source_id);
   }
   return s;
+}
+
+/** True if this suggestion was already billed (including legacy combined gym month ids). */
+export function isSuggestionBilled(billed: Set<string>, sourceId: string): boolean {
+  if (billed.has(sourceId)) return true;
+  const m = /^mem:([^:]+):(\d{4}-\d{2}):(class|private)$/.exec(sourceId);
+  if (m && billed.has(`mem:${m[1]}:${m[2]}`)) return true;
+  return false;
+}
+
+export type GymAccountPerson = {
+  ref_id: string;
+  name: string;
+  email?: string | null;
+  platform_user_id?: string | null;
+  group: 'member' | 'private' | 'left';
+  private_client: boolean;
+  membership: boolean;
+  active: boolean;
+  status?: string | null;
+};
+
+const LEFT_STATUSES = new Set([
+  'cancelled',
+  'ended',
+  'expired',
+  'left',
+  'inactive',
+]);
+
+export function gymAccountPeople(
+  meta: Record<string, unknown>
+): GymAccountPerson[] {
+  const store = readFitgraphFromMetadata(meta);
+  const live = new Set(
+    (store.subscriptions || [])
+      .filter(
+        (s) =>
+          s.status === 'active' ||
+          s.status === 'trialing' ||
+          s.status === 'past_due'
+      )
+      .map((s) => s.client_id)
+  );
+  return (store.clients || [])
+    .map((c) => {
+      const membership = live.has(c.id) || Boolean(c.membership_plan_id);
+      const left =
+        c.active === false ||
+        LEFT_STATUSES.has(String(c.membership_status || '').toLowerCase());
+      const privateClient =
+        c.private_client === true || c.contract_kind === 'private';
+      const group: GymAccountPerson['group'] = left
+        ? 'left'
+        : privateClient
+          ? 'private'
+          : 'member';
+      return {
+        ref_id: c.id,
+        name: c.name,
+        email: c.email || null,
+        platform_user_id: c.platform_user_id || null,
+        group,
+        private_client: privateClient,
+        membership,
+        active: c.active !== false,
+        status: c.membership_status || null,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function clinicLike(store: {
@@ -220,9 +346,8 @@ export function collectSuggestions(
             s.status === 'trialing' ||
             s.status === 'past_due')
       );
-      const sub = liveSubs[0];
       const plan = plans.find(
-        (p) => p.id === (sub?.plan_id || client.membership_plan_id)
+        (p) => p.id === (liveSubs[0]?.plan_id || client.membership_plan_id)
       );
       const isMember = Boolean(liveSubs.length || client.membership_plan_id);
       const classZar = liveSubs.length
@@ -237,32 +362,40 @@ export function collectSuggestions(
             : Number(plan?.price_zar) || 0
           : 0;
       const privateZar =
-        client.private_client && Number(client.private_rate_zar) > 0
+        (client.private_client === true || client.contract_kind === 'private') &&
+        Number(client.private_rate_zar) > 0
           ? Number(client.private_rate_zar)
           : 0;
-      const amount = classZar + privateZar;
-      if (!(amount > 0)) continue;
-      const parts: string[] = [];
-      if (isMember) {
-        const classNames = liveSubs
-          .map((s) => plans.find((p) => p.id === s.plan_id)?.name)
-          .filter((n): n is string => Boolean(n));
-        parts.push(
-          classNames.length ? classNames.join(' + ') : plan?.name || 'Membership'
-        );
-      }
-      if (privateZar > 0) parts.push('Private');
-      out.push({
-        source: 'subscription',
-        source_id: `mem:${client.id}:${month}`,
-        kind: 'gym',
+      const classNames = liveSubs
+        .map((s) => plans.find((p) => p.id === s.plan_id)?.name)
+        .filter((n): n is string => Boolean(n));
+      const classLabel = classNames.length
+        ? classNames.join(' + ')
+        : plan?.name || 'Membership';
+      const base = {
+        kind: 'gym' as const,
         ref_id: client.id,
         member_name: client.name,
         member_email: client.email || null,
-        description: `${parts.join(' + ')} · ${monthLabel}`,
-        amount_zar: amount,
         due_date: today,
-      });
+        source: 'subscription' as const,
+      };
+      if (classZar > 0) {
+        out.push({
+          ...base,
+          source_id: `mem:${client.id}:${month}:class`,
+          description: `${classLabel} · ${monthLabel}`,
+          amount_zar: classZar,
+        });
+      }
+      if (privateZar > 0) {
+        out.push({
+          ...base,
+          source_id: `mem:${client.id}:${month}:private`,
+          description: `Private · ${monthLabel}`,
+          amount_zar: privateZar,
+        });
+      }
     }
     return out;
   }

@@ -204,12 +204,30 @@ export function toMemberGoalView(goal: FitGoal): MemberGoalView {
   };
 }
 
+function goalsForPerson(store: FitgraphStore, personId: string): FitGoal[] {
+  const byId = new Map<string, FitGoal>();
+  for (const g of store.goals || []) {
+    if (!g?.id || g.client_id !== personId) continue;
+    byId.set(g.id, g);
+  }
+  const person =
+    (store.clients || []).find((c) => c.id === personId) ||
+    (store.coaches || []).find((c) => c.id === personId);
+  for (const g of person?.goals || []) {
+    if (!g?.id) continue;
+    if (g.client_id && g.client_id !== personId) continue;
+    const prev = byId.get(g.id);
+    byId.set(g.id, prev ? mergeGoalProgress(prev, g) : { ...g, client_id: personId });
+  }
+  return [...byId.values()];
+}
+
 export function memberFacingGoals(
   store: FitgraphStore,
   clientId: string
 ): MemberGoalView[] {
-  return (store.goals || [])
-    .filter((g) => g.client_id === clientId && g.status !== 'abandoned')
+  return goalsForPerson(store, clientId)
+    .filter((g) => g.status !== 'abandoned')
     .sort((a, b) => {
       const aActive = a.status === 'active' ? 0 : 1;
       const bActive = b.status === 'active' ? 0 : 1;
@@ -305,22 +323,18 @@ export function upsertMemberGoalOnStore(
 }
 
 function stampGoalOnPerson(store: FitgraphStore, goal: FitGoal) {
+  const stamp = (person: { id: string; goals?: FitGoal[]; updated_at?: string }) => {
+    const list = [...(person.goals || [])];
+    const i = list.findIndex((g) => g.id === goal.id);
+    if (i >= 0) list[i] = goal;
+    else list.unshift(goal);
+    person.goals = list;
+    person.updated_at = goal.updated_at || new Date().toISOString();
+  };
   const client = (store.clients || []).find((c) => c.id === goal.client_id);
-  if (client) {
-    const list = [...(client.goals || [])];
-    const i = list.findIndex((g) => g.id === goal.id);
-    if (i >= 0) list[i] = goal;
-    else list.unshift(goal);
-    client.goals = list;
-  }
+  if (client) stamp(client);
   const coach = (store.coaches || []).find((c) => c.id === goal.client_id);
-  if (coach) {
-    const list = [...(coach.goals || [])];
-    const i = list.findIndex((g) => g.id === goal.id);
-    if (i >= 0) list[i] = goal;
-    else list.unshift(goal);
-    coach.goals = list;
-  }
+  if (coach) stamp(coach);
 }
 
 /** Pull goal copies off people if the gym blob dropped them. */

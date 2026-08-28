@@ -158,17 +158,28 @@ function mergeClientRows(latest: unknown, incoming: unknown) {
   return merged.map((row) => {
     const id = String(row?.id || '');
     if (!id) return row;
+    const latestRow = latestById.get(id) || {};
+    const incomingRow = incomingById.get(id) || {};
     const tokens = [
       ...portalTokenList(row),
-      ...portalTokenList(latestById.get(id) || {}),
-      ...portalTokenList(incomingById.get(id) || {}),
+      ...portalTokenList(latestRow),
+      ...portalTokenList(incomingRow),
     ];
     const unique = [...new Set(tokens)];
-    if (!unique.length) return row;
     return {
       ...row,
-      portal_token: unique[0],
-      portal_token_aliases: unique.slice(1),
+      ...(unique.length
+        ? {
+            portal_token: unique[0],
+            portal_token_aliases: unique.slice(1),
+          }
+        : {}),
+      goals: mergeGoalRows(latestRow.goals, incomingRow.goals),
+      personal_bests: mergeRowsById(
+        latestRow.personal_bests,
+        incomingRow.personal_bests
+      ),
+      injuries: mergeRowsById(latestRow.injuries, incomingRow.injuries),
     };
   });
 }

@@ -52,6 +52,8 @@ import {
   mergePortalInvoices,
   type MemberPortalInvoice,
 } from '@/components/advisors/MemberPortalInvoices';
+import { MemberPortalStatements } from '@/components/advisors/MemberPortalStatements';
+import type { PortalStatement } from '@/lib/b2c/member-account-portal';
 import { gymBrandColor } from '@/lib/fitness/fitgraph';
 import { advisorBrandInk } from '@/lib/advisors/brand-ink';
 import type { MemberAnnouncementPublic } from '@/lib/services/member-announcements';
@@ -195,6 +197,7 @@ type Portal = {
     }>;
     personal_bests?: import('@/lib/fitness/person-records').FitPersonalBest[];
     injuries?: import('@/lib/fitness/person-records').FitInjuryEntry[];
+    goals?: MemberGoalView[];
     health?: PersonHealthProfile | null;
   };
   open_classes: OpenClass[];
@@ -350,6 +353,8 @@ type Portal = {
     }>;
   }>;
   invoices?: MemberPortalInvoice[];
+  statements?: PortalStatement[];
+  account_open_zar?: number;
   leaderboards?: ChallengeView[];
   gym_board?: {
     division: GymBoardDivision;
@@ -1116,7 +1121,7 @@ export default function MemberFitgraphPortalPage() {
 
         {tab === 'history' && (
           <div className="space-y-4">
-            <GymSectionTitle hint="Check-ins, completed classes, and ratings.">
+            <GymSectionTitle hint="After class first, then your monthly statements.">
               History
             </GymSectionTitle>
             {(portal.progress?.pending_feedback || []).length ? (
@@ -1161,6 +1166,16 @@ export default function MemberFitgraphPortalPage() {
                 ))}
               </div>
             ) : null}
+            <div className="space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                Statements
+              </p>
+              <MemberPortalStatements
+                statements={portal.statements}
+                purchases={portal.purchase_history}
+                openZar={portal.account_open_zar}
+              />
+            </div>
             {(portal.check_ins || []).length ? (
               <ul className="space-y-2">
                 {(portal.check_ins || []).map((c) => (
@@ -2385,8 +2400,14 @@ export default function MemberFitgraphPortalPage() {
             />
           </div>
         )}
-        {tab === 'profile' ? (
-          <MemberPortalInvoices invoices={portal.invoices} />
+        {tab === 'profile' && (portal.account_open_zar || 0) > 0 ? (
+          <button
+            type="button"
+            onClick={() => selectTab('history')}
+            className="w-full text-left"
+          >
+            <MemberPortalInvoices invoices={portal.invoices} />
+          </button>
         ) : null}
         {tab === 'profile' ? (
           <AdvisorPwaSignOutButton

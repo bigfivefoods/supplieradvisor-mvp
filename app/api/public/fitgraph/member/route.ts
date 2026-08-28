@@ -53,7 +53,7 @@ import {
 } from '@/lib/fitness/gym-leaderboard';
 import { notifyGymClassRsvp } from '@/lib/fitness/notify-class-rsvp';
 import { notifyPatientBookingPush } from '@/lib/b2c/member-push';
-import { portalInvoicesForPerson } from '@/lib/b2c/member-account-portal';
+import { portalAccountHistory } from '@/lib/b2c/member-account-portal';
 import {
   applyCompanyLogoToSettings,
   pickCompanyLogoUrl,
@@ -132,6 +132,7 @@ async function resolveMember(
     read: readFitgraphFromMetadata,
     parseCompanyId: parseCompanyIdFromToken,
     indexKeys: [FITGRAPH_CLIENT_TOKENS_KEY],
+    extraKeys: ['member_accounts'],
     fresh: opts?.fresh,
   });
   if (!loaded) return null;
@@ -140,6 +141,8 @@ async function resolveMember(
   const { mergeFitgraphLibrary } = await import('@/lib/fitness/fitgraph');
   const lib = await loadFitgraphLibraryRow(loaded.companyId);
   loaded.store = mergeFitgraphLibrary(loaded.store, lib);
+  const { hydrateGoalsFromPeople } = await import('@/lib/fitness/member-goals');
+  hydrateGoalsFromPeople(loaded.store);
 
   const supabase = getSupabaseServer();
   const { data: prof } = await supabase
@@ -301,13 +304,24 @@ function decorateMemberPortal(
     bank: gymCollectsDebitBank(store)
       ? memberDebitBankPublic(client)
       : null,
-    invoices: portalInvoicesForPerson(meta, {
-      kind: 'gym',
-      refId: client.id,
-      email: client.email,
-      userId: client.platform_user_id,
-    }),
+    ...(() => {
+      const account = portalAccountHistory(meta, {
+        kind: 'gym',
+        refId: client.id,
+        email: client.email,
+        userId: client.platform_user_id,
+      });
+      return {
+        invoices: account.invoices,
+        statements: account.statements,
+        account_open_zar: account.open_zar,
+      };
+    })(),
     goals: memberFacingGoals(store, client.id),
+    client: {
+      ...portal.client,
+      goals: memberFacingGoals(store, client.id),
+    },
     wearable: publicWearableStatus(client),
     watch_sessions: (store.watch_sessions || [])
       .filter((w) => w.client_id === client.id)
@@ -385,7 +399,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'token required' }, { status: 400 });
     }
 
-    const resolved = await resolveMember(token);
+    const resolved = await resolveMember(token, { fresh: true });
     if (!resolved) {
       return NextResponse.json(
         { error: 'Member portal not found' },
