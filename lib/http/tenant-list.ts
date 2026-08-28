@@ -21,7 +21,7 @@ export const CUSTOMER_LIST_COLUMNS =
   'id, trading_name, legal_name, email, phone, contact_name, status, customer_type, city, country, industry, linked_profile_id, invite_status, credit_limit, currency, logo_url, source, created_at, updated_at';
 
 export const SUPPLIER_LIST_COLUMNS =
-  'id, trading_name, legal_name, email, phone, contact_name, status, invite_status, city, country, industry, linked_profile_id, logo_url, created_at, updated_at';
+  'id, trading_name, legal_name, email, phone, contact_name, status, invite_status, city, country, industry, linked_profile_id, logo_url, connection_id, verified, otifef_pct, rating_avg, trust_score, wallet_address, created_at, updated_at';
 
 export const DOC_LIST_COLUMNS =
   'id, status, invoice_number, quote_number, order_number, customer_id, customer_name, total_amount, amount_paid, currency, due_date, created_at, contact_email, visibility, items';
