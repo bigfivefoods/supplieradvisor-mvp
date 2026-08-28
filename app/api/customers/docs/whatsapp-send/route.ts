@@ -5,7 +5,7 @@ import {
 } from '@/lib/auth/api-auth';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
-  buildDocShareToken,
+  tryBuildDocShareToken,
   commercialDocPdfUrl,
 } from '@/lib/customers/doc-share-token';
 import { commercialDocWhatsAppText } from '@/lib/invites/whatsapp';
@@ -59,13 +59,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: loaded.error }, { status: loaded.status });
     }
 
-    const token = buildDocShareToken({
+    const token = tryBuildDocShareToken({
       companyId,
       type,
       id,
       ttlSeconds: type === 'quote' ? 60 * 60 * 24 * 45 : 60 * 60 * 24 * 30,
     });
-    const pdfUrl = commercialDocPdfUrl(token);
+    const pdfUrl = token ? commercialDocPdfUrl(token) : '';
     const filename = commercialPdfFilename(loaded.input);
     const number = loaded.input.number;
     const sellerName =
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
       const send = await sendWhatsAppDocument({
         to: docPhone,
         body: custom.slice(0, 1500),
-        mediaUrl: pdfUrl,
+        mediaUrl: pdfUrl || undefined,
       });
 
       if (send.ok) {

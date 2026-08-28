@@ -11,7 +11,7 @@ import {
   commercialPdfFilename,
 } from '@/lib/customers/commercial-doc-pdf';
 import {
-  buildDocShareToken,
+  tryBuildDocShareToken,
   commercialDocPdfUrl,
 } from '@/lib/customers/doc-share-token';
 
@@ -230,13 +230,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const shareToken = buildDocShareToken({
+    const shareToken = tryBuildDocShareToken({
       companyId,
       type,
       id,
       ttlSeconds: type === 'quote' ? 60 * 60 * 24 * 45 : 60 * 60 * 24 * 30,
     });
-    const pdfLink = commercialDocPdfUrl(shareToken);
+    const pdfLink = shareToken ? commercialDocPdfUrl(shareToken) : '';
 
     const resend = getResend();
     const from = getResendFrom();
@@ -249,13 +249,17 @@ export async function POST(request: NextRequest) {
     const emailHtml = `
       <div style="font-family:system-ui,sans-serif;max-width:640px;margin:0 auto">
         ${intro}
-        <p style="margin:20px 0">
+        ${
+          pdfLink
+            ? `<p style="margin:20px 0">
           <a href="${pdfLink}"
              style="display:inline-block;background:#00b4d8;color:#fff;padding:12px 20px;border-radius:999px;text-decoration:none;font-weight:700">
             Open PDF ${LABELS[type].toLowerCase()} →
           </a>
-        </p>
-        <p style="font-size:13px;color:#64748b">The formal PDF is also attached to this email for your records.</p>
+        </p>`
+            : ''
+        }
+        <p style="font-size:13px;color:#64748b">The formal PDF is attached to this email for your records.</p>
         <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0"/>
         <p style="font-size:12px;color:#94a3b8">Sent via SupplierAdvisor® · ${sellerName}</p>
       </div>
