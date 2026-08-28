@@ -17,7 +17,6 @@ import { memberDebitBankComplete } from '@/lib/fitness/member-debit-bank';
 import {
   assembleCustomer360,
   type Customer360,
-  type LoosePerson,
 } from './customer-360';
 import { customerKindMatches } from './kinds';
 import {
@@ -203,32 +202,10 @@ export async function loadCustomer360Bundle(
   const assembleOpts = {
     invoices,
     gym: null,
-    clinics: [] as Array<{
-      module: string;
-      patients: LoosePerson[];
-      appointments: Array<{
-        id: string;
-        date: string;
-        start_time?: string;
-        class_type_id?: string;
-        status?: string;
-      }>;
-      bookings: Array<{
-        id: string;
-        appointment_id?: string;
-        patient_id?: string;
-        status?: string;
-      }>;
-      services: Array<{ id: string; name: string }>;
-    }>,
+    clinics: [],
     hire: null,
     retail: null,
-    events: [] as Array<{
-      at: string;
-      type: string;
-      person_id?: string | null;
-      meta?: Record<string, unknown>;
-    }>,
+    events: [],
   };
 
   const rows: Customer360[] = customers.map((c) =>
