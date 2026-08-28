@@ -35,6 +35,13 @@ export function AllocGlSelect({
       className={className || 'input'}
     >
       <option value="">{emptyLabel}</option>
+      {groups.members.length > 0 ? (
+        <optgroup label="Members & patients (AR)">
+          {groups.members.map((a) => (
+            <Option key={a.id} a={a} />
+          ))}
+        </optgroup>
+      ) : null}
       {groups.customers.length > 0 ? (
         <optgroup label="Customers (receivable)">
           {groups.customers.map((a) => (

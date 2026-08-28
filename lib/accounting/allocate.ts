@@ -3,6 +3,10 @@ import { invalidateLearnedPatterns } from '@/lib/banking/learning';
 import { round2 } from '@/lib/accounting/server';
 import { isPeriodLocked } from '@/lib/accounting/period-lock';
 import { postBalancedJournal, reversePostedJournal } from '@/lib/accounting/post-journal';
+import {
+  isMemberArAccountCode,
+  parseMemberArCustomerId,
+} from '@/lib/accounting/party-gl-accounts';
 
 /**
  * Resolve the GL cash/bank account for a bank account.
@@ -64,8 +68,12 @@ async function allocateInflowToInvoiceIfRecognised(opts: {
     .maybeSingle();
   const type = String(acct?.account_type || '').toLowerCase();
   const code = String(acct?.code || '');
+  if (isMemberArAccountCode(code)) return null;
   const isRevenue =
-    type === 'revenue' || type === 'income' || type === 'sales' || code.startsWith('4');
+    type === 'revenue' ||
+    type === 'income' ||
+    type === 'sales' ||
+    (code.startsWith('4') && type !== 'asset');
   if (!isRevenue) return null;
 
   const { bankIncomeMatchesInvoice } = await import(
@@ -96,6 +104,85 @@ async function allocateInflowToInvoiceIfRecognised(opts: {
     profileId: opts.profileId,
     bankTxnId: opts.bankTxnId,
     invoiceId: Number(hit.id),
+    privyUserId: opts.privyUserId,
+  });
+  if (!matched.ok) return null;
+  const { data: txn } = await supabase
+    .from('bank_transactions')
+    .select('matched_journal_id')
+    .eq('id', opts.bankTxnId)
+    .eq('profile_id', opts.profileId)
+    .maybeSingle();
+  return {
+    ok: true,
+    journalId: Number(txn?.matched_journal_id || 0),
+    entryNumber: 'AR-SETTLE',
+  };
+}
+
+/**
+ * Receipt coded to 4400-NNNNNNN: settle that person's open invoice when the
+ * amount matches, otherwise fall through to Dr bank · Cr their AR leaf.
+ */
+async function matchBankInflowToMemberAccount(opts: {
+  profileId: number;
+  bankTxnId: number | string;
+  glAccountId: number;
+  glCode: string;
+  amount: number;
+  privyUserId?: string | null;
+}): Promise<{ ok: true; journalId: number; entryNumber: string } | null> {
+  const customerId = parseMemberArCustomerId(opts.glCode);
+  if (!customerId) return null;
+  const supabase = getSupabaseServer();
+  const want = round2(opts.amount);
+  const { data: invoices } = await supabase
+    .from('invoices')
+    .select('id, total_amount, amount_paid, status, customer_id')
+    .eq('profile_id', opts.profileId)
+    .eq('direction', 'receivable')
+    .eq('customer_id', customerId)
+    .limit(50);
+  const open = (invoices || []).filter((inv) => {
+    const st = String(inv.status || '').toLowerCase();
+    if (['paid', 'void', 'cancelled', 'canceled', 'draft'].includes(st)) {
+      return false;
+    }
+    const due = round2(Number(inv.total_amount || 0) - Number(inv.amount_paid || 0));
+    return Math.abs(due - want) < 0.05 || Math.abs(Number(inv.total_amount || 0) - want) < 0.05;
+  });
+  const invoiceId = open[0] ? Number(open[0].id) : 0;
+  if (!invoiceId) {
+    const { data: crm } = await supabase
+      .from('customer_invoices')
+      .select('id, total_amount, amount_paid, status, customer_id')
+      .eq('profile_id', opts.profileId)
+      .eq('customer_id', customerId)
+      .limit(50);
+    const crmOpen = (crm || []).filter((inv) => {
+      const st = String(inv.status || '').toLowerCase();
+      if (['paid', 'void', 'cancelled', 'canceled', 'draft'].includes(st)) {
+        return false;
+      }
+      const due = round2(Number(inv.total_amount || 0) - Number(inv.amount_paid || 0));
+      return Math.abs(due - want) < 0.05 || Math.abs(Number(inv.total_amount || 0) - want) < 0.05;
+    });
+    if (crmOpen[0]?.id) {
+      const matched = await matchBankToInvoice({
+        profileId: opts.profileId,
+        bankTxnId: opts.bankTxnId,
+        invoiceId: Number(crmOpen[0].id),
+        privyUserId: opts.privyUserId,
+      });
+      if (!matched.ok) return null;
+      return { ok: true, journalId: 0, entryNumber: 'AR-SETTLE' };
+    }
+    return null;
+  }
+  const matched = await matchBankToInvoice({
+    profileId: opts.profileId,
+    bankTxnId: opts.bankTxnId,
+    invoiceId,
     privyUserId: opts.privyUserId,
   });
   if (!matched.ok) return null;
@@ -191,19 +278,38 @@ export async function allocateBankTransaction(params: AllocateParams): Promise<
   }
 
   if (amount > 0) {
-    const matched = await allocateInflowToInvoiceIfRecognised({
-      profileId: params.profileId,
-      bankTxnId: params.bankTxnId,
-      glAccountId: Number(params.glAccountId),
-      amount,
-      memo: String(params.memo || txn.description || ''),
-      date:
-        (txn.txn_date as string | null) ||
-        (txn.tx_date ? String(txn.tx_date).slice(0, 10) : null) ||
-        new Date().toISOString().slice(0, 10),
-      privyUserId: params.privyUserId,
-    });
-    if (matched) return matched;
+    const { data: glAcct } = await supabase
+      .from('chart_of_accounts')
+      .select('id, code, account_type, subtype')
+      .eq('id', Number(params.glAccountId))
+      .eq('profile_id', params.profileId)
+      .maybeSingle();
+    const glCode = String(glAcct?.code || '');
+    if (isMemberArAccountCode(glCode)) {
+      const memberMatch = await matchBankInflowToMemberAccount({
+        profileId: params.profileId,
+        bankTxnId: params.bankTxnId,
+        glAccountId: Number(params.glAccountId),
+        glCode,
+        amount,
+        privyUserId: params.privyUserId,
+      });
+      if (memberMatch) return memberMatch;
+    } else {
+      const matched = await allocateInflowToInvoiceIfRecognised({
+        profileId: params.profileId,
+        bankTxnId: params.bankTxnId,
+        glAccountId: Number(params.glAccountId),
+        amount,
+        memo: String(params.memo || txn.description || ''),
+        date:
+          (txn.txn_date as string | null) ||
+          (txn.tx_date ? String(txn.tx_date).slice(0, 10) : null) ||
+          new Date().toISOString().slice(0, 10),
+        privyUserId: params.privyUserId,
+      });
+      if (matched) return matched;
+    }
   }
 
   const entryDate =

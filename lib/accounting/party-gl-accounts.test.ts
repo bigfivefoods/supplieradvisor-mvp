@@ -6,7 +6,9 @@ import {
   groupCoaForAllocation,
   isAdvisorParty,
   isCustomerAllocAccount,
+  isMemberArAccountCode,
   memberArAccountCode,
+  parseMemberArCustomerId,
   isSupplierAllocAccount,
   isTradeParty,
   normalizePartyKey,
@@ -28,6 +30,9 @@ assert.equal(nextFreeCode(new Set(['1181', '1182']), 1181), '1183');
 assert.equal(memberArAccountCode(1), '4400-0000001');
 assert.equal(memberArAccountCode(200), '4400-0000200');
 assert.equal(memberArAccountCode(0), '');
+assert.equal(parseMemberArCustomerId('4400-0000009'), 9);
+assert.equal(isMemberArAccountCode('4400-0000123'), true);
+assert.equal(isMemberArAccountCode('4100'), false);
 assert.equal(partyDisplayName({ name: 'First trade customer' }), 'First trade customer');
 assert.equal(
   partyDisplayName({ trading_name: 'Buze', name: 'ignored' }),
@@ -201,7 +206,15 @@ const grouped = groupCoaForAllocation([
   { id: 20, code: '4100', name: 'Sales revenue', account_type: 'revenue', subtype: 'sales' },
   { id: 1, code: '1000', name: 'Assets', account_type: 'asset', is_header: true },
   { id: 3, code: '1110', name: 'Bank — operating', account_type: 'asset', subtype: 'bank' },
+  {
+    id: 77,
+    code: '4400-0000009',
+    name: 'Ann Vuka',
+    account_type: 'asset',
+    subtype: 'receivable',
+  },
 ] as CoaAccount[]);
+assert.deepEqual(grouped.members.map((a) => a.code), ['4400-0000009']);
 assert.deepEqual(grouped.customers.map((a) => a.code), ['1130', '1181']);
 assert.deepEqual(grouped.suppliers.map((a) => a.code), ['2110', '2181']);
 assert.deepEqual(grouped.incomeExpense.map((a) => a.code), ['4100']);
@@ -225,5 +238,18 @@ assert.equal(hit?.id, 41);
 
 const miss = suggestPartyGlForDescription('FNB APP PAYMENT FROM SOMEONE ELSE', 100, grouped.customers);
 assert.equal(miss, null);
+
+const memberByName = suggestPartyGlForDescription(
+  'FNB APP PAYMENT FROM ANN VUKA',
+  910,
+  grouped.members
+);
+assert.equal(memberByName?.id, 77);
+const memberByCode = suggestPartyGlForDescription(
+  'EFT 4400-0000009 gym fees',
+  910,
+  grouped.members
+);
+assert.equal(memberByCode?.id, 77);
 
 console.log('party-gl-accounts tests ok');

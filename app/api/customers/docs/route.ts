@@ -1248,6 +1248,43 @@ export async function POST(request: NextRequest) {
             fx_rate: fxRate,
             fx_as_of: now.slice(0, 10),
           });
+          try {
+            const { syncCrmInvoiceToBooks } = await import(
+              '@/lib/accounting/crm-invoice-gl'
+            );
+            const books = await syncCrmInvoiceToBooks({
+              profileId: companyId,
+              crmInvoice: {
+                ...(inv as Record<string, unknown>),
+                amount_paid: paid,
+                status: nextStatus,
+              },
+              createdBy: _gate.userId || null,
+            });
+            if (books.ok && books.financeInvoiceId) {
+              const { data: twin } = await supabase
+                .from('invoices')
+                .select('*')
+                .eq('id', books.financeInvoiceId)
+                .eq('profile_id', companyId)
+                .maybeSingle();
+              if (twin) {
+                const { settleInvoicePayment } = await import(
+                  '@/lib/accounting/invoice-gl'
+                );
+                await settleInvoicePayment({
+                  profileId: companyId,
+                  invoice: twin as Record<string, unknown>,
+                  paymentId: Date.now(),
+                  amount: thisPayment,
+                  paidAt: now,
+                  createdBy: _gate.userId || null,
+                });
+              }
+            }
+          } catch (e) {
+            console.warn('mark_paid GL settle', e);
+          }
         } catch {
           /* ledger optional */
         }

@@ -30,6 +30,17 @@ export function memberArAccountCode(customerId: number): string {
   return `${MEMBER_AR_HEADER_CODE}-${String(n).padStart(MEMBER_AR_CODE_PAD, '0')}`;
 }
 
+export function parseMemberArCustomerId(code: string): number | null {
+  const m = /^4400-(\d+)$/.exec(String(code || '').trim());
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+export function isMemberArAccountCode(code?: string | null): boolean {
+  return parseMemberArCustomerId(String(code || '')) != null;
+}
+
 const SKIP_STATUS = new Set([
   'inactive',
   'archived',
@@ -490,6 +501,7 @@ export function planPartyGlAccounts(opts: {
 }
 
 export type AllocGlGroup = {
+  members: CoaAccount[];
   customers: CoaAccount[];
   suppliers: CoaAccount[];
   incomeExpense: CoaAccount[];
@@ -504,9 +516,14 @@ function sortByCode(a: CoaAccount, b: CoaAccount): number {
 
 export function groupCoaForAllocation(accounts: CoaAccount[]): AllocGlGroup {
   const live = (accounts || []).filter((a) => !a.is_header && a.is_active !== false);
-  const customers = live.filter((a) => isCustomerAllocAccount(a)).sort(sortByCode);
+  const members = live.filter((a) => isMemberArAccountCode(String(a.code || ''))).sort(sortByCode);
+  const customers = live
+    .filter((a) => isCustomerAllocAccount(a) && !isMemberArAccountCode(String(a.code || '')))
+    .sort(sortByCode);
   const suppliers = live.filter((a) => isSupplierAllocAccount(a)).sort(sortByCode);
-  const used = new Set([...customers, ...suppliers].map((a) => Number(a.id)));
+  const used = new Set(
+    [...members, ...customers, ...suppliers].map((a) => Number(a.id))
+  );
   const incomeExpense = live
     .filter((a) => ['revenue', 'expense', 'cogs'].includes(String(a.account_type)))
     .filter((a) => !used.has(Number(a.id)))
@@ -515,7 +532,7 @@ export function groupCoaForAllocation(accounts: CoaAccount[]): AllocGlGroup {
     .filter((a) => !used.has(Number(a.id)))
     .filter((a) => !['revenue', 'expense', 'cogs'].includes(String(a.account_type)))
     .sort(sortByCode);
-  return { customers, suppliers, incomeExpense, other };
+  return { members, customers, suppliers, incomeExpense, other };
 }
 
 /** Prefer a named customer/supplier account when the bank narrative names them. */
@@ -527,10 +544,20 @@ export function suggestPartyGlForDescription(
   const desc = String(description || '').toLowerCase();
   if (!desc) return null;
   const isIn = amount > 0;
-  const pool = (coa || [])
-    .filter((a) =>
-      isIn ? isCustomerAllocAccount(a) && String(a.code) !== '1130' : isSupplierAllocAccount(a) && String(a.code) !== '2110'
-    )
+  const pool = (coa || []).filter((a) =>
+    isIn
+      ? isCustomerAllocAccount(a) && String(a.code) !== '1130'
+      : isSupplierAllocAccount(a) && String(a.code) !== '2110'
+  );
+
+  for (const a of pool) {
+    const code = String(a.code || '').toLowerCase();
+    if (code.startsWith('4400-') && desc.includes(code)) {
+      return { id: Number(a.id), label: `${a.code} · ${a.name}` };
+    }
+  }
+
+  const named = pool
     .map((a) => ({
       account: a,
       needle: stripPartyPrefix(String(a.name || '')).toLowerCase(),
@@ -538,7 +565,7 @@ export function suggestPartyGlForDescription(
     .filter((x) => x.needle.length >= 3)
     .sort((a, b) => b.needle.length - a.needle.length);
 
-  for (const hit of pool) {
+  for (const hit of named) {
     if (desc.includes(hit.needle)) {
       return {
         id: Number(hit.account.id),
