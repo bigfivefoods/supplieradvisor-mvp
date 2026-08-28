@@ -13,7 +13,7 @@ export const CUSTOMERS_NAV: readonly NavItem[] = [
   { href: '/dashboard/customers', label: 'Overview', exact: true },
   { href: '/dashboard/customers/360', label: '360' },
   { href: '/dashboard/customers/leads', label: 'Source' },
-  { href: '/dashboard/customers/profiles', label: 'Book' },
+  { href: '/dashboard/customers/profiles', label: 'Profiles' },
   { href: '/dashboard/customers/invites', label: 'Invite' },
   { href: '/dashboard/customers/quotes', label: 'Quote' },
   { href: '/dashboard/customers/orders', label: 'Order' },

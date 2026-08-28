@@ -36,7 +36,7 @@ import { AccountLogoField } from '@/components/relationship/AccountLogoField';
 
 const PROCESS = [
   { label: 'Source', href: '/dashboard/customers/leads' },
-  { label: 'Book', href: '/dashboard/customers/profiles' },
+  { label: 'Profiles', href: '/dashboard/customers/profiles' },
   { label: 'Invite', href: '/dashboard/customers/invites' },
   { label: 'Quote', href: '/dashboard/customers/quotes' },
   { label: 'Order', href: '/dashboard/customers/orders' },
