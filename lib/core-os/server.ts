@@ -17,6 +17,7 @@ import { memberDebitBankComplete } from '@/lib/fitness/member-debit-bank';
 import {
   assembleCustomer360,
   type Customer360,
+  type LoosePerson,
 } from './customer-360';
 import { customerKindMatches } from './kinds';
 import {
