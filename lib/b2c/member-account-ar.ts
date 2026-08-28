@@ -60,8 +60,7 @@ export async function ensureAdvisorCrmCustomer(opts: {
   const tags = advisorKindAliases(opts.kind).map((k) =>
     advisorRefTag(k, opts.refId)
   );
-  const tag = tags[0] || advisorRefTag(canonical, opts.refId);
-  const notesBlob = tags.join('\n');
+  const notesBlob = tags.join('\n') || advisorRefTag(canonical, opts.refId);
 
   if (email) {
     const { data: hits } = await supabase
@@ -96,8 +95,12 @@ export async function ensureAdvisorCrmCustomer(opts: {
     }
   }
 
-  let tagged: { id: number; trading_name?: string | null; email?: string | null } | null =
-    null;
+  type TaggedCustomer = {
+    id: number;
+    trading_name?: string | null;
+    email?: string | null;
+  };
+  let tagged: TaggedCustomer | null = null;
   for (const t of tags) {
     const hit = await supabase
       .from('customers')
@@ -106,8 +109,9 @@ export async function ensureAdvisorCrmCustomer(opts: {
       .ilike('notes', `%${t}%`)
       .limit(1)
       .maybeSingle();
-    if (hit.data?.id) {
-      tagged = hit.data as never;
+    const row = hit.data as TaggedCustomer | null;
+    if (row?.id) {
+      tagged = row;
       break;
     }
   }
