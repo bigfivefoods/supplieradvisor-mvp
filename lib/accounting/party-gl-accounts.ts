@@ -15,6 +15,11 @@ export const PARTY_AR_CODE_START = 1181;
 export const PARTY_AP_CODE_START = 2181;
 export const PARTY_AR_PREFIX = 'AR — ';
 export const PARTY_AP_PREFIX = 'AP — ';
+/** Nested under 4000 Revenue — one leaf per gym/clinic/retail person. */
+export const MEMBER_REV_HEADER_CODE = '4400';
+export const MEMBER_REV_HEADER_NAME = 'Members & patients';
+export const MEMBER_REV_CODE_START = 4401;
+export const MEMBER_REV_PREFIX = 'Member — ';
 
 const SKIP_STATUS = new Set([
   'inactive',
@@ -64,23 +69,26 @@ export type PartyCoaRow = {
   subtype?: string | null;
   is_header?: boolean | null;
   is_active?: boolean | null;
+  parent_id?: number | null;
 };
 
 export type PartyGlCreate = {
   code: string;
   name: string;
-  account_type: 'asset' | 'liability';
-  subtype: 'receivable' | 'payable';
+  account_type: 'asset' | 'liability' | 'revenue';
+  subtype: 'receivable' | 'payable' | 'service' | 'header';
   normal_balance: 'debit' | 'credit';
   description: string;
   metadata: Record<string, unknown>;
   sort_order: number;
+  is_header?: boolean;
+  parent_code?: string | null;
 };
 
 export type PartyGlLink = {
   table: 'customers' | 'srm_suppliers';
   id: number;
-  kind: 'ar' | 'ap';
+  kind: 'ar' | 'ap' | 'revenue';
   key: string;
   name: string;
   code: string;
@@ -125,7 +133,7 @@ export function isTradeParty(row: PartyBookRow): boolean {
   return Boolean(partyDisplayName(row));
 }
 
-/** Gym members / clinic patients are customers and get named AR on the CoA. */
+/** Gym members / clinic patients / shoppers — named revenue under Members & patients. */
 export function isAdvisorParty(row: PartyBookRow): boolean {
   if (!row?.id || isSkippedPartyStatus(row.status)) return false;
   if (!partyDisplayName(row)) return false;
@@ -165,6 +173,7 @@ function stripPartyPrefix(name: string): string {
   return String(name || '')
     .replace(/^AR\s+[—-]\s+/i, '')
     .replace(/^AP\s+[—-]\s+/i, '')
+    .replace(/^Member\s+[—-]\s+/i, '')
     .trim();
 }
 
@@ -186,7 +195,11 @@ export function isSupplierAllocAccount(a: PartyCoaRow): boolean {
 
 export function isNamedPartyAccount(a: PartyCoaRow): boolean {
   const name = String(a.name || '');
-  return /^AR\s+[—-]\s+/i.test(name) || /^AP\s+[—-]\s+/i.test(name);
+  return (
+    /^AR\s+[—-]\s+/i.test(name) ||
+    /^AP\s+[—-]\s+/i.test(name) ||
+    /^Member\s+[—-]\s+/i.test(name)
+  );
 }
 
 export function nextFreeCode(used: Set<string>, start: number): string {
@@ -202,11 +215,12 @@ function pickDisplayName(names: string[]): string {
 }
 
 function collectParties(
-  rows: PartyBookRow[]
+  rows: PartyBookRow[],
+  keep: (row: PartyBookRow) => boolean
 ): Map<string, { key: string; name: string; ids: number[] }> {
   const map = new Map<string, { key: string; name: string; ids: number[]; names: string[] }>();
   for (const row of rows) {
-    if (!isTradeParty(row) && !isAdvisorParty(row)) continue;
+    if (!keep(row)) continue;
     const display = partyDisplayName(row);
     if (!display) continue;
     const key = normalizePartyKey(display);
@@ -233,11 +247,16 @@ function collectParties(
 
 function findExistingPartyAccount(
   coa: PartyCoaRow[],
-  kind: 'ar' | 'ap',
+  kind: 'ar' | 'ap' | 'revenue',
   key: string,
   displayName: string
 ): PartyCoaRow | null {
-  const prefix = kind === 'ar' ? PARTY_AR_PREFIX : PARTY_AP_PREFIX;
+  const prefix =
+    kind === 'ar'
+      ? PARTY_AR_PREFIX
+      : kind === 'ap'
+        ? PARTY_AP_PREFIX
+        : MEMBER_REV_PREFIX;
   const want = `${prefix}${displayName}`;
   const byName = coa.find(
     (a) => !a.is_header && a.is_active !== false && String(a.name) === want
@@ -249,8 +268,27 @@ function findExistingPartyAccount(
       const name = String(a.name || '');
       if (kind === 'ar' && !/^AR\s+[—-]\s+/i.test(name)) return false;
       if (kind === 'ap' && !/^AP\s+[—-]\s+/i.test(name)) return false;
+      if (kind === 'revenue' && !/^Member\s+[—-]\s+/i.test(name)) return false;
       return normalizePartyKey(stripPartyPrefix(name)) === key;
     }) || null
+  );
+}
+
+function findMemberRevenueHeader(coa: PartyCoaRow[]): PartyCoaRow | null {
+  return (
+    coa.find(
+      (a) =>
+        a.is_header &&
+        a.is_active !== false &&
+        String(a.code) === MEMBER_REV_HEADER_CODE
+    ) ||
+    coa.find(
+      (a) =>
+        a.is_header &&
+        a.is_active !== false &&
+        String(a.name) === MEMBER_REV_HEADER_NAME
+    ) ||
+    null
   );
 }
 
@@ -327,17 +365,109 @@ export function planPartyGlAccounts(opts: {
   addKind(
     'customers',
     'ar',
-    collectParties(opts.customers || []),
+    collectParties(opts.customers || [], isTradeParty),
     PARTY_AR_CODE_START,
     900
   );
   addKind(
     'srm_suppliers',
     'ap',
-    collectParties(opts.suppliers || []),
+    collectParties(opts.suppliers || [], isTradeParty),
     PARTY_AP_CODE_START,
     950
   );
+
+  const advisors = collectParties(opts.customers || [], isAdvisorParty);
+  if (advisors.size) {
+    const plannedAsCoa: PartyCoaRow[] = [
+      ...(opts.coa || []),
+      ...create.map((c, idx) => ({
+        id: -1 - idx,
+        code: c.code,
+        name: c.name,
+        is_header: c.is_header || false,
+        account_type: c.account_type,
+      })),
+    ];
+    let header = findMemberRevenueHeader(plannedAsCoa);
+    let headerCode = header?.code || MEMBER_REV_HEADER_CODE;
+    if (!header) {
+      headerCode = usedCodes.has(MEMBER_REV_HEADER_CODE)
+        ? nextFreeCode(usedCodes, Number(MEMBER_REV_HEADER_CODE))
+        : MEMBER_REV_HEADER_CODE;
+      usedCodes.add(headerCode);
+      create.push({
+        code: headerCode,
+        name: MEMBER_REV_HEADER_NAME,
+        account_type: 'revenue',
+        subtype: 'header',
+        normal_balance: 'credit',
+        description:
+          'Gym members, clinic patients and retail shoppers — posting leaves sit one level under this header.',
+        metadata: { party_kind: 'member_revenue_header' },
+        sort_order: 840,
+        is_header: true,
+        parent_code: usedCodes.has('4000') || (opts.coa || []).some((a) => String(a.code) === '4000')
+          ? '4000'
+          : null,
+      });
+    }
+    const leafStart =
+      Number(headerCode) >= Number(MEMBER_REV_CODE_START)
+        ? Number(headerCode) + 1
+        : MEMBER_REV_CODE_START;
+    const sorted = [...advisors.values()].sort((a, b) => a.name.localeCompare(b.name));
+    let i = 0;
+    for (const party of sorted) {
+      const existing = findExistingPartyAccount(
+        [
+          ...(opts.coa || []),
+          ...create.map((c, idx) => ({
+            id: -1 - idx,
+            code: c.code,
+            name: c.name,
+            is_header: c.is_header || false,
+          })),
+        ],
+        'revenue',
+        party.key,
+        party.name
+      );
+      let code = existing?.code || '';
+      let accountId = existing && existing.id > 0 ? Number(existing.id) : null;
+      if (!existing) {
+        code = nextFreeCode(usedCodes, leafStart);
+        usedCodes.add(code);
+        create.push({
+          code,
+          name: `${MEMBER_REV_PREFIX}${party.name}`,
+          account_type: 'revenue',
+          subtype: 'service',
+          normal_balance: 'credit',
+          description: `Membership / care fees for ${party.name} — nest under ${MEMBER_REV_HEADER_NAME}.`,
+          metadata: {
+            party_kind: 'member_revenue',
+            party_key: party.key,
+            party_ids: party.ids,
+          },
+          sort_order: 841 + i,
+          parent_code: headerCode,
+        });
+        i += 1;
+      }
+      for (const id of party.ids) {
+        links.push({
+          table: 'customers',
+          id,
+          kind: 'revenue',
+          key: party.key,
+          name: `${MEMBER_REV_PREFIX}${party.name}`,
+          code,
+          accountId,
+        });
+      }
+    }
+  }
 
   return { create, links };
 }
@@ -447,6 +577,14 @@ export async function ensurePartyGlAccounts(
   if (!Number.isFinite(profileId) || profileId <= 0) {
     return { created: 0, linked: 0, warning: 'invalid profile' };
   }
+  try {
+    const { syncAdvisorModulePeopleToCrm } = await import(
+      '@/lib/b2c/advisor-crm-sync'
+    );
+    await syncAdvisorModulePeopleToCrm(profileId);
+  } catch (err) {
+    console.warn('[party-gl] advisor CRM sync', err);
+  }
   const supabase = getSupabaseServer();
   const [{ data: customers, error: cErr }, { data: suppliers, error: sErr }, { data: coa, error: aErr }] =
     await Promise.all([
@@ -454,7 +592,7 @@ export async function ensurePartyGlAccounts(
       loadBookRows(supabase, 'srm_suppliers', profileId),
       supabase
         .from('chart_of_accounts')
-        .select('id, code, name, account_type, subtype, is_header, is_active')
+        .select('id, code, name, account_type, subtype, is_header, is_active, parent_id')
         .eq('profile_id', profileId),
     ]);
   if (cErr && /schema cache|does not exist/i.test(cErr.message || '')) {
@@ -482,10 +620,13 @@ export async function ensurePartyGlAccounts(
         code: row.code,
         name: row.name,
         account_type: row.account_type,
-        subtype: row.subtype,
+        subtype: row.subtype === 'header' ? null : row.subtype,
         is_active: true,
         is_system: false,
-        is_header: false,
+        is_header: row.is_header === true,
+        parent_id: row.parent_code
+          ? byCode.get(row.parent_code) || null
+          : null,
         normal_balance: row.normal_balance,
         description: row.description,
         currency: 'ZAR',

@@ -108,6 +108,7 @@ const plan = planPartyGlAccounts({
     { id: 12, trading_name: 'Kelpack Manufacturing (Pty) Ltd', status: 'prospect' },
   ],
   coa: [
+    { id: 4, code: '4000', name: 'Revenue', is_header: true, account_type: 'revenue' },
     { id: 5, code: '1130', name: 'Accounts receivable', subtype: 'receivable', account_type: 'asset' },
     { id: 15, code: '2110', name: 'Accounts payable', subtype: 'payable', account_type: 'liability' },
     { id: 6, code: '1135', name: 'Allowance for expected credit losses', subtype: 'contra_asset', account_type: 'asset' },
@@ -115,15 +116,30 @@ const plan = planPartyGlAccounts({
   ],
 });
 
-assert.equal(plan.create.filter((c) => c.account_type === 'asset').length, 2);
+assert.equal(plan.create.filter((c) => c.account_type === 'asset').length, 1);
 assert.equal(plan.create[0].name, 'AR — Restore Africa Foundation');
 assert.equal(plan.create[0].code, '1182');
-assert.ok(plan.create.some((c) => c.name === 'AR — Walk-in member'));
+assert.ok(!plan.create.some((c) => c.name === 'AR — Walk-in member'));
+const memberHeader = plan.create.find((c) => c.name === 'Members & patients');
+assert.ok(memberHeader);
+assert.equal(memberHeader?.is_header, true);
+assert.equal(memberHeader?.code, '4400');
+assert.equal(memberHeader?.parent_code, '4000');
+assert.ok(plan.create.some((c) => c.name === 'Member — Walk-in member'));
+const memberLeaf = plan.create.find((c) => c.name === 'Member — Walk-in member');
+assert.equal(memberLeaf?.account_type, 'revenue');
+assert.equal(memberLeaf?.parent_code, '4400');
+assert.equal(memberLeaf?.code, '4401');
 assert.ok(plan.create.some((c) => c.name === 'AP — Holtz Group'));
 assert.ok(plan.create.some((c) => c.name === 'AP — Kelpack Manufacturing (Pty) Ltd'));
 assert.equal(plan.create.filter((c) => c.name.startsWith('AP — Holtz')).length, 1);
 assert.ok(!plan.create.some((c) => /Gone/.test(c.name)));
 assert.ok(!plan.create.some((c) => c.code === '1130' || c.name === 'Accounts receivable'));
+
+const memberLinks = plan.links.filter((l) => l.id === 200);
+assert.equal(memberLinks.length, 1);
+assert.equal(memberLinks[0].kind, 'revenue');
+assert.equal(memberLinks[0].code, '4401');
 
 const buzeLinks = plan.links.filter((l) => l.id === 6 && l.kind === 'ar');
 assert.equal(buzeLinks.length, 1);

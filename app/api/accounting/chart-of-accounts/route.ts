@@ -9,6 +9,8 @@ import {
 } from '@/lib/accounting/read-cache';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
+export const maxDuration = 60;
+
 /** GET ?companyId=&seed=1&q= — list CoA; optional seed of defaults when empty */
 export async function GET(request: NextRequest) {
   try {

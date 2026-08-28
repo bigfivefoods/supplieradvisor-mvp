@@ -242,42 +242,16 @@ export async function loadCustomer360Bundle(
       email: c.email ? String(c.email) : null,
       notes: c.notes ? String(c.notes) : null,
     }));
-  const missing = unsyncedAdvisorCustomerPeople(people, customerRefs());
-  if (missing.length) {
-    try {
-      const { ensureAdvisorCrmCustomer } = await import(
-        '@/lib/b2c/member-account-ar'
-      );
-      const deadline = Date.now() + 2500;
-      let created = 0;
-      for (const row of missing) {
-        if (created >= 40 || Date.now() > deadline) break;
-        const crm = await ensureAdvisorCrmCustomer({
-          companyId,
-          name: row.person.name,
-          email: row.person.email || null,
-          phone: row.person.phone || null,
-          kind: row.kind,
-          refId: row.person.id,
-          skipPartyGl: true,
-        });
-        if (crm?.id) {
-          row.person.crm_customer_id = crm.id;
-          created += 1;
-        }
-      }
-      if (created) {
-        const { ensurePartyGlAccountsSafe } = await import(
-          '@/lib/accounting/party-gl-accounts'
-        );
-        await ensurePartyGlAccountsSafe(companyId);
-        const reloaded = await loadCustomersAndInvoices(companyId);
-        customers = reloaded.customers;
-        invoices = reloaded.invoices;
-      }
-    } catch (err) {
-      console.warn('[customer-360] CRM backfill', err);
-    }
+  try {
+    const { ensurePartyGlAccounts } = await import(
+      '@/lib/accounting/party-gl-accounts'
+    );
+    await ensurePartyGlAccounts(companyId);
+    const reloaded = await loadCustomersAndInvoices(companyId);
+    customers = reloaded.customers;
+    invoices = reloaded.invoices;
+  } catch (err) {
+    console.warn('[customer-360] CRM / CoA backfill', err);
   }
   const clinics = [
     {

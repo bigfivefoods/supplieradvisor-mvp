@@ -339,7 +339,20 @@ function Inner() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-50">
-                {accounts.map((a) => (
+                {accounts.map((a) => {
+                  const byId = new Map(
+                    accounts.map((x) => [Number(x.id), x] as const)
+                  );
+                  let depth = 0;
+                  let pid = a.parent_id != null ? Number(a.parent_id) : 0;
+                  const seen = new Set<number>();
+                  while (pid && byId.has(pid) && !seen.has(pid) && depth < 8) {
+                    seen.add(pid);
+                    const parent = byId.get(pid);
+                    depth += 1;
+                    pid = parent?.parent_id ? Number(parent.parent_id) : 0;
+                  }
+                  return (
                   <tr
                     key={a.id}
                     className={`hover:bg-neutral-50/80 ${a.is_header ? 'bg-slate-50/80' : ''}`}
@@ -347,7 +360,7 @@ function Inner() {
                     <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-700">
                       {a.code}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" style={{ paddingLeft: 16 + depth * 16 }}>
                       <span className={a.is_header ? 'font-bold text-slate-900' : 'text-slate-800'}>
                         {a.name}
                       </span>
@@ -392,7 +405,8 @@ function Inner() {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

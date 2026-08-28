@@ -50,6 +50,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS: CoaSeed[] = [
   { code: '4200', name: 'Service revenue', account_type: 'revenue', subtype: 'service', normal_balance: 'credit' },
   { code: '4300', name: 'Other income', account_type: 'revenue', subtype: 'other', normal_balance: 'credit' },
   { code: '4310', name: 'Gain on disposal of assets', account_type: 'revenue', subtype: 'other', normal_balance: 'credit', description: 'IAS 16 disposal gain (proceeds above carrying amount)' },
+  { code: '4400', name: 'Members & patients', account_type: 'revenue', subtype: 'service', is_header: true, normal_balance: 'credit', description: 'Gym members, clinic patients and retail shoppers — one posting leaf each underneath' },
 
   // Cost of sales
   { code: '5000', name: 'Cost of sales', account_type: 'cogs', is_header: true, normal_balance: 'debit' },
