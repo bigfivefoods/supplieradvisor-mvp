@@ -422,7 +422,35 @@ export async function PATCH(request: NextRequest) {
       })();
     }
 
-    return NextResponse.json({ success: true, purchaseOrder: data });
+    let acceptBooks: Awaited<
+      ReturnType<
+        typeof import('@/lib/accounting/po-accept-books').applyPoAcceptBooks
+      >
+    > | null = null;
+    if (
+      nextStatus === 'accepted' &&
+      po.buyer_profile_id &&
+      Number(po.buyer_profile_id) > 0
+    ) {
+      try {
+        const { applyPoAcceptBooks } = await import(
+          '@/lib/accounting/po-accept-books'
+        );
+        acceptBooks = await applyPoAcceptBooks({
+          companyId: Number(po.buyer_profile_id),
+          poId: id,
+          createdBy: member.userId || null,
+        });
+      } catch (e) {
+        console.warn('PO seller-accept books soft-fail', e);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      purchaseOrder: data,
+      acceptBooks: acceptBooks || undefined,
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

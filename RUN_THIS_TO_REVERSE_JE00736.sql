@@ -2,6 +2,8 @@
 -- Goods were not on 1140 — PO to Kelpack was raised after the sale invoice.
 -- Safe to re-run. Nets 5100/1140 to zero; does not delete the original JE.
 -- Paste in the Supabase SQL editor.
+-- After this, paste RUN_THIS_FOR_KELPACK_PO_COGS.sql so the Kelpack PO (~R130k)
+-- is the COGS when that PO is accepted.
 
 SET statement_timeout = 0;
 

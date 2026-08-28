@@ -46,5 +46,11 @@ assert.equal(
   }).journalId,
   12
 );
+assert.equal(
+  isPoApAlreadyAllocated({
+    metadata: { inventory_journal_id: 901 },
+  }).journalId,
+  901
+);
 
 console.log('invoice-gl skip flags ok');

@@ -239,6 +239,18 @@ export async function allocatePurchaseOrderCost(opts: {
     };
   }
 
+  const { isPoApAlreadyAllocated } = await import('@/lib/accounting/invoice-gl');
+  const alreadyAp = isPoApAlreadyAllocated(po as Record<string, unknown>);
+  if (alreadyAp.allocated && !opts.force) {
+    return {
+      ok: true,
+      skipped: true,
+      journalIds: alreadyAp.journalId ? [alreadyAp.journalId] : [],
+      warning:
+        'Inventory and AP were already posted when this PO was accepted — not posting a second payable',
+    };
+  }
+
   const total = round2(
     opts.amount != null && Number.isFinite(Number(opts.amount))
       ? Number(opts.amount)

@@ -333,6 +333,7 @@ function PoInner() {
   const [costWsId, setCostWsId] = useState<number | null>(null);
   const [costAssetId, setCostAssetId] = useState<number | null>(null);
   const [costCategory, setCostCategory] = useState('materials');
+  const [relatedInvoiceNumber, setRelatedInvoiceNumber] = useState('');
   const [costBus, setCostBus] = useState<CostOption[]>([]);
   const [costWcs, setCostWcs] = useState<CostOption[]>([]);
   const [costWss, setCostWss] = useState<CostOption[]>([]);
@@ -588,6 +589,7 @@ function PoInner() {
       next[idx] = {
         ...next[idx],
         product_id: item.seller_product_id,
+        sku: item.sku,
         item_name: item.product_name,
         unit_price: Number(item.unit_price) || 0,
         uom: item.uom || next[idx].uom || 'ea',
@@ -608,6 +610,7 @@ function PoInner() {
       const emptyIdx = prev.findIndex((i) => !i.item_name && !i.unit_price);
       const row: PoLineItem = {
         product_id: item.seller_product_id,
+        sku: item.sku,
         item_name: item.product_name,
         quantity: 1,
         unit_price: Number(item.unit_price) || 0,
@@ -1209,6 +1212,7 @@ function PoInner() {
           parent_po_id: orderKind === 'call_off' ? parentHubPoId : null,
           call_off_window_months:
             orderKind === 'hub' ? callOffWindowMonths : undefined,
+          related_invoice_number: relatedInvoiceNumber.trim() || null,
         },
       });
       const data = await res.json();
@@ -1240,6 +1244,7 @@ function PoInner() {
       }
 
       setDescription('');
+      setRelatedInvoiceNumber('');
       setPromisedDate('');
       setLineItems([{ product_id: null, item_name: '', quantity: 1, unit_price: 0, uom: 'ea' }]);
       setLineCatalogueKeys([null]);
@@ -1267,8 +1272,31 @@ function PoInner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Update failed');
-      if (body.status && body.status !== 'completed') {
-        toast.success(`PO → ${body.status}`);
+      const books = data.acceptBooks as {
+        cogsApplied?: number;
+        inventoryJournalId?: number;
+        invoiceNumbers?: string[];
+        skipped?: boolean;
+        error?: string;
+      } | undefined;
+      const cogsToast =
+        books?.cogsApplied && books.cogsApplied > 0
+          ? `COGS R ${Math.round(books.cogsApplied).toLocaleString('en-ZA')}${
+              books.invoiceNumbers?.length
+                ? ` on ${books.invoiceNumbers.join(', ')}`
+                : ''
+            }`
+          : books?.inventoryJournalId
+            ? 'inventory and supplier AP posted'
+            : null;
+      if (body.action === 'post_accept_books') {
+        toast.success(cogsToast ? `Posted · ${cogsToast}` : 'Books already posted');
+      } else if (body.status && body.status !== 'completed') {
+        if (body.status === 'accepted' && cogsToast) {
+          toast.success(`PO accepted · ${cogsToast}`);
+        } else {
+          toast.success(`PO → ${body.status}`);
+        }
       } else if (!body.status) {
         toast.success('PO updated');
       }
@@ -1585,8 +1613,8 @@ function PoInner() {
     }
     if (st === 'sent') {
       return {
-        title: 'Next: Wait for supplier accept',
-        body: 'They action this under Customers → Inbound. You can still cancel if needed.',
+        title: 'Next: Wait for supplier accept — or mark accepted',
+        body: 'When this PO is accepted, inventory and supplier AP post at the PO amount. If it covers an already-issued sale, that amount becomes cost of sales.',
         tone: 'amber',
       };
     }
@@ -2433,6 +2461,23 @@ function PoInner() {
               />
             </div>
 
+            <div>
+              <label className="text-xs font-medium">
+                Related sales invoice (optional)
+              </label>
+              <input
+                className="input mt-1 w-full !p-3 !text-sm"
+                value={relatedInvoiceNumber}
+                onChange={(e) => setRelatedInvoiceNumber(e.target.value)}
+                placeholder="INV-20260828-Q4HD-R2"
+              />
+              <p className="text-[11px] text-neutral-500 mt-1">
+                If you already invoiced a customer for these goods, accepting
+                this PO posts inventory at PO cost and that amount becomes
+                cost of sales.
+              </p>
+            </div>
+
             {/* Cost allocation — collapsed at start of PO process */}
             <div className="rounded-2xl border border-violet-100 bg-violet-50/40 overflow-hidden">
               <button
@@ -3237,6 +3282,15 @@ function PoInner() {
                               {po.description}
                             </p>
                           )}
+                          {typeof po.metadata?.related_invoice_number === 'string' &&
+                            po.metadata.related_invoice_number && (
+                              <p className="text-[11px] text-amber-800 mt-1">
+                                Linked sale {String(po.metadata.related_invoice_number)}
+                                {po.metadata.inventory_journal_id
+                                  ? ' · inventory posted'
+                                  : ' · COGS posts when accepted'}
+                              </p>
+                            )}
                           {(onchain ||
                             (po.metadata as { use_escrow?: boolean } | null)
                               ?.use_escrow) && (
@@ -3442,6 +3496,22 @@ function PoInner() {
                               Mark accepted
                             </button>
                           )}
+                          {['accepted', 'funded', 'invoiced', 'paid', 'completed'].includes(
+                            String(po.status)
+                          ) &&
+                            !po.metadata?.inventory_journal_id && (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() =>
+                                  void patchPo(po.id, { action: 'post_accept_books' })
+                                }
+                                className="btn-secondary !py-1.5 !px-3 text-xs"
+                                title="Post inventory, supplier AP, and COGS at this PO amount"
+                              >
+                                Post inventory + COGS
+                              </button>
+                            )}
                           {escrowEnabled &&
                             !onchain &&
                             ['sent', 'accepted', 'draft'].includes(String(po.status)) && (

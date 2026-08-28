@@ -6,6 +6,8 @@
  * stock_movements.unit_cost). Catalogue cost_price is not IAS 2 stock cost
  * unless a movement recorded it. Selling price is never used as cost.
  * Unknown / zero cost → skip and stamp. Services and membership → no COGS.
+ * Sold-then-buy: accepting a related PO posts inventory at PO cost then
+ * relieves 5100 (see po-accept-books). cogs_voided blocks catalogue re-post.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
