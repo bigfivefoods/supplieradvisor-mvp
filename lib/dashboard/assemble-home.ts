@@ -100,21 +100,35 @@ function schemaSafeCompanyError(): Error {
   return new Error('Company profile could not be loaded');
 }
 
+/** Dynamic PostgREST selects type as GenericStringError — never cast that to a row. */
+export function asProfileRow(value: unknown): Record<string, unknown> | null {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  const rec = value as { error?: unknown };
+  if (rec.error === true) return null;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as object)) {
+    out[k] = v;
+  }
+  return out;
+}
+
 async function loadHomeCompanyRow(
   companyId: number
 ): Promise<Record<string, unknown>> {
   const supabase = getSupabaseServer();
   let cols = [...HOME_PROFILE_COLUMNS];
   for (let attempt = 0; attempt < 8; attempt++) {
-    const { data, error } = await supabase
+    const res = await supabase
       .from('profiles')
       .select(cols.join(', '))
       .eq('id', companyId)
       .maybeSingle();
-    if (!error && data && typeof data === 'object' && !Array.isArray(data)) {
-      return data as unknown as Record<string, unknown>;
-    }
-    if (!error && !data) throw new Error('Company not found');
+    const error = res.error;
+    const row = asProfileRow(res.data as unknown);
+    if (!error && row) return row;
+    if (!error && !row) throw new Error('Company not found');
     const next = dropUnknownProfileColumn(cols, error?.message || '');
     if (next && next.length) {
       cols = next;
