@@ -6,6 +6,7 @@ import {
   groupCoaForAllocation,
   isAdvisorParty,
   isCustomerAllocAccount,
+  memberArAccountCode,
   isSupplierAllocAccount,
   isTradeParty,
   normalizePartyKey,
@@ -24,6 +25,9 @@ assert.equal(normalizePartyKey('Holtz Group'), 'holtz');
 assert.equal(normalizePartyKey('Holtz'), 'holtz');
 assert.equal(normalizePartyKey('Shakiles Packaging Pty Ltd'), 'shakiles packaging');
 assert.equal(nextFreeCode(new Set(['1181', '1182']), 1181), '1183');
+assert.equal(memberArAccountCode(1), '4400-0000001');
+assert.equal(memberArAccountCode(200), '4400-0000200');
+assert.equal(memberArAccountCode(0), '');
 assert.equal(partyDisplayName({ name: 'First trade customer' }), 'First trade customer');
 assert.equal(
   partyDisplayName({ trading_name: 'Buze', name: 'ignored' }),
@@ -116,7 +120,7 @@ const plan = planPartyGlAccounts({
   ],
 });
 
-assert.equal(plan.create.filter((c) => c.account_type === 'asset').length, 1);
+assert.equal(plan.create.filter((c) => c.account_type === 'asset' && !c.is_header).length, 2);
 assert.equal(plan.create[0].name, 'AR — Restore Africa Foundation');
 assert.equal(plan.create[0].code, '1182');
 assert.ok(!plan.create.some((c) => c.name === 'AR — Walk-in member'));
@@ -125,11 +129,12 @@ assert.ok(memberHeader);
 assert.equal(memberHeader?.is_header, true);
 assert.equal(memberHeader?.code, '4400');
 assert.equal(memberHeader?.parent_code, '4000');
-assert.ok(plan.create.some((c) => c.name === 'Member — Walk-in member'));
-const memberLeaf = plan.create.find((c) => c.name === 'Member — Walk-in member');
-assert.equal(memberLeaf?.account_type, 'revenue');
+const memberLeaf = plan.create.find((c) => c.name === 'Walk-in member');
+assert.ok(memberLeaf);
+assert.equal(memberLeaf?.account_type, 'asset');
+assert.equal(memberLeaf?.subtype, 'receivable');
 assert.equal(memberLeaf?.parent_code, '4400');
-assert.equal(memberLeaf?.code, '4401');
+assert.equal(memberLeaf?.code, '4400-0000200');
 assert.ok(plan.create.some((c) => c.name === 'AP — Holtz Group'));
 assert.ok(plan.create.some((c) => c.name === 'AP — Kelpack Manufacturing (Pty) Ltd'));
 assert.equal(plan.create.filter((c) => c.name.startsWith('AP — Holtz')).length, 1);
@@ -138,8 +143,8 @@ assert.ok(!plan.create.some((c) => c.code === '1130' || c.name === 'Accounts rec
 
 const memberLinks = plan.links.filter((l) => l.id === 200);
 assert.equal(memberLinks.length, 1);
-assert.equal(memberLinks[0].kind, 'revenue');
-assert.equal(memberLinks[0].code, '4401');
+assert.equal(memberLinks[0].kind, 'ar');
+assert.equal(memberLinks[0].code, '4400-0000200');
 
 const buzeLinks = plan.links.filter((l) => l.id === 6 && l.kind === 'ar');
 assert.equal(buzeLinks.length, 1);
@@ -156,6 +161,16 @@ assert.equal(
     code: '1130',
     name: 'Accounts receivable',
     subtype: 'receivable',
+  }),
+  true
+);
+assert.equal(
+  isCustomerAllocAccount({
+    id: 77,
+    code: '4400-0000200',
+    name: 'Walk-in member',
+    subtype: 'receivable',
+    account_type: 'asset',
   }),
   true
 );

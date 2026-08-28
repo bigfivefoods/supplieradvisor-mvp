@@ -2,9 +2,9 @@
  * Named customer AR and supplier AP leaves so bank allocation can
  * pick a party instead of dumping receipts into 4100 Sales.
  *
- * 1130 / 2110 stay posting leaves (invoice-gl requires that). Party
- * accounts live in 1181+ and 2181+ and never convert those controls
- * into headers.
+ * 1130 / 2110 stay posting leaves (invoice-gl requires that). Trade
+ * parties live in 1181+ / 2181+. Gym/clinic/retail people nest under
+ * 4400 Members & patients as AR sub-accounts 4400-0000001 …
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { invalidateAccountingReads } from '@/lib/accounting/read-cache';
@@ -15,11 +15,20 @@ export const PARTY_AR_CODE_START = 1181;
 export const PARTY_AP_CODE_START = 2181;
 export const PARTY_AR_PREFIX = 'AR — ';
 export const PARTY_AP_PREFIX = 'AP — ';
-/** Nested under 4000 Revenue — one leaf per gym/clinic/retail person. */
-export const MEMBER_REV_HEADER_CODE = '4400';
-export const MEMBER_REV_HEADER_NAME = 'Members & patients';
-export const MEMBER_REV_CODE_START = 4401;
+/** Header under 4000 Revenue. Each person is 4400-0000001 … (their AR number). */
+export const MEMBER_AR_HEADER_CODE = '4400';
+export const MEMBER_AR_HEADER_NAME = 'Members & patients';
+export const MEMBER_AR_CODE_PAD = 7;
+export const MEMBER_REV_HEADER_CODE = MEMBER_AR_HEADER_CODE;
+export const MEMBER_REV_HEADER_NAME = MEMBER_AR_HEADER_NAME;
 export const MEMBER_REV_PREFIX = 'Member — ';
+
+/** Stable AR sub-account under 4400, e.g. customer 1 → 4400-0000001. */
+export function memberArAccountCode(customerId: number): string {
+  const n = Math.abs(Math.trunc(Number(customerId) || 0));
+  if (!(n > 0)) return '';
+  return `${MEMBER_AR_HEADER_CODE}-${String(n).padStart(MEMBER_AR_CODE_PAD, '0')}`;
+}
 
 const SKIP_STATUS = new Set([
   'inactive',
@@ -181,6 +190,7 @@ export function isCustomerAllocAccount(a: PartyCoaRow): boolean {
   if (a.is_header || a.is_active === false) return false;
   const code = String(a.code || '');
   if (CONTROL_AR.has(code)) return code === '1130';
+  if (/^4400-\d+$/.test(code)) return true;
   if (String(a.subtype || '').toLowerCase() === 'receivable') return true;
   return /^AR\s+[—-]\s+/i.test(String(a.name || ''));
 }
@@ -274,22 +284,37 @@ function findExistingPartyAccount(
   );
 }
 
-function findMemberRevenueHeader(coa: PartyCoaRow[]): PartyCoaRow | null {
+function findMemberArHeader(coa: PartyCoaRow[]): PartyCoaRow | null {
   return (
     coa.find(
       (a) =>
         a.is_header &&
         a.is_active !== false &&
-        String(a.code) === MEMBER_REV_HEADER_CODE
+        String(a.code) === MEMBER_AR_HEADER_CODE
     ) ||
     coa.find(
       (a) =>
         a.is_header &&
         a.is_active !== false &&
-        String(a.name) === MEMBER_REV_HEADER_NAME
+        String(a.name) === MEMBER_AR_HEADER_NAME
     ) ||
     null
   );
+}
+
+function collectAdvisorAccounts(
+  rows: PartyBookRow[]
+): Array<{ id: number; name: string; code: string }> {
+  const out: Array<{ id: number; name: string; code: string }> = [];
+  for (const row of rows) {
+    if (!isAdvisorParty(row)) continue;
+    const name = partyDisplayName(row);
+    const code = memberArAccountCode(Number(row.id));
+    if (!name || !code) continue;
+    out.push({ id: Number(row.id), name, code });
+  }
+  out.sort((a, b) => a.code.localeCompare(b.code) || a.name.localeCompare(b.name));
+  return out;
 }
 
 export function planPartyGlAccounts(opts: {
@@ -377,8 +402,8 @@ export function planPartyGlAccounts(opts: {
     950
   );
 
-  const advisors = collectParties(opts.customers || [], isAdvisorParty);
-  if (advisors.size) {
+  const advisors = collectAdvisorAccounts(opts.customers || []);
+  if (advisors.length) {
     const plannedAsCoa: PartyCoaRow[] = [
       ...(opts.coa || []),
       ...create.map((c, idx) => ({
@@ -389,83 +414,75 @@ export function planPartyGlAccounts(opts: {
         account_type: c.account_type,
       })),
     ];
-    let header = findMemberRevenueHeader(plannedAsCoa);
-    let headerCode = header?.code || MEMBER_REV_HEADER_CODE;
+    let header = findMemberArHeader(plannedAsCoa);
+    let headerCode = header?.code || MEMBER_AR_HEADER_CODE;
     if (!header) {
-      headerCode = usedCodes.has(MEMBER_REV_HEADER_CODE)
-        ? nextFreeCode(usedCodes, Number(MEMBER_REV_HEADER_CODE))
-        : MEMBER_REV_HEADER_CODE;
+      headerCode = usedCodes.has(MEMBER_AR_HEADER_CODE)
+        ? nextFreeCode(usedCodes, Number(MEMBER_AR_HEADER_CODE))
+        : MEMBER_AR_HEADER_CODE;
       usedCodes.add(headerCode);
       create.push({
         code: headerCode,
-        name: MEMBER_REV_HEADER_NAME,
+        name: MEMBER_AR_HEADER_NAME,
         account_type: 'revenue',
         subtype: 'header',
         normal_balance: 'credit',
         description:
-          'Gym members, clinic patients and retail shoppers — posting leaves sit one level under this header.',
-        metadata: { party_kind: 'member_revenue_header' },
+          'AR sub-accounts for gym members, clinic patients and retail shoppers. Each person is 4400-0000001 …',
+        metadata: { party_kind: 'member_ar_header' },
         sort_order: 840,
         is_header: true,
-        parent_code: usedCodes.has('4000') || (opts.coa || []).some((a) => String(a.code) === '4000')
-          ? '4000'
-          : null,
+        parent_code: usedCodes.has('4000') ? '4000' : null,
       });
     }
-    const leafStart =
-      Number(headerCode) >= Number(MEMBER_REV_CODE_START)
-        ? Number(headerCode) + 1
-        : MEMBER_REV_CODE_START;
-    const sorted = [...advisors.values()].sort((a, b) => a.name.localeCompare(b.name));
     let i = 0;
-    for (const party of sorted) {
-      const existing = findExistingPartyAccount(
-        [
-          ...(opts.coa || []),
-          ...create.map((c, idx) => ({
-            id: -1 - idx,
-            code: c.code,
-            name: c.name,
-            is_header: c.is_header || false,
-          })),
-        ],
-        'revenue',
-        party.key,
-        party.name
-      );
-      let code = existing?.code || '';
+    for (const party of advisors) {
+      const existing =
+        [...(opts.coa || []), ...create.map((c, idx) => ({
+          id: -1 - idx,
+          code: c.code,
+          name: c.name,
+          is_header: c.is_header || false,
+        }))].find(
+          (a) =>
+            !a.is_header &&
+            a.is_active !== false &&
+            String(a.code) === party.code
+        ) || null;
+      let code = existing?.code || party.code;
       let accountId = existing && existing.id > 0 ? Number(existing.id) : null;
       if (!existing) {
-        code = nextFreeCode(usedCodes, leafStart);
+        if (usedCodes.has(code)) {
+          continue;
+        }
         usedCodes.add(code);
         create.push({
           code,
-          name: `${MEMBER_REV_PREFIX}${party.name}`,
-          account_type: 'revenue',
-          subtype: 'service',
-          normal_balance: 'credit',
-          description: `Membership / care fees for ${party.name} — nest under ${MEMBER_REV_HEADER_NAME}.`,
+          name: party.name,
+          account_type: 'asset',
+          subtype: 'receivable',
+          normal_balance: 'debit',
+          description: `AR account ${code} — ${party.name}. Bank receipts for this person post here (not 4100 Sales) when already invoiced.`,
           metadata: {
-            party_kind: 'member_revenue',
-            party_key: party.key,
-            party_ids: party.ids,
+            party_kind: 'member_ar',
+            party_key: party.code,
+            party_ids: [party.id],
+            ar_account_number: code,
           },
           sort_order: 841 + i,
           parent_code: headerCode,
         });
         i += 1;
       }
-      for (const id of party.ids) {
-        links.push({
-          table: 'customers',
-          id,
-          kind: 'revenue',
-          key: party.key,
-          name: `${MEMBER_REV_PREFIX}${party.name}`,
-          code,
-          accountId,
-        });
-      }
+      links.push({
+        table: 'customers',
+        id: party.id,
+        kind: 'ar',
+        key: party.code,
+        name: party.name,
+        code,
+        accountId,
+      });
     }
   }
 

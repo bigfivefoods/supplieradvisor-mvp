@@ -274,22 +274,10 @@ export async function recognizeInvoiceIfNeeded(opts: {
       ? String(inv.counterparty_name)
       : null,
   });
-  let memberRevenueId: number | null = null;
-  if (isAr && partyGl) {
-    const { data: partyAcct } = await getSupabaseServer()
-      .from('chart_of_accounts')
-      .select('id, account_type')
-      .eq('id', partyGl)
-      .maybeSingle();
-    if (String(partyAcct?.account_type || '') === 'revenue') {
-      memberRevenueId = partyGl;
-    }
-  }
   const control = pickRecognitionControlAccount(
-    memberRevenueId ? null : partyGl,
+    partyGl,
     isAr ? accts.ar : accts.ap
   );
-  const revenueId = memberRevenueId || accts.revenue;
   const entryDate = await pickOpenEntryDate(
     opts.profileId,
     String(inv.issue_date || new Date().toISOString()).slice(0, 10)
@@ -305,7 +293,7 @@ export async function recognizeInvoiceIfNeeded(opts: {
 
   const lines: JournalLineInput[] = [];
   if (isAr) {
-    if (!control || !revenueId) {
+    if (!control || !accts.revenue) {
       return {
         ok: false,
         error: 'COA missing AR (1130) or sales revenue (4100) — seed Chart of Accounts',
@@ -318,7 +306,7 @@ export async function recognizeInvoiceIfNeeded(opts: {
       memo,
       counterparty,
     });
-    if (useSplits && !memberRevenueId) {
+    if (useSplits) {
       for (const s of splits) {
         lines.push({
           accountId: s.accountId,
@@ -330,7 +318,7 @@ export async function recognizeInvoiceIfNeeded(opts: {
       }
     } else {
       lines.push({
-        accountId: revenueId,
+        accountId: accts.revenue,
         debit: 0,
         credit: net,
         memo,
