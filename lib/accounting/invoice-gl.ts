@@ -33,6 +33,7 @@ import {
   stampInvoiceDepositJournal,
   voidInvoiceJournalIds,
 } from '@/lib/accounting/contract-liability';
+import { postCogsOnInvoice } from '@/lib/accounting/inventory-cogs';
 
 const ISSUED = new Set([
   'sent',
@@ -256,6 +257,12 @@ async function applyArDepositsIfNeeded(opts: {
     createdBy: opts.createdBy,
   });
   if (!applied.ok) return { ok: false, error: applied.error };
+  const cogs = await postCogsOnInvoice({
+    profileId: opts.profileId,
+    invoice: opts.invoice,
+    createdBy: opts.createdBy,
+  });
+  if (!cogs.ok) return { ok: false, error: cogs.error };
   return { ok: true };
 }
 
@@ -776,6 +783,7 @@ export async function reverseInvoiceBooks(opts: {
     settlementJournalIds: meta.settlement_journal_ids,
     depositApplicationJournalId:
       Number(meta.deposit_application_journal_id || 0) || null,
+    cogsJournalId: Number(meta.cogs_journal_id || 0) || null,
   });
   const skipPoAlloc = Number(meta.po_allocation_journal_id || 0);
 
@@ -806,6 +814,9 @@ export async function reverseInvoiceBooks(opts: {
     prior_deposit_application_journal_id:
       meta.deposit_application_journal_id || null,
     deposit_applied: 0,
+    cogs_journal_id: null,
+    prior_cogs_journal_id: meta.cogs_journal_id || null,
+    cogs_amount: 0,
   });
   return { ok: true };
 }

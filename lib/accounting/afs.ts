@@ -607,6 +607,7 @@ export async function buildAfsPack(opts: {
     {
       number: '3',
       title: 'Cost of sales',
+      body: 'Inventories are measured at cost (IAS 2, simplified). Cost of sales is recognised when a sales invoice line has quantity and a known unit cost from the product catalogue or stock movements (Dr 5100 · Cr 1140). Lines with no product, a zero cost, or a service/membership invoice do not post COGS — selling price is never used as cost. NRV write-downs and standard costing are not automated.',
       lines: cogsLines,
     },
     {
@@ -673,6 +674,10 @@ export async function buildAfsPack(opts: {
     {
       title: 'Revenue (IFRS 15 — simplified)',
       body: 'A single performance obligation is assumed per sales invoice. Cash received before issue is credited to 2140 Customer deposits (contract liability) and recognised as revenue when the invoice is issued. Multi-element contracts, variable consideration, and principal-versus-agent assessments are not modelled automatically.',
+    },
+    {
+      title: 'Inventories (IAS 2 — simplified)',
+      body: 'Inventories are carried at cost on 1140. When a sales invoice is issued for goods with a known stock unit cost, that cost is recognised in 5100 and inventory is relieved. If unit cost is unknown or zero, COGS is not posted. NRV, the retail method, and a standard-costing engine are not modelled.',
     },
     {
       title: 'Property, plant and equipment (IAS 16 — simplified)',
