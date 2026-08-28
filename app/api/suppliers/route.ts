@@ -114,7 +114,6 @@ export async function GET(request: NextRequest) {
           s.city,
           s.country,
           s.contact_name,
-          ...(s.certifications || []),
         ]
           .filter(Boolean)
           .join(' ')
