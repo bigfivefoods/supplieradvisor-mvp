@@ -17,7 +17,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS: CoaSeed[] = [
   { code: '1100', name: 'Current assets', account_type: 'asset', subtype: 'current', is_header: true, normal_balance: 'debit' },
   { code: '1110', name: 'Bank — operating', account_type: 'asset', subtype: 'bank', normal_balance: 'debit', description: 'Primary operating bank account' },
   { code: '1120', name: 'Petty cash', account_type: 'asset', subtype: 'cash', normal_balance: 'debit' },
-  { code: '1130', name: 'Accounts receivable', account_type: 'asset', subtype: 'receivable', normal_balance: 'debit' },
+  { code: '1130', name: 'Accounts receivable', account_type: 'asset', subtype: 'receivable', normal_balance: 'debit', description: 'Trade receivables (IAS 1 current unless invoice due_date is more than 12 months after period end). Statement face rolls named leaves into this line, net of 1135.' },
   { code: '1135', name: 'Allowance for expected credit losses', account_type: 'asset', subtype: 'contra_asset', normal_balance: 'credit', description: 'IFRS 9 ECL contra to current trade receivables. Presentation nets against Trade and other receivables (IAS 1). Posted from Finance → ECL to 1135 / 6820.' },
   { code: '1140', name: 'Inventory', account_type: 'asset', subtype: 'inventory', normal_balance: 'debit', description: 'IAS 2 inventories at cost. Relieved to 5100 when a sales invoice line has quantity and a known unit cost from products/stock. Selling price is never used as cost.' },
   { code: '1150', name: 'VAT input (recoverable)', account_type: 'asset', subtype: 'tax', normal_balance: 'debit' },
@@ -32,7 +32,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS: CoaSeed[] = [
   // Liabilities
   { code: '2000', name: 'Liabilities', account_type: 'liability', is_header: true, normal_balance: 'credit' },
   { code: '2100', name: 'Current liabilities', account_type: 'liability', subtype: 'current', is_header: true, normal_balance: 'credit' },
-  { code: '2110', name: 'Accounts payable', account_type: 'liability', subtype: 'payable', normal_balance: 'credit' },
+  { code: '2110', name: 'Accounts payable', account_type: 'liability', subtype: 'payable', normal_balance: 'credit', description: 'Trade payables (IAS 1 current unless invoice due_date is more than 12 months after period end). 2140 customer deposits are a contract liability, not this line.' },
   { code: '2120', name: 'VAT output (payable)', account_type: 'liability', subtype: 'tax', normal_balance: 'credit' },
   { code: '2130', name: 'Accrued expenses', account_type: 'liability', subtype: 'current', normal_balance: 'credit' },
   { code: '2140', name: 'Customer deposits', account_type: 'liability', subtype: 'current', normal_balance: 'credit', description: 'IFRS 15 contract liability: cash received before a sales invoice is issued. Applied to AR when the invoice is recognised. Current — presented next to trade payables, not mixed into AP leaves.' },
