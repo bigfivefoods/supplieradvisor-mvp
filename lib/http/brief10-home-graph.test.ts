@@ -52,7 +52,7 @@ function walk(file: string, seen: Set<string>) {
   seen.add(abs);
   const text = src(abs);
   const stripped = text.replace(
-    /dynamic\(\s*\(\)\s*=>\s*import\((?:'[^']+'|"[^"]+")\)[^)]*\)/g,
+    /dynamic\(\s*\(\)\s*=>\s*import\((?:'[^']+'|"[^"]+")\)[\s\S]*?\)/g,
     ''
   );
   const re = /from\s+['"]([^'"]+)['"]/g;
@@ -73,8 +73,12 @@ const page = src('app/page.tsx');
 assert.doesNotMatch(page, /ProductMocks/);
 assert.doesNotMatch(page, /supply-chain-referral/);
 assert.doesNotMatch(page, /lib\/product\/architecture/);
-assert.match(page, /HomeBelowFold/);
-assert.match(page, /ssr:\s*false/);
+assert.doesNotMatch(page, /next\/dynamic/);
+assert.match(page, /HomeBelowFoldLazy/);
+
+const lazy = src('components/marketing/HomeBelowFoldLazy.tsx');
+assert.match(lazy, /ssr:\s*false/);
+assert.match(lazy, /HomeBelowFold/);
 
 const seen = new Set<string>();
 walk('app/page.tsx', seen);
