@@ -240,7 +240,7 @@ Customer-type edges: `connection_type = 'customer'`, seller = `requester`, buyer
 |-------|---------|
 | `chart_of_accounts` | GL accounts (seedable IFRS starter set) |
 | `journal_entries` / `journal_lines` | Double-entry books |
-| `invoices` | AR/AP invoices (`direction`: receivable \| payable) |
+| `invoices` | AR/AP invoices (`direction`: receivable \| payable). `direction` is the AR/AP subledger. Named party GLs are COA leaves under 1130 (trade AR 1181+), 1180 (member 1180-*), 2110/2180 (supplier 2180-* / 2181+). Statement of financial position rolls those leaves into one Trade receivables / Trade payables line. |
 | `payments` | Payment records (inbound/outbound; apply to invoices) |
 | `accounting_entities` | Legal entities / branches |
 | `accounting_periods` | Open / closed fiscal periods |
@@ -255,6 +255,7 @@ Customer-type edges: `connection_type = 'customer'`, seller = `requester`, buyer
 | `fixed_assets` | Asset register + depreciation |
 
 Migrations:
+- `supabase/migrations/20260910_brief4_ifrs_coa.sql` (IAS 1 parents: 1181+ → 1130, 1180-* → 1180, 2180-* → 2180, 1135 current; recode leftover 4400-* AR)
 - `supabase/migrations/20260710_accounting_module.sql`
 - `supabase/migrations/20260710_accounting_bank_allocation.sql` (CSV import + allocate columns)
 

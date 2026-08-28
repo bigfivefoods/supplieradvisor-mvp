@@ -25,6 +25,12 @@ import {
 import { priorComparablePeriod } from '@/lib/accounting/afs-period';
 import type { AfsLine, AfsNote, AfsPack, AfsSection } from '@/lib/accounting/afs-types';
 import {
+  rollTradePayables,
+  rollTradeReceivables,
+  rollsIntoTradePayables,
+  rollsIntoTradeReceivables,
+} from '@/lib/accounting/statement-rollups';
+import {
   GAAP_DISCLAIMER_LONG,
   GAAP_DISCLAIMER_SHORT,
 } from '@/lib/accounting/gaap-disclaimer';
@@ -145,11 +151,13 @@ function sectionLines(
   currentMap: Map<number, { debit: number; credit: number }>,
   priorMap: Map<number, { debit: number; credit: number }>,
   types: string[],
-  sectionKey?: string
+  sectionKey?: string,
+  skip?: (a: CoaRow) => boolean
 ): AfsLine[] {
   const lines: AfsLine[] = [];
   for (const a of accounts) {
     if (!types.includes(a.account_type)) continue;
+    if (skip && skip(a)) continue;
     if (sectionKey) {
       const sec = classifyBsSection(a.account_type, a.subtype, a.code);
       if (sec !== sectionKey) continue;
@@ -166,6 +174,10 @@ function sectionLines(
     });
   }
   return lines;
+}
+
+function emptyDc(): { debit: number; credit: number } {
+  return { debit: 0, credit: 0 };
 }
 
 function sumLines(lines: AfsLine[]): { current: number; prior: number } {
@@ -290,13 +302,46 @@ export async function buildAfsPack(opts: {
         : key.includes('liabilit')
           ? ['liability']
           : ['equity'];
+    const skipFace =
+      key === 'current_assets'
+        ? (a: CoaRow) => rollsIntoTradeReceivables(a)
+        : key === 'current_liabilities'
+          ? (a: CoaRow) => rollsIntoTradePayables(a)
+          : undefined;
     const lines = sectionLines(
       accounts,
       buckets.asAtCurrent,
       buckets.asAtPrior,
       types,
-      key
+      key,
+      skipFace
     );
+    if (key === 'current_assets') {
+      const rolled = rollTradeReceivables({
+        accounts,
+        currentOf: (id) => buckets.asAtCurrent.get(id) || emptyDc(),
+        priorOf: (id) => buckets.asAtPrior.get(id) || emptyDc(),
+      });
+      if (
+        Math.abs(rolled.face.current) >= 0.005 ||
+        Math.abs(rolled.face.prior) >= 0.005
+      ) {
+        lines.unshift(rolled.face);
+      }
+    }
+    if (key === 'current_liabilities') {
+      const rolled = rollTradePayables({
+        accounts,
+        currentOf: (id) => buckets.asAtCurrent.get(id) || emptyDc(),
+        priorOf: (id) => buckets.asAtPrior.get(id) || emptyDc(),
+      });
+      if (
+        Math.abs(rolled.face.current) >= 0.005 ||
+        Math.abs(rolled.face.prior) >= 0.005
+      ) {
+        lines.unshift(rolled.face);
+      }
+    }
     if (key === 'equity') {
       const resCur = residualNi(accounts, buckets.asAtCurrent);
       const resPrior = residualNi(accounts, buckets.asAtPrior);
@@ -465,30 +510,18 @@ export async function buildAfsPack(opts: {
     ['asset'],
     'non_current_assets'
   );
-  const arLines = accounts
-    .filter(
-      (a) => a.account_type === 'asset' && String(a.subtype) === 'receivable'
-    )
-    .map((a) => ({
-      code: a.code,
-      name: a.name,
-      current: amt(buckets.asAtCurrent, a.id, 'asset'),
-      prior: amt(buckets.asAtPrior, a.id, 'asset'),
-      indent: true,
-    }))
-    .filter((l) => Math.abs(l.current) >= 0.005 || Math.abs(l.prior) >= 0.005);
-  const apLines = accounts
-    .filter(
-      (a) => a.account_type === 'liability' && String(a.subtype) === 'payable'
-    )
-    .map((a) => ({
-      code: a.code,
-      name: a.name,
-      current: amt(buckets.asAtCurrent, a.id, 'liability'),
-      prior: amt(buckets.asAtPrior, a.id, 'liability'),
-      indent: true,
-    }))
-    .filter((l) => Math.abs(l.current) >= 0.005 || Math.abs(l.prior) >= 0.005);
+  const arRoll = rollTradeReceivables({
+    accounts,
+    currentOf: (id) => buckets.asAtCurrent.get(id) || emptyDc(),
+    priorOf: (id) => buckets.asAtPrior.get(id) || emptyDc(),
+  });
+  const apRoll = rollTradePayables({
+    accounts,
+    currentOf: (id) => buckets.asAtCurrent.get(id) || emptyDc(),
+    priorOf: (id) => buckets.asAtPrior.get(id) || emptyDc(),
+  });
+  const arLines = arRoll.detail;
+  const apLines = apRoll.detail;
   const cashLines = accounts
     .filter((a) => a.account_type === 'asset' && isCash(a))
     .map((a) => ({
@@ -570,7 +603,7 @@ export async function buildAfsPack(opts: {
     {
       number: '6',
       title: 'Trade and other receivables',
-      body: 'Receivables are carried at invoiced amount. An allowance for expected credit losses (IFRS 9) is not computed automatically — post to account 1135 / 6820 if required.',
+      body: 'Trade and other receivables comprise control account 1130, named customer leaves (1181+), and member/patient leaves (1180-*). The face of the statement of financial position shows one current line. Expected credit losses are measured on Finance → ECL using management aging rates and posted to 1135 / 6820. 1135 is a current contra and is presented net against this note.',
       lines: arLines,
     },
     {
@@ -581,6 +614,7 @@ export async function buildAfsPack(opts: {
     {
       number: '8',
       title: 'Trade and other payables',
+      body: 'Trade and other payables comprise control account 2110, the 2180 suppliers & contractors header, unique 2180-* leaves, and any legacy 2181+ named AP accounts. The face of the statement of financial position shows one current line.',
       lines: apLines,
     },
     {

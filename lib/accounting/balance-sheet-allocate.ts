@@ -896,6 +896,7 @@ export function classifyBsSection(
   const s = String(subtype || '').toLowerCase();
   const c = String(code || '');
   if (t === 'asset') {
+    if (c === '1135') return 'current_assets';
     if (
       s === 'fixed' ||
       s === 'contra_asset' ||

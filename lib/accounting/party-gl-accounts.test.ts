@@ -21,6 +21,7 @@ import {
   pickRecognitionControlAccount,
   pickSettlementControlAccount,
   planPartyGlAccounts,
+  statementParentForPartyLeaf,
   suggestPartyGlForDescription,
 } from './party-gl-accounts';
 import type { CoaAccount } from './types';
@@ -160,6 +161,16 @@ assert.equal(memberLeaf?.account_type, 'asset');
 assert.equal(memberLeaf?.subtype, 'receivable');
 assert.equal(memberLeaf?.parent_code, '1180');
 assert.equal(memberLeaf?.code, '1180-0000200');
+assert.equal(
+  plan.create.find((c) => c.code === '1180-0000010')?.parent_code,
+  '1180'
+);
+assert.equal(statementParentForPartyLeaf('1181'), '1130');
+assert.equal(statementParentForPartyLeaf('1180-0000200'), '1180');
+assert.equal(statementParentForPartyLeaf('2180-0000008'), '2180');
+assert.equal(statementParentForPartyLeaf('2181'), '2180');
+assert.equal(statementParentForPartyLeaf('4400-0000009'), '1180');
+assert.notEqual(statementParentForPartyLeaf('1180-0000001'), '4400');
 const apHeader = plan.create.find((c) => c.code === '2180');
 assert.ok(apHeader);
 assert.equal(apHeader?.is_header, true);
