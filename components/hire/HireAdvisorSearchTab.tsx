@@ -2,16 +2,26 @@
 
 import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { ChevronDown, ChevronRight, Map, MapPin, Search } from 'lucide-react';
+import { ChevronDown, Map, MapPin, Search } from 'lucide-react';
 import { ProductPhoto } from '@/components/inventory/ProductPhoto';
-import {
-  coordsForHireArea,
-  type HirePwaSupplier,
-} from '@/lib/hire/hire-customer-pwa';
+import { coordsForHireArea } from '@/lib/hire/hire-customer-pwa';
 
 const LocationMap = dynamic(() => import('@/components/LocationMap'), {
   ssr: false,
 });
+
+export type HireSearchListItem = {
+  id: string;
+  title: string;
+  description?: string;
+  photo_url?: string | null;
+  location?: string;
+  supplier_name?: string;
+  category_short?: string;
+  category_name?: string;
+  rate_zar: number;
+  rate_unit: string;
+};
 
 export function HireAdvisorSearchTab({
   search,
@@ -19,9 +29,9 @@ export function HireAdvisorSearchTab({
   areaFilter,
   onArea,
   areaOptions,
-  suppliers,
+  items,
   zar,
-  onOpenSupplier,
+  onOpenItem,
   depot,
 }: {
   search: string;
@@ -29,9 +39,9 @@ export function HireAdvisorSearchTab({
   areaFilter: string;
   onArea: (area: string) => void;
   areaOptions: string[];
-  suppliers: HirePwaSupplier[];
+  items: HireSearchListItem[];
   zar: (n: number | null | undefined) => string;
-  onOpenSupplier: (supplier: HirePwaSupplier) => void;
+  onOpenItem: (item: HireSearchListItem) => void;
   depot?: {
     lat?: number | null;
     lng?: number | null;
@@ -49,17 +59,17 @@ export function HireAdvisorSearchTab({
       subtitle?: string;
     }> = [];
     const seen = new Set<string>();
-    for (const s of suppliers) {
-      const pos = coordsForHireArea(s.location, depot);
+    for (const item of items) {
+      const pos = coordsForHireArea(item.location, depot);
       if (!pos) continue;
-      const key = `${s.key}:${pos[0]}:${pos[1]}`;
+      const key = `${pos[0]}:${pos[1]}`;
       if (seen.has(key)) continue;
       seen.add(key);
       out.push({
-        id: s.key,
+        id: item.id,
         position: pos,
-        label: s.name,
-        subtitle: s.location || undefined,
+        label: item.title,
+        subtitle: item.location || undefined,
       });
     }
     if (!out.length) {
@@ -73,7 +83,7 @@ export function HireAdvisorSearchTab({
       }
     }
     return out;
-  }, [depot, suppliers]);
+  }, [depot, items]);
 
   const mapCenter = pins[0]?.position ||
     coordsForHireArea(null, depot) || [-26.2041, 28.0473];
@@ -87,7 +97,7 @@ export function HireAdvisorSearchTab({
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <input
           className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-10 pr-3 text-sm font-medium shadow-sm"
-          placeholder="Search suppliers…"
+          placeholder="Search items to hire…"
           value={search}
           onChange={(e) => onSearch(e.target.value)}
           autoComplete="off"
@@ -183,56 +193,53 @@ export function HireAdvisorSearchTab({
         </div>
       ) : null}
 
-      {suppliers.length === 0 ? (
+      {items.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-          No suppliers match that search. Try another name or area.
+          No hire items match that search. Try another name or area.
         </div>
       ) : (
         <ul className="space-y-2.5">
-          {suppliers.map((s) => (
-            <li key={s.key}>
+          {items.map((item) => (
+            <li key={item.id}>
               <button
                 type="button"
-                onClick={() => onOpenSupplier(s)}
-                className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-cyan-300"
+                onClick={() => onOpenItem(item)}
+                className="flex w-full gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-cyan-300"
               >
-                {s.photo_url ? (
+                {item.photo_url ? (
                   <ProductPhoto
-                    src={s.photo_url}
-                    className="h-14 w-14 shrink-0 rounded-2xl"
+                    src={item.photo_url}
+                    className="h-20 w-20 shrink-0 rounded-2xl"
                   />
                 ) : (
-                  <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-sky-800 text-lg font-black text-white">
-                    {s.name.trim().charAt(0).toUpperCase() || 'S'}
+                  <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-sky-800 text-lg font-black text-white">
+                    {item.title.trim().charAt(0).toUpperCase() || 'H'}
                   </span>
                 )}
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-black text-slate-900">
-                    {s.name}
+                  <span className="block text-[10px] font-black uppercase tracking-wider text-cyan-700">
+                    {item.category_short || item.category_name || 'Hire'}
                   </span>
-                  <span className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-slate-500">
-                    <MapPin className="h-3 w-3 shrink-0" />
-                    {s.location || 'Area TBC'}
-                    {' · '}
-                    {s.item_count} item{s.item_count === 1 ? '' : 's'}
+                  <span className="mt-0.5 block truncate text-sm font-black text-slate-900">
+                    {item.title}
                   </span>
-                  <span className="mt-1.5 flex flex-wrap gap-1">
-                    {s.categories.slice(0, 3).map((c) => (
-                      <span
-                        key={c}
-                        className="rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-bold text-cyan-800"
-                      >
-                        {c}
-                      </span>
-                    ))}
-                    {s.min_rate_zar != null ? (
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                        from {zar(s.min_rate_zar)}
+                  {item.description ? (
+                    <span className="mt-0.5 line-clamp-2 block text-xs text-slate-600">
+                      {item.description}
+                    </span>
+                  ) : null}
+                  <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
+                    {item.location ? (
+                      <span className="inline-flex items-center gap-0.5">
+                        <MapPin className="h-3 w-3 shrink-0" />
+                        {item.location}
                       </span>
                     ) : null}
+                    <span className="font-black text-cyan-800">
+                      {zar(item.rate_zar)} / {item.rate_unit}
+                    </span>
                   </span>
                 </span>
-                <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
               </button>
             </li>
           ))}
