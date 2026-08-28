@@ -5,8 +5,9 @@
  *                 or Dr expense · Dr VAT input · Cr AP
  * Cash applied:     Dr bank · Cr AR   /   Dr AP · Cr bank
  *
- * Bank lines coded straight to income remain cash-basis — do not also match those
- * receipts to an invoice or revenue will double-count.
+ * Cash before an issued invoice is a contract liability (Dr bank · Cr 2140),
+ * then applied on issue (Dr 2140 · Cr AR). Bank lines coded to 4100 for an
+ * issued invoice are recoded — they must not stay as a second sale.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
@@ -23,6 +24,15 @@ import {
   pickSettlementControlAccount,
   resolvePartyControlAccountId,
 } from '@/lib/accounting/party-gl-accounts';
+import {
+  applyDepositsOnInvoice,
+  arRevenueCodeForInvoice,
+  paymentAlreadyDeposited,
+  postCustomerDeposit,
+  recodeInvoiceBankSales,
+  stampInvoiceDepositJournal,
+  voidInvoiceJournalIds,
+} from '@/lib/accounting/contract-liability';
 
 const ISSUED = new Set([
   'sent',
@@ -88,12 +98,21 @@ export function isPoApAlreadyAllocated(
   return { allocated: false, journalId: null };
 }
 
-/** Cash already on a bank allocation — do not recognise or settle again. */
+/**
+ * Explicit cash-basis keep (or PO skip). cash_allocated_journal_id alone does
+ * not skip recognition — that receipt is recoded off 4100 then recognised once.
+ */
 export function invoiceKeepsBankAllocation(meta: unknown): boolean {
   const m = asMeta(meta);
+  return Boolean(m.skip_recognition || m.books_keep_bank_allocation);
+}
+
+/** Bank debit already on the ledger — do not settle AR/AP again for that cash. */
+export function invoiceSkipsSettlement(meta: unknown): boolean {
+  const m = asMeta(meta);
   return Boolean(
-    m.skip_recognition ||
-      m.skip_settlement ||
+    m.skip_settlement ||
+      m.skip_recognition ||
       m.books_keep_bank_allocation ||
       m.cash_allocated_journal_id
   );
@@ -155,7 +174,10 @@ async function invoiceAccounts(profileId: number) {
       subtypes: ['bank', 'cash'],
       accountTypes: ['asset'],
     }));
-  return { ar, ap, vatOut, vatIn, revenue, expense, bank };
+  const deposits = await resolveCoaAccountIdByCode(profileId, '2140');
+  const membership =
+    (await resolveCoaAccountIdByCode(profileId, '4400')) || revenue;
+  return { ar, ap, vatOut, vatIn, revenue, expense, bank, deposits, membership };
 }
 
 async function resolveBankGl(
@@ -214,6 +236,29 @@ async function stampInvoiceMeta(
     .eq('profile_id', profileId);
 }
 
+async function applyArDepositsIfNeeded(opts: {
+  profileId: number;
+  invoice: Record<string, unknown>;
+  arAccountId?: number | null;
+  createdBy?: string | null;
+}): Promise<{ ok: boolean; error?: string }> {
+  if (String(opts.invoice.direction || '') === 'payable') {
+    return { ok: true };
+  }
+  const meta = asMeta(opts.invoice.metadata);
+  const arId =
+    Number(opts.arAccountId || meta.control_account_id || 0) ||
+    (await invoiceAccounts(opts.profileId)).ar;
+  const applied = await applyDepositsOnInvoice({
+    profileId: opts.profileId,
+    invoice: opts.invoice,
+    arAccountId: arId,
+    createdBy: opts.createdBy,
+  });
+  if (!applied.ok) return { ok: false, error: applied.error };
+  return { ok: true };
+}
+
 export async function recognizeInvoiceIfNeeded(opts: {
   profileId: number;
   invoice: Record<string, unknown>;
@@ -238,6 +283,12 @@ export async function recognizeInvoiceIfNeeded(opts: {
     };
   }
   if (meta.recognition_journal_id) {
+    const dep = await applyArDepositsIfNeeded({
+      profileId: opts.profileId,
+      invoice: inv,
+      createdBy: opts.createdBy,
+    });
+    if (!dep.ok) return { ok: false, error: dep.error };
     return {
       ok: true,
       skipped: true,
@@ -288,6 +339,13 @@ export async function recognizeInvoiceIfNeeded(opts: {
         recognition_journal_id: keep,
         recognized_at: new Date().toISOString(),
       });
+      inv.metadata = { ...meta, recognition_journal_id: keep };
+      const dep = await applyArDepositsIfNeeded({
+        profileId: opts.profileId,
+        invoice: inv,
+        createdBy: opts.createdBy,
+      });
+      if (!dep.ok) return { ok: false, error: dep.error };
       return { ok: true, skipped: true, journalId: keep };
     }
     if (live.length) {
@@ -296,6 +354,13 @@ export async function recognizeInvoiceIfNeeded(opts: {
         recognition_journal_id: keeper,
         recognized_at: new Date().toISOString(),
       });
+      inv.metadata = { ...meta, recognition_journal_id: keeper };
+      const dep = await applyArDepositsIfNeeded({
+        profileId: opts.profileId,
+        invoice: inv,
+        createdBy: opts.createdBy,
+      });
+      if (!dep.ok) return { ok: false, error: dep.error };
       return { ok: true, skipped: true, journalId: keeper };
     }
   }
@@ -368,7 +433,18 @@ export async function recognizeInvoiceIfNeeded(opts: {
   const lines: JournalLineInput[] = [];
   let used6990 = false;
   if (isAr) {
-    if (!control || !accts.revenue) {
+    const recoded = await recodeInvoiceBankSales({
+      profileId: opts.profileId,
+      invoice: inv,
+      createdBy: opts.createdBy,
+    });
+    if (!recoded.ok) return { ok: false, error: recoded.error };
+    const revenueCode = arRevenueCodeForInvoice(inv);
+    const revenueId =
+      revenueCode === '4400' && accts.membership
+        ? accts.membership
+        : accts.revenue;
+    if (!control || !revenueId) {
       return {
         ok: false,
         error: 'COA missing AR (1130) or sales revenue (4100) — seed Chart of Accounts',
@@ -393,7 +469,7 @@ export async function recognizeInvoiceIfNeeded(opts: {
       }
     } else {
       lines.push({
-        accountId: accts.revenue,
+        accountId: revenueId,
         debit: 0,
         credit: net,
         memo,
@@ -515,6 +591,16 @@ export async function recognizeInvoiceIfNeeded(opts: {
     ...extraMeta,
   };
 
+  if (isAr) {
+    const dep = await applyArDepositsIfNeeded({
+      profileId: opts.profileId,
+      invoice: inv,
+      arAccountId: control,
+      createdBy: opts.createdBy,
+    });
+    if (!dep.ok) return { ok: false, error: dep.error, journalId: posted.journalId };
+  }
+
   return { ok: true, journalId: posted.journalId };
 }
 
@@ -534,8 +620,60 @@ export async function settleInvoicePayment(opts: {
 }> {
   const amount = round2(Math.abs(Number(opts.amount || 0)));
   if (amount < 0.005) return { ok: true, skipped: true };
-  if (invoiceKeepsBankAllocation(opts.invoice.metadata)) {
+  if (invoiceSkipsSettlement(opts.invoice.metadata)) {
+    const metaSkip = asMeta(opts.invoice.metadata);
+    if (
+      String(opts.invoice.direction || '') !== 'payable' &&
+      isIssuedInvoiceStatus(String(opts.invoice.status || '')) &&
+      Number(metaSkip.cash_allocated_journal_id || 0) > 0
+    ) {
+      const rec = await recognizeInvoiceIfNeeded({
+        profileId: opts.profileId,
+        invoice: opts.invoice,
+        createdBy: opts.createdBy,
+      });
+      if (!rec.ok) return rec;
+    }
     return { ok: true, skipped: true };
+  }
+
+  const meta0 = asMeta(opts.invoice.metadata);
+  if (paymentAlreadyDeposited(meta0, opts.paymentId)) {
+    return { ok: true, skipped: true };
+  }
+
+  const isAr0 = String(opts.invoice.direction || '') !== 'payable';
+  if (isAr0 && !isIssuedInvoiceStatus(String(opts.invoice.status || ''))) {
+    const posted = await postCustomerDeposit({
+      profileId: opts.profileId,
+      amount,
+      paidAt: opts.paidAt,
+      bankAccountId: opts.bankAccountId,
+      customerId: Number(opts.invoice.customer_id || 0) || null,
+      invoiceId: Number(opts.invoice.id || 0) || null,
+      paymentId: opts.paymentId,
+      counterparty: opts.invoice.counterparty_name
+        ? String(opts.invoice.counterparty_name)
+        : null,
+      createdBy: opts.createdBy,
+      memo: `Customer deposit ${opts.invoice.invoice_number || opts.invoice.id}`,
+    });
+    if (!posted.ok) return posted;
+    if (posted.journalId && Number(opts.invoice.id) > 0) {
+      await stampInvoiceDepositJournal({
+        profileId: opts.profileId,
+        invoiceId: Number(opts.invoice.id),
+        prevMeta: meta0,
+        paymentId: opts.paymentId,
+        journalId: posted.journalId,
+      });
+      const prior = Array.isArray(meta0.deposit_journal_ids)
+        ? [...(meta0.deposit_journal_ids as unknown[])]
+        : [];
+      prior.push({ payment_id: opts.paymentId, journal_id: posted.journalId });
+      opts.invoice.metadata = { ...meta0, deposit_journal_ids: prior };
+    }
+    return { ok: true, journalId: posted.journalId, skipped: posted.skipped };
   }
 
   const recognized = await recognizeInvoiceIfNeeded({
@@ -546,6 +684,9 @@ export async function settleInvoicePayment(opts: {
   if (!recognized.ok) return recognized;
 
   const meta = asMeta(opts.invoice.metadata);
+  if (paymentAlreadyDeposited(meta, opts.paymentId)) {
+    return { ok: true, skipped: true };
+  }
   const prior = Array.isArray(meta.settlement_journal_ids)
     ? (meta.settlement_journal_ids as unknown[])
     : [];
@@ -630,20 +771,12 @@ export async function reverseInvoiceBooks(opts: {
   createdBy?: string | null;
 }): Promise<{ ok: boolean; error?: string }> {
   const meta = asMeta(opts.invoice.metadata);
-  const journalIds: number[] = [];
-  if (meta.recognition_journal_id) {
-    journalIds.push(Number(meta.recognition_journal_id));
-  }
-  if (Array.isArray(meta.settlement_journal_ids)) {
-    for (const row of meta.settlement_journal_ids as unknown[]) {
-      if (row && typeof row === 'object' && 'journal_id' in row) {
-        journalIds.push(Number((row as { journal_id: number }).journal_id));
-      } else if (typeof row === 'number') {
-        journalIds.push(row);
-      }
-    }
-  }
-  const unique = [...new Set(journalIds.filter((n) => Number.isFinite(n) && n > 0))];
+  const unique = voidInvoiceJournalIds({
+    recognitionJournalId: Number(meta.recognition_journal_id || 0) || null,
+    settlementJournalIds: meta.settlement_journal_ids,
+    depositApplicationJournalId:
+      Number(meta.deposit_application_journal_id || 0) || null,
+  });
   const skipPoAlloc = Number(meta.po_allocation_journal_id || 0);
 
   for (const jid of unique) {
@@ -669,6 +802,10 @@ export async function reverseInvoiceBooks(opts: {
     recognition_reversed_at: new Date().toISOString(),
     books_reversed: true,
     prior_recognition_journal_id: meta.recognition_journal_id || null,
+    deposit_application_journal_id: null,
+    prior_deposit_application_journal_id:
+      meta.deposit_application_journal_id || null,
+    deposit_applied: 0,
   });
   return { ok: true };
 }

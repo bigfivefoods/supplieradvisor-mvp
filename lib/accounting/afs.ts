@@ -341,6 +341,16 @@ export async function buildAfsPack(opts: {
       ) {
         lines.unshift(rolled.face);
       }
+      const depIdx = lines.findIndex((l) => l.code === '2140');
+      if (depIdx > 0) {
+        const [dep] = lines.splice(depIdx, 1);
+        const apIdx = lines.findIndex(
+          (l) => l.code === '2110' || l.name === 'Trade and other payables'
+        );
+        lines.splice(apIdx >= 0 ? apIdx + 1 : 0, 0, { ...dep, note: '8' });
+      } else if (depIdx === 0) {
+        lines[0] = { ...lines[0], note: '8' };
+      }
     }
     if (key === 'equity') {
       const resCur = residualNi(accounts, buckets.asAtCurrent);
@@ -521,7 +531,17 @@ export async function buildAfsPack(opts: {
     priorOf: (id) => buckets.asAtPrior.get(id) || emptyDc(),
   });
   const arLines = arRoll.detail;
-  const apLines = apRoll.detail;
+  const depositLines = accounts
+    .filter((a) => String(a.code) === '2140')
+    .map((a) => ({
+      code: a.code,
+      name: `${a.name} (IFRS 15 contract liability)`,
+      current: amt(buckets.asAtCurrent, a.id, a.account_type),
+      prior: amt(buckets.asAtPrior, a.id, a.account_type),
+      indent: true,
+    }))
+    .filter((l) => Math.abs(l.current) >= 0.005 || Math.abs(l.prior) >= 0.005);
+  const apLines = [...apRoll.detail, ...depositLines];
   const cashLines = accounts
     .filter((a) => a.account_type === 'asset' && isCash(a))
     .map((a) => ({
@@ -581,7 +601,7 @@ export async function buildAfsPack(opts: {
     {
       number: '2',
       title: 'Revenue',
-      body: 'Revenue is recognised when an invoice is issued (accrual), not when cash is received. Bank receipts matched to invoices settle receivables and do not create a second sale.',
+      body: 'Revenue is recognised when an invoice is issued (accrual), not when cash is received. Bank receipts matched to invoices settle receivables and do not create a second sale. Cash received before any invoice is issued is a contract liability in 2140 Customer deposits until that invoice is issued. A single performance obligation is assumed per sales invoice; multi-element contracts, variable consideration, and principal-versus-agent assessments are not modelled.',
       lines: revLines,
     },
     {
@@ -614,7 +634,7 @@ export async function buildAfsPack(opts: {
     {
       number: '8',
       title: 'Trade and other payables',
-      body: 'Trade and other payables comprise control account 2110, the 2180 suppliers & contractors header, unique 2180-* leaves, and any legacy 2181+ named AP accounts. The face of the statement of financial position shows one current line.',
+      body: 'Trade and other payables comprise control account 2110, the 2180 suppliers & contractors header, unique 2180-* leaves, and any legacy 2181+ named AP accounts. The face of the statement of financial position shows one current line. 2140 Customer deposits is an IFRS 15 contract liability (current), listed next to trade payables — it is not mixed into AP leaves.',
       lines: apLines,
     },
     {
@@ -652,7 +672,7 @@ export async function buildAfsPack(opts: {
     },
     {
       title: 'Revenue (IFRS 15 — simplified)',
-      body: 'A single performance obligation is assumed per sales invoice. Multi-element contracts, variable consideration, and principal-versus-agent assessments are not modelled automatically.',
+      body: 'A single performance obligation is assumed per sales invoice. Cash received before issue is credited to 2140 Customer deposits (contract liability) and recognised as revenue when the invoice is issued. Multi-element contracts, variable consideration, and principal-versus-agent assessments are not modelled automatically.',
     },
     {
       title: 'Property, plant and equipment (IAS 16 — simplified)',
