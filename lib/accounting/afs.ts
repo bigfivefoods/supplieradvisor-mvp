@@ -624,7 +624,7 @@ export async function buildAfsPack(opts: {
     {
       number: '6',
       title: 'Trade and other receivables',
-      body: 'Trade and other receivables comprise control account 1130, named customer leaves (1181+), and member/patient leaves (1180-*). The face of the statement of financial position shows one current line. Expected credit losses are measured on Finance → ECL using management aging rates and posted to 1135 / 6820. 1135 is a current contra and is presented net against this note.',
+      body: 'Trade and other receivables comprise control account 1130, the 1180 Customers header, unique 1180-* customer leaves, and any leftover 1181+ named accounts. The face of the statement of financial position shows one current line. Expected credit losses are measured on Finance → ECL using management aging rates and posted to 1135 / 6820. 1135 is a current contra and is presented net against this note.',
       lines: arLines,
     },
     {
@@ -635,7 +635,7 @@ export async function buildAfsPack(opts: {
     {
       number: '8',
       title: 'Trade and other payables',
-      body: 'Trade and other payables comprise control account 2110, the 2180 suppliers & contractors header, unique 2180-* leaves, and any legacy 2181+ named AP accounts. The face of the statement of financial position shows one current line. 2140 Customer deposits is an IFRS 15 contract liability (current), listed next to trade payables — it is not mixed into AP leaves.',
+      body: 'Trade and other payables comprise control account 2110, the 2180 Suppliers header, unique 2180-* supplier leaves, and any leftover 2181+ named AP accounts. The face of the statement of financial position shows one current line. 2140 Customer deposits is an IFRS 15 contract liability (current), listed next to trade payables — it is not mixed into AP leaves.',
       lines: apLines,
     },
     {

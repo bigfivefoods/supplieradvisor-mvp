@@ -36,7 +36,7 @@ export function AllocGlSelect({
     >
       <option value="">{emptyLabel}</option>
       {groups.members.length > 0 ? (
-        <optgroup label="Members & patients (AR)">
+        <optgroup label="Customers (AR)">
           {groups.members.map((a) => (
             <Option key={a.id} a={a} />
           ))}
@@ -50,7 +50,7 @@ export function AllocGlSelect({
         </optgroup>
       ) : null}
       {groups.suppliers.length > 0 ? (
-        <optgroup label="Suppliers & contractors (AP)">
+        <optgroup label="Suppliers (AP)">
           {groups.suppliers.map((a) => (
             <Option key={a.id} a={a} />
           ))}

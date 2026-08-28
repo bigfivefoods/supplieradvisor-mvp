@@ -547,10 +547,10 @@ function Inner() {
             Pick the CoA parent for new parties. Each customer and supplier then gets a unique
             sub-account under that parent — for example{' '}
             <code className="text-xs bg-slate-50 px-1 py-0.5 rounded">
-              {partyLedger.ar_parent_code || '1180'}-0000042
+              {partyLedger.ar_parent_code || '1180'}-0000001
             </code>{' '}
-            — used for invoices and bank recon. AR must be an asset; AP must be a liability
-            (IAS 1). Employed staff stay on payroll, not AP.
+            through thousands of parties. Used for invoices and bank recon. AR must be an
+            asset; AP must be a liability (IAS 1). Employed staff stay on payroll, not AP.
           </p>
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="Customers (AR) parent">
@@ -561,7 +561,7 @@ function Inner() {
                 }
                 accounts={arParents}
                 fallbackCode="1180"
-                fallbackName="Members & patients (AR)"
+                fallbackName="Customers"
               />
               <p className="mt-1 text-[11px] text-neutral-500">
                 New CRM customers nest here and receive a unique AR number.
@@ -575,7 +575,7 @@ function Inner() {
                 }
                 accounts={arParents}
                 fallbackCode="1180"
-                fallbackName="Members & patients (AR)"
+                fallbackName="Customers"
                 sameAsLabel="Same as customers"
               />
               <p className="mt-1 text-[11px] text-neutral-500">
@@ -591,7 +591,7 @@ function Inner() {
                 }
                 accounts={apParents}
                 fallbackCode="2180"
-                fallbackName="Suppliers & contractors (AP)"
+                fallbackName="Suppliers"
               />
               <p className="mt-1 text-[11px] text-neutral-500">
                 New suppliers nest here and receive a unique AP number.
@@ -605,7 +605,7 @@ function Inner() {
                 }
                 accounts={apParents}
                 fallbackCode="2180"
-                fallbackName="Suppliers & contractors (AP)"
+                fallbackName="Suppliers"
                 sameAsLabel="Same as suppliers"
               />
               <p className="mt-1 text-[11px] text-neutral-500">

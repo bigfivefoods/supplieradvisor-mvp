@@ -18,8 +18,8 @@ assert.equal(parsePartyLedgerStored(null).member_ar_parent_code, null);
 assert.equal(parsePartyLedgerStored({ party_ledger: { ar_parent_code: '1190' } }).ar_parent_code, '1190');
 
 const coa = [
-  { id: 1, code: '1180', name: 'Members & patients (AR)', account_type: 'asset', is_header: true, subtype: 'receivable' },
-  { id: 2, code: '2180', name: 'Suppliers & contractors (AP)', account_type: 'liability', is_header: true, subtype: 'payable' },
+  { id: 1, code: '1180', name: 'Customers', account_type: 'asset', is_header: true, subtype: 'receivable' },
+  { id: 2, code: '2180', name: 'Suppliers', account_type: 'liability', is_header: true, subtype: 'payable' },
   { id: 3, code: '1130', name: 'Accounts receivable', account_type: 'asset', subtype: 'receivable' },
   { id: 4, code: '4400', name: 'Membership & care revenue', account_type: 'revenue', subtype: 'service' },
   { id: 5, code: '1110', name: 'Bank — operating', account_type: 'asset', subtype: 'bank' },

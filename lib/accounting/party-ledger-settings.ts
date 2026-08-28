@@ -3,15 +3,15 @@
  * suppliers (AP) nest under. Stored on accounting_settings.metadata
  * so a company can change it without a migration.
  *
- * Defaults: 1180 Members & patients (AR), 2180 Suppliers & contractors (AP).
+ * Defaults: 1180 Customers, 2180 Suppliers.
  * IFRS: AR parent must be an asset; AP parent must be a liability.
  */
 import type { CoaAccount } from '@/lib/accounting/types';
 
 export const DEFAULT_AR_PARENT_CODE = '1180';
-export const DEFAULT_AR_PARENT_NAME = 'Members & patients (AR)';
+export const DEFAULT_AR_PARENT_NAME = 'Customers';
 export const DEFAULT_AP_PARENT_CODE = '2180';
-export const DEFAULT_AP_PARENT_NAME = 'Suppliers & contractors (AP)';
+export const DEFAULT_AP_PARENT_NAME = 'Suppliers';
 
 export type PartyLedgerStored = {
   ar_parent_account_id: number | null;

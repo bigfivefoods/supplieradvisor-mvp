@@ -22,7 +22,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS: CoaSeed[] = [
   { code: '1140', name: 'Inventory', account_type: 'asset', subtype: 'inventory', normal_balance: 'debit', description: 'IAS 2 inventories at cost. Relieved to 5100 when a sales invoice line has quantity and a known unit cost from products/stock. Selling price is never used as cost.' },
   { code: '1150', name: 'VAT input (recoverable)', account_type: 'asset', subtype: 'tax', normal_balance: 'debit' },
   { code: '1160', name: 'Prepayments', account_type: 'asset', subtype: 'current', normal_balance: 'debit' },
-  { code: '1180', name: 'Members & patients (AR)', account_type: 'asset', subtype: 'receivable', is_header: true, normal_balance: 'debit', description: 'IFRS 9 member/patient AR sub-ledger (1180-0000001 …). Statement presentation rolls into Trade and other receivables with 1130. Not a revenue account.' },
+  { code: '1180', name: 'Customers', account_type: 'asset', subtype: 'receivable', is_header: true, normal_balance: 'debit', description: 'Customer AR header. Each customer is a unique leaf 1180-0000001 … (scales to thousands). Statement presentation rolls into Trade and other receivables with 1130. Not a revenue account — income posts to 4100/4200/4400.' },
   { code: '1200', name: 'Non-current assets', account_type: 'asset', subtype: 'fixed', is_header: true, normal_balance: 'debit' },
   { code: '1210', name: 'Property, plant & equipment', account_type: 'asset', subtype: 'fixed', normal_balance: 'debit' },
   { code: '1220', name: 'Accumulated depreciation', account_type: 'asset', subtype: 'contra_asset', normal_balance: 'credit' },
@@ -36,7 +36,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS: CoaSeed[] = [
   { code: '2120', name: 'VAT output (payable)', account_type: 'liability', subtype: 'tax', normal_balance: 'credit' },
   { code: '2130', name: 'Accrued expenses', account_type: 'liability', subtype: 'current', normal_balance: 'credit' },
   { code: '2140', name: 'Customer deposits', account_type: 'liability', subtype: 'current', normal_balance: 'credit', description: 'IFRS 15 contract liability: cash received before a sales invoice is issued. Applied to AR when the invoice is recognised. Current — presented next to trade payables, not mixed into AP leaves.' },
-  { code: '2180', name: 'Suppliers & contractors (AP)', account_type: 'liability', subtype: 'payable', is_header: true, normal_balance: 'credit', description: 'IFRS 9 supplier/contractor AP sub-ledger (2180-0000001 …). Statement presentation rolls into Trade and other payables with 2110. Employed staff stay on 6100 (IAS 19).' },
+  { code: '2180', name: 'Suppliers', account_type: 'liability', subtype: 'payable', is_header: true, normal_balance: 'credit', description: 'Supplier AP header. Each supplier is a unique leaf 2180-0000001 … (scales to thousands). Statement presentation rolls into Trade and other payables with 2110. Employed staff stay on 6100 (IAS 19).' },
   { code: '2200', name: 'Non-current liabilities', account_type: 'liability', subtype: 'long_term', is_header: true, normal_balance: 'credit' },
   { code: '2210', name: 'Long-term loans', account_type: 'liability', subtype: 'long_term', normal_balance: 'credit' },
 
