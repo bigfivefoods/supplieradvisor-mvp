@@ -208,7 +208,7 @@ function card(
       lineBreak: false,
     });
   let ty = y + 20;
-  const maxLines = 4;
+  const maxLines = 5;
   let drawn = 0;
   for (let i = 0; i < lines.length && drawn < maxLines; i++) {
     const t = String(lines[i] || '').trim();
@@ -620,16 +620,18 @@ export async function buildCommercialDocumentPdf(
     doc.x = MARGIN_X;
 
     // ── Party cards ───────────────────────────────────────────────────
-    const cardH = 68;
-    const cardW = (CONTENT_W - 10) / 2;
-    const cardY = doc.y;
-
-    card(doc, MARGIN_X, cardY, cardW, cardH, 'Bill to', [
+    const billToLines = [
       input.customerName || 'Customer',
       input.contactName || '',
       input.contactEmail || '',
       input.contactPhone || '',
-    ]);
+      input.customerVatNumber ? `VAT ${input.customerVatNumber}` : '',
+    ];
+    const cardH = input.customerVatNumber ? 82 : 68;
+    const cardW = (CONTENT_W - 10) / 2;
+    const cardY = doc.y;
+
+    card(doc, MARGIN_X, cardY, cardW, cardH, 'Bill to', billToLines);
 
     const metaLines: string[] = [];
     if (input.issuedAt) {

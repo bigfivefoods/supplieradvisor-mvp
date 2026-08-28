@@ -9,7 +9,7 @@ import {
   Suspense,
   type ReactNode,
 } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Loader2,
   Plus,
@@ -103,7 +103,7 @@ const CONFIG: Record<
   invoice: {
     title: 'Invoices',
     description:
-      'Bill customers, email PDF, track payment. Unpaid invoices can be revised — saving creates a new version and voids the original.',
+      'Review draft invoices before sending. Send the PDF from this page, then track payment. Unpaid invoices can be revised — saving creates a new version and voids the original.',
     numberField: 'invoice_number',
     statuses: ['draft', 'sent', 'paid', 'partial', 'overdue', 'void'],
   },
@@ -148,6 +148,7 @@ function DocInner({
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
+  const router = useRouter();
   const searchParams = useSearchParams();
   const fromPo = Number(searchParams.get('fromPo') || 0) || null;
   const buyerProfileIdParam =
@@ -158,10 +159,12 @@ function DocInner({
         0
     ) || null;
   const focusDocId = Number(searchParams.get('docId') || searchParams.get('invoiceId') || 0) || null;
+  const previewFromUrl = searchParams.get('preview') === '1';
   const statusFromUrl = String(searchParams.get('status') || '').toLowerCase();
   const actionFromUrl = String(searchParams.get('action') || '').toLowerCase();
   const whatsappFromUrl = searchParams.get('whatsapp') === '1';
   const fromPoApplied = useRef(false);
+  const focusDocApplied = useRef(false);
   const peerCustomerApplied = useRef(false);
   const overdueResendHinted = useRef(false);
   const whatsappTriggered = useRef(false);
@@ -172,6 +175,7 @@ function DocInner({
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [fromPoBanner, setFromPoBanner] = useState<string | null>(null);
+  const [reviewBanner, setReviewBanner] = useState<string | null>(null);
   const [highlightDocId, setHighlightDocId] = useState<number | null>(null);
 
   const openExistingInvoice = useCallback(
@@ -561,12 +565,37 @@ function DocInner({
     openExistingInvoice,
   ]);
 
-  // Deep-link highlight: ?docId= / ?invoiceId=
+  // Deep-link highlight: ?docId= / ?invoiceId= (all document types)
   useEffect(() => {
-    if (!focusDocId || loading || type !== 'invoice') return;
+    focusDocApplied.current = false;
+  }, [focusDocId, previewFromUrl]);
+
+  useEffect(() => {
+    if (!focusDocId || loading || focusDocApplied.current) return;
     const hit = docs.find((d) => Number(d.id) === focusDocId);
-    if (hit) openExistingInvoice(hit, null);
-  }, [focusDocId, loading, type, docs, openExistingInvoice]);
+    if (!hit) return;
+    focusDocApplied.current = true;
+    setHighlightDocId(focusDocId);
+    setShowForm(false);
+    if (type === 'invoice' && previewFromUrl) {
+      const num = String(hit.invoice_number || hit.id);
+      const st = String(hit.status || '').toLowerCase();
+      const isDraft = ['draft', '', 'open'].includes(st);
+      setReviewBanner(
+        isDraft
+          ? `Draft invoice ${num} is ready. Review the PDF, then Send invoice from this page — nothing has been emailed yet.`
+          : `Invoice ${num} is on file. Send or resend from this page.`
+      );
+    } else if (type === 'invoice' && !fromPo) {
+      openExistingInvoice(hit, null);
+      return;
+    }
+    requestAnimationFrame(() => {
+      document
+        .getElementById(`doc-row-${focusDocId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }, [focusDocId, loading, type, docs, previewFromUrl, fromPo, openExistingInvoice]);
 
   // Hub next-action: ?status=overdue&action=resend — toast once when list ready
   useEffect(() => {
@@ -1187,6 +1216,26 @@ function DocInner({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Convert failed');
+      const nextBase = sales ? '/sales' : '/dashboard/customers';
+      if (cfg.convertAction === 'convert_to_invoice') {
+        const invId = Number(data.invoice?.id || 0);
+        toast.success(
+          data.already
+            ? 'Invoice already created — opening it to review'
+            : 'Draft invoice ready — review it, then send from Invoices'
+        );
+        if (invId > 0) {
+          router.push(`${nextBase}/invoices?docId=${invId}&preview=1`);
+          return;
+        }
+      } else if (cfg.convertAction === 'convert_to_order') {
+        const orderId = Number(data.order?.id || 0);
+        if (orderId > 0) {
+          toast.success('Converted to sales order');
+          router.push(`${nextBase}/orders?docId=${orderId}`);
+          return;
+        }
+      }
       toast.success(cfg.convertLabel || 'Converted');
       void load();
     } catch (e: unknown) {
@@ -2100,7 +2149,53 @@ function DocInner({
         />
       )}
 
-      {!showForm && fromPoBanner ? (
+      {!showForm && reviewBanner ? (
+        <div className="mb-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs font-medium text-sky-950">
+          <p className="leading-relaxed">{reviewBanner}</p>
+          {highlightDocId ? (
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="underline font-bold"
+                onClick={() => {
+                  document
+                    .getElementById(`doc-row-${highlightDocId}`)
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }}
+              >
+                Jump to invoice →
+              </button>
+              <button
+                type="button"
+                onClick={() => openPrintPdf(highlightDocId)}
+                className="inline-flex items-center gap-1 rounded-full border border-sky-300 bg-white px-3 py-1.5 text-[11px] font-bold text-sky-900 hover:bg-sky-50"
+              >
+                <FileDown className="w-3 h-3" />
+                Open PDF
+              </button>
+              <button
+                type="button"
+                disabled={busyId === highlightDocId}
+                onClick={() => {
+                  const doc = docs.find((d) => Number(d.id) === highlightDocId);
+                  if (!doc) {
+                    toast.message('Invoice still loading — try again in a moment');
+                    void load();
+                    return;
+                  }
+                  void emailDoc(doc);
+                }}
+                className="inline-flex items-center gap-1 rounded-full bg-[#00b4d8] px-3 py-1.5 text-[11px] font-bold text-white hover:bg-[#0096c7] disabled:opacity-50"
+              >
+                <Mail className="w-3 h-3" />
+                Send invoice
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {!showForm && fromPoBanner && !reviewBanner ? (
         <div
           className={`mb-4 rounded-2xl border px-4 py-3 text-xs font-medium ${
             /not auto-shared|Not shared|Share with/i.test(fromPoBanner)
@@ -2875,13 +2970,22 @@ function DocInner({
                           ),
                         })
                       }
-                      className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1 border-[#00b4d8]/40 text-[#0077b6]"
+                      className={
+                        type === 'invoice' &&
+                        ['draft', '', 'open'].includes(
+                          String(d.status || '').toLowerCase()
+                        )
+                          ? 'btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1'
+                          : 'btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1 border-[#00b4d8]/40 text-[#0077b6]'
+                      }
                       title={
                         ['sent', 'partial', 'overdue', 'paid', 'viewed'].includes(
                           String(d.status || '').toLowerCase()
                         )
                           ? 'Resend this document to the customer (you can change the email). CC you by default.'
-                          : 'Email customer (CC you). Invoices include bank details from Company profile.'
+                          : type === 'invoice'
+                            ? 'Send this invoice from Invoices (email PDF). Review first — nothing is sent until you confirm.'
+                            : 'Email customer (CC you). Invoices include bank details from Company profile.'
                       }
                     >
                       {busyId === d.id ? (
@@ -2893,9 +2997,14 @@ function DocInner({
                             String(d.status || '').toLowerCase()
                           )
                             ? 'Resend'
-                            : String(d.status || '').toLowerCase() === 'draft'
-                              ? 'Email when ready'
-                              : 'Email'}
+                            : type === 'invoice' &&
+                                ['draft', '', 'open'].includes(
+                                  String(d.status || '').toLowerCase()
+                                )
+                              ? 'Send invoice'
+                              : String(d.status || '').toLowerCase() === 'draft'
+                                ? 'Email when ready'
+                                : 'Email'}
                         </>
                       )}
                     </button>
@@ -2953,6 +3062,11 @@ function DocInner({
                         disabled={busyId === d.id}
                         onClick={() => void convert(d.id)}
                         className="btn-secondary !py-1.5 !px-3 text-xs"
+                        title={
+                          cfg.convertAction === 'convert_to_invoice'
+                            ? 'Creates a draft invoice you can review, then send from Invoices. Nothing is emailed yet.'
+                            : cfg.convertLabel
+                        }
                       >
                         {busyId === d.id ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -3009,7 +3123,12 @@ function DocInner({
                           Payment plan
                         </button>
                       )}
-                    {type === 'invoice' && d.status !== 'paid' && d.status !== 'void' && (
+                    {type === 'invoice' &&
+                      d.status !== 'paid' &&
+                      d.status !== 'void' &&
+                      !['draft', '', 'open'].includes(
+                        String(d.status || '').toLowerCase()
+                      ) && (
                       <button
                         type="button"
                         disabled={busyId === d.id}
@@ -3060,6 +3179,31 @@ function DocInner({
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
+                  {isHighlight && Array.isArray(d.items) && d.items.length > 0 ? (
+                    <div className="w-full rounded-xl border border-amber-200/80 bg-white/80 px-3 py-2">
+                      <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-amber-900">
+                        {type === 'invoice' ? 'Invoice lines' : 'Lines'}
+                      </p>
+                      <ul className="space-y-0.5">
+                        {(d.items as DocLineItem[]).slice(0, 12).map((it, i) => (
+                          <li
+                            key={i}
+                            className="flex items-baseline justify-between gap-3 text-[11px] text-neutral-700"
+                          >
+                            <span className="min-w-0 truncate">
+                              {it.quantity} × {it.name || 'Line'}
+                            </span>
+                            <span className="shrink-0 font-semibold tabular-nums">
+                              {formatMoney(
+                                Number(it.line_total || 0),
+                                String(it.currency || d.currency || 'ZAR')
+                              )}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
                 </li>
               );
             })}

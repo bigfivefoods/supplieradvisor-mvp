@@ -11,6 +11,7 @@ import {
  * POST /api/orders/raise-invoice-from-so
  * Raise a customer invoice from a Sales Order and stamp source_order_id.
  * Mirrors convert_to_invoice with explicit chain fields.
+ * Defaults to draft so the seller can review the invoice before sending.
  *
  * Body: { companyId, privyUserId, salesOrderId, status?, due_date?, acknowledgeCredit? }
  */
@@ -125,7 +126,7 @@ export async function POST(req: NextRequest) {
     const due = new Date();
     due.setDate(due.getDate() + 30);
     const dueDate = body.due_date || due.toISOString().slice(0, 10);
-    const invStatus = body.status === 'draft' ? 'draft' : 'sent';
+    const invStatus = body.status === 'sent' ? 'sent' : 'draft';
 
     const invPayload: Record<string, unknown> = {
       profile_id: companyId,
@@ -188,18 +189,20 @@ export async function POST(req: NextRequest) {
       .eq('id', order.id)
       .eq('profile_id', companyId);
 
-    // Soft GL sync
-    try {
-      const { syncCrmInvoiceToBooks } = await import(
-        '@/lib/accounting/crm-invoice-gl'
-      );
-      await syncCrmInvoiceToBooks({
-        profileId: companyId,
-        crmInvoice: invoice as Record<string, unknown>,
-        createdBy: privyUserId,
-      });
-    } catch {
-      /* soft */
+    // Books post when the invoice is issued (sent), not on draft review.
+    if (invStatus !== 'draft') {
+      try {
+        const { syncCrmInvoiceToBooks } = await import(
+          '@/lib/accounting/crm-invoice-gl'
+        );
+        await syncCrmInvoiceToBooks({
+          profileId: companyId,
+          crmInvoice: invoice as Record<string, unknown>,
+          createdBy: privyUserId,
+        });
+      } catch {
+        /* soft */
+      }
     }
 
     await logActivity({

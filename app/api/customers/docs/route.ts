@@ -828,7 +828,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // ── Convert order → invoice ────────────────────────────────────────────
+    // ── Convert order → draft invoice (review + send from Invoices) ────────
     if (action === 'convert_to_invoice' && body.id) {
       const { data: order, error } = await supabase
         .from('sales_orders')
@@ -839,6 +839,54 @@ export async function POST(request: NextRequest) {
       if (error || !order) {
         return NextResponse.json({ error: error?.message || 'Order not found' }, { status: 404 });
       }
+
+      const returnExistingInvoice = (invoice: Record<string, unknown>) =>
+        NextResponse.json({
+          success: true,
+          invoice,
+          type: 'invoice',
+          action: 'convert_to_invoice',
+          already: true,
+          preview: true,
+        });
+
+      const existingInvId = Number(order.invoice_id || 0);
+      if (existingInvId > 0) {
+        const { data: existing } = await supabase
+          .from('customer_invoices')
+          .select('*')
+          .eq('id', existingInvId)
+          .eq('profile_id', companyId)
+          .maybeSingle();
+        if (
+          existing &&
+          !['void', 'cancelled', 'canceled'].includes(
+            String(existing.status || '').toLowerCase()
+          )
+        ) {
+          return returnExistingInvoice(existing as Record<string, unknown>);
+        }
+      }
+
+      const linkedLookup = await supabase
+        .from('customer_invoices')
+        .select('*')
+        .eq('profile_id', companyId)
+        .eq('order_id', order.id)
+        .order('id', { ascending: false })
+        .limit(8);
+      if (!linkedLookup.error) {
+        const linkedLive = (linkedLookup.data || []).find(
+          (row) =>
+            !['void', 'cancelled', 'canceled'].includes(
+              String((row as { status?: string }).status || '').toLowerCase()
+            )
+        );
+        if (linkedLive) {
+          return returnExistingInvoice(linkedLive as Record<string, unknown>);
+        }
+      }
+
       const items = normalizeItems(order.items);
       const totals = calcDocTotals(items, Number(order.tax_rate ?? 15));
       // Credit hold blocks convert → invoice (same as create)
@@ -893,7 +941,8 @@ export async function POST(request: NextRequest) {
         order_id: order.id,
         quote_id: order.quote_id,
         invoice_number: docNumber('INV'),
-        status: 'sent',
+        // Draft until the seller reviews and sends from Invoices.
+        status: 'draft',
         currency: order.currency || 'ZAR',
         ...totals,
         amount_paid: 0,
@@ -923,11 +972,6 @@ export async function POST(request: NextRequest) {
         );
       }
       const invoice = invIns.data;
-      await booksFromCrm(
-        companyId,
-        invoice,
-        _gate.userId || null
-      );
 
       await supabase
         .from('sales_orders')
@@ -939,6 +983,7 @@ export async function POST(request: NextRequest) {
         invoice,
         type: 'invoice',
         action: 'convert_to_invoice',
+        preview: true,
       });
     }
 

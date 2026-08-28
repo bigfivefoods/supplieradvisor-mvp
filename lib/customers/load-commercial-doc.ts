@@ -6,6 +6,7 @@ import { normalizeItems } from '@/lib/customers/documents';
 import {
   extractBankFromProfile,
   resolveCustomerContact,
+  resolveCustomerVatNumber,
   renderCommercialDocumentHtml,
   type DocRenderInput,
 } from '@/lib/customers/invoice-document';
@@ -95,6 +96,29 @@ export async function loadCommercialDocument(opts: {
     doc as Record<string, unknown>
   );
 
+  let linkedProfile: Record<string, unknown> | null = null;
+  const linkedId = Number(
+    (customer as { linked_profile_id?: unknown } | null)?.linked_profile_id || 0
+  );
+  const crmVat = String(
+    (customer as { vat_number?: unknown } | null)?.vat_number || ''
+  ).trim();
+  if (linkedId > 0 && !crmVat) {
+    const { data: buyerProf, error: lpErr } = await supabase
+      .from('profiles')
+      .select('vat_number')
+      .eq('id', linkedId)
+      .maybeSingle();
+    if (!lpErr && buyerProf) {
+      linkedProfile = buyerProf as Record<string, unknown>;
+    }
+  }
+  const customerVatNumber = resolveCustomerVatNumber(
+    customer as Record<string, unknown> | null,
+    doc as Record<string, unknown>,
+    linkedProfile
+  );
+
   // Persist missing contact fields back onto the document when we resolved them
   // (best-effort, non-blocking for render)
   if (
@@ -128,6 +152,7 @@ export async function loadCommercialDocument(opts: {
     contactName: contact.contactName,
     contactEmail: contact.contactEmail,
     contactPhone: contact.contactPhone,
+    customerVatNumber,
     notes: doc.notes,
     terms: (doc.terms as string) || null,
     paymentTerms:
