@@ -8,7 +8,8 @@
  *  - Statement of cash flows (IAS 7 direct method from bank GL)
  *  - Notes + accounting policies
  *
- * These are compiled AFS from the ledger — not an audit opinion.
+ * These are compiled AFS from the reporting entity ledger — not consolidated,
+ * not an audit opinion.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { round2 } from '@/lib/accounting/server';
@@ -34,6 +35,22 @@ import {
   GAAP_DISCLAIMER_LONG,
   GAAP_DISCLAIMER_SHORT,
 } from '@/lib/accounting/gaap-disclaimer';
+import {
+  AFS_IAS10,
+  AFS_MANUAL_STANDARDS,
+  AFS_NOTE2_REVENUE,
+  AFS_NOTE3_COGS,
+  AFS_NOTE6_RECEIVABLES,
+  AFS_NOTE8_PAYABLES,
+  AFS_NOT_CONSOLIDATED,
+  AFS_POLICY_IAS2,
+  AFS_POLICY_IFRS15,
+  AFS_POLICY_IFRS9,
+} from '@/lib/accounting/afs-honesty';
+import {
+  nonCurrentOpenTotals,
+  splitCurrentNonCurrent,
+} from '@/lib/accounting/current-noncurrent';
 
 export type { AfsLine, AfsNote, AfsPack, AfsSection } from '@/lib/accounting/afs-types';
 
@@ -286,6 +303,27 @@ export async function buildAfsPack(opts: {
   const niCurrent = periodNi(accounts, buckets.periodCurrent);
   const niPrior = periodNi(accounts, buckets.periodPrior);
 
+  let datedInvoices: Array<{
+    direction?: string | null;
+    due_date?: string | null;
+    total_amount?: number | null;
+    amount_paid?: number | null;
+    status?: string | null;
+  }> = [];
+  try {
+    const { data: dated } = await supabase
+      .from('invoices')
+      .select('direction, due_date, total_amount, amount_paid, status')
+      .eq('profile_id', opts.profileId)
+      .not('due_date', 'is', null)
+      .limit(800);
+    datedInvoices = dated || [];
+  } catch {
+    datedInvoices = [];
+  }
+  const ncNow = nonCurrentOpenTotals(datedInvoices, to);
+  const ncPrior = nonCurrentOpenTotals(datedInvoices, prior.to);
+
   // ── SoFP ──────────────────────────────────────────────────────────────
   const sofpKeys = [
     'current_assets',
@@ -295,6 +333,8 @@ export async function buildAfsPack(opts: {
     'equity',
   ] as const;
   const sofpSections: AfsSection[] = [];
+  let arNonCurrent = { current: 0, prior: 0 };
+  let apNonCurrent = { current: 0, prior: 0 };
   for (const key of sofpKeys) {
     const types =
       key.includes('asset')
@@ -322,11 +362,30 @@ export async function buildAfsPack(opts: {
         currentOf: (id) => buckets.asAtCurrent.get(id) || emptyDc(),
         priorOf: (id) => buckets.asAtPrior.get(id) || emptyDc(),
       });
+      const cur = splitCurrentNonCurrent(rolled.face.current, ncNow.ar);
+      const pri = splitCurrentNonCurrent(rolled.face.prior, ncPrior.ar);
+      arNonCurrent = { current: cur.nonCurrent, prior: pri.nonCurrent };
+      if (Math.abs(cur.current) >= 0.005 || Math.abs(pri.current) >= 0.005) {
+        lines.unshift({
+          ...rolled.face,
+          current: cur.current,
+          prior: pri.current,
+        });
+      }
+    }
+    if (key === 'non_current_assets') {
       if (
-        Math.abs(rolled.face.current) >= 0.005 ||
-        Math.abs(rolled.face.prior) >= 0.005
+        Math.abs(arNonCurrent.current) >= 0.005 ||
+        Math.abs(arNonCurrent.prior) >= 0.005
       ) {
-        lines.unshift(rolled.face);
+        lines.unshift({
+          code: '1130',
+          name: 'Trade and other receivables — non-current',
+          note: '6',
+          current: arNonCurrent.current,
+          prior: arNonCurrent.prior,
+          indent: true,
+        });
       }
     }
     if (key === 'current_liabilities') {
@@ -335,11 +394,15 @@ export async function buildAfsPack(opts: {
         currentOf: (id) => buckets.asAtCurrent.get(id) || emptyDc(),
         priorOf: (id) => buckets.asAtPrior.get(id) || emptyDc(),
       });
-      if (
-        Math.abs(rolled.face.current) >= 0.005 ||
-        Math.abs(rolled.face.prior) >= 0.005
-      ) {
-        lines.unshift(rolled.face);
+      const cur = splitCurrentNonCurrent(rolled.face.current, ncNow.ap);
+      const pri = splitCurrentNonCurrent(rolled.face.prior, ncPrior.ap);
+      apNonCurrent = { current: cur.nonCurrent, prior: pri.nonCurrent };
+      if (Math.abs(cur.current) >= 0.005 || Math.abs(pri.current) >= 0.005) {
+        lines.unshift({
+          ...rolled.face,
+          current: cur.current,
+          prior: pri.current,
+        });
       }
       const depIdx = lines.findIndex((l) => l.code === '2140');
       if (depIdx > 0) {
@@ -350,6 +413,21 @@ export async function buildAfsPack(opts: {
         lines.splice(apIdx >= 0 ? apIdx + 1 : 0, 0, { ...dep, note: '8' });
       } else if (depIdx === 0) {
         lines[0] = { ...lines[0], note: '8' };
+      }
+    }
+    if (key === 'non_current_liabilities') {
+      if (
+        Math.abs(apNonCurrent.current) >= 0.005 ||
+        Math.abs(apNonCurrent.prior) >= 0.005
+      ) {
+        lines.unshift({
+          code: '2110',
+          name: 'Trade and other payables — non-current',
+          note: '8',
+          current: apNonCurrent.current,
+          prior: apNonCurrent.prior,
+          indent: true,
+        });
       }
     }
     if (key === 'equity') {
@@ -601,13 +679,13 @@ export async function buildAfsPack(opts: {
     {
       number: '2',
       title: 'Revenue',
-      body: 'Revenue is recognised when an invoice is issued (accrual), not when cash is received. Bank receipts matched to invoices settle receivables and do not create a second sale. Cash received before any invoice is issued is a contract liability in 2140 Customer deposits until that invoice is issued. A single performance obligation is assumed per sales invoice; multi-element contracts, variable consideration, and principal-versus-agent assessments are not modelled.',
+      body: AFS_NOTE2_REVENUE,
       lines: revLines,
     },
     {
       number: '3',
       title: 'Cost of sales',
-      body: 'Inventories are measured at cost (IAS 2, simplified). Cost of sales is recognised when a sales invoice line has quantity and a known unit cost from the product catalogue or stock movements (Dr 5100 · Cr 1140). Lines with no product, a zero cost, or a service/membership invoice do not post COGS — selling price is never used as cost. NRV write-downs and standard costing are not automated.',
+      body: AFS_NOTE3_COGS,
       lines: cogsLines,
     },
     {
@@ -624,7 +702,7 @@ export async function buildAfsPack(opts: {
     {
       number: '6',
       title: 'Trade and other receivables',
-      body: 'Trade and other receivables comprise control account 1130, named customer leaves (1181+), and member/patient leaves (1180-*). The face of the statement of financial position shows one current line. Expected credit losses are measured on Finance → ECL using management aging rates and posted to 1135 / 6820. 1135 is a current contra and is presented net against this note.',
+      body: AFS_NOTE6_RECEIVABLES,
       lines: arLines,
     },
     {
@@ -635,7 +713,7 @@ export async function buildAfsPack(opts: {
     {
       number: '8',
       title: 'Trade and other payables',
-      body: 'Trade and other payables comprise control account 2110, the 2180 suppliers & contractors header, unique 2180-* leaves, and any legacy 2181+ named AP accounts. The face of the statement of financial position shows one current line. 2140 Customer deposits is an IFRS 15 contract liability (current), listed next to trade payables — it is not mixed into AP leaves.',
+      body: AFS_NOTE8_PAYABLES,
       lines: apLines,
     },
     {
@@ -658,14 +736,14 @@ export async function buildAfsPack(opts: {
     {
       number: '12',
       title: 'Events after the reporting date',
-      body: 'These compiled statements do not automatically identify adjusting or non-adjusting events after the reporting date (IAS 10). Disclose such events outside this pack if material.',
+      body: AFS_IAS10,
     },
   ];
 
   const policies: Array<{ title: string; body: string }> = [
     {
       title: 'Reporting entity',
-      body: `${companyName} is the reporting entity. These statements cover the selected reporting period and the comparable prior period.`,
+      body: `${companyName} is the reporting entity. These statements cover the selected reporting period and the comparable prior period. ${AFS_NOT_CONSOLIDATED}`,
     },
     {
       title: 'Accrual basis and going concern',
@@ -673,11 +751,11 @@ export async function buildAfsPack(opts: {
     },
     {
       title: 'Revenue (IFRS 15 — simplified)',
-      body: 'A single performance obligation is assumed per sales invoice. Cash received before issue is credited to 2140 Customer deposits (contract liability) and recognised as revenue when the invoice is issued. Multi-element contracts, variable consideration, and principal-versus-agent assessments are not modelled automatically.',
+      body: AFS_POLICY_IFRS15,
     },
     {
       title: 'Inventories (IAS 2 — simplified)',
-      body: 'Inventories are carried at cost on 1140. When a sales invoice is issued for goods with a known stock unit cost, that cost is recognised in 5100 and inventory is relieved. If unit cost is unknown or zero, COGS is not posted. NRV, the retail method, and a standard-costing engine are not modelled.',
+      body: AFS_POLICY_IAS2,
     },
     {
       title: 'Property, plant and equipment (IAS 16 — simplified)',
@@ -685,7 +763,7 @@ export async function buildAfsPack(opts: {
     },
     {
       title: 'Financial instruments (IFRS 9 — simplified)',
-      body: 'Trade receivables and payables are recognised at transaction price. Expected credit losses are measured on the ECL worksheet (Finance → ECL) using management aging rates and posted to 1135 / 6820. Fair-value instruments are not automated.',
+      body: AFS_POLICY_IFRS9,
     },
     {
       title: 'Statement of cash flows (IAS 7)',
@@ -693,7 +771,7 @@ export async function buildAfsPack(opts: {
     },
     {
       title: 'Leases, deferred tax, foreign currency',
-      body: 'IFRS 16, IAS 12 deferred tax, and IAS 21 retranslation are not automated. Post journals if those standards apply.',
+      body: AFS_MANUAL_STANDARDS,
     },
   ];
 

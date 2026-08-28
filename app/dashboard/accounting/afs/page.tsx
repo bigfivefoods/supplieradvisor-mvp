@@ -92,7 +92,7 @@ function Inner() {
         <AccountingHeader
           title="Annual"
           titleAccent="financial statements"
-          description="Compiled IFRS-oriented AFS pack from posted journals for the period you select — statement of financial position, profit or loss, changes in equity, cash flows, notes, and policies. Unaudited."
+          description="Compiled IFRS-oriented AFS pack from posted journals for the period you select — statement of financial position, profit or loss, changes in equity, cash flows, notes, and policies. Unaudited. Not consolidated."
           action={
             <div className="flex flex-wrap gap-2">
               <button
@@ -344,7 +344,7 @@ function Cover({ pack }: { pack: AfsPack }) {
           {pack.period.priorTo}).
         </p>
         <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-700">
-          IFRS / SA GAAP basis — compiled, unaudited
+          IFRS / SA GAAP basis — compiled, unaudited, not consolidated
         </p>
       </div>
     </Panel>

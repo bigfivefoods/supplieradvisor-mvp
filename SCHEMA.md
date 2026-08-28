@@ -240,7 +240,7 @@ Customer-type edges: `connection_type = 'customer'`, seller = `requester`, buyer
 |-------|---------|
 | `chart_of_accounts` | GL accounts (seedable IFRS starter set) |
 | `journal_entries` / `journal_lines` | Double-entry books |
-| `invoices` | AR/AP invoices (`direction`: receivable \| payable). `direction` is the AR/AP subledger. Named party GLs are COA leaves under 1130 (trade AR 1181+), 1180 (member 1180-*), 2110/2180 (supplier 2180-* / 2181+). Statement of financial position rolls those leaves into one Trade receivables / Trade payables line. |
+| `invoices` | AR/AP invoices (`direction`: receivable \| payable). `direction` is the AR/AP subledger. Named party GLs are COA leaves under 1130 (trade AR 1181+), 1180 (member 1180-*), 2110/2180 (supplier 2180-* / 2181+). Statement of financial position rolls those leaves into one Trade receivables / Trade payables line. Amounts with `due_date` more than 12 months after period end are presented as non-current; missing due_date stays current. 2140 is an IFRS 15 contract liability (cash before invoice). 5100 posts only when a goods line has a known stock cost. AFS is the reporting entity’s own statements — not consolidated (IFRS 10). |
 | `payments` | Payment records (inbound/outbound; apply to invoices) |
 | `accounting_entities` | Legal entities / branches |
 | `accounting_periods` | Open / closed fiscal periods |
@@ -256,6 +256,9 @@ Customer-type edges: `connection_type = 'customer'`, seller = `requester`, buyer
 
 Migrations:
 - `supabase/migrations/20260910_brief4_ifrs_coa.sql` (IAS 1 parents: 1181+ → 1130, 1180-* → 1180, 2180-* → 2180, 1135 current; recode leftover 4400-* AR)
+- `supabase/migrations/20260911_brief5_ifrs15_2140.sql` (2140 IFRS 15 contract liability label)
+- `supabase/migrations/20260912_brief6_ias2_cogs.sql` (1140/5100 IAS 2 labels; COGS only when stock cost known)
+- `supabase/migrations/20260913_brief7_afs_honesty.sql` (AFS honesty: 1130/2110 current vs non-current due_date notes)
 - `supabase/migrations/20260710_accounting_module.sql`
 - `supabase/migrations/20260710_accounting_bank_allocation.sql` (CSV import + allocate columns)
 
