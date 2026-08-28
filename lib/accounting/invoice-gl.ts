@@ -90,7 +90,11 @@ export function isPoApAlreadyAllocated(
   const firstMeta =
     Array.isArray(rawIds) && rawIds.length ? Number(rawIds[0]) : 0;
   const jid = Number(
-    po.cost_journal_entry_id || meta.ap_allocated_journal_id || firstMeta || 0
+    po.cost_journal_entry_id ||
+      meta.ap_allocated_journal_id ||
+      meta.inventory_journal_id ||
+      firstMeta ||
+      0
   );
   if (Number.isFinite(jid) && jid > 0) {
     return { allocated: true, journalId: jid };

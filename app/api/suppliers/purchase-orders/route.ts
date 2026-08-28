@@ -549,6 +549,15 @@ export async function POST(request: NextRequest) {
         book_only: !supplierProfileId,
         connection_id: conn?.id ?? null,
         use_escrow: body.useEscrow === true,
+        related_invoice_number: body.related_invoice_number
+          ? String(body.related_invoice_number).trim()
+          : null,
+        related_invoice_id:
+          body.related_invoice_id != null &&
+          Number.isFinite(Number(body.related_invoice_id)) &&
+          Number(body.related_invoice_id) > 0
+            ? Number(body.related_invoice_id)
+            : null,
         order_kind: orderKind,
         parent_po_id: orderKind === 'call_off' ? parentPoId : null,
         call_off_window_months: orderKind === 'hub' ? hubWindowMonths : null,
@@ -745,7 +754,8 @@ export async function POST(request: NextRequest) {
  *       delivered_quantity?, damaged_quantity?, order_quantity?, supplier_wallet?,
  *       business_unit_id?, work_center_id?, work_station_id?, asset_id?, cost_category?,
  *       cost_allocations?,
- *       action?: 'receive_inventory' | 'allocate_cost', warehouseId?
+ *       action?: 'receive_inventory' | 'allocate_cost' | 'post_accept_books', warehouseId?
+ *       related_invoice_number?: string (links an already-issued sale for COGS on accept)
  */
 export async function PATCH(request: NextRequest) {
   try {
@@ -844,11 +854,57 @@ export async function PATCH(request: NextRequest) {
         .select('*')
         .eq('id', id)
         .maybeSingle();
+      let acceptBooks: Awaited<
+        ReturnType<
+          typeof import('@/lib/accounting/po-accept-books').applyPoAcceptBooks
+        >
+      > | null = null;
+      try {
+        const { applyPoAcceptBooks } = await import(
+          '@/lib/accounting/po-accept-books'
+        );
+        acceptBooks = await applyPoAcceptBooks({
+          companyId,
+          poId: id,
+          createdBy: member.userId || null,
+        });
+      } catch (e) {
+        console.warn('PO receive accept-books soft-fail', e);
+      }
       return NextResponse.json({
         success: true,
         receive: result,
         purchaseOrder: refreshed || po,
         costAllocation: costAlloc,
+        acceptBooks,
+      });
+    }
+
+    if (action === 'post_accept_books' || action === 'post_inventory') {
+      const { applyPoAcceptBooks } = await import(
+        '@/lib/accounting/po-accept-books'
+      );
+      const acceptBooks = await applyPoAcceptBooks({
+        companyId,
+        poId: id,
+        createdBy: member.userId || null,
+        force: body.force === true,
+      });
+      if (!acceptBooks.ok) {
+        return NextResponse.json(
+          { error: acceptBooks.error || 'Accept books failed', acceptBooks },
+          { status: 400 }
+        );
+      }
+      const { data: refreshed } = await supabase
+        .from('purchase_orders')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      return NextResponse.json({
+        success: true,
+        purchaseOrder: refreshed || po,
+        acceptBooks,
       });
     }
 
@@ -940,6 +996,28 @@ export async function PATCH(request: NextRequest) {
           cost_category: costNorm.fields.cost_category,
           cost_allocations: costNorm.fields.cost_allocations,
         },
+      };
+    }
+
+    if (
+      body.related_invoice_number !== undefined ||
+      body.related_invoice_id !== undefined
+    ) {
+      const prevMeta =
+        (updates.metadata as Record<string, unknown>) ||
+        (po.metadata && typeof po.metadata === 'object' && !Array.isArray(po.metadata)
+          ? { ...(po.metadata as Record<string, unknown>) }
+          : {});
+      const relatedNumber =
+        body.related_invoice_number != null
+          ? String(body.related_invoice_number).trim()
+          : '';
+      const relatedId = Number(body.related_invoice_id || 0);
+      updates.metadata = {
+        ...prevMeta,
+        related_invoice_number: relatedNumber || null,
+        related_invoice_id:
+          Number.isFinite(relatedId) && relatedId > 0 ? relatedId : null,
       };
     }
 
@@ -1191,6 +1269,33 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
+    let acceptBooks: Awaited<
+      ReturnType<
+        typeof import('@/lib/accounting/po-accept-books').applyPoAcceptBooks
+      >
+    > | null = null;
+    const shouldBooks =
+      nextStatus === 'accepted' ||
+      nextStatus === 'funded' ||
+      nextStatus === 'completed' ||
+      nextStatus === 'paid' ||
+      nextStatus === 'delivered' ||
+      nextStatus === 'invoiced';
+    if (shouldBooks) {
+      try {
+        const { applyPoAcceptBooks } = await import(
+          '@/lib/accounting/po-accept-books'
+        );
+        acceptBooks = await applyPoAcceptBooks({
+          companyId,
+          poId: id,
+          createdBy: member.userId || null,
+        });
+      } catch (e) {
+        console.warn('PO accept books soft-fail', e);
+      }
+    }
+
     // Refresh PO after stock/cost side effects
     const { data: finalPo } = await supabase
       .from('purchase_orders')
@@ -1203,6 +1308,7 @@ export async function PATCH(request: NextRequest) {
       purchaseOrder: finalPo || data,
       inventoryReceive: inventoryReceive || undefined,
       costAllocation: costAllocation || undefined,
+      acceptBooks: acceptBooks || undefined,
     });
   } catch (e: unknown) {
     return NextResponse.json(

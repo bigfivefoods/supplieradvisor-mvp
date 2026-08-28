@@ -285,18 +285,25 @@ export async function receivePurchaseOrderToInventory(opts: {
     }
 
     // Stock movement with PO reference (golden path "stocked" signal)
-    const { error: movErr } = await supabase.from('stock_movements').insert({
+    const movement: Record<string, unknown> = {
       profile_id: opts.companyId,
       product_id: productId,
       warehouse_id: wh,
       quantity: qty,
+      unit_cost: unitCost != null && unitCost > 0 ? unitCost : 0,
       movement_type: 'receive',
       notes: `PO #${opts.poId} receive`,
       lot_number: lotNumber,
       reference_type: 'purchase_order',
       reference_id: String(opts.poId),
       created_at: now,
-    });
+    };
+    let { error: movErr } = await supabase.from('stock_movements').insert(movement);
+    if (movErr && /column|schema cache|does not exist/i.test(movErr.message || '')) {
+      const { unit_cost: _uc, ...rest } = movement;
+      const retry = await supabase.from('stock_movements').insert(rest);
+      movErr = retry.error;
+    }
     if (movErr) {
       warnings.push(`Movement log soft-fail for product ${productId}: ${movErr.message}`);
     }

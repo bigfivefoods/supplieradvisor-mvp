@@ -608,7 +608,7 @@ export async function buildAfsPack(opts: {
     {
       number: '3',
       title: 'Cost of sales',
-      body: 'Inventories are measured at cost (IAS 2, simplified). Cost of sales is recognised when a sales invoice line has quantity and a known unit cost from the product catalogue or stock movements (Dr 5100 · Cr 1140). Lines with no product, a zero cost, or a service/membership invoice do not post COGS — selling price is never used as cost. NRV write-downs and standard costing are not automated.',
+      body: 'Inventories are measured at cost (IAS 2, simplified). Cost of sales is recognised when a sales invoice line has quantity and a known stock unit cost from stock movements (Dr 5100 · Cr 1140). Catalogue list prices are not stock cost. When goods are sold before the purchase lands, accepting the related purchase order posts inventory at PO cost then relieves that amount to 5100. Lines with no product, a zero cost, or a service/membership invoice do not post COGS — selling price is never used as cost. NRV write-downs and standard costing are not automated.',
       lines: cogsLines,
     },
     {
@@ -678,7 +678,7 @@ export async function buildAfsPack(opts: {
     },
     {
       title: 'Inventories (IAS 2 — simplified)',
-      body: 'Inventories are carried at cost on 1140. When a sales invoice is issued for goods with a known stock unit cost, that cost is recognised in 5100 and inventory is relieved. If unit cost is unknown or zero, COGS is not posted. NRV, the retail method, and a standard-costing engine are not modelled.',
+      body: 'Inventories are carried at cost on 1140. When a sales invoice is issued for goods with a known stock unit cost, that cost is recognised in 5100 and inventory is relieved. If goods are sold before they are purchased, accepting the related purchase order posts Dr 1140 Cr AP at PO cost and then relieves 1140 to 5100 so cost of sales equals the PO, not a catalogue list price. If unit cost is unknown or zero, COGS is not posted. NRV, the retail method, and a standard-costing engine are not modelled.',
     },
     {
       title: 'Property, plant and equipment (IAS 16 — simplified)',

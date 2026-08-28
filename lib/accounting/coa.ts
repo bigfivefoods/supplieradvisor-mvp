@@ -56,7 +56,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS: CoaSeed[] = [
 
   // Cost of sales
   { code: '5000', name: 'Cost of sales', account_type: 'cogs', is_header: true, normal_balance: 'debit' },
-  { code: '5100', name: 'Cost of goods sold', account_type: 'cogs', subtype: 'cogs', normal_balance: 'debit', description: 'IAS 2 cost of sales. Posted on AR invoice issue when a goods line has a known stock cost (Dr 5100 · Cr 1140). Skipped when cost is unknown — never selling price. Services and membership invoices do not post COGS.' },
+  { code: '5100', name: 'Cost of goods sold', account_type: 'cogs', subtype: 'cogs', normal_balance: 'debit', description: 'IAS 2 cost of sales. Posted on AR invoice issue when a goods line has a known stock cost (Dr 5100 · Cr 1140), or when an accepted purchase order covers an already-issued sale (PO amount, not catalogue list price). Skipped when cost is unknown — never selling price. Services and membership invoices do not post COGS.' },
   { code: '5200', name: 'Direct labour', account_type: 'cogs', subtype: 'labour', normal_balance: 'debit' },
 
   // Expenses

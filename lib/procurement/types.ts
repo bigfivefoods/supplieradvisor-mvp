@@ -179,6 +179,7 @@ export function normalizeReviewDimensions(
 
 export type PoLineItem = {
   product_id?: number | null;
+  sku?: string | null;
   item_name: string;
   quantity: number;
   unit_price: number;
@@ -220,6 +221,10 @@ export function normalizePoItems(
       product_id:
         row.product_id != null && Number.isFinite(Number(row.product_id))
           ? Number(row.product_id)
+          : null,
+      sku:
+        row.sku != null && String(row.sku).trim()
+          ? String(row.sku).trim()
           : null,
       item_name,
       quantity,
