@@ -51,4 +51,9 @@ assert.doesNotMatch(health, /ADVISOR_SKINS/);
 assert.match(health, /service: 'health'/);
 assert.match(health, /runtime = 'edge'/);
 
+const healthTwin = src('app/api/health/route.ts');
+assert.doesNotMatch(healthTwin, /getSupabaseServer/);
+assert.match(healthTwin, /service: 'health'/);
+assert.match(healthTwin, /runtime = 'edge'/);
+
 console.log('brief8-request-path.test.ts ok');

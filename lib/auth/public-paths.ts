@@ -20,6 +20,7 @@ export const PUBLIC_API_PREFIXES = [
 
 /** Public readiness / smoke endpoints (no Privy) — keep in sync with middleware. */
 const PUBLIC_EXACT = new Set([
+  '/api/health',
   '/api/system/health',
   '/api/system/apple-pay-domain-status',
   '/api/fx/rates',
