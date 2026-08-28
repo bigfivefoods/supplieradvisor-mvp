@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   HOME_PROFILE_COLUMNS,
+  asProfileRow,
   dropUnknownProfileColumn,
 } from './assemble-home';
 
@@ -63,6 +64,10 @@ assert.equal(
   ),
   null
 );
+
+assert.deepEqual(asProfileRow({ id: 1, contact_phone: '082' })?.id, 1);
+assert.equal(asProfileRow(null), null);
+assert.equal(asProfileRow({ error: true }), null);
 
 const completeness = src('lib/business/completeness.ts');
 assert.match(completeness, /contact_phone/);
