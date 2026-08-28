@@ -23,6 +23,8 @@ declare global {
   }
 }
 
+type GoogleApi = NonNullable<Window['google']>;
+
 type GoogleMap = {
   fitBounds: (b: GoogleBounds, p?: number) => void;
   setCenter: (c: { lat: number; lng: number }) => void;
@@ -40,20 +42,23 @@ function mapsKey() {
   ).trim();
 }
 
-let mapsPromise: Promise<Window['google']> | null = null;
+let mapsPromise: Promise<GoogleApi> | null = null;
 
-function loadGoogleMaps(): Promise<Window['google']> {
+function loadGoogleMaps(): Promise<GoogleApi> {
   if (typeof window === 'undefined') return Promise.reject(new Error('ssr'));
   if (window.google?.maps) return Promise.resolve(window.google);
   const key = mapsKey();
   if (!key) return Promise.reject(new Error('no-key'));
   if (mapsPromise) return mapsPromise;
   mapsPromise = new Promise((resolve, reject) => {
+    const ready = () => {
+      const g = window.google;
+      if (g?.maps) resolve(g);
+      else reject(new Error('maps'));
+    };
     const existing = document.getElementById('sa-google-maps');
     if (existing) {
-      existing.addEventListener('load', () =>
-        window.google ? resolve(window.google) : reject(new Error('maps'))
-      );
+      existing.addEventListener('load', ready);
       existing.addEventListener('error', () => reject(new Error('maps')));
       return;
     }
@@ -61,8 +66,7 @@ function loadGoogleMaps(): Promise<Window['google']> {
     s.id = 'sa-google-maps';
     s.async = true;
     s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}`;
-    s.onload = () =>
-      window.google?.maps ? resolve(window.google) : reject(new Error('maps'));
+    s.onload = ready;
     s.onerror = () => reject(new Error('maps'));
     document.head.appendChild(s);
   });
@@ -103,9 +107,10 @@ function GoogleHireMap({
     let cancelled = false;
     void loadGoogleMaps()
       .then((g) => {
-        if (cancelled || !el.current) return;
+        const host = el.current;
+        if (cancelled || !host || !g?.maps) return;
         if (!mapRef.current) {
-          mapRef.current = new g.maps.Map(el.current, {
+          mapRef.current = new g.maps.Map(host, {
             center: { lat: center[0], lng: center[1] },
             zoom,
             mapTypeControl: false,
@@ -159,7 +164,7 @@ function GoogleHireMap({
           markersRef.current.push(you);
         }
         if (pins.length > 1) map.fitBounds(bounds, 48);
-        else if (pins.length === 1) {
+        else if (pins.length === 1 && pins[0]) {
           map.setCenter({ lat: pins[0].position[0], lng: pins[0].position[1] });
           map.setZoom(13);
         } else {

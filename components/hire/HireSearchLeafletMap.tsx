@@ -63,7 +63,7 @@ function Fit({
       map.fitBounds(L.latLngBounds(pts).pad(0.25));
       return;
     }
-    if (pts.length === 1) {
+    if (pts.length === 1 && pts[0]) {
       map.setView(pts[0], 13);
       return;
     }
