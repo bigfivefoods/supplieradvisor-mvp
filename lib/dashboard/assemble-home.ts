@@ -46,6 +46,86 @@ function asObj(data: unknown): Record<string, unknown> | null {
   return null;
 }
 
+/** Live profiles columns only — never `phone` (that lives on customers / srm_suppliers). */
+export const HOME_PROFILE_COLUMNS = [
+  'id',
+  'trading_name',
+  'legal_name',
+  'industry',
+  'business_type',
+  'country',
+  'city',
+  'verification_status',
+  'verified_at',
+  'supplier_status',
+  'status',
+  'relationship_type',
+  'trust_score',
+  'logo_url',
+  'short_description',
+  'description',
+  'contact_name',
+  'email',
+  'contact_phone',
+  'contact_number',
+  'address',
+  'street',
+  'wallet_address',
+  'primary_currency',
+  'website',
+  'registration_number',
+  'vat_number',
+  'account_number',
+  'bank_name',
+] as const;
+
+export function missingProfileColumn(message: string): string | null {
+  const m =
+    /column\s+(?:[\w]+\.)?(\w+)\s+does not exist/i.exec(message) ||
+    /Could not find the ['"](\w+)['"] column/i.exec(message);
+  return m?.[1] || null;
+}
+
+export function dropUnknownProfileColumn(
+  cols: string[],
+  message: string
+): string[] | null {
+  const missing = missingProfileColumn(message);
+  if (!missing) return null;
+  if (!cols.includes(missing)) return null;
+  return cols.filter((c) => c !== missing);
+}
+
+function schemaSafeCompanyError(): Error {
+  return new Error('Company profile could not be loaded');
+}
+
+async function loadHomeCompanyRow(
+  companyId: number
+): Promise<Record<string, unknown>> {
+  const supabase = getSupabaseServer();
+  let cols = [...HOME_PROFILE_COLUMNS];
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select(cols.join(', '))
+      .eq('id', companyId)
+      .maybeSingle();
+    if (!error && data) return data as Record<string, unknown>;
+    if (!error && !data) throw new Error('Company not found');
+    const next = dropUnknownProfileColumn(cols, error?.message || '');
+    if (next && next.length) {
+      cols = next;
+      continue;
+    }
+    if (/column|schema cache|does not exist/i.test(String(error?.message || ''))) {
+      throw schemaSafeCompanyError();
+    }
+    throw schemaSafeCompanyError();
+  }
+  throw schemaSafeCompanyError();
+}
+
 function pipelineStagesFromRollup(raw: Record<string, unknown> | null) {
   const rows = Array.isArray(raw?.pipeline_stages)
     ? (raw!.pipeline_stages as Array<Record<string, unknown>>)
@@ -76,14 +156,8 @@ function pipelineStagesFromRollup(raw: Record<string, unknown> | null) {
 export async function assembleDashboardSummary(companyId: number) {
   const supabase = getSupabaseServer();
 
-  const [companyRes, homeRollupRes, acctRollupRes, crmRollupRes] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select(
-        'id, trading_name, legal_name, industry, industries, business_type, country, city, verification_status, verified_at, supplier_status, status, relationship_type, trust_score, logo_url, short_description, description, contact_name, email, phone, contact_phone, address, street, wallet_address, primary_currency, website, registration_number, vat_number, account_number, bank_name, is_verified, certifications, iso_certifications'
-      )
-      .eq('id', companyId)
-      .maybeSingle(),
+  const [company, homeRollupRes, acctRollupRes, crmRollupRes] = await Promise.all([
+    loadHomeCompanyRow(companyId),
     supabase.rpc('sa_dashboard_home_rollup', { p_profile_id: companyId }),
     supabase.rpc('sa_accounting_kpi_rollup', { p_profile_id: companyId }),
     supabase.rpc('sa_customers_hub_summary', {
@@ -91,10 +165,6 @@ export async function assembleDashboardSummary(companyId: number) {
       p_tree_ids: [companyId],
     }),
   ]);
-
-  if (companyRes.error) throw new Error(companyRes.error.message);
-  if (!companyRes.data) throw new Error('Company not found');
-  const company = companyRes.data as Record<string, unknown>;
 
   const home = homeRollupRes.error ? null : asObj(homeRollupRes.data);
   const acct = acctRollupRes.error ? null : asObj(acctRollupRes.data);
