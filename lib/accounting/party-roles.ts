@@ -14,6 +14,17 @@ import type { CoaAccount } from '@/lib/accounting/types';
 
 export type PartyBookRole = 'customer' | 'supplier' | 'both';
 
+export function parsePartyBookRole(raw: unknown): PartyBookRole | null {
+  const r = String(raw || '').toLowerCase().trim();
+  if (r === 'customer' || r === 'supplier' || r === 'both') return r;
+  return null;
+}
+
+export function bookRoleFromMeta(meta: unknown): PartyBookRole | null {
+  if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return null;
+  return parsePartyBookRole((meta as { party_book_role?: unknown }).party_book_role);
+}
+
 export type PartyRoleInput = {
   id: number;
   trading_name?: string | null;
@@ -35,6 +46,7 @@ export type PartyRoleRow = {
   ap_account_code: string | null;
   customer_status: string | null;
   supplier_status: string | null;
+  explicit_role?: PartyBookRole | null;
 };
 
 export type CoaPartyKind =
@@ -83,13 +95,16 @@ export function assemblePartyRoles(
       map.set(key, {
         key,
         name,
-        role: patch.customer_id ? 'customer' : 'supplier',
+        role:
+          patch.explicit_role ||
+          (patch.customer_id ? 'customer' : 'supplier'),
         customer_id: patch.customer_id ?? null,
         supplier_id: patch.supplier_id ?? null,
         ar_account_code: patch.ar_account_code ?? null,
         ap_account_code: patch.ap_account_code ?? null,
         customer_status: patch.customer_status ?? null,
         supplier_status: patch.supplier_status ?? null,
+        explicit_role: patch.explicit_role ?? null,
       });
       const nk = `name:${normalizePartyKey(name)}`;
       if (nk.length > 8 && !alias.has(nk)) alias.set(nk, key);
@@ -107,12 +122,14 @@ export function assemblePartyRoles(
       cur.supplier_status = patch.supplier_status || cur.supplier_status;
       if (!cur.name) cur.name = name;
     }
+    if (patch.explicit_role) cur.explicit_role = patch.explicit_role;
     cur.role =
-      cur.customer_id && cur.supplier_id
+      cur.explicit_role ||
+      (cur.customer_id && cur.supplier_id
         ? 'both'
         : cur.customer_id
           ? 'customer'
-          : 'supplier';
+          : 'supplier');
   };
 
   const resolveKey = (row: PartyRoleInput, name: string): string => {
@@ -130,6 +147,7 @@ export function assemblePartyRoles(
       customer_id: Number(row.id),
       ar_account_code: glCodeFromMeta(row.metadata),
       customer_status: row.status || null,
+      explicit_role: bookRoleFromMeta(row.metadata),
     });
   }
   for (const row of suppliers || []) {
@@ -140,6 +158,7 @@ export function assemblePartyRoles(
       supplier_id: Number(row.id),
       ap_account_code: glCodeFromMeta(row.metadata),
       supplier_status: row.status || null,
+      explicit_role: bookRoleFromMeta(row.metadata),
     });
   }
 
@@ -160,7 +179,7 @@ export function classifyCoaParty(a: {
   if (code === '1130') return 'control_ar';
   if (code === '2110') return 'control_ap';
   if (a.is_header) {
-    if (code === '1180' || /members|patients|receivable/i.test(name)) {
+    if (code === '1180' || /members|patients|^customers$/i.test(name)) {
       return 'member_ar';
     }
     if (code === '2180' || /supplier|contractor|payable/i.test(name)) {

@@ -34,6 +34,7 @@ import { AccountLogoField } from '@/components/relationship/AccountLogoField';
 import { SupplierBookProfile } from '@/components/suppliers/SupplierBookProfile';
 import type { PartyRoleRow } from '@/lib/accounting/party-roles';
 import { glCodeFromMeta } from '@/lib/accounting/party-roles';
+import { PartyBookRoleSelect } from '@/components/accounting/PartyBookRoleSelect';
 
 export default function SupplierNetworkPage() {
   return (
@@ -385,23 +386,20 @@ function NetworkInner() {
                         {[s.industry, s.city, s.country].filter(Boolean).join(' · ') || '—'}
                         {s.email ? ` · ${s.email}` : ''}
                       </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
-                        <span className="font-bold uppercase tracking-wider text-emerald-800">
-                          Supplier · buy
-                        </span>
-                        <span className="font-mono text-neutral-500">
-                          {partyBySupplier[s.id]?.ap_account_code ||
-                            glCodeFromMeta(s.metadata) ||
-                            '—'}
-                        </span>
-                        {partyBySupplier[s.id]?.customer_id ? (
-                          <Link
-                            href="/dashboard/customers/profiles"
-                            className="font-semibold text-sky-700 hover:underline"
-                          >
-                            Also a customer
-                          </Link>
-                        ) : null}
+                      <div className="mt-2">
+                        <PartyBookRoleSelect
+                          companyId={companyId}
+                          supplierId={s.id}
+                          customerId={partyBySupplier[s.id]?.customer_id}
+                          role={partyBySupplier[s.id]?.role || 'supplier'}
+                          arCode={partyBySupplier[s.id]?.ar_account_code}
+                          apCode={
+                            partyBySupplier[s.id]?.ap_account_code ||
+                            glCodeFromMeta(s.metadata)
+                          }
+                          compact
+                          onChanged={() => void load()}
+                        />
                       </div>
                       <div className="flex flex-wrap gap-1.5 mt-2">
                         {(s.certifications || []).slice(0, 6).map((c) => (
@@ -527,12 +525,14 @@ function NetworkInner() {
             supplier={selected}
             companyId={companyId}
             privyUserId={privyUserId}
+            party={partyBySupplier[selected.id] || null}
             onClose={() => selectSupplier(null)}
             onSaved={(next) => {
               setSelectedHold(next);
               setRows((prev) =>
                 prev.map((row) => (row.id === next.id ? { ...row, ...next } : row))
               );
+              void load();
             }}
           />
         ) : (

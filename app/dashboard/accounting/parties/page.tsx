@@ -12,6 +12,7 @@ import {
 } from '@/components/accounting/AccountingShell';
 import { Panel } from '@/components/relationship/RelationshipChrome';
 import { type PartyBookRole, type PartyRoleRow } from '@/lib/accounting/party-roles';
+import { PartyBookRoleSelect } from '@/components/accounting/PartyBookRoleSelect';
 
 export default function AccountingPartiesPage() {
   return (
@@ -161,7 +162,16 @@ function Inner() {
                   <tr key={r.key} className="hover:bg-neutral-50/80">
                     <td className="px-4 py-3 font-semibold text-slate-900">{r.name}</td>
                     <td className="px-4 py-3">
-                      <RoleBadge role={r.role} />
+                      <PartyBookRoleSelect
+                        companyId={companyId}
+                        customerId={r.customer_id}
+                        supplierId={r.supplier_id}
+                        role={r.role}
+                        arCode={r.ar_account_code}
+                        apCode={r.ap_account_code}
+                        compact
+                        onChanged={() => void load()}
+                      />
                     </td>
                     <td className="px-4 py-3 font-mono text-xs">
                       {r.ar_account_code || (r.customer_id ? '—' : '')}
@@ -200,24 +210,4 @@ function Inner() {
   );
 }
 
-function RoleBadge({ role }: { role: PartyBookRole }) {
-  const cls =
-    role === 'both'
-      ? 'bg-violet-50 text-violet-800 border-violet-100'
-      : role === 'supplier'
-        ? 'bg-emerald-50 text-emerald-800 border-emerald-100'
-        : 'bg-sky-50 text-sky-800 border-sky-100';
-  const label =
-    role === 'both'
-      ? 'Customer + supplier'
-      : role === 'supplier'
-        ? 'Supplier · buy'
-        : 'Customer · sell';
-  return (
-    <span
-      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${cls}`}
-    >
-      {label}
-    </span>
-  );
-}
+

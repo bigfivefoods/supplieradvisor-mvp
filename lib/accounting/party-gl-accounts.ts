@@ -1412,6 +1412,15 @@ export async function ensurePartyGlAccounts(
     return { created: 0, linked: 0, warning: 'invalid profile' };
   }
   try {
+    const { relabelPartyCoaHeaders, relabelPartyCoaHeadersAllOnce } = await import(
+      '@/lib/accounting/party-book-role'
+    );
+    await relabelPartyCoaHeadersAllOnce();
+    await relabelPartyCoaHeaders(profileId);
+  } catch (err) {
+    console.warn('[party-gl] header relabel', err);
+  }
+  try {
     const { syncAdvisorModulePeopleToCrm } = await import(
       '@/lib/b2c/advisor-crm-sync'
     );

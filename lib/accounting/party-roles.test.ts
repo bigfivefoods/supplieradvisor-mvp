@@ -54,6 +54,18 @@ assert.equal(holtz?.role, 'supplier');
 assert.equal(holtz?.customer_id, null);
 assert.equal(holtz?.supplier_id, 8);
 
+const tagged = assemblePartyRoles(
+  [
+    {
+      id: 3,
+      trading_name: 'Acme Both',
+      metadata: { party_book_role: 'both', gl_account_code: '1180-0000003' },
+    },
+  ],
+  []
+);
+assert.equal(tagged[0]?.role, 'both');
+
 assert.equal(
   classifyCoaParty({
     code: '1180-0000010',

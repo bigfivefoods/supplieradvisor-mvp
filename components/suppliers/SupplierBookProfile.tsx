@@ -26,17 +26,22 @@ import {
   srmStatusClass,
   type SrmSupplierRecord,
 } from '@/lib/suppliers/types';
+import type { PartyRoleRow } from '@/lib/accounting/party-roles';
+import { glCodeFromMeta } from '@/lib/accounting/party-roles';
+import { PartyBookRoleSelect } from '@/components/accounting/PartyBookRoleSelect';
 
 export function SupplierBookProfile({
   supplier,
   companyId,
   privyUserId,
+  party,
   onClose,
   onSaved,
 }: {
   supplier: SrmSupplierRecord;
   companyId: number;
   privyUserId?: string | null;
+  party?: PartyRoleRow | null;
   onClose: () => void;
   onSaved: (next: SrmSupplierRecord) => void;
 }) {
@@ -150,6 +155,20 @@ export function SupplierBookProfile({
       </div>
 
       <div className="p-5 space-y-4">
+        <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+          <p className="text-[10px] font-black uppercase tracking-wider text-neutral-500 mb-1">
+            Books · CoA
+          </p>
+          <PartyBookRoleSelect
+            companyId={companyId}
+            supplierId={supplier.id}
+            customerId={party?.customer_id}
+            role={party?.role || 'supplier'}
+            arCode={party?.ar_account_code}
+            apCode={party?.ap_account_code || glCodeFromMeta(supplier.metadata)}
+            onChanged={() => onSaved(supplier)}
+          />
+        </div>
         <AccountLogoField
           companyId={companyId}
           privyUserId={privyUserId}
