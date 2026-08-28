@@ -47,7 +47,7 @@ function asObj(data: unknown): Record<string, unknown> | null {
 }
 
 /** Live profiles columns only — never `phone` (that lives on customers / srm_suppliers). */
-export const HOME_PROFILE_COLUMNS = [
+export const HOME_PROFILE_COLUMNS: readonly string[] = [
   'id',
   'trading_name',
   'legal_name',
@@ -77,7 +77,7 @@ export const HOME_PROFILE_COLUMNS = [
   'vat_number',
   'account_number',
   'bank_name',
-] as const;
+];
 
 export function missingProfileColumn(message: string): string | null {
   const m =
@@ -118,7 +118,7 @@ async function loadHomeCompanyRow(
   companyId: number
 ): Promise<Record<string, unknown>> {
   const supabase = getSupabaseServer();
-  let cols = [...HOME_PROFILE_COLUMNS];
+  let cols: string[] = [...HOME_PROFILE_COLUMNS];
   for (let attempt = 0; attempt < 8; attempt++) {
     const res = await supabase
       .from('profiles')
