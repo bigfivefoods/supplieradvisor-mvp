@@ -22,8 +22,9 @@ assert.doesNotMatch(customersGet, /select\('\*'\)/);
 assert.doesNotMatch(customersGet, /\.limit\(500\)/);
 
 const coaGet = src('app/api/accounting/chart-of-accounts/route.ts').split('export async function POST')[0];
-assert.match(coaGet, /1180\|2180\|4400/);
+assert.match(coaGet, /filterOperatingCoa/);
 assert.doesNotMatch(coaGet, /party_leaves'\) === '1' \|\| Boolean\(q\)/);
+assert.match(src('lib/accounting/coa-list.ts'), /1180\|2180\|4400/);
 
 const page = src('app/page.tsx');
 assert.doesNotMatch(page, /@privy-io\/react-auth/);
