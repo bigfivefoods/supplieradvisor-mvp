@@ -8,9 +8,16 @@ import { findConnectionBetween } from '@/lib/connections/sync';
 import { isAgreementEffective } from '@/lib/pricing/types';
 import { priceForCurrency } from '@/lib/inventory/priceForCurrency';
 import type { ProductRecord } from '@/lib/inventory/types';
+import {
+  BUYER_INVENTORY_PRODUCT_COLUMNS,
+  mapBuyerProductsToPoCatalogue,
+  poCatalogueSourceRank,
+  type BuyerInventoryProductRow,
+  type PoCatalogueItem,
+} from '@/lib/suppliers/buyer-inventory-catalogue';
 
 /**
- * Unified sellable catalogue for raising a PO against a linked supplier.
+ * Unified catalogue for raising a PO against a supplier in the SRM book.
  *
  * GET ?companyId=&supplierId=   (preferred — SRM book row id)
  * GET ?companyId=&sellerProfileId=
@@ -18,31 +25,40 @@ import type { ProductRecord } from '@/lib/inventory/types';
  * Sources (merged for the buyer):
  *  1) Active pricing-agreement lines (imported / negotiated catalogue)
  *  2) Supplier inventory products (finished goods, services, etc.)
+ *  3) Buyer’s own purchasable inventory — always when `supplierId` (book row)
+ *     is present, including book-only / pending-invite suppliers so a PO can
+ *     go out before they accept.
  *
- * Requires company membership + SRM book link or accepted network connection.
+ * Requires company membership + SRM book row or accepted network connection.
  */
-export type SupplierCatalogueItem = {
-  key: string;
-  source: 'agreement' | 'inventory';
-  seller_product_id: number | null;
-  product_name: string;
-  sku: string | null;
-  product_type: string | null;
-  uom: string | null;
-  unit_price: number;
-  currency: string;
-  agreement_id?: number | null;
-  agreement_line_id?: number | null;
-  agreement_title?: string | null;
-  primary_image_url?: string | null;
-  short_description?: string | null;
-  /** Public inventory passport QR destination */
-  public_id?: string | null;
-  onchain_hash?: string | null;
-  onchain_status?: string | null;
-  onchain_tx_hash?: string | null;
-  onchain_chain?: string | null;
-};
+export type SupplierCatalogueItem = PoCatalogueItem;
+
+async function loadBuyerInventoryItems(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  companyId: number,
+  currencyPref: string,
+  excludeProductIds?: Iterable<number>
+): Promise<PoCatalogueItem[]> {
+  const { data: products, error } = await supabase
+    .from('products')
+    .select(BUYER_INVENTORY_PRODUCT_COLUMNS)
+    .eq('profile_id', companyId)
+    .order('name')
+    .limit(500);
+
+  if (error) {
+    if (!/relation|does not exist|column/i.test(error.message)) {
+      console.warn('catalogue buyer inventory', error.message);
+    }
+    return [];
+  }
+
+  return mapBuyerProductsToPoCatalogue(
+    (products || []) as BuyerInventoryProductRow[],
+    currencyPref,
+    { excludeProductIds }
+  );
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -92,17 +108,30 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const currencyPref = (sp.get('currency') || 'ZAR').toUpperCase();
+
     if (!sellerProfileId || !Number.isFinite(sellerProfileId)) {
+      const buyerItems = srmRow
+        ? await loadBuyerInventoryItems(supabase, companyId, currencyPref)
+        : [];
       return NextResponse.json({
         success: true,
         sellerProfileId: null,
         sellerName: supplierName,
-        items: [] as SupplierCatalogueItem[],
+        items: buyerItems,
         agreementCount: 0,
         inventoryCount: 0,
-        warning:
-          'Supplier is not linked to a platform company yet. Invite/connect them, or use free-text lines.',
-        hint: 'linked_profile_id required on the SRM book row',
+        buyerInventoryCount: buyerItems.length,
+        catalogueSource: buyerItems.length ? 'buyer_inventory' : 'empty',
+        inviteStatus: srmRow?.invite_status ?? null,
+        warning: buyerItems.length
+          ? undefined
+          : srmRow
+            ? 'This supplier has not accepted yet. Pick from your inventory (Inventory → Products) or use free-text lines. Invite still unlocks their catalogue and escrow.'
+            : 'Supplier is not linked to a platform company yet. Invite/connect them, or use free-text lines.',
+        hint: srmRow
+          ? 'Book-only POs use your inventory catalogue until the supplier accepts.'
+          : 'linked_profile_id required on the SRM book row',
       });
     }
 
@@ -165,7 +194,6 @@ export async function GET(request: NextRequest) {
       supplierName = prof?.trading_name || null;
     }
 
-    const currencyPref = (sp.get('currency') || 'ZAR').toUpperCase();
     const items: SupplierCatalogueItem[] = [];
     const agreementProductIds = new Set<number>();
 
@@ -346,11 +374,27 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Stable sort: agreements first, then by type/name
+    // Buyer’s own purchasable SKUs — book-only fallback and always on SRM POs
+    let buyerInventoryCount = 0;
+    if (srmRow) {
+      const exclude = items
+        .map((i) => Number(i.seller_product_id))
+        .filter((n) => Number.isFinite(n) && n > 0);
+      const buyerItems = await loadBuyerInventoryItems(
+        supabase,
+        companyId,
+        currencyPref,
+        exclude
+      );
+      buyerInventoryCount = buyerItems.length;
+      items.push(...buyerItems);
+    }
+
+    // Stable sort: agreements, supplier inventory, buyer inventory, then type/name
     items.sort((a, b) => {
-      if (a.source !== b.source) {
-        return a.source === 'agreement' ? -1 : 1;
-      }
+      const ra = poCatalogueSourceRank(a.source);
+      const rb = poCatalogueSourceRank(b.source);
+      if (ra !== rb) return ra - rb;
       const ta = a.product_type || '';
       const tb = b.product_type || '';
       if (ta !== tb) return ta.localeCompare(tb);
@@ -420,10 +464,23 @@ export async function GET(request: NextRequest) {
       items,
       agreementCount: items.filter((i) => i.source === 'agreement').length,
       inventoryCount,
+      buyerInventoryCount,
+      catalogueSource:
+        items.some(
+          (i) => i.source === 'agreement' || i.source === 'inventory'
+        ) && items.some((i) => i.source === 'buyer_inventory')
+          ? 'mixed'
+          : items.some((i) => i.source === 'buyer_inventory')
+            ? 'buyer_inventory'
+            : items.length
+              ? 'supplier'
+              : 'empty',
       readiness,
       warning:
         empty
-          ? 'No sellable catalogue from this supplier yet. Use free-text lines, or ask them to publish inventory / share a price list.'
+          ? srmRow
+            ? 'No supplier catalogue and no purchasable products in your inventory. Use free-text lines, add SKUs under Inventory, or ask them to publish.'
+            : 'No sellable catalogue from this supplier yet. Use free-text lines, or ask them to publish inventory / share a price list.'
           : undefined,
       nudged: empty && nudge,
     });

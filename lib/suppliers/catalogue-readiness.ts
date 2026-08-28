@@ -106,7 +106,9 @@ export async function computeCatalogueReadiness(
     tips.push('Add more SKUs or create pricing agreements for key buyers');
   }
   if (level === 'empty') {
-    tips.push('Until then, buyers can only use free-text PO lines');
+    tips.push(
+      'Until then, buyers can raise a PO from their own inventory or free-text lines'
+    );
   }
 
   const label =
