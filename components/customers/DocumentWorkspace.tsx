@@ -22,6 +22,7 @@ import {
   FileDown,
   MessageCircle,
   Pencil,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
@@ -60,6 +61,7 @@ type DocRecord = Record<string, unknown> & {
   customer_id?: number | null;
   customer_name?: string | null;
   total_amount?: number;
+  amount_paid?: number | null;
   currency?: string;
   notes?: string | null;
   invoice_number?: string | null;
@@ -220,6 +222,10 @@ function DocInner({
   /** When set, form saves via PATCH to update this document (quotes / drafts) */
   const [editingId, setEditingId] = useState<number | null>(null);
   const [chainOrderId, setChainOrderId] = useState<number | null>(null);
+  const [payDoc, setPayDoc] = useState<DocRecord | null>(null);
+  const [payAmount, setPayAmount] = useState('');
+  const [payRef, setPayRef] = useState('');
+  const [payMethod, setPayMethod] = useState('eft');
   const [statusFilter, setStatusFilter] = useState(
     statusFromUrl && statusFromUrl !== 'all' ? statusFromUrl : 'all'
   );
@@ -1443,46 +1449,33 @@ function DocInner({
     }
   };
 
-  const markPaid = async (id: number) => {
+  const openRecordPayment = (doc: DocRecord) => {
+    const total = Number(doc.total_amount || 0);
+    const already = Number(doc.amount_paid || 0);
+    const remaining = Math.max(0, Math.round((total - already) * 100) / 100);
+    setPayDoc(doc);
+    setPayAmount(remaining > 0 ? String(remaining) : '');
+    setPayRef('');
+    setPayMethod('eft');
+  };
+
+  const submitRecordPayment = async () => {
+    if (!payDoc) return;
+    const total = Number(payDoc.total_amount || 0);
+    const already = Number(payDoc.amount_paid || 0);
+    const remaining = Math.max(0, Math.round((total - already) * 100) / 100);
+    const entered = Number(payAmount);
+    if (!Number.isFinite(entered) || entered <= 0) {
+      toast.error('Enter how much was paid this time');
+      return;
+    }
+    const thisPayment = Math.min(
+      Math.round(entered * 100) / 100,
+      remaining > 0 ? remaining : entered
+    );
+    const id = Number(payDoc.id);
     setBusyId(id);
     try {
-      const doc = docs.find((d) => Number(d.id) === id);
-      const total = Number(doc?.total_amount || 0);
-      const already = Number(doc?.amount_paid || 0);
-      const remaining = Math.max(0, total - already);
-      const raw = window.prompt(
-        `Amount paid (total to date). Leave blank for full balance (${remaining.toLocaleString()} remaining of ${total.toLocaleString()}):`,
-        remaining > 0 && already > 0 ? String(remaining) : String(total || '')
-      );
-      if (raw === null) {
-        setBusyId(null);
-        return;
-      }
-      let amountPaid: number;
-      if (String(raw).trim() === '') {
-        amountPaid = total;
-      } else {
-        const entered = Number(raw);
-        if (!Number.isFinite(entered) || entered < 0) {
-          toast.error('Enter a valid amount');
-          setBusyId(null);
-          return;
-        }
-        // Treat entry as this payment (delta) when partial already exists
-        amountPaid =
-          already > 0 && entered <= remaining + 0.001
-            ? already + entered
-            : entered;
-      }
-      const paymentRefRaw = window.prompt(
-        'Payment reference / proof (optional — bank ref, EFT, receipt #):',
-        ''
-      );
-      if (paymentRefRaw === null) {
-        setBusyId(null);
-        return;
-      }
-      const paymentRef = String(paymentRefRaw).trim() || null;
       const res = await fetch('/api/customers/docs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1491,30 +1484,34 @@ function DocInner({
           type: 'invoice',
           id,
           action: 'mark_paid',
-          amount_paid: amountPaid,
-          payment_reference: paymentRef,
+          amount_delta: thisPayment,
+          payment_reference: payRef.trim() || null,
+          payment_method: payMethod,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
+      const ccy = String(payDoc.currency || 'ZAR');
       const bits: string[] = [];
       if (data.fullyPaid) {
         bits.push('Marked paid in full');
         if (data.poMarkedPaid) bits.push(`PO #${data.poMarkedPaid} → paid`);
         if (data.ratingPrompted) bits.push('rate prompts queued');
       } else {
-        bits.push(`Partial payment recorded`);
         bits.push(
-          `balance due ${Number(data.balanceDue || 0).toLocaleString()}`
+          `Recorded ${formatMoney(thisPayment, ccy)}`
+        );
+        bits.push(
+          `balance due ${formatMoney(Number(data.balanceDue || 0), ccy)}`
         );
       }
-      if (paymentRef) bits.push(`ref ${paymentRef}`);
+      if (payRef.trim()) bits.push(`ref ${payRef.trim()}`);
       toast.success(bits.join(' · '), {
         description: data.ratingPrompted
           ? 'Rate this partner to close the trust loop'
           : data.fullyPaid
-            ? 'Loyalty points earned when applicable · payment ref on notes'
-            : 'Payment ref saved on invoice notes · record more until balance is zero',
+            ? 'Loyalty points earned when applicable · payment on notes'
+            : 'Invoice stays open until the balance is paid. Record another payment anytime.',
         action: data.ratingPrompted
           ? {
               label: 'Rate now',
@@ -1525,6 +1522,7 @@ function DocInner({
           : undefined,
         duration: 9000,
       });
+      setPayDoc(null);
       void load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed');
@@ -2924,6 +2922,9 @@ function DocInner({
                     >
                       {d.customer_name || 'No customer'} · {itemCount} line{itemCount === 1 ? '' : 's'}
                       {d.created_at ? ` · ${String(d.created_at).slice(0, 10)}` : ''}
+                      {type === 'invoice' && Number(d.amount_paid || 0) > 0.009
+                        ? ` · paid ${formatMoney(Number(d.amount_paid || 0), String(d.currency || 'ZAR'))}`
+                        : ''}
                       {d.promise_to_pay_date
                         ? ` · promise ${String(d.promise_to_pay_date).slice(0, 10)}`
                         : ''}
@@ -2948,8 +2949,26 @@ function DocInner({
                     ) : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="font-bold text-base tabular-nums mr-2">
-                      {formatMoney(Number(d.total_amount || 0), String(d.currency || 'ZAR'))}
+                    <div className="mr-2 text-right">
+                      <div className="font-bold text-base tabular-nums">
+                        {formatMoney(Number(d.total_amount || 0), String(d.currency || 'ZAR'))}
+                      </div>
+                      {type === 'invoice' &&
+                      Number(d.amount_paid || 0) > 0.009 &&
+                      Number(d.total_amount || 0) - Number(d.amount_paid || 0) >
+                        0.009 ? (
+                        <div className="text-[10px] font-semibold text-amber-800 tabular-nums">
+                          {formatMoney(
+                            Math.max(
+                              0,
+                              Number(d.total_amount || 0) -
+                                Number(d.amount_paid || 0)
+                            ),
+                            String(d.currency || 'ZAR')
+                          )}{' '}
+                          due
+                        </div>
+                      ) : null}
                     </div>
                     <button
                       type="button"
@@ -3132,10 +3151,13 @@ function DocInner({
                       <button
                         type="button"
                         disabled={busyId === d.id}
-                        onClick={() => void markPaid(d.id)}
+                        onClick={() => openRecordPayment(d)}
                         className="btn-primary !py-1.5 !px-3 text-xs"
+                        title="Record a deposit, part payment, or pay the remaining balance"
                       >
-                        Mark paid
+                        {Number(d.amount_paid || 0) > 0.009
+                          ? 'Record payment'
+                          : 'Mark paid'}
                       </button>
                     )}
                     {type === 'order' ? (
@@ -3209,6 +3231,240 @@ function DocInner({
             })}
           </ul>
         )}
+      </div>
+
+      {payDoc ? (
+        <InvoicePaymentModal
+          doc={payDoc}
+          amount={payAmount}
+          method={payMethod}
+          reference={payRef}
+          busy={busyId === Number(payDoc.id)}
+          onAmount={setPayAmount}
+          onMethod={setPayMethod}
+          onReference={setPayRef}
+          onClose={() => setPayDoc(null)}
+          onSubmit={() => void submitRecordPayment()}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function roundMoney(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function InvoicePaymentModal({
+  doc,
+  amount,
+  method,
+  reference,
+  busy,
+  onAmount,
+  onMethod,
+  onReference,
+  onClose,
+  onSubmit,
+}: {
+  doc: DocRecord;
+  amount: string;
+  method: string;
+  reference: string;
+  busy: boolean;
+  onAmount: (v: string) => void;
+  onMethod: (v: string) => void;
+  onReference: (v: string) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  const ccy = String(doc.currency || 'ZAR');
+  const total = Number(doc.total_amount || 0);
+  const already = Number(doc.amount_paid || 0);
+  const remaining = Math.max(0, roundMoney(total - already));
+  const entered = Number(amount);
+  const thisPay = Number.isFinite(entered) && entered > 0 ? entered : 0;
+  const afterPaid = roundMoney(already + Math.min(thisPay, remaining || thisPay));
+  const afterDue = Math.max(0, roundMoney(total - afterPaid));
+  const deposit30 = Math.min(remaining, roundMoney(total * 0.3));
+  const deposit50 = Math.min(remaining, roundMoney(total * 0.5));
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-labelledby="invoice-pay-title"
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100">
+          <h3 id="invoice-pay-title" className="font-bold text-slate-900">
+            Record payment · {String(doc.invoice_number || doc.id)}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-neutral-100"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <form
+          className="p-5 space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSubmit();
+          }}
+        >
+          <p className="text-sm text-neutral-600">
+            {doc.customer_name || 'Customer'} · enter this payment (deposit or
+            part payment). Invoice stays open until the balance is paid.
+          </p>
+          <div className="grid grid-cols-3 gap-2 text-center text-xs">
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-2 py-2">
+              <div className="text-[10px] font-bold uppercase text-neutral-500">
+                Total
+              </div>
+              <div className="font-bold tabular-nums text-slate-900">
+                {formatMoney(total, ccy)}
+              </div>
+            </div>
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-2 py-2">
+              <div className="text-[10px] font-bold uppercase text-neutral-500">
+                Already paid
+              </div>
+              <div className="font-bold tabular-nums text-slate-900">
+                {formatMoney(already, ccy)}
+              </div>
+            </div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-2 py-2">
+              <div className="text-[10px] font-bold uppercase text-amber-800">
+                Balance due
+              </div>
+              <div className="font-bold tabular-nums text-amber-950">
+                {formatMoney(remaining, ccy)}
+              </div>
+            </div>
+          </div>
+          <label className="block">
+            <span className="text-xs font-semibold text-neutral-600 mb-1 block">
+              Amount paid this time
+            </span>
+            <input
+              required
+              type="number"
+              min="0.01"
+              step="0.01"
+              max={remaining > 0 ? remaining : undefined}
+              value={amount}
+              onChange={(e) => onAmount(e.target.value)}
+              className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm tabular-nums focus:outline-none focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/20"
+              autoFocus
+            />
+          </label>
+          <div className="flex flex-wrap gap-1.5">
+            {deposit30 > 0.009 && deposit30 < remaining - 0.009 ? (
+              <button
+                type="button"
+                className="rounded-full border border-neutral-200 px-3 py-1 text-[11px] font-bold text-slate-700 hover:bg-neutral-50"
+                onClick={() => {
+                  onAmount(String(deposit30));
+                  onMethod('deposit');
+                }}
+              >
+                30% deposit · {formatMoney(deposit30, ccy)}
+              </button>
+            ) : null}
+            {deposit50 > 0.009 && deposit50 < remaining - 0.009 ? (
+              <button
+                type="button"
+                className="rounded-full border border-neutral-200 px-3 py-1 text-[11px] font-bold text-slate-700 hover:bg-neutral-50"
+                onClick={() => {
+                  onAmount(String(deposit50));
+                  onMethod('deposit');
+                }}
+              >
+                50% deposit · {formatMoney(deposit50, ccy)}
+              </button>
+            ) : null}
+            {remaining > 0.009 ? (
+              <button
+                type="button"
+                className="rounded-full border border-[#00b4d8]/40 px-3 py-1 text-[11px] font-bold text-[#0077b6] hover:bg-sky-50"
+                onClick={() => onAmount(String(remaining))}
+              >
+                Pay balance · {formatMoney(remaining, ccy)}
+              </button>
+            ) : null}
+          </div>
+          {thisPay > 0 ? (
+            <p className="text-xs text-neutral-500">
+              After this payment:{' '}
+              <strong className="text-slate-800">
+                {formatMoney(afterPaid, ccy)} paid
+              </strong>
+              {afterDue > 0.009
+                ? ` · ${formatMoney(afterDue, ccy)} still due`
+                : ' · invoice paid in full'}
+            </p>
+          ) : null}
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-xs font-semibold text-neutral-600 mb-1 block">
+                Method
+              </span>
+              <select
+                value={method}
+                onChange={(e) => onMethod(e.target.value)}
+                className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm bg-white"
+              >
+                <option value="eft">EFT</option>
+                <option value="deposit">Deposit</option>
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-neutral-600 mb-1 block">
+                Reference
+              </span>
+              <input
+                value={reference}
+                onChange={(e) => onReference(e.target.value)}
+                className="w-full rounded-xl border border-neutral-200 px-3 py-2.5 text-sm"
+                placeholder="Bank ref / receipt #"
+              />
+            </label>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              className="btn-secondary !py-2 !px-4 text-sm"
+              onClick={onClose}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={busy || thisPay <= 0}
+              className="btn-primary !py-2 !px-4 text-sm"
+            >
+              {busy ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : afterDue < 0.01 ? (
+                'Mark paid in full'
+              ) : (
+                'Record payment'
+              )}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

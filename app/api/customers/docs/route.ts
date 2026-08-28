@@ -1335,9 +1335,9 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Loyalty points
-      if (inv.customer_id) {
-        const points = Math.floor(paid * LOYALTY_EARN_RATE);
+      // Loyalty points on this payment only (deposits / part payments must not re-earn the total)
+      if (inv.customer_id && thisPayment > 0) {
+        const points = Math.floor(thisPayment * LOYALTY_EARN_RATE);
         if (points > 0) {
           let { data: acct } = await supabase
             .from('loyalty_accounts')
