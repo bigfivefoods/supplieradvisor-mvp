@@ -103,40 +103,53 @@ async function loadAdvisorStoresFor360(companyId: number) {
       '@/lib/business/company-data'
     );
     const { loadFitgraphMerged } = await import('@/lib/fitness/fitgraph-io');
-    const [gym, physio, dental, medical, psychiatry, vet] = await Promise.all([
-      loadFitgraphMerged(companyId).catch(() => null),
-      loadAdvisorModuleStore(
-        companyId,
-        'physiograph',
-        readPhysiographFromMetadata
-      ).catch(() => null),
-      loadAdvisorModuleStore(
-        companyId,
-        'dentalgraph',
-        readDentalgraphFromMetadata
-      ).catch(() => null),
-      loadAdvisorModuleStore(
-        companyId,
-        'medicalgraph',
-        readMedicalgraphFromMetadata
-      ).catch(() => null),
-      loadAdvisorModuleStore(
-        companyId,
-        'psychiatrygraph',
-        readPsychiatrygraphFromMetadata
-      ).catch(() => null),
-      loadAdvisorModuleStore(
-        companyId,
-        'vetgraph',
-        readVetgraphFromMetadata
-      ).catch(() => null),
-    ]);
+    const [gym, physio, dental, medical, psychiatry, vet, hire, retail] =
+      await Promise.all([
+        loadFitgraphMerged(companyId).catch(() => null),
+        loadAdvisorModuleStore(
+          companyId,
+          'physiograph',
+          readPhysiographFromMetadata
+        ).catch(() => null),
+        loadAdvisorModuleStore(
+          companyId,
+          'dentalgraph',
+          readDentalgraphFromMetadata
+        ).catch(() => null),
+        loadAdvisorModuleStore(
+          companyId,
+          'medicalgraph',
+          readMedicalgraphFromMetadata
+        ).catch(() => null),
+        loadAdvisorModuleStore(
+          companyId,
+          'psychiatrygraph',
+          readPsychiatrygraphFromMetadata
+        ).catch(() => null),
+        loadAdvisorModuleStore(
+          companyId,
+          'vetgraph',
+          readVetgraphFromMetadata
+        ).catch(() => null),
+        loadAdvisorModuleStore(
+          companyId,
+          'hiregraph',
+          readHiregraphFromMetadata
+        ).catch(() => null),
+        loadAdvisorModuleStore(
+          companyId,
+          'retailgraph',
+          readRetailgraphFromMetadata
+        ).catch(() => null),
+      ]);
     if (gym?.store) stores.gym = gym.store;
     if (physio?.store) stores.physio = physio.store;
     if (dental?.store) stores.dental = dental.store;
     if (medical?.store) stores.medical = medical.store;
     if (psychiatry?.store) stores.psychiatry = psychiatry.store;
     if (vet?.store) stores.vet = vet.store;
+    if (hire?.store) stores.hire = hire.store;
+    if (retail?.store) stores.retail = retail.store;
   } catch (err) {
     console.warn('[customer-360] module stores', err);
   }
@@ -202,6 +215,13 @@ export async function loadCustomer360Bundle(
       { module: 'psychiatrygraph', patients: stores.psychiatry.patients || [] },
       { module: 'vetgraph', patients: stores.vet.patients || [] },
     ],
+    retailCustomers: (stores.retail.customers || []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      email: c.email ?? null,
+      phone: c.phone ?? null,
+      crm_customer_id: c.crm_customer_id ?? null,
+    })),
   });
   const customerRefs = () =>
     customers.map((c) => ({
@@ -372,6 +392,15 @@ export async function loadCustomer360Bundle(
     gym: gymBundle,
     clinics,
     hire: { bookings: stores.hire.bookings || [] },
+    retail: {
+      customers: (stores.retail.customers || []).map((c) => ({
+        id: c.id,
+        name: c.name,
+        email: c.email ?? null,
+        phone: c.phone ?? null,
+        crm_customer_id: c.crm_customer_id ?? null,
+      })),
+    },
     events: stores.events,
   };
 

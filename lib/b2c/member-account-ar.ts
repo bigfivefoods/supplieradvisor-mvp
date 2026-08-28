@@ -8,6 +8,7 @@ import type { MemberAccountCharge } from '@/lib/b2c/member-account-types';
 import { splitInclusiveVat, SA_VAT_PCT } from '@/lib/core-os/finance';
 import {
   advisorKindAliases,
+  advisorPartyCustomerType,
   advisorRefTag,
   canonicalAdvisorKind,
 } from '@/lib/core-os/kinds';
@@ -124,7 +125,6 @@ export async function ensureAdvisorCrmCustomer(opts: {
     };
   }
 
-  const clinic = /physio|dental|medical|psychiatry|vet/.test(canonical);
   const payload: Record<string, unknown> = {
     profile_id: opts.companyId,
     trading_name: opts.name.trim() || 'Member',
@@ -132,7 +132,7 @@ export async function ensureAdvisorCrmCustomer(opts: {
     email: email || null,
     phone,
     status: 'active',
-    customer_type: clinic ? 'patient' : 'member',
+    customer_type: advisorPartyCustomerType(opts.kind),
     source: 'advisor_member',
     currency: 'ZAR',
     notes: notesBlob,

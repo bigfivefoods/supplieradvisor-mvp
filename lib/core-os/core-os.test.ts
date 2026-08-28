@@ -6,6 +6,7 @@ import {
   classifyCrmCustomer,
   advisorRefTag,
   advisorKindAliases,
+  advisorPartyCustomerType,
   assembleCustomer360,
   assembleLeftoverAdvisor360,
   collectAdvisorCustomerPeople,
@@ -189,6 +190,30 @@ const rosterLeftover = assembleLeftoverAdvisor360(
 );
 assert.equal(rosterLeftover.length, 274);
 assert.ok(rosterLeftover.every((r) => r.kinds.includes('gym_member')));
+
+assert.equal(advisorPartyCustomerType('gym'), 'member');
+assert.equal(advisorPartyCustomerType('dentalgraph'), 'patient');
+assert.equal(advisorPartyCustomerType('hire'), 'hirer');
+assert.equal(advisorPartyCustomerType('retailgraph'), 'member');
+
+const clinicKinds = collectAdvisorCustomerPeople({
+  clinics: [
+    { module: 'dentalgraph', patients: [{ id: 'pat_d', name: 'Dee' }] },
+    { module: 'medicalgraph', patients: [{ id: 'pat_m', name: 'Mo' }] },
+    { module: 'vetgraph', patients: [{ id: 'pat_v', name: 'Vee' }] },
+  ],
+});
+const clinicLeft = assembleLeftoverAdvisor360(clinicKinds, {});
+assert.equal(clinicLeft.length, 3);
+assert.ok(clinicLeft.every((r) => r.kinds.includes('clinic_patient')));
+
+const shop = collectAdvisorCustomerPeople({
+  retailCustomers: [{ id: 'cus_1', name: 'Ada', email: 'ada@example.com' }],
+});
+assert.equal(shop.length, 1);
+const shopLeft = assembleLeftoverAdvisor360(shop, {});
+assert.equal(shopLeft[0].kinds.includes('retail_customer'), true);
+assert.equal(shopLeft[0].name, 'Ada');
 
 // 2. People workforce + leave
 assert.equal(toWorkforceEmploymentType('contractor'), 'contract');

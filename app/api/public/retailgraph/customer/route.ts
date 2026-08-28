@@ -215,6 +215,16 @@ export async function POST(request: NextRequest) {
         phone: person.phone || null,
         photo_url: person.photo_url || null,
       };
+      {
+        const { attachCrmToAdvisorPerson } = await import(
+          '@/lib/b2c/member-account-ar'
+        );
+        await attachCrmToAdvisorPerson({
+          companyId,
+          kind: 'retail',
+          person: store.customers[idx],
+        });
+      }
       await saveStore(companyId, store);
       try {
         const { writeThroughPortalIdentity } = await import(

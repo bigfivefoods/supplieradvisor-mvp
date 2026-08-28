@@ -31,6 +31,7 @@ export type RetailCustomer = {
   phone?: string | null;
   photo_url?: string | null;
   portal_token?: string | null;
+  crm_customer_id?: number | null;
   updated_at?: string;
 };
 

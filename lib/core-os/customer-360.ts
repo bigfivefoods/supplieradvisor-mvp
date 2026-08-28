@@ -5,7 +5,7 @@ import {
   classifyCrmCustomer,
   advisorRefTag,
   advisorKindAliases,
-  KIND_FROM_MODULE,
+  advisorPartyCustomerType,
   type CoreCustomerKind,
 } from './kinds';
 import { emailsMatch, mergeIdentity, type IdentityLinks } from './identity';
@@ -153,6 +153,7 @@ export type AdvisorCustomerPerson = {
 export function collectAdvisorCustomerPeople(opts: {
   gymClients?: LoosePerson[] | null;
   clinics?: Array<{ module: string; patients?: LoosePerson[] | null }>;
+  retailCustomers?: LoosePerson[] | null;
 }): AdvisorCustomerPerson[] {
   const out: AdvisorCustomerPerson[] = [];
   for (const p of opts.gymClients || []) {
@@ -165,6 +166,10 @@ export function collectAdvisorCustomerPeople(opts: {
       if (!p?.id) continue;
       out.push({ module, kind: module, person: p });
     }
+  }
+  for (const p of opts.retailCustomers || []) {
+    if (!p?.id) continue;
+    out.push({ module: 'retailgraph', kind: 'retail', person: p });
   }
   return out;
 }
@@ -201,7 +206,6 @@ export function syntheticCustomerFromPerson(row: AdvisorCustomerPerson): {
   notes: string;
   customer_type: string;
 } {
-  const clinic = KIND_FROM_MODULE[row.module] === 'clinic_patient';
   return {
     id: syntheticCustomerId(row.module, row.person.id),
     trading_name: row.person.name || 'Customer',
@@ -211,7 +215,7 @@ export function syntheticCustomerFromPerson(row: AdvisorCustomerPerson): {
     notes: advisorKindAliases(row.kind)
       .map((alias) => advisorRefTag(alias, row.person.id))
       .join('\n'),
-    customer_type: clinic ? 'patient' : 'member',
+    customer_type: advisorPartyCustomerType(row.kind),
   };
 }
 
@@ -277,6 +281,9 @@ export function assembleCustomer360(opts: {
       start_date?: string | null;
       status?: string;
     }>;
+  } | null;
+  retail?: {
+    customers: LoosePerson[];
   } | null;
   events?: Array<{ at: string; type: string; person_id?: string | null; meta?: Record<string, unknown> }>;
   today?: string;
@@ -411,6 +418,24 @@ export function assembleCustomer360(opts: {
     }
   }
 
+  if (opts.retail) {
+    const shopper = opts.retail.customers.find((p) =>
+      personMatchesCustomer(p, c, 'retailgraph')
+    );
+    if (shopper) {
+      kinds.add('retail_customer');
+      hrefs.push('/dashboard/retailgraph/customers');
+      Object.assign(
+        identity,
+        mergeIdentity(identity, {
+          advisor_person_id: shopper.id,
+          advisor_module: 'retailgraph',
+          crm_customer_id: shopper.crm_customer_id || c.id,
+        })
+      );
+    }
+  }
+
   const invoices = (opts.invoices || [])
     .filter(
       (inv) => !inv.customer_id || Number(inv.customer_id) === Number(c.id)
@@ -453,7 +478,14 @@ export function assembleCustomer360(opts: {
       summary: e.type.replace(/\./g, ' '),
     }));
 
-  if (kinds.size > 1 && kinds.has('trade') && (kinds.has('gym_member') || kinds.has('clinic_patient') || kinds.has('hire_customer'))) {
+  if (
+    kinds.size > 1 &&
+    kinds.has('trade') &&
+    (kinds.has('gym_member') ||
+      kinds.has('clinic_patient') ||
+      kinds.has('hire_customer') ||
+      kinds.has('retail_customer'))
+  ) {
     kinds.delete('trade');
   }
 

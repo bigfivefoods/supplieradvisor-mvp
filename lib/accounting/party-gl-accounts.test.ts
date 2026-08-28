@@ -73,6 +73,16 @@ assert.equal(
   }),
   false
 );
+assert.equal(
+  isAdvisorParty({
+    id: 202,
+    trading_name: 'Hire Co',
+    customer_type: 'hirer',
+    source: 'advisor_member',
+    status: 'active',
+  }),
+  true
+);
 assert.equal(pickRecognitionControlAccount(161, 5), 161);
 assert.equal(pickRecognitionControlAccount(null, 5), 5);
 assert.equal(pickSettlementControlAccount(161, 5), 161);

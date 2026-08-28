@@ -133,7 +133,7 @@ export function isAdvisorParty(row: PartyBookRow): boolean {
   if (source === 'advisor_member' || source.startsWith('advisor_')) return true;
   if (String(row.notes || '').includes('advisor_ref:')) return true;
   const t = String(row.customer_type || '').trim().toLowerCase();
-  return t === 'member' || t === 'patient';
+  return t === 'member' || t === 'patient' || t === 'hirer';
 }
 
 /** New invoices post to the named party account when one exists. */

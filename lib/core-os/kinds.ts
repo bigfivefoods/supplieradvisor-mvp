@@ -93,6 +93,18 @@ export function canonicalAdvisorKind(kind: string): string {
   return module || aliases[0] || String(kind || 'gym');
 }
 
+/** CRM customer_type for an advisor person (named AR still via isAdvisorParty). */
+export function advisorPartyCustomerType(
+  kind: string
+): 'member' | 'patient' | 'hirer' {
+  const key = String(kind || '').toLowerCase();
+  const mapped =
+    KIND_FROM_MODULE[key] || KIND_FROM_MODULE[canonicalAdvisorKind(key)];
+  if (mapped === 'clinic_patient') return 'patient';
+  if (mapped === 'hire_customer') return 'hirer';
+  return 'member';
+}
+
 export function parseAdvisorRef(
   notes?: string | null
 ): { kind: string; refId: string } | null {

@@ -24,6 +24,7 @@ const FILTERS: Array<{ id: string; label: string }> = [
   { id: 'gym_member', label: 'Gym' },
   { id: 'clinic_patient', label: 'Clinic' },
   { id: 'hire_customer', label: 'Hire' },
+  { id: 'retail_customer', label: 'Retail' },
 ];
 
 export default function Customers360Page() {

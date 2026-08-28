@@ -935,87 +935,21 @@ async function joinHire(opts: {
   phone: string | null;
   displayName: string;
 }) {
-  const supabase = getSupabaseServer();
-  let crmId: number | null = null;
-  let existingCrm: {
-    id: number;
-    email?: string | null;
-    phone?: string | null;
-    contact_name?: string | null;
-    trading_name?: string | null;
-  } | null = null;
-  if (opts.email) {
-    const { data } = await supabase
-      .from('customers')
-      .select('id, email, phone, contact_name, trading_name')
-      .eq('profile_id', opts.company.id)
-      .ilike('email', opts.email)
-      .maybeSingle();
-    if (data?.id) {
-      crmId = Number(data.id);
-      existingCrm = {
-        id: crmId,
-        email: data.email,
-        phone: data.phone,
-        contact_name: data.contact_name,
-        trading_name: data.trading_name,
-      };
-    }
+  const { ensureAdvisorCrmCustomer } = await import(
+    '@/lib/b2c/member-account-ar'
+  );
+  const crm = await ensureAdvisorCrmCustomer({
+    companyId: opts.company.id,
+    name: opts.displayName,
+    email: opts.email,
+    phone: opts.phone,
+    kind: 'hire',
+    refId: opts.userId || opts.email || opts.displayName,
+  });
+  if (!crm?.id) {
+    throw new Error('Could not add you as a customer');
   }
-  if (!crmId) {
-    const payload = {
-      profile_id: opts.company.id,
-      trading_name: opts.displayName,
-      contact_name: opts.displayName,
-      email: opts.email,
-      phone: opts.phone,
-      status: 'active',
-      customer_type: 'consumer',
-      source: 'member_app_qr',
-      updated_at: new Date().toISOString(),
-    };
-    const ins = await supabase.from('customers').insert(payload).select('id').single();
-    if (ins.error) {
-      const retry = await supabase
-        .from('customers')
-        .insert({
-          profile_id: opts.company.id,
-          trading_name: opts.displayName,
-          email: opts.email,
-          status: 'active',
-        })
-        .select('id')
-        .single();
-      if (retry.error || !retry.data) {
-        throw new Error(ins.error.message || 'Could not add you as a customer');
-      }
-      crmId = Number(retry.data.id);
-    } else {
-      crmId = Number(ins.data.id);
-    }
-    if (crmId) {
-      const { ensurePartyGlAccountsSafe } = await import(
-        '@/lib/accounting/party-gl-accounts'
-      );
-      await ensurePartyGlAccountsSafe(opts.company.id);
-    }
-  } else if (existingCrm) {
-    const patch: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
-    };
-    if (opts.displayName && !String(existingCrm.contact_name || '').trim()) {
-      patch.contact_name = opts.displayName;
-    }
-    if (opts.phone && !String(existingCrm.phone || '').trim()) {
-      patch.phone = opts.phone;
-    }
-    if (opts.email && !String(existingCrm.email || '').trim()) {
-      patch.email = opts.email;
-    }
-    if (Object.keys(patch).length > 1) {
-      await supabase.from('customers').update(patch).eq('id', crmId);
-    }
-  }
+  const crmId = crm.id;
 
   let store = readHiregraphFromMetadata(opts.company.meta);
   const issued = issueCustomerPortal(store, crmId, {
@@ -1105,6 +1039,22 @@ async function joinRetail(opts: {
     store = {
       ...store,
       customers: [customer, ...store.customers],
+    };
+  }
+  {
+    const { attachCrmToAdvisorPerson } = await import(
+      '@/lib/b2c/member-account-ar'
+    );
+    await attachCrmToAdvisorPerson({
+      companyId: opts.company.id,
+      kind: 'retail',
+      person: customer,
+    });
+    store = {
+      ...store,
+      customers: store.customers.map((c) =>
+        c.id === customer.id ? customer : c
+      ),
     };
   }
   const issued = issueRetailCustomerPortal(store, customer.id, {

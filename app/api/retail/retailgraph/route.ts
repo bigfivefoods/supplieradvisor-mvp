@@ -130,13 +130,26 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Name required' }, { status: 400 });
       }
       const id = String(body.id || newRetailId('cus'));
+      const idx = store.customers.findIndex((c) => c.id === id);
+      const prev = idx >= 0 ? store.customers[idx] : undefined;
       const row = {
         id,
         name,
         email: String(body.email || '').trim() || null,
         phone: String(body.phone || '').trim() || null,
+        photo_url: prev?.photo_url,
+        portal_token: prev?.portal_token,
+        crm_customer_id: prev?.crm_customer_id ?? null,
+        updated_at: new Date().toISOString(),
       };
-      const idx = store.customers.findIndex((c) => c.id === id);
+      const { attachCrmToAdvisorPerson } = await import(
+        '@/lib/b2c/member-account-ar'
+      );
+      await attachCrmToAdvisorPerson({
+        companyId,
+        kind: 'retail',
+        person: row,
+      });
       if (idx >= 0) store.customers[idx] = row;
       else store.customers.unshift(row);
     } else if (action === 'record_cash_sale') {
