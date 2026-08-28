@@ -135,19 +135,6 @@ export async function buildManagementPack(opts: {
       profile?.trading_name || profile?.legal_name || companyName;
   }
 
-  try {
-    const { recognizeIssuedCrmInvoices } = await import(
-      '@/lib/accounting/crm-invoice-gl'
-    );
-    await recognizeIssuedCrmInvoices({
-      profileId: opts.profileId,
-      from,
-      to,
-    });
-  } catch (e) {
-    console.warn('mgmt pack CRM books', e);
-  }
-
   const { data: accountsRaw } = await supabase
     .from('chart_of_accounts')
     .select('id, code, name, account_type, is_header')

@@ -114,10 +114,14 @@ export async function POST(request: NextRequest) {
         );
       }
       supplierId = Number(created.data?.id);
-      const { ensurePartyGlAccountsSafe } = await import(
+      const { ensureSupplierApLeaf } = await import(
         '@/lib/accounting/party-gl-accounts'
       );
-      await ensurePartyGlAccountsSafe(companyId);
+      await ensureSupplierApLeaf({
+        profileId: companyId,
+        supplierId,
+        name: String(row.trading_name || 'Supplier'),
+      });
     }
 
     const limits = await checkSupplierInviteRateLimits({

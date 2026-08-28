@@ -352,10 +352,14 @@ async function ensureAccountLink(opts: {
       crmId = Number(ins.data.id);
     }
     if (crmId) {
-      const { ensurePartyGlAccountsSafe } = await import(
+      const { ensureCustomerArLeaf } = await import(
         '@/lib/accounting/party-gl-accounts'
       );
-      await ensurePartyGlAccountsSafe(opts.company.id);
+      await ensureCustomerArLeaf({
+        profileId: opts.company.id,
+        customerId: crmId,
+        name: opts.displayName || 'Customer',
+      });
     }
   }
 

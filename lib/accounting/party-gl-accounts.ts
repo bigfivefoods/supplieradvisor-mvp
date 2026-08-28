@@ -1405,36 +1405,46 @@ async function convertLegacyRevenueHeader(profileId: number): Promise<void> {
     .eq('profile_id', profileId);
 }
 
+/** One AR or AP leaf for this person. Call on create/update of that row only. */
+export async function ensurePartyGlLeaf(opts: {
+  profileId: number;
+  kind: 'ar' | 'ap';
+  partyId: number;
+  name?: string;
+}): Promise<{ code: string; accountId: number } | null> {
+  if (!Number.isFinite(opts.profileId) || opts.profileId <= 0) return null;
+  const partyId = Number(opts.partyId || 0);
+  if (partyId <= 0) return null;
+  const name = String(opts.name || '').trim() || `${opts.kind === 'ar' ? 'Customer' : 'Supplier'} ${partyId}`;
+  if (opts.kind === 'ar') {
+    return ensureCustomerArLeaf({
+      profileId: opts.profileId,
+      customerId: partyId,
+      name,
+    });
+  }
+  return ensureSupplierApLeaf({
+    profileId: opts.profileId,
+    supplierId: partyId,
+    name,
+  });
+}
+
+/**
+ * Rare full-book backfill (seed / cron / CoA button). Never on GET.
+ * Does not relabel every company and does not advisor-sync CRM/AP.
+ */
+export async function backfillPartyGlAccounts(
+  profileId: number
+): Promise<{ created: number; linked: number; warning?: string }> {
+  return ensurePartyGlAccounts(profileId);
+}
+
 export async function ensurePartyGlAccounts(
   profileId: number
 ): Promise<{ created: number; linked: number; warning?: string }> {
   if (!Number.isFinite(profileId) || profileId <= 0) {
     return { created: 0, linked: 0, warning: 'invalid profile' };
-  }
-  try {
-    const { relabelPartyCoaHeaders, relabelPartyCoaHeadersAllOnce } = await import(
-      '@/lib/accounting/party-book-role'
-    );
-    await relabelPartyCoaHeadersAllOnce();
-    await relabelPartyCoaHeaders(profileId);
-  } catch (err) {
-    console.warn('[party-gl] header relabel', err);
-  }
-  try {
-    const { syncAdvisorModulePeopleToCrm } = await import(
-      '@/lib/b2c/advisor-crm-sync'
-    );
-    await syncAdvisorModulePeopleToCrm(profileId);
-  } catch (err) {
-    console.warn('[party-gl] advisor CRM sync', err);
-  }
-  try {
-    const { syncAdvisorContractorsToSuppliers } = await import(
-      '@/lib/b2c/advisor-ap-sync'
-    );
-    await syncAdvisorContractorsToSuppliers(profileId);
-  } catch (err) {
-    console.warn('[party-gl] advisor AP sync', err);
   }
   const supabase = getSupabaseServer();
   const [{ data: customers, error: cErr }, { data: suppliers, error: sErr }, { data: coa, error: aErr }] =
@@ -1636,7 +1646,6 @@ export async function resolvePartyControlAccountId(opts: {
   partyId?: number | null;
   counterpartyName?: string | null;
 }): Promise<number | null> {
-  await ensurePartyGlAccountsCached(opts.profileId);
   const supabase = getSupabaseServer();
   const table = opts.kind === 'ar' ? 'customers' : 'srm_suppliers';
   const partyId = Number(opts.partyId || 0);

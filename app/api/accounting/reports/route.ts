@@ -153,52 +153,14 @@ export async function GET(request: NextRequest) {
     }
 
     if (report === 'management_accounts') {
-      // Accrue issued CRM invoices that are not yet on the GL
-      let crmBooksNote: string | undefined;
-      try {
-        const { recognizeIssuedCrmInvoices } = await import(
-          '@/lib/accounting/crm-invoice-gl'
-        );
-        const sync = await recognizeIssuedCrmInvoices({
-          profileId: companyId,
-          from: from || null,
-          to: to || null,
-        });
-        if (sync.errors.length) {
-          crmBooksNote = `Invoice books: ${sync.errors[0]}`;
-        }
-      } catch (e) {
-        crmBooksNote = e instanceof Error ? e.message : 'Invoice books sync failed';
-      }
-
-      let invoiceRepair: {
-        count: number;
-        results: string[];
-        errors: string[];
-      } | undefined;
-      try {
-        const { applyInvoiceDedupe } = await import(
-          '@/lib/accounting/dedupe-invoice-books'
-        );
-        const repair = await applyInvoiceDedupe({
-          profileId: companyId,
-          createdBy: _gate.userId,
-          apply: true,
-        });
-        if (repair.actions.length || repair.results.length || repair.errors.length) {
-          invoiceRepair = {
-            count: repair.actions.length,
-            results: repair.results,
-            errors: repair.errors,
-          };
-          if (repair.results.length && !crmBooksNote) {
-            crmBooksNote = repair.results[0];
+      const crmBooksNote: string | undefined = undefined;
+      const invoiceRepair:
+        | {
+            count: number;
+            results: string[];
+            errors: string[];
           }
-        }
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Invoice dedupe failed';
-        invoiceRepair = { count: 0, results: [], errors: [msg] };
-      }
+        | undefined = undefined;
 
       // P&L from posted journals + bank allocation pulse
       // Prefer active accounts; fall back if is_active column filter is empty/mis-set

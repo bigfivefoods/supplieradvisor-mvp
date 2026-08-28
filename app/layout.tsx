@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import { Providers } from '@/components/Providers';
+import { PublicProviders } from '@/components/PublicProviders';
 import JsonLd from '@/components/seo/JsonLd';
 import {
   DEFAULT_DESCRIPTION,
@@ -144,7 +144,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script src="https://js.paystack.co/v2/inline.js" async />
       </head>
       <body className="min-h-dvh antialiased bg-sa-bg text-sa-text">
-        <Providers>{children}</Providers>
+        <PublicProviders>{children}</PublicProviders>
       </body>
     </html>
   );

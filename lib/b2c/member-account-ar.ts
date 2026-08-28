@@ -214,7 +214,7 @@ export async function ensureAdvisorCrmCustomer(opts: {
 async function finishAdvisorCustomer(
   companyId: number,
   customer: { id: number; name: string; email: string | null },
-  skipFullCoa?: boolean
+  _skipFullCoa?: boolean
 ): Promise<{
   id: number;
   name: string;
@@ -232,12 +232,6 @@ async function finishAdvisorCustomer(
       name: customer.name,
     });
     ar_account_code = leaf?.code || memberArAccountCode(customer.id) || null;
-    if (!skipFullCoa) {
-      const { ensurePartyGlAccountsSafe } = await import(
-        '@/lib/accounting/party-gl-accounts'
-      );
-      await ensurePartyGlAccountsSafe(companyId);
-    }
   } catch (err) {
     console.warn('[member-account] member AR leaf', err);
   }

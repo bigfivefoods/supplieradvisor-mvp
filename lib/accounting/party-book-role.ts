@@ -11,7 +11,6 @@ import {
   SUPPLIER_AP_HEADER_NAME,
   ensureCustomerArLeaf,
   ensureMemberArLeaf,
-  ensurePartyGlAccountsSafe,
   ensureSupplierApLeaf,
 } from '@/lib/accounting/party-gl-accounts';
 import {
@@ -420,7 +419,20 @@ export async function applyPartyBookRole(opts: {
     );
   }
 
-  await ensurePartyGlAccountsSafe(opts.profileId);
+  if (customerId) {
+    await ensureCustomerArLeaf({
+      profileId: opts.profileId,
+      customerId,
+      name: String(customer?.trading_name || customer?.legal_name || 'Customer'),
+    });
+  }
+  if (supplierId) {
+    await ensureSupplierApLeaf({
+      profileId: opts.profileId,
+      supplierId,
+      name: String(supplier?.trading_name || supplier?.legal_name || 'Supplier'),
+    });
+  }
   return {
     ok: true,
     role,

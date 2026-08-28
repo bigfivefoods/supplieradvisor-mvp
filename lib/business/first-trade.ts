@@ -499,10 +499,14 @@ export async function bootstrapFirstTrade(opts: {
       customerId = Number(created!.id);
       createdCustomer = true;
     }
-    const { ensurePartyGlAccountsSafe } = await import(
+    const { ensureCustomerArLeaf } = await import(
       '@/lib/accounting/party-gl-accounts'
     );
-    await ensurePartyGlAccountsSafe(opts.companyId);
+    await ensureCustomerArLeaf({
+      profileId: opts.companyId,
+      customerId,
+      name,
+    });
   }
 
   // Existing draft starter invoice?

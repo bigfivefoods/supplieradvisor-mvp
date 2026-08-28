@@ -255,7 +255,7 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-    const { ensureSupplierApLeaf, ensurePartyGlAccountsSafe } = await import(
+    const { ensureSupplierApLeaf } = await import(
       '@/lib/accounting/party-gl-accounts'
     );
     const leaf = await ensureSupplierApLeaf({
@@ -263,7 +263,6 @@ export async function POST(request: NextRequest) {
       supplierId: Number(data.id),
       name: String(data.trading_name || payload.trading_name || 'Supplier'),
     });
-    await ensurePartyGlAccountsSafe(companyId);
     return NextResponse.json({
       success: true,
       supplier: data,
@@ -373,11 +372,15 @@ export async function PATCH(request: NextRequest) {
       error = retry.error;
     }
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    if (Number.isFinite(companyId) && companyId > 0) {
-      const { ensurePartyGlAccountsSafe } = await import(
+    if (Number.isFinite(companyId) && companyId > 0 && data?.id) {
+      const { ensureSupplierApLeaf } = await import(
         '@/lib/accounting/party-gl-accounts'
       );
-      await ensurePartyGlAccountsSafe(companyId);
+      await ensureSupplierApLeaf({
+        profileId: companyId,
+        supplierId: Number(data.id),
+        name: String(data.trading_name || data.legal_name || 'Supplier'),
+      });
     }
     return NextResponse.json({ success: true, supplier: data });
   } catch (e: unknown) {

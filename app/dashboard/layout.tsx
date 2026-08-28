@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { Providers } from '@/components/Providers';
 import AuthGate from '@/components/AuthGate';
 import AppShell from '@/components/chrome/AppShell';
 import { usePathname, useRouter } from 'next/navigation';
@@ -16,11 +17,13 @@ import { fetchCompanyMembership } from '@/lib/client/company-membership';
  */
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AuthGate>
-      <SalesContractorGuard>
-        <DashboardChrome>{children}</DashboardChrome>
-      </SalesContractorGuard>
-    </AuthGate>
+    <Providers>
+      <AuthGate>
+        <SalesContractorGuard>
+          <DashboardChrome>{children}</DashboardChrome>
+        </SalesContractorGuard>
+      </AuthGate>
+    </Providers>
   );
 }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { Loader2 } from 'lucide-react';
+import { Providers } from '@/components/Providers';
 import AuthGate from '@/components/AuthGate';
 import AppShell from '@/components/chrome/AppShell';
 import SalesShell from '@/components/sales/SalesShell';
@@ -13,6 +14,14 @@ import { useCompanyRole } from '@/lib/business/useCompanyRole';
  * - all other roles → same dashboard AppShell so Sales stays open in main nav
  */
 export default function SalesLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Providers>
+      <SalesLayoutInner>{children}</SalesLayoutInner>
+    </Providers>
+  );
+}
+
+function SalesLayoutInner({ children }: { children: React.ReactNode }) {
   const { role, loading } = useCompanyRole();
 
   // Wait for membership so we don't flash full ERP chrome for contractors

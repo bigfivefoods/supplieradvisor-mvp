@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCustomersAccess } from '@/lib/customers/access';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
-import { seedRequesterBooksFromPendingInvites } from '@/lib/connections/sync';
 import { bookIlikeOr } from '@/lib/security/book-search';
 
 export async function GET(request: NextRequest) {
@@ -20,16 +19,6 @@ export async function GET(request: NextRequest) {
       if (!mem.ok) {
         return NextResponse.json({ error: mem.error }, { status: mem.status });
       }
-    }
-
-    // Soft-seed CRM from pending connect / system invites so quote & invoice
-    // pickers always include invited peers before they accept.
-    try {
-      await seedRequesterBooksFromPendingInvites(companyId, {
-        userId: privyUserId || null,
-      });
-    } catch {
-      /* soft */
     }
 
     const supabase = getSupabaseServer();
@@ -274,7 +263,7 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-    const { ensureCustomerArLeaf, ensurePartyGlAccountsSafe } = await import(
+    const { ensureCustomerArLeaf } = await import(
       '@/lib/accounting/party-gl-accounts'
     );
     const leaf = await ensureCustomerArLeaf({
@@ -282,7 +271,6 @@ export async function POST(request: NextRequest) {
       customerId: Number(data.id),
       name: String(data.trading_name || payload.trading_name || 'Customer'),
     });
-    await ensurePartyGlAccountsSafe(companyId);
     return NextResponse.json({
       success: true,
       customer: data,
@@ -496,11 +484,15 @@ export async function PATCH(request: NextRequest) {
       error = retry.error;
     }
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    if (Number.isFinite(companyId) && companyId > 0) {
-      const { ensurePartyGlAccountsSafe } = await import(
+    if (Number.isFinite(companyId) && companyId > 0 && data?.id) {
+      const { ensureCustomerArLeaf } = await import(
         '@/lib/accounting/party-gl-accounts'
       );
-      await ensurePartyGlAccountsSafe(companyId);
+      await ensureCustomerArLeaf({
+        profileId: companyId,
+        customerId: Number(data.id),
+        name: String(data.trading_name || data.legal_name || 'Customer'),
+      });
     }
     return NextResponse.json({ success: true, customer: data });
   } catch (e: unknown) {

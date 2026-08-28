@@ -6,8 +6,6 @@ import { assemblePartyRoles } from '@/lib/accounting/party-roles';
 import {
   applyPartyBookRole,
   parsePartyBookRole,
-  relabelPartyCoaHeaders,
-  relabelPartyCoaHeadersAllOnce,
 } from '@/lib/accounting/party-book-role';
 
 export async function GET(request: NextRequest) {
@@ -22,13 +20,6 @@ export async function GET(request: NextRequest) {
       legacyPrivyUserId: legacyPrivyFrom(request),
     });
     if (!gate.ok) return gate.response;
-
-    try {
-      await relabelPartyCoaHeadersAllOnce();
-      await relabelPartyCoaHeaders(companyId);
-    } catch {
-      /* labels are additive */
-    }
 
     const supabase = getSupabaseServer();
     const [{ data: customers, error: cErr }, { data: suppliers, error: sErr }] =
