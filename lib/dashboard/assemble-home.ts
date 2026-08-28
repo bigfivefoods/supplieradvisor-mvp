@@ -111,7 +111,9 @@ async function loadHomeCompanyRow(
       .select(cols.join(', '))
       .eq('id', companyId)
       .maybeSingle();
-    if (!error && data) return data as Record<string, unknown>;
+    if (!error && data && typeof data === 'object' && !Array.isArray(data)) {
+      return data as unknown as Record<string, unknown>;
+    }
     if (!error && !data) throw new Error('Company not found');
     const next = dropUnknownProfileColumn(cols, error?.message || '');
     if (next && next.length) {
