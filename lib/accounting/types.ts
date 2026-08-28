@@ -123,12 +123,18 @@ export type AccountingInvoice = {
 };
 
 export type InvoiceLineItem = {
-  description: string;
+  description?: string;
+  name?: string;
   quantity?: number;
   unit_price?: number;
   amount?: number;
   tax_rate?: number;
   account_id?: number;
+  account_code?: string;
+  product_id?: number | null;
+  sku?: string | null;
+  unit_cost?: number | null;
+  cost_price?: number | null;
 };
 
 export type PaymentRecord = {

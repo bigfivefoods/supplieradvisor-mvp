@@ -159,6 +159,7 @@ export function voidInvoiceJournalIds(opts: {
   recognitionJournalId?: number | null;
   settlementJournalIds?: unknown;
   depositApplicationJournalId?: number | null;
+  cogsJournalId?: number | null;
 }): number[] {
   const ids: number[] = [];
   const rec = Number(opts.recognitionJournalId || 0);
@@ -174,6 +175,8 @@ export function voidInvoiceJournalIds(opts: {
   }
   const dep = Number(opts.depositApplicationJournalId || 0);
   if (dep > 0) ids.push(dep);
+  const cogs = Number(opts.cogsJournalId || 0);
+  if (cogs > 0) ids.push(cogs);
   return [...new Set(ids.filter((n) => Number.isFinite(n) && n > 0))];
 }
 

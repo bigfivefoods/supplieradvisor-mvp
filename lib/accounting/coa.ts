@@ -19,7 +19,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS: CoaSeed[] = [
   { code: '1120', name: 'Petty cash', account_type: 'asset', subtype: 'cash', normal_balance: 'debit' },
   { code: '1130', name: 'Accounts receivable', account_type: 'asset', subtype: 'receivable', normal_balance: 'debit' },
   { code: '1135', name: 'Allowance for expected credit losses', account_type: 'asset', subtype: 'contra_asset', normal_balance: 'credit', description: 'IFRS 9 ECL contra to current trade receivables. Presentation nets against Trade and other receivables (IAS 1). Posted from Finance → ECL to 1135 / 6820.' },
-  { code: '1140', name: 'Inventory', account_type: 'asset', subtype: 'inventory', normal_balance: 'debit' },
+  { code: '1140', name: 'Inventory', account_type: 'asset', subtype: 'inventory', normal_balance: 'debit', description: 'IAS 2 inventories at cost. Relieved to 5100 when a sales invoice line has quantity and a known unit cost from products/stock. Selling price is never used as cost.' },
   { code: '1150', name: 'VAT input (recoverable)', account_type: 'asset', subtype: 'tax', normal_balance: 'debit' },
   { code: '1160', name: 'Prepayments', account_type: 'asset', subtype: 'current', normal_balance: 'debit' },
   { code: '1180', name: 'Members & patients (AR)', account_type: 'asset', subtype: 'receivable', is_header: true, normal_balance: 'debit', description: 'IFRS 9 member/patient AR sub-ledger (1180-0000001 …). Statement presentation rolls into Trade and other receivables with 1130. Not a revenue account.' },
@@ -56,7 +56,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS: CoaSeed[] = [
 
   // Cost of sales
   { code: '5000', name: 'Cost of sales', account_type: 'cogs', is_header: true, normal_balance: 'debit' },
-  { code: '5100', name: 'Cost of goods sold', account_type: 'cogs', subtype: 'cogs', normal_balance: 'debit' },
+  { code: '5100', name: 'Cost of goods sold', account_type: 'cogs', subtype: 'cogs', normal_balance: 'debit', description: 'IAS 2 cost of sales. Posted on AR invoice issue when a goods line has a known stock cost (Dr 5100 · Cr 1140). Skipped when cost is unknown — never selling price. Services and membership invoices do not post COGS.' },
   { code: '5200', name: 'Direct labour', account_type: 'cogs', subtype: 'labour', normal_balance: 'debit' },
 
   // Expenses
