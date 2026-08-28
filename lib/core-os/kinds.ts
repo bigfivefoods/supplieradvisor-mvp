@@ -68,6 +68,31 @@ export function advisorRefTag(kind: string, refId: string): string {
   return `${ADVISOR_REF_PREFIX}${kind}:${refId}`;
 }
 
+/** Short + module keys used in advisor_ref tags (gym vs fitgraph, physio vs physiograph). */
+export function advisorKindAliases(kind: string): string[] {
+  const k = String(kind || '').toLowerCase();
+  const groups: string[][] = [
+    ['gym', 'fitgraph'],
+    ['physio', 'physiograph'],
+    ['dental', 'dentalgraph'],
+    ['medical', 'medicalgraph'],
+    ['psychiatry', 'psychiatrygraph'],
+    ['vet', 'vetgraph'],
+    ['hire', 'hiregraph'],
+    ['retail', 'retailgraph'],
+  ];
+  for (const g of groups) {
+    if (g.includes(k)) return g;
+  }
+  return k ? [k] : [];
+}
+
+export function canonicalAdvisorKind(kind: string): string {
+  const aliases = advisorKindAliases(kind);
+  const module = aliases.find((a) => a.endsWith('graph'));
+  return module || aliases[0] || String(kind || 'gym');
+}
+
 export function parseAdvisorRef(
   notes?: string | null
 ): { kind: string; refId: string } | null {

@@ -494,6 +494,18 @@ async function joinGym(opts: {
       client.updated_at = now;
       const ci = store.clients.findIndex((c) => c.id === client!.id);
       if (ci >= 0) store.clients[ci] = client;
+      {
+        const { attachCrmToAdvisorPerson } = await import(
+          '@/lib/b2c/member-account-ar'
+        );
+        await attachCrmToAdvisorPerson({
+          companyId: opts.company.id,
+          kind: 'gym',
+          person: client,
+        });
+        const stamped = store.clients.findIndex((c) => c.id === client.id);
+        if (stamped >= 0) store.clients[stamped] = client;
+      }
       if (linked.createdMember) {
         store.desk_notices = pushDeskNotice(
           store.desk_notices,
@@ -637,6 +649,16 @@ async function finishClinicJoin(opts: {
   email: string | null;
   phone: string | null;
 }) {
+  {
+    const { attachCrmToAdvisorPerson } = await import(
+      '@/lib/b2c/member-account-ar'
+    );
+    await attachCrmToAdvisorPerson({
+      companyId: opts.company.id,
+      kind: opts.kind,
+      person: opts.person,
+    });
+  }
   const token = opts.person.portal_token;
   if (!token) throw new Error('Could not issue a patient portal');
   const caps: B2cCapability[] = ['book', 'track', 'messages', 'review', 'kyc'];
@@ -709,6 +731,19 @@ async function joinClinic(opts: {
     const stamped = await stampSnapshotOnPerson(person, opts.profile);
     store.patients = patients.map((p) => (p.id === stamped.id ? stamped : p));
     recordClinicJoin(store, stamped, { created, newlyLinked });
+    {
+      const { attachCrmToAdvisorPerson } = await import(
+        '@/lib/b2c/member-account-ar'
+      );
+      await attachCrmToAdvisorPerson({
+        companyId: opts.company.id,
+        kind: opts.kind,
+        person: stamped,
+      });
+      store.patients = store.patients.map((p) =>
+        p.id === stamped.id ? stamped : p
+      );
+    }
     await saveMeta(
       opts.company.id,
       writePhysiographToMetadata(opts.company.meta, store)
@@ -738,6 +773,19 @@ async function joinClinic(opts: {
     const stamped = await stampSnapshotOnPerson(person, opts.profile);
     store.patients = patients.map((p) => (p.id === stamped.id ? stamped : p));
     recordClinicJoin(store, stamped, { created, newlyLinked });
+    {
+      const { attachCrmToAdvisorPerson } = await import(
+        '@/lib/b2c/member-account-ar'
+      );
+      await attachCrmToAdvisorPerson({
+        companyId: opts.company.id,
+        kind: opts.kind,
+        person: stamped,
+      });
+      store.patients = store.patients.map((p) =>
+        p.id === stamped.id ? stamped : p
+      );
+    }
     await saveMeta(
       opts.company.id,
       writeDentalgraphToMetadata(opts.company.meta, store)
@@ -767,6 +815,19 @@ async function joinClinic(opts: {
     const stamped = await stampSnapshotOnPerson(person, opts.profile);
     store.patients = patients.map((p) => (p.id === stamped.id ? stamped : p));
     recordClinicJoin(store, stamped, { created, newlyLinked });
+    {
+      const { attachCrmToAdvisorPerson } = await import(
+        '@/lib/b2c/member-account-ar'
+      );
+      await attachCrmToAdvisorPerson({
+        companyId: opts.company.id,
+        kind: opts.kind,
+        person: stamped,
+      });
+      store.patients = store.patients.map((p) =>
+        p.id === stamped.id ? stamped : p
+      );
+    }
     await saveMeta(
       opts.company.id,
       writeMedicalgraphToMetadata(opts.company.meta, store)
@@ -796,6 +857,19 @@ async function joinClinic(opts: {
     const stamped = await stampSnapshotOnPerson(person, opts.profile);
     store.patients = patients.map((p) => (p.id === stamped.id ? stamped : p));
     recordClinicJoin(store, stamped, { created, newlyLinked });
+    {
+      const { attachCrmToAdvisorPerson } = await import(
+        '@/lib/b2c/member-account-ar'
+      );
+      await attachCrmToAdvisorPerson({
+        companyId: opts.company.id,
+        kind: opts.kind,
+        person: stamped,
+      });
+      store.patients = store.patients.map((p) =>
+        p.id === stamped.id ? stamped : p
+      );
+    }
     await saveMeta(
       opts.company.id,
       writeVetgraphToMetadata(opts.company.meta, store)
@@ -824,6 +898,19 @@ async function joinClinic(opts: {
   const stamped = await stampSnapshotOnPerson(person, opts.profile);
   store.patients = patients.map((p) => (p.id === stamped.id ? stamped : p));
   recordClinicJoin(store, stamped, { created, newlyLinked });
+  {
+    const { attachCrmToAdvisorPerson } = await import(
+      '@/lib/b2c/member-account-ar'
+    );
+    await attachCrmToAdvisorPerson({
+      companyId: opts.company.id,
+      kind: opts.kind,
+      person: stamped,
+    });
+    store.patients = store.patients.map((p) =>
+      p.id === stamped.id ? stamped : p
+    );
+  }
   await saveMeta(
     opts.company.id,
     writePsychiatrygraphToMetadata(opts.company.meta, store)

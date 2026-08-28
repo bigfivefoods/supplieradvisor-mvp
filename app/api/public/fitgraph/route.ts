@@ -384,6 +384,18 @@ export async function POST(request: NextRequest) {
       }
       const idx = store.clients.findIndex((c) => c.id === client!.id);
       if (idx >= 0) store.clients[idx] = client;
+      {
+        const { attachCrmToAdvisorPerson } = await import(
+          '@/lib/b2c/member-account-ar'
+        );
+        await attachCrmToAdvisorPerson({
+          companyId,
+          kind: 'gym',
+          person: client,
+        });
+        const stamped = store.clients.findIndex((c) => c.id === client.id);
+        if (stamped >= 0) store.clients[stamped] = client;
+      }
       store.desk_notices = pushDeskNotice(
         store.desk_notices,
         newDeskNotice({
@@ -456,6 +468,20 @@ export async function POST(request: NextRequest) {
         const local = findGymSaleByRef(store, reference);
         if (local && local.status !== 'paid') {
           const paid = applyPaidGymSale(store, local, { companyId });
+          {
+            const { attachCrmToAdvisorPerson } = await import(
+              '@/lib/b2c/member-account-ar'
+            );
+            await attachCrmToAdvisorPerson({
+              companyId,
+              kind: 'gym',
+              person: paid.client,
+            });
+            const ci = paid.store.clients.findIndex(
+              (c) => c.id === paid.client.id
+            );
+            if (ci >= 0) paid.store.clients[ci] = paid.client;
+          }
           await saveStore(companyId, meta, paid.store);
           return NextResponse.json({
             success: true,
@@ -782,6 +808,19 @@ export async function POST(request: NextRequest) {
           note: 'Complimentary intro class — follow up to join',
         })
       );
+    }
+    {
+      const person = store.clients.find((c) => c.id === clientId);
+      if (person) {
+        const { attachCrmToAdvisorPerson } = await import(
+          '@/lib/b2c/member-account-ar'
+        );
+        await attachCrmToAdvisorPerson({
+          companyId,
+          kind: 'gym',
+          person,
+        });
+      }
     }
     await saveStore(companyId, meta, store);
 

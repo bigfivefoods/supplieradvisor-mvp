@@ -6,6 +6,11 @@ import { recordArPayment } from '@/lib/customers/ar-ledger';
 import { docNumber } from '@/lib/customers/documents';
 import type { MemberAccountCharge } from '@/lib/b2c/member-account-types';
 import { splitInclusiveVat, SA_VAT_PCT } from '@/lib/core-os/finance';
+import {
+  advisorKindAliases,
+  advisorRefTag,
+  canonicalAdvisorKind,
+} from '@/lib/core-os/kinds';
 
 /** Dual-write an Advisor member / patient onto Core Customers. */
 export async function attachCrmToAdvisorPerson(opts: {
@@ -15,6 +20,7 @@ export async function attachCrmToAdvisorPerson(opts: {
     id: string;
     name: string;
     email?: string | null;
+    phone?: string | null;
     crm_customer_id?: number | null;
   };
 }): Promise<number | null> {
@@ -23,6 +29,7 @@ export async function attachCrmToAdvisorPerson(opts: {
       companyId: opts.companyId,
       name: opts.person.name,
       email: opts.person.email || null,
+      phone: opts.person.phone || null,
       kind: opts.kind,
       refId: opts.person.id,
     });
@@ -40,6 +47,7 @@ export async function ensureAdvisorCrmCustomer(opts: {
   companyId: number;
   name: string;
   email?: string | null;
+  phone?: string | null;
   kind: string;
   refId: string;
 }): Promise<{ id: number; name: string; email: string | null } | null> {
@@ -47,25 +55,36 @@ export async function ensureAdvisorCrmCustomer(opts: {
   const email = String(opts.email || '')
     .trim()
     .toLowerCase();
-  const tag = `advisor_ref:${opts.kind}:${opts.refId}`;
+  const phone = String(opts.phone || '').trim() || null;
+  const canonical = canonicalAdvisorKind(opts.kind);
+  const tags = advisorKindAliases(opts.kind).map((k) =>
+    advisorRefTag(k, opts.refId)
+  );
+  const tag = tags[0] || advisorRefTag(canonical, opts.refId);
+  const notesBlob = tags.join('\n');
 
   if (email) {
     const { data: hits } = await supabase
       .from('customers')
-      .select('id, trading_name, email, notes')
+      .select('id, trading_name, email, phone, notes')
       .eq('profile_id', opts.companyId)
       .ilike('email', email)
       .limit(5);
     const match = (hits || [])[0];
     if (match?.id) {
       const notes = String(match.notes || '');
-      if (!notes.includes(tag)) {
+      const missing = tags.filter((t) => !notes.includes(t));
+      const patch: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+      if (missing.length) {
+        patch.notes = notes ? `${notes}\n${missing.join('\n')}` : missing.join('\n');
+      }
+      if (phone && !(match as { phone?: string | null }).phone) patch.phone = phone;
+      if (Object.keys(patch).length > 1) {
         await supabase
           .from('customers')
-          .update({
-            notes: notes ? `${notes}\n${tag}` : tag,
-            updated_at: new Date().toISOString(),
-          })
+          .update(patch)
           .eq('id', match.id)
           .eq('profile_id', opts.companyId);
       }
@@ -77,13 +96,21 @@ export async function ensureAdvisorCrmCustomer(opts: {
     }
   }
 
-  const { data: tagged } = await supabase
-    .from('customers')
-    .select('id, trading_name, email, notes')
-    .eq('profile_id', opts.companyId)
-    .ilike('notes', `%${tag}%`)
-    .limit(1)
-    .maybeSingle();
+  let tagged: { id: number; trading_name?: string | null; email?: string | null } | null =
+    null;
+  for (const t of tags) {
+    const hit = await supabase
+      .from('customers')
+      .select('id, trading_name, email, notes')
+      .eq('profile_id', opts.companyId)
+      .ilike('notes', `%${t}%`)
+      .limit(1)
+      .maybeSingle();
+    if (hit.data?.id) {
+      tagged = hit.data as never;
+      break;
+    }
+  }
   if (tagged?.id) {
     return {
       id: Number(tagged.id),
@@ -92,16 +119,18 @@ export async function ensureAdvisorCrmCustomer(opts: {
     };
   }
 
+  const clinic = /physio|dental|medical|psychiatry|vet/.test(canonical);
   const payload: Record<string, unknown> = {
     profile_id: opts.companyId,
     trading_name: opts.name.trim() || 'Member',
     contact_name: opts.name.trim() || 'Member',
     email: email || null,
+    phone,
     status: 'active',
-    customer_type: 'consumer',
+    customer_type: clinic ? 'patient' : 'member',
     source: 'advisor_member',
     currency: 'ZAR',
-    notes: tag,
+    notes: notesBlob,
     updated_at: new Date().toISOString(),
   };
   let { data, error } = await supabase
@@ -112,6 +141,7 @@ export async function ensureAdvisorCrmCustomer(opts: {
   if (error && /customer_type|column|schema cache/i.test(error.message || '')) {
     delete payload.customer_type;
     delete payload.source;
+    delete payload.phone;
     const retry = await supabase
       .from('customers')
       .insert(payload)

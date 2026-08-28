@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import {
   groupCoaForAllocation,
+  isAdvisorParty,
   isCustomerAllocAccount,
   isSupplierAllocAccount,
   isTradeParty,
@@ -34,6 +35,36 @@ assert.equal(
 );
 assert.equal(
   isTradeParty({
+    id: 2,
+    trading_name: 'Jarryd',
+    customer_type: 'consumer',
+    source: 'sa_member_wallet',
+    status: 'active',
+  }),
+  false
+);
+assert.equal(
+  isAdvisorParty({
+    id: 200,
+    trading_name: 'Walk-in member',
+    customer_type: 'consumer',
+    source: 'advisor_member',
+    status: 'active',
+  }),
+  true
+);
+assert.equal(
+  isAdvisorParty({
+    id: 201,
+    trading_name: 'Pat Patient',
+    customer_type: 'patient',
+    notes: 'advisor_ref:physio:pat_1',
+    status: 'active',
+  }),
+  true
+);
+assert.equal(
+  isAdvisorParty({
     id: 2,
     trading_name: 'Jarryd',
     customer_type: 'consumer',
@@ -74,14 +105,14 @@ const plan = planPartyGlAccounts({
   ],
 });
 
-assert.equal(plan.create.filter((c) => c.account_type === 'asset').length, 1);
+assert.equal(plan.create.filter((c) => c.account_type === 'asset').length, 2);
 assert.equal(plan.create[0].name, 'AR — Restore Africa Foundation');
 assert.equal(plan.create[0].code, '1182');
+assert.ok(plan.create.some((c) => c.name === 'AR — Walk-in member'));
 assert.ok(plan.create.some((c) => c.name === 'AP — Holtz Group'));
 assert.ok(plan.create.some((c) => c.name === 'AP — Kelpack Manufacturing (Pty) Ltd'));
 assert.equal(plan.create.filter((c) => c.name.startsWith('AP — Holtz')).length, 1);
 assert.ok(!plan.create.some((c) => /Gone/.test(c.name)));
-assert.ok(!plan.create.some((c) => /Walk-in/.test(c.name)));
 assert.ok(!plan.create.some((c) => c.code === '1130' || c.name === 'Accounts receivable'));
 
 const buzeLinks = plan.links.filter((l) => l.id === 6 && l.kind === 'ar');

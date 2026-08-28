@@ -16,6 +16,9 @@ import { readAdvisorEvents } from '@/lib/services/advisor-events';
 import { memberDebitBankComplete } from '@/lib/fitness/member-debit-bank';
 import {
   assembleCustomer360,
+  assembleLeftoverAdvisor360,
+  collectAdvisorCustomerPeople,
+  unsyncedAdvisorCustomerPeople,
   type Customer360,
   type LoosePerson,
 } from './customer-360';
@@ -77,6 +80,83 @@ function clinicPatients(
   }));
 }
 
+async function persistAdvisorCustomerStores(
+  companyId: number,
+  stores: ReturnType<typeof advisorStoresFromMeta>,
+  dirty: Set<string>
+) {
+  const { saveAdvisorModuleStore } = await import('@/lib/business/company-data');
+  const jobs: Promise<unknown>[] = [];
+  if (dirty.has('fitgraph')) {
+    const { saveFitgraphMerged } = await import('@/lib/fitness/fitgraph-io');
+    jobs.push(saveFitgraphMerged(companyId, stores.gym));
+  }
+  if (dirty.has('physiograph')) {
+    const { writePhysiographToMetadata } = await import(
+      '@/lib/clinic/physiograph'
+    );
+    jobs.push(
+      saveAdvisorModuleStore(
+        companyId,
+        'physiograph',
+        stores.physio,
+        writePhysiographToMetadata
+      )
+    );
+  }
+  if (dirty.has('dentalgraph')) {
+    const { writeDentalgraphToMetadata } = await import(
+      '@/lib/dental/dentalgraph'
+    );
+    jobs.push(
+      saveAdvisorModuleStore(
+        companyId,
+        'dentalgraph',
+        stores.dental,
+        writeDentalgraphToMetadata
+      )
+    );
+  }
+  if (dirty.has('medicalgraph')) {
+    const { writeMedicalgraphToMetadata } = await import(
+      '@/lib/clinic/medicalgraph'
+    );
+    jobs.push(
+      saveAdvisorModuleStore(
+        companyId,
+        'medicalgraph',
+        stores.medical,
+        writeMedicalgraphToMetadata
+      )
+    );
+  }
+  if (dirty.has('psychiatrygraph')) {
+    const { writePsychiatrygraphToMetadata } = await import(
+      '@/lib/clinic/psychiatrygraph'
+    );
+    jobs.push(
+      saveAdvisorModuleStore(
+        companyId,
+        'psychiatrygraph',
+        stores.psychiatry,
+        writePsychiatrygraphToMetadata
+      )
+    );
+  }
+  if (dirty.has('vetgraph')) {
+    const { writeVetgraphToMetadata } = await import('@/lib/clinic/vetgraph');
+    jobs.push(
+      saveAdvisorModuleStore(
+        companyId,
+        'vetgraph',
+        stores.vet,
+        writeVetgraphToMetadata
+      )
+    );
+  }
+  await Promise.all(jobs);
+}
+
 export function advisorStoresFromMeta(meta: Record<string, unknown>) {
   return {
     gym: readFitgraphFromMetadata(meta),
@@ -100,7 +180,7 @@ async function loadCustomersAndInvoices(companyId: number) {
         .select('*')
         .eq('profile_id', companyId)
         .order('trading_name')
-        .limit(500),
+        .limit(2000),
       supabase
         .from('customer_invoices')
         .select(
@@ -141,7 +221,45 @@ export async function loadCustomer360Bundle(
 }> {
   const { name: _n, meta } = await loadCompanyMeta(companyId);
   const stores = advisorStoresFromMeta(meta);
-  const { customers, invoices } = await loadCustomersAndInvoices(companyId);
+  let { customers, invoices } = await loadCustomersAndInvoices(companyId);
+  const people = collectAdvisorCustomerPeople({
+    gymClients: stores.gym.clients || [],
+    clinics: [
+      { module: 'physiograph', patients: stores.physio.patients || [] },
+      { module: 'dentalgraph', patients: stores.dental.patients || [] },
+      { module: 'medicalgraph', patients: stores.medical.patients || [] },
+      { module: 'psychiatrygraph', patients: stores.psychiatry.patients || [] },
+      { module: 'vetgraph', patients: stores.vet.patients || [] },
+    ],
+  });
+  const missing = unsyncedAdvisorCustomerPeople(
+    people,
+    customers.map((c) => ({
+      id: Number(c.id),
+      email: c.email ? String(c.email) : null,
+      notes: c.notes ? String(c.notes) : null,
+    }))
+  );
+  if (missing.length) {
+    const { attachCrmToAdvisorPerson } = await import(
+      '@/lib/b2c/member-account-ar'
+    );
+    const dirty = new Set<string>();
+    for (const row of missing.slice(0, 80)) {
+      const id = await attachCrmToAdvisorPerson({
+        companyId,
+        kind: row.kind,
+        person: row.person,
+      });
+      if (id) dirty.add(row.module);
+    }
+    if (dirty.size) {
+      await persistAdvisorCustomerStores(companyId, stores, dirty);
+      const reloaded = await loadCustomersAndInvoices(companyId);
+      customers = reloaded.customers;
+      invoices = reloaded.invoices;
+    }
+  }
   const clinics = [
     {
       module: 'physiograph',
@@ -255,7 +373,23 @@ export async function loadCustomer360Bundle(
     list = list.filter((c) => Number(c.id) === Number(opts.customerId));
   }
 
-  const rows = list.map((c) =>
+  const gymBundle = {
+    clients: stores.gym.clients || [],
+    subscriptions: stores.gym.subscriptions || [],
+    plans: stores.gym.membership_plans || [],
+    sessions: stores.gym.sessions || [],
+    bookings: stores.gym.bookings || [],
+    class_types: stores.gym.class_types || [],
+  };
+  const assembleOpts = {
+    invoices,
+    gym: gymBundle,
+    clinics,
+    hire: { bookings: stores.hire.bookings || [] },
+    events: stores.events,
+  };
+
+  const rows: Customer360[] = list.map((c) =>
     assembleCustomer360({
       customer: {
         id: Number(c.id),
@@ -268,20 +402,21 @@ export async function loadCustomer360Bundle(
         linked_profile_id: c.linked_profile_id,
         logo_url: (c as { logo_url?: string | null }).logo_url || null,
       },
-      invoices,
-      gym: {
-        clients: stores.gym.clients || [],
-        subscriptions: stores.gym.subscriptions || [],
-        plans: stores.gym.membership_plans || [],
-        sessions: stores.gym.sessions || [],
-        bookings: stores.gym.bookings || [],
-        class_types: stores.gym.class_types || [],
-      },
-      clinics,
-      hire: { bookings: stores.hire.bookings || [] },
-      events: stores.events,
+      ...assembleOpts,
     })
   );
+
+  if (!opts?.customerId) {
+    const leftover = unsyncedAdvisorCustomerPeople(
+      people,
+      customers.map((c) => ({
+        id: Number(c.id),
+        email: c.email ? String(c.email) : null,
+        notes: c.notes ? String(c.notes) : null,
+      }))
+    );
+    rows.push(...assembleLeftoverAdvisor360(leftover, assembleOpts));
+  }
 
   const filtered = opts?.kind
     ? rows.filter((r) => r.kinds.some((k) => customerKindMatches(k, opts.kind!)))

@@ -24,7 +24,8 @@ const SKIP_STATUS = new Set([
   'void',
 ]);
 
-/** Wallet / PWA members are CRM rows, not trade parties for bank allocation. */
+/** Wallet / walk-in shoppers are not trade buyers. Gym/clinic people still
+ *  get named AR via isAdvisorParty. */
 const SKIP_CUSTOMER_TYPES = new Set([
   'consumer',
   'member',
@@ -51,6 +52,7 @@ export type PartyBookRow = {
   status?: string | null;
   customer_type?: string | null;
   source?: string | null;
+  notes?: string | null;
   metadata?: Record<string, unknown> | null;
 };
 
@@ -123,6 +125,17 @@ export function isTradeParty(row: PartyBookRow): boolean {
   return Boolean(partyDisplayName(row));
 }
 
+/** Gym members / clinic patients are customers and get named AR on the CoA. */
+export function isAdvisorParty(row: PartyBookRow): boolean {
+  if (!row?.id || isSkippedPartyStatus(row.status)) return false;
+  if (!partyDisplayName(row)) return false;
+  const source = String(row.source || '').trim().toLowerCase();
+  if (source === 'advisor_member' || source.startsWith('advisor_')) return true;
+  if (String(row.notes || '').includes('advisor_ref:')) return true;
+  const t = String(row.customer_type || '').trim().toLowerCase();
+  return t === 'member' || t === 'patient';
+}
+
 /** New invoices post to the named party account when one exists. */
 export function pickRecognitionControlAccount(
   partyAccountId: number | null | undefined,
@@ -193,7 +206,7 @@ function collectParties(
 ): Map<string, { key: string; name: string; ids: number[] }> {
   const map = new Map<string, { key: string; name: string; ids: number[]; names: string[] }>();
   for (const row of rows) {
-    if (!isTradeParty(row)) continue;
+    if (!isTradeParty(row) && !isAdvisorParty(row)) continue;
     const display = partyDisplayName(row);
     if (!display) continue;
     const key = normalizePartyKey(display);
@@ -437,7 +450,7 @@ export async function ensurePartyGlAccounts(
   const supabase = getSupabaseServer();
   const [{ data: customers, error: cErr }, { data: suppliers, error: sErr }, { data: coa, error: aErr }] =
     await Promise.all([
-      loadBookRows(supabase, 'customers', profileId, 'customer_type, source'),
+      loadBookRows(supabase, 'customers', profileId, 'customer_type, source, notes'),
       loadBookRows(supabase, 'srm_suppliers', profileId),
       supabase
         .from('chart_of_accounts')

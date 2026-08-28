@@ -49,6 +49,16 @@ export async function applyGymSalePaystack(opts: {
       };
     }
     const applied = applyPaidGymSale(store, existing, { companyId });
+    const { attachCrmToAdvisorPerson } = await import(
+      '@/lib/b2c/member-account-ar'
+    );
+    await attachCrmToAdvisorPerson({
+      companyId,
+      kind: 'gym',
+      person: applied.client,
+    });
+    const ci = applied.store.clients.findIndex((c) => c.id === applied.client.id);
+    if (ci >= 0) applied.store.clients[ci] = applied.client;
     await saveWalletCompanyMeta(
       companyId,
       writeFitgraphToMetadata(company.meta, applied.store)

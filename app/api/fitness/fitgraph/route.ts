@@ -366,6 +366,20 @@ export async function POST(request: NextRequest) {
         );
       }
       const result = applyFitClientImport(store, parsed.rows, now);
+      const { attachCrmToAdvisorPerson } = await import(
+        '@/lib/b2c/member-account-ar'
+      );
+      let stamped = 0;
+      for (const person of store.clients || []) {
+        if (stamped >= 80) break;
+        if (person.crm_customer_id) continue;
+        const id = await attachCrmToAdvisorPerson({
+          companyId,
+          kind: 'gym',
+          person,
+        });
+        if (id) stamped += 1;
+      }
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
@@ -2587,24 +2601,15 @@ export async function POST(request: NextRequest) {
         });
         const ci = store.clients.findIndex((c) => c.id === person.id);
         if (ci >= 0) store.clients[ci] = linked.person;
-        try {
-          const { ensureAdvisorCrmCustomer } = await import(
-            '@/lib/b2c/member-account-ar'
-          );
-          const crm = await ensureAdvisorCrmCustomer({
-            companyId,
-            name: linked.person.name,
-            email: linked.person.email || null,
-            kind: 'gym',
-            refId: linked.person.id,
-          });
-          if (crm?.id) {
-            const next = { ...linked.person, crm_customer_id: crm.id };
-            if (ci >= 0) store.clients[ci] = next;
-          }
-        } catch {
-          /* CRM dual-write is best-effort */
-        }
+        const { attachCrmToAdvisorPerson } = await import(
+          '@/lib/b2c/member-account-ar'
+        );
+        await attachCrmToAdvisorPerson({
+          companyId,
+          kind: 'gym',
+          person: linked.person,
+        });
+        if (ci >= 0) store.clients[ci] = linked.person;
         walletInvite = {
           email_sent: linked.invite?.email_sent,
           warning: linked.invite?.warning,

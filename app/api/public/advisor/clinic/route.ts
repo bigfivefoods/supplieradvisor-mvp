@@ -380,6 +380,16 @@ export async function POST(req: NextRequest) {
       { status: bookedSlot.status }
     );
   }
+  {
+    const { attachCrmToAdvisorPerson } = await import(
+      '@/lib/b2c/member-account-ar'
+    );
+    await attachCrmToAdvisorPerson({
+      companyId: resolved.companyId,
+      kind: module,
+      person: patient,
+    });
+  }
   await saveModule(module, resolved.companyId, resolved.meta, bookedSlot.store);
 
   return NextResponse.json({

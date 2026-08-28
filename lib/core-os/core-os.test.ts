@@ -5,7 +5,12 @@ import assert from 'node:assert/strict';
 import {
   classifyCrmCustomer,
   advisorRefTag,
+  advisorKindAliases,
   assembleCustomer360,
+  assembleLeftoverAdvisor360,
+  collectAdvisorCustomerPeople,
+  personMatchesCustomer,
+  unsyncedAdvisorCustomerPeople,
   toWorkforceEmploymentType,
   resolveWorkforceEmployment,
   assemblePeople360,
@@ -111,6 +116,65 @@ assert.equal(c360.last_visit?.title, 'Functional Strength');
 assert.equal(c360.next_session?.date, '2026-08-20');
 assert.equal(c360.open_ar, 910);
 assert.equal(c360.identity.crm_customer_id, 9);
+
+assert.deepEqual(advisorKindAliases('gym').sort(), ['fitgraph', 'gym'].sort());
+assert.deepEqual(
+  advisorKindAliases('physiograph').sort(),
+  ['physio', 'physiograph'].sort()
+);
+assert.equal(
+  classifyCrmCustomer({ notes: advisorRefTag('gym', 'cli_9') }),
+  'gym_member'
+);
+assert.equal(
+  classifyCrmCustomer({ notes: advisorRefTag('physio', 'pat_9') }),
+  'clinic_patient'
+);
+assert.ok(
+  personMatchesCustomer(
+    { id: 'cli_1', name: 'Ann', email: null },
+    { id: 9, notes: advisorRefTag('gym', 'cli_1') },
+    'fitgraph'
+  )
+);
+assert.ok(
+  personMatchesCustomer(
+    { id: 'pat_1', name: 'Bo', email: null },
+    { id: 11, notes: advisorRefTag('physio', 'pat_1') },
+    'physiograph'
+  )
+);
+
+const gymOnly = collectAdvisorCustomerPeople({
+  gymClients: [
+    { id: 'cli_unsynced', name: 'New Member', email: 'new@example.com' },
+    { id: 'cli_1', name: 'Ann Vuka', email: 'ann@example.com', crm_customer_id: 9 },
+  ],
+  clinics: [
+    {
+      module: 'physiograph',
+      patients: [{ id: 'pat_unsynced', name: 'New Patient', email: null }],
+    },
+  ],
+});
+assert.equal(gymOnly.length, 3);
+const unsynced = unsyncedAdvisorCustomerPeople(gymOnly, [
+  {
+    id: 9,
+    email: 'ann@example.com',
+    notes: advisorRefTag('fitgraph', 'cli_1'),
+  },
+]);
+assert.equal(unsynced.length, 2);
+assert.ok(unsynced.some((r) => r.person.id === 'cli_unsynced'));
+assert.ok(unsynced.some((r) => r.person.id === 'pat_unsynced'));
+
+const leftover = assembleLeftoverAdvisor360(unsynced, { gym: undefined });
+assert.equal(leftover.length, 2);
+assert.ok(leftover.some((r) => r.kinds.includes('gym_member') && r.name === 'New Member'));
+assert.ok(
+  leftover.some((r) => r.kinds.includes('clinic_patient') && r.name === 'New Patient')
+);
 
 // 2. People workforce + leave
 assert.equal(toWorkforceEmploymentType('contractor'), 'contract');

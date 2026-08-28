@@ -1299,6 +1299,19 @@ export async function POST(request: NextRequest) {
         };
         store.bookings.push(booking);
       }
+      {
+        const person = store.clients.find((c) => c.id === clientId);
+        if (person) {
+          const { attachCrmToAdvisorPerson } = await import(
+            '@/lib/b2c/member-account-ar'
+          );
+          await attachCrmToAdvisorPerson({
+            companyId,
+            kind: 'gym',
+            person,
+          });
+        }
+      }
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,

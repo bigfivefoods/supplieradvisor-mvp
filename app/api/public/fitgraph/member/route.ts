@@ -584,6 +584,20 @@ export async function POST(request: NextRequest) {
         const local = findGymSaleByRef(store, reference);
         if (local && local.status !== 'paid') {
           const paid = applyPaidGymSale(store, local, { companyId });
+          {
+            const { attachCrmToAdvisorPerson } = await import(
+              '@/lib/b2c/member-account-ar'
+            );
+            await attachCrmToAdvisorPerson({
+              companyId,
+              kind: 'gym',
+              person: paid.client,
+            });
+            const ci = paid.store.clients.findIndex(
+              (c) => c.id === paid.client.id
+            );
+            if (ci >= 0) paid.store.clients[ci] = paid.client;
+          }
           await saveStore(companyId, meta, paid.store);
           const nextClient =
             paid.store.clients.find((c) => c.id === client.id) || paid.client;

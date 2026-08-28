@@ -4,6 +4,8 @@
 import {
   classifyCrmCustomer,
   advisorRefTag,
+  advisorKindAliases,
+  KIND_FROM_MODULE,
   type CoreCustomerKind,
 } from './kinds';
 import { emailsMatch, mergeIdentity, type IdentityLinks } from './identity';
@@ -135,9 +137,94 @@ export function personMatchesCustomer(
   if (person.crm_customer_id && Number(person.crm_customer_id) === Number(customer.id)) {
     return true;
   }
-  const tag = advisorRefTag(kind, person.id);
-  if (String(customer.notes || '').includes(tag)) return true;
+  const notes = String(customer.notes || '');
+  for (const alias of advisorKindAliases(kind)) {
+    if (notes.includes(advisorRefTag(alias, person.id))) return true;
+  }
   return emailsMatch(person.email, customer.email);
+}
+
+export type AdvisorCustomerPerson = {
+  module: string;
+  kind: string;
+  person: LoosePerson;
+};
+
+export function collectAdvisorCustomerPeople(opts: {
+  gymClients?: LoosePerson[] | null;
+  clinics?: Array<{ module: string; patients?: LoosePerson[] | null }>;
+}): AdvisorCustomerPerson[] {
+  const out: AdvisorCustomerPerson[] = [];
+  for (const p of opts.gymClients || []) {
+    if (!p?.id) continue;
+    out.push({ module: 'fitgraph', kind: 'gym', person: p });
+  }
+  for (const clinic of opts.clinics || []) {
+    const module = String(clinic.module || '');
+    for (const p of clinic.patients || []) {
+      if (!p?.id) continue;
+      out.push({ module, kind: module, person: p });
+    }
+  }
+  return out;
+}
+
+export function syntheticCustomerId(module: string, personId: string): number {
+  let h = 2166136261;
+  const s = `${module}:${personId}`;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  const n = Math.abs(h) % 1_000_000_000;
+  return n === 0 ? -1 : -n;
+}
+
+export function unsyncedAdvisorCustomerPeople(
+  people: AdvisorCustomerPerson[],
+  customers: Array<{ id: number; email?: string | null; notes?: string | null }>
+): AdvisorCustomerPerson[] {
+  return people.filter(
+    (row) =>
+      !row.person.crm_customer_id &&
+      !customers.some((c) => personMatchesCustomer(row.person, c, row.kind))
+  );
+}
+
+/** CRM-shaped row so unsynced gym/clinic people still assemble in Customer 360. */
+export function syntheticCustomerFromPerson(row: AdvisorCustomerPerson): {
+  id: number;
+  trading_name: string;
+  email: string | null;
+  phone: string | null;
+  source: string;
+  notes: string;
+  customer_type: string;
+} {
+  const clinic = KIND_FROM_MODULE[row.module] === 'clinic_patient';
+  return {
+    id: syntheticCustomerId(row.module, row.person.id),
+    trading_name: row.person.name || 'Customer',
+    email: row.person.email || null,
+    phone: row.person.phone || null,
+    source: 'advisor_member',
+    notes: advisorKindAliases(row.kind)
+      .map((alias) => advisorRefTag(alias, row.person.id))
+      .join('\n'),
+    customer_type: clinic ? 'patient' : 'member',
+  };
+}
+
+export function assembleLeftoverAdvisor360(
+  leftover: AdvisorCustomerPerson[],
+  opts: Omit<Parameters<typeof assembleCustomer360>[0], 'customer'>
+): Customer360[] {
+  return leftover.map((row) =>
+    assembleCustomer360({
+      ...opts,
+      customer: syntheticCustomerFromPerson(row),
+    })
+  );
 }
 
 function maskAcct(raw?: string): string | undefined {
