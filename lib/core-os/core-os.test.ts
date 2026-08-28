@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import {
   classifyCrmCustomer,
+  advisorModuleForCustomer,
   advisorRefTag,
   advisorKindAliases,
   advisorPartyCustomerType,
@@ -49,6 +50,11 @@ assert.equal(
   'clinic_patient'
 );
 assert.equal(classifyCrmCustomer({ source: 'website' }), 'trade');
+assert.equal(
+  advisorModuleForCustomer({ notes: advisorRefTag('fitgraph', 'cli_1') }),
+  'fitgraph'
+);
+assert.equal(advisorModuleForCustomer({ source: 'website' }), null);
 
 const c360 = assembleCustomer360({
   customer: {
