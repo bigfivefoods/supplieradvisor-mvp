@@ -2157,9 +2157,138 @@ export default function MemberFitgraphPortalPage() {
 
         {tab === 'profile' && (
           <div className="space-y-3">
-            <GymSectionTitle hint="PBs, injuries, class boards, ratings, and your gym records.">
+            <GymSectionTitle hint="Your goals, PBs, injuries, class boards, and gym records.">
               Profile
             </GymSectionTitle>
+            <MemberGoalsPanel
+              goals={portal.goals || []}
+              wearable={portal.wearable}
+              watchSessions={portal.watch_sessions}
+              pastClasses={portal.my_bookings
+                .filter((b) => b.upcoming === false || b.status === 'attended')
+                .slice(0, 12)
+                .map((b) => ({
+                  booking_id: b.booking_id,
+                  class_name: b.class_name,
+                  date: b.date,
+                  start_time: b.start_time,
+                }))}
+              busy={busyId === 'goals'}
+              onSaveGoal={async (v) => {
+                setBusyId('goals');
+                setError(null);
+                try {
+                  const data = await post({
+                    action: 'upsert_goal',
+                    kind: v.kind,
+                    title: v.title,
+                    category: v.category,
+                    start_value: v.start_value,
+                    target_value: v.target_value,
+                    target_date: v.target_date,
+                    unit: v.unit,
+                    direction: v.direction,
+                  });
+                  setMsg(data.message || 'Goal saved');
+                } catch (e: unknown) {
+                  setError(e instanceof Error ? e.message : 'Could not save goal');
+                  throw e;
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+              onHideGoal={async (goalId) => {
+                setBusyId('goals');
+                setError(null);
+                try {
+                  const data = await post({
+                    action: 'hide_goal',
+                    goal_id: goalId,
+                  });
+                  setMsg(data.message || 'Goal hidden');
+                } catch (e: unknown) {
+                  setError(e instanceof Error ? e.message : 'Could not hide goal');
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+              onLogActual={async (goalId, value) => {
+                setBusyId('goals');
+                setError(null);
+                try {
+                  const data = await post({
+                    action: 'log_goal',
+                    goal_id: goalId,
+                    value,
+                  });
+                  setMsg(data.message || 'Actual saved');
+                } catch (e: unknown) {
+                  setError(e instanceof Error ? e.message : 'Could not log actual');
+                  throw e;
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+              onWatchLog={async (v) => {
+                setBusyId('goals');
+                setError(null);
+                try {
+                  const data = await post({
+                    action: 'watch_log',
+                    booking_id: v.booking_id,
+                    source: v.source,
+                    duration_min: v.duration_min,
+                    distance_km: v.distance_km,
+                    calories: v.calories,
+                    avg_hr: v.avg_hr,
+                  });
+                  setMsg(data.message || 'Watch session saved');
+                } catch (e: unknown) {
+                  setError(e instanceof Error ? e.message : 'Could not save watch');
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+              onGarminConnect={async () => {
+                setBusyId('goals');
+                setError(null);
+                try {
+                  const data = await post({ action: 'garmin_start' });
+                  if (data.authorize_url) {
+                    window.location.href = String(data.authorize_url);
+                    return;
+                  }
+                } catch (e: unknown) {
+                  setError(e instanceof Error ? e.message : 'Garmin connect failed');
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+              onGarminImport={async () => {
+                setBusyId('goals');
+                setError(null);
+                try {
+                  const data = await post({ action: 'garmin_import' });
+                  setMsg(data.message || 'Garmin import done');
+                } catch (e: unknown) {
+                  setError(e instanceof Error ? e.message : 'Garmin import failed');
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+              onGarminDisconnect={async () => {
+                setBusyId('goals');
+                try {
+                  const data = await post({ action: 'garmin_disconnect' });
+                  setMsg(data.message || 'Garmin disconnected');
+                } catch (e: unknown) {
+                  setError(e instanceof Error ? e.message : 'Could not disconnect');
+                } finally {
+                  setBusyId(null);
+                }
+              }}
+              color={color}
+            />
             <GymProfileFolds
               leaderboards={portal.leaderboards || []}
               pbs={parsePersonalBests(portal.client.personal_bests)}

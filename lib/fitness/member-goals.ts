@@ -206,19 +206,25 @@ export function toMemberGoalView(goal: FitGoal): MemberGoalView {
 }
 
 function goalsForPerson(store: FitgraphStore, personId: string): FitGoal[] {
-  const byId = new Map<string, FitGoal>();
-  for (const g of store.goals || []) {
-    if (!g?.id || g.client_id !== personId) continue;
-    byId.set(g.id, g);
-  }
   const person =
     (store.clients || []).find((c) => c.id === personId) ||
     (store.coaches || []).find((c) => c.id === personId);
+  const onPerson = new Set((person?.goals || []).map((g) => g.id).filter(Boolean));
+  const byId = new Map<string, FitGoal>();
+  for (const g of store.goals || []) {
+    if (!g?.id) continue;
+    if (g.client_id === personId || (!g.client_id && onPerson.has(g.id))) {
+      byId.set(g.id, { ...g, client_id: g.client_id || personId });
+    }
+  }
   for (const g of person?.goals || []) {
     if (!g?.id) continue;
     if (g.client_id && g.client_id !== personId) continue;
     const prev = byId.get(g.id);
-    byId.set(g.id, prev ? mergeGoalProgress(prev, g) : { ...g, client_id: personId });
+    byId.set(
+      g.id,
+      prev ? mergeGoalProgress(prev, g) : { ...g, client_id: personId }
+    );
   }
   return [...byId.values()];
 }
@@ -336,14 +342,20 @@ export function upsertMemberGoalOnStore(
   stampGoalOnPerson(store, next);
 }
 
-function stampGoalOnPerson(store: FitgraphStore, goal: FitGoal) {
+function stampGoalOnPerson(
+  store: FitgraphStore,
+  goal: FitGoal,
+  opts?: { touch?: boolean }
+) {
   const stamp = (person: { id: string; goals?: FitGoal[]; updated_at?: string }) => {
     const list = [...(person.goals || [])];
     const i = list.findIndex((g) => g.id === goal.id);
     if (i >= 0) list[i] = goal;
     else list.unshift(goal);
     person.goals = list;
-    person.updated_at = goal.updated_at || new Date().toISOString();
+    if (opts?.touch !== false) {
+      person.updated_at = goal.updated_at || new Date().toISOString();
+    }
   };
   const client = (store.clients || []).find((c) => c.id === goal.client_id);
   if (client) stamp(client);
@@ -353,6 +365,7 @@ function stampGoalOnPerson(store: FitgraphStore, goal: FitGoal) {
 
 /** Pull goal copies off people if the gym blob dropped them. */
 export function hydrateGoalsFromPeople(store: FitgraphStore): void {
+  recoverGoalsFromSideChannels(store);
   const map = new Map<string, FitGoal>();
   for (const g of store.goals || []) {
     if (g?.id) map.set(g.id, g);
@@ -360,28 +373,167 @@ export function hydrateGoalsFromPeople(store: FitgraphStore): void {
   const people = [
     ...(store.clients || []),
     ...(store.coaches || []),
-  ] as Array<{ id: string; goals?: FitGoal[] }>;
+  ] as Array<{
+    id: string;
+    goals?: FitGoal[];
+    result_logs?: import('@/lib/fitness/person-records').FitResultLog[];
+  }>;
   for (const person of people) {
     for (const g of person.goals || []) {
       if (!g?.id) continue;
       const prev = map.get(g.id);
       if (!prev) {
-        map.set(g.id, g);
+        map.set(g.id, { ...g, client_id: g.client_id || person.id });
         continue;
       }
       map.set(g.id, mergeGoalProgress(prev, g));
     }
   }
   store.goals = [...map.values()];
-  for (const g of store.goals) stampGoalOnPerson(store, g);
+  for (const g of store.goals) stampGoalOnPerson(store, g, { touch: false });
+}
+
+function slugTitle(title: string): string {
+  return String(title || 'goal')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '')
+    .slice(0, 40) || 'goal';
+}
+
+function recoverGoalsFromSideChannels(store: FitgraphStore): void {
+  const people = [
+    ...(store.clients || []),
+    ...(store.coaches || []),
+  ] as Array<{
+    id: string;
+    goals?: FitGoal[];
+    result_logs?: Array<{
+      id?: string;
+      kind?: string;
+      title?: string;
+      value?: string;
+      numeric?: number | null;
+      unit?: string | null;
+      at?: string;
+      source_id?: string | null;
+    }>;
+  }>;
+  const goals = [...(store.goals || [])];
+  const byId = new Map(goals.filter((g) => g?.id).map((g) => [g.id, g]));
+
+  const ensure = (partial: FitGoal) => {
+    const prev = byId.get(partial.id);
+    if (!prev) {
+      byId.set(partial.id, partial);
+      goals.push(partial);
+      return partial;
+    }
+    const merged = mergeGoalProgress(prev, partial);
+    byId.set(partial.id, merged);
+    const idx = goals.findIndex((g) => g.id === partial.id);
+    if (idx >= 0) goals[idx] = merged;
+    return merged;
+  };
+
+  for (const person of people) {
+    for (const log of person.result_logs || []) {
+      if (log.kind !== 'goal') continue;
+      const title = String(log.title || '').trim();
+      if (!title) continue;
+      const gid =
+        String(log.source_id || '').trim() ||
+        `goal_${person.id}_${slugTitle(title)}`;
+      const numeric =
+        log.numeric != null && Number.isFinite(Number(log.numeric))
+          ? Number(log.numeric)
+          : parseGoalNumber(log.value);
+      const at = String(log.at || new Date().toISOString());
+      const existing =
+        byId.get(gid) ||
+        goals.find((g) => g.client_id === person.id && g.title === title);
+      const goal = ensure(
+        existing || {
+          id: gid,
+          client_id: person.id,
+          title,
+          category: 'physical',
+          status: 'active',
+          unit: log.unit || null,
+          start_value: numeric,
+          current_value: numeric,
+          check_ins: [],
+          created_at: at,
+          updated_at: at,
+          created_by_role: 'member',
+        }
+      );
+      if (numeric == null) continue;
+      const has = (goal.check_ins || []).some(
+        (c) =>
+          c.id === log.id ||
+          (c.at === at && Number(c.metric_value) === numeric)
+      );
+      if (has) continue;
+      goal.check_ins = [
+        ...(goal.check_ins || []),
+        {
+          id: String(log.id || '') || newId('gci'),
+          at,
+          by_role: 'member',
+          metric_value: numeric,
+          source: 'recovered',
+        },
+      ];
+      goal.current_value = numeric;
+      if (at > (goal.updated_at || '')) goal.updated_at = at;
+    }
+  }
+
+  for (const ev of store.journey_events || []) {
+    const kind = String(ev.kind || '');
+    if (!kind.startsWith('goal')) continue;
+    const clientId = String(ev.client_id || '');
+    if (!clientId) continue;
+    const rawTitle = String(ev.title || '').trim();
+    const title = rawTitle.replace(
+      /^Goal (set|achieved|check-in|progress):\s*/i,
+      ''
+    );
+    if (!title) continue;
+    const gid = String(ev.goal_id || '').trim() || `goal_ev_${ev.id}`;
+    if (byId.has(gid)) continue;
+    if (goals.some((g) => g.client_id === clientId && g.title === title)) continue;
+    ensure({
+      id: gid,
+      client_id: clientId,
+      title,
+      description: ev.body,
+      category: 'other',
+      status: kind === 'goal_achieved' ? 'achieved' : 'active',
+      check_ins: [],
+      created_at: ev.at,
+      updated_at: ev.at,
+      created_by_role:
+        ev.created_by_role === 'member' || ev.created_by_role === 'coach'
+          ? ev.created_by_role
+          : 'member',
+    });
+  }
+
+  store.goals = goals;
 }
 
 export function mergeGoalProgress(a: FitGoal, b: FitGoal): FitGoal {
   const checks = new Map<string, FitGoalCheckIn>();
   for (const c of [...(a.check_ins || []), ...(b.check_ins || [])]) {
-    if (!c?.id) continue;
-    const prev = checks.get(c.id);
-    if (!prev || String(c.at || '') >= String(prev.at || '')) checks.set(c.id, c);
+    if (!c) continue;
+    const id =
+      c.id ||
+      `gci_${String(c.at || '')}_${String(c.metric_value ?? '')}_${String(c.note || '')}`;
+    const row = { ...c, id };
+    const prev = checks.get(id);
+    if (!prev || String(row.at || '') >= String(prev.at || '')) checks.set(id, row);
   }
   const newer = String(b.updated_at || '') >= String(a.updated_at || '') ? b : a;
   const older = newer === b ? a : b;
@@ -402,6 +554,39 @@ export function mergeGoalProgress(a: FitGoal, b: FitGoal): FitGoal {
       String(x.at).localeCompare(String(y.at))
     ),
   };
+}
+
+/** If a merge/write dropped goals, keep the latest copies from the DB snapshot. */
+export function retainMemberProgress(
+  latest: FitgraphStore,
+  next: FitgraphStore
+): FitgraphStore {
+  const out: FitgraphStore = { ...next };
+  const nextGoals = [...(out.goals || [])];
+  const ids = new Set(nextGoals.map((g) => g.id).filter(Boolean));
+  for (const g of latest.goals || []) {
+    if (g?.id && !ids.has(g.id)) {
+      nextGoals.push(g);
+      ids.add(g.id);
+    }
+  }
+  out.goals = nextGoals;
+  const latestById = new Map((latest.clients || []).map((c) => [c.id, c]));
+  out.clients = (out.clients || []).map((c) => {
+    const prev = latestById.get(c.id);
+    if (!prev) return c;
+    return {
+      ...c,
+      goals: (c.goals || []).length ? c.goals : prev.goals,
+      personal_bests: (c.personal_bests || []).length
+        ? c.personal_bests
+        : prev.personal_bests,
+      result_logs: (c.result_logs || []).length
+        ? c.result_logs
+        : prev.result_logs,
+    };
+  });
+  return out;
 }
 
 export function applyGoalToStore(

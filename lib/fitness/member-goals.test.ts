@@ -12,6 +12,7 @@ import {
   logGoalActual,
   memberFacingGoals,
   parseGoalNumber,
+  retainMemberProgress,
 } from './member-goals';
 import { matchWatchToSession } from './wearables';
 import {
@@ -116,6 +117,49 @@ onlyOnPerson.clients = [
   } as never,
 ];
 assert.equal(memberFacingGoals(onlyOnPerson, 'c1')[0]?.target_value, 80);
+
+const recovered = emptyFitgraphStore();
+recovered.clients = [
+  {
+    id: 'c1',
+    name: 'Ada',
+    code: 'A',
+    created_at: '',
+    updated_at: '',
+    result_logs: [
+      {
+        id: 'r1',
+        kind: 'goal',
+        title: 'Lose weight',
+        value: '88',
+        numeric: 88,
+        unit: 'kg',
+        at: '2026-08-20T00:00:00Z',
+        source_id: 'goal_old',
+      },
+    ],
+  } as never,
+];
+hydrateGoalsFromPeople(recovered);
+assert.equal(memberFacingGoals(recovered, 'c1')[0]?.title, 'Lose weight');
+assert.equal(memberFacingGoals(recovered, 'c1')[0]?.actual, 88);
+
+const latestKeep = emptyFitgraphStore();
+latestKeep.goals = [
+  {
+    id: 'keep_me',
+    client_id: 'c1',
+    title: 'Keep',
+    category: 'physical',
+    status: 'active',
+    created_at: '2026-08-01',
+    updated_at: '2026-08-01',
+  } as never,
+];
+const wiped = emptyFitgraphStore();
+wiped.goals = [];
+const kept = retainMemberProgress(latestKeep, wiped);
+assert.equal(kept.goals?.some((g) => g.id === 'keep_me'), true);
 
 const store = emptyFitgraphStore();
 store.sessions.push({

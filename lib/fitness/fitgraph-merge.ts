@@ -179,14 +179,29 @@ function mergeClientRows(latest: unknown, incoming: unknown) {
           }
         : {}),
       goals: mergeGoalRows(latestRow.goals, incomingRow.goals),
-      personal_bests: parsePersonalBests([
-        ...asRows(latestRow.personal_bests),
-        ...asRows(incomingRow.personal_bests),
-      ]),
-      result_logs: parseResultLogs([
-        ...asRows(latestRow.result_logs),
-        ...asRows(incomingRow.result_logs),
-      ]),
+      personal_bests: (() => {
+        try {
+          return parsePersonalBests([
+            ...asRows(latestRow.personal_bests),
+            ...asRows(incomingRow.personal_bests),
+          ]);
+        } catch {
+          return mergeRowsById(
+            latestRow.personal_bests,
+            incomingRow.personal_bests
+          );
+        }
+      })(),
+      result_logs: (() => {
+        try {
+          return parseResultLogs([
+            ...asRows(latestRow.result_logs),
+            ...asRows(incomingRow.result_logs),
+          ]);
+        } catch {
+          return mergeRowsById(latestRow.result_logs, incomingRow.result_logs);
+        }
+      })(),
       injuries: mergeRowsById(latestRow.injuries, incomingRow.injuries),
     };
   });
