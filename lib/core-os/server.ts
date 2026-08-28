@@ -565,5 +565,3 @@ export async function loadAdvisorInsights(companyId: number) {
   ).length;
   return intelligenceFromEvents(stores.events, { debitReady, debitMissing });
 }
-
-export { classifyCrmCustomer };
