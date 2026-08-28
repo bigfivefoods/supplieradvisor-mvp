@@ -3,6 +3,11 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCustomersAccess } from '@/lib/customers/access';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import { bookIlikeOr } from '@/lib/security/book-search';
+import {
+  CUSTOMER_LIST_COLUMNS,
+  parseBeforeId,
+  parseListLimit,
+} from '@/lib/http/tenant-list';
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,12 +27,15 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = getSupabaseServer();
+    const limit = parseListLimit(request.nextUrl.searchParams.get('limit'));
+    const beforeId = parseBeforeId(request.nextUrl.searchParams.get('beforeId'));
     let query = supabase
       .from('customers')
-      .select('*')
+      .select(CUSTOMER_LIST_COLUMNS)
       .eq('profile_id', companyId)
-      .order('trading_name')
-      .limit(500);
+      .order('id', { ascending: false })
+      .limit(limit);
+    if (beforeId) query = query.lt('id', beforeId);
     if (status && status !== 'all') query = query.eq('status', status);
     const orClause = bookIlikeOr(q, [
       'trading_name',
@@ -44,12 +52,13 @@ export async function GET(request: NextRequest) {
     let usedOr = Boolean(orClause);
     let { data, error } = await query;
     if (error && orClause) {
-      const retry = supabase
+      let retry = supabase
         .from('customers')
-        .select('*')
+        .select(CUSTOMER_LIST_COLUMNS)
         .eq('profile_id', companyId)
-        .order('trading_name')
-        .limit(500);
+        .order('id', { ascending: false })
+        .limit(limit);
+      if (beforeId) retry = retry.lt('id', beforeId);
       const again =
         status && status !== 'all' ? retry.eq('status', status) : retry;
       const second = await again;

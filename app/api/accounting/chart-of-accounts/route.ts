@@ -50,22 +50,19 @@ export async function GET(request: NextRequest) {
     }
 
     const includePartyLeaves =
-      request.nextUrl.searchParams.get('party_leaves') === '1' || Boolean(q);
-    if (!includePartyLeaves) {
-      const headers = accounts.filter((a) => a.is_header);
-      const rest = accounts.filter(
-        (a) =>
-          !a.is_header &&
-          !/^1180-|^2180-|^4400-/.test(String(a.code || ''))
-      );
-      accounts = [...headers, ...rest];
+      request.nextUrl.searchParams.get('party_leaves') === '1';
+    const FACE = new Set(['1130', '1135', '2110', '2140', '2180', '1180']);
+    if (!includePartyLeaves && !q) {
+      accounts = accounts.filter((a) => {
+        const code = String(a.code || '');
+        if (/^(1180|2180|4400)-/.test(code)) return false;
+        return a.is_header || FACE.has(code);
+      });
     }
-    const limitRaw = Number(request.nextUrl.searchParams.get('limit') || 0);
-    if (Number.isFinite(limitRaw) && limitRaw > 0) {
-      const limit = Math.min(limitRaw, 2000);
-      const offset = Math.max(0, Number(request.nextUrl.searchParams.get('offset') || 0) || 0);
-      accounts = accounts.slice(offset, offset + limit);
-    }
+    const limitRaw = Number(request.nextUrl.searchParams.get('limit') || 50);
+    const limit = Math.min(Math.max(Number.isFinite(limitRaw) ? limitRaw : 50, 1), 100);
+    const offset = Math.max(0, Number(request.nextUrl.searchParams.get('offset') || 0) || 0);
+    accounts = accounts.slice(offset, offset + limit);
 
     // Totals are opt-in — never scan every journal on the CoA list.
     const wantBalances =

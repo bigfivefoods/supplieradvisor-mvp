@@ -232,6 +232,7 @@ export async function buildAfsPack(opts: {
   const accountsRaw = await getCachedCoa(opts.profileId);
   const accounts: CoaRow[] = (accountsRaw || [])
     .filter((a) => !a.is_header)
+    .filter((a) => !/^(1180|2180|4400)-/.test(String(a.code || '')))
     .map((a) => ({
       id: Number(a.id),
       code: String(a.code || ''),

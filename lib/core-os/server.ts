@@ -16,17 +16,12 @@ import { readAdvisorEvents } from '@/lib/services/advisor-events';
 import { memberDebitBankComplete } from '@/lib/fitness/member-debit-bank';
 import {
   assembleCustomer360,
-  assembleLeftoverAdvisor360,
-  collectAdvisorCustomerPeople,
-  unsyncedAdvisorCustomerPeople,
   type Customer360,
-  type LoosePerson,
 } from './customer-360';
-import { classifyCrmCustomer, customerKindMatches } from './kinds';
+import { customerKindMatches } from './kinds';
 import {
   assemblePeople360,
   sessionPayLines,
-  unsyncedAdvisorStaff,
   type People360,
 } from './people';
 import {
@@ -56,28 +51,6 @@ export async function loadCompanyMeta(companyId: number) {
     name: company?.name || `Company #${companyId}`,
     meta: company?.meta || {},
   };
-}
-
-function clinicPatients(
-  rows: Array<{
-    id: string;
-    name: string;
-    email?: string | null;
-    phone?: string | null;
-    crm_customer_id?: number | null;
-    platform_user_id?: string | null;
-    family?: LoosePerson['family'];
-  }>
-): LoosePerson[] {
-  return rows.map((p) => ({
-    id: p.id,
-    name: p.name,
-    email: p.email ?? null,
-    phone: p.phone ?? null,
-    crm_customer_id: p.crm_customer_id ?? null,
-    platform_user_id: p.platform_user_id ?? null,
-    family: p.family,
-  }));
 }
 
 export function advisorStoresFromMeta(meta: Record<string, unknown>) {
@@ -156,218 +129,108 @@ async function loadAdvisorStoresFor360(companyId: number) {
   return { name, meta, stores };
 }
 
-async function loadCustomersAndInvoices(companyId: number) {
+const CUSTOMER_360_COLUMNS =
+  'id, trading_name, contact_name, email, phone, source, notes, customer_type, linked_profile_id, logo_url, metadata, status';
+const INVOICE_360_COLUMNS =
+  'id, invoice_number, status, total_amount, amount_paid, due_date, notes, customer_id';
+
+/** Bounded CRM load — never the whole book. Pass customerId or a page limit. */
+export async function loadCustomersAndInvoices(
+  companyId: number,
+  opts: { customerId?: number; limit?: number; beforeId?: number }
+) {
   const supabase = getSupabaseServer();
-  const [{ data: customers }, { data: crmInvoices }, { data: glInvoices }] =
-    await Promise.all([
+  const customerId = Number(opts.customerId || 0);
+  const limit = Math.min(Math.max(Number(opts.limit || 50), 1), 100);
+
+  if (customerId > 0) {
+    const [{ data: customer }, { data: crmInvoices }] = await Promise.all([
       supabase
         .from('customers')
-        .select('*')
+        .select(CUSTOMER_360_COLUMNS)
         .eq('profile_id', companyId)
-        .order('trading_name')
-        .limit(2000),
+        .eq('id', customerId)
+        .maybeSingle(),
       supabase
         .from('customer_invoices')
-        .select(
-          'id, invoice_number, status, total_amount, amount_paid, due_date, notes, customer_id'
-        )
+        .select(INVOICE_360_COLUMNS)
         .eq('profile_id', companyId)
+        .eq('customer_id', customerId)
         .order('id', { ascending: false })
-        .limit(400),
-      supabase
-        .from('invoices')
-        .select(
-          'id, invoice_number, status, total_amount, amount_paid, due_date, notes, customer_id, direction'
-        )
-        .eq('profile_id', companyId)
-        .eq('direction', 'receivable')
-        .order('id', { ascending: false })
-        .limit(400),
+        .limit(100),
     ]);
-  const invoices = [
-    ...(crmInvoices || []),
-    ...(glInvoices || []).filter(
-      (g) =>
-        !(crmInvoices || []).some(
-          (c) => String(c.invoice_number) === String(g.invoice_number)
-        )
-    ),
-  ];
-  return { customers: customers || [], invoices };
+    return {
+      customers: customer ? [customer] : [],
+      invoices: crmInvoices || [],
+    };
+  }
+
+  let cq = supabase
+    .from('customers')
+    .select(CUSTOMER_360_COLUMNS)
+    .eq('profile_id', companyId)
+    .order('id', { ascending: false })
+    .limit(limit);
+  const beforeId = Number(opts.beforeId || 0);
+  if (beforeId > 0) cq = cq.lt('id', beforeId);
+  const { data: customers } = await cq;
+  const ids = (customers || []).map((c) => Number(c.id)).filter((n) => n > 0);
+  if (!ids.length) return { customers: customers || [], invoices: [] };
+  const { data: crmInvoices } = await supabase
+    .from('customer_invoices')
+    .select(INVOICE_360_COLUMNS)
+    .eq('profile_id', companyId)
+    .in('customer_id', ids)
+    .order('id', { ascending: false })
+    .limit(200);
+  return { customers: customers || [], invoices: crmInvoices || [] };
 }
 
 export async function loadCustomer360Bundle(
   companyId: number,
-  opts?: { customerId?: number; kind?: string }
+  opts?: { customerId?: number; kind?: string; limit?: number; beforeId?: number }
 ): Promise<{
   rows: Customer360[];
   counts: Record<string, number>;
   events: ReturnType<typeof readAdvisorEvents>;
 }> {
-  const { name: _n, meta, stores } = await loadAdvisorStoresFor360(companyId);
-  const { customers, invoices } = await loadCustomersAndInvoices(companyId);
-  const people = collectAdvisorCustomerPeople({
-    gymClients: stores.gym.clients || [],
-    clinics: [
-      { module: 'physiograph', patients: stores.physio.patients || [] },
-      { module: 'dentalgraph', patients: stores.dental.patients || [] },
-      { module: 'medicalgraph', patients: stores.medical.patients || [] },
-      { module: 'psychiatrygraph', patients: stores.psychiatry.patients || [] },
-      { module: 'vetgraph', patients: stores.vet.patients || [] },
-    ],
-    retailCustomers: (stores.retail.customers || []).map((c) => ({
-      id: c.id,
-      name: c.name,
-      email: c.email ?? null,
-      phone: c.phone ?? null,
-      crm_customer_id: c.crm_customer_id ?? null,
-    })),
+  const { customers, invoices } = await loadCustomersAndInvoices(companyId, {
+    customerId: opts?.customerId,
+    limit: opts?.limit,
+    beforeId: opts?.beforeId,
   });
-  const customerRefs = () =>
-    customers.map((c) => ({
-      id: Number(c.id),
-      email: c.email ? String(c.email) : null,
-      notes: c.notes ? String(c.notes) : null,
-    }));
-  const clinics = [
-    {
-      module: 'physiograph',
-      patients: clinicPatients(stores.physio.patients || []),
-      appointments: (stores.physio.appointments || []).map((a) => ({
-        id: a.id,
-        date: a.date,
-        start_time: a.start_time,
-        class_type_id: a.service_id,
-        status: a.status,
-      })),
-      bookings: (stores.physio.bookings || []).map((b) => ({
-        id: b.id,
-        appointment_id: b.appointment_id,
-        patient_id: b.patient_id,
-        status: b.status,
-      })),
-      services: (stores.physio.services || []).map((s) => ({
-        id: s.id,
-        name: s.name,
-      })),
-    },
-    {
-      module: 'dentalgraph',
-      patients: clinicPatients(stores.dental.patients || []),
-      appointments: (stores.dental.appointments || []).map((a) => ({
-        id: a.id,
-        date: a.date,
-        start_time: a.start_time,
-        class_type_id: a.service_id,
-        status: a.status,
-      })),
-      bookings: (stores.dental.bookings || []).map((b) => ({
-        id: b.id,
-        appointment_id: b.appointment_id,
-        patient_id: b.patient_id,
-        status: b.status,
-      })),
-      services: (stores.dental.services || []).map((s) => ({
-        id: s.id,
-        name: s.name,
-      })),
-    },
-    {
-      module: 'medicalgraph',
-      patients: clinicPatients(stores.medical.patients || []),
-      appointments: (stores.medical.appointments || []).map((a) => ({
-        id: a.id,
-        date: a.date,
-        start_time: a.start_time,
-        class_type_id: a.service_id,
-        status: a.status,
-      })),
-      bookings: (stores.medical.bookings || []).map((b) => ({
-        id: b.id,
-        appointment_id: b.appointment_id,
-        patient_id: b.patient_id,
-        status: b.status,
-      })),
-      services: (stores.medical.services || []).map((s) => ({
-        id: s.id,
-        name: s.name,
-      })),
-    },
-    {
-      module: 'psychiatrygraph',
-      patients: clinicPatients(stores.psychiatry.patients || []),
-      appointments: (stores.psychiatry.appointments || []).map((a) => ({
-        id: a.id,
-        date: a.date,
-        start_time: a.start_time,
-        class_type_id: a.service_id,
-        status: a.status,
-      })),
-      bookings: (stores.psychiatry.bookings || []).map((b) => ({
-        id: b.id,
-        appointment_id: b.appointment_id,
-        patient_id: b.patient_id,
-        status: b.status,
-      })),
-      services: (stores.psychiatry.services || []).map((s) => ({
-        id: s.id,
-        name: s.name,
-      })),
-    },
-    {
-      module: 'vetgraph',
-      patients: clinicPatients(stores.vet.patients || []),
-      appointments: (stores.vet.appointments || []).map((a) => ({
-        id: a.id,
-        date: a.date,
-        start_time: a.start_time,
-        class_type_id: a.service_id,
-        status: a.status,
-      })),
-      bookings: (stores.vet.bookings || []).map((b) => ({
-        id: b.id,
-        appointment_id: b.appointment_id,
-        patient_id: b.patient_id,
-        status: b.status,
-      })),
-      services: (stores.vet.services || []).map((s) => ({
-        id: s.id,
-        name: s.name,
-      })),
-    },
-  ];
-
-  let list = customers;
-  if (opts?.customerId) {
-    list = list.filter((c) => Number(c.id) === Number(opts.customerId));
-  }
-
-  const gymBundle = {
-    clients: stores.gym.clients || [],
-    subscriptions: stores.gym.subscriptions || [],
-    plans: stores.gym.membership_plans || [],
-    sessions: stores.gym.sessions || [],
-    bookings: stores.gym.bookings || [],
-    class_types: stores.gym.class_types || [],
-  };
   const assembleOpts = {
     invoices,
-    gym: gymBundle,
-    clinics,
-    hire: { bookings: stores.hire.bookings || [] },
-    retail: {
-      customers: (stores.retail.customers || []).map((c) => ({
-        id: c.id,
-        name: c.name,
-        email: c.email ?? null,
-        phone: c.phone ?? null,
-        crm_customer_id: c.crm_customer_id ?? null,
-      })),
-    },
-    events: stores.events,
+    gym: null,
+    clinics: [] as Array<{
+      module: string;
+      patients: LoosePerson[];
+      appointments: Array<{
+        id: string;
+        date: string;
+        start_time?: string;
+        class_type_id?: string;
+        status?: string;
+      }>;
+      bookings: Array<{
+        id: string;
+        appointment_id?: string;
+        patient_id?: string;
+        status?: string;
+      }>;
+      services: Array<{ id: string; name: string }>;
+    }>,
+    hire: null,
+    retail: null,
+    events: [] as Array<{
+      at: string;
+      type: string;
+      person_id?: string | null;
+      meta?: Record<string, unknown>;
+    }>,
   };
 
-  const rows: Customer360[] = list.map((c) =>
+  const rows: Customer360[] = customers.map((c) =>
     assembleCustomer360({
       customer: {
         id: Number(c.id),
@@ -392,32 +255,32 @@ export async function loadCustomer360Bundle(
     })
   );
 
-  if (!opts?.customerId) {
-    rows.push(
-      ...assembleLeftoverAdvisor360(
-        unsyncedAdvisorCustomerPeople(people, customerRefs()),
-        assembleOpts
-      )
-    );
-  }
-
   const filtered = opts?.kind
     ? rows.filter((r) => r.kinds.some((k) => customerKindMatches(k, opts.kind!)))
     : rows;
 
+  const supabase = getSupabaseServer();
+  const { count: totalCustomers } = await supabase
+    .from('customers')
+    .select('id', { count: 'exact', head: true })
+    .eq('profile_id', companyId);
+
   const counts: Record<string, number> = {
-    all: rows.length,
+    all: Number(totalCustomers || filtered.length),
     trade: 0,
     gym_member: 0,
     clinic_patient: 0,
     hire_customer: 0,
     retail_customer: 0,
   };
-  for (const r of rows) {
+  for (const r of filtered) {
     for (const k of r.kinds) counts[k] = (counts[k] || 0) + 1;
   }
+  if (!opts?.customerId) {
+    counts.all = Number(totalCustomers || filtered.length);
+  }
 
-  return { rows: filtered, counts, events: stores.events };
+  return { rows: filtered, counts, events: [] };
 }
 
 export async function loadPeople360Bundle(companyId: number): Promise<{
@@ -428,18 +291,19 @@ export async function loadPeople360Bundle(companyId: number): Promise<{
 }> {
   const supabase = getSupabaseServer();
   const { meta } = await loadCompanyMeta(companyId);
-  const stores = advisorStoresFromMeta(meta);
   const [{ data: employees }, { data: leaveRows }] = await Promise.all([
     supabase
       .from('employees')
-      .select('*')
+      .select('id, full_name, email, employment_type, hourly_rate, metadata')
       .eq('profile_id', companyId)
-      .limit(400),
+      .order('id', { ascending: false })
+      .limit(50),
     supabase
       .from('hr_leave_requests')
-      .select('*')
+      .select('id, employee_id, start_date, end_date, status, leave_type')
       .eq('profile_id', companyId)
-      .limit(300),
+      .order('id', { ascending: false })
+      .limit(50),
   ]);
   const emps = employees || [];
   const leave = [
@@ -452,13 +316,7 @@ export async function loadPeople360Bundle(companyId: number): Promise<{
         ? (e.metadata as Record<string, unknown>)
         : {};
     const module = metaE.service_module ? String(metaE.service_module) : null;
-    const personId = metaE.service_person_id
-      ? String(metaE.service_person_id)
-      : null;
-    let staff = null;
-    if (module === 'fitgraph' && personId) {
-      staff = (stores.gym.coaches || []).find((c) => c.id === personId) || null;
-    }
+    const staff = null;
     return assemblePeople360({
       employee: {
         id: Number(e.id),
@@ -474,68 +332,17 @@ export async function loadPeople360Bundle(companyId: number): Promise<{
     });
   });
 
-  const staffAll = [
-    ...(stores.gym.coaches || []).map((c) => ({
-      ...c,
-      module: 'fitgraph',
-      email: c.email || null,
-    })),
-    ...(stores.physio.practitioners || []).map((c) => ({
-      ...c,
-      module: 'physiograph',
-      email: c.email || null,
-    })),
-    ...(stores.dental.staff || []).map((c) => ({
-      ...c,
-      module: 'dentalgraph',
-      email: c.email || null,
-    })),
-    ...(stores.medical.practitioners || []).map((c) => ({
-      ...c,
-      module: 'medicalgraph',
-      email: c.email || null,
-    })),
-    ...(stores.psychiatry.practitioners || []).map((c) => ({
-      ...c,
-      module: 'psychiatrygraph',
-      email: c.email || null,
-    })),
-    ...(stores.vet.practitioners || []).map((c) => ({
-      ...c,
-      module: 'vetgraph',
-      email: c.email || null,
-    })),
-  ];
-  const unsynced = unsyncedAdvisorStaff(staffAll, emps).map((s) => ({
-    id: s.id,
-    name: s.name,
-    module: s.module,
-    email: s.email || null,
-  }));
-
-  const from = new Date();
-  from.setDate(1);
-  const to = new Date();
+  const unsynced: Array<{
+    id: string;
+    name: string;
+    module: string;
+    email?: string | null;
+  }> = [];
   const pay = sessionPayLines({
-    staff: staffAll,
-    sessions: [
-      ...(stores.gym.sessions || []).map((s) => ({
-        id: s.id,
-        coach_id: s.coach_id,
-        date: s.date,
-        status: s.status,
-        duration_min: s.duration_min,
-      })),
-      ...(stores.physio.appointments || []).map((a) => ({
-        id: a.id,
-        practitioner_id: a.practitioner_id,
-        date: a.date,
-        status: a.status,
-        duration_min: a.duration_min,
-      })),
-    ],
-    from: from.toISOString().slice(0, 10),
-    to: to.toISOString().slice(0, 10),
+    staff: [],
+    sessions: [],
+    from: new Date().toISOString().slice(0, 10),
+    to: new Date().toISOString().slice(0, 10),
   });
 
   return { rows, unsynced, pay, leave };

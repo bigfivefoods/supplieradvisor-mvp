@@ -1623,21 +1623,14 @@ export async function ensurePartyGlAccounts(
   return { created, linked };
 }
 
-/** Never throws — call after any customer or supplier create. */
+/** Brief 9 no-op — full-book ensure is never on a request. Use ensurePartyGlLeaf. */
 export async function ensurePartyGlAccountsSafe(profileId: number): Promise<void> {
-  try {
-    await ensurePartyGlAccounts(profileId);
-  } catch (err) {
-    console.warn('[party-gl] ensure failed', profileId, err);
-  }
+  void profileId;
 }
 
-/** Same as safe, but skip if this company was provisioned recently. */
+/** Brief 9 no-op. Explicit backfill is POST CoA { ensure_party: true }. */
 export async function ensurePartyGlAccountsCached(profileId: number): Promise<void> {
-  if (!Number.isFinite(profileId) || profileId <= 0) return;
-  if (ttlGet(partyGlCacheKey(profileId))) return;
-  ttlSet(partyGlCacheKey(profileId), 1, PARTY_GL_CACHE_MS);
-  await ensurePartyGlAccountsSafe(profileId);
+  void profileId;
 }
 
 export async function resolvePartyControlAccountId(opts: {

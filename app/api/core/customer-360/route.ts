@@ -10,7 +10,7 @@ import { attachInvoiceToCharge } from '@/lib/b2c/member-account-ar';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 15;
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,9 +24,13 @@ export async function GET(request: NextRequest) {
     if (!gate.ok) return gate.response;
     const customerId = Number(request.nextUrl.searchParams.get('customerId') || 0);
     const kind = request.nextUrl.searchParams.get('kind') || undefined;
+    const limit = Number(request.nextUrl.searchParams.get('limit') || 50);
+    const beforeId = Number(request.nextUrl.searchParams.get('beforeId') || 0);
     const bundle = await loadCustomer360Bundle(companyId, {
       customerId: customerId > 0 ? customerId : undefined,
       kind,
+      limit,
+      beforeId: beforeId > 0 ? beforeId : undefined,
     });
     return NextResponse.json({ success: true, ...bundle });
   } catch (e: unknown) {

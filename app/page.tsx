@@ -58,17 +58,19 @@ import {
   Share2,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import LandingNav from '@/components/marketing/LandingNav';
-import HomePricing from '@/components/marketing/HomePricing';
 import HeroAudienceStage from '@/components/marketing/HeroAudienceStage';
-import ComparePlatforms from '@/components/marketing/ComparePlatforms';
-import SocialProofStrip from '@/components/marketing/SocialProofStrip';
-import ProductVideo from '@/components/marketing/ProductVideo';
-import ReplaceStackDiagram from '@/components/marketing/ReplaceStackDiagram';
-import RoiCalculator from '@/components/marketing/RoiCalculator';
-import SecurityStrip from '@/components/marketing/SecurityStrip';
-import SuperCubeStory from '@/components/marketing/SuperCubeStory';
-import IndustriesStrip from '@/components/marketing/IndustriesStrip';
+
+const HomePricing = dynamic(() => import('@/components/marketing/HomePricing'), { ssr: false });
+const ComparePlatforms = dynamic(() => import('@/components/marketing/ComparePlatforms'), { ssr: false });
+const SocialProofStrip = dynamic(() => import('@/components/marketing/SocialProofStrip'), { ssr: false });
+const ProductVideo = dynamic(() => import('@/components/marketing/ProductVideo'), { ssr: false });
+const ReplaceStackDiagram = dynamic(() => import('@/components/marketing/ReplaceStackDiagram'), { ssr: false });
+const RoiCalculator = dynamic(() => import('@/components/marketing/RoiCalculator'), { ssr: false });
+const SecurityStrip = dynamic(() => import('@/components/marketing/SecurityStrip'), { ssr: false });
+const SuperCubeStory = dynamic(() => import('@/components/marketing/SuperCubeStory'), { ssr: false });
+const IndustriesStrip = dynamic(() => import('@/components/marketing/IndustriesStrip'), { ssr: false });
 import {
   OpsMock,
   SrmMock,

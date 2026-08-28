@@ -11,7 +11,6 @@ import {
 } from '@/lib/connections/types';
 import {
   findConnectionBetween,
-  seedRequesterBooksFromPendingInvites,
   softSyncSuspend,
   syncBooksOnAccept,
   syncBooksOnInvite,
@@ -48,15 +47,6 @@ export async function GET(request: NextRequest) {
 
     let membershipWarning: string | undefined;
 
-    // Pending outbound requests → CRM so quote/invoice works before accept
-    try {
-      await seedRequesterBooksFromPendingInvites(companyId, {
-        userId: privyUserId || null,
-      });
-    } catch {
-      /* soft */
-    }
-
     const supabase = getSupabaseServer();
 
     // Fetch edges where we are either side
@@ -68,7 +58,7 @@ export async function GET(request: NextRequest) {
       )
       .or(`requester_profile_id.eq.${companyId},requestee_profile_id.eq.${companyId}`)
       .order('updated_at', { ascending: false })
-      .limit(500);
+      .limit(50);
 
     if (statusFilter && statusFilter !== 'all') {
       if (statusFilter === 'suspended') {

@@ -6,7 +6,7 @@ import { invoiceBalance, isOverdue } from '@/lib/accounting/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import { jsonKpi } from '@/lib/http/response-cache';
 import { withCompanyKpiCache } from '@/lib/dashboard/kpi-cache';
-import { getCachedCoa, getCachedSettings } from '@/lib/accounting/read-cache';
+import { getCachedSettings } from '@/lib/accounting/read-cache';
 
 /** GET ?companyId=&privyUserId= — Accounting hub KPIs */
 export async function GET(request: NextRequest) {
@@ -36,9 +36,17 @@ async function assembleAccountingSummary(companyId: number) {
     const supabase = getSupabaseServer();
     const { start, end } = monthBounds();
 
-    const [coaRows, journalsPosted, journalsDraft, invoiceRollup, payments, banks, bankTxn, entities, assets, settings] =
+    const [coaCount, coaActive, journalsPosted, journalsDraft, invoiceRollup, payments, banks, bankTxn, entities, assets, settings] =
       await Promise.all([
-        getCachedCoa(companyId),
+        supabase
+          .from('chart_of_accounts')
+          .select('id', { count: 'exact', head: true })
+          .eq('profile_id', companyId),
+        supabase
+          .from('chart_of_accounts')
+          .select('id', { count: 'exact', head: true })
+          .eq('profile_id', companyId)
+          .eq('is_active', true),
         supabase
           .from('journal_entries')
           .select('id', { count: 'exact', head: true })
@@ -112,8 +120,8 @@ async function assembleAccountingSummary(companyId: number) {
     return {
       success: true,
       summary: {
-        coaCount: coaRows.length,
-        coaActive: coaRows.filter((c) => c.is_active !== false).length,
+        coaCount: coaCount.count || 0,
+        coaActive: coaActive.count || 0,
         journalsPosted: journalsPosted.count || 0,
         journalsDraft: journalsDraft.count || 0,
         arOpen: invKpis.arOpen,
@@ -224,15 +232,17 @@ async function loadInvoiceKpis(
     }
   }
 
-  const invoices = await supabase
-    .from('invoices')
-    .select(
-      'id, direction, status, total_amount, amount_paid, due_date, currency'
-    )
-    .eq('profile_id', companyId)
-    .limit(2000);
   return {
-    kpis: kpisFromInvoiceRows(invoices.data || []),
-    error: invoices.error,
+    kpis: {
+      arOpen: 0,
+      arOpenAmount: 0,
+      arOverdue: 0,
+      arOverdueAmount: 0,
+      apOpen: 0,
+      apOpenAmount: 0,
+      apOverdue: 0,
+      apOverdueAmount: 0,
+    },
+    error: rpc.error,
   };
 }

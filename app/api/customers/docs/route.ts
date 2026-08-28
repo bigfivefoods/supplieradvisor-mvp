@@ -203,12 +203,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, document: data, type: kind });
     }
 
+    const listCols =
+      kind === 'invoice'
+        ? 'id, status, invoice_number, customer_id, customer_name, total_amount, amount_paid, currency, due_date, created_at, contact_email, visibility, items'
+        : kind === 'order'
+          ? 'id, status, order_number, customer_id, customer_name, total_amount, currency, created_at, contact_email, visibility, items'
+          : 'id, status, quote_number, customer_id, customer_name, total_amount, currency, created_at, contact_email, visibility, items, valid_until';
     let q = supabase
       .from(table)
-      .select('*')
+      .select(listCols)
       .eq('profile_id', companyId)
-      .order('created_at', { ascending: false })
-      .limit(200);
+      .order('id', { ascending: false })
+      .limit(50);
     if (status && status !== 'all') q = q.eq('status', status);
 
     const { data, error } = await q;
