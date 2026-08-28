@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 import { jsonKpi } from '@/lib/http/response-cache';
 import { withCompanyKpiCache } from '@/lib/dashboard/kpi-cache';
-import { assembleDashboardSummary } from '@/app/api/dashboard/summary/route';
+import { assembleDashboardSummary } from '@/lib/dashboard/assemble-home';
 
 /**
- * Brief 10 — one dashboard first-paint payload.
+ * Brief 10/11 — one dashboard first-paint payload (rollup RPCs only).
  * GET ?companyId=  (same body as POST /api/dashboard/summary)
  */
 export async function GET(request: NextRequest) {

@@ -18,7 +18,7 @@ import {
   assembleCustomer360,
   type Customer360,
 } from './customer-360';
-import { customerKindMatches } from './kinds';
+import { advisorModuleForCustomer, customerKindMatches } from './kinds';
 import {
   assemblePeople360,
   sessionPayLines,
@@ -67,66 +67,102 @@ export function advisorStoresFromMeta(meta: Record<string, unknown>) {
   };
 }
 
-/** Same module rows the desks use (company_module_stores via RPC), not only wallet overlay. */
-async function loadAdvisorStoresFor360(companyId: number) {
-  const { name, meta } = await loadCompanyMeta(companyId);
-  const stores = advisorStoresFromMeta(meta);
+const EMPTY_360_STORES = {
+  gym: null as ReturnType<typeof readFitgraphFromMetadata> | null,
+  clinics: [] as Array<{
+    module: string;
+    patients: unknown[];
+    appointments: unknown[];
+    bookings: unknown[];
+    services?: unknown[];
+  }>,
+  hire: null as ReturnType<typeof readHiregraphFromMetadata> | null,
+  retail: null as ReturnType<typeof readRetailgraphFromMetadata> | null,
+  events: [] as ReturnType<typeof readAdvisorEvents>,
+};
+
+/**
+ * Brief 11: one customer → at most one module store. Never hydrate
+ * gym+physio+dental+medical+psych+vet+hire+retail in parallel.
+ */
+async function loadAdvisorStoreSliceFor360(
+  companyId: number,
+  customer: {
+    source?: string | null;
+    notes?: string | null;
+    customer_type?: string | null;
+  }
+) {
+  const moduleKey = advisorModuleForCustomer(customer);
+  if (!moduleKey) return { ...EMPTY_360_STORES };
   try {
     const { loadAdvisorModuleStore } = await import(
       '@/lib/business/company-data'
     );
-    const { loadFitgraphMerged } = await import('@/lib/fitness/fitgraph-io');
-    const [gym, physio, dental, medical, psychiatry, vet, hire, retail] =
-      await Promise.all([
-        loadFitgraphMerged(companyId).catch(() => null),
-        loadAdvisorModuleStore(
-          companyId,
-          'physiograph',
-          readPhysiographFromMetadata
-        ).catch(() => null),
-        loadAdvisorModuleStore(
-          companyId,
-          'dentalgraph',
-          readDentalgraphFromMetadata
-        ).catch(() => null),
-        loadAdvisorModuleStore(
-          companyId,
-          'medicalgraph',
-          readMedicalgraphFromMetadata
-        ).catch(() => null),
-        loadAdvisorModuleStore(
-          companyId,
-          'psychiatrygraph',
-          readPsychiatrygraphFromMetadata
-        ).catch(() => null),
-        loadAdvisorModuleStore(
-          companyId,
-          'vetgraph',
-          readVetgraphFromMetadata
-        ).catch(() => null),
-        loadAdvisorModuleStore(
-          companyId,
-          'hiregraph',
-          readHiregraphFromMetadata
-        ).catch(() => null),
-        loadAdvisorModuleStore(
-          companyId,
-          'retailgraph',
-          readRetailgraphFromMetadata
-        ).catch(() => null),
-      ]);
-    if (gym?.store) stores.gym = gym.store;
-    if (physio?.store) stores.physio = physio.store;
-    if (dental?.store) stores.dental = dental.store;
-    if (medical?.store) stores.medical = medical.store;
-    if (psychiatry?.store) stores.psychiatry = psychiatry.store;
-    if (vet?.store) stores.vet = vet.store;
-    if (hire?.store) stores.hire = hire.store;
-    if (retail?.store) stores.retail = retail.store;
+    if (moduleKey === 'fitgraph') {
+      const { loadFitgraphMerged } = await import('@/lib/fitness/fitgraph-io');
+      const gym = await loadFitgraphMerged(companyId).catch(() => null);
+      return { ...EMPTY_360_STORES, gym: gym?.store || null };
+    }
+    if (moduleKey === 'hiregraph') {
+      const hire = await loadAdvisorModuleStore(
+        companyId,
+        'hiregraph',
+        readHiregraphFromMetadata
+      ).catch(() => null);
+      return { ...EMPTY_360_STORES, hire: hire?.store || null };
+    }
+    if (moduleKey === 'retailgraph') {
+      const retail = await loadAdvisorModuleStore(
+        companyId,
+        'retailgraph',
+        readRetailgraphFromMetadata
+      ).catch(() => null);
+      return { ...EMPTY_360_STORES, retail: retail?.store || null };
+    }
+    const reader =
+      moduleKey === 'physiograph'
+        ? readPhysiographFromMetadata
+        : moduleKey === 'dentalgraph'
+          ? readDentalgraphFromMetadata
+          : moduleKey === 'medicalgraph'
+            ? readMedicalgraphFromMetadata
+            : moduleKey === 'psychiatrygraph'
+              ? readPsychiatrygraphFromMetadata
+              : moduleKey === 'vetgraph'
+                ? readVetgraphFromMetadata
+                : null;
+    if (!reader) return { ...EMPTY_360_STORES };
+    const loaded = await loadAdvisorModuleStore(
+      companyId,
+      moduleKey,
+      reader
+    ).catch(() => null);
+    const store = loaded?.store as
+      | {
+          patients?: unknown[];
+          appointments?: unknown[];
+          bookings?: unknown[];
+          services?: unknown[];
+        }
+      | undefined;
+    if (!store) return { ...EMPTY_360_STORES };
+    return {
+      ...EMPTY_360_STORES,
+      clinics: [
+        {
+          module: moduleKey,
+          patients: store.patients || [],
+          appointments: store.appointments || [],
+          bookings: store.bookings || [],
+          services: store.services || [],
+        },
+      ],
+    };
   } catch (err) {
-    console.warn('[customer-360] module stores', err);
+    console.warn('[customer-360] module store slice', err);
+    return { ...EMPTY_360_STORES };
   }
-  return { name, meta, stores };
 }
 
 const CUSTOMER_360_COLUMNS =
@@ -199,7 +235,10 @@ export async function loadCustomer360Bundle(
     limit: opts?.limit,
     beforeId: opts?.beforeId,
   });
-  const assembleOpts = {
+  const assembleOpts: Omit<
+    Parameters<typeof assembleCustomer360>[0],
+    'customer'
+  > = {
     invoices,
     gym: null,
     clinics: [],
@@ -207,6 +246,14 @@ export async function loadCustomer360Bundle(
     retail: null,
     events: [],
   };
+  if (opts?.customerId && customers[0]) {
+    const slice = await loadAdvisorStoreSliceFor360(companyId, customers[0]);
+    assembleOpts.gym = slice.gym as typeof assembleOpts.gym;
+    assembleOpts.clinics = slice.clinics as typeof assembleOpts.clinics;
+    assembleOpts.hire = slice.hire as typeof assembleOpts.hire;
+    assembleOpts.retail = slice.retail as typeof assembleOpts.retail;
+    assembleOpts.events = slice.events;
+  }
 
   const rows: Customer360[] = customers.map((c) =>
     assembleCustomer360({

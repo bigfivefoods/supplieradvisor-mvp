@@ -123,6 +123,21 @@ export function parseAdvisorRef(
   return { kind: m[1], refId: m[2] };
 }
 
+/** Module key to load for a single-customer 360 — never all eight desks. */
+export function advisorModuleForCustomer(c: {
+  source?: string | null;
+  notes?: string | null;
+  customer_type?: string | null;
+}): string | null {
+  const parsed = parseAdvisorRef(c.notes);
+  if (parsed) return canonicalAdvisorKind(parsed.kind);
+  const kind = classifyCrmCustomer(c);
+  if (kind === 'gym_member') return 'fitgraph';
+  if (kind === 'hire_customer') return 'hiregraph';
+  if (kind === 'retail_customer') return 'retailgraph';
+  return null;
+}
+
 export function classifyCrmCustomer(c: {
   source?: string | null;
   notes?: string | null;
