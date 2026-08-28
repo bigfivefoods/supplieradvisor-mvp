@@ -588,26 +588,6 @@ export default function HireCustomerPortalPage() {
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [portal]);
 
-  const searchCatalogue = useMemo(() => {
-    if (!portal) return [];
-    const q = search.trim().toLowerCase();
-    const area = areaFilter.trim().toLowerCase();
-    return portal.catalogue.filter((i) => {
-      const loc =
-        `${i.location || ''} ${portal.city || ''} ${portal.depot_address || ''}`.toLowerCase();
-      if (area && !loc.includes(area)) return false;
-      if (!q) return true;
-      return (
-        i.title.toLowerCase().includes(q) ||
-        i.code.toLowerCase().includes(q) ||
-        i.category_name.toLowerCase().includes(q) ||
-        (i.supplier_name || '').toLowerCase().includes(q) ||
-        (i.description || '').toLowerCase().includes(q) ||
-        loc.includes(q)
-      );
-    });
-  }, [portal, search, areaFilter]);
-
   const filteredCatalogue = useMemo(() => {
     if (!portal) return [];
     const q = search.trim().toLowerCase();
@@ -876,10 +856,10 @@ export default function HireCustomerPortalPage() {
           <HireAdvisorSearchTab
             search={search}
             onSearch={setSearch}
-            areaFilter={areaFilter}
-            onArea={setAreaFilter}
             areaOptions={areaOptions}
-            items={searchCatalogue}
+            items={portal.catalogue}
+            categories={portal.categories}
+            companies={suppliers}
             zar={zar}
             depot={{
               lat: portal.depot_lat,
