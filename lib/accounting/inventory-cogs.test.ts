@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import {
   alreadyPostedCogs,
+  isCogsManuallyReversed,
   cogsJournalLines,
   explicitLineCost,
   isGoodsProductType,
@@ -109,6 +110,9 @@ assert.equal(parsed[0].quantity, 3);
 
 assert.equal(alreadyPostedCogs({ cogs_journal_id: 88 }), true);
 assert.equal(alreadyPostedCogs({ recognition_journal_id: 1 }), false);
+assert.equal(isCogsManuallyReversed({ cogs_voided: true }), true);
+assert.equal(isCogsManuallyReversed({ cogs_skipped: 'manual_reverse' }), true);
+assert.equal(isCogsManuallyReversed({ cogs_journal_id: 736 }), false);
 
 const mixed = [
   planCogsLine({ product_id: 9, quantity: 2, unit_price: 25 }, byId.get(9)!),

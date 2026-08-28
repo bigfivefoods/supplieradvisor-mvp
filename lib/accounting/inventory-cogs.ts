@@ -74,7 +74,14 @@ export type CogsSkipReason =
   | 'no_cost'
   | 'no_coa'
   | 'already_posted'
-  | 'not_ar';
+  | 'not_ar'
+  | 'manual_reverse';
+
+export function isCogsManuallyReversed(meta: unknown): boolean {
+  const m = asMeta(meta);
+  if (m.cogs_voided === true || m.cogs_voided === 'true') return true;
+  return String(m.cogs_skipped || '') === 'manual_reverse';
+}
 
 export type CogsLinePlan = {
   productId: number | null;
@@ -397,6 +404,9 @@ export async function postCogsOnInvoice(opts: {
     return { ok: true, skipped: true, applied: 0 };
   }
   const meta = asMeta(inv.metadata);
+  if (isCogsManuallyReversed(meta)) {
+    return { ok: true, skipped: true, applied: 0 };
+  }
   const invId = Number(inv.id);
   if (Number.isFinite(invId) && invId > 0) {
     const live = await loadLiveCogsJournals(opts.profileId, invId);
