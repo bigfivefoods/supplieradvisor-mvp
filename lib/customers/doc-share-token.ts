@@ -1,6 +1,8 @@
 /**
  * Signed public tokens for commercial document PDF links (WhatsApp / email).
- * Production requires DOC_SHARE_SECRET — no CRON/Resend/dev fallbacks.
+ * Prefer DOC_SHARE_SECRET. Production may use INVOICE_FEEDBACK_SECRET or
+ * CRON_SECRET so sending an invoice is not blocked when the dedicated var
+ * is missing. Never uses Resend keys or a hardcoded production secret.
  */
 import { createHmac, timingSafeEqual } from 'crypto';
 import { appBaseUrl } from '@/lib/customers/invoice-feedback-token';
@@ -22,10 +24,27 @@ function isProd(): boolean {
 function secret(): string {
   const dedicated = String(process.env.DOC_SHARE_SECRET || '').trim();
   if (dedicated) return dedicated;
+  const feedback = String(process.env.INVOICE_FEEDBACK_SECRET || '').trim();
+  if (feedback) return feedback;
+  const cron = String(process.env.CRON_SECRET || '').trim();
+  if (cron) return cron;
   if (isProd()) {
-    throw new Error('DOC_SHARE_SECRET is required in production');
+    throw new Error(
+      'DOC_SHARE_SECRET is required in production (or INVOICE_FEEDBACK_SECRET / CRON_SECRET)'
+    );
   }
   return 'supplieradvisor-doc-share-dev';
+}
+
+/** Sign a share token; null if production HMAC is not configured. */
+export function tryBuildDocShareToken(
+  opts: Omit<DocSharePayload, 'exp'> & { ttlSeconds?: number }
+): string | null {
+  try {
+    return buildDocShareToken(opts);
+  } catch {
+    return null;
+  }
 }
 
 function b64url(buf: Buffer | string): string {

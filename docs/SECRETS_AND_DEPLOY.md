@@ -16,7 +16,7 @@
 | `PLATFORM_OWNER_EMAILS` | Comma-separated control-plane owner inboxes (no git defaults) |
 | `PLATFORM_OPERATOR_EMAILS` | Comma-separated platform operators (optional; owners fall back to this list) |
 | `INVOICE_FEEDBACK_SECRET` | HMAC for invoice QR tokens (else `DOC_SHARE_SECRET` / `CRON_SECRET`) |
-| `DOC_SHARE_SECRET` | Required in production for commercial PDF share HMAC (no CRON/Resend fallback) |
+| `DOC_SHARE_SECRET` | HMAC for commercial PDF share links (falls back to `INVOICE_FEEDBACK_SECRET` / `CRON_SECRET`) |
 | `GARMIN_WEBHOOK_SECRET` | Required in production for Garmin Activity ping |
 | `INVOICE_FEEDBACK_ALLOW_LEGACY` | Default true; set `false` after re-issuing printed invoice QRs |
 | `INVENTORY_PASSPORT_ADDRESS` | On-chain product passport |
