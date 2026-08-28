@@ -49,5 +49,6 @@ assert.doesNotMatch(health, /getSupabaseServer/);
 assert.doesNotMatch(health, /requirePlatformConsoleAccess/);
 assert.doesNotMatch(health, /ADVISOR_SKINS/);
 assert.match(health, /service: 'health'/);
+assert.match(health, /runtime = 'edge'/);
 
 console.log('brief8-request-path.test.ts ok');

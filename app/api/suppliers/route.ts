@@ -4,6 +4,11 @@ import { assertCompanyMember } from '@/lib/suppliers/access';
 import { computeTrustScore } from '@/lib/suppliers/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import { bookIlikeOr } from '@/lib/security/book-search';
+import {
+  parseBeforeId,
+  parseListLimit,
+  SUPPLIER_LIST_COLUMNS,
+} from '@/lib/http/tenant-list';
 
 function asRecord(raw: unknown): Record<string, unknown> {
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
@@ -45,12 +50,15 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServer();
     const byId = Number.isFinite(id) && id > 0;
+    const limit = parseListLimit(sp.get('limit'));
+    const beforeId = parseBeforeId(sp.get('beforeId'));
     let query = supabase
       .from('srm_suppliers')
-      .select('*')
+      .select(SUPPLIER_LIST_COLUMNS)
       .eq('profile_id', companyId)
-      .order('updated_at', { ascending: false })
-      .limit(500);
+      .order('id', { ascending: false })
+      .limit(limit);
+    if (beforeId) query = query.lt('id', beforeId);
     if (byId) query = query.eq('id', id);
     else if (status && status !== 'all') query = query.eq('status', status);
     if (inviteStatus && inviteStatus !== 'all') query = query.eq('invite_status', inviteStatus);
@@ -72,10 +80,11 @@ export async function GET(request: NextRequest) {
     if (error && orClause) {
       let retry = supabase
         .from('srm_suppliers')
-        .select('*')
+        .select(SUPPLIER_LIST_COLUMNS)
         .eq('profile_id', companyId)
-        .order('updated_at', { ascending: false })
-        .limit(500);
+        .order('id', { ascending: false })
+        .limit(limit);
+      if (beforeId) retry = retry.lt('id', beforeId);
       if (status && status !== 'all') retry = retry.eq('status', status);
       if (inviteStatus && inviteStatus !== 'all') {
         retry = retry.eq('invite_status', inviteStatus);

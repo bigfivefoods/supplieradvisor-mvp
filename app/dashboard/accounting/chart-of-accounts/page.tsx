@@ -72,7 +72,6 @@ function Inner() {
       if (privyUserId) params.set('privyUserId', privyUserId);
       if (typeFilter !== 'all') params.set('type', typeFilter);
       if (q) params.set('q', q);
-      params.set('party_leaves', '1');
       const res = await fetch(`/api/accounting/chart-of-accounts?${params}`);
       const data = await res.json();
       setAccounts(data.accounts || []);

@@ -9,7 +9,6 @@ import {
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Menu, X } from 'lucide-react';
-import { usePrivy } from '@privy-io/react-auth';
 import { usePathname, useRouter } from 'next/navigation';
 import ThemeToggle from '@/components/theme/ThemeToggle';
 import { useTheme } from '@/components/theme/ThemeProvider';
@@ -150,7 +149,6 @@ function mobileLinkClass(active: boolean) {
 }
 
 export default function LandingNav() {
-  const { user, ready } = usePrivy();
   const router = useRouter();
   const pathname = usePathname() || '/';
   const { resolved } = useTheme();
@@ -304,8 +302,7 @@ export default function LandingNav() {
 
   const goMember = () => {
     setOpen(false);
-    if (ready && user) router.push('/me');
-    else router.push('/me');
+    router.push('/me');
   };
 
   const isActive = (l: NavLink) =>
