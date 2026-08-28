@@ -55,7 +55,7 @@ export function ClinicMemberDiary({
   emptyLabel?: string;
 }) {
   const diarySlots = useMemo(
-    () => consolidateClinicDiarySlots(slots),
+    () => consolidateClinicDiarySlots(slots, { availableOnly: true }),
     [slots]
   );
   const events = useMemo(
@@ -76,8 +76,8 @@ export function ClinicMemberDiary({
   return (
     <div className="space-y-3">
       <p className="text-sm text-slate-600">
-        Booked times show as one block. Open times are the appointments you
-        can take. Tap a block to book or join the waitlist.
+        One practice calendar — only free times, across all clinicians. Tap a
+        slot to book it.
       </p>
       <MemberPortalWeekCalendar
         events={events}
@@ -96,7 +96,7 @@ export function ClinicMemberDiary({
             ? 'Fully booked'
             : slot.practitioner_name ||
               slot.clinician_name ||
-              'Clinician TBC'}
+              'Available clinician'}
             {slot.is_preferred_clinician ? ' · your clinician' : ''}
           </p>
           {slot.location ? (

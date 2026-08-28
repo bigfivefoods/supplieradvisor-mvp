@@ -1,9 +1,6 @@
 /**
- * Member / public clinic diaries should not paint every clinician’s
- * booked appointment as its own block. Collapse a time bucket to:
- *  - your booking (if any)
- *  - each still-open slot (what you can book)
- *  - or one anonymous “Booked” block when nobody is free
+ * One practice calendar: a time is either yours, one free slot
+ * (any available clinician), or — unless availableOnly — one Booked block.
  */
 
 export type DiarySlotLike = {
@@ -17,6 +14,12 @@ export type DiarySlotLike = {
   clinician_name?: string | null;
   service_name?: string;
   spots_left?: number;
+  is_preferred_clinician?: boolean;
+};
+
+export type ConsolidateDiaryOpts = {
+  /** Member PWA: hide taken times; only free slots (+ yours). */
+  availableOnly?: boolean;
 };
 
 function timeKey(s: Pick<DiarySlotLike, 'date' | 'start_time' | 'end_time'>): string {
@@ -25,9 +28,15 @@ function timeKey(s: Pick<DiarySlotLike, 'date' | 'start_time' | 'end_time'>): st
   ).slice(0, 5)}`;
 }
 
+function pickOpen<T extends DiarySlotLike>(open: T[]): T {
+  return open.find((s) => s.is_preferred_clinician) || open[0];
+}
+
 export function consolidateClinicDiarySlots<T extends DiarySlotLike>(
-  slots: T[]
+  slots: T[],
+  opts?: ConsolidateDiaryOpts
 ): T[] {
+  const availableOnly = opts?.availableOnly === true;
   const groups = new Map<string, T[]>();
   for (const s of slots) {
     const k = timeKey(s);
@@ -42,12 +51,26 @@ export function consolidateClinicDiarySlots<T extends DiarySlotLike>(
     const open = group.filter((s) => !s.full && !s.my_status);
     const taken = group.filter((s) => s.full && !s.my_status);
 
-    if (mine.length) out.push(...mine);
-    if (open.length) {
-      out.push(...open);
+    if (mine.length) {
+      out.push(mine[0]);
       continue;
     }
-    if (!mine.length && taken.length) {
+    if (open.length) {
+      const pick = pickOpen(open);
+      const spots = open.reduce(
+        (n, s) => n + Number(s.spots_left ?? 1),
+        0
+      );
+      out.push({
+        ...pick,
+        full: false,
+        spots_left: spots,
+        practitioner_name: null,
+        clinician_name: null,
+      });
+      continue;
+    }
+    if (!availableOnly && taken.length) {
       const pick = taken[0];
       out.push({
         ...pick,
