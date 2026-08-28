@@ -101,6 +101,7 @@ export async function POST(request: NextRequest) {
     let direction = body.direction as string | undefined;
     let counterparty = body.counterparty_name as string | undefined;
     let invoiceId = body.invoice_id ? Number(body.invoice_id) : null;
+    let customerId = body.customer_id ? Number(body.customer_id) : 0;
 
     if (invoiceId) {
       const { data: inv, error: invErr } = await supabase
@@ -114,6 +115,7 @@ export async function POST(request: NextRequest) {
       }
       direction = inv.direction === 'payable' ? 'outbound' : 'inbound';
       counterparty = counterparty || inv.counterparty_name || undefined;
+      if (!customerId && inv.customer_id) customerId = Number(inv.customer_id);
     }
 
     if (!direction) {
@@ -137,7 +139,12 @@ export async function POST(request: NextRequest) {
         bank_account_id: body.bank_account_id || null,
         entity_id: body.entity_id || null,
         notes: body.notes || null,
-        metadata: body.metadata || {},
+        metadata: {
+          ...(body.metadata && typeof body.metadata === 'object'
+            ? body.metadata
+            : {}),
+          customer_id: customerId > 0 ? customerId : null,
+        },
       })
       .select('*')
       .single();
@@ -176,12 +183,16 @@ export async function POST(request: NextRequest) {
           .eq('id', invoiceId);
 
         try {
-          const { settleInvoicePayment } = await import(
-            '@/lib/accounting/invoice-gl'
-          );
+          const {
+            isIssuedInvoiceStatus,
+            recognizeInvoiceIfNeeded,
+            settleInvoicePayment,
+          } = await import('@/lib/accounting/invoice-gl');
+          const originalStatus = String(inv.status || '');
+          const glInv = { ...inv, status: originalStatus };
           await settleInvoicePayment({
             profileId: companyId,
-            invoice: { ...inv, status },
+            invoice: glInv,
             paymentId: Number(payment.id),
             amount,
             paidAt: String(payment.paid_at || new Date().toISOString()),
@@ -190,9 +201,44 @@ export async function POST(request: NextRequest) {
               : null,
             createdBy: _gate.userId || privyUserId || null,
           });
+          if (
+            isIssuedInvoiceStatus(status) &&
+            !isIssuedInvoiceStatus(originalStatus)
+          ) {
+            await recognizeInvoiceIfNeeded({
+              profileId: companyId,
+              invoice: {
+                ...glInv,
+                status,
+                amount_paid: newPaid,
+              },
+              createdBy: _gate.userId || privyUserId || null,
+            });
+          }
         } catch (e) {
           console.warn('payment settlement GL', e);
         }
+      }
+    } else if (direction === 'inbound') {
+      try {
+        const { postCustomerDeposit } = await import(
+          '@/lib/accounting/contract-liability'
+        );
+        await postCustomerDeposit({
+          profileId: companyId,
+          amount,
+          paidAt: String(payment.paid_at || new Date().toISOString()),
+          bankAccountId: body.bank_account_id
+            ? Number(body.bank_account_id)
+            : null,
+          customerId: customerId > 0 ? customerId : null,
+          paymentId: Number(payment.id),
+          counterparty: counterparty || null,
+          createdBy: _gate.userId || privyUserId || null,
+          memo: `Customer deposit ${payment.reference || payment.id}`,
+        });
+      } catch (e) {
+        console.warn('payment deposit GL', e);
       }
     }
 

@@ -35,7 +35,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS: CoaSeed[] = [
   { code: '2110', name: 'Accounts payable', account_type: 'liability', subtype: 'payable', normal_balance: 'credit' },
   { code: '2120', name: 'VAT output (payable)', account_type: 'liability', subtype: 'tax', normal_balance: 'credit' },
   { code: '2130', name: 'Accrued expenses', account_type: 'liability', subtype: 'current', normal_balance: 'credit' },
-  { code: '2140', name: 'Customer deposits', account_type: 'liability', subtype: 'current', normal_balance: 'credit' },
+  { code: '2140', name: 'Customer deposits', account_type: 'liability', subtype: 'current', normal_balance: 'credit', description: 'IFRS 15 contract liability: cash received before a sales invoice is issued. Applied to AR when the invoice is recognised. Current — presented next to trade payables, not mixed into AP leaves.' },
   { code: '2180', name: 'Suppliers & contractors (AP)', account_type: 'liability', subtype: 'payable', is_header: true, normal_balance: 'credit', description: 'IFRS 9 supplier/contractor AP sub-ledger (2180-0000001 …). Statement presentation rolls into Trade and other payables with 2110. Employed staff stay on 6100 (IAS 19).' },
   { code: '2200', name: 'Non-current liabilities', account_type: 'liability', subtype: 'long_term', is_header: true, normal_balance: 'credit' },
   { code: '2210', name: 'Long-term loans', account_type: 'liability', subtype: 'long_term', normal_balance: 'credit' },

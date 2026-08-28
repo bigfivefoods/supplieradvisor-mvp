@@ -147,6 +147,11 @@ export const DEFAULT_ALLOC_RULES: KeywordRule[] = [
     codes: ['2210', '3300'],
     nameHints: ['loan', 'drawing', 'owner'],
   },
+  {
+    pattern: /\b(retainer|customer deposit|pre-?paid membership|prepaid)\b/i,
+    codes: ['2140'],
+    nameHints: ['deposit', 'contract liability'],
+  },
   // Income / receipts
   {
     pattern:

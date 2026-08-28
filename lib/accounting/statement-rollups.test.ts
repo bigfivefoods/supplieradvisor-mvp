@@ -75,6 +75,15 @@ assert.equal(
   }),
   false
 );
+assert.equal(
+  rollsIntoTradePayables({
+    code: '2140',
+    name: 'Customer deposits',
+    account_type: 'liability',
+    subtype: 'current',
+  }),
+  false
+);
 
 const zero = () => ({ debit: 0, credit: 0 });
 const byId: Record<number, { debit: number; credit: number }> = {
@@ -143,6 +152,15 @@ const collapsed = collapseBsStatementRows([
     section: 'current_liabilities',
     amount: 300,
   },
+  {
+    id: 90,
+    code: '2140',
+    name: 'Customer deposits',
+    account_type: 'liability',
+    subtype: 'current',
+    section: 'current_liabilities',
+    amount: 150,
+  },
 ]);
 assert.equal(collapsed.filter((r) => r.section === 'current_assets').length, 2);
 assert.equal(
@@ -154,5 +172,6 @@ assert.equal(
   collapsed.find((r) => r.name === 'Trade and other payables')?.amount,
   300
 );
+assert.equal(collapsed.find((r) => r.code === '2140')?.amount, 150);
 
 console.log('statement-rollups tests ok');

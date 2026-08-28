@@ -2,7 +2,12 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { invalidateLearnedPatterns } from '@/lib/banking/learning';
 import { round2 } from '@/lib/accounting/server';
 import { isPeriodLocked } from '@/lib/accounting/period-lock';
-import { postBalancedJournal, reversePostedJournal } from '@/lib/accounting/post-journal';
+import {
+  postBalancedJournal,
+  reversePostedJournal,
+  resolveCoaAccountIdByCode,
+} from '@/lib/accounting/post-journal';
+import { bankInflowCreditTarget } from '@/lib/accounting/contract-liability';
 import {
   isMemberArAccountCode,
   isSupplierApAccountCode,
@@ -371,6 +376,20 @@ export async function allocateBankTransaction(params: AllocateParams): Promise<
       });
       if (matched) return matched;
     }
+    const target = bankInflowCreditTarget({
+      hasIssuedInvoice: false,
+      gl: {
+        code: glCode,
+        accountType: glAcct?.account_type != null ? String(glAcct.account_type) : null,
+        subtype: glAcct?.subtype != null ? String(glAcct.subtype) : null,
+      },
+    });
+    if (target === 'deposit') {
+      const depositId = await resolveCoaAccountIdByCode(params.profileId, '2140');
+      if (depositId) {
+        params = { ...params, glAccountId: depositId };
+      }
+    }
   } else if (amount < 0) {
     const { data: glAcct } = await supabase
       .from('chart_of_accounts')
@@ -726,7 +745,12 @@ export async function matchBankToInvoice(params: {
     .eq('id', txn.id);
 
   try {
-    const { settleInvoicePayment } = await import('@/lib/accounting/invoice-gl');
+    const {
+      isIssuedInvoiceStatus,
+      recognizeInvoiceIfNeeded,
+      settleInvoicePayment,
+    } = await import('@/lib/accounting/invoice-gl');
+    const originalStatus = String(inv.status || '');
     const gl = await settleInvoicePayment({
       profileId: params.profileId,
       invoice: inv,
@@ -738,6 +762,16 @@ export async function matchBankToInvoice(params: {
     });
     if (!gl.ok) {
       console.warn('invoice settlement GL', gl.error);
+    }
+    if (
+      isIssuedInvoiceStatus(status) &&
+      !isIssuedInvoiceStatus(originalStatus)
+    ) {
+      await recognizeInvoiceIfNeeded({
+        profileId: params.profileId,
+        invoice: { ...inv, status, amount_paid: newPaid },
+        createdBy: params.privyUserId || null,
+      });
     }
   } catch (e) {
     console.warn('invoice settlement GL', e);

@@ -3,6 +3,8 @@
  * Dr AR · Cr Sales · Cr VAT when the invoice is issued (not draft).
  *
  * Cash later is settlement (Dr bank · Cr AR) — not a second sale.
+ * Cash before issue is 2140; the Finance twin carries deposit stamps so
+ * recognition runs once.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
@@ -240,7 +242,9 @@ export async function syncCrmInvoiceToBooks(opts: {
         subtotal: Number(crm.subtotal || twin.subtotal || 0),
         tax_amount: Number(crm.tax_amount || 0),
         total_amount: total,
-        amount_paid: Number(crm.amount_paid || 0),
+        amount_paid: round2(
+          Math.max(Number(crm.amount_paid || 0), Number(twin.amount_paid || 0))
+        ),
         updated_at: new Date().toISOString(),
       })
       .eq('id', Number(twin.id))
@@ -258,12 +262,44 @@ export async function syncCrmInvoiceToBooks(opts: {
   });
   if (!gl.ok) return { ok: false, error: gl.error, financeInvoiceId: Number(twin.id) };
 
-  await stampCrmFinanceId(
-    crmId,
-    opts.profileId,
-    asMeta(crm.metadata),
-    Number(twin.id)
-  );
+  const twinMeta = asMeta(twin.metadata);
+  const crmMeta = asMeta(crm.metadata);
+  const crmStamp: Record<string, unknown> = {
+    ...crmMeta,
+    finance_invoice_id: Number(twin.id),
+  };
+  if (twinMeta.deposit_applied != null) {
+    crmStamp.deposit_applied = twinMeta.deposit_applied;
+  }
+  if (twinMeta.deposit_application_journal_id) {
+    crmStamp.deposit_application_journal_id = twinMeta.deposit_application_journal_id;
+  }
+  if (twinMeta.recognition_journal_id) {
+    crmStamp.recognition_journal_id = twinMeta.recognition_journal_id;
+  }
+  await stampCrmFinanceId(crmId, opts.profileId, crmStamp, Number(twin.id));
+
+  const twinPaid = round2(Number(twin.amount_paid || 0));
+  const crmPaid = round2(Number(crm.amount_paid || 0));
+  if (twinPaid > crmPaid + 0.005) {
+    const supabase = getSupabaseServer();
+    const total = round2(Number(twin.total_amount || crm.total_amount || 0));
+    const nextStatus =
+      twinPaid >= total - 0.005
+        ? 'paid'
+        : twinPaid > 0
+          ? 'partial'
+          : String(crm.status || 'sent');
+    await supabase
+      .from('customer_invoices')
+      .update({
+        amount_paid: twinPaid,
+        status: nextStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', crmId)
+      .eq('profile_id', opts.profileId);
+  }
 
   return {
     ok: true,

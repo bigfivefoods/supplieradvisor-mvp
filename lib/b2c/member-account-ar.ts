@@ -321,6 +321,7 @@ export async function createInvoiceForCharge(opts: {
         unit_price: vat.exclusive,
         line_total: vat.exclusive,
         uom: 'account',
+        account_code: '4400',
       },
     ],
     due_date: opts.charge.due_date || now.slice(0, 10),
@@ -366,7 +367,7 @@ export async function createInvoiceForCharge(opts: {
       const stamped = await supabase
         .from('customer_invoices')
         .update({
-          metadata: { finance_invoice_id: glId, advisor_fee: true },
+          metadata: { finance_invoice_id: glId, advisor_fee: true, membership: true },
         })
         .eq('id', data.id);
       if (stamped.error && /column|schema cache|metadata/i.test(stamped.error.message || '')) {
@@ -428,9 +429,10 @@ async function postAdvisorFeeToGl(opts: {
           quantity: 1,
           unit_price: opts.exclusive,
           line_total: opts.exclusive,
+          account_code: '4400',
         },
       ],
-      metadata: { advisor_fee: true, crm_invoice_number: opts.invoiceNumber },
+      metadata: { advisor_fee: true, membership: true, crm_invoice_number: opts.invoiceNumber },
     })
     .select('*')
     .maybeSingle();

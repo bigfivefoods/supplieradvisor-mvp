@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   invoiceKeepsBankAllocation,
   invoiceLinkedPurchaseOrderId,
+  invoiceSkipsSettlement,
   isIssuedInvoiceStatus,
   isPoApAlreadyAllocated,
   mapApCostCategoryToCode,
@@ -14,8 +15,11 @@ assert.equal(isIssuedInvoiceStatus('paid'), true);
 assert.equal(isIssuedInvoiceStatus('void'), false);
 assert.equal(invoiceKeepsBankAllocation({ skip_recognition: true }), true);
 assert.equal(invoiceKeepsBankAllocation({ books_keep_bank_allocation: true }), true);
-assert.equal(invoiceKeepsBankAllocation({ cash_allocated_journal_id: 719 }), true);
+assert.equal(invoiceKeepsBankAllocation({ cash_allocated_journal_id: 719 }), false);
 assert.equal(invoiceKeepsBankAllocation({ recognition_journal_id: 716 }), false);
+assert.equal(invoiceSkipsSettlement({ cash_allocated_journal_id: 719 }), true);
+assert.equal(invoiceSkipsSettlement({ skip_settlement: true }), true);
+assert.equal(invoiceSkipsSettlement({ recognition_journal_id: 716 }), false);
 
 assert.equal(mapApCostCategoryToCode('materials'), '1140');
 assert.equal(mapApCostCategoryToCode('inventory'), '1140');
