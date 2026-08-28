@@ -312,7 +312,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Overview', href: '/dashboard/suppliers', exact: true, desc: 'SRM command tower', section: 'Home' },
       { name: 'Source', href: '/dashboard/suppliers/discover', desc: 'Find & search network suppliers', section: 'Source' },
       { name: 'Connect', href: '/dashboard/suppliers/connect', desc: 'Connect / shortlist partners', section: 'Source' },
-      { name: 'Book', href: '/dashboard/suppliers/network', desc: 'Your supplier book', section: 'Source' },
+      { name: 'Profiles', href: '/dashboard/suppliers/network', desc: 'Your supplier profiles', section: 'Source' },
       { name: 'Invite', href: '/dashboard/suppliers/invites', desc: 'Invite off-platform suppliers', section: 'Source' },
       {
         name: 'Portal',
@@ -355,7 +355,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Overview', href: '/dashboard/customers', exact: true, desc: 'CRM command · Advisor members', section: 'Home' },
       { name: '360', href: '/dashboard/customers/360', desc: 'Member · patient · hirer · debit · invoices', section: 'Home' },
       { name: 'Source', href: '/dashboard/customers/leads', desc: 'Leads & pipeline', section: 'Source' },
-      { name: 'Book', href: '/dashboard/customers/profiles', desc: 'Customer accounts', section: 'Source' },
+      { name: 'Profiles', href: '/dashboard/customers/profiles', desc: 'Customer profiles', section: 'Source' },
       { name: 'Invite', href: '/dashboard/customers/invites', desc: 'Invite buyers to platform', section: 'Source' },
       {
         name: 'Portal',

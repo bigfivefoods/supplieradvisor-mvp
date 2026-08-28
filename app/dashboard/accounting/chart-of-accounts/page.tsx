@@ -411,7 +411,7 @@ function Inner() {
                           : 'bg-sky-50 text-sky-800 border-sky-100';
                         return (
                           <span
-                            className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${cls}`}
+                            className={`text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-full border ${cls}`}
                           >
                             {label}
                           </span>

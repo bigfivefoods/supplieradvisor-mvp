@@ -30,6 +30,7 @@ import InviteCustomerButton from '@/components/customers/InviteCustomerButton';
 import { AccountLogoField } from '@/components/relationship/AccountLogoField';
 import type { PartyRoleRow } from '@/lib/accounting/party-roles';
 import { glCodeFromMeta } from '@/lib/accounting/party-roles';
+import { PartyBookRoleSelect } from '@/components/accounting/PartyBookRoleSelect';
 
 export default function CustomerProfilesPage() {
   return (
@@ -377,20 +378,25 @@ function ProfilesInner() {
                       {(c.customer_type || 'business').replace(/_/g, ' ')}
                     </td>
                     <td className="px-3 py-3">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-sky-800">
-                        Customer · sell
-                      </div>
-                      <div className="font-mono text-[11px] text-neutral-500">
-                        {partyByCustomer[c.id]?.ar_account_code ||
-                          glCodeFromMeta(c.metadata) ||
-                          '—'}
-                      </div>
+                      <PartyBookRoleSelect
+                        companyId={companyId}
+                        customerId={c.id}
+                        supplierId={partyByCustomer[c.id]?.supplier_id}
+                        role={partyByCustomer[c.id]?.role || 'customer'}
+                        arCode={
+                          partyByCustomer[c.id]?.ar_account_code ||
+                          glCodeFromMeta(c.metadata)
+                        }
+                        apCode={partyByCustomer[c.id]?.ap_account_code}
+                        compact
+                        onChanged={() => void load()}
+                      />
                       {partyByCustomer[c.id]?.supplier_id ? (
                         <Link
                           href={`/dashboard/suppliers/network?id=${partyByCustomer[c.id].supplier_id}`}
                           className="text-[11px] font-semibold text-emerald-700 hover:underline"
                         >
-                          Also a supplier
+                          Open supplier book
                         </Link>
                       ) : null}
                     </td>

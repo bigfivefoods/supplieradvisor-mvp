@@ -54,6 +54,18 @@ assert.equal(holtz?.role, 'supplier');
 assert.equal(holtz?.customer_id, null);
 assert.equal(holtz?.supplier_id, 8);
 
+const tagged = assemblePartyRoles(
+  [
+    {
+      id: 3,
+      trading_name: 'Acme Both',
+      metadata: { party_book_role: 'both', gl_account_code: '1180-0000003' },
+    },
+  ],
+  []
+);
+assert.equal(tagged[0]?.role, 'both');
+
 assert.equal(
   classifyCoaParty({
     code: '1180-0000010',
@@ -61,7 +73,7 @@ assert.equal(
     account_type: 'asset',
     subtype: 'receivable',
   }),
-  'member_ar'
+  'customer_ar'
 );
 assert.equal(
   classifyCoaParty({
@@ -82,7 +94,9 @@ assert.equal(
   'customer_ar'
 );
 assert.equal(classifyCoaParty({ code: '1130', name: 'Accounts receivable' }), 'control_ar');
-assert.equal(coaPartyLabel('supplier_ap'), 'Supplier · AP');
+assert.equal(coaPartyLabel('customer_ar'), 'customer-ar');
+assert.equal(coaPartyLabel('member_ar'), 'customer-ar');
+assert.equal(coaPartyLabel('supplier_ap'), 'supplier-ap');
 assert.equal(isCustomerCoaKind('member_ar'), true);
 assert.equal(isSupplierCoaKind('member_ar'), false);
 

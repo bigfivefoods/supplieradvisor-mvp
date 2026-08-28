@@ -199,6 +199,15 @@ export async function ensureDefaultCoa(profileId: number): Promise<{ seeded: num
     return { seeded: 0, warning: error.message };
   }
   if (existing && existing.length > 0) {
+    try {
+      const { relabelPartyCoaHeaders, relabelPartyCoaHeadersAllOnce } = await import(
+        '@/lib/accounting/party-book-role'
+      );
+      await relabelPartyCoaHeadersAllOnce();
+      await relabelPartyCoaHeaders(profileId);
+    } catch {
+      /* header names are additive */
+    }
     const { data: have } = await supabase
       .from('chart_of_accounts')
       .select('code')

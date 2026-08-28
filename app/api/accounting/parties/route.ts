@@ -3,6 +3,12 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { parseCompanyId } from '@/lib/accounting/server';
 import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 import { assemblePartyRoles } from '@/lib/accounting/party-roles';
+import {
+  applyPartyBookRole,
+  parsePartyBookRole,
+  relabelPartyCoaHeaders,
+  relabelPartyCoaHeadersAllOnce,
+} from '@/lib/accounting/party-book-role';
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,6 +22,13 @@ export async function GET(request: NextRequest) {
       legacyPrivyUserId: legacyPrivyFrom(request),
     });
     if (!gate.ok) return gate.response;
+
+    try {
+      await relabelPartyCoaHeadersAllOnce();
+      await relabelPartyCoaHeaders(companyId);
+    } catch {
+      /* labels are additive */
+    }
 
     const supabase = getSupabaseServer();
     const [{ data: customers, error: cErr }, { data: suppliers, error: sErr }] =
@@ -47,6 +60,47 @@ export async function GET(request: NextRequest) {
       },
       warning: cErr?.message || sErr?.message,
     });
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Error' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST { companyId, role, customer_id?, supplier_id? }
+ * Set the party as customer / supplier / both and allocate 1180-* / 2180-*.
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const companyId = parseCompanyId(body.companyId);
+    const role = parsePartyBookRole(body.role);
+    if (!Number.isFinite(companyId)) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    if (!role) {
+      return NextResponse.json(
+        { error: 'role must be customer, supplier, or both' },
+        { status: 400 }
+      );
+    }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
+
+    const result = await applyPartyBookRole({
+      profileId: companyId,
+      role,
+      customerId: body.customer_id ? Number(body.customer_id) : null,
+      supplierId: body.supplier_id ? Number(body.supplier_id) : null,
+    });
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error || 'Failed' }, { status: 400 });
+    }
+    return NextResponse.json({ success: true, ...result });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

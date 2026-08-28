@@ -556,7 +556,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       { name: 'CropAdvisor®', href: '/dashboard/fieldgraph', desc: 'Primary production OS' },
       { name: 'Fields', href: '/dashboard/fieldgraph/fields', desc: 'Field book' },
       { name: 'Harvest plan', href: '/dashboard/fieldgraph/harvest', desc: 'Cut sequence' },
-      { name: 'Supplier book', href: '/dashboard/suppliers/network', desc: 'Growers & farms' },
+      { name: 'Supplier profiles', href: '/dashboard/suppliers/network', desc: 'Growers & farms' },
       { name: 'Source growers', href: '/dashboard/suppliers/discover', desc: 'Find primary suppliers' },
       { name: 'Lots & stock', href: '/dashboard/inventory/lots', desc: 'Origin batches' },
       { name: 'Inventory', href: '/dashboard/inventory/stock', desc: 'On-hand' },

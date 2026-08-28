@@ -7,9 +7,9 @@
  * 4100/4200/4400 when the performance obligation is satisfied.
  *
  * 1130 / 2110 stay posting control leaves (invoice-gl requires that).
- * Members/patients: 1180 header (current asset) + 1180-0000001 …
- * Suppliers/contractors: 2180 header (current liability) + 2180-0000001 …
- * Trade name-merged AR still uses 1181+. Legacy 4400-* AR codes still parse.
+ * Customers: 1180 header (current asset) + 1180-0000001 … (one leaf per customer).
+ * Suppliers: 2180 header (current liability) + 2180-0000001 … (one leaf per supplier).
+ * Legacy 1181+ / 2181+ integer leaves and 4400-* AR codes still parse.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { invalidateAccountingReads } from '@/lib/accounting/read-cache';
@@ -27,9 +27,11 @@ export const PARTY_AP_CODE_START = 2181;
 export const PARTY_AR_PREFIX = 'AR — ';
 export const PARTY_AP_PREFIX = 'AP — ';
 
-/** Current-asset header under 1100. Each person is 1180-0000001 … */
+/** Current-asset header under 1100. Each customer is 1180-0000001 … */
 export const MEMBER_AR_HEADER_CODE = '1180';
-export const MEMBER_AR_HEADER_NAME = 'Members & patients (AR)';
+export const MEMBER_AR_HEADER_NAME = 'Customers';
+export const CUSTOMER_AR_HEADER_CODE = MEMBER_AR_HEADER_CODE;
+export const CUSTOMER_AR_HEADER_NAME = MEMBER_AR_HEADER_NAME;
 /** Pre-IFRS nest under revenue — still accepted for bank match / metadata. */
 export const MEMBER_AR_LEGACY_HEADER_CODE = '4400';
 export const MEMBER_AR_CODE_PAD = 7;
@@ -43,7 +45,7 @@ export const MEMBER_REV_PREFIX = 'Member — ';
 
 /** Current-liability header under 2100. Each supplier is 2180-0000001 … */
 export const SUPPLIER_AP_HEADER_CODE = '2180';
-export const SUPPLIER_AP_HEADER_NAME = 'Suppliers & contractors (AP)';
+export const SUPPLIER_AP_HEADER_NAME = 'Suppliers';
 
 function paddedPartyCode(header: string, id: number): string {
   const n = Math.abs(Math.trunc(Number(id) || 0));
@@ -116,7 +118,7 @@ export function isSupplierApAccountCode(code?: string | null): boolean {
 }
 
 /**
- * IAS 1 tree: trade 1181+ under 1130; members 1180-* under 1180;
+ * IAS 1 tree: customer 1180-* under 1180; leftover 1181+ under 1130;
  * suppliers 2180-* / 2181+ under 2180. Never parent AR under 4400.
  */
 export function statementParentForPartyLeaf(
@@ -687,7 +689,7 @@ export function planPartyGlAccounts(opts: {
               ? `AR account ${code} — ${party.name}. Bank receipts for this person post here when invoiced.`
               : `AP account ${code} — ${party.name}. Bank payments for this party post here when a bill is already recognised.`,
           metadata: {
-            party_kind: account_type === 'asset' ? 'member_ar' : 'supplier_ap',
+            party_kind: account_type === 'asset' ? 'customer_ar' : 'supplier_ap',
             party_key: party.code,
             party_ids: [party.id],
             ar_account_number: account_type === 'asset' ? code : undefined,
@@ -729,7 +731,7 @@ export function planPartyGlAccounts(opts: {
         sort: 850,
         kind: 'supplier_ap_header',
         description:
-          'AP sub-ledger for suppliers and independent contractors. Each party is {parent}-0000001 … Employed staff stay on payroll (IAS 19).',
+          'Supplier AP header. Each supplier is {parent}-0000001 … Employed staff stay on payroll (IAS 19).',
       });
     }
     pushLeaves(suppliers, 'srm_suppliers', 'liability', 'payable', 851);
@@ -752,9 +754,9 @@ export function planPartyGlAccounts(opts: {
         normal_balance: 'debit',
         parentCode: '1100',
         sort: 840,
-        kind: 'member_ar_header',
+        kind: 'customer_ar_header',
         description:
-          'AR sub-accounts for customers, members, clients and patients. Each party is {parent}-0000001 … Income still posts to 4100/4200/4400 (IFRS 15).',
+          'Customer AR header. Each customer is {parent}-0000001 … Income still posts to 4100/4200/4400 (IFRS 15).',
       });
     }
     pushLeaves(customers, 'customers', 'asset', 'receivable', 841);
@@ -1089,8 +1091,8 @@ export async function ensureMemberArLeaf(opts: {
       parentCode: '1100',
       sort: 840,
       description:
-        'AR sub-ledger for members, clients and patients. Each person is 1180-0000001 … Income posts to 4100/4200/4400 (IFRS 15).',
-      metadata: { party_kind: 'member_ar_header' },
+        'Customer AR header. Each customer is 1180-0000001 … Income posts to 4100/4200/4400 (IFRS 15).',
+      metadata: { party_kind: 'customer_ar_header' },
     });
   } else if (!headerId) {
     const { data: parent } = await supabase
@@ -1122,7 +1124,7 @@ export async function ensureMemberArLeaf(opts: {
         parent_id: headerId,
         description: `AR account ${want} — ${name}. Receipts for this person post here when invoiced.`,
         metadata: {
-          party_kind: 'member_ar',
+          party_kind: 'customer_ar',
           party_ids: [opts.customerId],
           ar_account_number: want,
         },
@@ -1157,7 +1159,7 @@ export async function ensureMemberArLeaf(opts: {
         sort_order: 841,
         description: `AR account ${want} — ${name}. Receipts for this person post here when invoiced.`,
         metadata: {
-          party_kind: 'member_ar',
+          party_kind: 'customer_ar',
           party_ids: [opts.customerId],
           ar_account_number: want,
         },
@@ -1240,7 +1242,7 @@ export async function ensureSupplierApLeaf(opts: {
       parentCode: '2100',
       sort: 850,
       description:
-        'AP sub-ledger for suppliers and independent contractors. Each party is 2180-0000001 …',
+        'Supplier AP header. Each supplier is 2180-0000001 …',
       metadata: { party_kind: 'supplier_ap_header' },
     });
   } else if (!headerId) {
@@ -1323,8 +1325,8 @@ async function recodeLegacyMemberArLeaves(profileId: number): Promise<number> {
     parentCode: '1100',
     sort: 840,
     description:
-      'AR sub-ledger for members, clients and patients. Each person is 1180-0000001 …',
-    metadata: { party_kind: 'member_ar_header' },
+      'Customer AR header. Each customer is 1180-0000001 …',
+    metadata: { party_kind: 'customer_ar_header' },
   });
   let moved = 0;
   for (const leaf of leaves) {
@@ -1408,6 +1410,15 @@ export async function ensurePartyGlAccounts(
 ): Promise<{ created: number; linked: number; warning?: string }> {
   if (!Number.isFinite(profileId) || profileId <= 0) {
     return { created: 0, linked: 0, warning: 'invalid profile' };
+  }
+  try {
+    const { relabelPartyCoaHeaders, relabelPartyCoaHeadersAllOnce } = await import(
+      '@/lib/accounting/party-book-role'
+    );
+    await relabelPartyCoaHeadersAllOnce();
+    await relabelPartyCoaHeaders(profileId);
+  } catch (err) {
+    console.warn('[party-gl] header relabel', err);
   }
   try {
     const { syncAdvisorModulePeopleToCrm } = await import(

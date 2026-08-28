@@ -154,7 +154,7 @@ assert.ok(memberHeader);
 assert.equal(memberHeader?.is_header, true);
 assert.equal(memberHeader?.account_type, 'asset');
 assert.equal(memberHeader?.parent_code, '1100');
-assert.equal(memberHeader?.name, 'Members & patients (AR)');
+assert.equal(memberHeader?.name, 'Customers');
 const memberLeaf = plan.create.find((c) => c.name === 'AR — Walk-in member');
 assert.ok(memberLeaf);
 assert.equal(memberLeaf?.account_type, 'asset');
@@ -176,6 +176,7 @@ assert.ok(apHeader);
 assert.equal(apHeader?.is_header, true);
 assert.equal(apHeader?.account_type, 'liability');
 assert.equal(apHeader?.parent_code, '2100');
+assert.equal(apHeader?.name, 'Suppliers');
 assert.equal(
   plan.create.filter((c) => String(c.code).startsWith('2180-')).map((c) => c.code).sort().join(','),
   '2180-0000008,2180-0000009,2180-0000012,2180-0000022'
