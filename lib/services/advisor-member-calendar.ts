@@ -726,5 +726,5 @@ export function toPortalOpenSlots(
       virtual: s.virtual,
     };
   });
-  return consolidateClinicDiarySlots(rows);
+  return consolidateClinicDiarySlots(rows, { availableOnly: true });
 }

@@ -191,10 +191,11 @@ const portalSlots = toPortalOpenSlots(stackedBooked, {
   from: date,
   to: date,
 });
-assert.equal(portalSlots.length, 1, 'booked clinicians collapse to one block');
-assert.equal(portalSlots[0].service_name, 'Booked');
-assert.equal(portalSlots[0].full, true);
-assert.equal(portalSlots[0].clinician_name, null);
+assert.equal(
+  portalSlots.length,
+  0,
+  'member diary hides fully booked times'
+);
 
 const closed = generateAdvisorMemberSlots({
   ...store,
