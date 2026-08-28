@@ -112,7 +112,11 @@ export async function POST(request: NextRequest) {
     };
 
     // ── Prefer Twilio: real PDF document attachment ───────────────────────
-    if (isTwilioWhatsAppConfigured() && docPhone.replace(/\D/g, '').length >= 9) {
+    if (
+      isTwilioWhatsAppConfigured() &&
+      docPhone.replace(/\D/g, '').length >= 9 &&
+      pdfUrl
+    ) {
       const bodyText = commercialDocWhatsAppText({
         ...textBase,
         pdfAttached: true,
@@ -126,7 +130,7 @@ export async function POST(request: NextRequest) {
       const send = await sendWhatsAppDocument({
         to: docPhone,
         body: custom.slice(0, 1500),
-        mediaUrl: pdfUrl || undefined,
+        mediaUrl: pdfUrl,
       });
 
       if (send.ok) {
