@@ -20,6 +20,7 @@ export function AccountLogoField({
   name,
   size = 'lg',
   compact,
+  variant = 'company',
   onChange,
 }: {
   companyId: number;
@@ -30,6 +31,7 @@ export function AccountLogoField({
   name?: string | null;
   size?: Size;
   compact?: boolean;
+  variant?: 'company' | 'person';
   onChange?: (url: string | null) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -103,7 +105,7 @@ export function AccountLogoField({
         className="relative shrink-0"
         title="Upload logo"
       >
-        <CompanyLogo logoUrl={logoUrl} name={name} size={size} />
+        <CompanyLogo logoUrl={logoUrl} name={name} size={size} variant={variant} />
         {busy ? (
           <span className="absolute inset-0 flex items-center justify-center rounded-2xl bg-white/70">
             <Loader2 className="h-4 w-4 animate-spin text-[#0077b6]" />

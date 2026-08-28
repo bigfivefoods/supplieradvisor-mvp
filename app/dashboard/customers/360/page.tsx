@@ -158,7 +158,12 @@ function Inner() {
                   onClick={() => setOpenId(open ? null : r.customer_id)}
                 >
                   <div className="flex min-w-0 items-start gap-3">
-                    <CompanyLogo logoUrl={r.logo_url} name={r.name} size="md" />
+                    <CompanyLogo
+                      logoUrl={r.logo_url}
+                      name={r.name}
+                      size="md"
+                      variant={r.party === 'individual' ? 'person' : 'company'}
+                    />
                     <div className="min-w-0">
                     <p className="font-black text-slate-900">{r.name}</p>
                     <p className="text-[12px] text-slate-500">
@@ -186,6 +191,8 @@ function Inner() {
                           ? `Debit ready · ${r.debit_bank.bank_name}`
                           : 'Debit bank incomplete'}
                       </p>
+                    ) : r.party === 'individual' ? (
+                      <p className="text-slate-400">Individual</p>
                     ) : (
                       <p className="text-slate-400">Trade / no debit</p>
                     )}
@@ -242,6 +249,7 @@ function Detail({
             logoUrl={row.logo_url}
             name={row.name}
             size="lg"
+            variant={row.party === 'individual' ? 'person' : 'company'}
             onChange={onLogo}
           />
         </div>

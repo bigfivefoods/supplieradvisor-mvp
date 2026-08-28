@@ -7,8 +7,8 @@ import { docNumber } from '@/lib/customers/documents';
 import type { MemberAccountCharge } from '@/lib/b2c/member-account-types';
 import { splitInclusiveVat, SA_VAT_PCT } from '@/lib/core-os/finance';
 import {
+  ADVISOR_CRM_CUSTOMER_TYPE,
   advisorKindAliases,
-  advisorPartyCustomerType,
   advisorRefTag,
   canonicalAdvisorKind,
 } from '@/lib/core-os/kinds';
@@ -67,7 +67,7 @@ export async function ensureAdvisorCrmCustomer(opts: {
   if (email) {
     const { data: hits } = await supabase
       .from('customers')
-      .select('id, trading_name, email, phone, notes')
+      .select('id, trading_name, email, phone, notes, customer_type')
       .eq('profile_id', opts.companyId)
       .ilike('email', email)
       .limit(5);
@@ -82,6 +82,12 @@ export async function ensureAdvisorCrmCustomer(opts: {
         patch.notes = notes ? `${notes}\n${missing.join('\n')}` : missing.join('\n');
       }
       if (phone && !(match as { phone?: string | null }).phone) patch.phone = phone;
+      const type = String(
+        (match as { customer_type?: string | null }).customer_type || ''
+      ).toLowerCase();
+      if (type !== ADVISOR_CRM_CUSTOMER_TYPE) {
+        patch.customer_type = ADVISOR_CRM_CUSTOMER_TYPE;
+      }
       if (Object.keys(patch).length > 1) {
         await supabase
           .from('customers')
@@ -101,12 +107,13 @@ export async function ensureAdvisorCrmCustomer(opts: {
     id: number;
     trading_name?: string | null;
     email?: string | null;
+    customer_type?: string | null;
   };
   let tagged: TaggedCustomer | null = null;
   for (const t of tags) {
     const hit = await supabase
       .from('customers')
-      .select('id, trading_name, email, notes')
+      .select('id, trading_name, email, notes, customer_type')
       .eq('profile_id', opts.companyId)
       .ilike('notes', `%${t}%`)
       .limit(1)
@@ -118,6 +125,18 @@ export async function ensureAdvisorCrmCustomer(opts: {
     }
   }
   if (tagged?.id) {
+    if (
+      String(tagged.customer_type || '').toLowerCase() !== ADVISOR_CRM_CUSTOMER_TYPE
+    ) {
+      await supabase
+        .from('customers')
+        .update({
+          customer_type: ADVISOR_CRM_CUSTOMER_TYPE,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', tagged.id)
+        .eq('profile_id', opts.companyId);
+    }
     return {
       id: Number(tagged.id),
       name: String(tagged.trading_name || opts.name),
@@ -132,7 +151,7 @@ export async function ensureAdvisorCrmCustomer(opts: {
     email: email || null,
     phone,
     status: 'active',
-    customer_type: advisorPartyCustomerType(opts.kind),
+    customer_type: ADVISOR_CRM_CUSTOMER_TYPE,
     source: 'advisor_member',
     currency: 'ZAR',
     notes: notesBlob,
@@ -143,10 +162,20 @@ export async function ensureAdvisorCrmCustomer(opts: {
     .insert(payload)
     .select('id, trading_name, email')
     .maybeSingle();
-  if (error && /customer_type|column|schema cache/i.test(error.message || '')) {
+  if (error && /column|schema cache/i.test(error.message || '')) {
     delete payload.customer_type;
     delete payload.source;
     delete payload.phone;
+    const retry = await supabase
+      .from('customers')
+      .insert(payload)
+      .select('id, trading_name, email')
+      .maybeSingle();
+    data = retry.data;
+    error = retry.error;
+  } else if (error && /customer_type/i.test(error.message || '')) {
+    payload.customer_type = ADVISOR_CRM_CUSTOMER_TYPE;
+    delete payload.source;
     const retry = await supabase
       .from('customers')
       .insert(payload)
@@ -170,6 +199,47 @@ export async function ensureAdvisorCrmCustomer(opts: {
     name: String(data.trading_name || opts.name),
     email: data.email ? String(data.email) : email || null,
   };
+}
+
+/** Flip advisor people who landed as CRM businesses (default customer_type). */
+export async function stampAdvisorCustomersAsIndividuals(
+  companyId: number
+): Promise<number> {
+  const supabase = getSupabaseServer();
+  const { data, error } = await supabase
+    .from('customers')
+    .select('id, customer_type, source, notes')
+    .eq('profile_id', companyId)
+    .limit(2000);
+  if (error || !data?.length) return 0;
+  const ids = data
+    .filter((row) => {
+      const type = String(row.customer_type || 'business').trim().toLowerCase();
+      if (type === ADVISOR_CRM_CUSTOMER_TYPE) return false;
+      const source = String(row.source || '').trim().toLowerCase();
+      const notes = String(row.notes || '');
+      return (
+        source === 'advisor_member' ||
+        source.startsWith('advisor_') ||
+        notes.includes('advisor_ref:')
+      );
+    })
+    .map((row) => Number(row.id))
+    .filter((id) => id > 0);
+  if (!ids.length) return 0;
+  const { error: upErr } = await supabase
+    .from('customers')
+    .update({
+      customer_type: ADVISOR_CRM_CUSTOMER_TYPE,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('profile_id', companyId)
+    .in('id', ids);
+  if (upErr) {
+    console.warn('[member-account] stamp individuals', upErr.message);
+    return 0;
+  }
+  return ids.length;
 }
 
 export async function createInvoiceForCharge(opts: {

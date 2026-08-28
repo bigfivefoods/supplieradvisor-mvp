@@ -117,6 +117,8 @@ assert.equal(c360.last_visit?.title, 'Functional Strength');
 assert.equal(c360.next_session?.date, '2026-08-20');
 assert.equal(c360.open_ar, 910);
 assert.equal(c360.identity.crm_customer_id, 9);
+assert.equal(c360.party, 'individual');
+assert.equal(c360.customer_type, 'individual');
 
 assert.deepEqual(advisorKindAliases('gym').sort(), ['fitgraph', 'gym'].sort());
 assert.deepEqual(
@@ -173,6 +175,7 @@ assert.ok(unsynced.some((r) => r.person.id === 'pat_unsynced'));
 const leftover = assembleLeftoverAdvisor360(unsynced, { gym: undefined });
 assert.equal(leftover.length, 2);
 assert.ok(leftover.some((r) => r.kinds.includes('gym_member') && r.name === 'New Member'));
+assert.ok(leftover.every((r) => r.party === 'individual'));
 assert.ok(
   leftover.some((r) => r.kinds.includes('clinic_patient') && r.name === 'New Patient')
 );
@@ -190,11 +193,12 @@ const rosterLeftover = assembleLeftoverAdvisor360(
 );
 assert.equal(rosterLeftover.length, 274);
 assert.ok(rosterLeftover.every((r) => r.kinds.includes('gym_member')));
+assert.ok(rosterLeftover.every((r) => r.party === 'individual'));
 
-assert.equal(advisorPartyCustomerType('gym'), 'member');
-assert.equal(advisorPartyCustomerType('dentalgraph'), 'patient');
-assert.equal(advisorPartyCustomerType('hire'), 'hirer');
-assert.equal(advisorPartyCustomerType('retailgraph'), 'member');
+assert.equal(advisorPartyCustomerType('gym'), 'individual');
+assert.equal(advisorPartyCustomerType('dentalgraph'), 'individual');
+assert.equal(advisorPartyCustomerType('hire'), 'individual');
+assert.equal(advisorPartyCustomerType('retailgraph'), 'individual');
 
 const clinicKinds = collectAdvisorCustomerPeople({
   clinics: [

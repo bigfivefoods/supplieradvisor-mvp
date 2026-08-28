@@ -206,6 +206,19 @@ export async function loadCustomer360Bundle(
 }> {
   const { name: _n, meta, stores } = await loadAdvisorStoresFor360(companyId);
   let { customers, invoices } = await loadCustomersAndInvoices(companyId);
+  try {
+    const { stampAdvisorCustomersAsIndividuals } = await import(
+      '@/lib/b2c/member-account-ar'
+    );
+    const flipped = await stampAdvisorCustomersAsIndividuals(companyId);
+    if (flipped) {
+      const retyped = await loadCustomersAndInvoices(companyId);
+      customers = retyped.customers;
+      invoices = retyped.invoices;
+    }
+  } catch (err) {
+    console.warn('[customer-360] individual types', err);
+  }
   const people = collectAdvisorCustomerPeople({
     gymClients: stores.gym.clients || [],
     clinics: [

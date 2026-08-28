@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Building2 } from 'lucide-react';
+import { Building2, User } from 'lucide-react';
 
 type Size = 'xs' | 'sm' | 'md' | 'lg';
 
@@ -35,22 +35,26 @@ export default function CompanyLogo({
   size = 'md',
   className = '',
   alt,
+  variant = 'company',
 }: {
   logoUrl?: string | null;
   name?: string | null;
   size?: Size;
   className?: string;
   alt?: string;
+  variant?: 'company' | 'person';
 }) {
   const [broken, setBroken] = useState(false);
   const dims = SIZE[size];
+  const person = variant === 'person';
+  const shape = person ? dims.box.replace(/rounded-\w+/g, 'rounded-full') : dims.box;
   const src = logoUrl && String(logoUrl).trim() && !broken ? String(logoUrl).trim() : null;
-  const label = alt || name || 'Company';
+  const label = alt || name || (person ? 'Person' : 'Company');
 
   if (src) {
     return (
       <div
-        className={`${dims.box} shrink-0 overflow-hidden border border-neutral-200 bg-white flex items-center justify-center ${className}`}
+        className={`${shape} shrink-0 overflow-hidden border border-neutral-200 bg-white flex items-center justify-center ${className}`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -68,7 +72,7 @@ export default function CompanyLogo({
   if (initials && initials !== '?') {
     return (
       <div
-        className={`${dims.box} shrink-0 border border-[#00b4d8]/20 bg-gradient-to-br from-[#00b4d8]/10 to-[#0077b6]/5 flex items-center justify-center font-black text-[#0077b6] ${dims.text} ${className}`}
+        className={`${shape} shrink-0 border border-[#00b4d8]/20 bg-gradient-to-br from-[#00b4d8]/10 to-[#0077b6]/5 flex items-center justify-center font-black text-[#0077b6] ${dims.text} ${className}`}
         aria-label={label}
         title={label}
       >
@@ -79,10 +83,14 @@ export default function CompanyLogo({
 
   return (
     <div
-      className={`${dims.box} shrink-0 border border-neutral-200 bg-neutral-50 flex items-center justify-center ${className}`}
+      className={`${shape} shrink-0 border border-neutral-200 bg-neutral-50 flex items-center justify-center ${className}`}
       aria-label={label}
     >
-      <Building2 className={`${dims.icon} text-[#00b4d8]`} />
+      {person ? (
+        <User className={`${dims.icon} text-[#00b4d8]`} />
+      ) : (
+        <Building2 className={`${dims.icon} text-[#00b4d8]`} />
+      )}
     </div>
   );
 }

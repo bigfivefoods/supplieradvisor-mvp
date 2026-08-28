@@ -6,6 +6,7 @@ import {
   advisorRefTag,
   advisorKindAliases,
   advisorPartyCustomerType,
+  isAdvisorPersonCustomerType,
   type CoreCustomerKind,
 } from './kinds';
 import { emailsMatch, mergeIdentity, type IdentityLinks } from './identity';
@@ -104,6 +105,8 @@ export type Customer360 = {
   email: string | null;
   phone: string | null;
   logo_url?: string | null;
+  party: 'individual' | 'business';
+  customer_type: string | null;
   kinds: CoreCustomerKind[];
   identity: IdentityLinks;
   memberships: Customer360Membership[];
@@ -489,12 +492,22 @@ export function assembleCustomer360(opts: {
     kinds.delete('trade');
   }
 
+  const personKind =
+    kinds.has('gym_member') ||
+    kinds.has('clinic_patient') ||
+    kinds.has('hire_customer') ||
+    kinds.has('retail_customer') ||
+    isAdvisorPersonCustomerType(c.customer_type);
+  const party: 'individual' | 'business' = personKind ? 'individual' : 'business';
+
   return {
     customer_id: c.id,
     name: c.trading_name,
     email: c.email || null,
     phone: c.phone || null,
     logo_url: c.logo_url || null,
+    party,
+    customer_type: c.customer_type || (party === 'individual' ? 'individual' : 'business'),
     kinds: [...kinds],
     identity,
     memberships,

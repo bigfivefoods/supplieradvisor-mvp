@@ -93,16 +93,26 @@ export function canonicalAdvisorKind(kind: string): string {
   return module || aliases[0] || String(kind || 'gym');
 }
 
-/** CRM customer_type for an advisor person (named AR still via isAdvisorParty). */
-export function advisorPartyCustomerType(
-  kind: string
-): 'member' | 'patient' | 'hirer' {
-  const key = String(kind || '').toLowerCase();
-  const mapped =
-    KIND_FROM_MODULE[key] || KIND_FROM_MODULE[canonicalAdvisorKind(key)];
-  if (mapped === 'clinic_patient') return 'patient';
-  if (mapped === 'hire_customer') return 'hirer';
-  return 'member';
+/**
+ * CRM `customers.customer_type` is business | individual | government | ngo.
+ * Gym members, clinic patients, hirers and retail shoppers are people.
+ */
+export const ADVISOR_CRM_CUSTOMER_TYPE = 'individual' as const;
+
+export function advisorPartyCustomerType(_kind?: string): 'individual' {
+  return ADVISOR_CRM_CUSTOMER_TYPE;
+}
+
+export function isAdvisorPersonCustomerType(type?: string | null): boolean {
+  const t = String(type || '').trim().toLowerCase();
+  return (
+    t === 'individual' ||
+    t === 'member' ||
+    t === 'patient' ||
+    t === 'hirer' ||
+    t === 'consumer' ||
+    t === 'person'
+  );
 }
 
 export function parseAdvisorRef(
