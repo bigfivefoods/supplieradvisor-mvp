@@ -19,7 +19,6 @@ import {
   MessageCircle,
   Navigation,
   Package,
-  Percent,
   Phone,
   Search,
   Shield,
@@ -28,9 +27,7 @@ import {
   X,
 } from 'lucide-react';
 import { PopiaConsentNotice } from '@/components/services/PopiaConsentNotice';
-import { B2cAutoLinkBanner } from '@/components/b2c/B2cAutoLinkBanner';
 import { AdvisorAnnouncementFeed } from '@/components/services/AdvisorAnnouncementFeed';
-import { B2cHireHowItWorks } from '@/components/b2c/B2cHireJourney';
 import { B2cDiaryView, type MemberCalEvent } from '@/components/b2c/B2cMemberCalendar';
 import { MemberAdvisorShell } from '@/components/advisors/MemberAdvisorShell';
 import { HireAdvisorSearchTab } from '@/components/hire/HireAdvisorSearchTab';
@@ -45,7 +42,6 @@ import {
 } from '@/lib/hire/hire-customer-pwa';
 import { AdvisorPwaMemberBinder } from '@/components/advisors/AdvisorPwaMemberBinder';
 import { MemberPortalBrandLockup } from '@/components/brand/PortalBrandLogo';
-import { VerifiedBadge } from '@/components/services/VerifiedBadge';
 import { B2cIdentityCard } from '@/components/b2c/B2cIdentityCard';
 import { AuthLoginActions } from '@/components/auth/AuthLoginActions';
 import {
@@ -589,6 +585,26 @@ export default function HireCustomerPortalPage() {
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [portal]);
 
+  const searchCatalogue = useMemo(() => {
+    if (!portal) return [];
+    const q = search.trim().toLowerCase();
+    const area = areaFilter.trim().toLowerCase();
+    return portal.catalogue.filter((i) => {
+      const loc =
+        `${i.location || ''} ${portal.city || ''} ${portal.depot_address || ''}`.toLowerCase();
+      if (area && !loc.includes(area)) return false;
+      if (!q) return true;
+      return (
+        i.title.toLowerCase().includes(q) ||
+        i.code.toLowerCase().includes(q) ||
+        i.category_name.toLowerCase().includes(q) ||
+        (i.supplier_name || '').toLowerCase().includes(q) ||
+        (i.description || '').toLowerCase().includes(q) ||
+        loc.includes(q)
+      );
+    });
+  }, [portal, search, areaFilter]);
+
   const filteredCatalogue = useMemo(() => {
     if (!portal) return [];
     const q = search.trim().toLowerCase();
@@ -832,73 +848,13 @@ export default function HireCustomerPortalPage() {
         { id: 'nearby', label: 'Nearby', icon: <MapPin /> },
       ]}
       header={
-        <div>
-          <MemberPortalBrandLockup
-            logoUrl="/sa-logo.png"
-            brand={portal.app_name || portal.brand || 'HireAdvisor'}
-            eyebrow="Customer app"
-          />
-          {portal.bio ? (
-            <p className="mt-1 max-w-2xl text-sm text-white/90 md:line-clamp-3 line-clamp-2">
-              {portal.bio}
-            </p>
-          ) : null}
-          <div className="mt-4 flex items-end gap-3">
-            {portal.customer.photo_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={portal.customer.photo_url}
-                alt=""
-                className="h-11 w-11 rounded-full object-cover ring-2 ring-white/50"
-              />
-            ) : (
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/20">
-                <User className="h-5 w-5" />
-              </div>
-            )}
-            <div>
-              <p className="inline-flex flex-wrap items-center gap-2 font-bold">
-                {portal.customer.name}
-                <VerifiedBadge
-                  verified={portal.customer.identity?.is_verified}
-                  provider={portal.customer.identity?.provider}
-                  name={portal.customer.identity?.verified_name}
-                  className="!bg-white/20 !text-white !border-white/30"
-                />
-              </p>
-              <p className="text-xs text-white/85">
-                {[portal.customer.city, portal.customer.phone]
-                  .filter(Boolean)
-                  .join(' · ') || 'Your hire account'}
-              </p>
-            </div>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-bold">
-            <span className="rounded-full bg-white/20 px-2.5 py-1">
-              {portal.stats.catalogue} items
-            </span>
-            <span className="rounded-full bg-white/20 px-2.5 py-1">
-              {portal.stats.open} open hires
-            </span>
-            {portal.stats.needs_docs > 0 ? (
-              <span className="rounded-full bg-amber-400 px-2.5 py-1 text-amber-950">
-                {portal.stats.needs_docs} need docs
-              </span>
-            ) : null}
-            {Number(portal.commercial.customer_commission_pct) > 0 ? (
-              <span className="rounded-full bg-white/20 px-2.5 py-1">
-                {portal.commercial.customer_commission_pct}% platform fee
-              </span>
-            ) : (
-              <span className="rounded-full bg-emerald-400/90 px-2.5 py-1 text-emerald-950">
-                Free to use
-              </span>
-            )}
-          </div>
-        </div>
+        <MemberPortalBrandLockup
+          logoUrl={portal.logo_url || '/sa-logo.png'}
+          brand={portal.app_name || 'HireAdvisor'}
+          eyebrow="Member · HireAdvisor®"
+        />
       }
     >
-        <B2cAutoLinkBanner token={token} tone="cyan" />
         <AdvisorAnnouncementFeed items={portal.announcements} />
 
         {(msg || error) && (
@@ -920,17 +876,19 @@ export default function HireCustomerPortalPage() {
             areaFilter={areaFilter}
             onArea={setAreaFilter}
             areaOptions={areaOptions}
-            suppliers={suppliers}
+            items={searchCatalogue}
             zar={zar}
             depot={{
               lat: portal.depot_lat,
               lng: portal.depot_lng,
               label: portal.city || portal.depot_address,
             }}
-            onOpenSupplier={(s) => {
-              setSupplierFilter(s.key);
+            onOpenItem={(row) => {
+              const item = portal.catalogue.find((i) => i.id === row.id);
+              if (!item) return;
+              setSelectedItem(item);
+              setSupplierFilter(hireSupplierKey(item));
               setCategoryFilter('');
-              setSearch('');
               setTab('hire');
               setMsg(null);
               setError(null);
@@ -940,14 +898,6 @@ export default function HireCustomerPortalPage() {
 
         {tab === 'hire' && (
           <div className="space-y-3">
-            <B2cHireHowItWorks compact />
-            <div className="rounded-2xl border border-cyan-100 bg-white p-3">
-              <p className="flex items-start gap-2 text-[11px] text-slate-600">
-                <Percent className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-700" />
-                {portal.commercial.note}
-              </p>
-            </div>
-
             {supplierFilter ? (
               <button
                 type="button"
@@ -971,7 +921,9 @@ export default function HireCustomerPortalPage() {
             ) : null}
 
             <p className="text-sm text-slate-600">
-              Open a product, pick dates, then hire it.
+              {selectedItem
+                ? 'Confirm dates for this item, then request the hire.'
+                : 'Open an item to hire it.'}
             </p>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -1466,18 +1418,6 @@ export default function HireCustomerPortalPage() {
                           <span className="text-right font-bold">
                             {zar(b.rental_zar)}
                           </span>
-                          {Number(portal.commercial.customer_commission_pct) >
-                            0 || Number(b.customer_commission_zar) > 0 ? (
-                            <>
-                              <span>
-                                Platform fee (
-                                {portal.commercial.customer_commission_pct}%)
-                              </span>
-                              <span className="text-right font-bold">
-                                {zar(b.customer_commission_zar)}
-                              </span>
-                            </>
-                          ) : null}
                           <span>Deposit (refundable)</span>
                           <span className="text-right font-bold">
                             {zar(b.deposit_zar)}
@@ -2250,24 +2190,6 @@ export default function HireCustomerPortalPage() {
                       <span className="text-right font-bold">
                         {zar(quote.fees.rentalZar)}
                       </span>
-                      {Number(quote.fees.customerCommissionPct) > 0 ||
-                      Number(quote.fees.customerCommissionZar) > 0 ? (
-                        <>
-                          <span>
-                            Your fee ({quote.fees.customerCommissionPct}%)
-                          </span>
-                          <span className="text-right font-bold">
-                            {zar(quote.fees.customerCommissionZar)}
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span>Platform fee</span>
-                          <span className="text-right font-bold text-emerald-800">
-                            Free
-                          </span>
-                        </>
-                      )}
                       <span>Deposit (refundable)</span>
                       <span className="text-right font-bold">
                         {zar(quote.fees.depositZar)}
