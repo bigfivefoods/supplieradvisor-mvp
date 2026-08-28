@@ -4,7 +4,7 @@
  * HireAdvisor® customer PWA — Search suppliers · Hire kit · Track it.
  * Phone dock: Search · Hire · You · Track · Nearby (You in the centre).
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
 import {
@@ -328,6 +328,9 @@ export default function HireCustomerPortalPage() {
     return headers;
   }, [getAccessToken]);
 
+  const hasPortalRef = useRef(false);
+  hasPortalRef.current = Boolean(portal);
+
   const load = useCallback(async () => {
     if (!token) return;
     if (String(token).startsWith('hire_pub_')) {
@@ -336,7 +339,7 @@ export default function HireCustomerPortalPage() {
       );
       return;
     }
-    setLoading(true);
+    if (!hasPortalRef.current) setLoading(true);
     setError(null);
     try {
       const headers = await authHeaders();
@@ -1801,18 +1804,26 @@ export default function HireCustomerPortalPage() {
               idNumber={idNumber}
               onIdNumberChange={setIdNumber}
               onChange={(v) => {
-                setPortal((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        customer: {
-                          ...prev.customer,
-                          identity: { ...prev.customer.identity, ...v },
-                        },
-                      }
-                    : prev
-                );
-                if (v.is_verified) void load();
+                setPortal((prev) => {
+                  if (!prev) return prev;
+                  const cur = prev.customer.identity || {};
+                  if (
+                    cur.is_verified === v.is_verified &&
+                    cur.status === v.status &&
+                    cur.provider === v.provider &&
+                    cur.verified_name === v.verified_name &&
+                    cur.verified_at === v.verified_at
+                  ) {
+                    return prev;
+                  }
+                  return {
+                    ...prev,
+                    customer: {
+                      ...prev.customer,
+                      identity: { ...cur, ...v },
+                    },
+                  };
+                });
               }}
             />
             <div className="rounded-2xl border border-slate-200 bg-white p-4">

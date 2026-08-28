@@ -29,6 +29,17 @@ function statusLabel(status?: string) {
   }
 }
 
+function identityKey(v?: B2cVerification | null) {
+  if (!v) return '';
+  return [
+    v.status || '',
+    v.provider || '',
+    v.verified_at || '',
+    v.verified_name || '',
+    v.is_verified ? '1' : '0',
+  ].join('|');
+}
+
 function statusColor(status?: string) {
   switch (String(status || 'unverified')) {
     case 'verified':
@@ -69,12 +80,17 @@ export function B2cIdentityCard({
   const [diditUrl, setDiditUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (initial) setIdentity(initial);
+    if (!initial) return;
+    setIdentity((cur) =>
+      identityKey(cur) === identityKey(initial) ? cur : initial
+    );
   }, [initial]);
 
   const apply = useCallback(
     (next: B2cVerification) => {
-      setIdentity(next);
+      setIdentity((cur) =>
+        identityKey(cur) === identityKey(next) ? cur : next
+      );
       onChange?.(next);
     },
     [onChange]
