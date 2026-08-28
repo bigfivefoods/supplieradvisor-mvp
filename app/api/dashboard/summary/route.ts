@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function assembleDashboardSummary(companyId: number) {
+export async function assembleDashboardSummary(companyId: number) {
     const supabase = getSupabaseServer();
     const { loadHoldingSubtree } = await import(
       '@/lib/business/holding-pipeline'
@@ -63,7 +63,9 @@ async function assembleDashboardSummary(companyId: number) {
     // Independent queries do not wait for the BFS to finish.
     const companyPromise = supabase
       .from('profiles')
-      .select('*')
+      .select(
+        'id, user_id, trading_name, legal_name, industry, industries, business_type, country, city, verification_status, verified_at, supplier_status, status, relationship_type, trust_score, logo_url, short_description, description, contact_name, email, phone, contact_phone, address, street, wallet_address, primary_currency, certifications, iso_certifications'
+      )
       .eq('id', companyId)
       .maybeSingle();
     const treePromise = loadHoldingSubtree(companyId);

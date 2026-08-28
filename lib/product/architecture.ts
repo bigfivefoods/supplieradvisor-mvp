@@ -3,6 +3,19 @@
  * Single source of truth for packaging (brief 2026-08-09).
  */
 import { addAdvisorPackUnlocks } from '@/lib/product/advisor-core-unlocks';
+import {
+  CORE_OS_MONTHLY_ZAR,
+  INDUSTRY_PACK_MONTHLY_ZAR,
+  OS_SECTORS,
+  type OsSectorId,
+} from '@/lib/product/packaging-constants';
+
+export {
+  CORE_OS_MONTHLY_ZAR,
+  INDUSTRY_PACK_MONTHLY_ZAR,
+  OS_SECTORS,
+} from '@/lib/product/packaging-constants';
+export type { OsSectorId } from '@/lib/product/packaging-constants';
 
 /**
  * South African national government departments (Cabinet / gov.za aligned).
@@ -452,42 +465,6 @@ export function publicSectorTierForEntity(
   const e = OS_ENTITY_TYPES.find((x) => x.id === entityTypeId);
   return e?.publicSectorTier ?? null;
 }
-
-export const OS_SECTORS = [
-  {
-    id: 'primary',
-    label: 'Primary',
-    description: 'Agriculture, mining, fishing, forestry, extractives.',
-  },
-  {
-    id: 'secondary',
-    label: 'Secondary',
-    description: 'Manufacturing, processing, construction, utilities.',
-  },
-  {
-    id: 'tertiary',
-    label: 'Tertiary / Services',
-    description: 'Trade, logistics, professional services, hospitality.',
-  },
-  {
-    id: 'quaternary',
-    label: 'Quaternary',
-    description: 'Knowledge, tech, R&D, education services, professional IQ.',
-  },
-  {
-    id: 'public_sector',
-    label: 'Public Sector',
-    description:
-      'Government and publicly funded programmes — National, Provincial, Municipal, and Local.',
-  },
-] as const;
-
-export type OsSectorId = (typeof OS_SECTORS)[number]['id'];
-
-/** Core OS monthly ZAR */
-export const CORE_OS_MONTHLY_ZAR = 299;
-/** Each Industry Pack monthly ZAR */
-export const INDUSTRY_PACK_MONTHLY_ZAR = 199;
 
 export type IndustryModuleDef = {
   id: string;

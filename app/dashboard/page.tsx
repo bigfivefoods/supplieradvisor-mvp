@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
   Users,
@@ -350,6 +350,96 @@ export default function DashboardCommandCenter() {
     intelligence: false,
   });
 
+  const extrasLoaded = useRef({
+    ops: false,
+    mfg: false,
+    fin: false,
+    intel: false,
+  });
+
+  const applyFin = (f: Record<string, unknown>) => {
+    const s = (f.summary || f) as Record<string, unknown>;
+    setFin({
+      arOpen: s.arOpen as number | undefined,
+      arBalance: Number(s.arOpenAmount ?? s.arBalance ?? 0),
+      arOverdue: s.arOverdue as number | undefined,
+      arOverdueAmount: Number(s.arOverdueAmount ?? 0),
+      apOpen: s.apOpen as number | undefined,
+      apBalance: Number(s.apOpenAmount ?? s.apBalance ?? 0),
+      apOverdue: s.apOverdue as number | undefined,
+      apOverdueAmount: Number(s.apOverdueAmount ?? 0),
+      coaAccounts: (s.coaActive ?? s.coaCount) as number | undefined,
+      journalsPosted: s.journalsPosted as number | undefined,
+      journalsDraft: s.journalsDraft as number | undefined,
+      bankAccounts: s.bankAccounts as number | undefined,
+      bankBalance: Number(s.bankBalance ?? 0),
+      unreconciled: s.unreconciled as number | undefined,
+      monthPayments: s.paymentsThisMonth as number | undefined,
+      monthPaymentsAmount: Number(s.paymentsThisMonthAmount ?? 0),
+      assets: s.assets as number | undefined,
+      assetsBookValue: Number(s.assetsBookValue ?? 0),
+      currency: s.currency as string | undefined,
+    });
+  };
+
+  const loadExtra = useCallback(
+    async (which: 'ops' | 'mfg' | 'fin' | 'intel') => {
+      if (!companyId || extrasLoaded.current[which]) return;
+      extrasLoaded.current[which] = true;
+      try {
+        if (which === 'ops') {
+          const res = await fetch(
+            `/api/operations/summary?companyId=${companyId}`
+          );
+          if (res.ok) {
+            const o = await res.json();
+            setOps(o.summary || null);
+          }
+        } else if (which === 'mfg') {
+          const res = await fetch(
+            `/api/manufacturing/summary?companyId=${companyId}`
+          );
+          if (res.ok) {
+            const m = await res.json();
+            setMfg(m.summary || null);
+          }
+        } else if (which === 'fin') {
+          const res = await fetch(
+            `/api/accounting/summary?companyId=${companyId}`
+          );
+          if (res.ok) applyFin(await res.json());
+        } else {
+          const res = await fetch('/api/intelligence/summary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ companyId }),
+          });
+          if (res.ok) {
+            const i = await res.json();
+            const health = i.health || {};
+            const forecasts = i.forecasts || {};
+            const pulse = i.pulse || {};
+            setIntel({
+              overallHealth: health.overall,
+              networkScore: health.network,
+              supplyScore: health.supply,
+              demandScore: health.demand,
+              financeScore: health.finance,
+              opsScore: health.ops,
+              poGrowth: forecasts.poGrowth ?? pulse.poGrowth,
+              salesGrowth: forecasts.salesGrowth ?? pulse.salesGrowth,
+              pipelineValue: pulse.pipelineValue,
+              quoteWinRate: pulse.quoteWinRate,
+            });
+          }
+        }
+      } catch {
+        extrasLoaded.current[which] = false;
+      }
+    },
+    [companyId]
+  );
+
   const load = useCallback(async () => {
     if (!companyId) {
       setLoading(false);
@@ -357,23 +447,20 @@ export default function DashboardCommandCenter() {
     }
     setLoading(true);
     setError(null);
+    extrasLoaded.current = {
+      ops: false,
+      mfg: false,
+      fin: false,
+      intel: false,
+    };
+    setOps(null);
+    setMfg(null);
+    setFin(null);
+    setIntel(null);
     try {
-      const [dashRes, opsRes, mfgRes, finRes, intelRes] = await Promise.all([
-        fetch('/api/dashboard/summary', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ companyId }),
-        }),
-        fetch(`/api/operations/summary?companyId=${companyId}`).catch(() => null),
-        fetch(`/api/manufacturing/summary?companyId=${companyId}`).catch(() => null),
-        fetch(`/api/accounting/summary?companyId=${companyId}`).catch(() => null),
-        fetch('/api/intelligence/summary', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ companyId }),
-        }).catch(() => null),
-      ]);
-
+      const dashRes = await fetch(
+        `/api/dashboard/home?companyId=${companyId}`
+      );
       const data = await dashRes.json();
       if (!dashRes.ok) throw new Error(data.error || 'Failed to load dashboard');
 
@@ -387,61 +474,6 @@ export default function DashboardCommandCenter() {
       setBusiness(data.business || null);
       setAlerts(data.alerts || []);
       setGeneratedAt(data.generatedAt || null);
-
-      if (opsRes?.ok) {
-        const o = await opsRes.json();
-        setOps(o.summary || null);
-      } else setOps(null);
-
-      if (mfgRes?.ok) {
-        const m = await mfgRes.json();
-        setMfg(m.summary || null);
-      } else setMfg(null);
-
-      if (finRes?.ok) {
-        const f = await finRes.json();
-        const s = f.summary || f;
-        setFin({
-          arOpen: s.arOpen,
-          arBalance: Number(s.arOpenAmount ?? s.arBalance ?? 0),
-          arOverdue: s.arOverdue,
-          arOverdueAmount: Number(s.arOverdueAmount ?? 0),
-          apOpen: s.apOpen,
-          apBalance: Number(s.apOpenAmount ?? s.apBalance ?? 0),
-          apOverdue: s.apOverdue,
-          apOverdueAmount: Number(s.apOverdueAmount ?? 0),
-          coaAccounts: s.coaActive ?? s.coaCount,
-          journalsPosted: s.journalsPosted,
-          journalsDraft: s.journalsDraft,
-          bankAccounts: s.bankAccounts,
-          bankBalance: Number(s.bankBalance ?? 0),
-          unreconciled: s.unreconciled,
-          monthPayments: s.paymentsThisMonth,
-          monthPaymentsAmount: Number(s.paymentsThisMonthAmount ?? 0),
-          assets: s.assets,
-          assetsBookValue: Number(s.assetsBookValue ?? 0),
-          currency: s.currency,
-        });
-      } else setFin(null);
-
-      if (intelRes?.ok) {
-        const i = await intelRes.json();
-        const health = i.health || {};
-        const forecasts = i.forecasts || {};
-        const pulse = i.pulse || {};
-        setIntel({
-          overallHealth: health.overall,
-          networkScore: health.network,
-          supplyScore: health.supply,
-          demandScore: health.demand,
-          financeScore: health.finance,
-          opsScore: health.ops,
-          poGrowth: forecasts.poGrowth ?? pulse.poGrowth,
-          salesGrowth: forecasts.salesGrowth ?? pulse.salesGrowth,
-          pipelineValue: pulse.pipelineValue,
-          quoteWinRate: pulse.quoteWinRate,
-        });
-      } else setIntel(null);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load');
     } finally {
@@ -481,10 +513,15 @@ export default function DashboardCommandCenter() {
   const bankBal = Number(fin?.bankBalance ?? 0);
   const completeness = business?.profileCompleteness ?? kpis?.profileCompleteness ?? 0;
 
-  const toggle = (id: string) =>
+  const toggle = (id: string) => {
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
+    if (id === 'operations' || id === 'quality') void loadExtra('ops');
+    if (id === 'manufacturing' || id === 'quality') void loadExtra('mfg');
+    if (id === 'financial') void loadExtra('fin');
+    if (id === 'intelligence' || id === 'srm') void loadExtra('intel');
+  };
 
-  const expandAll = () =>
+  const expandAll = () => {
     setOpenSections({
       business: true,
       financial: true,
@@ -495,6 +532,11 @@ export default function DashboardCommandCenter() {
       quality: true,
       intelligence: true,
     });
+    void loadExtra('ops');
+    void loadExtra('mfg');
+    void loadExtra('fin');
+    void loadExtra('intel');
+  };
 
   const collapseAll = () =>
     setOpenSections({

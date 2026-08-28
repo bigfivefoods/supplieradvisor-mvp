@@ -29,6 +29,9 @@ const page = src('app/page.tsx');
 assert.doesNotMatch(page, /@privy-io\/react-auth/);
 assert.doesNotMatch(page, /from 'viem'/);
 assert.doesNotMatch(page, /from 'wagmi'/);
+assert.doesNotMatch(page, /ProductMocks/);
+assert.doesNotMatch(page, /supply-chain-referral/);
+assert.doesNotMatch(page, /getSupabaseServer/);
 
 const pub = src('components/PublicProviders.tsx');
 assert.doesNotMatch(pub, /@privy-io\/react-auth/);
