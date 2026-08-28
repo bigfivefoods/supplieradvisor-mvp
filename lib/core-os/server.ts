@@ -120,32 +120,47 @@ async function loadAdvisorStoreSliceFor360(
       ).catch(() => null);
       return { ...EMPTY_360_STORES, retail: retail?.store || null };
     }
-    const reader =
-      moduleKey === 'physiograph'
-        ? readPhysiographFromMetadata
-        : moduleKey === 'dentalgraph'
-          ? readDentalgraphFromMetadata
-          : moduleKey === 'medicalgraph'
-            ? readMedicalgraphFromMetadata
-            : moduleKey === 'psychiatrygraph'
-              ? readPsychiatrygraphFromMetadata
-              : moduleKey === 'vetgraph'
-                ? readVetgraphFromMetadata
-                : null;
-    if (!reader) return { ...EMPTY_360_STORES };
+    type ClinicSlice = {
+      patients?: unknown[];
+      appointments?: unknown[];
+      bookings?: unknown[];
+      services?: unknown[];
+    };
+    const readClinic = (meta: Record<string, unknown>): ClinicSlice => {
+      if (moduleKey === 'physiograph') {
+        return readPhysiographFromMetadata(meta) as ClinicSlice;
+      }
+      if (moduleKey === 'dentalgraph') {
+        return readDentalgraphFromMetadata(meta) as ClinicSlice;
+      }
+      if (moduleKey === 'medicalgraph') {
+        return readMedicalgraphFromMetadata(meta) as ClinicSlice;
+      }
+      if (moduleKey === 'psychiatrygraph') {
+        return readPsychiatrygraphFromMetadata(meta) as ClinicSlice;
+      }
+      if (moduleKey === 'vetgraph') {
+        return readVetgraphFromMetadata(meta) as ClinicSlice;
+      }
+      return {};
+    };
+    if (
+      ![
+        'physiograph',
+        'dentalgraph',
+        'medicalgraph',
+        'psychiatrygraph',
+        'vetgraph',
+      ].includes(moduleKey)
+    ) {
+      return { ...EMPTY_360_STORES };
+    }
     const loaded = await loadAdvisorModuleStore(
       companyId,
       moduleKey,
-      reader
+      readClinic
     ).catch(() => null);
-    const store = loaded?.store as
-      | {
-          patients?: unknown[];
-          appointments?: unknown[];
-          bookings?: unknown[];
-          services?: unknown[];
-        }
-      | undefined;
+    const store = loaded?.store;
     if (!store) return { ...EMPTY_360_STORES };
     return {
       ...EMPTY_360_STORES,
