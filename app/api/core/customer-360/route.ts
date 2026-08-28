@@ -10,6 +10,7 @@ import { attachInvoiceToCharge } from '@/lib/b2c/member-account-ar';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   try {

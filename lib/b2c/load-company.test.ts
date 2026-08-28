@@ -22,6 +22,15 @@ assert.equal(
 assert.deepEqual(overlaid.member_accounts, { payments: [] });
 assert.equal(overlaid.leftover, true);
 
+const nested = overlayAdvisorStores(
+  {},
+  [{ module: 'fitgraph', data: { fitgraph: { clients: [{ id: 'nested' }] } } }]
+);
+assert.equal(
+  (nested.fitgraph as { clients: Array<{ id: string }> }).clients[0].id,
+  'nested'
+);
+
 const split = splitWalletMetaForSave(overlaid);
 assert.equal(split.modules.length, 1);
 assert.equal(split.modules[0].key, 'fitgraph');

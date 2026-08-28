@@ -52,10 +52,15 @@ function Inner() {
       if (kind !== 'all') params.set('kind', kind);
       const res = await fetch(`/api/core/customer-360?${params}`);
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Could not load Customer 360');
+      }
       setRows(data.rows || []);
       setCounts(data.counts || {});
-    } catch {
+    } catch (e: unknown) {
       setRows([]);
+      setCounts({});
+      toast.error(e instanceof Error ? e.message : 'Could not load Customer 360');
     } finally {
       setLoading(false);
     }

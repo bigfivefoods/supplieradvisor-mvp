@@ -39,9 +39,14 @@ export function overlayAdvisorStores(
   for (const row of rows) {
     const key = String(row?.module || '');
     if (!isAdvisorModuleKey(key)) continue;
-    if (row?.data && typeof row.data === 'object' && !Array.isArray(row.data)) {
-      out[key] = row.data;
-    }
+    const data = row?.data;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) continue;
+    const rec = data as Record<string, unknown>;
+    const nested = rec[key];
+    out[key] =
+      nested && typeof nested === 'object' && !Array.isArray(nested)
+        ? nested
+        : data;
   }
   return out;
 }

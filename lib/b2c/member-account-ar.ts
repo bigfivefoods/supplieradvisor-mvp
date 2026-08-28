@@ -50,6 +50,7 @@ export async function ensureAdvisorCrmCustomer(opts: {
   phone?: string | null;
   kind: string;
   refId: string;
+  skipPartyGl?: boolean;
 }): Promise<{ id: number; name: string; email: string | null } | null> {
   const supabase = getSupabaseServer();
   const email = String(opts.email || '')
@@ -158,10 +159,12 @@ export async function ensureAdvisorCrmCustomer(opts: {
     console.warn('[member-account] CRM customer', error?.message);
     return null;
   }
-  const { ensurePartyGlAccountsSafe } = await import(
-    '@/lib/accounting/party-gl-accounts'
-  );
-  await ensurePartyGlAccountsSafe(opts.companyId);
+  if (!opts.skipPartyGl) {
+    const { ensurePartyGlAccountsSafe } = await import(
+      '@/lib/accounting/party-gl-accounts'
+    );
+    await ensurePartyGlAccountsSafe(opts.companyId);
+  }
   return {
     id: Number(data.id),
     name: String(data.trading_name || opts.name),

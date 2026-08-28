@@ -80,83 +80,6 @@ function clinicPatients(
   }));
 }
 
-async function persistAdvisorCustomerStores(
-  companyId: number,
-  stores: ReturnType<typeof advisorStoresFromMeta>,
-  dirty: Set<string>
-) {
-  const { saveAdvisorModuleStore } = await import('@/lib/business/company-data');
-  const jobs: Promise<unknown>[] = [];
-  if (dirty.has('fitgraph')) {
-    const { saveFitgraphMerged } = await import('@/lib/fitness/fitgraph-io');
-    jobs.push(saveFitgraphMerged(companyId, stores.gym));
-  }
-  if (dirty.has('physiograph')) {
-    const { writePhysiographToMetadata } = await import(
-      '@/lib/clinic/physiograph'
-    );
-    jobs.push(
-      saveAdvisorModuleStore(
-        companyId,
-        'physiograph',
-        stores.physio,
-        writePhysiographToMetadata
-      )
-    );
-  }
-  if (dirty.has('dentalgraph')) {
-    const { writeDentalgraphToMetadata } = await import(
-      '@/lib/dental/dentalgraph'
-    );
-    jobs.push(
-      saveAdvisorModuleStore(
-        companyId,
-        'dentalgraph',
-        stores.dental,
-        writeDentalgraphToMetadata
-      )
-    );
-  }
-  if (dirty.has('medicalgraph')) {
-    const { writeMedicalgraphToMetadata } = await import(
-      '@/lib/clinic/medicalgraph'
-    );
-    jobs.push(
-      saveAdvisorModuleStore(
-        companyId,
-        'medicalgraph',
-        stores.medical,
-        writeMedicalgraphToMetadata
-      )
-    );
-  }
-  if (dirty.has('psychiatrygraph')) {
-    const { writePsychiatrygraphToMetadata } = await import(
-      '@/lib/clinic/psychiatrygraph'
-    );
-    jobs.push(
-      saveAdvisorModuleStore(
-        companyId,
-        'psychiatrygraph',
-        stores.psychiatry,
-        writePsychiatrygraphToMetadata
-      )
-    );
-  }
-  if (dirty.has('vetgraph')) {
-    const { writeVetgraphToMetadata } = await import('@/lib/clinic/vetgraph');
-    jobs.push(
-      saveAdvisorModuleStore(
-        companyId,
-        'vetgraph',
-        stores.vet,
-        writeVetgraphToMetadata
-      )
-    );
-  }
-  await Promise.all(jobs);
-}
-
 export function advisorStoresFromMeta(meta: Record<string, unknown>) {
   return {
     gym: readFitgraphFromMetadata(meta),
@@ -169,6 +92,55 @@ export function advisorStoresFromMeta(meta: Record<string, unknown>) {
     retail: readRetailgraphFromMetadata(meta),
     events: readAdvisorEvents(meta),
   };
+}
+
+/** Same module rows the desks use (company_module_stores via RPC), not only wallet overlay. */
+async function loadAdvisorStoresFor360(companyId: number) {
+  const { name, meta } = await loadCompanyMeta(companyId);
+  const stores = advisorStoresFromMeta(meta);
+  try {
+    const { loadAdvisorModuleStore } = await import(
+      '@/lib/business/company-data'
+    );
+    const { loadFitgraphMerged } = await import('@/lib/fitness/fitgraph-io');
+    const [gym, physio, dental, medical, psychiatry, vet] = await Promise.all([
+      loadFitgraphMerged(companyId).catch(() => null),
+      loadAdvisorModuleStore(
+        companyId,
+        'physiograph',
+        readPhysiographFromMetadata
+      ).catch(() => null),
+      loadAdvisorModuleStore(
+        companyId,
+        'dentalgraph',
+        readDentalgraphFromMetadata
+      ).catch(() => null),
+      loadAdvisorModuleStore(
+        companyId,
+        'medicalgraph',
+        readMedicalgraphFromMetadata
+      ).catch(() => null),
+      loadAdvisorModuleStore(
+        companyId,
+        'psychiatrygraph',
+        readPsychiatrygraphFromMetadata
+      ).catch(() => null),
+      loadAdvisorModuleStore(
+        companyId,
+        'vetgraph',
+        readVetgraphFromMetadata
+      ).catch(() => null),
+    ]);
+    if (gym?.store) stores.gym = gym.store;
+    if (physio?.store) stores.physio = physio.store;
+    if (dental?.store) stores.dental = dental.store;
+    if (medical?.store) stores.medical = medical.store;
+    if (psychiatry?.store) stores.psychiatry = psychiatry.store;
+    if (vet?.store) stores.vet = vet.store;
+  } catch (err) {
+    console.warn('[customer-360] module stores', err);
+  }
+  return { name, meta, stores };
 }
 
 async function loadCustomersAndInvoices(companyId: number) {
@@ -219,8 +191,7 @@ export async function loadCustomer360Bundle(
   counts: Record<string, number>;
   events: ReturnType<typeof readAdvisorEvents>;
 }> {
-  const { name: _n, meta } = await loadCompanyMeta(companyId);
-  const stores = advisorStoresFromMeta(meta);
+  const { name: _n, meta, stores } = await loadAdvisorStoresFor360(companyId);
   let { customers, invoices } = await loadCustomersAndInvoices(companyId);
   const people = collectAdvisorCustomerPeople({
     gymClients: stores.gym.clients || [],
@@ -232,32 +203,47 @@ export async function loadCustomer360Bundle(
       { module: 'vetgraph', patients: stores.vet.patients || [] },
     ],
   });
-  const missing = unsyncedAdvisorCustomerPeople(
-    people,
+  const customerRefs = () =>
     customers.map((c) => ({
       id: Number(c.id),
       email: c.email ? String(c.email) : null,
       notes: c.notes ? String(c.notes) : null,
-    }))
-  );
+    }));
+  const missing = unsyncedAdvisorCustomerPeople(people, customerRefs());
   if (missing.length) {
-    const { attachCrmToAdvisorPerson } = await import(
-      '@/lib/b2c/member-account-ar'
-    );
-    const dirty = new Set<string>();
-    for (const row of missing.slice(0, 80)) {
-      const id = await attachCrmToAdvisorPerson({
-        companyId,
-        kind: row.kind,
-        person: row.person,
-      });
-      if (id) dirty.add(row.module);
-    }
-    if (dirty.size) {
-      await persistAdvisorCustomerStores(companyId, stores, dirty);
-      const reloaded = await loadCustomersAndInvoices(companyId);
-      customers = reloaded.customers;
-      invoices = reloaded.invoices;
+    try {
+      const { ensureAdvisorCrmCustomer } = await import(
+        '@/lib/b2c/member-account-ar'
+      );
+      const deadline = Date.now() + 2500;
+      let created = 0;
+      for (const row of missing) {
+        if (created >= 40 || Date.now() > deadline) break;
+        const crm = await ensureAdvisorCrmCustomer({
+          companyId,
+          name: row.person.name,
+          email: row.person.email || null,
+          phone: row.person.phone || null,
+          kind: row.kind,
+          refId: row.person.id,
+          skipPartyGl: true,
+        });
+        if (crm?.id) {
+          row.person.crm_customer_id = crm.id;
+          created += 1;
+        }
+      }
+      if (created) {
+        const { ensurePartyGlAccountsSafe } = await import(
+          '@/lib/accounting/party-gl-accounts'
+        );
+        await ensurePartyGlAccountsSafe(companyId);
+        const reloaded = await loadCustomersAndInvoices(companyId);
+        customers = reloaded.customers;
+        invoices = reloaded.invoices;
+      }
+    } catch (err) {
+      console.warn('[customer-360] CRM backfill', err);
     }
   }
   const clinics = [
@@ -407,15 +393,12 @@ export async function loadCustomer360Bundle(
   );
 
   if (!opts?.customerId) {
-    const leftover = unsyncedAdvisorCustomerPeople(
-      people,
-      customers.map((c) => ({
-        id: Number(c.id),
-        email: c.email ? String(c.email) : null,
-        notes: c.notes ? String(c.notes) : null,
-      }))
+    rows.push(
+      ...assembleLeftoverAdvisor360(
+        unsyncedAdvisorCustomerPeople(people, customerRefs()),
+        assembleOpts
+      )
     );
-    rows.push(...assembleLeftoverAdvisor360(leftover, assembleOpts));
   }
 
   const filtered = opts?.kind

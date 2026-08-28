@@ -176,6 +176,20 @@ assert.ok(
   leftover.some((r) => r.kinds.includes('clinic_patient') && r.name === 'New Patient')
 );
 
+const roster = collectAdvisorCustomerPeople({
+  gymClients: Array.from({ length: 274 }, (_, i) => ({
+    id: `cli_${i}`,
+    name: `Member ${i}`,
+  })),
+});
+assert.equal(roster.length, 274);
+const rosterLeftover = assembleLeftoverAdvisor360(
+  unsyncedAdvisorCustomerPeople(roster, []),
+  {}
+);
+assert.equal(rosterLeftover.length, 274);
+assert.ok(rosterLeftover.every((r) => r.kinds.includes('gym_member')));
+
 // 2. People workforce + leave
 assert.equal(toWorkforceEmploymentType('contractor'), 'contract');
 assert.equal(toWorkforceEmploymentType('full_time'), 'full_time');
