@@ -336,7 +336,7 @@ export default function LandingNav() {
     <>
       <header
         data-landing-nav
-        className="fixed top-0 left-0 right-0 z-[200] w-full border-b border-slate-200/80 bg-white/95 pt-safe dark:border-neutral-800 dark:bg-black/95"
+        className="fixed top-0 left-0 right-0 z-[310] w-full overflow-x-clip border-b border-slate-200/80 bg-white/95 pt-safe dark:border-neutral-800 dark:bg-black/95"
         style={{
           backgroundColor:
             resolved === 'dark'
@@ -356,10 +356,10 @@ export default function LandingNav() {
               : 'none',
         }}
       >
-        <div className="mx-auto flex h-[var(--sa-nav-h)] max-w-screen-2xl items-center justify-between gap-2 sm:gap-3 px-3 sm:px-6 lg:px-10">
+        <div className="mx-auto flex h-[var(--sa-nav-h)] min-w-0 max-w-screen-2xl items-center justify-between gap-2 overflow-x-clip px-3 sm:gap-3 sm:px-6 lg:px-10">
           <Link
             href="/"
-            className="relative z-[210] flex shrink-0 items-center gap-2 sm:gap-2.5"
+            className="relative z-[320] flex min-w-0 shrink-0 items-center gap-2 sm:gap-2.5"
             onClick={handleLogoClick}
           >
             <Image
@@ -370,7 +370,7 @@ export default function LandingNav() {
               className="sa-logo h-7 w-auto sm:h-8 object-contain shrink-0"
               priority
             />
-            <span className="sa-wordmark text-sm font-black tracking-tight sm:text-base md:text-xl">
+            <span className="sa-wordmark hidden text-sm font-black tracking-tight sm:inline sm:text-base md:text-xl">
               SupplierAdvisor
               <span className="sa-wordmark-mark">®</span>
             </span>
@@ -432,17 +432,17 @@ export default function LandingNav() {
             </Link>
           </div>
 
-          <div className="flex items-center gap-1.5 lg:hidden shrink-0">
+          <div className="flex shrink-0 items-center gap-1.5 lg:hidden">
             <Link
-              href="/join"
-              className="md:hidden inline-flex items-center rounded-full bg-[#00b4d8] px-2.5 py-2 text-[11px] font-bold text-white min-h-[40px]"
+              href="/login"
+              data-landing-login
+              className="md:hidden inline-flex min-h-[40px] items-center rounded-full border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 touch-manipulation dark:border-slate-700 dark:text-slate-200"
             >
-              Free trial
+              Log in
             </Link>
-            <AppearanceToggle className="md:hidden" />
             <button
               type="button"
-              className="relative z-[210] inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 touch-manipulation dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              className="relative z-[320] inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-800 touch-manipulation dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               aria-label={open ? 'Close menu' : 'Open menu'}
               aria-expanded={open}
               onClick={(e) => {
@@ -458,7 +458,7 @@ export default function LandingNav() {
 
       {open && (
         <div
-          className="fixed inset-0 z-[190] lg:hidden"
+          className="fixed inset-0 z-[300] lg:hidden"
           role="dialog"
           aria-modal="true"
           aria-label="Site menu"
@@ -494,14 +494,20 @@ export default function LandingNav() {
                 );
               })}
 
-              <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 dark:border-neutral-800">
-                <button
-                  type="button"
-                  onClick={goLogin}
-                  className="rounded-2xl border border-slate-200 py-3.5 font-semibold text-slate-700 touch-manipulation dark:border-neutral-700 dark:text-slate-200"
+              <div className="border-t border-slate-100 pt-3 dark:border-neutral-800">
+                <p className="px-1 pb-2 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                  Appearance
+                </p>
+                <AppearanceToggle />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Link
+                  href="/login"
+                  onClick={() => setOpen(false)}
+                  className="inline-flex items-center justify-center rounded-2xl border border-slate-200 py-3.5 font-semibold text-slate-700 touch-manipulation dark:border-neutral-700 dark:text-slate-200"
                 >
                   Log in
-                </button>
+                </Link>
                 <Link
                   href="/join"
                   onClick={() => setOpen(false)}
