@@ -5,6 +5,14 @@ import { hashProductIdentity } from '@/lib/inventory/hash';
 import { normalizeProductPrices, productQrPayload } from '@/lib/inventory/types';
 import { toGtin14, isValidGtin } from '@/lib/inventory/gs1';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  missingSelectColumn,
+  stripSelectColumn,
+} from '@/lib/portals/select-retry';
+
+/** Live products uses status, not is_active. */
+const PRODUCT_LIST_COLUMNS =
+  'id, profile_id, name, sku, barcode, gtin, gtin14, public_id, category, product_type, uom, base_currency, sell_price, cost_price, prices, reorder_level, reorder_qty, short_description, status, primary_image_url, specs_sheet_url, specs_sheet_name, track_lot, track_serial, is_sellable, is_purchasable, metadata, qr_payload, onchain_status, onchain_hash, updated_at, created_at';
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,28 +24,43 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = getSupabaseServer();
-    let query = supabase
-      .from('products')
-      .select(
-        'id, profile_id, name, sku, barcode, gtin, gtin14, public_id, category, product_type, uom, base_currency, sell_price, cost_price, prices, reorder_level, reorder_qty, short_description, status, is_active, primary_image_url, specs_sheet_url, specs_sheet_name, track_lot, track_serial, is_sellable, is_purchasable, metadata, qr_payload, onchain_status, onchain_hash, updated_at, created_at'
-      )
-      .eq('profile_id', companyId)
-      .order('name')
-      .limit(500);
-
-    if (type && type !== 'all') query = query.eq('product_type', type);
-
-    const { data, error } = await query;
+    let cols = PRODUCT_LIST_COLUMNS;
+    let data: unknown = null;
+    let error: { message?: string } | null = null;
+    for (let i = 0; i < 10; i++) {
+      let query = supabase
+        .from('products')
+        .select(cols as never)
+        .eq('profile_id', companyId)
+        .order('name')
+        .limit(500);
+      if (type && type !== 'all') query = query.eq('product_type', type);
+      const hit = await query;
+      data = hit.data;
+      error = hit.error;
+      if (!error) break;
+      const missing = missingSelectColumn(error.message);
+      if (!missing) break;
+      const next = stripSelectColumn(cols, missing);
+      if (!next || next === cols) break;
+      cols = next;
+    }
     if (error) {
       return NextResponse.json({
         success: true,
         products: [],
         warning: error.message,
-        hint: 'Run supabase/migrations/20260709_inventory_world_class.sql',
+        hint: 'The catalogue retries without missing product columns. No SQL required.',
       });
     }
 
-    let products = data || [];
+    let products = (Array.isArray(data) ? data : []) as Array<{
+      id: number;
+      name?: string | null;
+      sku?: string | null;
+      barcode?: string | null;
+      category?: string | null;
+    }>;
     if (q) {
       const n = q.toLowerCase();
       products = products.filter(
