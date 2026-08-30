@@ -29,6 +29,7 @@ import {
 import type { PartyRoleRow } from '@/lib/accounting/party-roles';
 import { glCodeFromMeta } from '@/lib/accounting/party-roles';
 import { PartyBookRoleSelect } from '@/components/accounting/PartyBookRoleSelect';
+import { HostCommercial } from '@/components/commercial/CommercialPanel';
 
 export function SupplierBookProfile({
   supplier,
@@ -338,6 +339,13 @@ export function SupplierBookProfile({
             ))}
           </ul>
         </div>
+
+        <HostCommercial
+          companyId={companyId}
+          partyKind="supplier"
+          supplierId={supplier.id}
+          partyName={form.trading_name || supplier.trading_name || 'Supplier'}
+        />
 
         <div className="flex flex-wrap gap-2">
           <Link

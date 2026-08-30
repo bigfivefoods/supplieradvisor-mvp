@@ -293,6 +293,22 @@ export async function POST(request: NextRequest) {
       .eq('agreement_id', agreementId)
       .order('sort_order', { ascending: true });
 
+    try {
+      const { syncAgreementIntoCatalogue } = await import('@/lib/commercial/db');
+      await syncAgreementIntoCatalogue({
+        profileId: companyId,
+        buyerProfileId,
+        lines: (savedLines || []).map((l) => ({
+          seller_product_id: l.seller_product_id,
+          list_price: l.list_price,
+          uom: l.uom,
+          currency: l.currency,
+        })),
+      });
+    } catch {
+      /* catalogue optional */
+    }
+
     await logActivity({
       profile_id: companyId,
       actor_user_id: mem.userId,
@@ -433,6 +449,24 @@ export async function PATCH(request: NextRequest) {
       .select('*')
       .eq('agreement_id', id)
       .order('sort_order', { ascending: true });
+
+    if (sellerId === companyId) {
+      try {
+        const { syncAgreementIntoCatalogue } = await import('@/lib/commercial/db');
+        await syncAgreementIntoCatalogue({
+          profileId: companyId,
+          buyerProfileId: buyerId,
+          lines: (savedLines || []).map((l) => ({
+            seller_product_id: l.seller_product_id,
+            list_price: l.list_price,
+            uom: l.uom,
+            currency: l.currency,
+          })),
+        });
+      } catch {
+        /* catalogue optional */
+      }
+    }
 
     await logActivity({
       profile_id: companyId,

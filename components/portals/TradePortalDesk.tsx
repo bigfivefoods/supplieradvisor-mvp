@@ -43,6 +43,7 @@ import {
   supplierBookDisabledReason,
   supplierBookPartyGate,
 } from '@/lib/portals/supplier-portal-party';
+import { HostCommercial } from '@/components/commercial/CommercialPanel';
 
 type AccountOpt = {
   id: number;
@@ -56,6 +57,7 @@ type AccountOpt = {
 const CUSTOMER_SECTIONS: Array<{ key: keyof PortalSections; label: string; hint: string }> = [
   { key: 'quotes', label: 'Quotations', hint: 'Quotes created on this CRM account' },
   { key: 'orders', label: 'Sales orders', hint: 'SO list and status' },
+  { key: 'commercial', label: 'Commercial', hint: 'Accepted prices and proposals' },
   { key: 'invoices', label: 'Statement', hint: 'Invoices and open balance' },
   { key: 'projects', label: 'Projects', hint: 'Joint waterfall — both sides edit tasks' },
   { key: 'documents', label: 'Documents', hint: 'Certs and files' },
@@ -66,6 +68,7 @@ const CUSTOMER_SECTIONS: Array<{ key: keyof PortalSections; label: string; hint:
 
 const SUPPLIER_SECTIONS: Array<{ key: keyof PortalSections; label: string; hint: string }> = [
   { key: 'purchase_orders', label: 'Purchase orders', hint: 'POs they receive and update' },
+  { key: 'commercial', label: 'Commercial', hint: 'Accepted prices and proposals' },
   { key: 'stock', label: 'Stock on hand', hint: 'They confirm availability' },
   { key: 'projects', label: 'Projects', hint: 'Joint waterfall Gantt' },
   { key: 'documents', label: 'Documents', hint: 'Specs, SLAs, certs' },
@@ -558,6 +561,18 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                     </div>
 
                     {expanded ? (
+                    <>
+                    {g.accountId ? (
+                      <div className="mt-3">
+                        <HostCommercial
+                          companyId={companyId}
+                          partyKind={isCustomer ? 'customer' : 'supplier'}
+                          supplierId={isCustomer ? null : g.accountId}
+                          customerId={isCustomer ? g.accountId : null}
+                          partyName={g.label}
+                        />
+                      </div>
+                    ) : null}
                     <ul className="space-y-2 mt-3">
                       {g.viewers.map((v) => {
                         const vUrl = `/portal/${encodeURIComponent(v.token)}`;
@@ -668,6 +683,7 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                         );
                       })}
                     </ul>
+                    </>
                     ) : null}
                   </div>
                 );

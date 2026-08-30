@@ -390,6 +390,25 @@ export async function GET(request: NextRequest) {
       items.push(...buyerItems);
     }
 
+    if (srmRow) {
+      try {
+        const { lookupAcceptedMap } = await import('@/lib/commercial/db');
+        const accepted = await lookupAcceptedMap({
+          profileId: companyId,
+          partyKind: 'supplier',
+          supplierId: Number(srmRow.id),
+        });
+        for (const item of items) {
+          const pid = Number(item.seller_product_id);
+          if (Object.prototype.hasOwnProperty.call(accepted, pid)) {
+            item.unit_price = accepted[pid];
+          }
+        }
+      } catch {
+        /* optional until SQL paste */
+      }
+    }
+
     // Stable sort: agreements, supplier inventory, buyer inventory, then type/name
     items.sort((a, b) => {
       const ra = poCatalogueSourceRank(a.source);

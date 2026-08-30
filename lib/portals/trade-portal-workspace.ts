@@ -197,6 +197,7 @@ export type PortalWorkspace = {
   projects: PortalProjectView[];
   /** Host sellable products (customer portal only) for PO product picker */
   catalogue: PortalCatalogueItem[];
+  commercial: import('@/lib/commercial/types').PartyCatalogueLine[];
 };
 
 function mapBatchLot(raw: Record<string, unknown>): PortalBatchLot | null {
@@ -385,7 +386,7 @@ async function loadHostCatalogue(
     const meta = asObject(raw.metadata);
     if (!productVisibleOnCustomerPortal(meta, customerId)) continue;
     const branded = productAssignedToCustomer(meta, customerId);
-    const unit =
+    let unit =
       Number(raw.sell_price) > 0
         ? Number(raw.sell_price)
         : Number(raw.cost_price) || 0;
@@ -418,6 +419,21 @@ async function loadHostCatalogue(
         (Number.isFinite(productLead) && productLead > 0 ? productLead : null),
     });
   }
+  try {
+    const { lookupAcceptedMap } = await import('@/lib/commercial/db');
+    const accepted = await lookupAcceptedMap({
+      profileId: companyId,
+      partyKind: 'customer',
+      customerId,
+    });
+    for (const item of out) {
+      if (Object.prototype.hasOwnProperty.call(accepted, item.id)) {
+        item.unit_price = accepted[item.id];
+      }
+    }
+  } catch {
+    /* catalogue table may be missing until SQL paste */
+  }
   return portalPoCatalogue(out);
 }
 
@@ -449,6 +465,7 @@ export async function loadPortalWorkspace(opts: {
     inbound_pos: [],
     projects: [],
     catalogue: [],
+    commercial: [],
   };
 
   let linkedProfileId: number | null = null;
@@ -1072,6 +1089,20 @@ export async function loadPortalWorkspace(opts: {
       ? await loadHostCatalogue(companyId, opts.viewer.customer_id)
       : [];
 
+  let commercial: import('@/lib/commercial/types').PartyCatalogueLine[] = [];
+  try {
+    const { loadPartyLines } = await import('@/lib/commercial/db');
+    commercial = await loadPartyLines({
+      profileId: companyId,
+      partyKind: kind === 'supplier' ? 'supplier' : 'customer',
+      supplierId: kind === 'supplier' ? opts.viewer.supplier_id : null,
+      customerId: kind === 'customer' ? opts.viewer.customer_id : null,
+      withQty: true,
+    });
+  } catch {
+    commercial = [];
+  }
+
   return {
     onBooks: true,
     linkedProfileId,
@@ -1086,5 +1117,6 @@ export async function loadPortalWorkspace(opts: {
     inbound_pos: inbound,
     projects,
     catalogue,
+    commercial,
   };
 }

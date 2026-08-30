@@ -132,11 +132,6 @@ function NetworkInner() {
 
   useEffect(() => {
     if (!selectedId) return;
-    const hit = rows.find((s) => s.id === selectedId);
-    if (hit) {
-      setSelectedHold(hit);
-      return;
-    }
     let cancelled = false;
     void (async () => {
       const params = new URLSearchParams({
@@ -151,7 +146,7 @@ function NetworkInner() {
     return () => {
       cancelled = true;
     };
-  }, [companyId, selectedId, rows]);
+  }, [companyId, selectedId]);
 
   const listRow = rows.find((s) => s.id === selectedId);
   const selected =
