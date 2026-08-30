@@ -3,6 +3,7 @@ import {
   requireCompanyAccess,
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
+import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
   acceptPrice,
   addFromInventory,
@@ -11,6 +12,8 @@ import {
   proposePrice,
   rejectPrice,
   saveSlaFields,
+  setSupplierCatalogueTicks,
+  shareSupplierSku,
 } from '@/lib/commercial/db';
 import { parsePartyKind } from '@/lib/commercial/engine';
 
@@ -105,6 +108,53 @@ export async function POST(request: NextRequest) {
           body.moq != null && Number.isFinite(Number(body.moq))
             ? Number(body.moq)
             : undefined,
+      });
+      if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'share' || action === 'share_set' || action === 'share_all' || action === 'share_none') {
+      if (party.partyKind !== 'supplier' || !party.supplierId) {
+        return NextResponse.json({ error: 'supplierId required' }, { status: 400 });
+      }
+      if (action === 'share_all' || action === 'share_none') {
+        let ids: number[] = [];
+        if (action === 'share_all') {
+          const { data: prows } = await getSupabaseServer()
+            .from('products')
+            .select('id')
+            .eq('profile_id', companyId)
+            .limit(500);
+          ids = (prows || [])
+            .map((p) => Number((p as { id?: number }).id))
+            .filter((n) => n > 0);
+        }
+        const r = await setSupplierCatalogueTicks({
+          profileId: companyId,
+          supplierId: party.supplierId,
+          productIds: ids,
+        });
+        if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });
+        return NextResponse.json({ success: true, lines: r.lines });
+      }
+      if (action === 'share_set') {
+        const ids = Array.isArray(body.productIds)
+          ? body.productIds.map(Number)
+          : [];
+        const r = await setSupplierCatalogueTicks({
+          profileId: companyId,
+          supplierId: party.supplierId,
+          productIds: ids,
+        });
+        if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });
+        return NextResponse.json({ success: true, lines: r.lines });
+      }
+      const productId = Number(body.productId || body.product_id);
+      const r = await shareSupplierSku({
+        profileId: companyId,
+        supplierId: party.supplierId,
+        productId,
+        shared: body.shared === true,
       });
       if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });
       return NextResponse.json({ success: true });

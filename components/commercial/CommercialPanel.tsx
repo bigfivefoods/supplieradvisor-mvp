@@ -13,6 +13,7 @@ import type {
   PriceActor,
   PriceRevision,
 } from '@/lib/commercial/types';
+import { PortalCataloguePicker } from '@/components/commercial/PortalCataloguePicker';
 
 export function CommercialPanel({
   partyKind,
@@ -160,7 +161,7 @@ export function CommercialPanel({
   if (!lines.length && !canAdd) {
     return (
       <p className="rounded-[1.5rem] border border-white/70 bg-white/90 p-6 text-sm text-neutral-500">
-        No commercial lines yet. The host can add SKUs from inventory.
+        No SKUs shared with this portal yet.
       </p>
     );
   }
@@ -600,21 +601,34 @@ export function HostCommercial({
     void load();
   }, [load]);
   return (
-    <CommercialPanel
-      partyKind={partyKind}
-      actor="host"
-      hostName={hostName}
-      partyName={partyName}
-      lines={lines}
-      busy={busy}
-      companyId={companyId}
-      supplierId={supplierId}
-      customerId={customerId}
-      canAdd
-      onHostAction={() => {
-        setBusy(true);
-        void load().finally(() => setBusy(false));
-      }}
-    />
+    <div className="space-y-4">
+      {partyKind === 'supplier' && supplierId ? (
+        <PortalCataloguePicker
+          companyId={companyId}
+          supplierId={supplierId}
+          tickedIds={lines.map((l) => l.product_id)}
+          onChanged={() => {
+            setBusy(true);
+            void load().finally(() => setBusy(false));
+          }}
+        />
+      ) : null}
+      <CommercialPanel
+        partyKind={partyKind}
+        actor="host"
+        hostName={hostName}
+        partyName={partyName}
+        lines={lines}
+        busy={busy}
+        companyId={companyId}
+        supplierId={supplierId}
+        customerId={customerId}
+        canAdd={partyKind === 'customer'}
+        onHostAction={() => {
+          setBusy(true);
+          void load().finally(() => setBusy(false));
+        }}
+      />
+    </div>
   );
 }

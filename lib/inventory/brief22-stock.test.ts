@@ -128,6 +128,7 @@ const poPrice = src('lib/commercial/po-price.ts');
 assert.match(poPrice, /lookupSupplierPoPriceMap/);
 assert.match(poPrice, /repriceOpenSupplierPos/);
 assert.match(poPrice, /supplierFacingUnitPrice/);
+assert.match(poPrice, /requireTick/);
 assert.match(poPrice, /Never sell_price/);
 assert.doesNotMatch(poPrice, /item\.unit_price = .*sell_price/);
 assert.doesNotMatch(src('lib/commercial/types.ts'), /KELPACK_SEED_PRICES/);

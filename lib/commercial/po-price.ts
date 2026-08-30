@@ -131,7 +131,11 @@ export async function lookupSupplierPoPriceMap(opts: {
     }
   }
   const map: Record<number, number> = {};
+  const requireTick = Boolean(opts.supplierId && opts.supplierId > 0);
   for (const [pid, row] of opts.products) {
+    if (requireTick && !Object.prototype.hasOwnProperty.call(accepted, pid)) {
+      continue;
+    }
     const unit = supplierFacingUnitPrice({
       costPrice: row.cost_price as number | null,
       prices: row.prices,
@@ -141,10 +145,12 @@ export async function lookupSupplierPoPriceMap(opts: {
     });
     if (unit != null) map[pid] = unit;
   }
-  for (const [pid, price] of Object.entries(accepted)) {
-    const id = Number(pid);
-    if (!Object.prototype.hasOwnProperty.call(map, id)) {
-      map[id] = roundMoney(price);
+  if (!requireTick) {
+    for (const [pid, price] of Object.entries(accepted)) {
+      const id = Number(pid);
+      if (!Object.prototype.hasOwnProperty.call(map, id)) {
+        map[id] = roundMoney(price);
+      }
     }
   }
   return map;
@@ -169,7 +175,15 @@ export async function priceSupplierPoItems(opts: {
     products,
   });
   const priced = applyMappedUnitPrices(attached.items, map);
-  if (!priced.ok) return priced;
+  if (!priced.ok) {
+    if (opts.supplierId && /No agreed cost/i.test(priced.error)) {
+      return {
+        ok: false,
+        error: 'That SKU is not on this supplier’s portal catalogue',
+      };
+    }
+    return priced;
+  }
   return { ok: true, items: priced.items, total: priced.total };
 }
 
