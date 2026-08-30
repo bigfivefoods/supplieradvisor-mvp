@@ -64,28 +64,5 @@ export type PriceRevision = {
 export const KELPACK_SUPPLIER_ID = 12;
 export const BIG_FIVE_PROFILE_ID = 102;
 
-/** Buy prices we pay Kelpack (ZAR). Films + 8 FG + 4 NSNP. */
-export const KELPACK_SEED_PRICES: ReadonlyArray<{
-  product_id: number;
-  accepted_price: number;
-}> = [
-  { product_id: 2, accepted_price: 28 },
-  { product_id: 3, accepted_price: 28 },
-  { product_id: 4, accepted_price: 28 },
-  { product_id: 5, accepted_price: 28 },
-  { product_id: 6, accepted_price: 28 },
-  { product_id: 7, accepted_price: 35 },
-  { product_id: 8, accepted_price: 28 },
-  { product_id: 9, accepted_price: 28 },
-  { product_id: 42, accepted_price: 99 },
-  { product_id: 44, accepted_price: 500 },
-  { product_id: 45, accepted_price: 685.75 },
-  { product_id: 46, accepted_price: 100 },
-  { product_id: 49, accepted_price: 1.35 },
-  { product_id: 50, accepted_price: 1.35 },
-  { product_id: 51, accepted_price: 1.35 },
-  { product_id: 52, accepted_price: 1.35 },
-];
-
 export const KENYA_CUSTOMER_ID = 3;
 export const KENYA_BUYER_PROFILE_ID = 123;

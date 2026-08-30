@@ -296,13 +296,30 @@ export async function receivePurchaseOrderToInventory(opts: {
       continue;
     }
     const { postStock } = await import('@/lib/inventory/post-stock');
+    const { productCostFromRow } = await import('@/lib/commercial/engine');
+    const { data: costRow } = await supabase
+      .from('products')
+      .select('cost_price, prices')
+      .eq('profile_id', opts.companyId)
+      .eq('id', productId)
+      .maybeSingle();
+    const inventoryCost = productCostFromRow(
+      costRow && typeof costRow === 'object'
+        ? (costRow as unknown as Record<string, unknown>)
+        : null
+    );
     const posted = await postStock({
       profileId: opts.companyId,
       productId,
       warehouseId: wh,
       movementType: 'receive',
       quantity: qty,
-      unitCost: unitCost != null && unitCost > 0 ? unitCost : 0,
+      unitCost:
+        inventoryCost != null
+          ? inventoryCost
+          : unitCost != null && unitCost > 0
+            ? unitCost
+            : 0,
       lotNumber,
       referenceType: 'purchase_order',
       referenceId: opts.poId,

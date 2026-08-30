@@ -2,7 +2,7 @@
  * Run: npx --yes tsx lib/commercial/po-price.test.ts
  */
 import assert from 'node:assert/strict';
-import { applyMappedUnitPrices } from './engine';
+import { applyMappedUnitPrices, supplierFacingUnitPrice } from './engine';
 import {
   attachProductIdsFromSku,
   isOpenUnreceivedPo,
@@ -22,6 +22,24 @@ assert.equal(
 );
 assert.equal(productCostFromRow({ sell_price: 45 }), null);
 assert.equal(productCostFromRow({ cost_price: 0 }), 0);
+assert.equal(
+  supplierFacingUnitPrice({ costPrice: 26.52, acceptedPrice: 28 }),
+  26.52
+);
+assert.equal(
+  supplierFacingUnitPrice({ costPrice: 37.83, acceptedPrice: 35 }),
+  37.83
+);
+const chickenPo = applyMappedUnitPrices(
+  [{ product_id: 2, quantity: 5000, unit_price: 28, item_name: 'OnePot Chicken' }],
+  { 2: 26.52 }
+);
+assert.equal(chickenPo.ok, true);
+if (chickenPo.ok) {
+  assert.equal(chickenPo.items[0].unit_price, 26.52);
+  assert.equal(chickenPo.items[0].line_total, 132600);
+  assert.equal(chickenPo.total, 132600);
+}
 
 assert.equal(isOpenUnreceivedPo({ status: 'sent', metadata: { srm_supplier_id: 12 } }), true);
 assert.equal(isOpenUnreceivedPo({ status: 'draft' }), true);

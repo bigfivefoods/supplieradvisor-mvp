@@ -121,8 +121,23 @@ WHERE b.profile_id = 102
     WHERE l.bom_id = b.id AND l.component_product_id = 51
   );
 
+-- Inventory cost_price wins over Brief 21 28/35 seeds on supplier catalogue.
+-- Customer lines and invoices are not touched.
+UPDATE public.party_catalogue_lines l
+SET accepted_price = p.cost_price,
+    accepted_at = COALESCE(l.accepted_at, now()),
+    updated_at = now()
+FROM public.products p
+WHERE l.profile_id = 102
+  AND l.party_kind = 'supplier'
+  AND p.profile_id = 102
+  AND p.id = l.product_id
+  AND p.cost_price IS NOT NULL
+  AND l.accepted_price IS DISTINCT FROM p.cost_price;
+
 -- Reprice open draft/sent/confirmed supplier POs (including Kelpack PO 1)
--- from accepted Commercial else products.cost_price. Skip received history.
+-- from live products.cost_price (inventory wins over a stale accepted seed).
+-- Skip received history. Do not rewrite customer invoices.
 -- Does not write Kelpack's book id onto purchase_orders.supplier_id.
 DO $$
 DECLARE
@@ -197,13 +212,13 @@ BEGIN
           ORDER BY l.id
           LIMIT 1;
         END IF;
-        IF accepted IS NOT NULL THEN
-          unit := accepted;
-        ELSE
-          SELECT p.cost_price INTO cost
-          FROM public.products p
-          WHERE p.profile_id = 102 AND p.id = pid;
+        SELECT p.cost_price INTO cost
+        FROM public.products p
+        WHERE p.profile_id = 102 AND p.id = pid;
+        IF cost IS NOT NULL THEN
           unit := cost;
+        ELSIF accepted IS NOT NULL THEN
+          unit := accepted;
         END IF;
       END IF;
       qty := COALESCE(

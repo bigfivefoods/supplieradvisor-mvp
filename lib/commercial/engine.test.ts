@@ -9,12 +9,12 @@ import {
   counterpartyMayDecide,
   familyRank,
   groupLinesByFamily,
-  kelpackSeedPrice,
+  productCostFromRow,
   productFamily,
   roundMoney,
   sortRevisionsOldestLast,
+  supplierFacingUnitPrice,
 } from './engine';
-import { KELPACK_SEED_PRICES } from './types';
 
 assert.equal(productFamily({ name: 'OnePot Chicken 1kg' }), 'OnePot');
 assert.equal(productFamily({ name: 'Fortified porridge Chocolate 1kg' }), 'Fortified porridge');
@@ -22,15 +22,24 @@ assert.equal(productFamily({ name: 'Soya Mince Beef 5kg' }), 'NSNP');
 assert.equal(productFamily({ name: 'Printed film 80u' }), 'Film');
 assert.ok(familyRank('OnePot') < familyRank('NSNP'));
 
-assert.equal(kelpackSeedPrice(2), 28);
-assert.equal(kelpackSeedPrice(7), 35);
-assert.equal(kelpackSeedPrice(45), 685.75);
-assert.equal(kelpackSeedPrice(49), 1.35);
-assert.equal(kelpackSeedPrice(54), null);
 assert.equal(
-  KELPACK_SEED_PRICES.map((r) => r.product_id).join(','),
-  '2,3,4,5,6,7,8,9,42,44,45,46,49,50,51,52'
+  supplierFacingUnitPrice({ costPrice: 26.52, acceptedPrice: 28 }),
+  26.52
 );
+assert.equal(
+  supplierFacingUnitPrice({ costPrice: 37.83, acceptedPrice: 35 }),
+  37.83
+);
+assert.equal(
+  supplierFacingUnitPrice({
+    costPrice: null,
+    prices: [{ currency: 'ZAR', cost_price: 25.87, sell_price: 45 }],
+    acceptedPrice: 28,
+  }),
+  25.87
+);
+assert.equal(productCostFromRow({ sell_price: 45 }), null);
+assert.equal(supplierFacingUnitPrice({ acceptedPrice: 28 }), 28);
 
 assert.equal(billedUnitPrice({ accepted_price: 28, pending_price: 30 }), 28);
 assert.equal(counterpartyMayDecide({ pendingProposedBy: 'party', actor: 'host' }), true);
