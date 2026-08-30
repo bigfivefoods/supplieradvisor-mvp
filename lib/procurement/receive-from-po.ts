@@ -379,7 +379,7 @@ async function copyPoLotsToInventory(opts: {
 }): Promise<void> {
   if (opts.meta.lots_received_at) return;
   const supabase = getSupabaseServer();
-  let hit = await supabase
+  const hit = await supabase
     .from('order_batches')
     .select(
       'batch_number, qty, uom, produced_at, expiry_date, order_line_index, metadata'
@@ -387,15 +387,17 @@ async function copyPoLotsToInventory(opts: {
     .eq('company_id', opts.companyId)
     .eq('order_id', opts.poId)
     .limit(200);
+  let rows: Record<string, unknown>[] = (hit.data ||
+    []) as unknown as Record<string, unknown>[];
   if (hit.error) {
-    hit = await supabase
+    const retry = await supabase
       .from('order_batches')
       .select('batch_number, qty, uom, produced_at, metadata')
       .eq('company_id', opts.companyId)
       .eq('order_id', opts.poId)
       .limit(200);
+    rows = (retry.data || []) as unknown as Record<string, unknown>[];
   }
-  const rows = (hit.data || []) as Array<Record<string, unknown>>;
   if (!rows.length) return;
 
   const { inventoryLotPayloadFromBatch } = await import(

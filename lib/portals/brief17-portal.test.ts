@@ -17,6 +17,11 @@ assert.match(act, /shipped/);
 assert.doesNotMatch(act, /from\('profiles'\)[\s\S]{0,200}\bphone\b/);
 assert.match(act, /purchase_order_id/);
 assert.match(act, /stripMissingMessageColumn/);
+assert.doesNotMatch(act, /^\s+hit = await supabase/m);
+assert.match(
+  src('lib/portals/trade-portal.ts'),
+  /let row: Record<string, unknown> \| null/
+);
 
 const people = src('lib/portals/trade-portal-people.ts');
 assert.match(people, /assertSupplierPortalParty/);
@@ -24,6 +29,7 @@ assert.match(people, /assertSupplierPortalParty/);
 const ws = src('lib/portals/trade-portal-workspace.ts');
 assert.match(ws, /poBelongsToSupplierViewer/);
 assert.match(ws, /msgRows: Record<string, unknown>\[\]/);
+assert.doesNotMatch(ws, /^\s+hit = await supabase/m);
 
 const msgRoute = src('app/api/portals/trade/messages/route.ts');
 assert.match(msgRoute, /Record<string, unknown>\[\]/);
@@ -37,6 +43,8 @@ const recv = src('lib/procurement/receive-from-po.ts');
 assert.match(recv, /inventory_lots/);
 assert.match(recv, /lots_received_at/);
 assert.match(recv, /copyPoLotsToInventory/);
+assert.match(recv, /as unknown as Record<string, unknown>\[\]/);
+assert.doesNotMatch(recv, /^\s+hit = await supabase/m);
 
 const desk = src('components/portals/TradePortalDesk.tsx');
 assert.match(desk, /supplierBookPartyGate/);

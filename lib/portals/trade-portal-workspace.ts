@@ -454,63 +454,69 @@ export async function loadPortalWorkspace(opts: {
       'linked_profile_id, trading_name, legal_name, contact_name, job_title, email, phone, website, vat_number, registration_number, billing_address, continent, province, region, city, country, payment_terms, industry';
     const softCols =
       'linked_profile_id, trading_name, legal_name, contact_name, job_title, email, phone, website, vat_number, registration_number, billing_address, region, city, country, payment_terms, industry';
-    let hit = await supabase
+    const first = await supabase
       .from('customers')
       .select(`${cols}, logo_url`)
       .eq('id', opts.viewer.customer_id)
       .eq('profile_id', companyId)
       .maybeSingle();
-    if (hit.error) {
-      hit = await supabase
+    let data: Record<string, unknown> | null =
+      !first.error && first.data
+        ? (first.data as unknown as Record<string, unknown>)
+        : null;
+    if (first.error) {
+      const retry = await supabase
         .from('customers')
         .select(cols)
         .eq('id', opts.viewer.customer_id)
         .eq('profile_id', companyId)
         .maybeSingle();
+      data = retry.data
+        ? (retry.data as unknown as Record<string, unknown>)
+        : null;
+      if (retry.error) {
+        const retrySoft = await supabase
+          .from('customers')
+          .select(`${softCols}, logo_url`)
+          .eq('id', opts.viewer.customer_id)
+          .eq('profile_id', companyId)
+          .maybeSingle();
+        data = retrySoft.data
+          ? (retrySoft.data as unknown as Record<string, unknown>)
+          : null;
+        if (retrySoft.error) {
+          const retrySoftest = await supabase
+            .from('customers')
+            .select(softCols)
+            .eq('id', opts.viewer.customer_id)
+            .eq('profile_id', companyId)
+            .maybeSingle();
+          data = retrySoftest.data
+            ? (retrySoftest.data as unknown as Record<string, unknown>)
+            : null;
+        }
+      }
     }
-    if (hit.error) {
-      hit = await supabase
-        .from('customers')
-        .select(`${softCols}, logo_url`)
-        .eq('id', opts.viewer.customer_id)
-        .eq('profile_id', companyId)
-        .maybeSingle();
-    }
-    if (hit.error) {
-      hit = await supabase
-        .from('customers')
-        .select(softCols)
-        .eq('id', opts.viewer.customer_id)
-        .eq('profile_id', companyId)
-        .maybeSingle();
-    }
-    const data = hit.data;
     if (data?.linked_profile_id) linkedProfileId = Number(data.linked_profile_id);
     if (data) {
       bookProfile = {
-        logo_url: String((data as { logo_url?: string | null }).logo_url || ''),
-        trading_name: String(data.trading_name || ''),
-        legal_name: String(data.legal_name || ''),
-        contact_name: String(data.contact_name || ''),
-        job_title: String(data.job_title || ''),
-        email: String(data.email || ''),
-        phone: String(data.phone || ''),
-        website: String(data.website || ''),
-        vat_number: String(data.vat_number || ''),
-        registration_number: String(data.registration_number || ''),
-        address: String(data.billing_address || ''),
-        continent: String(
-          (data as { continent?: string | null }).continent || ''
-        ),
-        country: String(data.country || ''),
-        province: String(
-          (data as { province?: string | null }).province ||
-            (data as { region?: string | null }).region ||
-            ''
-        ),
-        city: String(data.city || ''),
-        payment_terms: String(data.payment_terms || ''),
-        industry: String(data.industry || ''),
+        logo_url: bookStr(data, 'logo_url'),
+        trading_name: bookStr(data, 'trading_name'),
+        legal_name: bookStr(data, 'legal_name'),
+        contact_name: bookStr(data, 'contact_name'),
+        job_title: bookStr(data, 'job_title'),
+        email: bookStr(data, 'email'),
+        phone: bookStr(data, 'phone'),
+        website: bookStr(data, 'website'),
+        vat_number: bookStr(data, 'vat_number'),
+        registration_number: bookStr(data, 'registration_number'),
+        address: bookStr(data, 'billing_address') || bookStr(data, 'address'),
+        continent: bookStr(data, 'continent'),
+        country: bookStr(data, 'country'),
+        province: bookStr(data, 'province') || bookStr(data, 'region'),
+        city: bookStr(data, 'city'),
+        payment_terms: bookStr(data, 'payment_terms'),
+        industry: bookStr(data, 'industry'),
       };
     }
   }
@@ -519,37 +525,49 @@ export async function loadPortalWorkspace(opts: {
       'linked_profile_id, trading_name, legal_name, contact_name, job_title, email, phone, website, vat_number, registration_number, address, continent, province, region, city, country, payment_terms, industry, metadata';
     const softCols =
       'linked_profile_id, trading_name, legal_name, contact_name, job_title, email, phone, website, address, city, country, industry, metadata';
-    let hit = await supabase
+    const first = await supabase
       .from('srm_suppliers')
       .select(`${cols}, logo_url`)
       .eq('id', opts.viewer.supplier_id)
       .eq('profile_id', companyId)
       .maybeSingle();
-    if (hit.error) {
-      hit = await supabase
+    let data: Record<string, unknown> | null =
+      !first.error && first.data
+        ? (first.data as unknown as Record<string, unknown>)
+        : null;
+    if (first.error) {
+      const retry = await supabase
         .from('srm_suppliers')
         .select(cols)
         .eq('id', opts.viewer.supplier_id)
         .eq('profile_id', companyId)
         .maybeSingle();
+      data = retry.data
+        ? (retry.data as unknown as Record<string, unknown>)
+        : null;
+      if (retry.error) {
+        const retrySoft = await supabase
+          .from('srm_suppliers')
+          .select(`${softCols}, logo_url`)
+          .eq('id', opts.viewer.supplier_id)
+          .eq('profile_id', companyId)
+          .maybeSingle();
+        data = retrySoft.data
+          ? (retrySoft.data as unknown as Record<string, unknown>)
+          : null;
+        if (retrySoft.error) {
+          const retrySoftest = await supabase
+            .from('srm_suppliers')
+            .select(softCols)
+            .eq('id', opts.viewer.supplier_id)
+            .eq('profile_id', companyId)
+            .maybeSingle();
+          data = retrySoftest.data
+            ? (retrySoftest.data as unknown as Record<string, unknown>)
+            : null;
+        }
+      }
     }
-    if (hit.error) {
-      hit = await supabase
-        .from('srm_suppliers')
-        .select(`${softCols}, logo_url`)
-        .eq('id', opts.viewer.supplier_id)
-        .eq('profile_id', companyId)
-        .maybeSingle();
-    }
-    if (hit.error) {
-      hit = await supabase
-        .from('srm_suppliers')
-        .select(softCols)
-        .eq('id', opts.viewer.supplier_id)
-        .eq('profile_id', companyId)
-        .maybeSingle();
-    }
-    const data = hit.data as Record<string, unknown> | null;
     if (data?.linked_profile_id) linkedProfileId = Number(data.linked_profile_id);
     if (data) {
       bookProfile = {
