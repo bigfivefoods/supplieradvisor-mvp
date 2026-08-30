@@ -4,7 +4,7 @@
  * row for this company, are not blocked, and book role is supplier or both.
  * Missing role + existing SRM row (not explicitly customer) is legacy supplier.
  */
-import { bookRoleFromMeta } from '@/lib/accounting/party-roles';
+import { bookRoleFromMeta, parsePartyBookRole } from '@/lib/accounting/party-roles';
 
 export type SupplierBookGateOk = { ok: true };
 export type SupplierBookGateFail = {
@@ -117,18 +117,140 @@ export function customerBookDisabledReason(gate: CustomerBookGate): string | nul
   return gate.error;
 }
 
-export function rowOnSupplierDesk(row: {
-  status?: string | null;
-  metadata?: unknown;
-} | null | undefined): boolean {
-  return supplierBookPartyGate(row).ok;
+export type BookTwinHint = {
+  exists?: boolean;
+  role?: 'customer' | 'supplier' | 'both' | null;
+};
+
+/**
+ * Supplier profiles / portal picker. Legacy (no role) is an SRM party only
+ * when there is no CRM twin. A twin with no stamp is fail-closed.
+ */
+export function rowOnSupplierDesk(
+  row: {
+    status?: string | null;
+    metadata?: unknown;
+  } | null | undefined,
+  twin?: BookTwinHint | null
+): boolean {
+  if (!supplierBookPartyGate(row).ok) return false;
+  const role = bookRoleFromMeta(row?.metadata);
+  if (role === 'supplier' || role === 'both') return true;
+  if (twin?.role === 'customer') return false;
+  if (twin?.exists) return false;
+  return true;
 }
 
-export function rowOnCustomerDesk(row: {
+/**
+ * Customer profiles / portal picker. Legacy (no role) is a CRM party only
+ * when there is no SRM twin. A twin with no stamp is fail-closed.
+ */
+export function rowOnCustomerDesk(
+  row: {
+    status?: string | null;
+    metadata?: unknown;
+  } | null | undefined,
+  twin?: BookTwinHint | null
+): boolean {
+  if (!customerBookPartyGate(row).ok) return false;
+  const role = bookRoleFromMeta(row?.metadata);
+  if (role === 'customer' || role === 'both') return true;
+  if (twin?.role === 'supplier') return false;
+  if (twin?.exists) return false;
+  return true;
+}
+
+export function partyTwinKeys(row: {
+  id?: unknown;
+  linked_profile_id?: unknown;
+  email?: unknown;
+  trading_name?: unknown;
+  legal_name?: unknown;
+}): string[] {
+  const keys: string[] = [];
+  const linked = Number(row.linked_profile_id);
+  if (Number.isFinite(linked) && linked > 0) keys.push(`linked:${linked}`);
+  const email = String(row.email || '')
+    .trim()
+    .toLowerCase();
+  if (email.includes('@')) keys.push(`email:${email}`);
+  const name = String(row.trading_name || row.legal_name || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\b(pty|ltd|limited|npc|npo|cc|inc|the)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (name.length > 1) keys.push(`name:${name}`);
+  return keys;
+}
+
+export function indexBookTwins(
+  rows: Array<{
+    linked_profile_id?: unknown;
+    email?: unknown;
+    trading_name?: unknown;
+    legal_name?: unknown;
+    metadata?: unknown;
+  }>
+): Map<string, BookTwinHint> {
+  const map = new Map<string, BookTwinHint>();
+  for (const row of rows) {
+    const role = bookRoleFromMeta(row.metadata);
+    const hint: BookTwinHint = { exists: true, role };
+    for (const key of partyTwinKeys(row)) {
+      const prev = map.get(key);
+      map.set(key, {
+        exists: true,
+        role: hint.role || prev?.role || null,
+      });
+    }
+  }
+  return map;
+}
+
+export function twinHintFor(
+  row: {
+    linked_profile_id?: unknown;
+    email?: unknown;
+    trading_name?: unknown;
+    legal_name?: unknown;
+  },
+  twins: Map<string, BookTwinHint>
+): BookTwinHint | null {
+  for (const key of partyTwinKeys(row)) {
+    const hit = twins.get(key);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+type DeskPartyRow = {
   status?: string | null;
   metadata?: unknown;
-} | null | undefined): boolean {
-  return customerBookPartyGate(row).ok;
+  linked_profile_id?: unknown;
+  email?: unknown;
+  trading_name?: unknown;
+  legal_name?: unknown;
+};
+
+export function filterSupplierDeskRows<T extends DeskPartyRow>(
+  suppliers: T[],
+  customers: DeskPartyRow[]
+): T[] {
+  const twins = indexBookTwins(customers);
+  return suppliers.filter((row) =>
+    rowOnSupplierDesk(row, twinHintFor(row, twins))
+  );
+}
+
+export function filterCustomerDeskRows<T extends DeskPartyRow>(
+  customers: T[],
+  suppliers: DeskPartyRow[]
+): T[] {
+  const twins = indexBookTwins(suppliers);
+  return customers.filter((row) =>
+    rowOnCustomerDesk(row, twinHintFor(row, twins))
+  );
 }
 
 function asMeta(raw: unknown): Record<string, unknown> {
@@ -159,6 +281,72 @@ export function poBelongsToSupplierViewer(
     if (sid === linked || spid === linked) return true;
   }
   return false;
+}
+
+/** Host-company PO: buyer_profile_id, or older rows keyed on profile_id / company_id. */
+export function poHostedByBuyer(
+  po: {
+    buyer_profile_id?: unknown;
+    profile_id?: unknown;
+    company_id?: unknown;
+  },
+  companyId: number
+): boolean {
+  const host = Number(companyId);
+  if (!Number.isFinite(host) || host <= 0) return false;
+  const buyer = Number(po.buyer_profile_id);
+  if (buyer === host) return true;
+  if (Number.isFinite(buyer) && buyer > 0) return false;
+  const profile = Number(po.profile_id);
+  const company = Number(po.company_id);
+  return profile === host || company === host;
+}
+
+export function mergePortalDocRows<T extends { id: number; kind?: string }>(
+  primary?: T[] | null,
+  secondary?: T[] | null
+): T[] {
+  const out: T[] = [];
+  const seen = new Set<string>();
+  for (const row of [...(primary || []), ...(secondary || [])]) {
+    if (!row || row.id == null) continue;
+    const key = `${row.kind || ''}#${row.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
+}
+
+export function supplierPortalPoPdfHref(opts: {
+  token: string;
+  poId: number;
+  storedUrl?: string | null;
+}): string {
+  const stored = String(opts.storedUrl || '').trim();
+  if (/^https?:\/\//i.test(stored)) return stored;
+  const token = encodeURIComponent(String(opts.token || '').trim());
+  const id = Number(opts.poId);
+  return `/api/public/portals/trade/po-pdf?token=${token}&id=${id}`;
+}
+
+export function defaultCreateBookRole(
+  kind: 'supplier' | 'customer',
+  raw?: unknown
+): 'customer' | 'supplier' | 'both' {
+  const parsed =
+    parsePartyBookRole(raw) ||
+    bookRoleFromMeta(
+      raw && typeof raw === 'object' ? raw : { party_book_role: raw }
+    );
+  if (parsed === 'both') return 'both';
+  return kind === 'supplier' ? 'supplier' : 'customer';
+}
+
+export function poPdfUrlFromMeta(metadata: unknown): string | null {
+  const meta = asMeta(metadata);
+  const url = String(meta.pdf_url || meta.attachment_url || '').trim();
+  return /^https?:\/\//i.test(url) ? url : null;
 }
 
 export function validateLotDates(

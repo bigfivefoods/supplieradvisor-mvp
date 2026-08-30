@@ -9,6 +9,10 @@ import {
   parseListLimit,
   SUPPLIER_LIST_COLUMNS,
 } from '@/lib/http/tenant-list';
+import {
+  defaultCreateBookRole,
+  filterSupplierDeskRows,
+} from '@/lib/portals/supplier-portal-party';
 
 function asRecord(raw: unknown): Record<string, unknown> {
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
@@ -157,14 +161,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (!byId) {
-      const { rowOnSupplierDesk } = await import(
-        '@/lib/portals/supplier-portal-party'
-      );
-      suppliers = suppliers.filter((s) =>
-        rowOnSupplierDesk(s as { status?: string | null; metadata?: unknown })
-      );
-    }
+    const { data: crm } = await supabase
+      .from('customers')
+      .select('id, linked_profile_id, email, trading_name, legal_name, metadata')
+      .eq('profile_id', companyId)
+      .limit(400);
+    suppliers = filterSupplierDeskRows(suppliers, crm || []);
 
     const enriched = suppliers.map((s) => {
       const row = s as Record<string, unknown>;
@@ -255,6 +257,15 @@ export async function POST(request: NextRequest) {
       tags: Array.isArray(body.tags) ? body.tags : [],
       created_by: body.created_by || body.privyUserId || null,
       updated_at: new Date().toISOString(),
+      metadata: {
+        ...(body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
+          ? (body.metadata as Record<string, unknown>)
+          : {}),
+        party_book_role: defaultCreateBookRole(
+          'supplier',
+          body.party_book_role ?? body.book_role
+        ),
+      },
     };
 
     const supabase = getSupabaseServer();

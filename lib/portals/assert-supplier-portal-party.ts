@@ -1,7 +1,10 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { bookRoleFromMeta } from '@/lib/accounting/party-roles';
 import {
   customerBookPartyGate,
   supplierBookPartyGate,
+  twinHintFor,
+  indexBookTwins,
 } from '@/lib/portals/supplier-portal-party';
 
 export async function assertSupplierPortalParty(
@@ -47,6 +50,31 @@ export async function assertSupplierPortalParty(
       status: gate.reason === 'missing' ? 404 : 403,
       reason: gate.reason,
     };
+  }
+  if (bookRoleFromMeta((data as { metadata?: unknown }).metadata) == null) {
+    const { data: crm } = await supabase
+      .from('customers')
+      .select('id, linked_profile_id, email, trading_name, legal_name, metadata')
+      .eq('profile_id', companyId)
+      .limit(400);
+    const twin = twinHintFor(
+      data as {
+        linked_profile_id?: unknown;
+        email?: unknown;
+        trading_name?: unknown;
+        legal_name?: unknown;
+      },
+      indexBookTwins(crm || [])
+    );
+    if (twin?.exists) {
+      return {
+        ok: false,
+        error:
+          'Customer only — set book role to Supplier or Both before issuing a supplier portal',
+        status: 403,
+        reason: 'customer_only',
+      };
+    }
   }
   const linked = Number((data as { linked_profile_id?: unknown }).linked_profile_id);
   return {
@@ -99,6 +127,31 @@ export async function assertCustomerPortalParty(
       status: gate.reason === 'missing' ? 404 : 403,
       reason: gate.reason,
     };
+  }
+  if (bookRoleFromMeta((data as { metadata?: unknown }).metadata) == null) {
+    const { data: srm } = await supabase
+      .from('srm_suppliers')
+      .select('id, linked_profile_id, email, trading_name, legal_name, metadata')
+      .eq('profile_id', companyId)
+      .limit(400);
+    const twin = twinHintFor(
+      data as {
+        linked_profile_id?: unknown;
+        email?: unknown;
+        trading_name?: unknown;
+        legal_name?: unknown;
+      },
+      indexBookTwins(srm || [])
+    );
+    if (twin?.exists) {
+      return {
+        ok: false,
+        error:
+          'Supplier only — set book role to Customer or Both before issuing a customer portal',
+        status: 403,
+        reason: 'supplier_only',
+      };
+    }
   }
   const linked = Number((data as { linked_profile_id?: unknown }).linked_profile_id);
   return {

@@ -14,8 +14,10 @@ import {
   purchaseOrderEmailHtml,
   purchaseOrderEmailSubject,
   purchaseOrderPdfFilename,
+  srmIdFromPo,
 } from '@/lib/procurement/po-email';
 import { assemblePurchaseOrderPdfInput } from '@/lib/procurement/po-parties';
+import { poHostedByBuyer } from '@/lib/portals/supplier-portal-party';
 
 /**
  * POST { companyId, id, to?, ccMe?, message? }
@@ -53,12 +55,11 @@ export async function POST(request: NextRequest) {
       .from('purchase_orders')
       .select('*')
       .eq('id', id)
-      .eq('buyer_profile_id', companyId)
       .maybeSingle();
     if (poErr) {
       return NextResponse.json({ error: poErr.message }, { status: 500 });
     }
-    if (!po) {
+    if (!po || !poHostedByBuyer(po as Record<string, unknown>, companyId)) {
       return NextResponse.json({ error: 'Purchase order not found' }, { status: 404 });
     }
 
@@ -184,16 +185,41 @@ export async function POST(request: NextRequest) {
     }
 
     const prev = String(po.status || '').toLowerCase();
-    if (prev === 'draft') {
-      const nowIso = new Date().toISOString();
-      const { error: upErr } = await supabase
-        .from('purchase_orders')
-        .update({ status: 'sent', updated_at: nowIso })
-        .eq('id', id)
-        .eq('buyer_profile_id', companyId);
-      if (upErr) {
-        console.warn('PO email status sent patch', upErr.message);
+    const nowIso = new Date().toISOString();
+    const prevMeta =
+      po.metadata && typeof po.metadata === 'object' && !Array.isArray(po.metadata)
+        ? { ...(po.metadata as Record<string, unknown>) }
+        : {};
+    const srmId = srmIdFromPo(po as { supplier_id?: unknown; metadata?: unknown });
+    if (srmId && !Number(prevMeta.srm_supplier_id)) {
+      prevMeta.srm_supplier_id = srmId;
+    }
+    try {
+      const { uploadPortalDocument } = await import('@/lib/portals/portal-storage');
+      const stored = await uploadPortalDocument({
+        path: `${companyId}/portal-po/po-${id}-${Date.now()}.pdf`,
+        body: pdfBuffer,
+        contentType: 'application/pdf',
+      });
+      if (stored.ok) {
+        prevMeta.pdf_url = stored.url;
+        prevMeta.attachment_url = stored.url;
       }
+    } catch (storeErr) {
+      console.warn('PO PDF store', storeErr);
+    }
+    const patch: Record<string, unknown> = {
+      buyer_profile_id: companyId,
+      metadata: prevMeta,
+      updated_at: nowIso,
+    };
+    if (prev === 'draft') patch.status = 'sent';
+    const { error: upErr } = await supabase
+      .from('purchase_orders')
+      .update(patch)
+      .eq('id', id);
+    if (upErr) {
+      console.warn('PO email status sent patch', upErr.message);
     }
 
     void logActivity({
