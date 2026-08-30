@@ -58,6 +58,7 @@ const CUSTOMER_SECTIONS: Array<{ key: keyof PortalSections; label: string; hint:
   { key: 'quotes', label: 'Quotations', hint: 'Quotes created on this CRM account' },
   { key: 'orders', label: 'Sales orders', hint: 'SO list and status' },
   { key: 'commercial', label: 'Commercial', hint: 'Accepted prices and proposals' },
+  { key: 'stock', label: 'Stock on hand', hint: 'Stock at their site' },
   { key: 'invoices', label: 'Statement', hint: 'Invoices and open balance' },
   { key: 'projects', label: 'Projects', hint: 'Joint waterfall — both sides edit tasks' },
   { key: 'documents', label: 'Documents', hint: 'Certs and files' },

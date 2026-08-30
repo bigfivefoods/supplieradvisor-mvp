@@ -90,6 +90,7 @@ export function guestPortalTabGroups(opts: {
         { id: 'newpo', label: 'Purchase order' },
         { id: 'orders', label: 'Sales orders' },
         { id: 'commercial', label: 'Commercial' },
+        { id: 'stock', label: 'Stock' },
         { id: 'statement', label: 'Statement' },
       ],
     },

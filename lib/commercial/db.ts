@@ -84,7 +84,9 @@ async function attachProducts(
   const ids = [...new Set(lines.map((l) => l.product_id).filter((n) => n > 0))];
   const hit = await supabase
     .from('products')
-    .select('id, name, sku, product_type, uom')
+    .select(
+      'id, name, sku, product_type, uom, primary_image_url, short_description, long_description, lead_time_days, moq, specs_sheet_url, cost_price'
+    )
     .eq('profile_id', profileId)
     .in('id', ids);
   const byId = new Map<number, Record<string, unknown>>();
@@ -103,6 +105,16 @@ async function attachProducts(
       sku: sku || null,
       uom: line.uom || (p?.uom != null ? String(p.uom) : null),
       family: productFamily({ name, product_type: type, sku }),
+      primary_image_url:
+        p?.primary_image_url != null ? String(p.primary_image_url) : null,
+      short_description:
+        p?.short_description != null ? String(p.short_description) : null,
+      long_description:
+        p?.long_description != null ? String(p.long_description) : null,
+      lead_time_days: num(p?.lead_time_days),
+      moq: num(p?.moq ?? p?.min_order_qty),
+      specs_sheet_url:
+        p?.specs_sheet_url != null ? String(p.specs_sheet_url) : null,
     };
   });
 }
@@ -686,6 +698,49 @@ export async function proposeFromProductMaster(opts: {
     }
   }
   return { heldCost, customerProposals };
+}
+
+export async function saveSlaFields(opts: {
+  profileId: number;
+  productId: number;
+  short_description?: string | null;
+  long_description?: string | null;
+  lead_time_days?: number | null;
+  moq?: number | null;
+}): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+  const supabase = getSupabaseServer();
+  const updates: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+  if (opts.short_description !== undefined) {
+    updates.short_description = opts.short_description;
+  }
+  if (opts.long_description !== undefined) {
+    updates.long_description = opts.long_description;
+  }
+  if (opts.lead_time_days !== undefined) {
+    updates.lead_time_days = opts.lead_time_days;
+  }
+  if (opts.moq !== undefined) updates.moq = opts.moq;
+  let { error } = await supabase
+    .from('products')
+    .update(updates as never)
+    .eq('id', opts.productId)
+    .eq('profile_id', opts.profileId);
+  if (error && /column|does not exist/i.test(error.message || '')) {
+    const soft = { ...updates };
+    delete soft.long_description;
+    delete soft.lead_time_days;
+    delete soft.moq;
+    const retry = await supabase
+      .from('products')
+      .update(soft as never)
+      .eq('id', opts.productId)
+      .eq('profile_id', opts.profileId);
+    error = retry.error;
+  }
+  if (error) return { ok: false, error: error.message, status: 500 };
+  return { ok: true };
 }
 
 export function lineBelongsToViewer(

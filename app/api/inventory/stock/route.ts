@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { hashMovement } from '@/lib/inventory/hash';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import { warehouseAtLabel } from '@/lib/inventory/types';
 
@@ -26,7 +25,7 @@ export async function GET(request: NextRequest) {
     // All company warehouses (for empty-location cards + labels)
     const { data: allWarehouses } = await supabase
       .from('warehouses')
-      .select('id, name, code, owner_type, partner_name, city, warehouse_type, status, is_default')
+      .select('id, name, code, owner_type, partner_name, city, warehouse_type, status, is_default, metadata')
       .eq('profile_id', companyId)
       .order('name');
 
@@ -80,14 +79,45 @@ export async function GET(request: NextRequest) {
         : Promise.resolve({ data: [] as Record<string, unknown>[] }),
       supabase
         .from('products')
-        .select('id, name, sku, uom, product_type, category, status, reorder_level')
+        .select(
+          'id, name, sku, uom, product_type, category, status, reorder_level, warehouse_id, metadata, primary_image_url, cost_price, sell_price, base_currency, public_id'
+        )
         .eq('profile_id', companyId)
         .eq('status', 'active'),
     ]);
 
     const whList = allWarehouses || [];
-    const pMap = Object.fromEntries((products || []).map((p) => [p.id, p]));
+    const pMap = Object.fromEntries(
+      [...(allProducts || []), ...(products || [])].map((p) => [p.id, p])
+    );
     const wMap = Object.fromEntries(whList.map((w) => [w.id, w]));
+    if (includeZero) {
+      const have = new Set(
+        levelsRaw.map((l) => `${l.warehouse_id}:${l.product_id}`)
+      );
+      for (const p of allProducts || []) {
+        const whCol = Number(
+          (p as { warehouse_id?: number }).warehouse_id
+        );
+        if (!Number.isFinite(whCol) || whCol <= 0) continue;
+        const key = `${whCol}:${p.id}`;
+        if (have.has(key)) continue;
+        have.add(key);
+        levelsRaw.push({
+          id: -(Number(p.id) * 1000 + whCol),
+          profile_id: companyId,
+          product_id: Number(p.id),
+          warehouse_id: whCol,
+          qty_on_hand: 0,
+          qty_reserved: 0,
+          reorder_level: null,
+          lot_number: null,
+          expiry_date: null,
+          bin_location: null,
+          updated_at: asOf,
+        } as (typeof levelsRaw)[number]);
+      }
+    }
 
     let levels = levelsRaw.map((l) => {
       const product = pMap[l.product_id] || null;
@@ -498,136 +528,65 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!gate.ok) return gate.response;
 
-    const supabase = getSupabaseServer();
-    const now = new Date().toISOString();
-    const onchainHash = hashMovement({
+    const { postStock } = await import('@/lib/inventory/post-stock');
+    const moveType =
+      type === 'transfer'
+        ? 'transfer_issue'
+        : type === 'sale'
+          ? 'issue'
+          : type;
+    const fromHit = await postStock({
       profileId: companyId,
       productId,
-      movementType: type,
+      warehouseId: Number.isFinite(warehouseId) ? warehouseId : 0,
+      movementType: moveType,
       quantity: qty,
-      at: now,
-      reference: body.reference_id,
+      absoluteQty:
+        (type === 'count' || type === 'adjustment') && body.absolute
+          ? qty
+          : undefined,
+      unitCost: body.unit_cost != null ? Number(body.unit_cost) : null,
+      referenceType: body.reference_type || null,
+      referenceId: body.reference_id || null,
+      lotNumber: body.lot_number || null,
+      expiryDate: body.expiry_date || null,
+      fromWarehouseId: type === 'transfer' ? warehouseId : null,
+      toWarehouseId: type === 'transfer' ? Number(body.toWarehouseId) || null : null,
+      notes: body.notes || null,
+      allowNegative: Boolean(body.allowNegative),
+      createdBy: body.created_by || null,
     });
-
-    let levelId: number | null = null;
-    let currentQty = 0;
-
-    if (Number.isFinite(warehouseId)) {
-      const { data: existing } = await supabase
-        .from('stock_levels')
-        .select('*')
-        .eq('profile_id', companyId)
-        .eq('product_id', productId)
-        .eq('warehouse_id', warehouseId)
-        .maybeSingle();
-
-      if (existing) {
-        levelId = existing.id;
-        currentQty = Number(existing.qty_on_hand || 0);
-      }
-    } else {
-      const { data: existing } = await supabase
-        .from('stock_levels')
-        .select('*')
-        .eq('profile_id', companyId)
-        .eq('product_id', productId)
-        .is('warehouse_id', null)
-        .maybeSingle();
-      if (existing) {
-        levelId = existing.id;
-        currentQty = Number(existing.qty_on_hand || 0);
-      }
+    if (!fromHit.ok) {
+      return NextResponse.json({ error: fromHit.error }, { status: fromHit.status });
     }
-
-    let nextQty = currentQty;
-    if (type === 'receive' || type === 'return') nextQty = currentQty + Math.abs(qty);
-    else if (type === 'issue' || type === 'sale') nextQty = currentQty - Math.abs(qty);
-    else if (type === 'count' || type === 'adjustment')
-      nextQty = body.absolute ? qty : currentQty + qty;
-    else if (type === 'transfer') nextQty = currentQty - Math.abs(qty);
-    else nextQty = currentQty + qty;
-
-    if (levelId) {
-      await supabase
-        .from('stock_levels')
-        .update({ qty_on_hand: nextQty, updated_at: now })
-        .eq('id', levelId);
-    } else {
-      const { data: created } = await supabase
-        .from('stock_levels')
-        .insert({
-          profile_id: companyId,
-          product_id: productId,
-          warehouse_id: Number.isFinite(warehouseId) ? warehouseId : null,
-          qty_on_hand: nextQty,
-          reorder_level: body.reorder_level != null ? Number(body.reorder_level) : 0,
-          updated_at: now,
-        })
-        .select('id')
-        .single();
-      levelId = created?.id ?? null;
-    }
-
     if (type === 'transfer' && body.toWarehouseId) {
-      const toId = Number(body.toWarehouseId);
-      const { data: dest } = await supabase
-        .from('stock_levels')
-        .select('*')
-        .eq('profile_id', companyId)
-        .eq('product_id', productId)
-        .eq('warehouse_id', toId)
-        .maybeSingle();
-      if (dest) {
-        await supabase
-          .from('stock_levels')
-          .update({
-            qty_on_hand: Number(dest.qty_on_hand || 0) + Math.abs(qty),
-            updated_at: now,
-          })
-          .eq('id', dest.id);
-      } else {
-        await supabase.from('stock_levels').insert({
-          profile_id: companyId,
-          product_id: productId,
-          warehouse_id: toId,
-          qty_on_hand: Math.abs(qty),
-          updated_at: now,
-        });
+      const toHit = await postStock({
+        profileId: companyId,
+        productId,
+        warehouseId: Number(body.toWarehouseId),
+        movementType: 'transfer_receive',
+        quantity: Math.abs(qty),
+        unitCost: body.unit_cost != null ? Number(body.unit_cost) : null,
+        referenceType: body.reference_type || 'stock_transfer',
+        referenceId: body.reference_id || null,
+        lotNumber: body.lot_number || null,
+        fromWarehouseId: warehouseId,
+        toWarehouseId: Number(body.toWarehouseId),
+        notes: body.notes || null,
+      });
+      if (!toHit.ok) {
+        return NextResponse.json({ error: toHit.error }, { status: toHit.status });
       }
     }
-
-    const { data: movement, error } = await supabase
-      .from('stock_movements')
-      .insert({
-        profile_id: companyId,
-        product_id: productId,
-        warehouse_id: Number.isFinite(warehouseId) ? warehouseId : null,
-        from_warehouse_id: type === 'transfer' ? warehouseId : null,
-        to_warehouse_id: type === 'transfer' ? Number(body.toWarehouseId) || null : null,
-        movement_type: type,
-        quantity: qty,
-        unit_cost: body.unit_cost != null ? Number(body.unit_cost) : 0,
-        reference_type: body.reference_type || null,
-        reference_id: body.reference_id || null,
-        notes: body.notes || null,
-        created_by: body.created_by || null,
-        onchain_hash: onchainHash,
-        lot_number: body.lot_number || null,
-        created_at: now,
-      })
-      .select('*')
-      .single();
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
     return NextResponse.json({
       success: true,
-      movement,
-      qty_on_hand: nextQty,
-      onchain_hash: onchainHash,
+      qty_on_hand: fromHit.qty_on_hand,
+      qty_available: fromHit.qty_available,
     });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });

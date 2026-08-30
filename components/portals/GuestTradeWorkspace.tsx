@@ -49,6 +49,7 @@ import {
 } from '@/lib/projects/wbs';
 import { WaterfallGantt } from '@/components/projects/WaterfallGantt';
 import { Building2, ChevronDown, ChevronRight, FileText, Upload } from 'lucide-react';
+import { ProductPhoto } from '@/components/inventory/ProductPhoto';
 import { PortalRiadPanel } from '@/components/portals/PortalRiadPanel';
 import { PortalPurchaseOrder } from '@/components/portals/PortalPurchaseOrder';
 import { OrderChainPath } from '@/components/orders/OrderChainPath';
@@ -166,6 +167,7 @@ const HEAVY_ACTIONS = new Set([
   'commercial_accept',
   'commercial_reject',
   'commercial_add',
+  'commercial_sla',
 ]);
 const REFRESH_ACTIONS = new Set([
   'project_create',
@@ -178,6 +180,7 @@ const REFRESH_ACTIONS = new Set([
   'commercial_accept',
   'commercial_reject',
   'commercial_add',
+  'commercial_sla',
   'document_save',
   'document_extra',
   'production_update',
@@ -731,7 +734,7 @@ export function GuestTradeWorkspace({
           canAdd={false}
         />
       ) : null}
-      {tab === 'stock' && isSupplier ? (
+      {tab === 'stock' ? (
         <StockPanel
           lines={ws?.stock || []}
           busy={busy}
@@ -2997,17 +3000,37 @@ function StockPanel({
                       className="px-4 py-3"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
+                        <div className="flex items-center gap-3 min-w-0">
+                          {l.primary_image_url ? (
+                            <button
+                              type="button"
+                              className="h-12 w-12 shrink-0 rounded-xl border border-slate-100 overflow-hidden bg-[#f8f7f5]"
+                              onClick={() =>
+                                window.open(String(l.primary_image_url), '_blank')
+                              }
+                            >
+                              <ProductPhoto
+                                src={l.primary_image_url}
+                                alt={l.name}
+                                className="h-12 w-12"
+                              />
+                            </button>
+                          ) : (
+                            <span className="h-12 w-12 shrink-0 rounded-xl bg-slate-100" />
+                          )}
+                          <div className="min-w-0">
                           <p className="text-sm font-bold text-slate-900">{l.name}</p>
                           <p className="text-[11px] text-neutral-500">
                             {[
                               l.sku,
+                              l.lot_number ? `lot ${l.lot_number}` : null,
                               l.po_id ? `PO #${l.po_id}` : null,
                               l.qty_reserved ? `reserved ${l.qty_reserved}` : null,
                             ]
                               .filter(Boolean)
                               .join(' · ')}
                           </p>
+                          </div>
                         </div>
                         {l.warehouse_id && l.product_id ? (
                           <StockLevelQuick

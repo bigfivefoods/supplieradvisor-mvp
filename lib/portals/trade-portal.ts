@@ -207,6 +207,9 @@ export type PortalStockLine = {
   warehouse_id?: number | null;
   warehouse_name?: string | null;
   product_type?: string | null;
+  primary_image_url?: string | null;
+  lot_number?: string | null;
+  expiry_date?: string | null;
   po_id: number | null;
 };
 

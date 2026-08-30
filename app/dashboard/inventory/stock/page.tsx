@@ -27,6 +27,7 @@ import {
   type WarehouseRecord,
 } from '@/lib/inventory/types';
 import { CompanyRequired, InventoryHeader } from '@/components/inventory/InventoryShell';
+import { ProductPhoto } from '@/components/inventory/ProductPhoto';
 
 type StockLevel = {
   id: number;
@@ -49,6 +50,7 @@ type StockLevel = {
     uom?: string | null;
     product_type?: string | null;
     category?: string | null;
+    primary_image_url?: string | null;
   } | null;
   warehouse?: {
     id: number;
@@ -172,6 +174,7 @@ function StockInner() {
   const [locationFilter, setLocationFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [lowOnly, setLowOnly] = useState(false);
+  const [includeZero, setIncludeZero] = useState(true);
   const [showContainers, setShowContainers] = useState(true);
   const [expandedProduct, setExpandedProduct] = useState<number | null>(null);
   const [showMove, setShowMove] = useState(false);
@@ -191,6 +194,7 @@ function StockInner() {
         const params = new URLSearchParams({ companyId: String(companyId) });
         if (locationFilter !== 'all') params.set('warehouseId', locationFilter);
         if (typeFilter !== 'all') params.set('productType', typeFilter);
+        if (includeZero) params.set('includeZero', '1');
 
         const [sRes, pRes] = await Promise.all([
           fetch(`/api/inventory/stock?${params}`).then((r) => r.json()),
@@ -213,7 +217,7 @@ function StockInner() {
         setRefreshing(false);
       }
     },
-    [companyId, locationFilter, typeFilter]
+    [companyId, locationFilter, typeFilter, includeZero]
   );
 
   useEffect(() => {
@@ -625,6 +629,17 @@ function StockInner() {
           >
             <AlertTriangle className="w-3.5 h-3.5" /> Low only
           </button>
+          <button
+            type="button"
+            onClick={() => setIncludeZero((v) => !v)}
+            className={`inline-flex items-center gap-1 px-3 py-2 rounded-xl border text-xs font-semibold ${
+              includeZero
+                ? 'border-sky-300 bg-sky-50 text-sky-900'
+                : 'border-neutral-200 text-neutral-600'
+            }`}
+          >
+            Include zeros
+          </button>
         </div>
       </div>
 
@@ -785,6 +800,28 @@ function StockInner() {
                           className={l.is_low ? 'bg-amber-50/40' : 'hover:bg-neutral-50'}
                         >
                           <td className="px-5 py-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              {l.product?.primary_image_url ? (
+                                <button
+                                  type="button"
+                                  className="h-10 w-10 shrink-0 rounded-lg border border-slate-100 overflow-hidden bg-[#f8f7f5]"
+                                  onClick={() =>
+                                    window.open(
+                                      String(l.product?.primary_image_url),
+                                      '_blank'
+                                    )
+                                  }
+                                >
+                                  <ProductPhoto
+                                    src={l.product.primary_image_url}
+                                    alt={l.product?.name || ''}
+                                    className="h-10 w-10"
+                                  />
+                                </button>
+                              ) : (
+                                <span className="h-10 w-10 shrink-0 rounded-lg bg-slate-100" />
+                              )}
+                              <div className="min-w-0">
                             <div className="font-semibold">
                               {l.product?.name || `Product #${l.product_id}`}
                             </div>
@@ -793,6 +830,8 @@ function StockInner() {
                               {l.product?.product_type
                                 ? ` · ${l.product.product_type.replace(/_/g, ' ')}`
                                 : ''}
+                            </div>
+                              </div>
                             </div>
                           </td>
                           <td className="px-3 py-3">
