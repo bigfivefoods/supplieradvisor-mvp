@@ -53,10 +53,16 @@ assert.match(partiesPost, /if \(!result.ok\)/);
 assert.match(partiesPost, /status: 400/);
 
 const suppliersGet = readFileSync(resolve('app/api/suppliers/route.ts'), 'utf8');
-assert.match(suppliersGet, /rowOnSupplierDesk/);
+assert.match(suppliersGet, /filterSupplierDeskRows/);
+assert.match(suppliersGet, /party_book_role/);
 const customersGet = readFileSync(resolve('app/api/customers/route.ts'), 'utf8');
-assert.match(customersGet, /rowOnCustomerDesk/);
-assert.match(customersGet, /data = second.data as typeof data/);
+assert.match(customersGet, /filterCustomerDeskRows/);
+assert.match(customersGet, /CUSTOMER_LIST_COLUMNS/);
+assert.match(customersGet, /metadata/);
+assert.doesNotMatch(
+  customersGet,
+  /select\(\s*'id, trading_name, legal_name, email, phone, contact_name, status, customer_type, city, country, industry, linked_profile_id, invite_status, credit_limit, currency, logo_url, source, created_at, updated_at'\s*\)/
+);
 assert.match(
   readFileSync(resolve('components/accounting/PartyBookRoleSelect.tsx'), 'utf8'),
   /useEffect\(\(\) => \{\s*setValue\(role\);/s

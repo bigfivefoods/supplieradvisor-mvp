@@ -1837,15 +1837,10 @@ export async function POST(request: NextRequest) {
           ? (hit.data as unknown as Record<string, unknown>)
           : null;
       if (hit.error) {
-        const retry = await supabase
-          .from(table)
-          .select('linked_profile_id')
-          .eq('id', accountId)
-          .eq('profile_id', portal.profile_id)
-          .maybeSingle();
-        row = retry.data
-          ? (retry.data as unknown as Record<string, unknown>)
-          : null;
+        return NextResponse.json(
+          { error: hit.error.message || 'Could not load account documents' },
+          { status: 500 }
+        );
       }
       if (!row) {
         return NextResponse.json({ error: 'Account not found' }, { status: 404 });

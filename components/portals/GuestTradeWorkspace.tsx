@@ -24,6 +24,10 @@ import {
 } from '@/lib/portals/portal-documents';
 import { portalPersonKey } from '@/lib/portals/trade-portal-people';
 import {
+  mergePortalDocRows,
+  supplierPortalPoPdfHref,
+} from '@/lib/portals/supplier-portal-party';
+import {
   RIAD_PRIORITIES,
   RIAD_TYPES,
   type RiadType,
@@ -564,11 +568,11 @@ export function GuestTradeWorkspace({
 
   const ot = ws?.otifef;
   const orders = isSupplier
-    ? ws?.purchase_orders || live.purchase_orders
+    ? mergePortalDocRows(ws?.purchase_orders, live.purchase_orders)
     : [...(ws?.inbound_pos || []), ...(live.orders || [])];
   const listedOrders = (
     isSupplier
-      ? ws?.purchase_orders || live.purchase_orders || []
+      ? mergePortalDocRows(ws?.purchase_orders, live.purchase_orders)
       : [
           ...((ws?.purchase_orders || []).filter((o) => o.kind === 'order')),
           ...(live.orders || []),
@@ -633,6 +637,8 @@ export function GuestTradeWorkspace({
         <OrdersPanel
           isSupplier={isSupplier}
           isHost={isHost}
+          token={token}
+          hostName={live.host.name}
           orders={listedOrders}
           busy={busy}
           onAct={act}
@@ -2361,6 +2367,8 @@ function ProjectsPanel({
 function OrdersPanel({
   isSupplier,
   isHost,
+  token,
+  hostName,
   orders,
   busy,
   onAct,
@@ -2368,6 +2376,8 @@ function OrdersPanel({
 }: {
   isSupplier: boolean;
   isHost?: boolean;
+  token: string;
+  hostName?: string | null;
   orders: PublicPortalPayload['purchase_orders'];
   busy: boolean;
   onAct: (p: Record<string, unknown>) => Promise<unknown>;
@@ -2423,6 +2433,7 @@ function OrdersPanel({
                     <p className="font-black text-slate-900">{o.number}</p>
                     <p className="text-[11px] text-neutral-500">
                       {[
+                        isSupplier && hostName ? hostName : null,
                         o.customer_po_number && !isSupplier
                           ? `PO ${o.customer_po_number}`
                           : null,
@@ -2436,11 +2447,28 @@ function OrdersPanel({
                         .join(' · ')}
                     </p>
                   </div>
-                  {o.amount != null ? (
-                    <p className="font-black tabular-nums text-slate-900">
-                      {formatMoney(o.amount, o.currency)}
-                    </p>
-                  ) : null}
+                  <div className="flex items-center gap-2">
+                    {o.amount != null ? (
+                      <p className="font-black tabular-nums text-slate-900">
+                        {formatMoney(o.amount, o.currency)}
+                      </p>
+                    ) : null}
+                    {isSupplier ? (
+                      <a
+                        href={supplierPortalPoPdfHref({
+                          token,
+                          poId: o.id,
+                          storedUrl: o.attachment_url,
+                        })}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex min-h-[44px] items-center gap-1 rounded-xl border border-sky-200 bg-sky-50 px-3 text-xs font-bold text-[#0077b6]"
+                      >
+                        <FileText className="h-4 w-4" />
+                        PDF
+                      </a>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="mt-3">
                   <OrderChainPath side={side} current={stage} />

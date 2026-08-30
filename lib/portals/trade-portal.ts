@@ -14,6 +14,12 @@ import {
   mergePortalDocSlots,
   type PortalDocSlot,
 } from '@/lib/portals/portal-documents';
+import { loadHostPurchaseOrders } from '@/lib/portals/host-purchase-orders';
+import {
+  mergePortalDocRows,
+  poBelongsToSupplierViewer,
+  poPdfUrlFromMeta,
+} from '@/lib/portals/supplier-portal-party';
 
 export type { PortalDocSlot } from '@/lib/portals/portal-documents';
 
@@ -690,24 +696,17 @@ async function loadSupplierPos(
     .eq('profile_id', companyId)
     .maybeSingle();
 
-  const { data } = await supabase
-    .from('purchase_orders')
-    .select(
-      'id, po_number, order_number, status, created_at, total_amount, currency, supplier_id, supplier_profile_id'
-    )
-    .eq('buyer_profile_id', companyId)
-    .order('created_at', { ascending: false })
-    .limit(80);
+  const data = await loadHostPurchaseOrders({ companyId, limit: 80 });
   const linked =
     srm?.linked_profile_id != null ? Number(srm.linked_profile_id) : null;
-  const rows = (data || []).filter((r) => {
-    const sid = r.supplier_id != null ? Number(r.supplier_id) : null;
-    const spid =
-      r.supplier_profile_id != null ? Number(r.supplier_profile_id) : null;
-    return sid === supplierId || (linked && spid === linked);
-  });
-  return rows.slice(0, 40).map((r) =>
-    moneyRow({
+  const rows = data.filter((r) =>
+    poBelongsToSupplierViewer(r, {
+      supplierId,
+      linkedProfileId: linked,
+    })
+  );
+  return rows.slice(0, 40).map((r) => ({
+    ...moneyRow({
       id: Number(r.id),
       kind: 'purchase_order',
       number: r.po_number || r.order_number,
@@ -715,8 +714,9 @@ async function loadSupplierPos(
       date: r.created_at,
       amount: r.total_amount,
       currency: r.currency,
-    })
-  );
+    }),
+    attachment_url: poPdfUrlFromMeta(r.metadata),
+  }));
 }
 
 const PROFILE_DOC_SELECT = `${ALL_DOCUMENT_DB_COLUMNS.filter(
@@ -923,32 +923,36 @@ export async function loadPublicPortal(
     quotes = pack.quotes;
     orders = pack.orders;
     invoices = pack.invoices;
-    let cust = await supabase
+    const custWide = await supabase
       .from('customers')
       .select('trading_name, logo_url, linked_profile_id')
       .eq('id', viewer.customer_id)
       .eq('profile_id', portal.profile_id)
       .maybeSingle();
-    if (cust.error) {
-      cust = await supabase
+    let custRow: Record<string, unknown> | null =
+      !custWide.error && custWide.data
+        ? (custWide.data as unknown as Record<string, unknown>)
+        : null;
+    if (custWide.error) {
+      const retry = await supabase
         .from('customers')
         .select('trading_name, linked_profile_id')
         .eq('id', viewer.customer_id)
         .eq('profile_id', portal.profile_id)
         .maybeSingle();
-    }
-    accountLabel = cust.data?.trading_name
-      ? String(cust.data.trading_name)
-      : null;
-    accountLogo =
-      (cust.data as { logo_url?: string | null } | null)?.logo_url
-        ? String((cust.data as { logo_url?: string | null }).logo_url)
+      custRow = retry.data
+        ? (retry.data as unknown as Record<string, unknown>)
         : null;
-    if (!accountLogo && cust.data?.linked_profile_id) {
+    }
+    accountLabel = custRow?.trading_name
+      ? String(custRow.trading_name)
+      : null;
+    accountLogo = custRow?.logo_url ? String(custRow.logo_url) : null;
+    if (!accountLogo && custRow?.linked_profile_id) {
       const { data: lp } = await supabase
         .from('profiles')
         .select('logo_url')
-        .eq('id', Number(cust.data.linked_profile_id))
+        .eq('id', Number(custRow.linked_profile_id))
         .maybeSingle();
       if (lp?.logo_url) accountLogo = String(lp.logo_url);
     }
@@ -960,32 +964,36 @@ export async function loadPublicPortal(
         viewer.supplier_id
       );
     }
-    let srm = await supabase
+    const srmWide = await supabase
       .from('srm_suppliers')
       .select('trading_name, logo_url, linked_profile_id')
       .eq('id', viewer.supplier_id)
       .eq('profile_id', portal.profile_id)
       .maybeSingle();
-    if (srm.error) {
-      srm = await supabase
+    let srmRow: Record<string, unknown> | null =
+      !srmWide.error && srmWide.data
+        ? (srmWide.data as unknown as Record<string, unknown>)
+        : null;
+    if (srmWide.error) {
+      const retry = await supabase
         .from('srm_suppliers')
         .select('trading_name, linked_profile_id')
         .eq('id', viewer.supplier_id)
         .eq('profile_id', portal.profile_id)
         .maybeSingle();
+      srmRow = retry.data
+        ? (retry.data as unknown as Record<string, unknown>)
+        : null;
     }
-    accountLabel = srm.data?.trading_name
-      ? String(srm.data.trading_name)
+    accountLabel = srmRow?.trading_name
+      ? String(srmRow.trading_name)
       : accountLabel;
-    accountLogo =
-      (srm.data as { logo_url?: string | null } | null)?.logo_url
-        ? String((srm.data as { logo_url?: string | null }).logo_url)
-        : accountLogo;
-    if (!accountLogo && srm.data?.linked_profile_id) {
+    accountLogo = srmRow?.logo_url ? String(srmRow.logo_url) : accountLogo;
+    if (!accountLogo && srmRow?.linked_profile_id) {
       const { data: lp } = await supabase
         .from('profiles')
         .select('logo_url')
-        .eq('id', Number(srm.data.linked_profile_id))
+        .eq('id', Number(srmRow.linked_profile_id))
         .maybeSingle();
       if (lp?.logo_url) accountLogo = String(lp.logo_url);
     }
@@ -1044,8 +1052,11 @@ export async function loadPublicPortal(
         '@/lib/portals/trade-portal-workspace'
       );
       workspace = await loadPortalWorkspace({ portal, viewer });
-      if (workspace.purchase_orders.length && portal.kind === 'supplier') {
-        purchase_orders = workspace.purchase_orders;
+      if (portal.kind === 'supplier') {
+        purchase_orders = mergePortalDocRows(
+          workspace.purchase_orders,
+          purchase_orders
+        );
       }
     } catch {
       workspace = null;

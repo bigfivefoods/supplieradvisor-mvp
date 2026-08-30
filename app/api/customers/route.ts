@@ -8,6 +8,10 @@ import {
   parseBeforeId,
   parseListLimit,
 } from '@/lib/http/tenant-list';
+import {
+  defaultCreateBookRole,
+  filterCustomerDeskRows,
+} from '@/lib/portals/supplier-portal-party';
 
 export async function GET(request: NextRequest) {
   try {
@@ -66,21 +70,6 @@ export async function GET(request: NextRequest) {
       error = second.error;
       usedOr = false;
     }
-    if (error && /metadata|column|schema cache/i.test(error.message || '')) {
-      let retry = supabase
-        .from('customers')
-        .select(
-          'id, trading_name, legal_name, email, phone, contact_name, status, customer_type, city, country, industry, linked_profile_id, invite_status, credit_limit, currency, logo_url, source, created_at, updated_at'
-        )
-        .eq('profile_id', companyId)
-        .order('id', { ascending: false })
-        .limit(limit);
-      if (beforeId) retry = retry.lt('id', beforeId);
-      if (status && status !== 'all') retry = retry.eq('status', status);
-      const second = await retry;
-      data = second.data as typeof data;
-      error = second.error;
-    }
     if (error) {
       return NextResponse.json({
         success: true,
@@ -136,12 +125,12 @@ export async function GET(request: NextRequest) {
       }));
     }
 
-    const { rowOnCustomerDesk } = await import(
-      '@/lib/portals/supplier-portal-party'
-    );
-    customers = customers.filter((c) =>
-      rowOnCustomerDesk(c as { status?: string | null; metadata?: unknown })
-    );
+    const { data: srm } = await supabase
+      .from('srm_suppliers')
+      .select('id, linked_profile_id, email, trading_name, legal_name, metadata')
+      .eq('profile_id', companyId)
+      .limit(400);
+    customers = filterCustomerDeskRows(customers, srm || []);
 
     return NextResponse.json({ success: true, customers });
   } catch (e: unknown) {
@@ -268,6 +257,15 @@ export async function POST(request: NextRequest) {
       rating: body.rating != null ? Number(body.rating) : 0,
       logo_url: body.logo_url != null ? String(body.logo_url).trim() || null : null,
       updated_at: new Date().toISOString(),
+      metadata: {
+        ...(body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
+          ? (body.metadata as Record<string, unknown>)
+          : {}),
+        party_book_role: defaultCreateBookRole(
+          'customer',
+          body.party_book_role ?? body.book_role
+        ),
+      },
     };
     if (linkedProfileId != null) {
       payload.linked_profile_id = linkedProfileId;
@@ -282,6 +280,7 @@ export async function POST(request: NextRequest) {
         email: payload.email,
         phone: payload.phone,
         status: payload.status,
+        metadata: payload.metadata,
       };
       if (linkedProfileId != null) minimal.linked_profile_id = linkedProfileId;
       const retry = await supabase.from('customers').insert(minimal).select('*').single();

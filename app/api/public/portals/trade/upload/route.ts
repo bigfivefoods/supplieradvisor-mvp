@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { resolveGuestViewer } from '@/lib/portals/portal-guest';
 
@@ -55,35 +54,25 @@ export async function POST(request: NextRequest) {
       .slice(0, 80) || 'file';
     const folder = purpose === 'company-doc' ? 'portal-docs' : 'portal-po';
     const path = `${guest.ctx.portal.profile_id}/${folder}/${guest.ctx.viewer.id}-${field}-${Date.now()}.${ext}`;
-    const supabase = getSupabaseServer();
     const buf = Buffer.from(await file.arrayBuffer());
-    const buckets = ['company-documents', 'product-documents'];
-    let url: string | null = null;
-    let last = '';
-    for (const bucket of buckets) {
-      const { error } = await supabase.storage.from(bucket).upload(path, buf, {
-        contentType: type,
-        upsert: true,
-      });
-      if (!error) {
-        const pub = supabase.storage.from(bucket).getPublicUrl(path);
-        url = pub.data.publicUrl;
-        break;
-      }
-      last = error.message;
-    }
-    if (!url) {
+    const { uploadPortalDocument } = await import('@/lib/portals/portal-storage');
+    const stored = await uploadPortalDocument({
+      path,
+      body: buf,
+      contentType: type,
+    });
+    if (!stored.ok) {
       return NextResponse.json(
         {
-          error: last || 'Upload failed',
-          hint: 'Create a public Storage bucket named company-documents.',
+          error: stored.error,
+          hint: 'Paste RUN_THIS_FOR_BRIEF19.sql in the Supabase SQL editor to create a public company-documents bucket.',
         },
         { status: 500 }
       );
     }
     return NextResponse.json({
       success: true,
-      url,
+      url: stored.url,
       name: file.name.slice(0, 160),
     });
   } catch (e) {

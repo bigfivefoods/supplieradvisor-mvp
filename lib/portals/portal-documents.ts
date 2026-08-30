@@ -77,7 +77,7 @@ export function isPortalRequiredDocField(
 
 export function isPortalDocUrl(url: string): boolean {
   const u = String(url || '').trim();
-  if (u.length < 8 || u.length > 2000) return false;
+  if (u.length < 8 || u.length > 4000) return false;
   try {
     const parsed = new URL(u);
     return parsed.protocol === 'http:' || parsed.protocol === 'https:';

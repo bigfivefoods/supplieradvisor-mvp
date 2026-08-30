@@ -15,7 +15,9 @@ import { enrichChainDoc } from '@/lib/orders/chain-path';
 import {
   messageMatchesPo,
   poBelongsToSupplierViewer,
+  poPdfUrlFromMeta,
 } from '@/lib/portals/supplier-portal-party';
+import { loadHostPurchaseOrders } from '@/lib/portals/host-purchase-orders';
 import type { OtifefMetrics } from '@/lib/suppliers/types';
 import {
   parsePortalTaskRiadId,
@@ -291,8 +293,9 @@ function poToDoc(r: Record<string, unknown>, otifefInput: Parameters<typeof otif
       ordered: otifefInput.ordered ?? null,
       delivered: otifefInput.delivered ?? null,
       damaged: otifefInput.damaged ?? null,
-      attachment_url:
-        meta.attachment_url != null ? String(meta.attachment_url) : null,
+      attachment_url: poPdfUrlFromMeta(meta) || (
+        meta.attachment_url != null ? String(meta.attachment_url) : null
+      ),
       otifef: {
         overall: ot.overall,
         onTime: ot.onTime,
@@ -604,27 +607,7 @@ export async function loadPortalWorkspace(opts: {
       .eq('profile_id', companyId)
       .maybeSingle();
     const linked = srm?.linked_profile_id != null ? Number(srm.linked_profile_id) : null;
-    const poHit = await supabase
-      .from('purchase_orders')
-      .select(
-        'id, po_number, order_number, status, created_at, promised_date, actual_delivery_date, actual_completion_date, order_quantity, delivered_quantity, damaged_quantity, total_amount, currency, supplier_id, supplier_profile_id, items, metadata, production_status, confirmed_qty'
-      )
-      .eq('buyer_profile_id', companyId)
-      .order('created_at', { ascending: false })
-      .limit(80);
-    let poRows: Record<string, unknown>[] = (poHit.data ||
-      []) as unknown as Record<string, unknown>[];
-    if (poHit.error) {
-      const retry = await supabase
-        .from('purchase_orders')
-        .select(
-          'id, po_number, order_number, status, created_at, promised_date, actual_delivery_date, order_quantity, delivered_quantity, damaged_quantity, total_amount, currency, supplier_id, supplier_profile_id, items, metadata'
-        )
-        .eq('buyer_profile_id', companyId)
-        .order('created_at', { ascending: false })
-        .limit(80);
-      poRows = (retry.data || []) as unknown as Record<string, unknown>[];
-    }
+    const poRows = await loadHostPurchaseOrders({ companyId, limit: 80 });
     for (const raw of poRows) {
       const r = asObject(raw);
       if (
