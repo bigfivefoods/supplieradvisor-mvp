@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
       if (beforeId) retry = retry.lt('id', beforeId);
       if (status && status !== 'all') retry = retry.eq('status', status);
       const second = await retry;
-      data = second.data;
+      data = second.data as typeof data;
       error = second.error;
     }
     if (error) {
