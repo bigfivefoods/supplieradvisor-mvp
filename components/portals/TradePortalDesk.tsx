@@ -37,8 +37,19 @@ import {
   portalTimeAgo,
   portalWhen,
 } from '@/lib/portals/portal-activity';
+import {
+  supplierBookDisabledReason,
+  supplierBookPartyGate,
+} from '@/lib/portals/supplier-portal-party';
 
-type AccountOpt = { id: number; name: string; email?: string | null; contact?: string | null };
+type AccountOpt = {
+  id: number;
+  name: string;
+  email?: string | null;
+  contact?: string | null;
+  disabled?: boolean;
+  disabledReason?: string | null;
+};
 
 const CUSTOMER_SECTIONS: Array<{ key: keyof PortalSections; label: string; hint: string }> = [
   { key: 'quotes', label: 'Quotations', hint: 'Quotes created on this CRM account' },
@@ -189,12 +200,26 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
             trading_name?: string;
             email?: string | null;
             contact_name?: string | null;
-          }) => ({
-            id: Number(r.id),
-            name: String(r.trading_name || `#${r.id}`),
-            email: r.email || null,
-            contact: r.contact_name || null,
-          })
+            status?: string | null;
+            metadata?: unknown;
+          }) => {
+            const gate = !isCustomer
+              ? supplierBookPartyGate({
+                  status: r.status,
+                  metadata: r.metadata,
+                })
+              : { ok: true as const };
+            return {
+              id: Number(r.id),
+              name: String(r.trading_name || `#${r.id}`),
+              email: r.email || null,
+              contact: r.contact_name || null,
+              disabled: !gate.ok,
+              disabledReason: !gate.ok
+                ? supplierBookDisabledReason(gate)
+                : null,
+            };
+          }
         )
       );
     } catch {
@@ -678,7 +703,9 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                     <button
                       key={a.id}
                       type="button"
+                      disabled={Boolean(a.disabled)}
                       onClick={() => {
+                        if (a.disabled) return;
                         setForm((prev) => ({
                           ...prev,
                           accountId: a.id,
@@ -688,7 +715,9 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                         setOpenGroupKey(`a-${a.id}`);
                       }}
                       className={`w-full text-left rounded-2xl border px-3 py-3 ${
-                        selected
+                        a.disabled
+                          ? 'border-neutral-200 bg-neutral-50 opacity-70 cursor-not-allowed'
+                          : selected
                           ? 'border-cyan-300 bg-cyan-50'
                           : 'border-neutral-200 bg-white hover:border-cyan-200'
                       }`}
@@ -699,7 +728,9 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                             {a.name}
                           </p>
                           <p className="text-[11px] text-neutral-500 truncate">
-                            {a.contact || a.email || 'No contact yet'}
+                            {a.disabled
+                              ? a.disabledReason
+                              : a.contact || a.email || 'No contact yet'}
                           </p>
                           {people.length ? (
                             <p className="text-[11px] text-neutral-400 mt-0.5 truncate">
@@ -729,7 +760,11 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
             </div>
             <button
               type="button"
-              disabled={!form.accountId || issuingId != null}
+              disabled={
+                !form.accountId ||
+                issuingId != null ||
+                Boolean(accounts.find((a) => a.id === form.accountId)?.disabled)
+              }
               onClick={() =>
                 form.accountId && void issueAccount(Number(form.accountId))
               }
@@ -789,7 +824,11 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
             </div>
             <button
               type="button"
-              disabled={adding || !form.accountId}
+              disabled={
+                adding ||
+                !form.accountId ||
+                Boolean(accounts.find((a) => a.id === form.accountId)?.disabled)
+              }
               onClick={() => void addPerson()}
               className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center justify-center gap-1.5"
             >

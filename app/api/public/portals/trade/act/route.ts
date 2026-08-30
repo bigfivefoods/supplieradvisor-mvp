@@ -603,27 +603,84 @@ export async function POST(request: NextRequest) {
       if (!text) {
         return NextResponse.json({ error: 'Message required' }, { status: 400 });
       }
-      const { data, error } = await supabase
+      const {
+        tradePortalMessageInsertRow,
+        stripMissingMessageColumn,
+        poBelongsToSupplierViewer,
+      } = await import('@/lib/portals/supplier-portal-party');
+      const { assertSupplierPortalParty } = await import(
+        '@/lib/portals/assert-supplier-portal-party'
+      );
+      const poId = Number(body.purchase_order_id || body.po_id);
+      if (portal.kind === 'supplier' && Number.isFinite(poId) && poId > 0) {
+        const gate = await assertSupplierPortalParty(
+          portal.profile_id,
+          viewer.supplier_id
+        );
+        if (!gate.ok) {
+          return NextResponse.json({ error: gate.error }, { status: gate.status });
+        }
+        const { data: poRow } = await supabase
+          .from('purchase_orders')
+          .select('id, supplier_id, supplier_profile_id, metadata, buyer_profile_id')
+          .eq('id', poId)
+          .maybeSingle();
+        if (
+          !poRow ||
+          Number(poRow.buyer_profile_id) !== portal.profile_id ||
+          !poBelongsToSupplierViewer(poRow, {
+            supplierId: Number(viewer.supplier_id),
+            linkedProfileId,
+          })
+        ) {
+          return NextResponse.json({ error: 'Not your order' }, { status: 403 });
+        }
+      }
+      let row = tradePortalMessageInsertRow({
+        portalId: portal.id,
+        viewerId: viewer.id,
+        profileId: portal.profile_id,
+        author: stamp.messageAuthor === 'host' ? 'host' : 'guest',
+        body: text,
+        purchaseOrderId: Number.isFinite(poId) && poId > 0 ? poId : null,
+      });
+      let ins = await supabase
         .from('trade_portal_messages')
-        .insert({
-          portal_id: portal.id,
-          viewer_id: viewer.id,
-          profile_id: portal.profile_id,
-          author: stamp.messageAuthor,
-          body: text,
-        })
+        .insert(row)
         .select('id, author, body, created_at')
         .single();
-      if (error) {
+      if (ins.error) {
+        const miss =
+          /column\s+(?:[\w]+\.)?(\w+)\s+does not exist/i.exec(ins.error.message)?.[1] ||
+          /Could not find the ['"](\w+)['"] column/i.exec(ins.error.message)?.[1] ||
+          null;
+        if (miss) {
+          row = stripMissingMessageColumn(row, miss);
+          ins = await supabase
+            .from('trade_portal_messages')
+            .insert(row)
+            .select('id, author, body, created_at')
+            .single();
+        }
+      }
+      if (ins.error && /metadata/i.test(ins.error.message || '')) {
+        const { metadata: _m, ...rest } = row;
+        ins = await supabase
+          .from('trade_portal_messages')
+          .insert(rest)
+          .select('id, author, body, created_at')
+          .single();
+      }
+      if (ins.error) {
         return NextResponse.json(
           {
-            error: error.message,
-            hint: 'Run supabase/migrations/20260823_trade_portal_workspace.sql',
+            error: ins.error.message,
+            hint: 'Paste RUN_THIS_FOR_BRIEF17.sql in the Supabase SQL editor.',
           },
-          { status: /exist/i.test(error.message) ? 503 : 500 }
+          { status: /exist/i.test(ins.error.message) ? 503 : 500 }
         );
       }
-      return NextResponse.json({ success: true, message: data });
+      return NextResponse.json({ success: true, message: ins.data });
     }
 
     if (action === 'riad_add') {
@@ -941,11 +998,28 @@ export async function POST(request: NextRequest) {
       if (loadErr || !po) {
         return NextResponse.json({ error: 'Order not found' }, { status: 404 });
       }
+      const { poBelongsToSupplierViewer } = await import(
+        '@/lib/portals/supplier-portal-party'
+      );
+      const { assertSupplierPortalParty } = await import(
+        '@/lib/portals/assert-supplier-portal-party'
+      );
+      if (portal.kind === 'supplier') {
+        const gate = await assertSupplierPortalParty(
+          portal.profile_id,
+          viewer.supplier_id
+        );
+        if (!gate.ok) {
+          return NextResponse.json({ error: gate.error }, { status: gate.status });
+        }
+      }
       const allowed =
         portal.kind === 'supplier'
           ? Number(po.buyer_profile_id) === portal.profile_id &&
-            (Number(po.supplier_id) === viewer.supplier_id ||
-              Number(po.supplier_profile_id) === (linkedProfileId || -1))
+            poBelongsToSupplierViewer(po, {
+              supplierId: Number(viewer.supplier_id),
+              linkedProfileId,
+            })
           : Number(po.supplier_profile_id) === portal.profile_id &&
             Number(po.seller_customer_id) === viewer.customer_id;
       if (!allowed) {
@@ -995,6 +1069,22 @@ export async function POST(request: NextRequest) {
         }
         patch.status = to;
       }
+      const shipFlag =
+        body.shipped === true ||
+        String(body.fulfilment_status || '').toLowerCase() === 'shipped';
+      if (portal.kind === 'supplier' && shipFlag) {
+        meta.fulfilment_status = 'shipped';
+        meta.shipped_at = now;
+        patch.metadata = meta;
+        if (typeof body.actual_delivery_date === 'string' && body.actual_delivery_date) {
+          patch.actual_delivery_date = String(body.actual_delivery_date).slice(0, 10);
+        } else if (!po.status || String(po.status).toLowerCase() === 'accepted') {
+          patch.actual_delivery_date = isoDay(new Date());
+        }
+        if (body.delivered_quantity != null) {
+          patch.delivered_quantity = Number(body.delivered_quantity);
+        }
+      }
       const { error } = await supabase
         .from('purchase_orders')
         .update(patch)
@@ -1006,7 +1096,6 @@ export async function POST(request: NextRequest) {
       let productionStatus: string | null = null;
       if (portal.kind === 'supplier' && typeof patch.status === 'string') {
         const to = String(patch.status).toLowerCase();
-        if (to === 'accepted') productionStatus = 'released';
         if (to === 'invoiced' || to === 'completed') productionStatus = 'completed';
         if (productionStatus) {
           const extra: Record<string, unknown> = {
@@ -1045,7 +1134,7 @@ export async function POST(request: NextRequest) {
     if (action === 'production_update') {
       if (portal.kind !== 'supplier') {
         return NextResponse.json(
-          { error: 'Only the manufacturer portal can update production' },
+          { error: 'Only the supplier on this PO can update production' },
           { status: 403 }
         );
       }
@@ -1073,10 +1162,25 @@ export async function POST(request: NextRequest) {
       if (loadErr || !po) {
         return NextResponse.json({ error: 'Order not found' }, { status: 404 });
       }
+      const { poBelongsToSupplierViewer, validateLotDates } = await import(
+        '@/lib/portals/supplier-portal-party'
+      );
+      const { assertSupplierPortalParty } = await import(
+        '@/lib/portals/assert-supplier-portal-party'
+      );
+      const gate = await assertSupplierPortalParty(
+        portal.profile_id,
+        viewer.supplier_id
+      );
+      if (!gate.ok) {
+        return NextResponse.json({ error: gate.error }, { status: gate.status });
+      }
       const allowed =
         Number(po.buyer_profile_id) === portal.profile_id &&
-        (Number(po.supplier_id) === viewer.supplier_id ||
-          Number(po.supplier_profile_id) === (linkedProfileId || -1));
+        poBelongsToSupplierViewer(po, {
+          supplierId: Number(viewer.supplier_id),
+          linkedProfileId,
+        });
       if (!allowed) {
         return NextResponse.json({ error: 'Not your order' }, { status: 403 });
       }
@@ -1124,17 +1228,26 @@ export async function POST(request: NextRequest) {
         const batchNumber = String(b.batch_number || '').trim().slice(0, 120);
         if (!batchNumber) continue;
         const manufactured = String(
-          b.manufactured_at || b.produced_at || ''
+          b.manufactured_at || b.produced_at || b.manufactured_date || ''
         ).slice(0, 10);
         const expiry = String(b.expiry_date || '').slice(0, 10);
+        const dateErr = validateLotDates(manufactured, expiry);
+        if (dateErr) {
+          return NextResponse.json({ error: dateErr }, { status: 400 });
+        }
         const lotMeta = {
           manufactured_date: manufactured || null,
           expiry_date: expiry || null,
+          best_before: b.best_before ? String(b.best_before).slice(0, 10) : null,
         };
+        const lineIdx =
+          b.order_line_index != null ? Number(b.order_line_index) : null;
         const lot: Record<string, unknown> = {
           company_id: portal.profile_id,
           order_id: id,
           order_type: 'purchase_order',
+          order_line_index:
+            lineIdx != null && Number.isFinite(lineIdx) ? lineIdx : null,
           batch_number: batchNumber,
           qty: Number(b.qty) || 0,
           uom: String(b.uom || 'ea').slice(0, 24),
@@ -1148,7 +1261,14 @@ export async function POST(request: NextRequest) {
         let ins = await supabase.from('order_batches').insert(lot).select('*').single();
         if (ins.error) {
           const soft: Record<string, unknown> = { ...lot };
-          delete soft.expiry_date;
+          const miss =
+            /column\s+(?:[\w]+\.)?(\w+)\s+does not exist/i.exec(ins.error.message)?.[1] ||
+            /Could not find the ['"](\w+)['"] column/i.exec(ins.error.message)?.[1];
+          if (miss) delete soft[miss];
+          else {
+            delete soft.expiry_date;
+            delete soft.order_line_index;
+          }
           ins = await supabase.from('order_batches').insert(soft).select('*').single();
         }
         if (!ins.error && ins.data) savedLots.push(asObj(ins.data));

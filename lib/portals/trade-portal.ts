@@ -109,11 +109,14 @@ export type PublicDocRow = {
   customer_po_number?: string | null;
   batches?: PortalBatchLot[];
   notes?: string | null;
+  fulfilment_status?: string | null;
+  messages?: PortalMessageView[];
   lines?: Array<{
     name: string;
     qty: number | null;
     uom: string | null;
     amount: number | null;
+    product_id?: number | null;
   }>;
 };
 
@@ -183,6 +186,7 @@ export type PortalMessageView = {
   author: 'host' | 'guest';
   body: string;
   created_at: string;
+  purchase_order_id?: number | null;
 };
 
 export type PortalStockLine = {

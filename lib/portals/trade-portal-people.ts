@@ -223,6 +223,15 @@ export async function inviteTradePortalPerson(opts: {
   if (opts.kind === 'supplier' && !supplierId) {
     return { ok: false, error: 'Pick a supplier on your books', status: 400 };
   }
+  if (opts.kind === 'supplier' && supplierId) {
+    const { assertSupplierPortalParty } = await import(
+      '@/lib/portals/assert-supplier-portal-party'
+    );
+    const gate = await assertSupplierPortalParty(opts.companyId, supplierId);
+    if (!gate.ok) {
+      return { ok: false, error: gate.error, status: gate.status };
+    }
+  }
 
   const rawEmail = String(opts.email || '').trim().toLowerCase();
   const email = rawEmail.includes('@') ? rawEmail : '';
@@ -372,6 +381,13 @@ export async function issueAccountPortal(opts: {
     const id = Number(opts.supplierId);
     if (!(id > 0)) {
       return { ok: false, error: 'Pick a supplier on your books', status: 400 };
+    }
+    const { assertSupplierPortalParty } = await import(
+      '@/lib/portals/assert-supplier-portal-party'
+    );
+    const gate = await assertSupplierPortalParty(opts.companyId, id);
+    if (!gate.ok) {
+      return { ok: false, error: gate.error, status: gate.status };
     }
     const { data, error } = await supabase
       .from('srm_suppliers')

@@ -123,6 +123,23 @@ export async function resolveGuestViewer(
     if (c.linked_profile_id) linkedProfileId = Number(c.linked_profile_id);
   }
   if (kind === 'supplier' && viewer.supplier_id) {
+    const { assertSupplierPortalParty } = await import(
+      '@/lib/portals/assert-supplier-portal-party'
+    );
+    const gate = await assertSupplierPortalParty(
+      portal.profile_id,
+      viewer.supplier_id
+    );
+    if (!gate.ok) {
+      return {
+        ok: false,
+        error:
+          gate.reason === 'customer_only'
+            ? 'This portal is only for suppliers on our books.'
+            : gate.error,
+        status: gate.status === 404 ? 404 : 403,
+      };
+    }
     const { data: s } = await supabase
       .from('srm_suppliers')
       .select('trading_name, linked_profile_id')
