@@ -55,8 +55,8 @@ assert.match(src('lib/commercial/db.ts'), /The other side must Accept/);
 assert.doesNotMatch(act, /from\('profiles'\)[\s\S]{0,200}\bphone\b/);
 
 const poPost = src('app/api/suppliers/purchase-orders/route.ts');
-assert.match(poPost, /lookupAcceptedMap/);
-assert.match(poPost, /applyAcceptedUnitPrices/);
+assert.match(poPost, /priceSupplierPoItems/);
+assert.doesNotMatch(poPost, /catalogue optional until SQL paste/);
 assert.doesNotMatch(poPost, /supplier_id: srmId \|\| supplierProfileId/);
 
 const lookup = src('lib/pricing/access.ts');

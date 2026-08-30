@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import {
   applyAcceptedUnitPrices,
+  applyMappedUnitPrices,
   billedUnitPrice,
   counterpartyMayDecide,
   familyRank,
@@ -48,6 +49,21 @@ assert.equal(priced.items[0].unit_price, 28);
 assert.equal(priced.items[0].line_total, 280);
 assert.equal(priced.items[1].unit_price, 40);
 assert.equal(priced.total, 320);
+
+const mapped = applyMappedUnitPrices(
+  [{ product_id: 2, quantity: 10, unit_price: 45 }],
+  { 2: 26.52 }
+);
+assert.equal(mapped.ok, true);
+if (mapped.ok) {
+  assert.equal(mapped.items[0].unit_price, 26.52);
+  assert.equal(mapped.total, 265.2);
+}
+const unmapped = applyMappedUnitPrices(
+  [{ product_id: 2, quantity: 1, unit_price: 45, item_name: 'OnePot' }],
+  {}
+);
+assert.equal(unmapped.ok, false);
 
 const groups = groupLinesByFamily([
   {

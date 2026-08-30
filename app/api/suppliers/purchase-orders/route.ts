@@ -389,20 +389,17 @@ export async function POST(request: NextRequest) {
     if ('error' in normalized) {
       return NextResponse.json({ error: normalized.error }, { status: 400 });
     }
-    if (srmId) {
-      try {
-        const { lookupAcceptedMap } = await import('@/lib/commercial/db');
-        const { applyAcceptedUnitPrices } = await import('@/lib/commercial/engine');
-        const accepted = await lookupAcceptedMap({
-          profileId: companyId,
-          partyKind: 'supplier',
-          supplierId: srmId,
-        });
-        const priced = applyAcceptedUnitPrices(normalized.items, accepted);
-        normalized = { items: priced.items, total: priced.total };
-      } catch {
-        /* catalogue optional until SQL paste */
+    {
+      const { priceSupplierPoItems } = await import('@/lib/commercial/po-price');
+      const priced = await priceSupplierPoItems({
+        profileId: companyId,
+        supplierId: srmId,
+        items: normalized.items,
+      });
+      if (!priced.ok) {
+        return NextResponse.json({ error: priced.error }, { status: 400 });
       }
+      normalized = { items: priced.items, total: priced.total };
     }
 
     // Sum quantities for OTIFEF order_quantity baseline
@@ -1094,6 +1091,34 @@ export async function PATCH(request: NextRequest) {
         }
         updates[f] = n;
       }
+    }
+
+    const { priceSupplierPoItems, isOpenUnreceivedPo } = await import(
+      '@/lib/commercial/po-price'
+    );
+    const { srmIdFromPo } = await import('@/lib/procurement/po-email');
+    const sending = nextStatus === 'sent' || action === 'send';
+    const patchItems = Array.isArray(body.items);
+    const open = isOpenUnreceivedPo({
+      status: po.status,
+      metadata: po.metadata,
+    });
+    if ((patchItems || sending) && open) {
+      const rawItems = patchItems ? body.items : po.items;
+      const norm = normalizePoItems(rawItems);
+      if ('error' in norm) {
+        return NextResponse.json({ error: norm.error }, { status: 400 });
+      }
+      const priced = await priceSupplierPoItems({
+        profileId: companyId,
+        supplierId: srmIdFromPo(po),
+        items: norm.items,
+      });
+      if (!priced.ok) {
+        return NextResponse.json({ error: priced.error }, { status: 400 });
+      }
+      updates.items = priced.items;
+      updates.total_amount = priced.total;
     }
 
     // Completing requires OTIFEF capture (delivery date + quantities)

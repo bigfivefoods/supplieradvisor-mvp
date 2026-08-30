@@ -111,6 +111,47 @@ export function applyAcceptedUnitPrices<
   return { items: next, total };
 }
 
+/** Supplier POs: every line must have a mapped unit. Never keep a typed guess. */
+export function applyMappedUnitPrices<
+  T extends {
+    product_id?: number | null;
+    item_name?: string | null;
+    name?: string | null;
+    quantity?: number;
+    qty?: number;
+    unit_price?: number;
+    line_total?: number;
+  },
+>(
+  items: T[],
+  unitByProductId: Record<number, number>
+):
+  | { ok: true; items: Array<T & { unit_price: number; line_total: number }>; total: number }
+  | { ok: false; error: string } {
+  const next: Array<T & { unit_price: number; line_total: number }> = [];
+  for (const item of items) {
+    const pid = Number(item.product_id);
+    const name = String(item.item_name || item.name || `product ${pid || ''}`).trim() || 'line';
+    if (!Number.isFinite(pid) || pid <= 0) {
+      return {
+        ok: false,
+        error: `Missing product_id for ${name}. Match a SKU or pick a catalogue line.`,
+      };
+    }
+    if (!Object.prototype.hasOwnProperty.call(unitByProductId, pid)) {
+      return { ok: false, error: `No agreed cost for ${name}` };
+    }
+    const qty = Number(item.quantity ?? item.qty ?? 0);
+    const unit_price = roundMoney(unitByProductId[pid]);
+    const line_total = roundMoney(qty * unit_price);
+    next.push({ ...item, product_id: pid, unit_price, line_total });
+  }
+  const total = roundMoney(
+    next.reduce((s, i) => s + Number(i.line_total || 0), 0)
+  );
+  return { ok: true, items: next, total };
+}
+
 export function kelpackSeedPrice(productId: number): number | null {
   const hit = KELPACK_SEED_PRICES.find((r) => r.product_id === productId);
   return hit ? hit.accepted_price : null;
