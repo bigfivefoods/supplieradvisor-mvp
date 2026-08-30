@@ -86,6 +86,80 @@ export function isPortalDocUrl(url: string): boolean {
   }
 }
 
+export function portalSharedHostDocsFromMeta(
+  metadata: unknown
+): Record<string, boolean> | null {
+  const meta = asObject(metadata);
+  const raw = meta.portal_shared_host_docs;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const out: Record<string, boolean> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    out[k] = v === true;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+export function applyHostDocShareTick(
+  metadata: unknown,
+  field: string,
+  shared: boolean,
+  publishedFields: string[]
+): Record<string, unknown> {
+  const meta = { ...asObject(metadata) };
+  let map = portalSharedHostDocsFromMeta(meta);
+  if (!map) {
+    map = {};
+    for (const f of publishedFields) map[f] = true;
+  }
+  map[field] = shared;
+  meta.portal_shared_host_docs = map;
+  return meta;
+}
+
+export function applyHostDocShareAll(
+  metadata: unknown,
+  shared: boolean,
+  publishedFields: string[]
+): Record<string, unknown> {
+  const meta = { ...asObject(metadata) };
+  const prev = portalSharedHostDocsFromMeta(meta) || {};
+  const map: Record<string, boolean> = { ...prev };
+  const keys = new Set([...publishedFields, ...Object.keys(prev)]);
+  for (const f of keys) map[f] = shared;
+  meta.portal_shared_host_docs = map;
+  return meta;
+}
+
+/** Null map = Brief 20, every on-file host doc is visible. */
+export function hostDocIsShared(
+  shareMap: Record<string, boolean> | null | undefined,
+  field: string
+): boolean {
+  if (!shareMap) return true;
+  return shareMap[field] === true;
+}
+
+/** Guest payload: only ticked host docs. No map = Brief 20 (all published URLs). */
+export function filterHostDocsForGuest(
+  slots: PortalDocSlot[],
+  shareMap: Record<string, boolean> | null
+): PortalDocSlot[] {
+  if (!shareMap) return slots;
+  return slots.filter((s) => shareMap[s.field] === true && Boolean(s.url));
+}
+
+export function guestVisibleHostDocs(
+  slots: PortalDocSlot[],
+  shareMap: Record<string, boolean> | null,
+  isHost: boolean
+): { hostDocuments: PortalDocSlot[]; documents: ReturnType<typeof filledPortalDocs> } {
+  if (isHost) {
+    return { hostDocuments: slots, documents: filledPortalDocs(slots) };
+  }
+  const hostDocuments = filterHostDocsForGuest(slots, shareMap);
+  return { hostDocuments, documents: filledPortalDocs(hostDocuments) };
+}
+
 export function emptyRequiredDocSlots(): PortalDocSlot[] {
   return PORTAL_REQUIRED_DOCS.map((d) => ({
     field: d.field,

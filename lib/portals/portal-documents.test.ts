@@ -3,14 +3,20 @@
  */
 import assert from 'node:assert/strict';
 import {
+  applyHostDocShareAll,
+  applyHostDocShareTick,
   applyPortalDocSlotUrl,
   emptyRequiredDocSlots,
+  filterHostDocsForGuest,
+  guestVisibleHostDocs,
+  hostDocIsShared,
   isPortalDocUrl,
   isPortalRequiredDocField,
   mergePortalDocSlots,
   mergeRequiredDocIntoMetadata,
   mergeExtraDocIntoMetadata,
   PORTAL_REQUIRED_DOCS,
+  portalSharedHostDocsFromMeta,
 } from './portal-documents';
 
 assert.equal(PORTAL_REQUIRED_DOCS.length, 7);
@@ -90,5 +96,60 @@ assert.equal(
   (extraMeta.documents as Array<{ extra?: boolean }>)[0].extra,
   true
 );
+
+const vatSlot = {
+  field: 'vat_certificate_url',
+  name: 'VAT certificate',
+  url: 'https://h/vat.pdf',
+  category: 'Financial',
+};
+const beeSlot = {
+  field: 'bee_certificate_url',
+  name: 'B-BBEE certificate',
+  url: 'https://h/bee.pdf',
+  category: 'Legal',
+};
+assert.equal(filterHostDocsForGuest([vatSlot, beeSlot], null).length, 2);
+assert.equal(
+  filterHostDocsForGuest([vatSlot, beeSlot], { vat_certificate_url: true })
+    .map((s) => s.field)
+    .join(),
+  'vat_certificate_url'
+);
+assert.equal(
+  filterHostDocsForGuest([vatSlot, beeSlot], { vat_certificate_url: false }).length,
+  0
+);
+const guestDocs = guestVisibleHostDocs(
+  [vatSlot, beeSlot],
+  { vat_certificate_url: true, bee_certificate_url: false },
+  false
+);
+assert.equal(guestDocs.hostDocuments.length, 1);
+assert.equal(guestDocs.documents.some((d) => d.url === 'https://h/bee.pdf'), false);
+const hostDocs = guestVisibleHostDocs(
+  [vatSlot, beeSlot],
+  { vat_certificate_url: true, bee_certificate_url: false },
+  true
+);
+assert.equal(hostDocs.hostDocuments.length, 2);
+assert.equal(hostDocs.documents.some((d) => d.url === 'https://h/bee.pdf'), true);
+
+assert.equal(hostDocIsShared(null, 'vat_certificate_url'), true);
+assert.equal(hostDocIsShared({ vat_certificate_url: false }, 'vat_certificate_url'), false);
+
+const firstTick = applyHostDocShareTick(
+  {},
+  'vat_certificate_url',
+  false,
+  ['vat_certificate_url', 'bee_certificate_url']
+);
+const firstMap = portalSharedHostDocsFromMeta(firstTick);
+assert.equal(firstMap?.bee_certificate_url, true);
+assert.equal(firstMap?.vat_certificate_url, false);
+
+const none = applyHostDocShareAll({}, false, ['vat_certificate_url', 'bee_certificate_url']);
+assert.equal(portalSharedHostDocsFromMeta(none)?.vat_certificate_url, false);
+assert.equal(portalSharedHostDocsFromMeta(none)?.bee_certificate_url, false);
 
 console.log('portal-documents.test.ts ok');

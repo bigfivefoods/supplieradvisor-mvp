@@ -157,48 +157,6 @@ export async function loadSupplierHeldStock(opts: {
         .filter((n) => Number.isFinite(n) && n > 0)
     ),
   ];
-  const pinnedHit = await supabase
-    .from('products')
-    .select(
-      'id, name, sku, product_type, warehouse_id, metadata, primary_image_url'
-    )
-    .eq('profile_id', opts.companyId)
-    .limit(500);
-  let pinned: Record<string, unknown>[] = [];
-  if (!pinnedHit.error && pinnedHit.data) {
-    pinned = pinnedHit.data as unknown as Record<string, unknown>[];
-  } else {
-    const retry = await supabase
-      .from('products')
-      .select('id, name, sku, product_type, metadata')
-      .eq('profile_id', opts.companyId)
-      .limit(500);
-    pinned = (retry.data || []) as unknown as Record<string, unknown>[];
-  }
-  const defaultWh = ids[0];
-  for (const p of pinned) {
-    const pid = Number(p.id);
-    const meta = asObject(p.metadata);
-    const stamped = Number(meta.srm_supplier_id);
-    const whCol = Number(p.warehouse_id);
-    const onThisDc =
-      (Number.isFinite(whCol) && ids.includes(whCol)) ||
-      stamped === opts.supplierId;
-    if (!onThisDc) continue;
-    if (!productIds.includes(pid)) productIds.push(pid);
-    const warehouseId =
-      Number.isFinite(whCol) && ids.includes(whCol) ? whCol : defaultWh;
-    const key = `${warehouseId}:${pid}`;
-    if (!levelByProductWh.has(key)) {
-      levelByProductWh.set(key, {
-        product_id: pid,
-        warehouse_id: warehouseId,
-        qty_on_hand: 0,
-        qty_reserved: 0,
-        qty_available: 0,
-      });
-    }
-  }
   const products = new Map<
     number,
     {
@@ -208,22 +166,12 @@ export async function loadSupplierHeldStock(opts: {
       primary_image_url: string | null;
     }
   >();
-  for (const p of pinned) {
-    products.set(Number(p.id), {
-      name: String(p.name || `Product #${p.id}`),
-      sku: p.sku != null ? String(p.sku) : null,
-      product_type: p.product_type != null ? String(p.product_type) : null,
-      primary_image_url:
-        p.primary_image_url != null ? String(p.primary_image_url) : null,
-    });
-  }
-  if (productIds.some((id) => !products.has(id))) {
-    const missing = productIds.filter((id) => !products.has(id));
+  if (productIds.length) {
     const { data: prows } = await supabase
       .from('products')
       .select('id, name, sku, product_type, primary_image_url')
       .eq('profile_id', opts.companyId)
-      .in('id', missing);
+      .in('id', productIds);
     for (const p of prows || []) {
       products.set(Number(p.id), {
         name: String(p.name || `Product #${p.id}`),

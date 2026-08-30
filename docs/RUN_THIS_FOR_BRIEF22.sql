@@ -76,13 +76,13 @@ SET owner_type = 'customer',
     updated_at = now()
 WHERE id = 3 AND profile_id = 102;
 
--- Pin Kelpack maker SKUs (FG + NSNP). Films 49–52 already have levels.
+-- SLA pin only (Commercial). Do not put FG/NSNP onto Kelpack Stock as zeros.
 UPDATE public.products
 SET metadata = COALESCE(metadata, '{}'::jsonb)
   || jsonb_build_object('srm_supplier_id', 12),
     updated_at = now()
 WHERE profile_id = 102
-  AND id IN (2, 3, 4, 5, 6, 7, 8, 9, 42, 44, 45, 46);
+  AND id IN (2, 3, 4, 5, 6, 7, 8, 9, 42, 44, 45, 46, 49, 50, 51, 52);
 
 DO $$
 BEGIN
@@ -91,9 +91,10 @@ BEGIN
     WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'warehouse_id'
   ) THEN
     UPDATE public.products
-    SET warehouse_id = 1, updated_at = now()
+    SET warehouse_id = NULL, updated_at = now()
     WHERE profile_id = 102
-      AND id IN (2, 3, 4, 5, 6, 7, 8, 9, 42, 44, 45, 46);
+      AND id IN (2, 3, 4, 5, 6, 7, 8, 9, 42, 44, 45, 46)
+      AND warehouse_id = 1;
   END IF;
 END $$;
 

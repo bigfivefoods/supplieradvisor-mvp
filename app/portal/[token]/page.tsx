@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   Loader2,
   MapPin,
+  RefreshCw,
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
@@ -114,6 +115,7 @@ export default function GuestTradePortalPage() {
   const privyUserId = getCanonicalUserId(user?.id);
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [portal, setPortal] = useState<PublicPortalPayload | null>(null);
   const [tab, setTab] = useState<GuestPortalTab>('orders');
@@ -125,7 +127,8 @@ export default function GuestTradePortalPage() {
       setLoading(false);
       return;
     }
-    if (!opts?.silent) setLoading(true);
+    if (opts?.silent) setRefreshing(true);
+    else setLoading(true);
     try {
       const headers: Record<string, string> = {};
       try {
@@ -141,6 +144,7 @@ export default function GuestTradePortalPage() {
       const res = await fetch(`/api/public/portals/trade?${q.toString()}`, {
         headers,
         credentials: 'include',
+        cache: 'no-store',
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Portal unavailable');
@@ -155,10 +159,13 @@ export default function GuestTradePortalPage() {
         else setTab('orders');
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed');
-      if (!opts?.silent) setPortal(null);
+      if (!opts?.silent) {
+        setError(e instanceof Error ? e.message : 'Failed');
+        setPortal(null);
+      }
     } finally {
-      if (!opts?.silent) setLoading(false);
+      if (opts?.silent) setRefreshing(false);
+      else setLoading(false);
     }
   }, [token, authenticated, getAccessToken, privyUserId]);
 
@@ -262,6 +269,18 @@ export default function GuestTradePortalPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void load({ silent: true })}
+              disabled={refreshing}
+              aria-label="Refresh"
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50 dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`}
+              />
+              Refresh
+            </button>
             <B2cThemeToggle compact />
             {isHost ? (
               <span className="hidden items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-bold text-sky-900 dark:border-sky-400/30 dark:bg-sky-400/10 dark:text-sky-100 sm:inline-flex">

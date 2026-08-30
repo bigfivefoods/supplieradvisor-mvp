@@ -48,7 +48,18 @@ const base = {
   orders: [],
   invoices: [],
   purchase_orders: [],
-  documents: [],
+  documents: [
+    { name: 'VAT certificate', url: 'https://h/vat-secret.pdf', category: 'Financial' },
+  ],
+  hostDocuments: [
+    {
+      field: 'vat_certificate_url',
+      name: 'VAT certificate',
+      url: 'https://h/vat-secret.pdf',
+      category: 'Financial',
+    },
+  ],
+  hostDocShare: { vat_certificate_url: false },
   joinPath: '/login',
   moneyHint: null,
   kpis: {
@@ -96,6 +107,9 @@ assert.equal(asGuest.actor?.role, 'guest');
 assert.equal(asGuest.actor?.name, 'Boxer buyer');
 assert.equal(asGuest.people[0].you, false);
 assert.equal(asGuest.people[1].you, true);
+assert.equal(asHost.hostDocuments?.some((d) => d.url === 'https://h/vat-secret.pdf'), true);
+assert.equal(asGuest.hostDocuments?.some((d) => d.url === 'https://h/vat-secret.pdf'), false);
+assert.equal(asGuest.documents.some((d) => d.url === 'https://h/vat-secret.pdf'), false);
 
 assert.equal(
   hostDisplayName({
