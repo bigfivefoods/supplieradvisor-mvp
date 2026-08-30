@@ -127,8 +127,16 @@ assert.match(panel, /MOQ/);
 const poPrice = src('lib/commercial/po-price.ts');
 assert.match(poPrice, /lookupSupplierPoPriceMap/);
 assert.match(poPrice, /repriceOpenSupplierPos/);
+assert.match(poPrice, /supplierFacingUnitPrice/);
 assert.match(poPrice, /Never sell_price/);
 assert.doesNotMatch(poPrice, /item\.unit_price = .*sell_price/);
+assert.doesNotMatch(src('lib/commercial/types.ts'), /KELPACK_SEED_PRICES/);
+assert.doesNotMatch(src('lib/commercial/engine.ts'), /KELPACK_SEED_PRICES/);
+assert.match(src('lib/commercial/db.ts'), /party_kind === 'supplier' \? productCostFromRow/);
+assert.match(sql, /Inventory cost_price wins/);
+assert.match(sql, /l\.party_kind = 'supplier'/);
+assert.doesNotMatch(sql, /INV-20260828/);
+assert.doesNotMatch(sql, /from public\.invoices/i);
 
 const poRoute = src('app/api/suppliers/purchase-orders/route.ts');
 assert.match(poRoute, /priceSupplierPoItems/);

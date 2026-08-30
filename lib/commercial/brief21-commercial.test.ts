@@ -4,8 +4,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { applyAcceptedUnitPrices, billedUnitPrice, kelpackSeedPrice } from './engine';
-import { KELPACK_SEED_PRICES, KENYA_CUSTOMER_ID } from './types';
+import { applyAcceptedUnitPrices, billedUnitPrice, supplierFacingUnitPrice } from './engine';
+import { KENYA_CUSTOMER_ID } from './types';
 import { guestPortalTabs } from '../portals/guest-portal-tabs';
 
 function src(rel: string) {
@@ -20,15 +20,7 @@ assert.ok(supplierTabs.indexOf('commercial') < supplierTabs.indexOf('stock'));
 assert.ok(customerTabs.includes('commercial'));
 assert.ok(customerTabs.indexOf('commercial') > customerTabs.indexOf('orders'));
 
-assert.equal(kelpackSeedPrice(2), 28);
-assert.equal(kelpackSeedPrice(7), 35);
-assert.equal(kelpackSeedPrice(42), 99);
-assert.equal(kelpackSeedPrice(45), 685.75);
-assert.equal(kelpackSeedPrice(49), 1.35);
-assert.equal(
-  KELPACK_SEED_PRICES.some((r) => r.product_id === 54 || r.product_id === 10),
-  false
-);
+assert.equal(supplierFacingUnitPrice({ costPrice: 26.52, acceptedPrice: 28 }), 26.52);
 assert.equal(KENYA_CUSTOMER_ID, 3);
 
 assert.equal(billedUnitPrice({ accepted_price: 28, pending_price: 30 }), 28);

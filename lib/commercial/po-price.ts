@@ -1,9 +1,14 @@
 /**
- * Supplier PO unit price: accepted Commercial, else products.cost_price.
- * Never sell_price. Never a typed guess.
+ * Supplier PO unit price: live products.cost_price (inventory wins).
+ * Never sell_price. Never a typed guess. Never KELPACK_SEED_PRICES.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { applyMappedUnitPrices, roundMoney } from '@/lib/commercial/engine';
+import {
+  applyMappedUnitPrices,
+  productCostFromRow,
+  roundMoney,
+  supplierFacingUnitPrice,
+} from '@/lib/commercial/engine';
 import { lookupAcceptedMap } from '@/lib/commercial/db';
 import { srmIdFromPo } from '@/lib/procurement/po-email';
 import type { PoLineItem } from '@/lib/procurement/types';
@@ -30,27 +35,7 @@ export function isOpenUnreceivedPo(po: {
   return true;
 }
 
-export function productCostFromRow(row: Record<string, unknown> | null | undefined): number | null {
-  if (!row) return null;
-  if (row.cost_price != null && row.cost_price !== '') {
-    const direct = Number(row.cost_price);
-    if (Number.isFinite(direct)) return roundMoney(direct);
-  }
-  const prices = Array.isArray(row.prices) ? row.prices : [];
-  const zar = prices.find((raw) => {
-    const p = asObject(raw);
-    return String(p.currency || '').toUpperCase() === 'ZAR' && p.cost_price != null;
-  });
-  if (zar) {
-    const n = Number(asObject(zar).cost_price);
-    if (Number.isFinite(n)) return roundMoney(n);
-  }
-  for (const raw of prices) {
-    const n = Number(asObject(raw).cost_price);
-    if (Number.isFinite(n)) return roundMoney(n);
-  }
-  return null;
-}
+export { productCostFromRow, supplierFacingUnitPrice };
 
 function normSku(v: unknown): string {
   return String(v || '').trim().toLowerCase();
@@ -147,12 +132,14 @@ export async function lookupSupplierPoPriceMap(opts: {
   }
   const map: Record<number, number> = {};
   for (const [pid, row] of opts.products) {
-    if (Object.prototype.hasOwnProperty.call(accepted, pid)) {
-      map[pid] = roundMoney(accepted[pid]);
-      continue;
-    }
-    const cost = productCostFromRow(row);
-    if (cost != null) map[pid] = cost;
+    const unit = supplierFacingUnitPrice({
+      costPrice: row.cost_price as number | null,
+      prices: row.prices,
+      acceptedPrice: Object.prototype.hasOwnProperty.call(accepted, pid)
+        ? accepted[pid]
+        : null,
+    });
+    if (unit != null) map[pid] = unit;
   }
   for (const [pid, price] of Object.entries(accepted)) {
     const id = Number(pid);

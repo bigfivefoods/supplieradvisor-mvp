@@ -1,13 +1,61 @@
-import {
-  KELPACK_SEED_PRICES,
-  type PartyCatalogueLine,
-  type PartyKind,
-  type PriceActor,
-  type PriceRevision,
+import type {
+  PartyCatalogueLine,
+  PartyKind,
+  PriceActor,
+  PriceRevision,
 } from './types';
 
 export function roundMoney(n: number): number {
   return Math.round(Number(n) * 10000) / 10000;
+}
+
+function asObject(raw: unknown): Record<string, unknown> {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    return raw as Record<string, unknown>;
+  }
+  return {};
+}
+
+/** Inventory buy price — what we pay a supplier. Never sell_price. */
+export function productCostFromRow(
+  row: Record<string, unknown> | null | undefined
+): number | null {
+  if (!row) return null;
+  if (row.cost_price != null && row.cost_price !== '') {
+    const direct = Number(row.cost_price);
+    if (Number.isFinite(direct)) return roundMoney(direct);
+  }
+  const prices = Array.isArray(row.prices) ? row.prices : [];
+  const zar = prices.find((raw) => {
+    const p = asObject(raw);
+    return String(p.currency || '').toUpperCase() === 'ZAR' && p.cost_price != null;
+  });
+  if (zar) {
+    const n = Number(asObject(zar).cost_price);
+    if (Number.isFinite(n)) return roundMoney(n);
+  }
+  for (const raw of prices) {
+    const n = Number(asObject(raw).cost_price);
+    if (Number.isFinite(n)) return roundMoney(n);
+  }
+  return null;
+}
+
+/** Supplier portal / supplier PO unit: live cost_price wins over a stale catalogue seed. */
+export function supplierFacingUnitPrice(opts: {
+  costPrice?: number | null;
+  prices?: unknown;
+  acceptedPrice?: number | null;
+}): number | null {
+  const cost = productCostFromRow({
+    cost_price: opts.costPrice,
+    prices: opts.prices,
+  });
+  if (cost != null) return cost;
+  if (opts.acceptedPrice != null && Number.isFinite(Number(opts.acceptedPrice))) {
+    return roundMoney(Number(opts.acceptedPrice));
+  }
+  return null;
 }
 
 export function productFamily(opts: {
@@ -150,11 +198,6 @@ export function applyMappedUnitPrices<
     next.reduce((s, i) => s + Number(i.line_total || 0), 0)
   );
   return { ok: true, items: next, total };
-}
-
-export function kelpackSeedPrice(productId: number): number | null {
-  const hit = KELPACK_SEED_PRICES.find((r) => r.product_id === productId);
-  return hit ? hit.accepted_price : null;
 }
 
 export function actorLabel(opts: {

@@ -1,5 +1,10 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { productFamily, roundMoney, sortRevisionsOldestLast } from './engine';
+import {
+  productCostFromRow,
+  productFamily,
+  roundMoney,
+  sortRevisionsOldestLast,
+} from './engine';
 import type {
   CatalogueLineStatus,
   PartyCatalogueLine,
@@ -82,13 +87,22 @@ async function attachProducts(
   if (!lines.length) return lines;
   const supabase = getSupabaseServer();
   const ids = [...new Set(lines.map((l) => l.product_id).filter((n) => n > 0))];
-  const hit = await supabase
+  const productCols =
+    'id, name, sku, product_type, uom, primary_image_url, short_description, long_description, lead_time_days, moq, specs_sheet_url, cost_price, prices';
+  let hit = await supabase
     .from('products')
-    .select(
-      'id, name, sku, product_type, uom, primary_image_url, short_description, long_description, lead_time_days, moq, specs_sheet_url, cost_price'
-    )
+    .select(productCols)
     .eq('profile_id', profileId)
     .in('id', ids);
+  if (hit.error && /prices|column|schema cache/i.test(hit.error.message || '')) {
+    hit = await supabase
+      .from('products')
+      .select(
+        'id, name, sku, product_type, uom, primary_image_url, short_description, long_description, lead_time_days, moq, specs_sheet_url, cost_price'
+      )
+      .eq('profile_id', profileId)
+      .in('id', ids);
+  }
   const byId = new Map<number, Record<string, unknown>>();
   for (const row of asRows(hit.data)) {
     byId.set(Number(row.id), row);
@@ -98,8 +112,11 @@ async function attachProducts(
     const name = p?.name != null ? String(p.name) : line.product_name;
     const type = p?.product_type != null ? String(p.product_type) : line.product_type;
     const sku = p?.sku != null ? String(p.sku) : line.sku;
+    const cost =
+      line.party_kind === 'supplier' ? productCostFromRow(p) : null;
     return {
       ...line,
+      accepted_price: cost != null ? cost : line.accepted_price,
       product_name: name || `Product ${line.product_id}`,
       product_type: type || null,
       sku: sku || null,

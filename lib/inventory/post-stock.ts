@@ -55,6 +55,35 @@ function asRow(raw: unknown): Record<string, unknown> | null {
   return null;
 }
 
+async function resolveUnitCost(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  profileId: number,
+  productId: number,
+  explicit: number | null | undefined
+): Promise<number> {
+  if (explicit != null && Number.isFinite(Number(explicit)) && Number(explicit) > 0) {
+    return Number(explicit);
+  }
+  try {
+    const { productCostFromRow } = await import('@/lib/commercial/engine');
+    const { data } = await supabase
+      .from('products')
+      .select('cost_price, prices')
+      .eq('profile_id', profileId)
+      .eq('id', productId)
+      .maybeSingle();
+    const cost = productCostFromRow(
+      data && typeof data === 'object'
+        ? (data as unknown as Record<string, unknown>)
+        : null
+    );
+    if (cost != null) return cost;
+  } catch {
+    /* cost column optional */
+  }
+  return explicit != null && Number.isFinite(Number(explicit)) ? Number(explicit) : 0;
+}
+
 function signedForType(type: StockMovementType, abs: number): number {
   if (
     type === 'issue' ||
@@ -196,7 +225,7 @@ export async function postStock(
     to_warehouse_id: opts.toWarehouseId ?? null,
     movement_type: opts.movementType,
     quantity: movementQty,
-    unit_cost: opts.unitCost != null ? Number(opts.unitCost) : 0,
+    unit_cost: await resolveUnitCost(supabase, profileId, productId, opts.unitCost),
     reference_type: opts.referenceType || null,
     reference_id: opts.referenceId != null ? String(opts.referenceId) : null,
     notes: opts.notes || null,
