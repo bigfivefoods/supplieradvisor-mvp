@@ -89,22 +89,26 @@ async function attachProducts(
   const ids = [...new Set(lines.map((l) => l.product_id).filter((n) => n > 0))];
   const productCols =
     'id, name, sku, product_type, uom, primary_image_url, short_description, long_description, lead_time_days, moq, specs_sheet_url, cost_price, prices';
-  let hit = await supabase
+  const wide = await supabase
     .from('products')
     .select(productCols)
     .eq('profile_id', profileId)
     .in('id', ids);
-  if (hit.error && /prices|column|schema cache/i.test(hit.error.message || '')) {
-    hit = await supabase
+  let productRows: Record<string, unknown>[] = [];
+  if (!wide.error && wide.data) {
+    productRows = asRows(wide.data);
+  } else {
+    const soft = await supabase
       .from('products')
       .select(
         'id, name, sku, product_type, uom, primary_image_url, short_description, long_description, lead_time_days, moq, specs_sheet_url, cost_price'
       )
       .eq('profile_id', profileId)
       .in('id', ids);
+    productRows = asRows(soft.data);
   }
   const byId = new Map<number, Record<string, unknown>>();
-  for (const row of asRows(hit.data)) {
+  for (const row of productRows) {
     byId.set(Number(row.id), row);
   }
   return lines.map((line) => {
