@@ -38,6 +38,10 @@ import {
 } from '@/lib/procurement/types';
 import { purchaseOrderWhatsAppText } from '@/lib/invites/whatsapp';
 import WhatsAppShareButton from '@/components/ui/WhatsAppShareButton';
+import {
+  PoPortalThread,
+  PoSupplierChain,
+} from '@/components/suppliers/PoSupplierChain';
 import { CONTRACTS } from '@/lib/contracts/config';
 import POEscrowV2ABI from '@/lib/contracts/abi/POEscrowV2.json';
 import {
@@ -168,6 +172,7 @@ type PurchaseOrder = {
   order_number?: string | null;
   total_amount?: number | null;
   status: string;
+  production_status?: string | null;
   description?: string | null;
   items?: PoLineItem[] | null;
   currency?: string | null;
@@ -3328,6 +3333,46 @@ function PoInner() {
                           <p className="text-[11px] text-neutral-500 mt-1">
                             Books on accept · warehouse on receive
                           </p>
+                          <PoSupplierChain
+                            status={String(po.status)}
+                            productionStatus={po.production_status}
+                            fulfilmentStatus={
+                              po.metadata && typeof po.metadata === 'object'
+                                ? String(
+                                    (po.metadata as { fulfilment_status?: string })
+                                      .fulfilment_status || ''
+                                  ) || null
+                                : null
+                            }
+                            shippedDate={
+                              po.metadata && typeof po.metadata === 'object'
+                                ? String(
+                                    (po.metadata as { shipped_at?: string }).shipped_at ||
+                                      ''
+                                  ).slice(0, 10) || null
+                                : null
+                            }
+                            inventoryReceived={inventoryReceived(po)}
+                            lots={
+                              po.metadata &&
+                              typeof po.metadata === 'object' &&
+                              Array.isArray(
+                                (po.metadata as { received_lots?: unknown }).received_lots
+                              )
+                                ? (
+                                    po.metadata as {
+                                      received_lots: Array<{
+                                        batch_number?: string;
+                                        manufactured_date?: string;
+                                        expiry_date?: string;
+                                        qty?: number;
+                                      }>;
+                                    }
+                                  ).received_lots
+                                : []
+                            }
+                          />
+                          <PoPortalThread poId={po.id} withAuth={withAuth} />
                           <div className="text-sm text-neutral-600">
                             {po.supplier_name || `Supplier #${po.supplier_profile_id || po.supplier_id}`}
                             {' · '}

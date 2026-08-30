@@ -42,7 +42,7 @@ export async function receivePurchaseOrderToInventory(opts: {
   const { data: po, error } = await supabase
     .from('purchase_orders')
     .select(
-      'id, buyer_profile_id, supplier_profile_id, items, status, metadata, delivered_quantity, order_quantity'
+      'id, buyer_profile_id, supplier_profile_id, items, status, metadata, delivered_quantity, order_quantity, po_number, order_number'
     )
     .eq('id', opts.poId)
     .eq('buyer_profile_id', opts.companyId)
@@ -76,6 +76,24 @@ export async function receivePurchaseOrderToInventory(opts: {
       ? { ...(po.metadata as Record<string, unknown>) }
       : {};
   if (meta.inventory_received_at) {
+    if (!meta.lots_received_at) {
+      await copyPoLotsToInventory({
+        companyId: opts.companyId,
+        poId: opts.poId,
+        poNumber: String(po.po_number || po.order_number || `PO-${opts.poId}`),
+        items: asLines(po.items),
+        productByLine: {},
+        warehouseId: opts.warehouseId != null ? Number(opts.warehouseId) : null,
+        meta,
+      });
+      if (meta.lots_received_at) {
+        await supabase
+          .from('purchase_orders')
+          .update({ metadata: meta, updated_at: new Date().toISOString() })
+          .eq('id', opts.poId)
+          .eq('buyer_profile_id', opts.companyId);
+      }
+    }
     return {
       ok: true,
       alreadyReceived: true,
@@ -141,6 +159,7 @@ export async function receivePurchaseOrderToInventory(opts: {
 
   const now = new Date().toISOString();
   const lotPrefix = (opts.lotPrefix || `PO${opts.poId}`).slice(0, 20);
+  const productByLine: Record<number, number> = {};
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -253,6 +272,7 @@ export async function receivePurchaseOrderToInventory(opts: {
       continue;
     }
 
+    productByLine[i] = productId;
     const lotNumber = `${lotPrefix}-${i + 1}`;
 
     let q = supabase
@@ -318,6 +338,15 @@ export async function receivePurchaseOrderToInventory(opts: {
     meta.inventory_received_qty = qtyTotal;
     meta.inventory_created_products = createdProducts;
     if (wh) meta.inventory_warehouse_id = wh;
+    await copyPoLotsToInventory({
+      companyId: opts.companyId,
+      poId: opts.poId,
+      poNumber: String(po.po_number || po.order_number || `PO-${opts.poId}`),
+      items: lines,
+      productByLine,
+      warehouseId: wh,
+      meta,
+    });
     await supabase
       .from('purchase_orders')
       .update({ metadata: meta, updated_at: now })
@@ -337,4 +366,125 @@ export async function receivePurchaseOrderToInventory(opts: {
         ? 'No lines could be received into inventory'
         : undefined,
   };
+}
+
+async function copyPoLotsToInventory(opts: {
+  companyId: number;
+  poId: number;
+  poNumber: string;
+  items: PoLineItem[];
+  productByLine: Record<number, number>;
+  warehouseId: number | null;
+  meta: Record<string, unknown>;
+}): Promise<void> {
+  if (opts.meta.lots_received_at) return;
+  const supabase = getSupabaseServer();
+  let hit = await supabase
+    .from('order_batches')
+    .select(
+      'batch_number, qty, uom, produced_at, expiry_date, order_line_index, metadata'
+    )
+    .eq('company_id', opts.companyId)
+    .eq('order_id', opts.poId)
+    .limit(200);
+  if (hit.error) {
+    hit = await supabase
+      .from('order_batches')
+      .select('batch_number, qty, uom, produced_at, metadata')
+      .eq('company_id', opts.companyId)
+      .eq('order_id', opts.poId)
+      .limit(200);
+  }
+  const rows = (hit.data || []) as Array<Record<string, unknown>>;
+  if (!rows.length) return;
+
+  const { inventoryLotPayloadFromBatch } = await import(
+    '@/lib/portals/supplier-portal-party'
+  );
+  for (const raw of rows) {
+    const batchNumber = String(raw.batch_number || '').trim();
+    if (!batchNumber) continue;
+    const lineIdx =
+      raw.order_line_index != null ? Number(raw.order_line_index) : 0;
+    const productId =
+      (Number.isFinite(lineIdx) ? opts.productByLine[lineIdx] : null) ||
+      (opts.items[lineIdx]?.product_id != null
+        ? Number(opts.items[lineIdx].product_id)
+        : null) ||
+      Object.values(opts.productByLine)[0] ||
+      null;
+    const meta =
+      raw.metadata && typeof raw.metadata === 'object' && !Array.isArray(raw.metadata)
+        ? (raw.metadata as Record<string, unknown>)
+        : {};
+    const manufactured =
+      String(raw.produced_at || meta.manufactured_date || '').slice(0, 10) ||
+      null;
+    const expiry =
+      String(raw.expiry_date || meta.expiry_date || '').slice(0, 10) || null;
+    const bestBefore =
+      String(meta.best_before || '').slice(0, 10) || null;
+    if (!productId) continue;
+
+    const existing = await supabase
+      .from('inventory_lots')
+      .select('id, qty_on_hand')
+      .eq('profile_id', opts.companyId)
+      .eq('product_id', productId)
+      .eq('lot_number', batchNumber)
+      .maybeSingle();
+    if (existing.data?.id) {
+      continue;
+    }
+    const payload = inventoryLotPayloadFromBatch({
+      companyId: opts.companyId,
+      productId,
+      batchNumber,
+      qty: Number(raw.qty) || 0,
+      manufacturedDate: manufactured,
+      expiryDate: expiry,
+      bestBefore,
+      supplierRef: opts.poNumber,
+      warehouseId: opts.warehouseId,
+    });
+    let ins = await supabase.from('inventory_lots').insert(payload);
+    if (ins.error) {
+      const soft = { ...payload };
+      delete soft.best_before;
+      ins = await supabase.from('inventory_lots').insert(soft);
+    }
+    if (ins.error) {
+      const soft = { ...payload };
+      delete soft.best_before;
+      delete soft.supplier_ref;
+      await supabase.from('inventory_lots').insert(soft);
+    }
+  }
+  opts.meta.lots_received_at = new Date().toISOString();
+  const prev = Array.isArray(opts.meta.received_lots)
+    ? (opts.meta.received_lots as unknown[])
+    : [];
+  opts.meta.received_lots = [
+    ...prev,
+    ...rows
+      .filter((r) => String(r.batch_number || '').trim())
+      .map((r) => ({
+        batch_number: String(r.batch_number),
+        qty: Number(r.qty) || 0,
+        manufactured_date: String(
+          r.produced_at ||
+            (r.metadata && typeof r.metadata === 'object'
+              ? (r.metadata as { manufactured_date?: unknown }).manufactured_date
+              : '') ||
+            ''
+        ).slice(0, 10),
+        expiry_date: String(
+          r.expiry_date ||
+            (r.metadata && typeof r.metadata === 'object'
+              ? (r.metadata as { expiry_date?: unknown }).expiry_date
+              : '') ||
+            ''
+        ).slice(0, 10),
+      })),
+  ];
 }

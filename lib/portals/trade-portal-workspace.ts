@@ -12,6 +12,10 @@ import {
 import { otifefForLine, rollupOtifef } from '@/lib/portals/otifef-line';
 import { dateEnvelope } from '@/lib/projects/waterfall';
 import { enrichChainDoc } from '@/lib/orders/chain-path';
+import {
+  messageMatchesPo,
+  poBelongsToSupplierViewer,
+} from '@/lib/portals/supplier-portal-party';
 import type { OtifefMetrics } from '@/lib/suppliers/types';
 import {
   parsePortalTaskRiadId,
@@ -259,6 +263,20 @@ function poToDoc(r: Record<string, unknown>, otifefInput: Parameters<typeof otif
   const meta = metaOf(r);
   const production_status =
     r.production_status != null ? String(r.production_status) : null;
+  const items = Array.isArray(r.items) ? r.items : [];
+  const fulfilment =
+    meta.fulfilment_status != null
+      ? String(meta.fulfilment_status)
+      : null;
+  const shippedAt =
+    meta.shipped_at != null
+      ? String(meta.shipped_at).slice(0, 10)
+      : fulfilment === 'shipped'
+        ? String(r.actual_delivery_date || r.actual_completion_date || '').slice(
+            0,
+            10
+          ) || null
+        : null;
   return enrichChainDoc(
     {
       id: Number(r.id),
@@ -283,12 +301,15 @@ function poToDoc(r: Record<string, unknown>, otifefInput: Parameters<typeof otif
         pending: ot.pending,
       },
       production_status,
+      fulfilment_status: fulfilment,
+      shippedDate: shippedAt,
+      inventoryReceived: Boolean(meta.inventory_received_at),
       completed_at:
         r.actual_completion_date != null
           ? String(r.actual_completion_date).slice(0, 10)
           : r.actual_delivery_date != null
             ? String(r.actual_delivery_date).slice(0, 10)
-            : null,
+            : shippedAt,
       confirmed_qty:
         r.confirmed_qty != null ? Number(r.confirmed_qty) : null,
       linked: true,
@@ -297,6 +318,16 @@ function poToDoc(r: Record<string, unknown>, otifefInput: Parameters<typeof otif
         : meta.customer_po_number
           ? String(meta.customer_po_number)
           : null,
+      lines: items.map((item) => {
+        const it = asObject(item);
+        return {
+          name: String(it.item_name || it.name || it.sku || 'Item'),
+          qty: it.quantity != null ? Number(it.quantity) : it.qty != null ? Number(it.qty) : null,
+          uom: it.uom != null ? String(it.uom) : null,
+          amount: it.line_total != null ? Number(it.line_total) : null,
+          product_id: it.product_id != null ? Number(it.product_id) : null,
+        };
+      }),
     },
     'supplier'
   );
@@ -578,9 +609,14 @@ export async function loadPortalWorkspace(opts: {
     }
     for (const raw of poRows) {
       const r = asObject(raw);
-      const sid = r.supplier_id != null ? Number(r.supplier_id) : null;
-      const spid = r.supplier_profile_id != null ? Number(r.supplier_profile_id) : null;
-      if (sid !== opts.viewer.supplier_id && !(linked && spid === linked)) continue;
+      if (
+        !poBelongsToSupplierViewer(r, {
+          supplierId: Number(opts.viewer.supplier_id),
+          linkedProfileId: linked,
+        })
+      ) {
+        continue;
+      }
       pos.push(
         poToDoc(r, {
           promised_date: r.promised_date as string | null,
@@ -874,20 +910,42 @@ export async function loadPortalWorkspace(opts: {
   }
 
   const messages: PortalMessageView[] = [];
-  const { data: msgs } = await supabase
+  let msgQ = await supabase
     .from('trade_portal_messages')
-    .select('id, author, body, created_at')
+    .select('id, author, body, created_at, purchase_order_id, metadata')
     .eq('viewer_id', opts.viewer.id)
     .eq('profile_id', companyId)
     .order('created_at', { ascending: true })
     .limit(200);
-  for (const r of msgs || []) {
+  if (msgQ.error) {
+    msgQ = await supabase
+      .from('trade_portal_messages')
+      .select('id, author, body, created_at')
+      .eq('viewer_id', opts.viewer.id)
+      .eq('profile_id', companyId)
+      .order('created_at', { ascending: true })
+      .limit(200);
+  }
+  for (const r of msgQ.data || []) {
+    const row = asObject(r);
+    const poId = Number(row.purchase_order_id);
     messages.push({
       id: Number(r.id),
       author: r.author === 'host' ? 'host' : 'guest',
       body: String(r.body || ''),
       created_at: String(r.created_at || ''),
+      purchase_order_id:
+        Number.isFinite(poId) && poId > 0
+          ? poId
+          : Number(asObject(row.metadata).po_id) > 0
+            ? Number(asObject(row.metadata).po_id)
+            : null,
     });
+  }
+  for (const p of pos) {
+    p.messages = messages.filter(
+      (m) => m.purchase_order_id != null && messageMatchesPo(m, p.id)
+    );
   }
 
   const projects: PortalProjectView[] = [];

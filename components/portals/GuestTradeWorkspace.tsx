@@ -50,8 +50,9 @@ import { PortalPurchaseOrder } from '@/components/portals/PortalPurchaseOrder';
 import { OrderChainPath } from '@/components/orders/OrderChainPath';
 import {
   chainStepIndex,
-  nextSupplierProductionAction,
+  supplierPortalCardAction,
 } from '@/lib/orders/chain-path';
+import { validateLotDates } from '@/lib/portals/supplier-portal-party';
 import { PortalJoinDemo } from '@/components/portals/PortalJoinDemo';
 import {
   portalTimeAgo,
@@ -2407,6 +2408,7 @@ function OrdersPanel({
                 orderStatus: o.status,
                 productionStatus: o.production_status,
                 shippedDate: o.completed_at,
+                fulfilmentStatus: o.fulfilment_status,
                 deliveredQty: o.delivered,
                 rated: o.rated,
                 hasSalesOrder: o.kind === 'order' || !isSupplier,
@@ -2491,6 +2493,18 @@ function OrdersPanel({
                     ))}
                   </div>
                 ) : null}
+                {isSupplier && o.messages && o.messages.length ? (
+                  <div className="mt-3 space-y-1">
+                    {o.messages.slice(-4).map((m) => (
+                      <p key={m.id} className="text-[11px] text-slate-600">
+                        <span className="font-bold">
+                          {m.author === 'guest' ? 'You' : 'Buyer'}:
+                        </span>{' '}
+                        {m.body}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
                 {isSupplier ? (
                   <SupplierOrderActions order={o} busy={busy} onAct={onAct} />
                 ) : (
@@ -2520,94 +2534,73 @@ function SupplierOrderActions({
   busy: boolean;
   onAct: (p: Record<string, unknown>) => Promise<unknown>;
 }) {
-  const [delivered, setDelivered] = useState(String(order.delivered ?? ''));
   const [qty, setQty] = useState(String(order.confirmed_qty ?? order.ordered ?? ''));
   const [batchNumber, setBatchNumber] = useState('');
   const [manufacturedAt, setManufacturedAt] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
-  const next = nextSupplierProductionAction(
-    order.status,
-    order.production_status
-  );
-  const needsLot = next?.status === 'completed';
+  const [bestBefore, setBestBefore] = useState('');
+  const [note, setNote] = useState('');
+  const next = supplierPortalCardAction({
+    orderStatus: order.status,
+    productionStatus: order.production_status,
+    fulfilmentStatus: order.fulfilment_status,
+    shippedDate: order.completed_at,
+    inventoryReceived: false,
+  });
+  const showLots = next?.key === 'ready' || next?.key === 'ship';
+  const dateErr = validateLotDates(manufacturedAt, expiryDate);
   const lotOk =
-    !needsLot ||
-    (batchNumber.trim() && manufacturedAt && expiryDate);
-  const runNext = () => {
+    Boolean(batchNumber.trim()) &&
+    Boolean(manufacturedAt) &&
+    Boolean(expiryDate) &&
+    !dateErr;
+  const batches = () =>
+    lotOk
+      ? [
+          {
+            batch_number: batchNumber.trim(),
+            manufactured_at: manufacturedAt,
+            produced_at: manufacturedAt,
+            expiry_date: expiryDate,
+            best_before: bestBefore || null,
+            qty: qty ? Number(qty) : undefined,
+            uom: order.lines?.[0]?.uom || 'ea',
+            order_line_index: 0,
+          },
+        ]
+      : [];
+  const run = () => {
     if (!next) return;
-    if (next.status === 'accepted') {
+    if (next.key === 'accept') {
       void onAct({ action: 'po_update', id: order.id, status: 'accepted' });
       return;
     }
-    if (next.status === 'shipped') {
+    if (next.key === 'ready') {
+      if (!lotOk) return;
       void onAct({
-        action: 'po_update',
+        action: 'production_update',
         id: order.id,
-        status: 'invoiced',
-        delivered_quantity: delivered ? Number(delivered) : undefined,
+        production_status: 'in_progress',
+        confirmed_qty: qty ? Number(qty) : undefined,
+        batches: batches(),
       });
       return;
     }
-    const batches =
-      needsLot && batchNumber.trim()
-        ? [
-            {
-              batch_number: batchNumber.trim(),
-              manufactured_at: manufacturedAt,
-              produced_at: manufacturedAt,
-              expiry_date: expiryDate,
-              qty: qty ? Number(qty) : undefined,
-            },
-          ]
-        : undefined;
     void onAct({
-      action: 'production_update',
+      action: 'po_update',
       id: order.id,
-      production_status: next.status,
-      confirmed_qty: qty ? Number(qty) : undefined,
-      batches,
+      shipped: true,
+      delivered_quantity: qty ? Number(qty) : undefined,
     });
   };
   return (
     <div className="mt-3 space-y-2">
-      <div className="flex flex-wrap gap-2 items-end">
-        {next ? (
-          <button
-            type="button"
-            disabled={busy || !lotOk}
-            onClick={runNext}
-            className="btn-primary !py-2 !px-4 text-xs"
-          >
-            {next.label}
-          </button>
-        ) : (
-          <p className="text-[11px] font-semibold text-emerald-800">
-            This order is complete on the path.
-          </p>
-        )}
-        <label className="text-[10px] font-bold uppercase text-neutral-400">
-          Confirmed qty
-          <input
-            className="input mt-0.5 !py-1 !px-2 !text-xs w-24"
-            value={qty}
-            onChange={(e) => setQty(e.target.value)}
-          />
-        </label>
-        <label className="text-[10px] font-bold uppercase text-neutral-400">
-          Delivered qty
-          <input
-            className="input mt-0.5 !py-1 !px-2 !text-xs w-24"
-            value={delivered}
-            onChange={(e) => setDelivered(e.target.value)}
-          />
-        </label>
-      </div>
-      {needsLot ? (
-        <div className="grid gap-2 sm:grid-cols-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
-          <label className="text-[10px] font-bold uppercase text-neutral-400">
-            Batch number *
+      {showLots ? (
+        <div className="grid gap-2 sm:grid-cols-2 rounded-xl border border-slate-100 bg-slate-50 p-3">
+          <label className="text-[10px] font-bold uppercase text-neutral-400 sm:col-span-2">
+            Batch / lot *
             <input
-              className="input mt-0.5 !py-1 !px-2 !text-xs w-full"
+              className="input mt-0.5 !py-2 !px-2 !text-sm w-full min-h-[44px]"
               value={batchNumber}
               onChange={(e) => setBatchNumber(e.target.value)}
               placeholder="LOT-…"
@@ -2617,7 +2610,7 @@ function SupplierOrderActions({
             Manufactured *
             <input
               type="date"
-              className="input mt-0.5 !py-1 !px-2 !text-xs w-full"
+              className="input mt-0.5 !py-2 !px-2 !text-sm w-full min-h-[44px]"
               value={manufacturedAt}
               onChange={(e) => setManufacturedAt(e.target.value)}
             />
@@ -2626,17 +2619,76 @@ function SupplierOrderActions({
             Expiry *
             <input
               type="date"
-              className="input mt-0.5 !py-1 !px-2 !text-xs w-full"
+              className="input mt-0.5 !py-2 !px-2 !text-sm w-full min-h-[44px]"
               value={expiryDate}
               onChange={(e) => setExpiryDate(e.target.value)}
             />
           </label>
+          <label className="text-[10px] font-bold uppercase text-neutral-400">
+            Best before
+            <input
+              type="date"
+              className="input mt-0.5 !py-2 !px-2 !text-sm w-full min-h-[44px]"
+              value={bestBefore}
+              onChange={(e) => setBestBefore(e.target.value)}
+            />
+          </label>
+          <label className="text-[10px] font-bold uppercase text-neutral-400">
+            Qty
+            <input
+              className="input mt-0.5 !py-2 !px-2 !text-sm w-full min-h-[44px]"
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+            />
+          </label>
+          {dateErr ? (
+            <p className="sm:col-span-2 text-[11px] text-rose-700">{dateErr}</p>
+          ) : null}
         </div>
       ) : null}
+      <div className="flex flex-col gap-2">
+        {next ? (
+          <button
+            type="button"
+            disabled={busy || (next.key === 'ready' && !lotOk)}
+            onClick={run}
+            className="btn-primary !py-3 !px-4 text-sm min-h-[44px] w-full"
+          >
+            {next.label}
+          </button>
+        ) : (
+          <p className="text-[11px] font-semibold text-emerald-800">
+            Waiting for the buyer to receive into stock.
+          </p>
+        )}
+      </div>
+      <div className="flex gap-2">
+        <input
+          className="input flex-1 !p-2.5 !text-sm min-h-[44px]"
+          placeholder="Message on this PO"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
+        <button
+          type="button"
+          disabled={busy || !note.trim()}
+          onClick={() => {
+            const t = note;
+            setNote('');
+            void onAct({
+              action: 'message',
+              body: t,
+              purchase_order_id: order.id,
+            });
+          }}
+          className="btn-secondary !py-3 !px-3 text-sm min-h-[44px]"
+        >
+          Send
+        </button>
+      </div>
       <p className="text-[11px] text-neutral-500">
-        Each tap moves the chain and updates the customer sales order. They
-        see Scheduled / In production / Produced and lot details — never your
-        costs.
+        Accept, mark ready with lot + manufacture + expiry, then ship. The
+        buyer receives into stock. They never see your costs.
       </p>
     </div>
   );

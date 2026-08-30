@@ -6,6 +6,8 @@ import {
   chainStepIndex,
   nextSupplierProductionAction,
   chainProductionLabel,
+  supplierChainStep,
+  supplierPortalCardAction,
 } from './chain-path';
 
 assert.equal(
@@ -48,8 +50,13 @@ assert.equal(
   0
 );
 assert.equal(
-  chainStepIndex({ side: 'supplier', orderStatus: 'accepted', productionStatus: 'released' }),
-  1
+  chainStepIndex({
+    side: 'supplier',
+    orderStatus: 'accepted',
+    productionStatus: 'released',
+  }),
+  2,
+  'ready / in production is one step'
 );
 assert.equal(
   chainStepIndex({
@@ -70,6 +77,55 @@ assert.equal(
 assert.equal(
   nextSupplierProductionAction('accepted', 'in_progress')?.status,
   'completed'
+);
+
+assert.equal(
+  supplierChainStep({ side: 'supplier', orderStatus: 'sent' }),
+  0
+);
+assert.equal(
+  supplierChainStep({ side: 'supplier', orderStatus: 'accepted' }),
+  1
+);
+assert.equal(
+  supplierChainStep({
+    side: 'supplier',
+    orderStatus: 'accepted',
+    productionStatus: 'in_progress',
+  }),
+  2
+);
+assert.equal(
+  supplierChainStep({
+    side: 'supplier',
+    orderStatus: 'accepted',
+    fulfilmentStatus: 'shipped',
+  }),
+  3
+);
+assert.equal(
+  supplierChainStep({
+    side: 'supplier',
+    orderStatus: 'accepted',
+    inventoryReceived: true,
+  }),
+  4
+);
+
+assert.equal(
+  supplierPortalCardAction({ orderStatus: 'sent' })?.key,
+  'accept'
+);
+assert.equal(
+  supplierPortalCardAction({ orderStatus: 'accepted' })?.key,
+  'ready'
+);
+assert.equal(
+  supplierPortalCardAction({
+    orderStatus: 'accepted',
+    productionStatus: 'in_progress',
+  })?.key,
+  'ship'
 );
 
 console.log('chain-path.test.ts ok');

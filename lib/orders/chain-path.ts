@@ -30,9 +30,11 @@ export type ChainSignals = {
   orderStatus?: string | null;
   productionStatus?: string | null;
   shippedDate?: string | null;
+  fulfilmentStatus?: string | null;
   deliveredQty?: number | null;
   rated?: boolean;
   hasSalesOrder?: boolean;
+  inventoryReceived?: boolean;
 };
 
 function norm(s?: string | null): string {
@@ -75,21 +77,55 @@ export function customerChainStep(s: ChainSignals): number {
 export function supplierChainStep(s: ChainSignals): number {
   const st = norm(s.orderStatus);
   const prod = norm(s.productionStatus);
+  const shipped =
+    Boolean(s.shippedDate) ||
+    norm(s.fulfilmentStatus) === 'shipped' ||
+    st === 'shipped' ||
+    st === 'delivered';
   if (
-    ['paid', 'complete', 'completed'].includes(st) ||
-    (prod === 'completed' && ['invoiced', 'shipped'].includes(st))
+    s.inventoryReceived ||
+    ['paid', 'complete', 'completed'].includes(st)
   ) {
     return 4;
   }
-  if (
-    ['invoiced', 'shipped', 'delivered'].includes(st) ||
-    prod === 'completed'
-  ) {
+  if (shipped || st === 'invoiced' || prod === 'completed') {
     return 3;
   }
-  if (prod === 'in_progress' || prod === 'on_hold') return 2;
-  if (st === 'accepted' || prod === 'released') return 1;
+  if (prod === 'in_progress' || prod === 'on_hold' || prod === 'released') {
+    return 2;
+  }
+  if (st === 'accepted') return 1;
   return 0;
+}
+
+/** Phone-sized supplier portal actions for Brief 17. */
+export function supplierPortalCardAction(s: {
+  orderStatus?: string | null;
+  productionStatus?: string | null;
+  fulfilmentStatus?: string | null;
+  shippedDate?: string | null;
+  inventoryReceived?: boolean;
+}): { key: 'accept' | 'ready' | 'ship'; label: string } | null {
+  const st = norm(s.orderStatus);
+  const prod = norm(s.productionStatus);
+  const shipped =
+    Boolean(s.shippedDate) ||
+    norm(s.fulfilmentStatus) === 'shipped' ||
+    st === 'shipped';
+  if (s.inventoryReceived || ['paid', 'completed', 'complete'].includes(st)) {
+    return null;
+  }
+  if (st === 'sent' || st === 'draft') {
+    return { key: 'accept', label: 'Accept PO' };
+  }
+  if (st === 'accepted' && !shipped) {
+    if (!prod || prod === 'cancelled') {
+      return { key: 'ready', label: 'Mark ready' };
+    }
+    return { key: 'ship', label: 'Mark shipped' };
+  }
+  if (shipped) return null;
+  return null;
 }
 
 export function chainStepIndex(s: ChainSignals): number {
@@ -123,9 +159,11 @@ export function enrichChainDoc<T extends {
   kind?: string;
   production_status?: string | null;
   shippedDate?: string | null;
+  fulfilment_status?: string | null;
   completed_at?: string | null;
   delivered?: number | null;
   rated?: boolean;
+  inventoryReceived?: boolean;
 }>(
   row: T,
   side: ChainSide
@@ -140,9 +178,13 @@ export function enrichChainDoc<T extends {
       orderStatus: row.status,
       productionStatus: production_status,
       shippedDate: row.completed_at || row.shippedDate || null,
+      fulfilmentStatus:
+        (row as { fulfilment_status?: string | null }).fulfilment_status || null,
       deliveredQty: row.delivered ?? null,
       rated: row.rated === true,
       hasSalesOrder: row.kind === 'order' || side === 'customer',
+      inventoryReceived:
+        (row as { inventoryReceived?: boolean }).inventoryReceived === true,
     }),
   };
 }
