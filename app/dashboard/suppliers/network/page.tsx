@@ -153,9 +153,11 @@ function NetworkInner() {
     };
   }, [companyId, selectedId, rows]);
 
+  const listRow = rows.find((s) => s.id === selectedId);
   const selected =
-    rows.find((s) => s.id === selectedId) ||
-    (selectedHold && selectedHold.id === selectedId ? selectedHold : null);
+    selectedHold && selectedHold.id === selectedId
+      ? { ...(listRow || {}), ...selectedHold }
+      : listRow || null;
 
   const invite = async (s: SrmSupplierRecord) => {
     if (!privyUserId) {
@@ -532,7 +534,22 @@ function NetworkInner() {
               setRows((prev) =>
                 prev.map((row) => (row.id === next.id ? { ...row, ...next } : row))
               );
-              void load();
+              void (async () => {
+                const params = new URLSearchParams({
+                  companyId: String(companyId),
+                  id: String(next.id),
+                });
+                const res = await fetch(`/api/suppliers?${params}`);
+                const data = await res.json();
+                const found = ((data.suppliers || []) as SrmSupplierRecord[])[0];
+                if (found) {
+                  setSelectedHold(found);
+                  setRows((prev) =>
+                    prev.map((row) => (row.id === found.id ? { ...row, ...found } : row))
+                  );
+                }
+                void load();
+              })();
             }}
           />
         ) : (

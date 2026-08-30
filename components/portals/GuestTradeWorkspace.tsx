@@ -2891,6 +2891,20 @@ function CustomerOrderActions({
   );
 }
 
+function stockTypeLabel(t?: string | null): string {
+  const v = String(t || '').toLowerCase();
+  if (v === 'raw_material' || v === 'raw') return 'Raw materials';
+  if (v === 'finished_good' || v === 'finished') return 'Finished goods';
+  return 'Other';
+}
+
+function stockTypeRank(t?: string | null): number {
+  const label = stockTypeLabel(t);
+  if (label === 'Raw materials') return 0;
+  if (label === 'Finished goods') return 1;
+  return 2;
+}
+
 function StockPanel({
   lines,
   busy,
@@ -2907,48 +2921,95 @@ function StockPanel({
       </p>
     );
   }
+  const byWarehouse = new Map<
+    string,
+    { name: string; lines: typeof lines }
+  >();
+  for (const l of lines) {
+    const key = l.warehouse_id != null ? String(l.warehouse_id) : 'po';
+    const name = l.warehouse_name || (l.po_id ? 'Open purchase orders' : 'Stock');
+    const cur = byWarehouse.get(key) || { name, lines: [] };
+    cur.lines.push(l);
+    byWarehouse.set(key, cur);
+  }
   return (
-    <ul className="rounded-[1.5rem] border border-white/70 bg-white/90 divide-y divide-slate-100 overflow-hidden">
-      {lines.map((l, i) => (
-        <li
-          key={`${l.warehouse_id || 'po'}-${l.product_id}-${l.po_id}-${i}`}
-          className="px-4 py-3"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <p className="text-sm font-bold text-slate-900">{l.name}</p>
-              <p className="text-[11px] text-neutral-500">
-                {[
-                  l.sku,
-                  l.warehouse_name ? `at ${l.warehouse_name}` : null,
-                  l.po_id ? `PO #${l.po_id}` : null,
-                  l.qty_reserved
-                    ? `reserved ${l.qty_reserved}`
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
+    <div className="space-y-4">
+      {[...byWarehouse.entries()].map(([whKey, group]) => {
+        const types = new Map<string, typeof lines>();
+        for (const l of group.lines) {
+          const label = stockTypeLabel(l.product_type);
+          const cur = types.get(label) || [];
+          cur.push(l);
+          types.set(label, cur);
+        }
+        const typeEntries = [...types.entries()].sort(
+          (a, b) => stockTypeRank(a[1][0]?.product_type) - stockTypeRank(b[1][0]?.product_type)
+        );
+        return (
+          <section
+            key={whKey}
+            className="rounded-[1.5rem] border border-white/70 bg-white/90 overflow-hidden shadow-sm"
+          >
+            <div className="px-4 py-3 border-b border-slate-100">
+              <p className="text-[10px] font-black uppercase tracking-wider text-[#0077b6]">
+                Warehouse
               </p>
+              <h2 className="text-sm font-black text-slate-900">{group.name}</h2>
             </div>
-            {l.warehouse_id && l.product_id ? (
-              <StockLevelQuick
-                warehouseId={l.warehouse_id}
-                productId={l.product_id}
-                current={l.qty_on_hand}
-                busy={busy}
-                onAct={onAct}
-              />
-            ) : l.po_id ? (
-              <StockQuick poId={l.po_id} current={l.qty_on_hand} busy={busy} onAct={onAct} />
-            ) : (
-              <span className="text-sm font-black tabular-nums">
-                {l.qty_on_hand ?? '—'}
-              </span>
-            )}
-          </div>
-        </li>
-      ))}
-    </ul>
+            {typeEntries.map(([label, rows]) => (
+              <div key={label}>
+                <p className="px-4 pt-3 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  {label}
+                </p>
+                <ul className="divide-y divide-slate-100">
+                  {rows.map((l, i) => (
+                    <li
+                      key={`${l.warehouse_id || 'po'}-${l.product_id}-${l.po_id}-${i}`}
+                      className="px-4 py-3"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-bold text-slate-900">{l.name}</p>
+                          <p className="text-[11px] text-neutral-500">
+                            {[
+                              l.sku,
+                              l.po_id ? `PO #${l.po_id}` : null,
+                              l.qty_reserved ? `reserved ${l.qty_reserved}` : null,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </p>
+                        </div>
+                        {l.warehouse_id && l.product_id ? (
+                          <StockLevelQuick
+                            warehouseId={l.warehouse_id}
+                            productId={l.product_id}
+                            current={l.qty_on_hand}
+                            busy={busy}
+                            onAct={onAct}
+                          />
+                        ) : l.po_id ? (
+                          <StockQuick
+                            poId={l.po_id}
+                            current={l.qty_on_hand}
+                            busy={busy}
+                            onAct={onAct}
+                          />
+                        ) : (
+                          <span className="text-sm font-black tabular-nums">
+                            {l.qty_on_hand ?? '—'}
+                          </span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </section>
+        );
+      })}
+    </div>
   );
 }
 

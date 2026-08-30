@@ -128,48 +128,39 @@ export async function POST(request: NextRequest) {
           }
         }
       } else if (portal.kind === 'supplier' && viewer.supplier_id) {
-        const { error } = await supabase
+        const { data: cur } = await supabase
           .from('srm_suppliers')
-          .update(patch)
+          .select('metadata')
+          .eq('id', viewer.supplier_id)
+          .eq('profile_id', portal.profile_id)
+          .maybeSingle();
+        const { supplierPatchUpdates, stripMissingUpdateColumn } = await import(
+          '@/lib/suppliers/book-persist'
+        );
+        let updates = supplierPatchUpdates(
+          { ...patch, party_book_role: undefined },
+          cur?.metadata
+        );
+        Object.assign(updates, patch);
+        updates.updated_at = now;
+        let { error } = await supabase
+          .from('srm_suppliers')
+          .update(updates as never)
           .eq('id', viewer.supplier_id)
           .eq('profile_id', portal.profile_id);
-        if (error) {
-          const retry: Record<string, unknown> = { ...patch };
-          delete retry.vat_number;
-          delete retry.registration_number;
-          delete retry.payment_terms;
-          delete retry.continent;
-          delete retry.province;
-          delete retry.region;
-          const { data: cur } = await supabase
-            .from('srm_suppliers')
-            .select('metadata')
-            .eq('id', viewer.supplier_id)
-            .eq('profile_id', portal.profile_id)
-            .maybeSingle();
-          const meta =
-            cur?.metadata && typeof cur.metadata === 'object' && !Array.isArray(cur.metadata)
-              ? { ...(cur.metadata as Record<string, unknown>) }
-              : {};
-          const book =
-            meta.book_profile && typeof meta.book_profile === 'object' && !Array.isArray(meta.book_profile)
-              ? { ...(meta.book_profile as Record<string, unknown>) }
-              : {};
-          if (patch.vat_number != null) book.vat_number = patch.vat_number;
-          if (patch.registration_number != null) {
-            book.registration_number = patch.registration_number;
-          }
-          if (patch.payment_terms != null) book.payment_terms = patch.payment_terms;
-          meta.book_profile = book;
-          retry.metadata = meta;
+        for (let i = 0; i < 8 && error; i++) {
+          const next = stripMissingUpdateColumn(updates, error.message);
+          if (!next) break;
+          updates = next;
           const r2 = await supabase
             .from('srm_suppliers')
-            .update(retry)
+            .update(updates as never)
             .eq('id', viewer.supplier_id)
             .eq('profile_id', portal.profile_id);
-          if (r2.error) {
-            return NextResponse.json({ error: r2.error.message }, { status: 500 });
-          }
+          error = r2.error;
+        }
+        if (error) {
+          return NextResponse.json({ error: error.message }, { status: 500 });
         }
       } else {
         return NextResponse.json({ error: 'No book account' }, { status: 403 });

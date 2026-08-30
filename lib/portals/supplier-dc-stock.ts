@@ -146,6 +146,10 @@ export async function loadSupplierHeldStock(opts: {
       .limit(400);
     levels = (retry.data || []) as unknown as Record<string, unknown>[];
   }
+  const levelByProductWh = new Map<string, Record<string, unknown>>();
+  for (const l of levels) {
+    levelByProductWh.set(`${Number(l.warehouse_id)}:${Number(l.product_id)}`, l);
+  }
   const productIds = [
     ...new Set(
       levels
@@ -153,24 +157,74 @@ export async function loadSupplierHeldStock(opts: {
         .filter((n) => Number.isFinite(n) && n > 0)
     ),
   ];
+  const pinnedHit = await supabase
+    .from('products')
+    .select('id, name, sku, product_type, warehouse_id, metadata')
+    .eq('profile_id', opts.companyId)
+    .limit(500);
+  let pinned: Record<string, unknown>[] = [];
+  if (!pinnedHit.error && pinnedHit.data) {
+    pinned = pinnedHit.data as unknown as Record<string, unknown>[];
+  } else {
+    const retry = await supabase
+      .from('products')
+      .select('id, name, sku, product_type, metadata')
+      .eq('profile_id', opts.companyId)
+      .limit(500);
+    pinned = (retry.data || []) as unknown as Record<string, unknown>[];
+  }
+  const defaultWh = ids[0];
+  for (const p of pinned) {
+    const pid = Number(p.id);
+    const meta = asObject(p.metadata);
+    const stamped = Number(meta.srm_supplier_id);
+    const whCol = Number(p.warehouse_id);
+    const onThisDc =
+      (Number.isFinite(whCol) && ids.includes(whCol)) ||
+      stamped === opts.supplierId;
+    if (!onThisDc) continue;
+    if (!productIds.includes(pid)) productIds.push(pid);
+    const warehouseId =
+      Number.isFinite(whCol) && ids.includes(whCol) ? whCol : defaultWh;
+    const key = `${warehouseId}:${pid}`;
+    if (!levelByProductWh.has(key)) {
+      levelByProductWh.set(key, {
+        product_id: pid,
+        warehouse_id: warehouseId,
+        qty_on_hand: 0,
+        qty_reserved: 0,
+        qty_available: 0,
+      });
+    }
+  }
   const products = new Map<
     number,
-    { name: string; sku: string | null }
+    { name: string; sku: string | null; product_type: string | null }
   >();
-  if (productIds.length) {
+  for (const p of pinned) {
+    products.set(Number(p.id), {
+      name: String(p.name || `Product #${p.id}`),
+      sku: p.sku != null ? String(p.sku) : null,
+      product_type: p.product_type != null ? String(p.product_type) : null,
+    });
+  }
+  if (productIds.some((id) => !products.has(id))) {
+    const missing = productIds.filter((id) => !products.has(id));
     const { data: prows } = await supabase
       .from('products')
-      .select('id, name, sku')
+      .select('id, name, sku, product_type')
       .eq('profile_id', opts.companyId)
-      .in('id', productIds);
+      .in('id', missing);
     for (const p of prows || []) {
       products.set(Number(p.id), {
         name: String(p.name || `Product #${p.id}`),
         sku: p.sku != null ? String(p.sku) : null,
+        product_type: p.product_type != null ? String(p.product_type) : null,
       });
     }
   }
-  return levels.map((l) => {
+  const out: PortalStockLine[] = [];
+  for (const l of levelByProductWh.values()) {
     const productId = Number(l.product_id);
     const warehouseId = Number(l.warehouse_id);
     const qty = Number(l.qty_on_hand || 0);
@@ -178,7 +232,7 @@ export async function loadSupplierHeldStock(opts: {
     const available =
       l.qty_available != null ? Number(l.qty_available) : qty - reserved;
     const product = products.get(productId);
-    return {
+    out.push({
       product_id: Number.isFinite(productId) ? productId : null,
       sku: product?.sku || null,
       name: product?.name || `Product #${productId}`,
@@ -187,9 +241,11 @@ export async function loadSupplierHeldStock(opts: {
       qty_available: available,
       warehouse_id: Number.isFinite(warehouseId) ? warehouseId : null,
       warehouse_name: nameById[warehouseId] || null,
+      product_type: product?.product_type || null,
       po_id: null,
-    };
-  });
+    });
+  }
+  return out;
 }
 
 export async function applySupplierStockUpdate(opts: {
