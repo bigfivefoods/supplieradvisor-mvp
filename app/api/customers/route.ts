@@ -66,6 +66,21 @@ export async function GET(request: NextRequest) {
       error = second.error;
       usedOr = false;
     }
+    if (error && /metadata|column|schema cache/i.test(error.message || '')) {
+      let retry = supabase
+        .from('customers')
+        .select(
+          'id, trading_name, legal_name, email, phone, contact_name, status, customer_type, city, country, industry, linked_profile_id, invite_status, credit_limit, currency, logo_url, source, created_at, updated_at'
+        )
+        .eq('profile_id', companyId)
+        .order('id', { ascending: false })
+        .limit(limit);
+      if (beforeId) retry = retry.lt('id', beforeId);
+      if (status && status !== 'all') retry = retry.eq('status', status);
+      const second = await retry;
+      data = second.data;
+      error = second.error;
+    }
     if (error) {
       return NextResponse.json({
         success: true,
@@ -120,6 +135,13 @@ export async function GET(request: NextRequest) {
             : null),
       }));
     }
+
+    const { rowOnCustomerDesk } = await import(
+      '@/lib/portals/supplier-portal-party'
+    );
+    customers = customers.filter((c) =>
+      rowOnCustomerDesk(c as { status?: string | null; metadata?: unknown })
+    );
 
     return NextResponse.json({ success: true, customers });
   } catch (e: unknown) {

@@ -3,9 +3,12 @@
  */
 import assert from 'node:assert/strict';
 import {
+  customerBookPartyGate,
   inventoryLotPayloadFromBatch,
   messageMatchesPo,
   poBelongsToSupplierViewer,
+  rowOnCustomerDesk,
+  rowOnSupplierDesk,
   stripMissingMessageColumn,
   supplierBookPartyGate,
   tradePortalMessageInsertRow,
@@ -33,6 +36,35 @@ assert.equal(
   supplierBookPartyGate({ status: 'active', metadata: {} }).ok,
   true,
   'legacy SRM row with no role is a supplier'
+);
+assert.equal(
+  customerBookPartyGate({ status: 'active', metadata: { party_book_role: 'supplier' } }).ok,
+  false
+);
+assert.equal(
+  customerBookPartyGate({ status: 'active', metadata: { party_book_role: 'customer' } }).ok,
+  true
+);
+assert.equal(
+  customerBookPartyGate({ status: 'active', metadata: {} }).ok,
+  true,
+  'legacy CRM row with no role is a customer'
+);
+assert.equal(
+  rowOnSupplierDesk({ status: 'active', metadata: { party_book_role: 'customer' } }),
+  false
+);
+assert.equal(
+  rowOnCustomerDesk({ status: 'active', metadata: { party_book_role: 'supplier' } }),
+  false
+);
+assert.equal(
+  rowOnSupplierDesk({ status: 'active', metadata: { party_book_role: 'both' } }),
+  true
+);
+assert.equal(
+  rowOnCustomerDesk({ status: 'active', metadata: { party_book_role: 'both' } }),
+  true
 );
 
 const viewer = { supplierId: 44, linkedProfileId: 900 };

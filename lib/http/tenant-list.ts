@@ -18,7 +18,7 @@ export function parseBeforeId(raw: string | null | undefined): number | null {
 }
 
 export const CUSTOMER_LIST_COLUMNS =
-  'id, trading_name, legal_name, email, phone, contact_name, status, customer_type, city, country, industry, linked_profile_id, invite_status, credit_limit, currency, logo_url, source, created_at, updated_at';
+  'id, trading_name, legal_name, email, phone, contact_name, status, customer_type, city, country, industry, linked_profile_id, invite_status, credit_limit, currency, logo_url, source, created_at, updated_at, metadata';
 
 export const SUPPLIER_LIST_COLUMNS =
   'id, trading_name, legal_name, email, phone, contact_name, status, invite_status, city, country, industry, linked_profile_id, logo_url, connection_id, verified, otifef_pct, rating_avg, trust_score, wallet_address, created_at, updated_at, metadata';

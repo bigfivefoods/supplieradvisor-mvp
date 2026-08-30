@@ -232,6 +232,15 @@ export async function inviteTradePortalPerson(opts: {
       return { ok: false, error: gate.error, status: gate.status };
     }
   }
+  if (opts.kind === 'customer' && customerId) {
+    const { assertCustomerPortalParty } = await import(
+      '@/lib/portals/assert-supplier-portal-party'
+    );
+    const gate = await assertCustomerPortalParty(opts.companyId, customerId);
+    if (!gate.ok) {
+      return { ok: false, error: gate.error, status: gate.status };
+    }
+  }
 
   const rawEmail = String(opts.email || '').trim().toLowerCase();
   const email = rawEmail.includes('@') ? rawEmail : '';
@@ -359,6 +368,13 @@ export async function issueAccountPortal(opts: {
     const id = Number(opts.customerId);
     if (!(id > 0)) {
       return { ok: false, error: 'Pick a customer on your books', status: 400 };
+    }
+    const { assertCustomerPortalParty } = await import(
+      '@/lib/portals/assert-supplier-portal-party'
+    );
+    const gate = await assertCustomerPortalParty(opts.companyId, id);
+    if (!gate.ok) {
+      return { ok: false, error: gate.error, status: gate.status };
     }
     const { data, error } = await supabase
       .from('customers')

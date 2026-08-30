@@ -38,6 +38,8 @@ import {
   portalWhen,
 } from '@/lib/portals/portal-activity';
 import {
+  customerBookDisabledReason,
+  customerBookPartyGate,
   supplierBookDisabledReason,
   supplierBookPartyGate,
 } from '@/lib/portals/supplier-portal-party';
@@ -203,21 +205,31 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
             status?: string | null;
             metadata?: unknown;
           }) => {
-            const gate = !isCustomer
-              ? supplierBookPartyGate({
-                  status: r.status,
-                  metadata: r.metadata,
-                })
-              : { ok: true as const };
+            if (isCustomer) {
+              const gate = customerBookPartyGate({
+                status: r.status,
+                metadata: r.metadata,
+              });
+              return {
+                id: Number(r.id),
+                name: String(r.trading_name || `#${r.id}`),
+                email: r.email || null,
+                contact: r.contact_name || null,
+                disabled: !gate.ok,
+                disabledReason: customerBookDisabledReason(gate),
+              };
+            }
+            const gate = supplierBookPartyGate({
+              status: r.status,
+              metadata: r.metadata,
+            });
             return {
               id: Number(r.id),
               name: String(r.trading_name || `#${r.id}`),
               email: r.email || null,
               contact: r.contact_name || null,
               disabled: !gate.ok,
-              disabledReason: !gate.ok
-                ? supplierBookDisabledReason(gate)
-                : null,
+              disabledReason: supplierBookDisabledReason(gate),
             };
           }
         )
