@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Loader2,
   Plus,
@@ -40,6 +40,8 @@ type Props = {
   title: string;
   titleAccent?: string;
   description: string;
+  /** Prefill a supplier bill from a buyer purchase order. */
+  fromPoId?: number | null;
 };
 
 const emptyForm = {
@@ -70,15 +72,22 @@ export default function InvoiceWorkspace({
   title,
   titleAccent,
   description,
+  fromPoId = null,
 }: Props) {
   return (
     <CompanyRequired>
-      <Inner direction={direction} title={title} titleAccent={titleAccent} description={description} />
+      <Inner
+        direction={direction}
+        title={title}
+        titleAccent={titleAccent}
+        description={description}
+        fromPoId={fromPoId}
+      />
     </CompanyRequired>
   );
 }
 
-function Inner({ direction, title, titleAccent, description }: Props) {
+function Inner({ direction, title, titleAccent, description, fromPoId }: Props) {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
@@ -94,6 +103,8 @@ function Inner({ direction, title, titleAccent, description }: Props) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [peers, setPeers] = useState<NetworkPeer[]>([]);
+  const [fromPoNumber, setFromPoNumber] = useState<string | null>(null);
+  const fromPoApplied = useRef(false);
 
   const noun = direction === 'receivable' ? 'invoice' : 'bill';
   const counterpartyLabel = direction === 'receivable' ? 'Customer' : 'Supplier';
@@ -160,6 +171,72 @@ function Inner({ direction, title, titleAccent, description }: Props) {
   useEffect(() => {
     if (showModal) void loadPeers();
   }, [showModal, loadPeers]);
+
+  useEffect(() => {
+    if (direction !== 'payable') return;
+    const poId = Number(fromPoId);
+    if (!(poId > 0) || fromPoApplied.current || !companyId) return;
+    fromPoApplied.current = true;
+    void (async () => {
+      try {
+        const params = new URLSearchParams({
+          companyId: String(companyId),
+          id: String(poId),
+        });
+        if (privyUserId) params.set('privyUserId', privyUserId);
+        const res = await fetch(`/api/suppliers/purchase-orders?${params}`);
+        const data = await res.json().catch(() => ({}));
+        const list = (data.purchaseOrders ||
+          data.orders ||
+          data.pos ||
+          []) as Array<{
+          id: number;
+          supplier_name?: string | null;
+          supplier_profile_id?: number | null;
+          total_amount?: number | null;
+          currency?: string | null;
+          po_number?: string | null;
+          items?: Array<{
+            item_name?: string;
+            quantity?: number;
+            unit_price?: number;
+          }>;
+        }>;
+        const po = list.find((p) => Number(p.id) === poId) || list[0];
+        if (!po) {
+          toast.message(`Purchase order #${poId} not found`);
+          return;
+        }
+        const first = Array.isArray(po.items) ? po.items[0] : null;
+        const qty = Number(first?.quantity || 1) || 1;
+        const total = Number(po.total_amount || 0);
+        const unit =
+          first && Number(first.unit_price) > 0
+            ? Number(first.unit_price)
+            : qty > 0
+              ? Math.round((total / qty) * 100) / 100
+              : total;
+        setFromPoNumber(po.po_number || `PO-${po.id}`);
+        setForm({
+          ...emptyForm,
+          counterparty_name: String(po.supplier_name || ''),
+          counterparty_profile_id: po.supplier_profile_id
+            ? String(po.supplier_profile_id)
+            : '',
+          currency: String(po.currency || 'ZAR').toUpperCase(),
+          description: first?.item_name
+            ? String(first.item_name)
+            : `Supplier bill for ${po.po_number || `PO-${po.id}`}`,
+          quantity: String(qty),
+          unit_price: unit > 0 ? String(unit) : String(total || ''),
+          notes: `From purchase order ${po.po_number || `#${po.id}`}`,
+        });
+        setShowModal(true);
+      } catch {
+        toast.error('Could not load purchase order for this bill');
+      }
+    })();
+  }, [companyId, direction, fromPoId, privyUserId]);
 
   const totals = useMemo(() => {
     const open = invoices.filter(
@@ -248,6 +325,7 @@ function Inner({ direction, title, titleAccent, description }: Props) {
           items,
           total_amount: unit > 0 ? undefined : Number(form.unit_price || 0),
           subtotal: unit > 0 ? undefined : Number(form.unit_price || 0),
+          po_id: fromPoId && fromPoId > 0 ? fromPoId : undefined,
         }),
       });
       const data = await res.json();
@@ -500,6 +578,12 @@ function Inner({ direction, title, titleAccent, description }: Props) {
       {showModal && (
         <Modal title={`New ${noun}`} onClose={() => setShowModal(false)}>
           <form onSubmit={createInvoice} className="space-y-4">
+            {fromPoNumber && (
+              <p className="text-xs rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-sky-950">
+                Prefilling a supplier bill from {fromPoNumber}. This is buyer AP,
+                not a customer invoice.
+              </p>
+            )}
             {peers.length > 0 && (
               <Field label={`Network ${counterpartyLabel.toLowerCase()}`}>
                 <select

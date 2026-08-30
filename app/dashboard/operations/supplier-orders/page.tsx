@@ -21,6 +21,7 @@ type Po = {
   po_number?: string | null;
   status?: string;
   total?: number | null;
+  total_amount?: number | null;
   currency?: string | null;
   supplier_name?: string | null;
   created_at?: string | null;
@@ -194,8 +195,10 @@ function Inner() {
                       />
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums font-semibold">
-                      {p.total != null
-                        ? `${p.currency || ''} ${Number(p.total).toLocaleString()}`
+                      {p.total_amount != null || p.total != null
+                        ? `${p.currency || ''} ${Number(
+                            p.total_amount ?? p.total
+                          ).toLocaleString()}`
                         : '—'}
                     </td>
                     <td className="px-4 py-3 text-xs text-neutral-500">

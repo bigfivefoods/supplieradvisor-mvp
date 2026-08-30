@@ -1,11 +1,14 @@
 /**
- * A4 purchase-order PDF (buyer → supplier). Not an invoice.
- * Pure pdfkit — Vercel serverless safe.
+ * A4 purchase-order PDF (buyer → supplier). Not a tax invoice.
+ * Pure pdfkit — Vercel serverless safe. Does not query Supabase.
  */
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 import PDFDocument from 'pdfkit';
 import { formatMoney } from '@/lib/customers/documents';
 import type { PoLineItem } from '@/lib/procurement/types';
 import { formatPurchaseOrderNumber } from '@/lib/procurement/po-email';
+import { absoluteLogoUrl } from '@/lib/customers/commercial-doc-links';
 
 export type PoPdfParty = {
   name: string;
@@ -13,11 +16,13 @@ export type PoPdfParty = {
   email?: string | null;
   phone?: string | null;
   contact_name?: string | null;
+  website?: string | null;
   vat_number?: string | null;
   registration_number?: string | null;
   address?: string | null;
   city?: string | null;
   country?: string | null;
+  logo_url?: string | null;
 };
 
 export type PoPdfInput = {
@@ -38,13 +43,15 @@ const PAGE_W = 595.28;
 const PAGE_H = 841.89;
 const MX = 40;
 const CONTENT_W = PAGE_W - MX * 2;
+const FOOTER_H = 40;
+const LOGO_PT = 72;
 const BRAND = '#00b4d8';
 const BRAND_DEEP = '#0077b6';
 const INK = '#0f172a';
 const MUTED = '#64748b';
 const LINE = '#e2e8f0';
 
-function partyLines(p: PoPdfParty): string[] {
+export function partyDetailLines(p: PoPdfParty): string[] {
   const lines: string[] = [];
   const name = String(p.name || '').trim();
   const legal = String(p.legal_name || '').trim();
@@ -53,33 +60,153 @@ function partyLines(p: PoPdfParty): string[] {
   if (p.contact_name) lines.push(String(p.contact_name));
   if (p.email) lines.push(String(p.email));
   if (p.phone) lines.push(String(p.phone));
-  const loc = [p.address, p.city, p.country].filter(Boolean).join(', ');
+  if (p.website) lines.push(String(p.website));
+  const street = String(p.address || '').trim();
+  if (street) lines.push(street);
+  const loc = [p.city, p.country].filter(Boolean).join(', ');
   if (loc) lines.push(loc);
   if (p.vat_number) lines.push(`VAT ${p.vat_number}`);
   if (p.registration_number) lines.push(`Reg ${p.registration_number}`);
-  return lines.slice(0, 7);
+  return lines;
 }
 
-export function buildPurchaseOrderPdf(input: PoPdfInput): Promise<Buffer> {
+async function fetchLogoBuffer(
+  logoUrl: string | null | undefined
+): Promise<Buffer | null> {
+  const abs = absoluteLogoUrl(logoUrl);
+  if (!abs) return null;
+  if (abs.startsWith('data:image/')) {
+    try {
+      const m = /^data:image\/(png|jpe?g);base64,(.+)$/i.exec(abs);
+      if (m?.[2]) return Buffer.from(m[2], 'base64');
+    } catch {
+      /* soft */
+    }
+    return null;
+  }
+  try {
+    const res = await fetch(abs, {
+      signal: AbortSignal.timeout(8000),
+      headers: { Accept: 'image/png,image/jpeg,image/*' },
+    });
+    if (!res.ok) return null;
+    const ct = String(res.headers.get('content-type') || '').toLowerCase();
+    if (ct.includes('svg')) return null;
+    const ab = await res.arrayBuffer();
+    if (!ab.byteLength || ab.byteLength > 2_500_000) return null;
+    const buf = Buffer.from(ab);
+    const isPng =
+      buf.length > 8 &&
+      buf[0] === 0x89 &&
+      buf[1] === 0x50 &&
+      buf[2] === 0x4e &&
+      buf[3] === 0x47;
+    const isJpg = buf.length > 2 && buf[0] === 0xff && buf[1] === 0xd8;
+    const isWebp =
+      buf.length > 12 &&
+      buf[0] === 0x52 &&
+      buf[1] === 0x49 &&
+      buf[2] === 0x46 &&
+      buf[3] === 0x46 &&
+      buf[8] === 0x57 &&
+      buf[9] === 0x45 &&
+      buf[10] === 0x42 &&
+      buf[11] === 0x50;
+    if (!isPng && !isJpg && !isWebp) return null;
+    if (isWebp) return null;
+    return buf;
+  } catch {
+    return null;
+  }
+}
+
+export function saMarkBuffer(): Buffer | null {
+  for (const name of ['sa-logo.png', 'sa-logo.jpg', 'sa-updated-logo.jpg']) {
+    const p = join(process.cwd(), 'public', name);
+    if (!existsSync(p)) continue;
+    try {
+      return readFileSync(p);
+    } catch {
+      /* soft */
+    }
+  }
+  return null;
+}
+
+function drawFooter(doc: PDFKit.PDFDocument, mark: Buffer | null) {
+  const savedBottom = doc.page.margins.bottom;
+  doc.page.margins.bottom = 0;
+  doc.save();
+  try {
+    doc.rect(0, PAGE_H - FOOTER_H, PAGE_W, FOOTER_H).fill('#0f172a');
+    let x = MX;
+    if (mark) {
+      try {
+        doc.image(mark, x, PAGE_H - FOOTER_H + 8, { height: 22 });
+        x += 78;
+      } catch {
+        /* print words only */
+      }
+    }
+    doc
+      .fillColor('#ffffff')
+      .font('Helvetica-Bold')
+      .fontSize(8)
+      .text('Powered by SupplierAdvisor®', x, PAGE_H - 24, {
+        lineBreak: false,
+        continued: false,
+      });
+    doc
+      .fillColor(BRAND)
+      .font('Helvetica')
+      .fontSize(8)
+      .text('www.supplieradvisor.com', MX, PAGE_H - 24, {
+        width: CONTENT_W,
+        align: 'right',
+        lineBreak: false,
+      });
+  } finally {
+    doc.restore();
+    doc.page.margins.bottom = savedBottom;
+  }
+}
+
+export async function buildPurchaseOrderPdf(input: PoPdfInput): Promise<Buffer> {
   const ccy = String(input.currency || 'ZAR').toUpperCase();
   const number =
     String(input.number || '').trim() || formatPurchaseOrderNumber({});
   const items = Array.isArray(input.items) ? input.items : [];
+  const [buyerLogo, supplierLogo, saMark] = await Promise.all([
+    fetchLogoBuffer(input.buyer.logo_url),
+    fetchLogoBuffer(input.supplier.logo_url),
+    Promise.resolve(saMarkBuffer()),
+  ]);
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: 'A4',
-      margins: { top: 56, bottom: 52, left: MX, right: MX },
+      compress: false,
+      margins: { top: 56, bottom: FOOTER_H + 12, left: MX, right: MX },
       info: {
         Title: `Purchase order ${number}`,
         Author: input.buyer.name || 'SupplierAdvisor®',
-        Subject: 'Purchase order — not an invoice',
+        Subject: 'Purchase order — order to supply, not a tax invoice',
       },
     });
     const chunks: Buffer[] = [];
     doc.on('data', (c: Buffer) => chunks.push(c));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
+    let paintingFooter = false;
+    doc.on('pageAdded', () => {
+      if (paintingFooter) return;
+      paintingFooter = true;
+      try {
+        drawFooter(doc, saMark);
+      } finally {
+        paintingFooter = false;
+      }
+    });
 
     doc.rect(0, 0, PAGE_W, 58).fill(BRAND_DEEP);
     doc.rect(0, 54, PAGE_W, 4).fill(BRAND);
@@ -92,7 +219,7 @@ export function buildPurchaseOrderPdf(input: PoPdfInput): Promise<Buffer> {
       .font('Helvetica')
       .fontSize(8)
       .fillColor('#bae6fd')
-      .text('This is an order to supply — not an invoice', MX, 36, {
+      .text('This is an order to supply — not a tax invoice', MX, 36, {
         lineBreak: false,
       });
     doc
@@ -106,27 +233,39 @@ export function buildPurchaseOrderPdf(input: PoPdfInput): Promise<Buffer> {
       });
 
     let y = 78;
-    doc
-      .fillColor(MUTED)
-      .font('Helvetica')
-      .fontSize(8)
-      .text(`Date: ${String(input.issuedAt || '').slice(0, 10) || '—'}`, MX, y);
+    doc.fillColor(MUTED).font('Helvetica').fontSize(8);
+    doc.text(`Date: ${String(input.issuedAt || '').slice(0, 10) || '—'}`, MX, y);
     if (input.promisedDate) {
-      doc.text(`Promised: ${String(input.promisedDate).slice(0, 10)}`, MX + 160, y);
+      doc.text(`Promised: ${String(input.promisedDate).slice(0, 10)}`, MX + 150, y);
     }
     if (input.paymentTerms) {
-      doc.text(`Terms: ${String(input.paymentTerms).slice(0, 32)}`, MX + 320, y, {
-        width: 190,
+      doc.text(`Terms: ${String(input.paymentTerms)}`, MX + 300, y, {
+        width: CONTENT_W - 260,
       });
     }
-    y += 22;
+    doc.text(`Currency: ${ccy}`, MX, y + 12);
+    y += 28;
 
     const colW = (CONTENT_W - 12) / 2;
-    const drawCard = (x: number, title: string, lines: string[]) => {
+    const drawParty = (
+      x: number,
+      title: string,
+      party: PoPdfParty,
+      logo: Buffer | null
+    ): number => {
+      const lines = partyDetailLines(party);
+      const logoH = logo ? LOGO_PT : 0;
+      let textH = 16;
+      doc.font('Helvetica').fontSize(8);
+      for (const line of lines) {
+        textH +=
+          doc.heightOfString(line, { width: colW - 20 }) + 3;
+      }
+      const h = Math.max(72, 14 + logoH + 8 + textH);
       doc.save();
-      doc.roundedRect(x, y, colW, 92, 6).fill('#f8fafc');
+      doc.roundedRect(x, y, colW, h, 6).fill('#f8fafc');
       doc
-        .roundedRect(x, y, colW, 92, 6)
+        .roundedRect(x, y, colW, h, 6)
         .strokeColor(LINE)
         .lineWidth(0.7)
         .stroke();
@@ -135,33 +274,55 @@ export function buildPurchaseOrderPdf(input: PoPdfInput): Promise<Buffer> {
         .font('Helvetica-Bold')
         .fontSize(7)
         .text(title.toUpperCase(), x + 10, y + 8, { characterSpacing: 0.4 });
-      let ty = y + 22;
+      let ty = y + 20;
+      if (logo) {
+        try {
+          doc.image(logo, x + 10, ty, { fit: [LOGO_PT, LOGO_PT] });
+        } catch {
+          /* text still prints */
+        }
+        ty += LOGO_PT + 8;
+      }
       lines.forEach((line, i) => {
         doc
           .fillColor(i === 0 ? INK : MUTED)
           .font(i === 0 ? 'Helvetica-Bold' : 'Helvetica')
           .fontSize(i === 0 ? 10 : 8)
-          .text(line.slice(0, 64), x + 10, ty, {
-            width: colW - 20,
-            lineBreak: false,
-            ellipsis: true,
-          });
-        ty += i === 0 ? 14 : 11;
+          .text(line, x + 10, ty, { width: colW - 20 });
+        ty += doc.heightOfString(line, { width: colW - 20 }) + 3;
       });
       doc.restore();
+      return h;
     };
-    drawCard(MX, 'From (buyer)', partyLines(input.buyer));
-    drawCard(MX + colW + 12, 'To (supplier)', partyLines(input.supplier));
-    y += 108;
+    const leftH = drawParty(MX, 'From / Buyer', input.buyer, buyerLogo);
+    const rightH = drawParty(
+      MX + colW + 12,
+      'To / Supplier',
+      input.supplier,
+      supplierLogo
+    );
+    y += Math.max(leftH, rightH) + 16;
 
+    const ensureSpace = (need: number) => {
+      if (y > PAGE_H - FOOTER_H - need) {
+        doc.addPage();
+        y = 56;
+      }
+    };
+
+    ensureSpace(40);
     doc
       .font('Helvetica-Bold')
       .fontSize(8)
       .fillColor(MUTED)
-      .text('Item', MX, y, { width: 240 })
-      .text('Qty', MX + 250, y, { width: 50, align: 'right' })
+      .text('SKU', MX, y, { width: 70 })
+      .text('Item', MX + 70, y, { width: 180 })
+      .text('Qty', MX + 250, y, { width: 60, align: 'right' })
       .text('Unit', MX + 310, y, { width: 90, align: 'right' })
-      .text('Amount', MX + 410, y, { width: CONTENT_W - 410, align: 'right' });
+      .text('Amount', MX + 410, y, {
+        width: CONTENT_W - 410,
+        align: 'right',
+      });
     y += 12;
     doc.moveTo(MX, y).lineTo(PAGE_W - MX, y).strokeColor(LINE).stroke();
     y += 8;
@@ -178,18 +339,15 @@ export function buildPurchaseOrderPdf(input: PoPdfInput): Promise<Buffer> {
       const line =
         Number(row.line_total) || Math.round(qty * unit * 100) / 100;
       running += line;
-      const name = String(row.item_name || 'Item').slice(0, 80);
+      const sku = String(row.sku || '').trim();
+      const name = String(row.item_name || 'Item');
       const uom = row.uom ? ` ${row.uom}` : '';
-      if (y > PAGE_H - 120) {
-        doc.addPage();
-        y = 56;
-      }
-      doc
-        .font('Helvetica')
-        .fontSize(9)
-        .fillColor(INK)
-        .text(name, MX, y, { width: 240 });
-      doc.text(`${qty}${uom}`, MX + 250, y, { width: 50, align: 'right' });
+      ensureSpace(28);
+      doc.font('Helvetica').fontSize(8).fillColor(MUTED);
+      doc.text(sku || '—', MX, y, { width: 70 });
+      doc.font('Helvetica').fontSize(9).fillColor(INK);
+      doc.text(name, MX + 70, y, { width: 180 });
+      doc.text(`${qty}${uom}`, MX + 250, y, { width: 60, align: 'right' });
       doc.text(formatMoney(unit, ccy), MX + 310, y, {
         width: 90,
         align: 'right',
@@ -198,13 +356,15 @@ export function buildPurchaseOrderPdf(input: PoPdfInput): Promise<Buffer> {
         width: CONTENT_W - 410,
         align: 'right',
       });
-      y += 16;
+      const nameH = doc.heightOfString(name, { width: 180 });
+      y += Math.max(16, nameH + 6);
     }
 
     y += 6;
     doc.moveTo(MX, y).lineTo(PAGE_W - MX, y).strokeColor(LINE).stroke();
     y += 12;
     const total = Number(input.totalAmount) || running;
+    ensureSpace(36);
     doc
       .font('Helvetica-Bold')
       .fontSize(11)
@@ -217,20 +377,18 @@ export function buildPurchaseOrderPdf(input: PoPdfInput): Promise<Buffer> {
     y += 28;
 
     if (input.notes) {
-      doc
-        .font('Helvetica-Bold')
-        .fontSize(8)
-        .fillColor(MUTED)
-        .text('Notes', MX, y);
+      ensureSpace(48);
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(MUTED).text('Notes', MX, y);
       y += 12;
       doc
         .font('Helvetica')
         .fontSize(9)
         .fillColor(INK)
-        .text(String(input.notes).slice(0, 800), MX, y, { width: CONTENT_W });
-      y += 28;
+        .text(String(input.notes), MX, y, { width: CONTENT_W });
+      y += doc.heightOfString(String(input.notes), { width: CONTENT_W }) + 12;
     }
 
+    ensureSpace(48);
     doc
       .font('Helvetica')
       .fontSize(8)
@@ -238,28 +396,11 @@ export function buildPurchaseOrderPdf(input: PoPdfInput): Promise<Buffer> {
       .text(
         'Please confirm this purchase order and raise your invoice quoting the PO number above. Do not treat this document as a tax invoice or a request for payment from the buyer.',
         MX,
-        Math.min(y, PAGE_H - 70),
+        y,
         { width: CONTENT_W }
       );
 
-    doc
-      .rect(0, PAGE_H - 36, PAGE_W, 36)
-      .fill('#0f172a');
-    doc
-      .fillColor('#ffffff')
-      .font('Helvetica-Bold')
-      .fontSize(8)
-      .text('Powered by SupplierAdvisor®', MX, PAGE_H - 24, {
-        lineBreak: false,
-      });
-    doc
-      .fillColor(BRAND)
-      .text('www.supplieradvisor.com', MX, PAGE_H - 24, {
-        width: CONTENT_W,
-        align: 'right',
-        lineBreak: false,
-      });
-
+    drawFooter(doc, saMark);
     doc.end();
   });
 }

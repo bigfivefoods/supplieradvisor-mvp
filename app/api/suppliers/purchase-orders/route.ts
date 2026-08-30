@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     const privyUserId = request.nextUrl.searchParams.get('privyUserId');
     const status = request.nextUrl.searchParams.get('status');
+    const idFilter = Number(request.nextUrl.searchParams.get('id'));
 
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
@@ -47,6 +48,7 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(200);
     if (status && status !== 'all') q = q.eq('status', status);
+    if (Number.isFinite(idFilter) && idFilter > 0) q = q.eq('id', idFilter);
 
     let { data, error } = await q;
     if (error && /column|schema cache/i.test(error.message || '')) {
@@ -57,6 +59,7 @@ export async function GET(request: NextRequest) {
         .order('created_at', { ascending: false })
         .limit(200);
       if (status && status !== 'all') retryQ = retryQ.eq('status', status);
+      if (Number.isFinite(idFilter) && idFilter > 0) retryQ = retryQ.eq('id', idFilter);
       const retry = await retryQ;
       data = retry.data as typeof data;
       error = retry.error;
