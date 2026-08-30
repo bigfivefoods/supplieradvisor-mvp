@@ -51,6 +51,7 @@ SELECT public.sa_add_column('products', 'track_lot', 'boolean', 'false');
 SELECT public.sa_add_column('products', 'track_serial', 'boolean', 'false');
 SELECT public.sa_add_column('products', 'is_sellable', 'boolean', 'true');
 SELECT public.sa_add_column('products', 'is_purchasable', 'boolean', 'true');
+SELECT public.sa_add_column('products', 'is_active', 'boolean', 'true');
 -- On-chain / QR
 SELECT public.sa_add_column('products', 'qr_payload', 'text');
 SELECT public.sa_add_column('products', 'onchain_status', 'text', '''pending'''); -- pending | hashed | anchored | minted

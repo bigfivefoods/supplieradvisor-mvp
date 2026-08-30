@@ -10,9 +10,9 @@ import {
   stripSelectColumn,
 } from '@/lib/portals/select-retry';
 
-/** Live products uses status, not is_active. */
+/** Live products has both status and is_active (paste RUN_THIS_FOR_PRODUCTS_IS_ACTIVE.sql). */
 const PRODUCT_LIST_COLUMNS =
-  'id, profile_id, name, sku, barcode, gtin, gtin14, public_id, category, product_type, uom, base_currency, sell_price, cost_price, prices, reorder_level, reorder_qty, short_description, status, primary_image_url, specs_sheet_url, specs_sheet_name, track_lot, track_serial, is_sellable, is_purchasable, metadata, qr_payload, onchain_status, onchain_hash, updated_at, created_at';
+  'id, profile_id, name, sku, barcode, gtin, gtin14, public_id, category, product_type, uom, base_currency, sell_price, cost_price, prices, reorder_level, reorder_qty, short_description, status, is_active, primary_image_url, specs_sheet_url, specs_sheet_name, track_lot, track_serial, is_sellable, is_purchasable, metadata, qr_payload, onchain_status, onchain_hash, updated_at, created_at';
 
 export async function GET(request: NextRequest) {
   try {
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
         success: true,
         products: [],
         warning: error.message,
-        hint: 'The catalogue retries without missing product columns. No SQL required.',
+        hint: 'Paste RUN_THIS_FOR_PRODUCTS_IS_ACTIVE.sql if the error is products.is_active. Catalogue retries without other missing columns.',
       });
     }
 
@@ -172,6 +172,7 @@ export async function POST(request: NextRequest) {
       specs_sheet_name: body.specs_sheet_name || null,
       track_lot: !!body.track_lot,
       track_serial: !!body.track_serial,
+      is_active: body.is_active !== false,
       is_sellable: body.is_sellable !== false,
       is_purchasable: body.is_purchasable !== false,
       metadata:
@@ -254,6 +255,7 @@ export async function PATCH(request: NextRequest) {
       'source_agreement_line_id',
       'track_lot',
       'track_serial',
+      'is_active',
       'is_sellable',
       'is_purchasable',
       'onchain_status',
