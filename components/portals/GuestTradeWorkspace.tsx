@@ -58,7 +58,10 @@ import {
   chainStepIndex,
   supplierPortalCardAction,
 } from '@/lib/orders/chain-path';
-import { validateLotDates } from '@/lib/portals/supplier-portal-party';
+import {
+  finishedGoodNeedsLot,
+  validateLotDates,
+} from '@/lib/portals/supplier-portal-party';
 import { PortalJoinDemo } from '@/components/portals/PortalJoinDemo';
 import {
   portalTimeAgo,
@@ -188,6 +191,41 @@ const REFRESH_ACTIONS = new Set([
   'document_share',
   'production_update',
 ]);
+
+function portalLotsFromAct(
+  raw: unknown
+): PublicPortalPayload['purchase_orders'][number]['batches'] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: NonNullable<
+    PublicPortalPayload['purchase_orders'][number]['batches']
+  > = [];
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue;
+    const r = row as Record<string, unknown>;
+    const batch_number = String(r.batch_number || '').trim();
+    if (!batch_number) continue;
+    const productId = r.product_id != null ? Number(r.product_id) : null;
+    out.push({
+      batch_number,
+      qty: r.qty != null ? Number(r.qty) : null,
+      uom: r.uom != null ? String(r.uom) : null,
+      manufactured_at: r.manufactured_at
+        ? String(r.manufactured_at).slice(0, 10)
+        : r.produced_at
+          ? String(r.produced_at).slice(0, 10)
+          : null,
+      expiry_date: r.expiry_date ? String(r.expiry_date).slice(0, 10) : null,
+      best_before: r.best_before ? String(r.best_before).slice(0, 10) : null,
+      order_line_index:
+        r.order_line_index != null ? Number(r.order_line_index) : 0,
+      product_id:
+        Number.isFinite(productId) && productId != null && productId > 0
+          ? productId
+          : null,
+    });
+  }
+  return out;
+}
 
 function applyActLocally(
   prev: PublicPortalPayload,
@@ -395,6 +433,17 @@ function applyActLocally(
             : undefined;
     const status =
       typeof payload.status === 'string' ? String(payload.status) : undefined;
+    const nextLots = portalLotsFromAct(
+      payload.batches != null ? payload.batches : data.batches
+    );
+    const nextDue =
+      payload.promised_date != null
+        ? String(payload.promised_date).slice(0, 10)
+        : undefined;
+    const nextActual =
+      payload.actual_delivery_date != null
+        ? String(payload.actual_delivery_date).slice(0, 10)
+        : undefined;
     return {
       ...prev,
       workspace: {
@@ -406,6 +455,14 @@ function applyActLocally(
                 status: status || o.status,
                 production_status:
                   production_status ?? o.production_status,
+                due: nextDue || o.due,
+                requested_due: o.requested_due || o.due,
+                actual_delivery_date: nextActual || o.actual_delivery_date,
+                fulfilment_status:
+                  payload.shipped === true
+                    ? 'shipped'
+                    : o.fulfilment_status,
+                batches: nextLots ?? o.batches,
               }
             : o
         ),
@@ -605,7 +662,9 @@ export function GuestTradeWorkspace({
                         : action === 'document_share'
                           ? 'Portal share updated'
                         : action === 'production_update'
-                          ? 'Production updated — customer sales order will follow'
+                          ? payload.production_status
+                            ? 'Production updated — customer sales order will follow'
+                            : 'Lots saved'
                           : action === 'stock_update'
                             ? 'Stock on hand updated'
                             : action === 'commercial_propose'
@@ -2637,6 +2696,7 @@ function OrdersPanel({
                 fulfilmentStatus: o.fulfilment_status,
                 deliveredQty: o.delivered,
                 rated: o.rated,
+                inventoryReceived: o.inventoryReceived,
                 hasSalesOrder: o.kind === 'order' || !isSupplier,
               });
             return (
@@ -2654,7 +2714,17 @@ function OrdersPanel({
                           ? `PO ${o.customer_po_number}`
                           : null,
                         o.date,
-                        o.due ? `expected ${o.due}` : null,
+                        isSupplier &&
+                        o.requested_due &&
+                        o.due &&
+                        o.requested_due !== o.due
+                          ? `requested ${o.requested_due} · confirmed ${o.due}`
+                          : o.due
+                            ? `${isSupplier ? 'confirmed' : 'expected'} ${o.due}`
+                            : null,
+                        o.actual_delivery_date
+                          ? `dispatched ${o.actual_delivery_date}`
+                          : null,
                         o.production_label && !isSupplier
                           ? o.production_label
                           : o.status,
@@ -2769,6 +2839,26 @@ function OrdersPanel({
   );
 }
 
+type FulfilLotDraft = {
+  id: string;
+  batch_number: string;
+  manufactured_at: string;
+  expiry_date: string;
+  best_before: string;
+  qty: string;
+};
+
+function emptyFulfilLot(qty?: number | null): FulfilLotDraft {
+  return {
+    id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    batch_number: '',
+    manufactured_at: '',
+    expiry_date: '',
+    best_before: '',
+    qty: qty != null && qty > 0 ? String(qty) : '',
+  };
+}
+
 function SupplierOrderActions({
   order,
   busy,
@@ -2778,123 +2868,363 @@ function SupplierOrderActions({
   busy: boolean;
   onAct: (p: Record<string, unknown>) => Promise<unknown>;
 }) {
-  const [qty, setQty] = useState(String(order.confirmed_qty ?? order.ordered ?? ''));
-  const [batchNumber, setBatchNumber] = useState('');
-  const [manufacturedAt, setManufacturedAt] = useState('');
-  const [expiryDate, setExpiryDate] = useState('');
-  const [bestBefore, setBestBefore] = useState('');
+  const lines = order.lines?.length
+    ? order.lines
+    : [
+        {
+          name: 'Item',
+          qty: order.ordered ?? order.confirmed_qty ?? null,
+          uom: 'ea',
+          amount: order.amount ?? null,
+          product_id: null as number | null,
+          sku: null as string | null,
+          primary_image_url: null as string | null,
+          product_type: null as string | null,
+        },
+      ];
+  const lotKey = (order.batches || [])
+    .map(
+      (b) =>
+        `${b.order_line_index}:${b.batch_number}:${b.qty}:${b.manufactured_at}:${b.expiry_date}:${b.best_before}`
+    )
+    .join('|');
+  const [lineLots, setLineLots] = useState<FulfilLotDraft[][]>(() =>
+    lines.map((line) => [emptyFulfilLot(line.qty)])
+  );
+  const [confirmed, setConfirmed] = useState(order.due || '');
+  const [shipDate, setShipDate] = useState(order.actual_delivery_date || '');
   const [note, setNote] = useState('');
+  useEffect(() => {
+    const grouped: FulfilLotDraft[][] = lines.map(() => []);
+    for (const b of order.batches || []) {
+      const idx =
+        b.order_line_index != null && Number.isFinite(Number(b.order_line_index))
+          ? Number(b.order_line_index)
+          : 0;
+      const target = idx >= 0 && idx < grouped.length ? idx : 0;
+      grouped[target].push({
+        id: `${b.batch_number}-${target}-${grouped[target].length}`,
+        batch_number: b.batch_number,
+        manufactured_at: b.manufactured_at || '',
+        expiry_date: b.expiry_date || '',
+        best_before: b.best_before || '',
+        qty: b.qty != null ? String(b.qty) : '',
+      });
+    }
+    setLineLots(
+      grouped.map((lots, i) => (lots.length ? lots : [emptyFulfilLot(lines[i]?.qty)]))
+    );
+    setConfirmed(order.due || '');
+    setShipDate(order.actual_delivery_date || '');
+    // lines is derived from order; lotKey captures batch identity
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    order.id,
+    order.due,
+    order.actual_delivery_date,
+    lotKey,
+    lines.length,
+  ]);
   const next = supplierPortalCardAction({
     orderStatus: order.status,
     productionStatus: order.production_status,
     fulfilmentStatus: order.fulfilment_status,
-    shippedDate: order.completed_at,
-    inventoryReceived: false,
+    shippedDate: order.completed_at || order.actual_delivery_date,
+    inventoryReceived: Boolean(order.inventoryReceived),
   });
-  const showLots = next?.key === 'ready' || next?.key === 'ship';
-  const dateErr = validateLotDates(manufacturedAt, expiryDate);
-  const lotOk =
-    Boolean(batchNumber.trim()) &&
-    Boolean(manufacturedAt) &&
-    Boolean(expiryDate) &&
-    !dateErr;
-  const batches = () =>
-    lotOk
-      ? [
-          {
-            batch_number: batchNumber.trim(),
-            manufactured_at: manufacturedAt,
-            produced_at: manufacturedAt,
-            expiry_date: expiryDate,
-            best_before: bestBefore || null,
-            qty: qty ? Number(qty) : undefined,
-            uom: order.lines?.[0]?.uom || 'ea',
-            order_line_index: 0,
-          },
-        ]
-      : [];
+  const status = String(order.status || '').toLowerCase();
+  const closed =
+    Boolean(order.inventoryReceived) ||
+    ['paid', 'complete', 'completed', 'cancelled'].includes(status);
+  const requested = order.requested_due || order.due || '';
+  const lineDateErr = (lots: FulfilLotDraft[]) => {
+    for (const lot of lots) {
+      const err = validateLotDates(lot.manufactured_at, lot.expiry_date);
+      if (err) return err;
+    }
+    return null;
+  };
+  const lineLotOk = (
+    line: (typeof lines)[number],
+    lots: FulfilLotDraft[]
+  ) => {
+    if (!finishedGoodNeedsLot(line.product_type)) return true;
+    return lots.some(
+      (lot) =>
+        Boolean(lot.batch_number.trim()) &&
+        Boolean(lot.manufactured_at) &&
+        Boolean(lot.expiry_date) &&
+        !validateLotDates(lot.manufactured_at, lot.expiry_date)
+    );
+  };
+  const fgLotsOk = lines.every((line, i) => lineLotOk(line, lineLots[i] || []));
+  const batchesPayload = () => {
+    const out: Array<Record<string, unknown>> = [];
+    lines.forEach((line, i) => {
+      for (const lot of lineLots[i] || []) {
+        if (!lot.batch_number.trim()) continue;
+        out.push({
+          batch_number: lot.batch_number.trim(),
+          manufactured_at: lot.manufactured_at || null,
+          produced_at: lot.manufactured_at || null,
+          expiry_date: lot.expiry_date || null,
+          best_before: lot.best_before || null,
+          qty: lot.qty ? Number(lot.qty) : line.qty,
+          uom: line.uom || 'ea',
+          order_line_index: i,
+          product_id: line.product_id || null,
+        });
+      }
+    });
+    return out;
+  };
+  const patchLot = (
+    lineIndex: number,
+    lotId: string,
+    patch: Partial<FulfilLotDraft>
+  ) => {
+    setLineLots((prev) =>
+      prev.map((lots, i) =>
+        i === lineIndex
+          ? lots.map((lot) => (lot.id === lotId ? { ...lot, ...patch } : lot))
+          : lots
+      )
+    );
+  };
+  const saveConfirmed = (value: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
+    if (value === order.due) return;
+    void onAct({
+      action: 'po_update',
+      id: order.id,
+      promised_date: value,
+    });
+  };
   const run = () => {
-    if (!next) return;
+    if (!next || closed) return;
     if (next.key === 'accept') {
       void onAct({ action: 'po_update', id: order.id, status: 'accepted' });
       return;
     }
     if (next.key === 'ready') {
-      if (!lotOk) return;
+      if (!fgLotsOk) return;
       void onAct({
         action: 'production_update',
         id: order.id,
         production_status: 'in_progress',
-        confirmed_qty: qty ? Number(qty) : undefined,
-        batches: batches(),
+        confirmed_qty: lines.reduce((s, l) => s + (Number(l.qty) || 0), 0) || undefined,
+        batches: batchesPayload(),
       });
       return;
     }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(shipDate) || !fgLotsOk) return;
     void onAct({
       action: 'po_update',
       id: order.id,
       shipped: true,
-      delivered_quantity: qty ? Number(qty) : undefined,
+      actual_delivery_date: shipDate,
+      delivered_quantity:
+        lines.reduce((s, l) => s + (Number(l.qty) || 0), 0) || undefined,
     });
   };
   return (
-    <div className="mt-3 space-y-2">
-      {showLots ? (
-        <div className="grid gap-2 sm:grid-cols-2 rounded-xl border border-slate-100 bg-slate-50 p-3">
-          <label className="text-[10px] font-bold uppercase text-neutral-400 sm:col-span-2">
-            Batch / lot *
-            <input
-              className="input mt-0.5 !py-2 !px-2 !text-sm w-full min-h-[44px]"
-              value={batchNumber}
-              onChange={(e) => setBatchNumber(e.target.value)}
-              placeholder="LOT-…"
-            />
-          </label>
+    <div className="mt-3 space-y-3">
+      <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 space-y-2">
+        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+          Fulfilment
+        </p>
+        <div className="grid gap-2 sm:grid-cols-2">
           <label className="text-[10px] font-bold uppercase text-neutral-400">
-            Manufactured *
+            Requested delivery
             <input
               type="date"
-              className="input mt-0.5 !py-2 !px-2 !text-sm w-full min-h-[44px]"
-              value={manufacturedAt}
-              onChange={(e) => setManufacturedAt(e.target.value)}
+              readOnly
+              className="input mt-0.5 !py-2 !px-2 !text-sm w-full min-h-[44px] bg-white"
+              value={requested}
             />
           </label>
           <label className="text-[10px] font-bold uppercase text-neutral-400">
-            Expiry *
+            Confirmed delivery date
             <input
               type="date"
+              disabled={closed || busy}
               className="input mt-0.5 !py-2 !px-2 !text-sm w-full min-h-[44px]"
-              value={expiryDate}
-              onChange={(e) => setExpiryDate(e.target.value)}
+              value={confirmed}
+              onChange={(e) => {
+                const v = e.target.value;
+                setConfirmed(v);
+                saveConfirmed(v);
+              }}
             />
           </label>
-          <label className="text-[10px] font-bold uppercase text-neutral-400">
-            Best before
-            <input
-              type="date"
-              className="input mt-0.5 !py-2 !px-2 !text-sm w-full min-h-[44px]"
-              value={bestBefore}
-              onChange={(e) => setBestBefore(e.target.value)}
-            />
-          </label>
-          <label className="text-[10px] font-bold uppercase text-neutral-400">
-            Qty
-            <input
-              className="input mt-0.5 !py-2 !px-2 !text-sm w-full min-h-[44px]"
-              value={qty}
-              onChange={(e) => setQty(e.target.value)}
-            />
-          </label>
-          {dateErr ? (
-            <p className="sm:col-span-2 text-[11px] text-rose-700">{dateErr}</p>
-          ) : null}
         </div>
+      </div>
+      {lines.map((line, i) => {
+        const lots = lineLots[i] || [emptyFulfilLot(line.qty)];
+        const needLot = finishedGoodNeedsLot(line.product_type);
+        const err = lineDateErr(lots);
+        return (
+          <div
+            key={`${order.id}-line-${i}`}
+            className="rounded-xl border border-slate-100 bg-white p-3 space-y-2"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              {line.primary_image_url ? (
+                <button
+                  type="button"
+                  className="h-12 w-12 shrink-0 rounded-xl border border-slate-100 overflow-hidden bg-[#f8f7f5]"
+                  onClick={() =>
+                    window.open(String(line.primary_image_url), '_blank')
+                  }
+                >
+                  <ProductPhoto
+                    src={line.primary_image_url}
+                    alt={line.name}
+                    className="h-12 w-12"
+                  />
+                </button>
+              ) : (
+                <span className="h-12 w-12 shrink-0 rounded-xl bg-slate-100" />
+              )}
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-900">{line.name}</p>
+                <p className="text-[11px] text-neutral-500">
+                  {[
+                    line.sku,
+                    line.qty != null
+                      ? `qty ${line.qty}${line.uom ? ` ${line.uom}` : ''}`
+                      : null,
+                    needLot ? 'lot required' : 'lot optional',
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+              </div>
+            </div>
+            {lots.map((lot) => (
+              <div
+                key={lot.id}
+                className="grid gap-2 sm:grid-cols-2 rounded-xl border border-slate-100 bg-slate-50 p-3"
+              >
+                <label className="text-[10px] font-bold uppercase text-neutral-400 sm:col-span-2">
+                  Lot / batch {needLot ? '*' : ''}
+                  <input
+                    className="input mt-0.5 !py-2 !px-2 !text-sm w-full min-h-[44px]"
+                    value={lot.batch_number}
+                    disabled={closed || busy}
+                    onChange={(e) =>
+                      patchLot(i, lot.id, { batch_number: e.target.value })
+                    }
+                    placeholder="LOT-…"
+                  />
+                </label>
+                <label className="text-[10px] font-bold uppercase text-neutral-400">
+                  Manufactured {needLot ? '*' : ''}
+                  <input
+                    type="date"
+                    className="input mt-0.5 !py-2 !px-2 !text-sm w-full min-h-[44px]"
+                    value={lot.manufactured_at}
+                    disabled={closed || busy}
+                    onChange={(e) =>
+                      patchLot(i, lot.id, { manufactured_at: e.target.value })
+                    }
+                  />
+                </label>
+                <label className="text-[10px] font-bold uppercase text-neutral-400">
+                  Expiry {needLot ? '*' : ''}
+                  <input
+                    type="date"
+                    className="input mt-0.5 !py-2 !px-2 !text-sm w-full min-h-[44px]"
+                    value={lot.expiry_date}
+                    disabled={closed || busy}
+                    onChange={(e) =>
+                      patchLot(i, lot.id, { expiry_date: e.target.value })
+                    }
+                  />
+                </label>
+                <label className="text-[10px] font-bold uppercase text-neutral-400">
+                  Best before
+                  <input
+                    type="date"
+                    className="input mt-0.5 !py-2 !px-2 !text-sm w-full min-h-[44px]"
+                    value={lot.best_before}
+                    disabled={closed || busy}
+                    onChange={(e) =>
+                      patchLot(i, lot.id, { best_before: e.target.value })
+                    }
+                  />
+                </label>
+                <label className="text-[10px] font-bold uppercase text-neutral-400">
+                  Qty this lot
+                  <input
+                    className="input mt-0.5 !py-2 !px-2 !text-sm w-full min-h-[44px]"
+                    value={lot.qty}
+                    disabled={closed || busy}
+                    onChange={(e) =>
+                      patchLot(i, lot.id, { qty: e.target.value })
+                    }
+                  />
+                </label>
+              </div>
+            ))}
+            {err ? <p className="text-[11px] text-rose-700">{err}</p> : null}
+            {!closed ? (
+              <button
+                type="button"
+                className="text-[11px] font-bold text-[#0077b6]"
+                onClick={() =>
+                  setLineLots((prev) =>
+                    prev.map((lots, idx) =>
+                      idx === i ? [...lots, emptyFulfilLot(null)] : lots
+                    )
+                  )
+                }
+              >
+                + Add lot
+              </button>
+            ) : null}
+          </div>
+        );
+      })}
+      {!closed ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() =>
+            void onAct({
+              action: 'production_update',
+              id: order.id,
+              batches: batchesPayload(),
+            })
+          }
+          className="btn-secondary !py-3 !px-4 text-sm min-h-[44px] w-full"
+        >
+          Save lots
+        </button>
+      ) : null}
+      {next?.key === 'ship' && !closed ? (
+        <label className="text-[10px] font-bold uppercase text-neutral-400 block">
+          Dispatch / actual delivery date *
+          <input
+            type="date"
+            className="input mt-0.5 !py-2 !px-2 !text-sm w-full min-h-[44px]"
+            value={shipDate}
+            disabled={busy}
+            onChange={(e) => setShipDate(e.target.value)}
+          />
+        </label>
       ) : null}
       <div className="flex flex-col gap-2">
         {next ? (
           <button
             type="button"
-            disabled={busy || (next.key === 'ready' && !lotOk)}
+            disabled={
+              busy ||
+              closed ||
+              (next.key === 'ready' && !fgLotsOk) ||
+              (next.key === 'ship' &&
+                (!fgLotsOk || !/^\d{4}-\d{2}-\d{2}$/.test(shipDate)))
+            }
             onClick={run}
             className="btn-primary !py-3 !px-4 text-sm min-h-[44px] w-full"
           >
@@ -2931,8 +3261,9 @@ function SupplierOrderActions({
         </button>
       </div>
       <p className="text-[11px] text-neutral-500">
-        Accept, mark ready with lot + manufacture + expiry, then ship. The
-        buyer receives into stock. They never see your costs.
+        Confirm the delivery date and lot (manufacture + expiry) as soon as
+        the PO is sent. Accept, mark ready, then ship with the actual dispatch
+        date. The buyer receives into stock. They never see your costs.
       </p>
     </div>
   );

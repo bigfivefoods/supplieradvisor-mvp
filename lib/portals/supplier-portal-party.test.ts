@@ -19,6 +19,8 @@ import {
   supplierPortalPoPdfHref,
   tradePortalMessageInsertRow,
   validateLotDates,
+  finishedGoodNeedsLot,
+  fgLinesMissingLots,
 } from './supplier-portal-party';
 
 assert.equal(supplierBookPartyGate(null).ok, false);
@@ -232,6 +234,28 @@ assert.match(
 
 assert.equal(validateLotDates('2026-01-10', '2026-01-09'), 'Expiry must be on or after the manufacture date');
 assert.equal(validateLotDates('2026-01-10', '2026-06-01'), null);
+assert.equal(finishedGoodNeedsLot('finished_good'), true);
+assert.equal(finishedGoodNeedsLot('packaging'), false);
+assert.equal(finishedGoodNeedsLot('raw_material'), false);
+assert.equal(finishedGoodNeedsLot(''), true);
+assert.deepEqual(
+  fgLinesMissingLots({
+    lines: [
+      { product_type: 'finished_good', product_id: 2 },
+      { product_type: 'finished_good', product_id: 3 },
+    ],
+    lots: [{ batch_number: 'LOT-CH-001', order_line_index: 0, product_id: 2 }],
+  }),
+  [1],
+  'line 0 lot does not cover line 1'
+);
+assert.deepEqual(
+  fgLinesMissingLots({
+    lines: [{ product_type: 'packaging', product_id: 51 }],
+    lots: [],
+  }),
+  []
+);
 
 const lot = inventoryLotPayloadFromBatch({
   companyId: 1,

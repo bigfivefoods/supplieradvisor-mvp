@@ -25,15 +25,28 @@ export type PoPdfParty = {
   logo_url?: string | null;
 };
 
+export type PoPdfLot = {
+  batch_number: string;
+  manufactured_at?: string | null;
+  expiry_date?: string | null;
+  best_before?: string | null;
+  qty?: number | null;
+  uom?: string | null;
+  item_name?: string | null;
+};
+
 export type PoPdfInput = {
   number: string;
   status?: string | null;
   issuedAt?: string | null;
   promisedDate?: string | null;
+  requestedDate?: string | null;
+  actualDeliveryDate?: string | null;
   paymentTerms?: string | null;
   currency?: string | null;
   notes?: string | null;
   items: PoLineItem[];
+  lots?: PoPdfLot[];
   totalAmount: number;
   buyer: PoPdfParty;
   supplier: PoPdfParty;
@@ -235,15 +248,31 @@ export async function buildPurchaseOrderPdf(input: PoPdfInput): Promise<Buffer> 
     let y = 78;
     doc.fillColor(MUTED).font('Helvetica').fontSize(8);
     doc.text(`Date: ${String(input.issuedAt || '').slice(0, 10) || '—'}`, MX, y);
-    if (input.promisedDate) {
-      doc.text(`Promised: ${String(input.promisedDate).slice(0, 10)}`, MX + 150, y);
+    const requested = input.requestedDate
+      ? String(input.requestedDate).slice(0, 10)
+      : '';
+    const confirmed = input.promisedDate
+      ? String(input.promisedDate).slice(0, 10)
+      : '';
+    if (requested && confirmed && requested !== confirmed) {
+      doc.text(`Requested: ${requested}`, MX + 130, y);
+      doc.text(`Confirmed: ${confirmed}`, MX + 280, y);
+    } else if (confirmed) {
+      doc.text(`Confirmed: ${confirmed}`, MX + 150, y);
     }
     if (input.paymentTerms) {
-      doc.text(`Terms: ${String(input.paymentTerms)}`, MX + 300, y, {
-        width: CONTENT_W - 260,
+      doc.text(`Terms: ${String(input.paymentTerms)}`, MX + 400, y, {
+        width: CONTENT_W - 360,
       });
     }
     doc.text(`Currency: ${ccy}`, MX, y + 12);
+    if (input.actualDeliveryDate) {
+      doc.text(
+        `Dispatched: ${String(input.actualDeliveryDate).slice(0, 10)}`,
+        MX + 150,
+        y + 12
+      );
+    }
     y += 28;
 
     const colW = (CONTENT_W - 12) / 2;
@@ -375,6 +404,41 @@ export async function buildPurchaseOrderPdf(input: PoPdfInput): Promise<Buffer> 
         align: 'right',
       });
     y += 28;
+
+    const lots = Array.isArray(input.lots) ? input.lots : [];
+    if (lots.length) {
+      ensureSpace(36);
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(8)
+        .fillColor(MUTED)
+        .text('Traceability  ·  lot / manufacture / expiry', MX, y);
+      y += 12;
+      for (const lot of lots) {
+        const bits = [
+          String(lot.batch_number || '').trim(),
+          lot.item_name ? String(lot.item_name) : '',
+          lot.manufactured_at
+            ? `manufactured ${String(lot.manufactured_at).slice(0, 10)}`
+            : '',
+          lot.expiry_date ? `expiry ${String(lot.expiry_date).slice(0, 10)}` : '',
+          lot.best_before
+            ? `best before ${String(lot.best_before).slice(0, 10)}`
+            : '',
+          lot.qty != null
+            ? `qty ${lot.qty}${lot.uom ? ` ${lot.uom}` : ''}`
+            : '',
+        ].filter(Boolean);
+        if (!bits.length) continue;
+        const line = bits.join(' · ');
+        ensureSpace(16);
+        doc.font('Helvetica').fontSize(8).fillColor(INK).text(line, MX, y, {
+          width: CONTENT_W,
+        });
+        y += doc.heightOfString(line, { width: CONTENT_W }) + 4;
+      }
+      y += 8;
+    }
 
     if (input.notes) {
       ensureSpace(48);

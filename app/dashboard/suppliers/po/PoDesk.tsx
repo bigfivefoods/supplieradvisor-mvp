@@ -1718,6 +1718,45 @@ function PoInner() {
     return Boolean(meta?.inventory_received_at);
   }
 
+  function poDeliveryLabel(po: PurchaseOrder): string {
+    const meta =
+      po.metadata && typeof po.metadata === 'object'
+        ? (po.metadata as { requested_promised_date?: unknown })
+        : {};
+    const requested = String(meta.requested_promised_date || '').slice(0, 10);
+    const confirmed = String(po.promised_date || '').slice(0, 10);
+    const actual = String(po.actual_delivery_date || '').slice(0, 10);
+    const bits: string[] = [];
+    if (requested && confirmed && requested !== confirmed) {
+      bits.push(`requested ${requested}`, `confirmed ${confirmed}`);
+    } else if (confirmed) bits.push(`promised ${confirmed}`);
+    if (actual) bits.push(`dispatched ${actual}`);
+    return bits.length ? ` · ${bits.join(' · ')}` : '';
+  }
+
+  function poDisplayLots(po: PurchaseOrder): Array<{
+    batch_number?: string;
+    manufactured_date?: string;
+    expiry_date?: string;
+    qty?: number;
+  }> {
+    const meta =
+      po.metadata && typeof po.metadata === 'object'
+        ? (po.metadata as {
+            order_lots?: unknown;
+            received_lots?: unknown;
+          })
+        : {};
+    const a = Array.isArray(meta.order_lots) ? meta.order_lots : [];
+    const b = Array.isArray(meta.received_lots) ? meta.received_lots : [];
+    return (a.length ? a : b) as Array<{
+      batch_number?: string;
+      manufactured_date?: string;
+      expiry_date?: string;
+      qty?: number;
+    }>;
+  }
+
   function resolveInvoiceId(po: PurchaseOrder): number | null {
     const col = Number(po.invoice_id);
     if (Number.isFinite(col) && col > 0) return col;
@@ -3353,24 +3392,7 @@ function PoInner() {
                                 : null
                             }
                             inventoryReceived={inventoryReceived(po)}
-                            lots={
-                              po.metadata &&
-                              typeof po.metadata === 'object' &&
-                              Array.isArray(
-                                (po.metadata as { received_lots?: unknown }).received_lots
-                              )
-                                ? (
-                                    po.metadata as {
-                                      received_lots: Array<{
-                                        batch_number?: string;
-                                        manufactured_date?: string;
-                                        expiry_date?: string;
-                                        qty?: number;
-                                      }>;
-                                    }
-                                  ).received_lots
-                                : []
-                            }
+                            lots={poDisplayLots(po)}
                           />
                           <PoPortalThread poId={po.id} withAuth={withAuth} />
                           <div className="text-sm text-neutral-600">
@@ -3379,7 +3401,7 @@ function PoInner() {
                             <span className="font-semibold text-slate-900">
                               R{Number(po.total_amount || 0).toLocaleString()}
                             </span>
-                            {po.promised_date ? ` · promised ${po.promised_date}` : ''}
+                            {poDeliveryLabel(po)}
                             {String(po.order_kind || '').toLowerCase() === 'hub' &&
                             po.call_off_window_end
                               ? ` · call-off until ${po.call_off_window_end}`

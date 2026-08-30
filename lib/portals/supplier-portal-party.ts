@@ -360,6 +360,91 @@ export function validateLotDates(
   return null;
 }
 
+/** Food FG need a lot. Packaging / raw / ingredients do not. Unknown type → require a lot. */
+export function finishedGoodNeedsLot(productType?: string | null): boolean {
+  const t = String(productType || '').toLowerCase().trim();
+  if (
+    t === 'raw_material' ||
+    t === 'packaging' ||
+    t === 'ingredient' ||
+    t === 'raw' ||
+    t === 'film' ||
+    t === 'component'
+  ) {
+    return false;
+  }
+  return true;
+}
+
+export function batchLineIndex(raw: Record<string, unknown>): number {
+  const meta = asMeta(raw.metadata);
+  const n =
+    raw.order_line_index != null
+      ? Number(raw.order_line_index)
+      : meta.order_line_index != null
+        ? Number(meta.order_line_index)
+        : 0;
+  return Number.isFinite(n) ? n : 0;
+}
+
+export function batchProductId(raw: Record<string, unknown>): number | null {
+  const meta = asMeta(raw.metadata);
+  const n =
+    raw.product_id != null
+      ? Number(raw.product_id)
+      : meta.product_id != null
+        ? Number(meta.product_id)
+        : null;
+  return Number.isFinite(n) && n != null && n > 0 ? n : null;
+}
+
+export function fgLinesMissingLots(opts: {
+  lines: Array<{ product_type?: string | null; product_id?: number | null }>;
+  lots: Array<{
+    order_line_index?: number | null;
+    product_id?: number | null;
+    batch_number?: string | null;
+  }>;
+}): number[] {
+  const covered = new Set<number>();
+  for (const lot of opts.lots) {
+    if (!String(lot.batch_number || '').trim()) continue;
+    const idx =
+      lot.order_line_index != null && Number.isFinite(Number(lot.order_line_index))
+        ? Number(lot.order_line_index)
+        : 0;
+    covered.add(idx);
+  }
+  const missing: number[] = [];
+  opts.lines.forEach((line, i) => {
+    if (!finishedGoodNeedsLot(line.product_type)) return;
+    if (!covered.has(i)) missing.push(i);
+  });
+  return missing;
+}
+
+export function orderLotsMetaFromBatches(
+  rows: Array<Record<string, unknown>>
+): Array<Record<string, unknown>> {
+  return rows
+    .filter((r) => String(r.batch_number || '').trim())
+    .map((r) => {
+      const meta = asMeta(r.metadata);
+      return {
+        batch_number: String(r.batch_number).trim(),
+        qty: Number(r.qty) || 0,
+        manufactured_date:
+          String(r.produced_at || meta.manufactured_date || '').slice(0, 10) ||
+          null,
+        expiry_date:
+          String(r.expiry_date || meta.expiry_date || '').slice(0, 10) || null,
+        best_before: String(meta.best_before || '').slice(0, 10) || null,
+        order_line_index: batchLineIndex(r),
+        product_id: batchProductId(r),
+      };
+    });
+}
+
 export function inventoryLotPayloadFromBatch(opts: {
   companyId: number;
   productId: number | null;

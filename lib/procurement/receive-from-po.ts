@@ -4,6 +4,10 @@
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import type { PoLineItem } from '@/lib/procurement/types';
+import {
+  batchLineIndex,
+  finishedGoodNeedsLot,
+} from '@/lib/portals/supplier-portal-party';
 
 export type ReceiveFromPoResult = {
   ok: boolean;
@@ -177,6 +181,60 @@ export async function receivePurchaseOrderToInventory(opts: {
   const lotPrefix = (opts.lotPrefix || `PO${opts.poId}`).slice(0, 20);
   const productByLine: Record<number, number> = {};
 
+  const batchHit = await supabase
+    .from('order_batches')
+    .select(
+      'batch_number, qty, uom, produced_at, expiry_date, order_line_index, metadata'
+    )
+    .eq('company_id', opts.companyId)
+    .eq('order_id', opts.poId)
+    .limit(200);
+  const batchRows: Record<string, unknown>[] = (batchHit.data ||
+    []) as unknown as Record<string, unknown>[];
+  const batchesByLine = new Map<number, Record<string, unknown>[]>();
+  for (const raw of batchRows) {
+    if (!String(raw.batch_number || '').trim()) continue;
+    const idx = batchLineIndex(raw);
+    const list = batchesByLine.get(idx) || [];
+    list.push(raw);
+    batchesByLine.set(idx, list);
+  }
+
+  const linePids = [
+    ...new Set(
+      lines
+        .map((l) => Number(l.product_id))
+        .filter((n) => Number.isFinite(n) && n > 0)
+    ),
+  ];
+  const typeById = new Map<number, string>();
+  if (linePids.length) {
+    const { data: types } = await supabase
+      .from('products')
+      .select('id, product_type')
+      .eq('profile_id', opts.companyId)
+      .in('id', linePids);
+    for (const row of types || []) {
+      typeById.set(Number(row.id), String(row.product_type || ''));
+    }
+  }
+  for (let i = 0; i < lines.length; i++) {
+    const pid = Number(lines[i].product_id);
+    const type = Number.isFinite(pid) ? typeById.get(pid) : '';
+    const lots = batchesByLine.get(i) || [];
+    if (finishedGoodNeedsLot(type) && !lots.length) {
+      return {
+        ok: false,
+        receivedLines: 0,
+        skippedLines: 0,
+        qtyTotal: 0,
+        createdProducts: 0,
+        warnings,
+        error: 'Finished goods need a lot number on the PO before receive',
+      };
+    }
+  }
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     let qty = Number(line.quantity || 0) * scale;
@@ -289,7 +347,6 @@ export async function receivePurchaseOrderToInventory(opts: {
     }
 
     productByLine[i] = productId;
-    const lotNumber = `${lotPrefix}-${i + 1}`;
     if (!wh) {
       skippedLines += 1;
       warnings.push(`Skipped “${name || 'line'}” — no warehouse to receive into`);
@@ -308,29 +365,70 @@ export async function receivePurchaseOrderToInventory(opts: {
         ? (costRow as unknown as Record<string, unknown>)
         : null
     );
-    const posted = await postStock({
-      profileId: opts.companyId,
-      productId,
-      warehouseId: wh,
-      movementType: 'receive',
-      quantity: qty,
-      unitCost:
-        inventoryCost != null
-          ? inventoryCost
-          : unitCost != null && unitCost > 0
-            ? unitCost
-            : 0,
-      lotNumber,
-      referenceType: 'purchase_order',
-      referenceId: opts.poId,
-      notes: `PO #${opts.poId} receive`,
-    });
-    if (!posted.ok) {
-      warnings.push(`Receive post failed for product ${productId}: ${posted.error}`);
+    const unit =
+      inventoryCost != null
+        ? inventoryCost
+        : unitCost != null && unitCost > 0
+          ? unitCost
+          : 0;
+    const lots = batchesByLine.get(i) || [];
+    const posts = lots.length
+      ? lots
+          .map((lot) => {
+            const lotQty = Number(lot.qty);
+            return {
+              quantity:
+                lotQty > 0 ? lotQty : lots.length === 1 ? qty : 0,
+              lotNumber: String(lot.batch_number || '').trim(),
+              expiryDate:
+                String(lot.expiry_date || '').slice(0, 10) ||
+                (lot.metadata && typeof lot.metadata === 'object'
+                  ? String(
+                      (lot.metadata as { expiry_date?: unknown }).expiry_date ||
+                        ''
+                    ).slice(0, 10)
+                  : '') ||
+                null,
+            };
+          })
+          .filter((p) => p.quantity > 0 && p.lotNumber)
+      : finishedGoodNeedsLot(typeById.get(productId) || '')
+        ? []
+        : [
+            {
+              quantity: qty,
+              lotNumber: lotPrefix ? `${lotPrefix}-${i + 1}` : null,
+              expiryDate: null as string | null,
+            },
+          ];
+    if (!posts.length) {
+      skippedLines += 1;
+      warnings.push(
+        `Skipped “${name || 'line'}” — finished goods need a lot number on the PO`
+      );
+      continue;
     }
-
-    receivedLines += 1;
-    qtyTotal += qty;
+    for (const p of posts) {
+      const posted = await postStock({
+        profileId: opts.companyId,
+        productId,
+        warehouseId: wh,
+        movementType: 'receive',
+        quantity: p.quantity,
+        unitCost: unit,
+        lotNumber: p.lotNumber || undefined,
+        expiryDate: p.expiryDate || undefined,
+        referenceType: 'purchase_order',
+        referenceId: opts.poId,
+        notes: `PO #${opts.poId} receive`,
+      });
+      if (!posted.ok) {
+        warnings.push(`Receive post failed for product ${productId}: ${posted.error}`);
+      } else {
+        receivedLines += 1;
+        qtyTotal += p.quantity;
+      }
+    }
   }
 
   if (receivedLines > 0) {

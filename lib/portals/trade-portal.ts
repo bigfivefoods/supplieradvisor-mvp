@@ -120,12 +120,18 @@ export type PublicDocRow = {
   notes?: string | null;
   fulfilment_status?: string | null;
   messages?: PortalMessageView[];
+  inventoryReceived?: boolean;
+  requested_due?: string | null;
+  actual_delivery_date?: string | null;
   lines?: Array<{
     name: string;
     qty: number | null;
     uom: string | null;
     amount: number | null;
     product_id?: number | null;
+    sku?: string | null;
+    primary_image_url?: string | null;
+    product_type?: string | null;
   }>;
 };
 
@@ -135,6 +141,9 @@ export type PortalBatchLot = {
   uom: string | null;
   manufactured_at: string | null;
   expiry_date: string | null;
+  best_before?: string | null;
+  order_line_index?: number | null;
+  product_id?: number | null;
 };
 
 export type PortalRatingView = {
