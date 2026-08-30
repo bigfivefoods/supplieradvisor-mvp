@@ -25,10 +25,14 @@ import { hostDisplayName } from '@/lib/portals/portal-actor';
 import { WBS_MAX_DEPTH, wbsDepthOf } from '@/lib/projects/wbs';
 import { expandDocumentUrlWrites } from '@/lib/business/documentFields';
 import {
+  applyHostDocShareAll,
+  applyHostDocShareTick,
   isPortalDocUrl,
   isPortalRequiredDocField,
   mergeExtraDocIntoMetadata,
   mergeRequiredDocIntoMetadata,
+  PORTAL_REQUIRED_DOCS,
+  portalSharedHostDocsFromMeta,
 } from '@/lib/portals/portal-documents';
 import { cascadeFromPo } from '@/lib/orders/cascade';
 import { notifyProductionCascade } from '@/lib/orders/notify-chain';
@@ -1998,6 +2002,79 @@ export async function POST(request: NextRequest) {
           email: invited.viewer.email,
           job_title: invited.viewer.job_title,
         },
+      });
+    }
+
+    if (action === 'document_share') {
+      if (!hostActor) {
+        return NextResponse.json(
+          { error: 'Only the host company can choose which files this portal sees' },
+          { status: 403 }
+        );
+      }
+      const table = portal.kind === 'customer' ? 'customers' : 'srm_suppliers';
+      const accountId =
+        portal.kind === 'customer' ? viewer.customer_id : viewer.supplier_id;
+      if (!accountId) {
+        return NextResponse.json({ error: 'No book account' }, { status: 403 });
+      }
+      const extraFields = Array.isArray(body.fields)
+        ? body.fields.map((f) => String(f || '').trim()).filter(Boolean)
+        : [];
+      const publishedFields = [
+        ...new Set([
+          ...PORTAL_REQUIRED_DOCS.map((d) => d.field),
+          ...extraFields,
+        ]),
+      ];
+      const hit = await supabase
+        .from(table)
+        .select('metadata')
+        .eq('id', accountId)
+        .eq('profile_id', portal.profile_id)
+        .maybeSingle();
+      if (hit.error) {
+        return NextResponse.json(
+          { error: hit.error.message || 'Could not load share ticks' },
+          { status: 500 }
+        );
+      }
+      if (!hit.data) {
+        return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+      }
+      const row = hit.data as unknown as Record<string, unknown>;
+      const field = String(body.field || '').trim();
+      let nextMeta: Record<string, unknown>;
+      if (body.shareAll === true || body.shareAll === false) {
+        nextMeta = applyHostDocShareAll(
+          row.metadata,
+          body.shareAll === true,
+          publishedFields
+        );
+      } else if (field) {
+        nextMeta = applyHostDocShareTick(
+          row.metadata,
+          field,
+          body.shared === true,
+          publishedFields
+        );
+      } else {
+        return NextResponse.json(
+          { error: 'field or shareAll required' },
+          { status: 400 }
+        );
+      }
+      const { error: metaErr } = await supabase
+        .from(table)
+        .update({ metadata: nextMeta, updated_at: now } as never)
+        .eq('id', accountId)
+        .eq('profile_id', portal.profile_id);
+      if (metaErr) {
+        return NextResponse.json({ error: metaErr.message }, { status: 500 });
+      }
+      return NextResponse.json({
+        success: true,
+        hostDocShare: portalSharedHostDocsFromMeta(nextMeta),
       });
     }
 

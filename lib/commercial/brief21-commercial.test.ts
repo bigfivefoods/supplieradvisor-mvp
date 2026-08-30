@@ -89,7 +89,7 @@ assert.match(net, /id: String\(selectedId\)/);
 
 const inv = src('app/api/inventory/products/route.ts');
 assert.match(inv, /proposeFromProductMaster/);
-assert.match(inv, /heldCost/);
+assert.match(inv, /hostCostLines/);
 
 const agr = src('app/api/pricing/agreements/route.ts');
 assert.match(agr, /syncAgreementIntoCatalogue/);

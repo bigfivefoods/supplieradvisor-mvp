@@ -20,6 +20,7 @@ import type {
 import {
   applyPortalDocSlotUrl,
   emptyRequiredDocSlots,
+  hostDocIsShared,
   mergePortalDocSlots,
 } from '@/lib/portals/portal-documents';
 import { portalPersonKey } from '@/lib/portals/trade-portal-people';
@@ -162,6 +163,7 @@ const HEAVY_ACTIONS = new Set([
   'rate',
   'document_save',
   'document_extra',
+  'document_share',
   'production_update',
   'commercial_propose',
   'commercial_accept',
@@ -183,6 +185,7 @@ const REFRESH_ACTIONS = new Set([
   'commercial_sla',
   'document_save',
   'document_extra',
+  'document_share',
   'production_update',
 ]);
 
@@ -459,6 +462,15 @@ function applyActLocally(
       accountDocuments: [...(prev.accountDocuments || []), slot],
     };
   }
+  if (action === 'document_share') {
+    const share =
+      data.hostDocShare &&
+      typeof data.hostDocShare === 'object' &&
+      !Array.isArray(data.hostDocShare)
+        ? (data.hostDocShare as Record<string, boolean>)
+        : prev.hostDocShare ?? null;
+    return { ...prev, hostDocShare: share };
+  }
   if (action === 'document_save') {
     const field = String(payload.field || '');
     const url =
@@ -590,6 +602,8 @@ export function GuestTradeWorkspace({
                       ? 'Task saved'
                       : action === 'document_save' || action === 'document_extra'
                         ? 'Document shared'
+                        : action === 'document_share'
+                          ? 'Portal share updated'
                         : action === 'production_update'
                           ? 'Production updated — customer sales order will follow'
                           : action === 'stock_update'
@@ -767,6 +781,7 @@ export function GuestTradeWorkspace({
           hostName={live.host.name}
           hostLogo={live.host.logo_url}
           hostDocs={live.hostDocuments || []}
+          hostDocShare={live.hostDocShare ?? null}
           accountName={live.accountLabel}
           accountLogo={live.accountLogo}
           accountDocs={live.accountDocuments || []}
@@ -1080,6 +1095,7 @@ function CompanyDocsPanel({
   hostName,
   hostLogo,
   hostDocs,
+  hostDocShare,
   accountName,
   accountLogo,
   accountDocs,
@@ -1092,6 +1108,7 @@ function CompanyDocsPanel({
   hostName: string;
   hostLogo?: string | null;
   hostDocs: PortalDocSlot[];
+  hostDocShare: Record<string, boolean> | null;
   accountName?: string | null;
   accountLogo?: string | null;
   accountDocs: PortalDocSlot[];
@@ -1101,6 +1118,19 @@ function CompanyDocsPanel({
   const [docNote, setDocNote] = useState<string | null>(null);
   const hostSlots = coercePortalDocSlots(hostDocs);
   const accountSlots = coercePortalDocSlots(accountDocs);
+  const shareFields = hostSlots.map((s) => s.field);
+
+  const tickHostShare = async (opts: {
+    field?: string;
+    shared?: boolean;
+    shareAll?: boolean;
+  }) => {
+    await onAct({
+      action: 'document_share',
+      fields: shareFields,
+      ...opts,
+    });
+  };
   const packs: Array<{
     key: 'host' | 'account';
     name: string;
@@ -1173,11 +1203,10 @@ function CompanyDocsPanel({
       ) : null}
       <p className="rounded-2xl border border-cyan-100 bg-cyan-50/70 px-4 py-3 text-sm text-slate-700">
         Required documents for both companies — registration, VAT, B-BBEE, bank
-        confirmation letter, import, export, and tax. Files saved here are
-        shared on this portal
+        confirmation letter, import, export, and tax.
         {isHost
-          ? ` and on ${kind === 'supplier' ? 'SRM' : 'CRM'} / My Business.`
-          : '.'}
+          ? ` Tick Share on each ${hostName} file this ${kind} may open. Until the first tick, every file on record stays visible. Saves also land on ${kind === 'supplier' ? 'SRM' : 'CRM'} / My Business.`
+          : ` ${hostName} chooses which of their files appear here.`}
       </p>
       <div className="grid gap-4 lg:grid-cols-2">
         {packs.map((p) => {
@@ -1216,6 +1245,7 @@ function CompanyDocsPanel({
                 </div>
                 <div className="shrink-0 flex items-center gap-2">
                   {p.key === 'host' && p.canEdit && filled > 0 ? (
+                    <>
                     <button
                       type="button"
                       disabled={busy || uploading === 'host:all'}
@@ -1224,15 +1254,7 @@ function CompanyDocsPanel({
                           setUploading('host:all');
                           setDocNote(null);
                           try {
-                            const filledSlots = required.filter((d) => d.url);
-                            for (const slot of filledSlots) {
-                              await onAct({
-                                action: 'document_save',
-                                pack: 'host',
-                                field: slot.field,
-                                url: slot.url,
-                              });
-                            }
+                            await tickHostShare({ shareAll: true });
                             setDocNote(
                               `${accountName || 'The supplier'} can view the company files on this portal`
                             );
@@ -1251,6 +1273,30 @@ function CompanyDocsPanel({
                         ? 'Sharing…'
                         : 'Share all on file'}
                     </button>
+                    <button
+                      type="button"
+                      disabled={busy || uploading === 'host:none'}
+                      onClick={() => {
+                        void (async () => {
+                          setUploading('host:none');
+                          setDocNote(null);
+                          try {
+                            await tickHostShare({ shareAll: false });
+                            setDocNote('Company files hidden from this portal');
+                          } catch (e) {
+                            setDocNote(
+                              e instanceof Error ? e.message : 'Share failed'
+                            );
+                          } finally {
+                            setUploading(null);
+                          }
+                        })();
+                      }}
+                      className="rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600"
+                    >
+                      {uploading === 'host:none' ? 'Hiding…' : 'Share none'}
+                    </button>
+                    </>
                   ) : null}
                   <p className="text-[11px] font-bold tabular-nums text-slate-500">
                     {filled}/{required.length || 7}
@@ -1264,6 +1310,17 @@ function CompanyDocsPanel({
                     slot={d}
                     canEdit={p.canEdit && !d.extra}
                     busy={busy || uploading === `${p.key}:${d.field}`}
+                    shared={
+                      p.key === 'host'
+                        ? hostDocIsShared(hostDocShare, d.field)
+                        : undefined
+                    }
+                    onShare={
+                      p.key === 'host' && isHost
+                        ? (next) =>
+                            void tickHostShare({ field: d.field, shared: next })
+                        : undefined
+                    }
                     onFile={(file) => void saveSlot(p.key, d.field, file)}
                     onUrl={async (url) => {
                       await saveSlot(p.key, d.field, null, url);
@@ -1277,11 +1334,12 @@ function CompanyDocsPanel({
                 ))}
                 {extra.map((d) => (
                   <li key={`${p.key}-extra-${d.name}-${d.url}`}>
+                    <div className="px-5 py-3.5 flex items-center justify-between gap-3">
                     <a
                       href={d.url || '#'}
                       target="_blank"
                       rel="noreferrer"
-                      className="px-5 py-3.5 flex items-center justify-between gap-3 hover:bg-sky-50/60"
+                      className="min-w-0 flex-1 flex items-center justify-between gap-3 hover:text-[#0077b6]"
                     >
                       <span className="min-w-0">
                         <span className="block text-sm font-bold text-slate-900 truncate">
@@ -1293,6 +1351,24 @@ function CompanyDocsPanel({
                       </span>
                       <FileText className="w-4 h-4 text-[#00b4d8] shrink-0" />
                     </a>
+                    {p.key === 'host' && isHost ? (
+                      <label className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-bold text-slate-600">
+                        <input
+                          type="checkbox"
+                          className="rounded border-slate-300"
+                          checked={hostDocIsShared(hostDocShare, d.field)}
+                          disabled={busy || !d.url}
+                          onChange={(e) =>
+                            void tickHostShare({
+                              field: d.field,
+                              shared: e.target.checked,
+                            })
+                          }
+                        />
+                        Share
+                      </label>
+                    ) : null}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -1447,12 +1523,16 @@ function DocSlotRow({
   slot,
   canEdit,
   busy,
+  shared,
+  onShare,
   onFile,
   onUrl,
 }: {
   slot: PortalDocSlot;
   canEdit: boolean;
   busy: boolean;
+  shared?: boolean;
+  onShare?: (next: boolean) => void;
   onFile: (file: File) => void;
   onUrl: (url: string) => void;
 }) {
@@ -1467,8 +1547,26 @@ function DocSlotRow({
           <span className="block text-[11px] text-neutral-500">
             {slot.category}
             {slot.url ? ' · on file' : ' · not on file'}
+            {onShare && slot.url
+              ? shared
+                ? ' · shared'
+                : ' · not shared'
+              : ''}
           </span>
         </span>
+        <span className="flex shrink-0 items-center gap-2">
+          {onShare && slot.url ? (
+            <label className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-600">
+              <input
+                type="checkbox"
+                className="rounded border-slate-300"
+                checked={shared === true}
+                disabled={busy}
+                onChange={(e) => onShare(e.target.checked)}
+              />
+              Share
+            </label>
+          ) : null}
         {slot.url ? (
           <a
             href={slot.url}
@@ -1484,6 +1582,7 @@ function DocSlotRow({
             Needed
           </span>
         )}
+        </span>
       </div>
       {canEdit ? (
         <div className="flex flex-wrap items-center gap-2">

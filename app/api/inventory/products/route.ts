@@ -318,10 +318,8 @@ export async function PATCH(request: NextRequest) {
           sellPrice:
             updates.sell_price != null ? Number(updates.sell_price) : null,
         });
-        if (proposed.heldCost) {
-          delete updates.cost_price;
-          commercialNote =
-            'Cost change proposed on the supplier catalogue — accepted price does not move until they Accept.';
+        if (proposed.hostCostLines > 0) {
+          commercialNote = 'Supplier Commercial updated to this cost.';
         } else if (proposed.customerProposals > 0) {
           commercialNote = `List price saved. ${proposed.customerProposals} customer price(s) pending Accept.`;
         }

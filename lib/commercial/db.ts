@@ -649,34 +649,66 @@ export async function syncAgreementIntoCatalogue(opts: {
   }
 }
 
+/** Host inventory cost is the catalogue: write accepted now, history as host-set. */
+export async function applyHostCostToCatalogue(opts: {
+  profileId: number;
+  productId: number;
+  costPrice: number;
+}): Promise<number> {
+  const next = roundMoney(opts.costPrice);
+  const lines = await loadPartyLines({
+    profileId: opts.profileId,
+    partyKind: 'supplier',
+  });
+  const hits = lines.filter((l) => l.product_id === opts.productId && l.status === 'active');
+  const supabase = getSupabaseServer();
+  const now = new Date().toISOString();
+  let updated = 0;
+  for (const line of hits) {
+    if (roundMoney(line.accepted_price) === next && line.pending_price == null) continue;
+    await supersedeOpenProposals(line.id);
+    await supabase.from('party_price_revisions').insert({
+      line_id: line.id,
+      old_price: line.accepted_price,
+      new_price: next,
+      currency: line.currency,
+      proposed_by: 'host',
+      status: 'accepted',
+      accepted_by: 'host',
+      accepted_at: now,
+      note: 'Inventory cost',
+    });
+    await supabase
+      .from('party_catalogue_lines')
+      .update({
+        accepted_price: next,
+        accepted_at: now,
+        pending_price: null,
+        pending_proposed_at: null,
+        pending_proposed_by: null,
+        updated_at: now,
+      })
+      .eq('id', line.id)
+      .eq('profile_id', opts.profileId);
+    updated += 1;
+  }
+  return updated;
+}
+
 export async function proposeFromProductMaster(opts: {
   profileId: number;
   productId: number;
   costPrice?: number | null;
   sellPrice?: number | null;
-}): Promise<{ heldCost: boolean; customerProposals: number }> {
-  let heldCost = false;
+}): Promise<{ heldCost: boolean; customerProposals: number; hostCostLines: number }> {
   let customerProposals = 0;
+  let hostCostLines = 0;
   if (opts.costPrice != null && Number.isFinite(Number(opts.costPrice))) {
-    const suppliers = await loadPartyLines({
+    hostCostLines = await applyHostCostToCatalogue({
       profileId: opts.profileId,
-      partyKind: 'supplier',
+      productId: opts.productId,
+      costPrice: Number(opts.costPrice),
     });
-    const hits = suppliers.filter((l) => l.product_id === opts.productId && l.status === 'active');
-    if (hits.length) {
-      heldCost = true;
-      const next = roundMoney(Number(opts.costPrice));
-      for (const line of hits) {
-        if (roundMoney(line.accepted_price) === next) continue;
-        await proposePrice({
-          profileId: opts.profileId,
-          lineId: line.id,
-          newPrice: next,
-          actor: 'host',
-          note: 'Inventory cost',
-        });
-      }
-    }
   }
   if (opts.sellPrice != null && Number.isFinite(Number(opts.sellPrice))) {
     const customers = await loadPartyLines({
@@ -697,7 +729,7 @@ export async function proposeFromProductMaster(opts: {
       if (r.ok) customerProposals += 1;
     }
   }
-  return { heldCost, customerProposals };
+  return { heldCost: false, customerProposals, hostCostLines };
 }
 
 export async function saveSlaFields(opts: {

@@ -83,6 +83,41 @@ const sla = src('lib/commercial/db.ts');
 assert.match(sla, /saveSlaFields/);
 assert.match(sla, /lead_time_days/);
 assert.match(sla, /primary_image_url/);
+assert.match(sla, /applyHostCostToCatalogue/);
+assert.match(sla, /heldCost: false/);
+
+const productsRoute = src('app/api/inventory/products/route.ts');
+assert.match(productsRoute, /hostCostLines/);
+assert.doesNotMatch(productsRoute, /delete updates\.cost_price/);
+
+const dc = src('lib/portals/supplier-dc-stock.ts');
+assert.match(dc, /stock_levels/);
+assert.doesNotMatch(dc, /qty_on_hand:\s*0/);
+assert.doesNotMatch(dc, /stamped === opts\.supplierId/);
+
+assert.match(sql, /warehouse_id = NULL/);
+assert.doesNotMatch(sql, /SET warehouse_id = 1/);
+assert.match(sql, /49, 50, 51, 52/);
+
+assert.match(act, /document_share/);
+assert.match(act, /applyHostDocShareTick/);
+assert.match(act, /Only the host company can choose which files/);
+
+const tradeGet = src('app/api/public/portals/trade/route.ts');
+assert.match(tradeGet, /Cache-Control/);
+assert.match(tradeGet, /no-store, no-cache, must-revalidate/);
+
+const portalPage = src('app/portal/[token]/page.tsx');
+assert.match(portalPage, /cache: 'no-store'/);
+assert.match(portalPage, /Refresh/);
+assert.match(portalPage, /load\(\{ silent: true \}\)/);
+
+assert.match(guest, /document_share/);
+assert.match(guest, /Share none/);
+assert.match(guest, /hostDocIsShared/);
+
+const actor = src('lib/portals/portal-actor.ts');
+assert.match(actor, /guestVisibleHostDocs/);
 
 const panel = src('components/commercial/CommercialPanel.tsx');
 assert.match(panel, /ProductPhoto/);

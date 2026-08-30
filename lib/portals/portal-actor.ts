@@ -3,6 +3,7 @@
  * or the guest on the access token.
  */
 import type { PublicPortalPayload } from '@/lib/portals/trade-portal';
+import { guestVisibleHostDocs } from '@/lib/portals/portal-documents';
 
 export type PortalActorRole = 'host' | 'guest';
 
@@ -85,6 +86,11 @@ export function attachPortalActor(
     };
   }
   const viewer = payload.viewer;
+  const visible = guestVisibleHostDocs(
+    payload.hostDocuments || [],
+    payload.hostDocShare ?? null,
+    false
+  );
   return {
     ...payload,
     actor: viewer
@@ -94,6 +100,8 @@ export function attachPortalActor(
           email: viewer.email,
         }
       : { role: 'guest', name: 'Guest', email: null },
+    hostDocuments: visible.hostDocuments,
+    documents: visible.documents,
     people: (payload.people || []).map((p) => ({
       ...p,
       you: p.side === 'host' ? false : p.you,

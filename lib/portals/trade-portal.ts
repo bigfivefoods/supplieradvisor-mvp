@@ -12,6 +12,7 @@ import { ALL_DOCUMENT_DB_COLUMNS } from '@/lib/business/documentFields';
 import {
   filledPortalDocs,
   mergePortalDocSlots,
+  portalSharedHostDocsFromMeta,
   type PortalDocSlot,
 } from '@/lib/portals/portal-documents';
 import { loadHostPurchaseOrders } from '@/lib/portals/host-purchase-orders';
@@ -840,6 +841,8 @@ export type PublicPortalPayload = {
   documents: Array<{ name: string; url: string; category: string }>;
   /** Host company (e.g. Big Five Foods) required + extra docs */
   hostDocuments?: PortalDocSlot[];
+  /** Party ticks for host pack. Null = all published URLs (Brief 20). */
+  hostDocShare?: Record<string, boolean> | null;
   /** Customer/supplier book + linked company required + extra docs */
   accountDocuments?: PortalDocSlot[];
   joinPath: string;
@@ -923,6 +926,7 @@ export async function loadPublicPortal(
   let purchase_orders: PublicDocRow[] = [];
   let accountLabel: string | null = null;
   let accountLogo: string | null = null;
+  let partyMeta: unknown = null;
 
   if (viewer && portal.kind === 'customer' && viewer.customer_id) {
     const pack = await loadCustomerDocs(
@@ -935,7 +939,7 @@ export async function loadPublicPortal(
     invoices = pack.invoices;
     const custWide = await supabase
       .from('customers')
-      .select('trading_name, logo_url, linked_profile_id')
+      .select('trading_name, logo_url, linked_profile_id, metadata')
       .eq('id', viewer.customer_id)
       .eq('profile_id', portal.profile_id)
       .maybeSingle();
@@ -954,6 +958,7 @@ export async function loadPublicPortal(
         ? (retry.data as unknown as Record<string, unknown>)
         : null;
     }
+    partyMeta = custRow?.metadata ?? null;
     accountLabel = custRow?.trading_name
       ? String(custRow.trading_name)
       : null;
@@ -976,7 +981,7 @@ export async function loadPublicPortal(
     }
     const srmWide = await supabase
       .from('srm_suppliers')
-      .select('trading_name, logo_url, linked_profile_id')
+      .select('trading_name, logo_url, linked_profile_id, metadata')
       .eq('id', viewer.supplier_id)
       .eq('profile_id', portal.profile_id)
       .maybeSingle();
@@ -995,6 +1000,7 @@ export async function loadPublicPortal(
         ? (retry.data as unknown as Record<string, unknown>)
         : null;
     }
+    partyMeta = srmRow?.metadata ?? partyMeta;
     accountLabel = srmRow?.trading_name
       ? String(srmRow.trading_name)
       : accountLabel;
@@ -1127,6 +1133,7 @@ export async function loadPublicPortal(
       purchase_orders,
       documents,
       hostDocuments: hostSlots,
+      hostDocShare: portalSharedHostDocsFromMeta(partyMeta),
       accountDocuments,
       joinPath,
       moneyHint,
