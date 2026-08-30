@@ -77,6 +77,7 @@ assert.doesNotMatch(SUPPLIER_LIST_COLUMNS, /job_title/);
 
 const getSrc = readFileSync(resolve('app/api/suppliers/route.ts'), 'utf8');
 assert.match(getSrc, /byId \? SUPPLIER_BOOK_COLUMNS : SUPPLIER_LIST_COLUMNS/);
+assert.match(getSrc, /\.select\(selectCols as never\)/);
 assert.match(getSrc, /supplierPatchUpdates/);
 assert.match(getSrc, /stripMissingUpdateColumn/);
 assert.doesNotMatch(getSrc.split('export async function POST')[0], /select\('\*'\)/);

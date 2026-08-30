@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     const selectCols = byId ? SUPPLIER_BOOK_COLUMNS : SUPPLIER_LIST_COLUMNS;
     let query = supabase
       .from('srm_suppliers')
-      .select(selectCols)
+      .select(selectCols as never)
       .eq('profile_id', companyId)
       .order('id', { ascending: false })
       .limit(byId ? 1 : limit);
