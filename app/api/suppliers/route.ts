@@ -7,12 +7,18 @@ import { bookIlikeOr } from '@/lib/security/book-search';
 import {
   parseBeforeId,
   parseListLimit,
+  SUPPLIER_BOOK_COLUMNS,
   SUPPLIER_LIST_COLUMNS,
 } from '@/lib/http/tenant-list';
 import {
   defaultCreateBookRole,
   filterSupplierDeskRows,
 } from '@/lib/portals/supplier-portal-party';
+import {
+  stripMissingUpdateColumn,
+  supplierPatchUpdates,
+} from '@/lib/suppliers/book-persist';
+import { missingSelectColumn, stripSelectColumn } from '@/lib/portals/select-retry';
 
 function asRecord(raw: unknown): Record<string, unknown> {
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
@@ -56,12 +62,13 @@ export async function GET(request: NextRequest) {
     const byId = Number.isFinite(id) && id > 0;
     const limit = parseListLimit(sp.get('limit'));
     const beforeId = parseBeforeId(sp.get('beforeId'));
+    const selectCols = byId ? SUPPLIER_BOOK_COLUMNS : SUPPLIER_LIST_COLUMNS;
     let query = supabase
       .from('srm_suppliers')
-      .select(SUPPLIER_LIST_COLUMNS)
+      .select(selectCols)
       .eq('profile_id', companyId)
       .order('id', { ascending: false })
-      .limit(limit);
+      .limit(byId ? 1 : limit);
     if (beforeId) query = query.lt('id', beforeId);
     if (byId) query = query.eq('id', id);
     else if (status && status !== 'all') query = query.eq('status', status);
@@ -97,6 +104,29 @@ export async function GET(request: NextRequest) {
       data = second.data;
       error = second.error;
       usedOr = false;
+    }
+    if (error && /column|schema cache|does not exist/i.test(error.message || '')) {
+      let cols = selectCols;
+      for (let i = 0; i < 8; i++) {
+        const missing = missingSelectColumn(error.message);
+        if (!missing) break;
+        const next = stripSelectColumn(cols, missing);
+        if (!next || next === cols) break;
+        cols = next;
+        let retry = supabase
+          .from('srm_suppliers')
+          .select(cols as never)
+          .eq('profile_id', companyId)
+          .order('id', { ascending: false })
+          .limit(byId ? 1 : limit);
+        if (beforeId) retry = retry.lt('id', beforeId);
+        if (byId) retry = retry.eq('id', id);
+        else if (status && status !== 'all') retry = retry.eq('status', status);
+        const again = await retry;
+        data = again.data as typeof data;
+        error = again.error;
+        if (!error) break;
+      }
     }
     if (error) {
       return NextResponse.json({
@@ -170,13 +200,30 @@ export async function GET(request: NextRequest) {
 
     const enriched = suppliers.map((s) => {
       const row = s as Record<string, unknown>;
+      const logo =
+        (s as { logo_url?: string | null }).logo_url ||
+        (s.linked_profile_id
+          ? logoByProfile[Number(s.linked_profile_id)] || null
+          : null);
+      if (byId) {
+        return {
+          ...s,
+          logo_url: logo,
+          connection_suspended: s.connection_id
+            ? !!suspMap[Number(s.connection_id)]
+            : false,
+          trust_score:
+            s.trust_score ||
+            computeTrustScore({
+              otifef: s.otifef_pct,
+              ratingAvg: s.rating_avg,
+              verified: s.verified,
+            }),
+        };
+      }
       return {
         ...s,
-        logo_url:
-          (s as { logo_url?: string | null }).logo_url ||
-          (s.linked_profile_id
-            ? logoByProfile[Number(s.linked_profile_id)] || null
-            : null),
+        logo_url: logo,
         vat_number: bookField(row, 'vat_number'),
         registration_number: bookField(row, 'registration_number'),
         payment_terms: bookField(row, 'payment_terms'),
@@ -315,85 +362,29 @@ export async function PATCH(request: NextRequest) {
       });
       if (!_gate.ok) return _gate.response;
     }
-    const fields = [
-      'trading_name',
-      'legal_name',
-      'email',
-      'phone',
-      'contact_name',
-      'job_title',
-      'website',
-      'industry',
-      'sub_industry',
-      'category',
-      'city',
-      'region',
-      'province',
-      'country',
-      'continent',
-      'address',
-      'postal_code',
-      'vat_number',
-      'registration_number',
-      'payment_terms',
-      'status',
-      'invite_status',
-      'wallet_address',
-      'certifications',
-      'bee_level',
-      'verified',
-      'owner_name',
-      'notes',
-      'logo_url',
-      'tags',
-      'linked_profile_id',
-      'connection_id',
-      'otifef_pct',
-      'trust_score',
-      'rating_avg',
-      'rating_count',
-    ] as const;
-
-    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    for (const f of fields) {
-      if (body[f] !== undefined) updates[f] = body[f];
-    }
-    if (updates.province != null && updates.region === undefined) {
-      updates.region = updates.province;
-    }
-
     const supabase = getSupabaseServer();
+    const curHit = Number.isFinite(companyId)
+      ? await supabase
+          .from('srm_suppliers')
+          .select('metadata')
+          .eq('id', Number(body.id))
+          .eq('profile_id', companyId)
+          .maybeSingle()
+      : await supabase
+          .from('srm_suppliers')
+          .select('metadata')
+          .eq('id', Number(body.id))
+          .maybeSingle();
+    let updates = supplierPatchUpdates(body as Record<string, unknown>, curHit.data?.metadata);
+
     let q = supabase.from('srm_suppliers').update(updates).eq('id', Number(body.id));
     if (Number.isFinite(companyId)) q = q.eq('profile_id', companyId);
     let { data, error } = await q.select('*').single();
-    if (error && /logo_url|vat_number|registration_number|payment_terms|column|schema cache|does not exist/i.test(error.message || '')) {
-      const soft = { ...updates };
-      delete soft.logo_url;
-      const bookPatch: Record<string, unknown> = {};
-      for (const col of ['vat_number', 'registration_number', 'payment_terms'] as const) {
-        if (body[col] !== undefined) {
-          bookPatch[col] = body[col];
-          delete soft[col];
-        }
-      }
-      if (Object.keys(bookPatch).length) {
-        const curHit = Number.isFinite(companyId)
-          ? await supabase
-              .from('srm_suppliers')
-              .select('metadata')
-              .eq('id', Number(body.id))
-              .eq('profile_id', companyId)
-              .maybeSingle()
-          : await supabase
-              .from('srm_suppliers')
-              .select('metadata')
-              .eq('id', Number(body.id))
-              .maybeSingle();
-        const meta = asRecord(curHit.data?.metadata);
-        meta.book_profile = { ...asRecord(meta.book_profile), ...bookPatch };
-        soft.metadata = meta;
-      }
-      let q2 = supabase.from('srm_suppliers').update(soft).eq('id', Number(body.id));
+    for (let i = 0; i < 8 && error; i++) {
+      const next = stripMissingUpdateColumn(updates, error.message);
+      if (!next) break;
+      updates = next;
+      let q2 = supabase.from('srm_suppliers').update(updates).eq('id', Number(body.id));
       if (Number.isFinite(companyId)) q2 = q2.eq('profile_id', companyId);
       const retry = await q2.select('*').single();
       data = retry.data;

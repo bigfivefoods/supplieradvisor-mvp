@@ -54,6 +54,16 @@ assert.equal(profile.continent, 'Africa');
 assert.equal(profile.province, 'Western Cape');
 assert.deepEqual(srmBookProfileGaps(profile), []);
 
+const columnWins = srmRecordToBookProfile({
+  id: 12,
+  trading_name: 'Kelpack',
+  job_title: null,
+  website: '',
+  metadata: { book_profile: { job_title: 'stale', website: 'https://stale' } },
+});
+assert.equal(columnWins.job_title, '');
+assert.equal(columnWins.website, '');
+
 const docs = srmPortalDocuments(row);
 assert.equal(
   docs.find((d) => d.field === 'vat_certificate_url')?.url,

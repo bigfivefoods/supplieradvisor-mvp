@@ -23,5 +23,9 @@ export const CUSTOMER_LIST_COLUMNS =
 export const SUPPLIER_LIST_COLUMNS =
   'id, trading_name, legal_name, email, phone, contact_name, status, invite_status, city, country, industry, linked_profile_id, logo_url, connection_id, verified, otifef_pct, rating_avg, trust_score, wallet_address, created_at, updated_at, metadata';
 
+/** Full SRM book profile — GET ?id= and PATCH round-trip. */
+export const SUPPLIER_BOOK_COLUMNS =
+  'id, trading_name, legal_name, email, phone, contact_name, job_title, website, industry, sub_industry, category, city, region, province, country, continent, address, postal_code, vat_number, registration_number, payment_terms, status, invite_status, linked_profile_id, logo_url, connection_id, verified, otifef_pct, rating_avg, rating_count, trust_score, wallet_address, certifications, bee_level, owner_name, notes, tags, metadata, created_at, updated_at';
+
 export const DOC_LIST_COLUMNS =
   'id, status, invoice_number, quote_number, order_number, customer_id, customer_name, total_amount, amount_paid, currency, due_date, created_at, contact_email, visibility, items';

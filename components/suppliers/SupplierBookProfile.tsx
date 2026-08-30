@@ -105,12 +105,8 @@ export function SupplierBookProfile({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Save failed');
       toast.success('Saved to SRM — this is the same profile the portal syncs');
-      onSaved({
-        ...(data.supplier || supplier),
-        ...form,
-        status,
-        id: supplier.id,
-      });
+      const saved = data.supplier as SrmSupplierRecord | undefined;
+      onSaved(saved && saved.id ? saved : supplier);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Save failed');
     } finally {

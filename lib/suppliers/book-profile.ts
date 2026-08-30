@@ -78,9 +78,14 @@ function asRecord(raw: unknown): Record<string, unknown> {
 }
 
 function pick(row: Record<string, unknown>, key: string): string {
+  if (Object.prototype.hasOwnProperty.call(row, key)) {
+    const direct = row[key];
+    if (direct == null) return '';
+    return String(direct).trim();
+  }
   const meta = asRecord(row.metadata);
   const book = asRecord(meta.book_profile);
-  const v = row[key] ?? book[key] ?? meta[key] ?? '';
+  const v = book[key] ?? meta[key] ?? '';
   return String(v || '').trim();
 }
 

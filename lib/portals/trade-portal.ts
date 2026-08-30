@@ -204,6 +204,7 @@ export type PortalStockLine = {
   qty_available?: number | null;
   warehouse_id?: number | null;
   warehouse_name?: string | null;
+  product_type?: string | null;
   po_id: number | null;
 };
 
