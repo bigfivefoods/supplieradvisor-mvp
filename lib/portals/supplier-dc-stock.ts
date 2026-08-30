@@ -44,11 +44,13 @@ export function warehouseMatchesSupplier(
   if (!want) return false;
   const name = normName(warehouse.name);
   const partner = normName(warehouse.partner_name);
-  return (
-    (name && (name === want || name.includes(want) || want.includes(name))) ||
-    (partner &&
-      (partner === want || partner.includes(want) || want.includes(partner)))
-  );
+  const nameHit =
+    Boolean(name) &&
+    (name === want || name.includes(want) || want.includes(name));
+  const partnerHit =
+    Boolean(partner) &&
+    (partner === want || partner.includes(want) || want.includes(partner));
+  return nameHit || partnerHit;
 }
 
 export async function resolveSupplierDcs(opts: {
