@@ -6,18 +6,16 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import { logActivity } from '@/lib/customers/access';
-import { normalizePoItems } from '@/lib/procurement/types';
 import { formatMoney } from '@/lib/customers/documents';
 import { buildPurchaseOrderPdf } from '@/lib/procurement/po-document-pdf';
 import {
-  formatPurchaseOrderNumber,
   normalizeEmail,
   purchaseOrderCcList,
   purchaseOrderEmailHtml,
   purchaseOrderEmailSubject,
   purchaseOrderPdfFilename,
-  srmIdFromPo,
 } from '@/lib/procurement/po-email';
+import { assemblePurchaseOrderPdfInput } from '@/lib/procurement/po-parties';
 
 /**
  * POST { companyId, id, to?, ccMe?, message? }
@@ -64,42 +62,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Purchase order not found' }, { status: 404 });
     }
 
-    const srmId = srmIdFromPo(po);
-    let srm: {
-      id?: number;
-      trading_name?: string | null;
-      email?: string | null;
-      phone?: string | null;
-      contact_name?: string | null;
-      linked_profile_id?: number | null;
-    } | null = null;
-    if (srmId) {
-      const { data } = await supabase
-        .from('srm_suppliers')
-        .select('id, trading_name, email, phone, contact_name, linked_profile_id')
-        .eq('id', srmId)
-        .eq('profile_id', companyId)
-        .maybeSingle();
-      srm = data;
-    }
-    if (!srm && po.supplier_profile_id) {
-      const { data } = await supabase
-        .from('srm_suppliers')
-        .select('id, trading_name, email, phone, contact_name, linked_profile_id')
-        .eq('profile_id', companyId)
-        .eq('linked_profile_id', Number(po.supplier_profile_id))
-        .maybeSingle();
-      srm = data;
-    }
-
-    const to =
-      normalizeEmail(body.to) ||
-      normalizeEmail(srm?.email) ||
-      normalizeEmail(
-        po.metadata && typeof po.metadata === 'object'
-          ? (po.metadata as Record<string, unknown>).supplier_email
-          : null
-      );
+    const assembled = await assemblePurchaseOrderPdfInput({
+      companyId,
+      po: po as Record<string, unknown>,
+      toOverride: body.to,
+    });
+    const { srm, buyer, supplier: supplierParty, to } = assembled;
     if (!to) {
       return NextResponse.json(
         {
@@ -130,21 +98,12 @@ export async function POST(request: NextRequest) {
           )
       ) || (members || [])[0];
 
-    const { data: buyerProf } = await supabase
-      .from('profiles')
-      .select(
-        'trading_name, legal_name, email, contact_email, phone, vat_number, registration_number, address, city, country, logo_url'
-      )
-      .eq('id', companyId)
-      .maybeSingle();
-
     const senderEmail =
       normalizeEmail(body.cc) ||
       normalizeEmail(gate.emails?.[0]) ||
       normalizeEmail(member?.email) ||
       normalizeEmail(member?.invited_email) ||
-      normalizeEmail(buyerProf?.email) ||
-      normalizeEmail(buyerProf?.contact_email);
+      normalizeEmail(buyer.email);
 
     const ccMe = body.ccMe !== false;
     const cc = purchaseOrderCcList({
@@ -153,57 +112,15 @@ export async function POST(request: NextRequest) {
       senderEmail,
     });
 
-    const buyerName =
-      String(buyerProf?.trading_name || buyerProf?.legal_name || '').trim() ||
-      'Buyer';
-    const supplierName =
-      String(
-        po.supplier_name || srm?.trading_name || 'Supplier'
-      ).trim() || 'Supplier';
-    const number = formatPurchaseOrderNumber({
-      id: Number(po.id),
-      po_number: po.po_number,
-      order_number: po.order_number,
-    });
-    const currency = String(po.currency || 'ZAR').toUpperCase();
-    const normalized = normalizePoItems(po.items || []);
-    const items = 'items' in normalized ? normalized.items : [];
-    const total =
-      Number(po.total_amount) ||
-      ('total' in normalized ? normalized.total : 0);
+    const buyerName = buyer.name || 'Buyer';
+    const supplierName = supplierParty.name || String(po.supplier_name || 'Supplier');
+    const number = assembled.input.number;
+    const currency = String(assembled.input.currency || po.currency || 'ZAR').toUpperCase();
+    const total = assembled.input.totalAmount;
 
     let pdfBuffer: Buffer;
     try {
-      pdfBuffer = await buildPurchaseOrderPdf({
-        number,
-        status: po.status,
-        issuedAt: String(po.created_at || '').slice(0, 10),
-        promisedDate: po.promised_date
-          ? String(po.promised_date).slice(0, 10)
-          : null,
-        paymentTerms: po.payment_terms ? String(po.payment_terms) : null,
-        currency,
-        notes: po.description ? String(po.description) : null,
-        items,
-        totalAmount: total,
-        buyer: {
-          name: buyerName,
-          legal_name: buyerProf?.legal_name || null,
-          email: buyerProf?.email || buyerProf?.contact_email || senderEmail,
-          phone: buyerProf?.phone || null,
-          vat_number: buyerProf?.vat_number || null,
-          registration_number: buyerProf?.registration_number || null,
-          address: buyerProf?.address || null,
-          city: buyerProf?.city || null,
-          country: buyerProf?.country || null,
-        },
-        supplier: {
-          name: supplierName,
-          email: to,
-          phone: srm?.phone || null,
-          contact_name: srm?.contact_name || null,
-        },
-      });
+      pdfBuffer = await buildPurchaseOrderPdf(assembled.input);
     } catch (pdfErr) {
       console.error('PO PDF build failed', pdfErr);
       return NextResponse.json(
@@ -226,7 +143,9 @@ export async function POST(request: NextRequest) {
     });
     const html = purchaseOrderEmailHtml({
       supplierName,
-      contactName: srm?.contact_name || null,
+      contactName:
+        supplierParty.contact_name ||
+        (srm?.contact_name != null ? String(srm.contact_name) : null),
       buyerName,
       number,
       totalLabel: formatMoney(total, currency),

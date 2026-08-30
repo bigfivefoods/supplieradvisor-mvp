@@ -291,10 +291,14 @@ export async function allocatePurchaseOrderCost(opts: {
   const { resolvePartyControlAccountId } = await import(
     '@/lib/accounting/party-gl-accounts'
   );
+  const { srmPartyIdForAp } = await import('@/lib/procurement/po-parties');
   const partyAp = await resolvePartyControlAccountId({
     profileId: opts.companyId,
     kind: 'ap',
-    partyId: Number(po.supplier_id || po.srm_supplier_id || 0),
+    partyId: await srmPartyIdForAp({
+      companyId: opts.companyId,
+      po: po as Record<string, unknown>,
+    }),
     counterpartyName: po.supplier_name ? String(po.supplier_name) : null,
   });
   const creditId =

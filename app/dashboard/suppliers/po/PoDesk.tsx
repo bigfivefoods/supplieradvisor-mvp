@@ -317,6 +317,7 @@ function PoInner() {
   ]);
   /** Cost centre allocation — collapsed until needed (start of process) */
   const [costAllocOpen, setCostAllocOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   /** Inline add & invite supplier panel */
   const [showAddSupplier, setShowAddSupplier] = useState(false);
   const [addingSupplier, setAddingSupplier] = useState(false);
@@ -1141,7 +1142,7 @@ function PoInner() {
 
   const handleRaisePO = async (
     asDraft = false,
-    opts?: { mode?: 'standard' | 'escrow' }
+    opts?: { mode?: 'standard' | 'escrow'; email?: boolean }
   ) => {
     if (!privyUserId) {
       toast.error('Sign in required');
@@ -1202,7 +1203,7 @@ function PoInner() {
           currency: poCurrency || 'ZAR',
           useEscrow: wantEscrow,
           supplier_wallet: supplierWallet || null,
-          status: asDraft ? 'draft' : 'sent',
+          status: asDraft || opts?.email ? 'draft' : 'sent',
           business_unit_id: costBuId,
           work_center_id: costWcId,
           work_station_id: costWsId,
@@ -1224,7 +1225,7 @@ function PoInner() {
           ? ' · cost centre set'
           : '';
       toast.success(
-        asDraft
+        asDraft && !opts?.email
           ? `Draft PO #${po.id} saved${costLabel}`
           : wantEscrow
             ? `PO #${po.id} created — confirm escrow in wallet…`
@@ -1232,8 +1233,11 @@ function PoInner() {
               ? `Hub order #${po.id} created · ${callOffWindowMonths}mo call-off window${costLabel}`
               : orderKind === 'call_off'
                 ? `Call-off #${po.id} sent against hub #${parentHubPoId}${costLabel}`
-                : `Standard PO #${po.id} sent${costLabel}`
+                : `Standard PO #${po.id} saved${costLabel}`
       );
+      if (opts?.email && po?.id) {
+        await emailPurchaseOrder(po);
+      }
       const { toastGoldenPathFromResponse } = await import(
         '@/lib/onboarding/toast-client'
       );
@@ -1333,8 +1337,12 @@ function PoInner() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        if ((data as { error?: string }).error === 'ALREADY_RECEIVED') {
-          toast.message('Stock already received for this PO');
+        if (
+          res.status === 409 ||
+          (data as { error?: string }).error === 'ALREADY_RECEIVED' ||
+          (data as { alreadyReceived?: boolean }).alreadyReceived
+        ) {
+          toast.message('Stock received');
           await load();
           return;
         }
@@ -1547,18 +1555,11 @@ function PoInner() {
   };
 
   const emailPurchaseOrder = async (po: PurchaseOrder) => {
-    let to = resolvePoEmail(po);
+    const to = resolvePoEmail(po);
     if (!to.includes('@')) {
-      const typed = window.prompt(
-        `Email this purchase order to ${
-          po.supplier_name || 'the supplier'
-        }. You will be copied. Enter their email:`,
-        ''
+      toast.error(
+        'Add an email on the supplier profile, then tap Email PO. You will be copied.'
       );
-      to = String(typed || '').trim();
-    }
-    if (!to.includes('@')) {
-      toast.error('Supplier email is required to send the purchase order');
       return;
     }
     setBusyId(po.id);
@@ -1597,6 +1598,34 @@ function PoInner() {
     }
   };
 
+  const downloadPurchaseOrderPdf = async (po: PurchaseOrder) => {
+    setBusyId(po.id);
+    try {
+      const res = await withAuth(
+        `/api/suppliers/purchase-orders/pdf?id=${po.id}`
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(
+          (data as { error?: string }).error || 'Could not download PDF'
+        );
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `PO-${po.po_number || po.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Could not download PDF');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   /** Buyer-facing next step for pipeline cards */
   function buyerNextStep(po: PurchaseOrder): {
     title: string;
@@ -1619,9 +1648,16 @@ function PoInner() {
       };
     }
     if (st === 'accepted') {
+      if (inventoryReceived(po)) {
+        return {
+          title: 'Next: Create supplier invoice',
+          body: 'Stock is in. Raise a buyer AP bill for this PO — not a customer invoice.',
+          tone: 'emerald',
+        };
+      }
       return {
-        title: 'Next: Await fulfilment, then record delivery',
-        body: 'When goods arrive, capture OTIFEF (qty / damage / dates) and rate the supplier.',
+        title: 'Next: Receive into stock',
+        body: 'Books posted on accept. Receive posts warehouse qty only — no second 1140 journal.',
         tone: 'sky',
       };
     }
@@ -1713,7 +1749,7 @@ function PoInner() {
     <div className="pb-8">
       <SuppliersHeader
         title="Purchase orders"
-        description="Raise a standard off-chain PO (OTIFEF delivery + ratings) or an escrow PO (create → fund → ship → confirm on-chain). Both paths use the same supplier book and line items."
+        description="Raise a standard purchase order: supplier, lines, promised date. Email the A4 PDF, mark accepted, receive into stock. Escrow, hub orders, and cost centres stay under Advanced."
         action={
           <div className="flex flex-wrap gap-2">
             <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-800">
@@ -1728,7 +1764,7 @@ function PoInner() {
         }
       />
 
-      {escrowEnabled && (
+      {escrowEnabled && (advancedOpen || useEscrow) && (
         <div className="mb-6">
           <WalletConnectBar />
           <p className="text-[11px] text-neutral-500 mt-2">
@@ -1812,8 +1848,35 @@ function PoInner() {
             <h2 className="font-bold text-lg flex items-center gap-2">
               <Plus className="w-5 h-5 text-[#00b4d8]" /> New purchase order
             </h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-neutral-500">
+                Standard PO — supplier, lines, promised date. You will be copied on email.
+              </p>
+              <button
+                type="button"
+                onClick={() => setAdvancedOpen((v) => !v)}
+                className="text-xs font-bold min-h-[44px] px-3 rounded-xl border border-neutral-200 bg-white text-slate-700"
+              >
+                {advancedOpen ? 'Hide advanced' : 'Advanced'}
+              </button>
+            </div>
+            {(orderKind !== 'standard' ||
+              useEscrow ||
+              costBuId ||
+              costWcId ||
+              costWsId ||
+              costAssetId) &&
+              !advancedOpen && (
+                <p className="text-[11px] text-indigo-800">
+                  Advanced options are set
+                  {orderKind !== 'standard' ? ` · ${orderKind.replace('_', '-')}` : ''}
+                  {useEscrow ? ' · escrow' : ''}
+                  {costBuId || costWcId || costWsId || costAssetId ? ' · cost' : ''}. Open
+                  Advanced to edit.
+                </p>
+              )}
 
-            {/* Order type: standard | hub (blanket) | call-off */}
+            {advancedOpen && (
             <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-3.5 space-y-3">
               <div>
                 <label className="text-xs font-bold text-indigo-950 uppercase tracking-wide">
@@ -1958,6 +2021,7 @@ function PoInner() {
                 </div>
               )}
             </div>
+            )}
 
             <div>
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2461,6 +2525,8 @@ function PoInner() {
               />
             </div>
 
+            {advancedOpen && (
+            <>
             <div>
               <label className="text-xs font-medium">
                 Related sales invoice (optional)
@@ -2642,6 +2708,8 @@ function PoInner() {
               </div>
               )}
             </div>
+            </>
+            )}
 
             <div>
               <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
@@ -2909,6 +2977,8 @@ function PoInner() {
               </div>
             </div>
 
+            {advancedOpen && (
+            <>
             {/* Settlement: standard vs escrow (not for hub commitments) */}
             {orderKind === 'hub' ? (
               <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 px-4 py-3 text-xs text-indigo-950 leading-relaxed">
@@ -3051,6 +3121,8 @@ function PoInner() {
               )}
             </div>
             )}
+            </>
+            )}
 
             <div className="flex flex-col sm:flex-row flex-wrap gap-2 pt-2 border-t">
               {/* Primary actions depend on order kind */}
@@ -3079,22 +3151,22 @@ function PoInner() {
                 disabled={saving || isContractPending}
                 onClick={() => {
                   setUseEscrow(false);
-                  void handleRaisePO(false, { mode: 'standard' });
+                  void handleRaisePO(true, { mode: 'standard', email: true });
                 }}
                 className={`${
                   !useEscrow ? 'btn-primary' : 'btn-secondary'
-                } !py-3 !px-6 text-sm inline-flex items-center gap-2`}
+                } !py-3 !px-6 text-sm min-h-[44px] inline-flex items-center gap-2`}
               >
                 {saving && !useEscrow ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <>
-                    <Truck className="w-4 h-4" />
-                    {orderKind === 'call_off' ? 'Send call-off' : 'Send standard PO'}
+                    <Mail className="w-4 h-4" />
+                    {orderKind === 'call_off' ? 'Save & email call-off' : 'Save & email'}
                   </>
                 )}
               </button>
-              {escrowEnabled && (
+              {escrowEnabled && advancedOpen && (
                 <button
                   type="button"
                   disabled={saving || isContractPending}
@@ -3104,7 +3176,7 @@ function PoInner() {
                   }}
                   className={`${
                     useEscrow ? 'btn-primary' : 'btn-secondary'
-                  } !py-3 !px-6 text-sm inline-flex items-center gap-2`}
+                  } !py-3 !px-6 text-sm min-h-[44px] inline-flex items-center gap-2`}
                 >
                   {saving && useEscrow ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -3122,7 +3194,7 @@ function PoInner() {
                 type="button"
                 disabled={saving}
                 onClick={() => void handleRaisePO(true, { mode: 'standard' })}
-                className="btn-secondary !py-3 !px-5 text-sm"
+                className="btn-secondary !py-3 !px-5 text-sm min-h-[44px]"
               >
                 Save draft
               </button>
@@ -3160,11 +3232,11 @@ function PoInner() {
             <div className="bg-white border rounded-3xl p-5 text-sm text-neutral-600">
               <h3 className="font-bold text-slate-900 mb-2">Lifecycle</h3>
               <ol className="list-decimal list-inside space-y-1.5 text-xs">
-                <li>Raise draft or send PO</li>
-                <li>Optional: create & fund on-chain escrow</li>
-                <li>Accept → track delivery</li>
-                <li>Record delivery (feeds OTIFEF)</li>
-                <li>Release escrow / mark complete</li>
+                <li>Save draft or email the PO PDF</li>
+                <li>Mark accepted — books (1140 / AP)</li>
+                <li>Receive into stock — warehouse qty</li>
+                <li>Create supplier invoice (buyer AP)</li>
+                <li>Optional: escrow and hub orders under Advanced</li>
                 <li>
                   <Link href="/dashboard/suppliers/ratings" className="text-[#00b4d8] underline">
                     Rate supplier
@@ -3227,6 +3299,11 @@ function PoInner() {
                             >
                               {po.status}
                             </span>
+                            {inventoryReceived(po) && (
+                              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border bg-emerald-100 text-emerald-900 border-emerald-200">
+                                Received
+                              </span>
+                            )}
                             {String(po.order_kind || '').toLowerCase() === 'hub' && (
                               <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border bg-indigo-100 text-indigo-900 border-indigo-200">
                                 Hub
@@ -3248,6 +3325,9 @@ function PoInner() {
                               </span>
                             )}
                           </div>
+                          <p className="text-[11px] text-neutral-500 mt-1">
+                            Books on accept · warehouse on receive
+                          </p>
                           <div className="text-sm text-neutral-600">
                             {po.supplier_name || `Supplier #${po.supplier_profile_id || po.supplier_id}`}
                             {' · '}
@@ -3391,7 +3471,7 @@ function PoInner() {
                           })()}
                         </div>
 
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-col w-full sm:w-auto sm:flex-row sm:flex-wrap gap-2">
                           <WhatsAppShareButton
                             text={buildPoWhatsAppText(po)}
                             phone={resolvePoPhone(po)}
@@ -3402,11 +3482,23 @@ function PoInner() {
                             type="button"
                             disabled={busy}
                             onClick={() => void emailPurchaseOrder(po)}
-                            className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+                            className={`${
+                              po.status === 'draft' ? 'btn-primary' : 'btn-secondary'
+                            } !py-3 !px-4 text-sm min-h-[44px] w-full sm:w-auto inline-flex items-center justify-center gap-1`}
                             title="Email this purchase order to the supplier. You will be copied."
                           >
                             <Mail className="w-3.5 h-3.5" />
                             Email PO
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void downloadPurchaseOrderPdf(po)}
+                            className="btn-secondary !py-3 !px-4 text-sm min-h-[44px] w-full sm:w-auto inline-flex items-center justify-center gap-1"
+                            title="Download the same A4 purchase order PDF that is emailed"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            Download PDF
                           </button>
                           {!po.cost_allocated_at &&
                             (po.business_unit_id ||
@@ -3476,22 +3568,12 @@ function PoInner() {
                                 Allocate cost
                               </button>
                             )}
-                          {po.status === 'draft' && (
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => void patchPo(po.id, { status: 'sent' })}
-                              className="btn-primary !py-1.5 !px-3 text-xs"
-                            >
-                              Send
-                            </button>
-                          )}
                           {po.status === 'sent' && (
                             <button
                               type="button"
                               disabled={busy}
                               onClick={() => void patchPo(po.id, { status: 'accepted' })}
-                              className="btn-secondary !py-1.5 !px-3 text-xs"
+                              className="btn-primary !py-3 !px-4 text-sm min-h-[44px] w-full sm:w-auto"
                             >
                               Mark accepted
                             </button>
@@ -3572,10 +3654,10 @@ function PoInner() {
                                 type="button"
                                 disabled={busy}
                                 onClick={() => void receiveToStock(po)}
-                                className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1 border-emerald-200 text-emerald-900"
+                                className="btn-primary !py-3 !px-4 text-sm min-h-[44px] w-full sm:w-auto inline-flex items-center justify-center gap-1"
                                 title="Post PO lines into warehouse stock"
                               >
-                                <Package className="w-3 h-3" /> Into stock
+                                <Package className="w-3 h-3" /> Receive into stock
                               </button>
                             )}
                           {onchain &&
@@ -3596,22 +3678,17 @@ function PoInner() {
                                 onDisputed={() => void load()}
                               />
                             )}
-                          {/* One-click path: seller invoice from this PO when we sell */}
-                          {['accepted', 'funded', 'sent'].includes(
+                          {['accepted', 'funded', 'invoiced', 'paid'].includes(
                             String(po.status)
                           ) &&
-                            !resolveInvoiceId(po) &&
-                            (po.buyer_profile_id || po.supplier_profile_id) && (
+                            inventoryReceived(po) &&
+                            !resolveInvoiceId(po) && (
                               <Link
-                                href={`/dashboard/customers/invoices?fromPo=${po.id}${
-                                  po.buyer_profile_id
-                                    ? `&buyerProfileId=${po.buyer_profile_id}`
-                                    : ''
-                                }`}
-                                className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
-                                title="Create commercial invoice from this PO (seller cash-out)"
+                                href={`/dashboard/accounting/accounts-payable?fromPo=${po.id}`}
+                                className="btn-primary !py-3 !px-4 text-sm min-h-[44px] w-full sm:w-auto inline-flex items-center justify-center gap-1"
+                                title="Create a supplier invoice (buyer AP) for this purchase order"
                               >
-                                <FileText className="w-3 h-3" /> Invoice now
+                                <FileText className="w-3 h-3" /> Create supplier invoice
                               </Link>
                             )}
                           {String(po.status).toLowerCase() === 'invoiced' &&
@@ -3625,40 +3702,26 @@ function PoInner() {
                             )}
                           {String(po.status).toLowerCase() === 'invoiced' &&
                             po.invoice_shared !== false && (
+                              <>
                               <Link
                                 href={
                                   resolveInvoiceId(po)
                                     ? `/dashboard/buyer/documents?invoiceId=${resolveInvoiceId(po)}`
                                     : '/dashboard/buyer/documents'
                                 }
-                                className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
-                                title="Open shared invoice in buyer documents"
+                                className="btn-primary !py-3 !px-4 text-sm min-h-[44px] w-full sm:w-auto inline-flex items-center justify-center gap-1"
+                                title="Open the supplier invoice"
                               >
-                                <FileText className="w-3 h-3" /> View invoice
+                                <FileText className="w-3 h-3" /> Open invoice
                               </Link>
-                            )}
-                          {[
-                            'accepted',
-                            'funded',
-                            'sent',
-                            'invoiced',
-                            'completed',
-                          ].includes(String(po.status)) &&
-                            !(
-                              po.metadata &&
-                              typeof po.metadata === 'object' &&
-                              (po.metadata as { inventory_received_at?: string })
-                                .inventory_received_at
-                            ) && (
-                              <button
-                                type="button"
-                                disabled={busy}
-                                onClick={() => void receiveToStock(po)}
-                                className="btn-secondary !py-1.5 !px-3 text-xs"
-                                title="Match lines to your products by source/SKU/name and increase stock"
+                              <Link
+                                href={`/dashboard/accounting/accounts-payable?fromPo=${po.id}`}
+                                className="btn-secondary !py-3 !px-4 text-sm min-h-[44px] w-full sm:w-auto inline-flex items-center justify-center gap-1"
+                                title="Record payment against the supplier bill"
                               >
-                                Receive to stock
-                              </button>
+                                Mark paid
+                              </Link>
+                              </>
                             )}
                           {po.metadata &&
                             typeof po.metadata === 'object' &&

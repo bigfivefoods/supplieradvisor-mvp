@@ -1352,8 +1352,38 @@ export async function POST(request: NextRequest) {
       const contactName =
         String(body.contact_name || viewer.name || '').trim().slice(0, 120) ||
         null;
+      let buyerProfileId =
+        Number(linkedProfileId) > 0 ? Number(linkedProfileId) : 0;
+      if (!(buyerProfileId > 0) && viewer.email) {
+        const { data: byEmail } = await supabase
+          .from('profiles')
+          .select('id, email, contact_email')
+          .ilike('email', String(viewer.email).trim())
+          .limit(1)
+          .maybeSingle();
+        if (byEmail?.id) buyerProfileId = Number(byEmail.id);
+        if (!(buyerProfileId > 0)) {
+          const { data: byContact } = await supabase
+            .from('profiles')
+            .select('id, contact_email')
+            .ilike('contact_email', String(viewer.email).trim())
+            .limit(1)
+            .maybeSingle();
+          if (byContact?.id) buyerProfileId = Number(byContact.id);
+        }
+      }
+      if (!(buyerProfileId > 0)) {
+        return NextResponse.json(
+          {
+            error:
+              'This customer is not linked to a company profile. Link the company, then raise the PO.',
+          },
+          { status: 400 }
+        );
+      }
       const insert: Record<string, unknown> = {
         supplier_profile_id: portal.profile_id,
+        buyer_profile_id: buyerProfileId,
         seller_customer_id: viewer.customer_id,
         source: 'customer_portal',
         status: 'sent',
