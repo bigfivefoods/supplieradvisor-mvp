@@ -56,6 +56,7 @@ const suppliersGet = readFileSync(resolve('app/api/suppliers/route.ts'), 'utf8')
 assert.match(suppliersGet, /rowOnSupplierDesk/);
 const customersGet = readFileSync(resolve('app/api/customers/route.ts'), 'utf8');
 assert.match(customersGet, /rowOnCustomerDesk/);
+assert.match(customersGet, /data = second.data as typeof data/);
 assert.match(
   readFileSync(resolve('components/accounting/PartyBookRoleSelect.tsx'), 'utf8'),
   /useEffect\(\(\) => \{\s*setValue\(role\);/s
