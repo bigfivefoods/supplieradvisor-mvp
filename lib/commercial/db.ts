@@ -203,6 +203,8 @@ export async function loadPartyLines(opts: {
   supplierId?: number | null;
   customerId?: number | null;
   withQty?: boolean;
+  /** Default true — guest Commercial / PO pickers never see paused ticks. */
+  activeOnly?: boolean;
 }): Promise<PartyCatalogueLine[]> {
   const supabase = getSupabaseServer();
   let q = supabase
@@ -211,6 +213,7 @@ export async function loadPartyLines(opts: {
     .eq('profile_id', opts.profileId)
     .eq('party_kind', opts.partyKind)
     .order('id');
+  if (opts.activeOnly !== false) q = q.eq('status', 'active');
   if (opts.partyKind === 'supplier' && opts.supplierId) {
     q = q.eq('supplier_id', opts.supplierId);
   }
@@ -574,15 +577,41 @@ export async function addFromInventory(opts: {
     partyKind: opts.partyKind,
     supplierId: opts.supplierId,
     customerId: opts.customerId,
+    activeOnly: false,
   });
-  const have = new Set(existing.map((l) => l.product_id));
+  const byProduct = new Map(existing.map((l) => [l.product_id, l]));
   for (const p of rows) {
     const productId = Number(p.id);
-    if (have.has(productId)) continue;
     const price =
       opts.partyKind === 'supplier'
-        ? roundMoney(Number(p.cost_price || 0))
+        ? productCostFromRow(p) ?? roundMoney(Number(p.cost_price || 0))
         : roundMoney(Number(p.sell_price || 0));
+    const hit = byProduct.get(productId);
+    if (hit) {
+      if (hit.status !== 'active' || (opts.partyKind === 'supplier' && price !== hit.accepted_price)) {
+        await supabase
+          .from('party_catalogue_lines')
+          .update({
+            status: 'active' as CatalogueLineStatus,
+            accepted_price: price,
+            accepted_at: hit.accepted_at || now,
+            pending_price: null,
+            pending_proposed_at: null,
+            pending_proposed_by: null,
+            updated_at: now,
+          })
+          .eq('id', hit.id)
+          .eq('profile_id', opts.profileId);
+      }
+      if (opts.partyKind === 'supplier' && opts.supplierId) {
+        await stampPrimarySupplier({
+          profileId: opts.profileId,
+          productId,
+          supplierId: opts.supplierId,
+        });
+      }
+      continue;
+    }
     const ins = await supabase
       .from('party_catalogue_lines')
       .insert({
@@ -613,12 +642,174 @@ export async function addFromInventory(opts: {
         accepted_at: now,
       });
     }
+    if (opts.partyKind === 'supplier' && opts.supplierId) {
+      await stampPrimarySupplier({
+        profileId: opts.profileId,
+        productId,
+        supplierId: opts.supplierId,
+      });
+    }
   }
   const lines = await loadPartyLines({
     profileId: opts.profileId,
     partyKind: opts.partyKind,
     supplierId: opts.supplierId,
     customerId: opts.customerId,
+    withQty: true,
+  });
+  return { ok: true, lines };
+}
+
+async function stampPrimarySupplier(opts: {
+  profileId: number;
+  productId: number;
+  supplierId: number;
+}): Promise<void> {
+  const supabase = getSupabaseServer();
+  const { data } = await supabase
+    .from('products')
+    .select('id, metadata')
+    .eq('id', opts.productId)
+    .eq('profile_id', opts.profileId)
+    .maybeSingle();
+  const row = asRow(data);
+  if (!row) return;
+  const meta = asRow(row.metadata) || {};
+  const current = Number(meta.srm_supplier_id);
+  if (Number.isFinite(current) && current > 0 && current !== opts.supplierId) {
+    return;
+  }
+  if (current === opts.supplierId) return;
+  await supabase
+    .from('products')
+    .update({
+      metadata: { ...meta, srm_supplier_id: opts.supplierId },
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq('id', opts.productId)
+    .eq('profile_id', opts.profileId);
+}
+
+async function unstampIfOrphan(opts: {
+  profileId: number;
+  productId: number;
+  supplierId: number;
+}): Promise<void> {
+  const supabase = getSupabaseServer();
+  const { data } = await supabase
+    .from('products')
+    .select('id, metadata')
+    .eq('id', opts.productId)
+    .eq('profile_id', opts.profileId)
+    .maybeSingle();
+  const row = asRow(data);
+  if (!row) return;
+  const meta = asRow(row.metadata) || {};
+  if (Number(meta.srm_supplier_id) !== opts.supplierId) return;
+  const others = await supabase
+    .from('party_catalogue_lines')
+    .select('supplier_id')
+    .eq('profile_id', opts.profileId)
+    .eq('party_kind', 'supplier')
+    .eq('product_id', opts.productId)
+    .eq('status', 'active')
+    .neq('supplier_id', opts.supplierId)
+    .limit(1);
+  const nextId = num(asRows(others.data)[0]?.supplier_id);
+  const nextMeta = { ...meta };
+  if (nextId && nextId > 0) nextMeta.srm_supplier_id = nextId;
+  else delete nextMeta.srm_supplier_id;
+  await supabase
+    .from('products')
+    .update({
+      metadata: nextMeta,
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq('id', opts.productId)
+    .eq('profile_id', opts.profileId);
+}
+
+export async function shareSupplierSku(opts: {
+  profileId: number;
+  supplierId: number;
+  productId: number;
+  shared: boolean;
+}): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+  if (!(opts.supplierId > 0) || !(opts.productId > 0)) {
+    return { ok: false, error: 'supplier and product required', status: 400 };
+  }
+  if (opts.shared) {
+    const r = await addFromInventory({
+      profileId: opts.profileId,
+      partyKind: 'supplier',
+      supplierId: opts.supplierId,
+      productIds: [opts.productId],
+      actor: 'host',
+    });
+    if (!r.ok) return r;
+    return { ok: true };
+  }
+  const supabase = getSupabaseServer();
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from('party_catalogue_lines')
+    .update({ status: 'paused' as CatalogueLineStatus, updated_at: now })
+    .eq('profile_id', opts.profileId)
+    .eq('party_kind', 'supplier')
+    .eq('supplier_id', opts.supplierId)
+    .eq('product_id', opts.productId);
+  if (error) return { ok: false, error: error.message, status: 500 };
+  await unstampIfOrphan({
+    profileId: opts.profileId,
+    productId: opts.productId,
+    supplierId: opts.supplierId,
+  });
+  return { ok: true };
+}
+
+/** Replace the active tick set for this supplier. Paused lines keep revisions. */
+export async function setSupplierCatalogueTicks(opts: {
+  profileId: number;
+  supplierId: number;
+  productIds: number[];
+}): Promise<{ ok: true; lines: PartyCatalogueLine[] } | { ok: false; error: string; status: number }> {
+  if (!(opts.supplierId > 0)) {
+    return { ok: false, error: 'supplier_id required', status: 400 };
+  }
+  const want = [...new Set(opts.productIds.map(Number).filter((n) => n > 0))];
+  const existing = await loadPartyLines({
+    profileId: opts.profileId,
+    partyKind: 'supplier',
+    supplierId: opts.supplierId,
+    activeOnly: false,
+  });
+  const wantSet = new Set(want);
+  for (const line of existing) {
+    if (line.status === 'active' && !wantSet.has(line.product_id)) {
+      const r = await shareSupplierSku({
+        profileId: opts.profileId,
+        supplierId: opts.supplierId,
+        productId: line.product_id,
+        shared: false,
+      });
+      if (!r.ok) return r;
+    }
+  }
+  if (want.length) {
+    const r = await addFromInventory({
+      profileId: opts.profileId,
+      partyKind: 'supplier',
+      supplierId: opts.supplierId,
+      productIds: want,
+      actor: 'host',
+    });
+    if (!r.ok) return r;
+    return { ok: true, lines: r.lines };
+  }
+  const lines = await loadPartyLines({
+    profileId: opts.profileId,
+    partyKind: 'supplier',
+    supplierId: opts.supplierId,
     withQty: true,
   });
   return { ok: true, lines };

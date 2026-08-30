@@ -1080,6 +1080,52 @@ export async function POST(request: NextRequest) {
       } = await import('@/lib/commercial/db');
       const actor = hostActor ? 'host' : 'party';
       const actorLabel = stamp.noteTag || actor;
+      if (action === 'commercial_share') {
+        if (!hostActor) {
+          return NextResponse.json(
+            { error: 'Only the host can choose portal SKUs' },
+            { status: 403 }
+          );
+        }
+        if (partyKind !== 'supplier' || !(Number(supplierId) > 0)) {
+          return NextResponse.json({ error: 'Supplier catalogue only' }, { status: 400 });
+        }
+        const { shareSupplierSku, setSupplierCatalogueTicks } = await import(
+          '@/lib/commercial/db'
+        );
+        if (body.shareAll === true || body.shareAll === false) {
+          let ids: number[] = [];
+          if (body.shareAll === true) {
+            const { data: prows } = await supabase
+              .from('products')
+              .select('id')
+              .eq('profile_id', portal.profile_id)
+              .limit(500);
+            ids = (prows || [])
+              .map((p) => Number((p as { id?: number }).id))
+              .filter((n) => n > 0);
+          }
+          const r = await setSupplierCatalogueTicks({
+            profileId: portal.profile_id,
+            supplierId: Number(supplierId),
+            productIds: ids,
+          });
+          if (!r.ok) {
+            return NextResponse.json({ error: r.error }, { status: r.status });
+          }
+          return NextResponse.json({ success: true, lines: r.lines });
+        }
+        const r = await shareSupplierSku({
+          profileId: portal.profile_id,
+          supplierId: Number(supplierId),
+          productId: Number(body.productId || body.product_id),
+          shared: body.shared === true,
+        });
+        if (!r.ok) {
+          return NextResponse.json({ error: r.error }, { status: r.status });
+        }
+        return NextResponse.json({ success: true });
+      }
       if (action === 'commercial_add') {
         if (!hostActor) {
           return NextResponse.json(

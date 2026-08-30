@@ -110,6 +110,46 @@ export async function GET(request: NextRequest) {
 
     const currencyPref = (sp.get('currency') || 'ZAR').toUpperCase();
 
+    if (srmRow) {
+      const { loadPartyLines } = await import('@/lib/commercial/db');
+      const ticks = await loadPartyLines({
+        profileId: companyId,
+        partyKind: 'supplier',
+        supplierId: Number(srmRow.id),
+        activeOnly: true,
+      });
+      const items: SupplierCatalogueItem[] = ticks.map((l) => ({
+        key: `tick:${l.product_id}`,
+        source: 'buyer_inventory',
+        seller_product_id: l.product_id,
+        product_name: String(l.product_name || `Product ${l.product_id}`),
+        sku: l.sku || null,
+        product_type: l.product_type || null,
+        uom: l.uom || 'ea',
+        unit_price: Number(l.accepted_price),
+        currency: String(l.currency || currencyPref).toUpperCase(),
+        agreement_id: null,
+        agreement_line_id: null,
+        agreement_title: null,
+        primary_image_url: l.primary_image_url || null,
+        short_description: l.short_description || null,
+      }));
+      return NextResponse.json({
+        success: true,
+        sellerProfileId: sellerProfileId || null,
+        sellerName: supplierName,
+        items,
+        agreementCount: 0,
+        inventoryCount: 0,
+        buyerInventoryCount: items.length,
+        catalogueSource: 'supplier_ticks',
+        inviteStatus: srmRow.invite_status ?? null,
+        warning: items.length
+          ? undefined
+          : 'Tick inventory SKUs on this supplier’s Portal catalogue.',
+      });
+    }
+
     if (!sellerProfileId || !Number.isFinite(sellerProfileId)) {
       const buyerItems = srmRow
         ? await loadBuyerInventoryItems(supabase, companyId, currencyPref)
