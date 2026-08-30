@@ -37,6 +37,7 @@ export type ProductRecord = {
   source_agreement_line_id?: number | null;
   track_lot?: boolean | null;
   track_serial?: boolean | null;
+  is_active?: boolean | null;
   is_sellable?: boolean | null;
   is_purchasable?: boolean | null;
   qr_payload?: string | null;
