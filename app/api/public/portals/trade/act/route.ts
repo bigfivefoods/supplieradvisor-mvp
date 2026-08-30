@@ -1058,6 +1058,7 @@ export async function POST(request: NextRequest) {
       action === 'commercial_reject' ||
       action === 'commercial_history' ||
       action === 'commercial_add' ||
+      action === 'commercial_share' ||
       action === 'commercial_sla'
     ) {
       const partyKind = portal.kind === 'supplier' ? 'supplier' : 'customer';
