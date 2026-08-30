@@ -27,6 +27,33 @@ function asRecord(raw: unknown): Record<string, unknown> {
   return {};
 }
 
+/** PostgREST `.select(cols as never)` is ParserError; copy rows off that type. */
+type SrmRow = {
+  id?: number;
+  trading_name?: string | null;
+  legal_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  contact_name?: string | null;
+  industry?: string | null;
+  city?: string | null;
+  country?: string | null;
+  linked_profile_id?: number | null;
+  logo_url?: string | null;
+  connection_id?: number | null;
+  verified?: boolean | null;
+  otifef_pct?: number | null;
+  rating_avg?: number | null;
+  trust_score?: number | null;
+  status?: string | null;
+  metadata?: unknown;
+};
+
+function asSupplierRows(raw: unknown): SrmRow[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((r) => r && typeof r === 'object') as SrmRow[];
+}
+
 function bookField(row: Record<string, unknown>, key: string): string | null {
   const direct = String(row[key] ?? '').trim();
   if (direct) return direct;
@@ -87,11 +114,13 @@ export async function GET(request: NextRequest) {
     if (orClause) query = query.or(orClause);
 
     let usedOr = Boolean(orClause);
-    let { data, error } = await query;
+    const first = await query;
+    let data = asSupplierRows(first.data);
+    let error = first.error;
     if (error && orClause) {
       let retry = supabase
         .from('srm_suppliers')
-        .select(SUPPLIER_LIST_COLUMNS)
+        .select(SUPPLIER_LIST_COLUMNS as never)
         .eq('profile_id', companyId)
         .order('id', { ascending: false })
         .limit(limit);
@@ -101,7 +130,7 @@ export async function GET(request: NextRequest) {
         retry = retry.eq('invite_status', inviteStatus);
       }
       const second = await retry;
-      data = second.data;
+      data = asSupplierRows(second.data);
       error = second.error;
       usedOr = false;
     }
@@ -123,7 +152,7 @@ export async function GET(request: NextRequest) {
         if (byId) retry = retry.eq('id', id);
         else if (status && status !== 'all') retry = retry.eq('status', status);
         const again = await retry;
-        data = again.data as typeof data;
+        data = asSupplierRows(again.data);
         error = again.error;
         if (!error) break;
       }
@@ -137,7 +166,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    let suppliers = data || [];
+    let suppliers = data;
     if (q && !usedOr) {
       suppliers = suppliers.filter((s) => {
         const hay = [
