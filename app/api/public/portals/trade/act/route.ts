@@ -1243,7 +1243,7 @@ export async function POST(request: NextRequest) {
       const { data: po, error: loadErr } = await supabase
         .from('purchase_orders')
         .select(
-          'id, status, metadata, buyer_profile_id, supplier_id, supplier_profile_id, seller_customer_id'
+          'id, status, metadata, buyer_profile_id, supplier_id, supplier_profile_id, seller_customer_id, promised_date, items'
         )
         .eq('id', id)
         .maybeSingle();
@@ -1285,7 +1285,13 @@ export async function POST(request: NextRequest) {
           : {}),
       };
       if (typeof body.promised_date === 'string' && body.promised_date) {
-        patch.promised_date = String(body.promised_date).slice(0, 10);
+        const next = String(body.promised_date).slice(0, 10);
+        const prev = po.promised_date != null ? String(po.promised_date).slice(0, 10) : '';
+        if (prev && prev !== next && !meta.requested_promised_date) {
+          meta.requested_promised_date = prev;
+        }
+        patch.promised_date = next;
+        patch.metadata = meta;
       }
       if (body.delivered_quantity != null) {
         patch.delivered_quantity = Number(body.delivered_quantity);
@@ -1325,14 +1331,27 @@ export async function POST(request: NextRequest) {
         body.shipped === true ||
         String(body.fulfilment_status || '').toLowerCase() === 'shipped';
       if (portal.kind === 'supplier' && shipFlag) {
+        const shipDay = String(body.actual_delivery_date || '').slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(shipDay)) {
+          return NextResponse.json(
+            { error: 'Pick the actual delivery date' },
+            { status: 400 }
+          );
+        }
+        const lotErr = await missingFgLotsMessage({
+          supabase,
+          companyId: portal.profile_id,
+          poId: id,
+          items: (po as { items?: unknown }).items,
+          verb: 'ship',
+        });
+        if (lotErr) {
+          return NextResponse.json({ error: lotErr }, { status: 400 });
+        }
         meta.fulfilment_status = 'shipped';
         meta.shipped_at = now;
         patch.metadata = meta;
-        if (typeof body.actual_delivery_date === 'string' && body.actual_delivery_date) {
-          patch.actual_delivery_date = String(body.actual_delivery_date).slice(0, 10);
-        } else if (!po.status || String(po.status).toLowerCase() === 'accepted') {
-          patch.actual_delivery_date = isoDay(new Date());
-        }
+        patch.actual_delivery_date = shipDay;
         if (body.delivered_quantity != null) {
           patch.delivered_quantity = Number(body.delivered_quantity);
         }
@@ -1407,7 +1426,7 @@ export async function POST(request: NextRequest) {
       const { data: po, error: loadErr } = await supabase
         .from('purchase_orders')
         .select(
-          'id, status, buyer_profile_id, supplier_id, supplier_profile_id, metadata'
+          'id, status, buyer_profile_id, supplier_id, supplier_profile_id, metadata, items'
         )
         .eq('id', id)
         .maybeSingle();
@@ -1465,6 +1484,23 @@ export async function POST(request: NextRequest) {
           production_notes: String(body.notes).trim().slice(0, 2000),
         };
       }
+      const batchesIn = Array.isArray(body.batches) ? body.batches : [];
+      if (productionStatus === 'in_progress' || productionStatus === 'completed') {
+        const extra = batchesIn.map((raw) => asObj(raw));
+        const lotErr = await missingFgLotsMessage({
+          supabase,
+          companyId: portal.profile_id,
+          poId: id,
+          items: (po as { items?: unknown }).items,
+          extraLots: extra.some((b) => String(b.batch_number || '').trim())
+            ? extra
+            : null,
+          verb: 'Mark ready',
+        });
+        if (lotErr) {
+          return NextResponse.json({ error: lotErr }, { status: 400 });
+        }
+      }
       const { error: upErr } = await supabase
         .from('purchase_orders')
         .update(poUpdate as never)
@@ -1473,8 +1509,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: upErr.message }, { status: 500 });
       }
 
-      const batchesIn = Array.isArray(body.batches) ? body.batches : [];
       const savedLots: Array<Record<string, unknown>> = [];
+      const plannedLots: Array<Record<string, unknown>> = [];
       for (const raw of batchesIn) {
         const b = asObj(raw);
         const batchNumber = String(b.batch_number || '').trim().slice(0, 120);
@@ -1487,19 +1523,27 @@ export async function POST(request: NextRequest) {
         if (dateErr) {
           return NextResponse.json({ error: dateErr }, { status: 400 });
         }
+        const lineIdx =
+          b.order_line_index != null ? Number(b.order_line_index) : null;
+        const productId =
+          b.product_id != null && Number(b.product_id) > 0
+            ? Number(b.product_id)
+            : null;
         const lotMeta = {
           manufactured_date: manufactured || null,
           expiry_date: expiry || null,
           best_before: b.best_before ? String(b.best_before).slice(0, 10) : null,
+          product_id: productId,
+          order_line_index:
+            lineIdx != null && Number.isFinite(lineIdx) ? lineIdx : 0,
         };
-        const lineIdx =
-          b.order_line_index != null ? Number(b.order_line_index) : null;
         const lot: Record<string, unknown> = {
           company_id: portal.profile_id,
           order_id: id,
           order_type: 'purchase_order',
           order_line_index:
-            lineIdx != null && Number.isFinite(lineIdx) ? lineIdx : null,
+            lineIdx != null && Number.isFinite(lineIdx) ? lineIdx : 0,
+          product_id: productId,
           batch_number: batchNumber,
           qty: Number(b.qty) || 0,
           uom: String(b.uom || 'ea').slice(0, 24),
@@ -1510,20 +1554,71 @@ export async function POST(request: NextRequest) {
           metadata: lotMeta,
           created_by: stamp.createdBy,
         };
-        let ins = await supabase.from('order_batches').insert(lot).select('*').single();
-        if (ins.error) {
-          const soft: Record<string, unknown> = { ...lot };
-          const miss =
-            /column\s+(?:[\w]+\.)?(\w+)\s+does not exist/i.exec(ins.error.message)?.[1] ||
-            /Could not find the ['"](\w+)['"] column/i.exec(ins.error.message)?.[1];
-          if (miss) delete soft[miss];
-          else {
-            delete soft.expiry_date;
-            delete soft.order_line_index;
-          }
-          ins = await supabase.from('order_batches').insert(soft).select('*').single();
+        plannedLots.push(lot);
+      }
+      if (plannedLots.length) {
+        const del = await supabase
+          .from('order_batches')
+          .delete()
+          .eq('company_id', portal.profile_id)
+          .eq('order_id', id)
+          .eq('order_type', 'purchase_order');
+        if (del.error) {
+          await supabase
+            .from('order_batches')
+            .delete()
+            .eq('company_id', portal.profile_id)
+            .eq('order_id', id);
         }
-        if (!ins.error && ins.data) savedLots.push(asObj(ins.data));
+        for (const lot of plannedLots) {
+          let ins = await supabase
+            .from('order_batches')
+            .insert(lot)
+            .select('*')
+            .single();
+          if (ins.error) {
+            const soft: Record<string, unknown> = { ...lot };
+            const miss =
+              /column\s+(?:[\w]+\.)?(\w+)\s+does not exist/i.exec(
+                ins.error.message
+              )?.[1] ||
+              /Could not find the ['"](\w+)['"] column/i.exec(
+                ins.error.message
+              )?.[1];
+            if (miss) delete soft[miss];
+            else {
+              delete soft.expiry_date;
+              delete soft.order_line_index;
+            }
+            ins = await supabase
+              .from('order_batches')
+              .insert(soft)
+              .select('*')
+              .single();
+          }
+          if (!ins.error && ins.data) savedLots.push(asObj(ins.data));
+          else savedLots.push(lot);
+        }
+        const { orderLotsMetaFromBatches } = await import(
+          '@/lib/portals/supplier-portal-party'
+        );
+        const prevMeta =
+          po.metadata && typeof po.metadata === 'object'
+            ? (po.metadata as Record<string, unknown>)
+            : {};
+        await supabase
+          .from('purchase_orders')
+          .update({
+            metadata: {
+              ...prevMeta,
+              ...(typeof poUpdate.metadata === 'object' && poUpdate.metadata
+                ? (poUpdate.metadata as Record<string, unknown>)
+                : {}),
+              order_lots: orderLotsMetaFromBatches(plannedLots),
+            },
+            updated_at: now,
+          } as never)
+          .eq('id', id);
       }
 
       const casc = await cascadeFromPo(supabase, portal.profile_id, id, {
@@ -1545,7 +1640,7 @@ export async function POST(request: NextRequest) {
         actorCompanyId: linkedProfileId || portal.profile_id,
         isSupplier: true,
       });
-      if (savedLots.length && casc.linkedSoIds.length) {
+      if (savedLots.length && casc.linkedSoIds.length && productionStatus) {
         for (const soId of casc.linkedSoIds) {
           for (const lot of savedLots) {
             const copy: Record<string, unknown> = {
@@ -1575,13 +1670,25 @@ export async function POST(request: NextRequest) {
         production_status: productionStatus,
         production_label: chainProductionLabel(productionStatus),
         cascaded: casc.updated,
-        batches: savedLots.map((l) => ({
-          batch_number: l.batch_number,
-          qty: l.qty,
-          uom: l.uom,
-          manufactured_at: l.produced_at,
-          expiry_date: l.expiry_date,
-        })),
+        batches: savedLots.map((l) => {
+          const meta =
+            l.metadata && typeof l.metadata === 'object'
+              ? (l.metadata as Record<string, unknown>)
+              : {};
+          return {
+            batch_number: l.batch_number,
+            qty: l.qty,
+            uom: l.uom,
+            manufactured_at: l.produced_at || meta.manufactured_date,
+            expiry_date: l.expiry_date || meta.expiry_date,
+            best_before: meta.best_before,
+            order_line_index:
+              l.order_line_index != null
+                ? l.order_line_index
+                : meta.order_line_index,
+            product_id: l.product_id != null ? l.product_id : meta.product_id,
+          };
+        }),
       });
     }
 
@@ -2352,6 +2459,70 @@ export async function POST(request: NextRequest) {
 function asObj(v: unknown): Record<string, unknown> {
   if (v && typeof v === 'object' && !Array.isArray(v)) return v as Record<string, unknown>;
   return {};
+}
+
+async function missingFgLotsMessage(opts: {
+  supabase: ReturnType<typeof getSupabaseServer>;
+  companyId: number;
+  poId: number;
+  items: unknown;
+  extraLots?: Array<Record<string, unknown>> | null;
+  verb: string;
+}): Promise<string | null> {
+  const items = Array.isArray(opts.items) ? opts.items : [];
+  if (!items.length) return null;
+  const { batchLineIndex, batchProductId, fgLinesMissingLots } = await import(
+    '@/lib/portals/supplier-portal-party'
+  );
+  const pids = [
+    ...new Set(
+      items
+        .map((it) => Number(asObj(it).product_id))
+        .filter((n) => Number.isFinite(n) && n > 0)
+    ),
+  ];
+  const typeById = new Map<number, string>();
+  if (pids.length) {
+    const { data } = await opts.supabase
+      .from('products')
+      .select('id, product_type')
+      .eq('profile_id', opts.companyId)
+      .in('id', pids);
+    for (const row of data || []) {
+      typeById.set(Number(row.id), String(row.product_type || ''));
+    }
+  }
+  let lots = opts.extraLots && opts.extraLots.length ? opts.extraLots : null;
+  if (!lots) {
+    const hit = await opts.supabase
+      .from('order_batches')
+      .select('batch_number, order_line_index, product_id, metadata')
+      .eq('company_id', opts.companyId)
+      .eq('order_id', opts.poId)
+      .limit(200);
+    lots = (hit.data || []) as unknown as Record<string, unknown>[];
+  }
+  const lines = items.map((it) => {
+    const row = asObj(it);
+    const pid = Number(row.product_id);
+    return {
+      product_id: Number.isFinite(pid) && pid > 0 ? pid : null,
+      product_type:
+        row.product_type != null
+          ? String(row.product_type)
+          : Number.isFinite(pid)
+            ? typeById.get(pid) || ''
+            : '',
+    };
+  });
+  const mapped = lots.map((r) => ({
+    batch_number: String(r.batch_number || ''),
+    order_line_index: batchLineIndex(r),
+    product_id: batchProductId(r),
+  }));
+  const missing = fgLinesMissingLots({ lines, lots: mapped });
+  if (!missing.length) return null;
+  return `Finished goods need a lot number on the PO before ${opts.verb}`;
 }
 
 function dayOrNull(v: unknown): string | null {

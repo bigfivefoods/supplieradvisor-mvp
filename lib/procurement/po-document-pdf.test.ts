@@ -91,6 +91,46 @@ const noLogo = await buildPurchaseOrderPdf({
 });
 assert.ok(noLogo.length > 400);
 assert.match(pdfVisibleText(noLogo), /Powered by SupplierAdvisor/);
+
+const withLots = await buildPurchaseOrderPdf({
+  number: 'PO-1',
+  issuedAt: '2026-08-28',
+  requestedDate: '2026-09-01',
+  promisedDate: '2026-09-15',
+  actualDeliveryDate: '2026-09-16',
+  currency: 'ZAR',
+  items: [
+    {
+      item_name: 'OnePot Chicken - 1kg',
+      sku: 'OP-CH-1',
+      quantity: 5000,
+      unit_price: 26.52,
+      uom: 'kg',
+    },
+  ],
+  lots: [
+    {
+      batch_number: 'LOT-CH-001',
+      manufactured_at: '2026-08-30',
+      expiry_date: '2027-08-30',
+      qty: 5000,
+      uom: 'kg',
+      item_name: 'OnePot Chicken - 1kg',
+    },
+  ],
+  totalAmount: 132600,
+  buyer: { name: 'Big Five Foods' },
+  supplier: { name: 'Kelpack Manufacturing' },
+});
+const lotText = pdfVisibleText(withLots);
+assert.match(lotText, /LOT-CH-001/);
+assert.match(lotText, /manufactured 2026-08-30/);
+assert.match(lotText, /expiry 2027-08-30/);
+assert.match(lotText, /Confirmed: 2026-09-15/);
+assert.match(lotText, /Requested: 2026-09-01/);
+assert.match(lotText, /Dispatched: 2026-09-16/);
+assert.doesNotMatch(lotText, /sell_price/i);
+assert.doesNotMatch(lotText, /45\.00/);
 }
 
 function src(rel: string) {

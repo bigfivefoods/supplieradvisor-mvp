@@ -13,6 +13,8 @@ import { otifefForLine, rollupOtifef } from '@/lib/portals/otifef-line';
 import { dateEnvelope } from '@/lib/projects/waterfall';
 import { enrichChainDoc } from '@/lib/orders/chain-path';
 import {
+  batchLineIndex,
+  batchProductId,
   messageMatchesPo,
   poBelongsToSupplierViewer,
   poPdfUrlFromMeta,
@@ -217,12 +219,18 @@ function mapBatchLot(raw: Record<string, unknown>): PortalBatchLot | null {
       : meta.manufactured_date != null
         ? String(meta.manufactured_date).slice(0, 10)
         : null;
+  const bestBefore =
+    meta.best_before != null ? String(meta.best_before).slice(0, 10) : null;
+  const productId = batchProductId(raw);
   return {
     batch_number,
     qty: raw.qty != null ? Number(raw.qty) : null,
     uom: raw.uom != null ? String(raw.uom) : null,
     manufactured_at: manufactured,
     expiry_date: expiry,
+    best_before: bestBefore,
+    order_line_index: batchLineIndex(raw),
+    product_id: productId,
   };
 }
 
@@ -236,7 +244,7 @@ async function loadBatchLots(
   const supabase = getSupabaseServer();
   const hit = await supabase
     .from('order_batches')
-    .select('order_id, batch_number, qty, uom, produced_at, expiry_date, metadata')
+    .select('order_id, batch_number, qty, uom, produced_at, expiry_date, order_line_index, product_id, metadata')
     .eq('company_id', companyId)
     .in('order_id', ids)
     .limit(400);
@@ -290,6 +298,15 @@ function poToDoc(r: Record<string, unknown>, otifefInput: Parameters<typeof otif
       status: String(r.status || 'draft'),
       date: r.created_at != null ? String(r.created_at).slice(0, 10) : null,
       due: r.promised_date != null ? String(r.promised_date).slice(0, 10) : null,
+      requested_due: meta.requested_promised_date
+        ? String(meta.requested_promised_date).slice(0, 10)
+        : r.promised_date != null
+          ? String(r.promised_date).slice(0, 10)
+          : null,
+      actual_delivery_date:
+        r.actual_delivery_date != null
+          ? String(r.actual_delivery_date).slice(0, 10)
+          : null,
       amount: r.total_amount != null ? Number(r.total_amount) : null,
       paid: null,
       currency: String(r.currency || 'ZAR'),
@@ -332,11 +349,57 @@ function poToDoc(r: Record<string, unknown>, otifefInput: Parameters<typeof otif
           uom: it.uom != null ? String(it.uom) : null,
           amount: it.line_total != null ? Number(it.line_total) : null,
           product_id: it.product_id != null ? Number(it.product_id) : null,
+          sku: it.sku != null ? String(it.sku) : null,
+          primary_image_url:
+            it.primary_image_url != null ? String(it.primary_image_url) : null,
+          product_type:
+            it.product_type != null ? String(it.product_type) : null,
         };
       }),
     },
     'supplier'
   );
+}
+
+async function enrichDocLinesWithProducts(
+  companyId: number,
+  docs: PublicDocRow[]
+): Promise<void> {
+  const ids = new Set<number>();
+  for (const d of docs) {
+    for (const line of d.lines || []) {
+      if (line.product_id && line.product_id > 0) ids.add(line.product_id);
+    }
+  }
+  if (!ids.size) return;
+  const supabase = getSupabaseServer();
+  const hit = await supabase
+    .from('products')
+    .select('id, sku, product_type, primary_image_url, name')
+    .eq('profile_id', companyId)
+    .in('id', [...ids]);
+  const byId = new Map<number, Record<string, unknown>>();
+  for (const raw of hit.data || []) {
+    byId.set(Number(raw.id), raw as unknown as Record<string, unknown>);
+  }
+  for (const d of docs) {
+    if (!d.lines?.length) continue;
+    d.lines = d.lines.map((line) => {
+      const p = line.product_id ? byId.get(line.product_id) : undefined;
+      if (!p) return line;
+      return {
+        ...line,
+        name: line.name || String(p.name || 'Item'),
+        sku: line.sku || (p.sku != null ? String(p.sku) : null),
+        product_type:
+          line.product_type ||
+          (p.product_type != null ? String(p.product_type) : null),
+        primary_image_url:
+          line.primary_image_url ||
+          (p.primary_image_url != null ? String(p.primary_image_url) : null),
+      };
+    });
+  }
 }
 
 async function loadHostCatalogue(
@@ -683,6 +746,7 @@ export async function loadPortalWorkspace(opts: {
     for (const p of pos) {
       p.batches = batchMap.get(p.id) || [];
     }
+    await enrichDocLinesWithProducts(companyId, pos);
   }
 
   if (kind === 'customer' && opts.viewer.customer_id) {

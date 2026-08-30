@@ -7,8 +7,13 @@ import {
   formatPurchaseOrderNumber,
   srmIdFromPo,
 } from '@/lib/procurement/po-email';
-import type { PoPdfInput, PoPdfParty } from '@/lib/procurement/po-document-pdf';
+import type {
+  PoPdfInput,
+  PoPdfLot,
+  PoPdfParty,
+} from '@/lib/procurement/po-document-pdf';
 import { normalizePoItems } from '@/lib/procurement/types';
+import { batchLineIndex } from '@/lib/portals/supplier-portal-party';
 
 export const SAFE_PROFILE_COLUMNS =
   'trading_name, legal_name, email, contact_email, contact_phone, contact_number, vat_number, registration_number, address, street, city, country, website, logo_url';
@@ -213,6 +218,58 @@ export async function srmPartyIdForAp(opts: {
   return Number.isFinite(id) && id > 0 ? id : null;
 }
 
+async function loadPoLotsForPdf(
+  companyId: number,
+  poId: number,
+  items: Array<{ item_name?: string | null; sku?: string | null }>
+): Promise<PoPdfLot[]> {
+  if (!Number.isFinite(poId) || poId <= 0) return [];
+  const supabase = getSupabaseServer();
+  const hit = await supabase
+    .from('order_batches')
+    .select(
+      'batch_number, qty, uom, produced_at, expiry_date, order_line_index, metadata'
+    )
+    .eq('company_id', companyId)
+    .eq('order_id', poId)
+    .limit(200);
+  let rows: Record<string, unknown>[] = (hit.data ||
+    []) as unknown as Record<string, unknown>[];
+  if (hit.error) {
+    const retry = await supabase
+      .from('order_batches')
+      .select('batch_number, qty, uom, produced_at, metadata')
+      .eq('company_id', companyId)
+      .eq('order_id', poId)
+      .limit(200);
+    rows = (retry.data || []) as unknown as Record<string, unknown>[];
+  }
+  const out: PoPdfLot[] = [];
+  for (const raw of rows) {
+    const batch_number = String(raw.batch_number || '').trim();
+    if (!batch_number) continue;
+    const meta =
+      raw.metadata && typeof raw.metadata === 'object' && !Array.isArray(raw.metadata)
+        ? (raw.metadata as Record<string, unknown>)
+        : {};
+    const idx = batchLineIndex(raw);
+    const line = items[idx];
+    out.push({
+      batch_number,
+      qty: raw.qty != null ? Number(raw.qty) : null,
+      uom: raw.uom != null ? String(raw.uom) : null,
+      manufactured_at:
+        String(raw.produced_at || meta.manufactured_date || '').slice(0, 10) ||
+        null,
+      expiry_date:
+        String(raw.expiry_date || meta.expiry_date || '').slice(0, 10) || null,
+      best_before: String(meta.best_before || '').slice(0, 10) || null,
+      item_name: line?.item_name || line?.sku || null,
+    });
+  }
+  return out;
+}
+
 export async function assemblePurchaseOrderPdfInput(opts: {
   companyId: number;
   po: Record<string, unknown>;
@@ -291,20 +348,36 @@ export async function assemblePurchaseOrderPdfInput(opts: {
     legal_name: supplierParty.legal_name || null,
     vat_number: supplierParty.vat_number || null,
   };
+  const meta = asMeta(opts.po.metadata);
+  const requested = meta.requested_promised_date
+    ? String(meta.requested_promised_date).slice(0, 10)
+    : null;
+  const promised = opts.po.promised_date
+    ? String(opts.po.promised_date).slice(0, 10)
+    : null;
+  const actual = opts.po.actual_delivery_date
+    ? String(opts.po.actual_delivery_date).slice(0, 10)
+    : null;
+  const lots = await loadPoLotsForPdf(
+    opts.companyId,
+    Number(opts.po.id),
+    items
+  );
   return {
     input: {
       number,
       status: opts.po.status != null ? String(opts.po.status) : null,
       issuedAt: String(opts.po.created_at || '').slice(0, 10) || null,
-      promisedDate: opts.po.promised_date
-        ? String(opts.po.promised_date).slice(0, 10)
-        : null,
+      promisedDate: promised,
+      requestedDate: requested && requested !== promised ? requested : null,
+      actualDeliveryDate: actual,
       paymentTerms: opts.po.payment_terms
         ? String(opts.po.payment_terms)
         : null,
       currency,
       notes: opts.po.description ? String(opts.po.description) : null,
       items,
+      lots,
       totalAmount: total,
       buyer,
       supplier,

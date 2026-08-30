@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `inline; filename="${safeName}"`,
-        'Cache-Control': 'private, max-age=120',
+        'Cache-Control': 'private, no-store',
         'X-Content-Type-Options': 'nosniff',
       },
     });
