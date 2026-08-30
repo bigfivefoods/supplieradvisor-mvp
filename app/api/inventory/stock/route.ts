@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { hashMovement } from '@/lib/inventory/hash';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { warehouseAtLabel } from '@/lib/inventory/types';
 
 /** GET live stock — levels + totals + by location + by product */
 export async function GET(request: NextRequest) {
@@ -108,8 +109,14 @@ export async function GET(request: NextRequest) {
         warehouse,
         location_key: l.warehouse_id != null ? String(l.warehouse_id) : 'unassigned',
         location_name: warehouse
-          ? (warehouse as { name: string }).name
-          : 'Unassigned / default',
+          ? warehouseAtLabel(
+              warehouse as {
+                name?: string | null;
+                owner_type?: string | null;
+                partner_name?: string | null;
+              }
+            )
+          : 'at us',
       };
     });
 
@@ -277,7 +284,7 @@ export async function GET(request: NextRequest) {
         locMap[key] = {
           warehouse_id: w.id,
           location_key: key,
-          name: w.name,
+          name: warehouseAtLabel(w),
           code: w.code,
           owner_type: w.owner_type || 'own',
           partner_name: w.partner_name,

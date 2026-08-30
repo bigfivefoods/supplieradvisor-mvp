@@ -36,7 +36,8 @@ assert.match(msgRoute, /Record<string, unknown>\[\]/);
 assert.doesNotMatch(msgRoute, /\bq = await supabase/);
 
 const raise = src('app/api/suppliers/purchase-orders/route.ts');
-assert.match(raise, /supplier_id: srmId \|\| supplierProfileId/);
+assert.match(raise, /srm_supplier_id: srmId/);
+assert.doesNotMatch(raise, /supplier_id: srmId \|\| supplierProfileId/);
 assert.match(raise, /assertSupplierPortalParty/);
 
 const recv = src('lib/procurement/receive-from-po.ts');

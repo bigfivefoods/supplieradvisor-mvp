@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseServer();
     const poListCols =
-      'id, po_number, order_number, status, total_amount, currency, buyer_profile_id, supplier_profile_id, supplier_id, seller_customer_id, created_at, updated_at, promised_date, actual_delivery_date, items, onchain_po_id, invoice_id, supplier_wallet, metadata, production_status, confirmed_qty';
+      'id, po_number, status, total_amount, currency, buyer_profile_id, supplier_profile_id, supplier_id, seller_customer_id, created_at, updated_at, promised_date, actual_delivery_date, items, onchain_po_id, invoice_id, supplier_wallet, metadata, production_status, confirmed_qty';
     let q = supabase
       .from('purchase_orders')
       .select(poListCols)
@@ -531,7 +531,6 @@ export async function POST(request: NextRequest) {
     const payload: Record<string, unknown> = {
       buyer_profile_id: companyId,
       supplier_profile_id: supplierProfileId,
-      supplier_id: srmId || supplierProfileId,
       supplier_name: bookOnlyName || body.supplier_name || null,
       total_amount: normalized.total,
       subtotal: normalized.total,
@@ -614,7 +613,6 @@ export async function POST(request: NextRequest) {
       if (retry.error && /column|schema cache|does not exist/i.test(retry.error.message)) {
         const minimal = {
           buyer_profile_id: companyId,
-          supplier_id: srmId || supplierProfileId,
           supplier_profile_id: supplierProfileId,
           total_amount: normalized.total,
           description: payload.description,
@@ -628,6 +626,17 @@ export async function POST(request: NextRequest) {
       }
       data = retry.data;
       error = retry.error;
+    }
+
+    if (error && /23503|foreign key/i.test(error.message || '')) {
+      const { supplier_id: _sid, ...rest } = payload;
+      const fkRetry = await supabase
+        .from('purchase_orders')
+        .insert(rest)
+        .select('*')
+        .single();
+      data = fkRetry.data;
+      error = fkRetry.error;
     }
 
     if (error) {

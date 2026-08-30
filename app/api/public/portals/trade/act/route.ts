@@ -983,6 +983,51 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    if (action === 'stock_update') {
+      if (portal.kind !== 'supplier' || !viewer.supplier_id) {
+        return NextResponse.json(
+          { error: 'Stock updates are for the supplier DC' },
+          { status: 403 }
+        );
+      }
+      const warehouseId = Number(body.warehouse_id);
+      const productId = Number(body.product_id);
+      const qty = Number(body.qty_on_hand);
+      if (!Number.isFinite(warehouseId) || !Number.isFinite(productId)) {
+        return NextResponse.json(
+          { error: 'warehouse_id and product_id required' },
+          { status: 400 }
+        );
+      }
+      const { applySupplierStockUpdate } = await import(
+        '@/lib/portals/supplier-dc-stock'
+      );
+      const { data: srm } = await supabase
+        .from('srm_suppliers')
+        .select('trading_name')
+        .eq('id', viewer.supplier_id)
+        .eq('profile_id', portal.profile_id)
+        .maybeSingle();
+      const result = await applySupplierStockUpdate({
+        companyId: portal.profile_id,
+        supplierId: Number(viewer.supplier_id),
+        tradingName: srm?.trading_name != null ? String(srm.trading_name) : null,
+        warehouseId,
+        productId,
+        qtyOnHand: qty,
+      });
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: result.status });
+      }
+      return NextResponse.json({
+        success: true,
+        warehouse_id: warehouseId,
+        product_id: productId,
+        qty_on_hand: result.qty_on_hand,
+        qty_available: result.qty_available,
+      });
+    }
+
     if (action === 'po_update') {
       const id = Number(body.id);
       if (!Number.isFinite(id)) {

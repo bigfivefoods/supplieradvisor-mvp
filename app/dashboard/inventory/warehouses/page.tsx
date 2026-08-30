@@ -71,6 +71,8 @@ type FormState = {
   is_default: boolean;
   allow_stock: boolean;
   status: string;
+  srm_supplier_id: string;
+  customer_id: string;
 };
 
 const emptyForm = (): FormState => ({
@@ -94,6 +96,8 @@ const emptyForm = (): FormState => ({
   is_default: false,
   allow_stock: true,
   status: 'active',
+  srm_supplier_id: '',
+  customer_id: '',
 });
 
 export default function WarehousesPage() {
@@ -116,6 +120,12 @@ function WarehousesInner() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
+  const [suppliers, setSuppliers] = useState<
+    Array<{ id: number; trading_name?: string | null }>
+  >([]);
+  const [customers, setCustomers] = useState<
+    Array<{ id: number; trading_name?: string | null }>
+  >([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -126,6 +136,18 @@ function WarehousesInner() {
       setContainers(data.containers || []);
       setCounts(data.counts || { own: 0, supplier: 0, customer: 0, total: 0 });
       if (data.warning) toast.message(data.warning, { description: data.hint });
+      try {
+        const [sRes, cRes] = await Promise.all([
+          fetch(`/api/suppliers?companyId=${companyId}`),
+          fetch(`/api/customers?companyId=${companyId}`),
+        ]);
+        const sData = await sRes.json();
+        const cData = await cRes.json();
+        setSuppliers(sData.suppliers || []);
+        setCustomers(cData.customers || []);
+      } catch {
+        /* party lists optional */
+      }
     } finally {
       setLoading(false);
     }
@@ -178,6 +200,8 @@ function WarehousesInner() {
       is_default: !!w.is_default,
       allow_stock: w.allow_stock !== false,
       status: w.status || 'active',
+      srm_supplier_id: w.srm_supplier_id != null ? String(w.srm_supplier_id) : '',
+      customer_id: w.customer_id != null ? String(w.customer_id) : '',
     });
     setEditingId(w.id);
     setShowForm(true);
@@ -241,14 +265,19 @@ function WarehousesInner() {
       return;
     }
     if (
-      (form.owner_type === 'supplier' || form.owner_type === 'customer') &&
+      form.owner_type === 'supplier' &&
+      !form.srm_supplier_id &&
       !form.partner_name.trim()
     ) {
-      toast.error(
-        form.owner_type === 'supplier'
-          ? 'Supplier / partner name required'
-          : 'Customer / partner name required'
-      );
+      toast.error('Pick the supplier this location belongs to');
+      return;
+    }
+    if (
+      form.owner_type === 'customer' &&
+      !form.customer_id &&
+      !form.partner_name.trim()
+    ) {
+      toast.error('Pick the customer this location belongs to');
       return;
     }
     if (!form.lat || !form.lng) {
@@ -265,6 +294,14 @@ function WarehousesInner() {
         code: form.code || undefined,
         lat: form.lat !== '' ? Number(form.lat) : null,
         lng: form.lng !== '' ? Number(form.lng) : null,
+        srm_supplier_id:
+          form.owner_type === 'supplier' && form.srm_supplier_id
+            ? Number(form.srm_supplier_id)
+            : null,
+        customer_id:
+          form.owner_type === 'customer' && form.customer_id
+            ? Number(form.customer_id)
+            : null,
       };
       const res = await fetch('/api/inventory/warehouses', {
         method: editingId ? 'PATCH' : 'POST',
@@ -440,6 +477,51 @@ function WarehousesInner() {
 
             {(form.owner_type === 'supplier' || form.owner_type === 'customer') && (
               <div className="grid grid-cols-2 gap-2">
+                {form.owner_type === 'supplier' ? (
+                  <select
+                    className="input !p-3 !text-sm col-span-2"
+                    value={form.srm_supplier_id}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      const party = suppliers.find((s) => String(s.id) === id);
+                      setForm((f) => ({
+                        ...f,
+                        srm_supplier_id: id,
+                        partner_name: party?.trading_name || f.partner_name,
+                        customer_id: '',
+                      }));
+                    }}
+                  >
+                    <option value="">Pick supplier on your books *</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.trading_name || `Supplier #${s.id}`}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    className="input !p-3 !text-sm col-span-2"
+                    value={form.customer_id}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      const party = customers.find((c) => String(c.id) === id);
+                      setForm((f) => ({
+                        ...f,
+                        customer_id: id,
+                        partner_name: party?.trading_name || f.partner_name,
+                        srm_supplier_id: '',
+                      }));
+                    }}
+                  >
+                    <option value="">Pick customer on your books *</option>
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.trading_name || `Customer #${c.id}`}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <input
                   className="input !p-3 !text-sm col-span-2"
                   placeholder={

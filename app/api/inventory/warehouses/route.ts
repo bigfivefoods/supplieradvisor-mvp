@@ -27,14 +27,28 @@ export async function GET(request: NextRequest) {
     let q = supabase
       .from('warehouses')
       .select(
-        'id, profile_id, name, code, owner_type, partner_name, city, warehouse_type, status, is_default, address, country'
+        'id, profile_id, name, code, owner_type, partner_name, city, warehouse_type, status, is_default, address, country, metadata'
       )
       .eq('profile_id', companyId)
       .order('name')
       .limit(200);
     if (ownerType && ownerType !== 'all') q = q.eq('owner_type', ownerType);
 
-    const { data, error } = await q;
+    let { data, error } = await q;
+    if (error && /metadata|column|schema cache/i.test(error.message || '')) {
+      let retryQ = supabase
+        .from('warehouses')
+        .select(
+          'id, profile_id, name, code, owner_type, partner_name, city, warehouse_type, status, is_default, address, country'
+        )
+        .eq('profile_id', companyId)
+        .order('name')
+        .limit(200);
+      if (ownerType && ownerType !== 'all') retryQ = retryQ.eq('owner_type', ownerType);
+      const retry = await retryQ;
+      data = retry.data as typeof data;
+      error = retry.error;
+    }
 
     if (error) {
       return NextResponse.json({
@@ -64,12 +78,22 @@ export async function GET(request: NextRequest) {
       .eq('profile_id', companyId)
       .order('name');
 
-    const warehouses = (data || []).map((w) => ({
-      ...w,
-      owner_type: w.owner_type || 'own',
-      stock_lines: stats[w.id]?.lines || 0,
-      units_on_hand: stats[w.id]?.units || 0,
-    }));
+    const warehouses = (data || []).map((w) => {
+      const meta =
+        w.metadata && typeof w.metadata === 'object' && !Array.isArray(w.metadata)
+          ? (w.metadata as Record<string, unknown>)
+          : {};
+      const srmId = Number(meta.srm_supplier_id);
+      const customerId = Number(meta.customer_id);
+      return {
+        ...w,
+        owner_type: w.owner_type || 'own',
+        stock_lines: stats[w.id]?.lines || 0,
+        units_on_hand: stats[w.id]?.units || 0,
+        srm_supplier_id: Number.isFinite(srmId) && srmId > 0 ? srmId : null,
+        customer_id: Number.isFinite(customerId) && customerId > 0 ? customerId : null,
+      };
+    });
 
     const counts = {
       own: warehouses.filter((w) => (w.owner_type || 'own') === 'own').length,
@@ -101,6 +125,24 @@ export async function POST(request: NextRequest) {
     if (!_gate.ok) return _gate.response;
     const ownerType = normalizeOwnerType(body.owner_type);
     const supabase = getSupabaseServer();
+    const prevMeta =
+      body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
+        ? { ...(body.metadata as Record<string, unknown>) }
+        : {};
+    const srmSupplierId = Number(body.srm_supplier_id);
+    const customerId = Number(body.customer_id);
+    if (ownerType === 'supplier' && Number.isFinite(srmSupplierId) && srmSupplierId > 0) {
+      prevMeta.srm_supplier_id = srmSupplierId;
+      delete prevMeta.customer_id;
+    }
+    if (ownerType === 'customer' && Number.isFinite(customerId) && customerId > 0) {
+      prevMeta.customer_id = customerId;
+      delete prevMeta.srm_supplier_id;
+    }
+    if (ownerType === 'own') {
+      delete prevMeta.srm_supplier_id;
+      delete prevMeta.customer_id;
+    }
 
     const payload: Record<string, unknown> = {
       profile_id: companyId,
@@ -126,6 +168,7 @@ export async function POST(request: NextRequest) {
       container_id: body.container_id || null,
       is_default: !!body.is_default,
       updated_at: new Date().toISOString(),
+      metadata: prevMeta,
     };
 
     // Supplier/customer locations should have a partner name for clarity
@@ -151,6 +194,7 @@ export async function POST(request: NextRequest) {
         'region',
         'lat',
         'lng',
+        'metadata',
       ]) {
         delete soft[k];
       }
@@ -217,6 +261,46 @@ export async function PATCH(request: NextRequest) {
       updates.owner_type = normalizeOwnerType(updates.owner_type);
     }
     const supabase = getSupabaseServer();
+    const companyId = Number(body.companyId);
+    const { data: current } = await supabase
+      .from('warehouses')
+      .select('metadata, profile_id')
+      .eq('id', Number(body.id))
+      .maybeSingle();
+    if (
+      Number.isFinite(companyId) &&
+      companyId > 0 &&
+      current &&
+      Number((current as { profile_id?: unknown }).profile_id) !== companyId
+    ) {
+      return NextResponse.json({ error: 'Warehouse not found' }, { status: 404 });
+    }
+    const prevMeta =
+      current?.metadata &&
+      typeof current.metadata === 'object' &&
+      !Array.isArray(current.metadata)
+        ? { ...(current.metadata as Record<string, unknown>) }
+        : {};
+    const ownerType = String(updates.owner_type || '').toLowerCase();
+    const srmSupplierId = Number(body.srm_supplier_id);
+    const customerId = Number(body.customer_id);
+    if (ownerType === 'supplier' || body.srm_supplier_id !== undefined) {
+      if (Number.isFinite(srmSupplierId) && srmSupplierId > 0) {
+        prevMeta.srm_supplier_id = srmSupplierId;
+        delete prevMeta.customer_id;
+      }
+    }
+    if (ownerType === 'customer' || body.customer_id !== undefined) {
+      if (Number.isFinite(customerId) && customerId > 0) {
+        prevMeta.customer_id = customerId;
+        delete prevMeta.srm_supplier_id;
+      }
+    }
+    if (ownerType === 'own') {
+      delete prevMeta.srm_supplier_id;
+      delete prevMeta.customer_id;
+    }
+    updates.metadata = prevMeta;
     let { data, error } = await supabase
       .from('warehouses')
       .update(updates)

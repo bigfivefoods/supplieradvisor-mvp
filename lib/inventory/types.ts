@@ -85,6 +85,9 @@ export type WarehouseRecord = {
   is_default?: boolean | null;
   stock_lines?: number;
   units_on_hand?: number;
+  metadata?: Record<string, unknown> | null;
+  srm_supplier_id?: number | null;
+  customer_id?: number | null;
 };
 
 export function warehouseHasPhysicalCoords(w?: {
@@ -230,6 +233,22 @@ export function ownerTypeClass(s?: string | null) {
 export function ownerTypeLabel(s?: string | null) {
   const t = WAREHOUSE_OWNER_TYPES.find((o) => o.value === (s || 'own'));
   return t?.label || 'My warehouse';
+}
+
+/** Host stock page: qty lives at a place. Own = at us; supplier/customer = at that party. */
+export function warehouseAtLabel(w?: {
+  name?: string | null;
+  owner_type?: string | null;
+  partner_name?: string | null;
+} | null): string {
+  if (!w) return 'at us';
+  const owner = String(w.owner_type || 'own').toLowerCase();
+  const partner = String(w.partner_name || '').trim();
+  const name = String(w.name || '').trim();
+  if (owner === 'supplier' || owner === 'customer') {
+    return `at ${partner || name || 'partner'}`;
+  }
+  return name ? `at us · ${name}` : 'at us';
 }
 
 export type StockLevelRecord = {

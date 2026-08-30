@@ -168,6 +168,7 @@ const REFRESH_ACTIONS = new Set([
   'profile',
   'rate',
   'po_update',
+  'stock_update',
   'document_save',
   'document_extra',
   'production_update',
@@ -396,6 +397,33 @@ function applyActLocally(
       },
     };
   }
+  if (action === 'stock_update' && prev.workspace) {
+    const warehouseId = Number(payload.warehouse_id);
+    const productId = Number(payload.product_id);
+    const qty =
+      data.qty_on_hand != null
+        ? Number(data.qty_on_hand)
+        : Number(payload.qty_on_hand);
+    return {
+      ...prev,
+      workspace: {
+        ...prev.workspace,
+        stock: (prev.workspace.stock || []).map((line) =>
+          Number(line.warehouse_id) === warehouseId &&
+          Number(line.product_id) === productId
+            ? {
+                ...line,
+                qty_on_hand: qty,
+                qty_available:
+                  data.qty_available != null
+                    ? Number(data.qty_available)
+                    : qty,
+              }
+            : line
+        ),
+      },
+    };
+  }
   if (action === 'document_extra') {
     const extra = (
       data.extra && typeof data.extra === 'object' ? data.extra : null
@@ -552,9 +580,11 @@ export function GuestTradeWorkspace({
                         ? 'Document shared'
                         : action === 'production_update'
                           ? 'Production updated — customer sales order will follow'
-                          : action === 'po_update'
-                            ? 'Order updated'
-                            : 'Saved'
+                          : action === 'stock_update'
+                            ? 'Stock on hand updated'
+                            : action === 'po_update'
+                              ? 'Order updated'
+                              : 'Saved'
       );
       if (REFRESH_ACTIONS.has(action)) onRefresh();
       return data;
@@ -673,7 +703,11 @@ export function GuestTradeWorkspace({
         />
       ) : null}
       {tab === 'stock' && isSupplier ? (
-        <StockPanel lines={ws?.stock || []} busy={busy} onAct={act} />
+        <StockPanel
+          lines={ws?.stock || []}
+          busy={busy}
+          onAct={act}
+        />
       ) : null}
       {tab === 'newpo' && !isSupplier ? (
         <PortalPurchaseOrder
@@ -1086,8 +1120,13 @@ function CompanyDocsPanel({
         }
         url = data.url;
       }
-      if (!url) throw new Error('Choose a file or paste a URL');
+      if (!url) throw new Error('Upload a file or share the one already on file');
       await onAct({ action: 'document_save', pack, field, url });
+      if (pack === 'host' && isHost) {
+        setDocNote(
+          `${accountName || 'The supplier'} can view this on the portal`
+        );
+      }
     } catch (e) {
       setDocNote(e instanceof Error ? e.message : 'Save failed');
     } finally {
@@ -1143,9 +1182,48 @@ function CompanyDocsPanel({
                     {p.name}
                   </h2>
                 </div>
-                <p className="shrink-0 text-[11px] font-bold tabular-nums text-slate-500">
-                  {filled}/{required.length || 7}
-                </p>
+                <div className="shrink-0 flex items-center gap-2">
+                  {p.key === 'host' && p.canEdit && filled > 0 ? (
+                    <button
+                      type="button"
+                      disabled={busy || uploading === 'host:all'}
+                      onClick={() => {
+                        void (async () => {
+                          setUploading('host:all');
+                          setDocNote(null);
+                          try {
+                            const filledSlots = required.filter((d) => d.url);
+                            for (const slot of filledSlots) {
+                              await onAct({
+                                action: 'document_save',
+                                pack: 'host',
+                                field: slot.field,
+                                url: slot.url,
+                              });
+                            }
+                            setDocNote(
+                              `${accountName || 'The supplier'} can view the company files on this portal`
+                            );
+                          } catch (e) {
+                            setDocNote(
+                              e instanceof Error ? e.message : 'Share failed'
+                            );
+                          } finally {
+                            setUploading(null);
+                          }
+                        })();
+                      }}
+                      className="rounded-xl border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-bold text-[#0077b6]"
+                    >
+                      {uploading === 'host:all'
+                        ? 'Sharing…'
+                        : 'Share all on file'}
+                    </button>
+                  ) : null}
+                  <p className="text-[11px] font-bold tabular-nums text-slate-500">
+                    {filled}/{required.length || 7}
+                  </p>
+                </div>
               </div>
               <ul className="divide-y divide-slate-100">
                 {required.map((d) => (
@@ -1155,7 +1233,14 @@ function CompanyDocsPanel({
                     canEdit={p.canEdit && !d.extra}
                     busy={busy || uploading === `${p.key}:${d.field}`}
                     onFile={(file) => void saveSlot(p.key, d.field, file)}
-                    onUrl={(url) => void saveSlot(p.key, d.field, null, url)}
+                    onUrl={async (url) => {
+                      await saveSlot(p.key, d.field, null, url);
+                      if (p.key === 'host' && isHost) {
+                        setDocNote(
+                          `${accountName || 'The supplier'} can view this on the portal`
+                        );
+                      }
+                    }}
                   />
                 ))}
                 {extra.map((d) => (
@@ -1394,15 +1479,15 @@ function DocSlotRow({
           />
           <button
             type="button"
-            disabled={busy || !paste.trim()}
+            disabled={busy || !(paste.trim() || slot.url)}
             onClick={() => {
-              const u = paste.trim();
+              const u = paste.trim() || String(slot.url || '');
               setPaste('');
               onUrl(u);
             }}
             className="btn-secondary !py-1 !px-2 text-xs"
           >
-            Share
+            {paste.trim() ? 'Share' : slot.url ? 'Share on portal' : 'Share'}
           </button>
         </div>
       ) : null}
@@ -2818,23 +2903,42 @@ function StockPanel({
   if (!lines.length) {
     return (
       <p className="rounded-[1.5rem] border border-white/70 bg-white/90 p-6 text-sm text-neutral-500">
-        Stock lines appear from open purchase orders. Accept an order, then confirm
-        what you have on hand.
+        No stock held at this supplier yet.
       </p>
     );
   }
   return (
     <ul className="rounded-[1.5rem] border border-white/70 bg-white/90 divide-y divide-slate-100 overflow-hidden">
       {lines.map((l, i) => (
-        <li key={`${l.po_id}-${l.sku}-${i}`} className="px-4 py-3">
+        <li
+          key={`${l.warehouse_id || 'po'}-${l.product_id}-${l.po_id}-${i}`}
+          className="px-4 py-3"
+        >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-sm font-bold text-slate-900">{l.name}</p>
               <p className="text-[11px] text-neutral-500">
-                {[l.sku, l.po_id ? `PO #${l.po_id}` : null].filter(Boolean).join(' · ')}
+                {[
+                  l.sku,
+                  l.warehouse_name ? `at ${l.warehouse_name}` : null,
+                  l.po_id ? `PO #${l.po_id}` : null,
+                  l.qty_reserved
+                    ? `reserved ${l.qty_reserved}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
               </p>
             </div>
-            {l.po_id ? (
+            {l.warehouse_id && l.product_id ? (
+              <StockLevelQuick
+                warehouseId={l.warehouse_id}
+                productId={l.product_id}
+                current={l.qty_on_hand}
+                busy={busy}
+                onAct={onAct}
+              />
+            ) : l.po_id ? (
               <StockQuick poId={l.po_id} current={l.qty_on_hand} busy={busy} onAct={onAct} />
             ) : (
               <span className="text-sm font-black tabular-nums">
@@ -2845,6 +2949,46 @@ function StockPanel({
         </li>
       ))}
     </ul>
+  );
+}
+
+function StockLevelQuick({
+  warehouseId,
+  productId,
+  current,
+  busy,
+  onAct,
+}: {
+  warehouseId: number;
+  productId: number;
+  current: number | null;
+  busy: boolean;
+  onAct: (p: Record<string, unknown>) => Promise<unknown>;
+}) {
+  const [v, setV] = useState(current != null ? String(current) : '');
+  return (
+    <div className="flex items-center gap-1.5">
+      <input
+        className="input !py-1 !px-2 !text-xs w-20"
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+      />
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() =>
+          void onAct({
+            action: 'stock_update',
+            warehouse_id: warehouseId,
+            product_id: productId,
+            qty_on_hand: Number(v),
+          })
+        }
+        className="btn-secondary !py-1 !px-2 text-xs min-h-[44px]"
+      >
+        Set
+      </button>
+    </div>
   );
 }
 
