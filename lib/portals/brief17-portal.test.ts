@@ -23,6 +23,11 @@ assert.match(people, /assertSupplierPortalParty/);
 
 const ws = src('lib/portals/trade-portal-workspace.ts');
 assert.match(ws, /poBelongsToSupplierViewer/);
+assert.match(ws, /msgRows: Record<string, unknown>\[\]/);
+
+const msgRoute = src('app/api/portals/trade/messages/route.ts');
+assert.match(msgRoute, /Record<string, unknown>\[\]/);
+assert.doesNotMatch(msgRoute, /\bq = await supabase/);
 
 const raise = src('app/api/suppliers/purchase-orders/route.ts');
 assert.match(raise, /supplier_id: srmId \|\| supplierProfileId/);

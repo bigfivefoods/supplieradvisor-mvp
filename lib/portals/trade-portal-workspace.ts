@@ -910,30 +910,33 @@ export async function loadPortalWorkspace(opts: {
   }
 
   const messages: PortalMessageView[] = [];
-  let msgQ = await supabase
+  const msgFirst = await supabase
     .from('trade_portal_messages')
     .select('id, author, body, created_at, purchase_order_id, metadata')
     .eq('viewer_id', opts.viewer.id)
     .eq('profile_id', companyId)
     .order('created_at', { ascending: true })
     .limit(200);
-  if (msgQ.error) {
-    msgQ = await supabase
+  let msgRows: Record<string, unknown>[] = (msgFirst.data ||
+    []) as unknown as Record<string, unknown>[];
+  if (msgFirst.error) {
+    const retry = await supabase
       .from('trade_portal_messages')
       .select('id, author, body, created_at')
       .eq('viewer_id', opts.viewer.id)
       .eq('profile_id', companyId)
       .order('created_at', { ascending: true })
       .limit(200);
+    msgRows = (retry.data || []) as unknown as Record<string, unknown>[];
   }
-  for (const r of msgQ.data || []) {
+  for (const r of msgRows) {
     const row = asObject(r);
     const poId = Number(row.purchase_order_id);
     messages.push({
-      id: Number(r.id),
-      author: r.author === 'host' ? 'host' : 'guest',
-      body: String(r.body || ''),
-      created_at: String(r.created_at || ''),
+      id: Number(row.id),
+      author: row.author === 'host' ? 'host' : 'guest',
+      body: String(row.body || ''),
+      created_at: String(row.created_at || ''),
       purchase_order_id:
         Number.isFinite(poId) && poId > 0
           ? poId
