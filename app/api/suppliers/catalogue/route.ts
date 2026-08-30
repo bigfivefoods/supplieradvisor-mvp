@@ -151,27 +151,19 @@ export async function GET(request: NextRequest) {
     }
 
     if (!sellerProfileId || !Number.isFinite(sellerProfileId)) {
-      const buyerItems = srmRow
-        ? await loadBuyerInventoryItems(supabase, companyId, currencyPref)
-        : [];
       return NextResponse.json({
         success: true,
         sellerProfileId: null,
         sellerName: supplierName,
-        items: buyerItems,
+        items: [],
         agreementCount: 0,
         inventoryCount: 0,
-        buyerInventoryCount: buyerItems.length,
-        catalogueSource: buyerItems.length ? 'buyer_inventory' : 'empty',
-        inviteStatus: srmRow?.invite_status ?? null,
-        warning: buyerItems.length
-          ? undefined
-          : srmRow
-            ? 'This supplier has not accepted yet. Pick from your inventory (Inventory → Products) or use free-text lines. Invite still unlocks their catalogue and escrow.'
-            : 'Supplier is not linked to a platform company yet. Invite/connect them, or use free-text lines.',
-        hint: srmRow
-          ? 'Book-only POs use your inventory catalogue until the supplier accepts.'
-          : 'linked_profile_id required on the SRM book row',
+        buyerInventoryCount: 0,
+        catalogueSource: 'empty',
+        inviteStatus: null,
+        warning:
+          'Supplier is not linked to a platform company yet. Invite/connect them, or use free-text lines.',
+        hint: 'linked_profile_id required on the SRM book row',
       });
     }
 
