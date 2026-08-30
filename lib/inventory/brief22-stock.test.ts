@@ -124,4 +124,23 @@ assert.match(panel, /ProductPhoto/);
 assert.match(panel, /lead_time_days/);
 assert.match(panel, /MOQ/);
 
+const poPrice = src('lib/commercial/po-price.ts');
+assert.match(poPrice, /lookupSupplierPoPriceMap/);
+assert.match(poPrice, /repriceOpenSupplierPos/);
+assert.match(poPrice, /Never sell_price/);
+assert.doesNotMatch(poPrice, /item\.unit_price = .*sell_price/);
+
+const poRoute = src('app/api/suppliers/purchase-orders/route.ts');
+assert.match(poRoute, /priceSupplierPoItems/);
+assert.match(poRoute, /isOpenUnreceivedPo/);
+assert.doesNotMatch(poRoute, /catalogue optional until SQL paste/);
+
+assert.match(src('lib/commercial/db.ts'), /repriceOpenSupplierPos/);
+assert.match(sql, /Reprice open/);
+assert.match(sql, /accepted_price/);
+assert.doesNotMatch(sql, /supplier_id\s*=\s*12/);
+
+const pdf = src('lib/procurement/po-parties.ts');
+assert.match(pdf, /priceSupplierPoItems/);
+
 console.log('brief22-stock.test.ts ok');

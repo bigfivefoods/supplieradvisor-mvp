@@ -240,10 +240,51 @@ export async function assemblePurchaseOrderPdfInput(opts: {
   });
   const currency = String(opts.po.currency || 'ZAR').toUpperCase();
   const normalized = normalizePoItems(opts.po.items || []);
-  const items = 'items' in normalized ? normalized.items : [];
-  const total =
+  let items = 'items' in normalized ? normalized.items : [];
+  let total =
     Number(opts.po.total_amount) ||
     ('total' in normalized ? normalized.total : 0);
+  try {
+    const { isOpenUnreceivedPo, priceSupplierPoItems } = await import(
+      '@/lib/commercial/po-price'
+    );
+    if (isOpenUnreceivedPo(opts.po) && items.length) {
+      const priced = await priceSupplierPoItems({
+        profileId: opts.companyId,
+        supplierId: srmIdFromPo({
+          supplier_id: opts.po.supplier_id,
+          metadata: opts.po.metadata,
+        }),
+        items,
+      });
+      if (priced.ok) {
+        items = priced.items;
+        total = priced.total;
+        const supabase = getSupabaseServer();
+        const patch: Record<string, unknown> = {
+          items: priced.items,
+          total_amount: priced.total,
+          subtotal: priced.total,
+          updated_at: new Date().toISOString(),
+        };
+        const upd = await supabase
+          .from('purchase_orders')
+          .update(patch as never)
+          .eq('id', Number(opts.po.id))
+          .eq('buyer_profile_id', opts.companyId);
+        if (upd.error && /column|schema cache/i.test(upd.error.message || '')) {
+          delete patch.subtotal;
+          await supabase
+            .from('purchase_orders')
+            .update(patch as never)
+            .eq('id', Number(opts.po.id))
+            .eq('buyer_profile_id', opts.companyId);
+        }
+      }
+    }
+  } catch {
+    /* keep stored totals if catalogue is unavailable */
+  }
   const supplier: PoPdfParty = {
     ...supplierParty,
     email: to || supplierParty.email || null,

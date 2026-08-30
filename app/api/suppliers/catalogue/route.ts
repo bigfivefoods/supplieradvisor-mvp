@@ -398,10 +398,37 @@ export async function GET(request: NextRequest) {
           partyKind: 'supplier',
           supplierId: Number(srmRow.id),
         });
+        const { productCostFromRow } = await import('@/lib/commercial/po-price');
+        const missing = [
+          ...new Set(
+            items
+              .map((i) => Number(i.seller_product_id))
+              .filter(
+                (pid) =>
+                  pid > 0 &&
+                  !Object.prototype.hasOwnProperty.call(accepted, pid)
+              )
+          ),
+        ];
+        const costById = new Map<number, number>();
+        if (missing.length) {
+          const { data: prows } = await supabase
+            .from('products')
+            .select('id, cost_price, prices')
+            .eq('profile_id', companyId)
+            .in('id', missing);
+          for (const row of prows || []) {
+            const r = row as unknown as Record<string, unknown>;
+            const cost = productCostFromRow(r);
+            if (cost != null) costById.set(Number(r.id), cost);
+          }
+        }
         for (const item of items) {
           const pid = Number(item.seller_product_id);
           if (Object.prototype.hasOwnProperty.call(accepted, pid)) {
             item.unit_price = accepted[pid];
+          } else if (costById.has(pid)) {
+            item.unit_price = costById.get(pid) as number;
           }
         }
       } catch {

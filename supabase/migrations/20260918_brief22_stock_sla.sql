@@ -120,3 +120,134 @@ WHERE b.profile_id = 102
     SELECT 1 FROM public.manufacturing_bom_lines l
     WHERE l.bom_id = b.id AND l.component_product_id = 51
   );
+
+-- Reprice open draft/sent/confirmed supplier POs (including Kelpack PO 1)
+-- from accepted Commercial else products.cost_price. Skip received history.
+-- Does not write Kelpack's book id onto purchase_orders.supplier_id.
+DO $$
+DECLARE
+  r record;
+  item jsonb;
+  new_items jsonb;
+  pid integer;
+  sku text;
+  unit numeric;
+  qty numeric;
+  line_total numeric;
+  total numeric;
+  srm integer;
+  accepted numeric;
+  cost numeric;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'purchase_orders'
+  ) THEN
+    RETURN;
+  END IF;
+
+  FOR r IN
+    SELECT po.id, COALESCE(po.items, '[]'::jsonb) AS items, po.metadata
+    FROM public.purchase_orders po
+    WHERE po.buyer_profile_id = 102
+      AND lower(COALESCE(po.status, '')) IN ('draft', 'sent', 'confirmed')
+      AND COALESCE(po.metadata->>'inventory_received_at', '') = ''
+  LOOP
+    srm := NULL;
+    BEGIN
+      srm := NULLIF(r.metadata->>'srm_supplier_id', '')::integer;
+    EXCEPTION WHEN others THEN
+      srm := NULL;
+    END;
+    IF srm IS NULL THEN
+      CONTINUE;
+    END IF;
+    new_items := '[]'::jsonb;
+    total := 0;
+    FOR item IN SELECT value FROM jsonb_array_elements(r.items)
+    LOOP
+      pid := NULL;
+      BEGIN
+        pid := NULLIF(item->>'product_id', '')::integer;
+      EXCEPTION WHEN others THEN
+        pid := NULL;
+      END;
+      sku := NULLIF(btrim(COALESCE(item->>'sku', '')), '');
+      IF (pid IS NULL OR pid <= 0) AND sku IS NOT NULL THEN
+        SELECT p.id INTO pid
+        FROM public.products p
+        WHERE p.profile_id = 102 AND lower(COALESCE(p.sku, '')) = lower(sku)
+        LIMIT 1;
+      END IF;
+      unit := NULL;
+      accepted := NULL;
+      cost := NULL;
+      IF pid IS NOT NULL AND pid > 0 THEN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name = 'party_catalogue_lines'
+        ) THEN
+          SELECT l.accepted_price INTO accepted
+          FROM public.party_catalogue_lines l
+          WHERE l.profile_id = 102
+            AND l.party_kind = 'supplier'
+            AND l.supplier_id = srm
+            AND l.product_id = pid
+            AND COALESCE(l.status, 'active') = 'active'
+          ORDER BY l.id
+          LIMIT 1;
+        END IF;
+        IF accepted IS NOT NULL THEN
+          unit := accepted;
+        ELSE
+          SELECT p.cost_price INTO cost
+          FROM public.products p
+          WHERE p.profile_id = 102 AND p.id = pid;
+          unit := cost;
+        END IF;
+      END IF;
+      qty := COALESCE(
+        NULLIF(item->>'quantity', '')::numeric,
+        NULLIF(item->>'qty', '')::numeric,
+        0
+      );
+      IF unit IS NULL THEN
+        BEGIN
+          unit := COALESCE(NULLIF(item->>'unit_price', '')::numeric, 0);
+        EXCEPTION WHEN others THEN
+          unit := 0;
+        END;
+      END IF;
+      line_total := round((qty * unit)::numeric, 4);
+      total := total + line_total;
+      IF pid IS NOT NULL AND pid > 0 THEN
+        item := item || jsonb_build_object(
+          'product_id', pid,
+          'unit_price', unit,
+          'line_total', line_total
+        );
+      ELSE
+        item := item || jsonb_build_object(
+          'unit_price', unit,
+          'line_total', line_total
+        );
+      END IF;
+      new_items := new_items || jsonb_build_array(item);
+    END LOOP;
+
+    BEGIN
+      UPDATE public.purchase_orders
+      SET items = new_items,
+          total_amount = total,
+          subtotal = total,
+          updated_at = now()
+      WHERE id = r.id AND buyer_profile_id = 102;
+    EXCEPTION WHEN others THEN
+      UPDATE public.purchase_orders
+      SET items = new_items,
+          total_amount = total,
+          updated_at = now()
+      WHERE id = r.id AND buyer_profile_id = 102;
+    END;
+  END LOOP;
+END $$;

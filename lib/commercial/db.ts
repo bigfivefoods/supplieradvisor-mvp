@@ -446,6 +446,18 @@ export async function acceptPrice(opts: {
     pending_proposed_by: null,
   };
   await syncAcceptedToMaster(next);
+  if (next.party_kind === 'supplier') {
+    try {
+      const { repriceOpenSupplierPos } = await import('@/lib/commercial/po-price');
+      await repriceOpenSupplierPos({
+        profileId: opts.profileId,
+        supplierId: next.supplier_id,
+        productId: next.product_id,
+      });
+    } catch {
+      /* open PO rewrite is best-effort */
+    }
+  }
   return { ok: true, line: next };
 }
 
@@ -692,6 +704,17 @@ export async function applyHostCostToCatalogue(opts: {
       .eq('profile_id', opts.profileId);
     updated += 1;
   }
+  if (updated > 0) {
+    try {
+      const { repriceOpenSupplierPos } = await import('@/lib/commercial/po-price');
+      await repriceOpenSupplierPos({
+        profileId: opts.profileId,
+        productId: opts.productId,
+      });
+    } catch {
+      /* open PO rewrite is best-effort */
+    }
+  }
   return updated;
 }
 
@@ -709,6 +732,15 @@ export async function proposeFromProductMaster(opts: {
       productId: opts.productId,
       costPrice: Number(opts.costPrice),
     });
+    try {
+      const { repriceOpenSupplierPos } = await import('@/lib/commercial/po-price');
+      await repriceOpenSupplierPos({
+        profileId: opts.profileId,
+        productId: opts.productId,
+      });
+    } catch {
+      /* open PO rewrite is best-effort */
+    }
   }
   if (opts.sellPrice != null && Number.isFinite(Number(opts.sellPrice))) {
     const customers = await loadPartyLines({
