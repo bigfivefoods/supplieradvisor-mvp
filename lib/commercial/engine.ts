@@ -87,27 +87,26 @@ export function applyAcceptedUnitPrices<
     quantity?: number;
     qty?: number;
     unit_price: number;
+    line_total?: number;
   },
 >(
   items: T[],
   acceptedByProductId: Record<number, number>
-): { items: T[]; total: number } {
+): { items: Array<T & { line_total: number }>; total: number } {
   const next = items.map((item) => {
     const pid = Number(item.product_id);
-    if (!Number.isFinite(pid) || pid <= 0) return item;
-    if (!Object.prototype.hasOwnProperty.call(acceptedByProductId, pid)) {
-      return item;
-    }
-    const unit_price = roundMoney(acceptedByProductId[pid]);
     const qty = Number(item.quantity ?? item.qty ?? 0);
+    const unit_price =
+      Number.isFinite(pid) &&
+      pid > 0 &&
+      Object.prototype.hasOwnProperty.call(acceptedByProductId, pid)
+        ? roundMoney(acceptedByProductId[pid])
+        : Number(item.unit_price || 0);
     const line_total = roundMoney(qty * unit_price);
     return { ...item, unit_price, line_total };
   });
   const total = roundMoney(
-    next.reduce((s, i) => {
-      const qty = Number(i.quantity ?? i.qty ?? 0);
-      return s + qty * Number(i.unit_price || 0);
-    }, 0)
+    next.reduce((s, i) => s + Number(i.line_total || 0), 0)
   );
   return { items: next, total };
 }
