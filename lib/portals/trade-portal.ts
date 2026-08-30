@@ -759,42 +759,48 @@ async function loadAccountDocs(opts: {
   let metadata: unknown = null;
   let linked: number | null = null;
   if (opts.kind === 'customer' && opts.customerId) {
-    let hit = await supabase
+    const hit = await supabase
       .from('customers')
       .select('metadata, linked_profile_id')
       .eq('id', opts.customerId)
       .eq('profile_id', opts.companyId)
       .maybeSingle();
+    let row: Record<string, unknown> | null =
+      !hit.error && hit.data ? asObject(hit.data) : null;
     if (hit.error) {
-      hit = await supabase
+      const retry = await supabase
         .from('customers')
         .select('linked_profile_id')
         .eq('id', opts.customerId)
         .eq('profile_id', opts.companyId)
         .maybeSingle();
+      row = retry.data ? asObject(retry.data) : null;
     }
-    if (hit.data) {
-      metadata = (hit.data as { metadata?: unknown }).metadata;
-      if (hit.data.linked_profile_id) linked = Number(hit.data.linked_profile_id);
+    if (row) {
+      metadata = row.metadata;
+      if (row.linked_profile_id) linked = Number(row.linked_profile_id);
     }
   } else if (opts.kind === 'supplier' && opts.supplierId) {
-    let hit = await supabase
+    const hit = await supabase
       .from('srm_suppliers')
       .select('metadata, linked_profile_id')
       .eq('id', opts.supplierId)
       .eq('profile_id', opts.companyId)
       .maybeSingle();
+    let row: Record<string, unknown> | null =
+      !hit.error && hit.data ? asObject(hit.data) : null;
     if (hit.error) {
-      hit = await supabase
+      const retry = await supabase
         .from('srm_suppliers')
         .select('linked_profile_id')
         .eq('id', opts.supplierId)
         .eq('profile_id', opts.companyId)
         .maybeSingle();
+      row = retry.data ? asObject(retry.data) : null;
     }
-    if (hit.data) {
-      metadata = (hit.data as { metadata?: unknown }).metadata;
-      if (hit.data.linked_profile_id) linked = Number(hit.data.linked_profile_id);
+    if (row) {
+      metadata = row.metadata;
+      if (row.linked_profile_id) linked = Number(row.linked_profile_id);
     }
   }
   let linkedRow: Record<string, unknown> | null = null;

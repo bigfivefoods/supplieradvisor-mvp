@@ -1826,25 +1826,32 @@ export async function POST(request: NextRequest) {
       if (!accountId) {
         return NextResponse.json({ error: 'No book account' }, { status: 403 });
       }
-      let hit = await supabase
+      const hit = await supabase
         .from(table)
         .select('metadata, linked_profile_id')
         .eq('id', accountId)
         .eq('profile_id', portal.profile_id)
         .maybeSingle();
+      let row: Record<string, unknown> | null =
+        !hit.error && hit.data
+          ? (hit.data as unknown as Record<string, unknown>)
+          : null;
       if (hit.error) {
-        hit = await supabase
+        const retry = await supabase
           .from(table)
           .select('linked_profile_id')
           .eq('id', accountId)
           .eq('profile_id', portal.profile_id)
           .maybeSingle();
+        row = retry.data
+          ? (retry.data as unknown as Record<string, unknown>)
+          : null;
       }
-      if (!hit.data) {
+      if (!row) {
         return NextResponse.json({ error: 'Account not found' }, { status: 404 });
       }
       const nextMeta = mergeRequiredDocIntoMetadata(
-        (hit.data as { metadata?: unknown }).metadata,
+        row.metadata,
         field,
         url,
         now
@@ -1857,8 +1864,8 @@ export async function POST(request: NextRequest) {
       if (metaErr) {
         return NextResponse.json({ error: metaErr.message }, { status: 500 });
       }
-      const linked = hit.data.linked_profile_id
-        ? Number(hit.data.linked_profile_id)
+      const linked = row.linked_profile_id
+        ? Number(row.linked_profile_id)
         : null;
       if (linked && linked > 0 && linked !== portal.profile_id) {
         const writes = expandDocumentUrlWrites({
