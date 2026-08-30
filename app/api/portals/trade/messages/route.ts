@@ -42,23 +42,24 @@ export async function GET(request: NextRequest) {
     if (!po) {
       return NextResponse.json({ error: 'Purchase order not found' }, { status: 404 });
     }
-    let q = await supabase
+    const first = await supabase
       .from('trade_portal_messages')
       .select('id, author, body, created_at, purchase_order_id, metadata, viewer_id')
       .eq('profile_id', companyId)
       .order('created_at', { ascending: true })
       .limit(200);
-    if (q.error) {
-      q = await supabase
+    let rows: Record<string, unknown>[] = (first.data ||
+      []) as unknown as Record<string, unknown>[];
+    if (first.error) {
+      const retry = await supabase
         .from('trade_portal_messages')
         .select('id, author, body, created_at, viewer_id')
         .eq('profile_id', companyId)
         .order('created_at', { ascending: true })
         .limit(200);
+      rows = (retry.data || []) as unknown as Record<string, unknown>[];
     }
-    const messages = (q.data || []).filter((row) =>
-      messageMatchesPo(row as Record<string, unknown>, poId)
-    );
+    const messages = rows.filter((row) => messageMatchesPo(row, poId));
     return NextResponse.json({
       success: true,
       messages: messages.map((m) => ({
