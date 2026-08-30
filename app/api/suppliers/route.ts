@@ -157,6 +157,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    if (!byId) {
+      const { rowOnSupplierDesk } = await import(
+        '@/lib/portals/supplier-portal-party'
+      );
+      suppliers = suppliers.filter((s) =>
+        rowOnSupplierDesk(s as { status?: string | null; metadata?: unknown })
+      );
+    }
+
     const enriched = suppliers.map((s) => {
       const row = s as Record<string, unknown>;
       return {

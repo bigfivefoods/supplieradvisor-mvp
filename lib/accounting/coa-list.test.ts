@@ -40,6 +40,11 @@ assert.ok(!operating.some((a) => String(a.code).startsWith('4400-')));
 const withLeaves = filterOperatingCoa(fixture, { partyLeaves: true });
 assert.ok(withLeaves.some((a) => a.code === '1180-0000001'));
 assert.equal(withLeaves.slice(0, 3).length, 3);
+const inactiveLeaves = filterOperatingCoa(
+  [...fixture, { code: '1180-0000099', name: 'AR — hidden', is_header: false, account_type: 'asset', is_active: false }],
+  { partyLeaves: true }
+);
+assert.ok(!inactiveLeaves.some((a) => a.code === '1180-0000099'));
 
 const searched = filterOperatingCoa(fixture, { q: '1180-' });
 assert.ok(searched.some((a) => a.code === '1180-0000001'));

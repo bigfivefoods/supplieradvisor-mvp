@@ -12,6 +12,7 @@ export type CoaListRow = {
   name?: string | null;
   account_type?: string | null;
   is_header?: boolean | null;
+  is_active?: boolean | null;
 };
 
 export function parseCoaListLimit(raw: string | null | undefined): number {
@@ -37,6 +38,10 @@ export function filterOperatingCoa<T extends CoaListRow>(
         String(a.account_type || '').toLowerCase().includes(q)
     );
   }
-  if (opts.partyLeaves) return accounts;
+  if (opts.partyLeaves) {
+    return accounts.filter(
+      (a) => !(isPartyLeafCode(a.code) && a.is_active === false)
+    );
+  }
   return accounts.filter((a) => !isPartyLeafCode(a.code));
 }

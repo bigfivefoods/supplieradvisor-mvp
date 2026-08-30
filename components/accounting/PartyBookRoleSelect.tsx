@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -36,6 +36,10 @@ export function PartyBookRoleSelect({
 }) {
   const [busy, setBusy] = useState(false);
   const [value, setValue] = useState<PartyBookRole>(role);
+
+  useEffect(() => {
+    setValue(role);
+  }, [role]);
 
   const save = async (next: PartyBookRole) => {
     if (next === value || busy) return;

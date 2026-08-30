@@ -12,6 +12,8 @@ import {
   ensureCustomerArLeaf,
   ensureMemberArLeaf,
   ensureSupplierApLeaf,
+  memberArAccountCode,
+  supplierApAccountCode,
 } from '@/lib/accounting/party-gl-accounts';
 import {
   bookRoleFromMeta,
@@ -142,20 +144,72 @@ async function stampBookRole(
   prev: Record<string, unknown>,
   role: PartyBookRole,
   extra?: Record<string, unknown>
-) {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const supabase = getSupabaseServer();
-  await supabase
+  const now = new Date().toISOString();
+  const full = {
+    metadata: {
+      ...prev,
+      party_book_role: role,
+      ...(extra || {}),
+    },
+    updated_at: now,
+  };
+  let { error } = await supabase
     .from(table)
-    .update({
-      metadata: {
-        ...prev,
-        party_book_role: role,
-        ...(extra || {}),
-      },
-      updated_at: new Date().toISOString(),
-    })
+    .update(full)
     .eq('id', id)
     .eq('profile_id', profileId);
+  if (error) {
+    const retry = await supabase
+      .from(table)
+      .update({
+        metadata: { ...prev, party_book_role: role },
+        updated_at: now,
+      })
+      .eq('id', id)
+      .eq('profile_id', profileId);
+    error = retry.error;
+  }
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+async function setPartyLeafActive(opts: {
+  profileId: number;
+  codes: Array<string | null | undefined>;
+  ids?: Array<number | null | undefined>;
+  active: boolean;
+}): Promise<void> {
+  const supabase = getSupabaseServer();
+  const now = new Date().toISOString();
+  const codes = [
+    ...new Set(
+      opts.codes.map((c) => String(c || '').trim()).filter((c) => c.length > 0)
+    ),
+  ];
+  const ids = [
+    ...new Set(
+      (opts.ids || [])
+        .map((n) => Number(n))
+        .filter((n) => Number.isFinite(n) && n > 0)
+    ),
+  ];
+  if (codes.length) {
+    await supabase
+      .from('chart_of_accounts')
+      .update({ is_active: opts.active, updated_at: now })
+      .eq('profile_id', opts.profileId)
+      .in('code', codes);
+  }
+  for (const id of ids) {
+    await supabase
+      .from('chart_of_accounts')
+      .update({ is_active: opts.active, updated_at: now })
+      .eq('profile_id', opts.profileId)
+      .eq('id', id);
+  }
+  if (codes.length || ids.length) invalidateAccountingReads(opts.profileId);
 }
 
 async function findCustomerTwin(
@@ -357,21 +411,37 @@ export async function applyPartyBookRole(opts: {
 
   await relabelPartyCoaHeaders(opts.profileId);
 
+  if (supplier && !customer) {
+    customer = await findCustomerTwin(opts.profileId, supplier);
+  }
+  if (customer && !supplier) {
+    supplier = await findSupplierTwin(opts.profileId, customer);
+  }
+
   if (bookRoleNeedsAr(role) && !customer && supplier) {
-    customer =
-      (await findCustomerTwin(opts.profileId, supplier)) ||
-      (await insertCustomerFrom(opts.profileId, supplier, role));
+    customer = await insertCustomerFrom(opts.profileId, supplier, role);
   }
   if (bookRoleNeedsAp(role) && !supplier && customer) {
-    supplier =
-      (await findSupplierTwin(opts.profileId, customer)) ||
-      (await insertSupplierFrom(opts.profileId, customer, role));
+    supplier = await insertSupplierFrom(opts.profileId, customer, role);
   }
 
   const customerId = customer?.id ? Number(customer.id) : null;
   const supplierId = supplier?.id ? Number(supplier.id) : null;
   let ar: string | null = customer ? glCodeFromMeta(customer.metadata) : null;
   let ap: string | null = supplier ? glCodeFromMeta(supplier.metadata) : null;
+
+  const arCodes = [
+    ar,
+    customerId ? memberArAccountCode(customerId) : null,
+    glCodeFromMeta(customer?.metadata),
+  ];
+  const apCodes = [
+    ap,
+    supplierId ? supplierApAccountCode(supplierId) : null,
+    glCodeFromMeta(supplier?.metadata),
+  ];
+  const arId = Number(asMeta(customer?.metadata).gl_account_id);
+  const apId = Number(asMeta(supplier?.metadata).gl_account_id);
 
   if (bookRoleNeedsAr(role) && customerId) {
     const name = String(customer?.trading_name || customer?.legal_name || 'Customer');
@@ -387,7 +457,22 @@ export async function applyPartyBookRole(opts: {
         name,
       }));
     if (leaf?.code) ar = leaf.code;
+    await setPartyLeafActive({
+      profileId: opts.profileId,
+      codes: [...arCodes, leaf?.code],
+      ids: [leaf?.accountId, arId],
+      active: true,
+    });
+  } else if (customerId) {
+    await setPartyLeafActive({
+      profileId: opts.profileId,
+      codes: arCodes,
+      ids: [arId],
+      active: false,
+    });
+    ar = null;
   }
+
   if (bookRoleNeedsAp(role) && supplierId) {
     const name = String(supplier?.trading_name || supplier?.legal_name || 'Supplier');
     const leaf = await ensureSupplierApLeaf({
@@ -396,10 +481,24 @@ export async function applyPartyBookRole(opts: {
       name,
     });
     if (leaf?.code) ap = leaf.code;
+    await setPartyLeafActive({
+      profileId: opts.profileId,
+      codes: [...apCodes, leaf?.code],
+      ids: [leaf?.accountId, apId],
+      active: true,
+    });
+  } else if (supplierId) {
+    await setPartyLeafActive({
+      profileId: opts.profileId,
+      codes: apCodes,
+      ids: [apId],
+      active: false,
+    });
+    ap = null;
   }
 
   if (customerId) {
-    await stampBookRole(
+    const stamped = await stampBookRole(
       'customers',
       opts.profileId,
       customerId,
@@ -407,9 +506,20 @@ export async function applyPartyBookRole(opts: {
       role,
       supplierId ? { twin_supplier_id: supplierId } : undefined
     );
+    if (!stamped.ok) {
+      return {
+        ok: false,
+        role,
+        customer_id: customerId,
+        supplier_id: supplierId,
+        ar_account_code: ar,
+        ap_account_code: ap,
+        error: stamped.error,
+      };
+    }
   }
   if (supplierId) {
-    await stampBookRole(
+    const stamped = await stampBookRole(
       'srm_suppliers',
       opts.profileId,
       supplierId,
@@ -417,21 +527,17 @@ export async function applyPartyBookRole(opts: {
       role,
       customerId ? { twin_customer_id: customerId } : undefined
     );
-  }
-
-  if (customerId) {
-    await ensureCustomerArLeaf({
-      profileId: opts.profileId,
-      customerId,
-      name: String(customer?.trading_name || customer?.legal_name || 'Customer'),
-    });
-  }
-  if (supplierId) {
-    await ensureSupplierApLeaf({
-      profileId: opts.profileId,
-      supplierId,
-      name: String(supplier?.trading_name || supplier?.legal_name || 'Supplier'),
-    });
+    if (!stamped.ok) {
+      return {
+        ok: false,
+        role,
+        customer_id: customerId,
+        supplier_id: supplierId,
+        ar_account_code: ar,
+        ap_account_code: ap,
+        error: stamped.error,
+      };
+    }
   }
   return {
     ok: true,

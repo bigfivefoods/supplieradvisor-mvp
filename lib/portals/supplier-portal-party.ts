@@ -62,6 +62,75 @@ export function supplierBookDisabledReason(gate: SupplierBookGate): string | nul
   return gate.error;
 }
 
+export type CustomerBookGateFail = {
+  ok: false;
+  reason: 'missing' | 'blocked' | 'supplier_only' | 'not_customer';
+  error: string;
+};
+export type CustomerBookGate = { ok: true } | CustomerBookGateFail;
+
+/** CRM / customer portal: customer or both. Legacy: CRM row with no role. */
+export function customerBookPartyGate(row: {
+  status?: string | null;
+  metadata?: unknown;
+} | null | undefined): CustomerBookGate {
+  if (!row) {
+    return {
+      ok: false,
+      reason: 'missing',
+      error: 'Customer not found on your books',
+    };
+  }
+  if (String(row.status || '').toLowerCase() === 'blocked') {
+    return {
+      ok: false,
+      reason: 'blocked',
+      error: 'This customer is blocked',
+    };
+  }
+  const role = bookRoleFromMeta(row.metadata);
+  if (role === 'supplier') {
+    return {
+      ok: false,
+      reason: 'supplier_only',
+      error:
+        'Supplier only — set book role to Customer or Both before issuing a customer portal',
+    };
+  }
+  if (role === 'customer' || role === 'both' || role == null) {
+    return { ok: true };
+  }
+  return {
+    ok: false,
+    reason: 'not_customer',
+    error: 'This party is not marked as a customer on your books',
+  };
+}
+
+export function customerBookDisabledReason(gate: CustomerBookGate): string | null {
+  if (gate.ok) return null;
+  if (gate.reason === 'supplier_only') {
+    return 'Supplier only — set book role to Customer or Both';
+  }
+  if (gate.reason === 'blocked') return 'Blocked';
+  if (gate.reason === 'missing') return 'Not on customer book';
+  return gate.error;
+}
+
+export function rowOnSupplierDesk(row: {
+  status?: string | null;
+  metadata?: unknown;
+} | null | undefined): boolean {
+  return supplierBookPartyGate(row).ok;
+}
+
+export function rowOnCustomerDesk(row: {
+  status?: string | null;
+  metadata?: unknown;
+} | null | undefined): boolean {
+  return customerBookPartyGate(row).ok;
+}
+
 function asMeta(raw: unknown): Record<string, unknown> {
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     return raw as Record<string, unknown>;

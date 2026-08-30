@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
         supabase
           .from('customers')
           .select(
-            'id, trading_name, legal_name, email, status, linked_profile_id'
+            'id, trading_name, legal_name, email, status, linked_profile_id, metadata'
           )
           .eq('profile_id', companyId)
           .order('id', { ascending: false })
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
         supabase
           .from('srm_suppliers')
           .select(
-            'id, trading_name, legal_name, email, status, linked_profile_id'
+            'id, trading_name, legal_name, email, status, linked_profile_id, metadata'
           )
           .eq('profile_id', companyId)
           .order('id', { ascending: false })
