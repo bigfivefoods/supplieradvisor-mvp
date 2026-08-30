@@ -9,10 +9,7 @@ import { isAgreementEffective } from '@/lib/pricing/types';
 import { priceForCurrency } from '@/lib/inventory/priceForCurrency';
 import type { ProductRecord } from '@/lib/inventory/types';
 import {
-  BUYER_INVENTORY_PRODUCT_COLUMNS,
-  mapBuyerProductsToPoCatalogue,
   poCatalogueSourceRank,
-  type BuyerInventoryProductRow,
   type PoCatalogueItem,
 } from '@/lib/suppliers/buyer-inventory-catalogue';
 
@@ -32,33 +29,6 @@ import {
  * Requires company membership + SRM book row or accepted network connection.
  */
 export type SupplierCatalogueItem = PoCatalogueItem;
-
-async function loadBuyerInventoryItems(
-  supabase: ReturnType<typeof getSupabaseServer>,
-  companyId: number,
-  currencyPref: string,
-  excludeProductIds?: Iterable<number>
-): Promise<PoCatalogueItem[]> {
-  const { data: products, error } = await supabase
-    .from('products')
-    .select(BUYER_INVENTORY_PRODUCT_COLUMNS)
-    .eq('profile_id', companyId)
-    .order('name')
-    .limit(500);
-
-  if (error) {
-    if (!/relation|does not exist|column/i.test(error.message)) {
-      console.warn('catalogue buyer inventory', error.message);
-    }
-    return [];
-  }
-
-  return mapBuyerProductsToPoCatalogue(
-    (products || []) as BuyerInventoryProductRow[],
-    currencyPref,
-    { excludeProductIds }
-  );
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -406,67 +376,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Buyer’s own purchasable SKUs — book-only fallback and always on SRM POs
-    let buyerInventoryCount = 0;
-    if (srmRow) {
-      const exclude = items
-        .map((i) => Number(i.seller_product_id))
-        .filter((n) => Number.isFinite(n) && n > 0);
-      const buyerItems = await loadBuyerInventoryItems(
-        supabase,
-        companyId,
-        currencyPref,
-        exclude
-      );
-      buyerInventoryCount = buyerItems.length;
-      items.push(...buyerItems);
-    }
-
-    if (srmRow) {
-      try {
-        const { lookupAcceptedMap } = await import('@/lib/commercial/db');
-        const accepted = await lookupAcceptedMap({
-          profileId: companyId,
-          partyKind: 'supplier',
-          supplierId: Number(srmRow.id),
-        });
-        const { productCostFromRow } = await import('@/lib/commercial/po-price');
-        const missing = [
-          ...new Set(
-            items
-              .map((i) => Number(i.seller_product_id))
-              .filter(
-                (pid) =>
-                  pid > 0 &&
-                  !Object.prototype.hasOwnProperty.call(accepted, pid)
-              )
-          ),
-        ];
-        const costById = new Map<number, number>();
-        if (missing.length) {
-          const { data: prows } = await supabase
-            .from('products')
-            .select('id, cost_price, prices')
-            .eq('profile_id', companyId)
-            .in('id', missing);
-          for (const row of prows || []) {
-            const r = row as unknown as Record<string, unknown>;
-            const cost = productCostFromRow(r);
-            if (cost != null) costById.set(Number(r.id), cost);
-          }
-        }
-        for (const item of items) {
-          const pid = Number(item.seller_product_id);
-          if (Object.prototype.hasOwnProperty.call(accepted, pid)) {
-            item.unit_price = accepted[pid];
-          } else if (costById.has(pid)) {
-            item.unit_price = costById.get(pid) as number;
-          }
-        }
-      } catch {
-        /* optional until SQL paste */
-      }
-    }
+    const buyerInventoryCount = 0;
 
     // Stable sort: agreements, supplier inventory, buyer inventory, then type/name
     items.sort((a, b) => {
