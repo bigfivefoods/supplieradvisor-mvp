@@ -72,5 +72,9 @@ assert.doesNotMatch(sql, /id = 4/);
 const net = src('app/dashboard/suppliers/network/page.tsx');
 assert.match(net, /selectedHold && selectedHold.id === selectedId/);
 assert.match(net, /\.\.\.selectedHold/);
+assert.doesNotMatch(
+  net,
+  /const hit = rows\.find[\s\S]{0,80}setSelectedHold\(hit\)/
+);
 
 console.log('brief21-srm-stock tests ok');

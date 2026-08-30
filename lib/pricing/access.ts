@@ -56,6 +56,49 @@ export async function lookupListPrice(opts: {
   const supabase = getSupabaseServer();
   const today = new Date().toISOString().slice(0, 10);
 
+  if (opts.sellerProductId != null && Number(opts.sellerProductId) > 0) {
+    try {
+      const { lookupAcceptedMap } = await import('@/lib/commercial/db');
+      const { data: cust } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('profile_id', opts.sellerProfileId)
+        .eq('linked_profile_id', opts.buyerProfileId)
+        .maybeSingle();
+      const customerId = cust?.id != null ? Number(cust.id) : null;
+      if (customerId && customerId > 0) {
+        const accepted = await lookupAcceptedMap({
+          profileId: opts.sellerProfileId,
+          partyKind: 'customer',
+          customerId,
+        });
+        const pid = Number(opts.sellerProductId);
+        if (Object.prototype.hasOwnProperty.call(accepted, pid)) {
+          return {
+            agreement_id: 0,
+            agreement_title: 'Party catalogue',
+            line_id: 0,
+            seller_profile_id: opts.sellerProfileId,
+            buyer_profile_id: opts.buyerProfileId,
+            seller_product_id: pid,
+            product_name: opts.productName || '',
+            sku: opts.sku || null,
+            uom: 'unit',
+            list_price: accepted[pid],
+            currency: 'ZAR',
+            min_qty: 1,
+            suggested_resale_price: null,
+            specs_sheet_url: null,
+            specs_sheet_name: null,
+            primary_image_url: null,
+          };
+        }
+      }
+    } catch {
+      /* party_catalogue_lines may be missing until SQL paste */
+    }
+  }
+
   const { data: agreements } = await supabase
     .from('pricing_agreements')
     .select('*')

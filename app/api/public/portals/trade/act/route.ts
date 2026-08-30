@@ -1019,6 +1019,112 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (
+      action === 'commercial_propose' ||
+      action === 'commercial_accept' ||
+      action === 'commercial_reject' ||
+      action === 'commercial_history' ||
+      action === 'commercial_add'
+    ) {
+      const partyKind = portal.kind === 'supplier' ? 'supplier' : 'customer';
+      const supplierId = portal.kind === 'supplier' ? viewer.supplier_id : null;
+      const customerId = portal.kind === 'customer' ? viewer.customer_id : null;
+      if (
+        (partyKind === 'supplier' && !(Number(supplierId) > 0)) ||
+        (partyKind === 'customer' && !(Number(customerId) > 0))
+      ) {
+        return NextResponse.json({ error: 'No book account' }, { status: 403 });
+      }
+      const {
+        acceptPrice,
+        addFromInventory,
+        lineBelongsToViewer,
+        loadPartyLines,
+        loadRevisions,
+        proposePrice,
+        rejectPrice,
+      } = await import('@/lib/commercial/db');
+      const actor = hostActor ? 'host' : 'party';
+      const actorLabel = stamp.noteTag || actor;
+      if (action === 'commercial_add') {
+        if (!hostActor) {
+          return NextResponse.json(
+            { error: 'Only the host can add catalogue SKUs' },
+            { status: 403 }
+          );
+        }
+        const ids = Array.isArray(body.productIds)
+          ? body.productIds.map(Number)
+          : [];
+        const r = await addFromInventory({
+          profileId: portal.profile_id,
+          partyKind,
+          supplierId,
+          customerId,
+          productIds: ids,
+          actor: 'host',
+        });
+        if (!r.ok) {
+          return NextResponse.json({ error: r.error }, { status: r.status });
+        }
+        return NextResponse.json({ success: true, lines: r.lines });
+      }
+      const lineId = Number(body.line_id || body.lineId);
+      if (!Number.isFinite(lineId) || lineId <= 0) {
+        return NextResponse.json({ error: 'line_id required' }, { status: 400 });
+      }
+      const owned = await loadPartyLines({
+        profileId: portal.profile_id,
+        partyKind,
+        supplierId,
+        customerId,
+      });
+      const line = owned.find((l) => l.id === lineId);
+      if (!line || !lineBelongsToViewer(line, { kind: partyKind, supplierId, customerId })) {
+        return NextResponse.json({ error: 'Not this party’s catalogue' }, { status: 403 });
+      }
+      if (action === 'commercial_history') {
+        const revisions = await loadRevisions(lineId);
+        return NextResponse.json({ success: true, revisions });
+      }
+      if (action === 'commercial_propose') {
+        const r = await proposePrice({
+          profileId: portal.profile_id,
+          lineId,
+          newPrice: Number(body.price),
+          actor,
+          note: body.note != null ? String(body.note) : null,
+        });
+        if (!r.ok) {
+          return NextResponse.json({ error: r.error }, { status: r.status });
+        }
+        return NextResponse.json({ success: true, line: r.line });
+      }
+      if (action === 'commercial_accept') {
+        const r = await acceptPrice({
+          profileId: portal.profile_id,
+          lineId,
+          actor,
+          actorLabel,
+        });
+        if (!r.ok) {
+          return NextResponse.json({ error: r.error }, { status: r.status });
+        }
+        return NextResponse.json({ success: true, line: r.line });
+      }
+      const r = await rejectPrice({
+        profileId: portal.profile_id,
+        lineId,
+        actor,
+        actorLabel,
+        note: body.note != null ? String(body.note) : null,
+      });
+      if (!r.ok) {
+        return NextResponse.json({ error: r.error }, { status: r.status });
+      }
+      return NextResponse.json({ success: true, line: r.line });
+    }
+
     if (action === 'po_update') {
       const id = Number(body.id);
       if (!Number.isFinite(id)) {
@@ -1404,6 +1510,30 @@ export async function POST(request: NextRequest) {
           { error: 'Add at least one product with a quantity' },
           { status: 400 }
         );
+      }
+      try {
+        const { lookupAcceptedMap } = await import('@/lib/commercial/db');
+        const { applyAcceptedUnitPrices } = await import('@/lib/commercial/engine');
+        const accepted = await lookupAcceptedMap({
+          profileId: portal.profile_id,
+          partyKind: 'customer',
+          customerId: viewer.customer_id,
+        });
+        const priced = applyAcceptedUnitPrices(
+          lines as Array<{
+            product_id?: number | null;
+            quantity?: number;
+            qty?: number;
+            unit_price: number;
+          }>,
+          accepted
+        );
+        for (let i = 0; i < lines.length; i++) {
+          lines[i].unit_price = priced.items[i].unit_price;
+          lines[i].line_total = priced.items[i].line_total;
+        }
+      } catch {
+        /* catalogue optional */
       }
       const {
         mapChainSetup,

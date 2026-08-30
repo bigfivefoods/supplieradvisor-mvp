@@ -38,6 +38,7 @@ export const DEFAULT_PORTAL_SECTIONS = {
   messages: true,
   stock: true,
   projects: true,
+  commercial: true,
 } as const;
 
 export type PortalSections = {
@@ -52,6 +53,7 @@ export type PortalSections = {
   messages?: boolean;
   stock?: boolean;
   projects?: boolean;
+  commercial?: boolean;
 };
 
 export type TradePortalRow = {

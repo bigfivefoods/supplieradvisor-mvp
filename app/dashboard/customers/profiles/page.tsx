@@ -31,6 +31,7 @@ import { AccountLogoField } from '@/components/relationship/AccountLogoField';
 import type { PartyRoleRow } from '@/lib/accounting/party-roles';
 import { glCodeFromMeta } from '@/lib/accounting/party-roles';
 import { PartyBookRoleSelect } from '@/components/accounting/PartyBookRoleSelect';
+import { HostCommercial } from '@/components/commercial/CommercialPanel';
 
 export default function CustomerProfilesPage() {
   return (
@@ -53,6 +54,7 @@ function ProfilesInner() {
   const [partyByCustomer, setPartyByCustomer] = useState<
     Record<number, PartyRoleRow>
   >({});
+  const [commercialId, setCommercialId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -463,6 +465,15 @@ function ProfilesInner() {
                     </td>
                     <td className="px-3 py-3 text-right">
                       <div className="inline-flex items-center justify-end gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCommercialId((cur) => (cur === c.id ? null : c.id))
+                          }
+                          className="text-xs font-semibold text-[#0077b6] hover:underline px-2 py-1"
+                        >
+                          Commercial
+                        </button>
                         {canInviteCustomer(c) && inviteOpenId !== c.id && (
                           <button
                             type="button"
@@ -554,6 +565,19 @@ function ProfilesInner() {
           </div>
         )}
       </div>
+      {commercialId ? (
+        <div className="mt-4">
+          <HostCommercial
+            companyId={companyId}
+            partyKind="customer"
+            customerId={commercialId}
+            partyName={
+              customers.find((c) => c.id === commercialId)?.trading_name ||
+              'Customer'
+            }
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

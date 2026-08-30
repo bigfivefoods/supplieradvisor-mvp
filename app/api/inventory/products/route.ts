@@ -302,6 +302,30 @@ export async function PATCH(request: NextRequest) {
     }
 
     const supabase = getSupabaseServer();
+    const companyId = Number(body.companyId);
+    let commercialNote: string | null = null;
+    if (Number.isFinite(companyId) && companyId > 0) {
+      try {
+        const { proposeFromProductMaster } = await import('@/lib/commercial/db');
+        const proposed = await proposeFromProductMaster({
+          profileId: companyId,
+          productId: Number(body.id),
+          costPrice:
+            updates.cost_price != null ? Number(updates.cost_price) : null,
+          sellPrice:
+            updates.sell_price != null ? Number(updates.sell_price) : null,
+        });
+        if (proposed.heldCost) {
+          delete updates.cost_price;
+          commercialNote =
+            'Cost change proposed on the supplier catalogue — accepted price does not move until they Accept.';
+        } else if (proposed.customerProposals > 0) {
+          commercialNote = `List price saved. ${proposed.customerProposals} customer price(s) pending Accept.`;
+        }
+      } catch {
+        /* catalogue optional */
+      }
+    }
     let { data, error } = await supabase
       .from('products')
       .update(updates)
@@ -324,7 +348,11 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ success: true, product: data });
+    return NextResponse.json({
+      success: true,
+      product: data,
+      commercial: commercialNote,
+    });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
   }

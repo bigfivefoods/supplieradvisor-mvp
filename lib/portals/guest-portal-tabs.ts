@@ -16,6 +16,7 @@ export type GuestPortalTab =
   | 'projects'
   | 'people'
   | 'docs'
+  | 'commercial'
   | 'demo';
 
 export type GuestPortalTabItem = { id: GuestPortalTab; label: string };
@@ -51,6 +52,7 @@ export function guestPortalTabGroups(opts: {
         id: 'trade',
         tabs: [
           { id: 'orders', label: 'Purchase orders' },
+          { id: 'commercial', label: 'Commercial' },
           { id: 'stock', label: 'Stock' },
         ],
       },
@@ -87,6 +89,7 @@ export function guestPortalTabGroups(opts: {
         { id: 'quotes', label: 'Quotations' },
         { id: 'newpo', label: 'Purchase order' },
         { id: 'orders', label: 'Sales orders' },
+        { id: 'commercial', label: 'Commercial' },
         { id: 'statement', label: 'Statement' },
       ],
     },

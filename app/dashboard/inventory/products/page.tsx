@@ -42,6 +42,7 @@ import {
 } from '@/lib/inventory/uploadProductAssets';
 import { writeCustomerBrand } from '@/lib/inventory/customer-brand';
 import { ProductPhoto } from '@/components/inventory/ProductPhoto';
+import { ProductCommercial } from '@/components/commercial/CommercialPanel';
 
 type CategoryRow = {
   id: number;
@@ -426,7 +427,13 @@ function ProductsInner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || data.hint || 'Failed');
       const wasEdit = !!editingId;
-      toast.success(wasEdit ? 'Product updated' : 'Product created with QR + on-chain hash');
+      toast.success(
+        data.commercial
+          ? String(data.commercial)
+          : wasEdit
+            ? 'Product updated'
+            : 'Product created with QR + on-chain hash'
+      );
       setShowModal(false);
       resetCreateForm();
       if (!wasEdit && data.product) setQrProduct(data.product);
@@ -1264,9 +1271,16 @@ function ProductsInner() {
                 <p className="text-[11px] text-neutral-500 flex items-start gap-1.5">
                   <Link2 className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
                   {editingId
-                    ? 'Changes update catalogue pricing, images, and specs. QR / public ID stay the same.'
+                    ? 'Cost/sell changes on a catalogue line propose until the other side Accepts. QR / public ID stay the same.'
                     : 'Saving generates a public QR ID and SHA-256 on-chain identity hash automatically.'}
                 </p>
+                {editingId && companyId ? (
+                  <ProductCommercial
+                    companyId={companyId}
+                    productId={editingId}
+                    productName={form.name}
+                  />
+                ) : null}
               </div>
               <div className="flex gap-3 p-5 border-t">
                 <button

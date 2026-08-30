@@ -385,9 +385,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const normalized = normalizePoItems(body.items);
+    let normalized = normalizePoItems(body.items);
     if ('error' in normalized) {
       return NextResponse.json({ error: normalized.error }, { status: 400 });
+    }
+    if (srmId) {
+      try {
+        const { lookupAcceptedMap } = await import('@/lib/commercial/db');
+        const { applyAcceptedUnitPrices } = await import('@/lib/commercial/engine');
+        const accepted = await lookupAcceptedMap({
+          profileId: companyId,
+          partyKind: 'supplier',
+          supplierId: srmId,
+        });
+        const priced = applyAcceptedUnitPrices(normalized.items, accepted);
+        normalized = { items: priced.items, total: priced.total };
+      } catch {
+        /* catalogue optional until SQL paste */
+      }
     }
 
     // Sum quantities for OTIFEF order_quantity baseline

@@ -63,6 +63,7 @@ import {
   portalWhen,
 } from '@/lib/portals/portal-activity';
 import type { GuestPortalTab } from '@/lib/portals/guest-portal-tabs';
+import { CommercialPanel } from '@/components/commercial/CommercialPanel';
 
 export type { GuestPortalTab, GuestPortalTabGroup, GuestPortalTabItem } from '@/lib/portals/guest-portal-tabs';
 export { guestPortalTabGroups, guestPortalTabs } from '@/lib/portals/guest-portal-tabs';
@@ -161,6 +162,10 @@ const HEAVY_ACTIONS = new Set([
   'document_save',
   'document_extra',
   'production_update',
+  'commercial_propose',
+  'commercial_accept',
+  'commercial_reject',
+  'commercial_add',
 ]);
 const REFRESH_ACTIONS = new Set([
   'project_create',
@@ -169,6 +174,10 @@ const REFRESH_ACTIONS = new Set([
   'rate',
   'po_update',
   'stock_update',
+  'commercial_propose',
+  'commercial_accept',
+  'commercial_reject',
+  'commercial_add',
   'document_save',
   'document_extra',
   'production_update',
@@ -582,7 +591,15 @@ export function GuestTradeWorkspace({
                           ? 'Production updated — customer sales order will follow'
                           : action === 'stock_update'
                             ? 'Stock on hand updated'
-                            : action === 'po_update'
+                            : action === 'commercial_propose'
+                              ? 'Price proposed — waiting for Accept'
+                              : action === 'commercial_accept'
+                                ? 'Price accepted'
+                                : action === 'commercial_reject'
+                                  ? 'Proposal rejected'
+                                  : action === 'commercial_history'
+                                    ? null
+                                    : action === 'po_update'
                               ? 'Order updated'
                               : 'Saved'
       );
@@ -700,6 +717,18 @@ export function GuestTradeWorkspace({
           accountLabel={live.accountLabel}
           busy={busy}
           onAct={act}
+        />
+      ) : null}
+      {tab === 'commercial' ? (
+        <CommercialPanel
+          partyKind={isSupplier ? 'supplier' : 'customer'}
+          actor={isHost ? 'host' : 'party'}
+          hostName={live.host.name}
+          partyName={live.accountLabel || (isSupplier ? 'Supplier' : 'Customer')}
+          lines={ws?.commercial || []}
+          busy={busy}
+          onAct={act}
+          canAdd={false}
         />
       ) : null}
       {tab === 'stock' && isSupplier ? (
