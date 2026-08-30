@@ -19,6 +19,7 @@ import {
 } from '@/lib/portals/supplier-portal-party';
 import { loadHostPurchaseOrders } from '@/lib/portals/host-purchase-orders';
 import { loadSupplierHeldStock } from '@/lib/portals/supplier-dc-stock';
+import { loadCustomerHeldStock } from '@/lib/portals/customer-site-stock';
 import type { OtifefMetrics } from '@/lib/suppliers/types';
 import {
   parsePortalTaskRiadId,
@@ -685,6 +686,20 @@ export async function loadPortalWorkspace(opts: {
   }
 
   if (kind === 'customer' && opts.viewer.customer_id) {
+    const { data: crm } = await supabase
+      .from('customers')
+      .select('trading_name')
+      .eq('id', opts.viewer.customer_id)
+      .eq('profile_id', companyId)
+      .maybeSingle();
+    const held = await loadCustomerHeldStock({
+      companyId,
+      customerId: Number(opts.viewer.customer_id),
+      tradingName:
+        bookProfile?.trading_name ||
+        (crm?.trading_name != null ? String(crm.trading_name) : null),
+    });
+    stock.push(...held);
     const { data } = await supabase
       .from('purchase_orders')
       .select(

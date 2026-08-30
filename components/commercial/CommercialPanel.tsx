@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatMoney } from '@/lib/inventory/types';
+import { ProductPhoto } from '@/components/inventory/ProductPhoto';
 import {
   actorLabel,
   groupLinesByFamily,
@@ -44,6 +45,17 @@ export function CommercialPanel({
   const [history, setHistory] = useState<Record<number, PriceRevision[]>>({});
   const [draft, setDraft] = useState<Record<number, string>>({});
   const [note, setNote] = useState<Record<number, string>>({});
+  const [sla, setSla] = useState<
+    Record<
+      number,
+      {
+        short_description: string;
+        long_description: string;
+        lead_time_days: string;
+        moq: string;
+      }
+    >
+  >({});
   const [addOpen, setAddOpen] = useState(false);
   const [products, setProducts] = useState<Array<{ id: number; name: string }>>([]);
   const [picked, setPicked] = useState<number[]>([]);
@@ -247,7 +259,25 @@ export function CommercialPanel({
               return (
                 <li key={line.id} className="px-4 py-3 space-y-2">
                   <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
+                    <div className="flex items-start gap-3 min-w-0">
+                      {line.primary_image_url ? (
+                        <button
+                          type="button"
+                          className="h-14 w-14 shrink-0 rounded-xl border border-slate-100 overflow-hidden bg-[#f8f7f5]"
+                          onClick={() =>
+                            window.open(String(line.primary_image_url), '_blank')
+                          }
+                        >
+                          <ProductPhoto
+                            src={line.primary_image_url}
+                            alt={line.product_name || ''}
+                            className="h-14 w-14"
+                          />
+                        </button>
+                      ) : (
+                        <span className="h-14 w-14 shrink-0 rounded-xl bg-slate-100" />
+                      )}
+                      <div className="min-w-0">
                       <p className="text-sm font-bold text-slate-900">
                         {line.product_name}
                       </p>
@@ -256,6 +286,10 @@ export function CommercialPanel({
                           line.sku,
                           line.product_type?.replace(/_/g, ' '),
                           line.uom,
+                          line.lead_time_days != null
+                            ? `${line.lead_time_days}d lead`
+                            : null,
+                          line.moq != null ? `MOQ ${line.moq}` : null,
                           line.qty_on_hand != null
                             ? `${line.qty_on_hand} at site`
                             : null,
@@ -263,6 +297,12 @@ export function CommercialPanel({
                           .filter(Boolean)
                           .join(' · ')}
                       </p>
+                      {line.short_description ? (
+                        <p className="text-xs text-neutral-600 mt-1">
+                          {line.short_description}
+                        </p>
+                      ) : null}
+                      </div>
                     </div>
                     <p className="text-xl font-black tabular-nums text-slate-900">
                       {formatMoney(line.accepted_price, line.currency)}
@@ -334,6 +374,120 @@ export function CommercialPanel({
                       onClick={() => void loadHistory(line.id)}
                     >
                       {openId === line.id ? 'Hide history' : 'History'}
+                    </button>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    <input
+                      className="input !py-1.5 !px-2 !text-xs"
+                      placeholder="Lead time (days)"
+                      value={
+                        sla[line.id]?.lead_time_days ??
+                        (line.lead_time_days != null
+                          ? String(line.lead_time_days)
+                          : '')
+                      }
+                      onChange={(e) =>
+                        setSla((s) => ({
+                          ...s,
+                          [line.id]: {
+                            short_description:
+                              s[line.id]?.short_description ??
+                              line.short_description ??
+                              '',
+                            long_description:
+                              s[line.id]?.long_description ??
+                              line.long_description ??
+                              '',
+                            lead_time_days: e.target.value,
+                            moq: s[line.id]?.moq ?? (line.moq != null ? String(line.moq) : ''),
+                          },
+                        }))
+                      }
+                    />
+                    <input
+                      className="input !py-1.5 !px-2 !text-xs"
+                      placeholder="MOQ"
+                      value={
+                        sla[line.id]?.moq ??
+                        (line.moq != null ? String(line.moq) : '')
+                      }
+                      onChange={(e) =>
+                        setSla((s) => ({
+                          ...s,
+                          [line.id]: {
+                            short_description:
+                              s[line.id]?.short_description ??
+                              line.short_description ??
+                              '',
+                            long_description:
+                              s[line.id]?.long_description ??
+                              line.long_description ??
+                              '',
+                            lead_time_days:
+                              s[line.id]?.lead_time_days ??
+                              (line.lead_time_days != null
+                                ? String(line.lead_time_days)
+                                : ''),
+                            moq: e.target.value,
+                          },
+                        }))
+                      }
+                    />
+                    {actor === 'host' ? (
+                      <textarea
+                        className="input !py-1.5 !px-2 !text-xs sm:col-span-2 min-h-[52px]"
+                        placeholder="Short description"
+                        value={
+                          sla[line.id]?.short_description ??
+                          line.short_description ??
+                          ''
+                        }
+                        onChange={(e) =>
+                          setSla((s) => ({
+                            ...s,
+                            [line.id]: {
+                              short_description: e.target.value,
+                              long_description:
+                                s[line.id]?.long_description ??
+                                line.long_description ??
+                                '',
+                              lead_time_days:
+                                s[line.id]?.lead_time_days ??
+                                (line.lead_time_days != null
+                                  ? String(line.lead_time_days)
+                                  : ''),
+                              moq:
+                                s[line.id]?.moq ??
+                                (line.moq != null ? String(line.moq) : ''),
+                            },
+                          }))
+                        }
+                      />
+                    ) : null}
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className="btn-secondary !py-1.5 !px-3 text-xs min-h-[44px] sm:col-span-2"
+                      onClick={() =>
+                        void runHost({
+                          action: onAct ? 'commercial_sla' : 'sla',
+                          lineId: line.id,
+                          line_id: line.id,
+                          product_id: line.product_id,
+                          short_description:
+                            sla[line.id]?.short_description ??
+                            line.short_description,
+                          long_description:
+                            sla[line.id]?.long_description ??
+                            line.long_description,
+                          lead_time_days: Number(
+                            sla[line.id]?.lead_time_days ?? line.lead_time_days
+                          ),
+                          moq: Number(sla[line.id]?.moq ?? line.moq),
+                        })
+                      }
+                    >
+                      Save lead / MOQ{actor === 'host' ? ' / description' : ''}
                     </button>
                   </div>
                   {openId === line.id ? (

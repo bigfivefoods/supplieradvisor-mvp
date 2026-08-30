@@ -129,7 +129,7 @@ export async function loadSupplierHeldStock(opts: {
   const levelsHit = await supabase
     .from('stock_levels')
     .select(
-      'id, product_id, warehouse_id, qty_on_hand, qty_reserved, qty_available'
+      'id, product_id, warehouse_id, qty_on_hand, qty_reserved, qty_available, lot_number, expiry_date'
     )
     .eq('profile_id', opts.companyId)
     .in('warehouse_id', ids)
@@ -159,7 +159,9 @@ export async function loadSupplierHeldStock(opts: {
   ];
   const pinnedHit = await supabase
     .from('products')
-    .select('id, name, sku, product_type, warehouse_id, metadata')
+    .select(
+      'id, name, sku, product_type, warehouse_id, metadata, primary_image_url'
+    )
     .eq('profile_id', opts.companyId)
     .limit(500);
   let pinned: Record<string, unknown>[] = [];
@@ -199,20 +201,27 @@ export async function loadSupplierHeldStock(opts: {
   }
   const products = new Map<
     number,
-    { name: string; sku: string | null; product_type: string | null }
+    {
+      name: string;
+      sku: string | null;
+      product_type: string | null;
+      primary_image_url: string | null;
+    }
   >();
   for (const p of pinned) {
     products.set(Number(p.id), {
       name: String(p.name || `Product #${p.id}`),
       sku: p.sku != null ? String(p.sku) : null,
       product_type: p.product_type != null ? String(p.product_type) : null,
+      primary_image_url:
+        p.primary_image_url != null ? String(p.primary_image_url) : null,
     });
   }
   if (productIds.some((id) => !products.has(id))) {
     const missing = productIds.filter((id) => !products.has(id));
     const { data: prows } = await supabase
       .from('products')
-      .select('id, name, sku, product_type')
+      .select('id, name, sku, product_type, primary_image_url')
       .eq('profile_id', opts.companyId)
       .in('id', missing);
     for (const p of prows || []) {
@@ -220,6 +229,8 @@ export async function loadSupplierHeldStock(opts: {
         name: String(p.name || `Product #${p.id}`),
         sku: p.sku != null ? String(p.sku) : null,
         product_type: p.product_type != null ? String(p.product_type) : null,
+        primary_image_url:
+          p.primary_image_url != null ? String(p.primary_image_url) : null,
       });
     }
   }
@@ -242,6 +253,10 @@ export async function loadSupplierHeldStock(opts: {
       warehouse_id: Number.isFinite(warehouseId) ? warehouseId : null,
       warehouse_name: nameById[warehouseId] || null,
       product_type: product?.product_type || null,
+      primary_image_url: product?.primary_image_url || null,
+      lot_number: l.lot_number != null ? String(l.lot_number) : null,
+      expiry_date:
+        l.expiry_date != null ? String(l.expiry_date).slice(0, 10) : null,
       po_id: null,
     });
   }
@@ -272,87 +287,14 @@ export async function applySupplierStockUpdate(opts: {
       status: 403,
     };
   }
-  const qty = Number(opts.qtyOnHand);
-  if (!Number.isFinite(qty) || qty < 0) {
-    return { ok: false, error: 'qty_on_hand must be zero or more', status: 400 };
-  }
-  const supabase = getSupabaseServer();
-  const now = new Date().toISOString();
-  const existing = await supabase
-    .from('stock_levels')
-    .select('id, qty_on_hand, qty_reserved')
-    .eq('profile_id', opts.companyId)
-    .eq('warehouse_id', opts.warehouseId)
-    .eq('product_id', opts.productId)
-    .maybeSingle();
-  const reserved = Number(existing.data?.qty_reserved || 0);
-  const available = qty - reserved;
-  if (existing.data?.id) {
-    const upd = await supabase
-      .from('stock_levels')
-      .update({
-        qty_on_hand: qty,
-        qty_available: available,
-        updated_at: now,
-      } as never)
-      .eq('id', existing.data.id)
-      .eq('profile_id', opts.companyId);
-    if (upd.error && /qty_available/i.test(upd.error.message || '')) {
-      const retry = await supabase
-        .from('stock_levels')
-        .update({ qty_on_hand: qty, updated_at: now } as never)
-        .eq('id', existing.data.id)
-        .eq('profile_id', opts.companyId);
-      if (retry.error) {
-        return { ok: false, error: retry.error.message, status: 500 };
-      }
-    } else if (upd.error) {
-      return { ok: false, error: upd.error.message, status: 500 };
-    }
-  } else {
-    const ins = await supabase.from('stock_levels').insert({
-      profile_id: opts.companyId,
-      warehouse_id: opts.warehouseId,
-      product_id: opts.productId,
-      qty_on_hand: qty,
-      qty_available: available,
-      updated_at: now,
-    } as never);
-    if (ins.error && /qty_available/i.test(ins.error.message || '')) {
-      const retry = await supabase.from('stock_levels').insert({
-        profile_id: opts.companyId,
-        warehouse_id: opts.warehouseId,
-        product_id: opts.productId,
-        qty_on_hand: qty,
-        updated_at: now,
-      } as never);
-      if (retry.error) {
-        return { ok: false, error: retry.error.message, status: 500 };
-      }
-    } else if (ins.error) {
-      return { ok: false, error: ins.error.message, status: 500 };
-    }
-  }
-  const movement = {
-    profile_id: opts.companyId,
-    product_id: opts.productId,
-    warehouse_id: opts.warehouseId,
-    quantity: qty,
-    movement_type: 'count',
+  const { postStock } = await import('@/lib/inventory/post-stock');
+  return postStock({
+    profileId: opts.companyId,
+    productId: opts.productId,
+    warehouseId: opts.warehouseId,
+    movementType: 'count',
+    absoluteQty: opts.qtyOnHand,
+    referenceType: 'portal_stock_update',
     notes: 'Supplier portal stock count',
-    reference_type: 'portal_stock_update',
-    created_at: now,
-  };
-  const mov = await supabase.from('stock_movements').insert(movement as never);
-  if (mov.error && /column|schema cache|does not exist/i.test(mov.error.message || '')) {
-    await supabase.from('stock_movements').insert({
-      profile_id: opts.companyId,
-      product_id: opts.productId,
-      warehouse_id: opts.warehouseId,
-      quantity: qty,
-      movement_type: 'count',
-      created_at: now,
-    } as never);
-  }
-  return { ok: true, qty_on_hand: qty, qty_available: available };
+  });
 }

@@ -10,6 +10,7 @@ import {
   loadRevisions,
   proposePrice,
   rejectPrice,
+  saveSlaFields,
 } from '@/lib/commercial/db';
 import { parsePartyKind } from '@/lib/commercial/engine';
 
@@ -83,6 +84,31 @@ export async function POST(request: NextRequest) {
     const party = partyFrom(new URLSearchParams(), body);
     const action = String(body.action || 'propose');
     const lineId = Number(body.lineId || body.id);
+
+    if (action === 'sla') {
+      const productId = Number(body.product_id || body.productId);
+      if (!Number.isFinite(productId) || productId <= 0) {
+        return NextResponse.json({ error: 'product_id required' }, { status: 400 });
+      }
+      const r = await saveSlaFields({
+        profileId: companyId,
+        productId,
+        short_description:
+          body.short_description != null ? String(body.short_description) : undefined,
+        long_description:
+          body.long_description != null ? String(body.long_description) : undefined,
+        lead_time_days:
+          body.lead_time_days != null && Number.isFinite(Number(body.lead_time_days))
+            ? Number(body.lead_time_days)
+            : undefined,
+        moq:
+          body.moq != null && Number.isFinite(Number(body.moq))
+            ? Number(body.moq)
+            : undefined,
+      });
+      if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });
+      return NextResponse.json({ success: true });
+    }
 
     if (action === 'add') {
       const ids = Array.isArray(body.productIds)

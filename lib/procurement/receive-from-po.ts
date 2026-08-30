@@ -147,6 +147,22 @@ export async function receivePurchaseOrderToInventory(opts: {
 
   // Default warehouse if none
   let wh = warehouseId;
+  const srmStamp = Number(meta.srm_supplier_id);
+  if (!wh && Number.isFinite(srmStamp) && srmStamp > 0) {
+    const { data: dcs } = await supabase
+      .from('warehouses')
+      .select('id, metadata')
+      .eq('profile_id', opts.companyId)
+      .limit(50);
+    const hit = (dcs || []).find((w) => {
+      const m =
+        w.metadata && typeof w.metadata === 'object'
+          ? (w.metadata as Record<string, unknown>)
+          : {};
+      return Number(m.srm_supplier_id) === srmStamp;
+    });
+    if (hit?.id) wh = Number(hit.id);
+  }
   if (!wh) {
     const { data: firstWh } = await supabase
       .from('warehouses')
@@ -274,58 +290,26 @@ export async function receivePurchaseOrderToInventory(opts: {
 
     productByLine[i] = productId;
     const lotNumber = `${lotPrefix}-${i + 1}`;
-
-    let q = supabase
-      .from('stock_levels')
-      .select('id, qty_on_hand')
-      .eq('profile_id', opts.companyId)
-      .eq('product_id', productId);
-    if (wh) q = q.eq('warehouse_id', wh);
-    else q = q.is('warehouse_id', null);
-    const { data: level } = await q.maybeSingle();
-
-    if (level) {
-      await supabase
-        .from('stock_levels')
-        .update({
-          qty_on_hand: Number(level.qty_on_hand || 0) + qty,
-          lot_number: lotNumber,
-          updated_at: now,
-        })
-        .eq('id', level.id);
-    } else {
-      await supabase.from('stock_levels').insert({
-        profile_id: opts.companyId,
-        product_id: productId,
-        warehouse_id: wh,
-        qty_on_hand: qty,
-        lot_number: lotNumber,
-        updated_at: now,
-      });
+    if (!wh) {
+      skippedLines += 1;
+      warnings.push(`Skipped “${name || 'line'}” — no warehouse to receive into`);
+      continue;
     }
-
-    // Stock movement with PO reference (golden path "stocked" signal)
-    const movement: Record<string, unknown> = {
-      profile_id: opts.companyId,
-      product_id: productId,
-      warehouse_id: wh,
+    const { postStock } = await import('@/lib/inventory/post-stock');
+    const posted = await postStock({
+      profileId: opts.companyId,
+      productId,
+      warehouseId: wh,
+      movementType: 'receive',
       quantity: qty,
-      unit_cost: unitCost != null && unitCost > 0 ? unitCost : 0,
-      movement_type: 'receive',
+      unitCost: unitCost != null && unitCost > 0 ? unitCost : 0,
+      lotNumber,
+      referenceType: 'purchase_order',
+      referenceId: opts.poId,
       notes: `PO #${opts.poId} receive`,
-      lot_number: lotNumber,
-      reference_type: 'purchase_order',
-      reference_id: String(opts.poId),
-      created_at: now,
-    };
-    let { error: movErr } = await supabase.from('stock_movements').insert(movement);
-    if (movErr && /column|schema cache|does not exist/i.test(movErr.message || '')) {
-      const { unit_cost: _uc, ...rest } = movement;
-      const retry = await supabase.from('stock_movements').insert(rest);
-      movErr = retry.error;
-    }
-    if (movErr) {
-      warnings.push(`Movement log soft-fail for product ${productId}: ${movErr.message}`);
+    });
+    if (!posted.ok) {
+      warnings.push(`Receive post failed for product ${productId}: ${posted.error}`);
     }
 
     receivedLines += 1;

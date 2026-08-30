@@ -13,6 +13,7 @@ assert.deepEqual(customer, [
   'newpo',
   'orders',
   'commercial',
+  'stock',
   'statement',
   'projects',
   'otifef',

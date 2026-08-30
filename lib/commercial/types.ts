@@ -37,6 +37,12 @@ export type PartyCatalogueLine = {
   sku?: string | null;
   qty_on_hand?: number | null;
   family?: string;
+  primary_image_url?: string | null;
+  short_description?: string | null;
+  long_description?: string | null;
+  lead_time_days?: number | null;
+  moq?: number | null;
+  specs_sheet_url?: string | null;
 };
 
 export type PriceRevision = {

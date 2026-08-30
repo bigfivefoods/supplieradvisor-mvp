@@ -975,12 +975,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'stock_update') {
-      if (portal.kind !== 'supplier' || !viewer.supplier_id) {
-        return NextResponse.json(
-          { error: 'Stock updates are for the supplier DC' },
-          { status: 403 }
-        );
-      }
       const warehouseId = Number(body.warehouse_id);
       const productId = Number(body.product_id);
       const qty = Number(body.qty_on_hand);
@@ -990,33 +984,68 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      const { applySupplierStockUpdate } = await import(
-        '@/lib/portals/supplier-dc-stock'
-      );
-      const { data: srm } = await supabase
-        .from('srm_suppliers')
-        .select('trading_name')
-        .eq('id', viewer.supplier_id)
-        .eq('profile_id', portal.profile_id)
-        .maybeSingle();
-      const result = await applySupplierStockUpdate({
-        companyId: portal.profile_id,
-        supplierId: Number(viewer.supplier_id),
-        tradingName: srm?.trading_name != null ? String(srm.trading_name) : null,
-        warehouseId,
-        productId,
-        qtyOnHand: qty,
-      });
-      if (!result.ok) {
-        return NextResponse.json({ error: result.error }, { status: result.status });
+      if (portal.kind === 'supplier' && viewer.supplier_id) {
+        const { applySupplierStockUpdate } = await import(
+          '@/lib/portals/supplier-dc-stock'
+        );
+        const { data: srm } = await supabase
+          .from('srm_suppliers')
+          .select('trading_name')
+          .eq('id', viewer.supplier_id)
+          .eq('profile_id', portal.profile_id)
+          .maybeSingle();
+        const result = await applySupplierStockUpdate({
+          companyId: portal.profile_id,
+          supplierId: Number(viewer.supplier_id),
+          tradingName: srm?.trading_name != null ? String(srm.trading_name) : null,
+          warehouseId,
+          productId,
+          qtyOnHand: qty,
+        });
+        if (!result.ok) {
+          return NextResponse.json({ error: result.error }, { status: result.status });
+        }
+        return NextResponse.json({
+          success: true,
+          warehouse_id: warehouseId,
+          product_id: productId,
+          qty_on_hand: result.qty_on_hand,
+          qty_available: result.qty_available,
+        });
       }
-      return NextResponse.json({
-        success: true,
-        warehouse_id: warehouseId,
-        product_id: productId,
-        qty_on_hand: result.qty_on_hand,
-        qty_available: result.qty_available,
-      });
+      if (portal.kind === 'customer' && viewer.customer_id) {
+        const { applyCustomerStockUpdate } = await import(
+          '@/lib/portals/customer-site-stock'
+        );
+        const { data: crm } = await supabase
+          .from('customers')
+          .select('trading_name')
+          .eq('id', viewer.customer_id)
+          .eq('profile_id', portal.profile_id)
+          .maybeSingle();
+        const result = await applyCustomerStockUpdate({
+          companyId: portal.profile_id,
+          customerId: Number(viewer.customer_id),
+          tradingName: crm?.trading_name != null ? String(crm.trading_name) : null,
+          warehouseId,
+          productId,
+          qtyOnHand: qty,
+        });
+        if (!result.ok) {
+          return NextResponse.json({ error: result.error }, { status: result.status });
+        }
+        return NextResponse.json({
+          success: true,
+          warehouse_id: warehouseId,
+          product_id: productId,
+          qty_on_hand: result.qty_on_hand,
+          qty_available: result.qty_available,
+        });
+      }
+      return NextResponse.json(
+        { error: 'Stock updates are for that party’s site' },
+        { status: 403 }
+      );
     }
 
     if (
@@ -1024,7 +1053,8 @@ export async function POST(request: NextRequest) {
       action === 'commercial_accept' ||
       action === 'commercial_reject' ||
       action === 'commercial_history' ||
-      action === 'commercial_add'
+      action === 'commercial_add' ||
+      action === 'commercial_sla'
     ) {
       const partyKind = portal.kind === 'supplier' ? 'supplier' : 'customer';
       const supplierId = portal.kind === 'supplier' ? viewer.supplier_id : null;
@@ -1086,6 +1116,35 @@ export async function POST(request: NextRequest) {
       if (action === 'commercial_history') {
         const revisions = await loadRevisions(lineId);
         return NextResponse.json({ success: true, revisions });
+      }
+      if (action === 'commercial_sla') {
+        const { saveSlaFields } = await import('@/lib/commercial/db');
+        const r = await saveSlaFields({
+          profileId: portal.profile_id,
+          productId: line.product_id,
+          short_description: hostActor
+            ? body.short_description != null
+              ? String(body.short_description)
+              : undefined
+            : undefined,
+          long_description: hostActor
+            ? body.long_description != null
+              ? String(body.long_description)
+              : undefined
+            : undefined,
+          lead_time_days:
+            body.lead_time_days != null && Number.isFinite(Number(body.lead_time_days))
+              ? Number(body.lead_time_days)
+              : undefined,
+          moq:
+            body.moq != null && Number.isFinite(Number(body.moq))
+              ? Number(body.moq)
+              : undefined,
+        });
+        if (!r.ok) {
+          return NextResponse.json({ error: r.error }, { status: r.status });
+        }
+        return NextResponse.json({ success: true });
       }
       if (action === 'commercial_propose') {
         const r = await proposePrice({

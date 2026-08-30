@@ -279,10 +279,28 @@ export async function PATCH(request: NextRequest) {
       if (refreshed) orderOut = refreshed;
     }
 
+    let stock = null;
+    if (
+      (body.action === 'complete' || String(orderOut?.status) === 'complete') &&
+      body.skipStock !== true
+    ) {
+      stock = await postProductionStock({
+        companyId,
+        order: orderOut as Record<string, unknown>,
+        warehouseId:
+          body.warehouseId != null ? Number(body.warehouseId) : null,
+        lotNumber:
+          body.lot_number != null ? String(body.lot_number) : undefined,
+        expiryDate:
+          body.expiry_date != null ? String(body.expiry_date).slice(0, 10) : undefined,
+      });
+    }
+
     return NextResponse.json({
       success: true,
       order: orderOut,
       labor,
+      stock,
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -313,4 +331,83 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+async function postProductionStock(opts: {
+  companyId: number;
+  order: Record<string, unknown>;
+  warehouseId?: number | null;
+  lotNumber?: string;
+  expiryDate?: string;
+}) {
+  const productId = Number(opts.order.product_id);
+  const bomId = Number(opts.order.bom_id);
+  const qty = Number(opts.order.qty_completed || opts.order.qty_planned || 0);
+  if (!Number.isFinite(productId) || productId <= 0 || !(qty > 0)) {
+    return { ok: false, error: 'no product qty' };
+  }
+  const supabase = getSupabaseServer();
+  let warehouseId = Number(opts.warehouseId);
+  if (!Number.isFinite(warehouseId) || warehouseId <= 0) {
+    const { data: wh } = await supabase
+      .from('warehouses')
+      .select('id')
+      .eq('profile_id', opts.companyId)
+      .eq('is_default', true)
+      .maybeSingle();
+    warehouseId = wh?.id ? Number(wh.id) : 0;
+    if (!warehouseId) {
+      const { data: anyWh } = await supabase
+        .from('warehouses')
+        .select('id')
+        .eq('profile_id', opts.companyId)
+        .limit(1)
+        .maybeSingle();
+      warehouseId = anyWh?.id ? Number(anyWh.id) : 0;
+    }
+  }
+  if (!warehouseId) return { ok: false, error: 'no warehouse' };
+  const { postStock } = await import('@/lib/inventory/post-stock');
+  const warnings: string[] = [];
+  if (Number.isFinite(bomId) && bomId > 0) {
+    const { data: bomLines } = await supabase
+      .from('manufacturing_bom_lines')
+      .select('component_product_id, qty_per')
+      .eq('bom_id', bomId);
+    for (const line of bomLines || []) {
+      const comp = Number(line.component_product_id);
+      const per = Number(line.qty_per || 0);
+      if (!(comp > 0) || !(per > 0)) continue;
+      const consumed = await postStock({
+        profileId: opts.companyId,
+        productId: comp,
+        warehouseId,
+        movementType: 'consume',
+        quantity: per * qty,
+        referenceType: 'production_order',
+        referenceId: Number(opts.order.id),
+        notes: `Produce consume BOM ${bomId}`,
+      });
+      if (!consumed.ok) warnings.push(consumed.error);
+    }
+  }
+  const lot =
+    opts.lotNumber ||
+    `FG${productId}-${String(opts.order.id || '')}-${new Date()
+      .toISOString()
+      .slice(0, 10)}`;
+  const produced = await postStock({
+    profileId: opts.companyId,
+    productId,
+    warehouseId,
+    movementType: 'produce',
+    quantity: qty,
+    lotNumber: lot,
+    expiryDate: opts.expiryDate,
+    referenceType: 'production_order',
+    referenceId: Number(opts.order.id),
+    notes: `Produce FG ${productId}`,
+  });
+  if (!produced.ok) warnings.push(produced.error);
+  return { ok: produced.ok, warehouseId, lot, warnings };
 }
