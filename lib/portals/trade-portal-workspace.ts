@@ -18,6 +18,7 @@ import {
   poPdfUrlFromMeta,
 } from '@/lib/portals/supplier-portal-party';
 import { loadHostPurchaseOrders } from '@/lib/portals/host-purchase-orders';
+import { loadSupplierHeldStock } from '@/lib/portals/supplier-dc-stock';
 import type { OtifefMetrics } from '@/lib/suppliers/types';
 import {
   parsePortalTaskRiadId,
@@ -283,7 +284,7 @@ function poToDoc(r: Record<string, unknown>, otifefInput: Parameters<typeof otif
     {
       id: Number(r.id),
       kind: 'purchase_order',
-      number: String(r.po_number || r.order_number || `#${r.id}`),
+      number: String(r.po_number || `#${r.id}`),
       status: String(r.status || 'draft'),
       date: r.created_at != null ? String(r.created_at).slice(0, 10) : null,
       due: r.promised_date != null ? String(r.promised_date).slice(0, 10) : null,
@@ -602,11 +603,19 @@ export async function loadPortalWorkspace(opts: {
   if (kind === 'supplier' && opts.viewer.supplier_id) {
     const { data: srm } = await supabase
       .from('srm_suppliers')
-      .select('id, linked_profile_id')
+      .select('id, linked_profile_id, trading_name')
       .eq('id', opts.viewer.supplier_id)
       .eq('profile_id', companyId)
       .maybeSingle();
     const linked = srm?.linked_profile_id != null ? Number(srm.linked_profile_id) : null;
+    const held = await loadSupplierHeldStock({
+      companyId,
+      supplierId: Number(opts.viewer.supplier_id),
+      tradingName:
+        bookProfile?.trading_name ||
+        (srm?.trading_name != null ? String(srm.trading_name) : null),
+    });
+    stock.push(...held);
     const poRows = await loadHostPurchaseOrders({ companyId, limit: 80 });
     for (const raw of poRows) {
       const r = asObject(raw);
@@ -630,8 +639,17 @@ export async function loadPortalWorkspace(opts: {
       const items = Array.isArray(r.items) ? r.items : [];
       for (const item of items) {
         const it = asObject(item);
+        const pid = it.product_id != null ? Number(it.product_id) : null;
+        if (
+          pid &&
+          stock.some(
+            (s) => s.product_id === pid && s.warehouse_id != null && !s.po_id
+          )
+        ) {
+          continue;
+        }
         stock.push({
-          product_id: it.product_id != null ? Number(it.product_id) : null,
+          product_id: pid,
           sku: it.sku != null ? String(it.sku) : null,
           name: String(it.name || it.sku || 'Item'),
           qty_on_hand:
@@ -653,7 +671,7 @@ export async function loadPortalWorkspace(opts: {
     const { data } = await supabase
       .from('purchase_orders')
       .select(
-        'id, po_number, order_number, status, created_at, promised_date, actual_delivery_date, actual_completion_date, order_quantity, delivered_quantity, damaged_quantity, total_amount, currency, seller_customer_id, buyer_profile_id, items, metadata, production_status, confirmed_qty'
+        'id, po_number, status, created_at, promised_date, actual_delivery_date, actual_completion_date, order_quantity, delivered_quantity, damaged_quantity, total_amount, currency, seller_customer_id, buyer_profile_id, items, metadata, production_status, confirmed_qty'
       )
       .eq('supplier_profile_id', companyId)
       .eq('seller_customer_id', opts.viewer.customer_id)

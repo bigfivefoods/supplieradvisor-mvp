@@ -125,6 +125,14 @@ assert.equal(
   true
 );
 assert.equal(
+  poBelongsToSupplierViewer(
+    { supplier_id: null, metadata: { srm_supplier_id: 12 } },
+    { supplierId: 12, linkedProfileId: null }
+  ),
+  true,
+  'book-only SRM PO matches metadata.srm_supplier_id'
+);
+assert.equal(
   poBelongsToSupplierViewer({ supplier_id: 1, supplier_profile_id: 2 }, viewer),
   false
 );
