@@ -19,7 +19,6 @@ import {
   UserPlus,
   UserX,
   Users,
-  X,
 } from 'lucide-react';
 import { addDaysIso } from '@/lib/fitness/fitgraph';
 import {
@@ -68,6 +67,7 @@ import type {
 } from '@/lib/fitness/class-challenges';
 import { GymClassLeaderboards } from '@/components/fitness/GymClassLeaderboards';
 import { MemberGoalsPanel } from '@/components/fitness/MemberGoalsPanel';
+import { GymPwaSheet } from '@/components/fitness/GymPwaSheet';
 import type { MemberGoalView } from '@/lib/fitness/member-goals';
 import {
   healthHasActiveInjury,
@@ -79,6 +79,7 @@ import type {
   FitMovement,
   FitProgramme,
 } from '@/lib/fitness/movements';
+import { gymPwaFieldClass } from '@/lib/fitness/gym-pwa-theme';
 
 type RosterRow = {
   booking_id: string;
@@ -1078,12 +1079,12 @@ export default function CoachFitgraphPortalPage() {
                       : ''}
                   </p>
                   {r.last_log?.comment ? (
-                    <p className="mt-0.5 text-xs text-slate-300">
+                    <p className="mt-0.5 text-xs text-slate-700 dark:text-slate-300">
                       “{r.last_log.comment}”
                     </p>
                   ) : null}
                   {r.last_log?.coach_comment ? (
-                    <p className="text-[11px] text-amber-200">
+                    <p className="text-[11px] text-amber-700 dark:text-amber-200">
                       You: {r.last_log.coach_comment}
                     </p>
                   ) : null}
@@ -1335,53 +1336,51 @@ export default function CoachFitgraphPortalPage() {
       {openCard && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center">
           <div className="max-h-[92dvh] w-full max-w-lg space-y-4 overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 text-slate-900 shadow-2xl dark:border-white/10 dark:bg-neutral-950 dark:text-white">
-            <div className="flex justify-between gap-2">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                  {openCard.session.date} · {openCard.session.start_time}
-                  {openCard.session.end_time
-                    ? `–${openCard.session.end_time}`
-                    : ''}
-                  {openCard.session.series_id ? ' · series' : ' · bespoke'}
+            <GymPwaSheet
+              title={
+                openCard.session.session_kind === 'coach_personal'
+                  ? openCard.session.notes?.split('\n')[0] || 'Your workout'
+                  : openCard.class_name || 'Class'
+              }
+              onBack={() => setOpenId(null)}
+              onClose={() => setOpenId(null)}
+            />
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                {openCard.session.date} · {openCard.session.start_time}
+                {openCard.session.end_time
+                  ? `–${openCard.session.end_time}`
+                  : ''}
+                {openCard.session.series_id ? ' · series' : ' · bespoke'}
+              </p>
+              {openCard.session.session_kind === 'coach_personal' &&
+              (openCard.session.shared_coach_ids || []).length ? (
+                <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                  {openCard.session.coach_id === portal.coach.id
+                    ? `Shared with ${
+                        (portal.peer_coaches || []).find(
+                          (c) =>
+                            c.id ===
+                            (openCard.session.shared_coach_ids || [])[0]
+                        )?.name || 'another coach'
+                      } — you can both do it`
+                    : `Shared workout from ${
+                        (portal.peer_coaches || []).find(
+                          (c) => c.id === openCard.session.coach_id
+                        )?.name || 'a coach'
+                      }`}
                 </p>
-                <h3 className="text-lg font-black text-slate-900 dark:text-white">
-                  {openCard.session.session_kind === 'coach_personal'
-                    ? openCard.session.notes?.split('\n')[0] ||
-                      'Your workout'
-                    : openCard.class_name || 'Class'}
-                </h3>
-                {openCard.session.session_kind === 'coach_personal' &&
-                (openCard.session.shared_coach_ids || []).length ? (
-                  <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
-                    {openCard.session.coach_id === portal.coach.id
-                      ? `Shared with ${
-                          (portal.peer_coaches || []).find(
-                            (c) =>
-                              c.id ===
-                              (openCard.session.shared_coach_ids || [])[0]
-                          )?.name || 'another coach'
-                        } — you can both do it`
-                      : `Shared workout from ${
-                          (portal.peer_coaches || []).find(
-                            (c) => c.id === openCard.session.coach_id
-                          )?.name || 'a coach'
-                        }`}
-                  </p>
-                ) : null}
-                <p className="text-xs text-slate-400">
-                  {openCard.session.location || '—'} · Plan {openCard.planned}/
-                  {openCard.capacity} · Actual attended {openCard.attended} ·
-                  no-show {openCard.no_show}
-                </p>
-                {openCard.programme ? (
-                  <div className="mt-3">
-                    <ProgrammeView programme={openCard.programme} compact />
-                  </div>
-                ) : null}
-              </div>
-              <button type="button" onClick={() => setOpenId(null)}>
-                <X className="w-5 h-5" />
-              </button>
+              ) : null}
+              <p className="text-xs text-slate-400">
+                {openCard.session.location || '—'} · Plan {openCard.planned}/
+                {openCard.capacity} · Actual attended {openCard.attended} ·
+                no-show {openCard.no_show}
+              </p>
+              {openCard.programme ? (
+                <div className="mt-3">
+                  <ProgrammeView programme={openCard.programme} compact />
+                </div>
+              ) : null}
             </div>
 
             <div className="flex flex-wrap gap-1.5">
@@ -1592,7 +1591,7 @@ export default function CoachFitgraphPortalPage() {
                   update this class on the gym calendar.
                 </p>
                 <select
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                  className={gymPwaFieldClass}
                   value={sessionEdit.session_kind}
                   onChange={(e) =>
                     setSessionEdit((f) =>
@@ -1614,7 +1613,7 @@ export default function CoachFitgraphPortalPage() {
                 </select>
                 {sessionEdit.session_kind !== 'coach_personal' ? (
                   <select
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                    className={gymPwaFieldClass}
                     value={sessionEdit.class_type_id}
                     onChange={(e) =>
                       setSessionEdit((f) =>
@@ -1644,7 +1643,7 @@ export default function CoachFitgraphPortalPage() {
                 <div className="grid grid-cols-3 gap-2">
                   <input
                     type="date"
-                    className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                    className={gymPwaFieldClass.replace('w-full ', '')}
                     value={sessionEdit.date}
                     onChange={(e) =>
                       setSessionEdit((f) =>
@@ -1654,7 +1653,7 @@ export default function CoachFitgraphPortalPage() {
                   />
                   <input
                     type="time"
-                    className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                    className={gymPwaFieldClass.replace('w-full ', '')}
                     value={sessionEdit.start_time}
                     onChange={(e) =>
                       setSessionEdit((f) => {
@@ -1673,7 +1672,7 @@ export default function CoachFitgraphPortalPage() {
                   />
                   <input
                     type="time"
-                    className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                    className={gymPwaFieldClass.replace('w-full ', '')}
                     value={sessionEdit.end_time}
                     onChange={(e) =>
                       setSessionEdit((f) =>
@@ -1684,7 +1683,7 @@ export default function CoachFitgraphPortalPage() {
                   />
                 </div>
                 <input
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                  className={gymPwaFieldClass}
                   placeholder="Room / location"
                   value={sessionEdit.location}
                   onChange={(e) =>
@@ -1697,7 +1696,7 @@ export default function CoachFitgraphPortalPage() {
                   <input
                     type="number"
                     min={1}
-                    className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                    className={gymPwaFieldClass.replace('w-full ', '')}
                     placeholder="Capacity"
                     value={sessionEdit.capacity}
                     onChange={(e) =>
@@ -1707,7 +1706,7 @@ export default function CoachFitgraphPortalPage() {
                     }
                   />
                   <select
-                    className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                    className={gymPwaFieldClass.replace('w-full ', '')}
                     value={sessionEdit.status}
                     onChange={(e) =>
                       setSessionEdit((f) =>
@@ -1742,7 +1741,7 @@ export default function CoachFitgraphPortalPage() {
                 )}
                 {sessionEdit.session_kind === 'coach_personal' ? (
                   <textarea
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[4rem] resize-y"
+                    className={`${gymPwaFieldClass} min-h-[4rem] resize-y`}
                     placeholder="What this time is for (own training, admin…)"
                     value={sessionEdit.notes}
                     onChange={(e) =>
@@ -1753,7 +1752,7 @@ export default function CoachFitgraphPortalPage() {
                   />
                 ) : null}
                 <select
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                  className={gymPwaFieldClass}
                   value={sessionEdit.programme_id}
                   onChange={(e) =>
                     setSessionEdit((f) =>
@@ -1783,7 +1782,7 @@ export default function CoachFitgraphPortalPage() {
                     Class plan · activities
                   </p>
                   <textarea
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[5rem] resize-y"
+                    className={`${gymPwaFieldClass} min-h-[5rem] resize-y`}
                     placeholder={
                       'e.g.\n• Warm-up 5 min\n• Strength circuit\n• HIIT finisher\n• Stretch'
                     }
@@ -2020,7 +2019,7 @@ export default function CoachFitgraphPortalPage() {
                             <label className="text-[10px] font-bold text-slate-400">
                               How they felt
                               <select
-                                className="mt-0.5 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-[11px] text-slate-100"
+                                className={`${gymPwaFieldClass} mt-0.5 rounded-lg px-2 py-1 text-[11px]`}
                                 value={
                                   feelingDrafts[r.booking_id] ??
                                   (r.coach_member_feeling != null
@@ -2045,7 +2044,7 @@ export default function CoachFitgraphPortalPage() {
                             <label className="text-[10px] font-bold text-slate-400">
                               Rate member
                               <select
-                                className="mt-0.5 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-[11px] text-slate-100"
+                                className={`${gymPwaFieldClass} mt-0.5 rounded-lg px-2 py-1 text-[11px]`}
                                 value={
                                   ratingDrafts[r.booking_id] ??
                                   (r.coach_member_rating != null
@@ -2069,7 +2068,7 @@ export default function CoachFitgraphPortalPage() {
                             </label>
                           </div>
                           <textarea
-                            className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-[11px] min-h-[2.5rem]"
+                            className={`${gymPwaFieldClass} rounded-lg px-2 py-1.5 text-[11px] min-h-[2.5rem]`}
                             placeholder="Note for this member (saved on their profile)"
                             value={
                               feedbackDrafts[r.booking_id] ??
@@ -2266,7 +2265,7 @@ export default function CoachFitgraphPortalPage() {
                 Add a booked member
               </p>
               <input
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                className={gymPwaFieldClass}
                 placeholder="Search members to book on this class…"
                 value={memberSearch}
                 onChange={(e) => {
@@ -2276,7 +2275,7 @@ export default function CoachFitgraphPortalPage() {
               />
               {memberSearch.trim().length >= 2 ? (
                 <select
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                  className={gymPwaFieldClass}
                   value={memberFor}
                   onChange={(e) => setMemberFor(e.target.value)}
                 >
@@ -2945,18 +2944,17 @@ export default function CoachFitgraphPortalPage() {
       {showCreate && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-3">
           <div className="w-full max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-5 space-y-3">
-            <div className="flex justify-between">
-              <h3 className="font-black">
-                {create.session_kind === 'coach_personal'
+            <GymPwaSheet
+              title={
+                create.session_kind === 'coach_personal'
                   ? 'Plan workout'
                   : create.session_kind === 'private_pt'
                     ? 'Private client session'
-                    : 'New class'}
-              </h3>
-              <button type="button" onClick={() => setShowCreate(false)}>
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+                    : 'New class'
+              }
+              onBack={() => setShowCreate(false)}
+              onClose={() => setShowCreate(false)}
+            />
             <select
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
               value={create.session_kind}
@@ -3257,7 +3255,11 @@ export default function CoachFitgraphPortalPage() {
       {bookWith && (
         <div className="fixed inset-0 z-[60] bg-black/70 flex items-end sm:items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-md p-5 space-y-3">
-            <h3 className="font-black">Book a member with you</h3>
+            <GymPwaSheet
+              title="Book a member with you"
+              onBack={() => setBookWith(null)}
+              onClose={() => setBookWith(null)}
+            />
             <p className="text-[11px] text-slate-400">
               Creates a private PT slot on your diary and puts the member on it.
             </p>
@@ -3354,7 +3356,11 @@ export default function CoachFitgraphPortalPage() {
       {guestFor && (
         <div className="fixed inset-0 z-[60] bg-black/70 flex items-end sm:items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-md p-5 space-y-3">
-            <h3 className="font-black">Walk-in / guest on plan</h3>
+            <GymPwaSheet
+              title="Walk-in / guest on plan"
+              onBack={() => setGuestFor(null)}
+              onClose={() => setGuestFor(null)}
+            />
             <input
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
               placeholder="Name *"

@@ -97,7 +97,6 @@ export async function syncAdvisorModulePeopleToCrm(
           phone: row.person.phone || null,
           kind: row.kind,
           refId: row.person.id,
-          skipPartyGl: true,
         })
       )
     );

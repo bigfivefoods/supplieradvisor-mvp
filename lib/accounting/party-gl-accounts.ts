@@ -117,6 +117,18 @@ export function isSupplierApAccountCode(code?: string | null): boolean {
   return Boolean(hyphen && hyphen.header === SUPPLIER_AP_HEADER_CODE);
 }
 
+export function isLegacyIntegerArCode(code: string): boolean {
+  if (!/^\d+$/.test(code)) return false;
+  const n = Number(code);
+  return n >= PARTY_AR_CODE_START && n < 2000;
+}
+
+export function isLegacyIntegerApCode(code: string): boolean {
+  if (!/^\d+$/.test(code)) return false;
+  const n = Number(code);
+  return n >= PARTY_AP_CODE_START && n < 3000;
+}
+
 /**
  * IAS 1 tree: customer 1180-* under 1180; leftover 1181+ under 1130;
  * suppliers 2180-* / 2181+ under 2180. Never parent AR under 4400.
@@ -1060,19 +1072,42 @@ export async function ensureMemberArLeaf(opts: {
     : `${PARTY_AR_PREFIX}${rawName}`;
   if (!want || !Number.isFinite(opts.profileId) || opts.profileId <= 0) return null;
   const supabase = getSupabaseServer();
+  const { data: book } = await supabase
+    .from('customers')
+    .select('metadata')
+    .eq('profile_id', opts.profileId)
+    .eq('id', opts.customerId)
+    .maybeSingle();
+  const bookMeta = asRecord(book?.metadata);
+  const linkedCode = String(bookMeta.gl_account_code || '').trim();
+  const linkedId = Number(bookMeta.gl_account_id || 0);
+  const seekCodes = [...new Set([want, classic, legacy, linkedCode].filter(Boolean))];
   const { data: existingRows } = await supabase
     .from('chart_of_accounts')
     .select('id, code, parent_id, account_type')
     .eq('profile_id', opts.profileId)
-    .in('code', [...new Set([want, classic, legacy].filter(Boolean))]);
+    .in('code', seekCodes);
   const rows = (existingRows || []) as Array<{
     id: number;
     code: string;
     parent_id?: number | null;
     account_type?: string | null;
   }>;
+  if (linkedId > 0 && !rows.some((r) => Number(r.id) === linkedId)) {
+    const { data: linkedRow } = await supabase
+      .from('chart_of_accounts')
+      .select('id, code, parent_id, account_type')
+      .eq('profile_id', opts.profileId)
+      .eq('id', linkedId)
+      .maybeSingle();
+    if (linkedRow?.id) rows.push(linkedRow as (typeof rows)[number]);
+  }
   const modern = rows.find((r) => String(r.code) === want);
-  const old = rows.find((r) => String(r.code) !== want);
+  const linkedRow =
+    rows.find((r) => Number(r.id) === linkedId) ||
+    rows.find((r) => String(r.code) === linkedCode) ||
+    null;
+  const old = linkedRow || rows.find((r) => String(r.code) !== want);
   let accountId = modern?.id
     ? Number(modern.id)
     : old?.id
@@ -1108,8 +1143,9 @@ export async function ensureMemberArLeaf(opts: {
     accountId &&
     code !== want &&
     !modern &&
-    parseHyphenSubAccount(String(code))?.header === MEMBER_AR_LEGACY_HEADER_CODE &&
-    headerCode === MEMBER_AR_HEADER_CODE
+    headerCode === MEMBER_AR_HEADER_CODE &&
+    (parseHyphenSubAccount(String(code))?.header === MEMBER_AR_LEGACY_HEADER_CODE ||
+      isLegacyIntegerArCode(String(code)))
   ) {
     const recode = await supabase
       .from('chart_of_accounts')
@@ -1220,16 +1256,37 @@ export async function ensureSupplierApLeaf(opts: {
     : `${PARTY_AP_PREFIX}${rawName}`;
   if (!code || !Number.isFinite(opts.profileId) || opts.profileId <= 0) return null;
   const supabase = getSupabaseServer();
+  const { data: book } = await supabase
+    .from('srm_suppliers')
+    .select('metadata')
+    .eq('profile_id', opts.profileId)
+    .eq('id', opts.supplierId)
+    .maybeSingle();
+  const bookMeta = asRecord(book?.metadata);
+  const linkedCode = String(bookMeta.gl_account_code || '').trim();
+  const linkedId = Number(bookMeta.gl_account_id || 0);
   const { data: existingRows } = await supabase
     .from('chart_of_accounts')
     .select('id, code')
     .eq('profile_id', opts.profileId)
-    .in('code', [...new Set([code, classic].filter(Boolean))]);
+    .in('code', [...new Set([code, classic, linkedCode].filter(Boolean))]);
+  const rows = (existingRows || []) as Array<{ id: number; code: string }>;
+  if (linkedId > 0 && !rows.some((r) => Number(r.id) === linkedId)) {
+    const { data: linkedRow } = await supabase
+      .from('chart_of_accounts')
+      .select('id, code')
+      .eq('profile_id', opts.profileId)
+      .eq('id', linkedId)
+      .maybeSingle();
+    if (linkedRow?.id) rows.push(linkedRow as (typeof rows)[number]);
+  }
   const existing =
-    (existingRows || []).find((r) => String(r.code) === code) ||
-    (existingRows || [])[0] ||
+    rows.find((r) => String(r.code) === code) ||
+    rows.find((r) => Number(r.id) === linkedId) ||
+    rows[0] ||
     null;
   let accountId = existing?.id ? Number(existing.id) : 0;
+  let currentCode = existing?.code ? String(existing.code) : code;
 
   let headerId = opts.contractor ? parents.contractors.id : parents.ap.id;
   if (!headerId && headerCode === SUPPLIER_AP_HEADER_CODE) {
@@ -1253,6 +1310,37 @@ export async function ensureSupplierApLeaf(opts: {
       .eq('code', headerCode)
       .maybeSingle();
     if (parent?.id) headerId = Number(parent.id);
+  }
+
+  if (
+    accountId &&
+    currentCode !== code &&
+    isLegacyIntegerApCode(currentCode) &&
+    headerCode === SUPPLIER_AP_HEADER_CODE
+  ) {
+    const recode = await supabase
+      .from('chart_of_accounts')
+      .update({
+        code,
+        name,
+        account_type: 'liability',
+        subtype: 'payable',
+        is_header: false,
+        is_active: true,
+        normal_balance: 'credit',
+        parent_id: headerId,
+        description: `AP account ${code} — ${name}. Payments for this party post here when billed.`,
+        metadata: {
+          party_kind: 'supplier_ap',
+          party_ids: [opts.supplierId],
+          ap_account_number: code,
+        },
+      })
+      .eq('id', accountId)
+      .eq('profile_id', opts.profileId)
+      .select('code')
+      .maybeSingle();
+    if (recode.data?.code) currentCode = String(recode.data.code);
   }
 
   if (!accountId) {
@@ -1299,12 +1387,12 @@ export async function ensureSupplierApLeaf(opts: {
     profileId: opts.profileId,
     id: opts.supplierId,
     accountId,
-    code,
+    code: currentCode,
     name,
     kind: 'ap',
   });
   invalidateAccountingReads(opts.profileId);
-  return { code, accountId };
+  return { code: currentCode, accountId };
 }
 
 async function recodeLegacyMemberArLeaves(profileId: number): Promise<number> {
@@ -1585,6 +1673,28 @@ export async function ensurePartyGlAccounts(
     await convertLegacyRevenueHeader(profileId);
   } catch (err) {
     console.warn('[party-gl] legacy 4400 migrate', err);
+  }
+
+  for (const row of customers || []) {
+    const id = Number(row.id || 0);
+    if (!(id > 0) || isSkippedPartyStatus(row.status)) continue;
+    const name = partyDisplayName(row) || `Customer ${id}`;
+    await ensureMemberArLeaf({
+      profileId,
+      customerId: id,
+      name,
+    });
+  }
+  for (const row of suppliers || []) {
+    const id = Number(row.id || 0);
+    if (!(id > 0) || isSkippedPartyStatus(row.status)) continue;
+    const name = partyDisplayName(row) || `Supplier ${id}`;
+    await ensureSupplierApLeaf({
+      profileId,
+      supplierId: id,
+      name,
+      contractor: isContractorSupplier(row),
+    });
   }
 
   try {

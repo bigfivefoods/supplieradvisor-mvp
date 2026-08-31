@@ -34,7 +34,6 @@ export async function attachCrmToAdvisorPerson(opts: {
       phone: opts.person.phone || null,
       kind: opts.kind,
       refId: opts.person.id,
-      skipPartyGl: true,
     });
     if (crm?.id) {
       opts.person.crm_customer_id = crm.id;
