@@ -21,13 +21,20 @@ import { useProgrammeRole } from '@/lib/schools/useProgrammeRole';
 import { stepVisibleForRole } from '@/lib/schools/programme-role';
 import { useHealthProgrammeRole } from '@/lib/health/useProgrammeRole';
 import { healthStepVisibleForRole } from '@/lib/health/programme-role';
-import { functionalSidebarModules } from '@/lib/chrome/functional-nav';
+import {
+  ADVISOR_OS_MODULE_IDS,
+  functionalSidebarModules,
+} from '@/lib/chrome/functional-nav';
 import { buildGuideNavSteps } from '@/lib/guide/curriculum';
 import { AdvisorWordmark } from '@/components/brand/AdvisorSkinApplier';
 import { PortalBrandLogo } from '@/components/brand/PortalBrandLogo';
 import { useAdvisorSkin } from '@/lib/brand/useAdvisorSkin';
 
 const EXPANDED_KEY = 'sa-sidebar-expanded-v1';
+
+function isAdvisorOsModule(id: string): boolean {
+  return (ADVISOR_OS_MODULE_IDS as readonly string[]).includes(id);
+}
 
 function loadExpanded(): Record<string, boolean> {
   if (typeof window === 'undefined') return {};
@@ -394,12 +401,11 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                 key={mod.id}
                 href={mod.href}
                 title={mod.name}
+                prefetch
                 onClick={(e) => {
-                  if (mod.sub.length === 0) return;
-                  // Expanding the rail remounts this tree and eats the Link
-                  // navigation — push first, then open the submenu.
                   e.preventDefault();
                   router.push(mod.href);
+                  if (mod.sub.length === 0) return;
                   setCollapsed(false);
                   setExpandedModules((prev) => {
                     if (prev[mod.id]) return prev;
@@ -408,10 +414,10 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                     return next;
                   });
                 }}
-                className={`flex h-11 w-11 items-center justify-center rounded-2xl transition-all ${
+                className={`flex h-11 w-11 items-center justify-center rounded-2xl transition-all touch-manipulation ${
                   isActive
                     ? 'bg-[var(--sa-brand)] text-[var(--sa-brand-ink,#fff)] shadow-sm'
-                    : 'text-slate-600 hover:bg-neutral-100 hover:text-[var(--sa-brand-deep)]'
+                    : 'text-slate-600 [@media(hover:hover)]:hover:bg-neutral-100 [@media(hover:hover)]:hover:text-[var(--sa-brand-deep)]'
                 }`}
               >
                 <Icon className="h-5 w-5" />
@@ -457,7 +463,10 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
         {visibleModules.map((mod) => {
           const Icon = mod.icon;
           const isActive = isModuleActive(mod.href);
-          const isExpanded = arranging ? false : expandedModules[mod.id] ?? false;
+          const isExpanded = arranging
+            ? false
+            : isAdvisorOsModule(mod.id) ||
+              expandedModules[mod.id] === true;
 
           return (
             <div
@@ -487,7 +496,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                     ? 'opacity-50'
                     : isActive
                       ? 'bg-[var(--sa-brand)] text-[var(--sa-brand-ink,#fff)]'
-                      : 'hover:bg-neutral-100 text-slate-800'
+                      : '[@media(hover:hover)]:hover:bg-neutral-100 text-slate-800'
                 } ${arranging ? 'cursor-grab' : ''}`}
               >
                 {arranging ? (
@@ -497,12 +506,15 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                 ) : null}
                 <Link
                   href={mod.href}
-                  className="flex items-center gap-3 flex-1 min-w-0"
+                  prefetch
+                  className="flex items-center gap-3 flex-1 min-w-0 touch-manipulation"
                   onClick={(e) => {
                     if (arranging) {
                       e.preventDefault();
                       return;
                     }
+                    e.preventDefault();
+                    router.push(mod.href);
                     if (mod.sub.length === 0) return;
                     setExpandedModules((prev) => {
                       if (prev[mod.id]) return prev;
@@ -516,7 +528,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                   <span className="font-semibold truncate text-sm">{mod.name}</span>
                 </Link>
 
-                {mod.sub.length > 0 && (
+                {mod.sub.length > 0 && !isAdvisorOsModule(mod.id) && (
                   <button
                     type="button"
                     onClick={(e) => {
@@ -524,7 +536,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                       e.stopPropagation();
                       toggleModule(mod.id);
                     }}
-                    className="p-1.5 -mr-1 rounded-xl hover:bg-white/20 transition-colors"
+                    className="p-1.5 -mr-1 rounded-xl [@media(hover:hover)]:hover:bg-white/20 transition-colors touch-manipulation"
                     aria-label={`Toggle ${mod.name} submenu`}
                   >
                     <ChevronDown
@@ -577,14 +589,23 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                           ) : null}
                           <Link
                             href={sub.href}
+                            prefetch
                             title={(sub as { desc?: string }).desc || sub.name}
-                            className={`block px-3 py-1.5 rounded-xl text-xs transition-all ${
+                            onClick={(e) => {
+                              if (arranging) {
+                                e.preventDefault();
+                                return;
+                              }
+                              e.preventDefault();
+                              router.push(sub.href);
+                            }}
+                            className={`block px-3 py-1.5 rounded-xl text-xs transition-all touch-manipulation ${
                               isSubActive(
                                 sub.href,
                                 Boolean((sub as { exact?: boolean }).exact)
                               )
                                 ? 'text-[var(--sa-brand-deep)] bg-[var(--sa-brand-soft)] font-semibold'
-                                : 'text-slate-600 hover:text-slate-900 hover:bg-neutral-50'
+                                : 'text-slate-600 [@media(hover:hover)]:hover:text-slate-900 [@media(hover:hover)]:hover:bg-neutral-50'
                             }`}
                           >
                             {sub.name}
