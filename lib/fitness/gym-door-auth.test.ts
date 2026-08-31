@@ -101,6 +101,7 @@ assert.equal(findClientByEmail(store, 'gone@gym.co.za'), null, 'inactive not fou
 // --- findCoachByEmail ---
 const coach: FitCoach = {
   id: 'coa_1',
+  code: 'C1',
   name: 'Bob',
   email: 'bob@gym.co.za',
   active: true,
