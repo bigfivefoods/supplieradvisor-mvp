@@ -757,6 +757,26 @@ export function catalogSlotForSession(
   return null;
 }
 
+function sessionMatchesPlanSlots(
+  plan: Pick<FitMembershipPlan, 'series_ids'>,
+  session: SessionCoverageInput
+): boolean {
+  const slots = timetableSlotsForPlan(plan);
+  if (!slots.length) return false;
+  const start = String(session.start_time || '').slice(0, 5);
+  const series = String(session.series_id || '');
+  const dow = session.date ? weekdayOf(session.date) : null;
+  return slots.some((s) => {
+    if (series && s.series_id === series) return true;
+    if (s.class_type_id !== session.class_type_id) return false;
+    if (start && s.start_time.slice(0, 5) !== start) return false;
+    if (dow != null && s.weekdays.length && !s.weekdays.includes(dow)) {
+      return false;
+    }
+    return true;
+  });
+}
+
 function classTypeSharedWithOtherSlots(
   planSlots: VukaSlot[],
   classTypeId: string
@@ -813,7 +833,7 @@ export function planCoversSession(
       slots.length &&
       classTypeSharedWithOtherSlots(slots, session.class_type_id)
     ) {
-      return false;
+      return sessionMatchesPlanSlots(plan, session);
     }
     return true;
   }

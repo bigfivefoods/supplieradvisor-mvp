@@ -418,7 +418,9 @@ function bookMemberOntoUpcoming(
 ): number {
   let n = 0;
   for (const session of upcomingSessionsForPlan(store, plan, fromIso)) {
-    const result = bookDeskMemberOntoSession(store, session, client, now);
+    const result = bookDeskMemberOntoSession(store, session, client, now, {
+      force: true,
+    });
     if (result === 'booked' || result === 'waitlist') n += 1;
   }
   return n;
@@ -520,7 +522,9 @@ export function stampCatalogSeriesAndBookSubscribers(
       if (slot) session.series_id = slot.series_id;
     }
     for (const row of subscribersForSession(store, session)) {
-      const result = bookDeskMemberOntoSession(store, session, row.client, now);
+      const result = bookDeskMemberOntoSession(store, session, row.client, now, {
+        force: true,
+      });
       if (result === 'booked' || result === 'waitlist') booked += 1;
     }
   }
@@ -1113,7 +1117,9 @@ export function scheduleClassOnCalendar(
     const client = store.clients.find((c) => c.id === sub.client_id);
     if (!client || client.active === false) continue;
     for (const session of fresh) {
-      const result = bookDeskMemberOntoSession(store, session, client, now);
+      const result = bookDeskMemberOntoSession(store, session, client, now, {
+        force: true,
+      });
       if (result === 'booked' || result === 'waitlist') booked += 1;
     }
   }

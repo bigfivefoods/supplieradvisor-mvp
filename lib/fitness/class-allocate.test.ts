@@ -228,7 +228,7 @@ const pilSched = scheduleClassOnCalendar(store, {
 });
 if ('error' in pilSched) throw new Error(pilSched.error);
 assert.equal(pilSched.sessions.length, 4);
-assert.equal(pilSched.booked, 2);
+assert.equal(pilSched.booked, 4);
 
 const blocked = scheduleClassOnCalendar(store, {
   planId: unlim.id,
@@ -709,6 +709,41 @@ assert.equal(
   )?.charged_zar,
   800
 );
+
+const squad = ['Ada One', 'Ben Two', 'Cara Three', 'Dan Four', 'Elle Five'];
+const squadIds: string[] = [];
+for (const name of squad) {
+  const id = `cli_${name.split(' ')[0].toLowerCase()}_sq`;
+  squadIds.push(id);
+  roster.clients.push({
+    id,
+    code: id,
+    name,
+    membership_status: 'active',
+    active: true,
+    created_at: '2026-08-01T00:00:00.000Z',
+    updated_at: '2026-08-01T00:00:00.000Z',
+  });
+}
+const savedSquad = setClassMembers(roster, {
+  planId: rFsf.id,
+  clientIds: [...squadIds, 'cli_eve'],
+  now: '2026-08-17T12:00:00.000Z',
+});
+if ('error' in savedSquad) throw new Error(savedSquad.error);
+const fsfNames = sessionRosterNames(roster, fsfCal.sessions[0].id);
+for (const name of squad) {
+  assert.ok(fsfNames.includes(name), `${name} missing from FSF calendar`);
+}
+assert.ok(fsfNames.includes('Eve'));
+const bootNames = sessionRosterNames(roster, bootCal.sessions[0].id);
+for (const name of squad) {
+  assert.equal(
+    bootNames.includes(name),
+    false,
+    `${name} must not appear on Bootcamp`
+  );
+}
 
 const parkEve = allocateMemberToClass(roster, {
   clientId: 'cli_eve',

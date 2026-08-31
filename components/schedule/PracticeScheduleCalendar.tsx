@@ -1221,36 +1221,45 @@ export function PracticeScheduleCalendar({
                       e.stopPropagation();
                       onSelectEvent?.(ev);
                     }}
-                    className={`absolute rounded-lg border px-1 py-0.5 text-left overflow-hidden shadow-sm z-[1] ${t.chip} ${
+                    className={`absolute rounded-lg border px-1 py-0.5 text-left overflow-y-auto shadow-sm z-[1] ${t.chip} ${
                       selected
                         ? 'ring-2 ring-offset-1 ring-slate-900 dark:ring-white dark:ring-offset-slate-900 z-[2]'
                         : ''
                     }`}
-                    title={`${ev.start_time} ${ev.title} — click to open`}
+                    title={`${ev.start_time} ${ev.title}${ev.person_name ? ` · ${ev.person_name}` : ''}${ev.meta ? ` · ${ev.meta}` : ''} — click to open`}
                     style={{
                       top,
                       height: h,
-                      minHeight: compact ? 18 : 28,
+                      minHeight: compact ? (ev.meta ? 36 : 18) : ev.meta ? 48 : 28,
                       left: `calc(${leftPct}% + 2px)`,
                       width: `calc(${widthPct}% - 4px)`,
                     }}
                   >
                     <div
-                      className={`font-black truncate ${
-                        compact ? 'text-[9px]' : 'text-[11px]'
+                      className={`font-black ${
+                        compact ? 'text-[9px] truncate' : 'text-[11px] truncate'
                       }`}
                     >
                       {ev.start_time.slice(0, 5)}
                       {!compact ? ` · ${ev.title}` : ''}
                     </div>
-                    {!compact && ev.person_name ? (
+                    {compact ? (
+                      <div className="text-[8px] font-semibold truncate opacity-90">
+                        {ev.title}
+                      </div>
+                    ) : ev.person_name ? (
                       <div className="text-[10px] opacity-80 truncate">
                         {ev.person_name}
                         {ev.subtitle ? ` · ${ev.subtitle}` : ''}
                       </div>
-                    ) : compact ? (
-                      <div className="text-[8px] font-semibold truncate opacity-90">
-                        {ev.title}
+                    ) : null}
+                    {ev.meta ? (
+                      <div
+                        className={`font-semibold leading-snug whitespace-normal break-words ${
+                          compact ? 'text-[8px] opacity-90' : 'text-[10px]'
+                        }`}
+                      >
+                        {ev.meta}
                       </div>
                     ) : null}
                   </button>

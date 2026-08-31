@@ -234,8 +234,6 @@ export default function CalendarPage() {
       .map((s) => {
         const ct = store.class_types.find((c) => c.id === s.class_type_id);
         const coach = store.coaches.find((c) => c.id === s.coach_id);
-        const booked = sessionBookingCount(store, s.id);
-        const cap = s.capacity ?? ct?.capacity ?? 0;
         const kind = sessionKindFromRecord({
           session_kind: s.session_kind,
           class_code: ct?.code,
@@ -256,10 +254,10 @@ export default function CalendarPage() {
         const names = sessionRosterNames(store, s.id);
         const namePreview =
           names.length === 0
-            ? `${booked}${cap ? `/${cap}` : ''} booked`
-            : names.length <= 3
-              ? names.join(', ')
-              : `${names.slice(0, 3).join(', ')} +${names.length - 3}`;
+            ? kind === 'class'
+              ? 'Nobody booked'
+              : ''
+            : names.join(', ');
         return {
           id: s.id,
           date: s.date,
@@ -277,9 +275,7 @@ export default function CalendarPage() {
           meta:
             kind === 'coach_personal'
               ? `Personal block${s.room ? ` · ${s.room}` : ''}`
-              : [namePreview, s.room, s.public ? 'public' : '']
-                  .filter(Boolean)
-                  .join(' · '),
+              : namePreview,
           tone: sessionKindTone(kind),
         };
       });
