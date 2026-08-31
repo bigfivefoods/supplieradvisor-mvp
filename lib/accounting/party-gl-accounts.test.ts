@@ -2,6 +2,8 @@
  * Run: npx --yes tsx lib/accounting/party-gl-accounts.test.ts
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   groupCoaForAllocation,
   isAdvisorParty,
@@ -25,6 +27,7 @@ import {
   planPartyGlAccounts,
   statementParentForPartyLeaf,
   suggestPartyGlForDescription,
+  resolveLegacyIntegerPartyRecode,
 } from './party-gl-accounts';
 import type { CoaAccount } from './types';
 
@@ -171,7 +174,7 @@ assert.equal(
   plan.create.find((c) => c.code === '1180-0000010')?.parent_code,
   '1180'
 );
-assert.equal(statementParentForPartyLeaf('1181'), '1130');
+assert.equal(statementParentForPartyLeaf('1181'), '1180');
 assert.equal(statementParentForPartyLeaf('1180-0000200'), '1180');
 assert.equal(statementParentForPartyLeaf('2180-0000008'), '2180');
 assert.equal(statementParentForPartyLeaf('2181'), '2180');
@@ -409,5 +412,62 @@ const supplierByCode = suggestPartyGlForDescription(
   grouped.suppliers
 );
 assert.equal(supplierByCode?.id, 88);
+
+assert.deepEqual(
+  resolveLegacyIntegerPartyRecode({
+    code: '1181',
+    accountId: 99,
+    name: 'AR — Ann Vuka',
+    customers: [
+      {
+        id: 12,
+        trading_name: 'Ann Vuka',
+        status: 'active',
+        metadata: { gl_account_code: '1181', gl_account_id: 99 },
+      },
+    ],
+    suppliers: [],
+  }),
+  { kind: 'ar', partyId: 12, want: '1180-0000012' }
+);
+assert.deepEqual(
+  resolveLegacyIntegerPartyRecode({
+    code: '2181',
+    accountId: 50,
+    name: 'AP — Holtz',
+    customers: [],
+    suppliers: [
+      {
+        id: 8,
+        trading_name: 'Holtz',
+        status: 'active',
+        metadata: { gl_account_code: '2181' },
+      },
+    ],
+  }),
+  { kind: 'ap', partyId: 8, want: '2180-0000008' }
+);
+assert.equal(
+  resolveLegacyIntegerPartyRecode({
+    code: '1180-0000012',
+    accountId: 99,
+    customers: [{ id: 12, trading_name: 'Ann Vuka', status: 'active' }],
+    suppliers: [],
+  }),
+  null
+);
+
+const partyGlSrc = readFileSync(resolve('lib/accounting/party-gl-accounts.ts'), 'utf8');
+assert.match(partyGlSrc, /recodeLegacyIntegerPartyLeaves/);
+assert.match(partyGlSrc, /ensurePartyGlAccountsSafe/);
+assert.doesNotMatch(
+  partyGlSrc,
+  /export async function ensurePartyGlAccountsSafe[\s\S]{0,80}void profileId/
+);
+assert.match(partyGlSrc, /recodeLegacyIntegerPartyLeaves\(profileId\)/);
+const sql33 = readFileSync(resolve('RUN_THIS_FOR_BRIEF33.sql'), 'utf8');
+assert.match(sql33, /sa_brief33_recode_party_gl\(110\)/);
+assert.match(sql33, /sa_brief33_recode_party_gl\(102\)/);
+assert.match(sql33, /1180-.*lpad/);
 
 console.log('party-gl-accounts tests ok');

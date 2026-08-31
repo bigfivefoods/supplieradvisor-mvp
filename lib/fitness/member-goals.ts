@@ -9,7 +9,7 @@ import {
   type FitGoalCheckIn,
 } from '@/lib/fitness/fitgraph-relationship';
 import { newId, type FitgraphStore } from '@/lib/fitness/fitgraph';
-import { appendResultLog } from '@/lib/fitness/person-records';
+import { appendResultLog, type FitResultLog } from '@/lib/fitness/person-records';
 
 export const MEMBER_GOAL_PRESETS = [
   {
@@ -327,6 +327,30 @@ export function logGoalActual(
     next.achieved_at = now;
   }
   return next;
+}
+
+export function removeGoalFromStore(
+  store: FitgraphStore,
+  goalId: string
+): boolean {
+  const id = String(goalId || '');
+  if (!id) return false;
+  let removed = (store.goals || []).some((g) => g.id === id);
+  store.goals = (store.goals || []).filter((g) => g.id !== id);
+  const strip = (person?: {
+    goals?: FitGoal[];
+    result_logs?: FitResultLog[];
+  }) => {
+    if (!person) return;
+    if ((person.goals || []).some((g) => g.id === id)) removed = true;
+    person.goals = (person.goals || []).filter((g) => g.id !== id);
+    person.result_logs = (person.result_logs || []).filter(
+      (l) => !(l.kind === 'goal' && l.source_id === id)
+    );
+  };
+  for (const c of store.clients || []) strip(c);
+  for (const c of store.coaches || []) strip(c);
+  return removed;
 }
 
 export function upsertMemberGoalOnStore(

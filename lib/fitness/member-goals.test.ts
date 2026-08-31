@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   applyGoalToStore,
   createMemberGoal,
+  removeGoalFromStore,
   goalProgressPct,
   goalReached,
   hydrateGoalsFromPeople,
@@ -271,6 +272,30 @@ assert.equal(miss.session_id, null);
   assert.ok(
     ((client as never as { injuries?: Array<{ id?: string }> })?.injuries || []).some(i => i.id === 'inj1'),
     'injury must survive goal save'
+  );
+}
+
+{
+  const s = emptyFitgraphStore();
+  s.clients = [
+    { id: 'c1', name: 'Ada', code: 'A', created_at: '', updated_at: '' } as never,
+  ];
+  const g = createMemberGoal({
+    client_id: 'c1',
+    kind: 'weight',
+    start_value: 90,
+    target_value: 80,
+  });
+  applyGoalToStore(s, g);
+  assert.equal((s.goals || []).length, 1);
+  assert.ok(removeGoalFromStore(s, g.id));
+  assert.equal((s.goals || []).length, 0);
+  assert.equal((s.clients[0].goals || []).length, 0);
+  assert.equal(
+    (s.clients[0].result_logs || []).filter(
+      (l) => l.kind === 'goal' && l.source_id === g.id
+    ).length,
+    0
   );
 }
 

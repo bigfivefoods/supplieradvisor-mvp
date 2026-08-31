@@ -1406,10 +1406,17 @@ export default function MemberFitgraphPortalPage() {
                 coach={nextClass.coach_name}
                 rsvp={rsvpOf(nextClass)}
                 bookingId={nextClass.booking_id}
-                busy={busyId === nextClass.booking_id}
+                busy={
+                  busyId === nextClass.booking_id ||
+                  busyId === `rate:${nextClass.booking_id}`
+                }
                 color={color}
                 plan={nextClass.class_plan}
                 programme={nextClass.programme}
+                ended={sessionHasEnded(nextClass.date, nextClass.start_time)}
+                attended={nextClass.status === 'attended'}
+                pendingRate={pendingRateOf(nextClass)}
+                feedback={feedbackOf(nextClass)}
                 onRsvp={(coming) =>
                   void rsvp(
                     nextClass.booking_id,
@@ -1417,6 +1424,7 @@ export default function MemberFitgraphPortalPage() {
                     nextClass.session_id
                   )
                 }
+                onRate={(v) => void rateClass(nextClass.booking_id, v)}
               />
             ) : null}
             <GymSectionTitle hint="Pick a day, then book or join the waitlist. Your booked classes are highlighted.">
@@ -1478,12 +1486,22 @@ export default function MemberFitgraphPortalPage() {
                 coach={bookedUpcoming[0].coach_name}
                 rsvp={rsvpOf(bookedUpcoming[0])}
                 bookingId={bookedUpcoming[0].booking_id}
-                busy={busyId === bookedUpcoming[0].booking_id}
+                busy={
+                  busyId === bookedUpcoming[0].booking_id ||
+                  busyId === `rate:${bookedUpcoming[0].booking_id}`
+                }
                 color={color}
                 kicker="Next up"
                 featured
                 plan={bookedUpcoming[0].class_plan}
                 programme={bookedUpcoming[0].programme}
+                ended={sessionHasEnded(
+                  bookedUpcoming[0].date,
+                  bookedUpcoming[0].start_time
+                )}
+                attended={bookedUpcoming[0].status === 'attended'}
+                pendingRate={pendingRateOf(bookedUpcoming[0])}
+                feedback={feedbackOf(bookedUpcoming[0])}
                 onRsvp={(coming) =>
                   void rsvp(
                     bookedUpcoming[0].booking_id,
@@ -1491,6 +1509,7 @@ export default function MemberFitgraphPortalPage() {
                     bookedUpcoming[0].session_id
                   )
                 }
+                onRate={(v) => void rateClass(bookedUpcoming[0].booking_id, v)}
               />
               {bookedUpcoming[0].challenge ? (
                 <GymClassChallengeBoard
@@ -1811,17 +1830,17 @@ export default function MemberFitgraphPortalPage() {
                   setBusyId(null);
                 }
               }}
-              onHideGoal={async (goalId) => {
+              onDeleteGoal={async (goalId) => {
                 setBusyId('goals');
                 setError(null);
                 try {
                   const data = await post({
-                    action: 'hide_goal',
+                    action: 'delete_goal',
                     goal_id: goalId,
                   });
-                  setMsg(data.message || 'Goal hidden');
+                  setMsg(data.message || 'Goal deleted');
                 } catch (e: unknown) {
-                  setError(e instanceof Error ? e.message : 'Could not hide goal');
+                  setError(e instanceof Error ? e.message : 'Could not delete goal');
                 } finally {
                   setBusyId(null);
                 }
@@ -2199,17 +2218,17 @@ export default function MemberFitgraphPortalPage() {
                   setBusyId(null);
                 }
               }}
-              onHideGoal={async (goalId) => {
+              onDeleteGoal={async (goalId) => {
                 setBusyId('goals');
                 setError(null);
                 try {
                   const data = await post({
-                    action: 'hide_goal',
+                    action: 'delete_goal',
                     goal_id: goalId,
                   });
-                  setMsg(data.message || 'Goal hidden');
+                  setMsg(data.message || 'Goal deleted');
                 } catch (e: unknown) {
-                  setError(e instanceof Error ? e.message : 'Could not hide goal');
+                  setError(e instanceof Error ? e.message : 'Could not delete goal');
                 } finally {
                   setBusyId(null);
                 }

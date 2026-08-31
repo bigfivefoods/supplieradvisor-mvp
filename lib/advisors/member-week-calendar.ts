@@ -8,6 +8,7 @@ export type MemberCalendarEvent = {
   duration_min?: number | null;
   title: string;
   person?: string;
+  coming?: string;
   location?: string;
   my_status?: string | null;
   my_booking_id?: string | null;

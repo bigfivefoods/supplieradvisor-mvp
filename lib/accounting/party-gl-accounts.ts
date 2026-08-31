@@ -133,7 +133,7 @@ export function isLegacyIntegerApCode(code: string): boolean {
 }
 
 /**
- * IAS 1 tree: customer 1180-* under 1180; leftover 1181+ under 1130;
+ * IAS 1 tree: customer 1180-* and leftover integer AR 1181+ nest under 1180;
  * suppliers 2180-* / 2181+ under 2180. Never parent AR under 4400.
  */
 export function statementParentForPartyLeaf(
@@ -159,8 +159,12 @@ export function statementParentForPartyLeaf(
   }
   if (/^\d+$/.test(c)) {
     const n = Number(c);
-    if (n >= PARTY_AR_CODE_START && n < PARTY_AR_CODE_END) return '1130';
-    if (n >= PARTY_AP_CODE_START && n < PARTY_AP_CODE_END) return SUPPLIER_AP_HEADER_CODE;
+    if (n >= PARTY_AR_CODE_START && n < PARTY_AR_CODE_END) {
+      return MEMBER_AR_HEADER_CODE;
+    }
+    if (n >= PARTY_AP_CODE_START && n < PARTY_AP_CODE_END) {
+      return SUPPLIER_AP_HEADER_CODE;
+    }
   }
   const mapped = String(mappingParent || '').trim();
   if (mapped === MEMBERSHIP_REVENUE_CODE) return MEMBER_AR_HEADER_CODE;
@@ -450,6 +454,72 @@ function asCoaView(
 
 function linkedGlCode(row: PartyBookRow): string {
   return String(asRecord(row.metadata).gl_account_code || '').trim();
+}
+
+function leafPartyIds(meta: Record<string, unknown>): number[] {
+  const raw = meta.party_ids;
+  const list = Array.isArray(raw) ? raw : raw != null ? [raw] : [];
+  return list
+    .map((v) => Number(v))
+    .filter((n) => Number.isFinite(n) && n > 0);
+}
+
+/** Map leftover integer 1181+ / 2181+ onto 1180-0000001 / 2180-0000008. */
+export function resolveLegacyIntegerPartyRecode(opts: {
+  code: string;
+  accountId: number;
+  name?: string | null;
+  metadata?: Record<string, unknown> | null;
+  customers: PartyBookRow[];
+  suppliers: PartyBookRow[];
+}): { kind: 'ar' | 'ap'; partyId: number; want: string } | null {
+  const code = String(opts.code || '').trim();
+  const accountId = Number(opts.accountId || 0);
+  const meta = asRecord(opts.metadata);
+  const matchRow = (
+    rows: PartyBookRow[],
+    needleName: string
+  ): PartyBookRow | null => {
+    const byId = rows.find(
+      (r) => Number(asRecord(r.metadata).gl_account_id) === accountId
+    );
+    if (byId) return byId;
+    const byCode = rows.find((r) => linkedGlCode(r) === code);
+    if (byCode) return byCode;
+    const ids = leafPartyIds(meta);
+    if (ids.length) {
+      const hit = rows.find((r) => ids.includes(Number(r.id)));
+      if (hit) return hit;
+    }
+    const needle = normalizePartyKey(needleName);
+    if (needle.length < 2) return null;
+    return (
+      rows.find(
+        (r) => normalizePartyKey(partyDisplayName(r)) === needle
+      ) || null
+    );
+  };
+  if (isLegacyIntegerArCode(code)) {
+    const row = matchRow(
+      opts.customers,
+      stripPartyPrefix(String(opts.name || ''))
+    );
+    if (!row?.id) return null;
+    const want = memberArAccountCode(Number(row.id));
+    if (!want) return null;
+    return { kind: 'ar', partyId: Number(row.id), want };
+  }
+  if (isLegacyIntegerApCode(code)) {
+    const row = matchRow(
+      opts.suppliers,
+      stripPartyPrefix(String(opts.name || ''))
+    );
+    if (!row?.id) return null;
+    const want = supplierApAccountCode(Number(row.id));
+    if (!want) return null;
+    return { kind: 'ap', partyId: Number(row.id), want };
+  }
+  return null;
 }
 
 function isContractorSupplier(row: PartyBookRow): boolean {
@@ -1418,6 +1488,111 @@ export async function ensureSupplierApLeaf(opts: {
   return { code: currentCode, accountId };
 }
 
+async function recodeLegacyIntegerPartyLeaves(
+  profileId: number
+): Promise<number> {
+  const supabase = getSupabaseServer();
+  const [{ data: coa }, { data: customers }, { data: suppliers }] =
+    await Promise.all([
+      supabase
+        .from('chart_of_accounts')
+        .select('id, code, name, metadata')
+        .eq('profile_id', profileId),
+      loadBookRows(supabase, 'customers', profileId, 'customer_type, source, notes'),
+      loadBookRows(supabase, 'srm_suppliers', profileId, 'notes'),
+    ]);
+  const rows = (coa || []) as Array<{
+    id: number;
+    code: string;
+    name?: string | null;
+    metadata?: Record<string, unknown> | null;
+  }>;
+  const integers = rows.filter(
+    (r) =>
+      isLegacyIntegerArCode(String(r.code)) ||
+      isLegacyIntegerApCode(String(r.code))
+  );
+  if (!integers.length) return 0;
+  const arHeaderId = await ensureHeaderRow({
+    profileId,
+    code: MEMBER_AR_HEADER_CODE,
+    name: MEMBER_AR_HEADER_NAME,
+    account_type: 'asset',
+    normal_balance: 'debit',
+    parentCode: '1100',
+    sort: 840,
+    description:
+      'Customer AR header. Each customer is 1180-0000001 …',
+    metadata: { party_kind: 'customer_ar_header' },
+  });
+  const apHeaderId = await ensureHeaderRow({
+    profileId,
+    code: SUPPLIER_AP_HEADER_CODE,
+    name: SUPPLIER_AP_HEADER_NAME,
+    account_type: 'liability',
+    normal_balance: 'credit',
+    parentCode: '2100',
+    sort: 850,
+    description: 'Supplier AP header. Each supplier is 2180-0000001 …',
+    metadata: { party_kind: 'supplier_ap_header' },
+  });
+  const byCode = new Map(rows.map((r) => [String(r.code), Number(r.id)]));
+  let moved = 0;
+  for (const leaf of integers) {
+    const mapped = resolveLegacyIntegerPartyRecode({
+      code: String(leaf.code),
+      accountId: Number(leaf.id),
+      name: leaf.name,
+      metadata: leaf.metadata,
+      customers: (customers || []) as PartyBookRow[],
+      suppliers: (suppliers || []) as PartyBookRow[],
+    });
+    if (!mapped) continue;
+    const taken = byCode.get(mapped.want);
+    if (taken && taken !== Number(leaf.id)) continue;
+    const headerId = mapped.kind === 'ar' ? arHeaderId : apHeaderId;
+    const recode = await supabase
+      .from('chart_of_accounts')
+      .update({
+        code: mapped.want,
+        account_type: mapped.kind === 'ar' ? 'asset' : 'liability',
+        subtype: mapped.kind === 'ar' ? 'receivable' : 'payable',
+        is_header: false,
+        is_active: true,
+        normal_balance: mapped.kind === 'ar' ? 'debit' : 'credit',
+        parent_id: headerId,
+        metadata: {
+          ...asRecord(leaf.metadata),
+          party_kind: mapped.kind === 'ar' ? 'customer_ar' : 'supplier_ap',
+          party_ids: [mapped.partyId],
+          ar_account_number: mapped.kind === 'ar' ? mapped.want : undefined,
+          ap_account_number: mapped.kind === 'ap' ? mapped.want : undefined,
+        },
+      })
+      .eq('id', Number(leaf.id))
+      .eq('profile_id', profileId)
+      .select('id')
+      .maybeSingle();
+    if (recode.error && /duplicate|unique/i.test(recode.error.message || '')) {
+      continue;
+    }
+    if (!recode.data?.id) continue;
+    byCode.delete(String(leaf.code));
+    byCode.set(mapped.want, Number(leaf.id));
+    moved += 1;
+    await stampBookGl({
+      table: mapped.kind === 'ar' ? 'customers' : 'srm_suppliers',
+      profileId,
+      id: mapped.partyId,
+      accountId: Number(leaf.id),
+      code: mapped.want,
+      name: String(leaf.name || mapped.want),
+      kind: mapped.kind,
+    });
+  }
+  return moved;
+}
+
 async function recodeLegacyMemberArLeaves(profileId: number): Promise<number> {
   const supabase = getSupabaseServer();
   const { data: rows } = await supabase
@@ -1557,6 +1732,14 @@ export async function ensurePartyGlAccounts(
   if (!Number.isFinite(profileId) || profileId <= 0) {
     return { created: 0, linked: 0, warning: 'invalid profile' };
   }
+  let recoded = 0;
+  try {
+    recoded += await recodeLegacyIntegerPartyLeaves(profileId);
+    recoded += await recodeLegacyMemberArLeaves(profileId);
+    await convertLegacyRevenueHeader(profileId);
+  } catch (err) {
+    console.warn('[party-gl] leftover integer recode', err);
+  }
   const supabase = getSupabaseServer();
   const [{ data: customers, error: cErr }, { data: suppliers, error: sErr }, { data: coa, error: aErr }] =
     await Promise.all([
@@ -1690,13 +1873,7 @@ export async function ensurePartyGlAccounts(
     if (!error) linked += 1;
   }
 
-  try {
-    const moved = await recodeLegacyMemberArLeaves(profileId);
-    if (moved) created += moved;
-    await convertLegacyRevenueHeader(profileId);
-  } catch (err) {
-    console.warn('[party-gl] legacy 4400 migrate', err);
-  }
+  if (recoded) created += recoded;
 
   const customerRows = (customers || []).filter(
     (row) => Number(row.id || 0) > 0 && !isSkippedPartyStatus(row.status)
@@ -1767,14 +1944,21 @@ export async function ensurePartyGlAccounts(
   return { created, linked };
 }
 
-/** Brief 9 no-op — full-book ensure is never on a request. Use ensurePartyGlLeaf. */
+/** Recode leftover integer 1181+/2181+ and 4400-* AR onto 7-digit 1180/2180 leaves. */
 export async function ensurePartyGlAccountsSafe(profileId: number): Promise<void> {
-  void profileId;
+  if (!Number.isFinite(profileId) || profileId <= 0) return;
+  try {
+    await recodeLegacyIntegerPartyLeaves(profileId);
+    await recodeLegacyMemberArLeaves(profileId);
+    await convertLegacyRevenueHeader(profileId);
+  } catch (err) {
+    console.warn('[party-gl] ensurePartyGlAccountsSafe', err);
+  }
 }
 
-/** Brief 9 no-op. Explicit backfill is POST CoA { ensure_party: true }. */
+/** Same recode as Safe. Full mint is POST CoA { ensure_party: true }. */
 export async function ensurePartyGlAccountsCached(profileId: number): Promise<void> {
-  void profileId;
+  await ensurePartyGlAccountsSafe(profileId);
 }
 
 export async function resolvePartyControlAccountId(opts: {
