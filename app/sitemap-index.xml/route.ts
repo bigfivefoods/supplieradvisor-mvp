@@ -1,6 +1,8 @@
 import { generateSitemaps } from '@/app/sitemap';
 import { SITE_URL } from '@/lib/seo/site';
 
+const DEFAULT_SHARD_IDS = [0, 1] as const;
+
 export async function GET() {
   const shards = await getSitemapShardIds();
   const body = buildSitemapIndexXml(shards);
@@ -19,9 +21,9 @@ async function getSitemapShardIds(): Promise<number[]> {
     const ids = items
       .map((item) => Number(item.id))
       .filter((id) => Number.isFinite(id) && id >= 0);
-    return ids.length > 0 ? ids : [0, 1];
+    return ids.length > 0 ? ids : [...DEFAULT_SHARD_IDS];
   } catch {
-    return [0, 1];
+    return [...DEFAULT_SHARD_IDS];
   }
 }
 
