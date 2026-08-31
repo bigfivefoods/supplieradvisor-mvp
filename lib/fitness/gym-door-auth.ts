@@ -10,7 +10,12 @@
  */
 
 import { createHash, randomInt, timingSafeEqual } from 'node:crypto';
-import type { FitClient, FitCoach, FitgraphStore } from './fitgraph';
+import {
+  coachPortalEmails,
+  type FitClient,
+  type FitCoach,
+  type FitgraphStore,
+} from './fitgraph';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -126,10 +131,8 @@ export function findCoachByEmail(
   return (
     (store.coaches || []).find((c) => {
       if (c.active === false) return false;
-      const emails = [c.email, c.invite_email]
-        .map((v) => String(v || '').trim().toLowerCase())
-        .filter((v) => v.includes('@'));
-      return emails.includes(e);
+      // FitCoach has email + work_invite_email, not member invite_email.
+      return coachPortalEmails(c).includes(e);
     }) || null
   );
 }
