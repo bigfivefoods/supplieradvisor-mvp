@@ -28,6 +28,7 @@ import {
   buildGoogleCalendarUrl,
   buildPublicCalendarPayload,
   buildSessionIcs,
+  ensureClientPortalToken,
   newId,
   parseCompanyIdFromToken,
   readFitgraphFromMetadata,
@@ -413,12 +414,175 @@ export async function POST(request: NextRequest) {
         })
       );
       await saveStore(companyId, meta, store);
+      const portalToken = ensureClientPortalToken(client, companyId);
+      // Re-save if token was just issued
+      const latestIdx = store.clients.findIndex((c) => c.id === client.id);
+      if (latestIdx >= 0) store.clients[latestIdx] = client;
+      await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
-        message:
-          'Application received. The gym owner can see it on your member profile.',
+        portal_token: portalToken,
+        portal_path: `/member/fitgraph/${encodeURIComponent(portalToken)}`,
         client_id: client.id,
       });
+    }
+
+    // ── Door auth: request_code ───────────────────────────────────────────
+    if (action === 'request_code') {
+      const {
+        generateEmailCode,
+        buildAuthCodePayload,
+        findClientByEmail,
+        findCoachByEmail,
+      } = await import('@/lib/fitness/gym-door-auth');
+      const email = String(body.email || '').trim().toLowerCase();
+      const lane = String(body.lane || 'returning');
+      if (!email.includes('@')) {
+        return NextResponse.json({ error: 'Valid email required' }, { status: 400 });
+      }
+      let person: { id: string; name: string; auth_code_hash?: string | null; auth_code_expires_at?: string | null } | null = null;
+      let personKind: 'client' | 'coach' = 'client';
+      if (lane === 'coach') {
+        const coach = findCoachByEmail(store, email);
+        if (!coach) {
+          return NextResponse.json({ error: 'No active coach found for that email' }, { status: 404 });
+        }
+        person = coach;
+        personKind = 'coach';
+      } else {
+        const client = findClientByEmail(store, email);
+        if (!client) {
+          return NextResponse.json({ error: 'No active member found for that email' }, { status: 404 });
+        }
+        person = client;
+        personKind = 'client';
+      }
+      const code = generateEmailCode();
+      const payload = buildAuthCodePayload(code);
+      person.auth_code_hash = payload.code_hash;
+      person.auth_code_expires_at = payload.expires_at;
+      if (personKind === 'coach') {
+        const idx = store.coaches.findIndex((c) => c.id === person!.id);
+        if (idx >= 0) store.coaches[idx] = { ...store.coaches[idx], ...person };
+      } else {
+        const idx = store.clients.findIndex((c) => c.id === person!.id);
+        if (idx >= 0) store.clients[idx] = { ...store.clients[idx], ...person };
+      }
+      await saveStore(companyId, meta, store);
+      // Send email via Resend
+      try {
+        const { getResend, getResendFrom } = await import('@/lib/resend');
+        const resend = getResend();
+        await resend.emails.send({
+          from: getResendFrom(),
+          to: email,
+          subject: `Your ${store.settings?.brand_name || 'gym'} sign-in code`,
+          text: `Your ${store.settings?.brand_name || 'gym'} sign-in code is: ${code}\n\nThis code expires in 10 minutes. Do not share it.`,
+          html: `<p>Your <strong>${store.settings?.brand_name || 'gym'}</strong> sign-in code is:</p><p style="font-size:2em;letter-spacing:0.2em;font-weight:bold">${code}</p><p>This code expires in 10 minutes. Do not share it.</p>`,
+        });
+      } catch {
+        // Best-effort: don't leak send errors to the client
+      }
+      return NextResponse.json({ success: true });
+    }
+
+    // ── Door auth: verify_code ────────────────────────────────────────────
+    if (action === 'verify_code') {
+      const { verifyAuthCode, findClientByEmail, findCoachByEmail } = await import('@/lib/fitness/gym-door-auth');
+      const { ensureCoachPortalToken } = await import('@/lib/fitness/fitgraph');
+      const email = String(body.email || '').trim().toLowerCase();
+      const code = String(body.code || '').trim();
+      const lane = String(body.lane || 'returning');
+      if (!email.includes('@') || code.length !== 6) {
+        return NextResponse.json({ error: 'Email and 6-digit code required' }, { status: 400 });
+      }
+      if (lane === 'coach') {
+        const coach = findCoachByEmail(store, email);
+        if (!coach) {
+          return NextResponse.json({ error: 'No active coach found for that email' }, { status: 404 });
+        }
+        const ok = verifyAuthCode(
+          { code_hash: coach.auth_code_hash ?? '', expires_at: coach.auth_code_expires_at ?? '' },
+          code
+        );
+        if (!ok) {
+          return NextResponse.json({ error: 'Invalid or expired code' }, { status: 401 });
+        }
+        // Invalidate code
+        coach.auth_code_hash = null;
+        coach.auth_code_expires_at = null;
+        const portalToken = ensureCoachPortalToken(coach, companyId);
+        const idx = store.coaches.findIndex((c) => c.id === coach.id);
+        if (idx >= 0) store.coaches[idx] = coach;
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          portal_token: portalToken,
+          portal_path: `/coach/fitgraph/${encodeURIComponent(portalToken)}`,
+          offer_pin: !coach.pin_hash,
+        });
+      } else {
+        const client = findClientByEmail(store, email);
+        if (!client) {
+          return NextResponse.json({ error: 'No active member found for that email' }, { status: 404 });
+        }
+        const ok = verifyAuthCode(
+          { code_hash: client.auth_code_hash ?? '', expires_at: client.auth_code_expires_at ?? '' },
+          code
+        );
+        if (!ok) {
+          return NextResponse.json({ error: 'Invalid or expired code' }, { status: 401 });
+        }
+        // Invalidate code
+        client.auth_code_hash = null;
+        client.auth_code_expires_at = null;
+        const portalToken = ensureClientPortalToken(client, companyId);
+        const idx = store.clients.findIndex((c) => c.id === client.id);
+        if (idx >= 0) store.clients[idx] = client;
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          portal_token: portalToken,
+          portal_path: `/member/fitgraph/${encodeURIComponent(portalToken)}`,
+          offer_pin: !client.pin_hash,
+        });
+      }
+    }
+
+    // ── Door auth: set_pin ────────────────────────────────────────────────
+    if (action === 'set_pin') {
+      const { hashPin, isValidPin, findClientByEmail, findCoachByEmail } = await import('@/lib/fitness/gym-door-auth');
+      const { clientMatchesPortalToken } = await import('@/lib/fitness/fitgraph');
+      const email = String(body.email || '').trim().toLowerCase();
+      const pin = String(body.pin || '').trim();
+      const lane = String(body.lane || 'returning');
+      const portalToken = String(body.portal_token || '').trim();
+      if (!isValidPin(pin)) {
+        return NextResponse.json({ error: 'PIN must be 4–6 digits' }, { status: 400 });
+      }
+      if (!portalToken) {
+        return NextResponse.json({ error: 'portal_token required' }, { status: 401 });
+      }
+      if (lane === 'coach') {
+        const coach = findCoachByEmail(store, email);
+        if (!coach || String(coach.portal_token || '').trim() !== portalToken) {
+          return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+        }
+        coach.pin_hash = hashPin(pin);
+        const idx = store.coaches.findIndex((c) => c.id === coach.id);
+        if (idx >= 0) store.coaches[idx] = coach;
+        await saveStore(companyId, meta, store);
+      } else {
+        const client = findClientByEmail(store, email);
+        if (!client || !clientMatchesPortalToken(client, portalToken)) {
+          return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+        }
+        client.pin_hash = hashPin(pin);
+        const idx = store.clients.findIndex((c) => c.id === client.id);
+        if (idx >= 0) store.clients[idx] = client;
+        await saveStore(companyId, meta, store);
+      }
+      return NextResponse.json({ success: true });
     }
 
     if (action === 'checkout' || action === 'buy') {
