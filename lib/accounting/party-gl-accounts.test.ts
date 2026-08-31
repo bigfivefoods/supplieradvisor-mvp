@@ -28,6 +28,13 @@ import {
   statementParentForPartyLeaf,
   suggestPartyGlForDescription,
   resolveLegacyIntegerPartyRecode,
+  planLeftoverIntegerLeaf,
+  planMemberRevenueLeaf,
+  isLeftoverIntegerArLeaf,
+  isLeftoverMemberRevenueLeaf,
+  isCanonical1180ArCode,
+  isForbiddenCustomerArStamp,
+  clampCustomerArParent,
 } from './party-gl-accounts';
 import type { CoaAccount } from './types';
 
@@ -457,6 +464,180 @@ assert.equal(
   null
 );
 
+assert.equal(isCanonical1180ArCode('1180-0000012'), true);
+assert.equal(isCanonical1180ArCode('4402'), false);
+assert.equal(isForbiddenCustomerArStamp('4402'), true);
+assert.equal(isForbiddenCustomerArStamp('1190'), true);
+assert.equal(isForbiddenCustomerArStamp('1130'), true);
+assert.equal(isForbiddenCustomerArStamp('1180-0000012'), false);
+assert.equal(clampCustomerArParent('4400'), '1180');
+assert.equal(clampCustomerArParent('1130'), '1130');
+assert.equal(clampCustomerArParent('1180'), '1180');
+
+assert.equal(
+  isLeftoverIntegerArLeaf({
+    id: 1190,
+    code: '1190',
+    name: 'AR — Geeta',
+    subtype: 'receivable',
+    is_header: false,
+    is_active: true,
+  }),
+  true
+);
+assert.equal(
+  isLeftoverIntegerArLeaf({
+    id: 12,
+    code: '1200',
+    name: 'PPE',
+    subtype: 'ppe',
+    is_header: false,
+    is_active: true,
+  }),
+  false
+);
+assert.equal(
+  isLeftoverMemberRevenueLeaf({
+    id: 4401,
+    code: '4401',
+    name: 'Member — Adele Corbitt',
+    subtype: 'service',
+    account_type: 'revenue',
+    is_header: false,
+    is_active: true,
+    parent_id: 5,
+  }),
+  true
+);
+assert.equal(
+  isLeftoverMemberRevenueLeaf({
+    id: 5,
+    code: '4400',
+    name: 'Members & patients',
+    is_header: true,
+    is_active: true,
+  }),
+  false
+);
+assert.equal(planMemberRevenueLeaf(0), 'deactivate');
+assert.equal(planMemberRevenueLeaf(3), 'warn');
+
+const geetaLeaf = {
+  id: 90,
+  code: '1190',
+  name: 'AR — Geeta',
+  subtype: 'receivable',
+  is_header: false,
+  is_active: true,
+};
+const geetaCust = {
+  id: 12,
+  trading_name: 'Geeta',
+  status: 'active',
+};
+assert.deepEqual(
+  planLeftoverIntegerLeaf({
+    leaf: geetaLeaf,
+    customers: [geetaCust],
+    suppliers: [],
+    byCode: new Map([['1190', 90]]),
+    journalCount: 0,
+  }),
+  { action: 'recode', kind: 'ar', partyId: 12, want: '1180-0000012' }
+);
+assert.deepEqual(
+  planLeftoverIntegerLeaf({
+    leaf: geetaLeaf,
+    customers: [geetaCust],
+    suppliers: [],
+    byCode: new Map([
+      ['1190', 90],
+      ['1180-0000012', 77],
+    ]),
+    journalCount: 0,
+  }),
+  {
+    action: 'stamp-existing',
+    kind: 'ar',
+    partyId: 12,
+    want: '1180-0000012',
+    existingId: 77,
+  }
+);
+assert.deepEqual(
+  planLeftoverIntegerLeaf({
+    leaf: {
+      id: 91,
+      code: '1191',
+      name: 'AR — Nobody',
+      subtype: 'receivable',
+      is_header: false,
+      is_active: true,
+    },
+    customers: [geetaCust],
+    suppliers: [],
+    byCode: new Map([['1191', 91]]),
+    journalCount: 0,
+  }),
+  { action: 'deactivate', kind: 'ar' }
+);
+assert.deepEqual(
+  planLeftoverIntegerLeaf({
+    leaf: {
+      id: 92,
+      code: '1192',
+      name: 'AR — Journalled',
+      subtype: 'receivable',
+      is_header: false,
+      is_active: true,
+    },
+    customers: [],
+    suppliers: [],
+    byCode: new Map([['1192', 92]]),
+    journalCount: 2,
+  }),
+  { action: 'nest-inactive', kind: 'ar' }
+);
+
+const stampPlan = planPartyGlAccounts({
+  customers: [
+    {
+      id: 200,
+      trading_name: 'Adele Corbitt',
+      status: 'active',
+      customer_type: 'member',
+      source: 'advisor_member',
+      metadata: { gl_account_code: '4402', gl_account_id: 4402 },
+    },
+  ],
+  suppliers: [],
+  coa: [
+    {
+      id: 3,
+      code: '1180',
+      name: 'Customers',
+      is_header: true,
+      is_active: true,
+      account_type: 'asset',
+    },
+    {
+      id: 4402,
+      code: '4402',
+      name: 'Member — Adele Corbitt',
+      is_header: false,
+      is_active: false,
+      account_type: 'revenue',
+      subtype: 'service',
+    },
+  ],
+});
+assert.ok(stampPlan.create.some((c) => c.code === '1180-0000200'));
+assert.ok(stampPlan.links.some((l) => l.id === 200 && l.code === '1180-0000200'));
+assert.equal(
+  stampPlan.links.some((l) => l.code === '4402'),
+  false
+);
+
 const partyGlSrc = readFileSync(resolve('lib/accounting/party-gl-accounts.ts'), 'utf8');
 assert.match(partyGlSrc, /recodeLegacyIntegerPartyLeaves/);
 assert.match(partyGlSrc, /ensurePartyGlAccountsSafe/);
@@ -465,9 +646,18 @@ assert.doesNotMatch(
   /export async function ensurePartyGlAccountsSafe[\s\S]{0,80}void profileId/
 );
 assert.match(partyGlSrc, /recodeLegacyIntegerPartyLeaves\(profileId\)/);
+assert.match(partyGlSrc, /retireLegacyMemberRevenueLeaves/);
+assert.match(partyGlSrc, /planLeftoverIntegerLeaf/);
 const sql33 = readFileSync(resolve('RUN_THIS_FOR_BRIEF33.sql'), 'utf8');
 assert.match(sql33, /sa_brief33_recode_party_gl\(110\)/);
 assert.match(sql33, /sa_brief33_recode_party_gl\(102\)/);
 assert.match(sql33, /1180-.*lpad/);
+const sql35 = readFileSync(resolve('RUN_THIS_FOR_BRIEF35.sql'), 'utf8');
+assert.match(sql35, /SELECT public\.sa_brief35_recode_party_gl\(110\);/);
+assert.match(sql35, /Uncomment only if leftovers reappear/);
+assert.match(sql35, /Retire integer 4401/);
+assert.match(sql35, /is_active = false/);
+const retireOnly = (sql35.split('Retire integer')[1] || '').split('-- 3.')[0];
+assert.doesNotMatch(retireOnly, /SET code/);
 
 console.log('party-gl-accounts tests ok');

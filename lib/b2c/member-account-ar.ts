@@ -37,7 +37,10 @@ export async function attachCrmToAdvisorPerson(opts: {
     });
     if (crm?.id) {
       opts.person.crm_customer_id = crm.id;
-      if (crm.ar_account_code) opts.person.ar_account_code = crm.ar_account_code;
+      const stamp = String(crm.ar_account_code || '');
+      if (/^1180-\d{7}$/.test(stamp)) {
+        opts.person.ar_account_code = stamp;
+      }
       return crm.id;
     }
   } catch {
@@ -230,7 +233,10 @@ async function finishAdvisorCustomer(
       customerId: customer.id,
       name: customer.name,
     });
-    ar_account_code = leaf?.code || memberArAccountCode(customer.id) || null;
+    const code = leaf?.code || memberArAccountCode(customer.id) || null;
+    ar_account_code = /^1180-\d+$/.test(String(code || ''))
+      ? code
+      : memberArAccountCode(customer.id) || null;
   } catch (err) {
     console.warn('[member-account] member AR leaf', err);
   }
