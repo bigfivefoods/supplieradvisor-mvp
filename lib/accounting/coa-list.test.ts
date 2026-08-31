@@ -37,6 +37,26 @@ assert.ok(!operating.some((a) => String(a.code).startsWith('1180-')));
 assert.ok(!operating.some((a) => String(a.code).startsWith('2180-')));
 assert.ok(!operating.some((a) => String(a.code).startsWith('4400-')));
 
+const leftovers = filterOperatingCoa(
+  [
+    ...fixture,
+    { code: '1190', name: 'AR — Geeta', is_header: false, account_type: 'asset', is_active: true },
+    { code: '4401', name: 'Member — Adele Corbitt', is_header: false, account_type: 'revenue', is_active: true },
+    { code: '4400', name: 'Membership & care revenue', is_header: true, account_type: 'revenue', is_active: true },
+    { code: '1191', name: 'AR — hidden', is_header: false, account_type: 'asset', is_active: false },
+  ],
+  {}
+);
+assert.ok(leftovers.some((a) => a.code === '4400'));
+assert.ok(!leftovers.some((a) => a.code === '1190'));
+assert.ok(!leftovers.some((a) => a.code === '4401'));
+assert.ok(!leftovers.some((a) => a.code === '1191'));
+const foundGeeta = filterOperatingCoa(
+  [{ code: '1190', name: 'AR — Geeta', is_header: false, account_type: 'asset', is_active: false }],
+  { q: 'geeta' }
+);
+assert.ok(foundGeeta.some((a) => a.code === '1190'));
+
 const withLeaves = filterOperatingCoa(fixture, { partyLeaves: true });
 assert.ok(withLeaves.some((a) => a.code === '1180-0000001'));
 assert.equal(withLeaves.slice(0, 3).length, 3);

@@ -522,6 +522,156 @@ export function resolveLegacyIntegerPartyRecode(opts: {
   return null;
 }
 
+export type CoaLeafForRecode = {
+  id: number;
+  code: string;
+  name?: string | null;
+  metadata?: Record<string, unknown> | null;
+  is_header?: boolean | null;
+  is_active?: boolean | null;
+  account_type?: string | null;
+  subtype?: string | null;
+  parent_id?: number | null;
+};
+
+export function isCanonical1180ArCode(code?: string | null): boolean {
+  const c = String(code || '').trim();
+  const hyphen = parseHyphenSubAccount(c);
+  return Boolean(hyphen && hyphen.header === MEMBER_AR_HEADER_CODE);
+}
+
+/** 4401 / 1190 / 1130 must never be written onto a customer stamp. */
+export function isForbiddenCustomerArStamp(code?: string | null): boolean {
+  const c = String(code || '').trim();
+  if (!c) return false;
+  if (c === '1130' || c === '1135' || c === '1200') return true;
+  if (c === MEMBERSHIP_REVENUE_CODE) return true;
+  if (/^44[0-9]{2}$/.test(c)) return true;
+  if (isLegacyIntegerArCode(c) || isLegacyIntegerApCode(c)) return true;
+  return false;
+}
+
+export function clampCustomerArParent(code?: string | null): string {
+  const c = String(code || '').trim();
+  if (!c) return MEMBER_AR_HEADER_CODE;
+  if (c === MEMBERSHIP_REVENUE_CODE || /^44[0-9]{2}$/.test(c)) {
+    return MEMBER_AR_HEADER_CODE;
+  }
+  return c;
+}
+
+export function isUsableCustomerArLeafCode(code?: string | null): boolean {
+  const c = String(code || '').trim();
+  if (!c) return false;
+  if (isCanonical1180ArCode(c)) return true;
+  if (parseHyphenSubAccount(c)?.header === MEMBER_AR_LEGACY_HEADER_CODE) {
+    return true;
+  }
+  if (isLegacyIntegerArCode(c) && c !== '1200') return true;
+  return false;
+}
+
+/** Integer 1181–1999 receivable (not headers, not 1200 PPE). */
+export function isLeftoverIntegerArLeaf(row: CoaLeafForRecode): boolean {
+  if (row.is_header === true || row.is_active === false) return false;
+  const code = String(row.code || '');
+  if (code === '1200' || !isLegacyIntegerArCode(code)) return false;
+  const sub = String(row.subtype || '').toLowerCase();
+  if (sub === 'receivable') return true;
+  return /^AR\s+[—-]\s+/i.test(String(row.name || ''));
+}
+
+export function isLeftoverIntegerApLeaf(row: CoaLeafForRecode): boolean {
+  if (row.is_header === true || row.is_active === false) return false;
+  const code = String(row.code || '');
+  if (!isLegacyIntegerApCode(code)) return false;
+  const sub = String(row.subtype || '').toLowerCase();
+  if (sub === 'payable') return true;
+  return /^AP\s+[—-]\s+/i.test(String(row.name || ''));
+}
+
+/** Integer 4401–4499 Member — income leaves. Never recode these onto 1180. */
+export function isLeftoverMemberRevenueLeaf(
+  row: CoaLeafForRecode,
+  revenueHeaderId?: number | null
+): boolean {
+  if (row.is_header === true || row.is_active === false) return false;
+  const code = String(row.code || '');
+  if (!/^44[0-9]{2}$/.test(code) || code === MEMBERSHIP_REVENUE_CODE) {
+    return false;
+  }
+  if (/^Member\s+[—-]\s+/i.test(String(row.name || ''))) return true;
+  const sub = String(row.subtype || '').toLowerCase();
+  if (
+    sub === 'service' &&
+    revenueHeaderId &&
+    Number(row.parent_id) === Number(revenueHeaderId)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export type LeftoverIntegerLeafPlan = {
+  action:
+    | 'recode'
+    | 'stamp-existing'
+    | 'deactivate'
+    | 'nest-inactive'
+    | 'skip';
+  kind?: 'ar' | 'ap';
+  partyId?: number;
+  want?: string;
+  existingId?: number;
+};
+
+export function planLeftoverIntegerLeaf(opts: {
+  leaf: CoaLeafForRecode;
+  customers: PartyBookRow[];
+  suppliers: PartyBookRow[];
+  byCode: Map<string, number>;
+  journalCount: number;
+}): LeftoverIntegerLeafPlan {
+  const leaf = opts.leaf;
+  const ar = isLeftoverIntegerArLeaf(leaf);
+  const ap = isLeftoverIntegerApLeaf(leaf);
+  if (!ar && !ap) return { action: 'skip' };
+  const mapped = resolveLegacyIntegerPartyRecode({
+    code: String(leaf.code),
+    accountId: Number(leaf.id),
+    name: leaf.name,
+    metadata: leaf.metadata,
+    customers: opts.customers,
+    suppliers: opts.suppliers,
+  });
+  if (mapped) {
+    const taken = opts.byCode.get(mapped.want);
+    if (!taken || taken === Number(leaf.id)) {
+      return {
+        action: 'recode',
+        kind: mapped.kind,
+        partyId: mapped.partyId,
+        want: mapped.want,
+      };
+    }
+    return {
+      action: 'stamp-existing',
+      kind: mapped.kind,
+      partyId: mapped.partyId,
+      want: mapped.want,
+      existingId: taken,
+    };
+  }
+  if (opts.journalCount > 0) {
+    return { action: 'nest-inactive', kind: ar ? 'ar' : 'ap' };
+  }
+  return { action: 'deactivate', kind: ar ? 'ar' : 'ap' };
+}
+
+export function planMemberRevenueLeaf(journalCount: number): 'deactivate' | 'warn' {
+  return journalCount > 0 ? 'warn' : 'deactivate';
+}
+
 function isContractorSupplier(row: PartyBookRow): boolean {
   const notes = String(row.notes || '');
   if (notes.includes('advisor_ap:')) return true;
@@ -565,7 +715,7 @@ function collectUniqueCustomers(
     const trade = isTradeParty(row);
     if (!advisor && !trade) continue;
     const name = partyDisplayName(row);
-    const parentCode = advisor ? memberCode : arCode;
+    const parentCode = clampCustomerArParent(advisor ? memberCode : arCode);
     const want = memberArAccountCode(Number(row.id), parentCode);
     const legacy = legacyMemberArAccountCode(Number(row.id));
     const classic = memberArAccountCode(Number(row.id), MEMBER_AR_HEADER_CODE);
@@ -574,6 +724,7 @@ function collectUniqueCustomers(
     const linkedId = Number(asRecord(row.metadata).gl_account_id || 0);
     const existingLinked =
       linked &&
+      isUsableCustomerArLeafCode(linked) &&
       coa.find(
         (a) => !a.is_header && a.is_active !== false && String(a.code) === linked
       );
@@ -704,8 +855,10 @@ export function planPartyGlAccounts(opts: {
   );
   const create: PartyGlCreate[] = [];
   const links: PartyGlLink[] = [];
-  const arCode = opts.mapping?.arCode || MEMBER_AR_HEADER_CODE;
-  const memberCode = opts.mapping?.memberCode || arCode;
+  const arCode = clampCustomerArParent(
+    opts.mapping?.arCode || MEMBER_AR_HEADER_CODE
+  );
+  const memberCode = clampCustomerArParent(opts.mapping?.memberCode || arCode);
   const apCode = opts.mapping?.apCode || SUPPLIER_AP_HEADER_CODE;
   const contractorCode = opts.mapping?.contractorCode || apCode;
 
@@ -1066,6 +1219,7 @@ async function stampBookGl(opts: {
   name: string;
   kind: 'ar' | 'ap';
 }): Promise<void> {
+  if (opts.kind === 'ar' && isForbiddenCustomerArStamp(opts.code)) return;
   const supabase = getSupabaseServer();
   const { data: book } = await supabase
     .from(opts.table)
@@ -1136,9 +1290,10 @@ export async function ensureMemberArLeaf(opts: {
   headerCode?: string | null;
 }): Promise<{ code: string; accountId: number } | null> {
   const parents = await loadPartyParents(opts.profileId);
-  const headerCode =
+  const headerCode = clampCustomerArParent(
     String(opts.headerCode || parents.members.code || MEMBER_AR_HEADER_CODE).trim() ||
-    MEMBER_AR_HEADER_CODE;
+      MEMBER_AR_HEADER_CODE
+  );
   const want = memberArAccountCode(opts.customerId, headerCode);
   const legacy = legacyMemberArAccountCode(opts.customerId);
   const classic = memberArAccountCode(opts.customerId, MEMBER_AR_HEADER_CODE);
@@ -1179,11 +1334,21 @@ export async function ensureMemberArLeaf(opts: {
     if (linkedRow?.id) rows.push(linkedRow as (typeof rows)[number]);
   }
   const modern = rows.find((r) => String(r.code) === want);
-  const linkedRow =
+  const linkedRowRaw =
     rows.find((r) => Number(r.id) === linkedId) ||
     rows.find((r) => String(r.code) === linkedCode) ||
     null;
-  const old = linkedRow || rows.find((r) => String(r.code) !== want);
+  const linkedRow =
+    linkedRowRaw && isUsableCustomerArLeafCode(String(linkedRowRaw.code))
+      ? linkedRowRaw
+      : null;
+  const old =
+    linkedRow ||
+    rows.find(
+      (r) =>
+        String(r.code) !== want && isUsableCustomerArLeafCode(String(r.code))
+    ) ||
+    null;
   let accountId = modern?.id
     ? Number(modern.id)
     : old?.id
@@ -1248,10 +1413,27 @@ export async function ensureMemberArLeaf(opts: {
       .maybeSingle();
     if (recode.data?.code) code = String(recode.data.code);
     else if (recode.error && /duplicate|unique/i.test(recode.error.message || '')) {
-      code = String(old?.code || code);
+      const { data: taken } = await supabase
+        .from('chart_of_accounts')
+        .select('id, code')
+        .eq('profile_id', opts.profileId)
+        .eq('code', want)
+        .maybeSingle();
+      if (taken?.id) {
+        accountId = Number(taken.id);
+        code = String(taken.code || want);
+      } else {
+        accountId = 0;
+        code = want;
+      }
     } else {
       code = want;
     }
+  }
+
+  if (accountId && isForbiddenCustomerArStamp(code)) {
+    accountId = 0;
+    code = want;
   }
 
   if (!accountId) {
@@ -1488,6 +1670,32 @@ export async function ensureSupplierApLeaf(opts: {
   return { code: currentCode, accountId };
 }
 
+async function journalLineCounts(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  profileId: number,
+  accountIds: number[]
+): Promise<{ counts: Map<number, number>; failed: boolean }> {
+  const counts = new Map<number, number>();
+  const ids = [...new Set(accountIds.filter((n) => Number.isFinite(n) && n > 0))];
+  if (!ids.length) return { counts, failed: false };
+  const chunk = 200;
+  for (let i = 0; i < ids.length; i += chunk) {
+    const slice = ids.slice(i, i + chunk);
+    const { data, error } = await supabase
+      .from('journal_lines')
+      .select('account_id')
+      .eq('profile_id', profileId)
+      .in('account_id', slice);
+    if (error) return { counts, failed: true };
+    for (const row of data || []) {
+      const id = Number((row as { account_id?: number }).account_id);
+      if (!(id > 0)) continue;
+      counts.set(id, (counts.get(id) || 0) + 1);
+    }
+  }
+  return { counts, failed: false };
+}
+
 async function recodeLegacyIntegerPartyLeaves(
   profileId: number
 ): Promise<number> {
@@ -1496,23 +1704,23 @@ async function recodeLegacyIntegerPartyLeaves(
     await Promise.all([
       supabase
         .from('chart_of_accounts')
-        .select('id, code, name, metadata')
+        .select(
+          'id, code, name, metadata, is_header, is_active, account_type, subtype, parent_id'
+        )
         .eq('profile_id', profileId),
       loadBookRows(supabase, 'customers', profileId, 'customer_type, source, notes'),
       loadBookRows(supabase, 'srm_suppliers', profileId, 'notes'),
     ]);
-  const rows = (coa || []) as Array<{
-    id: number;
-    code: string;
-    name?: string | null;
-    metadata?: Record<string, unknown> | null;
-  }>;
+  const rows = (coa || []) as CoaLeafForRecode[];
   const integers = rows.filter(
-    (r) =>
-      isLegacyIntegerArCode(String(r.code)) ||
-      isLegacyIntegerApCode(String(r.code))
+    (r) => isLeftoverIntegerArLeaf(r) || isLeftoverIntegerApLeaf(r)
   );
   if (!integers.length) return 0;
+  const { counts, failed } = await journalLineCounts(
+    supabase,
+    profileId,
+    integers.map((r) => Number(r.id))
+  );
   const arHeaderId = await ensureHeaderRow({
     profileId,
     code: MEMBER_AR_HEADER_CODE,
@@ -1537,60 +1745,177 @@ async function recodeLegacyIntegerPartyLeaves(
     metadata: { party_kind: 'supplier_ap_header' },
   });
   const byCode = new Map(rows.map((r) => [String(r.code), Number(r.id)]));
+  const books = {
+    customers: (customers || []) as PartyBookRow[],
+    suppliers: (suppliers || []) as PartyBookRow[],
+  };
   let moved = 0;
   for (const leaf of integers) {
-    const mapped = resolveLegacyIntegerPartyRecode({
-      code: String(leaf.code),
-      accountId: Number(leaf.id),
-      name: leaf.name,
-      metadata: leaf.metadata,
-      customers: (customers || []) as PartyBookRow[],
-      suppliers: (suppliers || []) as PartyBookRow[],
+    const journalCount = failed ? 1 : counts.get(Number(leaf.id)) || 0;
+    const plan = planLeftoverIntegerLeaf({
+      leaf,
+      customers: books.customers,
+      suppliers: books.suppliers,
+      byCode,
+      journalCount,
     });
-    if (!mapped) continue;
-    const taken = byCode.get(mapped.want);
-    if (taken && taken !== Number(leaf.id)) continue;
-    const headerId = mapped.kind === 'ar' ? arHeaderId : apHeaderId;
-    const recode = await supabase
-      .from('chart_of_accounts')
-      .update({
-        code: mapped.want,
-        account_type: mapped.kind === 'ar' ? 'asset' : 'liability',
-        subtype: mapped.kind === 'ar' ? 'receivable' : 'payable',
-        is_header: false,
-        is_active: true,
-        normal_balance: mapped.kind === 'ar' ? 'debit' : 'credit',
-        parent_id: headerId,
-        metadata: {
-          ...asRecord(leaf.metadata),
-          party_kind: mapped.kind === 'ar' ? 'customer_ar' : 'supplier_ap',
-          party_ids: [mapped.partyId],
-          ar_account_number: mapped.kind === 'ar' ? mapped.want : undefined,
-          ap_account_number: mapped.kind === 'ap' ? mapped.want : undefined,
-        },
-      })
-      .eq('id', Number(leaf.id))
-      .eq('profile_id', profileId)
-      .select('id')
-      .maybeSingle();
-    if (recode.error && /duplicate|unique/i.test(recode.error.message || '')) {
+    const headerId = plan.kind === 'ap' ? apHeaderId : arHeaderId;
+    if (plan.action === 'skip') continue;
+    if (plan.action === 'recode' && plan.want && plan.partyId && plan.kind) {
+      const recode = await supabase
+        .from('chart_of_accounts')
+        .update({
+          code: plan.want,
+          account_type: plan.kind === 'ar' ? 'asset' : 'liability',
+          subtype: plan.kind === 'ar' ? 'receivable' : 'payable',
+          is_header: false,
+          is_active: true,
+          normal_balance: plan.kind === 'ar' ? 'debit' : 'credit',
+          parent_id: headerId,
+          metadata: {
+            ...asRecord(leaf.metadata),
+            party_kind: plan.kind === 'ar' ? 'customer_ar' : 'supplier_ap',
+            party_ids: [plan.partyId],
+            ar_account_number: plan.kind === 'ar' ? plan.want : undefined,
+            ap_account_number: plan.kind === 'ap' ? plan.want : undefined,
+          },
+        })
+        .eq('id', Number(leaf.id))
+        .eq('profile_id', profileId)
+        .select('id')
+        .maybeSingle();
+      if (recode.error && /duplicate|unique/i.test(recode.error.message || '')) {
+        if (plan.want && plan.partyId && plan.kind) {
+          const taken = byCode.get(plan.want);
+          if (taken && taken !== Number(leaf.id)) {
+            await supabase
+              .from('chart_of_accounts')
+              .update({
+                is_active: false,
+                parent_id: headerId,
+              })
+              .eq('id', Number(leaf.id))
+              .eq('profile_id', profileId);
+            await stampBookGl({
+              table: plan.kind === 'ar' ? 'customers' : 'srm_suppliers',
+              profileId,
+              id: plan.partyId,
+              accountId: taken,
+              code: plan.want,
+              name: String(leaf.name || plan.want),
+              kind: plan.kind,
+            });
+            moved += 1;
+          }
+        }
+        continue;
+      }
+      if (!recode.data?.id) continue;
+      byCode.delete(String(leaf.code));
+      byCode.set(plan.want, Number(leaf.id));
+      moved += 1;
+      await stampBookGl({
+        table: plan.kind === 'ar' ? 'customers' : 'srm_suppliers',
+        profileId,
+        id: plan.partyId,
+        accountId: Number(leaf.id),
+        code: plan.want,
+        name: String(leaf.name || plan.want),
+        kind: plan.kind,
+      });
       continue;
     }
-    if (!recode.data?.id) continue;
-    byCode.delete(String(leaf.code));
-    byCode.set(mapped.want, Number(leaf.id));
-    moved += 1;
-    await stampBookGl({
-      table: mapped.kind === 'ar' ? 'customers' : 'srm_suppliers',
-      profileId,
-      id: mapped.partyId,
-      accountId: Number(leaf.id),
-      code: mapped.want,
-      name: String(leaf.name || mapped.want),
-      kind: mapped.kind,
-    });
+    if (
+      plan.action === 'stamp-existing' &&
+      plan.want &&
+      plan.partyId &&
+      plan.kind &&
+      plan.existingId
+    ) {
+      await supabase
+        .from('chart_of_accounts')
+        .update({
+          is_active: false,
+          parent_id: headerId,
+        })
+        .eq('id', Number(leaf.id))
+        .eq('profile_id', profileId);
+      await stampBookGl({
+        table: plan.kind === 'ar' ? 'customers' : 'srm_suppliers',
+        profileId,
+        id: plan.partyId,
+        accountId: plan.existingId,
+        code: plan.want,
+        name: String(leaf.name || plan.want),
+        kind: plan.kind,
+      });
+      moved += 1;
+      continue;
+    }
+    if (plan.action === 'deactivate') {
+      await supabase
+        .from('chart_of_accounts')
+        .update({ is_active: false, parent_id: headerId })
+        .eq('id', Number(leaf.id))
+        .eq('profile_id', profileId);
+      moved += 1;
+      continue;
+    }
+    if (plan.action === 'nest-inactive') {
+      await supabase
+        .from('chart_of_accounts')
+        .update({ is_active: false, parent_id: headerId })
+        .eq('id', Number(leaf.id))
+        .eq('profile_id', profileId);
+      moved += 1;
+    }
   }
   return moved;
+}
+
+async function retireLegacyMemberRevenueLeaves(
+  profileId: number
+): Promise<{ retired: number; warned: number }> {
+  const supabase = getSupabaseServer();
+  const { data: coa } = await supabase
+    .from('chart_of_accounts')
+    .select(
+      'id, code, name, is_header, is_active, account_type, subtype, parent_id'
+    )
+    .eq('profile_id', profileId);
+  const rows = (coa || []) as CoaLeafForRecode[];
+  const revenueHeader = rows.find(
+    (r) => String(r.code) === MEMBERSHIP_REVENUE_CODE
+  );
+  const leaves = rows.filter((r) =>
+    isLeftoverMemberRevenueLeaf(r, revenueHeader?.id || null)
+  );
+  if (!leaves.length) return { retired: 0, warned: 0 };
+  const { counts, failed } = await journalLineCounts(
+    supabase,
+    profileId,
+    leaves.map((r) => Number(r.id))
+  );
+  let retired = 0;
+  let warned = 0;
+  for (const leaf of leaves) {
+    const journalCount = failed ? 1 : counts.get(Number(leaf.id)) || 0;
+    const action = planMemberRevenueLeaf(journalCount);
+    if (action === 'warn') {
+      warned += 1;
+      console.warn(
+        `[party-gl] leftover Member income ${leaf.code} has journal lines; left active`
+      );
+      continue;
+    }
+    const { error } = await supabase
+      .from('chart_of_accounts')
+      .update({ is_active: false })
+      .eq('id', Number(leaf.id))
+      .eq('profile_id', profileId);
+    if (!error) retired += 1;
+  }
+  return { retired, warned };
 }
 
 async function recodeLegacyMemberArLeaves(profileId: number): Promise<number> {
@@ -1736,6 +2061,8 @@ export async function ensurePartyGlAccounts(
   try {
     recoded += await recodeLegacyIntegerPartyLeaves(profileId);
     recoded += await recodeLegacyMemberArLeaves(profileId);
+    const retired = await retireLegacyMemberRevenueLeaves(profileId);
+    recoded += retired.retired;
     await convertLegacyRevenueHeader(profileId);
   } catch (err) {
     console.warn('[party-gl] leftover integer recode', err);
@@ -1944,12 +2271,13 @@ export async function ensurePartyGlAccounts(
   return { created, linked };
 }
 
-/** Recode leftover integer 1181+/2181+ and 4400-* AR onto 7-digit 1180/2180 leaves. */
+/** Recode leftover integer AR/AP, retire 4401+ Member income, nest 1180/2180. */
 export async function ensurePartyGlAccountsSafe(profileId: number): Promise<void> {
   if (!Number.isFinite(profileId) || profileId <= 0) return;
   try {
     await recodeLegacyIntegerPartyLeaves(profileId);
     await recodeLegacyMemberArLeaves(profileId);
+    await retireLegacyMemberRevenueLeaves(profileId);
     await convertLegacyRevenueHeader(profileId);
   } catch (err) {
     console.warn('[party-gl] ensurePartyGlAccountsSafe', err);

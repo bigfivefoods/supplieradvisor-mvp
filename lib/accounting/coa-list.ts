@@ -1,6 +1,7 @@
 /**
  * Brief 15 — operating CoA list (headers + posting accounts).
  * Named 1180-/2180-/4400- leaves stay off first paint unless search or party_leaves=1.
+ * Inactive leftover integers (1190 AR, 4401 Member —) never dump into the tree.
  */
 
 export const PARTY_LEAF_RE = /^(1180|2180|4400)-/;
@@ -25,6 +26,20 @@ export function isPartyLeafCode(code?: string | null): boolean {
   return PARTY_LEAF_RE.test(String(code || ''));
 }
 
+/** Leftover named party integers that must not paint as a member-per-line chart. */
+export function isLeftoverPartyIntegerCode(
+  code?: string | null,
+  name?: string | null
+): boolean {
+  const c = String(code || '').trim();
+  if (!c || !/^\d+$/.test(c)) return false;
+  const n = Number(c);
+  if (n >= 1181 && n < 2000 && n !== 1200) return true;
+  if (n >= 2181 && n < 3000) return true;
+  if (/^44[0-9]{2}$/.test(c) && c !== '4400') return true;
+  return false;
+}
+
 export function filterOperatingCoa<T extends CoaListRow>(
   accounts: T[],
   opts: { partyLeaves?: boolean; q?: string | null }
@@ -39,9 +54,16 @@ export function filterOperatingCoa<T extends CoaListRow>(
     );
   }
   if (opts.partyLeaves) {
-    return accounts.filter(
-      (a) => !(isPartyLeafCode(a.code) && a.is_active === false)
-    );
+    return accounts.filter((a) => {
+      if (a.is_active === false) return false;
+      if (isLeftoverPartyIntegerCode(a.code, a.name)) return false;
+      return true;
+    });
   }
-  return accounts.filter((a) => !isPartyLeafCode(a.code));
+  return accounts.filter((a) => {
+    if (a.is_active === false) return false;
+    if (isPartyLeafCode(a.code)) return false;
+    if (isLeftoverPartyIntegerCode(a.code, a.name)) return false;
+    return true;
+  });
 }
