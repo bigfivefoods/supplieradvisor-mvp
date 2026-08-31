@@ -9,7 +9,7 @@ import {
   type FitGoalCheckIn,
 } from '@/lib/fitness/fitgraph-relationship';
 import { newId, type FitgraphStore } from '@/lib/fitness/fitgraph';
-import { appendResultLog } from '@/lib/fitness/person-records';
+import { appendResultLog, type FitResultLog } from '@/lib/fitness/person-records';
 
 export const MEMBER_GOAL_PRESETS = [
   {
@@ -339,7 +339,7 @@ export function removeGoalFromStore(
   store.goals = (store.goals || []).filter((g) => g.id !== id);
   const strip = (person?: {
     goals?: FitGoal[];
-    result_logs?: Array<{ kind?: string; source_id?: string }>;
+    result_logs?: FitResultLog[];
   }) => {
     if (!person) return;
     if ((person.goals || []).some((g) => g.id === id)) removed = true;
