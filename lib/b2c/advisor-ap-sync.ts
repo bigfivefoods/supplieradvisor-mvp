@@ -41,7 +41,14 @@ export function isAdvisorContractorForAp(
   if (person.active === false) return false;
   const end = String(person.end_date || '').slice(0, 10);
   if (end && end < new Date().toISOString().slice(0, 10)) return false;
-  return resolveAdvisorEngagement(person) === 'contractor';
+  // People-directory dual-write (hr_employee_id) is not IAS 19 payroll.
+  // Only an explicit employed engagement stays off contractor AP.
+  return (
+    resolveAdvisorEngagement({
+      engagement: person.engagement,
+      employment_type: person.employment_type,
+    }) === 'contractor'
+  );
 }
 
 export function collectAdvisorContractorPeople(opts: {
@@ -148,6 +155,28 @@ export async function ensureAdvisorContractorSupplier(opts: {
       {
         id: Number(tagged.data.id),
         name: String(tagged.data.trading_name || name),
+      },
+      opts.skipPartyGl
+    );
+  }
+
+  const { data: named } = await supabase
+    .from('srm_suppliers')
+    .select('id, trading_name, notes, metadata')
+    .eq('profile_id', opts.companyId)
+    .ilike('trading_name', name)
+    .limit(5);
+  const nameHit = (named || []).find(
+    (row) =>
+      String(row.trading_name || '').trim().toLowerCase() === name.toLowerCase()
+  );
+  if (nameHit?.id) {
+    await stampSupplierTag(opts.companyId, Number(nameHit.id), tag, nameHit);
+    return finishAdvisorSupplier(
+      opts.companyId,
+      {
+        id: Number(nameHit.id),
+        name: String(nameHit.trading_name || name),
       },
       opts.skipPartyGl
     );
@@ -327,17 +356,10 @@ export async function syncAdvisorContractorsToSuppliers(
       .map((t) => t.trim())
       .filter((t) => t.startsWith(ADVISOR_AP_PREFIX))
   );
-  const emails = new Set(
-    (suppliers || [])
-      .map((s) => String(s.email || '').trim().toLowerCase())
-      .filter(Boolean)
-  );
   const missing = people.filter((row) => {
     const tag = advisorApRefTag(row.kind, row.person.id);
     if (tagged.has(tag)) return false;
-    const email = String(row.person.email || '').trim().toLowerCase();
-    if (email && emails.has(email)) return false;
-    return !row.person.srm_supplier_id;
+    return true;
   });
 
   let created = 0;

@@ -17,7 +17,7 @@ import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/li
  *   companyId, privyUserId,
  *   sellerProfileId,
  *   sellerProductId? | agreementLineId?,
- *   sell_price?, cost_price?,  // defaults: cost = list price, sell = suggested resale or markup
+ *   sell_price?, cost_price?,  // cost = typed or list; sell = typed or suggested resale only — never from cost
  *   sku?, name?
  * }
  */
@@ -230,20 +230,22 @@ export async function POST(request: NextRequest) {
         : listPrice != null
           ? listPrice
           : 0;
-    const sell =
-      body.sell_price != null
+    const typedSell =
+      body.sell_price != null && Number.isFinite(Number(body.sell_price))
         ? Number(body.sell_price)
-        : suggestedResale != null
-          ? suggestedResale
-          : cost > 0
-            ? Math.round(cost * 1.25 * 100) / 100 // default 25% margin for on-sell
-            : 0;
+        : null;
+    const sell =
+      typedSell != null
+        ? typedSell
+        : suggestedResale != null && Number.isFinite(Number(suggestedResale))
+          ? Number(suggestedResale)
+          : null;
 
     const priceRows = normalizeProductPrices([
       {
         currency,
         cost_price: cost,
-        sell_price: sell,
+        ...(sell != null ? { sell_price: sell } : {}),
       },
     ]);
 
@@ -266,9 +268,9 @@ export async function POST(request: NextRequest) {
       product_type: productType,
       uom,
       base_currency: currency,
-      sell_price: sell,
       cost_price: cost,
       prices: priceRows,
+      ...(sell != null ? { sell_price: sell } : {}),
       short_description: shortDescription,
       status: 'active',
       primary_image_url: imageUrl,
@@ -311,8 +313,8 @@ export async function POST(request: NextRequest) {
         sku,
         category,
         uom,
-        sell_price: sell,
         cost_price: cost,
+        ...(sell != null ? { sell_price: sell } : {}),
         short_description: shortDescription,
         status: 'active',
         primary_image_url: imageUrl,

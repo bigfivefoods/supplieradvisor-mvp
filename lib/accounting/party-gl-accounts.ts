@@ -7,9 +7,10 @@
  * 4100/4200/4400 when the performance obligation is satisfied.
  *
  * 1130 / 2110 stay posting control leaves (invoice-gl requires that).
- * Customers: 1180 header (current asset) + 1180-0000001 … (one leaf per customer).
+ * Customers: 1180 header (current asset) + 1180-0000001 … (one AR leaf per customer).
+ * Member income: 4400 header + 4400-0000001 … (never 4401 / never AR).
  * Suppliers: 2180 header (current liability) + 2180-0000001 … (one leaf per supplier).
- * Legacy 1181+ / 2181+ integer leaves and 4400-* AR codes still parse.
+ * Legacy 1181+ / 2181+ integer leaves still recode. 4400-* is income, not AR.
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { invalidateAccountingReads } from '@/lib/accounting/read-cache';
@@ -77,14 +78,31 @@ export function legacyMemberArAccountCode(customerId: number): string {
 }
 
 export function parseMemberArCustomerId(code: string): number | null {
-  return parsePaddedPartyId(code, [
-    MEMBER_AR_HEADER_CODE,
-    MEMBER_AR_LEGACY_HEADER_CODE,
-  ]);
+  return parsePaddedPartyId(code, [MEMBER_AR_HEADER_CODE]);
 }
 
 export function isMemberArAccountCode(code?: string | null): boolean {
   return parseMemberArCustomerId(String(code || '')) != null;
+}
+
+/** Membership income leaf, e.g. customer 17 under 4400 → 4400-0000017. */
+export function memberRevAccountCode(customerId: number): string {
+  return paddedPartyCode(MEMBERSHIP_REVENUE_CODE, customerId);
+}
+
+export function parseMemberRevCustomerId(code: string): number | null {
+  return parsePaddedPartyId(code, [MEMBERSHIP_REVENUE_CODE]);
+}
+
+export function isMemberRevAccountCode(code?: string | null): boolean {
+  return parseMemberRevCustomerId(String(code || '')) != null;
+}
+
+export function isIntegerMemberRevenueCode(code?: string | null): boolean {
+  const c = String(code || '').trim();
+  if (!/^\d+$/.test(c)) return false;
+  const n = Number(c);
+  return n >= 4401 && n <= 4699;
 }
 
 /** Stable AP sub-account, e.g. supplier 8 under 2180 → 2180-0000008. */
@@ -143,17 +161,14 @@ export function statementParentForPartyLeaf(
   const c = String(code || '').trim();
   const hyphen = parseHyphenSubAccount(c);
   if (hyphen) {
-    if (
-      hyphen.header === MEMBER_AR_HEADER_CODE ||
-      hyphen.header === MEMBER_AR_LEGACY_HEADER_CODE
-    ) {
+    if (hyphen.header === MEMBER_AR_HEADER_CODE) {
       return MEMBER_AR_HEADER_CODE;
     }
     if (hyphen.header === SUPPLIER_AP_HEADER_CODE) {
       return SUPPLIER_AP_HEADER_CODE;
     }
     if (hyphen.header === MEMBERSHIP_REVENUE_CODE) {
-      return MEMBER_AR_HEADER_CODE;
+      return MEMBERSHIP_REVENUE_CODE;
     }
     return hyphen.header;
   }
@@ -346,6 +361,8 @@ export function isCustomerAllocAccount(a: PartyCoaRow): boolean {
   if (a.is_header || a.is_active === false) return false;
   const code = String(a.code || '');
   if (CONTROL_AR.has(code)) return code === '1130';
+  if (isMemberRevAccountCode(code)) return false;
+  if (String(a.account_type || '').toLowerCase() === 'revenue') return false;
   if (isMemberArAccountCode(code) || isHyphenSubAccountCode(code)) {
     if (String(a.subtype || '').toLowerCase() === 'payable') return false;
     if (String(a.account_type || '').toLowerCase() === 'liability') return false;
@@ -546,7 +563,7 @@ export function isForbiddenCustomerArStamp(code?: string | null): boolean {
   if (!c) return false;
   if (c === '1130' || c === '1135' || c === '1200') return true;
   if (c === MEMBERSHIP_REVENUE_CODE) return true;
-  if (/^44[0-9]{2}$/.test(c)) return true;
+  if (isIntegerMemberRevenueCode(c) || /^44[0-9]{2}$/.test(c)) return true;
   if (isLegacyIntegerArCode(c) || isLegacyIntegerApCode(c)) return true;
   return false;
 }
@@ -563,10 +580,8 @@ export function clampCustomerArParent(code?: string | null): string {
 export function isUsableCustomerArLeafCode(code?: string | null): boolean {
   const c = String(code || '').trim();
   if (!c) return false;
+  if (isMemberRevAccountCode(c) || isIntegerMemberRevenueCode(c)) return false;
   if (isCanonical1180ArCode(c)) return true;
-  if (parseHyphenSubAccount(c)?.header === MEMBER_AR_LEGACY_HEADER_CODE) {
-    return true;
-  }
   if (isLegacyIntegerArCode(c) && c !== '1200') return true;
   return false;
 }
@@ -590,16 +605,16 @@ export function isLeftoverIntegerApLeaf(row: CoaLeafForRecode): boolean {
   return /^AP\s+[—-]\s+/i.test(String(row.name || ''));
 }
 
-/** Integer 4401–4499 Member — income leaves. Never recode these onto 1180. */
+/** Integer 4401–4699 Member — income leaves. Never recode these onto 1180. */
 export function isLeftoverMemberRevenueLeaf(
   row: CoaLeafForRecode,
-  revenueHeaderId?: number | null
+  revenueHeaderId?: number | null,
+  opts?: { includeInactive?: boolean }
 ): boolean {
-  if (row.is_header === true || row.is_active === false) return false;
+  if (row.is_header === true) return false;
+  if (row.is_active === false && !opts?.includeInactive) return false;
   const code = String(row.code || '');
-  if (!/^44[0-9]{2}$/.test(code) || code === MEMBERSHIP_REVENUE_CODE) {
-    return false;
-  }
+  if (!isIntegerMemberRevenueCode(code)) return false;
   if (/^Member\s+[—-]\s+/i.test(String(row.name || ''))) return true;
   const sub = String(row.subtype || '').toLowerCase();
   if (
@@ -610,6 +625,68 @@ export function isLeftoverMemberRevenueLeaf(
     return true;
   }
   return false;
+}
+
+export function matchCustomerForMemberIncome(
+  leaf: CoaLeafForRecode,
+  customers: PartyBookRow[]
+): PartyBookRow | null {
+  const accountId = Number(leaf.id || 0);
+  const code = String(leaf.code || '');
+  const meta = asRecord(leaf.metadata);
+  const byStamp = customers.find(
+    (r) => Number(asRecord(r.metadata).gl_account_id) === accountId
+  );
+  if (byStamp) return byStamp;
+  const byCode = customers.find((r) => linkedGlCode(r) === code);
+  if (byCode) return byCode;
+  const ids = leafPartyIds(meta);
+  if (ids.length) {
+    const hit = customers.find((r) => ids.includes(Number(r.id)));
+    if (hit) return hit;
+  }
+  const needle = normalizePartyKey(stripPartyPrefix(String(leaf.name || '')));
+  if (needle.length < 2) return null;
+  return (
+    customers.find(
+      (r) => normalizePartyKey(partyDisplayName(r)) === needle
+    ) || null
+  );
+}
+
+export function planIntegerMemberRevenueRecode(opts: {
+  leaf: CoaLeafForRecode;
+  customers: PartyBookRow[];
+  byCode: Map<string, number>;
+  journalCount: number;
+}): LeftoverIntegerLeafPlan {
+  const leaf = opts.leaf;
+  if (leaf.is_header === true) return { action: 'skip' };
+  if (!isIntegerMemberRevenueCode(String(leaf.code))) return { action: 'skip' };
+  const named = /^Member\s+[—-]\s+/i.test(String(leaf.name || ''));
+  const service = String(leaf.subtype || '').toLowerCase() === 'service';
+  if (!named && !service) return { action: 'skip' };
+  const customer = matchCustomerForMemberIncome(leaf, opts.customers);
+  if (customer?.id) {
+    const want = memberRevAccountCode(Number(customer.id));
+    if (!want) return { action: 'skip' };
+    const taken = opts.byCode.get(want);
+    if (!taken || taken === Number(leaf.id)) {
+      return {
+        action: 'recode',
+        partyId: Number(customer.id),
+        want,
+      };
+    }
+    return {
+      action: 'stamp-existing',
+      partyId: Number(customer.id),
+      want,
+      existingId: taken,
+    };
+  }
+  if (opts.journalCount > 0) return { action: 'nest-inactive' };
+  return { action: 'deactivate' };
 }
 
 export type LeftoverIntegerLeafPlan = {
@@ -717,7 +794,6 @@ function collectUniqueCustomers(
     const name = partyDisplayName(row);
     const parentCode = clampCustomerArParent(advisor ? memberCode : arCode);
     const want = memberArAccountCode(Number(row.id), parentCode);
-    const legacy = legacyMemberArAccountCode(Number(row.id));
     const classic = memberArAccountCode(Number(row.id), MEMBER_AR_HEADER_CODE);
     if (!name || !want) continue;
     const linked = linkedGlCode(row);
@@ -728,7 +804,7 @@ function collectUniqueCustomers(
       coa.find(
         (a) => !a.is_header && a.is_active !== false && String(a.code) === linked
       );
-    const existingWant = pickExistingLeaf(coa, [want, classic, legacy]);
+    const existingWant = pickExistingLeaf(coa, [want, classic]);
     const named =
       !advisor
         ? findExistingPartyAccount(
@@ -1133,7 +1209,7 @@ async function ensureHeaderRow(opts: {
   profileId: number;
   code: string;
   name: string;
-  account_type: 'asset' | 'liability';
+  account_type: 'asset' | 'liability' | 'revenue';
   normal_balance: 'debit' | 'credit';
   parentCode: string;
   sort: number;
@@ -1295,7 +1371,6 @@ export async function ensureMemberArLeaf(opts: {
       MEMBER_AR_HEADER_CODE
   );
   const want = memberArAccountCode(opts.customerId, headerCode);
-  const legacy = legacyMemberArAccountCode(opts.customerId);
   const classic = memberArAccountCode(opts.customerId, MEMBER_AR_HEADER_CODE);
   const rawName = partyDisplayName({ trading_name: opts.name }) || 'Member';
   const name = /^AR\s+[—-]\s+/i.test(rawName)
@@ -1312,7 +1387,13 @@ export async function ensureMemberArLeaf(opts: {
   const bookMeta = asRecord(book?.metadata);
   const linkedCode = String(bookMeta.gl_account_code || '').trim();
   const linkedId = Number(bookMeta.gl_account_id || 0);
-  const seekCodes = [...new Set([want, classic, legacy, linkedCode].filter(Boolean))];
+  const seekCodes = [
+    ...new Set(
+      [want, classic, linkedCode].filter(
+        (c) => c && isUsableCustomerArLeafCode(c) && !isMemberRevAccountCode(c)
+      )
+    ),
+  ];
   const { data: existingRows } = await supabase
     .from('chart_of_accounts')
     .select('id, code, parent_id, account_type')
@@ -1488,6 +1569,121 @@ export async function ensureMemberArLeaf(opts: {
     name,
     kind: 'ar',
   });
+  invalidateAccountingReads(opts.profileId);
+  return { code, accountId };
+}
+
+/** Create/link one unique membership-income leaf 4400-{pad}. Never an AR stamp. */
+export async function ensureMemberRevLeaf(opts: {
+  profileId: number;
+  customerId: number;
+  name: string;
+}): Promise<{ code: string; accountId: number } | null> {
+  const want = memberRevAccountCode(opts.customerId);
+  const rawName = partyDisplayName({ trading_name: opts.name }) || 'Member';
+  const name = /^Member\s+[—-]\s+/i.test(rawName)
+    ? rawName
+    : `${MEMBER_REV_PREFIX}${rawName}`;
+  if (!want || !Number.isFinite(opts.profileId) || opts.profileId <= 0) {
+    return null;
+  }
+  const supabase = getSupabaseServer();
+  const headerId = await ensureHeaderRow({
+    profileId: opts.profileId,
+    code: MEMBERSHIP_REVENUE_CODE,
+    name: MEMBERSHIP_REVENUE_NAME,
+    account_type: 'revenue',
+    normal_balance: 'credit',
+    parentCode: '4000',
+    sort: 440,
+    description:
+      'IFRS 15 membership & care income header. Each member is 4400-0000001 … Receivables live under 1180.',
+    metadata: { party_kind: 'member_rev_header' },
+  });
+  const { data: existing } = await supabase
+    .from('chart_of_accounts')
+    .select('id, code, account_type, is_header, is_active, parent_id')
+    .eq('profile_id', opts.profileId)
+    .eq('code', want)
+    .maybeSingle();
+  let accountId = existing?.id ? Number(existing.id) : 0;
+  let code = existing?.code ? String(existing.code) : want;
+  if (accountId && headerId && Number(existing?.parent_id) !== headerId) {
+    await supabase
+      .from('chart_of_accounts')
+      .update({
+        parent_id: headerId,
+        is_header: false,
+        is_active: true,
+        account_type: 'revenue',
+        subtype: 'service',
+        normal_balance: 'credit',
+      })
+      .eq('id', accountId)
+      .eq('profile_id', opts.profileId);
+  }
+  if (!accountId) {
+    const ins = await supabase
+      .from('chart_of_accounts')
+      .insert({
+        profile_id: opts.profileId,
+        code: want,
+        name,
+        account_type: 'revenue',
+        subtype: 'service',
+        is_header: false,
+        is_active: true,
+        is_system: false,
+        normal_balance: 'credit',
+        parent_id: headerId,
+        currency: 'ZAR',
+        sort_order: 441,
+        description: `Membership income ${want} — ${name}. Fees for this person post here.`,
+        metadata: {
+          party_kind: 'member_rev',
+          party_ids: [opts.customerId],
+          rev_account_number: want,
+        },
+      })
+      .select('id, code')
+      .maybeSingle();
+    if (ins.data?.id) {
+      accountId = Number(ins.data.id);
+      code = String(ins.data.code || want);
+    } else if (ins.error && /duplicate|unique/i.test(ins.error.message || '')) {
+      const { data: again } = await supabase
+        .from('chart_of_accounts')
+        .select('id, code')
+        .eq('profile_id', opts.profileId)
+        .eq('code', want)
+        .maybeSingle();
+      if (again?.id) {
+        accountId = Number(again.id);
+        code = String(again.code || want);
+      }
+    }
+  }
+  if (!accountId) return null;
+  const { data: book } = await supabase
+    .from('customers')
+    .select('metadata')
+    .eq('profile_id', opts.profileId)
+    .eq('id', opts.customerId)
+    .maybeSingle();
+  const meta = asRecord(book?.metadata);
+  if (String(meta.member_rev_account_code || '') !== code) {
+    await supabase
+      .from('customers')
+      .update({
+        metadata: {
+          ...meta,
+          member_rev_account_code: code,
+          member_rev_account_id: accountId,
+        },
+      })
+      .eq('id', opts.customerId)
+      .eq('profile_id', opts.profileId);
+  }
   invalidateAccountingReads(opts.profileId);
   return { code, accountId };
 }
@@ -1873,49 +2069,160 @@ async function recodeLegacyIntegerPartyLeaves(
   return moved;
 }
 
-async function retireLegacyMemberRevenueLeaves(
+export async function recodeMemberRevenueToPadded(
   profileId: number
-): Promise<{ retired: number; warned: number }> {
+): Promise<number> {
   const supabase = getSupabaseServer();
-  const { data: coa } = await supabase
-    .from('chart_of_accounts')
-    .select(
-      'id, code, name, is_header, is_active, account_type, subtype, parent_id'
-    )
-    .eq('profile_id', profileId);
+  const [{ data: coa }, { data: customers }] = await Promise.all([
+    supabase
+      .from('chart_of_accounts')
+      .select(
+        'id, code, name, metadata, is_header, is_active, account_type, subtype, parent_id'
+      )
+      .eq('profile_id', profileId),
+    loadBookRows(supabase, 'customers', profileId, 'customer_type, source, notes'),
+  ]);
   const rows = (coa || []) as CoaLeafForRecode[];
-  const revenueHeader = rows.find(
-    (r) => String(r.code) === MEMBERSHIP_REVENUE_CODE
-  );
+  const revenueHeaderId = await ensureHeaderRow({
+    profileId,
+    code: MEMBERSHIP_REVENUE_CODE,
+    name: MEMBERSHIP_REVENUE_NAME,
+    account_type: 'revenue',
+    normal_balance: 'credit',
+    parentCode: '4000',
+    sort: 440,
+    description:
+      'IFRS 15 membership & care income header. Each member is 4400-0000001 …',
+    metadata: { party_kind: 'member_rev_header' },
+  });
   const leaves = rows.filter((r) =>
-    isLeftoverMemberRevenueLeaf(r, revenueHeader?.id || null)
+    isLeftoverMemberRevenueLeaf(r, revenueHeaderId, { includeInactive: true })
   );
-  if (!leaves.length) return { retired: 0, warned: 0 };
+  if (!leaves.length) return 0;
   const { counts, failed } = await journalLineCounts(
     supabase,
     profileId,
     leaves.map((r) => Number(r.id))
   );
-  let retired = 0;
-  let warned = 0;
+  const byCode = new Map(rows.map((r) => [String(r.code), Number(r.id)]));
+  const books = (customers || []) as PartyBookRow[];
+  let moved = 0;
   for (const leaf of leaves) {
     const journalCount = failed ? 1 : counts.get(Number(leaf.id)) || 0;
-    const action = planMemberRevenueLeaf(journalCount);
-    if (action === 'warn') {
-      warned += 1;
-      console.warn(
-        `[party-gl] leftover Member income ${leaf.code} has journal lines; left active`
-      );
+    const plan = planIntegerMemberRevenueRecode({
+      leaf,
+      customers: books,
+      byCode,
+      journalCount,
+    });
+    if (plan.action === 'skip') continue;
+    if (plan.action === 'recode' && plan.want && plan.partyId) {
+      const recode = await supabase
+        .from('chart_of_accounts')
+        .update({
+          code: plan.want,
+          name: String(leaf.name || `${MEMBER_REV_PREFIX}${plan.partyId}`),
+          account_type: 'revenue',
+          subtype: 'service',
+          is_header: false,
+          is_active: true,
+          normal_balance: 'credit',
+          parent_id: revenueHeaderId,
+          metadata: {
+            ...asRecord(leaf.metadata),
+            party_kind: 'member_rev',
+            party_ids: [plan.partyId],
+            rev_account_number: plan.want,
+          },
+        })
+        .eq('id', Number(leaf.id))
+        .eq('profile_id', profileId)
+        .select('id')
+        .maybeSingle();
+      if (recode.error && /duplicate|unique/i.test(recode.error.message || '')) {
+        const taken = byCode.get(plan.want);
+        if (taken && taken !== Number(leaf.id)) {
+          await supabase
+            .from('chart_of_accounts')
+            .update({ is_active: false, parent_id: revenueHeaderId })
+            .eq('id', Number(leaf.id))
+            .eq('profile_id', profileId);
+          moved += 1;
+        }
+        continue;
+      }
+      if (!recode.data?.id) continue;
+      byCode.delete(String(leaf.code));
+      byCode.set(plan.want, Number(leaf.id));
+      moved += 1;
+      const { data: book } = await supabase
+        .from('customers')
+        .select('metadata')
+        .eq('profile_id', profileId)
+        .eq('id', plan.partyId)
+        .maybeSingle();
+      const meta = asRecord(book?.metadata);
+      if (String(meta.member_rev_account_code || '') !== plan.want) {
+        await supabase
+          .from('customers')
+          .update({
+            metadata: {
+              ...meta,
+              member_rev_account_code: plan.want,
+              member_rev_account_id: Number(leaf.id),
+            },
+          })
+          .eq('id', plan.partyId)
+          .eq('profile_id', profileId);
+      }
       continue;
     }
-    const { error } = await supabase
-      .from('chart_of_accounts')
-      .update({ is_active: false })
-      .eq('id', Number(leaf.id))
-      .eq('profile_id', profileId);
-    if (!error) retired += 1;
+    if (plan.action === 'stamp-existing' && plan.want && plan.existingId) {
+      await supabase
+        .from('chart_of_accounts')
+        .update({ is_active: false, parent_id: revenueHeaderId })
+        .eq('id', Number(leaf.id))
+        .eq('profile_id', profileId);
+      const { data: book } = await supabase
+        .from('customers')
+        .select('metadata')
+        .eq('profile_id', profileId)
+        .eq('id', plan.partyId)
+        .maybeSingle();
+      const meta = asRecord(book?.metadata);
+      if (String(meta.member_rev_account_code || '') !== plan.want) {
+        await supabase
+          .from('customers')
+          .update({
+            metadata: {
+              ...meta,
+              member_rev_account_code: plan.want,
+              member_rev_account_id: plan.existingId,
+            },
+          })
+          .eq('id', plan.partyId)
+          .eq('profile_id', profileId);
+      }
+      moved += 1;
+      continue;
+    }
+    if (plan.action === 'deactivate' || plan.action === 'nest-inactive') {
+      await supabase
+        .from('chart_of_accounts')
+        .update({ is_active: false, parent_id: revenueHeaderId })
+        .eq('id', Number(leaf.id))
+        .eq('profile_id', profileId);
+      moved += 1;
+    }
   }
-  return { retired, warned };
+  return moved;
+}
+
+async function retireLegacyMemberRevenueLeaves(
+  profileId: number
+): Promise<{ retired: number; warned: number }> {
+  const retired = await recodeMemberRevenueToPadded(profileId);
+  return { retired, warned: 0 };
 }
 
 async function recodeLegacyMemberArLeaves(profileId: number): Promise<number> {
@@ -1925,7 +2232,11 @@ async function recodeLegacyMemberArLeaves(profileId: number): Promise<number> {
     .select('id, code, name')
     .eq('profile_id', profileId)
     .like('code', '4400-%');
-  const leaves = (rows || []).filter((r) => parseMemberArCustomerId(String(r.code)));
+  const leaves = (rows || []).filter((r) => {
+    const code = String(r.code || '');
+    if (isMemberRevAccountCode(code)) return false;
+    return parseMemberArCustomerId(code) != null;
+  });
   if (!leaves.length) return 0;
   const headerId = await ensureHeaderRow({
     profileId,
@@ -1982,18 +2293,11 @@ async function convertLegacyRevenueHeader(profileId: number): Promise<void> {
   const supabase = getSupabaseServer();
   const { data: header } = await supabase
     .from('chart_of_accounts')
-    .select('id, is_header, account_type, name')
+    .select('id, is_header, account_type, name, parent_id')
     .eq('profile_id', profileId)
     .eq('code', MEMBER_AR_LEGACY_HEADER_CODE)
     .maybeSingle();
   if (!header?.id) return;
-  const { data: children } = await supabase
-    .from('chart_of_accounts')
-    .select('id')
-    .eq('profile_id', profileId)
-    .eq('parent_id', Number(header.id))
-    .limit(1);
-  if (children?.length) return;
   const { data: rev } = await supabase
     .from('chart_of_accounts')
     .select('id')
@@ -2006,11 +2310,12 @@ async function convertLegacyRevenueHeader(profileId: number): Promise<void> {
       name: MEMBERSHIP_REVENUE_NAME,
       account_type: 'revenue',
       subtype: 'service',
-      is_header: false,
+      is_header: true,
+      is_active: true,
       normal_balance: 'credit',
-      parent_id: rev?.id ? Number(rev.id) : null,
+      parent_id: rev?.id ? Number(rev.id) : header.parent_id,
       description:
-        'IFRS 15 income from memberships, sessions and care. Receivables live under 1180, not here.',
+        'IFRS 15 membership & care income header. Each member is 4400-0000001 … Receivables live under 1180.',
     })
     .eq('id', Number(header.id))
     .eq('profile_id', profileId);
@@ -2110,6 +2415,7 @@ export async function ensurePartyGlAccounts(
   for (const [code, parentCode] of [
     [MEMBER_AR_HEADER_CODE, '1100'],
     [SUPPLIER_AP_HEADER_CODE, '2100'],
+    [MEMBERSHIP_REVENUE_CODE, '4000'],
   ] as const) {
     const row = (coa || []).find((a) => String(a.code) === code);
     const parent = (coa || []).find((a) => String(a.code) === parentCode);
@@ -2213,11 +2519,20 @@ export async function ensurePartyGlAccounts(
     const slice = customerRows.slice(i, i + chunk);
     await Promise.all(
       slice.map((row) =>
-        ensureMemberArLeaf({
-          profileId,
-          customerId: Number(row.id),
-          name: partyDisplayName(row) || `Customer ${Number(row.id)}`,
-        })
+        Promise.all([
+          ensureMemberArLeaf({
+            profileId,
+            customerId: Number(row.id),
+            name: partyDisplayName(row) || `Customer ${Number(row.id)}`,
+          }),
+          isAdvisorParty(row)
+            ? ensureMemberRevLeaf({
+                profileId,
+                customerId: Number(row.id),
+                name: partyDisplayName(row) || `Customer ${Number(row.id)}`,
+              })
+            : Promise.resolve(null),
+        ])
       )
     );
   }
@@ -2236,6 +2551,15 @@ export async function ensurePartyGlAccounts(
   }
 
   try {
+    const { syncAdvisorContractorsToSuppliers } = await import(
+      '@/lib/b2c/advisor-ap-sync'
+    );
+    await syncAdvisorContractorsToSuppliers(profileId);
+  } catch (err) {
+    console.warn('[party-gl] coach AP backfill', err);
+  }
+
+  try {
     const { data: tree } = await supabase
       .from('chart_of_accounts')
       .select('id, code, parent_id, is_header')
@@ -2249,11 +2573,15 @@ export async function ensurePartyGlAccounts(
       let want: string | null = null;
       if (code === MEMBER_AR_HEADER_CODE) want = '1100';
       else if (code === SUPPLIER_AP_HEADER_CODE) want = '2100';
+      else if (code === MEMBERSHIP_REVENUE_CODE) want = '4000';
       else if (code === '1135') want = '1100';
       else if (isPartyStatementLeaf(code) && row.is_header !== true) {
         want = statementParentForPartyLeaf(code);
       }
-      if (!want || want === code || want === MEMBERSHIP_REVENUE_CODE) continue;
+      if (!want || want === code) continue;
+      if (want === MEMBERSHIP_REVENUE_CODE && !isMemberRevAccountCode(code)) {
+        continue;
+      }
       const pid = ids.get(want);
       if (!pid || Number(row.parent_id) === pid) continue;
       await supabase
@@ -2271,7 +2599,7 @@ export async function ensurePartyGlAccounts(
   return { created, linked };
 }
 
-/** Recode leftover integer AR/AP, retire 4401+ Member income, nest 1180/2180. */
+/** Recode leftover integer AR/AP, recode 4401–4699 Member income onto 4400-{pad}. */
 export async function ensurePartyGlAccountsSafe(profileId: number): Promise<void> {
   if (!Number.isFinite(profileId) || profileId <= 0) return;
   try {

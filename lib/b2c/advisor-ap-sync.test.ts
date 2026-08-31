@@ -39,6 +39,14 @@ assert.equal(
   }),
   false
 );
+assert.equal(
+  isAdvisorContractorForAp({
+    id: 'coh_4',
+    name: 'Miri Roos',
+    hr_employee_id: 12,
+  }),
+  true
+);
 
 const roster = collectAdvisorContractorPeople({
   coaches: [
