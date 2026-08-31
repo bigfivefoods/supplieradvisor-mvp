@@ -384,6 +384,12 @@ export type FitCoach = {
   result_logs?: import('@/lib/fitness/person-records').FitResultLog[];
   injuries?: import('@/lib/fitness/person-records').FitInjuryEntry[];
   health?: FitClientHealth;
+  /** Hashed 6-digit email code for door auth (SHA-256 hex). */
+  auth_code_hash?: string | null;
+  /** ISO expiry for the email code (10-min TTL). */
+  auth_code_expires_at?: string | null;
+  /** Hashed 4–6 digit gym PIN for quick device unlock (SHA-256 hex). */
+  pin_hash?: string | null;
   created_at: string;
 } & import('@/lib/services/advisor-workforce').AdvisorPersonInviteFields &
   ContractorCommercialFields;
@@ -595,6 +601,12 @@ export type FitClient = {
     garmin?: import('@/lib/fitness/wearable-types').GarminConnection | null;
   };
   active?: boolean;
+  /** Hashed 6-digit email code for door auth (SHA-256 hex). */
+  auth_code_hash?: string | null;
+  /** ISO expiry for the email code (10-min TTL). */
+  auth_code_expires_at?: string | null;
+  /** Hashed 4–6 digit gym PIN for quick device unlock (SHA-256 hex). */
+  pin_hash?: string | null;
   created_at: string;
   updated_at: string;
 };

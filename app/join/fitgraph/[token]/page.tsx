@@ -1,53 +1,53 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
-import { ChevronLeft, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 import {
-  HEARD_ABOUT_OPTIONS,
   PARQ_QUESTIONS,
   parqYesCount,
   type FitParqAnswers,
 } from '@/lib/fitness/member-contract';
 import { SA_DEBIT_BANKS } from '@/lib/fitness/member-debit-bank';
 
+// ─── Types ──────────────────────────────────────────────────────────────────
+
 type Plan = { id?: string; code: string; name: string; price_zar: number };
+type Lane = 'door' | 'new' | 'returning' | 'coach';
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 const inp =
   'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950';
 
-export default function GymOnboardPage() {
+function storeToken(key: string, val: string) {
+  try { localStorage.setItem(key, val); } catch { /* private mode */ }
+}
+
+// ─── Component ──────────────────────────────────────────────────────────────
+
+export default function GymDoorPage() {
   const { token } = useParams() as { token: string };
-  const search = useSearchParams();
+
+  // ── Gym data ──────────────────────────────────────────────────────────────
   const [brand, setBrand] = useState('Gym');
+  const [logoUrl, setLogoUrl] = useState('');
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [requiresDebitBank, setRequiresDebitBank] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
-  const initialKind = search.get('kind');
-  const [wantMember, setWantMember] = useState(
-    initialKind !== 'private'
-  );
-  const [wantPrivate, setWantPrivate] = useState(
-    initialKind === 'private' || initialKind === 'both'
-  );
-  const [parq, setParq] = useState<FitParqAnswers>({});
-  const [form, setForm] = useState({
+  const [error, setError] = useState('');
+
+  // ── Lane state ────────────────────────────────────────────────────────────
+  const [lane, setLane] = useState<Lane>('door');
+  const [wantMember, setWantMember] = useState(true);
+  const [wantPrivate, setWantPrivate] = useState(false);
+
+  // ── New member form ───────────────────────────────────────────────────────
+  const [newForm, setNewForm] = useState({
     name: '',
-    id_number: '',
-    phone: '',
     email: '',
-    heard_about: 'FRIEND',
-    employer_student_number: '',
-    occupation: '',
-    address: '',
-    medical_aid: '',
-    medical_aid_plan: '',
-    emergency_contact: '',
-    gp: '',
-    date_of_birth: '',
-    start_date: new Date().toISOString().slice(0, 10),
+    phone: '',
+    id_number: '',
     parq_explanation: '',
     class_option: '',
     account_holder: '',
@@ -59,7 +59,31 @@ export default function GymOnboardPage() {
     terms_accepted: false,
     parq_accepted: false,
   });
+  const [parq, setParq] = useState<FitParqAnswers>({});
+  const [showMore, setShowMore] = useState(false);
+  const [moreForm, setMoreForm] = useState({
+    occupation: '',
+    address: '',
+    medical_aid: '',
+    medical_aid_plan: '',
+    emergency_contact: '',
+    gp: '',
+    heard_about: 'FRIEND',
+    date_of_birth: '',
+    start_date: new Date().toISOString().slice(0, 10),
+    employer_student_number: '',
+  });
+  const [busy, setBusy] = useState(false);
 
+  // ── Returning / coach sign-in ─────────────────────────────────────────────
+  const [signinEmail, setSigninEmail] = useState('');
+  const [codeStep, setCodeStep] = useState(false);
+  const [codeInput, setCodeInput] = useState('');
+  const [pinStep, setPinStep] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [portalPath, setPortalPath] = useState('');
+
+  // ── Load gym ──────────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -68,56 +92,42 @@ export default function GymOnboardPage() {
           `/api/public/fitgraph?token=${encodeURIComponent(token)}`,
           { cache: 'no-store' }
         );
-        const data = await res.json();
+        const data = await res.json() as {
+          error?: string;
+          calendar?: { brand?: string; require_debit_bank?: boolean; plans?: Plan[] };
+          shop?: { plans?: Plan[] };
+          brand?: string;
+          logo_url?: string;
+        };
         if (!res.ok) throw new Error(data.error || 'Gym not found');
         if (cancelled) return;
-        setBrand(data.calendar?.brand || 'Gym');
+        setBrand(data.calendar?.brand || data.brand || 'Gym');
+        setLogoUrl(data.logo_url || '');
+        setRequiresDebitBank(Boolean(data.calendar?.require_debit_bank));
         setPlans(data.calendar?.plans || data.shop?.plans || []);
       } catch (e: unknown) {
-        toast.error(e instanceof Error ? e.message : 'Could not load gym');
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Could not load gym');
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [token]);
 
-  const yesCount = useMemo(() => parqYesCount(parq), [parq]);
-  const parqComplete = PARQ_QUESTIONS.every((q) => typeof parq[q.key] === 'boolean');
-  const coachName = search.get('coachName');
-  const backHref = (() => {
-    const raw = search.get('from') || '';
-    return raw.startsWith('/') && !raw.startsWith('//') ? raw : null;
-  })();
+  // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const submit = async () => {
-    if (!form.name.trim()) {
-      toast.error('Name is required');
-      return;
-    }
-    if (!form.terms_accepted || !form.parq_accepted) {
-      toast.error('Please tick both agreements');
-      return;
-    }
-    if (!parqComplete) {
-      toast.error('Please answer every health question');
-      return;
-    }
-    if (yesCount > 0 && !form.parq_explanation.trim()) {
-      toast.error('Please explain any Yes answers');
-      return;
-    }
-    if (!form.signature_name.trim()) {
-      toast.error('Type your full name as your signature');
-      return;
-    }
-    if (!wantMember && !wantPrivate) {
-      toast.error('Choose gym membership, private coaching, or both');
-      return;
-    }
-    const kinds = [
+  const submitNew = async () => {
+    setError('');
+    if (!newForm.name.trim()) return setError('Name is required');
+    if (!newForm.email.trim() && !newForm.phone.trim()) return setError('Email or phone is required');
+    if (!newForm.terms_accepted || !newForm.parq_accepted) return setError('Please tick both agreements');
+    const yesCount = parqYesCount(parq);
+    const parqComplete = PARQ_QUESTIONS.every((q) => typeof parq[q.key] === 'boolean');
+    if (!parqComplete) return setError('Please answer every health question');
+    if (yesCount > 0 && !newForm.parq_explanation.trim()) return setError('Please explain any Yes answers');
+    if (!newForm.signature_name.trim()) return setError('Type your full name as your signature');
+    if (!wantMember && !wantPrivate) return setError('Choose gym membership, private coaching, or both');
+    const kinds: Array<'group' | 'private'> = [
       ...(wantMember ? (['group'] as const) : []),
       ...(wantPrivate ? (['private'] as const) : []),
     ];
@@ -131,395 +141,383 @@ export default function GymOnboardPage() {
           action: 'onboard_member',
           kind: kinds.length === 2 ? 'both' : kinds[0],
           kinds,
-          ...form,
+          ...newForm,
+          ...moreForm,
           parq,
-          class_amount_zar: plans.find((p) => p.name === form.class_option)
-            ?.price_zar,
+          class_amount_zar: plans.find((p) => p.name === newForm.class_option)?.price_zar,
         }),
       });
-      const data = await res.json();
+      const data = await res.json() as { error?: string; portal_token?: string; portal_path?: string };
       if (!res.ok) throw new Error(data.error || 'Could not submit');
-      toast.success(data.message || 'Submitted');
-      setDone(true);
+      if (data.portal_path) {
+        storeToken('sa_fitgraph_member_token', data.portal_token || '');
+        window.location.assign(data.portal_path);
+      } else if (data.portal_token) {
+        storeToken('sa_fitgraph_member_token', data.portal_token);
+        window.location.assign(`/member/fitgraph/${encodeURIComponent(data.portal_token)}`);
+      }
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Submit failed');
+      setError(e instanceof Error ? e.message : 'Submit failed');
     } finally {
       setBusy(false);
     }
   };
 
+  const requestCode = async () => {
+    setError('');
+    if (!signinEmail.includes('@')) return setError('Enter a valid email address');
+    setBusy(true);
+    try {
+      const res = await fetch('/api/public/fitgraph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, action: 'request_code', email: signinEmail, lane }),
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) throw new Error(data.error || 'Could not send code');
+      setCodeStep(true);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verifyCode = async () => {
+    setError('');
+    if (codeInput.length !== 6) return setError('Enter the 6-digit code from your email');
+    setBusy(true);
+    try {
+      const res = await fetch('/api/public/fitgraph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, action: 'verify_code', email: signinEmail, code: codeInput, lane }),
+      });
+      const data = await res.json() as { error?: string; portal_token?: string; portal_path?: string; offer_pin?: boolean };
+      if (!res.ok) throw new Error(data.error || 'Invalid code');
+      if (data.portal_token) storeToken('sa_fitgraph_member_token', data.portal_token);
+      if (data.offer_pin) {
+        setPortalPath(data.portal_path || '');
+        setPinStep(true);
+      } else if (data.portal_path) {
+        window.location.assign(data.portal_path);
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const savePin = async () => {
+    setError('');
+    if (!/^\d{4,6}$/.test(pinInput)) return setError('PIN must be 4–6 digits');
+    setBusy(true);
+    try {
+      await fetch('/api/public/fitgraph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, action: 'set_pin', email: signinEmail, pin: pinInput, lane }),
+      });
+    } catch { /* PIN save is best-effort */ } finally {
+      setBusy(false);
+    }
+    window.location.assign(portalPath);
+  };
+
+  // ── Render helpers ─────────────────────────────────────────────────────────
+
+  const yesCount = parqYesCount(parq);
+
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-dvh items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-yellow-600" />
       </div>
     );
   }
 
-  if (done) {
+  // ── Door ──────────────────────────────────────────────────────────────────
+  if (lane === 'door') {
     return (
-      <main className="mx-auto max-w-lg px-4 py-16 text-center">
-        <h1 className="text-2xl font-black">Application received</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          {brand} has your contract on file. The gym owner can see it on your
-          member profile.
-        </p>
-        {backHref ? (
-          <a
-            href={backHref}
-            className="mt-6 inline-flex items-center gap-1 rounded-full bg-yellow-300 px-4 py-2 text-sm font-black text-yellow-950"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Back to shop
-          </a>
+      <main className="mx-auto min-h-dvh max-w-sm px-5 py-12 text-center">
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logoUrl} alt={brand} className="mx-auto mb-4 h-16 w-16 rounded-2xl object-cover" />
+        ) : (
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-yellow-300 text-2xl font-black text-yellow-950">
+            {brand.slice(0, 2).toUpperCase()}
+          </div>
+        )}
+        <h1 className="text-3xl font-black tracking-tight">{brand}</h1>
+        {error ? (
+          <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
         ) : null}
+        <div className="mt-8 space-y-3">
+          <button
+            type="button"
+            onClick={() => { setError(''); setLane('new'); }}
+            className="w-full rounded-2xl bg-yellow-300 py-4 text-base font-black text-yellow-950"
+          >
+            I&apos;M NEW
+            <span className="mt-0.5 block text-xs font-semibold opacity-70">
+              Membership / coaching / both
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setError(''); setLane('returning'); }}
+            className="w-full rounded-2xl border border-slate-200 bg-white py-4 text-base font-black text-slate-800"
+          >
+            I TRAIN HERE
+            <span className="mt-0.5 block text-xs font-semibold opacity-60">Returning member</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setError(''); setLane('coach'); }}
+            className="w-full rounded-2xl border border-slate-200 bg-white py-4 text-base font-black text-slate-800"
+          >
+            I COACH HERE
+            <span className="mt-0.5 block text-xs font-semibold opacity-60">Coach / trainer</span>
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  // ── New member ─────────────────────────────────────────────────────────────
+  if (lane === 'new') {
+    return (
+      <main className="mx-auto min-h-dvh max-w-lg px-4 py-8">
+        <button type="button" onClick={() => { setLane('door'); setError(''); }} className="mb-4 text-xs font-black text-slate-500">
+          ← Back
+        </button>
+        <h1 className="text-2xl font-black">{brand}</h1>
+        <p className="mb-4 text-sm text-slate-500">New member application</p>
+
+        {/* Membership kind — step 0 on this same first page */}
+        <div className="mb-5 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setWantMember((v) => !v)}
+            className={`rounded-full border px-3 py-1.5 text-xs font-black ${wantMember ? 'border-yellow-500 bg-yellow-300 text-yellow-950' : 'border-slate-200 bg-white'}`}
+          >
+            Gym membership
+          </button>
+          <button
+            type="button"
+            onClick={() => setWantPrivate((v) => !v)}
+            className={`rounded-full border px-3 py-1.5 text-xs font-black ${wantPrivate ? 'border-yellow-500 bg-yellow-300 text-yellow-950' : 'border-slate-200 bg-white'}`}
+          >
+            Private coaching
+          </button>
+        </div>
+
+        {error ? (
+          <p className="mb-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
+        ) : null}
+
+        <div className="space-y-3">
+          <input className={inp} placeholder="Full name *" value={newForm.name}
+            onChange={(e) => setNewForm((f) => ({ ...f, name: e.target.value }))} />
+          <input className={inp} type="email" placeholder="Email *" value={newForm.email}
+            onChange={(e) => setNewForm((f) => ({ ...f, email: e.target.value }))} />
+          <input className={inp} placeholder="Mobile number" value={newForm.phone}
+            onChange={(e) => setNewForm((f) => ({ ...f, phone: e.target.value }))} />
+          <input className={inp} placeholder="ID / passport (optional)" value={newForm.id_number}
+            onChange={(e) => setNewForm((f) => ({ ...f, id_number: e.target.value }))} />
+
+          {/* Class picker */}
+          {wantMember && plans.length > 0 ? (
+            <select className={inp} value={newForm.class_option}
+              onChange={(e) => setNewForm((f) => ({ ...f, class_option: e.target.value }))}>
+              <option value="">Class option…</option>
+              {plans.map((p) => (
+                <option key={p.code} value={p.name}>{p.name} · R{p.price_zar}</option>
+              ))}
+            </select>
+          ) : null}
+
+          {/* Debit bank — only when gym requires it */}
+          {requiresDebitBank && wantMember ? (
+            <div className="space-y-3 rounded-2xl border border-yellow-200 bg-yellow-50/60 p-3">
+              <p className="text-xs font-black">Bank / debit order</p>
+              <input className={inp} placeholder="Account holder" value={newForm.account_holder}
+                onChange={(e) => setNewForm((f) => ({ ...f, account_holder: e.target.value }))} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <select className={inp} value={newForm.bank_name}
+                  onChange={(e) => setNewForm((f) => ({ ...f, bank_name: e.target.value }))}>
+                  <option value="">Bank…</option>
+                  {SA_DEBIT_BANKS.map((b) => (
+                    <option key={b.name} value={b.name}>{b.name}</option>
+                  ))}
+                </select>
+                <select className={inp} value={newForm.account_type}
+                  onChange={(e) => setNewForm((f) => ({ ...f, account_type: e.target.value }))}>
+                  <option value="cheque">Cheque / current</option>
+                  <option value="savings">Savings</option>
+                </select>
+              </div>
+              <input className={inp} placeholder="Account number" value={newForm.account_number}
+                onChange={(e) => setNewForm((f) => ({ ...f, account_number: e.target.value }))} />
+              <input className={inp} placeholder="Monthly amount (ZAR)" value={newForm.debit_amount_zar}
+                onChange={(e) => setNewForm((f) => ({ ...f, debit_amount_zar: e.target.value }))} />
+            </div>
+          ) : null}
+
+          {/* PAR-Q */}
+          <div className="space-y-3 rounded-2xl border border-slate-200 p-3">
+            <p className="text-xs font-black">Health questionnaire (PAR-Q)</p>
+            {PARQ_QUESTIONS.map((q) => (
+              <fieldset key={q.key} className="text-sm">
+                <legend className="mb-1 text-[13px]">{q.label}</legend>
+                <label className="mr-4 font-bold">
+                  <input type="radio" className="mr-1" checked={parq[q.key] === false}
+                    onChange={() => setParq((p) => ({ ...p, [q.key]: false }))} />
+                  No
+                </label>
+                <label className="font-bold">
+                  <input type="radio" className="mr-1" checked={parq[q.key] === true}
+                    onChange={() => setParq((p) => ({ ...p, [q.key]: true }))} />
+                  Yes
+                </label>
+              </fieldset>
+            ))}
+            {yesCount > 0 ? (
+              <textarea className={inp + ' min-h-[4.5rem]'}
+                placeholder="Please explain any Yes answers"
+                value={newForm.parq_explanation}
+                onChange={(e) => setNewForm((f) => ({ ...f, parq_explanation: e.target.value }))} />
+            ) : null}
+          </div>
+
+          {/* More details (hidden by default) */}
+          <button type="button" onClick={() => setShowMore((v) => !v)}
+            className="text-xs font-black text-slate-500 underline">
+            {showMore ? 'Hide details' : 'More details (occupation, address, medical aid, GP…)'}
+          </button>
+          {showMore ? (
+            <div className="space-y-3">
+              <input className={inp} placeholder="Occupation" value={moreForm.occupation}
+                onChange={(e) => setMoreForm((f) => ({ ...f, occupation: e.target.value }))} />
+              <input className={inp} placeholder="Address" value={moreForm.address}
+                onChange={(e) => setMoreForm((f) => ({ ...f, address: e.target.value }))} />
+              <input className={inp} placeholder="Employer / student number" value={moreForm.employer_student_number}
+                onChange={(e) => setMoreForm((f) => ({ ...f, employer_student_number: e.target.value }))} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <input className={inp} placeholder="Medical aid" value={moreForm.medical_aid}
+                  onChange={(e) => setMoreForm((f) => ({ ...f, medical_aid: e.target.value }))} />
+                <input className={inp} placeholder="Plan / number" value={moreForm.medical_aid_plan}
+                  onChange={(e) => setMoreForm((f) => ({ ...f, medical_aid_plan: e.target.value }))} />
+              </div>
+              <input className={inp} placeholder="Emergency contact" value={moreForm.emergency_contact}
+                onChange={(e) => setMoreForm((f) => ({ ...f, emergency_contact: e.target.value }))} />
+              <input className={inp} placeholder="GP & contact" value={moreForm.gp}
+                onChange={(e) => setMoreForm((f) => ({ ...f, gp: e.target.value }))} />
+              <label className="text-[10px] font-black uppercase text-slate-500">
+                Date of birth
+                <input className={inp + ' mt-1'} type="date" value={moreForm.date_of_birth}
+                  onChange={(e) => setMoreForm((f) => ({ ...f, date_of_birth: e.target.value }))} />
+              </label>
+              <label className="text-[10px] font-black uppercase text-slate-500">
+                Contract start
+                <input className={inp + ' mt-1'} type="date" value={moreForm.start_date}
+                  onChange={(e) => setMoreForm((f) => ({ ...f, start_date: e.target.value }))} />
+              </label>
+            </div>
+          ) : null}
+
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-1" checked={newForm.terms_accepted}
+              onChange={(e) => setNewForm((f) => ({ ...f, terms_accepted: e.target.checked }))} />
+            I agree to the terms of service.
+          </label>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-1" checked={newForm.parq_accepted}
+              onChange={(e) => setNewForm((f) => ({ ...f, parq_accepted: e.target.checked }))} />
+            I have read and completed this health questionnaire.
+          </label>
+          <input className={inp} placeholder="Type your full name as signature *"
+            value={newForm.signature_name}
+            onChange={(e) => setNewForm((f) => ({ ...f, signature_name: e.target.value }))} />
+          <button type="button" disabled={busy} onClick={() => void submitNew()}
+            className="w-full rounded-xl bg-yellow-400 px-4 py-3 text-sm font-black text-yellow-950 disabled:opacity-50">
+            {busy ? 'Submitting…' : 'Join ' + brand}
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  // ── Returning / coach sign-in ──────────────────────────────────────────────
+  const isCoachLane = lane === 'coach';
+
+  if (pinStep) {
+    return (
+      <main className="mx-auto min-h-dvh max-w-sm px-5 py-12">
+        <h1 className="text-2xl font-black">{brand}</h1>
+        <p className="mt-1 text-sm text-slate-500">Set a quick PIN for this phone (optional)</p>
+        {error ? (
+          <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
+        ) : null}
+        <input className={inp + ' mt-4'} type="number" inputMode="numeric" maxLength={6}
+          placeholder="4–6 digit PIN" value={pinInput}
+          onChange={(e) => setPinInput(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+        <div className="mt-3 flex gap-3">
+          <button type="button" disabled={busy} onClick={() => void savePin()}
+            className="flex-1 rounded-xl bg-yellow-400 py-3 text-sm font-black text-yellow-950 disabled:opacity-50">
+            {busy ? '…' : 'Save PIN'}
+          </button>
+          <button type="button" onClick={() => window.location.assign(portalPath)}
+            className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-black text-slate-700">
+            Skip
+          </button>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto min-h-dvh max-w-2xl bg-gradient-to-b from-yellow-50 to-white px-4 py-8 dark:from-yellow-950 dark:to-black">
-      {backHref ? (
-        <a
-          href={backHref}
-          className="mb-4 inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-800 dark:border-white/10 dark:bg-neutral-900 dark:text-white"
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-          Back to shop
-        </a>
+    <main className="mx-auto min-h-dvh max-w-sm px-5 py-12">
+      <button type="button" onClick={() => { setLane('door'); setError(''); setCodeStep(false); }}
+        className="mb-4 text-xs font-black text-slate-500">
+        ← Back
+      </button>
+      <h1 className="text-2xl font-black">{brand}</h1>
+      <p className="mt-1 text-sm text-slate-500">
+        {isCoachLane ? 'Coach sign-in' : 'Member sign-in'}
+      </p>
+      {error ? (
+        <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
       ) : null}
-      <p className="text-[11px] font-black uppercase tracking-wide text-yellow-800">
-        {brand} · GymAdvisor
-      </p>
-      <a
-        href={`/pwa/fitgraph/${encodeURIComponent(token)}`}
-        className="mt-1 inline-block text-xs font-bold text-yellow-800 underline"
-      >
-        Already a member? Sign in
-      </a>
-      <h1 className="text-2xl font-black">
-        {wantMember && wantPrivate
-          ? 'Gym membership and private coaching'
-          : wantPrivate
-            ? coachName
-              ? `Private coaching with ${coachName}`
-              : 'Private coaching application'
-            : 'Gym membership application'}
-      </h1>
-      <p className="mt-1 text-sm text-slate-600 dark:text-yellow-100/80">
-        Apply for a gym membership, private coaching, or both. Health answers,
-        bank details and signatures stay on your gym profile for the owner.
-      </p>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setWantMember((v) => !v)}
-          className={`rounded-full border px-3 py-1.5 text-xs font-black ${
-            wantMember
-              ? 'border-yellow-500 bg-yellow-300 text-yellow-950'
-              : 'border-slate-200 bg-white'
-          }`}
-        >
-          Gym membership
-        </button>
-        <button
-          type="button"
-          onClick={() => setWantPrivate((v) => !v)}
-          className={`rounded-full border px-3 py-1.5 text-xs font-black ${
-            wantPrivate
-              ? 'border-yellow-500 bg-yellow-300 text-yellow-950'
-              : 'border-slate-200 bg-white'
-          }`}
-        >
-          Private coaching
-        </button>
-      </div>
-
-      <div className="mt-6 space-y-3">
-        <input
-          className={inp}
-          placeholder="Full name *"
-          value={form.name}
-          onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-        />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <input
-            className={inp}
-            placeholder="ID / passport number"
-            value={form.id_number}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, id_number: e.target.value }))
-            }
-          />
-          <label className="text-[10px] font-black uppercase text-slate-500">
-            Date of birth
-            <input
-              className={inp + ' mt-1'}
-              type="date"
-              value={form.date_of_birth}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, date_of_birth: e.target.value }))
-              }
-            />
-          </label>
-          <input
-            className={inp}
-            placeholder="Mobile number"
-            value={form.phone}
-            onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-          />
-        </div>
-        <input
-          className={inp}
-          type="email"
-          placeholder="Email"
-          value={form.email}
-          onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-        />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-[10px] font-black uppercase text-slate-500">
-            How did you hear about us?
-            <select
-              className={inp + ' mt-1'}
-              value={form.heard_about}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, heard_about: e.target.value }))
-              }
-            >
-              {HEARD_ABOUT_OPTIONS.map((h) => (
-                <option key={h} value={h}>
-                  {h}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-[10px] font-black uppercase text-slate-500">
-            Contract start
-            <input
-              className={inp + ' mt-1'}
-              type="date"
-              value={form.start_date}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, start_date: e.target.value }))
-              }
-            />
-          </label>
-        </div>
-        <input
-          className={inp}
-          placeholder="Employer / student number"
-          value={form.employer_student_number}
-          onChange={(e) =>
-            setForm((f) => ({
-              ...f,
-              employer_student_number: e.target.value,
-            }))
-          }
-        />
-        <input
-          className={inp}
-          placeholder="Occupation"
-          value={form.occupation}
-          onChange={(e) =>
-            setForm((f) => ({ ...f, occupation: e.target.value }))
-          }
-        />
-        <input
-          className={inp}
-          placeholder="Address"
-          value={form.address}
-          onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-        />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <input
-            className={inp}
-            placeholder="Medical aid"
-            value={form.medical_aid}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, medical_aid: e.target.value }))
-            }
-          />
-          <input
-            className={inp}
-            placeholder="Plan / scheme / number"
-            value={form.medical_aid_plan}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, medical_aid_plan: e.target.value }))
-            }
-          />
-        </div>
-        <input
-          className={inp}
-          placeholder="Emergency contact"
-          value={form.emergency_contact}
-          onChange={(e) =>
-            setForm((f) => ({ ...f, emergency_contact: e.target.value }))
-          }
-        />
-        <input
-          className={inp}
-          placeholder="GP & contact"
-          value={form.gp}
-          onChange={(e) => setForm((f) => ({ ...f, gp: e.target.value }))}
-        />
-
-        {wantMember ? (
-          <div className="space-y-3 rounded-2xl border border-yellow-200 bg-yellow-50/60 p-3">
-            <p className="text-xs font-black">Group class & debit order</p>
-            <select
-              className={inp}
-              value={form.class_option}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, class_option: e.target.value }))
-              }
-            >
-              <option value="">Class option…</option>
-              {plans.map((p) => (
-                <option key={p.code} value={p.name}>
-                  {p.name} · R{p.price_zar}
-                </option>
-              ))}
-            </select>
-            <input
-              className={inp}
-              placeholder="Account holder"
-              value={form.account_holder}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, account_holder: e.target.value }))
-              }
-            />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <select
-                className={inp}
-                value={form.bank_name}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, bank_name: e.target.value }))
-                }
-              >
-                <option value="">Bank…</option>
-                {SA_DEBIT_BANKS.map((b) => (
-                  <option key={b.name} value={b.name}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                className={inp}
-                value={form.account_type}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, account_type: e.target.value }))
-                }
-              >
-                <option value="cheque">Cheque / current</option>
-                <option value="savings">Savings</option>
-              </select>
-            </div>
-            <input
-              className={inp}
-              placeholder="Bank account number"
-              value={form.account_number}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, account_number: e.target.value }))
-              }
-            />
-            <input
-              className={inp}
-              placeholder="Debit amount (ZAR)"
-              value={form.debit_amount_zar}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, debit_amount_zar: e.target.value }))
-              }
-            />
-            <p className="text-[11px] text-slate-600">
-              You authorise the gym to collect the monthly membership from this
-              account until you cancel in writing (20 working days).
-            </p>
-          </div>
-        ) : null}
-
-        {wantPrivate ? (
-          <p className="rounded-2xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs font-semibold text-yellow-950">
-            Private client — the gym owner assigns your coach after this
-            application.
+      {!codeStep ? (
+        <>
+          <input className={inp + ' mt-4'} type="email" placeholder="Your email address"
+            value={signinEmail} onChange={(e) => setSigninEmail(e.target.value)} />
+          <button type="button" disabled={busy} onClick={() => void requestCode()}
+            className="mt-3 w-full rounded-xl bg-yellow-400 py-3 text-sm font-black text-yellow-950 disabled:opacity-50">
+            {busy ? 'Sending…' : 'Send code'}
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="mt-4 text-sm text-slate-600">
+            We emailed a 6-digit code to <strong>{signinEmail}</strong>.
           </p>
-        ) : null}
-
-        <div className="space-y-3 rounded-2xl border border-slate-200 p-3">
-          <p className="text-xs font-black">Health questionnaire (PAR-Q)</p>
-          {PARQ_QUESTIONS.map((q) => (
-            <fieldset key={q.key} className="text-sm">
-              <legend className="mb-1 text-[13px]">{q.label}</legend>
-              <label className="mr-4 font-bold">
-                <input
-                  type="radio"
-                  className="mr-1"
-                  checked={parq[q.key] === false}
-                  onChange={() => setParq((p) => ({ ...p, [q.key]: false }))}
-                />
-                No
-              </label>
-              <label className="font-bold">
-                <input
-                  type="radio"
-                  className="mr-1"
-                  checked={parq[q.key] === true}
-                  onChange={() => setParq((p) => ({ ...p, [q.key]: true }))}
-                />
-                Yes
-              </label>
-            </fieldset>
-          ))}
-          <textarea
-            className={inp + ' min-h-[4.5rem]'}
-            placeholder="If you answered Yes to one or more questions, please explain"
-            value={form.parq_explanation}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, parq_explanation: e.target.value }))
-            }
-          />
-        </div>
-
-        <label className="flex items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="mt-1"
-            checked={form.terms_accepted}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, terms_accepted: e.target.checked }))
-            }
-          />
-          I agree to the terms of service.
-        </label>
-        <label className="flex items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="mt-1"
-            checked={form.parq_accepted}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, parq_accepted: e.target.checked }))
-            }
-          />
-          I have read, understood and completed this questionnaire. Any questions
-          I had were answered to my full satisfaction.
-        </label>
-        <input
-          className={inp}
-          placeholder="Type your full name as signature *"
-          value={form.signature_name}
-          onChange={(e) =>
-            setForm((f) => ({ ...f, signature_name: e.target.value }))
-          }
-        />
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void submit()}
-          className="w-full rounded-xl bg-yellow-400 px-4 py-3 text-sm font-black text-yellow-950 disabled:opacity-50"
-        >
-          {busy ? 'Submitting…' : 'Submit application'}
-        </button>
-      </div>
+          <input className={inp + ' mt-3 text-center text-xl tracking-widest'} inputMode="numeric"
+            maxLength={6} placeholder="000000" value={codeInput}
+            onChange={(e) => setCodeInput(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+          <button type="button" disabled={busy} onClick={() => void verifyCode()}
+            className="mt-3 w-full rounded-xl bg-yellow-400 py-3 text-sm font-black text-yellow-950 disabled:opacity-50">
+            {busy ? 'Checking…' : 'Open app'}
+          </button>
+          <button type="button" onClick={() => { setCodeStep(false); setCodeInput(''); setError(''); }}
+            className="mt-2 w-full text-center text-xs text-slate-500 underline">
+            Resend code
+          </button>
+        </>
+      )}
     </main>
   );
 }
+
