@@ -180,6 +180,7 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
                           >
                             <Link
                               href={step.href}
+                              prefetch
                               title={
                                 (step as { desc?: string }).desc ||
                                 (seg.group
