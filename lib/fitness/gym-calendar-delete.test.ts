@@ -22,6 +22,12 @@ const cal = readFileSync(
 );
 assert.match(cal, /removed_ids\?\.sessions/);
 assert.match(cal, /delete_series/);
+assert.match(cal, /sessionRosterNames/);
+assert.match(cal, /names\.join\(', '\)/);
+assert.match(
+  route,
+  /stampCatalogSeriesAndBookSubscribers\(store, \[row\]/
+);
 
 const shell = readFileSync(resolve('components/chrome/AppShell.tsx'), 'utf8');
 assert.match(

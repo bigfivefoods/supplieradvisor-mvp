@@ -3551,6 +3551,9 @@ function upsert(
     };
     if (i >= 0) store.sessions[i] = row;
     else store.sessions.push(row);
+    if (!row.session_kind || row.session_kind === 'class') {
+      stampCatalogSeriesAndBookSubscribers(store, [row], now);
+    }
   } else if (entity === 'bookings') {
     const sessionId = String(rec.session_id || '');
     const clientId = String(rec.client_id || '');
