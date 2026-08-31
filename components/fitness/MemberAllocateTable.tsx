@@ -1,9 +1,9 @@
 'use client';
 
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { fc } from '@/components/fitness/FitForm';
+import { gymPwaFieldClass } from '@/lib/fitness/gym-pwa-theme';
 import { parseBilledZar } from '@/lib/fitness/class-allocate';
 import {
   subscriptionChargeZar,
@@ -39,6 +39,10 @@ const CLASS_CHIP_ON_FOCUS =
   'border-yellow-600 bg-yellow-300 text-yellow-950 ring-1 ring-yellow-600 dark:border-yellow-200 dark:bg-yellow-400 dark:text-yellow-950 dark:ring-yellow-200';
 const CLASS_CHIP_OFF =
   'border-slate-200 bg-white text-slate-700 dark:border-white/20 dark:bg-white/5 dark:text-yellow-100';
+const CLASS_ROW_ON =
+  'border-[#E8E830] bg-white text-slate-900 dark:border-[#E8E830] dark:bg-neutral-950 dark:text-white';
+const OWNER_SAVE =
+  'rounded-xl bg-[#E8E830] px-3 py-1.5 text-xs font-black text-slate-900 disabled:opacity-50';
 
 function isPersonActive(c: FitClient) {
   if (c.active === false) return false;
@@ -127,7 +131,7 @@ function RateInput({
 }) {
   return (
     <input
-      className={`${fc()} min-w-[8.5rem] tabular-nums text-right font-semibold`}
+      className={`${gymPwaFieldClass} min-w-[8.5rem] tabular-nums text-right font-semibold`}
       type="text"
       inputMode="decimal"
       autoComplete="off"
@@ -145,12 +149,26 @@ export function MemberAllocateTable({
   saving,
   classSubscribe,
   defaultOnlyOpen = false,
+  toolbar,
+  onProfile,
+  onInvite,
+  onFreeze,
+  onCopyPortal,
+  onIssuePortal,
+  onDelete,
 }: {
   store: FitgraphStore;
   post: PostFn;
   saving: boolean;
   classSubscribe: boolean;
   defaultOnlyOpen?: boolean;
+  toolbar?: ReactNode;
+  onProfile?: (c: FitClient) => void;
+  onInvite?: (c: FitClient) => void;
+  onFreeze?: (c: FitClient, freeze: boolean) => void;
+  onCopyPortal?: (token: string) => void;
+  onIssuePortal?: (clientId: string) => void;
+  onDelete?: (c: FitClient) => void;
 }) {
   const [q, setQ] = useState('');
   const [classFilter, setClassFilter] = useState('');
@@ -584,8 +602,9 @@ export function MemberAllocateTable({
         charge them.
       </p>
       <div className="flex flex-wrap items-center gap-2">
+        {toolbar}
         <input
-          className="min-w-[14rem] flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-neutral-700 dark:bg-neutral-950"
+          className={`${gymPwaFieldClass} min-w-[14rem] flex-1`}
           placeholder="Search people…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -670,7 +689,11 @@ export function MemberAllocateTable({
         <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
           No {classSubscribe ? 'classes' : 'plans'} yet.{' '}
           <a
-            href="/dashboard/fitgraph/memberships"
+            href={
+              classSubscribe
+                ? '/dashboard/fitgraph/classes'
+                : '/dashboard/fitgraph/memberships'
+            }
             className="font-bold text-yellow-700 underline dark:text-yellow-300"
           >
             Add one
@@ -829,7 +852,8 @@ export function MemberAllocateTable({
                       </div>
                     ) : null}
                   </div>
-                  <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                  <div className="ml-auto flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+                    <div className="flex flex-wrap items-center gap-2">
                     <DeskToggle
                       label="Member"
                       on={d.personActive && d.member}
@@ -851,7 +875,7 @@ export function MemberAllocateTable({
                     {classFilter && !onFilteredClass && d.personActive ? (
                       <button
                         type="button"
-                        className="rounded-xl border border-yellow-400 bg-yellow-50 px-3 py-1.5 text-xs font-bold text-yellow-950 dark:bg-yellow-900 dark:text-yellow-50"
+                        className="rounded-xl border border-[#E8E830] bg-white px-3 py-1.5 text-xs font-bold text-slate-900 dark:bg-neutral-950 dark:text-white"
                         onClick={() => {
                           const p = classes.find((x) => x.id === classFilter);
                           if (p) toggleClass(c, p);
@@ -861,14 +885,22 @@ export function MemberAllocateTable({
                         Add to class
                       </button>
                     ) : null}
+                    {onProfile ? (
+                      <button
+                        type="button"
+                        className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-800 dark:border-white/15 dark:text-white"
+                        onClick={() => onProfile(c)}
+                      >
+                        Profile
+                      </button>
+                    ) : null}
+                    </div>
                     <button
                       type="button"
                       disabled={saving && busyId === c.id}
                       onClick={() => void save(c)}
-                      className={`rounded-xl px-3 py-1.5 text-xs font-black disabled:opacity-50 ${
-                        changed
-                          ? 'bg-yellow-400 text-yellow-950'
-                          : 'bg-yellow-200 text-yellow-950'
+                      className={`w-full sm:w-auto ${OWNER_SAVE} ${
+                        changed ? '' : 'opacity-80'
                       }`}
                     >
                       {saving && busyId === c.id ? 'Saving…' : 'Save'}
@@ -882,7 +914,7 @@ export function MemberAllocateTable({
                       <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
                         Name
                         <input
-                          className={`${fc()} mt-1 font-semibold`}
+                          className={`${gymPwaFieldClass} mt-1 font-semibold`}
                           value={d.name}
                           onChange={(e) =>
                             setDraft(c.id, { name: e.target.value })
@@ -892,7 +924,7 @@ export function MemberAllocateTable({
                       <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
                         Email
                         <input
-                          className={`${fc()} mt-1`}
+                          className={`${gymPwaFieldClass} mt-1`}
                           type="email"
                           value={d.email}
                           onChange={(e) =>
@@ -903,7 +935,7 @@ export function MemberAllocateTable({
                       <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
                         Phone
                         <input
-                          className={`${fc()} mt-1`}
+                          className={`${gymPwaFieldClass} mt-1`}
                           value={d.phone}
                           onChange={(e) =>
                             setDraft(c.id, { phone: e.target.value })
@@ -914,7 +946,7 @@ export function MemberAllocateTable({
                     <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
                       Notes
                       <textarea
-                        className={`${fc()} mt-1 min-h-[4.5rem]`}
+                        className={`${gymPwaFieldClass} mt-1 min-h-[4.5rem]`}
                         value={d.notes}
                         onChange={(e) =>
                           setDraft(c.id, { notes: e.target.value })
@@ -924,17 +956,18 @@ export function MemberAllocateTable({
 
                     <MemberMembershipFacts client={c} />
 
-                    <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                       <div>
                         <div className="text-[10px] font-black uppercase tracking-wide text-slate-500">
                           Member · private · inactive
                         </div>
-                        <p className="text-[11px] text-slate-500">
+                        <p className="text-[11px] text-slate-500 dark:text-white/70">
                           Member and Private can both be on. Inactive then Save
                           keeps them on file with no class or private coach.
                         </p>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+                        <div className="flex flex-wrap items-center gap-2">
                         <DeskToggle
                           label="Member"
                           on={d.personActive && d.member}
@@ -953,15 +986,12 @@ export function MemberAllocateTable({
                           disabled={saving && busyId === c.id}
                           onClick={() => toggleInactive(c, d)}
                         />
+                        </div>
                         <button
                           type="button"
                           disabled={saving && busyId === c.id}
                           onClick={() => void save(c)}
-                          className={`rounded-xl px-3 py-1.5 text-xs font-black disabled:opacity-50 ${
-                            changed
-                              ? 'bg-yellow-400 text-yellow-950'
-                              : 'bg-yellow-200 text-yellow-950'
-                          }`}
+                          className={`w-full sm:w-auto ${OWNER_SAVE}`}
                         >
                           {saving && busyId === c.id ? 'Saving…' : 'Save'}
                         </button>
@@ -1024,7 +1054,7 @@ export function MemberAllocateTable({
                                       on
                                         ? p.id === classFilter
                                           ? CLASS_CHIP_ON_FOCUS
-                                          : CLASS_CHIP_ON
+                                          : CLASS_ROW_ON
                                         : CLASS_CHIP_OFF
                                     }`}
                                   >
@@ -1125,7 +1155,7 @@ export function MemberAllocateTable({
                             <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
                               Plan
                               <select
-                                className={`${fc()} mt-1`}
+                                className={`${gymPwaFieldClass} mt-1`}
                                 value={d.planId}
                                 onChange={(e) => {
                                   const planId = e.target.value;
@@ -1204,7 +1234,7 @@ export function MemberAllocateTable({
                       <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
                         Coach
                         <select
-                          className={`${fc()} mt-1`}
+                          className={`${gymPwaFieldClass} mt-1`}
                           value={d.coachId}
                           disabled={!d.privateClient && !d.member}
                           onChange={(e) =>
@@ -1242,7 +1272,7 @@ export function MemberAllocateTable({
                       <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
                         Status
                         <select
-                          className={`${fc()} mt-1`}
+                          className={`${gymPwaFieldClass} mt-1`}
                           value={d.status}
                           disabled={!d.member}
                           onChange={(e) =>
@@ -1262,12 +1292,83 @@ export function MemberAllocateTable({
                     </div>
                     ) : null}
 
+                    {(onProfile ||
+                      onInvite ||
+                      onFreeze ||
+                      onIssuePortal ||
+                      onDelete) ? (
+                      <div className="flex flex-wrap gap-2 border-t border-yellow-100 pt-3 dark:border-yellow-800">
+                        {onProfile ? (
+                          <button
+                            type="button"
+                            className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold dark:border-white/15 dark:text-white"
+                            onClick={() => onProfile(c)}
+                          >
+                            Profile
+                          </button>
+                        ) : null}
+                        {onInvite ? (
+                          <button
+                            type="button"
+                            className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold dark:border-white/15 dark:text-white"
+                            onClick={() => onInvite(c)}
+                          >
+                            {c.invite_status === 'pending'
+                              ? 'Resend invite'
+                              : c.invite_status === 'accepted'
+                                ? 'Re-invite'
+                                : 'Invite'}
+                          </button>
+                        ) : null}
+                        {onFreeze ? (
+                          <button
+                            type="button"
+                            className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold dark:border-white/15 dark:text-white"
+                            onClick={() =>
+                              onFreeze(c, c.membership_status !== 'frozen')
+                            }
+                          >
+                            {c.membership_status === 'frozen'
+                              ? 'Unfreeze'
+                              : 'Freeze'}
+                          </button>
+                        ) : null}
+                        {c.portal_token && onCopyPortal ? (
+                          <button
+                            type="button"
+                            className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold dark:border-white/15 dark:text-white"
+                            onClick={() => onCopyPortal(c.portal_token!)}
+                          >
+                            Copy portal
+                          </button>
+                        ) : null}
+                        {onIssuePortal ? (
+                          <button
+                            type="button"
+                            className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold dark:border-white/15 dark:text-white"
+                            onClick={() => onIssuePortal(c.id)}
+                          >
+                            {c.portal_token ? 'Re-issue portal' : 'Issue portal'}
+                          </button>
+                        ) : null}
+                        {onDelete ? (
+                          <button
+                            type="button"
+                            className="rounded-xl border border-rose-300 px-3 py-1.5 text-xs font-bold text-rose-700 dark:border-rose-700 dark:text-rose-200"
+                            onClick={() => onDelete(c)}
+                          >
+                            Remove
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+
                     <div className="flex justify-end">
                       <button
                         type="button"
                         disabled={saving && busyId === c.id}
                         onClick={() => void save(c)}
-                        className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-black text-yellow-950 disabled:opacity-50"
+                        className={`w-full sm:w-auto ${OWNER_SAVE} px-4 py-2 text-sm`}
                       >
                         {saving && busyId === c.id
                           ? 'Saving…'

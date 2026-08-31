@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { ChevronDown, Download, Upload, X } from 'lucide-react';
 import {
@@ -9,8 +9,11 @@ import {
   LoadingBlock,
   useFitgraph,
 } from '@/components/fitness/FitgraphWorkbench';
-import { FormCard, fc } from '@/components/fitness/FitForm';
-import { MEMBERSHIP_STATUSES, type FitClient } from '@/lib/fitness/fitgraph';
+import { FormCard, StatRow, fc } from '@/components/fitness/FitForm';
+import { type FitClient } from '@/lib/fitness/fitgraph';
+import { omitClientRosterFields } from '@/lib/fitness/client-roster-fields';
+import { storeUsesClassSubscribe } from '@/lib/fitness/vuka-class-catalog';
+import { MemberAllocateTable } from '@/components/fitness/MemberAllocateTable';
 import {
   gymCollectsDebitBank,
   gymRequiresDebitBank,
@@ -20,7 +23,6 @@ import {
   MemberDebitBankFields,
   type DebitBankForm,
 } from '@/components/fitness/MemberDebitBankFields';
-import { isInjured } from '@/lib/health/body-map';
 import {
   InjuryProfileFields,
   emptyInjuryForm,
@@ -29,10 +31,6 @@ import {
   type InjuryFormState,
 } from '@/components/health/InjuryProfileFields';
 import { GymMemberProfileDesk } from '@/components/fitness/GymMemberProfileDesk';
-import {
-  GymClientDeskList,
-  type ClientListFilter,
-} from '@/components/fitness/GymClientDeskList';
 import { AdvisorTreatmentPlanPanel } from '@/components/services/AdvisorTreatmentPlanPanel';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
 import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
@@ -64,10 +62,6 @@ type ClientForm = {
   phone: string;
   id_number: string;
   photo_url: string;
-  membership_plan_id: string;
-  membership_status: string;
-  private_client: boolean;
-  coach_id: string;
   start_date: string;
   date_of_birth: string;
   next_of_kin: string;
@@ -86,10 +80,6 @@ const blankForm = (): ClientForm => ({
   phone: '',
   id_number: '',
   photo_url: '',
-  membership_plan_id: '',
-  membership_status: 'active',
-  private_client: false,
-  coach_id: '',
   start_date: new Date().toISOString().slice(0, 10),
   date_of_birth: '',
   next_of_kin: '',
@@ -104,16 +94,15 @@ const blankForm = (): ClientForm => ({
 export default function ClientsPage() {
   const { companyId, store, loading, saving, post, load, summary } =
     useFitgraph();
+  const router = useRouter();
   const search = useSearchParams();
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [form, setForm] = useState<ClientForm>(blankForm);
   const [editing, setEditing] = useState(false);
-  /** Row id with list inline editors open (toggle via Edit / Done) */
-  const [listEditId, setListEditId] = useState<string | null>(null);
-  const [listOpen, setListOpen] = useState(true);
-  const [listFilter, setListFilter] = useState<ClientListFilter>('all');
   const [injuryOpen, setInjuryOpen] = useState(false);
+  const classSubscribe = store ? storeUsesClassSubscribe(store) : false;
+  const returnClass = search.get('returnClass');
 
   const openEdit = (c: FitClient) => {
     setForm({
@@ -124,10 +113,6 @@ export default function ClientsPage() {
       phone: c.phone || '',
       id_number: c.id_number || '',
       photo_url: c.photo_url || '',
-      membership_plan_id: c.membership_plan_id || '',
-      membership_status: c.membership_status || 'active',
-      private_client: c.private_client === true,
-      coach_id: c.coach_id || '',
       start_date:
         c.start_date || new Date().toISOString().slice(0, 10),
       date_of_birth: c.date_of_birth || c.passport?.date_of_birth || '',
@@ -170,20 +155,26 @@ export default function ClientsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openId, store]);
 
+  useEffect(() => {
+    if (!returnClass) return;
+    requestAnimationFrame(() => {
+      document
+        .getElementById('gym-client-form')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [returnClass]);
+
   const save = async () => {
     if (!form.name.trim()) {
       toast.error('Name required');
       return;
     }
-    if (form.private_client && !form.coach_id) {
-      toast.error('Private clients need an assigned coach');
-      return;
-    }
     const health = formToHealthPayload(form.health);
+    const wasNew = !form.id;
     await post({
       entity: 'clients',
       action: 'upsert',
-      record: {
+      record: omitClientRosterFields({
         id: form.id,
         code: form.code,
         name: form.name,
@@ -191,10 +182,6 @@ export default function ClientsPage() {
         phone: form.phone,
         id_number: form.id_number || '',
         photo_url: form.photo_url || '',
-        membership_plan_id: form.membership_plan_id || null,
-        membership_status: form.membership_status,
-        private_client: form.private_client === true,
-        coach_id: form.coach_id || null,
         start_date: form.start_date,
         date_of_birth: form.date_of_birth || null,
         next_of_kin: form.next_of_kin,
@@ -212,46 +199,17 @@ export default function ClientsPage() {
         ...(editing
           ? {}
           : { health, health_updated_by: 'desk' }),
-      },
+      }),
     });
     toast.success(form.id ? 'Client profile updated' : 'Client saved');
     setForm(blankForm());
     setEditing(false);
     setInjuryOpen(false);
-  };
-
-  /** Inline list save — only patches visible columns */
-  const patchClient = async (
-    client: FitClient,
-    patch: Partial<FitClient> & Record<string, unknown>
-  ) => {
-    const nextPrivate =
-      patch.private_client !== undefined
-        ? patch.private_client === true
-        : client.private_client === true;
-    const nextCoach =
-      patch.coach_id !== undefined ? patch.coach_id : client.coach_id;
-    if (nextPrivate && !nextCoach) {
-      toast.error('Private clients need an assigned coach');
-      return;
-    }
-    if (patch.name !== undefined && !String(patch.name || '').trim()) {
-      toast.error('Name required');
-      return;
-    }
-    try {
-      await post({
-        entity: 'clients',
-        action: 'upsert',
-        record: {
-          ...client,
-          ...patch,
-          id: client.id,
-        },
-      });
-      toast.success('Saved');
-    } catch {
-      /* toast from post */
+    if (wasNew && returnClass) {
+      const desk = classSubscribe ? 'classes' : 'memberships';
+      router.push(
+        `/dashboard/fitgraph/${desk}?roster=${encodeURIComponent(returnClass)}`
+      );
     }
   };
 
@@ -397,97 +355,66 @@ export default function ClientsPage() {
     }
   };
 
-  const injuredCount =
-    store?.clients.filter((c) => isInjured(c.health)).length || 0;
-  const privateCount =
-    store?.clients.filter((c) => c.private_client === true).length || 0;
-  const pickFilter = (next: ClientListFilter) => {
-    setListFilter(next);
-    setListOpen(true);
-  };
+  const people = (store?.clients || []).filter((c) => c.active !== false);
+  const activeSubs = (store?.subscriptions || []).filter(
+    (s) => s.status === 'active' || s.status === 'trialing'
+  );
+  const onClassIds = new Set(activeSubs.map((s) => s.client_id));
+  const memberCount = people.filter(
+    (c) => onClassIds.has(c.id) || Boolean(c.membership_plan_id)
+  ).length;
+  const privateCount = people.filter((c) => c.private_client === true).length;
+  const bothCount = people.filter(
+    (c) =>
+      c.private_client === true &&
+      (onClassIds.has(c.id) || Boolean(c.membership_plan_id))
+  ).length;
 
   return (
     <FitgraphWorkbench
       title="Clients / members"
       titleAccent="member book"
-      description="Member register. Open Profile for birthday, next of kin, PWA passport, join history, monthly statements, ailments, and PBs."
+      description="One people book. Toggle Member, Private, or both, tick classes, then Save. Open Profile for injury, debit bank, invite and freeze."
     >
       {loading || !store ? (
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {(
-              [
-                {
-                  id: 'all' as const,
-                  label: 'Clients',
-                  value: Number(summary?.clientCount) || store.clients.length,
-                },
-                {
-                  id: 'active' as const,
-                  label: 'Active',
-                  value: Number(summary?.activeMembers) || 0,
-                },
-                {
-                  id: 'private' as const,
-                  label: 'Private clients',
-                  value: privateCount,
-                },
-                {
-                  id: 'injured' as const,
-                  label: 'Injured / recovering',
-                  value: injuredCount,
-                },
-              ]
-            ).map((item) => {
-              const on = listFilter === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => pickFilter(item.id)}
-                  className={`rounded-2xl border px-4 py-3 text-left ${
-                    on
-                      ? 'border-sky-500 bg-sky-100 ring-2 ring-sky-300 dark:border-cyan-400 dark:bg-cyan-900'
-                      : 'border-cyan-200 bg-white dark:border-cyan-400 dark:bg-cyan-950'
-                  }`}
-                >
-                  <div className="text-[10px] font-black uppercase tracking-wide text-sky-700/80 dark:text-cyan-300/80">
-                    {item.label}
-                  </div>
-                  <div className="text-xl font-black tabular-nums text-slate-900 dark:text-cyan-50">
-                    {item.value}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+          <StatRow
+            tone="owner"
+            items={[
+              {
+                label: 'People',
+                value: Number(summary?.clientCount) || store.clients.length,
+              },
+              { label: 'Members', value: memberCount },
+              { label: 'Private', value: privateCount },
+              { label: 'Both', value: bothCount },
+            ]}
+          />
 
-          <GymClientDeskList
-            clients={store.clients}
-            plans={store.membership_plans}
-            coaches={store.coaches}
-            collectBank={gymCollectsDebitBank(store)}
-            requireBank={gymRequiresDebitBank(store)}
+          {returnClass ? (
+            <p className="rounded-2xl border border-[#E8E830] bg-white px-4 py-3 text-sm text-slate-800 dark:bg-neutral-950 dark:text-white">
+              Add this person, then you return to the class to tick them onto the
+              roster. Classes and actual rates are saved with <strong>Save</strong>{' '}
+              on the book below.
+            </p>
+          ) : null}
+
+          <MemberAllocateTable
+            store={store}
+            post={post}
             saving={saving}
-            listEditId={listEditId}
-            setListEditId={setListEditId}
-            filter={listFilter}
-            onFilter={pickFilter}
-            open={listOpen}
-            onOpenChange={setListOpen}
-            onPatch={(client, patch) => void patchClient(client, patch)}
-            onFreeze={(c, freeze) => void freezeMembership(c, freeze)}
+            classSubscribe={classSubscribe}
+            onProfile={openEdit}
             onInvite={(c) => void inviteMember(c)}
+            onFreeze={(c, freeze) => void freezeMembership(c, freeze)}
             onCopyPortal={(tok) => void copyPortal(tok)}
             onIssuePortal={(id) => void issuePortal(id)}
-            onProfile={openEdit}
             onDelete={(c) => {
               if (!confirm(`Remove ${c.name || 'this member'} from the book?`)) {
                 return;
               }
-              if (listEditId === c.id) setListEditId(null);
               void post({ entity: 'clients', action: 'delete', id: c.id });
             }}
             toolbar={
@@ -495,7 +422,7 @@ export default function ClientsPage() {
                 <button
                   type="button"
                   onClick={() => downloadXlsx('clients')}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-sky-300 bg-white px-3 py-1.5 text-xs font-bold text-sky-900 hover:bg-sky-100 dark:border-sky-600 dark:bg-sky-950 dark:text-sky-100"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#E8E830] bg-white px-3 py-1.5 text-xs font-bold text-slate-900 hover:bg-yellow-50 dark:bg-neutral-950 dark:text-white"
                 >
                   <Download className="h-3.5 w-3.5" />
                   Download
@@ -503,7 +430,7 @@ export default function ClientsPage() {
                 <button
                   type="button"
                   onClick={() => downloadXlsx('clients_template')}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-sky-300 bg-white px-3 py-1.5 text-xs font-bold text-sky-900 hover:bg-sky-100 dark:border-sky-600 dark:bg-sky-950 dark:text-sky-100"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#E8E830] bg-white px-3 py-1.5 text-xs font-bold text-slate-900 hover:bg-yellow-50 dark:bg-neutral-950 dark:text-white"
                 >
                   <Download className="h-3.5 w-3.5" />
                   Template
@@ -512,7 +439,7 @@ export default function ClientsPage() {
                   type="button"
                   disabled={importing || saving}
                   onClick={() => fileRef.current?.click()}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-sky-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-sky-700 disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#E8E830] px-3 py-1.5 text-xs font-bold text-slate-900 disabled:opacity-50"
                 >
                   <Upload className="h-3.5 w-3.5" />
                   {importing ? 'Importing…' : 'Upload .xlsx'}
@@ -622,76 +549,11 @@ export default function ClientsPage() {
               disabled={saving}
               accentClass="border-sky-300 dark:border-cyan-500"
             />
-            <select
-              className={fc()}
-              value={form.membership_plan_id}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  membership_plan_id: e.target.value,
-                }))
-              }
-            >
-              <option value="">Plan…</option>
-              {store.membership_plans.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.code} · {p.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className={fc()}
-              value={form.membership_status}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  membership_status: e.target.value,
-                }))
-              }
-            >
-              {MEMBERSHIP_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <select
-              className={fc()}
-              value={form.coach_id}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, coach_id: e.target.value }))
-              }
-            >
-              <option value="">
-                {form.private_client
-                  ? 'Coach (required for private)…'
-                  : 'Coach (optional)…'}
-              </option>
-              {store.coaches.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <label className="flex items-center gap-2 text-sm font-medium rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50/40 dark:bg-yellow-950/30 px-3 py-2">
-              <input
-                type="checkbox"
-                checked={form.private_client}
-                onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    private_client: e.target.checked,
-                  }))
-                }
-              />
-              <span>
-                Private client
-                <span className="block text-[10px] font-normal text-slate-500">
-                  1:1 / PT client of the assigned coach (not only gym-floor
-                  member)
-                </span>
-              </span>
-            </label>
+            <p className="sm:col-span-2 lg:col-span-3 rounded-xl border border-yellow-100 bg-yellow-50/70 px-3 py-2 text-[11px] text-slate-600 dark:border-yellow-800 dark:bg-yellow-950/40 dark:text-white">
+              Member / Private / Inactive and class ticks save on the book above
+              (allocate_member). This form is who they are — contact, bank,
+              injury.
+            </p>
             <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
               Membership start
               <input

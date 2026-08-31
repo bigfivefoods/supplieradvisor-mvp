@@ -15,6 +15,7 @@ import {
   type FitRecurrence,
   type FitSession,
   type FitSubscription,
+  subscriptionChargeZar,
 } from '@/lib/fitness/fitgraph';
 import {
   endFromStartDuration,
@@ -423,7 +424,41 @@ function bookMemberOntoUpcoming(
   return n;
 }
 
-function cancelUncoveredFutureBookings(
+export function liveNonAddonClassSubs(
+  store: FitgraphStore,
+  clientId: string
+): Array<{ sub: FitSubscription; plan: FitMembershipPlan }> {
+  return activeClassSubscriptions(store, clientId).filter(
+    (x) => x.plan.addon !== true
+  );
+}
+
+export function recomputeClientClassDenorm(
+  store: FitgraphStore,
+  clientId: string,
+  now?: string
+): void {
+  const client = store.clients.find((c) => c.id === clientId);
+  if (!client) return;
+  const live = liveNonAddonClassSubs(store, clientId);
+  client.membership_plan_id = live[0]?.plan.id || null;
+  const sum = live.reduce(
+    (n, x) => n + subscriptionChargeZar(x.sub, x.plan),
+    0
+  );
+  client.agreed_rate_zar = sum;
+  if (live.length) {
+    client.notes = applyChargedNote(client.notes, sum);
+    if (client.active !== false) {
+      const st = live[0].sub.status;
+      client.membership_status =
+        st === 'trialing' ? 'trial' : st === 'active' ? 'active' : 'active';
+    }
+  }
+  client.updated_at = now || new Date().toISOString();
+}
+
+export function cancelUncoveredFutureBookings(
   store: FitgraphStore,
   client: FitClient,
   today: string
@@ -825,7 +860,6 @@ export function allocateMemberToClass(
     }
   }
 
-  let totalCharge = charge;
   if (plan.addon !== true) {
     client.membership_plan_id = plan.id;
     client.membership_status =
@@ -851,7 +885,6 @@ export function allocateMemberToClass(
         (s) => s.client_id === client.id && s.plan_id === extraPlan.id
       ) || null;
     const extraCharge = resolveAllocatedCharge(extraPlan, chargeOpts);
-    totalCharge += extraCharge;
     if (extra) {
       extra.status = status;
       extra.charged_zar = extraCharge;
@@ -881,11 +914,26 @@ export function allocateMemberToClass(
     opts.bookUpcoming !== false && live
   );
 
-  client.notes = applyChargedNote(client.notes, totalCharge);
-  client.agreed_rate_zar = totalCharge;
-  client.updated_at = now;
+  recomputeClientClassDenorm(store, client.id, now);
 
   return { subscription: sub, booked, cancelled };
+}
+
+/** Active people the class roster can tick — no cap. Search name, code, email, phone. */
+export function classRosterPeople(
+  store: FitgraphStore,
+  query?: string
+): FitClient[] {
+  const needle = String(query || '').trim().toLowerCase();
+  return (store.clients || [])
+    .filter((c) => c.active !== false)
+    .filter((c) => {
+      if (!needle) return true;
+      return `${c.name} ${c.code} ${c.email || ''} ${c.phone || ''}`
+        .toLowerCase()
+        .includes(needle);
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function setClassMembers(
@@ -907,6 +955,7 @@ export function setClassMembers(
       .map((id) => String(id || ''))
       .filter((id) => store.clients.some((c) => c.id === id && c.active !== false))
   );
+  const droppedIds = new Set<string>();
   let dropped = 0;
   for (const sub of store.subscriptions) {
     if (sub.plan_id !== plan.id) continue;
@@ -915,22 +964,34 @@ export function setClassMembers(
     sub.status = 'cancelled';
     sub.cancel_at = today;
     sub.updated_at = now;
+    droppedIds.add(sub.client_id);
     dropped += 1;
+  }
+  for (const clientId of droppedIds) {
+    const client = store.clients.find((c) => c.id === clientId);
+    recomputeClientClassDenorm(store, clientId, now);
+    if (client) cancelUncoveredFutureBookings(store, client, today);
   }
   let booked = 0;
   for (const clientId of want) {
     const client = store.clients.find((c) => c.id === clientId);
+    const existing = store.subscriptions.find(
+      (s) => s.client_id === clientId && s.plan_id === plan.id
+    );
     const result = allocateMemberToClass(store, {
       clientId,
       planId: plan.id,
       member: true,
       privateClient: client?.private_client === true,
       coachId: client?.coach_id || plan.default_coach_id || null,
+      chargedZar:
+        existing != null ? subscriptionChargeZar(existing, plan) : undefined,
       replaceOtherPlans: false,
       bookUpcoming: true,
       now,
     });
     if (!('error' in result)) booked += result.booked;
+    recomputeClientClassDenorm(store, clientId, now);
   }
   return { members: want.size, booked, dropped };
 }

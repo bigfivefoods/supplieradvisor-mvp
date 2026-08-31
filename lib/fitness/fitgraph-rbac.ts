@@ -436,11 +436,19 @@ export const FIT_SCREEN_ACCESS: Record<
     desk: true,
     notes: 'Coach: assigned + roster only',
   },
+  '/dashboard/fitgraph/membership': {
+    owner: true,
+    coach: true,
+    member: false,
+    desk: true,
+    notes: 'Redirects to Clients',
+  },
   '/dashboard/fitgraph/memberships': {
     owner: true,
     coach: false,
     member: false,
     desk: false,
+    notes: 'ClassSubscribe gyms redirect to /classes',
   },
   '/dashboard/fitgraph/subscriptions': {
     owner: true,

@@ -62,26 +62,20 @@ function hubModules(
     icon: Users,
     code: '02',
     title: 'Clients / members',
-    desc: 'Member book, membership status, assigned coach.',
+    desc: 'Member book · member / private · classes',
     accent: 'from-sky-50 to-white border-sky-100',
   },
   {
-    href: '/dashboard/fitgraph/memberships',
+    href: classSubscribe
+      ? '/dashboard/fitgraph/classes'
+      : '/dashboard/fitgraph/memberships',
     icon: CreditCard,
     code: '03',
     title: classSubscribe ? 'Classes' : 'Membership plans',
     desc: classSubscribe
-      ? 'Edit classes, assign coaches, put repeats on the calendar.'
+      ? 'Edit class · coach · calendar · booked members'
       : 'Unlimited, packs, pricing and class/PT credits.',
     accent: 'from-emerald-50 to-white border-emerald-100',
-  },
-  {
-    href: '/dashboard/fitgraph/membership',
-    icon: Repeat,
-    code: '03b',
-    title: 'Membership',
-    desc: 'Member and/or private client · class rate · coach rate.',
-    accent: 'from-lime-50 to-white border-lime-100',
   },
   {
     href: '/dashboard/fitgraph/subscriptions',
@@ -208,11 +202,11 @@ function hubModules(
     accent: 'from-emerald-50 to-white border-emerald-100',
   },
   ];
-  return all.filter(
-    (m) =>
-      m.href !== '/dashboard/fitgraph/classes' &&
-      m.href !== '/dashboard/fitgraph/subscriptions'
-  );
+  return all.filter((m) => {
+    if (m.href === '/dashboard/fitgraph/subscriptions') return false;
+    if (m.code === '05') return false;
+    return true;
+  });
 }
 
 export default function FitgraphHubPage() {
