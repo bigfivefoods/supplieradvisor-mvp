@@ -739,7 +739,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     name: 'GymAdvisor',
     icon: Dumbbell,
     href: '/dashboard/fitgraph',
-    resource: 'operations',
+    resource: 'gym_owner',
     steps: [
       { name: 'Command', href: '/dashboard/fitgraph', exact: true, desc: 'Gym OS · People · CRM · Finance', section: 'Home' },
       { name: 'Coaches', href: '/dashboard/fitgraph/coaches', desc: 'Trainers · contract or permanent', section: 'People' },
