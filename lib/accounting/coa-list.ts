@@ -36,7 +36,7 @@ export function isLeftoverPartyIntegerCode(
   const n = Number(c);
   if (n >= 1181 && n < 2000 && n !== 1200) return true;
   if (n >= 2181 && n < 3000) return true;
-  if (/^44[0-9]{2}$/.test(c) && c !== '4400') return true;
+  if (n >= 4401 && n <= 4699) return true;
   return false;
 }
 

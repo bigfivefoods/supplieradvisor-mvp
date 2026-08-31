@@ -225,10 +225,17 @@ async function finishAdvisorCustomer(
 }> {
   let ar_account_code: string | null = null;
   try {
-    const { ensureMemberArLeaf, memberArAccountCode } = await import(
-      '@/lib/accounting/party-gl-accounts'
-    );
+    const {
+      ensureMemberArLeaf,
+      ensureMemberRevLeaf,
+      memberArAccountCode,
+    } = await import('@/lib/accounting/party-gl-accounts');
     const leaf = await ensureMemberArLeaf({
+      profileId: companyId,
+      customerId: customer.id,
+      name: customer.name,
+    });
+    await ensureMemberRevLeaf({
       profileId: companyId,
       customerId: customer.id,
       name: customer.name,
@@ -298,6 +305,20 @@ export async function createInvoiceForCharge(opts: {
   const invoiceNumber = docNumber('INV');
   const now = new Date().toISOString();
   const periodNote = `period:${now.slice(0, 7)}:member:${opts.charge.ref_id}`;
+  let incomeCode = '4400';
+  try {
+    const { ensureMemberRevLeaf, memberRevAccountCode } = await import(
+      '@/lib/accounting/party-gl-accounts'
+    );
+    const rev = await ensureMemberRevLeaf({
+      profileId: opts.companyId,
+      customerId: opts.customerId,
+      name: opts.customerName,
+    });
+    incomeCode = rev?.code || memberRevAccountCode(opts.customerId) || '4400';
+  } catch {
+    /* header fallback */
+  }
   const payload: Record<string, unknown> = {
     profile_id: opts.companyId,
     customer_id: opts.customerId,
@@ -320,7 +341,7 @@ export async function createInvoiceForCharge(opts: {
         unit_price: vat.exclusive,
         line_total: vat.exclusive,
         uom: 'account',
-        account_code: '4400',
+        account_code: incomeCode,
       },
     ],
     due_date: opts.charge.due_date || now.slice(0, 10),
@@ -361,6 +382,7 @@ export async function createInvoiceForCharge(opts: {
       description: opts.charge.description,
       notes: String(payload.notes || ''),
       dueDate: String(payload.due_date || now.slice(0, 10)),
+      accountCode: incomeCode,
     });
     if (glId) {
       const stamped = await supabase
@@ -394,6 +416,7 @@ async function postAdvisorFeeToGl(opts: {
   description: string;
   notes: string;
   dueDate: string;
+  accountCode: string;
 }): Promise<number | null> {
   const supabase = getSupabaseServer();
   const { data: existing } = await supabase
@@ -428,7 +451,7 @@ async function postAdvisorFeeToGl(opts: {
           quantity: 1,
           unit_price: opts.exclusive,
           line_total: opts.exclusive,
-          account_code: '4400',
+          account_code: opts.accountCode,
         },
       ],
       metadata: { advisor_fee: true, membership: true, crm_invoice_number: opts.invoiceNumber },

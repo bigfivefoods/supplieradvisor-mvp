@@ -20,6 +20,7 @@ import {
 import { isPeriodLocked } from '@/lib/accounting/period-lock';
 import { round2 } from '@/lib/accounting/server';
 import {
+  memberRevAccountCode,
   pickRecognitionControlAccount,
   pickSettlementControlAccount,
   resolvePartyControlAccountId,
@@ -451,10 +452,26 @@ export async function recognizeInvoiceIfNeeded(opts: {
     });
     if (!recoded.ok) return { ok: false, error: recoded.error };
     const revenueCode = arRevenueCodeForInvoice(inv);
-    const revenueId =
+    let revenueId =
       revenueCode === '4400' && accts.membership
         ? accts.membership
         : accts.revenue;
+    if (revenueCode === '4400') {
+      const customerId = Number(inv.customer_id || 0);
+      const padded = customerId > 0 ? memberRevAccountCode(customerId) : '';
+      const lineCode = Array.isArray(inv.items)
+        ? String(
+            (inv.items as Array<{ account_code?: string }>).find((row) =>
+              /^4400-\d+$/.test(String(row?.account_code || ''))
+            )?.account_code || ''
+          ).trim()
+        : '';
+      const want = lineCode || padded;
+      if (want) {
+        const leafId = await resolveCoaAccountIdByCode(opts.profileId, want);
+        if (leafId) revenueId = leafId;
+      }
+    }
     if (!control || !revenueId) {
       return {
         ok: false,

@@ -53,9 +53,9 @@ assert.equal(memberArAccountCode(200), '1180-0000200');
 assert.equal(memberArAccountCode(0), '');
 assert.equal(legacyMemberArAccountCode(9), '4400-0000009');
 assert.equal(parseMemberArCustomerId('1180-0000009'), 9);
-assert.equal(parseMemberArCustomerId('4400-0000009'), 9);
+assert.equal(parseMemberArCustomerId('4400-0000009'), null);
 assert.equal(isMemberArAccountCode('1180-0000123'), true);
-assert.equal(isMemberArAccountCode('4400-0000123'), true);
+assert.equal(isMemberArAccountCode('4400-0000123'), false);
 assert.equal(isMemberArAccountCode('4100'), false);
 assert.equal(supplierApAccountCode(8), '2180-0000008');
 assert.equal(parseSupplierApSupplierId('2180-0000012'), 12);
@@ -185,7 +185,7 @@ assert.equal(statementParentForPartyLeaf('1181'), '1180');
 assert.equal(statementParentForPartyLeaf('1180-0000200'), '1180');
 assert.equal(statementParentForPartyLeaf('2180-0000008'), '2180');
 assert.equal(statementParentForPartyLeaf('2181'), '2180');
-assert.equal(statementParentForPartyLeaf('4400-0000009'), '1180');
+assert.equal(statementParentForPartyLeaf('4400-0000009'), '4400');
 assert.notEqual(statementParentForPartyLeaf('1180-0000001'), '4400');
 const apHeader = plan.create.find((c) => c.code === '2180');
 assert.ok(apHeader);
@@ -274,17 +274,25 @@ const legacyPlan = planPartyGlAccounts({
     { id: 2, code: '1100', name: 'Current assets', is_header: true, account_type: 'asset' },
     { id: 15, code: '2110', name: 'Accounts payable', subtype: 'payable', account_type: 'liability' },
     {
+      id: 13,
+      code: '4400',
+      name: 'Membership & care revenue',
+      is_header: true,
+      account_type: 'revenue',
+    },
+    {
       id: 77,
       code: '4400-0000009',
-      name: 'Ann Vuka',
-      subtype: 'receivable',
-      account_type: 'asset',
+      name: 'Member — Ann Vuka',
+      subtype: 'service',
+      account_type: 'revenue',
     },
     { id: 50, code: '2181', name: 'AP — Holtz Group', subtype: 'payable', account_type: 'liability' },
   ],
 });
-assert.ok(!legacyPlan.create.some((c) => c.code === '1180-0000009'));
-assert.equal(legacyPlan.links.find((l) => l.id === 9)?.code, '4400-0000009');
+assert.ok(legacyPlan.create.some((c) => c.code === '1180-0000009'));
+assert.equal(legacyPlan.links.find((l) => l.id === 9)?.code, '1180-0000009');
+assert.ok(!legacyPlan.create.some((c) => c.code === '4400-0000009'));
 assert.ok(!legacyPlan.create.some((c) => c.code === '2180-0000008'));
 assert.equal(legacyPlan.links.find((l) => l.id === 8)?.code, '2181');
 
@@ -311,11 +319,11 @@ assert.equal(
   isCustomerAllocAccount({
     id: 78,
     code: '4400-0000200',
-    name: 'Walk-in member',
-    subtype: 'receivable',
-    account_type: 'asset',
+    name: 'Member — Walk-in member',
+    subtype: 'service',
+    account_type: 'revenue',
   }),
-  true
+  false
 );
 assert.equal(
   isCustomerAllocAccount({
@@ -365,15 +373,15 @@ const grouped = groupCoaForAllocation([
   {
     id: 78,
     code: '4400-0000010',
-    name: 'Legacy member',
-    account_type: 'asset',
-    subtype: 'receivable',
+    name: 'Member — Legacy member',
+    account_type: 'revenue',
+    subtype: 'service',
   },
 ] as CoaAccount[]);
-assert.deepEqual(grouped.members.map((a) => a.code), ['1180-0000009', '4400-0000010']);
+assert.deepEqual(grouped.members.map((a) => a.code), ['1180-0000009']);
 assert.deepEqual(grouped.customers.map((a) => a.code), ['1130', '1181']);
 assert.deepEqual(grouped.suppliers.map((a) => a.code), ['2110', '2180-0000008', '2181']);
-assert.deepEqual(grouped.incomeExpense.map((a) => a.code), ['4100']);
+assert.deepEqual(grouped.incomeExpense.map((a) => a.code), ['4100', '4400-0000010']);
 assert.deepEqual(grouped.other.map((a) => a.code), ['1110']);
 
 const hit = suggestPartyGlForDescription(
@@ -412,7 +420,7 @@ const memberByLegacyCode = suggestPartyGlForDescription(
   910,
   grouped.members
 );
-assert.equal(memberByLegacyCode?.id, 78);
+assert.equal(memberByLegacyCode, null);
 const supplierByCode = suggestPartyGlForDescription(
   'PAY 2180-0000008 holtz',
   -1200,

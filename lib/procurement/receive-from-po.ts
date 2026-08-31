@@ -340,7 +340,6 @@ export async function receivePurchaseOrderToInventory(opts: {
       if (sellerProductId) insertRow.source_product_id = sellerProductId;
       if (unitCost != null) {
         insertRow.cost_price = unitCost;
-        insertRow.sell_price = unitCost;
       }
       const { data: created, error: createErr } = await supabase
         .from('products')
