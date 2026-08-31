@@ -293,14 +293,32 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-    const { ensureCustomerArLeaf } = await import(
-      '@/lib/accounting/party-gl-accounts'
-    );
+    const {
+      ensureCustomerArLeaf,
+      ensureMemberRevLeaf,
+      isAdvisorFeeParty,
+    } = await import('@/lib/accounting/party-gl-accounts');
     const leaf = await ensureCustomerArLeaf({
       profileId: companyId,
       customerId: Number(data.id),
       name: String(data.trading_name || payload.trading_name || 'Customer'),
     });
+    if (
+      isAdvisorFeeParty({
+        id: Number(data.id),
+        trading_name: String(data.trading_name || payload.trading_name || ''),
+        customer_type: String(data.customer_type || payload.customer_type || ''),
+        source: String(data.source || payload.source || ''),
+        notes: String(data.notes || payload.notes || ''),
+        status: String(data.status || payload.status || 'active'),
+      })
+    ) {
+      await ensureMemberRevLeaf({
+        profileId: companyId,
+        customerId: Number(data.id),
+        name: String(data.trading_name || payload.trading_name || 'Customer'),
+      });
+    }
     return NextResponse.json({
       success: true,
       customer: data,
@@ -515,14 +533,33 @@ export async function PATCH(request: NextRequest) {
     }
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (Number.isFinite(companyId) && companyId > 0 && data?.id) {
-      const { ensureCustomerArLeaf } = await import(
-        '@/lib/accounting/party-gl-accounts'
-      );
+      const {
+        ensureCustomerArLeaf,
+        ensureMemberRevLeaf,
+        isAdvisorFeeParty,
+      } = await import('@/lib/accounting/party-gl-accounts');
+      const name = String(data.trading_name || data.legal_name || 'Customer');
       await ensureCustomerArLeaf({
         profileId: companyId,
         customerId: Number(data.id),
-        name: String(data.trading_name || data.legal_name || 'Customer'),
+        name,
       });
+      if (
+        isAdvisorFeeParty({
+          id: Number(data.id),
+          trading_name: name,
+          customer_type: data.customer_type != null ? String(data.customer_type) : null,
+          source: data.source != null ? String(data.source) : null,
+          notes: data.notes != null ? String(data.notes) : null,
+          status: data.status != null ? String(data.status) : 'active',
+        })
+      ) {
+        await ensureMemberRevLeaf({
+          profileId: companyId,
+          customerId: Number(data.id),
+          name,
+        });
+      }
     }
     return NextResponse.json({ success: true, customer: data });
   } catch (e: unknown) {

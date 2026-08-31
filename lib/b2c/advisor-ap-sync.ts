@@ -12,6 +12,8 @@ import { readDentalgraphFromMetadata } from '@/lib/dental/dentalgraph';
 import { readMedicalgraphFromMetadata } from '@/lib/clinic/medicalgraph';
 import { readPsychiatrygraphFromMetadata } from '@/lib/clinic/psychiatrygraph';
 import { readVetgraphFromMetadata } from '@/lib/clinic/vetgraph';
+import { readFieldgraphFromMetadata } from '@/lib/agri/fieldgraph';
+import { readQuarrygraphFromMetadata } from '@/lib/quarry/quarrygraph';
 import { resolveAdvisorEngagement } from '@/lib/services/advisor-workforce';
 
 export const ADVISOR_AP_PREFIX = 'advisor_ap:';
@@ -298,34 +300,45 @@ export async function syncAdvisorContractorsToSuppliers(
   if (!Number.isFinite(companyId) || companyId <= 0) {
     return { people: 0, created: 0 };
   }
-  const [gym, physio, dental, medical, psychiatry, vet] = await Promise.all([
-    loadFitgraphMerged(companyId).catch(() => null),
-    loadAdvisorModuleStore(
-      companyId,
-      'physiograph',
-      readPhysiographFromMetadata
-    ).catch(() => null),
-    loadAdvisorModuleStore(
-      companyId,
-      'dentalgraph',
-      readDentalgraphFromMetadata
-    ).catch(() => null),
-    loadAdvisorModuleStore(
-      companyId,
-      'medicalgraph',
-      readMedicalgraphFromMetadata
-    ).catch(() => null),
-    loadAdvisorModuleStore(
-      companyId,
-      'psychiatrygraph',
-      readPsychiatrygraphFromMetadata
-    ).catch(() => null),
-    loadAdvisorModuleStore(
-      companyId,
-      'vetgraph',
-      readVetgraphFromMetadata
-    ).catch(() => null),
-  ]);
+  const [gym, physio, dental, medical, psychiatry, vet, field, quarry] =
+    await Promise.all([
+      loadFitgraphMerged(companyId).catch(() => null),
+      loadAdvisorModuleStore(
+        companyId,
+        'physiograph',
+        readPhysiographFromMetadata
+      ).catch(() => null),
+      loadAdvisorModuleStore(
+        companyId,
+        'dentalgraph',
+        readDentalgraphFromMetadata
+      ).catch(() => null),
+      loadAdvisorModuleStore(
+        companyId,
+        'medicalgraph',
+        readMedicalgraphFromMetadata
+      ).catch(() => null),
+      loadAdvisorModuleStore(
+        companyId,
+        'psychiatrygraph',
+        readPsychiatrygraphFromMetadata
+      ).catch(() => null),
+      loadAdvisorModuleStore(
+        companyId,
+        'vetgraph',
+        readVetgraphFromMetadata
+      ).catch(() => null),
+      loadAdvisorModuleStore(
+        companyId,
+        'fieldgraph',
+        readFieldgraphFromMetadata
+      ).catch(() => null),
+      loadAdvisorModuleStore(
+        companyId,
+        'quarrygraph',
+        readQuarrygraphFromMetadata
+      ).catch(() => null),
+    ]);
 
   const people = collectAdvisorContractorPeople({
     coaches: gym?.store.coaches || [],
@@ -338,6 +351,8 @@ export async function syncAdvisorContractorsToSuppliers(
         people: psychiatry?.store.practitioners || [],
       },
       { kind: 'vetgraph_practitioner', people: vet?.store.practitioners || [] },
+      { kind: 'fieldgraph_gang', people: field?.store.gangs || [] },
+      { kind: 'quarrygraph_crew', people: quarry?.store.crews || [] },
     ],
   });
   if (!people.length) return { people: 0, created: 0 };

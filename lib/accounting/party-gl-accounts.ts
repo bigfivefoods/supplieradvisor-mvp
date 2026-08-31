@@ -324,6 +324,33 @@ export function isAdvisorParty(row: PartyBookRow): boolean {
   return t === 'member' || t === 'patient' || t === 'hirer';
 }
 
+const ADVISOR_FEE_REF_RE =
+  /advisor_ref:(gym|fitgraph|physio|physiograph|dental|dentalgraph|medical|medicalgraph|psychiatry|psychiatrygraph|vet|vetgraph|hire|hiregraph|fieldgraph|quarrygraph):/i;
+const ADVISOR_RETAIL_REF_RE = /advisor_ref:(retail|retailgraph):/i;
+
+/** Retail shoppers get 1180 AR only. Gym / clinic / hire earn 4400-* fees. */
+export function isAdvisorFeeKind(kind?: string | null): boolean {
+  const k = String(kind || '').trim().toLowerCase();
+  if (!k) return false;
+  if (k === 'retail' || k === 'retailgraph') return false;
+  return true;
+}
+
+/** Membership / care income (4400-*). Never trade buyers, never retail-only. */
+export function isAdvisorFeeParty(row: PartyBookRow): boolean {
+  if (!isAdvisorParty(row)) return false;
+  const notes = String(row.notes || '');
+  const t = String(row.customer_type || '').trim().toLowerCase();
+  const feeKind =
+    t === 'member' ||
+    t === 'patient' ||
+    t === 'hirer' ||
+    ADVISOR_FEE_REF_RE.test(notes);
+  const retailOnly = ADVISOR_RETAIL_REF_RE.test(notes) && !feeKind;
+  if (retailOnly) return false;
+  return true;
+}
+
 /** New invoices post to the named party account when one exists. */
 export function pickRecognitionControlAccount(
   partyAccountId: number | null | undefined,
@@ -941,7 +968,7 @@ export function planPartyGlAccounts(opts: {
   const ensureHeader = (optsH: {
     code: string;
     name: string;
-    account_type: 'asset' | 'liability';
+    account_type: 'asset' | 'liability' | 'revenue';
     normal_balance: 'debit' | 'credit';
     parentCode: string;
     sort: number;
@@ -1077,6 +1104,54 @@ export function planPartyGlAccounts(opts: {
       });
     }
     pushLeaves(customers, 'customers', 'asset', 'receivable', 841);
+  }
+
+  const feeRows = (opts.customers || []).filter((row) => isAdvisorFeeParty(row));
+  if (feeRows.length) {
+    ensureHeader({
+      code: MEMBERSHIP_REVENUE_CODE,
+      name: MEMBERSHIP_REVENUE_NAME,
+      account_type: 'revenue',
+      normal_balance: 'credit',
+      parentCode: '4000',
+      sort: 440,
+      kind: 'member_rev_header',
+      description:
+        'IFRS 15 membership & care income header. Each member is 4400-0000001 … Receivables live under 1180.',
+    });
+    const seenFee = new Set<number>();
+    let i = 0;
+    for (const row of feeRows) {
+      const id = Number(row.id);
+      if (!(id > 0) || seenFee.has(id)) continue;
+      seenFee.add(id);
+      const want = memberRevAccountCode(id);
+      if (!want) continue;
+      const existing = pickExistingLeaf(asCoaView(opts.coa || [], create), [
+        want,
+      ]);
+      if (existing || usedCodes.has(want)) continue;
+      usedCodes.add(want);
+      const name = partyDisplayName(row) || `Member ${id}`;
+      create.push({
+        code: want,
+        name: /^Member\s+[—-]\s+/i.test(name)
+          ? name
+          : `${MEMBER_REV_PREFIX}${name}`,
+        account_type: 'revenue',
+        subtype: 'service',
+        normal_balance: 'credit',
+        description: `Membership income ${want} — ${name}. Fees for this person post here.`,
+        metadata: {
+          party_kind: 'member_rev',
+          party_ids: [id],
+          rev_account_number: want,
+        },
+        sort_order: 441 + i,
+        parent_code: MEMBERSHIP_REVENUE_CODE,
+      });
+      i += 1;
+    }
   }
 
   return { create, links };
@@ -2525,7 +2600,7 @@ export async function ensurePartyGlAccounts(
             customerId: Number(row.id),
             name: partyDisplayName(row) || `Customer ${Number(row.id)}`,
           }),
-          isAdvisorParty(row)
+          isAdvisorFeeParty(row)
             ? ensureMemberRevLeaf({
                 profileId,
                 customerId: Number(row.id),

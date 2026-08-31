@@ -105,15 +105,12 @@ export async function ensureAdvisorCrmCustomer(opts: {
           .eq('id', match.id)
           .eq('profile_id', opts.companyId);
       }
-      return finishAdvisorCustomer(
-        opts.companyId,
-        {
-          id: Number(match.id),
-          name: String(match.trading_name || opts.name),
-          email: match.email ? String(match.email) : email,
-        },
-        opts.skipPartyGl
-      );
+      return finishAdvisorCustomer(opts.companyId, {
+        id: Number(match.id),
+        name: String(match.trading_name || opts.name),
+        email: match.email ? String(match.email) : email,
+        kind: opts.kind,
+      }, opts.skipPartyGl);
     }
   }
 
@@ -151,15 +148,12 @@ export async function ensureAdvisorCrmCustomer(opts: {
         .eq('id', tagged.id)
         .eq('profile_id', opts.companyId);
     }
-    return finishAdvisorCustomer(
-      opts.companyId,
-      {
-        id: Number(tagged.id),
-        name: String(tagged.trading_name || opts.name),
-        email: tagged.email ? String(tagged.email) : email || null,
-      },
-      opts.skipPartyGl
-    );
+    return finishAdvisorCustomer(opts.companyId, {
+      id: Number(tagged.id),
+      name: String(tagged.trading_name || opts.name),
+      email: tagged.email ? String(tagged.email) : email || null,
+      kind: opts.kind,
+    }, opts.skipPartyGl);
   }
 
   const payload: Record<string, unknown> = {
@@ -210,12 +204,18 @@ export async function ensureAdvisorCrmCustomer(opts: {
     id: Number(data.id),
     name: String(data.trading_name || opts.name),
     email: data.email ? String(data.email) : email || null,
+    kind: opts.kind,
   }, opts.skipPartyGl);
 }
 
 async function finishAdvisorCustomer(
   companyId: number,
-  customer: { id: number; name: string; email: string | null },
+  customer: {
+    id: number;
+    name: string;
+    email: string | null;
+    kind?: string | null;
+  },
   _skipFullCoa?: boolean
 ): Promise<{
   id: number;
@@ -228,6 +228,7 @@ async function finishAdvisorCustomer(
     const {
       ensureMemberArLeaf,
       ensureMemberRevLeaf,
+      isAdvisorFeeKind,
       memberArAccountCode,
     } = await import('@/lib/accounting/party-gl-accounts');
     const leaf = await ensureMemberArLeaf({
@@ -235,11 +236,13 @@ async function finishAdvisorCustomer(
       customerId: customer.id,
       name: customer.name,
     });
-    await ensureMemberRevLeaf({
-      profileId: companyId,
-      customerId: customer.id,
-      name: customer.name,
-    });
+    if (isAdvisorFeeKind(customer.kind)) {
+      await ensureMemberRevLeaf({
+        profileId: companyId,
+        customerId: customer.id,
+        name: customer.name,
+      });
+    }
     const code = leaf?.code || memberArAccountCode(customer.id) || null;
     ar_account_code = /^1180-\d+$/.test(String(code || ''))
       ? code
