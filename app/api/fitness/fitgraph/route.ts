@@ -2596,6 +2596,14 @@ export async function POST(request: NextRequest) {
                 .filter((s) => s.series_id === seriesId)
                 .map((s) => s.id)
             );
+            const dropBookings = (store.bookings || [])
+              .filter((b) => removeIds.has(b.session_id))
+              .map((b) => b.id);
+            const { rememberRemovedFitgraphIds } = await import(
+              '@/lib/fitness/fitgraph-merge'
+            );
+            rememberRemovedFitgraphIds(store, 'sessions', removeIds);
+            rememberRemovedFitgraphIds(store, 'bookings', dropBookings);
             store.sessions = store.sessions.filter((s) => !removeIds.has(s.id));
             store.bookings = (store.bookings || []).filter(
               (b) => !removeIds.has(b.session_id)
@@ -2617,6 +2625,14 @@ export async function POST(request: NextRequest) {
         ).filter((row) => row.id !== id);
         // Drop bookings tied to a removed class
         if (entity === 'sessions') {
+          const dropBookings = (store.bookings || [])
+            .filter((b) => b.session_id === id)
+            .map((b) => b.id);
+          const { rememberRemovedFitgraphIds } = await import(
+            '@/lib/fitness/fitgraph-merge'
+          );
+          rememberRemovedFitgraphIds(store, 'sessions', [id]);
+          rememberRemovedFitgraphIds(store, 'bookings', dropBookings);
           store.bookings = (store.bookings || []).filter(
             (b) => b.session_id !== id
           );

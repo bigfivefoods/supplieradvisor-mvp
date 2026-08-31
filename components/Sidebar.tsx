@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   ChevronDown,
   ArrowLeftRight,
@@ -51,6 +51,7 @@ function saveExpanded(state: Record<string, boolean>) {
 
 export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boolean }) {
   const pathname = usePathname();
+  const router = useRouter();
   const skin = useAdvisorSkin();
   const { collapsed, toggle, setCollapsed } = useSidebarChrome();
   const isCollapsed = forceExpanded ? false : collapsed;
@@ -393,11 +394,19 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                 key={mod.id}
                 href={mod.href}
                 title={mod.name}
-                onClick={() => {
-                  if (mod.sub.length > 0) {
-                    setCollapsed(false);
-                    setExpandedModules((prev) => ({ ...prev, [mod.id]: true }));
-                  }
+                onClick={(e) => {
+                  if (mod.sub.length === 0) return;
+                  // Expanding the rail remounts this tree and eats the Link
+                  // navigation — push first, then open the submenu.
+                  e.preventDefault();
+                  router.push(mod.href);
+                  setCollapsed(false);
+                  setExpandedModules((prev) => {
+                    if (prev[mod.id]) return prev;
+                    const next = { ...prev, [mod.id]: true };
+                    saveExpanded(next);
+                    return next;
+                  });
                 }}
                 className={`flex h-11 w-11 items-center justify-center rounded-2xl transition-all ${
                   isActive
@@ -494,14 +503,13 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                       e.preventDefault();
                       return;
                     }
-                    // Keep submenu open when selecting a module with children
-                    if (mod.sub.length > 0) {
-                      setExpandedModules((prev) => {
-                        const next = { ...prev, [mod.id]: true };
-                        saveExpanded(next);
-                        return next;
-                      });
-                    }
+                    if (mod.sub.length === 0) return;
+                    setExpandedModules((prev) => {
+                      if (prev[mod.id]) return prev;
+                      const next = { ...prev, [mod.id]: true };
+                      saveExpanded(next);
+                      return next;
+                    });
                   }}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />

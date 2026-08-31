@@ -1629,6 +1629,11 @@ export interface FitgraphStore {
   class_types: FitClassType[];
   sessions: FitSession[];
   bookings: FitBooking[];
+  /**
+   * Owner-deleted ids. Concurrent merge unions arrays by id, so a delete
+   * must tombstone or the previous snapshot resurrects the class.
+   */
+  removed_ids?: { sessions?: string[]; bookings?: string[] };
   check_ins: FitCheckIn[];
   pt_packs: FitPtPack[];
   /** Member + coach post-class feedback */
@@ -1867,7 +1872,9 @@ export function readFitgraphFromMetadata(
   const s = raw as Partial<FitgraphStore>;
   const e = emptyFitgraphStore();
   for (const key of Object.keys(e) as Array<keyof FitgraphStore>) {
-    if (key === 'updated_at' || key === 'settings') continue;
+    if (key === 'updated_at' || key === 'settings' || key === 'removed_ids') {
+      continue;
+    }
     const v = s[key];
     (e as unknown as Record<string, unknown>)[key] = Array.isArray(v) ? v : [];
   }
@@ -1900,6 +1907,17 @@ export function readFitgraphFromMetadata(
     if (Array.isArray(extra[key])) {
       (e as unknown as Record<string, unknown>)[key] = extra[key];
     }
+  }
+  const removed = (s as FitgraphStore).removed_ids;
+  if (removed && typeof removed === 'object') {
+    e.removed_ids = {
+      sessions: Array.isArray(removed.sessions)
+        ? removed.sessions.map((id) => String(id))
+        : [],
+      bookings: Array.isArray(removed.bookings)
+        ? removed.bookings.map((id) => String(id))
+        : [],
+    };
   }
   ensureSystemClassTypes(e);
   ensureSystemMovements(e);

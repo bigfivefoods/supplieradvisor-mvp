@@ -230,6 +230,7 @@ export default function CalendarPage() {
     if (!store) return [];
     return store.sessions
       .filter((s) => s.status !== 'cancelled')
+      .filter((s) => !store.removed_ids?.sessions?.includes(s.id))
       .map((s) => {
         const ct = store.class_types.find((c) => c.id === s.class_type_id);
         const coach = store.coaches.find((c) => c.id === s.coach_id);
@@ -405,6 +406,7 @@ export default function CalendarPage() {
           (deleteSeries ? 'Series deleted' : 'Class deleted')
       );
       closeEditor();
+      await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not delete class');
     }
