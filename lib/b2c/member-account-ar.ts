@@ -12,6 +12,80 @@ import {
   advisorRefTag,
   canonicalAdvisorKind,
 } from '@/lib/core-os/kinds';
+import { memberArAccountCode } from '@/lib/accounting/party-gl-accounts';
+
+const PADDED_AR_RE = /^1180-\d{7}$/;
+
+export function isPaddedMemberArCode(code?: string | null): boolean {
+  return PADDED_AR_RE.test(String(code || ''));
+}
+
+export function needsGymCrmStamp(person: {
+  crm_customer_id?: number | null;
+  ar_account_code?: string | null;
+}): boolean {
+  if (!(Number(person.crm_customer_id) > 0)) return true;
+  return !isPaddedMemberArCode(person.ar_account_code);
+}
+
+export function normalizeAdvisorCrmName(name: string): string {
+  return String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+export type AdvisorCrmCandidate = {
+  id: number;
+  email?: string | null;
+  trading_name?: string | null;
+  contact_name?: string | null;
+};
+
+/** Email is the key. No-email people unique-name-match only — never insert twins. */
+export function planAdvisorCrmLink(opts: {
+  name: string;
+  email?: string | null;
+  customers: AdvisorCrmCandidate[];
+}): { action: 'link'; id: number } | { action: 'insert' } | { action: 'skip' } {
+  const email = String(opts.email || '')
+    .trim()
+    .toLowerCase();
+  if (email) {
+    const hit = opts.customers.find(
+      (c) => String(c.email || '').trim().toLowerCase() === email
+    );
+    if (hit?.id) return { action: 'link', id: Number(hit.id) };
+    return { action: 'insert' };
+  }
+  const needle = normalizeAdvisorCrmName(opts.name);
+  if (!needle) return { action: 'skip' };
+  const byTrading = opts.customers.filter(
+    (c) => normalizeAdvisorCrmName(String(c.trading_name || '')) === needle
+  );
+  if (byTrading.length === 1) return { action: 'link', id: Number(byTrading[0].id) };
+  if (byTrading.length > 1) return { action: 'skip' };
+  const byContact = opts.customers.filter(
+    (c) => normalizeAdvisorCrmName(String(c.contact_name || '')) === needle
+  );
+  if (byContact.length === 1) return { action: 'link', id: Number(byContact[0].id) };
+  return { action: 'skip' };
+}
+
+export function applyCrmStampOnPerson(
+  person: {
+    crm_customer_id?: number | null;
+    ar_account_code?: string | null;
+  },
+  customerId: number,
+  arCode?: string | null
+): void {
+  person.crm_customer_id = customerId;
+  const stamp = String(arCode || '');
+  person.ar_account_code = isPaddedMemberArCode(stamp)
+    ? stamp
+    : memberArAccountCode(customerId) || null;
+}
 
 /** Dual-write an Advisor member / patient onto Core Customers. */
 export async function attachCrmToAdvisorPerson(opts: {
@@ -25,8 +99,28 @@ export async function attachCrmToAdvisorPerson(opts: {
     crm_customer_id?: number | null;
     ar_account_code?: string | null;
   };
-}): Promise<number | null> {
+}): Promise<{ id: number; created: boolean } | null> {
   try {
+    const existingId = Number(opts.person.crm_customer_id);
+    if (existingId > 0) {
+      const finished = await finishAdvisorCustomer(
+        opts.companyId,
+        {
+          id: existingId,
+          name: opts.person.name,
+          email: opts.person.email ? String(opts.person.email) : null,
+          kind: opts.kind,
+        },
+        false,
+        false
+      );
+      applyCrmStampOnPerson(
+        opts.person,
+        existingId,
+        finished.ar_account_code
+      );
+      return { id: existingId, created: false };
+    }
     const crm = await ensureAdvisorCrmCustomer({
       companyId: opts.companyId,
       name: opts.person.name,
@@ -36,12 +130,8 @@ export async function attachCrmToAdvisorPerson(opts: {
       refId: opts.person.id,
     });
     if (crm?.id) {
-      opts.person.crm_customer_id = crm.id;
-      const stamp = String(crm.ar_account_code || '');
-      if (/^1180-\d{7}$/.test(stamp)) {
-        opts.person.ar_account_code = stamp;
-      }
-      return crm.id;
+      applyCrmStampOnPerson(opts.person, crm.id, crm.ar_account_code);
+      return { id: crm.id, created: crm.created === true };
     }
   } catch {
     /* best-effort */
@@ -62,6 +152,7 @@ export async function ensureAdvisorCrmCustomer(opts: {
   name: string;
   email: string | null;
   ar_account_code: string | null;
+  created: boolean;
 } | null> {
   const supabase = getSupabaseServer();
   const email = String(opts.email || '')
@@ -105,12 +196,17 @@ export async function ensureAdvisorCrmCustomer(opts: {
           .eq('id', match.id)
           .eq('profile_id', opts.companyId);
       }
-      return finishAdvisorCustomer(opts.companyId, {
-        id: Number(match.id),
-        name: String(match.trading_name || opts.name),
-        email: match.email ? String(match.email) : email,
-        kind: opts.kind,
-      }, opts.skipPartyGl);
+      return finishAdvisorCustomer(
+        opts.companyId,
+        {
+          id: Number(match.id),
+          name: String(match.trading_name || opts.name),
+          email: match.email ? String(match.email) : email,
+          kind: opts.kind,
+        },
+        opts.skipPartyGl,
+        false
+      );
     }
   }
 
@@ -148,12 +244,47 @@ export async function ensureAdvisorCrmCustomer(opts: {
         .eq('id', tagged.id)
         .eq('profile_id', opts.companyId);
     }
-    return finishAdvisorCustomer(opts.companyId, {
-      id: Number(tagged.id),
-      name: String(tagged.trading_name || opts.name),
-      email: tagged.email ? String(tagged.email) : email || null,
-      kind: opts.kind,
-    }, opts.skipPartyGl);
+    return finishAdvisorCustomer(
+      opts.companyId,
+      {
+        id: Number(tagged.id),
+        name: String(tagged.trading_name || opts.name),
+        email: tagged.email ? String(tagged.email) : email || null,
+        kind: opts.kind,
+      },
+      opts.skipPartyGl,
+      false
+    );
+  }
+
+  if (!email) {
+    const needle = normalizeAdvisorCrmName(opts.name);
+    if (!needle) return null;
+    const { data: named } = await supabase
+      .from('customers')
+      .select('id, trading_name, contact_name, email, customer_type')
+      .eq('profile_id', opts.companyId)
+      .limit(4000);
+    const plan = planAdvisorCrmLink({
+      name: opts.name,
+      email: null,
+      customers: (named || []) as AdvisorCrmCandidate[],
+    });
+    if (plan.action !== 'link') return null;
+    const hit = (named || []).find((r) => Number(r.id) === plan.id);
+    return finishAdvisorCustomer(
+      opts.companyId,
+      {
+        id: plan.id,
+        name: String(
+          hit?.trading_name || hit?.contact_name || opts.name
+        ),
+        email: hit?.email ? String(hit.email) : null,
+        kind: opts.kind,
+      },
+      opts.skipPartyGl,
+      false
+    );
   }
 
   const payload: Record<string, unknown> = {
@@ -200,12 +331,17 @@ export async function ensureAdvisorCrmCustomer(opts: {
     console.warn('[member-account] CRM customer', error?.message);
     return null;
   }
-  return finishAdvisorCustomer(opts.companyId, {
-    id: Number(data.id),
-    name: String(data.trading_name || opts.name),
-    email: data.email ? String(data.email) : email || null,
-    kind: opts.kind,
-  }, opts.skipPartyGl);
+  return finishAdvisorCustomer(
+    opts.companyId,
+    {
+      id: Number(data.id),
+      name: String(data.trading_name || opts.name),
+      email: data.email ? String(data.email) : email || null,
+      kind: opts.kind,
+    },
+    opts.skipPartyGl,
+    true
+  );
 }
 
 async function finishAdvisorCustomer(
@@ -216,12 +352,14 @@ async function finishAdvisorCustomer(
     email: string | null;
     kind?: string | null;
   },
-  _skipFullCoa?: boolean
+  _skipFullCoa?: boolean,
+  created = false
 ): Promise<{
   id: number;
   name: string;
   email: string | null;
   ar_account_code: string | null;
+  created: boolean;
 }> {
   let ar_account_code: string | null = null;
   try {
@@ -244,13 +382,13 @@ async function finishAdvisorCustomer(
       });
     }
     const code = leaf?.code || memberArAccountCode(customer.id) || null;
-    ar_account_code = /^1180-\d+$/.test(String(code || ''))
+    ar_account_code = isPaddedMemberArCode(code)
       ? code
       : memberArAccountCode(customer.id) || null;
   } catch (err) {
     console.warn('[member-account] member AR leaf', err);
   }
-  return { ...customer, ar_account_code };
+  return { ...customer, ar_account_code, created };
 }
 
 /** Flip advisor people who landed as CRM businesses (default customer_type). */
