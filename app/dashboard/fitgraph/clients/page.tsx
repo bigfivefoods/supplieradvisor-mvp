@@ -41,6 +41,8 @@ import {
 } from '@/components/advisors/AdvisorProfileShare';
 
 
+const gymCrmBackfillCompanyOnce = new Set<number>();
+
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -97,6 +99,7 @@ export default function ClientsPage() {
   const router = useRouter();
   const search = useSearchParams();
   const fileRef = useRef<HTMLInputElement>(null);
+  const crmBackfillOnce = useRef(false);
   const [importing, setImporting] = useState(false);
   const [form, setForm] = useState<ClientForm>(blankForm);
   const [editing, setEditing] = useState(false);
@@ -163,6 +166,39 @@ export default function ClientsPage() {
         ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }, [returnClass]);
+
+  useEffect(() => {
+    if (crmBackfillOnce.current || loading || !store) return;
+    if (gymCrmBackfillCompanyOnce.has(companyId)) {
+      crmBackfillOnce.current = true;
+      return;
+    }
+    const needs = (store.clients || []).some(
+      (c) =>
+        !(Number(c.crm_customer_id) > 0) ||
+        !/^1180-\d{7}$/.test(String(c.ar_account_code || ''))
+    );
+    if (!needs) return;
+    crmBackfillOnce.current = true;
+    gymCrmBackfillCompanyOnce.add(companyId);
+    void (async () => {
+      try {
+        const data = await post(
+          { action: 'backfill_client_crm' },
+          { quiet: true }
+        );
+        const stamped = Number(data?.stamped) || 0;
+        const skipped = Number(data?.skipped) || 0;
+        const linked = Number(data?.linked_existing) || 0;
+        const created = Number(data?.created) || 0;
+        toast.success(
+          `CRM: ${stamped} stamped (${linked} existing, ${created} new), ${skipped} skipped`
+        );
+      } catch {
+        toast.error('Could not stamp gym clients onto CRM');
+      }
+    })();
+  }, [loading, store, post, companyId]);
 
   const save = async () => {
     if (!form.name.trim()) {

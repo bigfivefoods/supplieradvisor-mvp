@@ -72,6 +72,7 @@ import {
   FIT_CLIENT_XLSX_MIME,
   parseFitClientsImport,
 } from '@/lib/fitness/fitgraph-clients-xlsx';
+import { omitClientRosterFields } from '@/lib/fitness/client-roster-fields';
 import { mergeHealthProfile } from '@/lib/health/body-map';
 import {
   applyMessageAction,
@@ -396,7 +397,6 @@ export async function POST(request: NextRequest) {
       );
       let stamped = 0;
       for (const person of store.clients || []) {
-        if (stamped >= 80) break;
         if (person.crm_customer_id) continue;
         const id = await attachCrmToAdvisorPerson({
           companyId,
@@ -418,6 +418,47 @@ export async function POST(request: NextRequest) {
         parseErrors: [...parsed.errors, ...result.errors],
         warnings: result.warnings,
         message: `Imported ${result.created} new, updated ${result.updated} existing client(s)`,
+      });
+    }
+
+    if (action === 'backfill_client_crm') {
+      const { attachCrmToAdvisorPerson, needsGymCrmStamp } = await import(
+        '@/lib/b2c/member-account-ar'
+      );
+      let stamped = 0;
+      let skipped = 0;
+      let linked_existing = 0;
+      let created = 0;
+      for (const person of store.clients || []) {
+        if (!needsGymCrmStamp(person)) continue;
+        try {
+          const result = await attachCrmToAdvisorPerson({
+            companyId,
+            kind: 'gym',
+            person,
+          });
+          if (result?.id) {
+            stamped += 1;
+            if (result.created) created += 1;
+            else linked_existing += 1;
+          } else {
+            skipped += 1;
+          }
+        } catch {
+          skipped += 1;
+        }
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        stamped,
+        skipped,
+        linked_existing,
+        created,
+        message: `Stamped ${stamped} client(s) onto CRM (${linked_existing} existing, ${created} new), ${skipped} skipped`,
       });
     }
 
@@ -1115,6 +1156,22 @@ export async function POST(request: NextRequest) {
       });
       if ('error' in result) {
         return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      try {
+        const { attachCrmToAdvisorPerson } = await import(
+          '@/lib/b2c/member-account-ar'
+        );
+        for (const cid of clientIds) {
+          const person = store.clients.find((c) => c.id === cid);
+          if (!person || Number(person.crm_customer_id) > 0) continue;
+          await attachCrmToAdvisorPerson({
+            companyId,
+            kind: 'gym',
+            person,
+          });
+        }
+      } catch {
+        /* best-effort — CRM miss must not fail the class save */
       }
       await saveStore(companyId, meta, store);
       return NextResponse.json({
@@ -2938,6 +2995,7 @@ function upsert(
     if (i >= 0) store.coaches[i] = row;
     else store.coaches.push(row);
   } else if (entity === 'clients') {
+    rec = omitClientRosterFields(rec);
     const id = String(rec.id || newId('cli'));
     const i = store.clients.findIndex((c) => c.id === id);
     const prev = i >= 0 ? store.clients[i] : null;
