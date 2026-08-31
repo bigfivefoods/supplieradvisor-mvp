@@ -348,4 +348,26 @@ assert.equal(
   'plan_b'
 );
 
+const liveDiary = emptyFitgraphStore();
+liveDiary.sessions.push(
+  { id: 'ses_keep', date: '2026-09-01', start_time: '06:00' } as never,
+  { id: 'ses_gone', date: '2026-09-01', start_time: '07:00', series_id: 'ser_1' } as never
+);
+const deleteSeries = emptyFitgraphStore();
+deleteSeries.sessions.push({
+  id: 'ses_keep',
+  date: '2026-09-01',
+  start_time: '06:00',
+} as never);
+deleteSeries.removed_ids = { sessions: ['ses_gone'], bookings: [] };
+const afterDelete = mergeFitgraphStores(liveDiary, deleteSeries);
+assert.equal(afterDelete.sessions.map((s) => s.id).join(','), 'ses_keep');
+assert.ok(afterDelete.removed_ids?.sessions?.includes('ses_gone'));
+
+const staleDelete = mergeFitgraphStores(liveDiary, emptyFitgraphStore());
+assert.ok(
+  staleDelete.sessions.some((s) => s.id === 'ses_gone'),
+  'without a tombstone, merge still keeps concurrent sessions'
+);
+
 console.log('fitgraph-merge.test.ts ok');

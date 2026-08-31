@@ -35,20 +35,53 @@ function asRows(v: unknown): Array<Record<string, unknown>> {
   return Array.isArray(v) ? (v as Array<Record<string, unknown>>) : [];
 }
 
+const TOMBSTONE_CAP = 2000;
+
+function mergeIdList(
+  a?: string[] | null,
+  b?: string[] | null
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of [...(b || []), ...(a || [])]) {
+    const id = String(raw || '').trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+    if (out.length >= TOMBSTONE_CAP) break;
+  }
+  return out;
+}
+
+/** Record ids the owner deleted so concurrent merge cannot resurrect them. */
+export function rememberRemovedFitgraphIds(
+  store: FitgraphStore,
+  kind: 'sessions' | 'bookings',
+  ids: Iterable<string>
+): void {
+  const next = mergeIdList(store.removed_ids?.[kind], [...ids]);
+  store.removed_ids = { ...(store.removed_ids || {}), [kind]: next };
+}
+
 export function mergeRowsById(
   latest: unknown,
-  incoming: unknown
+  incoming: unknown,
+  omit?: Iterable<string> | null
 ): Array<Record<string, unknown>> {
+  const drop = new Set(
+    [...(omit || [])].map((id) => String(id || '').trim()).filter(Boolean)
+  );
   const latestRows = asRows(latest);
   const incomingRows = asRows(incoming);
   const map = new Map<string, Record<string, unknown>>();
   for (const row of latestRows) {
     const id = String(row?.id || '');
-    if (id) map.set(id, row);
+    if (!id || drop.has(id)) continue;
+    map.set(id, row);
   }
   for (const row of incomingRows) {
     const id = String(row?.id || '');
-    if (!id) continue;
+    if (!id || drop.has(id)) continue;
     const prev = map.get(id);
     if (!prev || bookingStamp(row) >= bookingStamp(prev)) map.set(id, row);
   }
@@ -56,6 +89,7 @@ export function mergeRowsById(
   const seen = new Set<string>();
   for (const row of incomingRows) {
     const id = String(row?.id || '');
+    if (id && drop.has(id)) continue;
     if (!id) {
       out.push(row);
       continue;
@@ -66,7 +100,7 @@ export function mergeRowsById(
   }
   for (const row of latestRows) {
     const id = String(row?.id || '');
-    if (!id || seen.has(id)) continue;
+    if (!id || seen.has(id) || drop.has(id)) continue;
     seen.add(id);
     out.push(row);
   }
@@ -111,18 +145,35 @@ export function mergeFitgraphStores(
   latest: FitgraphStore,
   incoming: FitgraphStore
 ): FitgraphStore {
+  const removed = {
+    sessions: mergeIdList(
+      latest.removed_ids?.sessions,
+      incoming.removed_ids?.sessions
+    ),
+    bookings: mergeIdList(
+      latest.removed_ids?.bookings,
+      incoming.removed_ids?.bookings
+    ),
+  };
   const next: FitgraphStore = {
     ...latest,
     ...incoming,
     settings: mergeSettings(latest.settings, incoming.settings),
+    removed_ids: removed,
   };
   for (const key of ID_ARRAYS) {
+    const omit =
+      key === 'sessions'
+        ? removed.sessions
+        : key === 'bookings'
+          ? removed.bookings
+          : null;
     const merged =
       key === 'goals'
         ? mergeGoalRows(latest[key], incoming[key])
         : key === 'clients'
           ? mergeClientRows(latest[key], incoming[key])
-          : mergeRowsById(latest[key], incoming[key]);
+          : mergeRowsById(latest[key], incoming[key], omit);
     (next as unknown as Record<string, unknown>)[key] = merged;
   }
   if (!(incoming.movements || []).length && (latest.movements || []).length) {
