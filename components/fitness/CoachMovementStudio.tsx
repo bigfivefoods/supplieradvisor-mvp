@@ -7,11 +7,7 @@ import { ProgrammeView } from '@/components/fitness/ProgrammeView';
 import { MovementLibraryBrowse } from '@/components/fitness/MovementLibraryBrowse';
 import { GymPwaSheet } from '@/components/fitness/GymPwaSheet';
 import { isSystemMovement } from '@/lib/fitness/movement-catalog';
-import {
-  popGymPwaSheet,
-  pushGymPwaSheet,
-} from '@/lib/fitness/gym-pwa-sheet';
-import { gymPwaFieldClass } from '@/lib/fitness/gym-pwa-theme';
+import { gymPwaCompactFieldClass, gymPwaFieldClass } from '@/lib/fitness/gym-pwa-theme';
 import {
   MOVEMENT_CATEGORIES,
   hydrateProgramme,
@@ -80,9 +76,7 @@ export function CoachMovementStudio({
     items: [] as FitProgrammeItem[],
   });
   const [addMovementId, setAddMovementId] = useState('');
-  const [, setSheetStack] = useState<Array<'library' | 'movement'>>([
-    'library',
-  ]);
+  const compactFieldClass = `${gymPwaCompactFieldClass} px-2 py-1.5`;
 
   const post = async (body: Record<string, unknown>) => {
     setBusy(true);
@@ -263,12 +257,6 @@ export function CoachMovementStudio({
             <MovementLibraryBrowse
               movements={movements}
               uploadFile={uploadFile}
-              onMovementDrillIn={() =>
-                setSheetStack((cur) => pushGymPwaSheet(cur, 'movement'))
-              }
-              onMovementBack={() =>
-                setSheetStack((cur) => popGymPwaSheet(cur))
-              }
               onSaveImage={async (m, url) => {
                 await post({
                   action: 'update_movement_media',
@@ -476,9 +464,7 @@ export function CoachMovementStudio({
                       {idx + 1}. {mv?.name || 'Removed'}
                     </p>
                     <input
-                      className={gymPwaFieldClass
-                        .replace('w-full ', '')
-                        .replace(' px-3 py-2', ' px-2 py-1.5')}
+                      className={compactFieldClass}
                       type="number"
                       placeholder="Sets"
                       value={it.sets ?? ''}
@@ -499,7 +485,7 @@ export function CoachMovementStudio({
                       }
                     />
                     <input
-                      className={gymPwaFieldClass.replace('w-full ', '').replace(' px-3 py-2', ' px-2 py-1.5')}
+                      className={compactFieldClass}
                       placeholder="Reps"
                       value={it.reps || ''}
                       onChange={(e) =>

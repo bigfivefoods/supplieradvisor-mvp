@@ -7,12 +7,10 @@ export function GymPwaSheet({
   title,
   onBack,
   onClose,
-  children,
 }: {
   title: ReactNode;
   onBack?: () => void;
   onClose?: () => void;
-  children?: ReactNode;
 }) {
   return (
     <div className="flex items-center justify-between gap-2">
@@ -29,7 +27,7 @@ export function GymPwaSheet({
       ) : (
         <span />
       )}
-      <h3 className="text-lg font-black text-slate-900 dark:text-white">{title}</h3>
+      <p className="text-lg font-black text-slate-900 dark:text-white">{title}</p>
       {onClose ? (
         <button
           type="button"
@@ -42,7 +40,6 @@ export function GymPwaSheet({
       ) : (
         <span />
       )}
-      {children}
     </div>
   );
 }

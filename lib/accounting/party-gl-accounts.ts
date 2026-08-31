@@ -24,6 +24,9 @@ import {
 
 export const PARTY_AR_CODE_START = 1181;
 export const PARTY_AP_CODE_START = 2181;
+/** Legacy integer leaves lived in 1xxx (AR) and 2xxx (AP) ranges, with a historic gap between 2000–2180. */
+export const PARTY_AR_CODE_END = 2000;
+export const PARTY_AP_CODE_END = 3000;
 export const PARTY_AR_PREFIX = 'AR — ';
 export const PARTY_AP_PREFIX = 'AP — ';
 
@@ -120,13 +123,13 @@ export function isSupplierApAccountCode(code?: string | null): boolean {
 export function isLegacyIntegerArCode(code: string): boolean {
   if (!/^\d+$/.test(code)) return false;
   const n = Number(code);
-  return n >= PARTY_AR_CODE_START && n < 2000;
+  return n >= PARTY_AR_CODE_START && n < PARTY_AR_CODE_END;
 }
 
 export function isLegacyIntegerApCode(code: string): boolean {
   if (!/^\d+$/.test(code)) return false;
   const n = Number(code);
-  return n >= PARTY_AP_CODE_START && n < 3000;
+  return n >= PARTY_AP_CODE_START && n < PARTY_AP_CODE_END;
 }
 
 /**
@@ -156,8 +159,8 @@ export function statementParentForPartyLeaf(
   }
   if (/^\d+$/.test(c)) {
     const n = Number(c);
-    if (n >= 1181 && n < 2000) return '1130';
-    if (n >= 2181 && n < 3000) return SUPPLIER_AP_HEADER_CODE;
+    if (n >= PARTY_AR_CODE_START && n < PARTY_AR_CODE_END) return '1130';
+    if (n >= PARTY_AP_CODE_START && n < PARTY_AP_CODE_END) return SUPPLIER_AP_HEADER_CODE;
   }
   const mapped = String(mappingParent || '').trim();
   if (mapped === MEMBERSHIP_REVENUE_CODE) return MEMBER_AR_HEADER_CODE;
@@ -171,7 +174,10 @@ export function isPartyStatementLeaf(code: string): boolean {
   if (isHyphenSubAccountCode(c)) return true;
   if (/^\d+$/.test(c)) {
     const n = Number(c);
-    return (n >= 1181 && n < 2000) || (n >= 2181 && n < 3000);
+    return (
+      (n >= PARTY_AR_CODE_START && n < PARTY_AR_CODE_END) ||
+      (n >= PARTY_AP_CODE_START && n < PARTY_AP_CODE_END)
+    );
   }
   return false;
 }
@@ -1143,6 +1149,7 @@ export async function ensureMemberArLeaf(opts: {
     accountId &&
     code !== want &&
     !modern &&
+    Number(headerId) > 0 &&
     headerCode === MEMBER_AR_HEADER_CODE &&
     (parseHyphenSubAccount(String(code))?.header === MEMBER_AR_LEGACY_HEADER_CODE ||
       isLegacyIntegerArCode(String(code)))
@@ -1315,6 +1322,7 @@ export async function ensureSupplierApLeaf(opts: {
   if (
     accountId &&
     currentCode !== code &&
+    Number(headerId) > 0 &&
     isLegacyIntegerApCode(currentCode) &&
     headerCode === SUPPLIER_AP_HEADER_CODE
   ) {
@@ -1340,7 +1348,22 @@ export async function ensureSupplierApLeaf(opts: {
       .eq('profile_id', opts.profileId)
       .select('code')
       .maybeSingle();
-    if (recode.data?.code) currentCode = String(recode.data.code);
+    if (recode.data?.code) {
+      currentCode = String(recode.data.code);
+    } else if (recode.error && /duplicate|unique/i.test(recode.error.message || '')) {
+      const { data: dupeRow } = await supabase
+        .from('chart_of_accounts')
+        .select('id, code')
+        .eq('profile_id', opts.profileId)
+        .eq('code', code)
+        .maybeSingle();
+      if (dupeRow?.id) {
+        accountId = Number(dupeRow.id);
+        currentCode = String(dupeRow.code || code);
+      }
+    } else if (recode.error) {
+      console.warn('[party-gl] supplier AP recode', recode.error.message);
+    }
   }
 
   if (!accountId) {
@@ -1675,26 +1698,37 @@ export async function ensurePartyGlAccounts(
     console.warn('[party-gl] legacy 4400 migrate', err);
   }
 
-  for (const row of customers || []) {
-    const id = Number(row.id || 0);
-    if (!(id > 0) || isSkippedPartyStatus(row.status)) continue;
-    const name = partyDisplayName(row) || `Customer ${id}`;
-    await ensureMemberArLeaf({
-      profileId,
-      customerId: id,
-      name,
-    });
+  const customerRows = (customers || []).filter(
+    (row) => Number(row.id || 0) > 0 && !isSkippedPartyStatus(row.status)
+  );
+  const supplierRows = (suppliers || []).filter(
+    (row) => Number(row.id || 0) > 0 && !isSkippedPartyStatus(row.status)
+  );
+  const chunk = 24;
+  for (let i = 0; i < customerRows.length; i += chunk) {
+    const slice = customerRows.slice(i, i + chunk);
+    await Promise.all(
+      slice.map((row) =>
+        ensureMemberArLeaf({
+          profileId,
+          customerId: Number(row.id),
+          name: partyDisplayName(row) || `Customer ${Number(row.id)}`,
+        })
+      )
+    );
   }
-  for (const row of suppliers || []) {
-    const id = Number(row.id || 0);
-    if (!(id > 0) || isSkippedPartyStatus(row.status)) continue;
-    const name = partyDisplayName(row) || `Supplier ${id}`;
-    await ensureSupplierApLeaf({
-      profileId,
-      supplierId: id,
-      name,
-      contractor: isContractorSupplier(row),
-    });
+  for (let i = 0; i < supplierRows.length; i += chunk) {
+    const slice = supplierRows.slice(i, i + chunk);
+    await Promise.all(
+      slice.map((row) =>
+        ensureSupplierApLeaf({
+          profileId,
+          supplierId: Number(row.id),
+          name: partyDisplayName(row) || `Supplier ${Number(row.id)}`,
+          contractor: isContractorSupplier(row),
+        })
+      )
+    );
   }
 
   try {

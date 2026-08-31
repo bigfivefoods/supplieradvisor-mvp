@@ -79,7 +79,7 @@ import type {
   FitMovement,
   FitProgramme,
 } from '@/lib/fitness/movements';
-import { gymPwaFieldClass } from '@/lib/fitness/gym-pwa-theme';
+import { gymPwaCompactFieldClass, gymPwaFieldClass } from '@/lib/fitness/gym-pwa-theme';
 
 type RosterRow = {
   booking_id: string;
@@ -1643,7 +1643,7 @@ export default function CoachFitgraphPortalPage() {
                 <div className="grid grid-cols-3 gap-2">
                   <input
                     type="date"
-                    className={gymPwaFieldClass.replace('w-full ', '')}
+                    className={gymPwaCompactFieldClass}
                     value={sessionEdit.date}
                     onChange={(e) =>
                       setSessionEdit((f) =>
@@ -1653,7 +1653,7 @@ export default function CoachFitgraphPortalPage() {
                   />
                   <input
                     type="time"
-                    className={gymPwaFieldClass.replace('w-full ', '')}
+                    className={gymPwaCompactFieldClass}
                     value={sessionEdit.start_time}
                     onChange={(e) =>
                       setSessionEdit((f) => {
@@ -1672,7 +1672,7 @@ export default function CoachFitgraphPortalPage() {
                   />
                   <input
                     type="time"
-                    className={gymPwaFieldClass.replace('w-full ', '')}
+                    className={gymPwaCompactFieldClass}
                     value={sessionEdit.end_time}
                     onChange={(e) =>
                       setSessionEdit((f) =>
@@ -1696,7 +1696,7 @@ export default function CoachFitgraphPortalPage() {
                   <input
                     type="number"
                     min={1}
-                    className={gymPwaFieldClass.replace('w-full ', '')}
+                    className={gymPwaCompactFieldClass}
                     placeholder="Capacity"
                     value={sessionEdit.capacity}
                     onChange={(e) =>
@@ -1706,7 +1706,7 @@ export default function CoachFitgraphPortalPage() {
                     }
                   />
                   <select
-                    className={gymPwaFieldClass.replace('w-full ', '')}
+                    className={gymPwaCompactFieldClass}
                     value={sessionEdit.status}
                     onChange={(e) =>
                       setSessionEdit((f) =>
@@ -2943,7 +2943,7 @@ export default function CoachFitgraphPortalPage() {
       {/* Create class */}
       {showCreate && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-3">
-          <div className="w-full max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-5 space-y-3">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-5 space-y-3 text-slate-900 dark:border-white/15 dark:bg-neutral-950 dark:text-white">
             <GymPwaSheet
               title={
                 create.session_kind === 'coach_personal'
@@ -2956,7 +2956,7 @@ export default function CoachFitgraphPortalPage() {
               onClose={() => setShowCreate(false)}
             />
             <select
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              className={gymPwaFieldClass}
               value={create.session_kind}
               onChange={(e) =>
                 setCreate((f) =>
@@ -2976,7 +2976,7 @@ export default function CoachFitgraphPortalPage() {
             </select>
             {create.session_kind !== 'coach_personal' ? (
               <select
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                className={gymPwaFieldClass}
                 value={create.class_type_id}
                 onChange={(e) =>
                   setCreate((f) => ({ ...f, class_type_id: e.target.value }))
@@ -3008,7 +3008,7 @@ export default function CoachFitgraphPortalPage() {
             <div className="grid grid-cols-3 gap-2">
               <input
                 type="date"
-                className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                className={gymPwaCompactFieldClass}
                 value={create.date}
                 onChange={(e) =>
                   setCreate((f) => ({ ...f, date: e.target.value }))
@@ -3016,7 +3016,7 @@ export default function CoachFitgraphPortalPage() {
               />
               <input
                 type="time"
-                className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                className={gymPwaCompactFieldClass}
                 value={create.start_time}
                 onChange={(e) =>
                   setCreate((f) => {
@@ -3034,7 +3034,7 @@ export default function CoachFitgraphPortalPage() {
               />
               <input
                 type="time"
-                className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                className={gymPwaCompactFieldClass}
                 value={create.end_time}
                 onChange={(e) =>
                   setCreate((f) => ({ ...f, end_time: e.target.value }))
@@ -3043,7 +3043,7 @@ export default function CoachFitgraphPortalPage() {
               />
             </div>
             <input
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              className={gymPwaFieldClass}
               placeholder="Room"
               value={create.location}
               onChange={(e) =>
@@ -3053,7 +3053,7 @@ export default function CoachFitgraphPortalPage() {
             {create.session_kind === 'coach_personal' ? (
               <>
                 <textarea
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[4rem] resize-y"
+                  className={`${gymPwaFieldClass} min-h-[4rem] resize-y`}
                   placeholder="Workout for you, e.g. warm-up, strength, engine…"
                   value={create.notes}
                   onChange={(e) =>
@@ -3061,7 +3061,7 @@ export default function CoachFitgraphPortalPage() {
                   }
                 />
                 <select
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                  className={gymPwaFieldClass}
                   value={create.shared_coach_id}
                   onChange={(e) =>
                     setCreate((f) => ({ ...f, shared_coach_id: e.target.value }))
@@ -3077,7 +3077,7 @@ export default function CoachFitgraphPortalPage() {
               </>
             ) : (
               <textarea
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[4rem] resize-y"
+                className={`${gymPwaFieldClass} min-h-[4rem] resize-y`}
                 placeholder="Class plan / activities (members & coaches see this)"
                 value={create.class_plan}
                 onChange={(e) =>
@@ -3141,7 +3141,7 @@ export default function CoachFitgraphPortalPage() {
                   type="number"
                   min={1}
                   max={52}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                  className={gymPwaFieldClass}
                   placeholder="Weeks"
                   value={create.count}
                   onChange={(e) =>
@@ -3169,7 +3169,7 @@ export default function CoachFitgraphPortalPage() {
               </p>
             )}
             <select
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              className={gymPwaFieldClass}
               value={create.programme_id}
               onChange={(e) =>
                 setCreate((f) => ({ ...f, programme_id: e.target.value }))
@@ -3254,7 +3254,7 @@ export default function CoachFitgraphPortalPage() {
 
       {bookWith && (
         <div className="fixed inset-0 z-[60] bg-black/70 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-md p-5 space-y-3">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-5 space-y-3 text-slate-900 dark:border-white/15 dark:bg-neutral-950 dark:text-white">
             <GymPwaSheet
               title="Book a member with you"
               onBack={() => setBookWith(null)}
@@ -3264,7 +3264,7 @@ export default function CoachFitgraphPortalPage() {
               Creates a private PT slot on your diary and puts the member on it.
             </p>
             <select
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              className={gymPwaFieldClass}
               value={bookWith.client_id}
               onChange={(e) =>
                 setBookWith((f) =>
@@ -3282,7 +3282,7 @@ export default function CoachFitgraphPortalPage() {
             <div className="grid grid-cols-2 gap-2">
               <input
                 type="date"
-                className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                className={gymPwaCompactFieldClass}
                 value={bookWith.date}
                 onChange={(e) =>
                   setBookWith((f) => (f ? { ...f, date: e.target.value } : f))
@@ -3290,7 +3290,7 @@ export default function CoachFitgraphPortalPage() {
               />
               <input
                 type="time"
-                className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                className={gymPwaCompactFieldClass}
                 value={bookWith.start_time}
                 onChange={(e) =>
                   setBookWith((f) =>
@@ -3301,14 +3301,14 @@ export default function CoachFitgraphPortalPage() {
             </div>
             <input
               type="time"
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              className={gymPwaFieldClass}
               value={bookWith.end_time}
               onChange={(e) =>
                 setBookWith((f) => (f ? { ...f, end_time: e.target.value } : f))
               }
             />
             <input
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              className={gymPwaFieldClass}
               placeholder="Notes (optional)"
               value={bookWith.notes}
               onChange={(e) =>
@@ -3355,14 +3355,14 @@ export default function CoachFitgraphPortalPage() {
 
       {guestFor && (
         <div className="fixed inset-0 z-[60] bg-black/70 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-md p-5 space-y-3">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-5 space-y-3 text-slate-900 dark:border-white/15 dark:bg-neutral-950 dark:text-white">
             <GymPwaSheet
               title="Walk-in / guest on plan"
               onBack={() => setGuestFor(null)}
               onClose={() => setGuestFor(null)}
             />
             <input
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              className={gymPwaFieldClass}
               placeholder="Name *"
               value={guestName}
               onChange={(e) => setGuestName(e.target.value)}

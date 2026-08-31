@@ -13,7 +13,10 @@ import { movementDisplayDescription } from '@/lib/fitness/movement-art';
 import { MovementThumb } from '@/components/fitness/MovementThumb';
 import { MovementMediaFields } from '@/components/fitness/MovementMediaFields';
 import { GymPwaSheet } from '@/components/fitness/GymPwaSheet';
-import { gymPwaFieldClass } from '@/lib/fitness/gym-pwa-theme';
+import {
+  gymPwaCompactFieldClass,
+  gymPwaFieldClass,
+} from '@/lib/fitness/gym-pwa-theme';
 import {
   EXERCISE_MODALITIES,
   EXERCISE_MUSCLE_GROUPS,
@@ -38,8 +41,6 @@ export function MovementLibraryBrowse({
   uploadFile,
   onSaveImage,
   onSaveVideo,
-  onMovementDrillIn,
-  onMovementBack,
 }: {
   movements: FitMovement[];
   dark?: boolean;
@@ -52,8 +53,6 @@ export function MovementLibraryBrowse({
   uploadFile?: (file: File) => Promise<string>;
   onSaveImage?: (m: FitMovement, url: string | null) => Promise<void> | void;
   onSaveVideo?: (m: FitMovement, url: string | null) => Promise<void> | void;
-  onMovementDrillIn?: () => void;
-  onMovementBack?: () => void;
 }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
@@ -187,6 +186,7 @@ export function MovementLibraryBrowse({
   const card = dark
     ? 'rounded-2xl border border-slate-700 bg-slate-950/60 text-left hover:border-amber-500/60'
     : 'rounded-2xl border border-slate-200 bg-white text-left hover:border-slate-300 dark:border-white/15 dark:bg-neutral-900';
+  const searchFieldClass = `w-full ${gymPwaCompactFieldClass} pl-9 pr-3`;
 
   return (
     <div className="space-y-4">
@@ -196,7 +196,7 @@ export function MovementLibraryBrowse({
           className={
             dark
               ? 'w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-3 py-2 text-sm'
-              : `${gymPwaFieldClass} pl-9 pr-3`
+              : searchFieldClass
           }
           placeholder="Search movements, muscles, equipment…"
           value={query}
@@ -323,7 +323,6 @@ export function MovementLibraryBrowse({
                   className={card + ' overflow-hidden p-0'}
                   onClick={() => {
                     setOpenId(m.id);
-                    onMovementDrillIn?.();
                   }}
                 >
                   <MovementThumb
@@ -373,11 +372,9 @@ export function MovementLibraryBrowse({
               title={open.name}
               onBack={() => {
                 setOpenId(null);
-                onMovementBack?.();
               }}
               onClose={() => {
                 setOpenId(null);
-                onMovementBack?.();
               }}
             />
             <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">

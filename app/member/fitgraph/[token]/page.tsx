@@ -1301,7 +1301,7 @@ export default function MemberFitgraphPortalPage() {
                               key={m.id}
                               className={`rounded-xl px-3 py-2 text-sm ${
                                 mine
-                                  ? 'ml-6 bg-yellow-100 text-yellow-950 dark:bg-yellow-200'
+                                  ? 'ml-6 bg-yellow-100 text-yellow-950 dark:bg-yellow-900 dark:text-yellow-100'
                                   : 'mr-6 bg-slate-100 text-slate-900 dark:bg-neutral-800 dark:text-white'
                               }`}
                             >
