@@ -1004,6 +1004,32 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (action === 'delete_goal' || action === 'hide_goal') {
+      const goalId = String(body.goal_id || body.id || '');
+      const prev =
+        (store.goals || []).find((g) => g.id === goalId) ||
+        (coach.goals || []).find((g) => g.id === goalId) ||
+        store.clients.flatMap((c) => c.goals || []).find((g) => g.id === goalId) ||
+        null;
+      if (!prev) {
+        return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
+      }
+      const may =
+        prev.client_id === coach.id ||
+        store.clients.some((c) => c.id === prev.client_id);
+      if (!may) {
+        return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
+      }
+      const { removeGoalFromStore } = await import('@/lib/fitness/member-goals');
+      removeGoalFromStore(store, goalId);
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        message: 'Goal deleted',
+        portal: buildCoachPortalPayload(store, coach),
+      });
+    }
+
     if (action === 'close_class_challenge') {
       const id = String(body.id || body.challenge_id || '').trim();
       if (!id) {
@@ -1251,6 +1277,14 @@ export async function POST(request: NextRequest) {
         }
       }
       await saveStore(companyId, meta, store);
+      if (body.class_plan != null || body.date != null || body.start_time != null) {
+        const { emailSessionCalendar } = await import(
+          '@/lib/fitness/session-calendar'
+        );
+        void emailSessionCalendar({ store, sessionId: session.id }).catch(
+          () => null
+        );
+      }
       return NextResponse.json({
         success: true,
         message: 'Class updated',
@@ -1640,6 +1674,14 @@ export async function POST(request: NextRequest) {
         source: 'coach',
       };
       store.bookings.push(booking);
+      {
+        const { emailSessionCalendar } = await import(
+          '@/lib/fitness/session-calendar'
+        );
+        void emailSessionCalendar({ store, sessionId: session.id }).catch(
+          () => null
+        );
+      }
       if (!client.coach_id) {
         const ci = store.clients.findIndex((c) => c.id === client.id);
         if (ci >= 0) {
@@ -1717,6 +1759,12 @@ export async function POST(request: NextRequest) {
         store.bookings.push(booking);
       }
       await saveStore(companyId, meta, store);
+      if (status === 'booked') {
+        const { emailSessionCalendar } = await import(
+          '@/lib/fitness/session-calendar'
+        );
+        void emailSessionCalendar({ store, sessionId }).catch(() => null);
+      }
       return NextResponse.json({
         success: true,
         booking: { id: booking.id, status },
@@ -1818,6 +1866,14 @@ export async function POST(request: NextRequest) {
       );
       store.sessions.push(...created);
       stampCatalogSeriesAndBookSubscribers(store, created, now);
+      {
+        const { emailSessionCalendar } = await import(
+          '@/lib/fitness/session-calendar'
+        );
+        for (const s of created) {
+          void emailSessionCalendar({ store, sessionId: s.id }).catch(() => null);
+        }
+      }
       const sharedIds = normalizeIdList(body.shared_coach_ids).filter(
         (id) => id !== coach.id
       );

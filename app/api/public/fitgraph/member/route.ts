@@ -1116,6 +1116,15 @@ export async function POST(request: NextRequest) {
         booking: result.booking,
         coming,
       }).catch(() => null);
+      if (coming) {
+        const { emailSessionCalendar } = await import(
+          '@/lib/fitness/session-calendar'
+        );
+        void emailSessionCalendar({
+          store,
+          sessionId: result.booking.session_id,
+        }).catch(() => null);
+      }
       return NextResponse.json({
         success: true,
         portal: decorateMemberPortal(
@@ -1272,6 +1281,12 @@ export async function POST(request: NextRequest) {
       };
       store.bookings.push(row);
       await saveStore(companyId, meta, store);
+      if (finalStatus === 'booked') {
+        const { emailSessionCalendar } = await import(
+          '@/lib/fitness/session-calendar'
+        );
+        void emailSessionCalendar({ store, sessionId }).catch(() => null);
+      }
       await notifyPatientBookingPush({
         platformUserId: client.platform_user_id,
         brand: store.settings?.brand_name,
@@ -1310,6 +1325,23 @@ export async function POST(request: NextRequest) {
       );
       if (!prev) {
         return NextResponse.json({ error: 'Goal not found' }, { status: 404 });
+      }
+      if (action === 'delete_goal') {
+        const { removeGoalFromStore } = await import(
+          '@/lib/fitness/member-goals'
+        );
+        removeGoalFromStore(store, goalId);
+        await saveStore(companyId, meta, store);
+        return NextResponse.json({
+          success: true,
+          portal: decorateMemberPortal(
+            store,
+            store.clients[ci],
+            buildMemberPortalPayloadBase(store, store.clients[ci]),
+            meta
+          ),
+          message: 'Goal deleted',
+        });
       }
       const next = {
         ...prev,

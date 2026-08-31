@@ -27,7 +27,7 @@ export function MemberGoalsPanel({
   pastClasses,
   busy,
   onSaveGoal,
-  onHideGoal,
+  onDeleteGoal,
   onLogActual,
   onWatchLog,
   onGarminConnect,
@@ -69,7 +69,7 @@ export function MemberGoalsPanel({
     unit: string;
     direction: string;
   }) => void | Promise<void>;
-  onHideGoal?: (goalId: string) => void | Promise<void>;
+  onDeleteGoal?: (goalId: string) => void | Promise<void>;
   onLogActual: (goalId: string, value: string, at: string) => void | Promise<void>;
   onWatchLog: (v: {
     booking_id: string;
@@ -207,9 +207,9 @@ export function MemberGoalsPanel({
                 color={color}
               />
               {g.status === 'active' ? (
-                <div className="flex gap-2">
+                <div className="space-y-2">
                   <input
-                    className={`${gymPwaFieldClass} flex-1 py-1.5`}
+                    className={`${gymPwaFieldClass} w-full py-2`}
                     inputMode="decimal"
                     placeholder={`Actual${g.unit ? ` (${g.unit})` : ''}`}
                     value={actualDraft[g.id] || ''}
@@ -219,7 +219,7 @@ export function MemberGoalsPanel({
                   />
                   <input
                     type="date"
-                    className={`${gymPwaFieldClass} w-auto px-2 py-1.5`}
+                    className={`${gymPwaFieldClass} w-full py-2`}
                     value={actualDate[g.id] || ''}
                     onChange={(e) =>
                       setActualDate((cur) => ({ ...cur, [g.id]: e.target.value }))
@@ -237,9 +237,9 @@ export function MemberGoalsPanel({
                         })
                         .catch(() => undefined);
                     }}
-                    className="rounded-xl bg-slate-900 px-3 py-1.5 text-[11px] font-black text-white disabled:opacity-50"
+                    className="w-full min-h-11 rounded-xl bg-slate-900 px-3 py-2 text-sm font-black text-white disabled:opacity-50"
                   >
-                    {busy ? 'Saving…' : 'Log'}
+                    {busy ? 'Saving…' : 'Save'}
                   </button>
                 </div>
               ) : null}
@@ -262,22 +262,22 @@ export function MemberGoalsPanel({
                     ))}
                 </ol>
               ) : null}
-              {onHideGoal && g.status !== 'abandoned' ? (
+              {onDeleteGoal ? (
                 <button
                   type="button"
                   disabled={busy}
                   onClick={() => {
                     if (
                       confirm(
-                        `Hide “${g.title}”? You can set a new goal anytime.`
+                        `Delete “${g.title}”? This removes the goal and its logs.`
                       )
                     ) {
-                      void onHideGoal(g.id);
+                      void onDeleteGoal(g.id);
                     }
                   }}
-                  className="text-[11px] font-bold text-slate-500 underline"
+                  className="text-[11px] font-bold text-rose-700 underline"
                 >
-                  Hide this goal
+                  Delete
                 </button>
               ) : null}
             </li>

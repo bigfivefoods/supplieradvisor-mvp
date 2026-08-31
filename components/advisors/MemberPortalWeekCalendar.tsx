@@ -395,6 +395,16 @@ export function MemberPortalWeekCalendar({
                       <p className="truncate text-[8px] font-bold leading-tight opacity-90">
                         {row.ev.title}
                       </p>
+                      {row.ev.person ? (
+                        <p className="truncate text-[7px] font-semibold leading-tight opacity-80">
+                          {row.ev.person}
+                        </p>
+                      ) : null}
+                      {row.ev.coming && h > 28 ? (
+                        <p className="truncate text-[7px] font-bold leading-tight opacity-90">
+                          {row.ev.coming}
+                        </p>
+                      ) : null}
                     </button>
                   );
                 })}

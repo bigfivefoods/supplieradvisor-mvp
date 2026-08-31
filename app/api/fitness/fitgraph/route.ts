@@ -944,6 +944,14 @@ export async function POST(request: NextRequest) {
       );
       store.sessions.push(...created);
       stampCatalogSeriesAndBookSubscribers(store, created, now);
+      {
+        const { emailSessionCalendar } = await import(
+          '@/lib/fitness/session-calendar'
+        );
+        for (const s of created) {
+          void emailSessionCalendar({ store, sessionId: s.id }).catch(() => null);
+        }
+      }
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,

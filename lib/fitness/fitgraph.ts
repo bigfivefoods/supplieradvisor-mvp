@@ -3372,6 +3372,7 @@ export function buildSessionIcs(opts: {
   location?: string;
   description?: string;
   brand?: string;
+  method?: 'PUBLISH' | 'REQUEST';
 }): string {
   const dur = Math.max(15, Number(opts.duration_min) || 45);
   const [hh, mm] = opts.start_time.split(':').map(Number);
@@ -3393,7 +3394,7 @@ export function buildSessionIcs(opts: {
     'VERSION:2.0',
     'PRODID:-//SupplierAdvisor//GymAdvisor//EN',
     'CALSCALE:GREGORIAN',
-    'METHOD:PUBLISH',
+    `METHOD:${opts.method === 'REQUEST' ? 'REQUEST' : 'PUBLISH'}`,
     'BEGIN:VEVENT',
     `UID:${uid}`,
     `DTSTAMP:${fmt(new Date())}`,

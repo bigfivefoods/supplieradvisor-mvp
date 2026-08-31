@@ -68,6 +68,7 @@ import type {
 import { GymClassLeaderboards } from '@/components/fitness/GymClassLeaderboards';
 import { MemberGoalsPanel } from '@/components/fitness/MemberGoalsPanel';
 import { GymPwaSheet } from '@/components/fitness/GymPwaSheet';
+import { classCalendarPeople } from '@/lib/fitness/session-calendar';
 import type { MemberGoalView } from '@/lib/fitness/member-goals';
 import {
   healthHasActiveInjury,
@@ -782,6 +783,16 @@ export default function CoachFitgraphPortalPage() {
     const lane = laneOf(card);
     const kind: MemberCalendarEvent['kind'] =
       lane === 'workouts' ? 'workout' : lane === 'clients' ? 'client' : 'class';
+    const who = classCalendarPeople({
+      roster: card.roster,
+      subscribed: card.subscribed,
+    });
+    const title =
+      card.session.session_kind === 'coach_personal'
+        ? card.session.notes?.split('\n')[0] || 'Workout'
+        : card.session.session_kind === 'private_pt'
+          ? `PT · ${who.person || card.class_name || 'Client'}`
+          : card.class_name || who.person || 'Session';
     return {
       id: card.session.id,
       date: card.session.date,
@@ -789,14 +800,9 @@ export default function CoachFitgraphPortalPage() {
       end_time: card.session.end_time
         ? String(card.session.end_time).slice(0, 5)
         : null,
-      title:
-        card.session.session_kind === 'coach_personal'
-          ? card.session.notes?.split('\n')[0] || 'Workout'
-          : card.session.session_kind === 'private_pt'
-            ? `PT · ${card.class_name || 'Client'}`
-            : card.class_name || 'Class',
-      person:
-        kind === 'workout' ? 'Workout' : kind === 'client' ? 'Client' : 'Class',
+      title,
+      person: kind === 'workout' ? '' : who.person,
+      coming: kind === 'workout' ? '' : who.comingLabel,
       kind,
     };
   };
@@ -1382,6 +1388,44 @@ export default function CoachFitgraphPortalPage() {
                 </div>
               ) : null}
             </div>
+
+            {openCard.session.session_kind !== 'coach_personal' ? (
+              <div className="space-y-2 rounded-2xl border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-500/30 dark:bg-yellow-950/30">
+                <p className="text-[10px] font-black uppercase tracking-wider text-yellow-900 dark:text-yellow-200">
+                  Class Plan
+                </p>
+                <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                  This session only — members see it on Next up. Other dates in
+                  the series stay as they are.
+                </p>
+                <textarea
+                  className="min-h-[5rem] w-full resize-y rounded-xl border border-yellow-300 bg-white px-3 py-2 text-sm dark:border-yellow-500/40 dark:bg-neutral-950"
+                  placeholder={
+                    'e.g.\n• Warm-up 5 min\n• Strength circuit\n• HIIT finisher\n• Stretch'
+                  }
+                  value={classPlanDraft}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setClassPlanDraft(v);
+                    setSessionEdit((f) => (f ? { ...f, class_plan: v } : f));
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={busy}
+                  className="min-h-11 w-full rounded-xl bg-[#E8E830] text-sm font-black text-slate-950 disabled:opacity-50"
+                  onClick={() =>
+                    void post({
+                      action: 'update_session',
+                      session_id: openCard.session.id,
+                      class_plan: classPlanDraft,
+                    }).then(() => void load())
+                  }
+                >
+                  {busy ? 'Saving…' : 'Save Class Plan'}
+                </button>
+              </div>
+            ) : null}
 
             <div className="flex flex-wrap gap-1.5">
               {sessionEdit?.session_kind !== 'coach_personal' ? (
@@ -2363,6 +2407,17 @@ export default function CoachFitgraphPortalPage() {
                     action: 'upsert_goal',
                     client_id: portal.coach.id,
                     ...v,
+                  });
+                } finally {
+                  setRecordBusy(null);
+                }
+              }}
+              onDeleteGoal={async (goalId) => {
+                setRecordBusy('goals');
+                try {
+                  await post({
+                    action: 'delete_goal',
+                    goal_id: goalId,
                   });
                 } finally {
                   setRecordBusy(null);
