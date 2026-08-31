@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   FitgraphWorkbench,
@@ -12,8 +13,20 @@ import { DataTable, FormCard, StatRow, fc } from '@/components/fitness/FitForm';
 import { storeUsesClassSubscribe } from '@/lib/fitness/vuka-class-catalog';
 
 export default function MembershipsPage() {
+  const router = useRouter();
+  const search = useSearchParams();
   const { companyId, store, loading, saving, post, summary } = useFitgraph();
   const classSubscribe = store ? storeUsesClassSubscribe(store) : false;
+  const rosterPlanId = search.get('roster');
+
+  useEffect(() => {
+    if (store && classSubscribe) {
+      const roster = rosterPlanId
+        ? `?roster=${encodeURIComponent(rosterPlanId)}`
+        : '';
+      router.replace(`/dashboard/fitgraph/classes${roster}`);
+    }
+  }, [store, classSubscribe, router, rosterPlanId]);
   const [pt, setPt] = useState({
     client_id: '',
     coach_id: '',
@@ -47,10 +60,10 @@ export default function MembershipsPage() {
       description={
         classSubscribe
           ? 'The class list. Open a row to set times, put it on the calendar, and save which members are booked to it.'
-          : 'Plans in a list. Members pay first, then you allocate them on Membership. Open a plan to edit it.'
+          : 'Plans in a list. Members pay first, then you allocate them on Clients. Open a plan to edit it.'
       }
     >
-      {loading || !store ? (
+      {loading || !store || classSubscribe ? (
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
@@ -115,10 +128,10 @@ export default function MembershipsPage() {
                 they stay booked on the calendar. You can also save a member’s
                 classes from{' '}
                 <a
-                  href="/dashboard/fitgraph/membership"
+                  href="/dashboard/fitgraph/clients"
                   className="font-bold text-yellow-800 underline dark:text-yellow-200"
                 >
-                  Membership
+                  Clients
                 </a>
                 .
               </>
@@ -126,10 +139,10 @@ export default function MembershipsPage() {
               <>
                 Allocate people on{' '}
                 <a
-                  href="/dashboard/fitgraph/membership"
+                  href="/dashboard/fitgraph/clients"
                   className="font-bold text-yellow-800 underline dark:text-yellow-200"
                 >
-                  Membership
+                  Clients
                 </a>
                 .
               </>
@@ -142,6 +155,7 @@ export default function MembershipsPage() {
             saving={saving}
             classSubscribe={classSubscribe}
             companyId={companyId}
+            initialRosterId={rosterPlanId}
           />
 
           {!classSubscribe ? (

@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { ChevronDown, ChevronRight, Plus, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { fc } from '@/components/fitness/FitForm';
@@ -14,6 +15,7 @@ import {
 import { MovementMediaFields } from '@/components/fitness/MovementMediaFields';
 import {
   calendarCoverage,
+  classRosterPeople,
   nextDateForWeekdays,
   suggestClassSchedule,
 } from '@/lib/fitness/class-allocate';
@@ -92,16 +94,21 @@ export function ClassDeskTable({
   saving,
   classSubscribe,
   companyId,
+  initialRosterId,
 }: {
   store: FitgraphStore;
   post: PostFn;
   saving: boolean;
   classSubscribe: boolean;
   companyId?: number;
+  initialRosterId?: string | null;
 }) {
   const todayIso = new Date().toISOString().slice(0, 10);
   const [q, setQ] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
+  const [rosterId, setRosterId] = useState<string | null>(
+    initialRosterId || null
+  );
   const [adding, setAdding] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [addDraft, setAddDraft] = useState<Draft>(blankDraft);
@@ -153,6 +160,30 @@ export function ClassDeskTable({
           (s.status === 'active' || s.status === 'trialing')
       )
       .map((s) => s.client_id);
+
+  const bookedPeople = (planId: string) =>
+    membersOnPlan(planId)
+      .map((id) => store.clients.find((c) => c.id === id))
+      .filter((c): c is NonNullable<typeof c> => Boolean(c && c.name));
+
+  const openRoster = (planId: string) => {
+    const next = rosterId === planId ? null : planId;
+    setRosterId(next);
+    setMemberQuery('');
+    if (next) {
+      setRosterIds((cur) => ({ ...cur, [planId]: membersOnPlan(planId) }));
+    }
+  };
+
+  useEffect(() => {
+    if (!initialRosterId) return;
+    setRosterId(initialRosterId);
+    setRosterIds((cur) => ({
+      ...cur,
+      [initialRosterId]: membersOnPlan(initialRosterId),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialRosterId]);
 
   const openEditor = (p: FitMembershipPlan) => {
     const next = openId === p.id ? null : p.id;
@@ -593,53 +624,23 @@ export function ClassDeskTable({
         ) : null}
 
         {opts.plan && !opts.isNew ? (
-          <div className="rounded-2xl border border-sky-200 bg-white px-3 py-3 space-y-2 dark:border-sky-800 dark:bg-slate-950">
-            <p className="text-[10px] font-black uppercase tracking-wide text-sky-800 dark:text-sky-200 flex items-center gap-1">
-              <Users className="w-3.5 h-3.5" />
-              Members booked to this class
+          <div className="rounded-2xl border border-[#E8E830] bg-white px-3 py-3 dark:bg-neutral-950">
+            <p className="text-[10px] font-black uppercase tracking-wide text-slate-500 dark:text-white">
+              Booked members
             </p>
-            <input
-              className={fc()}
-              placeholder="Search members…"
-              value={memberQuery}
-              onChange={(e) => setMemberQuery(e.target.value)}
-            />
-            <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 rounded-xl border border-slate-100 dark:divide-slate-800 dark:border-slate-800">
-              {(store.clients || [])
-                .filter((c) => c.active !== false)
-                .filter((c) => {
-                  const q = memberQuery.trim().toLowerCase();
-                  if (!q) return true;
-                  return `${c.name} ${c.code}`.toLowerCase().includes(q);
-                })
-                .slice(0, 80)
-                .map((c) => {
-                  const ids =
-                    rosterIds[opts.plan!.id] || membersOnPlan(opts.plan!.id);
-                  const on = ids.includes(c.id);
-                  return (
-                    <label
-                      key={c.id}
-                      className="flex items-center gap-2 px-2.5 py-1.5 text-sm cursor-pointer hover:bg-sky-50 dark:hover:bg-sky-950/40"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={on}
-                        onChange={() => toggleRoster(opts.plan!.id, c.id)}
-                      />
-                      <span className="font-semibold">{c.name}</span>
-                      <span className="text-[10px] text-slate-500">{c.code}</span>
-                    </label>
-                  );
-                })}
-            </div>
+            <p className="mt-1 text-sm text-slate-700 dark:text-white">
+              {bookedPeople(opts.plan.id)
+                .map((c) => c.name)
+                .join(', ') || 'Nobody booked yet'}
+            </p>
             <button
               type="button"
-              disabled={saving && busyId === `mem-${opts.plan.id}`}
-              className="rounded-xl bg-sky-600 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
-              onClick={() => void saveMembers(opts.plan!)}
+              className="mt-2 rounded-xl border border-[#E8E830] bg-[#E8E830] px-3 py-2 text-xs font-black text-slate-900"
+              onClick={() => openRoster(opts.plan!.id)}
             >
-              Save booked members
+              {rosterId === opts.plan.id
+                ? 'Hide booked members'
+                : 'Add / drop booked members'}
             </button>
           </div>
         ) : null}
@@ -680,6 +681,85 @@ export function ClassDeskTable({
               Cancel
             </button>
           )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderRoster = (p: FitMembershipPlan) => {
+    const ids = rosterIds[p.id] || membersOnPlan(p.id);
+    const booked = bookedPeople(p.id);
+    const people = classRosterPeople(store, memberQuery);
+    const addHref = `/dashboard/fitgraph/clients?returnClass=${encodeURIComponent(p.id)}`;
+    return (
+      <div className="space-y-3 border-t border-yellow-200 bg-white px-3 py-3 dark:border-yellow-700 dark:bg-neutral-950">
+        <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-slate-500 dark:text-white">
+          <Users className="h-3.5 w-3.5" />
+          Members booked to this class
+        </p>
+        <p className="text-sm text-slate-800 dark:text-white">
+          {booked.length
+            ? booked.map((c) => c.name).join(', ')
+            : 'Nobody booked yet'}
+        </p>
+        <input
+          className={fc()}
+          placeholder="Search name, code, email, phone…"
+          value={memberQuery}
+          onChange={(e) => setMemberQuery(e.target.value)}
+        />
+        <div className="max-h-72 overflow-y-auto divide-y divide-slate-100 rounded-xl border border-slate-100 dark:divide-slate-800 dark:border-white/15">
+          {people.length === 0 ? (
+            <p className="px-2.5 py-3 text-sm text-slate-500 dark:text-white">
+              No active people match that search.
+            </p>
+          ) : (
+            people.map((c) => {
+              const on = ids.includes(c.id);
+              return (
+                <label
+                  key={c.id}
+                  className="flex cursor-pointer items-center gap-2 px-2.5 py-1.5 text-sm hover:bg-yellow-50 dark:hover:bg-yellow-950/40"
+                >
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={() => toggleRoster(p.id, c.id)}
+                  />
+                  <span className="font-semibold text-slate-900 dark:text-white">
+                    {c.name}
+                  </span>
+                  <span className="text-[10px] text-slate-500 dark:text-white/70">
+                    {c.code}
+                  </span>
+                  {c.email ? (
+                    <span className="truncate text-[10px] text-slate-400">
+                      {c.email}
+                    </span>
+                  ) : null}
+                </label>
+              );
+            })
+          )}
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <button
+            type="button"
+            disabled={saving && busyId === `mem-${p.id}`}
+            className="w-full rounded-xl bg-[#E8E830] px-3 py-2 text-xs font-black text-slate-900 disabled:opacity-50 sm:w-auto"
+            onClick={() => void saveMembers(p)}
+          >
+            Save booked members
+          </button>
+          <Link
+            href={addHref}
+            className="inline-flex w-full items-center justify-center rounded-xl border border-[#E8E830] px-3 py-2 text-xs font-black text-slate-900 dark:text-white sm:w-auto"
+          >
+            Add client
+          </Link>
+          <span className="text-[11px] text-slate-500 dark:text-white/70">
+            Actual rates stay on Clients. Untick + save drops this class only.
+          </span>
         </div>
       </div>
     );
@@ -788,14 +868,18 @@ export function ClassDeskTable({
                         /{d.billing === 'monthly' ? 'mo' : d.billing}
                       </span>
                     </p>
-                    <p className="text-[11px] font-bold text-sky-800 dark:text-sky-200">
+                    <button
+                      type="button"
+                      className="text-[11px] font-bold text-slate-900 underline decoration-[#E8E830] underline-offset-2 dark:text-white"
+                      onClick={() => openRoster(p.id)}
+                    >
                       {bookedN} booked
                       {classSubscribe && !p.unlocks_all_classes
                         ? cover.count
                           ? ` · ${cover.count} upcoming`
                           : ' · off calendar'
                         : ''}
-                    </p>
+                    </button>
                   </div>
                   {classSubscribe && !p.unlocks_all_classes ? (
                     <select
@@ -832,6 +916,7 @@ export function ClassDeskTable({
                 {open
                   ? renderEditor(d, (patch) => setRow(p.id, patch), { plan: p })
                   : null}
+                {rosterId === p.id ? renderRoster(p) : null}
               </div>
             );
           })

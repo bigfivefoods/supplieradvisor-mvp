@@ -293,4 +293,59 @@ const pbRow = pbMerged.clients.find((c) => c.id === 'cli_pb');
 assert.equal(pbRow?.personal_bests?.length, 1);
 assert.ok((pbRow?.personal_bests?.[0]?.history || []).length >= 2);
 
+const subLatest = emptyFitgraphStore();
+subLatest.subscriptions.push({
+  id: 'sub_a',
+  client_id: 'c1',
+  plan_id: 'plan_a',
+  status: 'cancelled',
+  started_at: '2026-08-01',
+  charged_zar: 800,
+  created_at: '2026-08-01T00:00:00Z',
+  updated_at: '2026-08-31T12:00:00Z',
+});
+subLatest.clients.push({
+  id: 'c1',
+  code: 'C1',
+  name: 'Cam',
+  membership_plan_id: 'plan_b',
+  agreed_rate_zar: 400,
+  created_at: '2026-08-01',
+  updated_at: '2026-08-31T12:00:00Z',
+} as never);
+const subIncoming = emptyFitgraphStore();
+subIncoming.subscriptions.push({
+  id: 'sub_b',
+  client_id: 'c1',
+  plan_id: 'plan_b',
+  status: 'active',
+  started_at: '2026-08-01',
+  charged_zar: 400,
+  created_at: '2026-08-01T00:00:00Z',
+  updated_at: '2026-08-31T11:00:00Z',
+});
+subIncoming.clients.push({
+  id: 'c1',
+  code: 'C1',
+  name: 'Cam',
+  membership_plan_id: 'plan_a',
+  agreed_rate_zar: 800,
+  created_at: '2026-08-01',
+  updated_at: '2026-08-31T11:00:00Z',
+} as never);
+const subMerged = mergeFitgraphStores(subLatest, subIncoming);
+assert.equal(subMerged.subscriptions.length, 2);
+assert.equal(
+  subMerged.subscriptions.find((s) => s.id === 'sub_a')?.status,
+  'cancelled'
+);
+assert.equal(
+  subMerged.subscriptions.find((s) => s.id === 'sub_b')?.status,
+  'active'
+);
+assert.equal(
+  subMerged.clients.find((c) => c.id === 'c1')?.membership_plan_id,
+  'plan_b'
+);
+
 console.log('fitgraph-merge.test.ts ok');

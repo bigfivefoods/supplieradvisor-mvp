@@ -7,6 +7,7 @@ import {
   applyChargedNote,
   allocateMemberToClass,
   calendarCoverage,
+  classRosterPeople,
   formatScheduleLabel,
   parseBilledZar,
   parseScheduleHint,
@@ -15,6 +16,7 @@ import {
   bookDeskMemberOntoSession,
   sessionRosterNames,
   sessionRosterRows,
+  setClassMembers,
   stampCatalogSeriesAndBookSubscribers,
   suggestClassSchedule,
   updateClassDesk,
@@ -526,5 +528,233 @@ assert.equal(
   1
 );
 assert.equal(sessionRosterRows(seatStore, 's-seat').length, 1);
+
+// ── setClassMembers (Brief 34): this class only, denorm, diary ────────────
+const roster = emptyFitgraphStore();
+ensureVukaClassCatalog(roster, {
+  companyId: VUKA_COMPANY_ID,
+  now: '2026-08-17T10:00:00.000Z',
+});
+const rFsf = roster.membership_plans.find((p) => p.code === 'VUKA_FSF_5AM')!;
+const rBoot = roster.membership_plans.find((p) => p.code === 'VUKA_BOOT_1730')!;
+roster.clients.push({
+  id: 'cli_eve',
+  code: 'E1',
+  name: 'Eve',
+  membership_status: 'active',
+  active: true,
+  created_at: '2026-08-01T00:00:00.000Z',
+  updated_at: '2026-08-01T00:00:00.000Z',
+});
+roster.clients.push({
+  id: 'cli_zed',
+  code: 'Z1',
+  name: 'Zed Inactive',
+  membership_status: 'cancelled',
+  active: false,
+  created_at: '2026-08-01T00:00:00.000Z',
+  updated_at: '2026-08-01T00:00:00.000Z',
+});
+for (let i = 0; i < 90; i += 1) {
+  roster.clients.push({
+    id: `cli_cap_${i}`,
+    code: `CAP${i}`,
+    name: i === 85 ? 'Zelda Cap' : `Cap Person ${i}`,
+    email: i === 85 ? 'zelda@gym.test' : `cap${i}@gym.test`,
+    phone: i === 85 ? '0820000085' : `0820000${String(i).padStart(3, '0')}`,
+    membership_status: 'active',
+    active: true,
+    created_at: '2026-08-01T00:00:00.000Z',
+    updated_at: '2026-08-01T00:00:00.000Z',
+  });
+}
+assert.ok(classRosterPeople(roster, 'Zelda Cap').some((c) => c.id === 'cli_cap_85'));
+assert.ok(classRosterPeople(roster, 'zelda@gym.test').some((c) => c.id === 'cli_cap_85'));
+assert.ok(classRosterPeople(roster, '0820000085').some((c) => c.id === 'cli_cap_85'));
+assert.ok(classRosterPeople(roster).length > 80);
+assert.equal(
+  classRosterPeople(roster).some((c) => c.id === 'cli_zed'),
+  false
+);
+
+const fsfCal = scheduleClassOnCalendar(roster, {
+  planId: rFsf.id,
+  date: '2026-08-17',
+  start_time: '05:00',
+  end_time: '06:00',
+  recurrence: {
+    frequency: 'weekly',
+    interval: 1,
+    weekdays: [1, 3, 5],
+    count: 4,
+  },
+  now: '2026-08-17T10:00:00.000Z',
+});
+if ('error' in fsfCal) throw new Error(fsfCal.error);
+const bootCal = scheduleClassOnCalendar(roster, {
+  planId: rBoot.id,
+  date: '2026-08-17',
+  start_time: '17:30',
+  end_time: '18:30',
+  recurrence: {
+    frequency: 'weekly',
+    interval: 1,
+    weekdays: [1, 2, 4],
+    count: 3,
+  },
+  now: '2026-08-17T10:00:00.000Z',
+});
+if ('error' in bootCal) throw new Error(bootCal.error);
+
+const eveBoth = allocateMemberToClass(roster, {
+  clientId: 'cli_eve',
+  planIds: [rFsf.id, rBoot.id],
+  chargesByPlanId: { [rFsf.id]: 800, [rBoot.id]: 400 },
+  now: '2026-08-17T10:00:00.000Z',
+});
+if ('error' in eveBoth) throw new Error(eveBoth.error);
+const eveLive = roster.subscriptions.filter(
+  (s) =>
+    s.client_id === 'cli_eve' &&
+    (s.status === 'active' || s.status === 'trialing')
+);
+assert.equal(eveLive.length, 2);
+assert.ok(sessionRosterNames(roster, fsfCal.sessions[0].id).includes('Eve'));
+assert.ok(sessionRosterNames(roster, bootCal.sessions[0].id).includes('Eve'));
+const eveRow = roster.clients.find((c) => c.id === 'cli_eve')!;
+assert.equal(eveRow.agreed_rate_zar, 1200);
+assert.equal(eveRow.membership_plan_id, rFsf.id);
+
+const dropFsf = setClassMembers(roster, {
+  planId: rFsf.id,
+  clientIds: [],
+  now: '2026-08-18T09:00:00.000Z',
+});
+if ('error' in dropFsf) throw new Error(dropFsf.error);
+assert.equal(dropFsf.dropped, 1);
+assert.equal(
+  roster.subscriptions.find(
+    (s) => s.client_id === 'cli_eve' && s.plan_id === rFsf.id
+  )?.status,
+  'cancelled'
+);
+const bootSub = roster.subscriptions.find(
+  (s) => s.client_id === 'cli_eve' && s.plan_id === rBoot.id
+);
+assert.equal(bootSub?.status, 'active');
+assert.equal(bootSub?.charged_zar, 400);
+const eveAfter = roster.clients.find((c) => c.id === 'cli_eve')!;
+assert.equal(eveAfter.membership_plan_id, rBoot.id);
+assert.equal(eveAfter.agreed_rate_zar, 400);
+assert.equal(eveAfter.active, true);
+assert.ok(roster.clients.some((c) => c.id === 'cli_eve'));
+const futureFsf = fsfCal.sessions.find((s) => s.date >= '2026-08-18');
+const futureBoot = bootCal.sessions.find((s) => s.date >= '2026-08-18');
+if (!futureFsf || !futureBoot) throw new Error('expected future class dates');
+assert.equal(
+  sessionRosterNames(roster, futureFsf.id).includes('Eve'),
+  false
+);
+assert.ok(sessionRosterNames(roster, futureBoot.id).includes('Eve'));
+assert.equal(
+  roster.bookings.some(
+    (b) =>
+      b.client_id === 'cli_eve' &&
+      b.session_id === futureFsf.id &&
+      b.status !== 'cancelled' &&
+      b.status !== 'attended' &&
+      b.status !== 'no_show'
+  ),
+  false
+);
+assert.ok(
+  roster.bookings.some(
+    (b) =>
+      b.client_id === 'cli_eve' &&
+      b.session_id === futureBoot.id &&
+      b.status !== 'cancelled'
+  )
+);
+
+const skipInactive = setClassMembers(roster, {
+  planId: rFsf.id,
+  clientIds: ['cli_zed', 'cli_eve'],
+  now: '2026-08-18T10:00:00.000Z',
+});
+if ('error' in skipInactive) throw new Error(skipInactive.error);
+assert.equal(
+  roster.subscriptions.some(
+    (s) =>
+      s.client_id === 'cli_zed' &&
+      s.plan_id === rFsf.id &&
+      (s.status === 'active' || s.status === 'trialing')
+  ),
+  false
+);
+assert.equal(
+  roster.subscriptions.find(
+    (s) => s.client_id === 'cli_eve' && s.plan_id === rFsf.id
+  )?.status,
+  'active'
+);
+assert.equal(
+  roster.subscriptions.find(
+    (s) => s.client_id === 'cli_eve' && s.plan_id === rBoot.id
+  )?.status,
+  'active'
+);
+assert.equal(
+  roster.subscriptions.find(
+    (s) => s.client_id === 'cli_eve' && s.plan_id === rFsf.id
+  )?.charged_zar,
+  800
+);
+
+const parkEve = allocateMemberToClass(roster, {
+  clientId: 'cli_eve',
+  inactive: true,
+  now: '2026-08-20T10:00:00.000Z',
+});
+if ('error' in parkEve) throw new Error(parkEve.error);
+assert.ok(roster.clients.some((c) => c.id === 'cli_eve'));
+const eveParked = roster.clients.find((c) => c.id === 'cli_eve')!;
+assert.equal(eveParked.active, false);
+assert.equal(eveParked.membership_status, 'cancelled');
+assert.equal(eveParked.membership_plan_id, null);
+assert.equal(
+  roster.subscriptions.some(
+    (s) =>
+      s.client_id === 'cli_eve' &&
+      (s.status === 'active' || s.status === 'trialing')
+  ),
+  false
+);
+assert.equal(
+  roster.bookings.some(
+    (b) =>
+      b.client_id === 'cli_eve' &&
+      b.status !== 'cancelled' &&
+      b.status !== 'attended' &&
+      b.status !== 'no_show' &&
+      (roster.sessions.find((s) => s.id === b.session_id)?.date || '') >=
+        '2026-08-20'
+  ),
+  false
+);
+const afterPark = setClassMembers(roster, {
+  planId: rBoot.id,
+  clientIds: ['cli_eve'],
+  now: '2026-08-20T11:00:00.000Z',
+});
+if ('error' in afterPark) throw new Error(afterPark.error);
+assert.equal(afterPark.members, 0);
+assert.equal(
+  roster.subscriptions.some(
+    (s) =>
+      s.client_id === 'cli_eve' &&
+      (s.status === 'active' || s.status === 'trialing')
+  ),
+  false
+);
 
 console.log('class-allocate.test.ts ok');

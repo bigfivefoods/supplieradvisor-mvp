@@ -119,7 +119,7 @@ const PHASES: Phase[] = [
         title: 'Class memberships',
         who: 'Owner',
         desc: 'Edit each class in the list (rate, coach, when). Open a row to change times and repeats. Allocate members at a charged rate.',
-        href: '/dashboard/fitgraph/memberships',
+        href: '/dashboard/fitgraph/classes',
         icon: CreditCard,
       },
       {

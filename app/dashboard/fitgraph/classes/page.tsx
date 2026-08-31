@@ -1,17 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   FitgraphWorkbench,
   LoadingBlock,
   useFitgraph,
 } from '@/components/fitness/FitgraphWorkbench';
+import { ClassDeskTable } from '@/components/fitness/ClassDeskTable';
 import { DataTable, FormCard, StatRow, fc } from '@/components/fitness/FitForm';
-import { VukaClassBoard } from '@/components/fitness/VukaClassBoard';
 import {
-  listSubscribeClasses,
   storeUsesClassSubscribe,
   VUKA_JOINING,
 } from '@/lib/fitness/vuka-class-catalog';
@@ -27,16 +26,10 @@ const blankForm = () => ({
 });
 
 export default function ClassesPage() {
-  const router = useRouter();
-  const { store, loading, saving, post, summary } = useFitgraph();
+  const search = useSearchParams();
+  const { companyId, store, loading, saving, post, summary } = useFitgraph();
   const classSubscribe = store ? storeUsesClassSubscribe(store) : false;
-  const subscribeClasses = store ? listSubscribeClasses(store) : [];
-
-  useEffect(() => {
-    if (store && classSubscribe) {
-      router.replace('/dashboard/fitgraph/memberships');
-    }
-  }, [store, classSubscribe, router]);
+  const rosterPlanId = search.get('roster');
   const formAnchorRef = useRef<HTMLDivElement>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(blankForm);
@@ -102,62 +95,126 @@ export default function ClassesPage() {
     setForm(blankForm());
   };
 
+  if (loading || !store) {
+    return (
+      <FitgraphWorkbench
+        title="Classes"
+        titleAccent="roster · coach · calendar"
+        description="Class · coach · calendar · booked members."
+      >
+        <LoadingBlock />
+      </FitgraphWorkbench>
+    );
+  }
+
+  if (classSubscribe) {
+    return (
+      <FitgraphWorkbench
+        title="Classes"
+        titleAccent="roster · coach · calendar"
+        description="The class list. Tap N booked to add or drop members. Open a row to set times, coach, calendar and shop bio."
+      >
+          <div className="space-y-6">
+            <StatRow
+              tone="owner"
+              items={[
+                {
+                  label: 'Classes',
+                  value:
+                    Number(summary?.planCount) || store.membership_plans.length,
+                },
+                {
+                  label: 'Active members',
+                  value: Number(summary?.activeSubscriptions) || 0,
+                },
+                {
+                  label: 'Coaches',
+                  value: store.coaches.filter((c) => c.active !== false).length,
+                },
+              ]}
+            />
+            {store.settings?.public_token ? (
+              <div className="rounded-2xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm dark:border-yellow-800 dark:bg-yellow-950/40">
+                <p className="font-black dark:text-white">New member onboarding</p>
+                <p className="mt-1 text-[12px] text-slate-600 dark:text-yellow-100/80">
+                  Send the group or private contract form. Answers save on their
+                  profile for you only.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-3 text-[12px] font-bold">
+                  <a
+                    className="underline"
+                    href={`/join/fitgraph/${encodeURIComponent(store.settings.public_token)}?kind=group`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Group class form
+                  </a>
+                  <a
+                    className="underline"
+                    href={`/join/fitgraph/${encodeURIComponent(store.settings.public_token)}?kind=private`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Private form
+                  </a>
+                </div>
+              </div>
+            ) : null}
+            {store.settings?.joining_fee_zar != null ? (
+              <p className="rounded-xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs text-yellow-950 dark:border-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-100">
+                Once-off joining R{store.settings.joining_fee_zar}
+                {store.settings.joining_fee_waived
+                  ? ' — currently waived (free).'
+                  : '.'}{' '}
+                {store.settings.joining_fee_note || VUKA_JOINING.note}
+              </p>
+            ) : null}
+            <p className="rounded-2xl border border-yellow-100 bg-yellow-50/70 px-4 py-3 text-xs text-slate-700 dark:border-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-100">
+              Tick members on a class and press <strong>Save booked members</strong>{' '}
+              — they stay booked on the calendar. Actual rates live on{' '}
+              <a
+                href="/dashboard/fitgraph/clients"
+                className="font-bold text-yellow-800 underline dark:text-yellow-200"
+              >
+                Clients
+              </a>
+              .
+            </p>
+            <ClassDeskTable
+              store={store}
+              post={post}
+              saving={saving}
+              classSubscribe
+              companyId={companyId}
+              initialRosterId={rosterPlanId}
+            />
+          </div>
+      </FitgraphWorkbench>
+    );
+  }
+
   return (
     <FitgraphWorkbench
-      title={classSubscribe ? 'Classes' : 'Class types'}
-      titleAccent={classSubscribe ? 'subscribe' : 'catalogue'}
-      description={
-        classSubscribe
-          ? 'These class types match the memberships (one class per programme — FSF, kettlebell, bootcamp, pilates…). Add each to Calendar, then put members on those sessions from their membership.'
-          : 'Step 1 of the floor flow: define class types first (HIIT, strength, yoga…). Edit any type below, then Calendar → create a class → assign coach → add members.'
-      }
+      title="Class types"
+      titleAccent="catalogue"
+      description="Step 1 of the floor flow: define class types first (HIIT, strength, yoga…). Edit any type below, then Calendar → create a class → assign coach → add members."
     >
-      {loading || !store || classSubscribe ? (
-        <LoadingBlock />
-      ) : (
         <div className="space-y-6">
           <StatRow
             tone="owner"
             items={[
               {
-                label: classSubscribe ? 'Subscribe classes' : 'Class types',
-                value: classSubscribe
-                  ? subscribeClasses.length
-                  : Number(summary?.classTypeCount) || store.class_types.length,
+                label: 'Class types',
+                value:
+                  Number(summary?.classTypeCount) || store.class_types.length,
               },
               {
                 label: 'Active types',
                 value: store.class_types.filter((c) => c.active !== false)
                   .length,
               },
-              ...(classSubscribe
-                ? [
-                    {
-                      label: 'Class subscribers',
-                      value: subscribeClasses.reduce(
-                        (n, c) => n + c.subscribers,
-                        0
-                      ),
-                    },
-                  ]
-                : []),
             ]}
           />
-
-          {classSubscribe ? (
-            <VukaClassBoard
-              classes={subscribeClasses}
-              joining={
-                store.settings?.joining_fee_zar != null
-                  ? {
-                      fee_zar: store.settings.joining_fee_zar,
-                      waived: store.settings.joining_fee_waived,
-                      note: store.settings.joining_fee_note || VUKA_JOINING.note,
-                    }
-                  : null
-              }
-            />
-          ) : null}
 
           <div ref={formAnchorRef}>
             <FormCard
@@ -288,7 +345,6 @@ export default function ClassesPage() {
             }}
           />
         </div>
-      )}
     </FitgraphWorkbench>
   );
 }
