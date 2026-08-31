@@ -82,6 +82,7 @@ export default function GymDoorPage() {
   const [pinStep, setPinStep] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [portalPath, setPortalPath] = useState('');
+  const [verifiedToken, setVerifiedToken] = useState('');
 
   // ── Load gym ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -197,6 +198,7 @@ export default function GymDoorPage() {
       if (!res.ok) throw new Error(data.error || 'Invalid code');
       if (data.portal_token) storeToken('sa_fitgraph_member_token', data.portal_token);
       if (data.offer_pin) {
+        setVerifiedToken(data.portal_token || '');
         setPortalPath(data.portal_path || '');
         setPinStep(true);
       } else if (data.portal_path) {
@@ -217,7 +219,7 @@ export default function GymDoorPage() {
       await fetch('/api/public/fitgraph', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, action: 'set_pin', email: signinEmail, pin: pinInput, lane }),
+        body: JSON.stringify({ token, action: 'set_pin', email: signinEmail, pin: pinInput, lane, portal_token: verifiedToken }),
       });
     } catch { /* PIN save is best-effort */ } finally {
       setBusy(false);

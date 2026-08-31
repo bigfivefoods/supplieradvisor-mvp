@@ -552,28 +552,35 @@ export async function POST(request: NextRequest) {
     // ── Door auth: set_pin ────────────────────────────────────────────────
     if (action === 'set_pin') {
       const { hashPin, isValidPin, findClientByEmail, findCoachByEmail } = await import('@/lib/fitness/gym-door-auth');
+      const { clientMatchesPortalToken } = await import('@/lib/fitness/fitgraph');
       const email = String(body.email || '').trim().toLowerCase();
       const pin = String(body.pin || '').trim();
       const lane = String(body.lane || 'returning');
+      const portalToken = String(body.portal_token || '').trim();
       if (!isValidPin(pin)) {
         return NextResponse.json({ error: 'PIN must be 4–6 digits' }, { status: 400 });
       }
+      if (!portalToken) {
+        return NextResponse.json({ error: 'portal_token required' }, { status: 401 });
+      }
       if (lane === 'coach') {
         const coach = findCoachByEmail(store, email);
-        if (coach) {
-          coach.pin_hash = hashPin(pin);
-          const idx = store.coaches.findIndex((c) => c.id === coach.id);
-          if (idx >= 0) store.coaches[idx] = coach;
-          await saveStore(companyId, meta, store);
+        if (!coach || String(coach.portal_token || '').trim() !== portalToken) {
+          return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
         }
+        coach.pin_hash = hashPin(pin);
+        const idx = store.coaches.findIndex((c) => c.id === coach.id);
+        if (idx >= 0) store.coaches[idx] = coach;
+        await saveStore(companyId, meta, store);
       } else {
         const client = findClientByEmail(store, email);
-        if (client) {
-          client.pin_hash = hashPin(pin);
-          const idx = store.clients.findIndex((c) => c.id === client.id);
-          if (idx >= 0) store.clients[idx] = client;
-          await saveStore(companyId, meta, store);
+        if (!client || !clientMatchesPortalToken(client, portalToken)) {
+          return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
         }
+        client.pin_hash = hashPin(pin);
+        const idx = store.clients.findIndex((c) => c.id === client.id);
+        if (idx >= 0) store.clients[idx] = client;
+        await saveStore(companyId, meta, store);
       }
       return NextResponse.json({ success: true });
     }

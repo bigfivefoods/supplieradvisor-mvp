@@ -9,7 +9,7 @@
  * NEVER stores a plaintext code or PIN.
  */
 
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash, randomInt, timingSafeEqual } from 'node:crypto';
 import type { FitClient, FitCoach, FitgraphStore } from './fitgraph';
 
 // ---------------------------------------------------------------------------
@@ -44,9 +44,9 @@ export function secretsMatch(plain: string, storedHash: string): boolean {
 // 6-digit email code
 // ---------------------------------------------------------------------------
 
-/** Pad-left to 6 digits (e.g. "007421"). */
+/** Pad-left to 6 digits (e.g. "007421"). Uses CSPRNG. */
 export function generateEmailCode(): string {
-  const n = Math.floor(Math.random() * 1_000_000);
+  const n = randomInt(0, 1_000_000);
   return String(n).padStart(6, '0');
 }
 
