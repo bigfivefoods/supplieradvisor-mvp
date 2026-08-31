@@ -8,6 +8,10 @@ import {
   batchLineIndex,
   finishedGoodNeedsLot,
 } from '@/lib/portals/supplier-portal-party';
+import {
+  missingSelectColumn,
+  stripSelectColumn,
+} from '@/lib/portals/select-retry';
 
 export type ReceiveFromPoResult = {
   ok: boolean;
@@ -43,16 +47,33 @@ export async function receivePurchaseOrderToInventory(opts: {
   let createdProducts = 0;
   const createMissing = opts.createMissingProducts !== false;
 
-  const { data: po, error } = await supabase
-    .from('purchase_orders')
-    .select(
-      'id, buyer_profile_id, supplier_profile_id, items, status, metadata, delivered_quantity, order_quantity, po_number, order_number'
-    )
-    .eq('id', opts.poId)
-    .eq('buyer_profile_id', opts.companyId)
-    .maybeSingle();
+  const PO_SELECT_BASE =
+    'id, buyer_profile_id, supplier_profile_id, items, status, metadata, delivered_quantity, order_quantity, po_number';
+  let poSelect = PO_SELECT_BASE;
+  let po: Record<string, unknown> | null = null;
+  let lastError: { message: string } | null = null;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const { data, error: selErr } = await supabase
+      .from('purchase_orders')
+      .select(poSelect)
+      .eq('id', opts.poId)
+      .eq('buyer_profile_id', opts.companyId)
+      .maybeSingle();
+    if (!selErr) {
+      po = data as Record<string, unknown> | null;
+      lastError = null;
+      break;
+    }
+    const bad = missingSelectColumn(selErr.message);
+    if (bad) {
+      poSelect = stripSelectColumn(poSelect, bad);
+      continue;
+    }
+    lastError = selErr;
+    break;
+  }
 
-  if (error) {
+  if (lastError) {
     return {
       ok: false,
       receivedLines: 0,
@@ -60,7 +81,7 @@ export async function receivePurchaseOrderToInventory(opts: {
       qtyTotal: 0,
       createdProducts: 0,
       warnings,
-      error: error.message,
+      error: lastError.message,
     };
   }
   if (!po) {
