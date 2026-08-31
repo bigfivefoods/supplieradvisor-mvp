@@ -1576,7 +1576,9 @@ export async function POST(request: NextRequest) {
         by_role: 'member',
         by_id: client.id,
         source: body.source != null ? String(body.source) : 'manual',
-        nowIso: now,
+        nowIso: (body.at || body.date)
+          ? String(body.at || body.date)
+          : now,
       });
       applyGoalToStore(store, next);
       await saveStore(companyId, meta, store);

@@ -2369,13 +2369,14 @@ export default function CoachFitgraphPortalPage() {
                   setRecordBusy(null);
                 }
               }}
-              onLogActual={async (goalId, value) => {
+              onLogActual={async (goalId, value, at) => {
                 setRecordBusy('goals');
                 try {
                   await post({
                     action: 'log_goal',
                     goal_id: goalId,
                     value,
+                    ...(at ? { at } : {}),
                   });
                 } finally {
                   setRecordBusy(null);

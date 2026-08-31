@@ -69,7 +69,7 @@ export function MemberGoalsPanel({
     direction: string;
   }) => void | Promise<void>;
   onHideGoal?: (goalId: string) => void | Promise<void>;
-  onLogActual: (goalId: string, value: string) => void | Promise<void>;
+  onLogActual: (goalId: string, value: string, at: string) => void | Promise<void>;
   onWatchLog: (v: {
     booking_id: string;
     source: string;
@@ -93,6 +93,7 @@ export function MemberGoalsPanel({
   const [targetDate, setTargetDate] = useState('');
   const [unit, setUnit] = useState(preset.unit);
   const [actualDraft, setActualDraft] = useState<Record<string, string>>({});
+  const [actualDate, setActualDate] = useState<Record<string, string>>({});
   const [watchBooking, setWatchBooking] = useState(pastClasses?.[0]?.booking_id || '');
   const [watchSource, setWatchSource] = useState('garmin');
   const [watchDur, setWatchDur] = useState('');
@@ -215,12 +216,21 @@ export function MemberGoalsPanel({
                       setActualDraft((cur) => ({ ...cur, [g.id]: e.target.value }))
                     }
                   />
+                  <input
+                    type="date"
+                    className="rounded-xl border border-slate-200 px-2 py-1.5 text-sm"
+                    value={actualDate[g.id] || ''}
+                    onChange={(e) =>
+                      setActualDate((cur) => ({ ...cur, [g.id]: e.target.value }))
+                    }
+                  />
                   <button
                     type="button"
                     disabled={busy || !String(actualDraft[g.id] || '').trim()}
                     onClick={() => {
                       const v = actualDraft[g.id];
-                      void Promise.resolve(onLogActual(g.id, v))
+                      const d = actualDate[g.id] || '';
+                      void Promise.resolve(onLogActual(g.id, v, d))
                         .then(() => {
                           setActualDraft((cur) => ({ ...cur, [g.id]: '' }));
                         })

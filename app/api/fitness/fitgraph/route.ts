@@ -2239,7 +2239,9 @@ export async function POST(request: NextRequest) {
       const next = logGoalActual(prev, value, {
         by_role: 'owner',
         source: 'desk',
-        nowIso: now,
+        nowIso: (body.at || body.date)
+          ? String(body.at || body.date)
+          : now,
       });
       applyGoalToStore(store, next);
       await saveStore(companyId, meta, store);

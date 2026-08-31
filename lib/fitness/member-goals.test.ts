@@ -183,4 +183,95 @@ assert.equal(hit.booking_id, 'b1');
 const miss = matchWatchToSession(store, 'c1', '2026-08-19T18:00:00', 45);
 assert.equal(miss.session_id, null);
 
+// ── Brief 30 tests ────────────────────────────────────────────────────────────
+
+// T1: Coach upsert_goal twice on same coach id → ONE goal; second save keeps check_ins
+{
+  const s = emptyFitgraphStore();
+  s.coaches = [{
+    id: 'coach1', name: 'Bob', code: 'B', created_at: '', updated_at: '',
+    goals: [],
+  } as never];
+  s.clients = [];
+  s.goals = [];
+  const g1 = createMemberGoal({ client_id: 'coach1', kind: 'weight', start_value: 90, target_value: 80, nowIso: '2026-08-01T00:00:00Z' });
+  applyGoalToStore(s, g1);
+  // Log an actual so there is a check_in beyond the start one
+  const g1a = logGoalActual(s.goals![0], 88, { nowIso: '2026-08-05T00:00:00Z' });
+  applyGoalToStore(s, g1a);
+  const checkInsAfterFirst = (s.goals![0].check_ins || []).length;
+  assert.ok(checkInsAfterFirst >= 2, 'should have start + actual check_in');
+  // Simulate second upsert: find prev by same kind+title+active, spread it (keeping check_ins)
+  const prev = (s.goals || []).find(g => g.client_id === 'coach1' && g.kind === 'weight' && g.status === 'active');
+  assert.ok(prev, 'first goal should exist');
+  const g2 = { ...prev!, target_value: 75, updated_at: '2026-08-10T00:00:00Z' };
+  applyGoalToStore(s, g2);
+  const coachGoals = (s.goals || []).filter(g => g.client_id === 'coach1');
+  assert.equal(coachGoals.length, 1, 'should be ONE goal after second save');
+  assert.equal(coachGoals[0].target_value, 75);
+  assert.ok((coachGoals[0].check_ins || []).length >= 2, 'check_ins must be kept on second upsert');
+}
+
+// T2: logGoalActual with custom nowIso → check_ins[0].at starts with that date;
+//     writeFitgraphToMetadata / readFitgraphFromMetadata roundtrip still has it
+{
+  const s = emptyFitgraphStore();
+  s.clients = [{ id: 'c2', name: 'Eve', code: 'E', created_at: '', updated_at: '' } as never];
+  const g = createMemberGoal({ client_id: 'c2', kind: 'weight', start_value: 90, target_value: 80 });
+  applyGoalToStore(s, g);
+  const logged = logGoalActual(s.goals![0], 85, { nowIso: '2026-08-12T00:00:00.000Z' });
+  applyGoalToStore(s, logged);
+  const blob = writeFitgraphToMetadata({}, s);
+  const reloaded = readFitgraphFromMetadata(blob);
+  const ci = (reloaded.goals || [])[0]?.check_ins || [];
+  const aug12 = ci.find(c => c.at.startsWith('2026-08-12'));
+  assert.ok(aug12, 'check_in dated 2026-08-12 must survive roundtrip');
+}
+
+// T3: retainMemberProgress(latestWithChecks, incomingPlanOnly) keeps the check-ins
+{
+  const latest = emptyFitgraphStore();
+  const goalWithHistory: import('./fitgraph-relationship').FitGoal = {
+    id: 'gH',
+    client_id: 'c3',
+    title: 'Lose weight',
+    category: 'physical',
+    status: 'active',
+    check_ins: [{ id: 'ci1', at: '2026-08-01T00:00:00Z', metric_value: 90 }],
+    created_at: '2026-08-01',
+    updated_at: '2026-08-10',
+    created_by_role: 'member',
+  };
+  latest.goals = [goalWithHistory];
+  latest.clients = [{ id: 'c3', name: 'Carl', code: 'C', created_at: '', updated_at: '', goals: [goalWithHistory] } as never];
+  // incoming has same goal id but no check_ins (plan-only save)
+  const incoming = emptyFitgraphStore();
+  const planOnly = { ...goalWithHistory, check_ins: [] };
+  incoming.goals = [planOnly];
+  incoming.clients = [{ id: 'c3', name: 'Carl', code: 'C', created_at: '', updated_at: '', goals: [planOnly] } as never];
+  const merged = retainMemberProgress(latest, incoming);
+  const mergedGoal = (merged.goals || []).find(g => g.id === 'gH');
+  assert.ok(mergedGoal, 'goal must exist');
+  assert.ok((mergedGoal!.check_ins || []).length >= 1, 'check_ins must be retained from latest');
+}
+
+// T4: Injury on a person survives a later goal save that omitted injuries
+{
+  const s = emptyFitgraphStore();
+  const injury = { id: 'inj1', body_part: 'knee', note: 'strained', created_at: '2026-08-01' };
+  s.clients = [{ id: 'c4', name: 'Dan', code: 'D', created_at: '', updated_at: '', injuries: [injury], goals: [] } as never];
+  s.goals = [];
+  // Now simulate a goal-only save that wipes injuries from incoming
+  const incoming = emptyFitgraphStore();
+  const newGoal = createMemberGoal({ client_id: 'c4', kind: 'weight', start_value: 80, target_value: 70 });
+  incoming.goals = [newGoal];
+  incoming.clients = [{ id: 'c4', name: 'Dan', code: 'D', created_at: '', updated_at: '', injuries: [], goals: [newGoal] } as never];
+  const retained = retainMemberProgress(s, incoming);
+  const client = (retained.clients || []).find(c => c.id === 'c4');
+  assert.ok(
+    ((client as never as { injuries?: Array<{ id?: string }> })?.injuries || []).some(i => i.id === 'inj1'),
+    'injury must survive goal save'
+  );
+}
+
 console.log('member-goals.test.ts ok');
