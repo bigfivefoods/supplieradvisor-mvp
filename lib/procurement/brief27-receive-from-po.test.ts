@@ -39,9 +39,13 @@ const hostSrc = readFileSync(
   resolve('lib/portals/host-purchase-orders.ts'),
   'utf8'
 );
-// Extract the PO_WIDE and PO_SOFT constant regions by checking the exported const lines
-const wideLine = hostSrc.match(/PO_WIDE\s*=\s*['"`]([^'"`]+)['"`]/)?.[1] || '';
-const softLine = hostSrc.match(/PO_SOFT\s*=\s*['"`]([^'"`]+)['"`]/)?.[1] || '';
+// Extract constant values: each is a single-quoted multi-line const, find the string content
+const wideMatch = hostSrc.match(/export const PO_WIDE\s*=\s*'([^']+)'/);
+const softMatch = hostSrc.match(/export const PO_SOFT\s*=\s*'([^']+)'/);
+assert.ok(wideMatch, 'PO_WIDE must be defined in host-purchase-orders.ts');
+assert.ok(softMatch, 'PO_SOFT must be defined in host-purchase-orders.ts');
+const wideLine = wideMatch![1];
+const softLine = softMatch![1];
 assert.equal(
   wideLine.includes('order_number'),
   false,
