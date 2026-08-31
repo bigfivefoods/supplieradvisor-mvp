@@ -412,8 +412,8 @@ export const FIT_SCREEN_ACCESS: Record<
     owner: true,
     coach: false,
     member: false,
-    desk: true,
-    notes: 'Owner hub; desk may use Today board subset',
+    desk: false,
+    notes: 'Owner-only hub; desk staff-today board lives outside this gate',
   },
   '/dashboard/fitgraph/coaches': {
     owner: true,
@@ -424,10 +424,10 @@ export const FIT_SCREEN_ACCESS: Record<
   },
   '/dashboard/fitgraph/coach-calendar': {
     owner: true,
-    coach: true,
+    coach: false,
     member: false,
-    desk: true,
-    notes: 'Redirects to gym calendar',
+    desk: false,
+    notes: 'Owner-only in company OS; coaches use coach PWA calendar',
   },
   '/dashboard/fitgraph/clients': {
     owner: true,

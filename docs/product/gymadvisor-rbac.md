@@ -141,9 +141,9 @@ Sign-up via Privy → accept invite → role binding active. They remain a norma
 - [x] `can()` with coach session / client scoping
 - [x] `clientsVisibleToCoach()`
 - [x] Screen access map for nav gating
-- [ ] API routes: call `can()` before mutations
-- [ ] UI: hide nav items via `FIT_SCREEN_ACCESS`
-- [ ] Bind `platform_user_id` on coach accept (mirror client)
+- [x] API routes: call `can()` before mutations — `requireCompanyRoles(['owner'])` on all GymAdvisor desk routes (Brief 29)
+- [x] UI: hide nav items via `FIT_SCREEN_ACCESS` — `fitgraph` module uses `gym_owner` resource (Brief 29)
+- [x] Bind `platform_user_id` on coach accept (mirror client) — `link_platform_user` action on coach portal (Brief 29)
 - [ ] Optional Supabase `gym_roles` when multi-gym analytics demand it
 
 ## POPIA / liability notes

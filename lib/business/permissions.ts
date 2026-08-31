@@ -55,7 +55,9 @@ export type PermissionResource =
   /** Schools / NSNP kitchen, learners, SP procurement, prizes */
   | 'schools'
   /** Platform control plane — SupplierAdvisor admin console only */
-  | 'platform';
+  | 'platform'
+  /** GymAdvisor® OS — company workspace; gym owner only (not coach/ops/admin) */
+  | 'gym_owner';
 
 const ALL_RESOURCES: PermissionResource[] = [
   'dashboard',
@@ -86,6 +88,7 @@ const ALL_RESOURCES: PermissionResource[] = [
   'people',
   'schools',
   'platform',
+  'gym_owner',
 ];
 
 const LEVEL_RANK: Record<AccessLevel, number> = {
@@ -119,6 +122,8 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     banking: 'none',
     // Platform console is owner-first; admin can view on platform company
     platform: 'view',
+    // GymAdvisor OS is owner-only
+    gym_owner: 'none',
   },
   member: {
     ...fullAccess('write'),
@@ -129,6 +134,7 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     invites: 'none',
     accounting: 'none',
     platform: 'none',
+    gym_owner: 'none',
   },
   viewer: {
     ...fullAccess('view'),
@@ -137,6 +143,7 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     accounting: 'none',
     verification: 'view',
     platform: 'none',
+    gym_owner: 'none',
   },
   finance: {
     ...fullAccess('view'),
@@ -148,6 +155,7 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     sales_portal: 'admin',
     invites: 'none',
     platform: 'none',
+    gym_owner: 'none',
   },
   operations: {
     ...fullAccess('view'),
@@ -166,6 +174,7 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     accounting: 'none',
     banking: 'none',
     platform: 'none',
+    gym_owner: 'none',
   },
   sales: {
     ...fullAccess('view'),
@@ -177,6 +186,7 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     accounting: 'none',
     invites: 'none',
     platform: 'none',
+    gym_owner: 'none',
   },
   /**
    * Independent sales contractors: ONLY the /sales portal UI.
@@ -190,6 +200,7 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     dashboard: 'none',
     buyer: 'none',
     platform: 'none',
+    gym_owner: 'none',
   },
 };
 
@@ -378,7 +389,7 @@ export const SIDEBAR_MODULE_RESOURCE: Record<string, PermissionResource> = {
   sustainability: 'operations',
   fieldgraph: 'operations',
   quarrygraph: 'operations',
-  fitgraph: 'operations',
+  fitgraph: 'gym_owner',
   physiograph: 'operations',
   dentalgraph: 'operations',
   hiregraph: 'operations',
@@ -433,7 +444,7 @@ export function resourceForPath(pathname: string | null | undefined): Permission
   if (pathname.startsWith('/dashboard/sustainability')) return 'operations';
   if (pathname.startsWith('/dashboard/fieldgraph')) return 'operations';
   if (pathname.startsWith('/dashboard/quarrygraph')) return 'operations';
-  if (pathname.startsWith('/dashboard/fitgraph')) return 'operations';
+  if (pathname.startsWith('/dashboard/fitgraph')) return 'gym_owner';
   if (pathname.startsWith('/dashboard/physiograph')) return 'operations';
   if (pathname.startsWith('/dashboard/dentalgraph')) return 'operations';
   if (pathname.startsWith('/dashboard/hiregraph')) return 'operations';
@@ -524,6 +535,7 @@ export function resourceLabel(resource: PermissionResource): string {
     people: 'People (HR)',
     schools: 'SchoolAdvisor® (NSNP)',
     platform: 'Platform console',
+    gym_owner: 'GymAdvisor® (owner only)',
   };
   return map[resource];
 }

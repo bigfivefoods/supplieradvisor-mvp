@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
-  requireCompanyAccess,
+  requireCompanyRoles,
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import {
@@ -35,6 +35,8 @@ import {
   sessionBookingCount,
   sessionsInRange,
   setGymOwnerEmails,
+  coachIsGymOwner,
+  coachPortalEmails,
   summariseFitgraph,
   summariseSessionFeedback,
   upsertClassFeedback,
@@ -165,17 +167,37 @@ function analysis(store: FitgraphStore) {
   };
 }
 
+async function stampOwnerEmails(companyId: number, store: FitgraphStore): Promise<void> {
+  try {
+    const { emails } = await resolveCompanyEmails(companyId, {
+      roleAllowlist: ['owner'],
+      includeInvited: true,
+      limit: 20,
+    });
+    const ownerEmails = [
+      ...emails,
+      store.settings?.contact_email,
+    ].filter((e): e is string => Boolean(e));
+    setGymOwnerEmails(store, ownerEmails);
+  } catch {
+    /* best-effort */
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    const gate = await requireCompanyAccess(request, companyId, {
+    const gate = await requireCompanyRoles(request, companyId, ['owner'], {
       legacyPrivyUserId: legacyPrivyFrom(request),
     });
     if (!gate.ok) return gate.response;
     const { store } = await loadStore(companyId);
+
+    // Stamp owner emails so coachIsGymOwner works correctly on every load
+    await stampOwnerEmails(companyId, store);
     const wantLibrary =
       request.nextUrl.searchParams.get('include') === 'library';
 
@@ -232,7 +254,7 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    const gate = await requireCompanyAccess(request, companyId, {
+    const gate = await requireCompanyRoles(request, companyId, ['owner'], {
       legacyPrivyUserId: legacyPrivyFrom(request),
     });
     if (!gate.ok) return gate.response;
@@ -241,6 +263,9 @@ export async function POST(request: NextRequest) {
     const entity = String(body.entity || '') as Entity;
     const { meta, store } = await loadStore(companyId, { fresh: true });
     const now = new Date().toISOString();
+
+    // Stamp owner emails on every mutation load so coachIsGymOwner resolves correctly
+    await stampOwnerEmails(companyId, store);
 
     if (action === 'seed_demo') {
       const demo = seedDemo(now, companyId);
@@ -456,6 +481,35 @@ export async function POST(request: NextRequest) {
       coach.portal_token = issueCoachPortalToken(companyId);
       coach.can_manage_classes = true;
       await saveStore(companyId, meta, store);
+
+      // Send the work-invite link to the coach's email.
+      // When the coach IS the gym owner (coachIsGymOwner), coachPortalEmails
+      // returns the owner email — the link goes there (not skipped, not to a
+      // second address).
+      const sendTo = coachPortalEmails(coach).filter((e) => e.includes('@'));
+      if (sendTo.length) {
+        const portalLink = `${process.env.NEXT_PUBLIC_APP_URL || ''}/coach/fitgraph/${coach.portal_token}`;
+        const businessName = store.settings?.brand_name || 'Your Gym';
+        const isOwnerCoach = coachIsGymOwner(store, coach);
+        const subjectSuffix = isOwnerCoach ? ' (coach access)' : '';
+        try {
+          const resend = getResend();
+          for (const to of sendTo) {
+            await resend.emails.send({
+              from: getResendFrom(),
+              replyTo: getResendReplyTo(),
+              to,
+              subject: `${businessName} — your GymAdvisor® coach workspace${subjectSuffix}`,
+              tags: [{ name: 'company_id', value: String(companyId) }],
+              html: `<p>Hi ${coach.name},</p><p>Your GymAdvisor® coach workspace is ready: <a href="${portalLink}">${portalLink}</a></p><p>${businessName} team</p>`,
+              text: `Hi ${coach.name},\n\nYour GymAdvisor® coach workspace is ready:\n${portalLink}\n\n${businessName} team`,
+            });
+          }
+        } catch {
+          /* email best-effort — portal token already issued */
+        }
+      }
+
       return NextResponse.json({
         success: true,
         store,

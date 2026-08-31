@@ -603,6 +603,33 @@ export async function POST(request: NextRequest) {
      * Profile self-service — every coach with a portal can update bio etc.
      * (Does not require can_manage_classes.)
      */
+    if (action === 'link_platform_user') {
+      const idx = store.coaches.findIndex((c) => c.id === coach.id);
+      if (idx < 0) {
+        return NextResponse.json({ error: 'Coach not found' }, { status: 404 });
+      }
+      const coachRow = store.coaches[idx];
+      // Verify SA session and bind platform_user_id (mirrors FitClient.link_platform_user)
+      try {
+        const { linkPlatformUserId } = await import('@/lib/messaging/link-platform-user');
+        const { requireVerifiedUser, legacyPrivyFrom: lgFrom } = await import('@/lib/auth/api-auth');
+        const gate = await requireVerifiedUser(request, { legacyPrivyUserId: lgFrom(request, body) });
+        if (gate.ok) {
+          linkPlatformUserId(coachRow, gate.userId);
+        }
+      } catch {
+        /* best-effort */
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        platform_user_id: coachRow.platform_user_id || null,
+        message: coachRow.platform_user_id
+          ? 'Linked to your SupplierAdvisor account'
+          : 'Could not link system user',
+      });
+    }
+
     if (action === 'update_profile') {
       const idx = store.coaches.findIndex((c) => c.id === coach.id);
       if (idx < 0) {
