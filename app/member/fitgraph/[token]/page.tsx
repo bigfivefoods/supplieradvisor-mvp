@@ -88,6 +88,7 @@ import {
   parsePersonalBests,
 } from '@/lib/fitness/person-records';
 import type { PersonHealthProfile } from '@/lib/health/body-map';
+import { gymPwaFieldClass } from '@/lib/fitness/gym-pwa-theme';
 
 const MEMBER_TOKEN_KEY = 'sa_fitgraph_member_token';
 
@@ -1267,7 +1268,7 @@ export default function MemberFitgraphPortalPage() {
                             : 'border-slate-200 bg-white dark:border-white/10 dark:bg-neutral-900'
                         }`}
                       >
-                        <p className="text-sm font-black text-slate-900 truncate">
+                        <p className="text-sm font-black text-slate-900 truncate dark:text-white">
                           {t.title || t.subject || 'Conversation'}
                           {(t.unread || 0) > 0 ? (
                             <span className="ml-2 text-[10px] font-black uppercase text-amber-700">
@@ -1289,7 +1290,7 @@ export default function MemberFitgraphPortalPage() {
                   if (!thr) return null;
                   return (
                     <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-neutral-900">
-                      <p className="text-xs font-bold text-slate-500">
+                      <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
                         {thr.title || thr.subject || 'Conversation'}
                       </p>
                       <div className="max-h-72 overflow-y-auto space-y-2">
@@ -1300,8 +1301,8 @@ export default function MemberFitgraphPortalPage() {
                               key={m.id}
                               className={`rounded-xl px-3 py-2 text-sm ${
                                 mine
-                                  ? 'bg-yellow-100 text-yellow-950 ml-6'
-                                  : 'bg-slate-100 text-slate-900 mr-6'
+                                  ? 'ml-6 bg-yellow-100 text-yellow-950 dark:bg-yellow-900 dark:text-yellow-100'
+                                  : 'mr-6 bg-slate-100 text-slate-900 dark:bg-neutral-800 dark:text-white'
                               }`}
                             >
                               <p className="text-[10px] font-bold opacity-70 mb-0.5">
@@ -1316,8 +1317,8 @@ export default function MemberFitgraphPortalPage() {
                       </div>
                       <div className="flex gap-2">
                         <input
-                          className="min-h-11 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-neutral-950"
-                          placeholder="Reply…"
+                          className={`${gymPwaFieldClass} min-h-11 flex-1`}
+                          placeholder="Reply to your coach…"
                           value={msgReply}
                           onChange={(e) => setMsgReply(e.target.value)}
                           onKeyDown={(e) => {

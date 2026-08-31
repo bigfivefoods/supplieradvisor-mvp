@@ -17,6 +17,8 @@ import {
   isTradeParty,
   normalizePartyKey,
   nextFreeCode,
+  isLegacyIntegerArCode,
+  isLegacyIntegerApCode,
   partyDisplayName,
   pickRecognitionControlAccount,
   pickSettlementControlAccount,
@@ -32,6 +34,10 @@ assert.equal(normalizePartyKey('Holtz Group'), 'holtz');
 assert.equal(normalizePartyKey('Holtz'), 'holtz');
 assert.equal(normalizePartyKey('Shakiles Packaging Pty Ltd'), 'shakiles packaging');
 assert.equal(nextFreeCode(new Set(['1181', '1182']), 1181), '1183');
+assert.equal(isLegacyIntegerArCode('1181'), true);
+assert.equal(isLegacyIntegerArCode('1180-0000012'), false);
+assert.equal(isLegacyIntegerApCode('2181'), true);
+assert.equal(isLegacyIntegerApCode('2180-0000008'), false);
 assert.equal(memberArAccountCode(1), '1180-0000001');
 assert.equal(memberArAccountCode(200), '1180-0000200');
 assert.equal(memberArAccountCode(0), '');

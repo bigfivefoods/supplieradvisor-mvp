@@ -10,6 +10,7 @@ import { FIT_GOAL_CATEGORIES } from '@/lib/fitness/fitgraph-relationship';
 import type { GoalPeriodKey } from '@/lib/fitness/goal-chart';
 import { GoalPeriodPicker, GoalSparkline } from '@/components/fitness/GoalTrendChart';
 import { GymExpandSection } from '@/components/fitness/GymMemberPwaUi';
+import { gymPwaFieldClass } from '@/lib/fitness/gym-pwa-theme';
 
 const CATEGORY_LABEL: Record<string, string> = {
   physical: 'Physical',
@@ -139,7 +140,7 @@ export function MemberGoalsPanel({
           {goals.map((g) => (
             <li
               key={g.id}
-              className="space-y-3 rounded-3xl border border-yellow-200/90 bg-white p-3.5 shadow-sm dark:border-yellow-500/20 dark:bg-neutral-900"
+              className="space-y-3 rounded-3xl border border-yellow-200/90 bg-white p-3.5 text-slate-900 shadow-sm dark:border-yellow-500/20 dark:bg-neutral-900 dark:text-white"
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
@@ -159,7 +160,7 @@ export function MemberGoalsPanel({
                 ) : null}
               </div>
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-xl bg-slate-50 px-2 py-1.5">
+                <div className="rounded-xl bg-yellow-50 px-2 py-1.5">
                   <p className="text-[9px] font-black uppercase text-slate-400">
                     Start
                   </p>
@@ -177,7 +178,7 @@ export function MemberGoalsPanel({
                     {g.unit ? ` ${g.unit}` : ''}
                   </p>
                 </div>
-                <div className="rounded-xl bg-slate-50 px-2 py-1.5">
+                <div className="rounded-xl bg-yellow-50 px-2 py-1.5">
                   <p className="text-[9px] font-black uppercase text-slate-400">
                     Target
                   </p>
@@ -208,7 +209,7 @@ export function MemberGoalsPanel({
               {g.status === 'active' ? (
                 <div className="flex gap-2">
                   <input
-                    className="flex-1 rounded-xl border border-slate-200 px-3 py-1.5 text-sm"
+                    className={`${gymPwaFieldClass} flex-1 py-1.5`}
                     inputMode="decimal"
                     placeholder={`Actual${g.unit ? ` (${g.unit})` : ''}`}
                     value={actualDraft[g.id] || ''}
@@ -218,7 +219,7 @@ export function MemberGoalsPanel({
                   />
                   <input
                     type="date"
-                    className="rounded-xl border border-slate-200 px-2 py-1.5 text-sm"
+                    className={`${gymPwaFieldClass} w-auto px-2 py-1.5`}
                     value={actualDate[g.id] || ''}
                     onChange={(e) =>
                       setActualDate((cur) => ({ ...cur, [g.id]: e.target.value }))
@@ -292,7 +293,7 @@ export function MemberGoalsPanel({
         <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
           Category
           <select
-            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold dark:border-white/10 dark:bg-neutral-950"
+            className={`${gymPwaFieldClass} mt-1 font-semibold`}
             value={category}
             onChange={(e) => {
               const next = e.target.value;
@@ -338,21 +339,21 @@ export function MemberGoalsPanel({
           ))}
         </div>
         <input
-          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+          className={gymPwaFieldClass}
           placeholder="Goal name"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
         <div className="grid grid-cols-2 gap-2">
           <input
-            className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+            className={gymPwaFieldClass}
             inputMode="decimal"
             placeholder={`Start ${unit || ''}`.trim()}
             value={startValue}
             onChange={(e) => setStartValue(e.target.value)}
           />
           <input
-            className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+            className={gymPwaFieldClass}
             inputMode="decimal"
             placeholder={`Target ${unit || ''}`.trim()}
             value={targetValue}
@@ -361,7 +362,7 @@ export function MemberGoalsPanel({
         </div>
         <input
           type="date"
-          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+          className={gymPwaFieldClass}
           value={targetDate}
           onChange={(e) => setTargetDate(e.target.value)}
         />
@@ -453,7 +454,7 @@ export function MemberGoalsPanel({
         {(pastClasses || []).length > 0 ? (
           <>
             <select
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              className={gymPwaFieldClass}
               value={watchBooking}
               onChange={(e) => setWatchBooking(e.target.value)}
             >
@@ -464,7 +465,7 @@ export function MemberGoalsPanel({
               ))}
             </select>
             <select
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              className={gymPwaFieldClass}
               value={watchSource}
               onChange={(e) => setWatchSource(e.target.value)}
             >
@@ -475,14 +476,14 @@ export function MemberGoalsPanel({
             </select>
             <div className="grid grid-cols-2 gap-2">
               <input
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className={gymPwaFieldClass}
                 placeholder="Minutes"
                 inputMode="decimal"
                 value={watchDur}
                 onChange={(e) => setWatchDur(e.target.value)}
               />
               <input
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                className={gymPwaFieldClass}
                 placeholder="Distance km"
                 inputMode="decimal"
                 value={watchKm}

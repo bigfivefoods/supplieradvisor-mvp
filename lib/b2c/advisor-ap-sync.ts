@@ -81,7 +81,6 @@ export async function attachApToAdvisorContractor(opts: {
       phone: opts.person.phone || null,
       kind: opts.kind,
       refId: opts.person.id,
-      skipPartyGl: true,
     });
     if (row?.id) {
       opts.person.srm_supplier_id = row.id;
@@ -354,7 +353,6 @@ export async function syncAdvisorContractorsToSuppliers(
           phone: row.person.phone || null,
           kind: row.kind,
           refId: row.person.id,
-          skipPartyGl: true,
         })
       )
     );

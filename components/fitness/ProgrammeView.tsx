@@ -15,7 +15,7 @@ export function ProgrammeView({
 }) {
   const card = dark
     ? 'rounded-xl border border-slate-700 bg-slate-950/50 p-3 space-y-2'
-    : 'rounded-xl border border-yellow-200 bg-yellow-50/50 p-3 space-y-2 dark:border-yellow-800 dark:bg-yellow-950/30';
+    : 'rounded-xl border border-slate-200 bg-white p-3 space-y-2 text-slate-900 dark:border-white/15 dark:bg-neutral-900 dark:text-white';
   const blocks = programme.blocks || [];
   const showCal = !compact && blocks.length > 1;
   return (

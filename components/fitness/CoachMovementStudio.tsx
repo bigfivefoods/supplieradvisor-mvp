@@ -1,11 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Loader2, Plus, Trash2, X } from 'lucide-react';
+import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { MovementMediaFields } from '@/components/fitness/MovementMediaFields';
 import { ProgrammeView } from '@/components/fitness/ProgrammeView';
 import { MovementLibraryBrowse } from '@/components/fitness/MovementLibraryBrowse';
+import { GymPwaSheet } from '@/components/fitness/GymPwaSheet';
 import { isSystemMovement } from '@/lib/fitness/movement-catalog';
+import { gymPwaCompactFieldClass, gymPwaFieldClass } from '@/lib/fitness/gym-pwa-theme';
 import {
   MOVEMENT_CATEGORIES,
   hydrateProgramme,
@@ -74,6 +76,7 @@ export function CoachMovementStudio({
     items: [] as FitProgrammeItem[],
   });
   const [addMovementId, setAddMovementId] = useState('');
+  const compactFieldClass = `${gymPwaCompactFieldClass} px-2 py-1.5`;
 
   const post = async (body: Record<string, unknown>) => {
     setBusy(true);
@@ -208,18 +211,29 @@ export function CoachMovementStudio({
 
   return (
     <div className="fixed inset-0 z-[80] bg-black/70 flex items-end sm:items-center justify-center p-3">
-      <div className="w-full max-w-2xl max-h-[94dvh] overflow-y-auto rounded-3xl border border-slate-700 bg-slate-900 p-5 space-y-4">
-        <div className="flex justify-between gap-2">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-wider text-amber-400">
-              Coach library
-            </p>
-            <h3 className="text-lg font-black">Movements & programmes</h3>
-          </div>
-          <button type="button" onClick={onClose}>
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+      <div className="w-full max-w-2xl max-h-[94dvh] overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 space-y-4 dark:border-white/15 dark:bg-neutral-950 dark:text-white">
+        <GymPwaSheet
+          title="Movements & programmes"
+          onBack={
+            tab === 'programmes' && prgForm.id
+              ? () =>
+                  setPrgForm({
+                    id: '',
+                    name: '',
+                    description: '',
+                    kind: 'class',
+                    class_type_ids: [],
+                    session_ids: [],
+                    personal_for_coach: false,
+                    items: [],
+                  })
+              : undefined
+          }
+          onClose={onClose}
+        />
+        <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+          Coach library
+        </p>
         <div className="flex gap-1 rounded-xl bg-slate-950 p-1">
           {(['movements', 'programmes'] as const).map((t) => (
             <button
@@ -241,7 +255,6 @@ export function CoachMovementStudio({
         {tab === 'movements' ? (
           <div className="space-y-3">
             <MovementLibraryBrowse
-              dark
               movements={movements}
               uploadFile={uploadFile}
               onSaveImage={async (m, url) => {
@@ -317,7 +330,7 @@ export function CoachMovementStudio({
                   {movForm.id ? 'Edit your movement' : 'Your movement'}
                 </p>
                 <input
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                  className={gymPwaFieldClass}
                   placeholder="Movement name"
                   value={movForm.name}
                   onChange={(e) =>
@@ -326,7 +339,7 @@ export function CoachMovementStudio({
                 />
                 <div className="grid grid-cols-2 gap-2">
                   <select
-                    className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                    className={gymPwaFieldClass}
                     value={movForm.category}
                     onChange={(e) =>
                       setMovForm((f) => ({ ...f, category: e.target.value }))
@@ -339,7 +352,7 @@ export function CoachMovementStudio({
                     ))}
                   </select>
                   <input
-                    className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                    className={gymPwaFieldClass}
                     placeholder="Equipment"
                     value={movForm.equipment}
                     onChange={(e) =>
@@ -348,7 +361,7 @@ export function CoachMovementStudio({
                   />
                 </div>
                 <input
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                  className={gymPwaFieldClass}
                   placeholder="Primary muscles"
                   value={movForm.muscles}
                   onChange={(e) =>
@@ -356,7 +369,7 @@ export function CoachMovementStudio({
                   }
                 />
                 <textarea
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[2.5rem] resize-y"
+                  className={`${gymPwaFieldClass} min-h-[2.5rem] resize-y`}
                   placeholder="Overview — one or two sentences"
                   value={movForm.overview}
                   onChange={(e) =>
@@ -364,7 +377,7 @@ export function CoachMovementStudio({
                   }
                 />
                 <textarea
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[4rem] resize-y"
+                  className={`${gymPwaFieldClass} min-h-[4rem] resize-y`}
                   placeholder="Details — setup, cues, faults, how to scale"
                   value={movForm.details}
                   onChange={(e) =>
@@ -372,7 +385,6 @@ export function CoachMovementStudio({
                   }
                 />
                 <MovementMediaFields
-                  dark
                   uploadFile={uploadFile}
                   imageUrl={movForm.image_url}
                   videoUrl={movForm.video_url}
@@ -411,7 +423,7 @@ export function CoachMovementStudio({
         ) : (
           <div className="space-y-3">
             <input
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              className={gymPwaFieldClass}
               placeholder="Programme name"
               value={prgForm.name}
               onChange={(e) =>
@@ -419,7 +431,7 @@ export function CoachMovementStudio({
               }
             />
             <select
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+              className={gymPwaFieldClass}
               value={prgForm.kind}
               onChange={(e) =>
                 setPrgForm((f) => ({
@@ -433,7 +445,7 @@ export function CoachMovementStudio({
               <option value="both">Class + personal</option>
             </select>
             <textarea
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm min-h-[3rem] resize-y"
+              className={`${gymPwaFieldClass} min-h-[3rem] resize-y`}
               placeholder="What this programme is for"
               value={prgForm.description}
               onChange={(e) =>
@@ -452,7 +464,7 @@ export function CoachMovementStudio({
                       {idx + 1}. {mv?.name || 'Removed'}
                     </p>
                     <input
-                      className="rounded-xl border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm"
+                      className={compactFieldClass}
                       type="number"
                       placeholder="Sets"
                       value={it.sets ?? ''}
@@ -473,7 +485,7 @@ export function CoachMovementStudio({
                       }
                     />
                     <input
-                      className="rounded-xl border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm"
+                      className={compactFieldClass}
                       placeholder="Reps"
                       value={it.reps || ''}
                       onChange={(e) =>
@@ -505,7 +517,7 @@ export function CoachMovementStudio({
             </ul>
             <div className="flex gap-2">
               <select
-                className="flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                className={`flex-1 ${gymPwaFieldClass}`}
                 value={addMovementId}
                 onChange={(e) => setAddMovementId(e.target.value)}
               >
@@ -610,7 +622,7 @@ export function CoachMovementStudio({
               </label>
             ) : null}
             {prgForm.items.length ? (
-              <ProgrammeView programme={preview} dark compact />
+              <ProgrammeView programme={preview} compact />
             ) : null}
             <button
               type="button"
