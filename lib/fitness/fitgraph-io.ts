@@ -98,8 +98,8 @@ export async function saveFitgraphMerged(
       try {
         next = mergeFitgraphStores(latest.store, store);
       } catch (err) {
-        console.warn('mergeFitgraphStores failed; keeping latest gym store', err);
-        next = latest.store;
+        console.warn('mergeFitgraphStores failed; keeping incoming store', err);
+        next = store;
       }
       const { retainMemberProgress } = await import('@/lib/fitness/member-goals');
       next = retainMemberProgress(latest.store, next);

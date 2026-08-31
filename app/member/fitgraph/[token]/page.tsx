@@ -1825,7 +1825,7 @@ export default function MemberFitgraphPortalPage() {
                   setBusyId(null);
                 }
               }}
-              onLogActual={async (goalId, value) => {
+              onLogActual={async (goalId, value, at) => {
                 setBusyId('goals');
                 setError(null);
                 try {
@@ -1833,6 +1833,7 @@ export default function MemberFitgraphPortalPage() {
                     action: 'log_goal',
                     goal_id: goalId,
                     value,
+                    ...(at ? { at } : {}),
                   });
                   setMsg(data.message || 'Actual saved');
                 } catch (e: unknown) {
@@ -2212,7 +2213,7 @@ export default function MemberFitgraphPortalPage() {
                   setBusyId(null);
                 }
               }}
-              onLogActual={async (goalId, value) => {
+              onLogActual={async (goalId, value, at) => {
                 setBusyId('goals');
                 setError(null);
                 try {
@@ -2220,6 +2221,7 @@ export default function MemberFitgraphPortalPage() {
                     action: 'log_goal',
                     goal_id: goalId,
                     value,
+                    ...(at ? { at } : {}),
                   });
                   setMsg(data.message || 'Actual saved');
                 } catch (e: unknown) {

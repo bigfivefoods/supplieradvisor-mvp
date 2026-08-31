@@ -884,26 +884,77 @@ export async function POST(request: NextRequest) {
       if (!may) {
         return NextResponse.json({ error: 'Member not on your book' }, { status: 403 });
       }
-      const goal = createMemberGoal({
-        client_id: subjectId,
-        coach_id: coach.id,
-        kind: String(body.kind || 'custom'),
-        title: String(body.title || ''),
-        category: body.category != null ? String(body.category) : undefined,
-        unit: body.unit != null ? String(body.unit) : undefined,
-        start_value: parseGoalNumber(body.start_value),
-        target_value: parseGoalNumber(body.target_value),
-        target_date: body.target_date
-          ? String(body.target_date).slice(0, 10)
-          : null,
-        created_by_role: 'coach',
-        nowIso: now,
-      });
-      applyGoalToStore(store, goal, `Goal set · ${goal.title}`);
+      const title = String(body.title || '').trim();
+      const kind = String(body.kind || 'custom');
+      const category = body.category != null ? String(body.category) : undefined;
+      const existingId = String(body.goal_id || body.id || '');
+      const allGoals = [
+        ...(store.goals || []),
+        ...(coach.goals || []),
+        ...store.clients.flatMap((c) => c.goals || []),
+      ];
+      const prev = existingId
+        ? allGoals.find((g) => g.id === existingId && g.client_id === subjectId)
+        : allGoals.find(
+            (g) =>
+              g.client_id === subjectId &&
+              (g.kind === kind || g.title === title) &&
+              g.status === 'active'
+          ) || null;
+      const startVal =
+        parseGoalNumber(body.start_value) ?? prev?.start_value ?? null;
+      const targetVal =
+        parseGoalNumber(body.target_value) ?? prev?.target_value ?? null;
+      const direction =
+        body.direction === 'increase' || body.direction === 'decrease'
+          ? body.direction
+          : undefined;
+      let goal = prev
+        ? {
+            ...prev,
+            title: title || prev.title,
+            kind: kind || prev.kind,
+            category: category || prev.category,
+            description:
+              body.description != null ? String(body.description) : prev.description,
+            unit:
+              body.unit != null ? String(body.unit) || null : prev.unit,
+            start_value: startVal,
+            target_value: targetVal,
+            current_value: prev.current_value ?? startVal,
+            target_date:
+              body.target_date != null
+                ? String(body.target_date).slice(0, 10) || null
+                : prev.target_date,
+            direction: direction || prev.direction,
+            coach_id: coach.id,
+            updated_at: now,
+          }
+        : createMemberGoal({
+            client_id: subjectId,
+            coach_id: coach.id,
+            kind,
+            title,
+            category,
+            description: body.description != null ? String(body.description) : undefined,
+            unit: body.unit != null ? String(body.unit) : undefined,
+            start_value: startVal,
+            target_value: targetVal,
+            target_date: body.target_date
+              ? String(body.target_date).slice(0, 10)
+              : null,
+            direction,
+            created_by_role: 'coach',
+            nowIso: now,
+          });
+      if (body.status === 'paused' || body.status === 'abandoned' || body.status === 'active') {
+        goal = { ...goal, status: body.status };
+      }
+      applyGoalToStore(store, goal, prev ? `Updated goal · ${goal.title}` : `Goal set · ${goal.title}`);
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
-        message: 'Goal saved',
+        message: prev ? 'Goal updated' : 'Goal saved',
         goal,
         portal: buildCoachPortalPayload(store, coach),
       });
@@ -938,7 +989,9 @@ export async function POST(request: NextRequest) {
         by_role: 'coach',
         by_id: coach.id,
         source: 'coach',
-        nowIso: now,
+        nowIso: (body.at || body.date)
+          ? String(body.at || body.date)
+          : now,
       });
       applyGoalToStore(store, next);
       await saveStore(companyId, meta, store);

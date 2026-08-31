@@ -562,30 +562,80 @@ export function retainMemberProgress(
   next: FitgraphStore
 ): FitgraphStore {
   const out: FitgraphStore = { ...next };
-  const nextGoals = [...(out.goals || [])];
-  const ids = new Set(nextGoals.map((g) => g.id).filter(Boolean));
+
+  // Union goals — merge check_ins for shared ids, add any goals only in latest
+  const nextGoalMap = new Map<string, FitGoal>(
+    (out.goals || []).filter((g) => g?.id).map((g) => [g.id, g])
+  );
   for (const g of latest.goals || []) {
-    if (g?.id && !ids.has(g.id)) {
-      nextGoals.push(g);
-      ids.add(g.id);
+    if (!g?.id) continue;
+    const existing = nextGoalMap.get(g.id);
+    if (!existing) {
+      nextGoalMap.set(g.id, g);
+    } else {
+      nextGoalMap.set(g.id, mergeGoalProgress(existing, g));
     }
   }
-  out.goals = nextGoals;
-  const latestById = new Map((latest.clients || []).map((c) => [c.id, c]));
+  out.goals = [...nextGoalMap.values()];
+
+  // Helper to union arrays of objects with an `id` field
+  function unionById<T extends { id?: string }>(a: T[], b: T[]): T[] {
+    const aNoId = a.filter((x) => !x?.id);
+    const bNoId = b.filter((x) => !x?.id);
+    const m = new Map<string, T>();
+    for (const x of [...a, ...b]) {
+      if (x?.id) m.set(x.id, m.has(x.id) ? { ...m.get(x.id)!, ...x } : x);
+    }
+    return [...m.values(), ...aNoId, ...bNoId];
+  }
+
+  const latestClientById = new Map((latest.clients || []).map((c) => [c.id, c]));
   out.clients = (out.clients || []).map((c) => {
-    const prev = latestById.get(c.id);
+    const prev = latestClientById.get(c.id);
     if (!prev) return c;
+    const mergedGoals = (c.goals || []).map((g) => {
+      if (!g?.id) return g;
+      const pg = (prev.goals || []).find((x) => x.id === g.id);
+      return pg ? mergeGoalProgress(g, pg) : g;
+    });
+    const prevOnlyGoals = (prev.goals || []).filter(
+      (g) => g?.id && !mergedGoals.some((x) => x?.id === g.id)
+    );
     return {
       ...c,
-      goals: (c.goals || []).length ? c.goals : prev.goals,
-      personal_bests: (c.personal_bests || []).length
-        ? c.personal_bests
-        : prev.personal_bests,
-      result_logs: (c.result_logs || []).length
-        ? c.result_logs
-        : prev.result_logs,
+      goals: [...mergedGoals, ...prevOnlyGoals],
+      personal_bests: unionById(c.personal_bests || [], prev.personal_bests || []),
+      result_logs: unionById(c.result_logs || [], prev.result_logs || []),
+      injuries: unionById(
+        (c as { injuries?: Array<{ id?: string }> }).injuries || [],
+        (prev as { injuries?: Array<{ id?: string }> }).injuries || []
+      ) as typeof c.injuries,
     };
   });
+
+  const latestCoachById = new Map((latest.coaches || []).map((c) => [c.id, c]));
+  out.coaches = (out.coaches || []).map((c) => {
+    const prev = latestCoachById.get(c.id);
+    if (!prev) return c;
+    const mergedGoals = (c.goals || []).map((g) => {
+      if (!g?.id) return g;
+      const pg = (prev.goals || []).find((x) => x.id === g.id);
+      return pg ? mergeGoalProgress(g, pg) : g;
+    });
+    const prevOnlyGoals = (prev.goals || []).filter(
+      (g) => g?.id && !mergedGoals.some((x) => x?.id === g.id)
+    );
+    return {
+      ...c,
+      goals: [...mergedGoals, ...prevOnlyGoals],
+      personal_bests: unionById(c.personal_bests || [], prev.personal_bests || []),
+      injuries: unionById(
+        (c as { injuries?: Array<{ id?: string }> }).injuries || [],
+        (prev as { injuries?: Array<{ id?: string }> }).injuries || []
+      ) as typeof c.injuries,
+    };
+  });
+
   return out;
 }
 
