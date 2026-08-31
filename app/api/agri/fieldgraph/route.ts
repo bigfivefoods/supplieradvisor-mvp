@@ -627,6 +627,14 @@ export async function POST(request: NextRequest) {
           source: 'fieldgraph_gang',
           person: gang,
         });
+        const { attachApToAdvisorContractor } = await import(
+          '@/lib/b2c/advisor-ap-sync'
+        );
+        await attachApToAdvisorContractor({
+          companyId,
+          kind: 'fieldgraph_gang',
+          person: gang,
+        });
       }
     }
 

@@ -1069,6 +1069,23 @@ export async function POST(request: NextRequest) {
       if ('error' in result) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
+      const allocated = store.clients.find(
+        (c) => c.id === String(body.client_id || '')
+      );
+      if (allocated) {
+        try {
+          const { attachCrmToAdvisorPerson } = await import(
+            '@/lib/b2c/member-account-ar'
+          );
+          await attachCrmToAdvisorPerson({
+            companyId,
+            kind: 'gym',
+            person: allocated,
+          });
+        } catch {
+          /* best-effort — Brief 38 stamps the gym book */
+        }
+      }
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,

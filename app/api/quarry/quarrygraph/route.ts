@@ -218,6 +218,14 @@ export async function POST(request: NextRequest) {
           source: 'quarrygraph_crew',
           person: crew,
         });
+        const { attachApToAdvisorContractor } = await import(
+          '@/lib/b2c/advisor-ap-sync'
+        );
+        await attachApToAdvisorContractor({
+          companyId,
+          kind: 'quarrygraph_crew',
+          person: crew,
+        });
       }
     }
 
