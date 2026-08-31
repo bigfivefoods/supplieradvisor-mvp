@@ -1818,6 +1818,9 @@ export async function POST(request: NextRequest) {
       const { calcDocTotals, normalizeItems, docNumber } = await import(
         '@/lib/customers/documents'
       );
+      const { isRealPoNumber } = await import(
+        '@/lib/procurement/po-email'
+      );
       const soItems = normalizeItems(lines);
       const taxRate = Number(body.tax_rate);
       const totals = calcDocTotals(
@@ -1834,10 +1837,10 @@ export async function POST(request: NextRequest) {
         totals.tax_amount = Number(body.tax_amount);
       }
       const amount = totals.total_amount;
-      const poNumber = String(body.po_number || '').trim().slice(0, 60);
-      if (!poNumber) {
-        return NextResponse.json({ error: 'PO number is required' }, { status: 400 });
-      }
+      // Keep client value only when it already matches PO-YYYYMMDD-XXXX;
+      // otherwise generate a canonical docNumber (customer ref preserved in metadata).
+      const clientRef = String(body.po_number || '').trim().slice(0, 60);
+      const poNumber = isRealPoNumber(clientRef) ? clientRef : docNumber('PO');
       const promised = body.promised_date
         ? String(body.promised_date).slice(0, 10)
         : leadDays
@@ -1891,7 +1894,6 @@ export async function POST(request: NextRequest) {
         source: 'customer_portal',
         status: 'sent',
         po_number: poNumber,
-        order_number: poNumber,
         description: String(
           body.description ||
             `Customer PO ${poNumber} from ${accountName}`
@@ -1911,7 +1913,7 @@ export async function POST(request: NextRequest) {
             ? String(body.attachment_name).slice(0, 160)
             : null,
           portal_viewer_id: viewer.id,
-          customer_po_number: poNumber,
+          customer_po_number: clientRef || null,
           ship_to: shipTo,
           bill_to: billTo,
           contact_name: contactName,

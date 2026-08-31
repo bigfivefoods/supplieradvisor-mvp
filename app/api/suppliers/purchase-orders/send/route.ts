@@ -6,9 +6,10 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import { logActivity } from '@/lib/customers/access';
-import { formatMoney } from '@/lib/customers/documents';
+import { docNumber, formatMoney } from '@/lib/customers/documents';
 import { buildPurchaseOrderPdf } from '@/lib/procurement/po-document-pdf';
 import {
+  isLegacyPoNumber,
   normalizeEmail,
   purchaseOrderCcList,
   purchaseOrderEmailHtml,
@@ -214,6 +215,10 @@ export async function POST(request: NextRequest) {
       updated_at: nowIso,
     };
     if (prev === 'draft') patch.status = 'sent';
+    // Stamp a real po_number on legacy rows when sending
+    if (isLegacyPoNumber(po.po_number as string | null | undefined)) {
+      patch.po_number = docNumber('PO');
+    }
     const { error: upErr } = await supabase
       .from('purchase_orders')
       .update(patch)

@@ -13,6 +13,8 @@ import {
   hasCostObject,
   normalizePoCostFields,
 } from '@/lib/procurement/allocate-po-cost';
+import { docNumber } from '@/lib/customers/documents';
+import { isLegacyPoNumber, isRealPoNumber } from '@/lib/procurement/po-email';
 
 /**
  * GET ?companyId=&privyUserId=&status=
@@ -540,10 +542,14 @@ export async function POST(request: NextRequest) {
       };
     }
 
+    const clientPoNumber = String(body.po_number || '').trim();
+    const assignedPoNumber = isRealPoNumber(clientPoNumber) ? clientPoNumber : docNumber('PO');
+
     const payload: Record<string, unknown> = {
       buyer_profile_id: companyId,
       supplier_profile_id: supplierProfileId,
       supplier_name: bookOnlyName || body.supplier_name || null,
+      po_number: assignedPoNumber,
       total_amount: normalized.total,
       subtotal: normalized.total,
       currency: body.currency ? String(body.currency) : 'ZAR',
@@ -997,6 +1003,12 @@ export async function PATCH(request: NextRequest) {
     }
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+    // Stamp a real po_number on legacy rows (digits-only, PO-\d+, or empty)
+    if (isLegacyPoNumber(po.po_number as string | null | undefined)) {
+      updates.po_number = docNumber('PO');
+    }
+
     const nextStatus = body.status != null ? String(body.status).toLowerCase() : null;
 
     // Cost object updates on any PATCH

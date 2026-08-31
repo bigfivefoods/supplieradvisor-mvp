@@ -5,6 +5,8 @@ import assert from 'node:assert/strict';
 import {
   formatPurchaseOrderNumber,
   isEmailAddress,
+  isLegacyPoNumber,
+  isRealPoNumber,
   normalizeEmail,
   purchaseOrderCcList,
   purchaseOrderEmailHtml,
@@ -12,12 +14,30 @@ import {
   purchaseOrderPdfFilename,
   srmIdFromPo,
 } from './po-email';
+import { docNumber } from '../customers/documents';
 
 assert.equal(isEmailAddress('craig@bigfivefoods.com'), true);
 assert.equal(isEmailAddress('not-an-email'), false);
 assert.equal(normalizeEmail('  Craig@BigFiveFoods.com '), 'craig@bigfivefoods.com');
 
-assert.equal(formatPurchaseOrderNumber({ id: 12, po_number: 'PO-0041' }), 'PO-0041');
+// docNumber('PO') produces the canonical shape
+assert.match(docNumber('PO'), /^PO-\d{8}-[A-Z0-9]{4}$/);
+
+// isRealPoNumber / isLegacyPoNumber
+assert.equal(isRealPoNumber('PO-20260831-ABCD'), true);
+assert.equal(isRealPoNumber('PO-1'), false);
+assert.equal(isRealPoNumber('1'), false);
+assert.equal(isRealPoNumber(null), false);
+assert.equal(isLegacyPoNumber('1'), true);
+assert.equal(isLegacyPoNumber('PO-1'), true);
+assert.equal(isLegacyPoNumber(''), true);
+assert.equal(isLegacyPoNumber('PO-20260831-ABCD'), false);
+
+// formatPurchaseOrderNumber prefers a real po_number over the row id
+assert.equal(formatPurchaseOrderNumber({ id: 1, po_number: 'PO-20260831-ABCD' }), 'PO-20260831-ABCD');
+// legacy values (digits-only, PO-\d+) are ignored; falls back to PO-{id}
+assert.equal(formatPurchaseOrderNumber({ id: 12, po_number: 'PO-0041' }), 'PO-12');
+assert.equal(formatPurchaseOrderNumber({ id: 12, po_number: '1' }), 'PO-12');
 assert.equal(formatPurchaseOrderNumber({ id: 9 }), 'PO-9');
 
 assert.equal(

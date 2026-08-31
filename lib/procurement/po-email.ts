@@ -17,6 +17,23 @@ export function normalizeEmail(raw: unknown): string | null {
   return isEmailAddress(s) ? s : null;
 }
 
+/** Matches the canonical PO number shape: PO-YYYYMMDD-XXXX */
+export const REAL_PO_NUMBER_RE = /^PO-\d{8}-[A-Z0-9]{4}$/i;
+
+/** Returns true for a real docNumber-style PO number (not a legacy/raw value). */
+export function isRealPoNumber(n: string | null | undefined): boolean {
+  return REAL_PO_NUMBER_RE.test(String(n || '').trim());
+}
+
+/** Returns true for values that should be treated as unset legacy PO numbers. */
+export function isLegacyPoNumber(n: string | null | undefined): boolean {
+  const s = String(n || '').trim();
+  if (!s) return true;
+  if (/^\d+$/.test(s)) return true;       // raw id: "1", "42"
+  if (/^PO-\d+$/i.test(s)) return true;   // PO-1, PO-9, PO-42
+  return false;
+}
+
 export function formatPurchaseOrderNumber(po: {
   id?: number | null;
   po_number?: string | null;
@@ -25,7 +42,7 @@ export function formatPurchaseOrderNumber(po: {
   const n =
     String(po.po_number || '').trim() ||
     String(po.order_number || '').trim();
-  if (n) return n;
+  if (n && !isLegacyPoNumber(n)) return n;
   const id = Number(po.id);
   return Number.isFinite(id) && id > 0 ? `PO-${id}` : 'PO';
 }
