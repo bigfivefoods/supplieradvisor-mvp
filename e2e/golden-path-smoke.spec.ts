@@ -38,7 +38,8 @@ test.describe('Golden path smoke (public)', () => {
     const res = await request.get(`${base}/sitemap.xml`);
     expect(res.status()).toBe(200);
     const body = await res.text();
-    expect(body).toMatch(/urlset|url/i);
+    expect(body).toMatch(/sitemapindex/i);
+    expect(body).toContain('/sitemap/0.xml');
   });
 
   test('robots.txt present', async ({ request }) => {

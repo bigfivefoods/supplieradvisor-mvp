@@ -108,6 +108,16 @@ const nextConfig = {
       },
     ];
   },
+  async rewrites() {
+    return {
+      beforeFiles: [
+        {
+          source: '/sitemap.xml',
+          destination: '/sitemap-index.xml',
+        },
+      ],
+    };
+  },
 };
 
 module.exports = nextConfig;
