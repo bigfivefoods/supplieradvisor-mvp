@@ -23,6 +23,19 @@ export function isCustomerPoEscrowEnabled(): boolean {
   return ['1', 'true', 'yes', 'on'].includes(String(raw).toLowerCase().trim());
 }
 
+/**
+ * Feature flag: client-signed POEscrowV2 on the **buyer SRM** path
+ * (`/dashboard/suppliers/po`). Default **true** when unset (core trust product).
+ * Set `SUPPLIER_PO_ESCROW_ENABLED=0` or `NEXT_PUBLIC_SUPPLIER_PO_ESCROW_ENABLED=0` to hide.
+ */
+export function isSupplierPoEscrowEnabled(): boolean {
+  const raw =
+    process.env.SUPPLIER_PO_ESCROW_ENABLED ??
+    process.env.NEXT_PUBLIC_SUPPLIER_PO_ESCROW_ENABLED;
+  if (raw === undefined || raw === '') return true;
+  return !['0', 'false', 'no', 'off'].includes(String(raw).toLowerCase().trim());
+}
+
 export const PO_STATUSES = [
   'draft',
   'sent',
@@ -54,6 +67,45 @@ export const SELLER_PO_TRANSITIONS: Record<string, string[]> = {
 
 /** Buyer may cancel only draft/sent own POs */
 export const BUYER_PO_CANCEL_STATUSES = ['draft', 'sent'] as const;
+
+/**
+ * Buyer SRM (procurement) status machine — off-chain lifecycle.
+ * Escrow fund maps to `funded`; delivery + OTIFEF capture lands on `completed`.
+ */
+export const SRM_BUYER_PO_TRANSITIONS: Record<string, string[]> = {
+  draft: ['sent', 'cancelled'],
+  sent: ['accepted', 'cancelled'],
+  accepted: ['funded', 'completed', 'cancelled'],
+  funded: ['completed', 'cancelled'],
+  paid: ['completed'],
+  completed: [],
+  cancelled: [],
+};
+
+export function isSrmBuyerTransitionAllowed(from: string, to: string): boolean {
+  const allowed = SRM_BUYER_PO_TRANSITIONS[String(from || '').toLowerCase()];
+  return Array.isArray(allowed) && allowed.includes(String(to || '').toLowerCase());
+}
+
+export function poStatusBadgeClass(status?: string | null): string {
+  switch (String(status || '').toLowerCase()) {
+    case 'draft':
+      return 'bg-neutral-100 text-neutral-700';
+    case 'sent':
+      return 'bg-sky-100 text-sky-800';
+    case 'accepted':
+      return 'bg-indigo-100 text-indigo-800';
+    case 'funded':
+      return 'bg-violet-100 text-violet-800';
+    case 'paid':
+    case 'completed':
+      return 'bg-emerald-100 text-emerald-800';
+    case 'cancelled':
+      return 'bg-red-100 text-red-800';
+    default:
+      return 'bg-neutral-100 text-neutral-600';
+  }
+}
 
 export function isPoStatus(value: unknown): value is PoStatus {
   return typeof value === 'string' && (PO_STATUSES as readonly string[]).includes(value);

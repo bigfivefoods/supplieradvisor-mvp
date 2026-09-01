@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { getResend } from '@/lib/resend';
+import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import { INVITE_EXPIRY_DAYS } from '@/lib/auth/identity';
 import {
-  assertCompanyMember,
+  assertCustomersAccess,
   checkCustomerInviteRateLimits,
   isCustomerInvitesEnabled,
   logActivity,
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
     }
 
-    const member = await assertCompanyMember(privyUserId, companyId);
+    const member = await assertCustomersAccess(privyUserId, companyId, 'write');
     if (!member.ok) {
       return NextResponse.json({ error: member.error }, { status: member.status });
     }
@@ -234,7 +234,8 @@ export async function POST(request: NextRequest) {
     try {
       const resend = getResend();
       const { error: emailError } = await resend.emails.send({
-        from: 'SupplierAdvisor <onboarding@resend.dev>',
+        from: getResendFrom(),
+        replyTo: getResendReplyTo(),
         to: email,
         subject: `${sellerCompanyName} invited ${customerName} to SupplierAdvisor`,
         html: customerInviteEmailHtml({

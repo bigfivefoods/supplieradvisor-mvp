@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { docNumber } from '@/lib/customers/documents';
 import {
-  assertCompanyMember,
+  assertCustomersAccess,
   assertSellerCustomerNotSuspended,
 } from '@/lib/customers/access';
 
@@ -161,7 +161,7 @@ export async function PATCH(request: NextRequest) {
             { status: 400 }
           );
         }
-        const member = await assertCompanyMember(body.privyUserId, companyId);
+        const member = await assertCustomersAccess(body.privyUserId, companyId, 'write');
         if (!member.ok) {
           return NextResponse.json({ error: member.error }, { status: member.status });
         }
@@ -198,7 +198,7 @@ export async function PATCH(request: NextRequest) {
       } else if (changingShare && !nextShared) {
         // Unshare allowed while suspended — tighten access
         if (Number.isFinite(companyId) && companyId > 0) {
-          const member = await assertCompanyMember(body.privyUserId, companyId);
+          const member = await assertCustomersAccess(body.privyUserId, companyId, 'write');
           if (!member.ok) {
             return NextResponse.json({ error: member.error }, { status: member.status });
           }

@@ -1,171 +1,149 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { createClient } from '@/utils/supabase/client';
-import { Copy, RefreshCw, Eye, Clock } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Loader2, RefreshCw, Ban } from 'lucide-react';
+import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
+import { getSelectedCompanyId } from '@/lib/containers/company';
+import { getCanonicalUserId } from '@/lib/auth/identity';
+import { inviteStatusClass, type SupplierInvitation } from '@/lib/suppliers/types';
+import {
+  CompanyRequired,
+  SuppliersHeader,
+  SuppliersPage
+} from '@/components/suppliers/SuppliersShell';
 
-interface InvitedSupplier {
-  id: string;
-  trading_name: string;
-  email: string;
-  contact_name: string | null;
-  supplier_status: string;
-  invited_at: string | null;
-  claimed_at: string | null;
-  invited_by: string | null;
-  invite_token: string | null;
+export default function SupplierInvitesPage() {
+  return (
+    <CompanyRequired>
+      <InvitesInner />
+    </CompanyRequired>
+  );
 }
 
-export default function SentInvitationsPage() {
-  const supabase = createClient();
-
-  const [invites, setInvites] = useState<InvitedSupplier[]>([]);
+function InvitesInner() {
+  const companyId = getSelectedCompanyId()!;
+  const { user } = usePrivy();
+  const privyUserId = getCanonicalUserId(user?.id);
+  const [rows, setRows] = useState<SupplierInvitation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<number | null>(null);
 
-  const fetchInvites = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, trading_name, email, contact_name, supplier_status, invited_at, claimed_at, invited_by, invite_token')
-      .eq('relationship_type', 'supplier')
-      .in('supplier_status', ['invited', 'active'])
-      .order('invited_at', { ascending: false });
-
-    if (error) {
-      toast.error('Failed to load invitations');
-      console.error(error);
-    } else {
-      setInvites(data || []);
+    try {
+      const params = new URLSearchParams({ companyId: String(companyId) });
+      if (privyUserId) params.set('privyUserId', privyUserId);
+      const res = await fetch(`/api/suppliers/invites?${params}`);
+      const data = await res.json();
+      setRows(data.invitations || []);
+      if (data.warning) toast.message(data.warning);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  };
+  }, [companyId, privyUserId]);
 
   useEffect(() => {
-    fetchInvites();
-  }, [supabase]);
+    void load();
+  }, [load]);
 
-  const copyInviteLink = (token: string | null) => {
-    if (!token) return;
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const link = `${origin}/onboarding?invite=${token}`;
-    navigator.clipboard.writeText(link);
-    toast.success('Invite link copied to clipboard');
-  };
-
-  const resendInvite = async (invite: InvitedSupplier) => {
-    // For now just copy the link again. We can add real resend later.
-    if (invite.invite_token) {
-      copyInviteLink(invite.invite_token);
-      toast.success(`Resend link copied for ${invite.trading_name}`);
+  const act = async (id: number, action: 'resend' | 'revoke') => {
+    setBusy(id);
+    try {
+      const res = await fetch('/api/suppliers/invites', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          invitationId: id,
+          action,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast.success(action === 'resend' ? 'Invite resent' : 'Invite revoked');
+      if (data.inviteLink) {
+        try {
+          await navigator.clipboard.writeText(data.inviteLink);
+          toast.message('New link copied');
+        } catch {
+          /* ignore */
+        }
+      }
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusy(null);
     }
-  };
-
-  const getStatusBadge = (status: string) => {
-    if (status === 'active') {
-      return <span className="px-3 py-1 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full">Active</span>;
-    }
-    return <span className="px-3 py-1 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">Invited</span>;
-  };
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '—';
-    return new Intl.DateTimeFormat('en-GB', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date(dateString));
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-4xl font-black tracking-tight">Sent Invitations</h1>
-          <p className="text-neutral-600 mt-2">Track all supplier invitations you've sent</p>
-        </div>
-        <button 
-          onClick={fetchInvites} 
-          className="flex items-center gap-2 px-5 py-2.5 border rounded-2xl hover:bg-neutral-50"
-        >
-          <RefreshCw size={18} /> Refresh
-        </button>
-      </div>
+    <SuppliersPage>
+    <div className="pb-8">
+      <SuppliersHeader
+        title="Supplier invitations"
+        description="Pending and historical invites. Suppliers claim via secure link, activate their company, and take ownership — your book entry links automatically."
+      />
 
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#00b4d8]"></div>
-        </div>
-      ) : invites.length === 0 ? (
-        <div className="text-center py-20 bg-white rounded-3xl border">
-          <Clock className="mx-auto mb-4 text-neutral-400" size={48} />
-          <p className="text-xl text-neutral-600">No invitations sent yet.</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-3xl border border-neutral-200 overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-neutral-50 border-b">
-              <tr>
-                <th className="text-left px-8 py-5 font-semibold text-sm">Supplier</th>
-                <th className="text-left px-6 py-5 font-semibold text-sm">Contact</th>
-                <th className="text-left px-6 py-5 font-semibold text-sm">Invited By</th>
-                <th className="text-left px-6 py-5 font-semibold text-sm">Invited At</th>
-                <th className="text-left px-6 py-5 font-semibold text-sm">Status</th>
-                <th className="text-right px-8 py-5 font-semibold text-sm">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {invites.map((invite) => (
-                <tr key={invite.id} className="hover:bg-neutral-50 transition">
-                  <td className="px-8 py-6">
-                    <div className="font-semibold text-lg">{invite.trading_name}</div>
-                  </td>
-                  <td className="px-6 py-6">
-                    <div>{invite.contact_name || '—'}</div>
-                    <div className="text-sm text-neutral-500">{invite.email}</div>
-                  </td>
-                  <td className="px-6 py-6 text-sm text-neutral-600">
-                    {invite.invited_by || '—'}
-                  </td>
-                  <td className="px-6 py-6 text-sm text-neutral-600">
-                    {formatDate(invite.invited_at)}
-                  </td>
-                  <td className="px-6 py-6">
-                    {getStatusBadge(invite.supplier_status)}
-                  </td>
-                  <td className="px-8 py-6">
-                    <div className="flex justify-end gap-3">
+      <div className="bg-white border rounded-3xl overflow-hidden">
+        {loading ? (
+          <div className="p-16 flex justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="p-16 text-center text-sm text-neutral-500">No invitations yet.</div>
+        ) : (
+          <ul className="divide-y">
+            {rows.map((inv) => (
+              <li
+                key={inv.id}
+                className="px-5 py-4 flex flex-wrap gap-3 justify-between items-center text-sm"
+              >
+                <div>
+                  <div className="font-semibold">{inv.company_name || inv.email}</div>
+                  <div className="text-xs text-neutral-500">
+                    {inv.email}
+                    {inv.full_name ? ` · ${inv.full_name}` : ''}
+                    {inv.expires_at
+                      ? ` · expires ${new Date(inv.expires_at).toLocaleDateString()}`
+                      : ''}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${inviteStatusClass(inv.status)}`}
+                  >
+                    {inv.status}
+                  </span>
+                  {inv.status === 'pending' && (
+                    <>
                       <button
-                        onClick={() => copyInviteLink(invite.invite_token)}
-                        className="p-2.5 hover:bg-neutral-100 rounded-xl transition"
-                        title="Copy invite link"
+                        type="button"
+                        disabled={busy === inv.id}
+                        onClick={() => void act(inv.id, 'resend')}
+                        className="btn-secondary !py-1.5 !px-3 text-xs"
                       >
-                        <Copy size={18} />
+                        <RefreshCw className="w-3 h-3" /> Resend
                       </button>
                       <button
-                        onClick={() => resendInvite(invite)}
-                        className="p-2.5 hover:bg-neutral-100 rounded-xl transition"
-                        title="Resend invite"
+                        type="button"
+                        disabled={busy === inv.id}
+                        onClick={() => void act(inv.id, 'revoke')}
+                        className="text-xs text-red-600 inline-flex items-center gap-1 px-2"
                       >
-                        <RefreshCw size={18} />
+                        <Ban className="w-3 h-3" /> Revoke
                       </button>
-                      <a
-                        href={`/dashboard/suppliers/${invite.id}`}
-                        className="p-2.5 hover:bg-neutral-100 rounded-xl transition"
-                        title="View profile"
-                      >
-                        <Eye size={18} />
-                      </a>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                    </>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
+    </SuppliersPage>
   );
 }

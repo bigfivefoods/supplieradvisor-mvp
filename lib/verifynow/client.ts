@@ -1,6 +1,69 @@
-/** VerifyNow SA ID helpers — https://www.verifynow.co.za */
+/** VerifyNow API helpers — https://www.verifynow.co.za */
 
 export type VerifyNowMode = 'sandbox' | 'production';
+
+const VERIFY_BASE = 'https://www.verifynow.co.za/api/external';
+
+function resolveMode(explicit?: VerifyNowMode): VerifyNowMode {
+  if (explicit === 'sandbox' || explicit === 'production') return explicit;
+  const env = (process.env.VERIFYNOW_MODE as VerifyNowMode) || 'production';
+  return env === 'sandbox' ? 'sandbox' : 'production';
+}
+
+function getApiKey(): string | null {
+  const key = process.env.VERIFYNOW_API_KEY;
+  return key && key.trim() ? key.trim() : null;
+}
+
+async function postVerifyNow(
+  path: '/verify' | '/cipc',
+  body: Record<string, unknown>
+): Promise<{ ok: boolean; status: number; data: Record<string, unknown>; error?: string }> {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    return {
+      ok: false,
+      status: 503,
+      data: {},
+      error: 'VERIFYNOW_API_KEY is not configured on the server',
+    };
+  }
+
+  try {
+    const response = await fetch(`${VERIFY_BASE}${path}`, {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'Content-Type': 'application/json',
+        'Idempotency-Key': crypto.randomUUID(),
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!response.ok) {
+      return {
+        ok: false,
+        status: response.status,
+        data,
+        error:
+          String(
+            (data as { error?: string; message?: string }).error ||
+              (data as { message?: string }).message ||
+              `VerifyNow HTTP ${response.status}`
+          ) || 'VerifyNow request failed',
+      };
+    }
+    return { ok: true, status: response.status, data };
+  } catch (e: unknown) {
+    return {
+      ok: false,
+      status: 500,
+      data: {},
+      error: e instanceof Error ? e.message : 'VerifyNow network error',
+    };
+  }
+}
 
 /** Standard SA ID Luhn-style checksum (13 digits). */
 export function isValidSaIdNumber(id: string): boolean {
@@ -24,6 +87,14 @@ export function isValidSaIdNumber(id: string): boolean {
     sum += n;
   }
   return sum % 10 === 0 && yy >= 0;
+}
+
+/** Loose CIPC registration number check e.g. 2007/013732/07 or 2020/123456/07 */
+export function isValidCipcRegistrationNumber(value: string): boolean {
+  const raw = String(value || '').trim().toUpperCase();
+  if (!raw) return false;
+  // Common formats: YYYY/NNNNNN/NN or KYYYY/NNNNNN/NN (older close corps / entities)
+  return /^(K?\d{4}\/\d{6,7}\/\d{2})$/.test(raw);
 }
 
 export function parseVerifyNowSaidResult(result: Record<string, unknown>) {
@@ -77,60 +148,195 @@ export function parseVerifyNowSaidResult(result: Record<string, unknown>) {
   };
 }
 
+export type CipcCompanyResult = {
+  ok: boolean;
+  statusText: string;
+  companyName: string;
+  tradeName: string;
+  previousName: string;
+  registrationNumber: string;
+  registrationDate: string;
+  businessStartDate: string;
+  companyStatus: string;
+  companyType: string;
+  sic: string;
+  taxNumber: string;
+  vatNumber: string;
+  physicalAddress: string;
+  postalAddress: string;
+  directorCount: string;
+  requestId: string;
+  remainingCredits: number | null;
+  mode: string;
+  /** Soft match against local trading/legal name */
+  nameMatch: 'match' | 'partial' | 'mismatch' | 'unknown';
+};
+
+function normalizeCompanyName(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\b(pty|ltd|limited|inc|cc|npc|soc|rf)\b\.?/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function compareCompanyNames(
+  localNames: string[],
+  remoteName: string,
+  remoteTrade?: string
+): CipcCompanyResult['nameMatch'] {
+  const remotes = [remoteName, remoteTrade || '']
+    .map(normalizeCompanyName)
+    .filter(Boolean);
+  const locals = localNames.map(normalizeCompanyName).filter(Boolean);
+  if (!remotes.length || !locals.length) return 'unknown';
+
+  for (const local of locals) {
+    for (const remote of remotes) {
+      if (local === remote) return 'match';
+      if (local.includes(remote) || remote.includes(local)) return 'partial';
+      // token overlap: at least 2 significant tokens
+      const a = new Set(local.split(' ').filter((t) => t.length > 2));
+      const b = new Set(remote.split(' ').filter((t) => t.length > 2));
+      let overlap = 0;
+      for (const t of a) if (b.has(t)) overlap++;
+      if (overlap >= 2) return 'partial';
+    }
+  }
+  return 'mismatch';
+}
+
+export function parseVerifyNowCipcResult(
+  result: Record<string, unknown>,
+  localNames: string[] = []
+): CipcCompanyResult {
+  const results = (result.results || {}) as Record<string, unknown>;
+  // Envelope may put company fields under results or results.company
+  const company =
+    results.company && typeof results.company === 'object'
+      ? (results.company as Record<string, unknown>)
+      : results;
+
+  const companyName = String(
+    company.company_name || company.companyName || company.CompanyName || ''
+  ).trim();
+  const tradeName = String(
+    company.trade_name || company.tradeName || company.TradeName || ''
+  ).trim();
+  const previousName = String(company.previous_name || company.previousName || '').trim();
+  const registrationNumber = String(
+    company.registration_number || company.registrationNumber || ''
+  ).trim();
+  const companyStatus = String(
+    company.status || company.company_status || company.Status || ''
+  ).trim();
+
+  const successFlag =
+    result.success === true ||
+    company.success === true ||
+    !!companyName ||
+    !!registrationNumber;
+
+  const failedStatus =
+    /deregister|liquidat|final de.?reg|business rescue|inactive|not found|invalid|failed/i.test(
+      companyStatus
+    );
+
+  const ok = successFlag && !failedStatus && result.success !== false;
+
+  let statusText = companyStatus || (ok ? 'Verified' : 'Unknown');
+  if (ok && /in business|active|registered/i.test(companyStatus)) {
+    statusText = companyStatus;
+  }
+
+  const nameMatch = compareCompanyNames(localNames, companyName, tradeName);
+
+  const remaining =
+    result.remaining_credits != null
+      ? Number(result.remaining_credits)
+      : result.remainingCredits != null
+        ? Number(result.remainingCredits)
+        : null;
+
+  return {
+    ok,
+    statusText,
+    companyName,
+    tradeName,
+    previousName,
+    registrationNumber,
+    registrationDate: String(company.registration_date || company.registrationDate || '').trim(),
+    businessStartDate: String(
+      company.business_start_date || company.businessStartDate || ''
+    ).trim(),
+    companyStatus,
+    companyType: String(company.company_type || company.companyType || '').trim(),
+    sic: String(company.sic || '').trim(),
+    taxNumber: String(company.tax_number || company.taxNumber || '').trim(),
+    vatNumber: String(company.vat_number || company.vatNumber || '').trim(),
+    physicalAddress: String(
+      company.physical_address || company.physicalAddress || ''
+    ).trim(),
+    postalAddress: String(company.postal_address || company.postalAddress || '').trim(),
+    directorCount: String(company.director_count || company.directorCount || '').trim(),
+    requestId: String(result.requestId || result.request_id || ''),
+    remainingCredits: Number.isFinite(remaining as number) ? (remaining as number) : null,
+    mode: String(result.mode || ''),
+    nameMatch,
+  };
+}
+
 export async function callVerifyNowSaid(params: {
   idNumber: string;
   mode?: VerifyNowMode;
   reportType?: 'said_verification' | 'consumer_trace';
 }): Promise<{ ok: boolean; status: number; data: Record<string, unknown>; error?: string }> {
-  const apiKey = process.env.VERIFYNOW_API_KEY;
-  if (!apiKey) {
-    return {
-      ok: false,
-      status: 503,
-      data: {},
-      error: 'VERIFYNOW_API_KEY is not configured on the server',
-    };
-  }
-
-  const mode =
-    params.mode ||
-    ((process.env.VERIFYNOW_MODE as VerifyNowMode) || 'production');
-
+  const mode = resolveMode(params.mode);
   const reportType = params.reportType || 'said_verification';
 
-  try {
-    const response = await fetch('https://www.verifynow.co.za/api/external/verify', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'Content-Type': 'application/json',
-        'Idempotency-Key': crypto.randomUUID(),
-      },
-      body: JSON.stringify({
-        reportType,
-        idNumber: params.idNumber.replace(/\s/g, ''),
-        mode,
-      }),
-    });
+  return postVerifyNow('/verify', {
+    reportType,
+    idNumber: params.idNumber.replace(/\s/g, ''),
+    mode,
+  });
+}
 
-    const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!response.ok) {
-      return {
-        ok: false,
-        status: response.status,
-        data,
-        error:
-          String(data.error || data.message || `VerifyNow HTTP ${response.status}`) ||
-          'VerifyNow request failed',
-      };
-    }
-    return { ok: true, status: response.status, data };
-  } catch (e: unknown) {
+/**
+ * CIPC company verification via dedicated /api/external/cipc endpoint.
+ * Provide exactly one of: registration_number | vat_number | sole_prop_id_number
+ * Docs: reportType "cipc_company_match"
+ */
+export async function callVerifyNowCipcCompany(params: {
+  registrationNumber?: string;
+  vatNumber?: string;
+  solePropIdNumber?: string;
+  mode?: VerifyNowMode;
+}): Promise<{ ok: boolean; status: number; data: Record<string, unknown>; error?: string }> {
+  const mode = resolveMode(params.mode);
+  const registration_number = String(params.registrationNumber || '')
+    .trim()
+    .toUpperCase();
+  const vat_number = String(params.vatNumber || '').replace(/\s/g, '');
+  const sole_prop_id_number = String(params.solePropIdNumber || '').replace(/\s/g, '');
+
+  if (!registration_number && !vat_number && !sole_prop_id_number) {
     return {
       ok: false,
-      status: 500,
+      status: 400,
       data: {},
-      error: e instanceof Error ? e.message : 'VerifyNow network error',
+      error: 'Provide registration_number, vat_number, or sole_prop_id_number',
     };
   }
+
+  const body: Record<string, unknown> = {
+    reportType: 'cipc_company_match',
+    mode,
+  };
+  // Prefer registration_number → vat_number → sole_prop_id_number (API priority)
+  if (registration_number) body.registration_number = registration_number;
+  else if (vat_number) body.vat_number = vat_number;
+  else body.sole_prop_id_number = sole_prop_id_number;
+
+  return postVerifyNow('/cipc', body);
 }

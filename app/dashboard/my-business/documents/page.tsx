@@ -1,300 +1,303 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { createClient } from '@/utils/supabase/client';
+import { useCallback, useEffect, useState } from 'react';
+import { FileText, Loader2, ExternalLink } from 'lucide-react';
+import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
-import { 
-  FileText, Upload, Download, Trash2, Search, 
-  FolderOpen, File 
-} from 'lucide-react';
+import { getSelectedCompanyId } from '@/lib/containers/company';
+import { getCanonicalUserId } from '@/lib/auth/identity';
+import {
+  CompanyRequired,
+  BusinessHeader,
+  BusinessPage,
+} from '@/components/business/BusinessShell';
+import { Panel } from '@/components/relationship/RelationshipChrome';
 
-interface Document {
-  id: number;
+type DocRow = {
+  id?: number;
   name: string;
   url: string;
-  category: string;
-  uploaded_at: string;
-  size?: number;
+  category?: string;
+  uploaded_at?: string;
+};
+
+/**
+ * Company documents vault — persists JSON list on profiles.metadata.documents
+ * via membership-checked /api/business/profile (avoids client RLS failures).
+ */
+export default function BusinessDocumentsPage() {
+  return (
+    <CompanyRequired>
+      <DocsInner />
+    </CompanyRequired>
+  );
 }
 
-const categories = [
-  'All',
-  'Contracts',
-  'Policies',
-  'Financial',
-  'HR',
-  'Operations',
-  'Legal',
-  'Templates',
-  'Other'
-];
+function DocsInner() {
+  const companyId = getSelectedCompanyId()!;
+  const { user } = usePrivy();
+  const privyUserId = getCanonicalUserId(user?.id);
 
-export default function Documents() {
-  const [companyId, setCompanyId] = useState<string | null>(null);
-  const [documents, setDocuments] = useState<Document[]>([]);
+  const [docs, setDocs] = useState<DocRow[]>([]);
+  const [profileDocs, setProfileDocs] = useState<DocRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [selectedFileCategory, setSelectedFileCategory] = useState('Other');
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: '', url: '', category: 'Other' });
 
-  // Create Supabase client (modern pattern)
-  const supabase = createClient();
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ companyId: String(companyId) });
+      if (privyUserId) params.set('privyUserId', privyUserId);
+      const res = await fetch(`/api/business/profile?${params}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      const profile = data.profile || {};
+      const meta = profile.metadata;
+      const list =
+        meta && typeof meta === 'object' && Array.isArray((meta as { documents?: unknown }).documents)
+          ? ((meta as { documents: DocRow[] }).documents as DocRow[])
+          : [];
+      setDocs(list);
 
-  // Load company ID and documents
-  useEffect(() => {
-    const loadData = async () => {
-      const storedId = localStorage.getItem('selectedCompanyId');
-      if (!storedId) {
-        setLoading(false);
-        return;
+      // Profile-attached formal documents (from Identity / Banking / Licenses)
+      const attached: DocRow[] = [];
+      const push = (name: string, url: unknown, category: string) => {
+        if (url && String(url).trim()) {
+          attached.push({ name, url: String(url), category });
+        }
+      };
+      push(
+        'Company registration',
+        profile.registration_certificate_url || profile.registration_document_url,
+        'Legal'
+      );
+      push(
+        'VAT certificate',
+        profile.vat_certificate_url || profile.vat_document_url,
+        'Financial'
+      );
+      push('B-BBEE certificate', profile.bee_certificate_url, 'Legal');
+      push('Bank confirmation', profile.bank_confirmation_url, 'Financial');
+      push(
+        'Import license',
+        profile.import_license_url || profile.import_document_url,
+        'Legal'
+      );
+      push(
+        'Export license',
+        profile.export_license_url || profile.export_document_url,
+        'Legal'
+      );
+      push('Company logo', profile.logo_url, 'Other');
+      push('Tax document', profile.tax_document_url, 'Financial');
+      if (Array.isArray(profile.uploaded_certificates)) {
+        for (const c of profile.uploaded_certificates as Array<{
+          name?: string;
+          file_url?: string;
+        }>) {
+          if (c?.file_url) {
+            push(c.name || 'Certificate', c.file_url, 'Certificates');
+          }
+        }
       }
-
-      setCompanyId(storedId);
-
-      const { data, error } = await supabase
-        .from('company_documents')
-        .select('*')
-        .eq('profile_id', Number(storedId))
-        .order('uploaded_at', { ascending: false });
-
-      if (data) setDocuments(data);
-      if (error) console.error(error);
-
-      setLoading(false);
-    };
-
-    loadData();
-  }, [supabase]);
-
-  // Upload document
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !companyId) return;
-
-    setUploading(true);
-
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `companies/${companyId}/documents/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('company-documents')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('company-documents')
-        .getPublicUrl(filePath);
-
-      // Save record to database
-      const { data: newDoc, error: dbError } = await supabase
-        .from('company_documents')
-        .insert({
-          profile_id: Number(companyId),
-          name: file.name,
-          url: urlData.publicUrl,
-          category: selectedFileCategory,
-          size: file.size,
-        })
-        .select()
-        .single();
-
-      if (dbError) throw dbError;
-
-      setDocuments(prev => [newDoc, ...prev]);
-      toast.success('Document uploaded successfully');
-    } catch (error: any) {
-      toast.error('Upload failed', {
-        description: error.message,
-      });
+      setProfileDocs(attached);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Load failed');
     } finally {
-      setUploading(false);
-      e.target.value = ''; // reset input
+      setLoading(false);
     }
-  };
+  }, [companyId, privyUserId]);
 
-  // Delete document
-  const handleDelete = async (doc: Document) => {
-    if (!confirm(`Delete "${doc.name}"?`)) return;
+  useEffect(() => {
+    void load();
+  }, [load]);
 
+  const persist = async (next: DocRow[]) => {
+    if (!privyUserId) {
+      toast.error('Sign in required to save documents');
+      return;
+    }
+    setSaving(true);
     try {
-      // Delete from storage
-      const filePath = doc.url.split('/company-documents/')[1];
-      await supabase.storage.from('company-documents').remove([filePath]);
+      // Load current metadata then merge via membership-checked API
+      // (client Supabase RLS often blocks direct profiles updates)
+      const params = new URLSearchParams({ companyId: String(companyId) });
+      params.set('privyUserId', privyUserId);
+      const res = await fetch(`/api/business/profile?${params}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load profile');
+      const prevMeta =
+        data.profile?.metadata && typeof data.profile.metadata === 'object'
+          ? { ...(data.profile.metadata as Record<string, unknown>) }
+          : {};
+      prevMeta.documents = next;
 
-      // Delete from database
-      await supabase.from('company_documents').delete().eq('id', doc.id);
-
-      setDocuments(prev => prev.filter(d => d.id !== doc.id));
-      toast.success('Document deleted');
-    } catch (error) {
-      toast.error('Failed to delete document');
+      const patch = await fetch('/api/business/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          metadata: prevMeta,
+        }),
+      });
+      const patchData = await patch.json();
+      if (!patch.ok) throw new Error(patchData.error || 'Save failed');
+      setDocs(next);
+      toast.success('Documents synced to Supabase');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setSaving(false);
     }
   };
 
-  // Filter documents
-  const filteredDocuments = documents.filter(doc => {
-    const matchesSearch = doc.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'All' || doc.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const add = async () => {
+    if (!form.name.trim() || !form.url.trim()) {
+      toast.error('Name and URL required');
+      return;
+    }
+    const row: DocRow = {
+      id: Date.now(),
+      name: form.name.trim(),
+      url: form.url.trim(),
+      category: form.category,
+      uploaded_at: new Date().toISOString(),
+    };
+    await persist([row, ...docs]);
+    setForm({ name: '', url: '', category: 'Other' });
+  };
 
-  if (loading) {
-    return <div className="p-12 text-center">Loading documents...</div>;
-  }
-
-  if (!companyId) {
-    return (
-      <div className="p-12 max-w-md mx-auto text-center">
-        <h2 className="text-2xl font-bold mb-4">No Company Selected</h2>
-        <p className="text-neutral-600 mb-6">Please select a company first.</p>
-        <Link href="/dashboard/select-company" className="btn-primary px-8 py-3">
-          Select Company
-        </Link>
-      </div>
-    );
-  }
+  const remove = async (id?: number) => {
+    await persist(docs.filter((d) => d.id !== id));
+  };
 
   return (
-    <div className="px-4 md:px-8 lg:pr-12 py-8 lg:py-12 max-w-screen-2xl mx-auto">
-      
-      {/* Header */}
-      <div className="mb-10">
-        <Link href="/dashboard/my-business" className="text-sm text-neutral-500 hover:text-neutral-700 flex items-center gap-1 mb-2">
-          ← Back to My Business
-        </Link>
-        <h1 className="font-black text-4xl md:text-5xl tracking-[-2px]">Documents</h1>
-        <p className="text-xl text-neutral-600 mt-2">Upload, organize, and manage your company documents</p>
-      </div>
+    <BusinessPage>
+      <BusinessHeader
+        title="Company"
+        titleAccent="documents"
+        description="Vault of policies, contracts, and certificates. Stored on the company profile metadata and readable by your team."
+      />
 
-      {/* Upload Section */}
-      <div className="bg-white rounded-3xl border border-neutral-200 p-8 mb-8">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-3 bg-[#00b4d8]/10 rounded-2xl">
-            <Upload className="w-6 h-6 text-[#00b4d8]" />
-          </div>
-          <h2 className="text-2xl font-bold">Upload New Document</h2>
-        </div>
+      {profileDocs.length > 0 && (
+        <Panel title="Profile documents (synced from Profile)" className="mb-5">
+          <ul className="divide-y divide-neutral-100">
+            {profileDocs.map((d) => (
+              <li
+                key={`profile-${d.name}-${d.url}`}
+                className="px-5 py-3 flex flex-wrap items-center justify-between gap-3 text-sm"
+              >
+                <div>
+                  <div className="font-semibold text-slate-900">{d.name}</div>
+                  <div className="text-xs text-neutral-500">{d.category} · from company profile</div>
+                </div>
+                <a
+                  href={d.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-secondary !py-1.5 !px-3 text-xs"
+                >
+                  <ExternalLink className="w-3 h-3" /> Open
+                </a>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
 
-        <div className="flex flex-col md:flex-row gap-4 items-end">
-          <div className="flex-1">
-            <label className="text-sm font-medium text-neutral-600">Category</label>
-            <select 
-              className="input w-full mt-1" 
-              value={selectedFileCategory} 
-              onChange={(e) => setSelectedFileCategory(e.target.value)}
+      <div className="grid lg:grid-cols-5 gap-4">
+        <Panel title="Add document" className="lg:col-span-2">
+          <div className="p-5 space-y-3">
+            <input
+              className="input w-full !p-3 !text-sm"
+              placeholder="Document name *"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+            <input
+              className="input w-full !p-3 !text-sm"
+              placeholder="File URL * (upload on Profile, or paste public link)"
+              value={form.url}
+              onChange={(e) => setForm({ ...form, url: e.target.value })}
+            />
+            <select
+              className="input w-full !p-3 !text-sm"
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
             >
-              {categories.filter(c => c !== 'All').map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
+              {['Contracts', 'Policies', 'Financial', 'HR', 'Legal', 'Other'].map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
               ))}
             </select>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void add()}
+              className="btn-primary w-full !py-3 text-sm"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Add to vault'}
+            </button>
+            <p className="text-[11px] text-neutral-500 leading-relaxed">
+              Registration, VAT, BEE, bank letters and licenses are uploaded on the{' '}
+              <strong>Profile</strong> page and saved to Supabase Storage + profiles columns
+              automatically.
+            </p>
           </div>
+        </Panel>
 
-          <div className="flex-1">
-            <label className="text-sm font-medium text-neutral-600">Choose File</label>
-            <input 
-              type="file" 
-              className="input w-full mt-1" 
-              onChange={handleUpload} 
-              disabled={uploading}
-            />
-          </div>
-
-          <button 
-            disabled={uploading}
-            className="btn-primary px-8 py-3 flex items-center gap-2 disabled:opacity-70"
-          >
-            <Upload className="w-4 h-4" />
-            {uploading ? 'Uploading...' : 'Upload Document'}
-          </button>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <div className="flex-1 relative">
-          <Search className="absolute left-4 top-4 text-neutral-400 w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Search documents..."
-            className="input w-full pl-12"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-
-        <select 
-          className="input md:w-64"
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-        >
-          {categories.map(cat => (
-            <option key={cat} value={cat}>{cat}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Documents List */}
-      <div className="bg-white rounded-3xl border border-neutral-200 p-8">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-neutral-100 rounded-2xl">
-              <FolderOpen className="w-6 h-6 text-neutral-600" />
+        <Panel title="Vault" className="lg:col-span-3">
+          {loading ? (
+            <div className="p-16 flex justify-center">
+              <Loader2 className="w-7 h-7 animate-spin text-[#00b4d8]" />
             </div>
-            <h2 className="text-2xl font-bold">All Documents ({filteredDocuments.length})</h2>
-          </div>
-        </div>
-
-        {filteredDocuments.length > 0 ? (
-          <div className="space-y-3">
-            {filteredDocuments.map((doc) => (
-              <div 
-                key={doc.id} 
-                className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 bg-neutral-50 rounded-2xl hover:bg-neutral-100 transition-colors"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-white rounded-xl border">
-                    <FileText className="w-6 h-6 text-neutral-600" />
-                  </div>
+          ) : docs.length === 0 ? (
+            <div className="p-12 text-center text-sm text-neutral-500">
+              <FileText className="w-8 h-8 text-neutral-300 mx-auto mb-2" />
+              No vault documents yet
+            </div>
+          ) : (
+            <ul className="divide-y divide-neutral-100">
+              {docs.map((d) => (
+                <li
+                  key={d.id || d.url}
+                  className="px-5 py-4 flex flex-wrap items-center justify-between gap-3 text-sm"
+                >
                   <div>
-                    <p className="font-semibold">{doc.name}</p>
-                    <p className="text-sm text-neutral-500">
-                      {doc.category} • {new Date(doc.uploaded_at).toLocaleDateString()}
-                    </p>
+                    <div className="font-semibold text-slate-900">{d.name}</div>
+                    <div className="text-xs text-neutral-500">
+                      {d.category}
+                      {d.uploaded_at
+                        ? ` · ${new Date(d.uploaded_at).toLocaleDateString()}`
+                        : ''}
+                    </div>
                   </div>
-                </div>
-
-                <div className="flex items-center gap-3 self-end md:self-auto">
-                  <a 
-                    href={doc.url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#00b4d8] hover:bg-[#00b4d8]/10 rounded-xl transition-colors"
-                  >
-                    <Download className="w-4 h-4" /> Download
-                  </a>
-                  <button 
-                    onClick={() => handleDelete(doc)}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" /> Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12 text-neutral-500">
-            <File className="w-12 h-12 mx-auto mb-4 text-neutral-300" />
-            <p>No documents found.</p>
-            <p className="text-sm mt-1">Upload your first document above.</p>
-          </div>
-        )}
+                  <div className="flex gap-2">
+                    <a
+                      href={d.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn-secondary !py-1.5 !px-3 text-xs"
+                    >
+                      <ExternalLink className="w-3 h-3" /> Open
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => void remove(d.id)}
+                      className="text-xs text-red-600 px-2"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
       </div>
-    </div>
+    </BusinessPage>
   );
 }

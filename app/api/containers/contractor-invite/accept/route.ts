@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
 
     // Activate contractor portal identity
     if (invite.contractor_id) {
-      await supabase
+      const { error: cErr } = await supabase
         .from('container_contractors')
         .update({
           user_id: userId,
@@ -97,17 +97,32 @@ export async function POST(request: NextRequest) {
           updated_at: now,
         })
         .eq('id', invite.contractor_id);
+      if (cErr) {
+        console.error('contractor activate error:', cErr);
+        return NextResponse.json(
+          {
+            error: 'Invitation accepted but could not activate portal access',
+            details: cErr.message,
+          },
+          { status: 500 }
+        );
+      }
     }
 
     // Ensure container assignment
-    await supabase
-      .from('containers')
-      .update({
-        contractor_id: invite.contractor_id,
-        assigned_contractor: fullName || invite.email,
-        updated_at: now,
-      })
-      .eq('id', invite.container_id);
+    if (invite.container_id) {
+      const { error: contErr } = await supabase
+        .from('containers')
+        .update({
+          contractor_id: invite.contractor_id,
+          assigned_contractor: fullName || invite.email,
+          updated_at: now,
+        })
+        .eq('id', invite.container_id);
+      if (contErr) {
+        console.warn('container assignment warning:', contErr.message);
+      }
+    }
 
     return NextResponse.json({
       success: true,
@@ -115,6 +130,7 @@ export async function POST(request: NextRequest) {
       contractorId: invite.contractor_id,
       containerId: invite.container_id,
       contractVersion: CONTRACTOR_CONTRACT_VERSION,
+      redirectTo: '/contractor',
     });
   } catch (e: unknown) {
     return NextResponse.json(

@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -23,11 +23,13 @@ import {
 } from '@/lib/contracts/independent-contractor-agreement';
 import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
 
+const AGREE_KEY = 'sa_contractor_invite_agreed';
+
 function InviteContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get('token') || '';
   const router = useRouter();
-  const { ready, authenticated, user, login } = usePrivy();
+  const { ready, authenticated, user, login, logout } = usePrivy();
 
   const [loading, setLoading] = useState(true);
   const [valid, setValid] = useState(false);
@@ -51,24 +53,41 @@ function InviteContent() {
   } | null>(null);
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [loggingIn, setLoggingIn] = useState(false);
   const [done, setDone] = useState(false);
+  const autoAcceptTried = useRef(false);
 
   const validate = useCallback(async () => {
     if (!token) {
-      setError('Missing invitation token');
+      setError('Missing invitation token. Open the link from your invitation email.');
       setLoading(false);
       return;
     }
-    const res = await fetch(`/api/containers/contractor-invite?token=${encodeURIComponent(token)}`);
-    const data = await res.json();
-    if (!data.valid) {
-      setError(data.error || 'Invalid invitation');
+    try {
+      const res = await fetch(
+        `/api/containers/contractor-invite?token=${encodeURIComponent(token)}`
+      );
+      const data = await res.json();
+      if (!data.valid) {
+        setError(data.error || 'Invalid invitation');
+        setValid(false);
+        setAlreadyAccepted(!!data.alreadyAccepted);
+      } else {
+        setValid(true);
+        setInvite(data.invite);
+        setContainer(data.container);
+        // Restore agreement checkbox after redirect login
+        try {
+          if (sessionStorage.getItem(`${AGREE_KEY}:${token}`) === '1') {
+            setAgreed(true);
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+    } catch {
+      setError('Could not validate this invitation. Check your connection and try again.');
       setValid(false);
-      setAlreadyAccepted(!!data.alreadyAccepted);
-    } else {
-      setValid(true);
-      setInvite(data.invite);
-      setContainer(data.container);
     }
     setLoading(false);
   }, [token]);
@@ -77,13 +96,12 @@ function InviteContent() {
     void validate();
   }, [validate]);
 
-  const accept = async () => {
+  const accept = useCallback(async () => {
     if (!agreed) {
       toast.error('Please accept the agreement to continue');
       return;
     }
     if (!authenticated || !user) {
-      login();
       return;
     }
 
@@ -103,21 +121,87 @@ function InviteContent() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Accept failed');
+      if (!res.ok) throw new Error(data.error || data.details || 'Accept failed');
+      try {
+        sessionStorage.removeItem(`${AGREE_KEY}:${token}`);
+      } catch {
+        /* ignore */
+      }
       setDone(true);
-      toast.success('Welcome — contract accepted');
-      setTimeout(() => router.replace('/contractor'), 1000);
+      toast.success(data.message || 'Welcome — contract accepted');
+      setTimeout(() => router.replace('/contractor'), 800);
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Failed');
+      toast.error(e instanceof Error ? e.message : 'Failed to accept invitation');
     } finally {
       setSubmitting(false);
     }
+  }, [agreed, authenticated, user, token, invite?.full_name, router]);
+
+  // After Privy returns, auto-accept if they already ticked the agreement
+  useEffect(() => {
+    if (!ready || !authenticated || !user || !valid || !agreed || done) return;
+    if (autoAcceptTried.current || submitting) return;
+    autoAcceptTried.current = true;
+    void accept();
+  }, [ready, authenticated, user, valid, agreed, done, submitting, accept]);
+
+  const startLogin = async () => {
+    if (!agreed) {
+      toast.error('Please accept the agreement before signing in');
+      return;
+    }
+    if (!ready) {
+      toast.message('Authentication is still loading — try again in a moment');
+      return;
+    }
+
+    try {
+      sessionStorage.setItem(`${AGREE_KEY}:${token}`, '1');
+    } catch {
+      /* ignore */
+    }
+
+    setLoggingIn(true);
+    const invitePath = `/contractor/invite?token=${encodeURIComponent(token)}`;
+
+    try {
+      // Email / social only — no wallet. Wallet creation was breaking contractor login.
+      await login({
+        loginMethods: ['email', 'google', 'apple'],
+        ...(invite?.email
+          ? { prefill: { type: 'email' as const, value: invite.email } }
+          : {}),
+      });
+      // login() resolves when modal closes; user may or may not be authenticated
+    } catch (e: unknown) {
+      console.error('Privy login error on contractor invite:', e);
+      // Fallback: dedicated login page (more reliable on some mobile browsers)
+      toast.message('Opening secure sign-in page…');
+      router.push(`/login?next=${encodeURIComponent(invitePath)}&email=${encodeURIComponent(invite?.email || '')}`);
+    } finally {
+      setLoggingIn(false);
+    }
+  };
+
+  const handlePrimary = async () => {
+    if (!agreed) {
+      toast.error('Please accept the agreement to continue');
+      return;
+    }
+    if (!authenticated || !user) {
+      await startLogin();
+      return;
+    }
+    await accept();
   };
 
   if (loading || !ready) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
-        <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8] mx-auto mb-3" />
+          <p className="text-sm text-neutral-500">Loading invitation…</p>
+        </div>
       </div>
     );
   }
@@ -132,6 +216,9 @@ function InviteContent() {
             Opening your operator portal for{' '}
             <strong>{invite?.container_name || 'your outlet'}</strong>…
           </p>
+          <Link href="/contractor" className="btn-primary mt-6 inline-flex px-6 py-3">
+            Open portal now
+          </Link>
         </div>
       </div>
     );
@@ -146,9 +233,14 @@ function InviteContent() {
             {alreadyAccepted ? 'Already accepted' : 'Invitation unavailable'}
           </h1>
           <p className="text-neutral-600 mb-6">{error}</p>
-          <Link href="/login?next=/contractor" className="btn-primary px-6 py-3 inline-block">
-            Sign in to operator portal
-          </Link>
+          <div className="flex flex-col gap-2">
+            <Link href="/login?next=/contractor" className="btn-primary px-6 py-3 inline-block">
+              Sign in to operator portal
+            </Link>
+            <Link href="/" className="text-sm text-neutral-500 hover:underline">
+              Back to home
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -179,15 +271,12 @@ function InviteContent() {
           </div>
         </div>
 
-        {/* Steps */}
         <ol className="flex flex-wrap gap-2 mb-6 text-xs font-semibold">
           {['1. Review outlet', '2. Read contract', '3. Sign in & accept'].map((step, i) => (
             <li
               key={step}
               className={`px-3 py-1.5 rounded-full ${
-                i === 0
-                  ? 'bg-[#00b4d8] text-white'
-                  : 'bg-white border text-neutral-600'
+                i === 0 ? 'bg-[#00b4d8] text-white' : 'bg-white border text-neutral-600'
               }`}
             >
               {step}
@@ -237,7 +326,7 @@ function InviteContent() {
             </div>
             <p className="mt-4 text-sm bg-sky-50 text-sky-900 rounded-2xl px-4 py-3">
               Sign in with <strong>{invite?.email}</strong> — the same address this invitation was
-              sent to.
+              sent to. You&apos;ll get a one-time code by email (or use Google / Apple).
             </p>
           </div>
         </div>
@@ -256,7 +345,18 @@ function InviteContent() {
               type="checkbox"
               className="mt-1 w-5 h-5 rounded border-neutral-300 text-[#00b4d8] focus:ring-[#00b4d8]"
               checked={agreed}
-              onChange={(e) => setAgreed(e.target.checked)}
+              onChange={(e) => {
+                setAgreed(e.target.checked);
+                try {
+                  if (e.target.checked) {
+                    sessionStorage.setItem(`${AGREE_KEY}:${token}`, '1');
+                  } else {
+                    sessionStorage.removeItem(`${AGREE_KEY}:${token}`);
+                  }
+                } catch {
+                  /* ignore */
+                }
+              }}
             />
             <span className="text-sm text-slate-700">
               I have read and agree to the Independent Contractor Agreement (version{' '}
@@ -273,24 +373,34 @@ function InviteContent() {
                 Signed in as <strong>{signedEmail || user?.id}</strong>
               </p>
               {emailMismatch && (
-                <p className="mt-2 text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2">
-                  Email mismatch: please sign out and sign in with <strong>{invite?.email}</strong>.
-                </p>
+                <div className="mt-2 text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2 space-y-2">
+                  <p>
+                    Email mismatch: please sign out and sign in with{' '}
+                    <strong>{invite?.email}</strong>.
+                  </p>
+                  <button
+                    type="button"
+                    className="text-[#00b4d8] font-semibold underline"
+                    onClick={() => void logout()}
+                  >
+                    Sign out and try again
+                  </button>
+                </div>
               )}
             </div>
           ) : (
             <p className="text-sm text-neutral-600">
-              Continue with secure sign-in using the invited email. You&apos;ll receive a one-time
-              code (or use Google / Apple).
+              Continue with secure sign-in using <strong>{invite?.email}</strong>. You&apos;ll
+              receive a one-time code by email (or use Google / Apple with that same address).
             </p>
           )}
           <button
             type="button"
-            disabled={!agreed || submitting || !!emailMismatch}
-            onClick={() => void accept()}
+            disabled={!agreed || submitting || loggingIn || !!emailMismatch}
+            onClick={() => void handlePrimary()}
             className="btn-primary w-full !py-4 text-lg disabled:opacity-50 inline-flex items-center justify-center gap-2"
           >
-            {submitting ? (
+            {submitting || loggingIn ? (
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : authenticated ? (
               <>
@@ -302,6 +412,25 @@ function InviteContent() {
               </>
             )}
           </button>
+          {!authenticated && (
+            <button
+              type="button"
+              disabled={!agreed || loggingIn}
+              onClick={() => {
+                try {
+                  sessionStorage.setItem(`${AGREE_KEY}:${token}`, '1');
+                } catch {
+                  /* ignore */
+                }
+                router.push(
+                  `/login?next=${encodeURIComponent(`/contractor/invite?token=${token}`)}&email=${encodeURIComponent(invite?.email || '')}`
+                );
+              }}
+              className="w-full text-sm font-semibold text-[#00b4d8] hover:underline py-2"
+            >
+              Having trouble? Use the full sign-in page →
+            </button>
+          )}
           <p className="text-center text-xs text-neutral-400">
             By accepting you create a binding independent contractor relationship under version{' '}
             {CONTRACTOR_CONTRACT_VERSION}.

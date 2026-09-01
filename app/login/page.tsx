@@ -13,16 +13,24 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const claimed = searchParams.get('claimed');
   const next = searchParams.get('next') || '';
+  const prefillEmail = searchParams.get('email') || '';
+  const isContractorFlow =
+    next.startsWith('/contractor') || next.includes('contractor');
   const { login, ready, authenticated, user } = usePrivy();
   const [navigating, setNavigating] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!ready || !authenticated || !user) return;
     setNavigating(true);
 
     const t = setTimeout(async () => {
-      // Prefer explicit next for invite flows
-      if (next.startsWith('/contractor/invite') || next.startsWith('/onboarding')) {
+      // Prefer explicit next for invite flows (preserve full query string)
+      if (
+        next.startsWith('/contractor/invite') ||
+        next.startsWith('/onboarding') ||
+        next.startsWith('/invite')
+      ) {
         router.replace(next);
         return;
       }
@@ -40,7 +48,7 @@ function LoginForm() {
 
         // Pure operators → contractor portal only
         if (data.isContractor && !data.isBusinessUser) {
-          router.replace('/contractor');
+          router.replace(next.startsWith('/contractor') ? next : '/contractor');
           return;
         }
         // Explicit contractor next
@@ -58,12 +66,33 @@ function LoginForm() {
     return () => clearTimeout(t);
   }, [ready, authenticated, user, router, next]);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!ready) return;
+    setLoginError(null);
     try {
-      login();
-    } catch (e) {
+      // Contractors / invite flows: email + social only (no wallet) for reliability
+      if (isContractorFlow) {
+        await login({
+          loginMethods: ['email', 'google', 'apple'],
+          ...(prefillEmail
+            ? { prefill: { type: 'email' as const, value: prefillEmail } }
+            : {}),
+        });
+      } else {
+        await login({
+          loginMethods: ['email', 'google', 'apple'],
+          ...(prefillEmail
+            ? { prefill: { type: 'email' as const, value: prefillEmail } }
+            : {}),
+        });
+      }
+    } catch (e: unknown) {
       console.error('Privy login error:', e);
+      setLoginError(
+        e instanceof Error
+          ? e.message
+          : 'Sign-in failed. Check that this site is allowed in Privy (www.supplieradvisor.com) and try email one-time code again.'
+      );
     }
   };
 
@@ -97,13 +126,27 @@ function LoginForm() {
           Welcome back
         </h1>
         <p className="text-neutral-600 text-sm sm:text-base px-2">
-          Business workspace or contractor operator portal
+          {isContractorFlow
+            ? 'Independent contractor operator portal'
+            : 'Business workspace or contractor operator portal'}
         </p>
       </div>
 
       {claimed && (
         <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-700 text-sm">
           Account ready. Sign in with the same email you used for your invitation.
+        </div>
+      )}
+
+      {isContractorFlow && prefillEmail && (
+        <div className="mb-6 p-4 bg-sky-50 border border-sky-200 rounded-2xl text-sky-900 text-sm">
+          Operator invite — sign in with <strong>{prefillEmail}</strong>
+        </div>
+      )}
+
+      {loginError && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-sm">
+          {loginError}
         </div>
       )}
 
@@ -125,7 +168,7 @@ function LoginForm() {
 
         <button
           type="button"
-          onClick={handleLogin}
+          onClick={() => void handleLogin()}
           disabled={!ready}
           className="w-full min-h-[52px] py-4 bg-[#00b4d8] hover:bg-[#0099b8] active:bg-[#0088a6] text-white text-lg font-semibold rounded-2xl disabled:bg-neutral-400 flex items-center justify-center gap-2 transition-colors touch-manipulation"
         >

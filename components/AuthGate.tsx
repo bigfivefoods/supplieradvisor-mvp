@@ -20,10 +20,15 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!ready) return;
     if (!authenticated) {
+      setRoleChecked(false);
       const next = pathname && pathname.startsWith('/') ? pathname : '/dashboard/select-company';
       router.replace(`/login?next=${encodeURIComponent(next)}`);
       return;
     }
+
+    // Already checked this session — do not re-block the whole dashboard on route changes
+    // (pathname was in deps before and re-ran the gate constantly).
+    if (roleChecked) return;
 
     let cancelled = false;
     (async () => {
@@ -55,7 +60,9 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [ready, authenticated, user, router, pathname]);
+    // Intentionally omit pathname — navigating inside dashboard must not re-lock UI
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, authenticated, user?.id, router, roleChecked]);
 
   if (!ready || (authenticated && !roleChecked) || blocked) {
     return (

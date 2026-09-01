@@ -1,72 +1,139 @@
 'use client';
 
-import Breadcrumb from '@/components/ui/Breadcrumb';
-import { TrendingUp, Users, MapPin, DollarSign } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { TrendingUp, Users, MapPin, Package } from 'lucide-react';
+import { getSelectedCompanyId } from '@/lib/containers/company';
+import {
+  CompanyRequired,
+  ContainersHeader,
+  ContainersPage,
+} from '@/components/containers/ContainersShell';
+import { KpiCard, Panel } from '@/components/relationship/RelationshipChrome';
+
+type Metrics = {
+  total: number;
+  active: number;
+  mapped: number;
+  contractors: number;
+  verified: number;
+  certified: number;
+};
 
 export default function ContainersMetrics() {
   return (
-    <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
-      <Breadcrumb />
-      
-      <div className="mb-8">
-        <h1 className="text-6xl font-black tracking-[-3px] text-[#00b4d8] mb-2">Container Metrics</h1>
-        <p className="text-xl text-neutral-600">Aggregate performance across all your retail outlets</p>
+    <CompanyRequired>
+      <MetricsInner />
+    </CompanyRequired>
+  );
+}
+
+function MetricsInner() {
+  const companyId = getSelectedCompanyId()!;
+  const [m, setM] = useState<Metrics | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [cRes, tRes] = await Promise.all([
+        fetch(`/api/containers?companyId=${companyId}`).then((r) => r.json()),
+        fetch(`/api/containers/contractors?companyId=${companyId}`).then((r) => r.json()),
+      ]);
+      const containers = cRes.containers || [];
+      const contractors = tRes.contractors || [];
+      setM({
+        total: containers.length,
+        active: containers.filter((c: { status?: string }) =>
+          !c.status ||
+          ['active', 'deployed', 'operational', 'open'].includes(
+            String(c.status).toLowerCase()
+          )
+        ).length,
+        mapped: containers.filter(
+          (c: { latitude?: number | null; longitude?: number | null }) =>
+            c.latitude != null && c.longitude != null
+        ).length,
+        contractors: contractors.length,
+        verified: contractors.filter(
+          (c: { verification_status?: string }) =>
+            String(c.verification_status || '').toLowerCase() === 'verified'
+        ).length,
+        certified: contractors.filter(
+          (c: { training_status?: string }) => c.training_status === 'certified'
+        ).length,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return (
+    <ContainersPage>
+      <ContainersHeader
+        title="Network"
+        titleAccent="metrics"
+        description="Live pulse across outlets, map coverage, and contractor readiness — from Supabase."
+        action={
+          <Link href="/dashboard/containers/manage" className="btn-secondary !py-2.5 !px-5 text-sm">
+            Manage outlets
+          </Link>
+        }
+      />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
+        <KpiCard
+          icon={Package}
+          label="Total containers"
+          value={m?.total ?? 0}
+          sub={`${m?.active ?? 0} active`}
+          href="/dashboard/containers/manage"
+          loading={loading}
+          tone="cyan"
+        />
+        <KpiCard
+          icon={MapPin}
+          label="Mapped outlets"
+          value={m?.mapped ?? 0}
+          sub="With GPS coordinates"
+          href="/dashboard/containers/map"
+          loading={loading}
+          tone="emerald"
+        />
+        <KpiCard
+          icon={Users}
+          label="Contractors"
+          value={m?.contractors ?? 0}
+          sub={`${m?.verified ?? 0} verified`}
+          href="/dashboard/containers/contractors"
+          loading={loading}
+        />
+        <KpiCard
+          icon={TrendingUp}
+          label="Certified operators"
+          value={m?.certified ?? 0}
+          sub="Training complete"
+          href="/dashboard/containers/training"
+          loading={loading}
+          tone="violet"
+        />
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white rounded-3xl p-6 border">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-blue-100 rounded-2xl flex items-center justify-center">
-              <MapPin className="w-5 h-5 text-blue-600" />
-            </div>
-            <div className="text-sm text-neutral-500">Total Containers</div>
-          </div>
-          <div className="text-4xl font-bold">124</div>
-          <div className="text-emerald-600 text-sm mt-1">+8 this month</div>
+      <Panel title="Coming next">
+        <div className="p-8 sm:p-10 text-center">
+          <p className="text-sm font-semibold text-slate-800 mb-2">
+            Advanced analytics on the roadmap
+          </p>
+          <p className="text-xs text-neutral-500 max-w-md mx-auto leading-relaxed">
+            Top performing containers, regional breakdowns, trend charts, contractor rankings, and
+            impact metrics (jobs created, households served) will layer on this live pulse.
+          </p>
         </div>
-
-        <div className="bg-white rounded-3xl p-6 border">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-emerald-100 rounded-2xl flex items-center justify-center">
-              <Users className="w-5 h-5 text-emerald-600" />
-            </div>
-            <div className="text-sm text-neutral-500">Active Contractors</div>
-          </div>
-          <div className="text-4xl font-bold">119</div>
-          <div className="text-emerald-600 text-sm mt-1">96% active rate</div>
-        </div>
-
-        <div className="bg-white rounded-3xl p-6 border">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-amber-100 rounded-2xl flex items-center justify-center">
-              <DollarSign className="w-5 h-5 text-amber-600" />
-            </div>
-            <div className="text-sm text-neutral-500">Total Monthly Revenue</div>
-          </div>
-          <div className="text-4xl font-bold">R 4.2M</div>
-          <div className="text-emerald-600 text-sm mt-1">+18% vs last month</div>
-        </div>
-
-        <div className="bg-white rounded-3xl p-6 border">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-purple-100 rounded-2xl flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-purple-600" />
-            </div>
-            <div className="text-sm text-neutral-500">Avg Gross Margin</div>
-          </div>
-          <div className="text-4xl font-bold">31.4%</div>
-          <div className="text-emerald-600 text-sm mt-1">+2.1% improvement</div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-3xl p-12 border text-center">
-        <p className="text-2xl font-semibold text-neutral-400 mb-2">Advanced Metrics Dashboard Coming Soon</p>
-        <p className="text-neutral-500 max-w-md mx-auto">
-          Top performing containers, regional breakdowns, trend charts, contractor performance rankings, 
-          and impact metrics (jobs created, households served) will be displayed here.
-        </p>
-      </div>
-    </div>
+      </Panel>
+    </ContainersPage>
   );
 }

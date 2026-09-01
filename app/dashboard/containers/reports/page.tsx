@@ -1,42 +1,56 @@
 'use client';
 
-import Breadcrumb from '@/components/ui/Breadcrumb';
 import { FileText, Download } from 'lucide-react';
+import {
+  CompanyRequired,
+  ContainersHeader,
+  ContainersPage,
+} from '@/components/containers/ContainersShell';
+
+const REPORTS = [
+  { title: 'Monthly performance', desc: 'Revenue, margin, and sales by container' },
+  { title: 'Contractor payouts', desc: 'Commission calculations and payment history' },
+  { title: 'Inventory & stock', desc: 'Stock levels and replenishment summary' },
+  { title: 'Compliance & audit', desc: 'Visit logs and compliance status' },
+  { title: 'Top performers', desc: 'Best performing containers and contractors' },
+  { title: 'Regional summary', desc: 'Performance breakdown by province/region' },
+];
 
 export default function ContainersReports() {
   return (
-    <div className="pl-0 pr-12 py-12 max-w-screen-2xl mx-auto">
-      <Breadcrumb />
-      
-      <div className="mb-8">
-        <h1 className="text-6xl font-black tracking-[-3px] text-[#00b4d8] mb-2">Reports</h1>
-        <p className="text-xl text-neutral-600">Generate and export container performance, payout, and compliance reports</p>
-      </div>
+    <CompanyRequired>
+      <ContainersPage>
+        <ContainersHeader
+          title="Container"
+          titleAccent="reports"
+          description="Generate and export performance, payout, and compliance reports for the outlet network."
+        />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        
-        {[
-          { title: "Monthly Performance Report", desc: "Revenue, margin, and sales by container" },
-          { title: "Contractor Payout Report", desc: "Commission calculations and payment history" },
-          { title: "Inventory & Stock Report", desc: "Stock levels and replenishment summary" },
-          { title: "Compliance & Audit Report", desc: "Visit logs and compliance status" },
-          { title: "Top Performers Report", desc: "Best performing containers and contractors" },
-          { title: "Regional Summary", desc: "Performance breakdown by province/region" },
-        ].map((report, index) => (
-          <div key={index} className="bg-white rounded-3xl p-8 border hover:border-[#00b4d8] transition-colors group">
-            <div className="flex items-start justify-between mb-4">
-              <div className="w-12 h-12 bg-neutral-100 rounded-2xl flex items-center justify-center group-hover:bg-[#00b4d8]/10 transition-colors">
-                <FileText className="w-6 h-6 text-neutral-600 group-hover:text-[#00b4d8]" />
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          {REPORTS.map((report) => (
+            <div
+              key={report.title}
+              className="bg-white rounded-3xl p-5 sm:p-6 border border-neutral-200 hover:border-[#00b4d8] hover:shadow-md transition-all group"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-10 h-10 rounded-2xl bg-[#00b4d8]/10 flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-[#00b4d8]" />
+                </div>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-[#0077b6] cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" /> Export
+                </button>
               </div>
-              <button className="flex items-center gap-2 text-sm text-neutral-600 hover:text-[#00b4d8]">
-                <Download className="w-4 h-4" /> Export
-              </button>
+              <h3 className="font-bold text-slate-800 mb-1 group-hover:text-[#0077b6]">
+                {report.title}
+              </h3>
+              <p className="text-xs text-neutral-500 leading-relaxed">{report.desc}</p>
             </div>
-            <h3 className="font-bold text-xl mb-2">{report.title}</h3>
-            <p className="text-neutral-600 text-sm">{report.desc}</p>
-          </div>
-        ))}
-      </div>
-    </div>
+          ))}
+        </div>
+      </ContainersPage>
+    </CompanyRequired>
   );
 }

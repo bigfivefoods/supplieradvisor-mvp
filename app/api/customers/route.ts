@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { assertCustomersAccess } from '@/lib/customers/access';
 
 export async function GET(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
+    const privyUserId = request.nextUrl.searchParams.get('privyUserId');
     const q = (request.nextUrl.searchParams.get('q') || '').trim().toLowerCase();
     const status = request.nextUrl.searchParams.get('status');
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    // When authenticated, enforce Customers module access (sales_contractor OK)
+    if (privyUserId) {
+      const mem = await assertCustomersAccess(privyUserId, companyId, 'view');
+      if (!mem.ok) {
+        return NextResponse.json({ error: mem.error }, { status: mem.status });
+      }
     }
     const supabase = getSupabaseServer();
     let query = supabase
@@ -58,6 +67,12 @@ export async function POST(request: NextRequest) {
     const companyId = Number(body.companyId);
     if (!Number.isFinite(companyId) || !body.trading_name) {
       return NextResponse.json({ error: 'companyId and trading_name required' }, { status: 400 });
+    }
+    if (body.privyUserId) {
+      const mem = await assertCustomersAccess(body.privyUserId, companyId, 'write');
+      if (!mem.ok) {
+        return NextResponse.json({ error: mem.error }, { status: mem.status });
+      }
     }
     const supabase = getSupabaseServer();
     const payload: Record<string, unknown> = {
@@ -119,6 +134,13 @@ export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    const companyId = Number(body.companyId);
+    if (body.privyUserId && Number.isFinite(companyId)) {
+      const mem = await assertCustomersAccess(body.privyUserId, companyId, 'write');
+      if (!mem.ok) {
+        return NextResponse.json({ error: mem.error }, { status: mem.status });
+      }
+    }
     const fields = [
       'trading_name',
       'legal_name',
@@ -167,7 +189,15 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const id = Number(request.nextUrl.searchParams.get('id'));
+    const companyId = Number(request.nextUrl.searchParams.get('companyId'));
+    const privyUserId = request.nextUrl.searchParams.get('privyUserId');
     if (!Number.isFinite(id)) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    if (privyUserId && Number.isFinite(companyId)) {
+      const mem = await assertCustomersAccess(privyUserId, companyId, 'write');
+      if (!mem.ok) {
+        return NextResponse.json({ error: mem.error }, { status: mem.status });
+      }
+    }
     const supabase = getSupabaseServer();
     const { error } = await supabase.from('customers').delete().eq('id', id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
