@@ -63,8 +63,10 @@ assert.ok(deleteFn.includes("searchParams.get('companyId')"), 'DELETE must read 
 
 const patchProfileScopes =
   patchFn.match(/\.eq\((['"])profile_id\1,\s*companyId\)/g)?.length || 0;
+// PATCH has 7 tenant-scoped customer paths:
+// set_credit_hold select/update/retry, clear_credit_hold select/update, plus the main update and schema-retry update.
 assert.ok(
-  patchProfileScopes >= 6,
+  patchProfileScopes >= 7,
   'PATCH must scope every customer read/write path with profile_id'
 );
 assert.match(
@@ -302,7 +304,7 @@ function sanitizeFn(fn: string): string {
     .replace(
       /export async function (\w+)\(([^)]*)\)/,
       (_match, name: string, params: string) =>
-        `async function ${name}(${params.replace(/:\s*[^,)]+/g, '')})`
+        `async function ${name}(${params.replace(/:\s*NextRequest/g, '')})`
     )
     .replace(/catch \(e: unknown\)/g, 'catch (e)')
     .replace(/\b(const|let)\s+([A-Za-z_$][\w$]*)\s*:\s*[^=;]+=/g, '$1 $2 =')
