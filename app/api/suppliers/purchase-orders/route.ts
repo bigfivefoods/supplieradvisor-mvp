@@ -799,13 +799,16 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const companyId = Number(body.companyId);
     const id = Number(body.id);
-    const privyUserId = body.privyUserId;
     const action = String(body.action || '').toLowerCase();
 
-    if (!Number.isFinite(companyId) || !Number.isFinite(id)) {
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(id) || id <= 0) {
       return NextResponse.json({ error: 'companyId and id required' }, { status: 400 });
     }
-    const member = await assertCompanyMember(privyUserId, companyId);
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!_gate.ok) return _gate.response;
+    const member = await assertCompanyMember(_gate.userId, companyId);
     if (!member.ok) {
       return NextResponse.json({ error: member.error }, { status: member.status });
     }
