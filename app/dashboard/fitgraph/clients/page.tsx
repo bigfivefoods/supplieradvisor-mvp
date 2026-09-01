@@ -183,19 +183,34 @@ export default function ClientsPage() {
     gymCrmBackfillCompanyOnce.add(companyId);
     void (async () => {
       try {
-        const data = await post(
-          { action: 'backfill_client_crm' },
-          { quiet: true }
-        );
-        const stamped = Number(data?.stamped) || 0;
-        const skipped = Number(data?.skipped) || 0;
-        const linked = Number(data?.linked_existing) || 0;
-        const created = Number(data?.created) || 0;
+        let stamped = 0;
+        let skipped = 0;
+        let linked = 0;
+        let created = 0;
+        let remaining = 1;
+        while (remaining > 0) {
+          const data = await post(
+            { action: 'backfill_client_crm', limit: 40 },
+            { quiet: true }
+          );
+          stamped += Number(data?.stamped) || 0;
+          skipped += Number(data?.skipped) || 0;
+          linked += Number(data?.linked_existing) || 0;
+          created += Number(data?.created) || 0;
+          const nextRemaining = Number(data?.remaining);
+          remaining = Number.isFinite(nextRemaining)
+            ? Math.max(0, nextRemaining)
+            : 0;
+        }
         toast.success(
           `CRM: ${stamped} stamped (${linked} existing, ${created} new), ${skipped} skipped`
         );
-      } catch {
-        toast.error('Could not stamp gym clients onto CRM');
+      } catch (e: unknown) {
+        const message =
+          e instanceof Error && e.message
+            ? e.message
+            : 'Could not stamp gym clients onto CRM';
+        toast.error(message);
       }
     })();
   }, [loading, store, post, companyId]);
