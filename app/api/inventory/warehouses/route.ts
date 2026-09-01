@@ -20,9 +20,13 @@ export async function GET(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     const ownerType = request.nextUrl.searchParams.get('ownerType');
-    if (!Number.isFinite(companyId)) {
+    if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
+
     const supabase = getSupabaseServer();
     let q = supabase
       .from('warehouses')
@@ -230,6 +234,14 @@ export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    const companyId = Number(body.companyId);
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
+
     const fields = [
       'name',
       'code',
@@ -261,20 +273,12 @@ export async function PATCH(request: NextRequest) {
       updates.owner_type = normalizeOwnerType(updates.owner_type);
     }
     const supabase = getSupabaseServer();
-    const companyId = Number(body.companyId);
     const { data: current } = await supabase
       .from('warehouses')
       .select('metadata, profile_id')
       .eq('id', Number(body.id))
+      .eq('profile_id', companyId)
       .maybeSingle();
-    if (
-      Number.isFinite(companyId) &&
-      companyId > 0 &&
-      current &&
-      Number((current as { profile_id?: unknown }).profile_id) !== companyId
-    ) {
-      return NextResponse.json({ error: 'Warehouse not found' }, { status: 404 });
-    }
     const prevMeta =
       current?.metadata &&
       typeof current.metadata === 'object' &&
@@ -305,6 +309,7 @@ export async function PATCH(request: NextRequest) {
       .from('warehouses')
       .update(updates)
       .eq('id', Number(body.id))
+      .eq('profile_id', companyId)
       .select('*')
       .single();
 
@@ -328,6 +333,7 @@ export async function PATCH(request: NextRequest) {
         .from('warehouses')
         .update(soft)
         .eq('id', Number(body.id))
+        .eq('profile_id', companyId)
         .select('*')
         .single();
       data = retry.data;
@@ -345,6 +351,14 @@ export async function DELETE(request: NextRequest) {
   try {
     const id = Number(request.nextUrl.searchParams.get('id'));
     if (!Number.isFinite(id)) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    const companyId = Number(request.nextUrl.searchParams.get('companyId'));
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
+
     const supabase = getSupabaseServer();
 
     // Soft-block delete if stock remains
@@ -352,6 +366,7 @@ export async function DELETE(request: NextRequest) {
       .from('stock_levels')
       .select('id, qty_on_hand')
       .eq('warehouse_id', id)
+      .eq('profile_id', companyId)
       .limit(50);
     const units = (levels || []).reduce((s, l) => s + Number(l.qty_on_hand || 0), 0);
     if (units > 0.0001) {
@@ -363,7 +378,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const { error } = await supabase.from('warehouses').delete().eq('id', id);
+    const { error } = await supabase.from('warehouses').delete().eq('id', id).eq('profile_id', companyId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
   } catch (e: unknown) {
