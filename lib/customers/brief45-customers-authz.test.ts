@@ -63,10 +63,11 @@ assert.ok(deleteFn.includes("searchParams.get('companyId')"), 'DELETE must read 
 
 const patchProfileScopes =
   patchFn.match(/\.eq\((['"])profile_id\1,\s*companyId\)/g)?.length || 0;
+const EXPECTED_PATCH_PROFILE_SCOPES = 7;
 // PATCH has 7 tenant-scoped customer paths:
 // set_credit_hold select/update/retry, clear_credit_hold select/update, plus the main update and schema-retry update.
 assert.ok(
-  patchProfileScopes >= 7,
+  patchProfileScopes >= EXPECTED_PATCH_PROFILE_SCOPES,
   'PATCH must scope every customer read/write path with profile_id'
 );
 assert.match(
