@@ -465,8 +465,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
           const isActive = isModuleActive(mod.href);
           const isExpanded = arranging
             ? false
-            : isAdvisorOsModule(mod.id) ||
-              expandedModules[mod.id] === true;
+            : expandedModules[mod.id] === true;
 
           return (
             <div
@@ -528,7 +527,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
                   <span className="font-semibold truncate text-sm">{mod.name}</span>
                 </Link>
 
-                {mod.sub.length > 0 && !isAdvisorOsModule(mod.id) && (
+                {mod.sub.length > 0 && (
                   <button
                     type="button"
                     onClick={(e) => {
