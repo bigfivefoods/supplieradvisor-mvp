@@ -201,19 +201,24 @@ export default function ClientsPage() {
             { quiet: true }
           );
           if (cancelled) return;
-          stamped += Number(data?.stamped) || 0;
+          const batchStamped = Number(data?.stamped) || 0;
+          stamped += batchStamped;
           skipped += Number(data?.skipped) || 0;
           linked += Number(data?.linked_existing) || 0;
           created += Number(data?.created) || 0;
-          if (Array.isArray(data?.store?.clients)) {
+          const hasStoreClients = Array.isArray(data?.store?.clients);
+          if (hasStoreClients) {
             latestClients = data.store.clients;
           }
           const nextRemaining = Number(data?.remaining);
-          remaining = Number.isFinite(nextRemaining)
-            ? Math.max(0, nextRemaining)
-            : countGymClientsNeedingCrmStamp(latestClients);
-          if (remaining === 0) {
+          if (Number.isFinite(nextRemaining)) {
+            remaining = Math.max(0, nextRemaining);
+          } else if (hasStoreClients) {
             remaining = countGymClientsNeedingCrmStamp(latestClients);
+          } else if (batchStamped > 0) {
+            remaining = Math.max(0, remaining - batchStamped);
+          } else {
+            throw new Error('Could not stamp gym clients onto CRM (missing remaining)');
           }
         }
         if (cancelled) return;
@@ -221,7 +226,12 @@ export default function ClientsPage() {
         toast.success(
           `CRM: ${stamped} stamped (${linked} existing, ${created} new), ${skipped} skipped`
         );
-        await load();
+        try {
+          await load();
+        } catch {
+          toast.error('CRM stamped, but could not refresh clients');
+        }
+        if (cancelled) return;
       } catch (e: unknown) {
         gymCrmBackfillCompanyOnce.delete(companyId);
         const message =
