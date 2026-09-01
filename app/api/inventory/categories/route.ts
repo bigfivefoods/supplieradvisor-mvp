@@ -33,6 +33,15 @@ const DEFAULT_CATEGORIES = [
 export async function GET(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
+    }
+
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!_gate.ok) return _gate.response;
+
     const supabase = getSupabaseServer();
 
     let q = supabase
@@ -43,11 +52,7 @@ export async function GET(request: NextRequest) {
       .order('name', { ascending: true });
 
     // Global (profile_id null) + this company
-    if (Number.isFinite(companyId)) {
-      q = q.or(`profile_id.is.null,profile_id.eq.${companyId}`);
-    } else {
-      q = q.is('profile_id', null);
-    }
+    q = q.or(`profile_id.is.null,profile_id.eq.${companyId}`);
 
     const { data, error } = await q;
 
@@ -189,9 +194,14 @@ export async function DELETE(request: NextRequest) {
   try {
     const id = Number(request.nextUrl.searchParams.get('id'));
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
-    if (!Number.isFinite(id) || !Number.isFinite(companyId)) {
+    if (!Number.isFinite(id) || id <= 0 || !Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'id and companyId required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();
     const { data: row } = await supabase
@@ -216,7 +226,8 @@ export async function DELETE(request: NextRequest) {
     const { error } = await supabase
       .from('product_categories')
       .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('profile_id', companyId);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
