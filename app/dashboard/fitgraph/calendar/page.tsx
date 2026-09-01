@@ -1304,7 +1304,7 @@ export default function CalendarPage() {
             ) : (
               <input
                 className={fc()}
-                placeholder="Room / studio (set list under Website)"
+                placeholder="Room / studio (set list under Floor → Rooms)"
                 value={form.room}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, room: e.target.value }))
