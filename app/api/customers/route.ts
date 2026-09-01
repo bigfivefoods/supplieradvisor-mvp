@@ -19,9 +19,15 @@ export async function GET(request: NextRequest) {
     const privyUserId = request.nextUrl.searchParams.get('privyUserId');
     const q = (request.nextUrl.searchParams.get('q') || '').trim().toLowerCase();
     const status = request.nextUrl.searchParams.get('status');
-    if (!Number.isFinite(companyId)) {
+    if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!_gate.ok) return _gate.response;
+
     // When authenticated, enforce Customers module access (sales_contractor OK)
     if (privyUserId) {
       const mem = await assertCustomersAccess(privyUserId, companyId, 'view');
@@ -334,13 +340,14 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 });
     const companyId = Number(body.companyId);
-    if (Number.isFinite(companyId) && companyId > 0) {
-      const _gate = await requireCompanyAccess(request, companyId, {
-        legacyPrivyUserId: legacyPrivyFrom(request, body),
-      });
-      if (!_gate.ok) return _gate.response;
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    if (body.privyUserId && Number.isFinite(companyId)) {
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!_gate.ok) return _gate.response;
+    if (body.privyUserId) {
       const mem = await assertCustomersAccess(body.privyUserId, companyId, 'write');
       if (!mem.ok) {
         return NextResponse.json({ error: mem.error }, { status: mem.status });
@@ -355,15 +362,13 @@ export async function PATCH(request: NextRequest) {
         .from('customers')
         .select('id, notes, profile_id, status')
         .eq('id', Number(body.id))
+        .eq('profile_id', companyId)
         .maybeSingle();
       if (cErr || !cust) {
         return NextResponse.json(
           { error: cErr?.message || 'Customer not found' },
           { status: 404 }
         );
-      }
-      if (Number.isFinite(companyId) && Number(cust.profile_id) !== companyId) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
       let notes = cust.notes != null ? String(cust.notes) : '';
       if (!/\[credit hold\]/i.test(notes)) {
@@ -379,6 +384,7 @@ export async function PATCH(request: NextRequest) {
           updated_at: new Date().toISOString(),
         })
         .eq('id', Number(body.id))
+        .eq('profile_id', companyId)
         .select('*')
         .maybeSingle();
       if (error) {
@@ -391,6 +397,7 @@ export async function PATCH(request: NextRequest) {
               updated_at: new Date().toISOString(),
             })
             .eq('id', Number(body.id))
+            .eq('profile_id', companyId)
             .select('*')
             .maybeSingle();
           if (retry.error) {
@@ -421,15 +428,13 @@ export async function PATCH(request: NextRequest) {
         .from('customers')
         .select('id, notes, profile_id, status')
         .eq('id', Number(body.id))
+        .eq('profile_id', companyId)
         .maybeSingle();
       if (cErr || !cust) {
         return NextResponse.json(
           { error: cErr?.message || 'Customer not found' },
           { status: 404 }
         );
-      }
-      if (Number.isFinite(companyId) && Number(cust.profile_id) !== companyId) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
       let notes = cust.notes != null ? String(cust.notes) : '';
       notes = notes
@@ -463,6 +468,7 @@ export async function PATCH(request: NextRequest) {
         .from('customers')
         .update(updates)
         .eq('id', Number(body.id))
+        .eq('profile_id', companyId)
         .select('*')
         .single();
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -513,26 +519,20 @@ export async function PATCH(request: NextRequest) {
     if (updates.region != null && updates.province === undefined) {
       updates.province = updates.region;
     }
-    let q = supabase.from('customers').update(updates).eq('id', Number(body.id));
-    if (Number.isFinite(companyId) && companyId > 0) {
-      q = q.eq('profile_id', companyId);
-    }
+    let q = supabase.from('customers').update(updates).eq('id', Number(body.id)).eq('profile_id', companyId);
     let { data, error } = await q.select('*').single();
     if (error && /logo_url|continent|province|column|schema cache|does not exist/i.test(error.message || '')) {
       const soft = { ...updates };
       delete soft.logo_url;
       delete soft.continent;
       delete soft.province;
-      let q2 = supabase.from('customers').update(soft).eq('id', Number(body.id));
-      if (Number.isFinite(companyId) && companyId > 0) {
-        q2 = q2.eq('profile_id', companyId);
-      }
+      let q2 = supabase.from('customers').update(soft).eq('id', Number(body.id)).eq('profile_id', companyId);
       const retry = await q2.select('*').single();
       data = retry.data;
       error = retry.error;
     }
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    if (Number.isFinite(companyId) && companyId > 0 && data?.id) {
+    if (data?.id) {
       const {
         ensureCustomerArLeaf,
         ensureMemberRevLeaf,
@@ -573,14 +573,23 @@ export async function DELETE(request: NextRequest) {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     const privyUserId = request.nextUrl.searchParams.get('privyUserId');
     if (!Number.isFinite(id)) return NextResponse.json({ error: 'id required' }, { status: 400 });
-    if (privyUserId && Number.isFinite(companyId)) {
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!_gate.ok) return _gate.response;
+
+    if (privyUserId) {
       const mem = await assertCustomersAccess(privyUserId, companyId, 'write');
       if (!mem.ok) {
         return NextResponse.json({ error: mem.error }, { status: mem.status });
       }
     }
     const supabase = getSupabaseServer();
-    const { error } = await supabase.from('customers').delete().eq('id', id);
+    const { error } = await supabase.from('customers').delete().eq('id', id).eq('profile_id', companyId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
   } catch (e: unknown) {
