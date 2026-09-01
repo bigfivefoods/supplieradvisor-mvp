@@ -591,6 +591,7 @@ export default function FitgraphWebsitePage() {
             accentClass="border-yellow-200"
             label="Studios & rooms"
             hint="Floor resources for the diary (studio, court, spin room)."
+            manageHref="/dashboard/fitgraph/rooms"
             onSave={async (rooms) => {
               await post({
                 action: 'update_settings',
