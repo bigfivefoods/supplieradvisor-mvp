@@ -425,12 +425,19 @@ export async function POST(request: NextRequest) {
       const { attachCrmToAdvisorPerson, needsGymCrmStamp } = await import(
         '@/lib/b2c/member-account-ar'
       );
+      const requestedLimit = Number(body.limit);
+      const limit = Number.isFinite(requestedLimit)
+        ? Math.min(80, Math.max(1, Math.trunc(requestedLimit)))
+        : 40;
       let stamped = 0;
       let skipped = 0;
       let linked_existing = 0;
       let created = 0;
+      let processed = 0;
       for (const person of store.clients || []) {
         if (!needsGymCrmStamp(person)) continue;
+        if (processed >= limit) break;
+        processed += 1;
         try {
           const result = await attachCrmToAdvisorPerson({
             companyId,
@@ -449,6 +456,10 @@ export async function POST(request: NextRequest) {
         }
       }
       await saveStore(companyId, meta, store);
+      const remaining = (store.clients || []).reduce(
+        (count, person) => (needsGymCrmStamp(person) ? count + 1 : count),
+        0
+      );
       return NextResponse.json({
         success: true,
         store,
@@ -458,6 +469,7 @@ export async function POST(request: NextRequest) {
         skipped,
         linked_existing,
         created,
+        remaining,
         message: `Stamped ${stamped} client(s) onto CRM (${linked_existing} existing, ${created} new), ${skipped} skipped`,
       });
     }
