@@ -19,9 +19,12 @@ export async function GET(request: NextRequest) {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     const q = request.nextUrl.searchParams.get('q');
     const type = request.nextUrl.searchParams.get('type');
-    if (!Number.isFinite(companyId)) {
+    if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();
     let cols = PRODUCT_LIST_COLUMNS;
@@ -227,6 +230,12 @@ export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    const companyId = Number(body.companyId);
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const fields = [
       'name',
@@ -305,32 +314,30 @@ export async function PATCH(request: NextRequest) {
     }
 
     const supabase = getSupabaseServer();
-    const companyId = Number(body.companyId);
     let commercialNote: string | null = null;
-    if (Number.isFinite(companyId) && companyId > 0) {
-      try {
-        const { proposeFromProductMaster } = await import('@/lib/commercial/db');
-        const proposed = await proposeFromProductMaster({
-          profileId: companyId,
-          productId: Number(body.id),
-          costPrice:
-            updates.cost_price != null ? Number(updates.cost_price) : null,
-          sellPrice:
-            updates.sell_price != null ? Number(updates.sell_price) : null,
-        });
-        if (proposed.hostCostLines > 0) {
-          commercialNote = 'Supplier Commercial updated to this cost.';
-        } else if (proposed.customerProposals > 0) {
-          commercialNote = `List price saved. ${proposed.customerProposals} customer price(s) pending Accept.`;
-        }
-      } catch {
-        /* catalogue optional */
+    try {
+      const { proposeFromProductMaster } = await import('@/lib/commercial/db');
+      const proposed = await proposeFromProductMaster({
+        profileId: companyId,
+        productId: Number(body.id),
+        costPrice:
+          updates.cost_price != null ? Number(updates.cost_price) : null,
+        sellPrice:
+          updates.sell_price != null ? Number(updates.sell_price) : null,
+      });
+      if (proposed.hostCostLines > 0) {
+        commercialNote = 'Supplier Commercial updated to this cost.';
+      } else if (proposed.customerProposals > 0) {
+        commercialNote = `List price saved. ${proposed.customerProposals} customer price(s) pending Accept.`;
       }
+    } catch {
+      /* catalogue optional */
     }
     let { data, error } = await supabase
       .from('products')
       .update(updates)
       .eq('id', Number(body.id))
+      .eq('profile_id', companyId)
       .select('*')
       .single();
 
@@ -342,6 +349,7 @@ export async function PATCH(request: NextRequest) {
         .from('products')
         .update(soft)
         .eq('id', Number(body.id))
+        .eq('profile_id', companyId)
         .select('*')
         .single();
       data = retry.data;
@@ -362,9 +370,15 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const id = Number(request.nextUrl.searchParams.get('id'));
-    if (!Number.isFinite(id)) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    if (!Number.isFinite(id) || id <= 0) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    const companyId = Number(request.nextUrl.searchParams.get('companyId'));
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const supabase = getSupabaseServer();
-    const { error } = await supabase.from('products').delete().eq('id', id);
+    const { error } = await supabase.from('products').delete().eq('id', id).eq('profile_id', companyId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
   } catch (e: unknown) {
