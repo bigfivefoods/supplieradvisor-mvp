@@ -188,7 +188,15 @@ export default function ClientsPage() {
         let linked = 0;
         let created = 0;
         let remaining = 1;
+        let batches = 0;
+        const maxBatches = 50;
         while (remaining > 0) {
+          if (batches >= maxBatches) {
+            throw new Error(
+              `Could not stamp gym clients onto CRM (remaining ${remaining})`
+            );
+          }
+          batches += 1;
           const data = await post(
             { action: 'backfill_client_crm', limit: 40 },
             { quiet: true }
