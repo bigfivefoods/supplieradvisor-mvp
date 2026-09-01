@@ -25,6 +25,12 @@ const clientsPage = readFileSync(
 assert.match(clientsPage, /while \(remaining > 0\)/);
 assert.match(clientsPage, /action: 'backfill_client_crm', limit: 40/);
 assert.match(clientsPage, /Number\(data\?\.remaining\)/);
+const addDoneIndex = clientsPage.indexOf(
+  'gymCrmBackfillCompanyOnce.add(companyId)'
+);
+const loopIndex = clientsPage.indexOf('while (remaining > 0)');
+assert.ok(addDoneIndex > loopIndex);
+assert.match(clientsPage, /gymCrmBackfillCompanyOnce\.delete\(companyId\)/);
 
 assert.doesNotMatch(route, /ClinicRoomsDesk/);
 assert.doesNotMatch(clientsPage, /ClinicRoomsDesk/);

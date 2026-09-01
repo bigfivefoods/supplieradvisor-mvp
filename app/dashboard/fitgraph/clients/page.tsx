@@ -42,6 +42,11 @@ import {
 
 
 const gymCrmBackfillCompanyOnce = new Set<number>();
+const gymClientNeedsCrmStamp = (client: Partial<FitClient>) =>
+  !(Number(client.crm_customer_id) > 0) ||
+  !/^1180-\d{7}$/.test(String(client.ar_account_code || ''));
+const countGymClientsNeedingCrmStamp = (clients: Partial<FitClient>[] = []) =>
+  clients.reduce((count, client) => (gymClientNeedsCrmStamp(client) ? count + 1 : count), 0);
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -169,26 +174,20 @@ export default function ClientsPage() {
 
   useEffect(() => {
     if (crmBackfillOnce.current || loading || !store) return;
-    if (gymCrmBackfillCompanyOnce.has(companyId)) {
-      crmBackfillOnce.current = true;
-      return;
-    }
-    const needs = (store.clients || []).some(
-      (c) =>
-        !(Number(c.crm_customer_id) > 0) ||
-        !/^1180-\d{7}$/.test(String(c.ar_account_code || ''))
-    );
-    if (!needs) return;
+    if (gymCrmBackfillCompanyOnce.has(companyId)) return;
+    const initialRemaining = countGymClientsNeedingCrmStamp(store.clients || []);
+    if (initialRemaining <= 0) return;
     crmBackfillOnce.current = true;
-    gymCrmBackfillCompanyOnce.add(companyId);
+    let cancelled = false;
     void (async () => {
       try {
         let stamped = 0;
         let skipped = 0;
         let linked = 0;
         let created = 0;
-        let remaining = 1;
+        let remaining = initialRemaining;
         let batches = 0;
+        let latestClients = [...(store.clients || [])];
         const maxBatches = 50;
         while (remaining > 0) {
           if (batches >= maxBatches) {
@@ -201,27 +200,44 @@ export default function ClientsPage() {
             { action: 'backfill_client_crm', limit: 40 },
             { quiet: true }
           );
+          if (cancelled) return;
           stamped += Number(data?.stamped) || 0;
           skipped += Number(data?.skipped) || 0;
           linked += Number(data?.linked_existing) || 0;
           created += Number(data?.created) || 0;
+          if (Array.isArray(data?.store?.clients)) {
+            latestClients = data.store.clients;
+          }
           const nextRemaining = Number(data?.remaining);
           remaining = Number.isFinite(nextRemaining)
             ? Math.max(0, nextRemaining)
-            : 0;
+            : countGymClientsNeedingCrmStamp(latestClients);
+          if (remaining === 0) {
+            remaining = countGymClientsNeedingCrmStamp(latestClients);
+          }
         }
+        if (cancelled) return;
+        gymCrmBackfillCompanyOnce.add(companyId);
         toast.success(
           `CRM: ${stamped} stamped (${linked} existing, ${created} new), ${skipped} skipped`
         );
+        await load();
       } catch (e: unknown) {
+        gymCrmBackfillCompanyOnce.delete(companyId);
         const message =
           e instanceof Error && e.message
             ? e.message
             : 'Could not stamp gym clients onto CRM';
         toast.error(message);
+      } finally {
+        crmBackfillOnce.current = false;
       }
     })();
-  }, [loading, store, post, companyId]);
+    return () => {
+      cancelled = true;
+      crmBackfillOnce.current = false;
+    };
+  }, [loading, store, post, companyId, load]);
 
   const save = async () => {
     if (!form.name.trim()) {
