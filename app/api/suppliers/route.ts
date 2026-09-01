@@ -77,9 +77,13 @@ export async function GET(request: NextRequest) {
     const inviteStatus = sp.get('invite_status');
     const q = (sp.get('q') || '').trim().toLowerCase();
 
-    if (!Number.isFinite(companyId)) {
+    if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!_gate.ok) return _gate.response;
     if (privyUserId) {
       const mem = await assertCompanyMember(privyUserId, companyId);
       if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
@@ -385,42 +389,43 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 });
     const companyId = Number(body.companyId);
-    if (Number.isFinite(companyId) && companyId > 0) {
-      const _gate = await requireCompanyAccess(request, companyId, {
-        legacyPrivyUserId: legacyPrivyFrom(request, body),
-      });
-      if (!_gate.ok) return _gate.response;
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!_gate.ok) return _gate.response;
     const supabase = getSupabaseServer();
-    const curHit = Number.isFinite(companyId)
-      ? await supabase
-          .from('srm_suppliers')
-          .select('metadata')
-          .eq('id', Number(body.id))
-          .eq('profile_id', companyId)
-          .maybeSingle()
-      : await supabase
-          .from('srm_suppliers')
-          .select('metadata')
-          .eq('id', Number(body.id))
-          .maybeSingle();
+    const curHit = await supabase
+      .from('srm_suppliers')
+      .select('metadata')
+      .eq('id', Number(body.id))
+      .eq('profile_id', companyId)
+      .maybeSingle();
     let updates = supplierPatchUpdates(body as Record<string, unknown>, curHit.data?.metadata);
 
-    let q = supabase.from('srm_suppliers').update(updates).eq('id', Number(body.id));
-    if (Number.isFinite(companyId)) q = q.eq('profile_id', companyId);
+    let q = supabase
+      .from('srm_suppliers')
+      .update(updates)
+      .eq('id', Number(body.id))
+      .eq('profile_id', companyId);
     let { data, error } = await q.select('*').single();
     for (let i = 0; i < 8 && error; i++) {
       const next = stripMissingUpdateColumn(updates, error.message);
       if (!next) break;
       updates = next;
-      let q2 = supabase.from('srm_suppliers').update(updates).eq('id', Number(body.id));
-      if (Number.isFinite(companyId)) q2 = q2.eq('profile_id', companyId);
+      let q2 = supabase
+        .from('srm_suppliers')
+        .update(updates)
+        .eq('id', Number(body.id))
+        .eq('profile_id', companyId);
       const retry = await q2.select('*').single();
       data = retry.data;
       error = retry.error;
     }
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    if (Number.isFinite(companyId) && companyId > 0 && data?.id) {
+    if (data?.id) {
       const { ensureSupplierApLeaf } = await import(
         '@/lib/accounting/party-gl-accounts'
       );
@@ -458,10 +463,10 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json({ error: mem.error }, { status: mem.status });
       }
     } else {
-      const gate = await requireCompanyAccess(request, companyId, {
+      const _gate = await requireCompanyAccess(request, companyId, {
         legacyPrivyUserId: legacyPrivyFrom(request),
       });
-      if (!gate.ok) return gate.response;
+      if (!_gate.ok) return _gate.response;
     }
 
     const supabase = getSupabaseServer();
