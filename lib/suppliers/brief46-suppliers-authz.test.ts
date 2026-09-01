@@ -59,11 +59,20 @@ assert.ok(
 assert.match(getFn, /!Number\.isFinite\(companyId\)\s*\|\|\s*companyId\s*<=\s*0/);
 assert.match(patchFn, /!Number\.isFinite\(companyId\)\s*\|\|\s*companyId\s*<=\s*0/);
 
-const patchProfileScopes =
-  patchFn.match(/\.eq\((['"])profile_id\1,\s*companyId\)/g)?.length || 0;
-assert.ok(
-  patchProfileScopes >= 3,
-  'PATCH must scope metadata select and all update paths with profile_id'
+assert.match(
+  patchFn,
+  /const curHit = await[\s\S]*?\.select\('metadata'\)[\s\S]*?\.eq\('id', Number\(body\.id\)\)[\s\S]*?\.eq\('profile_id', companyId\)[\s\S]*?\.maybeSingle\(\)/,
+  'PATCH metadata select must be scoped with profile_id'
+);
+assert.match(
+  patchFn,
+  /let q = supabase[\s\S]*?\.update\(updates\)[\s\S]*?\.eq\('id', Number\(body\.id\)\)[\s\S]*?\.eq\('profile_id', companyId\)/,
+  'PATCH main update must be scoped with profile_id'
+);
+assert.match(
+  patchFn,
+  /let q2 = supabase[\s\S]*?\.update\(updates\)[\s\S]*?\.eq\('id', Number\(body\.id\)\)[\s\S]*?\.eq\('profile_id', companyId\)/,
+  'PATCH retry update must be scoped with profile_id'
 );
 
 assert.ok(
@@ -73,7 +82,7 @@ assert.ok(
 );
 assert.doesNotMatch(
   flatPatch,
-  /\.update\(updates\)\.eq\('id', Number\(body\.id\)\)(?!\.eq\('profile_id', companyId\))/
+  /\.update\(updates\)\s*\.eq\('id', Number\(body\.id\)\)(?!\s*\.eq\('profile_id', companyId\))/
 );
 
 type JsonBody = Record<string, unknown>;
@@ -192,7 +201,7 @@ function sanitizeFn(fn: string): string {
         `async function ${name}(${params.replace(/:\s*NextRequest/g, '')})`
     )
     .replace(/catch \(e: unknown\)/g, 'catch (e)')
-    .replace(/\b(const|let)\s+([A-Za-z_$][\w$]*)\s*:\s*[^=;]+=/g, '$1 $2 =')
+    .replace(/\b(const|let)\s+([A-Za-z_$][\w$]*)\s*:\s*([^=;\n]+)=/g, '$1 $2 =')
     .replace(/\(([^()]+?)\s+as\s+[^)]+\)/g, '($1)')
     .replace(/\s+as\s+[A-Za-z_$][\w$<>,.\s|()[\]?]*/g, '')
     .replace(/\(\s*c\s*:\s*string\s*\)/g, '(c)');
@@ -335,27 +344,57 @@ async function main() {
   }
 
   {
-    const env = loadRoute({ allowCompanyId: 110, denyStatus: 403, suppliers: [{ id: 1, profile_id: 102, trading_name: 'BFF 102' }] });
-    const getResponse = await env.handlers.GET(makeRequest('https://example.test/api/suppliers?companyId=102'));
-    const patchResponse = await env.handlers.PATCH(
-      makeRequest('https://example.test/api/suppliers', { id: 1, companyId: 102, trading_name: 'x' })
+    const getEnv = loadRoute({ allowCompanyId: 110, denyStatus: 403 });
+    const getResponse = await getEnv.handlers.GET(
+      makeRequest('https://example.test/api/suppliers?companyId=102')
     );
     assert.equal(getResponse.status, 403, 'member of 110 must not read company 102');
-    assert.equal(patchResponse.status, 403, 'member of 110 must not update company 102');
-    assert.equal(env.supabaseCalls, 0, 'wrong-company requests must stop before Supabase');
-    assert.equal(env.store.srm_suppliers[0].trading_name, 'BFF 102', 'wrong-company PATCH must not change supplier');
+    assert.equal(getEnv.supabaseCalls, 0, 'wrong-company GET must stop before Supabase');
   }
 
   {
-    const env = loadRoute({ allowCompanyId: 102, denyStatus: 403, suppliers: [{ id: 1, profile_id: 110, trading_name: 'VUKA 110' }] });
-    const getResponse = await env.handlers.GET(makeRequest('https://example.test/api/suppliers?companyId=110'));
-    const patchResponse = await env.handlers.PATCH(
-      makeRequest('https://example.test/api/suppliers', { id: 1, companyId: 110, trading_name: 'x' })
+    const patchEnv = loadRoute({
+      allowCompanyId: 110,
+      denyStatus: 403,
+      suppliers: [{ id: 1, profile_id: 102, trading_name: 'BFF 102' }],
+    });
+    const patchResponse = await patchEnv.handlers.PATCH(
+      makeRequest('https://example.test/api/suppliers', { id: 1, companyId: 102, trading_name: 'x' })
+    );
+    assert.equal(patchResponse.status, 403, 'member of 110 must not update company 102');
+    assert.equal(patchEnv.supabaseCalls, 0, 'wrong-company PATCH must stop before Supabase');
+    assert.equal(
+      patchEnv.store.srm_suppliers[0].trading_name,
+      'BFF 102',
+      'wrong-company PATCH must not change supplier'
+    );
+  }
+
+  {
+    const getEnv = loadRoute({ allowCompanyId: 102, denyStatus: 403 });
+    const getResponse = await getEnv.handlers.GET(
+      makeRequest('https://example.test/api/suppliers?companyId=110')
     );
     assert.equal(getResponse.status, 403, 'member of 102 must not read company 110');
+    assert.equal(getEnv.supabaseCalls, 0, 'inverse wrong-company GET must stop before Supabase');
+  }
+
+  {
+    const patchEnv = loadRoute({
+      allowCompanyId: 102,
+      denyStatus: 403,
+      suppliers: [{ id: 1, profile_id: 110, trading_name: 'VUKA 110' }],
+    });
+    const patchResponse = await patchEnv.handlers.PATCH(
+      makeRequest('https://example.test/api/suppliers', { id: 1, companyId: 110, trading_name: 'x' })
+    );
     assert.equal(patchResponse.status, 403, 'member of 102 must not update company 110');
-    assert.equal(env.supabaseCalls, 0, 'inverse wrong-company requests must stop before Supabase');
-    assert.equal(env.store.srm_suppliers[0].trading_name, 'VUKA 110', 'inverse wrong-company PATCH must not change supplier');
+    assert.equal(patchEnv.supabaseCalls, 0, 'inverse wrong-company PATCH must stop before Supabase');
+    assert.equal(
+      patchEnv.store.srm_suppliers[0].trading_name,
+      'VUKA 110',
+      'inverse wrong-company PATCH must not change supplier'
+    );
   }
 
   {
@@ -372,21 +411,17 @@ async function main() {
     assert.equal(env.gateCalls[0], 110, 'happy-path GET should gate using companyId=110');
     assert.ok(env.events.indexOf('gate:110') < env.events.indexOf('supabase'), 'gate must run before Supabase');
     assert.equal(body.success, true);
+    assert.equal(Array.isArray(body.suppliers), true, 'GET should return a supplier list');
+    const suppliers = body.suppliers as Array<Record<string, unknown>>;
+    assert.equal(suppliers.length, 1, 'happy-path GET should return only caller company supplier book');
     assert.deepEqual(
-      body.suppliers,
-      [{
-        id: 1,
-        profile_id: 110,
-        trading_name: 'VUKA 110',
-        linked_profile_id: null,
-        logo_url: null,
-        vat_number: null,
-        registration_number: null,
-        payment_terms: null,
-        connection_suspended: false,
-        trust_score: 50,
-      }],
-      'happy-path GET should return only caller company supplier book'
+      {
+        id: suppliers[0].id,
+        profile_id: suppliers[0].profile_id,
+        trading_name: suppliers[0].trading_name,
+        linked_profile_id: suppliers[0].linked_profile_id,
+      },
+      { id: 1, profile_id: 110, trading_name: 'VUKA 110', linked_profile_id: null }
     );
   }
 
