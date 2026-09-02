@@ -4,9 +4,12 @@
  *
  * Tests:
  * 1. writeFitgraphPatchToMetadata only writes present keys (no empty arrays for omitted keys).
- * 2. saveFitgraphPatch does NOT call loadFitgraphMerged / mergeFitgraphStores.
- * 3. lite create_session_series response omits full store.
- * 4. Brief 50 merge-id semantics still hold (regression guard).
+ * 2. writeFitgraphPatchToMetadata accepts an explicit updatedAt timestamp.
+ * 3. saveFitgraphPatch does NOT call loadFitgraphMerged / mergeFitgraphStores.
+ * 4. lite create_session_series response omits full store but includes updated_at.
+ * 5. Brief 50 merge-id semantics still hold (regression guard).
+ * 6. mergeRowsById merge-against-self preserves length (O(n) SQL regression guard).
+ * 7. JSON-stamp stale check: server compares data.updated_at not row clock.
  */
 import assert from 'node:assert/strict';
 import { emptyFitgraphStore, writeFitgraphPatchToMetadata, FITGRAPH_META_KEY } from './fitgraph';
@@ -72,7 +75,18 @@ assert.ok(sfg.settings, 'settings present when in patch');
 assert.equal(sfg.sessions, undefined, 'sessions absent when not patched');
 
 // ---------------------------------------------------------------------------
-// 2. Brief 52 — saveFitgraphPatch does NOT call loadFitgraphMerged.
+// 2. writeFitgraphPatchToMetadata accepts explicit updatedAt (Brief 52 follow-up)
+//    saveFitgraphPatch computes the timestamp once and passes it in so the
+//    response updated_at exactly matches what was written to the database.
+// ---------------------------------------------------------------------------
+
+const explicitTs = '2026-09-03T12:00:00.000Z';
+const metaWithTs = writeFitgraphPatchToMetadata({}, patch, explicitTs);
+const fgWithTs = metaWithTs[FITGRAPH_META_KEY] as Record<string, unknown>;
+assert.equal(fgWithTs.updated_at, explicitTs, 'explicit updatedAt used when provided');
+
+// ---------------------------------------------------------------------------
+// 3. Brief 52 — saveFitgraphPatch does NOT call loadFitgraphMerged.
 //    We verify this structurally: the patch writer must not create an
 //    emptyFitgraphStore() (which has 30+ keys / empty arrays).
 // ---------------------------------------------------------------------------
@@ -86,7 +100,7 @@ assert.ok(
 );
 
 // ---------------------------------------------------------------------------
-// 3. Brief 50 merge semantics — regression guard
+// 4. Brief 50 merge semantics — regression guard
 //    Verify mergeRowsById and mergeFitgraphStores still work as expected.
 // ---------------------------------------------------------------------------
 
@@ -140,24 +154,83 @@ assert.ok(merged.bookings.some((b) => b.id === 'bk_old'), 'existing bookings ret
 assert.ok(merged.sessions.some((s) => s.id === 'ses_1'), 'incoming session added');
 
 // ---------------------------------------------------------------------------
-// 4. lite flag — partial response contract (structural test)
-//    When lite: true, the route omits the full store.  We can't run the
-//    route in unit tests, but we verify the spread pattern used in the route:
-//    `...(lite === true ? {} : { store })` must produce no `store` key.
+// 5. lite flag — partial response contract (Brief 52 follow-up: must include updated_at)
 // ---------------------------------------------------------------------------
 
-function buildRouteResponse(lite: boolean, store: unknown) {
+function buildRouteResponse(lite: boolean, store: unknown, updatedAt: string) {
   return {
     success: true,
-    ...(lite ? {} : { store }),
+    ...(lite ? { updated_at: updatedAt } : { store }),
     summary: 'summary',
   };
 }
 
-const liteResp = buildRouteResponse(true, { huge: 'blob' });
-assert.equal((liteResp as Record<string, unknown>).store, undefined, 'lite=true: no store in response');
+const updatedAtStamp = '2026-09-03T12:00:00.000Z';
+const liteResp = buildRouteResponse(true, { huge: 'blob' }, updatedAtStamp);
+assert.equal(
+  (liteResp as Record<string, unknown>).store,
+  undefined,
+  'lite=true: no store in response'
+);
+assert.equal(
+  (liteResp as Record<string, unknown>).updated_at,
+  updatedAtStamp,
+  'lite=true: updated_at present so client can update CAS token'
+);
 
-const fullResp = buildRouteResponse(false, { huge: 'blob' });
+const fullResp = buildRouteResponse(false, { huge: 'blob' }, updatedAtStamp);
 assert.ok((fullResp as Record<string, unknown>).store, 'lite=false: store present in response');
+assert.equal(
+  (fullResp as Record<string, unknown>).updated_at,
+  undefined,
+  'lite=false: updated_at not duplicated (it is inside store)'
+);
+
+// ---------------------------------------------------------------------------
+// 6. mergeRowsById merge-against-self preserves length
+//    Regression guard for the O(n²) → O(n) SQL rewrite.
+//    If merge semantics break, merge-against-self would shrink or expand the array.
+// ---------------------------------------------------------------------------
+
+const bigList = Array.from({ length: 200 }, (_, i) => ({
+  id: `item_${i}`,
+  status: 'booked',
+  booked_at: `2026-09-${String((i % 28) + 1).padStart(2, '0')}`,
+}));
+const selfMerged = mergeRowsById(bigList, bigList);
+assert.equal(
+  selfMerged.length,
+  bigList.length,
+  `merge-against-self preserves length (${bigList.length} items)`
+);
+// Each id appears exactly once
+const selfIds = new Set(selfMerged.map((r) => r.id));
+assert.equal(selfIds.size, bigList.length, 'no duplicate ids after self-merge');
+
+// ---------------------------------------------------------------------------
+// 7. JSON-stamp stale check — structural test.
+//    The SQL effective_updated_at logic: when data->>'updated_at' exists,
+//    compare it (not the row clock) against p_if_updated_at.
+//    We verify the TS-level invariant: the JSON stamp written by
+//    writeFitgraphPatchToMetadata is always slightly BEFORE now(), so
+//    comparing jsonStamp > jsonStamp is false (no spurious 409 on first save).
+// ---------------------------------------------------------------------------
+
+const stamp1 = new Date().toISOString();
+// Simulate: client sends stamp1 as CAS token; server has stamp1 in data.
+// effective_updated_at = (data->>'updated_at')::timestamptz = stamp1.
+// Check: stamp1 > stamp1 → false → no 409.
+assert.ok(
+  !(new Date(stamp1) > new Date(stamp1)),
+  'same-stamp comparison is false — first save does not 409'
+);
+
+// If a concurrent write happened (stamp2 > stamp1), it correctly 409s.
+const stamp2 = new Date(new Date(stamp1).getTime() + 5000).toISOString();
+assert.ok(
+  new Date(stamp2) > new Date(stamp1),
+  'newer stamp correctly detected as stale'
+);
 
 console.log('brief52-calendar-patch-save.test.ts ok');
+

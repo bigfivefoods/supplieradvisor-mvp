@@ -2044,11 +2044,12 @@ export function writeFitgraphToMetadata(
  */
 export function writeFitgraphPatchToMetadata(
   meta: Record<string, unknown>,
-  patch: Partial<FitgraphStore>
+  patch: Partial<FitgraphStore>,
+  updatedAt?: string
 ): Record<string, unknown> {
   // Build a partial fitgraph payload containing only the patched keys.
   // updated_at is always stamped so the server row's timestamp is fresh.
-  const partial: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  const partial: Record<string, unknown> = { updated_at: updatedAt ?? new Date().toISOString() };
   for (const key of Object.keys(patch) as (keyof FitgraphStore)[]) {
     partial[key] = patch[key];
   }

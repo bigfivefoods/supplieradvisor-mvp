@@ -166,18 +166,20 @@ async function saveStore(
  * Brief 52 — fast calendar patch save.
  * Only the keys present in `patch` are written; all other arrays on the server
  * row are untouched (Brief 50/52 SQL union-merge preserves them).
+ * Returns the `updated_at` stamp written into the data so the client can
+ * update its CAS token without a full reload.
  */
 async function savePatch(
   companyId: number,
   meta: Record<string, unknown>,
   patch: Partial<FitgraphStore>
-) {
+): Promise<string> {
   const ifUpdatedAtRaw = meta.__if_updated_at;
   const ifUpdatedAt =
     typeof ifUpdatedAtRaw === 'string' && ifUpdatedAtRaw.trim()
       ? ifUpdatedAtRaw.trim()
       : null;
-  await saveFitgraphPatch(companyId, patch, { ifUpdatedAt });
+  return saveFitgraphPatch(companyId, patch, { ifUpdatedAt });
 }
 
 function analysis(store: FitgraphStore) {
@@ -1111,10 +1113,11 @@ export async function POST(request: NextRequest) {
           void emailSessionCalendar({ store, sessionId: s.id }).catch(() => null);
         }
       }
-      await savePatch(companyId, meta, { sessions: store.sessions, bookings: store.bookings });
+      const updatedAt = await savePatch(companyId, meta, { sessions: store.sessions, bookings: store.bookings });
+      store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
-        ...(body.lite === true ? {} : { store }),
+        ...(body.lite === true ? { updated_at: updatedAt } : { store }),
         summary: summariseFitgraph(store),
         ...(body.lite === true ? {} : { analysis: analysis(store) }),
         created: created.length,
@@ -1193,7 +1196,8 @@ export async function POST(request: NextRequest) {
               recurrence,
               now,
             });
-      await savePatch(companyId, meta, { sessions: store.sessions, bookings: store.bookings });
+      const updatedAt = await savePatch(companyId, meta, { sessions: store.sessions, bookings: store.bookings });
+      store.updated_at = updatedAt;
       const updated = ids.length + expanded.added;
       return NextResponse.json({
         success: true,
@@ -1369,11 +1373,12 @@ export async function POST(request: NextRequest) {
         /* best-effort — CRM miss must not fail the class save */
       }
       recodeGymClientNumbers(store.clients || []);
-      await savePatch(companyId, meta, {
+      const updatedAt = await savePatch(companyId, meta, {
         clients: store.clients,
         subscriptions: store.subscriptions,
         bookings: store.bookings,
       });
+      store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
         store,
@@ -1491,7 +1496,8 @@ export async function POST(request: NextRequest) {
       if ('error' in result) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
-      await savePatch(companyId, meta, { sessions: store.sessions, membership_plans: store.membership_plans });
+      const updatedAt = await savePatch(companyId, meta, { sessions: store.sessions, membership_plans: store.membership_plans });
+      store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
         store,
@@ -1551,7 +1557,8 @@ export async function POST(request: NextRequest) {
       if ('error' in result) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
-      await savePatch(companyId, meta, { sessions: store.sessions, bookings: store.bookings });
+      const updatedAt = await savePatch(companyId, meta, { sessions: store.sessions, bookings: store.bookings });
+      store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
         store,
@@ -1588,13 +1595,19 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      const hadPublicToken = Boolean(store.settings?.public_token);
+      const hadAllowPublicBooking = store.settings?.allow_public_booking !== false;
       store.settings = ensurePublicToken(store.settings, companyId);
       // Keep calendar usable for invites even if not fully published
       if (store.settings.allow_public_booking === false) {
         store.settings.allow_public_booking = true;
       }
+      const hadShareCode = Boolean(session.share_code);
       const shareCode = ensureSessionShareCode(session);
-      await saveStore(companyId, meta, store);
+      // Skip the write when both tokens already existed and settings unchanged.
+      if (!hadPublicToken || !hadShareCode || !hadAllowPublicBooking) {
+        await saveStore(companyId, meta, store);
+      }
       const path = buildClassJoinPath(
         store.settings.public_token,
         shareCode
@@ -1649,7 +1662,8 @@ export async function POST(request: NextRequest) {
           session.public_notes = firstLine;
         }
       }
-      await savePatch(companyId, meta, { sessions: store.sessions });
+      const updatedAt = await savePatch(companyId, meta, { sessions: store.sessions });
+      store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
         store,
@@ -1796,11 +1810,12 @@ export async function POST(request: NextRequest) {
         Object.assign(meta, ev.metadata);
         void dispatchAdvisorEventSideEffects(ev.event);
       }
-      await savePatch(companyId, meta, {
+      const updatedAt = await savePatch(companyId, meta, {
         bookings: store.bookings,
         pt_packs: store.pt_packs,
         treatment_plans: store.treatment_plans,
       });
+      store.updated_at = updatedAt;
       if (marked.newlyAttended) {
         await notifyMemberToRateClass({ store, booking }).catch(() => null);
       }
@@ -1904,7 +1919,8 @@ export async function POST(request: NextRequest) {
           { status: 404 }
         );
       }
-      await savePatch(companyId, meta, { bookings: store.bookings });
+      const updatedAt = await savePatch(companyId, meta, { bookings: store.bookings });
+      store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
         store,
@@ -2236,7 +2252,8 @@ export async function POST(request: NextRequest) {
         },
       });
       Object.assign(meta, ev.metadata);
-      await savePatch(companyId, meta, { bookings: store.bookings });
+      const updatedAt = await savePatch(companyId, meta, { bookings: store.bookings });
+      store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
         store,
@@ -2735,7 +2752,8 @@ export async function POST(request: NextRequest) {
         else added += 1;
       }
       dedupeFitgraphBookings(store);
-      await savePatch(companyId, meta, { bookings: store.bookings });
+      const updatedAt = await savePatch(companyId, meta, { bookings: store.bookings });
+      store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
         store,
@@ -2774,7 +2792,8 @@ export async function POST(request: NextRequest) {
         });
         if (marked.ok && marked.newlyAttended) rateBookings.push(marked.booking);
       }
-      await savePatch(companyId, meta, { bookings: store.bookings });
+      const updatedAt = await savePatch(companyId, meta, { bookings: store.bookings });
+      store.updated_at = updatedAt;
       await Promise.all(
         rateBookings.map((booking) =>
           notifyMemberToRateClass({ store, booking }).catch(() => null)

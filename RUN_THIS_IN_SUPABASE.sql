@@ -352,65 +352,79 @@ LANGUAGE plpgsql
 IMMUTABLE
 AS $$
 DECLARE
-  merged jsonb := '[]'::jsonb;
-  existing_arr jsonb := CASE
+  existing_arr  jsonb := CASE
     WHEN p_existing IS NOT NULL AND jsonb_typeof(p_existing) = 'array' THEN p_existing
     ELSE '[]'::jsonb
   END;
-  incoming_arr jsonb := CASE
+  incoming_arr  jsonb := CASE
     WHEN p_incoming IS NOT NULL AND jsonb_typeof(p_incoming) = 'array' THEN p_incoming
     ELSE '[]'::jsonb
   END;
-  removed_arr jsonb := CASE
+  removed_arr   jsonb := CASE
     WHEN p_removed_ids IS NOT NULL AND jsonb_typeof(p_removed_ids) = 'array' THEN p_removed_ids
     ELSE '[]'::jsonb
   END;
-  incoming_ids text[] := ARRAY[]::text[];
-  removed_ids text[] := ARRAY[]::text[];
+  incoming_ids  text[] := ARRAY[]::text[];
+  removed_ids   text[] := ARRAY[]::text[];
   tombstone_ids text[] := ARRAY[]::text[];
-  item jsonb;
-  item_id text;
+  result        jsonb;
 BEGIN
-  FOR item_id IN SELECT value FROM jsonb_array_elements_text(removed_arr)
-  LOOP
-    IF NULLIF(trim(COALESCE(item_id, '')), '') IS NOT NULL THEN
-      removed_ids := array_append(removed_ids, trim(item_id));
-    END IF;
-  END LOOP;
+  -- Build removed_ids set
+  SELECT COALESCE(array_agg(trim(v)), ARRAY[]::text[])
+  INTO removed_ids
+  FROM jsonb_array_elements_text(removed_arr) AS v
+  WHERE NULLIF(trim(v), '') IS NOT NULL;
 
-  FOR item IN SELECT value FROM jsonb_array_elements(incoming_arr)
-  LOOP
-    IF jsonb_typeof(item) = 'object' AND item ? 'id'
-       AND NULLIF(trim(COALESCE(item ->> 'id', '')), '') IS NOT NULL THEN
-      item_id := trim(item ->> 'id');
-      incoming_ids := array_append(incoming_ids, item_id);
-      IF public.sa_module_store_is_tombstone(item) THEN
-        tombstone_ids := array_append(tombstone_ids, item_id);
-      ELSE
-        merged := merged || jsonb_build_array(item);
-      END IF;
-    ELSE
-      merged := merged || jsonb_build_array(item);
-    END IF;
-  END LOOP;
+  -- Build incoming_ids and tombstone_ids in one pass
+  SELECT
+    COALESCE(
+      array_agg(trim(item->>'id')) FILTER (
+        WHERE jsonb_typeof(item) = 'object'
+          AND item ? 'id'
+          AND NULLIF(trim(item->>'id'), '') IS NOT NULL
+      ),
+      ARRAY[]::text[]
+    ),
+    COALESCE(
+      array_agg(trim(item->>'id')) FILTER (
+        WHERE jsonb_typeof(item) = 'object'
+          AND item ? 'id'
+          AND NULLIF(trim(item->>'id'), '') IS NOT NULL
+          AND public.sa_module_store_is_tombstone(item)
+      ),
+      ARRAY[]::text[]
+    )
+  INTO incoming_ids, tombstone_ids
+  FROM jsonb_array_elements(incoming_arr) AS item;
 
-  FOR item IN SELECT value FROM jsonb_array_elements(existing_arr)
-  LOOP
-    IF jsonb_typeof(item) = 'object' AND item ? 'id'
-       AND NULLIF(trim(COALESCE(item ->> 'id', '')), '') IS NOT NULL THEN
-      item_id := trim(item ->> 'id');
-      IF item_id = ANY(incoming_ids)
-         OR item_id = ANY(removed_ids)
-         OR item_id = ANY(tombstone_ids) THEN
-        CONTINUE;
-      END IF;
-      merged := merged || jsonb_build_array(item);
-    ELSE
-      merged := merged || jsonb_build_array(item);
-    END IF;
-  END LOOP;
+  -- Single-pass aggregation: O(n) instead of O(n²) loop-copy.
+  -- src=0 keeps incoming items first; src=1 appends existing-only items.
+  SELECT COALESCE(jsonb_agg(item ORDER BY src, rn), '[]'::jsonb)
+  INTO result
+  FROM (
+    SELECT 0 AS src, row_number() OVER () AS rn, item
+    FROM jsonb_array_elements(incoming_arr) AS item
+    WHERE NOT (
+      jsonb_typeof(item) = 'object'
+      AND item ? 'id'
+      AND NULLIF(trim(item->>'id'), '') IS NOT NULL
+      AND trim(item->>'id') = ANY(tombstone_ids)
+    )
+    UNION ALL
+    SELECT 1 AS src, row_number() OVER () AS rn, item
+    FROM jsonb_array_elements(existing_arr) AS item
+    WHERE NOT (
+      jsonb_typeof(item) = 'object'
+      AND item ? 'id'
+      AND NULLIF(trim(item->>'id'), '') IS NOT NULL
+      AND (
+        trim(item->>'id') = ANY(incoming_ids)
+        OR trim(item->>'id') = ANY(removed_ids)
+      )
+    )
+  ) t;
 
-  RETURN merged;
+  RETURN result;
 END;
 $$;
 
@@ -508,6 +522,7 @@ DECLARE
   existing_data jsonb;
   existing_updated_at timestamptz;
   existing_public_token text;
+  effective_updated_at timestamptz;
 BEGIN
   PERFORM public.sa_assert_advisor_module(p_module);
   IF p_company_id IS NULL OR p_company_id <= 0 THEN
@@ -540,14 +555,25 @@ BEGIN
       now()
     );
   ELSE
-    IF p_if_updated_at IS NOT NULL
-       AND existing_updated_at IS NOT NULL
-       AND existing_updated_at > p_if_updated_at THEN
-      RAISE EXCEPTION USING
-        ERRCODE = 'P0001',
-        MESSAGE = 'stale_module_store',
-        DETAIL = existing_updated_at::text,
-        HINT = 'Refresh and retry with the latest store snapshot';
+    IF p_if_updated_at IS NOT NULL THEN
+      -- Prefer the JSON-embedded updated_at when present: the JS client stamps
+      -- new Date().toISOString() inside the data *before* the SQL now() runs,
+      -- so the ROW clock is always a few ms ahead of the JSON stamp.
+      -- Comparing ROW clock > JSON-stamp was always true → spurious 409s.
+      effective_updated_at := CASE
+        WHEN existing_data ? 'updated_at'
+          AND NULLIF(trim(COALESCE(existing_data->>'updated_at', '')), '') IS NOT NULL
+        THEN (existing_data->>'updated_at')::timestamptz
+        ELSE existing_updated_at
+      END;
+      IF effective_updated_at IS NOT NULL
+         AND effective_updated_at > p_if_updated_at THEN
+        RAISE EXCEPTION USING
+          ERRCODE = 'P0001',
+          MESSAGE = 'stale_module_store',
+          DETAIL = effective_updated_at::text,
+          HINT = 'Refresh and retry with the latest store snapshot';
+      END IF;
     END IF;
 
     UPDATE public.company_module_stores
