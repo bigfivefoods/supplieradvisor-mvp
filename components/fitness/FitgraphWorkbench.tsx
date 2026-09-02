@@ -20,6 +20,7 @@ export type FitgraphPostResult = {
   success?: boolean;
   error?: string;
   message?: string;
+  warning?: string;
   updated_at?: string;
   store?: FitgraphStore;
   summary?: Record<string, unknown> | null;
@@ -28,6 +29,14 @@ export type FitgraphPostResult = {
   feedback_prompt?: { token?: string } | null;
   pack_remaining?: number | null;
   created?: number;
+  activity?: { id?: string } | null;
+  portal_token?: string | null;
+  added?: number;
+  skipped?: number;
+  sessions?: Array<{ id: string }>;
+  remaining?: number;
+  linked_existing?: number;
+  numbered?: number;
   [key: string]: unknown;
 };
 
