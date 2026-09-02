@@ -12,6 +12,7 @@ import {
 
 /** Live operational rows that concurrent writers must not drop. */
 const ID_ARRAYS: Array<keyof FitgraphStore> = [
+  'coaches',
   'clients',
   'sessions',
   'bookings',
@@ -83,7 +84,13 @@ export function mergeRowsById(
     const id = String(row?.id || '');
     if (!id || drop.has(id)) continue;
     const prev = map.get(id);
-    if (!prev || bookingStamp(row) >= bookingStamp(prev)) map.set(id, row);
+    if (!prev) {
+      map.set(id, row);
+    } else if (bookingStamp(row) >= bookingStamp(prev)) {
+      // Deep-merge: incoming keys win, but keys omitted from incoming
+      // (e.g. photo_url, public_bio) are preserved from the existing row.
+      map.set(id, { ...prev, ...row });
+    }
   }
   const out: Array<Record<string, unknown>> = [];
   const seen = new Set<string>();

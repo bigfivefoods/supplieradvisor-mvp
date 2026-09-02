@@ -399,10 +399,27 @@ BEGIN
 
   -- Single-pass aggregation: O(n) instead of O(n²) loop-copy.
   -- src=0 keeps incoming items first; src=1 appends existing-only items.
-  SELECT COALESCE(jsonb_agg(item ORDER BY src, rn), '[]'::jsonb)
+  -- For same-id rows: deep-merge (existing || incoming) so keys omitted from
+  -- incoming (e.g. photo_url, public_bio) are preserved from the stored object.
+  SELECT COALESCE(jsonb_agg(merged_item ORDER BY src, rn), '[]'::jsonb)
   INTO result
   FROM (
-    SELECT 0 AS src, row_number() OVER () AS rn, item
+    SELECT 0 AS src, row_number() OVER () AS rn,
+           CASE
+             WHEN jsonb_typeof(item) = 'object'
+               AND item ? 'id'
+               AND NULLIF(trim(item->>'id'), '') IS NOT NULL
+             THEN COALESCE(
+               (SELECT e
+                FROM jsonb_array_elements(existing_arr) AS e
+                WHERE jsonb_typeof(e) = 'object'
+                  AND e ? 'id'
+                  AND trim(e->>'id') = trim(item->>'id')
+                LIMIT 1),
+               '{}'::jsonb
+             ) || item
+             ELSE item
+           END AS merged_item
     FROM jsonb_array_elements(incoming_arr) AS item
     WHERE NOT (
       jsonb_typeof(item) = 'object'
@@ -411,7 +428,7 @@ BEGIN
       AND trim(item->>'id') = ANY(tombstone_ids)
     )
     UNION ALL
-    SELECT 1 AS src, row_number() OVER () AS rn, item
+    SELECT 1 AS src, row_number() OVER () AS rn, item AS merged_item
     FROM jsonb_array_elements(existing_arr) AS item
     WHERE NOT (
       jsonb_typeof(item) = 'object'
