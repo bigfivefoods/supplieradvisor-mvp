@@ -16,6 +16,21 @@ import {
 import type { FitgraphStore } from '@/lib/fitness/fitgraph';
 import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 
+export type FitgraphPostResult = {
+  success?: boolean;
+  error?: string;
+  message?: string;
+  updated_at?: string;
+  store?: FitgraphStore;
+  summary?: Record<string, unknown> | null;
+  analysis?: Record<string, unknown> | null;
+  invite?: { path?: string; text?: string; share_code?: string };
+  feedback_prompt?: { token?: string } | null;
+  pack_remaining?: number | null;
+  created?: number;
+  [key: string]: unknown;
+};
+
 export function useFitgraph(opts?: { library?: boolean }) {
   const companyId = getSelectedCompanyId()!;
   const library = opts?.library === true;
@@ -31,12 +46,7 @@ export function useFitgraph(opts?: { library?: boolean }) {
   const storeRef = useRef<FitgraphStore | null>(null);
 
   const applyData = useCallback(
-    (data: {
-      store?: FitgraphStore;
-      updated_at?: string;
-      summary?: Record<string, unknown> | null;
-      analysis?: Record<string, unknown> | null;
-    }) => {
+    (data: FitgraphPostResult) => {
       if (data.store) {
         setStore(data.store);
         storeRef.current = data.store;
@@ -81,7 +91,7 @@ export function useFitgraph(opts?: { library?: boolean }) {
   const doPost = async (
     body: Record<string, unknown>,
     currentUpdatedAt: string | null
-  ): Promise<{ res: Response; data: Record<string, unknown> }> => {
+  ): Promise<{ res: Response; data: FitgraphPostResult }> => {
     const res = await fetch('/api/fitness/fitgraph', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -91,14 +101,14 @@ export function useFitgraph(opts?: { library?: boolean }) {
         ...body,
       }),
     });
-    const data = (await res.json()) as Record<string, unknown>;
+    const data = (await res.json()) as FitgraphPostResult;
     return { res, data };
   };
 
   const post = async (
     body: Record<string, unknown>,
     opts?: { quiet?: boolean }
-  ) => {
+  ): Promise<FitgraphPostResult> => {
     if (!opts?.quiet) setSaving(true);
     try {
       const currentUpdatedAt =
@@ -130,7 +140,7 @@ export function useFitgraph(opts?: { library?: boolean }) {
       }
 
       if (!res.ok) {
-        throw new Error((data as { error?: string }).error || 'Save failed');
+        throw new Error(data.error || 'Save failed');
       }
 
       // Only cache full-store responses — lite payloads (no store key) must
@@ -142,7 +152,7 @@ export function useFitgraph(opts?: { library?: boolean }) {
           data
         );
       }
-      applyData(data as Parameters<typeof applyData>[0]);
+      applyData(data);
       return data;
     } catch (e: unknown) {
       if (!opts?.quiet) {

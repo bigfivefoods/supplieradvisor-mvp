@@ -7,6 +7,7 @@ import {
   FitgraphWorkbench,
   LoadingBlock,
   useFitgraph,
+  type FitgraphPostResult,
 } from '@/components/fitness/FitgraphWorkbench';
 import { FormCard, StatRow, fc } from '@/components/fitness/FitForm';
 import { GymBookingPlanBoard } from '@/components/fitness/GymBookingPlanBoard';
@@ -189,11 +190,9 @@ export default function BookingsPage() {
       status: next,
       session_id: sessionId,
       client_id: member.client_id,
-    });
-    const msg = typeof data?.message === 'string' ? data.message : undefined;
+    }) as FitgraphPostResult;
     if (next === 'attended') {
-      const feedbackPrompt = data?.feedback_prompt as { token?: string } | null | undefined;
-      const tok = feedbackPrompt?.token;
+      const tok = data?.feedback_prompt?.token;
       const packLeft = data?.pack_remaining;
       if (tok) {
         const path = buildPublicFeedbackPath('fitgraph', companyId, tok);
@@ -206,7 +205,7 @@ export default function BookingsPage() {
               : 'Attended — feedback link copied for the member'
           );
         } catch {
-          toast.success(msg || 'Attended');
+          toast.success(data?.message || 'Attended');
         }
         return;
       }
@@ -215,7 +214,7 @@ export default function BookingsPage() {
         return;
       }
     }
-    toast.success(msg || `Marked ${next}`);
+    toast.success(data?.message || `Marked ${next}`);
   };
 
   const copyFeedback = async (token: string) => {
