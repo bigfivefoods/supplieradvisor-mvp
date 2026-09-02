@@ -190,6 +190,7 @@ export default function BookingsPage() {
       session_id: sessionId,
       client_id: member.client_id,
     });
+    const msg = typeof data?.message === 'string' ? data.message : undefined;
     if (next === 'attended') {
       const feedbackPrompt = data?.feedback_prompt as { token?: string } | null | undefined;
       const tok = feedbackPrompt?.token;
@@ -205,7 +206,7 @@ export default function BookingsPage() {
               : 'Attended — feedback link copied for the member'
           );
         } catch {
-          toast.success(data?.message || 'Attended');
+          toast.success(msg || 'Attended');
         }
         return;
       }
@@ -214,7 +215,7 @@ export default function BookingsPage() {
         return;
       }
     }
-    toast.success(data?.message || `Marked ${next}`);
+    toast.success(msg || `Marked ${next}`);
   };
 
   const copyFeedback = async (token: string) => {
