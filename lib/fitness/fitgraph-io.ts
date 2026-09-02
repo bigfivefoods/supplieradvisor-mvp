@@ -17,6 +17,7 @@ import {
   splitFitgraphLibrary,
   writeFitgraphLibToMetadata,
   writeFitgraphToMetadata,
+  writeFitgraphPatchToMetadata,
   type FitgraphLibrary,
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
@@ -157,4 +158,31 @@ export async function saveFitgraphMerged(
     Object.assign(store, next);
   });
   return saved;
+}
+
+/**
+ * Brief 52 — fast calendar patch save.
+ *
+ * Writes ONLY the keys in `patch` (e.g. sessions + bookings) via the existing
+ * sa_put_module_store merge path.  Omitted id-arrays (clients, coaches, goals,
+ * …) are not sent, so the SQL merge leaves them untouched on the server row.
+ *
+ * Does NOT: loadFitgraphMerged, mergeFitgraphStores, retainMemberProgress,
+ * splitFitgraphLibrary for the full store, or write the lib row.
+ * Still: uses withFitgraphWriteLock; honours p_if_updated_at (409 stale).
+ */
+export async function saveFitgraphPatch(
+  companyId: number,
+  patch: Partial<FitgraphStore>,
+  opts?: { ifUpdatedAt?: string | null }
+): Promise<void> {
+  await withFitgraphWriteLock(companyId, async () => {
+    await saveAdvisorModuleStore(
+      companyId,
+      FITGRAPH_META_KEY,
+      patch,
+      (meta, p) => writeFitgraphPatchToMetadata(meta, p),
+      opts
+    );
+  });
 }
