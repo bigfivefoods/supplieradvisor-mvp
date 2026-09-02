@@ -159,13 +159,13 @@ function parseNumeric(v: string | number | null | undefined): number | null {
 
 /**
  * Ensure charts for web + PDF. Prefer builder charts; otherwise derive from KPIs/tables.
- * Returns up to 4 charts (PDF renders the first 2).
+ * Returns up to 8 charts on screen (PDF still uses the first few).
  */
 export function ensureManagementCharts(
   doc: ManagementReportDoc
 ): ManagementChart[] {
   if (doc.charts && doc.charts.length > 0) {
-    return doc.charts.slice(0, 4).map((c) => ({
+    return doc.charts.slice(0, 8).map((c) => ({
       ...c,
       series: c.series.map((p, j) => ({
         ...p,

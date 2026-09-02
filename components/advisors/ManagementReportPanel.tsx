@@ -146,7 +146,7 @@ export default function ManagementReportPanel({
     <section
       id="management-report"
       className={`overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-900/5 scroll-mt-24 dark:border-cyan-500/20 dark:bg-gradient-to-b dark:from-[#061018] dark:via-[#0a1628] dark:to-[#04101a] dark:ring-cyan-400/15 dark:shadow-[0_0_40px_-12px_rgba(34,211,238,0.25)] ${className}`}
-      aria-label="Owner management report"
+      aria-label="Reports"
     >
       {/* Hero — brand band */}
       <div className="relative overflow-hidden bg-gradient-to-r from-[#005f8a] via-[#0077b6] to-[#00b4d8] px-4 py-4 text-white sm:px-5 dark:from-[#022c4a] dark:via-[#0369a1] dark:to-[#0d9488]">
@@ -156,10 +156,10 @@ export default function ManagementReportPanel({
           <div className="min-w-0">
             <p className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-white/85 dark:text-cyan-100">
               <Sparkles className="h-3 w-3" />
-              Insights · one-page A4 landscape
+              Insights · slice & dice · full pack
             </p>
             <h2 className="mt-0.5 text-lg font-black leading-tight sm:text-xl">
-              Management report
+              Reports
               {report?.brand ? (
                 <span className="font-semibold text-white/90 dark:text-cyan-50">
                   {' '}
@@ -168,8 +168,8 @@ export default function ManagementReportPanel({
               ) : null}
             </h2>
             <p className="mt-1 max-w-xl text-xs text-white/90 sm:text-sm dark:text-sky-100/95">
-              Slice & dice on screen with live charts, then download a polished
-              A4 landscape PDF with the same key metrics.
+              One slicer at the top, then the full pack: people, floor, diary,
+              trends and graphs. Download the same metrics as an A4 PDF.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -236,25 +236,9 @@ export default function ManagementReportPanel({
           ) : null}
         </div>
 
-        {/* Slice tabs */}
-        <div className="flex flex-wrap gap-1.5">
-          {(
-            report?.availableSlices || [{ id: 'overview', label: 'Overview' }]
-          ).map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => setSlice(s.id)}
-              className={`rounded-full border px-3.5 py-1.5 text-[11px] font-bold transition-all ${
-                slice === s.id
-                  ? 'border-[#0077b6] bg-[#0077b6] text-white shadow-sm shadow-sky-200 dark:border-cyan-300/60 dark:bg-gradient-to-r dark:from-cyan-500 dark:to-teal-400 dark:text-[#042f2e] dark:shadow-cyan-400/40'
-                  : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-sky-300 hover:bg-white dark:border-cyan-500/25 dark:bg-gradient-to-br dark:from-[#0b1e33]/60 dark:to-[#083344]/50 dark:text-cyan-100 dark:hover:border-cyan-400/50 dark:hover:from-[#0c4a6e]/50 dark:hover:to-[#0e7490]/40'
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
+        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-cyan-300">
+          Slice & dice
+        </p>
 
         {loading || !report ? (
           <div className="flex flex-col items-center justify-center gap-2 py-14">
@@ -279,7 +263,7 @@ export default function ManagementReportPanel({
             {/* KPI grid */}
             <div>
               <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-cyan-300">
-                Key metrics
+                Report pack · key metrics
               </p>
               <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                 {report.kpis.map((k, i) => {
