@@ -167,8 +167,8 @@ function hubModules(
     href: '/dashboard/fitgraph/website',
     icon: Globe,
     code: '10',
-    title: 'Website & ops',
-    desc: 'Front desk vs coach-led ops model, public calendar, embed, contracts.',
+    title: 'Website & apps',
+    desc: 'Publish the public site, door QR, member app and preview.',
     accent: 'from-indigo-50 to-white border-indigo-100',
   },
   {
@@ -379,7 +379,7 @@ function Inner() {
               href="/dashboard/fitgraph/website"
               className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
             >
-              <Globe className="w-4 h-4" /> Website
+              <Globe className="w-4 h-4" /> Website & apps
             </Link>
             <Link
               href="/dashboard/fitgraph/calendar"

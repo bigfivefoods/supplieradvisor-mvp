@@ -338,10 +338,10 @@ const PHASES: Phase[] = [
       {
         id: 'portal',
         n: '8b',
-        title: 'View portal',
+        title: 'Preview apps',
         who: 'Owner',
         desc: 'See what members, coaches and a programme look like — plus the optional public website.',
-        href: '/dashboard/fitgraph/portal',
+        href: '/dashboard/fitgraph/website?tab=preview',
         icon: Globe,
       },
       {
@@ -817,7 +817,7 @@ export default function FitgraphSystemFlow({
                   href="/dashboard/fitgraph/website"
                   className="text-[11px] font-bold rounded-full bg-white border border-yellow-200 px-3 py-1.5 text-yellow-800"
                 >
-                  Website
+                  Website & apps
                 </Link>
                 <Link
                   href="/dashboard/fitgraph/report"
