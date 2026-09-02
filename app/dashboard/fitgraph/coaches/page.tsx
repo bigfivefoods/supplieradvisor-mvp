@@ -445,7 +445,7 @@ export default function CoachesPage() {
         specialties: p.specialties.length ? p.specialties : ['General'],
         public_bio: p.public_bio,
         bio: p.bio || p.public_bio,
-        photo_url: p.photo_url.trim() || '',
+        photo_url: p.photo_url.trim() || undefined,
         color: p.color || undefined,
         can_manage_classes: p.can_manage_classes,
         engagement: p.engagement || 'contractor',

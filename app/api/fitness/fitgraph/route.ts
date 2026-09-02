@@ -3220,6 +3220,48 @@ function upsert(
             ? false
             : prev?.active !== false,
       created_at: prev?.created_at || now,
+      // Sticky fields — only the owner of that data updates them; a desk or
+      // calendar save that omits these must not wipe them from the stored row.
+      platform_user_id:
+        rec.platform_user_id !== undefined
+          ? rec.platform_user_id
+            ? String(rec.platform_user_id)
+            : null
+          : prev?.platform_user_id ?? null,
+      goals: rec.goals !== undefined
+        ? (Array.isArray(rec.goals) ? (rec.goals as FitCoach['goals']) : prev?.goals)
+        : prev?.goals,
+      personal_bests: rec.personal_bests !== undefined
+        ? (Array.isArray(rec.personal_bests)
+            ? (rec.personal_bests as FitCoach['personal_bests'])
+            : prev?.personal_bests)
+        : prev?.personal_bests,
+      result_logs: rec.result_logs !== undefined
+        ? (Array.isArray(rec.result_logs)
+            ? (rec.result_logs as FitCoach['result_logs'])
+            : prev?.result_logs)
+        : prev?.result_logs,
+      injuries: rec.injuries !== undefined
+        ? (Array.isArray(rec.injuries)
+            ? (rec.injuries as FitCoach['injuries'])
+            : prev?.injuries)
+        : prev?.injuries,
+      auth_code_hash:
+        rec.auth_code_hash !== undefined
+          ? rec.auth_code_hash
+            ? String(rec.auth_code_hash)
+            : null
+          : prev?.auth_code_hash ?? null,
+      pin_hash:
+        rec.pin_hash !== undefined
+          ? rec.pin_hash
+            ? String(rec.pin_hash)
+            : null
+          : prev?.pin_hash ?? null,
+      sort_order:
+        rec.sort_order != null
+          ? Number(rec.sort_order)
+          : prev?.sort_order,
     };
     if (i >= 0) store.coaches[i] = row;
     else store.coaches.push(row);
@@ -3458,6 +3500,44 @@ function upsert(
         rec.active !== undefined ? rec.active !== false : prev?.active !== false,
       created_at: prev?.created_at || now,
       updated_at: now,
+      // Sticky fields — only the PWA / coach pathway writes these; desk saves
+      // that omit them must not wipe the stored values.
+      platform_user_id:
+        rec.platform_user_id !== undefined
+          ? rec.platform_user_id
+            ? String(rec.platform_user_id)
+            : null
+          : prev?.platform_user_id ?? null,
+      goals: rec.goals !== undefined
+        ? (Array.isArray(rec.goals) ? (rec.goals as FitClient['goals']) : prev?.goals)
+        : prev?.goals,
+      personal_bests: rec.personal_bests !== undefined
+        ? (Array.isArray(rec.personal_bests)
+            ? (rec.personal_bests as FitClient['personal_bests'])
+            : prev?.personal_bests)
+        : prev?.personal_bests,
+      result_logs: rec.result_logs !== undefined
+        ? (Array.isArray(rec.result_logs)
+            ? (rec.result_logs as FitClient['result_logs'])
+            : prev?.result_logs)
+        : prev?.result_logs,
+      injuries: rec.injuries !== undefined
+        ? (Array.isArray(rec.injuries)
+            ? (rec.injuries as FitClient['injuries'])
+            : prev?.injuries)
+        : prev?.injuries,
+      auth_code_hash:
+        rec.auth_code_hash !== undefined
+          ? rec.auth_code_hash
+            ? String(rec.auth_code_hash)
+            : null
+          : prev?.auth_code_hash ?? null,
+      pin_hash:
+        rec.pin_hash !== undefined
+          ? rec.pin_hash
+            ? String(rec.pin_hash)
+            : null
+          : prev?.pin_hash ?? null,
     };
     if (!prev) {
       row.join_events = appendJoinEvent(row, {

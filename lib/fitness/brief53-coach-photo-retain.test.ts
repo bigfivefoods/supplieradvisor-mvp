@@ -204,4 +204,88 @@ import { mergeFitgraphStores, mergeRowsById } from './fitgraph-merge';
   console.log('✓ test 7 — API route keeps prev.photo_url when rec omits it');
 }
 
+// ---------------------------------------------------------------------------
+// 8. Desk save-details sends photo_url: undefined (not '') when field is empty
+// ---------------------------------------------------------------------------
+{
+  const root = path.resolve(__dirname, '../..');
+  const deskPage = fs.readFileSync(
+    path.join(root, 'app/dashboard/fitgraph/coaches/page.tsx'),
+    'utf8'
+  );
+  // Must NOT have the old || '' pattern that would send an explicit empty string
+  assert.ok(
+    !deskPage.includes("photo_url: p.photo_url.trim() || ''"),
+    'test 8a: Coaches desk must not send empty-string photo_url'
+  );
+  assert.ok(
+    deskPage.includes('photo_url: p.photo_url.trim() || undefined'),
+    'test 8a: Coaches desk must omit photo_url when empty (|| undefined)'
+  );
+
+  const pwaPage = fs.readFileSync(
+    path.join(root, 'app/coach/fitgraph/[token]/page.tsx'),
+    'utf8'
+  );
+  // Must NOT have the old || null pattern that would send an explicit null
+  assert.ok(
+    !pwaPage.includes("photo_url: profile.photo_url.trim() || null"),
+    'test 8b: Coach PWA must not send null photo_url when field is empty'
+  );
+  assert.ok(
+    pwaPage.includes('photo_url: profile.photo_url.trim() || undefined'),
+    'test 8b: Coach PWA must omit photo_url when empty (|| undefined)'
+  );
+  console.log('✓ test 8 — desk and PWA save omit photo_url when empty (no wipe)');
+}
+
+// ---------------------------------------------------------------------------
+// 9. Coach upsert sticky fields: goals / injuries preserved when rec omits them
+// ---------------------------------------------------------------------------
+{
+  const root = path.resolve(__dirname, '../..');
+  const routeTs = fs.readFileSync(
+    path.join(root, 'app/api/fitness/fitgraph/route.ts'),
+    'utf8'
+  );
+  // Coach upsert preserves goals, personal_bests, result_logs, injuries, pin_hash
+  const coachSection = routeTs.slice(
+    routeTs.indexOf("if (entity === 'coaches')"),
+    routeTs.indexOf("} else if (entity === 'clients')")
+  );
+  assert.ok(
+    coachSection.includes('prev?.goals') &&
+      coachSection.includes('prev?.personal_bests') &&
+      coachSection.includes('prev?.result_logs') &&
+      coachSection.includes('prev?.injuries') &&
+      coachSection.includes('prev?.pin_hash') &&
+      coachSection.includes('prev?.auth_code_hash'),
+    'test 9: coach upsert must keep prev goals / injuries / personal_bests / result_logs / hashes'
+  );
+  console.log('✓ test 9 — coach upsert keeps prev goals/injuries/personal_bests/result_logs/hashes');
+}
+
+// ---------------------------------------------------------------------------
+// 10. Client upsert sticky fields: goals / injuries / result_logs / personal_bests preserved
+// ---------------------------------------------------------------------------
+{
+  const root = path.resolve(__dirname, '../..');
+  const routeTs = fs.readFileSync(
+    path.join(root, 'app/api/fitness/fitgraph/route.ts'),
+    'utf8'
+  );
+  const clientSection = routeTs.slice(
+    routeTs.indexOf("} else if (entity === 'clients')"),
+    routeTs.indexOf("} else if (entity === 'membership_plans')")
+  );
+  assert.ok(
+    clientSection.includes('prev?.goals') &&
+      clientSection.includes('prev?.personal_bests') &&
+      clientSection.includes('prev?.result_logs') &&
+      clientSection.includes('prev?.injuries'),
+    'test 10: client upsert must keep prev goals / injuries / personal_bests / result_logs'
+  );
+  console.log('✓ test 10 — client upsert keeps prev goals/injuries/personal_bests/result_logs');
+}
+
 console.log('\nAll Brief 53 tests passed.');
