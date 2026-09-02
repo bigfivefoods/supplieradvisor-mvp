@@ -278,7 +278,11 @@ function Inner() {
       const res = await fetch('/api/fitness/fitgraph', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId, action: 'seed_demo' }),
+        body: JSON.stringify({
+          companyId,
+          action: 'seed_demo',
+          updated_at: store?.updated_at || null,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Seed failed');
@@ -299,7 +303,11 @@ function Inner() {
       const res = await fetch('/api/fitness/fitgraph', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId, action: 'send_reminders' }),
+        body: JSON.stringify({
+          companyId,
+          action: 'send_reminders',
+          updated_at: store?.updated_at || null,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Reminders failed');
@@ -326,10 +334,18 @@ function Inner() {
           action: 'mark_attendance',
           booking_id: bookingId,
           status,
+          updated_at: store?.updated_at || null,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Update failed');
+      if (!res.ok) {
+        if (res.status === 409 && data?.error === 'stale_store') {
+          throw new Error(
+            'This GymAdvisor book changed in another tab. Please refresh and try again.'
+          );
+        }
+        throw new Error(data.error || 'Update failed');
+      }
       if (data.message) toast.success(data.message);
       else toast.success(`Marked ${status.replace('_', ' ')}`);
       void load();
