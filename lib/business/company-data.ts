@@ -120,6 +120,41 @@ export function isMissingRelation(error: unknown): boolean {
   );
 }
 
+export class StaleModuleStoreError extends Error {
+  readonly updatedAt: string | null;
+
+  constructor(updatedAt: string | null) {
+    super('stale_module_store');
+    this.name = 'StaleModuleStoreError';
+    this.updatedAt = updatedAt;
+  }
+}
+
+export function isStaleModuleStoreError(error: unknown): error is StaleModuleStoreError {
+  return error instanceof StaleModuleStoreError;
+}
+
+function staleUpdatedAtFromRpcError(
+  error: unknown
+): { updatedAt: string | null } | null {
+  if (!error || typeof error !== 'object') return null;
+  const raw = error as {
+    code?: string;
+    message?: string;
+    details?: string | null;
+    hint?: string | null;
+  };
+  const msg = String(raw.message || '');
+  const isStale =
+    msg === 'stale_module_store' ||
+    /stale_module_store/i.test(msg) ||
+    (String(raw.code || '') === 'P0001' &&
+      /stale_module_store/i.test(String(raw.details || raw.hint || '')));
+  if (!isStale) return null;
+  const detail = String(raw.details || '').trim();
+  return { updatedAt: detail || null };
+}
+
 function asObject(raw: unknown): Record<string, unknown> {
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     return { ...(raw as Record<string, unknown>) };
@@ -425,7 +460,8 @@ async function tryEnsureSystemSchema(): Promise<boolean> {
 export async function saveModuleSlice(
   companyId: number,
   moduleKey: string,
-  slice: Record<string, unknown>
+  slice: Record<string, unknown>,
+  opts?: { ifUpdatedAt?: string | null }
 ): Promise<void> {
   if (!isAdvisorModuleKey(moduleKey)) {
     throw new Error('unknown advisor module');
@@ -444,6 +480,7 @@ export async function saveModuleSlice(
     p_data: data ?? {},
     p_indexes: indexes,
     p_public_token: publicToken,
+    p_if_updated_at: opts?.ifUpdatedAt ?? null,
   };
   let rpc = await supabase.rpc('sa_put_module_store', args);
   if (rpc.error && isMissingRelation(rpc.error)) {
@@ -458,6 +495,10 @@ export async function saveModuleSlice(
         /* tests without Next cache */
       });
     return;
+  }
+  const stale = staleUpdatedAtFromRpcError(rpc.error);
+  if (stale) {
+    throw new StaleModuleStoreError(stale.updatedAt);
   }
   throw new Error(
     isMissingRelation(rpc.error)
@@ -481,8 +522,9 @@ export async function saveAdvisorModuleStore<T>(
   companyId: number,
   moduleKey: string,
   store: T,
-  write: (meta: Record<string, unknown>, store: T) => Record<string, unknown>
+  write: (meta: Record<string, unknown>, store: T) => Record<string, unknown>,
+  opts?: { ifUpdatedAt?: string | null }
 ): Promise<void> {
   const slice = write({}, store);
-  await saveModuleSlice(companyId, moduleKey, slice);
+  await saveModuleSlice(companyId, moduleKey, slice, opts);
 }

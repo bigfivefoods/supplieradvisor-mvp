@@ -121,6 +121,7 @@ import { appendJoinEvent } from '@/lib/fitness/member-profile';
 import { parseMemberPassport } from '@/lib/b2c/member-passport';
 import { mergeMedicalRecord } from '@/lib/clinic/patient-medical';
 import { resolveCompanyEmails } from '@/lib/billing/company-emails';
+import { isStaleModuleStoreError } from '@/lib/business/company-data';
 
 export const runtime = 'nodejs';
 
@@ -146,10 +147,15 @@ async function loadStore(companyId: number, opts?: { fresh?: boolean }) {
 
 async function saveStore(
   companyId: number,
-  _meta: Record<string, unknown>,
+  meta: Record<string, unknown>,
   store: FitgraphStore
 ) {
-  await saveFitgraphMerged(companyId, store);
+  const ifUpdatedAtRaw = meta.__if_updated_at;
+  const ifUpdatedAt =
+    typeof ifUpdatedAtRaw === 'string' && ifUpdatedAtRaw.trim()
+      ? ifUpdatedAtRaw.trim()
+      : null;
+  await saveFitgraphMerged(companyId, store, { ifUpdatedAt });
 }
 
 function analysis(store: FitgraphStore) {
@@ -269,6 +275,37 @@ export async function POST(request: NextRequest) {
     const action = String(body.action || 'upsert');
     const entity = String(body.entity || '') as Entity;
     const { meta, store } = await loadStore(companyId, { fresh: true });
+    const payloadUpdatedAt =
+      (body &&
+      typeof body === 'object' &&
+      'updated_at' in body &&
+      typeof body.updated_at === 'string' &&
+      body.updated_at.trim()
+        ? body.updated_at.trim()
+        : null) ||
+      (body &&
+      typeof body === 'object' &&
+      'store' in body &&
+      body.store &&
+      typeof body.store === 'object' &&
+      'updated_at' in body.store &&
+      typeof body.store.updated_at === 'string' &&
+      body.store.updated_at.trim()
+        ? body.store.updated_at.trim()
+        : null) ||
+      (body &&
+      typeof body === 'object' &&
+      'data' in body &&
+      body.data &&
+      typeof body.data === 'object' &&
+      'updated_at' in body.data &&
+      typeof body.data.updated_at === 'string' &&
+      body.data.updated_at.trim()
+        ? body.data.updated_at.trim()
+        : null);
+    if (payloadUpdatedAt) {
+      meta.__if_updated_at = payloadUpdatedAt;
+    }
     const now = new Date().toISOString();
 
     // Stamp owner emails on every mutation load so coachIsGymOwner resolves correctly
@@ -2887,6 +2924,16 @@ export async function POST(request: NextRequest) {
                 : undefined,
     });
   } catch (e: unknown) {
+    if (isStaleModuleStoreError(e)) {
+      return NextResponse.json(
+        {
+          error: 'stale_store',
+          updated_at: e.updatedAt,
+          message: 'This GymAdvisor book changed in another tab. Refresh and try again.',
+        },
+        { status: 409 }
+      );
+    }
     console.error('[fitgraph]', e);
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

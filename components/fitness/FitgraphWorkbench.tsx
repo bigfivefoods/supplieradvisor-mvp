@@ -62,10 +62,24 @@ export function useFitgraph(opts?: { library?: boolean }) {
       const res = await fetch('/api/fitness/fitgraph', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId, ...body }),
+        body: JSON.stringify({
+          companyId,
+          updated_at:
+            store && typeof store.updated_at === 'string'
+              ? store.updated_at
+              : null,
+          ...body,
+        }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Save failed');
+      if (!res.ok) {
+        if (res.status === 409 && data?.error === 'stale_store') {
+          throw new Error(
+            'This GymAdvisor book changed in another tab. Please refresh and try again.'
+          );
+        }
+        throw new Error(data.error || 'Save failed');
+      }
       rememberAdvisorDeskCache(
         library ? 'fitgraph:library' : 'fitgraph',
         companyId,

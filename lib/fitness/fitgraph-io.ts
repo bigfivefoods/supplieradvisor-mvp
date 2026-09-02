@@ -4,6 +4,7 @@
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
+  isStaleModuleStoreError,
   loadAdvisorModuleStore,
   saveAdvisorModuleStore,
 } from '@/lib/business/company-data';
@@ -88,7 +89,8 @@ export async function loadFitgraphMerged(
 
 export async function saveFitgraphMerged(
   companyId: number,
-  store: FitgraphStore
+  store: FitgraphStore,
+  opts?: { ifUpdatedAt?: string | null }
 ): Promise<FitgraphStore> {
   let saved = store;
   await withFitgraphWriteLock(companyId, async () => {
@@ -115,21 +117,25 @@ export async function saveFitgraphMerged(
           companyId,
           FITGRAPH_META_KEY,
           core,
-          writeFitgraphToMetadata
+          writeFitgraphToMetadata,
+          opts
         ),
         saveAdvisorModuleStore(
           companyId,
           FITGRAPH_LIB_KEY,
           lib,
-          writeFitgraphLibToMetadata
+          writeFitgraphLibToMetadata,
+          opts
         ),
       ]);
-    } catch {
+    } catch (error) {
+      if (isStaleModuleStoreError(error)) throw error;
       await saveAdvisorModuleStore(
         companyId,
         FITGRAPH_META_KEY,
         next,
-        writeFitgraphToMetadata
+        writeFitgraphToMetadata,
+        opts
       );
     }
     saved = next;
