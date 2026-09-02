@@ -711,7 +711,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       { name: 'Clients', href: '/dashboard/fitgraph/clients', desc: 'Member book · member / private · classes' },
       { name: 'Classes', href: '/dashboard/fitgraph/classes', desc: 'Edit class · coach · calendar · booked members' },
       { name: 'Calendar', href: '/dashboard/fitgraph/calendar', desc: 'Schedule coaches' },
-      { name: 'Website', href: '/dashboard/fitgraph/website', desc: 'Embed calendar' },
+      { name: 'Website & apps', href: '/dashboard/fitgraph/website', desc: 'Publish site · member app · preview' },
       { name: 'Comms', href: '/dashboard/fitgraph/comms', desc: 'Ads · notices to members' },
       { name: 'Bookings', href: '/dashboard/fitgraph/bookings', desc: 'Book & attend' },
       { name: 'Suppliers', href: '/dashboard/suppliers', desc: 'Gym suppliers' },
