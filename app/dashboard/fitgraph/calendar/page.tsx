@@ -511,6 +511,23 @@ export default function CalendarPage() {
       form.agreed_rate_zar.trim() === ''
         ? null
         : Number(form.agreed_rate_zar);
+    const seriesN = prev.series_id
+      ? store.sessions.filter(
+          (s) => s.series_id === prev.series_id && s.status !== 'cancelled'
+        ).length
+      : 0;
+    const wantRepeat =
+      seriesN <= 1 && recurrence.frequency !== 'none';
+    if (wantRepeat) {
+      const recErr = validateRecurrenceForm(recurrence);
+      if (recErr) {
+        toast.error(recErr);
+        return;
+      }
+    }
+    const repeatPayload = wantRepeat
+      ? recurrenceApiPayload(recurrence, form.date)
+      : null;
     const data = await post({
       action: 'save_calendar_sessions',
       session_id: prev.id,
@@ -518,6 +535,7 @@ export default function CalendarPage() {
       client_id:
         form.session_kind === 'private_pt' ? form.client_id || undefined : undefined,
       agreed_rate_zar: rate,
+      ...(repeatPayload || {}),
       patch: {
         start_time: times.start_time,
         end_time: times.end_time,
@@ -541,6 +559,7 @@ export default function CalendarPage() {
       },
     });
     setDay(form.date);
+    if (wantRepeat) setRecurrence(emptyRecurrenceForm());
     toast.success(
       (data?.message as string) ||
         (scope === 'all'
@@ -868,6 +887,18 @@ export default function CalendarPage() {
     });
     toast.success(next ? 'Shared on website' : 'Hidden from website');
   };
+
+  const selectedRow = store?.sessions.find((s) => s.id === selectedSessionId);
+  const selectedSeriesCount =
+    selectedRow?.series_id && store
+      ? store.sessions.filter(
+          (s) =>
+            s.series_id === selectedRow.series_id && s.status !== 'cancelled'
+        ).length
+      : 0;
+  const showRepeatFields =
+    selectedSeriesCount <= 1 &&
+    !(form.session_kind === 'away' && !selectedSessionId);
 
   const reassignCoach = async (id: string, coachId: string) => {
     const s = store?.sessions.find((x) => x.id === id);
@@ -1300,14 +1331,22 @@ export default function CalendarPage() {
             saving={saving}
             submitLabel={
               selectedSessionId
-                ? store?.sessions.find((s) => s.id === selectedSessionId)
-                    ?.series_id
-                  ? seriesScope === 'all'
-                    ? 'Save entire series'
-                    : seriesScope === 'future'
-                      ? 'Save this & future'
-                      : 'Save this date only'
-                  : 'Save changes'
+                ? recurrence.frequency !== 'none' && selectedSeriesCount <= 1
+                  ? form.session_kind === 'away'
+                    ? 'Save repeating away'
+                    : form.session_kind === 'coach_personal'
+                      ? 'Save repeating personal time'
+                      : form.session_kind === 'private_pt'
+                        ? 'Save as PT series'
+                        : 'Save as class series'
+                  : store?.sessions.find((s) => s.id === selectedSessionId)
+                      ?.series_id
+                    ? seriesScope === 'all'
+                      ? 'Save entire series'
+                      : seriesScope === 'future'
+                        ? 'Save this & future'
+                        : 'Save this date only'
+                    : 'Save changes'
                 : recurrence.frequency !== 'none' ||
                     (form.session_kind === 'away' && Boolean(form.until))
                   ? form.session_kind === 'away'
@@ -1329,8 +1368,10 @@ export default function CalendarPage() {
             {selectedSessionId ? (
               <p className="sm:col-span-2 lg:col-span-3 text-xs text-yellow-700 dark:text-yellow-300 font-medium rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50/80 dark:bg-yellow-950/40 px-3 py-2">
                 Viewing / editing this session. Change time, room, coach or
-                member, then save. Series dates use the scope below. Delete can
-                remove one date or the whole series.
+                member, then save.
+                {selectedSeriesCount > 1
+                  ? ' Series dates use the scope below. Delete can remove one date or the whole series.'
+                  : ' Repeat below turns this one date into a series.'}
               </p>
             ) : slotPicked ? (
               <p className="sm:col-span-2 lg:col-span-3 text-xs text-yellow-700 dark:text-yellow-300 font-medium rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50/80 dark:bg-yellow-950/40 px-3 py-2">
@@ -1706,7 +1747,7 @@ export default function CalendarPage() {
                 <option value="cancelled">Status: cancelled</option>
               </select>
             ) : null}
-            {!selectedSessionId && form.session_kind !== 'away' ? (
+            {showRepeatFields ? (
               <RecurrenceFields
                 value={recurrence}
                 onChange={setRecurrence}
@@ -1718,7 +1759,9 @@ export default function CalendarPage() {
                     ? 'blocks'
                     : form.session_kind === 'private_pt'
                       ? 'sessions'
-                      : 'classes'
+                      : form.session_kind === 'away'
+                        ? 'days'
+                        : 'classes'
                 }
               />
             ) : null}

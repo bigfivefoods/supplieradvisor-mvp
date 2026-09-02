@@ -15,6 +15,7 @@ import {
   scheduleClassOnCalendar,
   bookDeskMemberOntoSession,
   applyPrivatePtBooking,
+  expandSessionToSeries,
   sessionRosterNames,
   sessionRosterRows,
   setClassMembers,
@@ -556,6 +557,31 @@ const bookedPt = applyPrivatePtBooking(ptStore, {
 assert.equal(bookedPt.added, 1);
 assert.equal(ptStore.clients[0].private_rate_zar, 650);
 assert.equal(ptStore.bookings[0].client_id, 'c-pt');
+
+const expandedPt = expandSessionToSeries(ptStore, {
+  sessionId: 's-pt',
+  recurrence: { frequency: 'weekly', interval: 1, count: 4 },
+  now: '2026-09-02T06:30:00.000Z',
+});
+assert.equal(expandedPt.added, 3);
+assert.ok(expandedPt.seriesId);
+assert.equal(ptStore.sessions.find((s) => s.id === 's-pt')?.series_id, expandedPt.seriesId);
+assert.equal(
+  ptStore.sessions.filter((s) => s.series_id === expandedPt.seriesId).length,
+  4
+);
+assert.equal(
+  ptStore.bookings.filter(
+    (b) => b.client_id === 'c-pt' && b.status !== 'cancelled'
+  ).length,
+  4
+);
+const again = expandSessionToSeries(ptStore, {
+  sessionId: 's-pt',
+  recurrence: { frequency: 'weekly', interval: 1, count: 4 },
+  now: '2026-09-02T06:31:00.000Z',
+});
+assert.equal(again.added, 0);
 
 // ── setClassMembers (Brief 34): this class only, denorm, diary ────────────
 const roster = emptyFitgraphStore();
