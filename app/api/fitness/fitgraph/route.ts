@@ -365,7 +365,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
       store.threads = result.threads;
-      await saveStore(companyId, meta, store);
+      const updatedAt = await savePatch(companyId, meta, { threads: store.threads });
+      store.updated_at = updatedAt;
 
       // Mirror coach/desk care messages into members' own company Messages
       // when their client email matches a platform company (e.g. craig@…).
@@ -474,12 +475,6 @@ export async function POST(request: NextRequest) {
       }
       recodeGymClientNumbers(store.clients || []);
       await saveStore(companyId, meta, store);
-      return NextResponse.json({
-        success: true,
-        store,
-        summary: summariseFitgraph(store),
-        analysis: analysis(store),
-        imported: result.created + result.updated,
         created: result.created,
         updated: result.updated,
         skipped: result.skipped,
@@ -565,7 +560,8 @@ export async function POST(request: NextRequest) {
       if (!store.settings.brand_name && typeof body.brand_name === 'string') {
         store.settings.brand_name = body.brand_name;
       }
-      await saveStore(companyId, meta, store);
+      const updatedAt = await savePatch(companyId, meta, { settings: store.settings });
+      store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
         store,
@@ -583,7 +579,8 @@ export async function POST(request: NextRequest) {
           body
         );
         store.announcements = result.list;
-        await saveStore(companyId, meta, store);
+        const updatedAt = await savePatch(companyId, meta, { announcements: store.announcements });
+        store.updated_at = updatedAt;
         return NextResponse.json({
           success: true,
           store,
@@ -607,7 +604,8 @@ export async function POST(request: NextRequest) {
       }
       coach.portal_token = issueCoachPortalToken(companyId);
       coach.can_manage_classes = true;
-      await saveStore(companyId, meta, store);
+      const updatedAt = await savePatch(companyId, meta, { coaches: store.coaches });
+      store.updated_at = updatedAt;
 
       // Send the work-invite link to the coach's email.
       // When the coach IS the gym owner (coachIsGymOwner), coachPortalEmails
@@ -657,7 +655,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Client not found' }, { status: 404 });
       }
       const portalToken = ensureClientPortalToken(client, companyId);
-      await saveStore(companyId, meta, store);
+      const updatedAt = await savePatch(companyId, meta, { clients: store.clients });
+      store.updated_at = updatedAt;
       void import('@/lib/b2c/directory').then(({ indexBrandPerson }) =>
         indexBrandPerson({
           kind: 'gym',
