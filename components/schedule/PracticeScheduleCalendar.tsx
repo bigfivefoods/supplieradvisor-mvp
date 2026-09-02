@@ -5,7 +5,14 @@
  * Presentational — parent supplies events, people filter, working hours.
  * Day/week height matches practice open hours for the day.
  */
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+} from 'react';
 import { createPortal } from 'react-dom';
 import {
   ChevronLeft,
@@ -28,6 +35,10 @@ import {
   openDurationMinutes,
   type WorkingHours,
 } from '@/lib/schedule/working-hours';
+import {
+  eventColorStyle,
+  normalizeEventHex,
+} from '@/lib/schedule/event-color';
 
 export type ScheduleEvent = {
   id: string;
@@ -52,6 +63,10 @@ export type ScheduleEvent = {
     | 'indigo'
     | 'yellow'
     | 'rose';
+  /** Hex fill (class colour). Overrides tone chip when set. */
+  color?: string | null;
+  /** Hex stripe (coach colour). */
+  stripeColor?: string | null;
 };
 
 export type SchedulePerson = {
@@ -305,6 +320,21 @@ const TONE: Record<
     printBg: '#fff1f2',
   },
 };
+
+function eventPaint(
+  ev: ScheduleEvent,
+  accent: NonNullable<ScheduleEvent['tone']>
+): { className: string; style?: CSSProperties } {
+  const fill = normalizeEventHex(ev.color);
+  const stripe = normalizeEventHex(ev.stripeColor);
+  if (!fill && !stripe) {
+    return { className: TONE[ev.tone || accent].chip };
+  }
+  return {
+    className: 'border text-slate-900',
+    style: eventColorStyle(fill || stripe || '#E8E830', stripe),
+  };
+}
 
 /** px per minute — day strip height = open duration × this */
 const PX_PER_MIN = 1.35;
@@ -1018,7 +1048,7 @@ export function PracticeScheduleCalendar({
     ev: ScheduleEvent;
     dense?: boolean;
   }) => {
-    const t = TONE[ev.tone || accent];
+    const paint = eventPaint(ev, accent);
     const selected = selectedEventId === ev.id;
     return (
       <button
@@ -1028,13 +1058,14 @@ export function PracticeScheduleCalendar({
           e.stopPropagation();
           onSelectEvent?.(ev);
         }}
-        className={`w-full text-left rounded-lg border px-1.5 py-1 ${t.chip} hover:opacity-90 transition ${
+        className={`w-full text-left rounded-lg border px-1.5 py-1 hover:opacity-90 transition ${paint.className} ${
           dense ? 'text-[10px] leading-tight' : 'text-[11px]'
         } ${
           selected
             ? 'ring-2 ring-offset-1 ring-slate-900 dark:ring-white dark:ring-offset-slate-900 shadow-md'
             : ''
         }`}
+        style={paint.style}
         title={`${ev.start_time} ${ev.title}${ev.person_name ? ` · ${ev.person_name}` : ''}${ev.meta ? ` · ${ev.meta}` : ''} — click to open`}
       >
         <span className="font-bold tabular-nums">{ev.start_time.slice(0, 5)}</span>
@@ -1229,7 +1260,7 @@ export function PracticeScheduleCalendar({
                   compact ? 18 : 28,
                   Math.min(height - top, (end - start) * px)
                 );
-                const t = TONE[ev.tone || accent];
+                const paint = eventPaint(ev, accent);
                 const widthPct = 100 / colCount;
                 const leftPct = col * widthPct;
                 const selected = selectedEventId === ev.id;
@@ -1242,7 +1273,7 @@ export function PracticeScheduleCalendar({
                       e.stopPropagation();
                       onSelectEvent?.(ev);
                     }}
-                    className={`absolute rounded-lg border px-1 py-0.5 text-left overflow-y-auto shadow-sm z-[1] ${t.chip} ${
+                    className={`absolute rounded-lg border px-1 py-0.5 text-left overflow-y-auto shadow-sm z-[1] ${paint.className} ${
                       selected
                         ? 'ring-2 ring-offset-1 ring-slate-900 dark:ring-white dark:ring-offset-slate-900 z-[2]'
                         : ''
@@ -1254,6 +1285,7 @@ export function PracticeScheduleCalendar({
                       minHeight: compact ? (ev.meta ? 36 : 18) : ev.meta ? 48 : 28,
                       left: `calc(${leftPct}% + 2px)`,
                       width: `calc(${widthPct}% - 4px)`,
+                      ...(paint.style || {}),
                     }}
                   >
                     <div
@@ -1792,12 +1824,13 @@ export function PracticeScheduleCalendar({
                             onSelectEvent?.(ev);
                           }}
                           className={`block w-full truncate rounded px-1 py-0.5 text-left text-[9px] font-semibold border ${
-                            TONE[ev.tone || accent].chip
+                            eventPaint(ev, accent).className
                           } ${
                             selectedEventId === ev.id
                               ? 'ring-2 ring-offset-1 ring-slate-400'
                               : ''
                           }`}
+                          style={eventPaint(ev, accent).style}
                         >
                           {ev.start_time.slice(0, 5)} {ev.title}
                         </button>

@@ -10,6 +10,7 @@ import {
 } from '@/components/fitness/FitgraphWorkbench';
 import { ClassDeskTable } from '@/components/fitness/ClassDeskTable';
 import { DataTable, FormCard, StatRow, fc } from '@/components/fitness/FitForm';
+import { GymColorSwatch } from '@/components/fitness/GymColorSwatch';
 import {
   storeUsesClassSubscribe,
   VUKA_JOINING,
@@ -22,6 +23,7 @@ const blankForm = () => ({
   default_duration_min: '45',
   capacity: '16',
   description: '',
+  color: '#E8E830',
   active: true,
 });
 
@@ -56,6 +58,7 @@ export default function ClassesPage() {
       default_duration_min: String(c.default_duration_min ?? 45),
       capacity: String(c.capacity ?? 16),
       description: c.description || '',
+      color: c.color || '#E8E830',
       active: c.active !== false,
     });
     requestAnimationFrame(() => {
@@ -87,6 +90,7 @@ export default function ClassesPage() {
         default_duration_min: Number(form.default_duration_min) || 45,
         capacity: Number(form.capacity) || 16,
         description: form.description.trim() || undefined,
+        color: form.color || null,
         active: form.active,
       },
     });
@@ -302,6 +306,11 @@ export default function ClassesPage() {
                   setForm((f) => ({ ...f, description: e.target.value }))
                 }
               />
+              <GymColorSwatch
+                value={form.color}
+                onChange={(hex) => setForm((f) => ({ ...f, color: hex }))}
+                label="Calendar colour"
+              />
               <label className="flex items-center gap-2 text-sm font-medium px-1 sm:col-span-2">
                 <input
                   type="checkbox"
@@ -320,6 +329,7 @@ export default function ClassesPage() {
             headers={[
               'Code',
               'Name',
+              'Colour',
               'Category',
               'Duration',
               'Capacity',
@@ -332,6 +342,7 @@ export default function ClassesPage() {
               cells: [
                 c.code,
                 c.name,
+                c.color || '—',
                 c.category || '—',
                 c.default_duration_min ?? '—',
                 c.capacity ?? '—',

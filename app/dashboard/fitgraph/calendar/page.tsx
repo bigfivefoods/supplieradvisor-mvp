@@ -60,6 +60,10 @@ import {
   type RecurrenceFormValue,
 } from '@/components/schedule/RecurrenceFields';
 import { normalizeWorkingHours } from '@/lib/schedule/working-hours';
+import {
+  formatAgreedRateZar,
+  gymCalendarPaint,
+} from '@/lib/fitness/gym-calendar-color';
 import { clinicRoomNames } from '@/lib/clinic/clinic-rooms';
 import type { SeriesEditScope } from '@/lib/services/advisor-series-edit';
 import { AdvisorExpandablePanel } from '@/components/advisors/AdvisorExpandablePanel';
@@ -111,6 +115,7 @@ export default function CalendarPage() {
     programme_id: '',
     personal_reason: 'leave',
     until: '',
+    agreed_rate_zar: '',
   });
   const [recurrence, setRecurrence] = useState<RecurrenceFormValue>(
     emptyRecurrenceForm
@@ -154,6 +159,7 @@ export default function CalendarPage() {
     programme_id: '',
     personal_reason: 'leave',
     until: '',
+    agreed_rate_zar: '',
   });
 
   /** Open an existing class from the calendar grid for view / edit. */
@@ -202,6 +208,17 @@ export default function CalendarPage() {
       programme_id: s.programme_id || '',
       personal_reason: s.personal_reason || 'leave',
       until: '',
+      agreed_rate_zar:
+        s.agreed_rate_zar != null
+          ? String(s.agreed_rate_zar)
+          : (() => {
+              const member = sessionRosterRows(store, s.id)[0];
+              const cl = member
+                ? store.clients.find((c) => c.id === member.client_id)
+                : null;
+              const r = cl?.private_rate_zar ?? cl?.agreed_rate_zar;
+              return r != null ? String(r) : '';
+            })(),
     });
     setRecurrence(emptyRecurrenceForm());
     setEditorOpen(true);
@@ -285,6 +302,20 @@ export default function CalendarPage() {
               ? 'Nobody booked'
               : ''
             : names.join(', ');
+        const rateLabel =
+          kind === 'private_pt'
+            ? formatAgreedRateZar(
+                s.agreed_rate_zar ??
+                  store.clients.find((c) => names.includes(c.name))
+                    ?.private_rate_zar ??
+                  store.clients.find((c) =>
+                    sessionRosterRows(store, s.id).some(
+                      (r) => r.client_id === c.id
+                    )
+                  )?.private_rate_zar
+              )
+            : null;
+        const paint = gymCalendarPaint(store, s);
         return {
           id: s.id,
           date: s.date,
@@ -304,8 +335,10 @@ export default function CalendarPage() {
               ? staffAwayTitle(s.personal_reason)
               : kind === 'coach_personal'
                 ? `Personal block${s.room ? ` · ${s.room}` : ''}`
-                : namePreview,
+                : [namePreview, rateLabel].filter(Boolean).join(' · '),
           tone: sessionKindTone(kind),
+          color: paint.color,
+          stripeColor: paint.stripeColor,
         };
       });
   }, [store]);
@@ -502,6 +535,10 @@ export default function CalendarPage() {
       notes: form.notes || undefined,
       status: form.status || prev.status || 'scheduled',
       programme_id: form.programme_id || null,
+      agreed_rate_zar:
+        form.agreed_rate_zar.trim() === ''
+          ? null
+          : Number(form.agreed_rate_zar),
     };
     for (const id of ids) {
       const row = store.sessions.find((s) => s.id === id);
@@ -524,6 +561,17 @@ export default function CalendarPage() {
     ) {
       for (const id of ids) {
         await bookMembersOntoSession(id, [form.client_id]);
+      }
+      const rate =
+        form.agreed_rate_zar.trim() === ''
+          ? null
+          : Number(form.agreed_rate_zar);
+      if (rate != null && Number.isFinite(rate)) {
+        await post({
+          entity: 'clients',
+          action: 'upsert',
+          record: { id: form.client_id, private_rate_zar: rate },
+        });
       }
     }
     setDay(form.date);
@@ -591,6 +639,10 @@ export default function CalendarPage() {
         duration_min: createTimes.duration_min,
         location: form.location || undefined,
         room: form.room || undefined,
+        agreed_rate_zar:
+          form.agreed_rate_zar.trim() === ''
+            ? null
+            : Number(form.agreed_rate_zar),
         capacity: form.capacity ? Number(form.capacity) : undefined,
         public: form.session_kind === 'class' && form.public,
         public_notes: form.public_notes || undefined,
@@ -609,6 +661,17 @@ export default function CalendarPage() {
       ) {
         for (const s of sessions) {
           if (s.id) await bookMembersOntoSession(s.id, [form.client_id]);
+        }
+        const rate =
+          form.agreed_rate_zar.trim() === ''
+            ? null
+            : Number(form.agreed_rate_zar);
+        if (rate != null && Number.isFinite(rate)) {
+          await post({
+            entity: 'clients',
+            action: 'upsert',
+            record: { id: form.client_id, private_rate_zar: rate },
+          });
         }
       }
       toast.success(
@@ -646,6 +709,10 @@ export default function CalendarPage() {
         duration_min: createTimes.duration_min,
         location: form.location,
         room: form.room || null,
+        agreed_rate_zar:
+          form.agreed_rate_zar.trim() === ''
+            ? null
+            : Number(form.agreed_rate_zar),
         capacity: form.capacity ? Number(form.capacity) : null,
         public: form.session_kind === 'class' && form.public,
         public_notes: form.public_notes || undefined,
@@ -657,6 +724,17 @@ export default function CalendarPage() {
     });
     if (form.session_kind === 'private_pt' && form.client_id) {
       await bookMembersOntoSession(sessionId, [form.client_id]);
+      const rate =
+        form.agreed_rate_zar.trim() === ''
+          ? null
+          : Number(form.agreed_rate_zar);
+      if (rate != null && Number.isFinite(rate)) {
+        await post({
+          entity: 'clients',
+          action: 'upsert',
+          record: { id: form.client_id, private_rate_zar: rate },
+        });
+      }
     }
     toast.success(
       form.session_kind === 'away'
@@ -953,10 +1031,60 @@ export default function CalendarPage() {
                 });
               }}
             />
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-[11px]">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="font-black uppercase tracking-wide text-slate-500">
+                  Classes
+                </span>
+                {(store.class_types || [])
+                  .filter(
+                    (c) =>
+                      c.active !== false &&
+                      c.code !== SYS_PT_CODE &&
+                      c.code !== SYS_COACH_TIME_CODE &&
+                      c.code !== SYS_COACH_AWAY_CODE
+                  )
+                  .slice(0, 12)
+                  .map((c) => (
+                    <span
+                      key={c.id}
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-1.5 py-0.5 font-bold"
+                    >
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{
+                          backgroundColor: c.color || '#E8E830',
+                        }}
+                      />
+                      {c.name}
+                    </span>
+                  ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="font-black uppercase tracking-wide text-slate-500">
+                  Coaches
+                </span>
+                {(store.coaches || [])
+                  .filter((c) => c.active !== false && c.color)
+                  .slice(0, 12)
+                  .map((c) => (
+                    <span
+                      key={c.id}
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-1.5 py-0.5 font-bold"
+                    >
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: c.color || '#d97706' }}
+                      />
+                      {c.name}
+                    </span>
+                  ))}
+              </div>
+            </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs text-slate-500">
-                Switch to day or month from the diary toolbar. Expand to fill
-                the screen.
+                Class colour fills the block; coach colour is the left stripe.
+                Set colours on Classes and Coaches.
               </p>
               <button
                 type="button"
@@ -1447,22 +1575,62 @@ export default function CalendarPage() {
               </p>
             )}
             {form.session_kind === 'private_pt' ? (
-              <select
-                className={fc()}
-                value={form.client_id}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, client_id: e.target.value }))
-                }
-              >
-                <option value="">Private client (member)…</option>
-                {store.clients
-                  .filter((c) => c.active !== false)
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.code} · {c.name}
-                    </option>
-                  ))}
-              </select>
+              <>
+                <select
+                  className={fc()}
+                  value={form.client_id}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    const cl = store.clients.find((c) => c.id === id);
+                    const rate = cl?.private_rate_zar ?? cl?.agreed_rate_zar;
+                    setForm((f) => ({
+                      ...f,
+                      client_id: id,
+                      agreed_rate_zar:
+                        rate != null ? String(rate) : f.agreed_rate_zar,
+                    }));
+                  }}
+                >
+                  <option value="">Member / private client…</option>
+                  {[...store.clients]
+                    .sort((a, b) => {
+                      const ai = a.active === false ? 1 : 0;
+                      const bi = b.active === false ? 1 : 0;
+                      if (ai !== bi) return ai - bi;
+                      return String(a.name).localeCompare(String(b.name));
+                    })
+                    .map((c) => {
+                      const rate =
+                        c.private_rate_zar ?? c.agreed_rate_zar ?? null;
+                      const tags = [
+                        c.private_client ? 'PVT' : null,
+                        c.membership_plan_id ? 'member' : null,
+                        c.active === false ? 'inactive' : null,
+                        rate != null ? formatAgreedRateZar(rate) : null,
+                      ].filter(Boolean);
+                      return (
+                        <option key={c.id} value={c.id}>
+                          {c.code} · {c.name}
+                          {tags.length ? ` · ${tags.join(' · ')}` : ''}
+                        </option>
+                      );
+                    })}
+                </select>
+                <input
+                  className={fc()}
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="Agreed rate (ZAR)"
+                  value={form.agreed_rate_zar}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      agreed_rate_zar: e.target.value,
+                    }))
+                  }
+                />
+              </>
             ) : null}
             {selectedSessionId &&
             store.sessions.find((s) => s.id === selectedSessionId)
@@ -1849,6 +2017,20 @@ export default function CalendarPage() {
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-yellow-200/80">
                         {s.location || s.room || '—'} · {booked}/{cap} booked
+                        {kind === 'private_pt' &&
+                        formatAgreedRateZar(
+                          s.agreed_rate_zar ??
+                            store.clients.find((c) =>
+                              roster.some((r) => r.client_id === c.id)
+                            )?.private_rate_zar
+                        )
+                          ? ` · ${formatAgreedRateZar(
+                              s.agreed_rate_zar ??
+                                store.clients.find((c) =>
+                                  roster.some((r) => r.client_id === c.id)
+                                )?.private_rate_zar
+                            )}`
+                          : ''}
                         {!coach ? (
                           <span className="ml-1 font-bold text-amber-700 dark:text-amber-300">
                             · needs coach
