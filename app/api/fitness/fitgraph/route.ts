@@ -73,6 +73,11 @@ import {
   parseFitClientsImport,
 } from '@/lib/fitness/fitgraph-clients-xlsx';
 import { omitClientRosterFields } from '@/lib/fitness/client-roster-fields';
+import {
+  applyGymClientNumberFromAr,
+  needsGymClientNumber,
+  recodeGymClientNumbers,
+} from '@/lib/fitness/gym-client-number';
 import { mergeHealthProfile } from '@/lib/health/body-map';
 import {
   applyMessageAction,
@@ -406,6 +411,7 @@ export async function POST(request: NextRequest) {
         });
         if (id) stamped += 1;
       }
+      recodeGymClientNumbers(store.clients || []);
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
@@ -456,9 +462,14 @@ export async function POST(request: NextRequest) {
           skipped += 1;
         }
       }
+      const numbered = recodeGymClientNumbers(store.clients || []);
       await saveStore(companyId, meta, store);
       const remaining = (store.clients || []).reduce(
-        (count, person) => (needsGymCrmStamp(person) ? count + 1 : count),
+        (count, person) =>
+          needsGymCrmStamp(person) ||
+          needsGymClientNumber(person, store.clients || [])
+            ? count + 1
+            : count,
         0
       );
       return NextResponse.json({
@@ -470,8 +481,9 @@ export async function POST(request: NextRequest) {
         skipped,
         linked_existing,
         created,
+        numbered,
         remaining,
-        message: `Stamped ${stamped} client(s) onto CRM (${linked_existing} existing, ${created} new), ${skipped} skipped`,
+        message: `Stamped ${stamped} client(s) onto CRM (${linked_existing} existing, ${created} new), ${numbered} client number(s) from CoA, ${skipped} skipped`,
       });
     }
 
@@ -1153,6 +1165,7 @@ export async function POST(request: NextRequest) {
             kind: 'gym',
             person: allocated,
           });
+          applyGymClientNumberFromAr(allocated, store.clients || []);
         } catch {
           /* best-effort — Brief 38 stamps the gym book */
         }
@@ -1203,6 +1216,7 @@ export async function POST(request: NextRequest) {
       } catch {
         /* best-effort — CRM miss must not fail the class save */
       }
+      recodeGymClientNumbers(store.clients || []);
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
@@ -2793,6 +2807,7 @@ export async function POST(request: NextRequest) {
           kind: 'gym',
           person: linked.person,
         });
+        applyGymClientNumberFromAr(linked.person, store.clients || []);
         if (ci >= 0) store.clients[ci] = linked.person;
         walletInvite = {
           email_sent: linked.invite?.email_sent,

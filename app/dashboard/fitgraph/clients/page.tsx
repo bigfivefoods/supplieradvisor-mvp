@@ -12,6 +12,7 @@ import {
 import { FormCard, StatRow, fc } from '@/components/fitness/FitForm';
 import { type FitClient } from '@/lib/fitness/fitgraph';
 import { omitClientRosterFields } from '@/lib/fitness/client-roster-fields';
+import { needsGymClientNumber } from '@/lib/fitness/gym-client-number';
 import { storeUsesClassSubscribe } from '@/lib/fitness/vuka-class-catalog';
 import { MemberAllocateTable } from '@/components/fitness/MemberAllocateTable';
 import {
@@ -45,8 +46,15 @@ const gymCrmBackfillCompanyOnce = new Set<number>();
 const gymClientNeedsCrmStamp = (client: Partial<FitClient>) =>
   !(Number(client.crm_customer_id) > 0) ||
   !/^1180-\d{7}$/.test(String(client.ar_account_code || ''));
-const countGymClientsNeedingCrmStamp = (clients: Partial<FitClient>[] = []) =>
-  clients.reduce((count, client) => (gymClientNeedsCrmStamp(client) ? count + 1 : count), 0);
+const gymClientNeedsWork = (
+  client: Partial<FitClient>,
+  clients: Partial<FitClient>[] = []
+) => gymClientNeedsCrmStamp(client) || needsGymClientNumber(client, clients);
+const countGymClientsNeedingWork = (clients: Partial<FitClient>[] = []) =>
+  clients.reduce(
+    (count, client) => (gymClientNeedsWork(client, clients) ? count + 1 : count),
+    0
+  );
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -175,7 +183,7 @@ export default function ClientsPage() {
   useEffect(() => {
     if (crmBackfillOnce.current || loading || !store) return;
     if (gymCrmBackfillCompanyOnce.has(companyId)) return;
-    const initialRemaining = countGymClientsNeedingCrmStamp(store.clients || []);
+    const initialRemaining = countGymClientsNeedingWork(store.clients || []);
     if (initialRemaining <= 0) return;
     crmBackfillOnce.current = true;
     let cancelled = false;
@@ -185,6 +193,7 @@ export default function ClientsPage() {
         let skipped = 0;
         let linked = 0;
         let created = 0;
+        let numbered = 0;
         let remaining = initialRemaining;
         let batches = 0;
         let latestClients = [...(store.clients || [])];
@@ -206,6 +215,7 @@ export default function ClientsPage() {
           skipped += Number(data?.skipped) || 0;
           linked += Number(data?.linked_existing) || 0;
           created += Number(data?.created) || 0;
+          numbered += Number(data?.numbered) || 0;
           const hasStoreClients = Array.isArray(data?.store?.clients);
           if (hasStoreClients) {
             latestClients = data.store.clients;
@@ -214,8 +224,8 @@ export default function ClientsPage() {
           if (Number.isFinite(nextRemaining)) {
             remaining = Math.max(0, nextRemaining);
           } else if (hasStoreClients) {
-            remaining = countGymClientsNeedingCrmStamp(latestClients);
-          } else if (batchStamped > 0) {
+            remaining = countGymClientsNeedingWork(latestClients);
+          } else if (batchStamped > 0 || Number(data?.numbered) > 0) {
             remaining = Math.max(0, remaining - batchStamped);
           } else {
             throw new Error('Could not stamp gym clients onto CRM (missing remaining)');
@@ -224,7 +234,7 @@ export default function ClientsPage() {
         if (cancelled) return;
         gymCrmBackfillCompanyOnce.add(companyId);
         toast.success(
-          `CRM: ${stamped} stamped (${linked} existing, ${created} new), ${skipped} skipped`
+          `CRM: ${stamped} stamped (${linked} existing, ${created} new), ${numbered} client numbers from CoA, ${skipped} skipped`
         );
         try {
           await load();
@@ -572,7 +582,7 @@ export default function ClientsPage() {
             ) : null}
             <input
               className={fc()}
-              placeholder="Code"
+              placeholder="Client number (CoA)"
               value={form.code}
               onChange={(e) =>
                 setForm((f) => ({ ...f, code: e.target.value }))
