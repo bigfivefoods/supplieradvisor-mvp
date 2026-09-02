@@ -38,6 +38,7 @@ import {
   resolveSessionTimes,
   type FitSessionKind,
 } from '@/lib/fitness/session-times';
+import { gymClientLookupKeys } from '@/lib/fitness/gym-client-number';
 import type {
   FitMovement,
   FitProgramme,
@@ -494,6 +495,7 @@ export type FitMemberJoinEvent = {
 
 export type FitClient = {
   id: string;
+  /** Desk client number — padded CoA AR, e.g. 1180-0000123 */
   code: string;
   name: string;
   email?: string;
@@ -1433,12 +1435,10 @@ export function findClientForCheckIn(
   }
   const code = String(lookup.code || '').trim().toLowerCase();
   if (code) {
-    const byCode = store.clients.find(
-      (c) =>
-        c.active !== false &&
-        (String(c.code || '').toLowerCase() === code ||
-          String(c.id_number || '').toLowerCase() === code)
-    );
+    const byCode = store.clients.find((c) => {
+      if (c.active === false) return false;
+      return gymClientLookupKeys(c).includes(code);
+    });
     if (byCode) return byCode;
   }
   const email = String(lookup.email || '').trim().toLowerCase();
