@@ -342,11 +342,12 @@ export function chartFromTableColumn(
     .map((r, i) => {
       const value = parseNumeric(r[valueCol]);
       if (value == null) return null;
-      return {
+      const point: ManagementChartPoint = {
         label: String(r[0] ?? '—').slice(0, 22),
         value,
         color: CHART_PALETTE[i % CHART_PALETTE.length],
       };
+      return point;
     })
     .filter((p): p is ManagementChartPoint => p != null);
   if (!series.length) return undefined;
