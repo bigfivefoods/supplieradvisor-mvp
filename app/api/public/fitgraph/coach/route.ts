@@ -4,6 +4,7 @@
  * POST { token, action, ... } — create/update/delete sessions, share, book guest, attendance
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { isStaleModuleStoreError } from '@/lib/business/company-data';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
 import { loadAdvisorStoreForPublicToken } from '@/lib/business/advisor-store-resolve';
 import {
@@ -185,11 +186,21 @@ async function resolveCoach(
 
 async function saveStore(
   companyId: number,
-  _meta: Record<string, unknown>,
-  store: FitgraphStore
-) {
-  const { saveFitgraphMerged } = await import('@/lib/fitness/fitgraph-io');
-  await saveFitgraphMerged(companyId, store);
+  meta: Record<string, unknown>,
+  store: FitgraphStore,
+  ...keys: Array<keyof FitgraphStore>
+): Promise<string> {
+  const patch = {} as Partial<FitgraphStore>;
+  for (const key of keys) patch[key] = store[key];
+  const ifUpdatedAtRaw = meta.__if_updated_at;
+  const ifUpdatedAt =
+    typeof ifUpdatedAtRaw === 'string' && ifUpdatedAtRaw.trim()
+      ? ifUpdatedAtRaw.trim()
+      : null;
+  const { saveFitgraphPatch } = await import('@/lib/fitness/fitgraph-io');
+  const updatedAt = await saveFitgraphPatch(companyId, patch, { ifUpdatedAt });
+  store.updated_at = updatedAt;
+  return updatedAt;
 }
 
 export async function GET(request: NextRequest) {
@@ -313,7 +324,7 @@ export async function POST(request: NextRequest) {
         }
         const { store, coach } = resolved;
         coach.photo_url = stored.url;
-        await saveStore(resolved.companyId, resolved.meta, store);
+        await saveStore(resolved.companyId, resolved.meta, store, 'coaches');
         return NextResponse.json({
           success: true,
           url: stored.url,
@@ -387,6 +398,15 @@ export async function POST(request: NextRequest) {
     }
 
     const { companyId, meta, store, coach } = resolved;
+    const payloadUpdatedAt =
+      typeof body.updated_at === 'string' && body.updated_at.trim()
+        ? body.updated_at.trim()
+        : typeof body.if_updated_at === 'string' && body.if_updated_at.trim()
+          ? body.if_updated_at.trim()
+          : null;
+    if (payloadUpdatedAt) {
+      meta.__if_updated_at = payloadUpdatedAt;
+    }
     const now = new Date().toISOString();
     const sessionId = String(body.session_id || body.sessionId || '');
 
@@ -505,7 +525,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
       store.threads = result.threads;
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'threads');
       let mailResult: { emailed: number; errors: string[] } | null = null;
 
       // Mirror coach care messages into members' company Messages (email match)
@@ -620,7 +640,7 @@ export async function POST(request: NextRequest) {
       } catch {
         /* best-effort */
       }
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'coaches');
       return NextResponse.json({
         success: true,
         platform_user_id: coachRow.platform_user_id || null,
@@ -684,7 +704,7 @@ export async function POST(request: NextRequest) {
         prev.qualifications = parseQualifications(body.qualifications);
       }
       store.coaches[idx] = prev;
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'coaches');
       return NextResponse.json({
         success: true,
         message: 'Profile updated',
@@ -723,7 +743,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
       store.coaches[idx] = person;
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'coaches');
       return NextResponse.json({
         success: true,
         message: result.message,
@@ -763,7 +783,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
       store.class_challenges = result.list;
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'class_challenges');
       return NextResponse.json({
         success: true,
         message: 'Class test saved',
@@ -812,7 +832,13 @@ export async function POST(request: NextRequest) {
         );
         if (!pin.error) store.leaderboard_assignments = pin.list;
       }
-      await saveStore(companyId, meta, store);
+      await saveStore(
+        companyId,
+        meta,
+        store,
+        'leaderboard_activities',
+        'leaderboard_assignments'
+      );
       return NextResponse.json({
         success: true,
         message: 'Activity added to the leadership board',
@@ -847,7 +873,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
       store.leaderboard_assignments = result.list;
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'leaderboard_assignments');
       return NextResponse.json({
         success: true,
         message: 'Activity pinned on this class',
@@ -863,7 +889,7 @@ export async function POST(request: NextRequest) {
         store.leaderboard_assignments,
         String(body.id || body.assignment_id || '')
       );
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'leaderboard_assignments');
       return NextResponse.json({
         success: true,
         message: 'Activity removed from class',
@@ -951,7 +977,15 @@ export async function POST(request: NextRequest) {
         goal = { ...goal, status: body.status };
       }
       applyGoalToStore(store, goal, prev ? `Updated goal · ${goal.title}` : `Goal set · ${goal.title}`);
-      await saveStore(companyId, meta, store);
+      await saveStore(
+        companyId,
+        meta,
+        store,
+        'goals',
+        'clients',
+        'coaches',
+        'journey_events'
+      );
       return NextResponse.json({
         success: true,
         message: prev ? 'Goal updated' : 'Goal saved',
@@ -994,7 +1028,15 @@ export async function POST(request: NextRequest) {
           : now,
       });
       applyGoalToStore(store, next);
-      await saveStore(companyId, meta, store);
+      await saveStore(
+        companyId,
+        meta,
+        store,
+        'goals',
+        'clients',
+        'coaches',
+        'journey_events'
+      );
       return NextResponse.json({
         success: true,
         message:
@@ -1022,7 +1064,7 @@ export async function POST(request: NextRequest) {
       }
       const { removeGoalFromStore } = await import('@/lib/fitness/member-goals');
       removeGoalFromStore(store, goalId);
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'goals', 'clients', 'coaches');
       return NextResponse.json({
         success: true,
         message: 'Goal deleted',
@@ -1040,7 +1082,7 @@ export async function POST(request: NextRequest) {
         id,
         now
       );
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'class_challenges');
       return NextResponse.json({
         success: true,
         message: 'Class test closed',
@@ -1077,7 +1119,7 @@ export async function POST(request: NextRequest) {
       }
       store.settings.allow_public_booking = true;
       const shareCode = ensureSessionShareCode(session);
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'settings', 'sessions');
       const path = buildClassJoinPath(store.settings.public_token, shareCode);
       const ct = store.class_types.find((c) => c.id === session.class_type_id);
       const brand = store.settings.brand_name || 'Gym';
@@ -1127,7 +1169,7 @@ export async function POST(request: NextRequest) {
       if (session.public && store.settings) {
         store.settings.enabled = true;
       }
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'sessions', 'settings');
       const portal = buildCoachPortalPayload(store, coach);
       return NextResponse.json({
         success: true,
@@ -1161,7 +1203,7 @@ export async function POST(request: NextRequest) {
         ) {
           session.status = body.status;
         }
-        await saveStore(companyId, meta, store);
+        await saveStore(companyId, meta, store, 'sessions');
         return NextResponse.json({
           success: true,
           message: 'Session updated',
@@ -1278,7 +1320,7 @@ export async function POST(request: NextRequest) {
           if (store.settings) store.settings.enabled = true;
         }
       }
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'sessions', 'settings', 'programmes');
       if (body.class_plan != null || body.date != null || body.start_time != null) {
         const { emailSessionCalendar } = await import(
           '@/lib/fitness/session-calendar'
@@ -1314,7 +1356,7 @@ export async function POST(request: NextRequest) {
         store.bookings = (store.bookings || []).filter(
           (b) => !removeIds.has(b.session_id)
         );
-        await saveStore(companyId, meta, store);
+        await saveStore(companyId, meta, store, 'sessions', 'bookings');
         return NextResponse.json({
           success: true,
           deleted: removeIds.size,
@@ -1326,7 +1368,7 @@ export async function POST(request: NextRequest) {
       store.bookings = (store.bookings || []).filter(
         (b) => b.session_id !== session.id
       );
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'sessions', 'bookings');
       return NextResponse.json({
         success: true,
         deleted: 1,
@@ -1428,7 +1470,7 @@ export async function POST(request: NextRequest) {
           });
         }
       }
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'clients', 'bookings');
       return NextResponse.json({
         success: true,
         booking: { id: booking.id, status },
@@ -1482,7 +1524,7 @@ export async function POST(request: NextRequest) {
           marked.booking.feedback_token
         );
       }
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'bookings', 'sessions');
       if (marked.newlyAttended) {
         await notifyMemberToRateClass({
           store,
@@ -1527,7 +1569,7 @@ export async function POST(request: NextRequest) {
           { status: 403 }
         );
       }
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'bookings', 'journey_events');
       return NextResponse.json({
         success: true,
         portal: buildCoachPortalPayload(store, coach),
@@ -1571,7 +1613,7 @@ export async function POST(request: NextRequest) {
       if (session.date <= today && session.status === 'scheduled') {
         session.status = 'completed';
       }
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'class_feedback', 'sessions');
       return NextResponse.json({
         success: true,
         feedback: row,
@@ -1606,7 +1648,7 @@ export async function POST(request: NextRequest) {
         });
         if (marked.ok && marked.newlyAttended) rateBookings.push(marked.booking);
       }
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'bookings', 'sessions');
       await Promise.all(
         rateBookings.map((booking) =>
           notifyMemberToRateClass({ store, booking }).catch(() => null)
@@ -1694,7 +1736,7 @@ export async function POST(request: NextRequest) {
           };
         }
       }
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'sessions', 'bookings', 'clients');
       return NextResponse.json({
         success: true,
         session_id: session.id,
@@ -1760,7 +1802,7 @@ export async function POST(request: NextRequest) {
         };
         store.bookings.push(booking);
       }
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'bookings');
       if (status === 'booked') {
         const { emailSessionCalendar } = await import(
           '@/lib/fitness/session-calendar'
@@ -1899,7 +1941,7 @@ export async function POST(request: NextRequest) {
           sharedIds
         );
       }
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'sessions', 'bookings', 'programmes');
       return NextResponse.json({
         success: true,
         created: created.length,
@@ -1966,7 +2008,7 @@ export async function POST(request: NextRequest) {
       bought.add(programmeId);
       client.purchased_programme_ids = [...bought];
       client.updated_at = now;
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'programme_enrollments', 'clients');
       return NextResponse.json({
         success: true,
         enrollment: row,
@@ -2020,7 +2062,7 @@ export async function POST(request: NextRequest) {
         now,
         newId
       );
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'programme_logs');
       return NextResponse.json({
         success: true,
         log: row,
@@ -2086,7 +2128,7 @@ export async function POST(request: NextRequest) {
             existing.video_description = String(rec.video_description);
           }
           existing.updated_at = now;
-          await saveStore(companyId, meta, store);
+          await saveStore(companyId, meta, store, 'movements');
           return NextResponse.json({
             success: true,
             movement: existing,
@@ -2095,7 +2137,7 @@ export async function POST(request: NextRequest) {
           });
         }
         const row = upsertMovement(store.movements, rec, now, newId);
-        await saveStore(companyId, meta, store);
+        await saveStore(companyId, meta, store, 'movements');
         return NextResponse.json({
           success: true,
           movement: row,
@@ -2133,7 +2175,7 @@ export async function POST(request: NextRequest) {
           existing.video_description = String(body.video_description);
         }
         existing.updated_at = now;
-        await saveStore(companyId, meta, store);
+        await saveStore(companyId, meta, store, 'movements');
         return NextResponse.json({
           success: true,
           movement: existing,
@@ -2171,7 +2213,7 @@ export async function POST(request: NextRequest) {
         }
         store.movements = store.movements.filter((m) => m.id !== id);
         removeMovementFromProgrammes(store.programmes, id);
-        await saveStore(companyId, meta, store);
+        await saveStore(companyId, meta, store, 'movements', 'programmes');
         return NextResponse.json({
           success: true,
           portal: buildCoachPortalPayload(store, coach),
@@ -2201,7 +2243,7 @@ export async function POST(request: NextRequest) {
           );
         }
         const row = upsertProgramme(store.programmes, rec, now, newId);
-        await saveStore(companyId, meta, store);
+        await saveStore(companyId, meta, store, 'programmes');
         return NextResponse.json({
           success: true,
           programme: row,
@@ -2225,7 +2267,7 @@ export async function POST(request: NextRequest) {
       }
       store.programmes = store.programmes.filter((p) => p.id !== id);
       clearProgrammeFromSessions(store.sessions, id);
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'programmes', 'sessions');
       return NextResponse.json({
         success: true,
         portal: buildCoachPortalPayload(store, coach),
@@ -2235,6 +2277,16 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (e: unknown) {
+    if (isStaleModuleStoreError(e)) {
+      return NextResponse.json(
+        {
+          error: 'stale_store',
+          updated_at: e.updatedAt,
+          message: 'This GymAdvisor book changed in another tab. Refresh and try again.',
+        },
+        { status: 409 }
+      );
+    }
     console.error('[public/fitgraph/coach]', e);
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

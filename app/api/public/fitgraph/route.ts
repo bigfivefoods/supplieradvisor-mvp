@@ -4,6 +4,7 @@
  * POST { token, action: 'book', session_id, name, email?, phone? }
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { isStaleModuleStoreError } from '@/lib/business/company-data';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
 import { verifyPaystackTransaction } from '@/lib/billing/paystack';
 import {
@@ -41,7 +42,7 @@ import {
   type FitClient,
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
-import { saveFitgraphMerged } from '@/lib/fitness/fitgraph-io';
+import { saveFitgraphPatch } from '@/lib/fitness/fitgraph-io';
 import { loadAdvisorStoreForPublicToken } from '@/lib/business/advisor-store-resolve';
 import { memberMayBookSession } from '@/lib/fitness/vuka-class-catalog';
 import {
@@ -79,10 +80,20 @@ async function resolveByToken(
 
 async function saveStore(
   companyId: number,
-  _meta: Record<string, unknown>,
-  store: FitgraphStore
-) {
-  await saveFitgraphMerged(companyId, store);
+  meta: Record<string, unknown>,
+  store: FitgraphStore,
+  ...keys: Array<keyof FitgraphStore>
+): Promise<string> {
+  const patch = {} as Partial<FitgraphStore>;
+  for (const key of keys) patch[key] = store[key];
+  const ifUpdatedAtRaw = meta.__if_updated_at;
+  const ifUpdatedAt =
+    typeof ifUpdatedAtRaw === 'string' && ifUpdatedAtRaw.trim()
+      ? ifUpdatedAtRaw.trim()
+      : null;
+  const updatedAt = await saveFitgraphPatch(companyId, patch, { ifUpdatedAt });
+  store.updated_at = updatedAt;
+  return updatedAt;
 }
 
 export async function GET(request: NextRequest) {
@@ -247,6 +258,15 @@ export async function POST(request: NextRequest) {
 
     const { companyId, meta } = resolved;
     let store = resolved.store;
+    const payloadUpdatedAt =
+      typeof body.updated_at === 'string' && body.updated_at.trim()
+        ? body.updated_at.trim()
+        : typeof body.if_updated_at === 'string' && body.if_updated_at.trim()
+          ? body.if_updated_at.trim()
+          : null;
+    if (payloadUpdatedAt) {
+      meta.__if_updated_at = payloadUpdatedAt;
+    }
 
     if (action === 'onboard_member' || action === 'onboard_contract') {
       const { applyContractToClient } = await import(
@@ -413,12 +433,12 @@ export async function POST(request: NextRequest) {
               : 'Member application',
         })
       );
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'clients', 'desk_notices');
       const portalToken = ensureClientPortalToken(client, companyId);
       // Re-save if token was just issued
       const latestIdx = store.clients.findIndex((c) => c.id === client.id);
       if (latestIdx >= 0) store.clients[latestIdx] = client;
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'clients');
       return NextResponse.json({
         success: true,
         portal_token: portalToken,
@@ -468,7 +488,7 @@ export async function POST(request: NextRequest) {
         const idx = store.clients.findIndex((c) => c.id === person!.id);
         if (idx >= 0) store.clients[idx] = { ...store.clients[idx], ...person };
       }
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, personKind === 'coach' ? 'coaches' : 'clients');
       // Send email via Resend
       try {
         const { getResend, getResendFrom } = await import('@/lib/resend');
@@ -514,7 +534,7 @@ export async function POST(request: NextRequest) {
         const portalToken = ensureCoachPortalToken(coach, companyId);
         const idx = store.coaches.findIndex((c) => c.id === coach.id);
         if (idx >= 0) store.coaches[idx] = coach;
-        await saveStore(companyId, meta, store);
+        await saveStore(companyId, meta, store, 'coaches');
         return NextResponse.json({
           success: true,
           portal_token: portalToken,
@@ -539,7 +559,7 @@ export async function POST(request: NextRequest) {
         const portalToken = ensureClientPortalToken(client, companyId);
         const idx = store.clients.findIndex((c) => c.id === client.id);
         if (idx >= 0) store.clients[idx] = client;
-        await saveStore(companyId, meta, store);
+        await saveStore(companyId, meta, store, 'clients');
         return NextResponse.json({
           success: true,
           portal_token: portalToken,
@@ -571,7 +591,7 @@ export async function POST(request: NextRequest) {
         coach.pin_hash = hashPin(pin);
         const idx = store.coaches.findIndex((c) => c.id === coach.id);
         if (idx >= 0) store.coaches[idx] = coach;
-        await saveStore(companyId, meta, store);
+        await saveStore(companyId, meta, store, 'coaches');
       } else {
         const client = findClientByEmail(store, email);
         if (!client || !clientMatchesPortalToken(client, portalToken)) {
@@ -580,7 +600,7 @@ export async function POST(request: NextRequest) {
         client.pin_hash = hashPin(pin);
         const idx = store.clients.findIndex((c) => c.id === client.id);
         if (idx >= 0) store.clients[idx] = client;
-        await saveStore(companyId, meta, store);
+        await saveStore(companyId, meta, store, 'clients');
       }
       return NextResponse.json({ success: true });
     }
@@ -604,7 +624,7 @@ export async function POST(request: NextRequest) {
           { status: started.status }
         );
       }
-      await saveStore(companyId, meta, started.store);
+      await saveStore(companyId, meta, started.store, 'gym_sales');
       return NextResponse.json({
         success: true,
         authorization_url: started.authorizationUrl,
@@ -646,7 +666,16 @@ export async function POST(request: NextRequest) {
             );
             if (ci >= 0) paid.store.clients[ci] = paid.client;
           }
-          await saveStore(companyId, meta, paid.store);
+          await saveStore(
+            companyId,
+            meta,
+            paid.store,
+            'gym_sales',
+            'clients',
+            'subscriptions',
+            'programme_enrollments',
+            'bookings'
+          );
           return NextResponse.json({
             success: true,
             sale: paid.sale,
@@ -788,7 +817,7 @@ export async function POST(request: NextRequest) {
         // Session is already known not cancelled (guard above)
         session.status = 'completed';
       }
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'class_feedback', 'bookings', 'sessions');
       return NextResponse.json({
         success: true,
         feedback: {
@@ -986,7 +1015,7 @@ export async function POST(request: NextRequest) {
         });
       }
     }
-    await saveStore(companyId, meta, store);
+    await saveStore(companyId, meta, store, 'bookings', 'clients', 'desk_notices');
 
     const ctName =
       store.class_types.find((c) => c.id === session.class_type_id)?.name ||
@@ -1040,6 +1069,16 @@ export async function POST(request: NextRequest) {
       calendar: buildPublicCalendarPayload(store),
     });
   } catch (e: unknown) {
+    if (isStaleModuleStoreError(e)) {
+      return NextResponse.json(
+        {
+          error: 'stale_store',
+          updated_at: e.updatedAt,
+          message: 'This GymAdvisor book changed in another tab. Refresh and try again.',
+        },
+        { status: 409 }
+      );
+    }
     console.error('[public/fitgraph]', e);
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

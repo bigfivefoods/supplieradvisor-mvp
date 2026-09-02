@@ -4,6 +4,7 @@
  * POST { token, action: book | request_join | cancel | rsvp | update_profile | upload_photo }
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { isStaleModuleStoreError } from '@/lib/business/company-data';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
 import { loadAdvisorStoreForPublicToken } from '@/lib/business/advisor-store-resolve';
@@ -369,11 +370,21 @@ function decorateMemberPortal(
 
 async function saveStore(
   companyId: number,
-  _meta: Record<string, unknown>,
-  store: FitgraphStore
-) {
-  const { saveFitgraphMerged } = await import('@/lib/fitness/fitgraph-io');
-  await saveFitgraphMerged(companyId, store);
+  meta: Record<string, unknown>,
+  store: FitgraphStore,
+  ...keys: Array<keyof FitgraphStore>
+): Promise<string> {
+  const patch = {} as Partial<FitgraphStore>;
+  for (const key of keys) patch[key] = store[key];
+  const ifUpdatedAtRaw = meta.__if_updated_at;
+  const ifUpdatedAt =
+    typeof ifUpdatedAtRaw === 'string' && ifUpdatedAtRaw.trim()
+      ? ifUpdatedAtRaw.trim()
+      : null;
+  const { saveFitgraphPatch } = await import('@/lib/fitness/fitgraph-io');
+  const updatedAt = await saveFitgraphPatch(companyId, patch, { ifUpdatedAt });
+  store.updated_at = updatedAt;
+  return updatedAt;
 }
 
 export async function GET(request: NextRequest) {
@@ -424,7 +435,7 @@ export async function GET(request: NextRequest) {
         );
         if (ci >= 0) {
           resolved.store.clients[ci] = hydrated.person;
-          await saveStore(resolved.companyId, resolved.meta, resolved.store);
+          await saveStore(resolved.companyId, resolved.meta, resolved.store, 'clients');
         }
         resolved.client = hydrated.person;
       }
@@ -503,10 +514,7 @@ export async function POST(request: NextRequest) {
             updated_at: new Date().toISOString(),
           };
         }
-        const { saveFitgraphMerged } = await import(
-          '@/lib/fitness/fitgraph-io'
-        );
-        await saveFitgraphMerged(resolved.companyId, store);
+        await saveStore(resolved.companyId, resolved.meta, store, 'clients');
       },
     });
     if (photoRes) return photoRes;
@@ -527,6 +535,15 @@ export async function POST(request: NextRequest) {
     }
 
     const { companyId, meta, store, client } = resolved;
+    const payloadUpdatedAt =
+      typeof body.updated_at === 'string' && body.updated_at.trim()
+        ? body.updated_at.trim()
+        : typeof body.if_updated_at === 'string' && body.if_updated_at.trim()
+          ? body.if_updated_at.trim()
+          : null;
+    if (payloadUpdatedAt) {
+      meta.__if_updated_at = payloadUpdatedAt;
+    }
     const now = new Date().toISOString();
     const ci = store.clients.findIndex((c) => c.id === client.id);
     if (ci < 0) {
@@ -556,7 +573,7 @@ export async function POST(request: NextRequest) {
           { status: started.status }
         );
       }
-      await saveStore(companyId, meta, started.store);
+      await saveStore(companyId, meta, started.store, 'gym_sales');
       return NextResponse.json({
         success: true,
         authorization_url: started.authorizationUrl,
@@ -598,7 +615,16 @@ export async function POST(request: NextRequest) {
             );
             if (ci >= 0) paid.store.clients[ci] = paid.client;
           }
-          await saveStore(companyId, meta, paid.store);
+          await saveStore(
+            companyId,
+            meta,
+            paid.store,
+            'gym_sales',
+            'clients',
+            'subscriptions',
+            'programme_enrollments',
+            'bookings'
+          );
           const nextClient =
             paid.store.clients.find((c) => c.id === client.id) || paid.client;
           return NextResponse.json({
@@ -720,7 +746,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
       store.threads = result.threads;
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'threads');
 
       const myThreads = threadsForParticipant(
         store.threads || [],
@@ -765,7 +791,7 @@ export async function POST(request: NextRequest) {
       }
       if (action === 'link_platform_user') {
         store.clients[ci] = c;
-        await saveStore(companyId, meta, store);
+        await saveStore(companyId, meta, store, 'clients');
         return NextResponse.json({
           success: true,
           platform_user_id: c.platform_user_id || null,
@@ -792,7 +818,7 @@ export async function POST(request: NextRequest) {
         }
       }
       store.clients[ci] = c;
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'clients');
       try {
         const { writeThroughPortalIdentity } = await import(
           '@/lib/b2c/wallet-household'
@@ -861,7 +887,7 @@ export async function POST(request: NextRequest) {
         source_id: activity.id,
       });
       store.clients[ci] = person;
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'leaderboard_scores', 'clients');
       return NextResponse.json({
         success: true,
         message: 'Score logged on the gym board',
@@ -933,7 +959,13 @@ export async function POST(request: NextRequest) {
         source_id: challenge.id,
       });
       store.clients[ci] = person;
-      await saveStore(companyId, meta, store);
+      await saveStore(
+        companyId,
+        meta,
+        store,
+        'class_challenge_scores',
+        'clients'
+      );
       return NextResponse.json({
         success: true,
         message: 'Score logged on the class board',
@@ -961,7 +993,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
       store.clients[ci] = person;
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'clients');
       return NextResponse.json({
         success: true,
         message: result.message,
@@ -990,7 +1022,7 @@ export async function POST(request: NextRequest) {
       c.family = list;
       c.updated_at = now;
       store.clients[ci] = c;
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'clients');
       try {
         const { writeThroughFamilyUpsert } = await import(
           '@/lib/b2c/wallet-household'
@@ -1024,7 +1056,7 @@ export async function POST(request: NextRequest) {
       c.family = removeFamilyMember(c.family, famId);
       c.updated_at = now;
       store.clients[ci] = c;
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'clients');
       try {
         const { writeThroughFamilyRemove } = await import(
           '@/lib/b2c/wallet-household'
@@ -1065,7 +1097,7 @@ export async function POST(request: NextRequest) {
         session_id: body.session_id || null,
         notes: body.notes ? String(body.notes) : undefined,
       });
-      await saveStore(companyId, meta, result.store);
+      await saveStore(companyId, meta, result.store, 'check_ins');
       return NextResponse.json({
         success: true,
         denied: result.denied,
@@ -1110,7 +1142,7 @@ export async function POST(request: NextRequest) {
       if (!result.ok) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'bookings');
       void notifyGymClassRsvp({
         store,
         booking: result.booking,
@@ -1280,7 +1312,7 @@ export async function POST(request: NextRequest) {
         family_member_name: famName,
       };
       store.bookings.push(row);
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'bookings');
       if (finalStatus === 'booked') {
         const { emailSessionCalendar } = await import(
           '@/lib/fitness/session-calendar'
@@ -1331,7 +1363,7 @@ export async function POST(request: NextRequest) {
           '@/lib/fitness/member-goals'
         );
         removeGoalFromStore(store, goalId);
-        await saveStore(companyId, meta, store);
+        await saveStore(companyId, meta, store, 'goals', 'clients', 'coaches');
         return NextResponse.json({
           success: true,
           portal: decorateMemberPortal(
@@ -1349,7 +1381,7 @@ export async function POST(request: NextRequest) {
         updated_at: now,
       };
       applyGoalToStore(store, next, `Hid goal · ${next.title}`);
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'goals', 'clients', 'journey_events');
       return NextResponse.json({
         success: true,
         portal: decorateMemberPortal(
@@ -1374,7 +1406,14 @@ export async function POST(request: NextRequest) {
       if (!result.ok) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
-      await saveStore(companyId, meta, result.store);
+      await saveStore(
+        companyId,
+        meta,
+        result.store,
+        'bookings',
+        'clients',
+        'check_ins'
+      );
       const nextClient =
         result.store.clients.find((c) => c.id === client.id) || client;
       if (!result.already) {
@@ -1429,7 +1468,7 @@ export async function POST(request: NextRequest) {
       });
       booking.feedback_submitted_at = now;
       booking.feedback_id = row.id;
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'class_feedback', 'bookings');
       const { notifyGymClassFeedback } = await import(
         '@/lib/fitness/notify-class-feedback'
       );
@@ -1493,7 +1532,7 @@ export async function POST(request: NextRequest) {
         now,
         newId
       );
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'programme_logs');
       return NextResponse.json({
         success: true,
         log: row,
@@ -1574,7 +1613,7 @@ export async function POST(request: NextRequest) {
         goal = { ...goal, status: body.status };
       }
       applyGoalToStore(store, goal, prev ? `Updated goal · ${goal.title}` : `Goal set · ${goal.title}`);
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'goals', 'clients', 'journey_events');
       return NextResponse.json({
         success: true,
         goal,
@@ -1613,7 +1652,7 @@ export async function POST(request: NextRequest) {
           : now,
       });
       applyGoalToStore(store, next);
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'goals', 'clients', 'journey_events');
       return NextResponse.json({
         success: true,
         goal: next,
@@ -1684,7 +1723,15 @@ export async function POST(request: NextRequest) {
           ? String(body.activity_type)
           : null,
       });
-      await saveStore(companyId, meta, store);
+      await saveStore(
+        companyId,
+        meta,
+        store,
+        'watch_sessions',
+        'goals',
+        'clients',
+        'journey_events'
+      );
       return NextResponse.json({
         success: true,
         portal: decorateMemberPortal(
@@ -1724,7 +1771,7 @@ export async function POST(request: NextRequest) {
           (p) => Date.now() - new Date(p.created_at).getTime() < 30 * 60 * 1000
         ),
       ].slice(0, 20);
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'garmin_oauth_pending');
       const url = new URL(GARMIN_AUTHORIZE_URL);
       url.searchParams.set('response_type', 'code');
       url.searchParams.set('client_id', String(process.env.GARMIN_CLIENT_ID));
@@ -1787,7 +1834,15 @@ export async function POST(request: NextRequest) {
           garmin: { ...fresh, last_sync_at: now },
         },
       };
-      await saveStore(companyId, meta, store);
+      await saveStore(
+        companyId,
+        meta,
+        store,
+        'clients',
+        'watch_sessions',
+        'goals',
+        'journey_events'
+      );
       return NextResponse.json({
         success: true,
         imported,
@@ -1809,7 +1864,7 @@ export async function POST(request: NextRequest) {
         ...store.clients[ci],
         wearable: { ...(store.clients[ci].wearable || {}), garmin: null },
       };
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'clients');
       return NextResponse.json({
         success: true,
         portal: decorateMemberPortal(
@@ -1872,7 +1927,7 @@ export async function POST(request: NextRequest) {
       ]
         .filter(Boolean)
         .join(' · ');
-      await saveStore(companyId, meta, store);
+      await saveStore(companyId, meta, store, 'bookings');
       return NextResponse.json({
         success: true,
         decision,
@@ -1885,6 +1940,16 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (e: unknown) {
+    if (isStaleModuleStoreError(e)) {
+      return NextResponse.json(
+        {
+          error: 'stale_store',
+          updated_at: e.updatedAt,
+          message: 'This GymAdvisor book changed in another tab. Refresh and try again.',
+        },
+        { status: 409 }
+      );
+    }
     console.error('[fitgraph member portal]', e);
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },
