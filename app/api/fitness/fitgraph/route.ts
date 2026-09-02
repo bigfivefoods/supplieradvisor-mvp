@@ -475,6 +475,12 @@ export async function POST(request: NextRequest) {
       }
       recodeGymClientNumbers(store.clients || []);
       await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        imported: result.created + result.updated,
         created: result.created,
         updated: result.updated,
         skipped: result.skipped,
