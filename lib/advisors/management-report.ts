@@ -108,6 +108,20 @@ export type ManagementChart = {
   series: ManagementChartPoint[];
 };
 
+/** One expandable pack block: graph above the list. */
+export type ManagementReportSection = {
+  id: string;
+  /** Tab id from availableSlices */
+  tab: string;
+  title: string;
+  hint?: string;
+  defaultOpen?: boolean;
+  kpis?: ManagementKpi[];
+  chart?: ManagementChart;
+  extraCharts?: ManagementChart[];
+  table?: ManagementTable;
+};
+
 export type ManagementSliceOption = {
   id: string;
   label: string;
@@ -132,6 +146,8 @@ export type ManagementReportDoc = {
   tables: ManagementTable[];
   /** Optional charts — auto-filled from tables/KPIs when omitted */
   charts?: ManagementChart[];
+  /** Tabbed expandable sections (graph above each list). */
+  sections?: ManagementReportSection[];
   highlights: string[];
   risks: string[];
   actions: string[];
@@ -165,7 +181,7 @@ export function ensureManagementCharts(
   doc: ManagementReportDoc
 ): ManagementChart[] {
   if (doc.charts && doc.charts.length > 0) {
-    return doc.charts.slice(0, 8).map((c) => ({
+    return doc.charts.slice(0, 12).map((c) => ({
       ...c,
       series: c.series.map((p, j) => ({
         ...p,
@@ -293,7 +309,61 @@ export function ensureManagementCharts(
     }
   }
 
-  return charts.slice(0, 4);
+  return charts.slice(0, 12);
+}
+
+/** Build a chart from a numeric column so lists always have a graph above. */
+export function chartFromTableColumn(
+  table: Pick<ManagementTable, 'title' | 'headers' | 'rows'>,
+  opts?: {
+    id?: string;
+    type?: ManagementChartType;
+    valueCol?: number;
+    max?: number;
+  }
+): ManagementChart | undefined {
+  if (!table.rows.length) return undefined;
+  let valueCol = opts?.valueCol ?? -1;
+  if (valueCol < 1) {
+    for (let c = 1; c < (table.headers?.length || 0); c++) {
+      const nums = table.rows
+        .map((r) => parseNumeric(r[c]))
+        .filter((n): n is number => n != null);
+      if (nums.length >= Math.min(1, table.rows.length)) {
+        valueCol = c;
+        break;
+      }
+    }
+  }
+  if (valueCol < 1) return undefined;
+  const max = opts?.max ?? 12;
+  const series = table.rows
+    .slice(0, max)
+    .map((r, i) => {
+      const value = parseNumeric(r[valueCol]);
+      if (value == null) return null;
+      const point: ManagementChartPoint = {
+        label: String(r[0] ?? '—').slice(0, 22),
+        value,
+        color: CHART_PALETTE[i % CHART_PALETTE.length],
+      };
+      return point;
+    })
+    .filter((p): p is ManagementChartPoint => p != null);
+  if (!series.length) return undefined;
+  const type =
+    opts?.type ||
+    (series.length > 8 ? 'horizontal_bar' : 'bar');
+  return {
+    id:
+      opts?.id ||
+      `tbl_${String(table.title || 'chart')
+        .replace(/\W+/g, '_')
+        .slice(0, 28)}`,
+    title: table.title,
+    type,
+    series,
+  };
 }
 
 export type ManagementReportFilters = {
@@ -302,6 +372,17 @@ export type ManagementReportFilters = {
   slice?: string;
   /** Free-form dimension filters (coachId, practitionerId, quarryId, district…) */
   dims?: Record<string, string>;
+};
+
+export const CLINIC_REPORT_STATUS_DIM = {
+  key: 'status',
+  label: 'Status',
+  options: [
+    { id: 'scheduled', label: 'Scheduled' },
+    { id: 'completed', label: 'Completed' },
+    { id: 'cancelled', label: 'Cancelled' },
+    { id: 'no_show', label: 'No-show' },
+  ],
 };
 
 export function todayIso() {

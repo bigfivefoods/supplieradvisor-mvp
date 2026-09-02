@@ -27,6 +27,7 @@ import {
   managementReportApiUrl,
 } from '@/lib/advisors/management-report';
 import ManagementReportCharts from '@/components/advisors/ManagementReportCharts';
+import ManagementReportSectionCard from '@/components/advisors/ManagementReportSectionCard';
 
 type DimOption = {
   key: string;
@@ -53,7 +54,7 @@ export default function ManagementReportPanel({
   const [period, setPeriod] = useState<PeriodSlicerValue>(() =>
     initialPeriodSlicerValue('this_month', 1)
   );
-  const [slice, setSlice] = useState('overview');
+  const [tab, setTab] = useState('overview');
   const [dims, setDims] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -66,7 +67,7 @@ export default function ManagementReportPanel({
       const url = managementReportApiUrl(advisor, companyId, {
         from: period.from,
         to: period.to,
-        slice,
+        slice: 'overview',
         dims,
         format: 'json',
       });
@@ -77,13 +78,12 @@ export default function ManagementReportPanel({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load report');
       setReport(data.report as ManagementReportDoc);
-      if (data.report?.slice) setSlice(String(data.report.slice));
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Load failed');
     } finally {
       setLoading(false);
     }
-  }, [advisor, companyId, period.from, period.to, slice, dims]);
+  }, [advisor, companyId, period.from, period.to, dims]);
 
   useEffect(() => {
     void load();
@@ -168,8 +168,9 @@ export default function ManagementReportPanel({
               ) : null}
             </h2>
             <p className="mt-1 max-w-xl text-xs text-white/90 sm:text-sm dark:text-sky-100/95">
-              One slicer at the top, then the full pack: people, floor, diary,
-              trends and graphs. Download the same metrics as an A4 PDF.
+              One slicer at the top, then tabs of reports. Each list has a
+              graph above it. Expand a section for the full table. Download
+              the same metrics as an A4 PDF.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -240,6 +241,34 @@ export default function ManagementReportPanel({
           Slice & dice
         </p>
 
+        {report?.sections?.length && report.availableSlices?.length ? (
+          <div
+            className="flex flex-wrap gap-1.5"
+            role="tablist"
+            aria-label="Report tabs"
+          >
+            {report.availableSlices.map((s) => {
+              const on = tab === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={on}
+                  onClick={() => setTab(s.id)}
+                  className={`rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-wide ${
+                    on
+                      ? 'border-[#0077b6] bg-gradient-to-r from-[#0077b6] to-[#00b4d8] text-white shadow-sm dark:border-cyan-300 dark:from-cyan-400 dark:to-teal-300 dark:text-[#042f2e]'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300 dark:border-cyan-500/25 dark:bg-[#0b1e33] dark:text-cyan-100 dark:hover:border-cyan-300/50'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
         {loading || !report ? (
           <div className="flex flex-col items-center justify-center gap-2 py-14">
             <Loader2 className="h-8 w-8 animate-spin text-[#00b4d8] dark:text-cyan-300" />
@@ -303,7 +332,7 @@ export default function ManagementReportPanel({
               </div>
             </div>
 
-            {/* Charts — always prominent */}
+            {(!report.sections?.length || tab === 'overview') ? (
             <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-3 sm:p-4 dark:border-cyan-400/25 dark:bg-gradient-to-br dark:from-[#061825] dark:via-[#0b2f44] dark:to-[#0a3d3a]/90">
               <div className="mb-3 flex items-center gap-2">
                 <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-br from-[#0077b6] to-[#00b4d8] text-white shadow-sm dark:from-cyan-400 dark:to-teal-300 dark:text-[#042f2e] dark:shadow-cyan-400/30">
@@ -314,13 +343,15 @@ export default function ManagementReportPanel({
                     Visual Insights
                   </p>
                   <p className="text-[10px] font-medium text-slate-400 dark:text-cyan-100/70">
-                    Live charts from this period — included on the PDF
+                    Live charts from this period — tap a tab for lists with a graph above each
                   </p>
                 </div>
               </div>
               <ManagementReportCharts report={report} />
             </div>
+            ) : null}
 
+            {(!report.sections?.length || tab === 'overview') ? (
             <div className="grid gap-2.5 sm:grid-cols-3">
               {[
                 {
@@ -373,8 +404,25 @@ export default function ManagementReportPanel({
                 </div>
               ))}
             </div>
+            ) : null}
 
-            {report.tables.map((tbl) => (
+            {report.sections?.length ? (
+              (report.sections.filter((s) => s.tab === tab).length ? (
+                report.sections
+                  .filter((s) => s.tab === tab)
+                  .map((section) => (
+                    <ManagementReportSectionCard
+                      key={section.id}
+                      section={section}
+                    />
+                  ))
+              ) : (
+                <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-xs font-semibold text-slate-400 dark:border-cyan-500/20 dark:text-cyan-200/70">
+                  No lists on this tab for the current filters.
+                </p>
+              ))
+            ) : (
+              report.tables.map((tbl) => (
               <div
                 key={tbl.title}
                 className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm ring-1 ring-slate-900/5 dark:border-cyan-400/25 dark:bg-gradient-to-br dark:from-[#061825] dark:via-[#0b2f44] dark:to-[#0c3d4a] dark:shadow-[0_12px_32px_-12px_rgba(0,0,0,0.55)] dark:ring-0"
@@ -420,7 +468,8 @@ export default function ManagementReportPanel({
                   </table>
                 </div>
               </div>
-            ))}
+              ))
+            )}
           </>
         )}
       </div>

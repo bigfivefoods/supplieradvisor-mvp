@@ -5,10 +5,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   ADVISOR_REPORT_META,
+  chartFromTableColumn,
   type AdvisorReportId,
+  type ManagementChart,
+  type ManagementChartType,
   type ManagementReportDoc,
   type ManagementReportFilters,
   type ManagementKpi,
+  type ManagementReportSection,
   type ManagementTable,
 } from '@/lib/advisors/management-report';
 
@@ -57,6 +61,63 @@ function kpi(label: string, value: string | number, hint?: string): ManagementKp
   return { label, value, hint };
 }
 
+function makeSection(opts: {
+  id: string;
+  tab: string;
+  title: string;
+  hint?: string;
+  defaultOpen?: boolean;
+  headers: string[];
+  rows: Array<Array<string | number>>;
+  chartType?: ManagementChartType;
+  valueCol?: number;
+  extraCharts?: ManagementChart[];
+  kpis?: ManagementKpi[];
+}): ManagementReportSection {
+  const table: ManagementTable = {
+    title: opts.title,
+    headers: opts.headers,
+    rows: opts.rows,
+  };
+  return {
+    id: opts.id,
+    tab: opts.tab,
+    title: opts.title,
+    hint: opts.hint,
+    defaultOpen: opts.defaultOpen !== false,
+    kpis: opts.kpis,
+    table,
+    chart: chartFromTableColumn(table, {
+      id: `${opts.id}_chart`,
+      type: opts.chartType,
+      valueCol: opts.valueCol,
+      max: 12,
+    }),
+    extraCharts: opts.extraCharts,
+  };
+}
+
+function sectionsToTables(sections: ManagementReportSection[]): ManagementTable[] {
+  return sections
+    .filter((s) => s.tab !== 'overview' && s.table)
+    .slice(0, 6)
+    .map((s) => ({
+      title: s.table!.title,
+      headers: s.table!.headers,
+      rows: s.table!.rows.slice(0, 8),
+    }));
+}
+
+function weekdayLabel(dateIso: string): string {
+  const d = new Date(`${String(dateIso).slice(0, 10)}T12:00:00`);
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()] || '—';
+}
+
+function hourOf(time: string): number {
+  const n = Number(String(time || '').slice(0, 2));
+  return Number.isFinite(n) ? n : -1;
+}
+
 // ── Clinic family (physio / dental / medical / psychiatry) ───────────────
 
 type ClinicLikeStore = {
@@ -65,16 +126,35 @@ type ClinicLikeStore = {
     name: string;
     active?: boolean;
     code?: string;
+    disciplines?: string[];
+    rate_zar?: number | null;
   }>;
-  staff?: Array<{ id: string; name: string; active?: boolean; code?: string }>;
+  staff?: Array<{
+    id: string;
+    name: string;
+    active?: boolean;
+    code?: string;
+    disciplines?: string[];
+    rate_zar?: number | null;
+  }>;
   patients: Array<{
     id: string;
     name: string;
     active?: boolean;
     status?: string;
     practitioner_id?: string | null;
+    staff_id?: string | null;
+    booking_soft_block?: boolean;
+    no_show_count?: number;
+    created_at?: string;
+    clinical?: {
+      injured?: boolean;
+      injury_notes?: string;
+      pain_score?: number | null;
+      injury_status?: string;
+    } | null;
   }>;
-  services: Array<{ id: string; name: string; active?: boolean }>;
+  services: Array<{ id: string; name: string; active?: boolean; code?: string }>;
   appointments: Array<{
     id: string;
     date: string;
@@ -82,7 +162,9 @@ type ClinicLikeStore = {
     status: string;
     service_id: string;
     practitioner_id?: string | null;
+    staff_id?: string | null;
     booked?: number;
+    appointment_kind?: string;
   }>;
   bookings?: Array<{
     id: string;
@@ -91,6 +173,18 @@ type ClinicLikeStore = {
     patient_id?: string;
   }>;
 };
+
+function clinicPersonId(a: {
+  practitioner_id?: string | null;
+  staff_id?: string | null;
+}): string {
+  return String(a.practitioner_id || a.staff_id || '');
+}
+
+function isClinicLoadAppt(a: { appointment_kind?: string }): boolean {
+  const k = String(a.appointment_kind || 'consult').toLowerCase();
+  return k !== 'personal' && k !== 'away';
+}
 
 function buildClinicReport(
   advisor: AdvisorReportId,
@@ -104,26 +198,40 @@ function buildClinicReport(
     store.staff ||
     ([] as Array<{ id: string; name: string; active?: boolean }>);
   const pracId = dim(filters, 'practitionerId') || dim(filters, 'staffId');
+  const serviceId = dim(filters, 'serviceId');
+  const statusFilter = dim(filters, 'status').toLowerCase();
   const slice = filters.slice || 'overview';
   const slices = [
     { id: 'overview', label: 'Overview' },
     { id: 'practitioners', label: 'Practitioners' },
     { id: 'services', label: 'Services' },
+    { id: 'patients', label: 'Patients' },
     { id: 'diary', label: 'Diary' },
+    { id: 'attendance', label: 'Attendance' },
+    { id: 'trends', label: 'Trends' },
   ];
 
   let appts = (store.appointments || []).filter(
-    (a) =>
-      a.date >= filters.from &&
-      a.date <= filters.to &&
-      a.status !== 'cancelled'
+    (a) => a.date >= filters.from && a.date <= filters.to
   );
   if (pracId) {
-    appts = appts.filter((a) => a.practitioner_id === pracId);
+    appts = appts.filter((a) => clinicPersonId(a) === pracId);
   }
+  if (serviceId) {
+    appts = appts.filter((a) => a.service_id === serviceId);
+  }
+  if (statusFilter) {
+    appts = appts.filter(
+      (a) => String(a.status || '').toLowerCase() === statusFilter
+    );
+  }
+  const loadAppts = appts.filter(
+    (a) =>
+      String(a.status || '').toLowerCase() !== 'cancelled' && isClinicLoadAppt(a)
+  );
 
   const bookings = store.bookings || [];
-  const periodBookingIds = new Set(appts.map((a) => a.id));
+  const periodBookingIds = new Set(loadAppts.map((a) => a.id));
   const periodBookings = bookings.filter((b) =>
     periodBookingIds.has(b.appointment_id)
   );
@@ -132,11 +240,14 @@ function buildClinicReport(
   const booked = periodBookings.filter((b) =>
     ['booked', 'confirmed', 'pending'].includes(String(b.status || '').toLowerCase())
   ).length;
-  const cancelledAppts = (store.appointments || []).filter(
-    (a) =>
-      a.date >= filters.from &&
-      a.date <= filters.to &&
-      String(a.status || '').toLowerCase() === 'cancelled'
+  const cancelledAppts = appts.filter(
+    (a) => String(a.status || '').toLowerCase() === 'cancelled'
+  ).length;
+  const completedAppts = appts.filter(
+    (a) => String(a.status || '').toLowerCase() === 'completed'
+  ).length;
+  const scheduledAppts = appts.filter(
+    (a) => String(a.status || '').toLowerCase() === 'scheduled'
   ).length;
   const activePatients = store.patients.filter(
     (p) => p.active !== false && (p.status === 'active' || p.status === 'new' || !p.status)
@@ -145,34 +256,65 @@ function buildClinicReport(
     const st = String(p.status || '').toLowerCase();
     return st === 'new' || st === 'lead';
   }).length;
-  const utilSeats = appts.reduce((n, a) => n + Number(a.booked || 0), 0);
+  const utilSeats = loadAppts.reduce((n, a) => n + Number(a.booked || 0), 0);
   const teamActive = people.filter((p) => p.active !== false).length;
   const servicesActive = store.services.filter((s) => s.active !== false).length;
+  const softBlocked = store.patients.filter((p) => p.booking_soft_block).length;
+  const clinicalOpen = store.patients.filter(
+    (p) => p.clinical?.injured || String(p.clinical?.injury_notes || '').trim()
+  ).length;
 
-  const byPrac = new Map<string, number>();
-  for (const a of appts) {
-    const id = a.practitioner_id || '_none';
-    byPrac.set(id, (byPrac.get(id) || 0) + 1);
+  const byPrac = new Map<
+    string,
+    { appts: number; attended: number; noShow: number }
+  >();
+  for (const a of loadAppts) {
+    const id = clinicPersonId(a) || '_none';
+    const cur = byPrac.get(id) || { appts: 0, attended: 0, noShow: 0 };
+    cur.appts += 1;
+    byPrac.set(id, cur);
   }
+  for (const b of periodBookings) {
+    const a = loadAppts.find((x) => x.id === b.appointment_id);
+    if (!a) continue;
+    const id = clinicPersonId(a) || '_none';
+    const cur = byPrac.get(id) || { appts: 0, attended: 0, noShow: 0 };
+    if (b.status === 'attended') cur.attended += 1;
+    if (b.status === 'no_show') cur.noShow += 1;
+    byPrac.set(id, cur);
+  }
+  const assignedPatients = (id: string) =>
+    store.patients.filter(
+      (p) => p.practitioner_id === id || p.staff_id === id
+    ).length;
   const pracRows = [...byPrac.entries()]
     .map(([id, n]) => {
       const p = people.find((x) => x.id === id);
-      return [p?.name || 'Unassigned', n, activePatients];
+      return [
+        p?.name || 'Unassigned',
+        n.appts,
+        n.attended,
+        n.noShow,
+        assignedPatients(id),
+      ];
     })
     .sort((a, b) => Number(b[1]) - Number(a[1]))
-    .slice(0, 8);
+    .slice(0, 40);
 
-  const bySvc = new Map<string, number>();
-  for (const a of appts) {
-    bySvc.set(a.service_id, (bySvc.get(a.service_id) || 0) + 1);
+  const bySvc = new Map<string, { appts: number; booked: number }>();
+  for (const a of loadAppts) {
+    const cur = bySvc.get(a.service_id) || { appts: 0, booked: 0 };
+    cur.appts += 1;
+    cur.booked += Number(a.booked || 0);
+    bySvc.set(a.service_id, cur);
   }
   const svcRows = [...bySvc.entries()]
     .map(([id, n]) => {
       const s = store.services.find((x) => x.id === id);
-      return [s?.name || id, n];
+      return [s?.name || id, n.appts, n.booked];
     })
     .sort((a, b) => Number(b[1]) - Number(a[1]))
-    .slice(0, 8);
+    .slice(0, 40);
 
   const diaryRows = appts
     .slice()
@@ -181,15 +323,23 @@ function buildClinicReport(
         ? a.start_time.localeCompare(b.start_time)
         : b.date.localeCompare(a.date)
     )
-    .slice(0, 8)
+    .slice(0, 40)
     .map((a) => {
       const s = store.services.find((x) => x.id === a.service_id);
-      const p = people.find((x) => x.id === a.practitioner_id);
-      return [a.date, a.start_time, s?.name || '—', p?.name || '—', a.status];
+      const p = people.find((x) => x.id === clinicPersonId(a));
+      return [
+        a.date,
+        a.start_time,
+        s?.name || '—',
+        p?.name || '—',
+        a.status,
+        a.appointment_kind || 'consult',
+        Number(a.booked || 0),
+      ];
     });
 
   const kpis: ManagementKpi[] = [
-    kpi('Appts in period', appts.length, 'Non-cancelled diary slots'),
+    kpi('Appts in period', loadAppts.length, 'Non-cancelled consult slots'),
     kpi('Active patients', activePatients),
     kpi('Patients on book', store.patients.length, newPatients ? `${newPatients} new/lead` : undefined),
     kpi('Team active', teamActive),
@@ -204,18 +354,18 @@ function buildClinicReport(
         : '—'
     ),
     kpi('Cancelled appts', cancelledAppts),
-    kpi('Practitioners with load', byPrac.size),
-    kpi('Top service mix', svcRows.length ? String(svcRows[0]?.[0] || '—') : '—'),
+    kpi('Clinical flags', clinicalOpen, softBlocked ? `${softBlocked} soft-blocked` : undefined),
+    kpi('Top service', svcRows.length ? String(svcRows[0]?.[0] || '—') : '—'),
   ];
 
   const dayMap = new Map<string, { appts: number; attended: number; noShow: number }>();
-  for (const a of appts) {
+  for (const a of loadAppts) {
     const cur = dayMap.get(a.date) || { appts: 0, attended: 0, noShow: 0 };
     cur.appts += 1;
     dayMap.set(a.date, cur);
   }
   const apptDate = new Map(
-    appts.map((a) => [a.id, a.date] as const)
+    loadAppts.map((a) => [a.id, a.date] as const)
   );
   for (const b of periodBookings) {
     const d = apptDate.get(b.appointment_id);
@@ -229,28 +379,216 @@ function buildClinicReport(
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, v]) => [date, v.appts, v.attended, v.noShow]);
 
-  const tables: ManagementTable[] = [
-    {
-      title: 'People · practitioner load',
-      headers: ['Name', 'Appts', 'Patients (active book)'],
-      rows: pracRows as Array<Array<string | number>>,
-    },
-    {
-      title: 'Floor · services',
-      headers: ['Service', 'Appts'],
-      rows: svcRows as Array<Array<string | number>>,
-    },
-    {
-      title: 'Diary · recent slots',
-      headers: ['Date', 'Time', 'Service', 'Clinician', 'Status'],
-      rows: diaryRows as Array<Array<string | number>>,
-    },
-    {
-      title: 'Trend · by day',
-      headers: ['Date', 'Appts', 'Attended', 'No-show'],
-      rows: dailyRows.slice(-14) as Array<Array<string | number>>,
-    },
+  const byDow = new Map<string, number>();
+  const byHour = new Map<string, number>();
+  for (const a of loadAppts) {
+    const dow = weekdayLabel(a.date);
+    byDow.set(dow, (byDow.get(dow) || 0) + 1);
+    const h = hourOf(a.start_time);
+    if (h >= 0) {
+      const label = `${String(h).padStart(2, '0')}:00`;
+      byHour.set(label, (byHour.get(label) || 0) + 1);
+    }
+  }
+  const dowOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const dowRows = dowOrder.map((d) => [d, byDow.get(d) || 0]);
+  const hourRows = [...byHour.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([h, n]) => [h, n]);
+
+  const patientStats = new Map<
+    string,
+    { booked: number; attended: number; noShow: number }
+  >();
+  for (const b of periodBookings) {
+    const pid = String(b.patient_id || '');
+    if (!pid) continue;
+    const cur = patientStats.get(pid) || {
+      booked: 0,
+      attended: 0,
+      noShow: 0,
+    };
+    cur.booked += 1;
+    if (b.status === 'attended') cur.attended += 1;
+    if (b.status === 'no_show') cur.noShow += 1;
+    patientStats.set(pid, cur);
+  }
+  const patientRows = store.patients
+    .filter((p) => p.active !== false)
+    .map((p) => {
+      const st = patientStats.get(p.id) || {
+        booked: 0,
+        attended: 0,
+        noShow: 0,
+      };
+      const clinician = people.find(
+        (x) => x.id === (p.practitioner_id || p.staff_id)
+      );
+      return [
+        p.name,
+        st.booked,
+        st.attended,
+        st.noShow,
+        p.status || 'active',
+        clinician?.name || '—',
+        p.booking_soft_block ? 'soft-block' : '—',
+      ];
+    })
+    .sort((a, b) => Number(b[1]) - Number(a[1]))
+    .slice(0, 40);
+
+  const clinicalRows = store.patients
+    .filter(
+      (p) => p.clinical?.injured || String(p.clinical?.injury_notes || '').trim()
+    )
+    .map((p) => {
+      const clinician = people.find(
+        (x) => x.id === (p.practitioner_id || p.staff_id)
+      );
+      return [
+        p.name,
+        p.clinical?.injury_status || (p.clinical?.injured ? 'injured' : '—'),
+        p.clinical?.pain_score != null ? p.clinical.pain_score : '—',
+        (p.clinical?.injury_notes || '—').slice(0, 48),
+        clinician?.name || '—',
+      ];
+    })
+    .slice(0, 40);
+
+  const statusRows: Array<Array<string | number>> = [
+    ['Scheduled', scheduledAppts],
+    ['Completed', completedAppts],
+    ['Cancelled', cancelledAppts],
+    ['Attended seats', attended],
+    ['No-show seats', noShow],
   ];
+
+  const sections: ManagementReportSection[] = [
+    makeSection({
+      id: 'clinic_prac',
+      tab: 'practitioners',
+      title: 'Practitioner load',
+      hint: 'Appointments, attended seats and no-shows in this period',
+      headers: ['Name', 'Appts', 'Attended', 'No-show', 'Patients assigned'],
+      rows: pracRows as Array<Array<string | number>>,
+      chartType: 'horizontal_bar',
+      valueCol: 1,
+    }),
+    makeSection({
+      id: 'clinic_svc',
+      tab: 'services',
+      title: 'Services',
+      hint: 'Diary mix by service',
+      headers: ['Service', 'Appts', 'Booked seats'],
+      rows: svcRows as Array<Array<string | number>>,
+      chartType: 'donut',
+      valueCol: 1,
+    }),
+    makeSection({
+      id: 'clinic_patients',
+      tab: 'patients',
+      title: 'Patients in period',
+      hint: 'Booked / attended / no-show against the current book',
+      headers: [
+        'Patient',
+        'Booked',
+        'Attended',
+        'No-show',
+        'Status',
+        'Clinician',
+        'Flag',
+      ],
+      rows: patientRows as Array<Array<string | number>>,
+      chartType: 'horizontal_bar',
+      valueCol: 2,
+    }),
+    makeSection({
+      id: 'clinic_clinical',
+      tab: 'patients',
+      title: 'Clinical / injury flags',
+      hint: 'Open injury notes on the book',
+      headers: ['Patient', 'Status', 'Pain', 'Notes', 'Clinician'],
+      rows: clinicalRows as Array<Array<string | number>>,
+      defaultOpen: clinicalRows.length > 0,
+    }),
+    makeSection({
+      id: 'clinic_diary',
+      tab: 'diary',
+      title: 'Diary slots',
+      hint: 'Latest 40 slots in the sliced period',
+      headers: [
+        'Date',
+        'Time',
+        'Service',
+        'Clinician',
+        'Status',
+        'Kind',
+        'Booked',
+      ],
+      rows: diaryRows as Array<Array<string | number>>,
+      chartType: 'bar',
+      valueCol: 6,
+    }),
+    makeSection({
+      id: 'clinic_status',
+      tab: 'attendance',
+      title: 'Slot & seat mix',
+      headers: ['Status', 'Count'],
+      rows: statusRows,
+      chartType: 'bar',
+    }),
+    makeSection({
+      id: 'clinic_daily',
+      tab: 'trends',
+      title: 'By day',
+      hint: 'Appointments, attended seats, no-shows',
+      headers: ['Date', 'Appts', 'Attended', 'No-show'],
+      rows: dailyRows as Array<Array<string | number>>,
+      chartType: 'line',
+      valueCol: 1,
+      extraCharts: dailyRows.length
+        ? [
+            {
+              id: 'clinic_daily_attended',
+              title: 'Attended seats by day',
+              type: 'line',
+              series: dailyRows.slice(-30).map((r) => ({
+                label: String(r[0]).slice(5),
+                value: Number(r[2]) || 0,
+                color: '#059669',
+              })),
+            },
+          ]
+        : undefined,
+    }),
+    makeSection({
+      id: 'clinic_dow',
+      tab: 'trends',
+      title: 'By weekday',
+      headers: ['Weekday', 'Appts'],
+      rows: dowRows as Array<Array<string | number>>,
+      chartType: 'bar',
+    }),
+    makeSection({
+      id: 'clinic_hour',
+      tab: 'trends',
+      title: 'By hour',
+      headers: ['Hour', 'Appts'],
+      rows: hourRows as Array<Array<string | number>>,
+      chartType: 'bar',
+    }),
+    makeSection({
+      id: 'clinic_overview_prac',
+      tab: 'overview',
+      title: 'People · practitioner load',
+      headers: ['Name', 'Appts', 'Attended', 'No-show', 'Patients assigned'],
+      rows: pracRows.slice(0, 12) as Array<Array<string | number>>,
+      chartType: 'horizontal_bar',
+      defaultOpen: true,
+    }),
+  ];
+
+  const tables = sectionsToTables(sections);
 
   const showUp =
     attended + noShow > 0
@@ -271,18 +609,22 @@ function buildClinicReport(
       pracId
         ? `Clinician: ${people.find((p) => p.id === pracId)?.name || pracId}`
         : '',
-      `Slice: ${slice}`,
+      serviceId
+        ? `Service: ${store.services.find((s) => s.id === serviceId)?.name || serviceId}`
+        : '',
+      statusFilter ? `Status: ${statusFilter}` : '',
     ]),
     headline: `${ADVISOR_REPORT_META[advisor].brand} reports pack — people, floor, diary & trends`,
     kpis,
     tables,
+    sections,
     charts: [
       {
         id: 'clinic_activity',
         title: 'Clinic activity',
         type: 'bar',
         series: [
-          { label: 'Appts', value: appts.length, color: '#0077b6' },
+          { label: 'Appts', value: loadAppts.length, color: '#0077b6' },
           { label: 'Attended', value: attended, color: '#059669' },
           { label: 'No-shows', value: noShow, color: '#e11d48' },
           { label: 'Cancelled', value: cancelledAppts, color: '#d97706' },
@@ -373,63 +715,274 @@ async function buildFit(
     classTypeId: dim(filters, 'classTypeId'),
     specialty: dim(filters, 'specialty'),
     feedbackRole: '' as const,
-    sessionStatus: '' as const,
+    sessionStatus: (dim(filters, 'sessionStatus') || '') as
+      | ''
+      | 'scheduled'
+      | 'completed'
+      | 'cancelled'
+      | 'full',
   };
   const report = buildFullReport(store, f);
   const o = report.overview;
   const slice = filters.slice || 'overview';
   const slices = [
     { id: 'overview', label: 'Overview' },
-    { id: 'coaches', label: 'Coaches' },
-    { id: 'classes', label: 'Classes' },
-    { id: 'members', label: 'Members' },
-    { id: 'daily', label: 'By day' },
+    { id: 'people', label: 'People' },
+    { id: 'floor', label: 'Floor' },
+    { id: 'diary', label: 'Diary' },
+    { id: 'attendance', label: 'Attendance' },
+    { id: 'feedback', label: 'Feedback' },
+    { id: 'money', label: 'Money' },
+    { id: 'trends', label: 'Trends' },
   ];
 
-  const tables: ManagementTable[] = [
-    {
-      title: 'People · coaches',
-      headers: ['Coach', 'Sessions', 'Attended', 'Fill %', 'Feeling'],
-      rows: report.coaches.slice(0, 12).map((r) => [
-        r.name,
-        r.sessions,
-        r.attended,
-        r.fill_pct ?? '—',
-        r.avg_member_feeling ?? '—',
-      ]),
-    },
-    {
-      title: 'Floor · class types',
-      headers: ['Class', 'Sessions', 'Attended', 'Fill %'],
-      rows: report.classes.slice(0, 12).map((r) => [
-        r.name,
-        r.sessions,
-        r.attended,
-        r.fill_pct ?? '—',
-      ]),
-    },
-    {
-      title: 'People · members',
-      headers: ['Member', 'Attended', 'No-show', 'Classes'],
-      rows: report.members.slice(0, 12).map((r) => [
-        r.name,
-        r.attended_in_range,
-        r.no_show_in_range,
-        r.class_count,
-      ]),
-    },
-    {
-      title: 'Trend · by day',
+  const coachRows = report.coaches.slice(0, 40).map((r) => [
+    r.name,
+    r.sessions,
+    r.attended,
+    r.no_show,
+    r.fill_pct ?? '—',
+    r.show_up_pct ?? '—',
+    r.avg_member_feeling ?? '—',
+  ]);
+  const classRows = report.classes.slice(0, 40).map((r) => [
+    r.name,
+    r.sessions,
+    r.attended,
+    r.no_show,
+    r.fill_pct ?? '—',
+    r.waitlist,
+  ]);
+  const memberRows = report.members
+    .slice()
+    .sort((a, b) => b.attended_in_range - a.attended_in_range)
+    .slice(0, 40)
+    .map((r) => [
+      r.name,
+      r.attended_in_range,
+      r.no_show_in_range,
+      r.class_count,
+      r.check_ins_in_range,
+      r.assigned ? 'yes' : 'no',
+    ]);
+  const dailyRows = report.daily.map((r) => [
+    r.date,
+    r.sessions,
+    r.attended,
+    r.no_show,
+    r.feedback,
+  ]);
+  const diaryRows = report.planActual.slice(0, 40).map((r) => [
+    r.session.date,
+    r.session.start_time,
+    r.class_name,
+    r.coach_name,
+    r.planned,
+    r.attended,
+    r.no_show,
+    r.fill_pct ?? '—',
+    r.session.status,
+  ]);
+  const feedbackRows = report.feedback.slice(0, 40).map((r) => [
+    r.session_date || '—',
+    r.class_name || '—',
+    r.coach_name || '—',
+    r.role,
+    r.feeling ?? '—',
+    r.intensity ?? '—',
+    (r.comment || '').slice(0, 40),
+  ]);
+  const subPlans = (report.subscriptions?.plans || []).map((p) => [
+    p.name,
+    p.subscribers,
+    p.price_zar,
+    p.mrr_zar,
+  ]);
+  const subMembers = (report.subscriptions?.members || [])
+    .slice(0, 40)
+    .map((m) => [
+      m.name,
+      m.monthly_zar,
+      m.booked,
+      m.attended,
+      m.no_show,
+      (m.plans || []).join(', ') || '—',
+    ]);
+
+  const byDow = new Map<string, number>();
+  for (const s of report.sessions) {
+    const d = weekdayLabel(s.session.date);
+    byDow.set(d, (byDow.get(d) || 0) + 1);
+  }
+  const dowOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const dowRows = dowOrder.map((d) => [d, byDow.get(d) || 0]);
+
+  const sections: ManagementReportSection[] = [
+    makeSection({
+      id: 'gym_coaches',
+      tab: 'people',
+      title: 'Coaches',
+      hint: 'Sessions, fill and member feeling in this period',
+      headers: [
+        'Coach',
+        'Sessions',
+        'Attended',
+        'No-show',
+        'Fill %',
+        'Show-up %',
+        'Feeling',
+      ],
+      rows: coachRows,
+      chartType: 'horizontal_bar',
+      valueCol: 1,
+    }),
+    makeSection({
+      id: 'gym_members',
+      tab: 'people',
+      title: 'Members',
+      hint: 'Attendance and class assignment',
+      headers: [
+        'Member',
+        'Attended',
+        'No-show',
+        'Classes',
+        'Check-ins',
+        'Assigned',
+      ],
+      rows: memberRows,
+      chartType: 'horizontal_bar',
+      valueCol: 1,
+    }),
+    makeSection({
+      id: 'gym_classes',
+      tab: 'floor',
+      title: 'Class types',
+      hint: 'Mix of sessions on the floor',
+      headers: [
+        'Class',
+        'Sessions',
+        'Attended',
+        'No-show',
+        'Fill %',
+        'Waitlist',
+      ],
+      rows: classRows,
+      chartType: 'donut',
+      valueCol: 1,
+    }),
+    makeSection({
+      id: 'gym_diary',
+      tab: 'diary',
+      title: 'Plan vs actual',
+      hint: 'Latest 40 sessions in the slice',
+      headers: [
+        'Date',
+        'Time',
+        'Class',
+        'Coach',
+        'Planned',
+        'Attended',
+        'No-show',
+        'Fill %',
+        'Status',
+      ],
+      rows: diaryRows,
+      chartType: 'bar',
+      valueCol: 5,
+    }),
+    makeSection({
+      id: 'gym_attendance',
+      tab: 'attendance',
+      title: 'Attendance mix',
+      headers: ['Metric', 'Count'],
+      rows: [
+        ['Attended seats', o.attended],
+        ['No-shows', o.no_show],
+        ['Waitlist', o.waitlist],
+        ['Check-ins', o.check_ins_in_range],
+        ['Open bookings', o.open_bookings],
+      ],
+      chartType: 'bar',
+    }),
+    makeSection({
+      id: 'gym_feedback',
+      tab: 'feedback',
+      title: 'Class feedback',
+      hint: 'Member and coach notes in this period',
+      headers: ['Date', 'Class', 'Coach', 'Role', 'Feel', 'RPE', 'Comment'],
+      rows: feedbackRows,
+      chartType: 'bar',
+      valueCol: 4,
+    }),
+    makeSection({
+      id: 'gym_money_plans',
+      tab: 'money',
+      title: 'Class subscriptions · plans',
+      hint: report.subscriptions
+        ? `R${Number(report.subscriptions.mrr_zar || 0).toLocaleString('en-ZA')}/pm`
+        : undefined,
+      headers: ['Plan', 'Subscribers', 'Rate', 'MRR'],
+      rows: subPlans,
+      chartType: 'horizontal_bar',
+      valueCol: 3,
+    }),
+    makeSection({
+      id: 'gym_money_members',
+      tab: 'money',
+      title: 'Class subscriptions · members',
+      headers: ['Member', 'Monthly ZAR', 'Booked', 'Attended', 'No-show', 'Plans'],
+      rows: subMembers,
+      chartType: 'horizontal_bar',
+      valueCol: 1,
+    }),
+    makeSection({
+      id: 'gym_daily',
+      tab: 'trends',
+      title: 'By day',
       headers: ['Date', 'Sessions', 'Attended', 'No-show', 'Feedback'],
-      rows: report.daily.slice(-14).map((r) => [
-        r.date,
-        r.sessions,
-        r.attended,
-        r.no_show,
-        r.feedback,
-      ]),
-    },
+      rows: dailyRows,
+      chartType: 'line',
+      valueCol: 2,
+      extraCharts: [
+        {
+          id: 'gym_daily_sessions',
+          title: 'Sessions by day',
+          type: 'line',
+          series: report.daily.slice(-30).map((d) => ({
+            label: d.date.slice(5),
+            value: d.sessions,
+            color: '#0d9488',
+          })),
+        },
+      ],
+    }),
+    makeSection({
+      id: 'gym_dow',
+      tab: 'trends',
+      title: 'By weekday',
+      headers: ['Weekday', 'Sessions'],
+      rows: dowRows,
+      chartType: 'bar',
+    }),
+    makeSection({
+      id: 'gym_overview_coaches',
+      tab: 'overview',
+      title: 'People · coaches',
+      headers: [
+        'Coach',
+        'Sessions',
+        'Attended',
+        'No-show',
+        'Fill %',
+        'Show-up %',
+        'Feeling',
+      ],
+      rows: coachRows.slice(0, 12),
+      chartType: 'horizontal_bar',
+      defaultOpen: true,
+    }),
   ];
+  const tables = sectionsToTables(sections);
 
   return {
     ...baseDoc(
@@ -445,6 +998,7 @@ async function buildFit(
       f.coachId ? `Coach filter on` : '',
       f.classTypeId ? `Class filter on` : '',
       f.specialty ? `Specialty: ${f.specialty}` : '',
+      f.sessionStatus ? `Status: ${f.sessionStatus}` : '',
     ]),
     headline: 'Gym reports pack — people, floor, attendance & trends',
     kpis: [
@@ -459,9 +1013,15 @@ async function buildFit(
       kpi('Active members', o.active_members),
       kpi('Coaches teaching', o.coaches_teaching),
       kpi('Class types run', o.class_types_run),
-      kpi('Member feedback', o.member_feedback),
+      kpi(
+        'MRR',
+        report.subscriptions
+          ? `R${Number(report.subscriptions.mrr_zar || 0).toLocaleString('en-ZA')}`
+          : '—'
+      ),
     ].slice(0, 12),
     tables,
+    sections,
     charts: [
       {
         id: 'attendance_mix',
