@@ -112,30 +112,45 @@ export async function saveFitgraphMerged(
     hydrateGoalsFromPeople(next);
     const { core, lib } = splitFitgraphLibrary(next);
     try {
-      await Promise.all([
-        saveAdvisorModuleStore(
+      if (opts?.ifUpdatedAt) {
+        await saveAdvisorModuleStore(
           companyId,
           FITGRAPH_META_KEY,
           core,
           writeFitgraphToMetadata,
           opts
-        ),
-        saveAdvisorModuleStore(
+        );
+        await saveAdvisorModuleStore(
           companyId,
           FITGRAPH_LIB_KEY,
           lib,
-          writeFitgraphLibToMetadata,
-          opts
-        ),
-      ]);
+          writeFitgraphLibToMetadata
+        );
+      } else {
+        await Promise.all([
+          saveAdvisorModuleStore(
+            companyId,
+            FITGRAPH_META_KEY,
+            core,
+            writeFitgraphToMetadata,
+            opts
+          ),
+          saveAdvisorModuleStore(
+            companyId,
+            FITGRAPH_LIB_KEY,
+            lib,
+            writeFitgraphLibToMetadata,
+            opts
+          ),
+        ]);
+      }
     } catch (error) {
       if (isStaleModuleStoreError(error)) throw error;
       await saveAdvisorModuleStore(
         companyId,
         FITGRAPH_META_KEY,
         next,
-        writeFitgraphToMetadata,
-        opts
+        writeFitgraphToMetadata
       );
     }
     saved = next;

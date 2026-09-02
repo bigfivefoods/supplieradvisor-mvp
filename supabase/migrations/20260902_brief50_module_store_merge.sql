@@ -124,7 +124,7 @@ AS $$
 DECLARE
   existing_data jsonb := COALESCE(p_existing, '{}'::jsonb);
   incoming_data jsonb := COALESCE(p_incoming, '{}'::jsonb);
-  merged jsonb := existing_data || incoming_data;
+  merged jsonb := '{}'::jsonb;
   removed_map jsonb := COALESCE(incoming_data -> 'removed_ids', '{}'::jsonb);
   key text;
   incoming_value jsonb;

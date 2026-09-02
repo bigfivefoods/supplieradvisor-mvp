@@ -145,11 +145,7 @@ function staleUpdatedAtFromRpcError(
     hint?: string | null;
   };
   const msg = String(raw.message || '');
-  const isStale =
-    msg === 'stale_module_store' ||
-    /stale_module_store/i.test(msg) ||
-    (String(raw.code || '') === 'P0001' &&
-      /stale_module_store/i.test(String(raw.details || raw.hint || '')));
+  const isStale = /stale_module_store/i.test(msg);
   if (!isStale) return null;
   const detail = String(raw.details || '').trim();
   return { updatedAt: detail || null };

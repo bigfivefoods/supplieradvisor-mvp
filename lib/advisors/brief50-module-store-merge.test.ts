@@ -77,6 +77,20 @@ const ID_ARRAY_KEYS = new Set([
   'movements',
 ]);
 
+function arrayHasIdObject(value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+  return value.some(
+    (row) =>
+      Boolean(
+        row &&
+          typeof row === 'object' &&
+          !Array.isArray(row) &&
+          typeof (row as { id?: unknown }).id === 'string' &&
+          ((row as { id: string }).id || '').trim()
+      )
+  );
+}
+
 function mergeModuleStore(existing: Record<string, unknown>, incoming: Record<string, unknown>) {
   const merged: Record<string, unknown> = { ...existing, ...incoming };
   const removedIdsMap =
@@ -85,7 +99,14 @@ function mergeModuleStore(existing: Record<string, unknown>, incoming: Record<st
       : {};
 
   for (const [key, value] of Object.entries(incoming)) {
-    if (!Array.isArray(value) || !ID_ARRAY_KEYS.has(key)) continue;
+    if (
+      !Array.isArray(value) ||
+      (!ID_ARRAY_KEYS.has(key) &&
+        !arrayHasIdObject(value) &&
+        !arrayHasIdObject(existing[key]))
+    ) {
+      continue;
+    }
     const removed = Array.isArray(removedIdsMap[key])
       ? (removedIdsMap[key] as unknown[])
           .map((v) => (v == null ? '' : String(v).trim()))
