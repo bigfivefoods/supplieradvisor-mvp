@@ -182,6 +182,32 @@ async function savePatch(
   return saveFitgraphPatch(companyId, patch, { ifUpdatedAt });
 }
 
+function keyedStorePatch<K extends keyof FitgraphStore>(
+  store: FitgraphStore,
+  ...keys: K[]
+): Pick<FitgraphStore, K> {
+  const patch = {} as Pick<FitgraphStore, K>;
+  for (const key of keys) {
+    patch[key] = store[key] as Pick<FitgraphStore, K>[K];
+  }
+  return patch;
+}
+
+async function savePatchForKeys<K extends keyof FitgraphStore>(
+  companyId: number,
+  meta: Record<string, unknown>,
+  store: FitgraphStore,
+  ...keys: K[]
+): Promise<string> {
+  const updatedAt = await savePatch(
+    companyId,
+    meta,
+    keyedStorePatch(store, ...keys)
+  );
+  store.updated_at = updatedAt;
+  return updatedAt;
+}
+
 function analysis(store: FitgraphStore) {
   const today = new Date().toISOString().slice(0, 10);
   const weekEnd = new Date();
@@ -525,7 +551,7 @@ export async function POST(request: NextRequest) {
         }
       }
       const numbered = recodeGymClientNumbers(store.clients || []);
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'clients');
       const remaining = (store.clients || []).reduce(
         (count, person) =>
           needsGymCrmStamp(person) ||
@@ -799,7 +825,7 @@ export async function POST(request: NextRequest) {
         emailWarning = `Invite saved but email failed: ${msg}`;
       }
 
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'clients');
       void import('@/lib/b2c/directory').then(({ indexBrandPerson }) =>
         indexBrandPerson({
           kind: 'gym',
@@ -851,7 +877,7 @@ export async function POST(request: NextRequest) {
       client.invite_token = null;
       client.invite_expires_at = null;
       client.updated_at = new Date().toISOString();
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'clients');
       return NextResponse.json({
         success: true,
         store,
@@ -879,7 +905,7 @@ export async function POST(request: NextRequest) {
         reason: body.reason != null ? String(body.reason) : undefined,
         nowIso: now,
       });
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'coaches');
       return NextResponse.json({
         success: true,
         store,
@@ -915,7 +941,7 @@ export async function POST(request: NextRequest) {
         });
       }
       store.coaches[idx] = reopenCoachEngagement(coach, startDate);
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'coaches');
       return NextResponse.json({
         success: true,
         store,
@@ -1331,7 +1357,14 @@ export async function POST(request: NextRequest) {
           /* best-effort — Brief 38 stamps the gym book */
         }
       }
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(
+        companyId,
+        meta,
+        store,
+        'clients',
+        'subscriptions',
+        'bookings'
+      );
       return NextResponse.json({
         success: true,
         store,
@@ -1611,7 +1644,7 @@ export async function POST(request: NextRequest) {
       const shareCode = ensureSessionShareCode(session);
       // Skip the write when both tokens already existed and settings unchanged.
       if (!hadPublicToken || !hadShareCode || !hadAllowPublicBooking) {
-        await saveStore(companyId, meta, store);
+        await savePatchForKeys(companyId, meta, store, 'settings', 'sessions');
       }
       const path = buildClassJoinPath(
         store.settings.public_token,
@@ -1899,7 +1932,7 @@ export async function POST(request: NextRequest) {
         source: 'desk',
       });
       client.updated_at = now;
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'clients');
       return NextResponse.json({
         success: true,
         store,
@@ -1984,7 +2017,7 @@ export async function POST(request: NextRequest) {
           errors.push(result.error || 'fail');
         }
       }
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'bookings');
       return NextResponse.json({
         success: true,
         store,
@@ -2089,7 +2122,7 @@ export async function POST(request: NextRequest) {
           booked_at: now,
           source: 'treatment_plan',
         });
-        await saveStore(companyId, meta, store);
+        await savePatchForKeys(companyId, meta, store, 'bookings');
         return NextResponse.json({
           success: true,
           store,
@@ -2185,7 +2218,13 @@ export async function POST(request: NextRequest) {
           );
         }
       }
-      await saveStore(companyId, meta, store);
+      const clinicalPatchKeys: Array<keyof FitgraphStore> =
+        action === 'upsert_visit_note'
+          ? ['visit_notes']
+          : action === 'record_outcome'
+            ? ['outcome_scores']
+            : ['treatment_plans'];
+      await savePatchForKeys(companyId, meta, store, ...clinicalPatchKeys);
       return NextResponse.json({
         success: true,
         store,
@@ -2338,7 +2377,7 @@ export async function POST(request: NextRequest) {
         if (!result.ok) {
           return NextResponse.json({ error: result.error }, { status: 400 });
         }
-        await saveStore(companyId, meta, store);
+        await savePatchForKeys(companyId, meta, store, 'settings');
         return NextResponse.json({
           success: true,
           specialties: result.options,
@@ -2358,7 +2397,7 @@ export async function POST(request: NextRequest) {
         if (!result.ok) {
           return NextResponse.json({ error: result.error }, { status: 400 });
         }
-        await saveStore(companyId, meta, store);
+        await savePatchForKeys(companyId, meta, store, 'settings', 'coaches');
         return NextResponse.json({
           success: true,
           specialties: result.options,
@@ -2378,7 +2417,7 @@ export async function POST(request: NextRequest) {
         if (!result.ok) {
           return NextResponse.json({ error: result.error }, { status: 400 });
         }
-        await saveStore(companyId, meta, store);
+        await savePatchForKeys(companyId, meta, store, 'settings', 'coaches');
         return NextResponse.json({
           success: true,
           specialties: result.options,
@@ -2411,7 +2450,7 @@ export async function POST(request: NextRequest) {
           unique.push(s.slice(0, 48));
         }
         store.settings.coach_specialties = unique;
-        await saveStore(companyId, meta, store);
+        await savePatchForKeys(companyId, meta, store, 'settings');
         return NextResponse.json({
           success: true,
           specialties: unique,
@@ -2479,7 +2518,13 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(
+        companyId,
+        meta,
+        store,
+        'programme_enrollments',
+        'clients'
+      );
       return NextResponse.json({
         success: true,
         store,
@@ -2517,7 +2562,7 @@ export async function POST(request: NextRequest) {
         now,
         newId
       );
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'programme_logs');
       return NextResponse.json({
         success: true,
         store,
@@ -2552,7 +2597,7 @@ export async function POST(request: NextRequest) {
           : now,
       });
       applyGoalToStore(store, next);
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'goals');
       return NextResponse.json({
         success: true,
         store,
@@ -2576,7 +2621,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
       store.leaderboard_activities = result.list;
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'leaderboard_activities');
       return NextResponse.json({
         success: true,
         store,
@@ -2603,7 +2648,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
       store.leaderboard_assignments = result.list;
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'leaderboard_assignments');
       return NextResponse.json({
         success: true,
         store,
@@ -2621,7 +2666,7 @@ export async function POST(request: NextRequest) {
         store.leaderboard_assignments,
         String(body.id || body.assignment_id || '')
       );
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'leaderboard_assignments');
       return NextResponse.json({
         success: true,
         store,
@@ -2661,7 +2706,7 @@ export async function POST(request: NextRequest) {
         now
       );
       store.leaderboard_scores = scored.list;
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'leaderboard_scores');
       return NextResponse.json({
         success: true,
         store,
@@ -2715,7 +2760,7 @@ export async function POST(request: NextRequest) {
         },
         now
       );
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'class_feedback');
       return NextResponse.json({
         success: true,
         store,
@@ -2860,6 +2905,16 @@ export async function POST(request: NextRequest) {
           (a) => a.activity_id !== id
         );
       }
+      const deletePatchKeys: Array<keyof FitgraphStore> = [entity];
+      if (entity === 'movements') {
+        deletePatchKeys.push('programmes');
+      } else if (entity === 'programmes') {
+        deletePatchKeys.push('sessions', 'programme_enrollments');
+      } else if (entity === 'leaderboard_activities') {
+        deletePatchKeys.push('leaderboard_assignments');
+      } else if (entity === 'sessions') {
+        deletePatchKeys.push('bookings', 'removed_ids');
+      }
       if (Array.isArray(list)) {
         // Optional: delete whole class series when series_id matches
         if (
@@ -2888,7 +2943,7 @@ export async function POST(request: NextRequest) {
             store.bookings = (store.bookings || []).filter(
               (b) => !removeIds.has(b.session_id)
             );
-            await saveStore(companyId, meta, store);
+            await savePatchForKeys(companyId, meta, store, ...deletePatchKeys);
             return NextResponse.json({
               success: true,
               store,
@@ -2918,7 +2973,7 @@ export async function POST(request: NextRequest) {
           );
         }
       }
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, ...deletePatchKeys);
       return NextResponse.json({
         success: true,
         store,
@@ -2941,6 +2996,7 @@ export async function POST(request: NextRequest) {
       }
     }
     const existingClientId = rec.id ? String(rec.id) : '';
+    const hadSettings = Boolean(store.settings);
     const clientWasNew =
       entity === 'clients' &&
       (!existingClientId ||
@@ -3037,7 +3093,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await saveStore(companyId, meta, store);
+    const upsertPatchKeys: Array<keyof FitgraphStore> = [entity];
+    if (!hadSettings && store.settings) {
+      upsertPatchKeys.push('settings');
+    }
+    await savePatchForKeys(companyId, meta, store, ...upsertPatchKeys);
     return NextResponse.json({
       success: true,
       store,
