@@ -8,6 +8,7 @@ import {
 import { DataTable, StatRow } from '@/components/clinic/PhysioForm';
 import { healthSummaryLabel, isInjured } from '@/lib/health/body-map';
 import ManagementReportPanel from '@/components/advisors/ManagementReportPanel';
+import { CLINIC_REPORT_STATUS_DIM } from '@/lib/advisors/management-report';
 
 export default function ReportPage() {
   const { store, loading, summary, analysis } = usePhysiograph();
@@ -31,7 +32,7 @@ export default function ReportPage() {
     <PhysiographWorkbench
       title="Reports"
       titleAccent="slice & dice · pack · trends"
-      description="One slicer at the top. Then the clinic pack: people, floor, diary, attendance trends and graphs."
+      description="One slicer at the top. Tabs of reports underneath — each list has a graph above it."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -41,8 +42,8 @@ export default function ReportPage() {
       <ManagementReportPanel
         advisor="physiograph"
         className="mb-6"
-        dimensions={
-          clinicianOpts.length
+        dimensions={[
+          ...(clinicianOpts.length
             ? [
                 {
                   key: 'practitionerId',
@@ -50,8 +51,16 @@ export default function ReportPage() {
                   options: clinicianOpts,
                 },
               ]
-            : []
-        }
+            : []),
+          {
+            key: 'serviceId',
+            label: 'Service',
+            options: (store?.services || [])
+              .filter((s) => s.active !== false)
+              .map((s) => ({ id: s.id, label: s.name })),
+          },
+          CLINIC_REPORT_STATUS_DIM,
+        ]}
       />
 
           <StatRow

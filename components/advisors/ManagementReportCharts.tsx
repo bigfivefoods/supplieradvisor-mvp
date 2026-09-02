@@ -246,6 +246,11 @@ function ChartCard({
   );
 }
 
+export function ManagementChartCard({ chart }: { chart: ManagementChart }) {
+  const isDark = useIsDark();
+  return <ChartCard chart={chart} isDark={isDark} />;
+}
+
 export default function ManagementReportCharts({
   report,
 }: {

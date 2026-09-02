@@ -8,6 +8,7 @@ import {
 import { DataTable, StatRow } from '@/components/clinic/PsychiatryForm';
 import { healthSummaryLabel, isInjured } from '@/lib/health/body-map';
 import ManagementReportPanel from '@/components/advisors/ManagementReportPanel';
+import { CLINIC_REPORT_STATUS_DIM } from '@/lib/advisors/management-report';
 
 export default function ReportPage() {
   const { store, loading, summary, analysis } = usePsychiatrygraph();
@@ -28,7 +29,7 @@ export default function ReportPage() {
     <PsychiatrygraphWorkbench
       title="Reports"
       titleAccent="slice & dice · pack · trends"
-      description="One slicer at the top. Then the clinic pack: people, floor, diary, attendance trends and graphs."
+      description="One slicer at the top. Tabs of reports underneath — each list has a graph above it."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -38,10 +39,9 @@ export default function ReportPage() {
       <ManagementReportPanel
         advisor="psychiatrygraph"
         className="mb-6"
-        dimensions={
-          (store?.practitioners || [])
-            .filter((p) => p.active !== false)
-            .map((p) => ({ id: p.id, label: p.name })).length
+        dimensions={[
+          ...((store?.practitioners || []).filter((p) => p.active !== false)
+            .length
             ? [
                 {
                   key: 'practitionerId',
@@ -51,8 +51,16 @@ export default function ReportPage() {
                     .map((p) => ({ id: p.id, label: p.name })),
                 },
               ]
-            : []
-        }
+            : []),
+          {
+            key: 'serviceId',
+            label: 'Service',
+            options: (store?.services || [])
+              .filter((s) => s.active !== false)
+              .map((s) => ({ id: s.id, label: s.name })),
+          },
+          CLINIC_REPORT_STATUS_DIM,
+        ]}
       />
 
           <StatRow

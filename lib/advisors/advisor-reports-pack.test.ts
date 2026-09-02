@@ -31,7 +31,9 @@ const panel = readFileSync(
 assert.match(panel, /Reports/);
 assert.match(panel, /Slice & dice/);
 assert.match(panel, /Report pack/);
-assert.doesNotMatch(panel, /availableSlices/);
+assert.match(panel, /availableSlices/);
+assert.match(panel, /role="tablist"/);
+assert.match(panel, /ManagementReportSectionCard/);
 
 const gymPage = readFileSync(
   resolve('app/dashboard/fitgraph/report/page.tsx'),
@@ -48,5 +50,11 @@ assert.match(build, /daily_sessions/);
 assert.match(build, /daily_appts/);
 assert.match(build, /People · coaches/);
 assert.match(build, /People · practitioner load/);
+assert.match(build, /tab: 'people'/);
+assert.match(build, /tab: 'practitioners'/);
+assert.match(build, /tab: 'patients'/);
+assert.match(build, /tab: 'money'/);
+assert.match(build, /makeSection/);
+assert.match(build, /clinicPersonId/);
 
 console.log('advisor-reports-pack.test.ts ok');
