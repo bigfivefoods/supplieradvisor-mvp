@@ -386,18 +386,23 @@ function MiniWeekStrip({
 }
 
 function ScreenSlider({
-  screens,
+  items,
+  renderPhone,
   dark,
   labelPrefix,
 }: {
-  screens: Array<{ id: string; title: string; phone: ReactNode }>;
+  items: Array<{ id: string; title: string }>;
+  renderPhone: (id: string) => ReactNode;
   dark?: boolean;
   labelPrefix: string;
 }) {
   const [i, setI] = useState(0);
-  const n = screens.length;
-  const go = (j: number) => setI(((j % n) + n) % n);
-  const cur = screens[i] || screens[0];
+  const n = items.length;
+  const go = (j: number) => {
+    if (n < 1) return;
+    setI(((j % n) + n) % n);
+  };
+  const cur = items[i] || items[0];
   if (!cur) return null;
   return (
     <div className="space-y-3">
@@ -413,7 +418,7 @@ function ScreenSlider({
           </button>
         ) : null}
         <PhoneChrome label={`${labelPrefix} · ${cur.title}`} dark={dark}>
-          {cur.phone}
+          {renderPhone(cur.id)}
         </PhoneChrome>
         {n > 1 ? (
           <button
@@ -439,7 +444,7 @@ function ScreenSlider({
             className="w-full accent-slate-900 dark:accent-yellow-400"
           />
           <div className="flex flex-wrap justify-center gap-1">
-            {screens.map((s, j) => (
+            {items.map((s, j) => (
               <button
                 key={s.id}
                 type="button"
@@ -2223,6 +2228,7 @@ export function AdvisorGrowPreviews({
   placement?: 'view-portal' | 'website-settings';
 }) {
   const [previewTheme, setPreviewTheme] = useState<PreviewTheme>('light');
+  const [liveFrame, setLiveFrame] = useState(false);
   const dark = previewTheme === 'dark';
   const copy = growPreviewCopy(module);
   const brand = (settings?.brand_name || '').trim() || eyebrow.replace(/®/g, '');
@@ -2265,12 +2271,36 @@ export function AdvisorGrowPreviews({
           title={`${eyebrow} website preview`}
           dark={dark}
         >
-          <iframe
-            key={frameKey}
-            title={`${eyebrow} website preview`}
-            src={liveHref}
-            className={`h-full w-full ${dark ? 'bg-slate-950' : 'bg-white'}`}
-          />
+          {liveFrame ? (
+            <iframe
+              key={frameKey}
+              title={`${eyebrow} website preview`}
+              src={liveHref}
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+              className={`h-full w-full overflow-hidden ${dark ? 'bg-slate-950' : 'bg-white'}`}
+            />
+          ) : (
+            <div
+              className={`flex h-full flex-col items-center justify-center gap-3 px-6 text-center ${
+                dark ? 'bg-slate-950 text-slate-200' : 'bg-white text-slate-700'
+              }`}
+            >
+              <p className="text-sm font-bold">Live website is published</p>
+              <p className="text-[12px] opacity-80">
+                Load it here when you want a preview. Opening it in this page
+                used to make the desk jump.
+              </p>
+              <button
+                type="button"
+                onClick={() => setLiveFrame(true)}
+                className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-black text-white dark:bg-yellow-400 dark:text-yellow-950"
+              >
+                Load live website
+              </button>
+            </div>
+          )}
         </BrowserChrome>
       ) : (
         <>
@@ -2365,118 +2395,45 @@ export function AdvisorGrowPreviews({
             <ScreenSlider
               dark={dark}
               labelPrefix={`${eyebrow} · member`}
-              screens={[
-                {
-                  id: 'class',
-                  title: 'Class',
-                  phone: (
-                    <GymMemberPwaMock
-                      copy={copy}
-                      brand={brand}
-                      logoUrl={logoUrl}
-                      color={color}
-                      dark={dark}
-                      screen="class"
-                    />
-                  ),
-                },
-                {
-                  id: 'after',
-                  title: 'After class',
-                  phone: (
-                    <GymMemberPwaMock
-                      copy={copy}
-                      brand={brand}
-                      logoUrl={logoUrl}
-                      color={color}
-                      dark={dark}
-                      screen="after"
-                    />
-                  ),
-                },
-                {
-                  id: 'progress',
-                  title: 'Progress',
-                  phone: (
-                    <GymMemberPwaMock
-                      copy={copy}
-                      brand={brand}
-                      logoUrl={logoUrl}
-                      color={color}
-                      dark={dark}
-                      screen="progress"
-                    />
-                  ),
-                },
-                {
-                  id: 'programme',
-                  title: 'Programme',
-                  phone: (
-                    <GymProgrammeMock copy={copy} color={color} dark={dark} />
-                  ),
-                },
-                {
-                  id: 'you',
-                  title: 'You',
-                  phone: (
-                    <GymMemberPwaMock
-                      copy={copy}
-                      brand={brand}
-                      logoUrl={logoUrl}
-                      color={color}
-                      dark={dark}
-                      screen="you"
-                    />
-                  ),
-                },
-                {
-                  id: 'shop',
-                  title: 'Shop',
-                  phone: (
-                    <GymMemberPwaMock
-                      copy={copy}
-                      brand={brand}
-                      logoUrl={logoUrl}
-                      color={color}
-                      dark={dark}
-                      screen="shop"
-                    />
-                  ),
-                },
-                {
-                  id: 'share',
-                  title: 'Share',
-                  phone: (
-                    <GymMemberPwaMock
-                      copy={copy}
-                      brand={brand}
-                      logoUrl={logoUrl}
-                      color={color}
-                      dark={dark}
-                      screen="share"
-                    />
-                  ),
-                },
+              items={[
+                { id: 'class', title: 'Class' },
+                { id: 'after', title: 'After class' },
+                { id: 'progress', title: 'Progress' },
+                { id: 'programme', title: 'Programme' },
+                { id: 'you', title: 'You' },
+                { id: 'shop', title: 'Shop' },
+                { id: 'share', title: 'Share' },
               ]}
+              renderPhone={(id) =>
+                id === 'programme' ? (
+                  <GymProgrammeMock copy={copy} color={color} dark={dark} />
+                ) : (
+                  <GymMemberPwaMock
+                    copy={copy}
+                    brand={brand}
+                    logoUrl={logoUrl}
+                    color={color}
+                    dark={dark}
+                    screen={id as 'class' | 'after' | 'progress' | 'you' | 'shop' | 'share'}
+                  />
+                )
+              }
             />
           ) : hire && hireScreens.length ? (
             <ScreenSlider
               dark={dark}
               labelPrefix={`${eyebrow} · customer`}
-              screens={hireScreens.map((s) => ({
-                id: s.id,
-                title: s.title,
-                phone: (
-                  <HireMemberPwaMock
-                    copy={copy}
-                    brand="HireAdvisor"
-                    logoUrl={null}
-                    color={color}
-                    dark={dark}
-                    screen={s.id as HirePreviewScreen}
-                  />
-                ),
-              }))}
+              items={hireScreens.map((s) => ({ id: s.id, title: s.title }))}
+              renderPhone={(id) => (
+                <HireMemberPwaMock
+                  copy={copy}
+                  brand="HireAdvisor"
+                  logoUrl={null}
+                  color={color}
+                  dark={dark}
+                  screen={id as HirePreviewScreen}
+                />
+              )}
             />
           ) : (
             <PhoneChrome label={`${eyebrow} · member phone`} dark={dark}>
@@ -2505,78 +2462,23 @@ export function AdvisorGrowPreviews({
               <ScreenSlider
                 dark={dark}
                 labelPrefix={`${copy.staffEyebrow}`}
-                screens={[
-                  {
-                    id: 'today',
-                    title: 'Today',
-                    phone: (
-                      <GymCoachPwaMock
-                        copy={copy}
-                        brand={brand}
-                        logoUrl={logoUrl}
-                        color={color}
-                        dark={dark}
-                        screen="today"
-                      />
-                    ),
-                  },
-                  {
-                    id: 'diary',
-                    title: 'Diary',
-                    phone: (
-                      <GymCoachPwaMock
-                        copy={copy}
-                        brand={brand}
-                        logoUrl={logoUrl}
-                        color={color}
-                        dark={dark}
-                        screen="diary"
-                      />
-                    ),
-                  },
-                  {
-                    id: 'you',
-                    title: 'You',
-                    phone: (
-                      <GymCoachPwaMock
-                        copy={copy}
-                        brand={brand}
-                        logoUrl={logoUrl}
-                        color={color}
-                        dark={dark}
-                        screen="you"
-                      />
-                    ),
-                  },
-                  {
-                    id: 'people',
-                    title: 'People',
-                    phone: (
-                      <GymCoachPwaMock
-                        copy={copy}
-                        brand={brand}
-                        logoUrl={logoUrl}
-                        color={color}
-                        dark={dark}
-                        screen="people"
-                      />
-                    ),
-                  },
-                  {
-                    id: 'inbox',
-                    title: 'Inbox',
-                    phone: (
-                      <GymCoachPwaMock
-                        copy={copy}
-                        brand={brand}
-                        logoUrl={logoUrl}
-                        color={color}
-                        dark={dark}
-                        screen="inbox"
-                      />
-                    ),
-                  },
+                items={[
+                  { id: 'today', title: 'Today' },
+                  { id: 'diary', title: 'Diary' },
+                  { id: 'you', title: 'You' },
+                  { id: 'people', title: 'People' },
+                  { id: 'inbox', title: 'Inbox' },
                 ]}
+                renderPhone={(id) => (
+                  <GymCoachPwaMock
+                    copy={copy}
+                    brand={brand}
+                    logoUrl={logoUrl}
+                    color={color}
+                    dark={dark}
+                    screen={id as 'today' | 'diary' | 'you' | 'people' | 'inbox'}
+                  />
+                )}
               />
             ) : (
               <PhoneChrome
