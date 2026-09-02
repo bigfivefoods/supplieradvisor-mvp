@@ -499,90 +499,55 @@ export default function CalendarPage() {
       toast.error('Set date and start time');
       return;
     }
-    const { resolveSeriesEditIds, applySeriesPatch } = await import(
-      '@/lib/services/advisor-series-edit'
-    );
     const scope: SeriesEditScope =
       prev.series_id && (editScope === 'future' || editScope === 'all')
         ? editScope
         : 'one';
-    const ids = resolveSeriesEditIds(
-      store.sessions.map((s) => ({
-        id: s.id,
-        date: s.date,
-        series_id: s.series_id,
-      })),
-      prev.id,
-      scope
-    );
     const times = resolveSessionTimes({
       start_time: form.start_time,
       end_time: form.end_time,
     });
-    const patch = {
-      start_time: times.start_time,
-      end_time: times.end_time,
-      duration_min: times.duration_min,
-      location: form.location || undefined,
-      room: form.room || null,
-      coach_id: form.coach_id || null,
-      capacity: form.capacity ? Number(form.capacity) : null,
-      class_type_id: form.class_type_id,
-      session_kind: form.session_kind,
-      personal_reason:
-        form.session_kind === 'away' ? form.personal_reason : null,
-      public: form.session_kind === 'class' && form.public,
-      public_notes: form.public_notes || undefined,
-      class_plan: form.class_plan || undefined,
-      notes: form.notes || undefined,
-      status: form.status || prev.status || 'scheduled',
-      programme_id: form.programme_id || null,
-      agreed_rate_zar:
-        form.agreed_rate_zar.trim() === ''
-          ? null
-          : Number(form.agreed_rate_zar),
-    };
-    for (const id of ids) {
-      const row = store.sessions.find((s) => s.id === id);
-      if (!row) continue;
-      const isAnchor = id === prev.id;
-      const next = applySeriesPatch(row, patch, {
-        isAnchor,
-        newDate: isAnchor ? form.date : undefined,
-      });
-      await post({
-        entity: 'sessions',
-        action: 'upsert',
-        record: next,
-      });
-    }
-    if (
-      form.session_kind === 'private_pt' &&
-      form.client_id &&
-      ids.length
-    ) {
-      for (const id of ids) {
-        await bookMembersOntoSession(id, [form.client_id]);
-      }
-      const rate =
-        form.agreed_rate_zar.trim() === ''
-          ? null
-          : Number(form.agreed_rate_zar);
-      if (rate != null && Number.isFinite(rate)) {
-        await post({
-          entity: 'clients',
-          action: 'upsert',
-          record: { id: form.client_id, private_rate_zar: rate },
-        });
-      }
-    }
+    const rate =
+      form.agreed_rate_zar.trim() === ''
+        ? null
+        : Number(form.agreed_rate_zar);
+    const data = await post({
+      action: 'save_calendar_sessions',
+      session_id: prev.id,
+      scope,
+      client_id:
+        form.session_kind === 'private_pt' ? form.client_id || undefined : undefined,
+      agreed_rate_zar: rate,
+      patch: {
+        start_time: times.start_time,
+        end_time: times.end_time,
+        duration_min: times.duration_min,
+        location: form.location || undefined,
+        room: form.room || null,
+        coach_id: form.coach_id || null,
+        capacity: form.capacity ? Number(form.capacity) : null,
+        class_type_id: form.class_type_id,
+        session_kind: form.session_kind,
+        personal_reason:
+          form.session_kind === 'away' ? form.personal_reason : null,
+        public: form.session_kind === 'class' && form.public,
+        public_notes: form.public_notes || undefined,
+        class_plan: form.class_plan || undefined,
+        notes: form.notes || undefined,
+        status: form.status || prev.status || 'scheduled',
+        programme_id: form.programme_id || null,
+        agreed_rate_zar: rate,
+        date: form.date,
+      },
+    });
     setDay(form.date);
     toast.success(
-      scope === 'all'
-        ? `Updated ${ids.length} sessions (entire series)`
-        : scope === 'future'
-          ? `Updated ${ids.length} sessions (this & future)`
-          : `${sessionKindLabel(form.session_kind)} updated`
+      (data?.message as string) ||
+        (scope === 'all'
+          ? 'Entire series updated'
+          : scope === 'future'
+            ? 'This and future sessions updated'
+            : `${sessionKindLabel(form.session_kind)} updated`)
     );
   };
 
@@ -591,6 +556,7 @@ export default function CalendarPage() {
    * Coach and members are assigned afterwards on the class card.
    */
   const add = async () => {
+    try {
     if (selectedSessionId) {
       await saveSelected(seriesScope);
       return;
@@ -630,6 +596,7 @@ export default function CalendarPage() {
           : awayUntil;
       const data = await post({
         action: 'create_session_series',
+        lite: true,
         coach_id: form.coach_id || null,
         class_type_id: form.class_type_id,
         session_kind: form.session_kind,
@@ -645,6 +612,10 @@ export default function CalendarPage() {
           form.agreed_rate_zar.trim() === ''
             ? null
             : Number(form.agreed_rate_zar),
+        client_id:
+          form.session_kind === 'private_pt'
+            ? form.client_id || undefined
+            : undefined,
         capacity: form.capacity ? Number(form.capacity) : undefined,
         public: form.session_kind === 'class' && form.public,
         public_notes: form.public_notes || undefined,
@@ -656,26 +627,6 @@ export default function CalendarPage() {
       });
       const sessions = (data.sessions || []) as Array<{ id: string }>;
       const firstId = sessions[0]?.id || null;
-      if (
-        form.session_kind === 'private_pt' &&
-        form.client_id &&
-        sessions.length
-      ) {
-        for (const s of sessions) {
-          if (s.id) await bookMembersOntoSession(s.id, [form.client_id]);
-        }
-        const rate =
-          form.agreed_rate_zar.trim() === ''
-            ? null
-            : Number(form.agreed_rate_zar);
-        if (rate != null && Number.isFinite(rate)) {
-          await post({
-            entity: 'clients',
-            action: 'upsert',
-            record: { id: form.client_id, private_rate_zar: rate },
-          });
-        }
-      }
       toast.success(
         form.session_kind === 'private_pt' && form.client_id
           ? `${data.message || 'Series scheduled'} — member booked on ${sessions.length} session${sessions.length === 1 ? '' : 's'}`
@@ -698,6 +649,7 @@ export default function CalendarPage() {
     await post({
       entity: 'sessions',
       action: 'upsert',
+      lite: true,
       record: {
         id: sessionId,
         class_type_id: form.class_type_id,
@@ -722,22 +674,12 @@ export default function CalendarPage() {
         notes: form.notes.trim() || undefined,
         origin: 'owner',
         programme_id: form.programme_id || null,
+        client_id:
+          form.session_kind === 'private_pt'
+            ? form.client_id || undefined
+            : undefined,
       },
     });
-    if (form.session_kind === 'private_pt' && form.client_id) {
-      await bookMembersOntoSession(sessionId, [form.client_id]);
-      const rate =
-        form.agreed_rate_zar.trim() === ''
-          ? null
-          : Number(form.agreed_rate_zar);
-      if (rate != null && Number.isFinite(rate)) {
-        await post({
-          entity: 'clients',
-          action: 'upsert',
-          record: { id: form.client_id, private_rate_zar: rate },
-        });
-      }
-    }
     toast.success(
       form.session_kind === 'away'
         ? 'Away marked on the calendar'
@@ -758,6 +700,9 @@ export default function CalendarPage() {
     // Reload form from server store happens via post(); open by id after brief tick
     setSelectedSessionId(sessionId);
     setAddMemberIds([]);
+    } catch {
+      /* useFitgraph post already toasts */
+    }
   };
 
   const memberChoices = useMemo(() => {

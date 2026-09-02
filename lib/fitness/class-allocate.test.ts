@@ -14,6 +14,7 @@ import {
   resolveAllocatedCharge,
   scheduleClassOnCalendar,
   bookDeskMemberOntoSession,
+  applyPrivatePtBooking,
   sessionRosterNames,
   sessionRosterRows,
   setClassMembers,
@@ -528,6 +529,33 @@ assert.equal(
   1
 );
 assert.equal(sessionRosterRows(seatStore, 's-seat').length, 1);
+
+const ptStore = emptyFitgraphStore();
+ptStore.clients.push({
+  id: 'c-pt',
+  code: 'P1',
+  name: 'Pat Member',
+  created_at: '2026-01-01T00:00:00.000Z',
+  updated_at: '2026-01-01T00:00:00.000Z',
+});
+ptStore.sessions.push({
+  id: 's-pt',
+  class_type_id: 'cls',
+  date: '2026-09-02',
+  start_time: '07:00',
+  status: 'scheduled',
+  session_kind: 'private_pt',
+  created_at: '2026-01-01T00:00:00.000Z',
+});
+const bookedPt = applyPrivatePtBooking(ptStore, {
+  sessionIds: ['s-pt'],
+  clientId: 'c-pt',
+  now: '2026-09-02T06:00:00.000Z',
+  rateZar: 650,
+});
+assert.equal(bookedPt.added, 1);
+assert.equal(ptStore.clients[0].private_rate_zar, 650);
+assert.equal(ptStore.bookings[0].client_id, 'c-pt');
 
 // ── setClassMembers (Brief 34): this class only, denorm, diary ────────────
 const roster = emptyFitgraphStore();

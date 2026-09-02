@@ -111,6 +111,8 @@ import { persistVukaCatalogIfNeeded } from '@/lib/fitness/vuka-class-catalog';
 import { applyMemberDebitBank } from '@/lib/fitness/member-debit-bank';
 import {
   allocateMemberToClass,
+  applyPrivatePtBooking,
+  bookDeskMemberOntoSession,
   mergeSubscribersIntoCoachSessions,
   scheduleClassOnCalendar,
   setClassMembers,
@@ -1031,6 +1033,19 @@ export async function POST(request: NextRequest) {
       if (resolved.kind === 'class') {
         stampCatalogSeriesAndBookSubscribers(store, created, now);
       }
+      const ptClientId = String(body.client_id || '').trim();
+      if (resolved.kind === 'private_pt' && ptClientId) {
+        const rateRaw = body.agreed_rate_zar;
+        applyPrivatePtBooking(store, {
+          sessionIds: created.map((s) => s.id),
+          clientId: ptClientId,
+          now,
+          rateZar:
+            rateRaw == null || rateRaw === ''
+              ? null
+              : Number(rateRaw),
+        });
+      }
       {
         const { emailSessionCalendar } = await import(
           '@/lib/fitness/session-calendar'
@@ -1044,7 +1059,7 @@ export async function POST(request: NextRequest) {
         success: true,
         store,
         summary: summariseFitgraph(store),
-        analysis: analysis(store),
+        ...(body.lite === true ? {} : { analysis: analysis(store) }),
         created: created.length,
         sessions: created,
         message:
@@ -1059,6 +1074,67 @@ export async function POST(request: NextRequest) {
               : resolved.kind === 'private_pt'
                 ? 'Private PT scheduled'
                 : 'Bespoke class scheduled',
+      });
+    }
+
+    if (action === 'save_calendar_sessions') {
+      const selectedId = String(body.session_id || '').trim();
+      const selected = store.sessions.find((s) => s.id === selectedId);
+      if (!selected) {
+        return NextResponse.json({ error: 'Class not found' }, { status: 400 });
+      }
+      const seriesEdit = await import('@/lib/services/advisor-series-edit');
+      const scopeRaw = String(body.scope || 'one');
+      const scope =
+        scopeRaw === 'future' || scopeRaw === 'all' ? scopeRaw : 'one';
+      const ids = seriesEdit.resolveSeriesEditIds(
+        store.sessions.map((s) => ({
+          id: s.id,
+          date: s.date,
+          series_id: s.series_id,
+        })),
+        selected.id,
+        scope
+      );
+      const rawPatch = (body.patch || {}) as Record<string, unknown>;
+      const patch =
+        rawPatch as import('@/lib/services/advisor-series-edit').SeriesPatch;
+      const newDate =
+        rawPatch.date != null ? String(rawPatch.date) : undefined;
+      for (const id of ids) {
+        const i = store.sessions.findIndex((s) => s.id === id);
+        if (i < 0) continue;
+        const isAnchor = id === selected.id;
+        store.sessions[i] = seriesEdit.applySeriesPatch(
+          store.sessions[i],
+          patch,
+          {
+            isAnchor,
+            newDate: isAnchor ? newDate : undefined,
+          }
+        ) as (typeof store.sessions)[number];
+      }
+      const ptClientId = String(body.client_id || '').trim();
+      if (ptClientId) {
+        const rateRaw = body.agreed_rate_zar ?? patch.agreed_rate_zar;
+        applyPrivatePtBooking(store, {
+          sessionIds: ids,
+          clientId: ptClientId,
+          now,
+          rateZar:
+            rateRaw == null || rateRaw === '' ? null : Number(rateRaw),
+        });
+      }
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        updated: ids.length,
+        message:
+          ids.length > 1
+            ? `Updated ${ids.length} sessions`
+            : 'Session updated',
       });
     }
 
@@ -2558,9 +2634,6 @@ export async function POST(request: NextRequest) {
       if (blocked) {
         return NextResponse.json({ error: blocked }, { status: 400 });
       }
-      const { bookDeskMemberOntoSession } = await import(
-        '@/lib/fitness/class-allocate'
-      );
       const { dedupeFitgraphBookings } = await import(
         '@/lib/fitness/gym-bookings'
       );
@@ -2570,9 +2643,7 @@ export async function POST(request: NextRequest) {
       let added = 0;
       let skipped = 0;
       for (const clientId of ids) {
-        const client = store.clients.find(
-          (c) => c.id === clientId && c.active !== false
-        );
+        const client = store.clients.find((c) => c.id === clientId);
         if (!client) {
           skipped += 1;
           continue;
@@ -2779,7 +2850,7 @@ export async function POST(request: NextRequest) {
       wallet_linked?: boolean;
       email?: string;
     } | null = null;
-    if (entity === 'clients') {
+    if (entity === 'clients' && body.lite !== true && rec.lite !== true) {
       const person =
         store.clients.find(
           (c) => existingClientId && c.id === existingClientId
@@ -2867,7 +2938,7 @@ export async function POST(request: NextRequest) {
       success: true,
       store,
       summary: summariseFitgraph(store),
-      analysis: analysis(store),
+      ...(body.lite === true ? {} : { analysis: analysis(store) }),
       people_sync: peopleSync,
       invite_sent: walletInvite?.email_sent,
       invite_link: walletInvite?.invite_link,
@@ -3710,6 +3781,17 @@ function upsert(
     else store.sessions.push(row);
     if (!row.session_kind || row.session_kind === 'class') {
       stampCatalogSeriesAndBookSubscribers(store, [row], now);
+    }
+    const ptClientId = String(rec.client_id || '').trim();
+    if (resolved.kind === 'private_pt' && ptClientId) {
+      const rateRaw = rec.agreed_rate_zar;
+      applyPrivatePtBooking(store, {
+        sessionIds: [row.id],
+        clientId: ptClientId,
+        now,
+        rateZar:
+          rateRaw == null || rateRaw === '' ? null : Number(rateRaw),
+      });
     }
   } else if (entity === 'bookings') {
     const sessionId = String(rec.session_id || '');
