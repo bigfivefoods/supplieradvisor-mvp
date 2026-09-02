@@ -17,6 +17,7 @@ import {
   splitFitgraphLibrary,
   writeFitgraphLibToMetadata,
   writeFitgraphToMetadata,
+  writeFitgraphPatchToMetadata,
   type FitgraphLibrary,
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
@@ -95,8 +96,10 @@ export async function saveFitgraphMerged(
   let saved = store;
   await withFitgraphWriteLock(companyId, async () => {
     let next = store;
+    let latestMovements: unknown[] | undefined;
     try {
       const latest = await loadFitgraphMerged(companyId, { fresh: true });
+      latestMovements = latest.store?.movements;
       try {
         next = mergeFitgraphStores(latest.store, store);
       } catch (err) {
@@ -111,6 +114,11 @@ export async function saveFitgraphMerged(
     const { hydrateGoalsFromPeople } = await import('@/lib/fitness/member-goals');
     hydrateGoalsFromPeople(next);
     const { core, lib } = splitFitgraphLibrary(next);
+    // Skip the lib write when movements are unchanged to avoid rewriting the
+    // fitgraph_lib row on every calendar action.
+    const movementsChanged =
+      JSON.stringify(lib.movements ?? []) !==
+      JSON.stringify(latestMovements ?? []);
     try {
       if (opts?.ifUpdatedAt) {
         await saveAdvisorModuleStore(
@@ -120,14 +128,16 @@ export async function saveFitgraphMerged(
           writeFitgraphToMetadata,
           opts
         );
-        await saveAdvisorModuleStore(
-          companyId,
-          FITGRAPH_LIB_KEY,
-          lib,
-          writeFitgraphLibToMetadata
-        );
+        if (movementsChanged) {
+          await saveAdvisorModuleStore(
+            companyId,
+            FITGRAPH_LIB_KEY,
+            lib,
+            writeFitgraphLibToMetadata
+          );
+        }
       } else {
-        await Promise.all([
+        const writes: Promise<void>[] = [
           saveAdvisorModuleStore(
             companyId,
             FITGRAPH_META_KEY,
@@ -135,14 +145,19 @@ export async function saveFitgraphMerged(
             writeFitgraphToMetadata,
             opts
           ),
-          saveAdvisorModuleStore(
-            companyId,
-            FITGRAPH_LIB_KEY,
-            lib,
-            writeFitgraphLibToMetadata,
-            opts
-          ),
-        ]);
+        ];
+        if (movementsChanged) {
+          writes.push(
+            saveAdvisorModuleStore(
+              companyId,
+              FITGRAPH_LIB_KEY,
+              lib,
+              writeFitgraphLibToMetadata,
+              opts
+            )
+          );
+        }
+        await Promise.all(writes);
       }
     } catch (error) {
       if (isStaleModuleStoreError(error)) throw error;
@@ -157,4 +172,33 @@ export async function saveFitgraphMerged(
     Object.assign(store, next);
   });
   return saved;
+}
+
+/**
+ * Brief 52 — fast calendar patch save.
+ *
+ * Writes ONLY the keys in `patch` (e.g. sessions + bookings) via the existing
+ * sa_put_module_store merge path.  Omitted id-arrays (clients, coaches, goals,
+ * …) are not sent, so the SQL merge leaves them untouched on the server row.
+ *
+ * Does NOT: loadFitgraphMerged, mergeFitgraphStores, retainMemberProgress,
+ * splitFitgraphLibrary for the full store, or write the lib row.
+ * Still: uses withFitgraphWriteLock; honours p_if_updated_at (409 stale).
+ */
+export async function saveFitgraphPatch(
+  companyId: number,
+  patch: Partial<FitgraphStore>,
+  opts?: { ifUpdatedAt?: string | null }
+): Promise<string> {
+  const updatedAt = new Date().toISOString();
+  await withFitgraphWriteLock(companyId, async () => {
+    await saveAdvisorModuleStore(
+      companyId,
+      FITGRAPH_META_KEY,
+      patch,
+      (meta, p) => writeFitgraphPatchToMetadata(meta, p, updatedAt),
+      opts
+    );
+  });
+  return updatedAt;
 }

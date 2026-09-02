@@ -216,9 +216,10 @@ export default function ClientsPage() {
           linked += Number(data?.linked_existing) || 0;
           created += Number(data?.created) || 0;
           numbered += Number(data?.numbered) || 0;
-          const hasStoreClients = Array.isArray(data?.store?.clients);
+          const storeClients = data?.store?.clients;
+          const hasStoreClients = Array.isArray(storeClients);
           if (hasStoreClients) {
-            latestClients = data.store.clients;
+            latestClients = storeClients;
           }
           const nextRemaining = Number(data?.remaining);
           if (Number.isFinite(nextRemaining)) {

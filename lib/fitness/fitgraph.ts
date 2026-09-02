@@ -2034,6 +2034,31 @@ export function writeFitgraphToMetadata(
   };
 }
 
+/**
+ * Write ONLY the keys present in `patch` into the fitgraph metadata object.
+ * Omitted keys are NOT written, so the Brief 50/52 SQL merge will retain them
+ * from the existing server row without scanning or rewriting them.
+ *
+ * Use this with saveFitgraphPatch for calendar actions that touch only
+ * sessions / bookings / settings — not the full gym book.
+ */
+export function writeFitgraphPatchToMetadata(
+  meta: Record<string, unknown>,
+  patch: Partial<FitgraphStore>,
+  updatedAt?: string
+): Record<string, unknown> {
+  // Build a partial fitgraph payload containing only the patched keys.
+  // updated_at is always stamped so the server row's timestamp is fresh.
+  const partial: Record<string, unknown> = { updated_at: updatedAt ?? new Date().toISOString() };
+  for (const key of Object.keys(patch) as (keyof FitgraphStore)[]) {
+    partial[key] = patch[key];
+  }
+  return {
+    ...meta,
+    [FITGRAPH_META_KEY]: partial,
+  };
+}
+
 /** Issue a coach portal token (includes company id for fast public resolve). */
 export function issueCoachPortalToken(companyId: number): string {
   return `coach_${companyId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;

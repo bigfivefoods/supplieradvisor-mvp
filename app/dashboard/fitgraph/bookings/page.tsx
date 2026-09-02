@@ -7,6 +7,7 @@ import {
   FitgraphWorkbench,
   LoadingBlock,
   useFitgraph,
+  type FitgraphPostResult,
 } from '@/components/fitness/FitgraphWorkbench';
 import { FormCard, StatRow, fc } from '@/components/fitness/FitForm';
 import { GymBookingPlanBoard } from '@/components/fitness/GymBookingPlanBoard';
@@ -189,9 +190,9 @@ export default function BookingsPage() {
       status: next,
       session_id: sessionId,
       client_id: member.client_id,
-    });
+    }) as FitgraphPostResult;
     if (next === 'attended') {
-      const tok = data?.feedback_prompt?.token as string | undefined;
+      const tok = data?.feedback_prompt?.token;
       const packLeft = data?.pack_remaining;
       if (tok) {
         const path = buildPublicFeedbackPath('fitgraph', companyId, tok);
