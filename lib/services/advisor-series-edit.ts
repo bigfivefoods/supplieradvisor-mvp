@@ -1,7 +1,7 @@
 /**
  * Edit "this occurrence only" vs "this and future" for class/appointment series.
  */
-export type SeriesEditScope = 'one' | 'future';
+export type SeriesEditScope = 'one' | 'future' | 'all';
 
 export type DatedOccurrence = {
   id: string;
@@ -13,6 +13,7 @@ export type DatedOccurrence = {
  * Returns ids to update for a series edit.
  * - one: only the selected id
  * - future: selected + later dates sharing series_id
+ * - all: every occurrence sharing series_id
  */
 export function resolveSeriesEditIds<T extends DatedOccurrence>(
   items: T[],
@@ -21,16 +22,16 @@ export function resolveSeriesEditIds<T extends DatedOccurrence>(
 ): string[] {
   const selected = items.find((x) => x.id === selectedId);
   if (!selected) return [];
-  if (scope !== 'future' || !selected.series_id) {
+  if (!selected.series_id || scope === 'one') {
     return [selected.id];
   }
   const sid = String(selected.series_id);
   return items
-    .filter(
-      (x) =>
-        x.series_id === sid &&
-        x.date >= selected.date
-    )
+    .filter((x) => {
+      if (x.series_id !== sid) return false;
+      if (scope === 'future') return x.date >= selected.date;
+      return true;
+    })
     .map((x) => x.id);
 }
 
@@ -38,6 +39,8 @@ export type SeriesPatch = {
   start_time?: string;
   end_time?: string | null;
   location?: string | null;
+  room?: string | null;
+  coach_id?: string | null;
   duration_min?: number | null;
   capacity?: number | null;
   class_type_id?: string;
@@ -62,6 +65,8 @@ export function applySeriesPatch<T extends object>(
     start_time?: string;
     end_time?: string | null;
     location?: string | null;
+    room?: string | null;
+    coach_id?: string | null;
     duration_min?: number | null;
     capacity?: number | null;
     class_type_id?: string;
@@ -101,6 +106,12 @@ export function applySeriesPatch<T extends object>(
   }
   if (patch.location !== undefined) {
     next.location = patch.location;
+  }
+  if (patch.room !== undefined) {
+    next.room = patch.room;
+  }
+  if (patch.coach_id !== undefined) {
+    next.coach_id = patch.coach_id;
   }
   if (patch.duration_min !== undefined) {
     next.duration_min = patch.duration_min;

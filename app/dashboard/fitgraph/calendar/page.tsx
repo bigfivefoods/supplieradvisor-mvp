@@ -60,6 +60,8 @@ import {
   type RecurrenceFormValue,
 } from '@/components/schedule/RecurrenceFields';
 import { normalizeWorkingHours } from '@/lib/schedule/working-hours';
+import { clinicRoomNames } from '@/lib/clinic/clinic-rooms';
+import type { SeriesEditScope } from '@/lib/services/advisor-series-edit';
 import { AdvisorExpandablePanel } from '@/components/advisors/AdvisorExpandablePanel';
 import { AdvisorWaitlistDesk } from '@/components/services/AdvisorWaitlistDesk';
 import { buildDeskSlotWaitlist } from '@/lib/services/advisor-waitlist-desk';
@@ -89,10 +91,12 @@ export default function CalendarPage() {
   );
   const [addMemberIds, setAddMemberIds] = useState<string[]>([]);
   const [memberQuery, setMemberQuery] = useState('');
+  const [seriesScope, setSeriesScope] = useState<SeriesEditScope>('future');
   const [form, setForm] = useState({
     session_kind: 'class' as FitSessionKind,
     class_type_id: '',
     coach_id: '',
+    client_id: '',
     date: new Date().toISOString().slice(0, 10),
     start_time: '06:00',
     end_time: '06:45',
@@ -135,6 +139,7 @@ export default function CalendarPage() {
     session_kind: 'class' as FitSessionKind,
     class_type_id: '',
     coach_id: personFilter || '',
+    client_id: '',
     date: day,
     start_time: '06:00',
     end_time: '06:45',
@@ -154,7 +159,7 @@ export default function CalendarPage() {
   /** Open an existing class from the calendar grid for view / edit. */
   const openSession = (sessionId: string) => {
     const s = store?.sessions.find((x) => x.id === sessionId);
-    if (!s) {
+    if (!store || !s) {
       toast.error('Class not found');
       return;
     }
@@ -163,6 +168,7 @@ export default function CalendarPage() {
     setSlotPicked(null);
     setAddMemberIds([]);
     setMemberQuery('');
+    setSeriesScope('future');
     const kind = sessionKindFromRecord({
       session_kind: s.session_kind,
       class_code: store?.class_types.find((c) => c.id === s.class_type_id)
@@ -183,6 +189,10 @@ export default function CalendarPage() {
       end_time: times.end_time,
       location: s.location || '',
       room: s.room || '',
+      client_id:
+        kind === 'private_pt'
+          ? sessionRosterRows(store, s.id)[0]?.client_id || ''
+          : '',
       capacity: s.capacity != null ? String(s.capacity) : '',
       public: kind === 'class' && s.public === true,
       public_notes: s.public_notes || '',
@@ -213,6 +223,7 @@ export default function CalendarPage() {
     setSelectedSessionId(null);
     setAddMemberIds([]);
     setMemberQuery('');
+    setSeriesScope('future');
     setRecurrence(emptyRecurrenceForm());
     const d = partial?.date || day;
     setDay(d);
@@ -281,7 +292,7 @@ export default function CalendarPage() {
           end_time: times.end_time,
           duration_min: times.duration_min,
           title,
-          subtitle: s.location || undefined,
+          subtitle: [s.room, s.location].filter(Boolean).join(' · ') || undefined,
           person_id: s.coach_id || null,
           person_name:
             coach?.name ||
@@ -315,6 +326,13 @@ export default function CalendarPage() {
     () => normalizeWorkingHours(store?.settings?.working_hours),
     [store?.settings?.working_hours]
   );
+
+  const roomNames = useMemo(() => {
+    const listed = clinicRoomNames(store?.settings?.rooms);
+    const current = String(form.room || '').trim();
+    if (current && !listed.includes(current)) return [...listed, current];
+    return listed;
+  }, [store?.settings?.rooms, form.room]);
 
   const deskSlotWaitlist = useMemo(() => {
     if (!store) return [];
@@ -426,8 +444,8 @@ export default function CalendarPage() {
     }
   };
 
-  /** Save edits to the open class (view/edit mode). Supports series “this & future”. */
-  const saveSelected = async (editScope: 'one' | 'future' = 'one') => {
+  /** Save edits to the open class (view/edit mode). Supports series scopes. */
+  const saveSelected = async (editScope: SeriesEditScope = 'one') => {
     if (!selectedSessionId || !store) return;
     const prev = store.sessions.find((x) => x.id === selectedSessionId);
     if (!prev) {
@@ -449,10 +467,10 @@ export default function CalendarPage() {
     const { resolveSeriesEditIds, applySeriesPatch } = await import(
       '@/lib/services/advisor-series-edit'
     );
-    const scope =
-      editScope === 'future' && prev.series_id
-        ? ('future' as const)
-        : ('one' as const);
+    const scope: SeriesEditScope =
+      prev.series_id && (editScope === 'future' || editScope === 'all')
+        ? editScope
+        : 'one';
     const ids = resolveSeriesEditIds(
       store.sessions.map((s) => ({
         id: s.id,
@@ -471,6 +489,8 @@ export default function CalendarPage() {
       end_time: times.end_time,
       duration_min: times.duration_min,
       location: form.location || undefined,
+      room: form.room || null,
+      coach_id: form.coach_id || null,
       capacity: form.capacity ? Number(form.capacity) : null,
       class_type_id: form.class_type_id,
       session_kind: form.session_kind,
@@ -494,18 +514,25 @@ export default function CalendarPage() {
       await post({
         entity: 'sessions',
         action: 'upsert',
-        record: {
-          ...next,
-          coach_id: isAnchor ? form.coach_id || null : row.coach_id,
-          room: isAnchor ? form.room || null : row.room,
-        },
+        record: next,
       });
+    }
+    if (
+      form.session_kind === 'private_pt' &&
+      form.client_id &&
+      ids.length
+    ) {
+      for (const id of ids) {
+        await bookMembersOntoSession(id, [form.client_id]);
+      }
     }
     setDay(form.date);
     toast.success(
-      scope === 'future'
-        ? `Updated ${ids.length} sessions (this & future)`
-        : `${sessionKindLabel(form.session_kind)} updated`
+      scope === 'all'
+        ? `Updated ${ids.length} sessions (entire series)`
+        : scope === 'future'
+          ? `Updated ${ids.length} sessions (this & future)`
+          : `${sessionKindLabel(form.session_kind)} updated`
     );
   };
 
@@ -515,7 +542,7 @@ export default function CalendarPage() {
    */
   const add = async () => {
     if (selectedSessionId) {
-      await saveSelected();
+      await saveSelected(seriesScope);
       return;
     }
     if (form.session_kind === 'class' && !form.class_type_id) {
@@ -575,10 +602,21 @@ export default function CalendarPage() {
       });
       const sessions = (data.sessions || []) as Array<{ id: string }>;
       const firstId = sessions[0]?.id || null;
+      if (
+        form.session_kind === 'private_pt' &&
+        form.client_id &&
+        sessions.length
+      ) {
+        for (const s of sessions) {
+          if (s.id) await bookMembersOntoSession(s.id, [form.client_id]);
+        }
+      }
       toast.success(
-        form.coach_id
-          ? data.message || 'Series scheduled'
-          : `${data.message || 'Series scheduled'} — assign a coach on each class, then add members`
+        form.session_kind === 'private_pt' && form.client_id
+          ? `${data.message || 'Series scheduled'} — member booked on ${sessions.length} session${sessions.length === 1 ? '' : 's'}`
+          : form.coach_id
+            ? data.message || 'Series scheduled'
+            : `${data.message || 'Series scheduled'} — assign a coach on each class, then add members`
       );
       setSlotPicked(null);
       if (firstId) {
@@ -617,13 +655,18 @@ export default function CalendarPage() {
         programme_id: form.programme_id || null,
       },
     });
+    if (form.session_kind === 'private_pt' && form.client_id) {
+      await bookMembersOntoSession(sessionId, [form.client_id]);
+    }
     toast.success(
       form.session_kind === 'away'
         ? 'Away marked on the calendar'
         : form.session_kind === 'coach_personal'
         ? 'Personal time blocked on the calendar'
         : form.session_kind === 'private_pt'
-          ? 'Private PT booked — add the member in this window'
+          ? form.client_id
+            ? 'Private PT booked with the member'
+            : 'Private PT booked — add the member in this window'
           : form.coach_id
             ? form.public
               ? 'Class created with coach · published'
@@ -1014,7 +1057,14 @@ export default function CalendarPage() {
                   d: selectedSessionId ? 'Details · time' : 'Kind · when · room',
                 },
                 { n: '2', t: 'Assign coach', d: 'Required for PT / block' },
-                { n: '3', t: 'Booked members', d: 'Roster for this class' },
+                {
+                  n: '3',
+                  t: 'Booked members',
+                  d:
+                    form.session_kind === 'private_pt'
+                      ? 'Private client on this session'
+                      : 'Roster for this class',
+                },
               ].map((s) => (
                 <div
                   key={s.n}
@@ -1045,14 +1095,9 @@ export default function CalendarPage() {
                 </button>
                 {store?.sessions.find((s) => s.id === selectedSessionId)
                   ?.series_id ? (
-                  <button
-                    type="button"
-                    disabled={saving}
-                    className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 disabled:opacity-50 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-100"
-                    onClick={() => void saveSelected('future')}
-                  >
-                    Save this &amp; future
-                  </button>
+                  <span className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-900 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-100">
+                    Series · save uses the scope below
+                  </span>
                 ) : null}
                 <button
                   type="button"
@@ -1092,7 +1137,10 @@ export default function CalendarPage() {
                 onChange={(e) => {
                   const id = e.target.value;
                   setForm((f) => ({ ...f, coach_id: id }));
-                  void reassignCoach(selectedSessionId, id);
+                  const seriesId = store.sessions.find(
+                    (s) => s.id === selectedSessionId
+                  )?.series_id;
+                  if (!seriesId) void reassignCoach(selectedSessionId, id);
                 }}
               >
                 <option value="">Unassigned — pick a coach…</option>
@@ -1114,8 +1162,10 @@ export default function CalendarPage() {
                   })}
               </select>
               <p className="mt-1 text-[11px] text-slate-600 dark:text-yellow-100/80">
-                Change the coach if they can’t take this class. Saves as soon as
-                you pick someone.
+                {store.sessions.find((s) => s.id === selectedSessionId)
+                  ?.series_id
+                  ? 'On a series, pick the coach then Save with This and future or Entire series.'
+                  : 'Change the coach if they can’t take this class. Saves as soon as you pick someone.'}
               </p>
             </div>
           ) : null}
@@ -1137,7 +1187,14 @@ export default function CalendarPage() {
             saving={saving}
             submitLabel={
               selectedSessionId
-                ? 'Save changes'
+                ? store?.sessions.find((s) => s.id === selectedSessionId)
+                    ?.series_id
+                  ? seriesScope === 'all'
+                    ? 'Save entire series'
+                    : seriesScope === 'future'
+                      ? 'Save this & future'
+                      : 'Save this date only'
+                  : 'Save changes'
                 : recurrence.frequency !== 'none' ||
                     (form.session_kind === 'away' && Boolean(form.until))
                   ? form.session_kind === 'away'
@@ -1158,10 +1215,9 @@ export default function CalendarPage() {
           >
             {selectedSessionId ? (
               <p className="sm:col-span-2 lg:col-span-3 text-xs text-yellow-700 dark:text-yellow-300 font-medium rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50/80 dark:bg-yellow-950/40 px-3 py-2">
-                Viewing / editing this class. Change fields and <strong>Save changes</strong>,
-                use <strong>Delete class</strong> to remove it from the calendar
-                (series can delete one date or all), or assign coach and members on the
-                this window. Click empty calendar time for a new class.
+                Viewing / editing this session. Change time, room, coach or
+                member, then save. Series dates use the scope below. Delete can
+                remove one date or the whole series.
               </p>
             ) : slotPicked ? (
               <p className="sm:col-span-2 lg:col-span-3 text-xs text-yellow-700 dark:text-yellow-300 font-medium rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50/80 dark:bg-yellow-950/40 px-3 py-2">
@@ -1362,31 +1418,94 @@ export default function CalendarPage() {
                 setForm((f) => ({ ...f, location: e.target.value }))
               }
             />
-            {(store.settings?.rooms || []).length > 0 ? (
+            {roomNames.length > 0 ? (
               <select
                 className={fc()}
                 value={form.room}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, room: e.target.value }))
                 }
+                title="Room / studio from Floor → Rooms"
               >
                 <option value="">Room / studio…</option>
-                {(store.settings?.rooms || []).map((r) => (
+                {roomNames.map((r) => (
                   <option key={r} value={r}>
                     {r}
                   </option>
                 ))}
               </select>
             ) : (
-              <input
-                className={fc()}
-                placeholder="Room / studio (set list under Floor → Rooms)"
-                value={form.room}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, room: e.target.value }))
-                }
-              />
+              <p className="text-[11px] text-slate-500 self-center">
+                No rooms yet — add them under{' '}
+                <Link
+                  href="/dashboard/fitgraph/rooms"
+                  className="font-bold text-yellow-700 underline"
+                >
+                  Floor → Rooms
+                </Link>
+                .
+              </p>
             )}
+            {form.session_kind === 'private_pt' ? (
+              <select
+                className={fc()}
+                value={form.client_id}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, client_id: e.target.value }))
+                }
+              >
+                <option value="">Private client (member)…</option>
+                {store.clients
+                  .filter((c) => c.active !== false)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.code} · {c.name}
+                    </option>
+                  ))}
+              </select>
+            ) : null}
+            {selectedSessionId &&
+            store.sessions.find((s) => s.id === selectedSessionId)
+              ?.series_id ? (
+              <div className="sm:col-span-2 lg:col-span-3 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 dark:border-amber-700 dark:bg-amber-950/40">
+                <p className="mb-1.5 text-[10px] font-black uppercase tracking-wide text-amber-800 dark:text-amber-200">
+                  Edit series
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(
+                    [
+                      ['one', 'This date only'],
+                      ['future', 'This and future'],
+                      ['all', 'Entire series'],
+                    ] as Array<[SeriesEditScope, string]>
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setSeriesScope(id)}
+                      className={`rounded-full border px-3 py-1 text-[11px] font-black ${
+                        seriesScope === id
+                          ? 'border-amber-500 bg-amber-400 text-slate-900'
+                          : 'border-amber-200 bg-white text-amber-900 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-100'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-[11px] text-amber-900/80 dark:text-amber-100/80">
+                  Time, room, coach
+                  {form.session_kind === 'private_pt' ? ' and member' : ''} apply
+                  to{' '}
+                  {seriesScope === 'one'
+                    ? 'this date only'
+                    : seriesScope === 'future'
+                      ? 'this date and later dates in the series'
+                      : 'every date in the series'}
+                  .
+                </p>
+              </div>
+            ) : null}
             {!isGymDiaryBlockKind(form.session_kind) ? (
               <input
                 className={fc()}
@@ -1458,7 +1577,7 @@ export default function CalendarPage() {
                 : form.session_kind === 'coach_personal'
                 ? 'personal time is blocked on the coach diary. Members cannot book it.'
                 : form.session_kind === 'private_pt'
-                  ? 'the PT session opens so you can add the member.'
+                  ? 'pick the member and room here — a series books that member on every date.'
                   : 'the class opens automatically so you can assign a coach and add members. Coach can stay blank until later.'}
             </p>
             ) : null}
@@ -1506,7 +1625,7 @@ export default function CalendarPage() {
             ) : (
               <p className="sm:col-span-2 text-[11px] text-slate-500">
                 {form.session_kind === 'private_pt'
-                  ? 'Private PT stays off the public website. Add the member after saving.'
+                  ? 'Private PT stays off the public website. Pick the member and room on this form.'
                   : 'Personal time stays private on the coach diary. Members cannot book it.'}
               </p>
             )}
@@ -1551,6 +1670,11 @@ export default function CalendarPage() {
                   <>
                     <ClassBookedRoster
                       roster={roster}
+                      emptyLabel={
+                        form.session_kind === 'private_pt'
+                          ? 'No private client on this session yet. Pick the member above or search here.'
+                          : undefined
+                      }
                       addQuery={memberQuery}
                       onAddQuery={setMemberQuery}
                       addChoices={memberChoices.map((c) => ({
