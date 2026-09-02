@@ -12,10 +12,12 @@ export function ClinicDiaryKindFields({
   reason,
   notes,
   endTime,
+  until,
   onKind,
   onReason,
   onNotes,
   onEndTime,
+  onUntil,
   inputClass,
   peopleWord = 'clinician',
 }: {
@@ -23,10 +25,12 @@ export function ClinicDiaryKindFields({
   reason: ClinicPersonalReason | string;
   notes: string;
   endTime: string;
+  until?: string;
   onKind: (kind: ClinicAppointmentKind) => void;
   onReason: (reason: ClinicPersonalReason) => void;
   onNotes: (notes: string) => void;
   onEndTime: (end: string) => void;
+  onUntil?: (until: string) => void;
   inputClass: string;
   peopleWord?: string;
 }) {
@@ -65,6 +69,15 @@ export function ClinicDiaryKindFields({
             onChange={(e) => onEndTime(e.target.value)}
             title="End time"
           />
+          {onUntil ? (
+            <input
+              className={inputClass}
+              type="date"
+              title="Last day away (optional)"
+              value={until || ''}
+              onChange={(e) => onUntil(e.target.value)}
+            />
+          ) : null}
           <input
             className={inputClass}
             placeholder="Note (optional)"
@@ -72,8 +85,8 @@ export function ClinicDiaryKindFields({
             onChange={(e) => onNotes(e.target.value)}
           />
           <p className="sm:col-span-2 lg:col-span-3 text-[11px] text-slate-500">
-            Blocks this {peopleWord} so nobody can double-book them. Leave
-            across several days: set Repeat to daily until the last day off.
+            Blocks this {peopleWord} so classes and appointments are not
+            assigned while they are away. Set last day away to cover a range.
           </p>
         </>
       ) : null}

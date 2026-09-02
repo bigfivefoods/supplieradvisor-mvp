@@ -23,6 +23,7 @@ import {
   memberDebitBankComplete,
 } from '@/lib/fitness/member-debit-bank';
 import {
+  SYS_COACH_AWAY_CODE,
   SYS_COACH_TIME_CODE,
   SYS_PT_CODE,
 } from '@/lib/fitness/session-times';
@@ -793,7 +794,11 @@ function isSystemSession(session: SessionCoverageInput, store?: FitgraphStore) {
   if (kind && kind !== 'class') return true;
   const ct = store?.class_types.find((c) => c.id === session.class_type_id);
   const code = String(ct?.code || '');
-  return code === SYS_PT_CODE || code === SYS_COACH_TIME_CODE;
+  return (
+    code === SYS_PT_CODE ||
+    code === SYS_COACH_TIME_CODE ||
+    code === SYS_COACH_AWAY_CODE
+  );
 }
 
 export function planCoversSession(

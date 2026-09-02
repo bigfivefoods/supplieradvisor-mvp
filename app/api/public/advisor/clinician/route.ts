@@ -383,6 +383,11 @@ export async function POST(req: NextRequest) {
       const serviceId = String(fields.service_id || '');
       const date = String(body.date || now.slice(0, 10));
       const startTime = fields.start_time;
+      const { eachInclusiveDate } = await import('@/lib/services/staff-away');
+      const awayDates =
+        fields.appointment_kind === 'personal'
+          ? eachInclusiveDate(date, body.until != null ? String(body.until) : date)
+          : [date];
       if (!serviceId) {
         return NextResponse.json(
           { error: 'service_id required' },
@@ -390,38 +395,47 @@ export async function POST(req: NextRequest) {
         );
       }
       const duration = fields.duration_min ?? 45;
-      const conflict = findClinicianDiaryConflict({
-        appointments: store.appointments as never[],
-        clinicianId: clinician.id,
-        clinicianField: field,
-        date,
-        start_time: startTime,
-        end_time: fields.end_time,
-        duration_min: duration,
-      });
-      if (conflict.conflict) {
-        return NextResponse.json({ error: conflict.message }, { status: 409 });
-      }
-      const appt = createClinicianAppointment(
-        store,
-        mod,
-        clinician.id,
-        {
-          service_id: serviceId,
-          date,
+      let appt: ReturnType<typeof createClinicianAppointment> | null = null;
+      for (const day of awayDates) {
+        const conflict = findClinicianDiaryConflict({
+          appointments: store.appointments as never[],
+          clinicianId: clinician.id,
+          clinicianField: field,
+          date: day,
           start_time: startTime,
           end_time: fields.end_time,
-          duration_min: fields.duration_min,
-          location: body.location != null ? String(body.location) : undefined,
-          public: fields.public === true,
-          notes: fields.notes,
-          public_notes:
-            body.public_notes != null ? String(body.public_notes) : undefined,
-          appointment_kind: fields.appointment_kind,
-          personal_reason: fields.personal_reason ?? null,
-        },
-        now
-      );
+          duration_min: duration,
+        });
+        if (conflict.conflict) {
+          return NextResponse.json({ error: conflict.message }, { status: 409 });
+        }
+        appt = createClinicianAppointment(
+          store,
+          mod,
+          clinician.id,
+          {
+            service_id: serviceId,
+            date: day,
+            start_time: startTime,
+            end_time: fields.end_time,
+            duration_min: fields.duration_min,
+            location: body.location != null ? String(body.location) : undefined,
+            public: fields.public === true,
+            notes: fields.notes,
+            public_notes:
+              body.public_notes != null ? String(body.public_notes) : undefined,
+            appointment_kind: fields.appointment_kind,
+            personal_reason: fields.personal_reason ?? null,
+          },
+          now
+        );
+      }
+      if (!appt) {
+        return NextResponse.json(
+          { error: 'Could not create appointment' },
+          { status: 400 }
+        );
+      }
       const patientId = String(body.patient_id || '');
       if (patientId && appt.appointment_kind !== 'personal') {
         const patient = store.patients.find((p) => p.id === patientId);

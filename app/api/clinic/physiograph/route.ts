@@ -1370,27 +1370,37 @@ export async function POST(request: NextRequest) {
           { status: 404 }
         );
       }
-      try {
-        const { readLeaveBlocksFromMeta, leaveBlocksAssignment } = await import(
-          '@/lib/core-os/leave'
-        );
-        const prac = store.practitioners.find((p) => p.id === pracId);
-        const gate = leaveBlocksAssignment(
-          readLeaveBlocksFromMeta(meta),
-          pracId,
-          date,
-          prac && 'hr_employee_id' in prac
-            ? (prac as { hr_employee_id?: number | null }).hr_employee_id
-            : null
-        );
-        if (gate.blocked) {
-          return NextResponse.json(
-            { error: `Practitioner ${gate.reason}` },
-            { status: 409 }
+      if (fields.appointment_kind !== 'personal') {
+        try {
+          const { readLeaveBlocksFromMeta } = await import(
+            '@/lib/core-os/leave'
           );
+          const { clinicPractitionerAwayOn, staffAssignmentBlocked } =
+            await import('@/lib/services/staff-away');
+          const prac = store.practitioners.find((p) => p.id === pracId);
+          const gate = staffAssignmentBlocked({
+            personId: pracId,
+            date,
+            hrEmployeeId:
+              prac && 'hr_employee_id' in prac
+                ? (prac as { hr_employee_id?: number | null }).hr_employee_id
+                : null,
+            hrWindows: readLeaveBlocksFromMeta(meta),
+            diaryAway: clinicPractitionerAwayOn(
+              store.appointments,
+              pracId,
+              date
+            ),
+          });
+          if (gate.blocked) {
+            return NextResponse.json(
+              { error: `Practitioner ${gate.reason}` },
+              { status: 409 }
+            );
+          }
+        } catch {
+          /* leave / away gate is best-effort */
         }
-      } catch {
-        /* leave gate is best-effort */
       }
 
       const { planAppointmentSeries, recurrenceFromRequestBody } =

@@ -8,7 +8,14 @@ import {
 } from '@/lib/fitness/session-times';
 
 export type ClinicAppointmentKind = 'consult' | 'personal';
-export type ClinicPersonalReason = 'personal' | 'leave' | 'admin' | 'other';
+export type ClinicPersonalReason =
+  | 'personal'
+  | 'leave'
+  | 'away'
+  | 'sick'
+  | 'travel'
+  | 'admin'
+  | 'other';
 
 export const SYS_PERSONAL_CODE = 'SYS_PERSONAL';
 export const SYS_PERSONAL_SERVICE_ID = 'svc_sys_personal';
@@ -25,8 +32,8 @@ export const APPOINTMENT_KIND_OPTIONS: Array<{
   },
   {
     value: 'personal',
-    label: 'Own time / leave',
-    hint: 'Leave, admin, or personal — blocks the diary',
+    label: 'Own time / away',
+    hint: 'Away, leave, admin, or personal — blocks the diary',
   },
 ];
 
@@ -34,8 +41,11 @@ export const PERSONAL_REASON_OPTIONS: Array<{
   value: ClinicPersonalReason;
   label: string;
 }> = [
-  { value: 'personal', label: 'Personal' },
+  { value: 'away', label: 'Away' },
   { value: 'leave', label: 'Leave' },
+  { value: 'sick', label: 'Sick' },
+  { value: 'travel', label: 'Travel' },
+  { value: 'personal', label: 'Personal' },
   { value: 'admin', label: 'Admin / paperwork' },
   { value: 'other', label: 'Other' },
 ];
@@ -63,7 +73,15 @@ export function normalizePersonalReason(
   raw: unknown
 ): ClinicPersonalReason {
   const v = String(raw || '').toLowerCase();
-  if (v === 'leave' || v === 'admin' || v === 'other' || v === 'personal') {
+  if (
+    v === 'leave' ||
+    v === 'away' ||
+    v === 'sick' ||
+    v === 'travel' ||
+    v === 'admin' ||
+    v === 'other' ||
+    v === 'personal'
+  ) {
     return v;
   }
   return 'personal';
@@ -81,7 +99,10 @@ export function appointmentKindLabel(
   reason?: ClinicPersonalReason | null
 ): string {
   if (kind !== 'personal') return 'Appointment';
+  if (reason === 'away') return 'Away';
   if (reason === 'leave') return 'Leave';
+  if (reason === 'sick') return 'Sick';
+  if (reason === 'travel') return 'Travel';
   if (reason === 'admin') return 'Admin time';
   if (reason === 'other') return 'Blocked time';
   return 'Personal time';
@@ -257,7 +278,12 @@ export function patchFormForAppointmentKind<
 ): T {
   const start = String(form.start_time || '09:00').slice(0, 5);
   const reason = normalizePersonalReason(form.personal_reason);
-  const leave = kind === 'personal' && reason === 'leave';
+  const leave =
+    kind === 'personal' &&
+    (reason === 'leave' ||
+      reason === 'away' ||
+      reason === 'sick' ||
+      reason === 'travel');
   const end = leave
     ? '17:00'
     : form.end_time

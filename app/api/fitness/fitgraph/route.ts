@@ -84,6 +84,7 @@ import {
   issueFeedbackPrompt,
 } from '@/lib/services/booking-feedback';
 import { applyGymAttendanceMark } from '@/lib/fitness/apply-gym-attendance';
+import { gymCoachAwayOn } from '@/lib/services/staff-away';
 import { notifyMemberToRateClass } from '@/lib/fitness/notify-class-feedback';
 import {
   applyAnnouncementAction,
@@ -903,18 +904,22 @@ export async function POST(request: NextRequest) {
       if (coachId && !store.coaches.find((c) => c.id === coachId)) {
         return NextResponse.json({ error: 'Coach not found' }, { status: 404 });
       }
-      if (coachId) {
+      if (coachId && resolved.kind !== 'away' && resolved.kind !== 'coach_personal') {
         try {
-          const { readLeaveBlocksFromMeta, leaveBlocksAssignment } = await import(
+          const { readLeaveBlocksFromMeta } = await import(
             '@/lib/core-os/leave'
           );
-          const coach = store.coaches.find((c) => c.id === coachId);
-          const gate = leaveBlocksAssignment(
-            readLeaveBlocksFromMeta(meta),
-            coachId,
-            date,
-            coach?.hr_employee_id
+          const { gymCoachAwayOn, staffAssignmentBlocked } = await import(
+            '@/lib/services/staff-away'
           );
+          const coach = store.coaches.find((c) => c.id === coachId);
+          const gate = staffAssignmentBlocked({
+            personId: coachId,
+            date,
+            hrEmployeeId: coach?.hr_employee_id,
+            hrWindows: readLeaveBlocksFromMeta(meta),
+            diaryAway: gymCoachAwayOn(store.sessions, coachId, date),
+          });
           if (gate.blocked) {
             return NextResponse.json(
               { error: `Coach ${gate.reason}` },
@@ -922,7 +927,7 @@ export async function POST(request: NextRequest) {
             );
           }
         } catch {
-          /* leave gate is best-effort */
+          /* leave / away gate is best-effort */
         }
       }
       if (!store.class_types.find((c) => c.id === resolved.class_type_id)) {
@@ -933,7 +938,7 @@ export async function POST(request: NextRequest) {
       }
       if (resolved.kind !== 'class' && !coachId) {
         return NextResponse.json(
-          { error: 'Pick a coach for private PT or personal time' },
+          { error: 'Pick a coach for private PT, personal time, or away' },
           { status: 400 }
         );
       }
@@ -966,6 +971,13 @@ export async function POST(request: NextRequest) {
               : null,
         };
       }
+      if (resolved.kind === 'away' && (!recurrence || recurrence.frequency === 'none')) {
+        const { awayUntilRecurrence } = await import(
+          '@/lib/services/staff-away'
+        );
+        const untilRec = awayUntilRecurrence(date, body.until);
+        if (untilRec) recurrence = untilRec;
+      }
       const created = createSessionsFromTemplate(
         store,
         {
@@ -977,6 +989,10 @@ export async function POST(request: NextRequest) {
           duration_min:
             body.duration_min != null ? Number(body.duration_min) : null,
           session_kind: resolved.kind,
+          personal_reason:
+            resolved.kind === 'away'
+              ? String(body.personal_reason || body.away_reason || 'leave')
+              : null,
           capacity: body.capacity != null ? Number(body.capacity) : null,
           location: body.location != null ? String(body.location) : undefined,
           room: body.room != null ? String(body.room) : null,
@@ -996,7 +1012,9 @@ export async function POST(request: NextRequest) {
         now
       );
       store.sessions.push(...created);
-      stampCatalogSeriesAndBookSubscribers(store, created, now);
+      if (resolved.kind === 'class') {
+        stampCatalogSeriesAndBookSubscribers(store, created, now);
+      }
       {
         const { emailSessionCalendar } = await import(
           '@/lib/fitness/session-calendar'
@@ -3556,6 +3574,27 @@ function upsert(
           : prev?.capacity ?? ct?.capacity ?? 20,
     });
     const makePublic = rules.public;
+    const nextCoachId =
+      rec.coach_id !== undefined
+        ? rec.coach_id
+          ? String(rec.coach_id)
+          : null
+        : prev?.coach_id ?? null;
+    const nextDate = String(rec.date || prev?.date || now.slice(0, 10));
+    if (
+      nextCoachId &&
+      resolved.kind !== 'away' &&
+      resolved.kind !== 'coach_personal'
+    ) {
+      const diaryAway = gymCoachAwayOn(
+        store.sessions.filter((s) => s.id !== id),
+        nextCoachId,
+        nextDate
+      );
+      if (diaryAway) {
+        throw new Error(`Coach is away on ${nextDate}`);
+      }
+    }
     const row: FitSession = {
       id,
       class_type_id: resolved.class_type_id,
@@ -3570,6 +3609,13 @@ function upsert(
       end_time: times.end_time,
       duration_min: times.duration_min,
       session_kind: resolved.kind,
+      personal_reason:
+        rec.personal_reason !== undefined
+          ? rec.personal_reason
+            ? String(rec.personal_reason)
+            : null
+          : prev?.personal_reason ??
+            (resolved.kind === 'away' ? 'leave' : null),
       capacity: rules.capacity,
       location:
         rec.location != null

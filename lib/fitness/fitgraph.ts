@@ -31,6 +31,7 @@ import { bookingEligibleForClientRating } from '@/lib/services/booking-feedback'
 import { isoDateInZone } from '@/lib/fitness/gym-local-time';
 import { compactWorkingHours } from '@/lib/schedule/working-hours';
 import {
+  SYS_COACH_AWAY_CODE,
   SYS_COACH_TIME_CODE,
   SYS_PT_CODE,
   normalizeSessionKind,
@@ -72,6 +73,7 @@ import { isPortalSectionOn } from '@/lib/advisors/portal-sections';
 import { gymCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
 
 export {
+  SYS_COACH_AWAY_CODE,
   SYS_COACH_TIME_CODE,
   SYS_PT_CODE,
   normalizeSessionKind,
@@ -709,9 +711,12 @@ export type FitSession = {
   duration_min?: number | null;
   /**
    * class = group class · private_pt = 1:1 personal training ·
-   * coach_personal = coach's own training / blocked time (not member-bookable)
+   * coach_personal = coach's own training / admin (they are in) ·
+   * away = leave / sick / travel (not available)
    */
   session_kind?: FitSessionKind;
+  /** Why this away block exists (leave, sick, travel…). */
+  personal_reason?: string | null;
   capacity?: number | null;
   location?: string;
   /** Multi-resource diary: room / studio / court */
@@ -1725,6 +1730,19 @@ export function ensureSystemClassTypes(store: FitgraphStore): void {
       created_at: now,
     });
   }
+  if (!store.class_types.some((c) => c.code === SYS_COACH_AWAY_CODE)) {
+    store.class_types.push({
+      id: 'cls_sys_coach_away',
+      code: SYS_COACH_AWAY_CODE,
+      name: 'Away / leave',
+      category: 'Coach',
+      default_duration_min: 540,
+      capacity: 0,
+      description: 'Coach or contractor is not available (leave, sick, travel)',
+      active: true,
+      created_at: now,
+    });
+  }
 }
 
 export function sessionKindOf(
@@ -1737,6 +1755,7 @@ export function sessionKindOf(
   const ct = store.class_types.find((c) => c.id === session.class_type_id);
   if (ct?.code === SYS_PT_CODE) return 'private_pt';
   if (ct?.code === SYS_COACH_TIME_CODE) return 'coach_personal';
+  if (ct?.code === SYS_COACH_AWAY_CODE) return 'away';
   return 'class';
 }
 
@@ -1758,15 +1777,23 @@ export function resolveClassTypeForSession(
       ? 'private_pt'
       : ct?.code === SYS_COACH_TIME_CODE
         ? 'coach_personal'
-        : 'class';
+        : ct?.code === SYS_COACH_AWAY_CODE
+          ? 'away'
+          : 'class';
   const isSystem =
-    ct?.code === SYS_PT_CODE || ct?.code === SYS_COACH_TIME_CODE;
+    ct?.code === SYS_PT_CODE ||
+    ct?.code === SYS_COACH_TIME_CODE ||
+    ct?.code === SYS_COACH_AWAY_CODE;
   if (kind === 'private_pt' && (!ct || isSystem)) {
     const sys = store.class_types.find((c) => c.code === SYS_PT_CODE);
     return { class_type_id: sys?.id || ctId, kind };
   }
   if (kind === 'coach_personal' && (!ct || isSystem)) {
     const sys = store.class_types.find((c) => c.code === SYS_COACH_TIME_CODE);
+    return { class_type_id: sys?.id || ctId, kind };
+  }
+  if (kind === 'away' && (!ct || isSystem)) {
+    const sys = store.class_types.find((c) => c.code === SYS_COACH_AWAY_CODE);
     return { class_type_id: sys?.id || ctId, kind };
   }
   return { class_type_id: ctId, kind };
@@ -1776,7 +1803,7 @@ export function applySessionKindRules(
   kind: FitSessionKind,
   opts?: { public?: boolean; capacity?: number | null }
 ): { public: boolean; capacity: number | null } {
-  if (kind === 'coach_personal') {
+  if (kind === 'coach_personal' || kind === 'away') {
     return { public: false, capacity: 0 };
   }
   if (kind === 'private_pt') {
@@ -1809,8 +1836,12 @@ export function coachPersonalBookingError(
   session: FitSession | undefined | null
 ): string | null {
   if (!session) return null;
-  if (sessionKindOf(store, session) === 'coach_personal') {
+  const kind = sessionKindOf(store, session);
+  if (kind === 'coach_personal') {
     return 'Coach personal time cannot be booked by members';
+  }
+  if (kind === 'away') {
+    return 'This coach is away and cannot be booked';
   }
   return null;
 }
@@ -2798,6 +2829,7 @@ export function createSessionsFromTemplate(
     shared_coach_ids?: string[] | null;
     /** Reuse a catalog series so class-specific plans still match. */
     series_id?: string | null;
+    personal_reason?: string | null;
   },
   recurrence?: FitRecurrence | null,
   nowIso?: string
@@ -2820,7 +2852,9 @@ export function createSessionsFromTemplate(
     start_time: template.start_time,
     end_time: template.end_time,
     duration_min: template.duration_min,
-    fallbackDuration: ct?.default_duration_min ?? (kind === 'class' ? 45 : 60),
+    fallbackDuration:
+      ct?.default_duration_min ??
+      (kind === 'away' ? 540 : kind === 'class' ? 45 : 60),
   });
   const rules = applySessionKindRules(kind, {
     public: template.public,
@@ -2840,6 +2874,8 @@ export function createSessionsFromTemplate(
       end_time: times.end_time,
       duration_min: times.duration_min,
       session_kind: kind,
+      personal_reason:
+        kind === 'away' ? template.personal_reason || 'leave' : null,
       capacity: rules.capacity,
       location: template.location,
       room: template.room ?? null,

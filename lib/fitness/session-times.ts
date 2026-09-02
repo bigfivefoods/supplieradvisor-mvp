@@ -50,7 +50,11 @@ export function resolveSessionTimes(opts: {
   };
 }
 
-export type FitSessionKind = 'class' | 'private_pt' | 'coach_personal';
+export type FitSessionKind =
+  | 'class'
+  | 'private_pt'
+  | 'coach_personal'
+  | 'away';
 
 export function normalizeSessionKind(
   raw: unknown,
@@ -59,6 +63,14 @@ export function normalizeSessionKind(
   const v = String(raw || '').toLowerCase();
   if (v === 'private_pt' || v === 'pt' || v === 'personal_training') {
     return 'private_pt';
+  }
+  if (
+    v === 'away' ||
+    v === 'leave' ||
+    v === 'off' ||
+    v === 'coach_away'
+  ) {
+    return 'away';
   }
   if (
     v === 'coach_personal' ||
@@ -74,6 +86,7 @@ export function normalizeSessionKind(
 
 export const SYS_PT_CODE = 'SYS_PT';
 export const SYS_COACH_TIME_CODE = 'SYS_COACH_TIME';
+export const SYS_COACH_AWAY_CODE = 'SYS_COACH_AWAY';
 
 export const SESSION_KIND_OPTIONS: Array<{
   value: FitSessionKind;
@@ -93,25 +106,33 @@ export const SESSION_KIND_OPTIONS: Array<{
   {
     value: 'coach_personal',
     label: 'Coach personal time',
-    hint: 'Own training, admin, or other blocked time',
+    hint: 'Own training or admin — they are still in',
+  },
+  {
+    value: 'away',
+    label: 'Away / leave',
+    hint: 'Not available — leave, sick, travel. Blocks assigning classes.',
   },
 ];
 
 export function sessionKindLabel(kind: FitSessionKind): string {
   if (kind === 'private_pt') return 'Private PT';
   if (kind === 'coach_personal') return 'Coach personal';
+  if (kind === 'away') return 'Away';
   return 'Class';
 }
 
 export function sessionKindTone(
   kind: FitSessionKind
-): 'yellow' | 'amber' | 'indigo' {
+): 'yellow' | 'amber' | 'indigo' | 'rose' {
   if (kind === 'private_pt') return 'amber';
   if (kind === 'coach_personal') return 'indigo';
+  if (kind === 'away') return 'rose';
   return 'yellow';
 }
 
 export function defaultDurationForKind(kind: FitSessionKind): number {
+  if (kind === 'away') return 540;
   return kind === 'class' ? 45 : 60;
 }
 
@@ -125,11 +146,16 @@ export function sessionKindFromRecord(opts: {
   const code = String(opts.class_code || '');
   if (code === SYS_PT_CODE) return 'private_pt';
   if (code === SYS_COACH_TIME_CODE) return 'coach_personal';
+  if (code === SYS_COACH_AWAY_CODE) return 'away';
   return 'class';
 }
 
 export function isSystemClassCode(code?: string | null): boolean {
-  return code === SYS_PT_CODE || code === SYS_COACH_TIME_CODE;
+  return (
+    code === SYS_PT_CODE ||
+    code === SYS_COACH_TIME_CODE ||
+    code === SYS_COACH_AWAY_CODE
+  );
 }
 
 /** Adjust form fields when the coach switches Class / PT / personal time. */
@@ -147,26 +173,33 @@ export function patchFormForSessionKind<
   kind: FitSessionKind,
   classTypes: Array<{ id: string; code: string }>
 ): T {
-  const start = String(form.start_time || '06:00').slice(0, 5);
+  const start =
+    kind === 'away'
+      ? '08:00'
+      : String(form.start_time || '06:00').slice(0, 5);
   const prevEnd = form.end_time ? String(form.end_time).slice(0, 5) : '';
   const prevDur = prevEnd
     ? durationFromStartEnd(start, prevEnd)
     : defaultDurationForKind(kind);
   const dur =
-    kind === 'class'
-      ? prevDur
-      : Math.max(prevDur, defaultDurationForKind(kind));
+    kind === 'away'
+      ? 540
+      : kind === 'class'
+        ? prevDur
+        : Math.max(prevDur, defaultDurationForKind(kind));
   const current = classTypes.find((c) => c.id === form.class_type_id);
   const sysId =
     kind === 'private_pt'
       ? classTypes.find((c) => c.code === SYS_PT_CODE)?.id || ''
-      : kind === 'coach_personal'
-        ? classTypes.find((c) => c.code === SYS_COACH_TIME_CODE)?.id || ''
-        : '';
+      : kind === 'away'
+        ? classTypes.find((c) => c.code === SYS_COACH_AWAY_CODE)?.id || ''
+        : kind === 'coach_personal'
+          ? classTypes.find((c) => c.code === SYS_COACH_TIME_CODE)?.id || ''
+          : '';
   let class_type_id = form.class_type_id || '';
   if (kind === 'class') {
     if (!current || isSystemClassCode(current.code)) class_type_id = '';
-  } else if (kind === 'coach_personal') {
+  } else if (kind === 'coach_personal' || kind === 'away') {
     class_type_id = sysId;
   } else if (!current || isSystemClassCode(current.code)) {
     class_type_id = sysId;
@@ -176,10 +209,10 @@ export function patchFormForSessionKind<
     session_kind: kind,
     class_type_id,
     start_time: start,
-    end_time: endFromStartDuration(start, dur),
+    end_time: kind === 'away' ? '17:00' : endFromStartDuration(start, dur),
     public: kind === 'class' ? form.public === true : false,
     capacity:
-      kind === 'coach_personal'
+      kind === 'coach_personal' || kind === 'away'
         ? '0'
         : kind === 'private_pt'
           ? form.capacity && Number(form.capacity) > 0

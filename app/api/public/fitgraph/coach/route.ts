@@ -1224,7 +1224,9 @@ export async function POST(request: NextRequest) {
         session.capacity = rules.capacity;
       } else if (body.capacity != null) {
         session.capacity =
-          kind === 'coach_personal' ? 0 : Number(body.capacity);
+          kind === 'coach_personal' || kind === 'away'
+            ? 0
+            : Number(body.capacity);
       } else {
         session.capacity = rules.capacity;
       }
@@ -1812,6 +1814,13 @@ export async function POST(request: NextRequest) {
             : 'none';
       if (freq === 'none') {
         recurrence = { frequency: 'none' };
+        if (resolved.kind === 'away') {
+          const { awayUntilRecurrence } = await import(
+            '@/lib/services/staff-away'
+          );
+          const untilRec = awayUntilRecurrence(date, body.until);
+          if (untilRec) recurrence = untilRec;
+        }
       } else {
         recurrence = {
           frequency: freq,
@@ -1850,6 +1859,10 @@ export async function POST(request: NextRequest) {
               ? Number(body.duration_min)
               : ct.default_duration_min ?? 45,
           session_kind: resolved.kind,
+          personal_reason:
+            resolved.kind === 'away'
+              ? String(body.personal_reason || 'leave')
+              : null,
           capacity:
             body.capacity != null ? Number(body.capacity) : ct.capacity ?? 20,
           location: body.location != null ? String(body.location) : undefined,
@@ -1865,7 +1878,9 @@ export async function POST(request: NextRequest) {
         now
       );
       store.sessions.push(...created);
-      stampCatalogSeriesAndBookSubscribers(store, created, now);
+      if (resolved.kind === 'class') {
+        stampCatalogSeriesAndBookSubscribers(store, created, now);
+      }
       {
         const { emailSessionCalendar } = await import(
           '@/lib/fitness/session-calendar'

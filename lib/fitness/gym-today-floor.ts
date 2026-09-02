@@ -26,7 +26,12 @@ export function gymTodayFloorClasses(
 ): GymTodayFloorClass[] {
   const day = String(today || '').slice(0, 10);
   const sessions = (store.sessions || [])
-    .filter((s) => s.date === day && s.status !== 'cancelled')
+    .filter(
+      (s) =>
+        s.date === day &&
+        s.status !== 'cancelled' &&
+        s.session_kind !== 'coach_personal'
+    )
     .slice()
     .sort(
       (a, b) =>
@@ -36,17 +41,22 @@ export function gymTodayFloorClasses(
   return sessions.map((s) => {
     const ct = (store.class_types || []).find((c) => c.id === s.class_type_id);
     const coach = (store.coaches || []).find((c) => c.id === s.coach_id);
-    const members = sessionRosterRows(store, s.id).map((r) => ({
-      id: r.booking_id,
-      name: r.name,
-      status: r.status,
-    }));
+    const away = s.session_kind === 'away';
+    const members = away
+      ? []
+      : sessionRosterRows(store, s.id).map((r) => ({
+          id: r.booking_id,
+          name: r.name,
+          status: r.status,
+        }));
     return {
       id: s.id,
       time: String(s.start_time || ''),
-      title: ct?.name || 'Class',
+      title: away
+        ? `Away${coach?.name ? ` · ${coach.name}` : ''}`
+        : ct?.name || 'Class',
       person: coach?.name,
-      meta: s.location,
+      meta: away ? 'Not available' : s.location,
       href: '/dashboard/fitgraph/calendar',
       members,
     };
