@@ -2735,7 +2735,7 @@ export default function CoachFitgraphPortalPage() {
                   bio: profile.bio,
                   public_bio: profile.public_bio,
                   qualifications: profile.qualifications,
-                  photo_url: profile.photo_url.trim() || null,
+                  photo_url: profile.photo_url.trim() || undefined,
                   specialties: profile.specialties.length
                     ? profile.specialties
                     : ['General'],
