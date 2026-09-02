@@ -41,10 +41,13 @@ export function AdvisorPortalPreviewDesk({
     readPortalSectionMap(module, settings)
   );
   const [frameKey, setFrameKey] = useState(0);
+  const sectionKey = JSON.stringify(readPortalSectionMap(module, settings));
 
   useEffect(() => {
     setDraft(readPortalSectionMap(module, settings));
-  }, [module, settings]);
+    // Parent rebuilds `settings` every hydrate — only reset when ticks change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [module, sectionKey]);
 
   const liveHref = useMemo(() => {
     if (!embedPath) return '';
