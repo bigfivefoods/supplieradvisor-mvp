@@ -445,6 +445,81 @@ export function applyPrivatePtBooking(
   return { added, skipped };
 }
 
+/** Turn a one-off (or singleton) diary row into a repeating series. Keeps the original. */
+export function expandSessionToSeries(
+  store: FitgraphStore,
+  opts: {
+    sessionId: string;
+    recurrence: FitRecurrence;
+    now: string;
+  }
+): { added: number; seriesId: string | null; created: FitSession[] } {
+  const session = store.sessions.find((s) => s.id === opts.sessionId);
+  if (!session || !opts.recurrence || opts.recurrence.frequency === 'none') {
+    return { added: 0, seriesId: session?.series_id || null, created: [] };
+  }
+  const seriesId = String(session.series_id || '').trim() || newId('ser');
+  const created = createSessionsFromTemplate(
+    store,
+    {
+      class_type_id: session.class_type_id,
+      coach_id: session.coach_id || null,
+      date: session.date,
+      start_time: session.start_time,
+      end_time: session.end_time ?? null,
+      duration_min: session.duration_min ?? null,
+      session_kind: session.session_kind,
+      personal_reason: session.personal_reason,
+      capacity: session.capacity ?? null,
+      location: session.location,
+      room: session.room ?? null,
+      agreed_rate_zar: session.agreed_rate_zar ?? null,
+      public: session.public === true,
+      notes: session.notes,
+      public_notes: session.public_notes,
+      class_plan: session.class_plan,
+      origin: 'series',
+      programme_id: session.programme_id ?? null,
+      shared_coach_ids: session.shared_coach_ids ?? null,
+      series_id: seriesId,
+    },
+    opts.recurrence,
+    opts.now
+  );
+  const existing = new Set(
+    (store.sessions || [])
+      .filter((s) => s.status !== 'cancelled')
+      .map(sessionKey)
+  );
+  const fresh = created.filter(
+    (s) => s.date !== session.date && !existing.has(sessionKey(s))
+  );
+  session.series_id = seriesId;
+  if (!session.origin || session.origin === 'one_off') {
+    session.origin = 'series';
+  }
+  if (!fresh.length) {
+    return { added: 0, seriesId, created: [] };
+  }
+  store.sessions.push(...fresh);
+  const members = (store.bookings || []).filter(
+    (b) => b.session_id === session.id && b.status !== 'cancelled'
+  );
+  for (const b of members) {
+    const client = store.clients.find((c) => c.id === b.client_id);
+    if (!client) continue;
+    for (const row of fresh) {
+      bookDeskMemberOntoSession(store, row, client, opts.now, { force: true });
+    }
+  }
+  stampCatalogSeriesAndBookSubscribers(store, [session, ...fresh], opts.now);
+  return {
+    added: fresh.length,
+    seriesId: session.series_id || seriesId,
+    created: fresh,
+  };
+}
+
 function bookMemberOntoUpcoming(
   store: FitgraphStore,
   client: FitClient,

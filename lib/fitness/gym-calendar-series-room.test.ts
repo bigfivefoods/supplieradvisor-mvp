@@ -49,6 +49,7 @@ assert.match(cal, /Member \/ private client/);
 assert.match(cal, /Floor → Rooms/);
 assert.match(cal, /form\.session_kind === 'private_pt'/);
 assert.match(cal, /save_calendar_sessions/);
+assert.match(cal, /showRepeatFields/);
 assert.doesNotMatch(cal, /entity: 'clients'/);
 assert.doesNotMatch(
   cal,

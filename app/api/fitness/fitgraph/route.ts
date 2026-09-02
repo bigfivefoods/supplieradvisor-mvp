@@ -113,12 +113,14 @@ import {
   allocateMemberToClass,
   applyPrivatePtBooking,
   bookDeskMemberOntoSession,
+  expandSessionToSeries,
   mergeSubscribersIntoCoachSessions,
   scheduleClassOnCalendar,
   setClassMembers,
   stampCatalogSeriesAndBookSubscribers,
   updateClassDesk,
 } from '@/lib/fitness/class-allocate';
+import { parseRecurrenceBody } from '@/lib/schedule/recurrence';
 import { appendJoinEvent } from '@/lib/fitness/member-profile';
 import { parseMemberPassport } from '@/lib/b2c/member-passport';
 import { mergeMedicalRecord } from '@/lib/clinic/patient-medical';
@@ -1125,16 +1127,31 @@ export async function POST(request: NextRequest) {
             rateRaw == null || rateRaw === '' ? null : Number(rateRaw),
         });
       }
+      const recurrence = parseRecurrenceBody(
+        body as Record<string, unknown>
+      );
+      const expanded =
+        recurrence.frequency === 'none'
+          ? { added: 0, created: [] as typeof store.sessions }
+          : expandSessionToSeries(store, {
+              sessionId: selected.id,
+              recurrence,
+              now,
+            });
       await saveStore(companyId, meta, store);
+      const updated = ids.length + expanded.added;
       return NextResponse.json({
         success: true,
         store,
         summary: summariseFitgraph(store),
-        updated: ids.length,
+        updated,
+        added: expanded.added,
         message:
-          ids.length > 1
-            ? `Updated ${ids.length} sessions`
-            : 'Session updated',
+          expanded.added > 0
+            ? `Saved as a series · ${expanded.added + 1} dates`
+            : ids.length > 1
+              ? `Updated ${ids.length} sessions`
+              : 'Session updated',
       });
     }
 
