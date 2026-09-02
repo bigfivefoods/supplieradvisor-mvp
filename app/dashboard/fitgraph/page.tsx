@@ -34,15 +34,17 @@ import {
 } from '@/components/chrome/CommandHubChrome';
 import { AdvisorOutcomesPanel } from '@/components/services/AdvisorOutcomesPanel';
 import { AdvisorRecallPanel } from '@/components/services/AdvisorRecallPanel';
-import { AdvisorTodayBoard } from '@/components/services/AdvisorTodayBoard';
+import {
+  AdvisorTodayBoard,
+  type TodayBoardGroup,
+} from '@/components/services/AdvisorTodayBoard';
+import { gymTodayFloorClasses } from '@/lib/fitness/gym-today-floor';
+import type { FitgraphStore } from '@/lib/fitness/fitgraph';
 import { AdvisorBillingClarityCard } from '@/components/services/AdvisorBillingClarityCard';
 import { AdvisorMemberJoinInbox } from '@/components/advisors/AdvisorMemberJoinInbox';
 import { AdvisorCommandBookingCards } from '@/components/advisors/AdvisorCommandBookingCards';
 import { MemberSpecialDatesPanel } from '@/components/fitness/MemberSpecialDatesPanel';
-import {
-  memberSpecialDates,
-  type SpecialDatePerson,
-} from '@/lib/fitness/member-special-dates';
+import { memberSpecialDates } from '@/lib/fitness/member-special-dates';
 
 function hubModules(
   hasFrontDesk: boolean,
@@ -222,28 +224,7 @@ function Inner() {
   const [summary, setSummary] = useState<
     Record<string, number | boolean | string | null | undefined> | null
   >(null);
-  const [store, setStore] = useState<{
-    sessions?: Array<{
-      id: string;
-      date: string;
-      start_time: string;
-      class_type_id?: string;
-      coach_id?: string | null;
-      status?: string;
-      location?: string;
-    }>;
-    bookings?: Array<{
-      id: string;
-      session_id: string;
-      client_id: string;
-      status: string;
-      family_member_name?: string | null;
-    }>;
-    clients?: SpecialDatePerson[];
-    coaches?: Array<{ id: string; name: string }>;
-    class_types?: Array<{ id: string; name: string }>;
-    settings?: { brand_name?: string; class_subscribe?: boolean } | null;
-  } | null>(null);
+  const [store, setStore] = useState<FitgraphStore | null>(null);
   const [outcomes, setOutcomes] = useState<import('@/lib/services/advisor-outcomes').OutcomesSnapshot | null>(null);
   const [recalls, setRecalls] = useState<
     Array<{
@@ -367,49 +348,23 @@ function Inner() {
   const specialToday = specialDates.filter(
     (r) => r.days_until === 0 && r.kind !== 'joined'
   ).length;
-  const todayRows = (() => {
-    if (!store) return [];
-    const sessions = (store.sessions || []).filter(
-      (s) => s.date === today && s.status !== 'cancelled'
-    );
-    const rows: import('@/components/services/AdvisorTodayBoard').TodayBoardRow[] =
-      [];
-    for (const s of sessions) {
-      const ct = store.class_types?.find((c) => c.id === s.class_type_id);
-      const coach = store.coaches?.find((c) => c.id === s.coach_id);
-      const books = (store.bookings || []).filter(
-        (b) =>
-          b.session_id === s.id &&
-          b.status !== 'cancelled'
-      );
-      if (books.length === 0) {
-        rows.push({
-          id: `s-${s.id}`,
-          time: s.start_time,
-          title: ct?.name || 'Class',
-          person: coach?.name,
-          status: 'open',
-          meta: s.location,
-          href: '/dashboard/fitgraph/calendar',
-        });
-      } else {
-        for (const b of books) {
-          const client = store.clients?.find((c) => c.id === b.client_id);
-          rows.push({
-            id: b.id,
-            time: s.start_time,
-            title: ct?.name || 'Class',
-            person: coach?.name,
-            attendee: b.family_member_name || client?.name,
-            status: b.status,
-            meta: s.location,
-            href: '/dashboard/fitgraph/bookings',
-          });
-        }
-      }
-    }
-    return rows.sort((a, b) => a.time.localeCompare(b.time));
-  })();
+  const todayGroups: TodayBoardGroup[] = store
+    ? gymTodayFloorClasses(store, today).map((cls) => ({
+        id: cls.id,
+        time: cls.time,
+        title: cls.title,
+        person: cls.person,
+        meta: cls.meta,
+        href: cls.href,
+        members: cls.members.map((m) => ({
+          id: m.id,
+          time: cls.time,
+          title: cls.title,
+          attendee: m.name,
+          status: m.status,
+        })),
+      }))
+    : [];
 
   return (
     <FitgraphPage>
@@ -504,14 +459,10 @@ function Inner() {
           />
           <AdvisorTodayBoard
             date={today}
-            rows={todayRows}
+            groups={todayGroups}
             title="Today's floor board"
             accentClass="border-yellow-200 dark:border-yellow-800"
             onMark={(id, status) => {
-              if (id.startsWith('s-')) {
-                toast.message('Open calendar to book members into this class');
-                return;
-              }
               void markBooking(id, status);
             }}
             markBusyId={markBusy}
