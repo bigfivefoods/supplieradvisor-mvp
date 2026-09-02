@@ -26,16 +26,34 @@ export default function ReportPage() {
 
   return (
     <MedicalgraphWorkbench
-      title="Management report"
-      titleAccent="Insights · A4 landscape"
-      description="Practitioner load, injury awareness, patient book, and this week’s diary utilisation."
+      title="Reports"
+      titleAccent="slice & dice · pack · trends"
+      description="One slicer at the top. Then the clinic pack: people, floor, diary, attendance trends and graphs."
     >
       {loading || !store ? (
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
 
-      <ManagementReportPanel advisor="medicalgraph" className="mb-6" />
+      <ManagementReportPanel
+        advisor="medicalgraph"
+        className="mb-6"
+        dimensions={
+          (store?.practitioners || [])
+            .filter((p) => p.active !== false)
+            .map((p) => ({ id: p.id, label: p.name })).length
+            ? [
+                {
+                  key: 'practitionerId',
+                  label: 'Clinician',
+                  options: (store?.practitioners || [])
+                    .filter((p) => p.active !== false)
+                    .map((p) => ({ id: p.id, label: p.name })),
+                },
+              ]
+            : []
+        }
+      />
 
           <StatRow
             items={[

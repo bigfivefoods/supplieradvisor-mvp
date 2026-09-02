@@ -757,7 +757,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Comms', href: '/dashboard/fitgraph/comms', desc: 'Ads · notices to all members', section: 'Grow' },
       { name: 'View portal', href: '/dashboard/fitgraph/portal', desc: 'Member PWA · website preview · pick sections', section: 'Grow' },
       { name: 'Website', href: '/dashboard/fitgraph/website', desc: 'Optional public site · member app QR · door QR', section: 'Grow' },
-      { name: 'Management report', href: '/dashboard/fitgraph/management', desc: 'A4 landscape PDF · key metrics', section: 'Insights' },
+      { name: 'Reports', href: '/dashboard/fitgraph/management', desc: 'Slice & dice · pack · trends · A4 PDF', section: 'Insights' },
     ],
   },
   {
@@ -782,7 +782,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Comms', href: '/dashboard/physiograph/comms', desc: 'Ads · notices to all patients', section: 'Grow' },
       { name: 'View portal', href: '/dashboard/physiograph/portal', desc: 'Patient PWA · website preview · pick sections', section: 'Grow' },
       { name: 'Website', href: '/dashboard/physiograph/website', desc: 'Optional public site · patient app QR · booking', section: 'Grow' },
-      { name: 'Management report', href: '/dashboard/physiograph/management', desc: 'A4 landscape PDF · key metrics', section: 'Insights' },
+      { name: 'Reports', href: '/dashboard/physiograph/management', desc: 'Slice & dice · pack · trends · A4 PDF', section: 'Insights' },
     ],
   },
   {
@@ -806,7 +806,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Comms', href: '/dashboard/dentalgraph/comms', desc: 'Ads · notices to all patients', section: 'Grow' },
       { name: 'View portal', href: '/dashboard/dentalgraph/portal', desc: 'Patient PWA · website preview · pick sections', section: 'Grow' },
       { name: 'Website', href: '/dashboard/dentalgraph/website', desc: 'Optional public site · patient app QR · booking', section: 'Grow' },
-      { name: 'Management report', href: '/dashboard/dentalgraph/management', desc: 'A4 landscape PDF · key metrics', section: 'Insights' },
+      { name: 'Reports', href: '/dashboard/dentalgraph/management', desc: 'Slice & dice · pack · trends · A4 PDF', section: 'Insights' },
     ],
   },
   {
@@ -830,7 +830,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Comms', href: '/dashboard/psychiatrygraph/comms', desc: 'Ads · notices to all patients', section: 'Grow' },
       { name: 'View portal', href: '/dashboard/psychiatrygraph/portal', desc: 'Patient PWA · website preview · pick sections', section: 'Grow' },
       { name: 'Website', href: '/dashboard/psychiatrygraph/website', desc: 'Optional public site · patient app QR · booking', section: 'Grow' },
-      { name: 'Management report', href: '/dashboard/psychiatrygraph/management', desc: 'A4 landscape PDF · key metrics', section: 'Insights' },
+      { name: 'Reports', href: '/dashboard/psychiatrygraph/management', desc: 'Slice & dice · pack · trends · A4 PDF', section: 'Insights' },
     ],
   },
   {
@@ -854,7 +854,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Comms', href: '/dashboard/medicalgraph/comms', desc: 'Ads · notices to all patients', section: 'Grow' },
       { name: 'View portal', href: '/dashboard/medicalgraph/portal', desc: 'Patient PWA · website preview · pick sections', section: 'Grow' },
       { name: 'Website', href: '/dashboard/medicalgraph/website', desc: 'Optional public site · patient app QR · booking', section: 'Grow' },
-      { name: 'Management report', href: '/dashboard/medicalgraph/management', desc: 'A4 landscape PDF · key metrics', section: 'Insights' },
+      { name: 'Reports', href: '/dashboard/medicalgraph/management', desc: 'Slice & dice · pack · trends · A4 PDF', section: 'Insights' },
     ],
   },
   {
@@ -878,7 +878,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Comms', href: '/dashboard/vetgraph/comms', desc: 'Ads · notices to all clients', section: 'Grow' },
       { name: 'View portal', href: '/dashboard/vetgraph/portal', desc: 'Client PWA · website preview · pick sections', section: 'Grow' },
       { name: 'Website', href: '/dashboard/vetgraph/website', desc: 'Optional public site · client app QR · booking', section: 'Grow' },
-      { name: 'Management report', href: '/dashboard/vetgraph/management', desc: 'A4 landscape PDF · key metrics', section: 'Insights' },
+      { name: 'Reports', href: '/dashboard/vetgraph/management', desc: 'Slice & dice · pack · trends · A4 PDF', section: 'Insights' },
     ],
   },
   {

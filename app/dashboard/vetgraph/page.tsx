@@ -116,7 +116,7 @@ const MODULES: HubModule[] = [
     href: '/dashboard/vetgraph/report',
     icon: Sparkles,
     code: '09',
-    title: 'Management report',
+    title: 'Reports',
     desc: 'Vets, clients, consult utilisation.',
     accent: 'from-slate-50 to-white border-slate-200',
   },

@@ -274,7 +274,7 @@ export default function ManagementReportCharts({
               : 'md:grid-cols-2'
         }`}
       >
-        {charts.slice(0, 4).map((c) => (
+        {charts.map((c) => (
           <ChartCard key={c.id} chart={c} isDark={isDark} />
         ))}
       </div>

@@ -208,45 +208,49 @@ function buildClinicReport(
     kpi('Top service mix', svcRows.length ? String(svcRows[0]?.[0] || '—') : '—'),
   ];
 
-  let tables: ManagementTable[] = [];
-  if (slice === 'practitioners') {
-    tables = [
-      {
-        title: 'Load by practitioner',
-        headers: ['Name', 'Appts', 'Patients (active book)'],
-        rows: pracRows as Array<Array<string | number>>,
-      },
-    ];
-  } else if (slice === 'services') {
-    tables = [
-      {
-        title: 'Appointments by service',
-        headers: ['Service', 'Appts'],
-        rows: svcRows as Array<Array<string | number>>,
-      },
-    ];
-  } else if (slice === 'diary') {
-    tables = [
-      {
-        title: 'Recent diary (period)',
-        headers: ['Date', 'Time', 'Service', 'Clinician', 'Status'],
-        rows: diaryRows as Array<Array<string | number>>,
-      },
-    ];
-  } else {
-    tables = [
-      {
-        title: 'Top services',
-        headers: ['Service', 'Appts'],
-        rows: svcRows.slice(0, 5) as Array<Array<string | number>>,
-      },
-      {
-        title: 'Practitioner load',
-        headers: ['Name', 'Appts', 'Patients'],
-        rows: pracRows.slice(0, 5) as Array<Array<string | number>>,
-      },
-    ];
+  const dayMap = new Map<string, { appts: number; attended: number; noShow: number }>();
+  for (const a of appts) {
+    const cur = dayMap.get(a.date) || { appts: 0, attended: 0, noShow: 0 };
+    cur.appts += 1;
+    dayMap.set(a.date, cur);
   }
+  const apptDate = new Map(
+    appts.map((a) => [a.id, a.date] as const)
+  );
+  for (const b of periodBookings) {
+    const d = apptDate.get(b.appointment_id);
+    if (!d) continue;
+    const cur = dayMap.get(d) || { appts: 0, attended: 0, noShow: 0 };
+    if (b.status === 'attended') cur.attended += 1;
+    if (b.status === 'no_show') cur.noShow += 1;
+    dayMap.set(d, cur);
+  }
+  const dailyRows = [...dayMap.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, v]) => [date, v.appts, v.attended, v.noShow]);
+
+  const tables: ManagementTable[] = [
+    {
+      title: 'People · practitioner load',
+      headers: ['Name', 'Appts', 'Patients (active book)'],
+      rows: pracRows as Array<Array<string | number>>,
+    },
+    {
+      title: 'Floor · services',
+      headers: ['Service', 'Appts'],
+      rows: svcRows as Array<Array<string | number>>,
+    },
+    {
+      title: 'Diary · recent slots',
+      headers: ['Date', 'Time', 'Service', 'Clinician', 'Status'],
+      rows: diaryRows as Array<Array<string | number>>,
+    },
+    {
+      title: 'Trend · by day',
+      headers: ['Date', 'Appts', 'Attended', 'No-show'],
+      rows: dailyRows.slice(-14) as Array<Array<string | number>>,
+    },
+  ];
 
   const showUp =
     attended + noShow > 0
@@ -269,7 +273,7 @@ function buildClinicReport(
         : '',
       `Slice: ${slice}`,
     ]),
-    headline: `${ADVISOR_REPORT_META[advisor].brand} clinic pulse`,
+    headline: `${ADVISOR_REPORT_META[advisor].brand} reports pack — people, floor, diary & trends`,
     kpis,
     tables,
     charts: [
@@ -305,6 +309,26 @@ function buildClinicReport(
           label: String(r[0]).slice(0, 14),
           value: Number(r[1]) || 0,
           color: ['#0077b6', '#00b4d8', '#059669', '#d97706', '#7c3aed'][i % 5],
+        })),
+      },
+      {
+        id: 'daily_appts',
+        title: 'Appointments by day',
+        type: 'line',
+        series: dailyRows.slice(-14).map((r) => ({
+          label: String(r[0]).slice(5),
+          value: Number(r[1]) || 0,
+          color: '#0077b6',
+        })),
+      },
+      {
+        id: 'daily_attended',
+        title: 'Attendance trend',
+        type: 'line',
+        series: dailyRows.slice(-14).map((r) => ({
+          label: String(r[0]).slice(5),
+          value: Number(r[2]) || 0,
+          color: '#059669',
         })),
       },
     ],
@@ -362,83 +386,50 @@ async function buildFit(
     { id: 'daily', label: 'By day' },
   ];
 
-  let tables: ManagementTable[] = [];
-  if (slice === 'coaches') {
-    tables = [
-      {
-        title: 'Coach performance',
-        headers: ['Coach', 'Sessions', 'Attended', 'Fill %', 'Feeling'],
-        rows: report.coaches.slice(0, 8).map((r) => [
-          r.name,
-          r.sessions,
-          r.attended,
-          r.fill_pct ?? '—',
-          r.avg_member_feeling ?? '—',
-        ]),
-      },
-    ];
-  } else if (slice === 'classes') {
-    tables = [
-      {
-        title: 'Class types',
-        headers: ['Class', 'Sessions', 'Attended', 'Fill %'],
-        rows: report.classes.slice(0, 8).map((r) => [
-          r.name,
-          r.sessions,
-          r.attended,
-          r.fill_pct ?? '—',
-        ]),
-      },
-    ];
-  } else if (slice === 'members') {
-    tables = [
-      {
-        title: 'Top members by attendance',
-        headers: ['Member', 'Attended', 'No-show', 'Classes'],
-        rows: report.members.slice(0, 8).map((r) => [
-          r.name,
-          r.attended_in_range,
-          r.no_show_in_range,
-          r.class_count,
-        ]),
-      },
-    ];
-  } else if (slice === 'daily') {
-    tables = [
-      {
-        title: 'Daily series',
-        headers: ['Date', 'Sessions', 'Attended', 'No-show'],
-        rows: report.daily.slice(-8).map((r) => [
-          r.date,
-          r.sessions,
-          r.attended,
-          r.no_show,
-        ]),
-      },
-    ];
-  } else {
-    tables = [
-      {
-        title: 'Top coaches',
-        headers: ['Coach', 'Sessions', 'Attended', 'Fill %'],
-        rows: report.coaches.slice(0, 5).map((r) => [
-          r.name,
-          r.sessions,
-          r.attended,
-          r.fill_pct ?? '—',
-        ]),
-      },
-      {
-        title: 'Top classes',
-        headers: ['Class', 'Sessions', 'Attended'],
-        rows: report.classes.slice(0, 5).map((r) => [
-          r.name,
-          r.sessions,
-          r.attended,
-        ]),
-      },
-    ];
-  }
+  const tables: ManagementTable[] = [
+    {
+      title: 'People · coaches',
+      headers: ['Coach', 'Sessions', 'Attended', 'Fill %', 'Feeling'],
+      rows: report.coaches.slice(0, 12).map((r) => [
+        r.name,
+        r.sessions,
+        r.attended,
+        r.fill_pct ?? '—',
+        r.avg_member_feeling ?? '—',
+      ]),
+    },
+    {
+      title: 'Floor · class types',
+      headers: ['Class', 'Sessions', 'Attended', 'Fill %'],
+      rows: report.classes.slice(0, 12).map((r) => [
+        r.name,
+        r.sessions,
+        r.attended,
+        r.fill_pct ?? '—',
+      ]),
+    },
+    {
+      title: 'People · members',
+      headers: ['Member', 'Attended', 'No-show', 'Classes'],
+      rows: report.members.slice(0, 12).map((r) => [
+        r.name,
+        r.attended_in_range,
+        r.no_show_in_range,
+        r.class_count,
+      ]),
+    },
+    {
+      title: 'Trend · by day',
+      headers: ['Date', 'Sessions', 'Attended', 'No-show', 'Feedback'],
+      rows: report.daily.slice(-14).map((r) => [
+        r.date,
+        r.sessions,
+        r.attended,
+        r.no_show,
+        r.feedback,
+      ]),
+    },
+  ];
 
   return {
     ...baseDoc(
@@ -455,7 +446,7 @@ async function buildFit(
       f.classTypeId ? `Class filter on` : '',
       f.specialty ? `Specialty: ${f.specialty}` : '',
     ]),
-    headline: 'Gym owner pack — attendance, fill & coaching',
+    headline: 'Gym reports pack — people, floor, attendance & trends',
     kpis: [
       kpi('Sessions', o.sessions),
       kpi('Completed', o.completed),
@@ -499,10 +490,42 @@ async function buildFit(
         id: 'daily_trend',
         title: 'Daily attended seats',
         type: 'line',
-        series: report.daily.slice(-12).map((d) => ({
+        series: report.daily.slice(-14).map((d) => ({
           label: d.date.slice(5),
           value: d.attended,
           color: '#0077b6',
+        })),
+      },
+      {
+        id: 'daily_sessions',
+        title: 'Sessions by day',
+        type: 'line',
+        series: report.daily.slice(-14).map((d) => ({
+          label: d.date.slice(5),
+          value: d.sessions,
+          color: '#0d9488',
+        })),
+      },
+      {
+        id: 'class_mix',
+        title: 'Class mix',
+        type: 'donut',
+        series: report.classes.slice(0, 6).map((r, i) => ({
+          label: r.name.slice(0, 16),
+          value: r.sessions,
+          color: ['#0077b6', '#00b4d8', '#059669', '#7c3aed', '#d97706', '#0d9488'][
+            i % 6
+          ],
+        })),
+      },
+      {
+        id: 'no_show_trend',
+        title: 'No-shows by day',
+        type: 'line',
+        series: report.daily.slice(-14).map((d) => ({
+          label: d.date.slice(5),
+          value: d.no_show,
+          color: '#e11d48',
         })),
       },
     ],

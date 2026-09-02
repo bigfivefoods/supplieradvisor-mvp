@@ -175,8 +175,8 @@ function hubModules(
     href: '/dashboard/fitgraph/report',
     icon: Package,
     code: '11',
-    title: 'Management report',
-    desc: 'Insights · A4 landscape key metrics PDF · slice & dice.',
+    title: 'Reports',
+    desc: 'Slice & dice · pack · trends · A4 PDF',
     accent: 'from-slate-50 to-white border-slate-200',
   },
   {

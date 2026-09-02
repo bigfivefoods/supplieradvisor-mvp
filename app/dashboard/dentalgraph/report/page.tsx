@@ -40,16 +40,34 @@ export default function ReportPage() {
 
   return (
     <DentalgraphWorkbench
-      title="Management report"
-      titleAccent="Insights · A4 landscape"
-      description="Fill rate, attendance, clinician load, clinical alerts, and no-show soft-blocks (last 30 days)."
+      title="Reports"
+      titleAccent="slice & dice · pack · trends"
+      description="One slicer at the top. Then the practice pack: people, floor, diary, attendance trends and graphs."
     >
       {loading || !store ? (
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
 
-      <ManagementReportPanel advisor="dentalgraph" className="mb-6" />
+      <ManagementReportPanel
+        advisor="dentalgraph"
+        className="mb-6"
+        dimensions={
+          (store?.staff || [])
+            .filter((p) => p.active !== false)
+            .map((p) => ({ id: p.id, label: p.name })).length
+            ? [
+                {
+                  key: 'staffId',
+                  label: 'Clinician',
+                  options: (store?.staff || [])
+                    .filter((p) => p.active !== false)
+                    .map((p) => ({ id: p.id, label: p.name })),
+                },
+              ]
+            : []
+        }
+      />
 
           <StatRow
             items={[
