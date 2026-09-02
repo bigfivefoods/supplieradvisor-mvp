@@ -31,6 +31,7 @@ import {
 import { listedFitMovements } from '@/lib/fitness/movement-catalog';
 import {
   SESSION_KIND_OPTIONS,
+  SYS_COACH_AWAY_CODE,
   SYS_COACH_TIME_CODE,
   SYS_PT_CODE,
   durationFromStartEnd,
@@ -62,6 +63,12 @@ import { normalizeWorkingHours } from '@/lib/schedule/working-hours';
 import { AdvisorExpandablePanel } from '@/components/advisors/AdvisorExpandablePanel';
 import { AdvisorWaitlistDesk } from '@/components/services/AdvisorWaitlistDesk';
 import { buildDeskSlotWaitlist } from '@/lib/services/advisor-waitlist-desk';
+import {
+  STAFF_AWAY_REASON_OPTIONS,
+  awayUntilRecurrence,
+  isGymDiaryBlockKind,
+  staffAwayTitle,
+} from '@/lib/services/staff-away';
 
 export default function CalendarPage() {
   const { companyId, store, loading, saving, post, summary, load } =
@@ -98,6 +105,8 @@ export default function CalendarPage() {
     notes: '',
     status: 'scheduled',
     programme_id: '',
+    personal_reason: 'leave',
+    until: '',
   });
   const [recurrence, setRecurrence] = useState<RecurrenceFormValue>(
     emptyRecurrenceForm
@@ -138,6 +147,8 @@ export default function CalendarPage() {
     notes: '',
     status: 'scheduled',
     programme_id: '',
+    personal_reason: 'leave',
+    until: '',
   });
 
   /** Open an existing class from the calendar grid for view / edit. */
@@ -179,6 +190,8 @@ export default function CalendarPage() {
       notes: s.notes || '',
       status: s.status || 'scheduled',
       programme_id: s.programme_id || '',
+      personal_reason: s.personal_reason || 'leave',
+      until: '',
     });
     setRecurrence(emptyRecurrenceForm());
     setEditorOpen(true);
@@ -246,11 +259,14 @@ export default function CalendarPage() {
         });
         const noteTitle = (s.notes || '').split('\n')[0]?.trim();
         const title =
-          kind === 'coach_personal'
-            ? noteTitle || 'Coach personal'
-            : kind === 'private_pt'
-              ? `PT · ${ct?.name || 'Personal training'}`
-              : ct?.name || 'Class';
+          kind === 'away'
+            ? staffAwayTitle(s.personal_reason) +
+              (noteTitle ? ` · ${noteTitle}` : '')
+            : kind === 'coach_personal'
+              ? noteTitle || 'Coach personal'
+              : kind === 'private_pt'
+                ? `PT · ${ct?.name || 'Personal training'}`
+                : ct?.name || 'Class';
         const names = sessionRosterNames(store, s.id);
         const namePreview =
           names.length === 0
@@ -273,9 +289,11 @@ export default function CalendarPage() {
           status: s.status,
           public: s.public === true,
           meta:
-            kind === 'coach_personal'
-              ? `Personal block${s.room ? ` · ${s.room}` : ''}`
-              : namePreview,
+            kind === 'away'
+              ? staffAwayTitle(s.personal_reason)
+              : kind === 'coach_personal'
+                ? `Personal block${s.room ? ` · ${s.room}` : ''}`
+                : namePreview,
           tone: sessionKindTone(kind),
         };
       });
@@ -421,7 +439,7 @@ export default function CalendarPage() {
       return;
     }
     if (form.session_kind !== 'class' && !form.coach_id) {
-      toast.error('Pick a coach for private PT or personal time');
+      toast.error('Pick a coach for private PT, personal time, or away');
       return;
     }
     if (!form.date || !form.start_time) {
@@ -456,6 +474,8 @@ export default function CalendarPage() {
       capacity: form.capacity ? Number(form.capacity) : null,
       class_type_id: form.class_type_id,
       session_kind: form.session_kind,
+      personal_reason:
+        form.session_kind === 'away' ? form.personal_reason : null,
       public: form.session_kind === 'class' && form.public,
       public_notes: form.public_notes || undefined,
       class_plan: form.class_plan || undefined,
@@ -503,7 +523,7 @@ export default function CalendarPage() {
       return;
     }
     if (form.session_kind !== 'class' && !form.coach_id) {
-      toast.error('Pick a coach for private PT or personal time');
+      toast.error('Pick a coach for private PT, personal time, or away');
       return;
     }
     if (!form.date || !form.start_time) {
@@ -514,18 +534,30 @@ export default function CalendarPage() {
       start_time: form.start_time,
       end_time: form.end_time,
     });
-    if (recurrence.frequency !== 'none') {
-      const recErr = validateRecurrenceForm(recurrence);
+    const awayUntil = awayUntilRecurrence(form.date, form.until);
+    const useSeries =
+      recurrence.frequency !== 'none' ||
+      (form.session_kind === 'away' && Boolean(awayUntil));
+    if (useSeries) {
+      const recErr =
+        recurrence.frequency !== 'none'
+          ? validateRecurrenceForm(recurrence)
+          : null;
       if (recErr) {
         toast.error(recErr);
         return;
       }
-      const payload = recurrenceApiPayload(recurrence, form.date);
+      const payload =
+        recurrence.frequency !== 'none'
+          ? recurrenceApiPayload(recurrence, form.date)
+          : awayUntil;
       const data = await post({
         action: 'create_session_series',
         coach_id: form.coach_id || null,
         class_type_id: form.class_type_id,
         session_kind: form.session_kind,
+        personal_reason:
+          form.session_kind === 'away' ? form.personal_reason : undefined,
         date: form.date,
         start_time: createTimes.start_time,
         end_time: createTimes.end_time,
@@ -538,6 +570,7 @@ export default function CalendarPage() {
         class_plan: form.class_plan.trim() || undefined,
         notes: form.notes.trim() || undefined,
         programme_id: form.programme_id || null,
+        until: form.session_kind === 'away' ? form.until || undefined : undefined,
         ...payload,
       });
       const sessions = (data.sessions || []) as Array<{ id: string }>;
@@ -566,6 +599,8 @@ export default function CalendarPage() {
         id: sessionId,
         class_type_id: form.class_type_id,
         session_kind: form.session_kind,
+        personal_reason:
+          form.session_kind === 'away' ? form.personal_reason : undefined,
         coach_id: form.coach_id || null,
         date: form.date,
         start_time: createTimes.start_time,
@@ -583,7 +618,9 @@ export default function CalendarPage() {
       },
     });
     toast.success(
-      form.session_kind === 'coach_personal'
+      form.session_kind === 'away'
+        ? 'Away marked on the calendar'
+        : form.session_kind === 'coach_personal'
         ? 'Personal time blocked on the calendar'
         : form.session_kind === 'private_pt'
           ? 'Private PT booked — add the member in this window'
@@ -959,10 +996,12 @@ export default function CalendarPage() {
             }
             subtitle={
               selectedSessionId
-                ? form.session_kind === 'coach_personal'
+                ? form.session_kind === 'away'
+                  ? 'This person is not available — do not assign them classes'
+                  : form.session_kind === 'coach_personal'
                   ? 'Coach’s own training or blocked diary time'
                   : 'Coach, time and booked members — change the coach if they can’t take this class'
-                : 'Group class, private PT, or coach personal time'
+                : 'Group class, private PT, personal time, or away / leave'
             }
             onClose={closeEditor}
           >
@@ -1026,7 +1065,7 @@ export default function CalendarPage() {
               </div>
             ) : null}
           </div>
-          {selectedSessionId && form.session_kind !== 'coach_personal' ? (
+          {selectedSessionId && !isGymDiaryBlockKind(form.session_kind) ? (
             <div className="mb-3 rounded-2xl border border-yellow-300 bg-yellow-50 px-3 py-3 dark:border-yellow-700 dark:bg-yellow-950/40">
               <p className="text-[10px] font-black uppercase tracking-wide text-yellow-800 dark:text-yellow-200">
                 Coach for this session
@@ -1099,13 +1138,18 @@ export default function CalendarPage() {
             submitLabel={
               selectedSessionId
                 ? 'Save changes'
-                : recurrence.frequency !== 'none'
-                  ? form.session_kind === 'coach_personal'
+                : recurrence.frequency !== 'none' ||
+                    (form.session_kind === 'away' && Boolean(form.until))
+                  ? form.session_kind === 'away'
+                    ? 'Mark away (all days)'
+                    : form.session_kind === 'coach_personal'
                     ? 'Block repeating personal time'
                     : form.session_kind === 'private_pt'
                       ? 'Create PT series'
                       : 'Create class series'
-                  : form.session_kind === 'coach_personal'
+                  : form.session_kind === 'away'
+                    ? 'Mark away'
+                    : form.session_kind === 'coach_personal'
                     ? 'Block personal time'
                     : form.session_kind === 'private_pt'
                       ? 'Book private PT'
@@ -1164,7 +1208,36 @@ export default function CalendarPage() {
                 </option>
               ))}
             </select>
-            {form.session_kind !== 'coach_personal' ? (
+            {form.session_kind === 'away' ? (
+              <>
+                <select
+                  className={fc()}
+                  value={form.personal_reason}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, personal_reason: e.target.value }))
+                  }
+                >
+                  {STAFF_AWAY_REASON_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                {!selectedSessionId ? (
+                  <input
+                    className={fc()}
+                    type="date"
+                    title="Last day away (optional)"
+                    value={form.until}
+                    min={form.date}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, until: e.target.value }))
+                    }
+                  />
+                ) : null}
+              </>
+            ) : null}
+            {!isGymDiaryBlockKind(form.session_kind) ? (
               <select
                 className={fc()}
                 value={form.class_type_id}
@@ -1199,8 +1272,11 @@ export default function CalendarPage() {
                   .filter((c) =>
                     c.active !== false &&
                     (form.session_kind === 'private_pt'
-                      ? c.code !== SYS_COACH_TIME_CODE
-                      : c.code !== SYS_PT_CODE && c.code !== SYS_COACH_TIME_CODE)
+                      ? c.code !== SYS_COACH_TIME_CODE &&
+                        c.code !== SYS_COACH_AWAY_CODE
+                      : c.code !== SYS_PT_CODE &&
+                        c.code !== SYS_COACH_TIME_CODE &&
+                        c.code !== SYS_COACH_AWAY_CODE)
                   )
                   .map((c) => (
                     <option key={c.id} value={c.id}>
@@ -1311,7 +1387,7 @@ export default function CalendarPage() {
                 }
               />
             )}
-            {form.session_kind !== 'coach_personal' ? (
+            {!isGymDiaryBlockKind(form.session_kind) ? (
               <input
                 className={fc()}
                 type="number"
@@ -1322,10 +1398,14 @@ export default function CalendarPage() {
                 }
               />
             ) : null}
-            {form.session_kind === 'coach_personal' ? (
+            {isGymDiaryBlockKind(form.session_kind) ? (
               <textarea
                 className={fc() + ' min-h-[4rem] resize-y sm:col-span-2'}
-                placeholder="What this time is for (private — own training, admin, errands…)"
+                placeholder={
+                  form.session_kind === 'away'
+                    ? 'Optional note (leave, flight, cover coach…)'
+                    : 'What this time is for (private — own training, admin, errands…)'
+                }
                 value={form.notes}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, notes: e.target.value }))
@@ -1354,7 +1434,7 @@ export default function CalendarPage() {
                 <option value="cancelled">Status: cancelled</option>
               </select>
             ) : null}
-            {!selectedSessionId ? (
+            {!selectedSessionId && form.session_kind !== 'away' ? (
               <RecurrenceFields
                 value={recurrence}
                 onChange={setRecurrence}
@@ -1373,7 +1453,9 @@ export default function CalendarPage() {
             {!selectedSessionId ? (
             <p className="sm:col-span-2 lg:col-span-3 text-[11px] text-slate-500 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 px-3 py-2">
               <strong>After create:</strong>{' '}
-              {form.session_kind === 'coach_personal'
+              {form.session_kind === 'away'
+                ? 'this person is marked away. Do not assign them classes until they are back. Last day away is optional.'
+                : form.session_kind === 'coach_personal'
                 ? 'personal time is blocked on the coach diary. Members cannot book it.'
                 : form.session_kind === 'private_pt'
                   ? 'the PT session opens so you can add the member.'
@@ -1384,7 +1466,9 @@ export default function CalendarPage() {
               <a
                 className="sm:col-span-2 text-xs font-bold text-yellow-700 underline"
                 href={`/api/public/advisor/ics?module=fitgraph&date=${encodeURIComponent(form.date)}&start=${encodeURIComponent(form.start_time)}&title=${encodeURIComponent(
-                  form.session_kind === 'coach_personal'
+                  form.session_kind === 'away'
+                    ? staffAwayTitle(form.personal_reason)
+                    : form.session_kind === 'coach_personal'
                     ? form.notes.split('\n')[0] || 'Coach personal time'
                     : form.session_kind === 'private_pt'
                       ? 'Private PT'
@@ -1457,7 +1541,7 @@ export default function CalendarPage() {
                 );
               })()
             : null}
-          {selectedSessionId && store && form.session_kind !== 'coach_personal' ? (
+          {selectedSessionId && store && !isGymDiaryBlockKind(form.session_kind) ? (
             <div className="mt-4 space-y-3">
               {(() => {
                 const s = store.sessions.find((x) => x.id === selectedSessionId);

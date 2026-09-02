@@ -168,6 +168,7 @@ export default function ClinicianPortalPage() {
     location: '',
     patient_id: '',
     public: false,
+    until: '',
   });
 
   const weekEnd = useMemo(() => addDaysIso(weekStart, 6), [weekStart]);
@@ -945,7 +946,7 @@ export default function ClinicianPortalPage() {
               }
             >
               <option value="consult">Patient appointment</option>
-              <option value="personal">Own time / leave</option>
+              <option value="personal">Own time / away</option>
             </select>
             {create.appointment_kind === 'personal' ? (
               <>
@@ -957,17 +958,38 @@ export default function ClinicianPortalPage() {
                       ...f,
                       personal_reason: e.target.value,
                       start_time:
-                        e.target.value === 'leave' ? '08:00' : f.start_time,
+                        ['leave', 'away', 'sick', 'travel'].includes(
+                          e.target.value
+                        )
+                          ? '08:00'
+                          : f.start_time,
                       end_time:
-                        e.target.value === 'leave' ? '17:00' : f.end_time,
+                        ['leave', 'away', 'sick', 'travel'].includes(
+                          e.target.value
+                        )
+                          ? '17:00'
+                          : f.end_time,
                     }))
                   }
                 >
-                  <option value="personal">Personal</option>
+                  <option value="away">Away</option>
                   <option value="leave">Leave</option>
+                  <option value="sick">Sick</option>
+                  <option value="travel">Travel</option>
+                  <option value="personal">Personal</option>
                   <option value="admin">Admin / paperwork</option>
                   <option value="other">Other</option>
                 </select>
+                <input
+                  type="date"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+                  title="Last day away (optional)"
+                  value={create.until}
+                  min={create.date}
+                  onChange={(e) =>
+                    setCreate((f) => ({ ...f, until: e.target.value }))
+                  }
+                />
                 <input
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
                   placeholder="Note (optional)"
@@ -1046,7 +1068,8 @@ export default function ClinicianPortalPage() {
             </select>
             ) : (
               <p className="text-[11px] text-slate-400">
-                Blocks your diary. Patients cannot book this time.
+                Marks you away on the practice diary so appointments are not
+                assigned to you. Last day away is optional.
               </p>
             )}
             <button
@@ -1061,6 +1084,7 @@ export default function ClinicianPortalPage() {
                   action: 'create_appointment',
                   appointment_kind: create.appointment_kind,
                   personal_reason: create.personal_reason,
+                  until: create.until || undefined,
                   notes: create.notes || undefined,
                   service_id: create.service_id,
                   date: create.date,

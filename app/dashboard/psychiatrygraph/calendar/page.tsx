@@ -32,6 +32,7 @@ import {
   buildDeskSlotWaitlist,
 } from '@/lib/services/advisor-waitlist-desk';
 import { ClinicDiaryKindFields } from '@/components/clinic/ClinicDiaryKindFields';
+import { awayUntilRecurrence } from '@/lib/services/staff-away';
 import { ClinicAppointmentVisitDesk } from '@/components/clinic/ClinicAppointmentVisitDesk';
 import { appointmentVisitPatients } from '@/lib/clinic/appointment-visit';
 import { ClinicBookedRoster } from '@/components/clinic/ClinicBookedRoster';
@@ -72,6 +73,7 @@ export default function CalendarPage() {
     status: 'scheduled',
     patient_id: '',
     family_member_id: '',
+    until: '',
   });
   const [recurrence, setRecurrence] = useState<RecurrenceFormValue>(
     emptyRecurrenceForm
@@ -115,6 +117,7 @@ export default function CalendarPage() {
       status: a.status || 'scheduled',
       patient_id: '',
       family_member_id: '',
+      until: '',
     });
     setEditorOpen(true);
   };
@@ -143,6 +146,7 @@ export default function CalendarPage() {
       status: 'scheduled',
       patient_id: '',
       family_member_id: '',
+      until: '',
     }));
     setEditorOpen(true);
   };
@@ -362,13 +366,20 @@ export default function CalendarPage() {
       services: store?.services || [],
     });
 
-    if (!selectedId && recurrence.frequency !== 'none') {
-      const recErr = validateRecurrenceForm(recurrence);
+    const untilRec = awayUntilRecurrence(form.date, form.until);
+    if (!selectedId && (recurrence.frequency !== 'none' || untilRec)) {
+      const recErr =
+        recurrence.frequency !== 'none'
+          ? validateRecurrenceForm(recurrence)
+          : null;
       if (recErr) {
         toast.error(recErr);
         return;
       }
-      const payload = recurrenceApiPayload(recurrence, form.date);
+      const payload =
+        recurrence.frequency !== 'none'
+          ? recurrenceApiPayload(recurrence, form.date)
+          : untilRec;
       try {
         const data = await post({
           action: 'create_appointment_series',
@@ -722,6 +733,8 @@ export default function CalendarPage() {
                 }
                 onNotes={(notes) => setForm((f) => ({ ...f, notes }))}
                 onEndTime={(end_time) => setForm((f) => ({ ...f, end_time }))}
+                until={form.until}
+                onUntil={(until) => setForm((f) => ({ ...f, until }))}
               />
               {form.appointment_kind !== 'personal' ? (
               <select

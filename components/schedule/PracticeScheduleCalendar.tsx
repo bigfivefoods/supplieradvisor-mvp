@@ -43,7 +43,15 @@ export type ScheduleEvent = {
   public?: boolean;
   meta?: string;
   /** Tailwind-ish tone key */
-  tone?: 'violet' | 'teal' | 'sky' | 'emerald' | 'amber' | 'indigo' | 'yellow';
+  tone?:
+    | 'violet'
+    | 'teal'
+    | 'sky'
+    | 'emerald'
+    | 'amber'
+    | 'indigo'
+    | 'yellow'
+    | 'rose';
 };
 
 export type SchedulePerson = {
@@ -282,6 +290,19 @@ const TONE: Record<
     monthHover: 'hover:border-yellow-300 dark:hover:border-yellow-600',
     printBar: '#E8E830',
     printBg: '#fefce8',
+  },
+  rose: {
+    chip: 'bg-rose-100 text-rose-950 border-rose-300 dark:bg-rose-950 dark:text-rose-100 dark:border-rose-800',
+    bar: 'bg-rose-500',
+    soft: 'bg-rose-50/80 dark:bg-rose-950/30',
+    hint: 'text-rose-700 dark:text-rose-300',
+    slotHover: 'hover:bg-rose-50/40 dark:hover:bg-rose-950/20',
+    todayBorder: 'border-rose-400 dark:border-rose-500',
+    todayText: 'text-rose-800 dark:text-rose-300',
+    todayRing: 'ring-2 ring-rose-400/60',
+    monthHover: 'hover:border-rose-300 dark:hover:border-rose-600',
+    printBar: '#e11d48',
+    printBg: '#fff1f2',
   },
 };
 

@@ -23,6 +23,7 @@ import {
 import { addDaysIso } from '@/lib/fitness/fitgraph';
 import {
   SESSION_KIND_OPTIONS,
+  SYS_COACH_AWAY_CODE,
   SYS_COACH_TIME_CODE,
   SYS_PT_CODE,
   durationFromStartEnd,
@@ -81,6 +82,10 @@ import type {
   FitProgramme,
 } from '@/lib/fitness/movements';
 import { gymPwaCompactFieldClass, gymPwaFieldClass } from '@/lib/fitness/gym-pwa-theme';
+import {
+  STAFF_AWAY_REASON_OPTIONS,
+  staffAwayTitle,
+} from '@/lib/services/staff-away';
 
 type RosterRow = {
   booking_id: string;
@@ -115,6 +120,7 @@ type PortalSession = {
     status: string;
     series_id?: string | null;
     session_kind?: import('@/lib/fitness/session-times').FitSessionKind;
+    personal_reason?: string | null;
     coach_id?: string | null;
     origin?: string | null;
     notes?: string;
@@ -365,6 +371,7 @@ type CoachLaneId = 'workouts' | 'classes' | 'clients';
 
 function laneOf(card: PortalSession): CoachLaneId {
   const kind = card.session.session_kind;
+  if (kind === 'away') return 'workouts';
   if (kind === 'coach_personal') return 'workouts';
   if (kind === 'private_pt') return 'clients';
   return 'classes';
@@ -374,6 +381,7 @@ function programmesForLane(
   programmes: FitProgramme[],
   kind: FitSessionKind
 ) {
+  if (kind === 'away') return [];
   return programmes.filter((p) => {
     if (kind === 'class') {
       return (
@@ -440,6 +448,8 @@ export default function CoachFitgraphPortalPage() {
     public: false,
     programme_id: '',
     shared_coach_id: '',
+    personal_reason: 'leave',
+    until: '',
   });
   const [classPlanDraft, setClassPlanDraft] = useState('');
   const [sessionEdit, setSessionEdit] = useState<SessionEditForm | null>(null);
@@ -774,6 +784,7 @@ export default function CoachFitgraphPortalPage() {
       String(a.session.start_time).localeCompare(String(b.session.start_time))
     );
   const slotBadge = (card: PortalSession) => {
+    if (card.session.session_kind === 'away') return 'Away';
     if (card.session.session_kind === 'coach_personal') return 'Personal';
     if (slotSource(card) === 'owner') return 'Gym booked';
     if (card.session.session_kind === 'private_pt') return 'Your PT';
@@ -788,7 +799,9 @@ export default function CoachFitgraphPortalPage() {
       subscribed: card.subscribed,
     });
     const title =
-      card.session.session_kind === 'coach_personal'
+      card.session.session_kind === 'away'
+        ? staffAwayTitle(card.session.personal_reason)
+        : card.session.session_kind === 'coach_personal'
         ? card.session.notes?.split('\n')[0] || 'Workout'
         : card.session.session_kind === 'private_pt'
           ? `PT · ${who.person || card.class_name || 'Client'}`
@@ -1494,7 +1507,7 @@ export default function CoachFitgraphPortalPage() {
               </button>
             </div>
 
-            {sessionEdit ? (
+            {sessionEdit && openCard.session.session_kind !== 'away' ? (
               <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
                   {sessionEdit.session_kind === 'coach_personal'
@@ -3001,7 +3014,9 @@ export default function CoachFitgraphPortalPage() {
           <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-5 space-y-3 text-slate-900 dark:border-white/15 dark:bg-neutral-950 dark:text-white">
             <GymPwaSheet
               title={
-                create.session_kind === 'coach_personal'
+                create.session_kind === 'away'
+                  ? "I'm away"
+                  : create.session_kind === 'coach_personal'
                   ? 'Plan workout'
                   : create.session_kind === 'private_pt'
                     ? 'Private client session'
@@ -3029,7 +3044,40 @@ export default function CoachFitgraphPortalPage() {
                 </option>
               ))}
             </select>
-            {create.session_kind !== 'coach_personal' ? (
+            {create.session_kind === 'away' ? (
+              <>
+                <select
+                  className={gymPwaFieldClass}
+                  value={create.personal_reason}
+                  onChange={(e) =>
+                    setCreate((f) => ({
+                      ...f,
+                      personal_reason: e.target.value,
+                    }))
+                  }
+                >
+                  {STAFF_AWAY_REASON_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="date"
+                  className={gymPwaFieldClass}
+                  title="Last day away (optional)"
+                  value={create.until}
+                  min={create.date}
+                  onChange={(e) =>
+                    setCreate((f) => ({ ...f, until: e.target.value }))
+                  }
+                />
+                <p className="text-[10px] text-slate-400">
+                  Last day away is optional. The gym diary shows you as not
+                  available so classes are not assigned to you.
+                </p>
+              </>
+            ) : create.session_kind !== 'coach_personal' ? (
               <select
                 className={gymPwaFieldClass}
                 value={create.class_type_id}
@@ -3045,8 +3093,11 @@ export default function CoachFitgraphPortalPage() {
                 {portal.class_types
                   .filter((c) =>
                     create.session_kind === 'private_pt'
-                      ? c.code !== SYS_COACH_TIME_CODE
-                      : c.code !== SYS_PT_CODE && c.code !== SYS_COACH_TIME_CODE
+                      ? c.code !== SYS_COACH_TIME_CODE &&
+                        c.code !== SYS_COACH_AWAY_CODE
+                      : c.code !== SYS_PT_CODE &&
+                        c.code !== SYS_COACH_TIME_CODE &&
+                        c.code !== SYS_COACH_AWAY_CODE
                   )
                   .map((c) => (
                     <option key={c.id} value={c.id}>
@@ -3264,11 +3315,24 @@ export default function CoachFitgraphPortalPage() {
                 });
                 void post({
                   action:
-                    create.repeat === 'weekly'
+                    create.repeat === 'weekly' ||
+                    (create.session_kind === 'away' && Boolean(create.until))
                       ? 'create_series'
                       : 'create_session',
                   class_type_id: create.class_type_id,
                   session_kind: create.session_kind,
+                  personal_reason:
+                    create.session_kind === 'away'
+                      ? create.personal_reason
+                      : undefined,
+                  until:
+                    create.session_kind === 'away'
+                      ? create.until || undefined
+                      : undefined,
+                  frequency:
+                    create.session_kind === 'away' && create.until
+                      ? 'daily'
+                      : undefined,
                   programme_id: create.programme_id || null,
                   shared_coach_ids:
                     create.session_kind === 'coach_personal' &&
