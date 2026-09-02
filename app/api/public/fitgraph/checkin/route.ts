@@ -162,6 +162,15 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
+    const payloadUpdatedAt =
+      typeof body.updated_at === 'string' && body.updated_at.trim()
+        ? body.updated_at.trim()
+        : typeof body.if_updated_at === 'string' && body.if_updated_at.trim()
+          ? body.if_updated_at.trim()
+          : null;
+    if (payloadUpdatedAt) {
+      resolved.meta.__if_updated_at = payloadUpdatedAt;
+    }
 
     const client = findClientForCheckIn(resolved.store, {
       member_token: body.member_token || body.portal_token,
@@ -236,12 +245,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-    const payloadUpdatedAt =
-      typeof body.updated_at === 'string' && body.updated_at.trim()
-        ? body.updated_at.trim()
-        : typeof body.if_updated_at === 'string' && body.if_updated_at.trim()
-          ? body.if_updated_at.trim()
-          : null;
-    if (payloadUpdatedAt) {
-      resolved.meta.__if_updated_at = payloadUpdatedAt;
-    }
