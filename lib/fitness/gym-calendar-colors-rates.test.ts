@@ -71,7 +71,9 @@ assert.match(cal, /GymDiaryColorEditor/);
 assert.match(cal, /Member \/ private client/);
 assert.match(cal, /Agreed rate \(ZAR\)/);
 assert.match(cal, /store\.clients/);
+assert.match(cal, /save_calendar_sessions/);
 assert.doesNotMatch(cal, /Private client \(member\)/);
+assert.doesNotMatch(cal, /entity: 'clients'/);
 
 const classes = readFileSync(
   resolve('app/dashboard/fitgraph/classes/page.tsx'),

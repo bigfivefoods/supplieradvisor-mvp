@@ -409,6 +409,42 @@ export function bookDeskMemberOntoSession(
   return status;
 }
 
+/** Book a private-PT member onto sessions and optionally stamp their agreed rate.
+ * Desk-only — does not hit CRM / wallet. */
+export function applyPrivatePtBooking(
+  store: FitgraphStore,
+  opts: {
+    sessionIds: string[];
+    clientId: string;
+    now: string;
+    rateZar?: number | null;
+  }
+): { added: number; skipped: number } {
+  const client = store.clients.find((c) => c.id === opts.clientId);
+  if (!client) {
+    return { added: 0, skipped: opts.sessionIds.length };
+  }
+  let added = 0;
+  let skipped = 0;
+  for (const id of opts.sessionIds) {
+    const session = store.sessions.find((s) => s.id === id);
+    if (!session) {
+      skipped += 1;
+      continue;
+    }
+    const result = bookDeskMemberOntoSession(store, session, client, opts.now, {
+      force: true,
+    });
+    if (result === 'skipped') skipped += 1;
+    else added += 1;
+  }
+  if (opts.rateZar != null && Number.isFinite(Number(opts.rateZar))) {
+    client.private_rate_zar = Number(opts.rateZar);
+    client.updated_at = opts.now;
+  }
+  return { added, skipped };
+}
+
 function bookMemberOntoUpcoming(
   store: FitgraphStore,
   client: FitClient,
