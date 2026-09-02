@@ -182,6 +182,100 @@ async function savePatch(
   return saveFitgraphPatch(companyId, patch, { ifUpdatedAt });
 }
 
+type PatchKey = keyof FitgraphStore;
+
+export function deskUpsertPatchKeys(entity: Entity): PatchKey[] | null {
+  switch (entity) {
+    case 'coaches':
+      return ['coaches'];
+    case 'clients':
+      return ['clients'];
+    case 'membership_plans':
+      return ['membership_plans', 'class_types'];
+    case 'subscriptions':
+      return ['subscriptions', 'clients'];
+    case 'class_types':
+      return ['class_types'];
+    case 'sessions':
+      return ['sessions', 'bookings'];
+    case 'bookings':
+      return ['bookings', 'pt_packs'];
+    case 'check_ins':
+      return ['check_ins'];
+    case 'pt_packs':
+      return ['pt_packs'];
+    case 'movements':
+      return null;
+    case 'programmes':
+      return ['programmes'];
+    case 'programme_enrollments':
+      return ['programme_enrollments'];
+    case 'programme_logs':
+      return ['programme_logs'];
+    case 'leaderboard_activities':
+      return ['leaderboard_activities'];
+    default:
+      return null;
+  }
+}
+
+export function deskDeletePatchKeys(entity: Entity): PatchKey[] | null {
+  switch (entity) {
+    case 'coaches':
+      return ['coaches'];
+    case 'clients':
+      return ['clients'];
+    case 'membership_plans':
+      return ['membership_plans'];
+    case 'subscriptions':
+      return ['subscriptions'];
+    case 'class_types':
+      return ['class_types'];
+    case 'sessions':
+      return ['sessions', 'bookings', 'removed_ids'];
+    case 'bookings':
+      return ['bookings'];
+    case 'check_ins':
+      return ['check_ins'];
+    case 'pt_packs':
+      return ['pt_packs'];
+    case 'movements':
+      return null;
+    case 'programmes':
+      return ['programmes', 'sessions', 'programme_enrollments'];
+    case 'programme_enrollments':
+      return ['programme_enrollments'];
+    case 'programme_logs':
+      return ['programme_logs'];
+    case 'leaderboard_activities':
+      return ['leaderboard_activities', 'leaderboard_assignments'];
+    default:
+      return null;
+  }
+}
+
+function buildPatchFromKeys(
+  store: FitgraphStore,
+  keys: readonly PatchKey[]
+): Partial<FitgraphStore> {
+  const patch: Partial<FitgraphStore> = {};
+  for (const key of keys) {
+    patch[key] = store[key];
+  }
+  return patch;
+}
+
+async function saveDeskPatch(
+  companyId: number,
+  meta: Record<string, unknown>,
+  store: FitgraphStore,
+  keys: readonly PatchKey[]
+): Promise<string> {
+  const updatedAt = await savePatch(companyId, meta, buildPatchFromKeys(store, keys));
+  store.updated_at = updatedAt;
+  return updatedAt;
+}
+
 function analysis(store: FitgraphStore) {
   const today = new Date().toISOString().slice(0, 10);
   const weekEnd = new Date();
@@ -2888,7 +2982,12 @@ export async function POST(request: NextRequest) {
             store.bookings = (store.bookings || []).filter(
               (b) => !removeIds.has(b.session_id)
             );
-            await saveStore(companyId, meta, store);
+            const patchKeys = deskDeletePatchKeys(entity);
+            if (patchKeys) {
+              await saveDeskPatch(companyId, meta, store, patchKeys);
+            } else {
+              await saveStore(companyId, meta, store);
+            }
             return NextResponse.json({
               success: true,
               store,
@@ -2918,7 +3017,12 @@ export async function POST(request: NextRequest) {
           );
         }
       }
-      await saveStore(companyId, meta, store);
+      const patchKeys = deskDeletePatchKeys(entity);
+      if (patchKeys) {
+        await saveDeskPatch(companyId, meta, store, patchKeys);
+      } else {
+        await saveStore(companyId, meta, store);
+      }
       return NextResponse.json({
         success: true,
         store,
@@ -3037,7 +3141,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await saveStore(companyId, meta, store);
+    const patchKeys = deskUpsertPatchKeys(entity);
+    if (patchKeys) {
+      await saveDeskPatch(companyId, meta, store, patchKeys);
+    } else {
+      await saveStore(companyId, meta, store);
+    }
     return NextResponse.json({
       success: true,
       store,
