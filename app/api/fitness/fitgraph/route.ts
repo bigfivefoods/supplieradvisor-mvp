@@ -1008,6 +1008,10 @@ export async function POST(request: NextRequest) {
           capacity: body.capacity != null ? Number(body.capacity) : null,
           location: body.location != null ? String(body.location) : undefined,
           room: body.room != null ? String(body.room) : null,
+          agreed_rate_zar:
+            body.agreed_rate_zar != null && body.agreed_rate_zar !== ''
+              ? Number(body.agreed_rate_zar)
+              : null,
           public: body.public === true,
           notes: body.notes != null ? String(body.notes) : undefined,
           public_notes:
@@ -3493,20 +3497,36 @@ function upsert(
   } else if (entity === 'class_types') {
     const id = String(rec.id || newId('cls'));
     const i = store.class_types.findIndex((c) => c.id === id);
+    const prev = i >= 0 ? store.class_types[i] : null;
     const row: FitClassType = {
       id,
-      code: String(rec.code || `T-${store.class_types.length + 1}`),
-      name: String(rec.name || 'Class'),
-      category: rec.category != null ? String(rec.category) : undefined,
+      code: String(rec.code || prev?.code || `T-${store.class_types.length + 1}`),
+      name: String(rec.name || prev?.name || 'Class'),
+      category:
+        rec.category != null
+          ? String(rec.category)
+          : prev?.category,
       default_duration_min:
         rec.default_duration_min != null
           ? Number(rec.default_duration_min)
-          : 45,
-      capacity: rec.capacity != null ? Number(rec.capacity) : 20,
+          : prev?.default_duration_min ?? 45,
+      capacity:
+        rec.capacity != null
+          ? Number(rec.capacity)
+          : prev?.capacity ?? 20,
       description:
-        rec.description != null ? String(rec.description) : undefined,
-      active: rec.active !== false,
-      created_at: i >= 0 ? store.class_types[i].created_at : now,
+        rec.description != null
+          ? String(rec.description)
+          : prev?.description,
+      color:
+        rec.color !== undefined
+          ? rec.color
+            ? String(rec.color)
+            : null
+          : prev?.color ?? null,
+      active:
+        rec.active !== undefined ? rec.active !== false : prev?.active !== false,
+      created_at: prev?.created_at || now,
     };
     if (i >= 0) store.class_types[i] = row;
     else store.class_types.push(row);
@@ -3642,6 +3662,12 @@ function upsert(
             ? String(rec.room)
             : null
           : prev?.room ?? (rec.location != null ? String(rec.location) : null),
+      agreed_rate_zar:
+        rec.agreed_rate_zar !== undefined
+          ? rec.agreed_rate_zar == null || rec.agreed_rate_zar === ''
+            ? null
+            : Number(rec.agreed_rate_zar)
+          : prev?.agreed_rate_zar ?? null,
       status: (rec.status as FitSession['status']) || prev?.status || 'scheduled',
       public: rules.public,
       share_code:

@@ -697,6 +697,8 @@ export type FitClassType = {
   default_duration_min?: number;
   capacity?: number | null;
   description?: string;
+  /** Diary chip colour (hex). */
+  color?: string | null;
   active?: boolean;
   created_at: string;
 };
@@ -723,6 +725,8 @@ export type FitSession = {
   location?: string;
   /** Multi-resource diary: room / studio / court */
   room?: string | null;
+  /** Agreed fee for this session (ZAR), usually private PT. */
+  agreed_rate_zar?: number | null;
   status: 'scheduled' | 'cancelled' | 'completed' | 'full';
   /** Visible on public website / embed calendar */
   public?: boolean;
@@ -2820,6 +2824,7 @@ export function createSessionsFromTemplate(
     capacity?: number | null;
     location?: string;
     room?: string | null;
+    agreed_rate_zar?: number | null;
     public?: boolean;
     notes?: string;
     public_notes?: string;
@@ -2879,6 +2884,11 @@ export function createSessionsFromTemplate(
       capacity: rules.capacity,
       location: template.location,
       room: template.room ?? null,
+      agreed_rate_zar:
+        template.agreed_rate_zar != null &&
+        Number.isFinite(Number(template.agreed_rate_zar))
+          ? Number(template.agreed_rate_zar)
+          : null,
       status: 'scheduled' as const,
       public: rules.public,
       // Always issue a share code so B2C join links work (invite-only or public)

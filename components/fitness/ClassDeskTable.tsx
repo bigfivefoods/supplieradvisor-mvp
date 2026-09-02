@@ -16,9 +16,11 @@ import { MovementMediaFields } from '@/components/fitness/MovementMediaFields';
 import {
   calendarCoverage,
   classRosterPeople,
+  classTypeIdForPlan,
   nextDateForWeekdays,
   suggestClassSchedule,
 } from '@/lib/fitness/class-allocate';
+import { GymColorSwatch } from '@/components/fitness/GymColorSwatch';
 import {
   durationFromStartEnd,
   endFromStartDuration,
@@ -46,6 +48,7 @@ type Draft = {
   pt_credits: string;
   access: string;
   programme_id: string;
+  color: string;
 };
 
 const blankDraft = (): Draft => ({
@@ -64,6 +67,7 @@ const blankDraft = (): Draft => ({
   pt_credits: '',
   access: 'classes',
   programme_id: '',
+  color: '#E8E830',
 });
 
 function draftFromPlan(p: FitMembershipPlan, store: FitgraphStore): Draft {
@@ -85,6 +89,11 @@ function draftFromPlan(p: FitMembershipPlan, store: FitgraphStore): Draft {
     pt_credits: p.pt_credits != null ? String(p.pt_credits) : '',
     access: p.access || 'classes',
     programme_id: p.programme_id || '',
+    color:
+      store.class_types.find((c) => (p.class_type_ids || []).includes(c.id))
+        ?.color ||
+      store.class_types.find((c) => c.code === p.code)?.color ||
+      '#E8E830',
   };
 }
 
@@ -293,6 +302,15 @@ export function ClassDeskTable({
         delete next[planId];
         return next;
       });
+      const planRow = store.membership_plans.find((p) => p.id === planId);
+      const typeId = planRow ? classTypeIdForPlan(store, planRow) : null;
+      if (typeId && d.color) {
+        await post({
+          entity: 'class_types',
+          action: 'upsert',
+          record: { id: typeId, color: d.color },
+        });
+      }
       toast.success((data?.message as string) || 'Saved');
     } catch {
       /* toast from useFitgraph */
@@ -503,6 +521,11 @@ export function ClassDeskTable({
             placeholder="Location"
             value={d.location}
             onChange={(e) => onChange({ location: e.target.value })}
+          />
+          <GymColorSwatch
+            value={d.color}
+            onChange={(hex) => onChange({ color: hex })}
+            label="Calendar colour"
           />
           <textarea
             className={fc() + ' min-h-[4.5rem] resize-y sm:col-span-2 lg:col-span-4'}

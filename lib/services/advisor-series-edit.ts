@@ -41,6 +41,7 @@ export type SeriesPatch = {
   location?: string | null;
   room?: string | null;
   coach_id?: string | null;
+  agreed_rate_zar?: number | null;
   duration_min?: number | null;
   capacity?: number | null;
   class_type_id?: string;
@@ -67,6 +68,7 @@ export function applySeriesPatch<T extends object>(
     location?: string | null;
     room?: string | null;
     coach_id?: string | null;
+    agreed_rate_zar?: number | null;
     duration_min?: number | null;
     capacity?: number | null;
     class_type_id?: string;
@@ -112,6 +114,9 @@ export function applySeriesPatch<T extends object>(
   }
   if (patch.coach_id !== undefined) {
     next.coach_id = patch.coach_id;
+  }
+  if (patch.agreed_rate_zar !== undefined) {
+    next.agreed_rate_zar = patch.agreed_rate_zar;
   }
   if (patch.duration_min !== undefined) {
     next.duration_min = patch.duration_min;

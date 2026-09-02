@@ -53,6 +53,13 @@ export function GymMemberProfileDesk({
   const [passportOpen, setPassportOpen] = useState(true);
   const [pbOpen, setPbOpen] = useState(true);
   const [contractOpen, setContractOpen] = useState(true);
+  const [ratesOpen, setRatesOpen] = useState(true);
+  const [agreedRate, setAgreedRate] = useState(
+    client.agreed_rate_zar != null ? String(client.agreed_rate_zar) : ''
+  );
+  const [privateRate, setPrivateRate] = useState(
+    client.private_rate_zar != null ? String(client.private_rate_zar) : ''
+  );
   const [charges, setCharges] = useState<MemberAccountCharge[]>([]);
   const [accountLoading, setAccountLoading] = useState(true);
 
@@ -65,6 +72,15 @@ export function GymMemberProfileDesk({
       (data.charges || []).filter((c) => String(c.ref_id) === client.id)
     );
   }, [companyId, withAuthJson, client.id]);
+
+  useEffect(() => {
+    setAgreedRate(
+      client.agreed_rate_zar != null ? String(client.agreed_rate_zar) : ''
+    );
+    setPrivateRate(
+      client.private_rate_zar != null ? String(client.private_rate_zar) : ''
+    );
+  }, [client.id, client.agreed_rate_zar, client.private_rate_zar]);
 
   useEffect(() => {
     let cancelled = false;
@@ -306,6 +322,73 @@ export function GymMemberProfileDesk({
             ))}
           </ol>
         )}
+      </AdvisorExpandablePanel>
+
+      <AdvisorExpandablePanel
+        title="Agreed rates"
+        description="Class membership rate and private PT rate. Calendar PT sessions use the private rate (editable per session)."
+        open={ratesOpen}
+        onToggle={() => setRatesOpen((v) => !v)}
+        accentClass="border-yellow-200 bg-yellow-50/50 dark:border-yellow-800 dark:bg-yellow-950/30"
+        titleClass="text-yellow-950 dark:text-yellow-50"
+        hintClass="text-yellow-800/80 dark:text-yellow-200/80"
+      >
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="text-[11px] font-bold text-slate-600">
+            Class / membership (ZAR)
+            <input
+              className="mt-0.5 w-full rounded-xl border border-yellow-200 bg-white px-3 py-2 text-sm font-semibold dark:border-yellow-700 dark:bg-yellow-950 dark:text-yellow-50"
+              type="number"
+              min={0}
+              step="0.01"
+              value={agreedRate}
+              onChange={(e) => setAgreedRate(e.target.value)}
+            />
+          </label>
+          <label className="text-[11px] font-bold text-slate-600">
+            Private PT (ZAR)
+            <input
+              className="mt-0.5 w-full rounded-xl border border-yellow-200 bg-white px-3 py-2 text-sm font-semibold dark:border-yellow-700 dark:bg-yellow-950 dark:text-yellow-50"
+              type="number"
+              min={0}
+              step="0.01"
+              value={privateRate}
+              onChange={(e) => setPrivateRate(e.target.value)}
+            />
+          </label>
+        </div>
+        <button
+          type="button"
+          disabled={saving}
+          className="mt-2 rounded-xl bg-yellow-400 px-3 py-2 text-xs font-black text-slate-900 disabled:opacity-50"
+          onClick={async () => {
+            const parse = (raw: string) => {
+              const t = raw.trim();
+              if (!t) return null;
+              const n = Number(t);
+              return Number.isFinite(n) ? n : Number.NaN;
+            };
+            const agreed = parse(agreedRate);
+            const priv = parse(privateRate);
+            if (Number.isNaN(agreed as number) || Number.isNaN(priv as number)) {
+              toast.error('Rates must be numbers');
+              return;
+            }
+            await post({
+              entity: 'clients',
+              action: 'upsert',
+              record: {
+                id: client.id,
+                agreed_rate_zar: agreed,
+                private_rate_zar: priv,
+              },
+            });
+            toast.success('Agreed rates saved');
+            onRefresh?.();
+          }}
+        >
+          Save rates
+        </button>
       </AdvisorExpandablePanel>
 
       <AdvisorExpandablePanel
