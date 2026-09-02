@@ -111,6 +111,8 @@ import { persistVukaCatalogIfNeeded } from '@/lib/fitness/vuka-class-catalog';
 import { applyMemberDebitBank } from '@/lib/fitness/member-debit-bank';
 import {
   allocateMemberToClass,
+  applyPrivatePtBooking,
+  bookDeskMemberOntoSession,
   mergeSubscribersIntoCoachSessions,
   scheduleClassOnCalendar,
   setClassMembers,
@@ -1033,9 +1035,6 @@ export async function POST(request: NextRequest) {
       }
       const ptClientId = String(body.client_id || '').trim();
       if (resolved.kind === 'private_pt' && ptClientId) {
-        const { applyPrivatePtBooking } = await import(
-          '@/lib/fitness/class-allocate'
-        );
         const rateRaw = body.agreed_rate_zar;
         applyPrivatePtBooking(store, {
           sessionIds: created.map((s) => s.id),
@@ -1113,13 +1112,10 @@ export async function POST(request: NextRequest) {
             isAnchor,
             newDate: isAnchor ? newDate : undefined,
           }
-        );
+        ) as (typeof store.sessions)[number];
       }
       const ptClientId = String(body.client_id || '').trim();
       if (ptClientId) {
-        const { applyPrivatePtBooking } = await import(
-          '@/lib/fitness/class-allocate'
-        );
         const rateRaw = body.agreed_rate_zar ?? patch.agreed_rate_zar;
         applyPrivatePtBooking(store, {
           sessionIds: ids,
@@ -2638,9 +2634,6 @@ export async function POST(request: NextRequest) {
       if (blocked) {
         return NextResponse.json({ error: blocked }, { status: 400 });
       }
-      const { bookDeskMemberOntoSession } = await import(
-        '@/lib/fitness/class-allocate'
-      );
       const { dedupeFitgraphBookings } = await import(
         '@/lib/fitness/gym-bookings'
       );
@@ -2945,7 +2938,7 @@ export async function POST(request: NextRequest) {
       success: true,
       store,
       summary: summariseFitgraph(store),
-      analysis: analysis(store),
+      ...(body.lite === true ? {} : { analysis: analysis(store) }),
       people_sync: peopleSync,
       invite_sent: walletInvite?.email_sent,
       invite_link: walletInvite?.invite_link,
@@ -3789,15 +3782,9 @@ function upsert(
     if (!row.session_kind || row.session_kind === 'class') {
       stampCatalogSeriesAndBookSubscribers(store, [row], now);
     }
-    const ptClientId = String(rec.client_id || body.client_id || '').trim();
+    const ptClientId = String(rec.client_id || '').trim();
     if (resolved.kind === 'private_pt' && ptClientId) {
-      const { applyPrivatePtBooking } = await import(
-        '@/lib/fitness/class-allocate'
-      );
-      const rateRaw =
-        rec.agreed_rate_zar !== undefined
-          ? rec.agreed_rate_zar
-          : body.agreed_rate_zar;
+      const rateRaw = rec.agreed_rate_zar;
       applyPrivatePtBooking(store, {
         sessionIds: [row.id],
         clientId: ptClientId,

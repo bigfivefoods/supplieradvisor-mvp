@@ -28,6 +28,11 @@ const route = readFileSync(
 assert.match(route, /action === 'save_calendar_sessions'/);
 assert.match(route, /applyPrivatePtBooking/);
 assert.match(route, /body\.lite !== true && rec\.lite !== true/);
+assert.doesNotMatch(
+  route,
+  /await import\(\s*['"]@\/lib\/fitness\/class-allocate['"]/
+);
+assert.match(cal, /lite: true/);
 
 const store = emptyFitgraphStore();
 store.clients.push({

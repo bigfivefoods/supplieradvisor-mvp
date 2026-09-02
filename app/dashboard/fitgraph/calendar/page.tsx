@@ -649,6 +649,7 @@ export default function CalendarPage() {
     await post({
       entity: 'sessions',
       action: 'upsert',
+      lite: true,
       record: {
         id: sessionId,
         class_type_id: form.class_type_id,
