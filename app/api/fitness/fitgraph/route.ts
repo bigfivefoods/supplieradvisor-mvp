@@ -1084,13 +1084,11 @@ export async function POST(request: NextRequest) {
       if (!selected) {
         return NextResponse.json({ error: 'Class not found' }, { status: 400 });
       }
-      const { resolveSeriesEditIds, applySeriesPatch } = await import(
-        '@/lib/services/advisor-series-edit'
-      );
+      const seriesEdit = await import('@/lib/services/advisor-series-edit');
       const scopeRaw = String(body.scope || 'one');
       const scope =
         scopeRaw === 'future' || scopeRaw === 'all' ? scopeRaw : 'one';
-      const ids = resolveSeriesEditIds(
+      const ids = seriesEdit.resolveSeriesEditIds(
         store.sessions.map((s) => ({
           id: s.id,
           date: s.date,
@@ -1099,15 +1097,23 @@ export async function POST(request: NextRequest) {
         selected.id,
         scope
       );
-      const patch = (body.patch || {}) as Record<string, unknown>;
+      const rawPatch = (body.patch || {}) as Record<string, unknown>;
+      const patch =
+        rawPatch as import('@/lib/services/advisor-series-edit').SeriesPatch;
+      const newDate =
+        rawPatch.date != null ? String(rawPatch.date) : undefined;
       for (const id of ids) {
         const i = store.sessions.findIndex((s) => s.id === id);
         if (i < 0) continue;
         const isAnchor = id === selected.id;
-        store.sessions[i] = applySeriesPatch(store.sessions[i], patch, {
-          isAnchor,
-          newDate: isAnchor && patch.date ? String(patch.date) : undefined,
-        });
+        store.sessions[i] = seriesEdit.applySeriesPatch(
+          store.sessions[i],
+          patch,
+          {
+            isAnchor,
+            newDate: isAnchor ? newDate : undefined,
+          }
+        );
       }
       const ptClientId = String(body.client_id || '').trim();
       if (ptClientId) {
