@@ -39,16 +39,16 @@ const bookings = readFileSync(
   resolve('app/dashboard/fitgraph/bookings/page.tsx'),
   'utf8'
 );
-assert.match(bookings, /class roster/);
-assert.match(bookings, /sessionCards/);
+assert.match(bookings, /call in the plan/);
 assert.match(bookings, /addSessions/);
 assert.match(bookings, /Search member/);
 assert.match(bookings, /mark_attendance/);
 assert.match(bookings, /AdvisorMemberJoinInbox/);
 assert.match(bookings, /AdvisorWaitlistDesk/);
 assert.match(bookings, /issue_class_invite/);
-assert.match(bookings, /copyFeedback/);
-assert.match(bookings, /Open on calendar/);
+assert.match(bookings, /gymPlanWeek/);
+assert.match(bookings, /This week/);
+assert.match(bookings, /Custom/);
 
 const website = readFileSync(
   resolve('app/dashboard/fitgraph/website/page.tsx'),

@@ -2,25 +2,37 @@
 
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { ChevronLeft, ChevronRight, Search, Share2 } from 'lucide-react';
 import {
   FitgraphWorkbench,
   LoadingBlock,
   useFitgraph,
 } from '@/components/fitness/FitgraphWorkbench';
-import { Copy, Share2, ChevronDown, Search } from 'lucide-react';
 import { FormCard, StatRow, fc } from '@/components/fitness/FitForm';
-import { sessionBookingCount, type FitBooking } from '@/lib/fitness/fitgraph';
+import { GymBookingPlanBoard } from '@/components/fitness/GymBookingPlanBoard';
 import { buildPublicFeedbackPath } from '@/lib/services/booking-feedback';
 import { AdvisorWaitlistDesk } from '@/components/services/AdvisorWaitlistDesk';
 import { AdvisorMemberJoinInbox } from '@/components/advisors/AdvisorMemberJoinInbox';
 import { buildDeskSlotWaitlist } from '@/lib/services/advisor-waitlist-desk';
 import { isoDateInZone } from '@/lib/fitness/gym-local-time';
 import { addDaysIso } from '@/lib/schedule/recurrence';
+import { openCloseOn } from '@/lib/schedule/working-hours';
+import {
+  gymPlanClassesOnDate,
+  gymPlanDateLabel,
+  gymPlanDayHeading,
+  gymPlanMonday,
+  gymPlanWeek,
+  type GymPlanClass,
+  type GymPlanFilter,
+  type GymPlanMember,
+} from '@/lib/fitness/gym-booking-plan';
 import {
   SYS_COACH_AWAY_CODE,
   SYS_COACH_TIME_CODE,
   SYS_PT_CODE,
 } from '@/lib/fitness/session-times';
+import { sessionBookingCount } from '@/lib/fitness/fitgraph';
 
 const HIDE_CLASS = new Set([
   SYS_PT_CODE,
@@ -28,7 +40,7 @@ const HIDE_CLASS = new Set([
   SYS_COACH_AWAY_CODE,
 ]);
 
-type RangeId = 'today' | 'week' | 'upcoming' | 'all';
+type RangeId = 'today' | 'week' | 'custom';
 
 export default function BookingsPage() {
   const { companyId, store, loading, saving, post, summary, load } =
@@ -38,14 +50,104 @@ export default function BookingsPage() {
     client_id: '',
     status: 'booked',
   });
-  const [range, setRange] = useState<RangeId>('upcoming');
+  const [range, setRange] = useState<RangeId>('today');
+  const [customDate, setCustomDate] = useState('');
+  const [weekStart, setWeekStart] = useState('');
   const [q, setQ] = useState('');
   const [classId, setClassId] = useState('');
   const [status, setStatus] = useState('');
-  const [openId, setOpenId] = useState<string | null>(null);
 
   const today = isoDateInZone(store?.settings?.timezone);
-  const weekEnd = addDaysIso(today, 6);
+  const viewDate = range === 'custom' ? customDate || today : today;
+  const viewWeekStart = gymPlanMonday(weekStart || today);
+
+  const filter: GymPlanFilter = {
+    classId: classId || undefined,
+    memberQ: q || undefined,
+    status: status || undefined,
+  };
+
+  const planDays = useMemo(() => {
+    if (!store) return [];
+    if (range === 'week') {
+      return gymPlanWeek(
+        store,
+        store.settings?.working_hours,
+        viewWeekStart,
+        filter
+      );
+    }
+    const classes = gymPlanClassesOnDate(store, viewDate, filter);
+    const heading = gymPlanDayHeading(viewDate);
+    const oc = openCloseOn(store.settings?.working_hours, viewDate);
+    return [
+      {
+        date: viewDate,
+        weekday: heading.weekday,
+        label: heading.label,
+        short: heading.short,
+        dateLabel: heading.dateLabel,
+        hoursLabel: oc.closed ? 'Closed' : `${oc.open}–${oc.close}`,
+        closed: oc.closed === true,
+        classes,
+      },
+    ];
+  }, [store, range, viewDate, viewWeekStart, classId, q, status]);
+
+  const addSessions = useMemo(() => {
+    if (!store) return [];
+    const fromPlan: GymPlanClass[] =
+      range === 'week'
+        ? planDays.flatMap((d) => d.classes)
+        : planDays[0]?.classes || [];
+    const seen = new Set(fromPlan.map((c) => c.session.id));
+    const extra = (store.sessions || [])
+      .filter((s) => {
+        if (seen.has(s.id) || s.status === 'cancelled') return false;
+        const ct = store.class_types.find((c) => c.id === s.class_type_id);
+        if (HIDE_CLASS.has(String(ct?.code || ''))) return false;
+        return s.date >= today;
+      })
+      .sort(
+        (a, b) =>
+          a.date.localeCompare(b.date) ||
+          String(a.start_time).localeCompare(String(b.start_time))
+      )
+      .slice(0, 40)
+      .map((s) => {
+        const ct = store.class_types.find((c) => c.id === s.class_type_id);
+        const coach = store.coaches.find((c) => c.id === s.coach_id);
+        return {
+          session: s,
+          className: ct?.name || 'Class',
+          coachName: coach?.name || '—',
+          booked: sessionBookingCount(store, s.id),
+          cap: s.capacity ?? ct?.capacity ?? 0,
+        };
+      });
+    return [
+      ...fromPlan.map((c) => ({
+        session: c.session,
+        className: c.className,
+        coachName: c.coachName,
+        booked: c.booked,
+        cap: c.cap,
+      })),
+      ...extra,
+    ];
+  }, [store, planDays, range, today]);
+
+  const classes = useMemo(() => {
+    if (!store) return [];
+    return (store.class_types || []).filter(
+      (c) => c.active !== false && !HIDE_CLASS.has(String(c.code || ''))
+    );
+  }, [store]);
+
+  const pendingFeedback = (store?.bookings || []).filter(
+    (b) =>
+      b.status === 'attended' && b.feedback_token && !b.feedback_submitted_at
+  );
 
   const add = async () => {
     if (!form.session_id || !form.client_id) {
@@ -76,11 +178,17 @@ export default function BookingsPage() {
     toast.success('B2C join link copied');
   };
 
-  const mark = async (id: string, next: string) => {
+  const mark = async (
+    member: GymPlanMember,
+    next: string,
+    sessionId: string
+  ) => {
     const data = await post({
       action: 'mark_attendance',
-      booking_id: id,
+      booking_id: member.booking_id,
       status: next,
+      session_id: sessionId,
+      client_id: member.client_id,
     });
     if (next === 'attended') {
       const tok = data?.feedback_prompt?.token as string | undefined;
@@ -114,106 +222,13 @@ export default function BookingsPage() {
     toast.success('Feedback link copied');
   };
 
-  const classes = useMemo(() => {
-    if (!store) return [];
-    return (store.class_types || []).filter(
-      (c) => c.active !== false && !HIDE_CLASS.has(String(c.code || ''))
-    );
-  }, [store]);
-
-  const sessionCards = useMemo(() => {
-    if (!store) return [];
-    const needle = q.trim().toLowerCase();
-    const sessions = [...(store.sessions || [])]
-      .filter((s) => {
-        if (s.status === 'cancelled') return false;
-        const ct = store.class_types.find((c) => c.id === s.class_type_id);
-        if (HIDE_CLASS.has(String(ct?.code || ''))) return false;
-        if (classId && s.class_type_id !== classId) return false;
-        if (range === 'today') return s.date === today;
-        if (range === 'week') return s.date >= today && s.date <= weekEnd;
-        if (range === 'upcoming') return s.date >= today;
-        return true;
-      })
-      .sort((a, b) =>
-        a.date === b.date
-          ? String(a.start_time).localeCompare(String(b.start_time))
-          : a.date.localeCompare(b.date)
-      );
-
-    return sessions
-      .map((s) => {
-        const ct = store.class_types.find((c) => c.id === s.class_type_id);
-        const coach = store.coaches.find((c) => c.id === s.coach_id);
-        const roster = (store.bookings || []).filter((b) => {
-          if (b.session_id !== s.id) return false;
-          if (b.status === 'cancelled') return false;
-          if (status && b.status !== status) return false;
-          if (!needle) return true;
-          const client = store.clients.find((c) => c.id === b.client_id);
-          const blob = `${client?.name || ''} ${client?.code || ''} ${b.guest_name || ''} ${b.family_member_name || ''} ${b.status}`;
-          return blob.toLowerCase().includes(needle);
-        });
-        if ((needle || status) && roster.length === 0) return null;
-        const cap = s.capacity ?? ct?.capacity ?? 0;
-        const booked = sessionBookingCount(store, s.id);
-        return {
-          session: s,
-          className: ct?.name || 'Class',
-          coachName: coach?.name || '—',
-          roster,
-          cap,
-          booked,
-        };
-      })
-      .filter(Boolean) as Array<{
-      session: (typeof store.sessions)[number];
-      className: string;
-      coachName: string;
-      roster: FitBooking[];
-      cap: number;
-      booked: number;
-    }>;
-  }, [store, range, today, weekEnd, classId, status, q]);
-
-  const addSessions = useMemo(() => {
-    if (!store) return [];
-    return [...(store.sessions || [])]
-      .filter((s) => {
-        if (s.status === 'cancelled') return false;
-        const ct = store.class_types.find((c) => c.id === s.class_type_id);
-        if (HIDE_CLASS.has(String(ct?.code || ''))) return false;
-        if (openId && s.id === openId) return true;
-        return s.date >= today;
-      })
-      .sort((a, b) =>
-        a.date === b.date
-          ? String(a.start_time).localeCompare(String(b.start_time))
-          : a.date.localeCompare(b.date)
-      )
-      .map((s) => {
-        const ct = store.class_types.find((c) => c.id === s.class_type_id);
-        const coach = store.coaches.find((c) => c.id === s.coach_id);
-        return {
-          session: s,
-          className: ct?.name || 'Class',
-          coachName: coach?.name || '—',
-          booked: sessionBookingCount(store, s.id),
-          cap: s.capacity ?? ct?.capacity ?? 0,
-        };
-      });
-  }, [store, today, openId]);
-
-  const pendingFeedback = (store?.bookings || []).filter(
-    (b) =>
-      b.status === 'attended' && b.feedback_token && !b.feedback_submitted_at
-  );
+  const plannedCount = planDays.reduce((n, d) => n + d.classes.length, 0);
 
   return (
     <FitgraphWorkbench
       title="Bookings"
-      titleAccent="class roster"
-      description="Pick a class, see who is on it, add a member, mark attended or no-show. Waitlist and SA Member join requests sit at the top."
+      titleAccent="call in the plan"
+      description="Today, this week, or a date — class, then coach, then planned members. Working days follow gym hours."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -237,8 +252,8 @@ export default function BookingsPage() {
                   .length,
               },
               {
-                label: 'Classes in view',
-                value: sessionCards.length,
+                label: 'Classes planned',
+                value: plannedCount,
               },
               {
                 label: 'Feedback pending',
@@ -246,45 +261,26 @@ export default function BookingsPage() {
               },
             ]}
           />
-          <AdvisorWaitlistDesk
-            queue={[]}
-            slotWaitlist={buildDeskSlotWaitlist({
-              bookings: store.bookings,
-              appointments: store.sessions.map((s) => ({
-                id: s.id,
-                date: s.date,
-                start_time: s.start_time,
-                service_id: s.class_type_id,
-                practitioner_id: s.coach_id,
-              })),
-              people: store.clients,
-              services: store.class_types,
-              clinicians: store.coaches,
-            })}
-            accentClass="border-yellow-200"
-            post={async (body) => {
-              await post(body);
-            }}
-            onRefresh={() => {
-              void load();
-            }}
-            calendarHref="/dashboard/fitgraph/calendar"
-          />
 
           <div className="flex flex-wrap items-end gap-2 rounded-2xl border border-yellow-200 bg-yellow-50/50 p-3 dark:border-yellow-600/40 dark:bg-yellow-950/30">
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1" role="tablist" aria-label="Plan range">
               {(
                 [
                   ['today', 'Today'],
                   ['week', 'This week'],
-                  ['upcoming', 'Upcoming'],
-                  ['all', 'All'],
+                  ['custom', 'Custom'],
                 ] as Array<[RangeId, string]>
               ).map(([id, label]) => (
                 <button
                   key={id}
                   type="button"
-                  onClick={() => setRange(id)}
+                  role="tab"
+                  aria-selected={range === id}
+                  onClick={() => {
+                    setRange(id);
+                    if (id === 'week') setWeekStart(gymPlanMonday(today));
+                    if (id === 'custom' && !customDate) setCustomDate(today);
+                  }}
                   className={`rounded-full border px-3 py-1.5 text-[11px] font-black ${
                     range === id
                       ? 'border-yellow-500 bg-[#E8E830] text-slate-900'
@@ -295,6 +291,45 @@ export default function BookingsPage() {
                 </button>
               ))}
             </div>
+            {range === 'custom' ? (
+              <label className="text-[11px] font-bold text-slate-600">
+                Date
+                <input
+                  type="date"
+                  className={fc() + ' mt-0.5'}
+                  value={customDate || today}
+                  onChange={(e) => setCustomDate(e.target.value)}
+                />
+              </label>
+            ) : null}
+            {range === 'week' ? (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  className="rounded-full border border-yellow-200 bg-white p-1.5 text-yellow-900"
+                  onClick={() =>
+                    setWeekStart(addDaysIso(viewWeekStart, -7))
+                  }
+                  aria-label="Previous week"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="px-1 text-[11px] font-black text-yellow-900 dark:text-yellow-100">
+                  {gymPlanDateLabel(viewWeekStart)} –{' '}
+                  {gymPlanDateLabel(addDaysIso(viewWeekStart, 6))}
+                </span>
+                <button
+                  type="button"
+                  className="rounded-full border border-yellow-200 bg-white p-1.5 text-yellow-900"
+                  onClick={() =>
+                    setWeekStart(addDaysIso(viewWeekStart, 7))
+                  }
+                  aria-label="Next week"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            ) : null}
             <label className="relative min-w-[10rem] flex-1">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
               <input
@@ -329,6 +364,34 @@ export default function BookingsPage() {
             </select>
           </div>
 
+          {range === 'week' ? (
+            <p className="-mb-3 text-[11px] text-slate-500">
+              Columns are this gym’s working days and hours. Closed days stay
+              hidden unless a class is already planned.
+            </p>
+          ) : null}
+
+          <GymBookingPlanBoard
+            days={planDays}
+            mode={range === 'week' ? 'week' : 'day'}
+            today={today}
+            onSelectSession={(sessionId) =>
+              setForm((f) => ({ ...f, session_id: sessionId }))
+            }
+            onCopyInvite={(sessionId) => void copyInvite(sessionId)}
+            onMark={(member, next, sessionId) =>
+              void mark(member, next, sessionId)
+            }
+            onRemove={(member) =>
+              void post({
+                entity: 'bookings',
+                action: 'delete',
+                id: member.booking_id,
+              })
+            }
+            onCopyFeedback={(token) => void copyFeedback(token)}
+          />
+
           <FormCard
             tone="owner"
             title="Add member to a class"
@@ -348,8 +411,10 @@ export default function BookingsPage() {
                 ({ session: s, className, coachName, booked, cap }) => (
                   <option key={s.id} value={s.id}>
                     {s.date} {s.start_time} · {className}
-                    {coachName !== '—' ? ` · ${coachName}` : ''} ({booked}/
-                    {cap || '—'})
+                    {coachName && coachName !== '—' && coachName !== 'Unassigned'
+                      ? ` · ${coachName}`
+                      : ''}{' '}
+                    ({booked}/{cap || '—'})
                   </option>
                 )
               )}
@@ -382,173 +447,30 @@ export default function BookingsPage() {
             ) : null}
           </FormCard>
 
-          {sessionCards.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-yellow-200 px-4 py-10 text-center text-sm font-semibold text-slate-500 dark:border-yellow-700/40">
-              No classes in this slice. Try Upcoming or All, or schedule a class
-              on Calendar.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {sessionCards.map((card) => {
-                const s = card.session;
-                const open = openId === s.id;
-                return (
-                  <div
-                    key={s.id}
-                    className="overflow-hidden rounded-2xl border border-yellow-200 bg-white shadow-sm dark:border-yellow-600/40 dark:bg-yellow-950/20"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOpenId(open ? null : s.id);
-                        if (!open) {
-                          setForm((f) => ({ ...f, session_id: s.id }));
-                        }
-                      }}
-                      className="flex w-full items-center gap-3 px-3.5 py-3 text-left"
-                      aria-expanded={open}
-                    >
-                      <ChevronDown
-                        className={`h-4 w-4 shrink-0 text-yellow-700 transition-transform ${
-                          open ? '' : '-rotate-90'
-                        }`}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-black text-slate-900 dark:text-yellow-50">
-                          {s.date} {String(s.start_time).slice(0, 5)} ·{' '}
-                          {card.className}
-                        </p>
-                        <p className="text-[11px] text-slate-500 dark:text-yellow-100/70">
-                          {card.coachName}
-                          {s.location ? ` · ${s.location}` : ''}
-                          {card.roster.length !== card.booked
-                            ? ` · ${card.roster.length} shown`
-                            : ''}
-                        </p>
-                      </div>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${
-                          card.cap > 0 && card.booked >= card.cap
-                            ? 'bg-rose-100 text-rose-800 dark:bg-rose-500/20 dark:text-rose-100'
-                            : 'bg-yellow-100 text-yellow-900 dark:bg-yellow-500/20 dark:text-yellow-100'
-                        }`}
-                      >
-                        {card.booked}
-                        {card.cap ? `/${card.cap}` : ''}
-                      </span>
-                    </button>
-                    {open ? (
-                      <div className="space-y-2 border-t border-yellow-100 px-3.5 py-3 dark:border-yellow-700/30">
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1 rounded-full border border-yellow-300 bg-white px-3 py-1 text-[11px] font-bold text-yellow-900"
-                            onClick={() => {
-                              setForm((f) => ({ ...f, session_id: s.id }));
-                              void copyInvite(s.id);
-                            }}
-                          >
-                            <Share2 className="h-3 w-3" /> Join link
-                          </button>
-                          <a
-                            href="/dashboard/fitgraph/calendar"
-                            className="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-bold text-slate-600"
-                          >
-                            Open on calendar
-                          </a>
-                        </div>
-                        {card.roster.length === 0 ? (
-                          <p className="text-xs text-slate-500">
-                            Nobody on this class yet. Add a member above.
-                          </p>
-                        ) : (
-                          <ul className="divide-y divide-yellow-100 dark:divide-yellow-800/40">
-                            {card.roster.map((b) => {
-                              const client = store.clients.find(
-                                (c) => c.id === b.client_id
-                              );
-                              return (
-                                <li
-                                  key={b.id}
-                                  className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
-                                >
-                                  <div>
-                                    <p className="font-bold text-slate-900 dark:text-yellow-50">
-                                      {client?.name ||
-                                        b.guest_name ||
-                                        b.family_member_name ||
-                                        'Member'}
-                                    </p>
-                                    <p className="text-[11px] text-slate-500">
-                                      {client?.code || ''} · {b.status}
-                                      {b.family_member_name
-                                        ? ` · ${b.family_member_name}`
-                                        : ''}
-                                    </p>
-                                  </div>
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {b.status === 'booked' ||
-                                    b.status === 'waitlist' ? (
-                                      <>
-                                        <button
-                                          type="button"
-                                          className="rounded-full bg-emerald-600 px-2.5 py-1 text-[11px] font-black text-white"
-                                          onClick={() =>
-                                            void mark(b.id, 'attended')
-                                          }
-                                        >
-                                          Attended
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="rounded-full bg-rose-600 px-2.5 py-1 text-[11px] font-black text-white"
-                                          onClick={() =>
-                                            void mark(b.id, 'no_show')
-                                          }
-                                        >
-                                          No-show
-                                        </button>
-                                      </>
-                                    ) : null}
-                                    {b.status === 'attended' &&
-                                    b.feedback_token &&
-                                    !b.feedback_submitted_at ? (
-                                      <button
-                                        type="button"
-                                        className="inline-flex items-center gap-1 rounded-full border border-yellow-300 px-2.5 py-1 text-[11px] font-bold text-yellow-800"
-                                        onClick={() =>
-                                          void copyFeedback(b.feedback_token!)
-                                        }
-                                      >
-                                        <Copy className="h-3 w-3" /> Feedback
-                                      </button>
-                                    ) : null}
-                                    <button
-                                      type="button"
-                                      className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-500"
-                                      onClick={() =>
-                                        void post({
-                                          entity: 'bookings',
-                                          action: 'delete',
-                                          id: b.id,
-                                        })
-                                      }
-                                    >
-                                      Remove
-                                    </button>
-                                  </div>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        )}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <AdvisorWaitlistDesk
+            queue={[]}
+            slotWaitlist={buildDeskSlotWaitlist({
+              bookings: store.bookings,
+              appointments: store.sessions.map((s) => ({
+                id: s.id,
+                date: s.date,
+                start_time: s.start_time,
+                service_id: s.class_type_id,
+                practitioner_id: s.coach_id,
+              })),
+              people: store.clients,
+              services: store.class_types,
+              clinicians: store.coaches,
+            })}
+            accentClass="border-yellow-200"
+            post={async (body) => {
+              await post(body);
+            }}
+            onRefresh={() => {
+              void load();
+            }}
+            calendarHref="/dashboard/fitgraph/calendar"
+          />
 
           {pendingFeedback.length ? (
             <div className="rounded-2xl border border-yellow-200 bg-yellow-50/60 p-4 dark:border-yellow-700/40 dark:bg-yellow-950/30">
@@ -561,7 +483,9 @@ export default function BookingsPage() {
               </p>
               <ul className="space-y-1.5">
                 {pendingFeedback.map((b) => {
-                  const client = store.clients.find((c) => c.id === b.client_id);
+                  const client = store.clients.find(
+                    (c) => c.id === b.client_id
+                  );
                   return (
                     <li
                       key={b.id}
@@ -575,7 +499,7 @@ export default function BookingsPage() {
                         className="inline-flex items-center gap-1 font-bold text-yellow-700 dark:text-yellow-300"
                         onClick={() => void copyFeedback(b.feedback_token!)}
                       >
-                        <Copy className="w-3 h-3" /> Copy feedback link
+                        Copy feedback link
                       </button>
                     </li>
                   );
