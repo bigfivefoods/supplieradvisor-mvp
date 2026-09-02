@@ -191,7 +191,8 @@ export default function BookingsPage() {
       client_id: member.client_id,
     });
     if (next === 'attended') {
-      const tok = data?.feedback_prompt?.token as string | undefined;
+      const feedbackPrompt = data?.feedback_prompt as { token?: string } | null | undefined;
+      const tok = feedbackPrompt?.token;
       const packLeft = data?.pack_remaining;
       if (tok) {
         const path = buildPublicFeedbackPath('fitgraph', companyId, tok);
