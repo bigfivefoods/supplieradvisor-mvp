@@ -2951,8 +2951,8 @@ function upsert(
       rec.active !== undefined ? rec.active !== false : undefined;
     const row: FitCoach = {
       id,
-      code: String(rec.code || `C-${store.coaches.length + 1}`),
-      name: String(rec.name || 'Coach'),
+      code: String(rec.code || prev?.code || `C-${store.coaches.length + 1}`),
+      name: String(rec.name || prev?.name || 'Coach'),
       email: rec.email != null ? String(rec.email) : prev?.email,
       phone: rec.phone != null ? String(rec.phone) : prev?.phone,
       id_number:

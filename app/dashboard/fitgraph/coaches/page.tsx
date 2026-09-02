@@ -56,6 +56,7 @@ import {
   needsAdvisorIdentity,
 } from '@/components/services/AdvisorIdentityPanel';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
+import { GymColorSwatch } from '@/components/fitness/GymColorSwatch';
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -101,6 +102,7 @@ function emptyForm() {
     public_bio: '',
     bio: '',
     photo_url: '',
+    color: '#d97706',
     start_date: todayIso(),
     end_date: '',
     ...emptyContractorCommercialDraft({ rate_basis: 'per_class' }),
@@ -275,6 +277,7 @@ export default function CoachesPage() {
         public_bio: form.public_bio,
         bio: form.bio || form.public_bio,
         photo_url: form.photo_url || undefined,
+        color: form.color || undefined,
         specialties: form.specialties.length
           ? form.specialties
           : ['General'],
@@ -898,19 +901,13 @@ export default function CoachesPage() {
                                 accentClass="border-amber-300 dark:border-amber-500"
                               />
                             </div>
-                            <label className="block">
-                              <span className="text-[10px] text-slate-600 dark:text-amber-200/70">
-                                Colour
-                              </span>
-                              <input
-                                className={fc() + ' mt-0.5 h-10'}
-                                type="color"
-                                value={profile.color || '#d97706'}
-                                onChange={(e) =>
-                                  setProfile(c.id, { color: e.target.value })
-                                }
-                              />
-                            </label>
+                            <GymColorSwatch
+                              value={profile.color}
+                              onChange={(hex) =>
+                                setProfile(c.id, { color: hex })
+                              }
+                              label="Calendar colour"
+                            />
                             <div className="flex flex-col justify-end gap-1.5 pb-0.5">
                               <label className="inline-flex items-center gap-2 text-[11px] font-bold text-slate-700 dark:text-amber-100">
                                 <input
@@ -1591,6 +1588,11 @@ export default function CoachesPage() {
                 })}
               </div>
             </div>
+            <GymColorSwatch
+              value={form.color}
+              onChange={(hex) => setForm((f) => ({ ...f, color: hex }))}
+              label="Calendar colour"
+            />
             <ProfilePhotoField
               companyId={companyId}
               value={form.photo_url}

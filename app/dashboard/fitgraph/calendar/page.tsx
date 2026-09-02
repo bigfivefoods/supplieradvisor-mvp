@@ -67,6 +67,7 @@ import {
 import { clinicRoomNames } from '@/lib/clinic/clinic-rooms';
 import type { SeriesEditScope } from '@/lib/services/advisor-series-edit';
 import { AdvisorExpandablePanel } from '@/components/advisors/AdvisorExpandablePanel';
+import { GymDiaryColorEditor } from '@/components/fitness/GymColorSwatch';
 import { AdvisorWaitlistDesk } from '@/components/services/AdvisorWaitlistDesk';
 import { buildDeskSlotWaitlist } from '@/lib/services/advisor-waitlist-desk';
 import {
@@ -122,6 +123,7 @@ export default function CalendarPage() {
   );
   const [statsOpen, setStatsOpen] = useState(true);
   const [calendarOpen, setCalendarOpen] = useState(true);
+  const [colorsOpen, setColorsOpen] = useState(false);
   const [waitlistOpen, setWaitlistOpen] = useState(true);
   const [attendOverride, setAttendOverride] = useState<
     Record<string, 'attended' | 'no_show' | 'booked'>
@@ -1094,6 +1096,44 @@ export default function CalendarPage() {
                 + Class / PT / block
               </button>
             </div>
+          </AdvisorExpandablePanel>
+
+          <AdvisorExpandablePanel
+            title="Diary colours"
+            description="Owner: pick a palette colour or RGB / hex per class and coach. Class fills the block; coach is the stripe."
+            open={colorsOpen}
+            onToggle={() => setColorsOpen((v) => !v)}
+            accentClass="border-yellow-200 bg-yellow-50/50 dark:border-yellow-800 dark:bg-yellow-950/30"
+            titleClass="text-yellow-950 dark:text-yellow-50"
+            hintClass="text-yellow-800/80 dark:text-yellow-200/80"
+          >
+            <GymDiaryColorEditor
+              classes={(store.class_types || []).filter(
+                (c) =>
+                  c.active !== false &&
+                  c.code !== SYS_PT_CODE &&
+                  c.code !== SYS_COACH_TIME_CODE &&
+                  c.code !== SYS_COACH_AWAY_CODE
+              )}
+              coaches={(store.coaches || []).filter((c) => c.active !== false)}
+              saving={saving}
+              onSaveClass={async (id, color) => {
+                await post({
+                  entity: 'class_types',
+                  action: 'upsert',
+                  record: { id, color },
+                });
+                toast.success('Class colour saved');
+              }}
+              onSaveCoach={async (id, color) => {
+                await post({
+                  entity: 'coaches',
+                  action: 'upsert',
+                  record: { id, color },
+                });
+                toast.success('Coach colour saved');
+              }}
+            />
           </AdvisorExpandablePanel>
 
           <AdvisorExpandablePanel

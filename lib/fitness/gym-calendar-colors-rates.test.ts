@@ -10,12 +10,19 @@ import {
   formatAgreedRateZar,
   gymCalendarPaint,
 } from './gym-calendar-color';
-import { eventColorStyle, normalizeEventHex } from '../schedule/event-color';
+import {
+  eventColorStyle,
+  hexToRgb,
+  normalizeEventHex,
+  rgbToHex,
+} from '../schedule/event-color';
 import { applySeriesPatch } from '../services/advisor-series-edit';
 
 assert.equal(normalizeEventHex('#E8E830'), '#e8e830');
 assert.equal(normalizeEventHex('10B981'), '#10b981');
 assert.equal(normalizeEventHex('nope'), null);
+assert.equal(rgbToHex(232, 232, 48), '#e8e830');
+assert.deepEqual(hexToRgb('#e8e830'), { r: 232, g: 232, b: 48 });
 assert.equal(formatAgreedRateZar(650), 'R650');
 assert.equal(eventColorStyle('#10B981').borderColor, '#10b981');
 
@@ -59,6 +66,8 @@ const cal = readFileSync(
   'utf8'
 );
 assert.match(cal, /gymCalendarPaint/);
+assert.match(cal, /Diary colours/);
+assert.match(cal, /GymDiaryColorEditor/);
 assert.match(cal, /Member \/ private client/);
 assert.match(cal, /Agreed rate \(ZAR\)/);
 assert.match(cal, /store\.clients/);
@@ -70,6 +79,21 @@ const classes = readFileSync(
 );
 assert.match(classes, /GymColorSwatch/);
 assert.match(classes, /color: form\.color/);
+
+const swatch = readFileSync(
+  resolve('components/fitness/GymColorSwatch.tsx'),
+  'utf8'
+);
+assert.match(swatch, /Spectrum/);
+assert.match(swatch, /rgbToHex/);
+assert.match(swatch, /GymDiaryColorEditor/);
+
+const coaches = readFileSync(
+  resolve('app/dashboard/fitgraph/coaches/page.tsx'),
+  'utf8'
+);
+assert.match(coaches, /GymColorSwatch/);
+assert.match(coaches, /Calendar colour/);
 
 const profile = readFileSync(
   resolve('components/fitness/GymMemberProfileDesk.tsx'),
