@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseCompanyId } from '@/lib/accounting/server';
 import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
-import { probeFnbIntegration } from '@/lib/banking';
+import { isFnbIntegrationCompany, probeFnbIntegration } from '@/lib/banking';
 
 export const runtime = 'nodejs';
 
@@ -21,6 +21,12 @@ export async function GET(request: NextRequest) {
       legacyPrivyUserId: legacyPrivyFrom(request),
     });
     if (!gate.ok) return gate.response;
+    if (!isFnbIntegrationCompany(companyId)) {
+      return NextResponse.json(
+        { error: 'FNB Integration Channel is not available for this company' },
+        { status: 403 }
+      );
+    }
     const supabase = (await import('@/lib/supabase/server-client')).getSupabaseServer();
     const { data: prof } = await supabase
       .from('profiles')

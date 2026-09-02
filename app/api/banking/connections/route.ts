@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertAccountingAccess } from '@/lib/accounting/access';
 import { parseCompanyId } from '@/lib/accounting/server';
-import { banklinkConfig, fnbConfig } from '@/lib/banking';
+import { bankingProviderStatus } from '@/lib/banking';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /** GET ?companyId= — list bank connections + middleware status */
@@ -18,8 +18,7 @@ export async function GET(request: NextRequest) {
     const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
     if (!_gate.ok) return _gate.response;
 
-    const cfg = banklinkConfig();
-    const fnb = fnbConfig();
+    const provider = bankingProviderStatus(companyId);
     const supabase = getSupabaseServer();
     const { data: connections, error } = await supabase
       .from('bank_connections')
@@ -31,13 +30,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         connections: [],
-        provider: {
-          mode: fnb.configured ? 'fnb' : cfg.mode,
-          configured: fnb.configured || cfg.configured,
-          name: fnb.configured ? 'FNB Integration Channel' : 'BankLink',
-          fnb: { configured: fnb.configured },
-          banklink: { configured: cfg.configured, mode: cfg.mode },
-        },
+        provider,
         warning: error.message,
         hint: 'Run supabase/migrations/20260711_bank_middleware.sql',
       });
@@ -46,23 +39,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       connections: connections || [],
-      provider: {
-        mode: fnb.configured ? 'fnb' : cfg.mode,
-        configured: fnb.configured || cfg.configured,
-        name: fnb.configured ? 'FNB Integration Channel' : 'BankLink',
-        docs: fnb.configured
-          ? 'https://www.fnb.co.za/integration-channel/index.html'
-          : 'https://www.banklink.co.za/docs',
-        fnb: {
-          configured: fnb.configured,
-          hasAccountNumber: Boolean(fnb.accountNumber),
-          statementPath: fnb.statementPath || null,
-        },
-        banklink: {
-          configured: cfg.configured,
-          mode: cfg.mode,
-        },
-      },
+      provider,
     });
   } catch (e: unknown) {
     return NextResponse.json(
