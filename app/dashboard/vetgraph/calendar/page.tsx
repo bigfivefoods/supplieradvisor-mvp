@@ -125,6 +125,7 @@ export default function CalendarPage() {
       status: a.status || 'scheduled',
       patient_id: '',
       family_member_id: '',
+      until: '',
     });
     const booked = (store?.bookings || []).some(
       (b) =>
@@ -160,6 +161,7 @@ export default function CalendarPage() {
       status: 'scheduled',
       patient_id: '',
       family_member_id: '',
+      until: '',
     }));
     setSlotEditorOpen(true);
     setEditorOpen(true);
