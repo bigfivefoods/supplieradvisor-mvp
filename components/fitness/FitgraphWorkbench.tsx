@@ -40,9 +40,16 @@ export type FitgraphPostResult = {
   [key: string]: unknown;
 };
 
-export function useFitgraph(opts?: { library?: boolean }) {
+export function useFitgraph(opts?: { library?: boolean; history?: boolean }) {
   const companyId = getSelectedCompanyId()!;
   const library = opts?.library === true;
+  const history = opts?.history === true;
+  const cacheKey = library
+    ? 'fitgraph:library'
+    : history
+      ? 'fitgraph:history'
+      : 'fitgraph';
+  const includeQuery = library ? '&include=library' : history ? '&include=history' : '';
   const [store, setStore] = useState<FitgraphStore | null>(null);
   const [summary, setSummary] = useState<Record<string, unknown> | null>(null);
   const [analysis, setAnalysis] = useState<Record<string, unknown> | null>(
@@ -78,9 +85,9 @@ export function useFitgraph(opts?: { library?: boolean }) {
     async (loadOpts?: { force?: boolean }) => {
       try {
         await hydrateAdvisorDesk(
-          library ? 'fitgraph:library' : 'fitgraph',
+          cacheKey,
           companyId,
-          `/api/fitness/fitgraph?companyId=${companyId}${library ? '&include=library' : ''}`,
+          `/api/fitness/fitgraph?companyId=${companyId}${includeQuery}`,
           applyData,
           setLoading,
           loadOpts?.force ? { force: true } : undefined
@@ -90,7 +97,7 @@ export function useFitgraph(opts?: { library?: boolean }) {
         setLoading(false);
       }
     },
-    [companyId, library, applyData]
+    [companyId, includeQuery, cacheKey, applyData]
   );
 
   useEffect(() => {
@@ -130,7 +137,7 @@ export function useFitgraph(opts?: { library?: boolean }) {
       if (res.status === 409 && data?.error === 'stale_store') {
         // Force-reload to get the latest CAS token, then retry once.
         invalidateAdvisorDeskCache(
-          library ? 'fitgraph:library' : 'fitgraph',
+          cacheKey,
           companyId
         );
         await load({ force: true });
@@ -156,7 +163,7 @@ export function useFitgraph(opts?: { library?: boolean }) {
       // not poison the 45-second desk cache with a partial snapshot.
       if (data.store) {
         rememberAdvisorDeskCache(
-          library ? 'fitgraph:library' : 'fitgraph',
+          cacheKey,
           companyId,
           data
         );

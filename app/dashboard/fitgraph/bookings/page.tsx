@@ -45,7 +45,7 @@ type RangeId = 'today' | 'week' | 'custom';
 
 export default function BookingsPage() {
   const { companyId, store, loading, saving, post, summary, load } =
-    useFitgraph();
+    useFitgraph({ history: true });
   const [form, setForm] = useState({
     session_id: '',
     client_id: '',
