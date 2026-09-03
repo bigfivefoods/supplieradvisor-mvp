@@ -35,6 +35,8 @@ import {
   isCanonical1180ArCode,
   isForbiddenCustomerArStamp,
   clampCustomerArParent,
+  nextAdvisorPartyUidFromRows,
+  planAdvisorPartyUids,
 } from './party-gl-accounts';
 import type { CoaAccount } from './types';
 
@@ -57,6 +59,94 @@ assert.equal(parseMemberArCustomerId('4400-0000009'), null);
 assert.equal(isMemberArAccountCode('1180-0000123'), true);
 assert.equal(isMemberArAccountCode('4400-0000123'), false);
 assert.equal(isMemberArAccountCode('4100'), false);
+const reservedAdvisorUids = planAdvisorPartyUids([
+  {
+    id: 133,
+    trading_name: 'Bianca Westhorpe-Pottow',
+    customer_type: 'member',
+    source: 'advisor_member',
+    status: 'active',
+    metadata: { coa_party_uid: 133 },
+  },
+  {
+    id: 31,
+    trading_name: 'Craig Muller',
+    customer_type: 'member',
+    source: 'advisor_member',
+    status: 'active',
+    metadata: { coa_party_uid: 31 },
+  },
+  {
+    id: 88,
+    trading_name: 'Zanele Third',
+    customer_type: 'member',
+    source: 'advisor_member',
+    status: 'active',
+  },
+]);
+assert.equal(reservedAdvisorUids.byCustomerId.get(133), 1);
+assert.equal(reservedAdvisorUids.byCustomerId.get(31), 2);
+assert.equal(reservedAdvisorUids.byCustomerId.get(88), 3);
+assert.equal(nextAdvisorPartyUidFromRows([
+  {
+    id: 133,
+    trading_name: 'Bianca Westhorpe-Pottow',
+    customer_type: 'member',
+    source: 'advisor_member',
+    status: 'active',
+    metadata: { coa_party_uid: 1 },
+  },
+  {
+    id: 31,
+    trading_name: 'Craig Muller',
+    customer_type: 'member',
+    source: 'advisor_member',
+    status: 'active',
+    metadata: { coa_party_uid: 2 },
+  },
+  {
+    id: 88,
+    trading_name: 'Zanele Third',
+    customer_type: 'member',
+    source: 'advisor_member',
+    status: 'active',
+    metadata: { coa_party_uid: 3 },
+  },
+]), 4);
+const withFourthAdvisor = planAdvisorPartyUids([
+  {
+    id: 133,
+    trading_name: 'Bianca Westhorpe-Pottow',
+    customer_type: 'member',
+    source: 'advisor_member',
+    status: 'active',
+    metadata: { coa_party_uid: 1 },
+  },
+  {
+    id: 31,
+    trading_name: 'Craig Muller',
+    customer_type: 'member',
+    source: 'advisor_member',
+    status: 'active',
+    metadata: { coa_party_uid: 2 },
+  },
+  {
+    id: 88,
+    trading_name: 'Zanele Third',
+    customer_type: 'member',
+    source: 'advisor_member',
+    status: 'active',
+    metadata: { coa_party_uid: 3 },
+  },
+  {
+    id: 99,
+    trading_name: 'Alex Four',
+    customer_type: 'member',
+    source: 'advisor_member',
+    status: 'active',
+  },
+]);
+assert.equal(withFourthAdvisor.byCustomerId.get(99), 4);
 assert.equal(supplierApAccountCode(8), '2180-0000008');
 assert.equal(parseSupplierApSupplierId('2180-0000012'), 12);
 assert.equal(isSupplierApAccountCode('2180-0000008'), true);

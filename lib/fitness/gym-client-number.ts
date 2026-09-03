@@ -9,7 +9,7 @@ export function gymClientNumberFromAr(ar?: string | null): string {
   return PADDED_AR_RE.test(code) ? code : '';
 }
 
-export function needsGymClientNumber(
+export function needsAdvisorPersonCodeFromAr(
   person: {
     id?: string;
     code?: string | null;
@@ -28,7 +28,7 @@ export function needsGymClientNumber(
   });
 }
 
-export function applyGymClientNumberFromAr(
+export function applyAdvisorPersonCodeFromAr(
   person: {
     id?: string;
     code?: string | null;
@@ -36,10 +36,13 @@ export function applyGymClientNumberFromAr(
   },
   others: Array<{ id?: string; code?: string | null }> = []
 ): boolean {
-  if (!needsGymClientNumber(person, others)) return false;
+  if (!needsAdvisorPersonCodeFromAr(person, others)) return false;
   person.code = gymClientNumberFromAr(person.ar_account_code);
   return true;
 }
+
+export const needsGymClientNumber = needsAdvisorPersonCodeFromAr;
+export const applyGymClientNumberFromAr = applyAdvisorPersonCodeFromAr;
 
 export function recodeGymClientNumbers(
   clients: Array<{
@@ -50,7 +53,7 @@ export function recodeGymClientNumbers(
 ): number {
   let n = 0;
   for (const person of clients || []) {
-    if (applyGymClientNumberFromAr(person, clients)) n += 1;
+    if (applyAdvisorPersonCodeFromAr(person, clients)) n += 1;
   }
   return n;
 }
