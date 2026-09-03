@@ -1514,9 +1514,8 @@ export async function persistVukaCatalogIfNeeded(
   ) {
     return store;
   }
-  const { ensureVukaRoster, vukaDeskSettled } = await import(
-    '@/lib/fitness/vuka-roster'
-  );
+  const { absorbKnownClientAliases, ensureVukaRoster, vukaDeskSettled } =
+    await import('@/lib/fitness/vuka-roster');
   let next = store;
   let dirty = false;
   if (!vukaDeskSettled(store)) {
@@ -1527,12 +1526,13 @@ export async function persistVukaCatalogIfNeeded(
     });
     next = result.store;
     dirty = result.changed;
-    if (result.applied) {
-      const roster = ensureVukaRoster(next);
-      next = roster.store;
-      dirty = dirty || roster.changed;
-    }
+    const roster = ensureVukaRoster(next);
+    next = roster.store;
+    dirty = dirty || roster.changed;
   }
+  const absorbed = absorbKnownClientAliases(next);
+  next = absorbed.store;
+  dirty = dirty || absorbed.changed;
   if (ensureDemoShopProgramme(next)) dirty = true;
   if (ensureVukaShopOffers(next)) dirty = true;
   if (ensureVukaCoaches(next)) dirty = true;

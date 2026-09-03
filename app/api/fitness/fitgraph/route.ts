@@ -258,7 +258,15 @@ export async function GET(request: NextRequest) {
       legacyPrivyUserId: legacyPrivyFrom(request),
     });
     if (!gate.ok) return gate.response;
-    const { store } = await loadStore(companyId);
+    const loaded = await loadStore(companyId);
+    const store = await persistVukaCatalogIfNeeded(
+      companyId,
+      loaded.store,
+      async (next) => {
+        await saveStore(companyId, loaded.meta, next);
+      },
+      { tradingName: loaded.store.settings?.brand_name }
+    );
 
     // Stamp owner emails so coachIsGymOwner works correctly on every load
     await stampOwnerEmails(companyId, store);

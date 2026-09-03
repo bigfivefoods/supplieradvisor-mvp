@@ -17,12 +17,14 @@ import {
   type FitContractSubmission,
 } from '@/lib/fitness/member-contract';
 import {
+  absorbKnownClientAliases,
   clientsAreSamePerson,
   mergeDuplicateFitClients,
   normalizePersonName,
 } from '@/lib/fitness/merge-fit-clients';
 
 export {
+  absorbKnownClientAliases,
   clientsAreSamePerson,
   mergeDuplicateFitClients,
   normalizePersonName,
@@ -218,7 +220,7 @@ function resolvePlan(
 }
 
 export const VUKA_BILLED_CLASS_IMPORT = '2026-08-20-classcodes-v2';
-export const VUKA_MEMBER_MERGE = '2026-09-02-athaliah';
+export const VUKA_MEMBER_MERGE = '2026-09-03-athalah-fold';
 
 export const VUKA_CONTRACTS_IMPORT = `${String(
   (generated as { import_version?: string }).import_version || '2026-08-19'
@@ -416,6 +418,7 @@ export function ensureVukaRoster(
   let changed = removeVukaDeskPlans(store);
   const contractsLive =
     store.settings?.vuka_contracts_import === VUKA_CONTRACTS_IMPORT;
+  let added = 0;
   if (contractsLive) {
     if (upsertBilledRoster(store, now, { createOnly: true })) changed = true;
     if (store.settings?.vuka_member_merge !== VUKA_MEMBER_MERGE) {
@@ -431,28 +434,30 @@ export function ensureVukaRoster(
     if (store.settings?.vuka_billed_class_import !== VUKA_BILLED_CLASS_IMPORT) {
       if (applyBilledClassAllocations(store, now)) changed = true;
     }
-    return { store, changed, added: 0 };
+  } else {
+    const replace =
+      store.settings?.vuka_contracts_import !== VUKA_CONTRACTS_IMPORT;
+    const applied = applyContractSubmissions(store, VUKA_CONTRACT_SUBMISSIONS, {
+      now,
+      replaceRoster: replace,
+      importVersion: VUKA_CONTRACTS_IMPORT,
+    });
+    changed = changed || applied.changed;
+    added = applied.added;
+    if (upsertBilledRoster(store, now)) changed = true;
+    const merged = mergeDuplicateFitClients(store, {
+      now,
+      preferredNames: VUKA_ROSTER.map((r) => r.name),
+    });
+    if (merged.changed) changed = true;
+    if (!store.settings) store.settings = defaultPublicSettings();
+    if (store.settings.vuka_member_merge !== VUKA_MEMBER_MERGE) {
+      store.settings.vuka_member_merge = VUKA_MEMBER_MERGE;
+      changed = true;
+    }
+    if (attachContractRates(store, now)) changed = true;
+    if (applyBilledClassAllocations(store, now)) changed = true;
   }
-  const replace =
-    store.settings?.vuka_contracts_import !== VUKA_CONTRACTS_IMPORT;
-  const applied = applyContractSubmissions(store, VUKA_CONTRACT_SUBMISSIONS, {
-    now,
-    replaceRoster: replace,
-    importVersion: VUKA_CONTRACTS_IMPORT,
-  });
-  changed = changed || applied.changed;
-  if (upsertBilledRoster(store, now)) changed = true;
-  const merged = mergeDuplicateFitClients(store, {
-    now,
-    preferredNames: VUKA_ROSTER.map((r) => r.name),
-  });
-  if (merged.changed) changed = true;
-  if (!store.settings) store.settings = defaultPublicSettings();
-  if (store.settings.vuka_member_merge !== VUKA_MEMBER_MERGE) {
-    store.settings.vuka_member_merge = VUKA_MEMBER_MERGE;
-    changed = true;
-  }
-  if (attachContractRates(store, now)) changed = true;
-  if (applyBilledClassAllocations(store, now)) changed = true;
-  return { store, changed, added: applied.added };
+  const absorbed = absorbKnownClientAliases(store, { now });
+  return { store, changed: changed || absorbed.changed, added };
 }

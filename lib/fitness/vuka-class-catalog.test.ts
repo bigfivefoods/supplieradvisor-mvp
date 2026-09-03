@@ -2,6 +2,8 @@
  * Run: npx --yes tsx lib/fitness/vuka-class-catalog.test.ts
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   emptyFitgraphStore,
   findCoachForPortalSignIn,
@@ -333,6 +335,71 @@ void (async () => {
     otherSaved += 1;
   });
   assert.equal(otherSaved, 0);
+
+  const leftover = emptyFitgraphStore();
+  leftover.settings = {
+    enabled: true,
+    public_token: 'fg_110_testtoken',
+    allow_public_booking: true,
+    show_coaches: true,
+    show_pricing: true,
+    vuka_calendar_manual: true,
+    vuka_contracts_import: VUKA_CONTRACTS_IMPORT,
+    vuka_member_merge: VUKA_MEMBER_MERGE,
+    vuka_billed_class_import: VUKA_BILLED_CLASS_IMPORT,
+  };
+  leftover.clients = [
+    {
+      id: 'vuka_cli_athalah_hembert',
+      code: 'VUKA-001',
+      name: 'Athalah Hembert',
+      email: 'athalah@old.test',
+      active: true,
+      created_at: '2026-08-01T00:00:00.000Z',
+      updated_at: '2026-08-01T00:00:00.000Z',
+    },
+    {
+      id: 'cli_athaliah',
+      code: 'VUKA-002',
+      name: 'Athaliah Hembert',
+      email: 'athaliahhembert9@gmail.com',
+      active: true,
+      created_at: '2026-07-28T00:00:00.000Z',
+      updated_at: '2026-07-28T00:00:00.000Z',
+    },
+  ];
+  leftover.programmes = settled.programmes;
+  leftover.coaches = settled.coaches;
+  leftover.membership_plans = settled.membership_plans;
+  leftover.class_types = settled.class_types;
+  assert.equal(vukaDeskSettled(leftover), true);
+  let leftoverSaved = 0;
+  await persistVukaCatalogIfNeeded(VUKA_COMPANY_ID, leftover, async () => {
+    leftoverSaved += 1;
+  });
+  assert.equal(leftoverSaved, 1);
+  assert.equal(
+    leftover.clients.filter((c) => /hembert/i.test(c.name)).length,
+    1
+  );
+  assert.equal(
+    leftover.clients.filter((c) => /athalah/i.test(c.name)).length,
+    0
+  );
+  assert.equal(
+    leftover.clients.find((c) => /hembert/i.test(c.name))?.name,
+    'Athaliah Hembert'
+  );
+
+  const fitgraphRoute = readFileSync(
+    resolve('app/api/fitness/fitgraph/route.ts'),
+    'utf8'
+  );
+  const getHandler = fitgraphRoute.slice(
+    fitgraphRoute.indexOf('export async function GET'),
+    fitgraphRoute.indexOf('export async function POST')
+  );
+  assert.match(getHandler, /persistVukaCatalogIfNeeded/);
 const coaches = emptyFitgraphStore();
 coaches.coaches = [
   {

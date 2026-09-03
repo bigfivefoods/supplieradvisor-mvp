@@ -57,7 +57,7 @@ function mergeIdList(
 /** Record ids the owner deleted so concurrent merge cannot resurrect them. */
 export function rememberRemovedFitgraphIds(
   store: FitgraphStore,
-  kind: 'sessions' | 'bookings',
+  kind: 'sessions' | 'bookings' | 'clients',
   ids: Iterable<string>
 ): void {
   const next = mergeIdList(store.removed_ids?.[kind], [...ids]);
@@ -161,6 +161,10 @@ export function mergeFitgraphStores(
       latest.removed_ids?.bookings,
       incoming.removed_ids?.bookings
     ),
+    clients: mergeIdList(
+      latest.removed_ids?.clients,
+      incoming.removed_ids?.clients
+    ),
   };
   const next: FitgraphStore = {
     ...latest,
@@ -174,12 +178,14 @@ export function mergeFitgraphStores(
         ? removed.sessions
         : key === 'bookings'
           ? removed.bookings
-          : null;
+          : key === 'clients'
+            ? removed.clients
+            : null;
     const merged =
       key === 'goals'
         ? mergeGoalRows(latest[key], incoming[key])
         : key === 'clients'
-          ? mergeClientRows(latest[key], incoming[key])
+          ? mergeClientRows(latest[key], incoming[key], omit)
           : mergeRowsById(latest[key], incoming[key], omit);
     (next as unknown as Record<string, unknown>)[key] = merged;
   }
@@ -207,8 +213,12 @@ function portalTokenList(row: Record<string, unknown>): string[] {
 }
 
 /** Same-id clients: newer row wins, but every portal token is kept. */
-function mergeClientRows(latest: unknown, incoming: unknown) {
-  const merged = mergeRowsById(latest, incoming);
+function mergeClientRows(
+  latest: unknown,
+  incoming: unknown,
+  omit?: Iterable<string> | null
+) {
+  const merged = mergeRowsById(latest, incoming, omit);
   const latestById = new Map<string, Record<string, unknown>>();
   const incomingById = new Map<string, Record<string, unknown>>();
   for (const row of asRows(latest)) {
