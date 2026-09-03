@@ -116,15 +116,26 @@ store.bookings.push({
   status: 'booked',
   booked_at: '2026-08-30T00:00:00.000Z',
 });
+store.bookings.push({
+  id: 'bkg_ben',
+  session_id: 'ses_pt',
+  client_id: 'cli_ben',
+  status: 'booked',
+  booked_at: '2026-08-30T00:00:00.000Z',
+});
 
 const today = gymPlanClassesOnDate(store, '2026-09-02');
 assert.deepEqual(
   today.map((c) => `${c.session.start_time} ${c.className}`),
-  ['17:30 Bootcamp']
+  ['12:00 Private PT', '17:30 Bootcamp']
 );
 assert.equal(today[0].coachName, 'Pat');
 assert.deepEqual(
   today[0].members.map((m) => m.name),
+  ['Ben']
+);
+assert.deepEqual(
+  today[1].members.map((m) => m.name),
   ['Ada']
 );
 
@@ -146,7 +157,7 @@ assert.equal(week[5].hoursLabel, '08:00–13:00');
 assert.equal(week[6].hoursLabel, 'Closed');
 assert.equal(week[6].closed, true);
 assert.equal(week[0].classes[0]?.className, 'Bootcamp');
-assert.equal(week[2].classes.length, 1);
+assert.equal(week[2].classes.length, 2);
 
 const closedSat = defaultWorkingHours();
 closedSat.days = { ...(closedSat.days || {}), '6': { closed: true } };
@@ -170,11 +181,17 @@ const page = readFileSync(
   resolve('app/dashboard/fitgraph/bookings/page.tsx'),
   'utf8'
 );
+assert.match(page, /title="Plan"/);
 assert.match(page, /This week/);
 assert.match(page, /Custom/);
+assert.match(page, /classes and private PT/);
 assert.match(page, /gymPlanWeek/);
 assert.match(page, /<GymBookingPlanBoard\s+days=/);
 assert.match(page, /type="date"/);
+
+const nav = readFileSync(resolve('lib/chrome/module-nav.ts'), 'utf8');
+assert.match(nav, /name: 'Plan', href: '\/dashboard\/fitgraph\/bookings'/);
+assert.match(nav, /name: 'Bookings', href: '\/dashboard\/physiograph\/bookings'/);
 
 const board = readFileSync(
   resolve('components/fitness/GymBookingPlanBoard.tsx'),

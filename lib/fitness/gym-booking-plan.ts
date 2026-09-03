@@ -26,7 +26,6 @@ import {
 } from '@/lib/fitness/session-times';
 
 const HIDE_CLASS = new Set([
-  SYS_PT_CODE,
   SYS_COACH_TIME_CODE,
   SYS_COACH_AWAY_CODE,
 ]);
@@ -121,6 +120,9 @@ export function isGymPlanSession(
   const ct = (store.class_types || []).find(
     (c) => c.id === session.class_type_id
   );
+  if (kind === 'private_pt' || String(ct?.code || '') === SYS_PT_CODE) {
+    return true;
+  }
   if (HIDE_CLASS.has(String(ct?.code || ''))) return false;
   return true;
 }
