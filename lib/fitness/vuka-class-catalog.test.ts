@@ -374,9 +374,14 @@ void (async () => {
   leftover.class_types = settled.class_types;
   assert.equal(vukaDeskSettled(leftover), true);
   let leftoverSaved = 0;
-  await persistVukaCatalogIfNeeded(VUKA_COMPANY_ID, leftover, async () => {
-    leftoverSaved += 1;
-  });
+  await persistVukaCatalogIfNeeded(
+    VUKA_COMPANY_ID,
+    leftover,
+    async () => {
+      leftoverSaved += 1;
+    },
+    { applyCatalog: false }
+  );
   assert.equal(leftoverSaved, 1);
   assert.equal(
     leftover.clients.filter((c) => /hembert/i.test(c.name)).length,
@@ -400,6 +405,35 @@ void (async () => {
     fitgraphRoute.indexOf('export async function POST')
   );
   assert.match(getHandler, /persistVukaCatalogIfNeeded/);
+  assert.match(getHandler, /applyCatalog:\s*false/);
+
+  const deskHeld = emptyFitgraphStore();
+  deskHeld.clients = [
+    {
+      id: 'cli_ada',
+      code: 'A',
+      name: 'Ada',
+      active: false,
+      membership_status: 'cancelled',
+      membership_plan_id: 'vuka_pln_boot_1730',
+      created_at: '2026-08-01T00:00:00.000Z',
+      updated_at: '2026-09-03T12:00:00.000Z',
+    },
+  ];
+  let deskSaved = 0;
+  await persistVukaCatalogIfNeeded(
+    VUKA_COMPANY_ID,
+    deskHeld,
+    async () => {
+      deskSaved += 1;
+    },
+    { applyCatalog: false }
+  );
+  assert.equal(deskSaved, 0);
+  assert.equal(deskHeld.clients.length, 1);
+  assert.equal(deskHeld.clients[0].active, false);
+  assert.equal(deskHeld.clients[0].membership_status, 'cancelled');
+  assert.equal(deskHeld.clients[0].membership_plan_id, 'vuka_pln_boot_1730');
 const coaches = emptyFitgraphStore();
 coaches.coaches = [
   {

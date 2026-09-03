@@ -381,7 +381,7 @@ function applyBilledClassAllocations(
     const client = findRosterClient(store, row);
     if (!client) continue;
     if (client.active === false) continue;
-    if (!row.class_hint && clientHasLiveClass(store, client.id)) continue;
+    if (clientHasLiveClass(store, client.id)) continue;
     const result = allocateMemberToClass(store, {
       clientId: client.id,
       planId: plan.id,

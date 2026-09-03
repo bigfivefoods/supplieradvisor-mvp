@@ -265,7 +265,10 @@ export async function GET(request: NextRequest) {
       async (next) => {
         await saveStore(companyId, loaded.meta, next);
       },
-      { tradingName: loaded.store.settings?.brand_name }
+      {
+        tradingName: loaded.store.settings?.brand_name,
+        applyCatalog: false,
+      }
     );
 
     // Stamp owner emails so coachIsGymOwner works correctly on every load
