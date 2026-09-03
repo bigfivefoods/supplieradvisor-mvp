@@ -39,7 +39,7 @@ export type VukaRosterRow = {
 /** Unique billed members (Malan Snyman listed once). */
 export const VUKA_ROSTER: VukaRosterRow[] = [
   { name: 'Aimee Le Roux', amount_zar: 770.5 },
-  { name: 'Athalah Hembert', amount_zar: 770.5 },
+  { name: 'Athaliah Hembert', amount_zar: 770.5 },
   { name: 'Bandile Ntombola', amount_zar: 713 },
   { name: 'Barbara Pretorius', amount_zar: 816.5 },
   { name: 'Bibi Ayesha Yusuf', amount_zar: 574 },
@@ -218,7 +218,7 @@ function resolvePlan(
 }
 
 export const VUKA_BILLED_CLASS_IMPORT = '2026-08-20-classcodes-v2';
-export const VUKA_MEMBER_MERGE = '2026-08-20-merge';
+export const VUKA_MEMBER_MERGE = '2026-09-02-athaliah';
 
 export const VUKA_CONTRACTS_IMPORT = `${String(
   (generated as { import_version?: string }).import_version || '2026-08-19'
