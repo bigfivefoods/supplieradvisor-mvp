@@ -45,14 +45,16 @@ async function resolveGym(
   return loaded;
 }
 
-async function saveStore(
+async function saveStore<K extends keyof FitgraphStore>(
   companyId: number,
   meta: Record<string, unknown>,
   store: FitgraphStore,
-  ...keys: Array<keyof FitgraphStore>
+  ...keys: K[]
 ): Promise<string> {
-  const patch = {} as Partial<FitgraphStore>;
-  for (const key of keys) patch[key] = store[key];
+  const patch = {} as Pick<FitgraphStore, K>;
+  for (const key of keys) {
+    patch[key] = store[key] as Pick<FitgraphStore, K>[K];
+  }
   const ifUpdatedAtRaw = meta.__if_updated_at;
   const ifUpdatedAt =
     typeof ifUpdatedAtRaw === 'string' && ifUpdatedAtRaw.trim()
