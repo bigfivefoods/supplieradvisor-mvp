@@ -5,6 +5,9 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { GymBookingPlanBoard } from '@/components/fitness/GymBookingPlanBoard';
 import { defaultWorkingHours } from '../schedule/working-hours';
 import { emptyFitgraphStore } from './fitgraph';
 import { SYS_PT_CODE } from './session-times';
@@ -201,11 +204,36 @@ const board = readFileSync(
 assert.equal(today[0].className, 'Private PT');
 assert.equal(today[0].coachName, 'Pat');
 assert.deepEqual(today[0].members.map((m) => m.name), ['Ben']);
+const ptMarkup = renderToStaticMarkup(
+  createElement(GymBookingPlanBoard, {
+    days: [
+      {
+        date: '2026-09-02',
+        weekday: 3,
+        label: 'Wednesday',
+        short: 'Wed',
+        dateLabel: '2 Sep',
+        hoursLabel: '08:00–17:00',
+        closed: false,
+        classes: [today[0]],
+      },
+    ],
+    mode: 'day',
+    today: '2026-09-02',
+    onSelectSession: () => {},
+    onCopyInvite: () => {},
+    onMark: () => {},
+    onRemove: () => {},
+    onCopyFeedback: () => {},
+  })
+);
 assert.match(board, /Members planned/);
 assert.match(board, /Coach/);
 assert.match(board, /aria-expanded/);
-assert.match(board, /Coach · \$\{card\.coachName\}/);
-assert.match(board, /Members planned · \$\{card\.members\.length\}/);
-assert.match(board, /day\.classes\.map\(\(card\) => \(\s*<PlanClassCard/s);
+assert.match(ptMarkup, /12:00 · Private PT/);
+assert.match(ptMarkup, /Coach · Pat/);
+assert.match(ptMarkup, /Members planned · 1/);
+assert.match(ptMarkup, /Ben/);
+assert.match(ptMarkup, /aria-expanded="true"/);
 
 console.log('gym-booking-plan.test.ts ok');
