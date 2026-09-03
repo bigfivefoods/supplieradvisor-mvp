@@ -7,9 +7,11 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { memberArAccountCode } from '../accounting/party-gl-accounts';
 import {
+  applyAdvisorPersonCodeFromAr,
   applyGymClientNumberFromAr,
   gymClientLookupKeys,
   gymClientNumberFromAr,
+  needsAdvisorPersonCodeFromAr,
   needsGymClientNumber,
   recodeGymClientNumbers,
 } from './gym-client-number';
@@ -37,6 +39,13 @@ assert.equal(
   false
 );
 assert.equal(
+  needsAdvisorPersonCodeFromAr({
+    code: 'VUKA-001',
+    ar_account_code: '1180-0000077',
+  }),
+  true
+);
+assert.equal(
   needsGymClientNumber({ code: 'VUKA-001', ar_account_code: null }),
   false
 );
@@ -49,6 +58,7 @@ const ada = {
 assert.equal(applyGymClientNumberFromAr(ada), true);
 assert.equal(ada.code, '1180-0000077');
 assert.equal(applyGymClientNumberFromAr(ada), false);
+assert.equal(applyAdvisorPersonCodeFromAr(ada), false);
 
 const clash = [
   {

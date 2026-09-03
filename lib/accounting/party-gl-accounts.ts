@@ -67,10 +67,10 @@ function parsePaddedPartyId(code: string, headers: string[]): number | null {
 
 /** Stable AR sub-account, e.g. customer 1 under 1180 → 1180-0000001. */
 export function memberArAccountCode(
-  customerId: number,
+  partyUid: number,
   headerCode: string = MEMBER_AR_HEADER_CODE
 ): string {
-  return paddedPartyCode(headerCode || MEMBER_AR_HEADER_CODE, customerId);
+  return paddedPartyCode(headerCode || MEMBER_AR_HEADER_CODE, partyUid);
 }
 
 export function legacyMemberArAccountCode(customerId: number): string {
@@ -241,6 +241,10 @@ export type PartyBookRow = {
   metadata?: Record<string, unknown> | null;
 };
 
+const ADVISOR_UID_KIND_RE =
+  /advisor_ref:(gym|fitgraph|physio|physiograph|dental|dentalgraph|medical|medicalgraph|psychiatry|psychiatrygraph|vet|vetgraph):/i;
+const ADVISOR_UID_BLOCK_RE = /advisor_ref:(retail|retailgraph|hire|hiregraph):/i;
+
 export type PartyCoaRow = {
   id: number;
   code: string;
@@ -322,6 +326,110 @@ export function isAdvisorParty(row: PartyBookRow): boolean {
   if (String(row.notes || '').includes('advisor_ref:')) return true;
   const t = String(row.customer_type || '').trim().toLowerCase();
   return t === 'member' || t === 'patient' || t === 'hirer';
+}
+
+function isAdvisorUidParty(row: PartyBookRow): boolean {
+  if (!isAdvisorParty(row)) return false;
+  const t = String(row.customer_type || '').trim().toLowerCase();
+  if (t === 'hirer') return false;
+  const notes = String(row.notes || '');
+  if (ADVISOR_UID_BLOCK_RE.test(notes) && !ADVISOR_UID_KIND_RE.test(notes)) {
+    return false;
+  }
+  if (t === 'member' || t === 'patient') return true;
+  const source = String(row.source || '').trim().toLowerCase();
+  if (source === 'advisor_member') return true;
+  return ADVISOR_UID_KIND_RE.test(notes);
+}
+
+function advisorUidFromCustomerRow(row: PartyBookRow): number {
+  const meta = asRecord(row.metadata);
+  const explicit = Math.abs(Math.trunc(Number(meta.coa_party_uid) || 0));
+  if (explicit > 0) return explicit;
+  const stamp = String(meta.ar_account_number || meta.gl_account_code || '').trim();
+  const fromStamp = parseMemberArCustomerId(stamp) || 0;
+  return fromStamp > 0 ? fromStamp : 0;
+}
+
+function advisorPartyNameSortKey(row: PartyBookRow): string {
+  return normalizePartyKey(partyDisplayName(row));
+}
+
+function isReservedBiancaName(nameKey: string): boolean {
+  return (
+    /\bbianca\b/.test(nameKey) &&
+    (nameKey.includes('westhorpe') || nameKey.includes('pottow'))
+  );
+}
+
+function isReservedCraigMullerName(nameKey: string): boolean {
+  return /\bcraig\b/.test(nameKey) && /\bmuller\b/.test(nameKey);
+}
+
+export function planAdvisorPartyUids(rows: PartyBookRow[]): {
+  byCustomerId: Map<number, number>;
+  nextUid: number;
+} {
+  const advisorRows = (rows || [])
+    .filter((row) => row?.id && !isSkippedPartyStatus(row.status) && isAdvisorUidParty(row))
+    .map((row) => ({
+      row,
+      id: Number(row.id),
+      nameKey: advisorPartyNameSortKey(row),
+      uid: advisorUidFromCustomerRow(row),
+    }))
+    .filter((row) => row.id > 0)
+    .sort((a, b) => a.nameKey.localeCompare(b.nameKey) || a.id - b.id);
+  const byCustomerId = new Map<number, number>();
+  const used = new Set<number>();
+  const bianca = advisorRows.find((r) => isReservedBiancaName(r.nameKey));
+  const craig = advisorRows.find((r) => isReservedCraigMullerName(r.nameKey));
+  if (bianca) {
+    byCustomerId.set(bianca.id, 1);
+    used.add(1);
+  }
+  if (bianca && craig && craig.id !== bianca.id) {
+    byCustomerId.set(craig.id, 2);
+    used.add(2);
+  }
+  for (const row of advisorRows) {
+    if (byCustomerId.has(row.id)) continue;
+    if (row.uid > 0 && !used.has(row.uid)) {
+      byCustomerId.set(row.id, row.uid);
+      used.add(row.uid);
+    }
+  }
+  let cursor = 1;
+  for (const row of advisorRows) {
+    if (byCustomerId.has(row.id)) continue;
+    while (used.has(cursor)) cursor += 1;
+    byCustomerId.set(row.id, cursor);
+    used.add(cursor);
+    cursor += 1;
+  }
+  const maxUid = used.size ? Math.max(...used) : 0;
+  return { byCustomerId, nextUid: Math.max(1, maxUid + 1) };
+}
+
+export function nextAdvisorPartyUidFromRows(rows: PartyBookRow[]): number {
+  const advisorRows = (rows || []).filter(
+    (row) => row?.id && !isSkippedPartyStatus(row.status) && isAdvisorUidParty(row)
+  );
+  const used = new Set<number>();
+  for (const row of advisorRows) {
+    const uid = advisorUidFromCustomerRow(row);
+    if (uid > 0) used.add(uid);
+  }
+  const hasBianca = advisorRows.some((row) =>
+    isReservedBiancaName(advisorPartyNameSortKey(row))
+  );
+  const hasCraig = advisorRows.some((row) =>
+    isReservedCraigMullerName(advisorPartyNameSortKey(row))
+  );
+  if (hasBianca) used.add(1);
+  if (hasBianca && hasCraig) used.add(2);
+  const maxUid = used.size ? Math.max(...used) : 0;
+  return Math.max(1, maxUid + 1);
 }
 
 const ADVISOR_FEE_REF_RE =
@@ -549,7 +657,8 @@ export function resolveLegacyIntegerPartyRecode(opts: {
       stripPartyPrefix(String(opts.name || ''))
     );
     if (!row?.id) return null;
-    const want = memberArAccountCode(Number(row.id));
+    const uid = advisorUidFromCustomerRow(row);
+    const want = memberArAccountCode(uid > 0 ? uid : Number(row.id));
     if (!want) return null;
     return { kind: 'ar', partyId: Number(row.id), want };
   }
@@ -819,8 +928,10 @@ function collectUniqueCustomers(
     const trade = isTradeParty(row);
     if (!advisor && !trade) continue;
     const name = partyDisplayName(row);
+    const advisorUid = advisorUidFromCustomerRow(row);
+    const partyUid = advisor && advisorUid > 0 ? advisorUid : Number(row.id);
     const parentCode = clampCustomerArParent(advisor ? memberCode : arCode);
-    const want = memberArAccountCode(Number(row.id), parentCode);
+    const want = memberArAccountCode(partyUid, parentCode);
     const classic = memberArAccountCode(Number(row.id), MEMBER_AR_HEADER_CODE);
     if (!name || !want) continue;
     const linked = linkedGlCode(row);
@@ -1125,7 +1236,8 @@ export function planPartyGlAccounts(opts: {
       const id = Number(row.id);
       if (!(id > 0) || seenFee.has(id)) continue;
       seenFee.add(id);
-      const want = memberRevAccountCode(id);
+      const advisorUid = advisorUidFromCustomerRow(row);
+      const want = memberRevAccountCode(advisorUid > 0 ? advisorUid : id);
       if (!want) continue;
       const existing = pickExistingLeaf(asCoaView(opts.coa || [], create), [
         want,
@@ -1278,6 +1390,110 @@ async function loadBookRows(
     data: (first.data || null) as PartyBookRow[] | null,
     error: first.error,
   };
+}
+
+export async function nextAdvisorPartyUid(profileId: number): Promise<number> {
+  if (!Number.isFinite(profileId) || profileId <= 0) return 1;
+  if (Number(profileId) === 102) return 1;
+  const supabase = getSupabaseServer();
+  const loaded = await loadBookRows(
+    supabase,
+    'customers',
+    profileId,
+    'customer_type, source, notes'
+  );
+  if (loaded.error || !loaded.data?.length) return 1;
+  return nextAdvisorPartyUidFromRows(loaded.data);
+}
+
+export async function ensureAdvisorPartyUid(opts: {
+  profileId: number;
+  customerId: number;
+}): Promise<number | null> {
+  if (!Number.isFinite(opts.profileId) || opts.profileId <= 0) return null;
+  const customerId = Number(opts.customerId || 0);
+  if (customerId <= 0) return null;
+  if (Number(opts.profileId) === 102) return null;
+  const supabase = getSupabaseServer();
+  const loaded = await loadBookRows(
+    supabase,
+    'customers',
+    opts.profileId,
+    'customer_type, source, notes'
+  );
+  if (loaded.error || !loaded.data?.length) return null;
+  const row = loaded.data.find((r) => Number(r.id) === customerId);
+  if (!row || !isAdvisorUidParty(row)) return null;
+  const key = advisorPartyNameSortKey(row);
+  const biancaPresent = loaded.data.some((r) =>
+    isReservedBiancaName(advisorPartyNameSortKey(r))
+  );
+  const used = new Set<number>();
+  for (const candidate of loaded.data) {
+    const id = Number(candidate.id || 0);
+    if (id <= 0 || id === customerId) continue;
+    const uid = advisorUidFromCustomerRow(candidate);
+    if (uid > 0) used.add(uid);
+  }
+  let uid = advisorUidFromCustomerRow(row);
+  if (!(uid > 0)) {
+    if (isReservedBiancaName(key) && !used.has(1)) {
+      uid = 1;
+    } else if (biancaPresent && isReservedCraigMullerName(key) && !used.has(2)) {
+      uid = 2;
+    } else {
+      uid = nextAdvisorPartyUidFromRows(loaded.data);
+    }
+  }
+  if (!(uid > 0)) return null;
+  const meta = asRecord(row?.metadata);
+  if (Number(meta.coa_party_uid || 0) !== uid) {
+    await supabase
+      .from('customers')
+      .update({
+        metadata: {
+          ...meta,
+          coa_party_uid: uid,
+        },
+      })
+      .eq('profile_id', opts.profileId)
+      .eq('id', customerId);
+  }
+  return uid;
+}
+
+export async function backfillAdvisorPartyUids(profileId: number): Promise<number> {
+  if (!Number.isFinite(profileId) || profileId <= 0) return 0;
+  if (Number(profileId) === 102) return 0;
+  const supabase = getSupabaseServer();
+  const loaded = await loadBookRows(
+    supabase,
+    'customers',
+    profileId,
+    'customer_type, source, notes'
+  );
+  if (loaded.error || !loaded.data?.length) return 0;
+  const plan = planAdvisorPartyUids(loaded.data);
+  let updated = 0;
+  for (const row of loaded.data) {
+    const id = Number(row.id || 0);
+    const uid = Number(plan.byCustomerId.get(id) || 0);
+    if (!(id > 0) || !(uid > 0)) continue;
+    const meta = asRecord(row.metadata);
+    if (Number(meta.coa_party_uid || 0) === uid) continue;
+    const { error } = await supabase
+      .from('customers')
+      .update({
+        metadata: {
+          ...meta,
+          coa_party_uid: uid,
+        },
+      })
+      .eq('profile_id', profileId)
+      .eq('id', id);
+    if (!error) updated += 1;
+  }
+  return updated;
 }
 
 async function ensureHeaderRow(opts: {
@@ -1439,13 +1655,17 @@ export async function ensureMemberArLeaf(opts: {
   customerId: number;
   name: string;
   headerCode?: string | null;
+  partyUid?: number | null;
 }): Promise<{ code: string; accountId: number } | null> {
   const parents = await loadPartyParents(opts.profileId);
   const headerCode = clampCustomerArParent(
     String(opts.headerCode || parents.members.code || MEMBER_AR_HEADER_CODE).trim() ||
       MEMBER_AR_HEADER_CODE
   );
-  const want = memberArAccountCode(opts.customerId, headerCode);
+  const partyUid = Math.abs(
+    Math.trunc(Number(opts.partyUid) || Number(opts.customerId) || 0)
+  );
+  const want = memberArAccountCode(partyUid, headerCode);
   const classic = memberArAccountCode(opts.customerId, MEMBER_AR_HEADER_CODE);
   const rawName = partyDisplayName({ trading_name: opts.name }) || 'Member';
   const name = /^AR\s+[—-]\s+/i.test(rawName)
@@ -1542,8 +1762,7 @@ export async function ensureMemberArLeaf(opts: {
     !modern &&
     Number(headerId) > 0 &&
     headerCode === MEMBER_AR_HEADER_CODE &&
-    (parseHyphenSubAccount(String(code))?.header === MEMBER_AR_LEGACY_HEADER_CODE ||
-      isLegacyIntegerArCode(String(code)))
+    isUsableCustomerArLeafCode(String(code))
   ) {
     const recode = await supabase
       .from('chart_of_accounts')
@@ -1653,8 +1872,12 @@ export async function ensureMemberRevLeaf(opts: {
   profileId: number;
   customerId: number;
   name: string;
+  partyUid?: number | null;
 }): Promise<{ code: string; accountId: number } | null> {
-  const want = memberRevAccountCode(opts.customerId);
+  const partyUid = Math.abs(
+    Math.trunc(Number(opts.partyUid) || Number(opts.customerId) || 0)
+  );
+  const want = memberRevAccountCode(partyUid);
   const rawName = partyDisplayName({ trading_name: opts.name }) || 'Member';
   const name = /^Member\s+[—-]\s+/i.test(rawName)
     ? rawName
@@ -1681,8 +1904,83 @@ export async function ensureMemberRevLeaf(opts: {
     .eq('profile_id', opts.profileId)
     .eq('code', want)
     .maybeSingle();
-  let accountId = existing?.id ? Number(existing.id) : 0;
-  let code = existing?.code ? String(existing.code) : want;
+  const { data: book } = await supabase
+    .from('customers')
+    .select('metadata')
+    .eq('profile_id', opts.profileId)
+    .eq('id', opts.customerId)
+    .maybeSingle();
+  const bookMeta = asRecord(book?.metadata);
+  const linkedCode = String(bookMeta.member_rev_account_code || '').trim();
+  const linkedId = Number(bookMeta.member_rev_account_id || 0);
+  let accountId = existing?.id
+    ? Number(existing.id)
+    : linkedId > 0
+      ? linkedId
+      : 0;
+  let code = existing?.code ? String(existing.code) : linkedCode || want;
+  if (!existing?.id && linkedId > 0) {
+    const { data: linked } = await supabase
+      .from('chart_of_accounts')
+      .select('id, code')
+      .eq('profile_id', opts.profileId)
+      .eq('id', linkedId)
+      .maybeSingle();
+    if (linked?.id) {
+      accountId = Number(linked.id);
+      code = String(linked.code || code || want);
+    } else {
+      accountId = 0;
+      code = want;
+    }
+  }
+  if (
+    accountId > 0 &&
+    code &&
+    code !== want &&
+    !existing?.id
+  ) {
+    const recode = await supabase
+      .from('chart_of_accounts')
+      .update({
+        code: want,
+        name,
+        account_type: 'revenue',
+        subtype: 'service',
+        is_header: false,
+        is_active: true,
+        normal_balance: 'credit',
+        parent_id: headerId,
+        description: `Membership income ${want} — ${name}. Fees for this person post here.`,
+        metadata: {
+          party_kind: 'member_rev',
+          party_ids: [opts.customerId],
+          rev_account_number: want,
+        },
+      })
+      .eq('id', accountId)
+      .eq('profile_id', opts.profileId)
+      .select('id, code')
+      .maybeSingle();
+    if (recode.data?.id) {
+      accountId = Number(recode.data.id);
+      code = String(recode.data.code || want);
+    } else if (recode.error && /duplicate|unique/i.test(recode.error.message || '')) {
+      const { data: taken } = await supabase
+        .from('chart_of_accounts')
+        .select('id, code')
+        .eq('profile_id', opts.profileId)
+        .eq('code', want)
+        .maybeSingle();
+      if (taken?.id) {
+        accountId = Number(taken.id);
+        code = String(taken.code || want);
+      } else {
+        accountId = 0;
+        code = want;
+      }
+    }
+  }
   if (accountId && headerId && Number(existing?.parent_id) !== headerId) {
     await supabase
       .from('chart_of_accounts')
@@ -1739,12 +2037,6 @@ export async function ensureMemberRevLeaf(opts: {
     }
   }
   if (!accountId) return null;
-  const { data: book } = await supabase
-    .from('customers')
-    .select('metadata')
-    .eq('profile_id', opts.profileId)
-    .eq('id', opts.customerId)
-    .maybeSingle();
   const meta = asRecord(book?.metadata);
   if (String(meta.member_rev_account_code || '') !== code) {
     await supabase

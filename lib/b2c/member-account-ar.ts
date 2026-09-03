@@ -364,27 +364,35 @@ async function finishAdvisorCustomer(
   let ar_account_code: string | null = null;
   try {
     const {
+      ensureAdvisorPartyUid,
       ensureMemberArLeaf,
       ensureMemberRevLeaf,
       isAdvisorFeeKind,
       memberArAccountCode,
     } = await import('@/lib/accounting/party-gl-accounts');
+    const partyUid = await ensureAdvisorPartyUid({
+      profileId: companyId,
+      customerId: customer.id,
+    });
+    const uid = Number(partyUid || customer.id || 0);
     const leaf = await ensureMemberArLeaf({
       profileId: companyId,
       customerId: customer.id,
       name: customer.name,
+      partyUid: uid > 0 ? uid : customer.id,
     });
-    if (isAdvisorFeeKind(customer.kind)) {
+    if (companyId !== 102 && isAdvisorFeeKind(customer.kind)) {
       await ensureMemberRevLeaf({
         profileId: companyId,
         customerId: customer.id,
         name: customer.name,
+        partyUid: uid > 0 ? uid : customer.id,
       });
     }
-    const code = leaf?.code || memberArAccountCode(customer.id) || null;
+    const code = leaf?.code || memberArAccountCode(uid > 0 ? uid : customer.id) || null;
     ar_account_code = isPaddedMemberArCode(code)
       ? code
-      : memberArAccountCode(customer.id) || null;
+      : memberArAccountCode(uid > 0 ? uid : customer.id) || null;
   } catch (err) {
     console.warn('[member-account] member AR leaf', err);
   }
