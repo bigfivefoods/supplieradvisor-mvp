@@ -23,6 +23,7 @@ import {
   MessageCircle,
   Pencil,
   X,
+  ChevronDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
@@ -41,6 +42,11 @@ import {
   groupMoneyTotal,
   type DocListGroupBy,
 } from '@/lib/customers/doc-list-group';
+import {
+  initialPeriodSlicerValue,
+  type PeriodSlicerValue,
+} from '@/components/accounting/PeriodSlicer';
+import DocDeskAnalytics from '@/components/customers/DocDeskAnalytics';
 import type { CustomerRecord } from '@/lib/customers/types';
 import {
   customerInviteStatusLabel,
@@ -154,7 +160,9 @@ function DocInner({
   variant?: 'default' | 'sales';
 }) {
   const sales = variant === 'sales';
-  const canGroupList = type === 'quote' || type === 'order';
+  const canGroupList =
+    type === 'quote' || type === 'order' || type === 'invoice';
+  const expandableList = type === 'quote' || type === 'order';
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
@@ -237,10 +245,14 @@ function DocInner({
   const [statusFilter, setStatusFilter] = useState(
     statusFromUrl && statusFromUrl !== 'all' ? statusFromUrl : 'all'
   );
-  const [groupBy, setGroupBy] = useState<DocListGroupBy>('none');
+  const [groupBy, setGroupBy] = useState<DocListGroupBy>('date');
   const [listCustomerId, setListCustomerId] = useState('all');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [period, setPeriod] = useState<PeriodSlicerValue>(() =>
+    initialPeriodSlicerValue('this_month')
+  );
+  const [collapsedIds, setCollapsedIds] = useState<Record<number, boolean>>(
+    {}
+  );
 
   const [customerId, setCustomerId] = useState('');
   const [docCurrency, setDocCurrency] = useState('ZAR');
@@ -318,11 +330,9 @@ function DocInner({
         if (listCustomerId && listCustomerId !== 'all') {
           params.set('customerId', listCustomerId);
         }
-        if (dateFrom) params.set('from', dateFrom);
-        if (dateTo) params.set('to', dateTo);
-        if (groupBy !== 'none' || listCustomerId !== 'all' || dateFrom || dateTo) {
-          params.set('limit', '200');
-        }
+        if (period.from) params.set('from', period.from);
+        if (period.to) params.set('to', period.to);
+        params.set('limit', '200');
       }
       const settingsQs = privyUserId
         ? `companyId=${companyId}&privyUserId=${encodeURIComponent(privyUserId)}`
@@ -372,9 +382,8 @@ function DocInner({
     statusFilter,
     privyUserId,
     listCustomerId,
-    dateFrom,
-    dateTo,
-    groupBy,
+    period.from,
+    period.to,
   ]);
 
   useEffect(() => {
@@ -685,10 +694,10 @@ function DocInner({
     if (!canGroupList) return docs;
     return filterGroupedDocs(docs, {
       customerId: listCustomerId,
-      dateFrom,
-      dateTo,
+      dateFrom: period.from,
+      dateTo: period.to,
     });
-  }, [docs, canGroupList, listCustomerId, dateFrom, dateTo]);
+  }, [docs, canGroupList, listCustomerId, period.from, period.to]);
 
   const docGroups = useMemo(
     () =>
@@ -2842,6 +2851,22 @@ function DocInner({
         </div>
       ) : null}
 
+      {canGroupList ? (
+        <DocDeskAnalytics
+          noun={cfg.title}
+          period={period}
+          onPeriod={setPeriod}
+          docs={visibleDocs}
+          groupBy={groupBy}
+          onGroupBy={setGroupBy}
+          statusFilter={statusFilter}
+          onStatus={setStatusFilter}
+          statuses={cfg.statuses}
+          customerId={listCustomerId}
+          onCustomer={setListCustomerId}
+          customers={quoteCustomerOptions.map(([id, name]) => ({ id, name }))}
+        />
+      ) : (
       <div className="flex flex-wrap gap-2 mb-4 items-center">
         <select
           className={
@@ -2857,77 +2882,8 @@ function DocInner({
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
-        {canGroupList ? (
-          <>
-            <select
-              className={
-                sales
-                  ? 'rounded-2xl bg-white border border-neutral-200 text-slate-800 text-sm px-3 py-2'
-                  : 'input !py-2 !px-3 !text-sm'
-              }
-              value={groupBy}
-              onChange={(e) =>
-                setGroupBy(
-                  e.target.value === 'date' || e.target.value === 'customer'
-                    ? e.target.value
-                    : 'none'
-                )
-              }
-              title={`Group ${cfg.title.toLowerCase()}`}
-            >
-              <option value="none">View: list</option>
-              <option value="date">View: by date</option>
-              <option value="customer">View: by customer</option>
-            </select>
-            <select
-              className={
-                sales
-                  ? 'rounded-2xl bg-white border border-neutral-200 text-slate-800 text-sm px-3 py-2'
-                  : 'input !py-2 !px-3 !text-sm'
-              }
-              value={listCustomerId}
-              onChange={(e) => setListCustomerId(e.target.value)}
-              title="Filter by customer"
-            >
-              <option value="all">All customers</option>
-              {quoteCustomerOptions.map(([id, name]) => (
-                <option key={id} value={id}>
-                  {name}
-                </option>
-              ))}
-            </select>
-            <label className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-neutral-500">
-              From
-              <input
-                className={
-                  sales
-                    ? 'rounded-2xl bg-white border border-neutral-200 text-slate-800 text-sm px-3 py-2 font-medium normal-case tracking-normal'
-                    : 'input !py-2 !px-3 !text-sm font-medium normal-case tracking-normal'
-                }
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                title="From date"
-              />
-            </label>
-            <label className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-neutral-500">
-              To
-              <input
-                className={
-                  sales
-                    ? 'rounded-2xl bg-white border border-neutral-200 text-slate-800 text-sm px-3 py-2 font-medium normal-case tracking-normal'
-                    : 'input !py-2 !px-3 !text-sm font-medium normal-case tracking-normal'
-                }
-                type="date"
-                value={dateTo}
-                min={dateFrom || undefined}
-                onChange={(e) => setDateTo(e.target.value)}
-                title="To date"
-              />
-            </label>
-          </>
-        ) : null}
       </div>
+      )}
 
       {type === 'invoice' &&
       (statusFilter === 'overdue' || actionFromUrl === 'resend') ? (
@@ -2986,6 +2942,29 @@ function DocInner({
               WhatsApp summary
             </button>
           </div>
+        </div>
+      ) : null}
+
+      {expandableList && visibleDocs.length > 0 ? (
+        <div className="mb-2 flex justify-end gap-2">
+          <button
+            type="button"
+            className="text-[11px] font-black uppercase tracking-wide text-[#0077b6]"
+            onClick={() => setCollapsedIds({})}
+          >
+            Expand all
+          </button>
+          <button
+            type="button"
+            className="text-[11px] font-black uppercase tracking-wide text-slate-500"
+            onClick={() =>
+              setCollapsedIds(
+                Object.fromEntries(visibleDocs.map((d) => [d.id, true]))
+              )
+            }
+          >
+            Collapse all
+          </button>
         </div>
       ) : null}
 
@@ -3051,6 +3030,8 @@ function DocInner({
               const itemCount = Array.isArray(d.items) ? d.items.length : 0;
               const isShared = (d.visibility || 'seller_only') === 'shared';
               const isHighlight = highlightDocId != null && Number(d.id) === highlightDocId;
+              const isExpanded =
+                expandableList && collapsedIds[d.id] !== true;
               return (
                 <li
                   key={d.id}
@@ -3065,6 +3046,25 @@ function DocInner({
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
+                      {expandableList ? (
+                        <button
+                          type="button"
+                          className="p-0.5 rounded-lg text-slate-500 hover:bg-slate-100"
+                          title={isExpanded ? 'Collapse' : 'Expand'}
+                          onClick={() =>
+                            setCollapsedIds((prev) => ({
+                              ...prev,
+                              [d.id]: prev[d.id] !== true,
+                            }))
+                          }
+                        >
+                          <ChevronDown
+                            className={`w-4 h-4 transition-transform ${
+                              isExpanded ? '' : 'rotate-[-90deg]'
+                            }`}
+                          />
+                        </button>
+                      ) : null}
                       <span className={`font-bold font-mono ${sales ? 'text-slate-900' : ''}`}>
                         {num}
                       </span>
@@ -3370,9 +3370,15 @@ function DocInner({
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
-                  {isHighlight && Array.isArray(d.items) && d.items.length > 0 ? (
-                    <div className="w-full rounded-xl border border-amber-200/80 bg-white/80 px-3 py-2">
-                      <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-amber-900">
+                  {(isHighlight || isExpanded) &&
+                  Array.isArray(d.items) &&
+                  d.items.length > 0 ? (
+                    <div className={`w-full rounded-xl border px-3 py-2 ${
+                      isHighlight
+                        ? 'border-amber-200/80 bg-white/80'
+                        : 'border-slate-200 bg-slate-50/70'
+                    }`}>
+                      <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
                         {type === 'invoice' ? 'Invoice lines' : 'Lines'}
                       </p>
                       <ul className="space-y-0.5">
