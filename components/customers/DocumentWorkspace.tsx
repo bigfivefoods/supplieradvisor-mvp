@@ -42,6 +42,7 @@ import {
   groupMoneyTotal,
   type DocListGroupBy,
 } from '@/lib/customers/doc-list-group';
+import { rangeForTimeKey } from '@/lib/customers/doc-desk-analytics';
 import {
   initialPeriodSlicerValue,
   type PeriodSlicerValue,
@@ -247,6 +248,7 @@ function DocInner({
   );
   const [groupBy, setGroupBy] = useState<DocListGroupBy>('date');
   const [listCustomerId, setListCustomerId] = useState('all');
+  const [listTimeKey, setListTimeKey] = useState<string | null>(null);
   const [period, setPeriod] = useState<PeriodSlicerValue>(() =>
     initialPeriodSlicerValue('this_month')
   );
@@ -327,9 +329,6 @@ function DocInner({
       const params = new URLSearchParams({ companyId: String(companyId), type });
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (canGroupList) {
-        if (listCustomerId && listCustomerId !== 'all') {
-          params.set('customerId', listCustomerId);
-        }
         if (period.from) params.set('from', period.from);
         if (period.to) params.set('to', period.to);
         params.set('limit', '200');
@@ -381,7 +380,6 @@ function DocInner({
     canGroupList,
     statusFilter,
     privyUserId,
-    listCustomerId,
     period.from,
     period.to,
   ]);
@@ -692,12 +690,20 @@ function DocInner({
 
   const visibleDocs = useMemo(() => {
     if (!canGroupList) return docs;
+    const slice = listTimeKey ? rangeForTimeKey(listTimeKey) : null;
     return filterGroupedDocs(docs, {
       customerId: listCustomerId,
-      dateFrom: period.from,
-      dateTo: period.to,
+      dateFrom: slice?.from || period.from,
+      dateTo: slice?.to || period.to,
     });
-  }, [docs, canGroupList, listCustomerId, period.from, period.to]);
+  }, [
+    docs,
+    canGroupList,
+    listCustomerId,
+    listTimeKey,
+    period.from,
+    period.to,
+  ]);
 
   const docGroups = useMemo(
     () =>
@@ -2855,8 +2861,12 @@ function DocInner({
         <DocDeskAnalytics
           noun={cfg.title}
           period={period}
-          onPeriod={setPeriod}
-          docs={visibleDocs}
+          onPeriod={(next) => {
+            setPeriod(next);
+            setListTimeKey(null);
+          }}
+          docs={docs}
+          listDocs={visibleDocs}
           groupBy={groupBy}
           onGroupBy={setGroupBy}
           statusFilter={statusFilter}
@@ -2864,6 +2874,8 @@ function DocInner({
           statuses={cfg.statuses}
           customerId={listCustomerId}
           onCustomer={setListCustomerId}
+          timeKey={listTimeKey}
+          onTimeKey={setListTimeKey}
           customers={quoteCustomerOptions.map(([id, name]) => ({ id, name }))}
         />
       ) : (

@@ -5,9 +5,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+  customerIdFromSeriesKey,
   docsDeskTotals,
   docsValueByCustomer,
   docsValueByTime,
+  rangeForTimeKey,
 } from './doc-desk-analytics';
 
 const docs = [
@@ -53,6 +55,17 @@ const tot = docsDeskTotals(docs);
 assert.equal(tot.count, 3);
 assert.equal(tot.amount, 170);
 
+assert.deepEqual(rangeForTimeKey('2026-09-02'), {
+  from: '2026-09-02',
+  to: '2026-09-02',
+});
+assert.deepEqual(rangeForTimeKey('2026-09'), {
+  from: '2026-09-01',
+  to: '2026-09-30',
+});
+assert.equal(customerIdFromSeriesKey('id:10'), '10');
+assert.equal(customerIdFromSeriesKey('other'), null);
+
 const ws = readFileSync(
   resolve('components/customers/DocumentWorkspace.tsx'),
   'utf8'
@@ -70,5 +83,10 @@ const analyticsUi = readFileSync(
 assert.match(analyticsUi, /PeriodSlicer/);
 assert.match(analyticsUi, /By customer/);
 assert.match(analyticsUi, /All customers/);
+assert.match(analyticsUi, /onClick/);
+assert.match(analyticsUi, /clickTime/);
+assert.match(analyticsUi, /clickCustomer/);
+assert.match(ws, /listTimeKey/);
+assert.match(ws, /onTimeKey/);
 
 console.log('doc-desk-analytics.test.ts ok');

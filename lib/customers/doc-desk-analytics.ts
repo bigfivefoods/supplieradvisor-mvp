@@ -111,6 +111,31 @@ export function docsValueByStatus<T extends GroupableDoc>(
     }));
 }
 
+/** YYYY-MM-DD or YYYY-MM from a chart bar → inclusive date range. */
+export function rangeForTimeKey(
+  key: string
+): { from: string; to: string } | null {
+  const k = String(key || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(k)) return { from: k, to: k };
+  if (/^\d{4}-\d{2}$/.test(k)) {
+    const [y, m] = k.split('-').map(Number);
+    const last = new Date(y, m, 0).getDate();
+    const dd = String(last).padStart(2, '0');
+    return { from: `${k}-01`, to: `${k}-${dd}` };
+  }
+  return null;
+}
+
+export function customerIdFromSeriesKey(key: string): string | null {
+  const k = String(key || '');
+  if (k === 'other' || k === 'none') return null;
+  if (k.startsWith('id:')) {
+    const id = k.slice(3);
+    return id || null;
+  }
+  return null;
+}
+
 export function docsDeskTotals<T extends GroupableDoc>(docs: T[]) {
   const money = groupMoneyTotal(docs);
   return {
