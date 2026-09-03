@@ -8,6 +8,7 @@ import type {
   FitSubscription,
   FitgraphStore,
 } from '@/lib/fitness/fitgraph';
+import { rememberRemovedFitgraphIds } from '@/lib/fitness/fitgraph-merge';
 
 const WEAK_NAME_TOKENS = new Set([
   'van',
@@ -647,8 +648,71 @@ export function mergeDuplicateFitClients(
     if (idx >= 0) store.clients[idx] = next;
   }
   if (drop.size) {
+    rememberRemovedFitgraphIds(store, 'clients', drop);
     store.clients = store.clients.filter((c) => !drop.has(c.id));
     dedupeAfterMerge(store);
   }
   return { store, changed: merged > 0, merged };
+}
+
+/** Known desk typos that must fold even when emails differ. */
+const CLIENT_NAME_FOLDS: Array<{ aliases: string[]; canonical: string }> = [
+  {
+    aliases: ['athalah hembert', 'athaliah hembert'],
+    canonical: 'Athaliah Hembert',
+  },
+];
+
+/**
+ * Fold known duplicate names into one person and retarget their rows.
+ * Runs even after the member-merge stamp so a leftover typo cannot stick.
+ */
+export function absorbKnownClientAliases(
+  store: FitgraphStore,
+  opts?: { now?: string }
+): { store: FitgraphStore; changed: boolean } {
+  const now = opts?.now || new Date().toISOString();
+  if (!Array.isArray(store.clients) || !store.clients.length) {
+    return { store, changed: false };
+  }
+  let changed = false;
+  for (const fold of CLIENT_NAME_FOLDS) {
+    const aliasSet = new Set(fold.aliases);
+    const canonicalNorm = normalizePersonName(fold.canonical);
+    const preferred = new Set([canonicalNorm]);
+    const group = store.clients.filter((c) =>
+      aliasSet.has(normalizePersonName(c.name))
+    );
+    if (!group.length) continue;
+    const namedCanonical = group.filter(
+      (c) => normalizePersonName(c.name) === canonicalNorm
+    );
+    const keeper = namedCanonical.length
+      ? pickKeeper(namedCanonical, preferred)
+      : pickKeeper(group, preferred);
+    let next = { ...keeper };
+    const drop = new Set<string>();
+    for (const donor of group) {
+      if (donor.id === keeper.id) continue;
+      next = mergeClientRecord(next, donor, preferred);
+      remapClientId(store, donor.id, keeper.id);
+      drop.add(donor.id);
+    }
+    if (next.name !== fold.canonical) {
+      next.name = fold.canonical;
+    }
+    if (drop.size || next.name !== keeper.name) {
+      next.updated_at = now;
+      changed = true;
+    }
+    const idx = store.clients.findIndex((c) => c.id === keeper.id);
+    if (idx >= 0) store.clients[idx] = next;
+    if (drop.size) {
+      rememberRemovedFitgraphIds(store, 'clients', drop);
+      store.clients = store.clients.filter((c) => !drop.has(c.id));
+      dedupeAfterMerge(store);
+      changed = true;
+    }
+  }
+  return { store, changed };
 }

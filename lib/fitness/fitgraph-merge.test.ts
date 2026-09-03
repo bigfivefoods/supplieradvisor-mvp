@@ -370,4 +370,36 @@ assert.ok(
   'without a tombstone, merge still keeps concurrent sessions'
 );
 
+const liveClients = emptyFitgraphStore();
+liveClients.clients.push(
+  {
+    id: 'cli_athaliah',
+    code: 'A',
+    name: 'Athaliah Hembert',
+    created_at: '2026-08-01T00:00:00.000Z',
+    updated_at: '2026-08-01T00:00:00.000Z',
+  },
+  {
+    id: 'vuka_cli_athalah_hembert',
+    code: 'B',
+    name: 'Athalah Hembert',
+    created_at: '2026-08-01T00:00:00.000Z',
+    updated_at: '2026-08-01T00:00:00.000Z',
+  }
+);
+const foldedClients = emptyFitgraphStore();
+foldedClients.clients.push({
+  id: 'cli_athaliah',
+  code: 'A',
+  name: 'Athaliah Hembert',
+  created_at: '2026-08-01T00:00:00.000Z',
+  updated_at: '2026-09-03T12:00:00.000Z',
+});
+foldedClients.removed_ids = { clients: ['vuka_cli_athalah_hembert'] };
+const afterClientFold = mergeFitgraphStores(liveClients, foldedClients);
+assert.equal(afterClientFold.clients.map((c) => c.id).join(','), 'cli_athaliah');
+assert.ok(
+  afterClientFold.removed_ids?.clients?.includes('vuka_cli_athalah_hembert')
+);
+
 console.log('fitgraph-merge.test.ts ok');
