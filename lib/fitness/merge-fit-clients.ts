@@ -152,6 +152,13 @@ function namesLookLikeSamePerson(aName: string, bName: string): boolean {
   ) {
     return true;
   }
+  if (
+    lastA === lastB &&
+    Math.min(firstA.length, firstB.length) >= 6 &&
+    editDistance(firstA, firstB) <= 1
+  ) {
+    return true;
+  }
   return false;
 }
 

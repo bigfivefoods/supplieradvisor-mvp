@@ -195,6 +195,86 @@ assert.equal(
   ),
   false
 );
+assert.ok(
+  clientsAreSamePerson(
+    {
+      id: 'a',
+      code: 'a',
+      name: 'Athalah Hembert',
+      created_at: '',
+      updated_at: '',
+    },
+    {
+      id: 'b',
+      code: 'b',
+      name: 'Athaliah Hembert',
+      created_at: '',
+      updated_at: '',
+    }
+  )
+);
+assert.ok(
+  VUKA_ROSTER.some((r) => r.name === 'Athaliah Hembert')
+);
+assert.equal(
+  VUKA_ROSTER.filter((r) => /athalah/i.test(r.name)).length,
+  0
+);
+assert.equal(
+  store.clients.filter((c) => /hembert/i.test(c.name) && c.active !== false)
+    .length,
+  1
+);
+assert.equal(
+  normalizePersonName(
+    store.clients.find((c) => /hembert/i.test(c.name))?.name || ''
+  ),
+  'athaliah hembert'
+);
+
+const leftover = emptyFitgraphStore();
+leftover.clients = [
+  {
+    id: 'vuka_cli_athalah_hembert',
+    code: 'VUKA-001',
+    name: 'Athalah Hembert',
+    active: true,
+    created_at: '2026-08-01T00:00:00.000Z',
+    updated_at: '2026-08-01T00:00:00.000Z',
+  },
+  {
+    id: 'cli_athaliah',
+    code: 'VUKA-002',
+    name: 'Athaliah Hembert',
+    email: 'athaliahhembert9@gmail.com',
+    active: true,
+    contracts: [{ id: 'con_ath', kind: 'group', source_id: 'jot' }],
+    created_at: '2026-07-28T00:00:00.000Z',
+    updated_at: '2026-07-28T00:00:00.000Z',
+  },
+];
+leftover.bookings = [
+  {
+    id: 'bkg_athalah',
+    session_id: 'ses_1',
+    client_id: 'vuka_cli_athalah_hembert',
+    status: 'booked',
+    booked_at: '2026-08-20T00:00:00.000Z',
+  },
+];
+const hembertMerge = mergeDuplicateFitClients(leftover, {
+  now: '2026-09-02T12:00:00.000Z',
+  preferredNames: VUKA_ROSTER.map((r) => r.name),
+});
+assert.equal(hembertMerge.merged, 1);
+assert.equal(
+  leftover.clients.filter((c) => /hembert/i.test(c.name)).length,
+  1
+);
+const kept = leftover.clients[0];
+assert.equal(normalizePersonName(kept.name), 'athaliah hembert');
+assert.equal(leftover.bookings[0].client_id, kept.id);
+
 assert.equal(
   clientsAreSamePerson(
     {
