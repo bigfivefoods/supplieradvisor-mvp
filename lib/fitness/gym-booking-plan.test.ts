@@ -130,6 +130,7 @@ assert.deepEqual(
   ['12:00 Private PT', '17:30 Bootcamp']
 );
 assert.equal(today[0].coachName, 'Pat');
+assert.equal(today[1].coachName, 'Pat');
 assert.deepEqual(
   today[0].members.map((m) => m.name),
   ['Ben']
