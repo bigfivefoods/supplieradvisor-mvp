@@ -155,5 +155,9 @@ const boardSrc = readFileSync(
 );
 assert.match(boardSrc, /groups\?:/);
 assert.match(boardSrc, /g\.members/);
+assert.match(boardSrc, /aria-expanded/);
+assert.match(boardSrc, /Coach ·/);
+assert.match(boardSrc, /Expand all/);
+assert.match(boardSrc, /FloorClassBlock/);
 
 console.log('gym-today-floor.test.ts ok');
