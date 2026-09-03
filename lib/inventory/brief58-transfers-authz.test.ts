@@ -41,7 +41,8 @@ function extractFn(name: string): string {
 const getFn = extractFn('GET');
 const postFn = extractFn('POST');
 
-assert('GET validates finite + positive companyId', getFn.includes('companyId <= 0'));
+assert('GET validates finite companyId', getFn.includes('Number.isFinite(companyId)'));
+assert('GET validates positive companyId', getFn.includes('companyId <= 0'));
 assert('GET calls requireCompanyAccess', getFn.includes('requireCompanyAccess'));
 assert('GET returns _gate.response on !ok', getFn.includes('_gate.response'));
 
