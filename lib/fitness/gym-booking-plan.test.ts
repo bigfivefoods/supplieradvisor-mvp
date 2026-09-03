@@ -198,8 +198,14 @@ const board = readFileSync(
   resolve('components/fitness/GymBookingPlanBoard.tsx'),
   'utf8'
 );
+assert.equal(today[0].className, 'Private PT');
+assert.equal(today[0].coachName, 'Pat');
+assert.deepEqual(today[0].members.map((m) => m.name), ['Ben']);
 assert.match(board, /Members planned/);
 assert.match(board, /Coach/);
 assert.match(board, /aria-expanded/);
+assert.match(board, /Coach · \$\{card\.coachName\}/);
+assert.match(board, /Members planned · \$\{card\.members\.length\}/);
+assert.match(board, /day\.classes\.map\(\(card\) => \(\s*<PlanClassCard/s);
 
 console.log('gym-booking-plan.test.ts ok');
