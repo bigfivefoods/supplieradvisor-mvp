@@ -228,8 +228,7 @@ export function MemberAllocateTable({
   }, [store.clients, q, statusFilter, stayIds]);
 
   const isOnClass = (c: FitClient) =>
-    activeSubs.some((s) => s.client_id === c.id) ||
-    Boolean(c.membership_plan_id);
+    activeSubs.some((s) => s.client_id === c.id);
 
   const classGroupOf = (c: FitClient) => {
     const liveIds = activeSubs
@@ -299,7 +298,7 @@ export function MemberAllocateTable({
     const planIds = live
       .map((s) => s.plan_id)
       .filter((id) => classes.some((p) => p.id === id));
-    const onClass = planIds.length > 0 || Boolean(c.membership_plan_id);
+    const onClass = planIds.length > 0;
     const charges: Record<string, string> = {};
     for (const s of live) {
       const p = classes.find((x) => x.id === s.plan_id);
@@ -322,13 +321,8 @@ export function MemberAllocateTable({
       personActive: isPersonActive(c),
       member: onClass,
       privateClient: c.private_client === true,
-      planId: primary?.plan_id || c.membership_plan_id || planIds[0] || '',
-      planIds:
-        planIds.length > 0
-          ? planIds
-          : c.membership_plan_id
-            ? [c.membership_plan_id]
-            : [],
+      planId: primary?.plan_id || planIds[0] || '',
+      planIds,
       charges,
       coachId: c.coach_id || planCoach || '',
       privateRate:
@@ -459,7 +453,9 @@ export function MemberAllocateTable({
     if (!d.coachId && !d.privateClient && p.default_coach_id) {
       next.coachId = p.default_coach_id;
     }
+    const merged: Draft = { ...d, ...next };
     setDraft(c.id, next);
+    void save(c, merged);
   };
 
   const parkPerson = async (c: FitClient, d: Draft) => {
@@ -490,8 +486,8 @@ export function MemberAllocateTable({
     }
   };
 
-  const save = async (c: FitClient) => {
-    const d = draftFor(c);
+  const save = async (c: FitClient, override?: Draft) => {
+    const d = override || draftFor(c);
     if (!d.name.trim()) {
       toast.error('Name required');
       return;
@@ -506,10 +502,8 @@ export function MemberAllocateTable({
       return;
     }
     const planIds = selectedPlanIds(d);
-    if (d.member && !planIds.length) {
-      toast.error(
-        classSubscribe ? 'Select the classes they are booked to' : 'Select a plan'
-      );
+    if (d.member && !planIds.length && !classSubscribe) {
+      toast.error('Select a plan');
       return;
     }
     if (d.privateClient && !d.coachId) {
@@ -1064,6 +1058,7 @@ export function MemberAllocateTable({
                                           type="checkbox"
                                           className="mt-1"
                                           checked={on}
+                                          disabled={busyId === c.id}
                                           onChange={() => toggleClass(c, p)}
                                         />
                                         <span>
