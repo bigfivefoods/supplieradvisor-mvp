@@ -34,7 +34,7 @@ assert.doesNotMatch(
 //    care. It may only patch bookings, or skip the write entirely.
 assert.match(
   gymBlock,
-  /companyId !== 102 && hasLiveFitgraphStore/,
+  /companyId !== READ_ONLY_CARE_COMPANY_ID && hasLiveFitgraphStore/,
   'company 102 and metadata-fallback gym paths must skip care writes'
 );
 assert.doesNotMatch(

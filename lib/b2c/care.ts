@@ -101,6 +101,7 @@ type ClinicCareStore = {
 };
 
 type GymCareStore = ReturnType<typeof readFitgraphFromMetadata>;
+const READ_ONLY_CARE_COMPANY_ID = 102;
 
 async function loadClinicCareStore(
   companyId: number,
@@ -280,7 +281,7 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
       let client = store.clients.find((c) => c.id === mem.ref_id);
       if (!client) continue;
       const hasLiveFitgraphStore = !fitgraphRow.error && Boolean(fitgraphRow.data?.updated_at);
-      if (companyId !== 102 && hasLiveFitgraphStore) {
+      if (companyId !== READ_ONLY_CARE_COMPANY_ID && hasLiveFitgraphStore) {
         const gymDirty = ensureClientRatingTokens(store.bookings, (booking) =>
           gymCareSlot(store, booking)
         );
