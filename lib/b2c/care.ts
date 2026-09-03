@@ -4,6 +4,7 @@
  */
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
+  isStaleModuleStoreError,
   loadAdvisorModuleStore,
   saveAdvisorModuleStore,
 } from '@/lib/business/company-data';
@@ -29,8 +30,8 @@ import {
 } from '@/lib/clinic/vetgraph';
 import {
   readFitgraphFromMetadata,
-  writeFitgraphToMetadata,
 } from '@/lib/fitness/fitgraph';
+import { saveFitgraphPatch } from '@/lib/fitness/fitgraph-io';
 import { readHiregraphFromMetadata } from '@/lib/hire/hiregraph';
 import { readRetailgraphFromMetadata } from '@/lib/retail/retailgraph';
 import { buildPatientMedicalShare } from '@/lib/clinic/medical-share';
@@ -99,6 +100,9 @@ type ClinicCareStore = {
   }>;
 };
 
+type GymCareStore = ReturnType<typeof readFitgraphFromMetadata>;
+const READ_ONLY_CARE_COMPANY_ID = 102;
+
 async function loadClinicCareStore(
   companyId: number,
   kind: string
@@ -165,6 +169,66 @@ function writeClinicCareStore(
   return writePsychiatrygraphToMetadata({}, store as never);
 }
 
+function gymCareSlot(store: GymCareStore, booking: GymCareStore['bookings'][number]) {
+  const session = store.sessions.find((row) => row.id === booking.session_id);
+  return session ? { date: session.date, start_time: session.start_time } : null;
+}
+
+function gymCareUpdatedAt(store: GymCareStore): string | null {
+  return typeof store.updated_at === 'string' && store.updated_at.trim()
+    ? store.updated_at.trim()
+    : null;
+}
+
+async function saveGymCareBookingsPatch(
+  companyId: number,
+  store: GymCareStore
+): Promise<GymCareStore> {
+  try {
+    const updatedAt = await saveFitgraphPatch(
+      companyId,
+      { bookings: store.bookings },
+      { ifUpdatedAt: gymCareUpdatedAt(store) }
+    );
+    store.updated_at = updatedAt;
+    return store;
+  } catch (error) {
+    if (!isStaleModuleStoreError(error)) throw error;
+  }
+
+  const { store: latest } = await loadAdvisorModuleStore(
+    companyId,
+    'fitgraph',
+    readFitgraphFromMetadata,
+    [],
+    { fresh: true }
+  );
+  const dirty = ensureClientRatingTokens(latest.bookings, (booking) =>
+    gymCareSlot(latest, booking)
+  );
+  if (!dirty) return latest;
+
+  try {
+    const updatedAt = await saveFitgraphPatch(
+      companyId,
+      { bookings: latest.bookings },
+      { ifUpdatedAt: gymCareUpdatedAt(latest) }
+    );
+    latest.updated_at = updatedAt;
+    return latest;
+  } catch (error) {
+    if (!isStaleModuleStoreError(error)) throw error;
+    const { store: freshest } = await loadAdvisorModuleStore(
+      companyId,
+      'fitgraph',
+      readFitgraphFromMetadata,
+      [],
+      { fresh: true }
+    );
+    return freshest;
+  }
+}
+
 export type { B2cCareAnnouncement, B2cCareBooking, B2cCareClinic, B2cCareRecord };
 
 export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
@@ -202,31 +266,30 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
         progressHref: isGym ? progressHref : undefined,
       });
     }
-    const { data } = await supabase
-      .from('profiles')
-      .select('metadata')
-      .eq('id', mem.company_id)
-      .maybeSingle();
-    const meta =
-      data?.metadata && typeof data.metadata === 'object'
-        ? (data.metadata as Record<string, unknown>)
-        : {};
-
     if (mem.kind === 'gym') {
-      const store = readFitgraphFromMetadata(meta);
-      const client = store.clients.find((c) => c.id === mem.ref_id);
+      const companyId = Number(mem.company_id);
+      const [{ store: loadedStore }, fitgraphRow] = await Promise.all([
+        loadAdvisorModuleStore(companyId, 'fitgraph', readFitgraphFromMetadata),
+        supabase
+          .from('company_module_stores')
+          .select('updated_at')
+          .eq('company_id', companyId)
+          .eq('module', 'fitgraph')
+          .maybeSingle(),
+      ]);
+      let store = loadedStore;
+      let client = store.clients.find((c) => c.id === mem.ref_id);
       if (!client) continue;
-      const gymDirty = ensureClientRatingTokens(store.bookings, (b) => {
-        const s = store.sessions.find((x) => x.id === b.session_id);
-        return s ? { date: s.date, start_time: s.start_time } : null;
-      });
-      if (gymDirty) {
-        await saveAdvisorModuleStore(
-          Number(mem.company_id),
-          'fitgraph',
-          store,
-          writeFitgraphToMetadata
+      const hasLiveFitgraphStore = !fitgraphRow.error && Boolean(fitgraphRow.data?.updated_at);
+      if (companyId !== READ_ONLY_CARE_COMPANY_ID && hasLiveFitgraphStore) {
+        const gymDirty = ensureClientRatingTokens(store.bookings, (booking) =>
+          gymCareSlot(store, booking)
         );
+        if (gymDirty) {
+          store = await saveGymCareBookingsPatch(companyId, store);
+          client = store.clients.find((c) => c.id === mem.ref_id);
+          if (!client) continue;
+        }
       }
       for (const a of publishedAnnouncements(store.announcements, 4)) {
         announcements.push({
@@ -274,12 +337,29 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
       continue;
     }
 
-    if (mem.kind === 'hire') {
-      const store = readHiregraphFromMetadata(meta);
+    if (!isClinicKindHref(mem.kind) && mem.kind !== 'hire' && mem.kind !== 'retail') {
+      continue;
+    }
+
+    if (mem.kind === 'hire' || mem.kind === 'retail') {
+      const { data } = await supabase
+        .from('profiles')
+        .select('metadata')
+        .eq('id', mem.company_id)
+        .maybeSingle();
+      const meta =
+        data?.metadata && typeof data.metadata === 'object'
+          ? (data.metadata as Record<string, unknown>)
+          : {};
+
+      const store =
+        mem.kind === 'hire'
+          ? readHiregraphFromMetadata(meta)
+          : readRetailgraphFromMetadata(meta);
       for (const a of publishedAnnouncements(store.announcements, 4)) {
         announcements.push({
           id: a.id,
-          kind: 'hire',
+          kind: mem.kind,
           brand,
           title: a.title,
           body: a.body,
@@ -292,32 +372,7 @@ export async function buildB2cCare(memberships: B2cMembership[]): Promise<{
       continue;
     }
 
-    if (mem.kind === 'retail') {
-      const store = readRetailgraphFromMetadata(meta);
-      for (const a of publishedAnnouncements(store.announcements, 4)) {
-        announcements.push({
-          id: a.id,
-          kind: 'retail',
-          brand,
-          title: a.title,
-          body: a.body,
-          href: mem.portal_path,
-          pinned: a.pinned,
-          cta_label: a.cta_label,
-          cta_href: a.cta_href,
-        });
-      }
-      continue;
-    }
-
-    if (!['physio', 'dental', 'medical', 'psychiatry', 'vet'].includes(mem.kind)) {
-      continue;
-    }
-
-    const loadedClinic = await loadClinicCareStore(
-      Number(mem.company_id),
-      mem.kind
-    );
+    const loadedClinic = await loadClinicCareStore(Number(mem.company_id), mem.kind);
     if (!loadedClinic) continue;
     const { clinicKey, store } = loadedClinic;
     const patient = (store.patients || []).find((p) => p.id === mem.ref_id);
