@@ -13,7 +13,7 @@ import { SYS_COACH_TIME_CODE, SYS_PT_CODE } from '@/lib/fitness/session-times';
 import { getCoachSpecialtyOptions } from '@/lib/fitness/fitgraph';
 
 export default function FitReportPage() {
-  const { store, loading } = useFitgraph();
+  const { store, loading } = useFitgraph({ history: true });
   const dimensions = useMemo(() => {
     if (!store) return [];
     const hide = new Set([SYS_PT_CODE, SYS_COACH_TIME_CODE, 'SYS_COACH_AWAY']);

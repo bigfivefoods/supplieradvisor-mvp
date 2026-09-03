@@ -109,6 +109,7 @@ import {
 import { loadFitgraphMerged, saveFitgraphMerged, saveFitgraphPatch } from '@/lib/fitness/fitgraph-io';
 import { persistVukaCatalogIfNeeded } from '@/lib/fitness/vuka-class-catalog';
 import { applyMemberDebitBank } from '@/lib/fitness/member-debit-bank';
+import { fitgraphDeskGetWindow } from '@/lib/fitness/fitgraph-desk-get-window';
 import {
   allocateMemberToClass,
   applyPrivatePtBooking,
@@ -261,8 +262,12 @@ export async function GET(request: NextRequest) {
 
     // Stamp owner emails so coachIsGymOwner works correctly on every load
     await stampOwnerEmails(companyId, store);
-    const wantLibrary =
-      request.nextUrl.searchParams.get('include') === 'library';
+    const include = request.nextUrl.searchParams.get('include');
+    const windowedStore = fitgraphDeskGetWindow(store, {
+      include,
+      bookings: request.nextUrl.searchParams.get('bookings'),
+      checkIns: request.nextUrl.searchParams.get('check_ins'),
+    });
 
     const exportKind = request.nextUrl.searchParams.get('export');
     if (exportKind === 'clients' || exportKind === 'clients_template') {
@@ -291,9 +296,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        store: wantLibrary
-          ? store
-          : { ...store, movements: [], watch_sessions: [] },
+        store: windowedStore,
         summary: summariseFitgraph(store),
       },
       {
