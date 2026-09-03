@@ -517,7 +517,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'backfill_client_crm') {
-      const { attachCrmToAdvisorPerson, needsGymCrmStamp } = await import(
+      const {
+        attachCrmToAdvisorPerson,
+        isPaddedMemberArCode,
+        needsGymCrmStamp,
+      } = await import(
         '@/lib/b2c/member-account-ar'
       );
       const { backfillAdvisorPartyUids } = await import(
@@ -534,6 +538,14 @@ export async function POST(request: NextRequest) {
       let created = 0;
       let processed = 0;
       for (const person of store.clients || []) {
+        const needsStamp = needsGymCrmStamp(person);
+        const needsCode = needsGymClientNumber(person, store.clients || []);
+        const needsRecode =
+          !needsStamp &&
+          !needsCode &&
+          Number(person.crm_customer_id || 0) > 0 &&
+          isPaddedMemberArCode(person.ar_account_code);
+        if (!needsStamp && !needsCode && !needsRecode) continue;
         if (processed >= limit) break;
         processed += 1;
         try {
