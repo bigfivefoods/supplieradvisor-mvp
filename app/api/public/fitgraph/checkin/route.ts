@@ -6,6 +6,7 @@
  *      → record check-in + membership paid/unpaid status for desk
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { isStaleModuleStoreError } from '@/lib/business/company-data';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
 import { loadAdvisorStoreForPublicToken } from '@/lib/business/advisor-store-resolve';
 import {
@@ -44,13 +45,25 @@ async function resolveGym(
   return loaded;
 }
 
-async function saveStore(
+async function saveStore<K extends keyof FitgraphStore>(
   companyId: number,
-  _meta: Record<string, unknown>,
-  store: FitgraphStore
-) {
-  const { saveFitgraphMerged } = await import('@/lib/fitness/fitgraph-io');
-  await saveFitgraphMerged(companyId, store);
+  meta: Record<string, unknown>,
+  store: FitgraphStore,
+  ...keys: K[]
+): Promise<string> {
+  const patch = {} as Pick<FitgraphStore, K>;
+  for (const key of keys) {
+    patch[key] = store[key] as Pick<FitgraphStore, K>[K];
+  }
+  const ifUpdatedAtRaw = meta.__if_updated_at;
+  const ifUpdatedAt =
+    typeof ifUpdatedAtRaw === 'string' && ifUpdatedAtRaw.trim()
+      ? ifUpdatedAtRaw.trim()
+      : null;
+  const { saveFitgraphPatch } = await import('@/lib/fitness/fitgraph-io');
+  const updatedAt = await saveFitgraphPatch(companyId, patch, { ifUpdatedAt });
+  store.updated_at = updatedAt;
+  return updatedAt;
 }
 
 export async function GET(request: NextRequest) {
@@ -151,6 +164,15 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
+    const payloadUpdatedAt =
+      typeof body.updated_at === 'string' && body.updated_at.trim()
+        ? body.updated_at.trim()
+        : typeof body.if_updated_at === 'string' && body.if_updated_at.trim()
+          ? body.if_updated_at.trim()
+          : null;
+    if (payloadUpdatedAt) {
+      resolved.meta.__if_updated_at = payloadUpdatedAt;
+    }
 
     const client = findClientForCheckIn(resolved.store, {
       member_token: body.member_token || body.portal_token,
@@ -175,7 +197,7 @@ export async function POST(request: NextRequest) {
       notes: body.notes ? String(body.notes) : undefined,
     });
 
-    await saveStore(resolved.companyId, resolved.meta, result.store);
+    await saveStore(resolved.companyId, resolved.meta, result.store, 'check_ins');
 
     const s = result.store.settings;
     return NextResponse.json({
@@ -209,6 +231,16 @@ export async function POST(request: NextRequest) {
         : result.access.member_message,
     });
   } catch (e: unknown) {
+    if (isStaleModuleStoreError(e)) {
+      return NextResponse.json(
+        {
+          error: 'stale_store',
+          updated_at: e.updatedAt,
+          message: 'This GymAdvisor book changed in another tab. Refresh and try again.',
+        },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Check-in failed' },
       { status: 500 }
