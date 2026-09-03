@@ -90,6 +90,7 @@ assert.match(ws, /View: by date/);
 assert.match(ws, /View: by customer/);
 assert.match(ws, /listCustomerId/);
 assert.match(ws, /groupDocs/);
+assert.match(ws, /canGroupList = type === 'quote' \|\| type === 'order'/);
 
 const route = readFileSync(
   resolve('app/api/customers/docs/route.ts'),
@@ -98,5 +99,6 @@ const route = readFileSync(
 assert.match(route, /customerId/);
 assert.match(route, /searchParams.get\('from'\)/);
 assert.match(route, /searchParams.get\('to'\)/);
+assert.match(route, /kind === 'quote' \|\| kind === 'order'/);
 
 console.log('doc-list-group.test.ts ok');
