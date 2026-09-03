@@ -230,7 +230,7 @@ export async function GET(request: NextRequest) {
       .eq('profile_id', companyId)
       .limit(limit);
     q =
-      kind === 'quote' || kind === 'order'
+      kind === 'quote' || kind === 'order' || kind === 'invoice'
         ? q
             .order('created_at', { ascending: false })
             .order('id', { ascending: false })
