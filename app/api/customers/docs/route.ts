@@ -175,6 +175,18 @@ export async function GET(request: NextRequest) {
     const kind = kindOf(request);
     const id = request.nextUrl.searchParams.get('id');
     const status = request.nextUrl.searchParams.get('status');
+    const customerIdParam = Number(
+      request.nextUrl.searchParams.get('customerId') || 0
+    );
+    const fromDay = String(request.nextUrl.searchParams.get('from') || '').slice(
+      0,
+      10
+    );
+    const toDay = String(request.nextUrl.searchParams.get('to') || '').slice(
+      0,
+      10
+    );
+    const limitRaw = Number(request.nextUrl.searchParams.get('limit') || 50);
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
@@ -209,13 +221,30 @@ export async function GET(request: NextRequest) {
         : kind === 'order'
           ? 'id, status, order_number, customer_id, customer_name, total_amount, currency, created_at, contact_email, visibility, items'
           : 'id, status, quote_number, customer_id, customer_name, total_amount, currency, created_at, contact_email, visibility, items, valid_until';
+    const limit = Number.isFinite(limitRaw)
+      ? Math.min(200, Math.max(1, Math.floor(limitRaw)))
+      : 50;
     let q = supabase
       .from(table)
       .select(listCols)
       .eq('profile_id', companyId)
-      .order('id', { ascending: false })
-      .limit(50);
+      .limit(limit);
+    q =
+      kind === 'quote'
+        ? q
+            .order('created_at', { ascending: false })
+            .order('id', { ascending: false })
+        : q.order('id', { ascending: false });
     if (status && status !== 'all') q = q.eq('status', status);
+    if (Number.isFinite(customerIdParam) && customerIdParam > 0) {
+      q = q.eq('customer_id', customerIdParam);
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(fromDay)) {
+      q = q.gte('created_at', `${fromDay}T00:00:00`);
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(toDay)) {
+      q = q.lte('created_at', `${toDay}T23:59:59.999`);
+    }
 
     const { data, error } = await q;
     if (error) {

@@ -35,6 +35,12 @@ import {
   statusBadgeClass,
   type DocLineItem,
 } from '@/lib/customers/documents';
+import {
+  filterGroupedDocs,
+  groupDocs,
+  groupMoneyTotal,
+  type DocListGroupBy,
+} from '@/lib/customers/doc-list-group';
 import type { CustomerRecord } from '@/lib/customers/types';
 import {
   customerInviteStatusLabel,
@@ -63,6 +69,7 @@ type DocRecord = Record<string, unknown> & {
   total_amount?: number;
   amount_paid?: number | null;
   currency?: string;
+  created_at?: string | null;
   notes?: string | null;
   invoice_number?: string | null;
   source_po_id?: number | null;
@@ -229,6 +236,10 @@ function DocInner({
   const [statusFilter, setStatusFilter] = useState(
     statusFromUrl && statusFromUrl !== 'all' ? statusFromUrl : 'all'
   );
+  const [groupBy, setGroupBy] = useState<DocListGroupBy>('none');
+  const [listCustomerId, setListCustomerId] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const [customerId, setCustomerId] = useState('');
   const [docCurrency, setDocCurrency] = useState('ZAR');
@@ -302,6 +313,16 @@ function DocInner({
     try {
       const params = new URLSearchParams({ companyId: String(companyId), type });
       if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (type === 'quote') {
+        if (listCustomerId && listCustomerId !== 'all') {
+          params.set('customerId', listCustomerId);
+        }
+        if (dateFrom) params.set('from', dateFrom);
+        if (dateTo) params.set('to', dateTo);
+        if (groupBy !== 'none' || listCustomerId !== 'all' || dateFrom || dateTo) {
+          params.set('limit', '200');
+        }
+      }
       const settingsQs = privyUserId
         ? `companyId=${companyId}&privyUserId=${encodeURIComponent(privyUserId)}`
         : `companyId=${companyId}`;
@@ -343,7 +364,16 @@ function DocInner({
     } finally {
       setLoading(false);
     }
-  }, [companyId, type, statusFilter, privyUserId]);
+  }, [
+    companyId,
+    type,
+    statusFilter,
+    privyUserId,
+    listCustomerId,
+    dateFrom,
+    dateTo,
+    groupBy,
+  ]);
 
   useEffect(() => {
     void load();
@@ -631,6 +661,37 @@ function DocInner({
   const totals = useMemo(
     () => calcDocTotals(lines.filter((l) => l.name), Number(taxRate) || 0),
     [lines, taxRate]
+  );
+
+  const quoteCustomerOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const c of customers) {
+      const label = String(
+        c.trading_name || c.legal_name || c.company_name || `Customer ${c.id}`
+      ).trim();
+      if (c.id) byId.set(String(c.id), label || `Customer ${c.id}`);
+    }
+    for (const d of docs) {
+      const id = d.customer_id ? String(d.customer_id) : '';
+      if (!id || byId.has(id)) continue;
+      byId.set(id, String(d.customer_name || `Customer ${id}`).trim());
+    }
+    return [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [customers, docs]);
+
+  const visibleDocs = useMemo(() => {
+    if (type !== 'quote') return docs;
+    return filterGroupedDocs(docs, {
+      customerId: listCustomerId,
+      dateFrom,
+      dateTo,
+    });
+  }, [docs, type, listCustomerId, dateFrom, dateTo]);
+
+  const docGroups = useMemo(
+    () =>
+      type === 'quote' ? groupDocs(visibleDocs, groupBy) : groupDocs(docs, 'none'),
+    [type, visibleDocs, docs, groupBy]
   );
 
   const catalogueCurrencies = useMemo(() => {
@@ -2794,6 +2855,76 @@ function DocInner({
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
+        {type === 'quote' ? (
+          <>
+            <select
+              className={
+                sales
+                  ? 'rounded-2xl bg-white border border-neutral-200 text-slate-800 text-sm px-3 py-2'
+                  : 'input !py-2 !px-3 !text-sm'
+              }
+              value={groupBy}
+              onChange={(e) =>
+                setGroupBy(
+                  e.target.value === 'date' || e.target.value === 'customer'
+                    ? e.target.value
+                    : 'none'
+                )
+              }
+              title="Group quotes"
+            >
+              <option value="none">View: list</option>
+              <option value="date">View: by date</option>
+              <option value="customer">View: by customer</option>
+            </select>
+            <select
+              className={
+                sales
+                  ? 'rounded-2xl bg-white border border-neutral-200 text-slate-800 text-sm px-3 py-2'
+                  : 'input !py-2 !px-3 !text-sm'
+              }
+              value={listCustomerId}
+              onChange={(e) => setListCustomerId(e.target.value)}
+              title="Filter by customer"
+            >
+              <option value="all">All customers</option>
+              {quoteCustomerOptions.map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <label className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-neutral-500">
+              From
+              <input
+                className={
+                  sales
+                    ? 'rounded-2xl bg-white border border-neutral-200 text-slate-800 text-sm px-3 py-2 font-medium normal-case tracking-normal'
+                    : 'input !py-2 !px-3 !text-sm font-medium normal-case tracking-normal'
+                }
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                title="From date"
+              />
+            </label>
+            <label className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-neutral-500">
+              To
+              <input
+                className={
+                  sales
+                    ? 'rounded-2xl bg-white border border-neutral-200 text-slate-800 text-sm px-3 py-2 font-medium normal-case tracking-normal'
+                    : 'input !py-2 !px-3 !text-sm font-medium normal-case tracking-normal'
+                }
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={(e) => setDateTo(e.target.value)}
+                title="To date"
+              />
+            </label>
+          </>
+        ) : null}
       </div>
 
       {type === 'invoice' &&
@@ -2875,9 +3006,45 @@ function DocInner({
           >
             No {cfg.title.toLowerCase()} yet. Create one and pick products from your catalogue.
           </div>
+        ) : visibleDocs.length === 0 ? (
+          <div
+            className={`p-16 text-center text-sm ${sales ? 'text-neutral-500' : 'text-neutral-500'}`}
+          >
+            No {cfg.title.toLowerCase()} match this date or customer.
+          </div>
         ) : (
+          <div>
+            {docGroups.map((g) => (
+              <div key={g.key}>
+                {g.label ? (
+                  <div
+                    className={`px-5 py-2.5 flex flex-wrap items-center justify-between gap-2 ${
+                      sales
+                        ? 'bg-slate-50 border-b border-neutral-100'
+                        : 'bg-slate-50 border-b'
+                    }`}
+                  >
+                    <span
+                      className={`text-sm font-black ${sales ? 'text-slate-900' : 'text-slate-800'}`}
+                    >
+                      {g.label}
+                    </span>
+                    <span className="text-xs font-semibold text-neutral-500 tabular-nums">
+                      {g.items.length}{' '}
+                      {g.items.length === 1
+                        ? cfg.title.replace(/s$/, '').toLowerCase()
+                        : cfg.title.toLowerCase()}
+                      {(() => {
+                        const t = groupMoneyTotal(g.items);
+                        return t
+                          ? ` · ${formatMoney(t.amount, t.currency)}`
+                          : '';
+                      })()}
+                    </span>
+                  </div>
+                ) : null}
           <ul className={sales ? 'divide-y divide-neutral-100' : 'divide-y'}>
-            {docs.map((d) => {
+            {g.items.map((d) => {
               const num = String(d[cfg.numberField] || d.id);
               const itemCount = Array.isArray(d.items) ? d.items.length : 0;
               const isShared = (d.visibility || 'seller_only') === 'shared';
@@ -3230,6 +3397,9 @@ function DocInner({
               );
             })}
           </ul>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
