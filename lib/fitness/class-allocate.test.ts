@@ -364,6 +364,48 @@ assert.equal(
   400
 );
 
+const dropBoot = allocateMemberToClass(store, {
+  clientId: 'cli_bev',
+  member: true,
+  privateClient: true,
+  planIds: [fsf.id],
+  coachId: 'coh_pat',
+  now: '2026-08-17T11:00:00.000Z',
+});
+if ('error' in dropBoot) throw new Error(dropBoot.error);
+assert.equal(
+  store.subscriptions.find(
+    (s) => s.client_id === 'cli_bev' && s.plan_id === boot.id
+  )?.status,
+  'cancelled'
+);
+assert.equal(
+  store.subscriptions.find(
+    (s) => s.client_id === 'cli_bev' && s.plan_id === fsf.id
+  )?.status,
+  'active'
+);
+
+const dropAllClasses = allocateMemberToClass(store, {
+  clientId: 'cli_bev',
+  member: true,
+  privateClient: true,
+  planIds: [],
+  coachId: 'coh_pat',
+  now: '2026-08-17T11:05:00.000Z',
+});
+if ('error' in dropAllClasses) throw new Error(dropAllClasses.error);
+assert.equal(
+  store.subscriptions.filter(
+    (s) =>
+      s.client_id === 'cli_bev' &&
+      (s.status === 'active' || s.status === 'trialing')
+  ).length,
+  0
+);
+assert.equal(store.clients.find((c) => c.id === 'cli_bev')?.membership_plan_id, null);
+assert.equal(store.clients.find((c) => c.id === 'cli_bev')?.active !== false, true);
+
 const parkedByFlags = allocateMemberToClass(store, {
   clientId: 'cli_ada',
   member: false,

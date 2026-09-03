@@ -841,10 +841,11 @@ export function allocateMemberToClass(
   if (isPrivate && !coachId) {
     return { error: 'Select the coach for this private client' };
   }
+  const explicitPlanIds = Array.isArray(opts.planIds);
   const planIds = [
     ...new Set(
-      (Array.isArray(opts.planIds) && opts.planIds.length
-        ? opts.planIds
+      (explicitPlanIds
+        ? opts.planIds || []
         : opts.planId
           ? [opts.planId]
           : []
@@ -855,7 +856,26 @@ export function allocateMemberToClass(
   ];
   const planId = planIds[0] || '';
   if (isMember && !planId) {
-    return { error: 'Select a class' };
+    if (!explicitPlanIds) {
+      return { error: 'Select a class' };
+    }
+    applyPerson();
+    let cancelled = 0;
+    for (const other of store.subscriptions) {
+      if (other.client_id !== client.id) continue;
+      if (other.status !== 'active' && other.status !== 'trialing') continue;
+      const otherPlan = store.membership_plans.find((p) => p.id === other.plan_id);
+      if (otherPlan?.addon === true) continue;
+      other.status = 'cancelled';
+      other.cancel_at = today;
+      other.updated_at = now;
+      cancelled += 1;
+    }
+    client.membership_plan_id = null;
+    client.updated_at = now;
+    cancelUncoveredFutureBookings(store, client, today);
+    recomputeClientClassDenorm(store, client.id, now);
+    return { subscription: null, booked: 0, cancelled };
   }
   const plan = planId
     ? store.membership_plans.find((p) => p.id === planId)
