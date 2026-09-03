@@ -358,12 +358,15 @@ export function MemberAllocateTable({
 
   const toggleInactive = (c: FitClient, d: Draft) => {
     if (!d.personActive) return;
-    setDraft(c.id, {
+    const next: Partial<Draft> = {
       personActive: false,
       member: false,
       privateClient: false,
-    });
+    };
+    const merged: Draft = { ...d, ...next };
+    setDraft(c.id, next);
     setOpenId(c.id);
+    void save(c, merged);
   };
 
   const selectedPlanIds = (d: Draft): string[] =>

@@ -522,5 +522,9 @@ assert.equal(
   store.clients.find((c) => /yunis leandre herbert/i.test(c.name))?.active,
   false
 );
+assert.equal(
+  store.clients.find((c) => /christine j brown/i.test(c.name))?.membership_plan_id,
+  'vuka_pln_boot_1730'
+);
 
 console.log('vuka-roster.test.ts ok');

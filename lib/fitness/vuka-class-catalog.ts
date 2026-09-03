@@ -1503,7 +1503,12 @@ export async function persistVukaCatalogIfNeeded(
   companyId: number,
   store: FitgraphStore,
   save: (next: FitgraphStore) => Promise<void>,
-  identity?: { tradingName?: string | null; legalName?: string | null }
+  identity?: {
+    tradingName?: string | null;
+    legalName?: string | null;
+    /** Seed/demo only. Clients GET must not re-apply billed classes. */
+    applyCatalog?: boolean;
+  }
 ): Promise<FitgraphStore> {
   if (
     !isVukaFitnessCompany({
@@ -1514,11 +1519,12 @@ export async function persistVukaCatalogIfNeeded(
   ) {
     return store;
   }
+  const applyCatalog = identity?.applyCatalog !== false;
   const { absorbKnownClientAliases, ensureVukaRoster, vukaDeskSettled } =
     await import('@/lib/fitness/vuka-roster');
   let next = store;
   let dirty = false;
-  if (!vukaDeskSettled(store)) {
+  if (applyCatalog && !vukaDeskSettled(store)) {
     const result = ensureVukaClassCatalog(store, {
       companyId,
       tradingName: identity?.tradingName,
@@ -1533,10 +1539,12 @@ export async function persistVukaCatalogIfNeeded(
   const absorbed = absorbKnownClientAliases(next);
   next = absorbed.store;
   dirty = dirty || absorbed.changed;
-  if (ensureDemoShopProgramme(next)) dirty = true;
-  if (ensureVukaShopOffers(next)) dirty = true;
-  if (ensureVukaCoaches(next)) dirty = true;
-  if (ensureVukaCoachOrder(next)) dirty = true;
+  if (applyCatalog) {
+    if (ensureDemoShopProgramme(next)) dirty = true;
+    if (ensureVukaShopOffers(next)) dirty = true;
+    if (ensureVukaCoaches(next)) dirty = true;
+    if (ensureVukaCoachOrder(next)) dirty = true;
+  }
   if (dirty) {
     await save(next);
   }
