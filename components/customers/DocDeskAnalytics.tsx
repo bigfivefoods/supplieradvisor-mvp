@@ -16,6 +16,7 @@ import {
 } from '@/components/accounting/AccountingCharts';
 import { formatMoney } from '@/lib/customers/documents';
 import {
+  customerIdFromSeriesKey,
   docsDeskTotals,
   docsValueByCustomer,
   docsValueByTime,
@@ -44,6 +45,9 @@ export default function DocDeskAnalytics({
   customerId,
   onCustomer,
   customers,
+  listDocs,
+  timeKey,
+  onTimeKey,
 }: {
   noun: string;
   period: PeriodSlicerValue;
@@ -57,11 +61,37 @@ export default function DocDeskAnalytics({
   customerId: string;
   onCustomer: (next: string) => void;
   customers: Array<{ id: string; name: string }>;
+  listDocs?: GroupableDoc[];
+  timeKey?: string | null;
+  onTimeKey?: (key: string | null) => void;
 }) {
-  const totals = docsDeskTotals(docs);
-  const byTime = docsValueByTime(docs, period.from, period.to);
-  const byCustomer = docsValueByCustomer(docs, 7);
+  const chartDocs = docs;
+  const shown = listDocs || docs;
+  const totals = docsDeskTotals(shown);
+  const byTime = docsValueByTime(chartDocs, period.from, period.to);
+  const byCustomer = docsValueByCustomer(chartDocs, 7);
   const topCustomers = customers.slice(0, 8);
+  const activeTime = timeKey || null;
+  const activeCustIdx = byCustomer.findIndex((p) => {
+    const id = customerIdFromSeriesKey(p.key);
+    return id != null && id === customerId;
+  });
+  const drilled = Boolean(activeTime) || (customerId && customerId !== 'all');
+
+  const clickTime = (key: string) => {
+    if (!onTimeKey) return;
+    const next = activeTime === key ? null : key;
+    onTimeKey(next);
+    if (next) onGroupBy('date');
+  };
+
+  const clickCustomer = (key: string) => {
+    const id = customerIdFromSeriesKey(key);
+    if (!id) return;
+    const next = customerId === id ? 'all' : id;
+    onCustomer(next);
+    if (next !== 'all') onGroupBy('customer');
+  };
 
   return (
     <div className="space-y-4 mb-5">
@@ -90,10 +120,24 @@ export default function DocDeskAnalytics({
             {formatMoney(totals.amount, totals.currency)}
           </div>
           <div className="text-[11px] text-slate-500">
-            Sliced {period.from} → {period.to}
+            {drilled
+              ? 'Filtered from the graph — click the same slice again to clear'
+              : `Sliced ${period.from} → ${period.to} · click a bar or slice to filter the list`}
           </div>
         </div>
       </div>
+      {drilled ? (
+        <button
+          type="button"
+          className="text-xs font-black text-[#0077b6] underline"
+          onClick={() => {
+            onCustomer('all');
+            onTimeKey?.(null);
+          }}
+        >
+          Clear graph filter
+        </button>
+      ) : null}
 
       <div className="grid lg:grid-cols-2 gap-4">
         <ChartCard
@@ -110,7 +154,9 @@ export default function DocDeskAnalytics({
                   {
                     label: 'Value',
                     data: byTime.map((p) => p.amount),
-                    backgroundColor: C.revenueSoft,
+                    backgroundColor: byTime.map((p) =>
+                      activeTime === p.key ? C.revenue : C.revenueSoft
+                    ),
                     borderColor: C.revenue,
                     borderWidth: 1.5,
                     borderRadius: 10,
@@ -121,6 +167,15 @@ export default function DocDeskAnalytics({
               options={{
                 responsive: true,
                 maintainAspectRatio: false,
+                onHover: (evt, els) => {
+                  const t = evt.native?.target as HTMLElement | undefined;
+                  if (t) t.style.cursor = els.length ? 'pointer' : 'default';
+                },
+                onClick: (_evt, els) => {
+                  if (!els.length) return;
+                  const p = byTime[els[0].index];
+                  if (p) clickTime(p.key);
+                },
                 plugins: { legend: { display: false } },
                 scales: {
                   x: { grid: { display: false }, ticks: { maxRotation: 0, font: { size: 10 } } },
@@ -148,6 +203,11 @@ export default function DocDeskAnalytics({
             centerLabel={noun}
             centerValue={String(totals.count)}
             emptyMessage={`No ${noun.toLowerCase()} to chart`}
+            activeIndex={activeCustIdx >= 0 ? activeCustIdx : null}
+            onSegmentClick={(i) => {
+              const p = byCustomer[i];
+              if (p) clickCustomer(p.key);
+            }}
           />
         </ChartCard>
       </div>
