@@ -154,6 +154,7 @@ function DocInner({
   variant?: 'default' | 'sales';
 }) {
   const sales = variant === 'sales';
+  const canGroupList = type === 'quote' || type === 'order';
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
@@ -313,7 +314,7 @@ function DocInner({
     try {
       const params = new URLSearchParams({ companyId: String(companyId), type });
       if (statusFilter !== 'all') params.set('status', statusFilter);
-      if (type === 'quote') {
+      if (canGroupList) {
         if (listCustomerId && listCustomerId !== 'all') {
           params.set('customerId', listCustomerId);
         }
@@ -367,6 +368,7 @@ function DocInner({
   }, [
     companyId,
     type,
+    canGroupList,
     statusFilter,
     privyUserId,
     listCustomerId,
@@ -680,18 +682,18 @@ function DocInner({
   }, [customers, docs]);
 
   const visibleDocs = useMemo(() => {
-    if (type !== 'quote') return docs;
+    if (!canGroupList) return docs;
     return filterGroupedDocs(docs, {
       customerId: listCustomerId,
       dateFrom,
       dateTo,
     });
-  }, [docs, type, listCustomerId, dateFrom, dateTo]);
+  }, [docs, canGroupList, listCustomerId, dateFrom, dateTo]);
 
   const docGroups = useMemo(
     () =>
-      type === 'quote' ? groupDocs(visibleDocs, groupBy) : groupDocs(docs, 'none'),
-    [type, visibleDocs, docs, groupBy]
+      canGroupList ? groupDocs(visibleDocs, groupBy) : groupDocs(docs, 'none'),
+    [canGroupList, visibleDocs, docs, groupBy]
   );
 
   const catalogueCurrencies = useMemo(() => {
@@ -2855,7 +2857,7 @@ function DocInner({
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
-        {type === 'quote' ? (
+        {canGroupList ? (
           <>
             <select
               className={
@@ -2871,7 +2873,7 @@ function DocInner({
                     : 'none'
                 )
               }
-              title="Group quotes"
+              title={`Group ${cfg.title.toLowerCase()}`}
             >
               <option value="none">View: list</option>
               <option value="date">View: by date</option>
