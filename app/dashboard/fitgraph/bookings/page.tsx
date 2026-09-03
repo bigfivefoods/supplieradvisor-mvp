@@ -227,9 +227,9 @@ export default function BookingsPage() {
 
   return (
     <FitgraphWorkbench
-      title="Bookings"
+      title="Plan"
       titleAccent="call in the plan"
-      description="Today, this week, or a date — class, then coach, then planned members. Working days follow gym hours."
+      description="Today, this week, or a date — classes and private PT, then coach, then planned members. Working days follow gym hours."
     >
       {loading || !store ? (
         <LoadingBlock />
