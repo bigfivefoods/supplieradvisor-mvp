@@ -2,9 +2,9 @@
 
 /**
  * Mobile-first "today" board for desk / coach / clinician.
- * Gym floor board (`groups`): class → coach → members, all expandable.
+ * Gym floor board (`groups`): class expands to coach, then members.
  */
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown } from 'lucide-react';
 
@@ -41,58 +41,6 @@ type Props = {
   markBusyId?: string | null;
 };
 
-function toggleKey(
-  map: Record<string, boolean>,
-  id: string,
-  fallback: boolean
-): Record<string, boolean> {
-  return { ...map, [id]: !(id in map ? map[id] : fallback) };
-}
-
-function ExpandRow({
-  open,
-  onToggle,
-  title,
-  hint,
-  children,
-}: {
-  open: boolean;
-  onToggle: () => void;
-  title: string;
-  hint?: string;
-  children?: ReactNode;
-}) {
-  return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/50">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={onToggle}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left"
-      >
-        <ChevronDown
-          className={`h-3.5 w-3.5 shrink-0 text-slate-500 transition-transform ${
-            open ? '' : '-rotate-90'
-          }`}
-        />
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-black text-slate-900 dark:text-white">
-            {title}
-          </span>
-          {hint ? (
-            <span className="block text-[10px] text-slate-500">{hint}</span>
-          ) : null}
-        </span>
-      </button>
-      {open && children ? (
-        <div className="border-t border-slate-100 px-3 py-2 dark:border-slate-700">
-          {children}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 function FloorClassBlock({
   g,
   defaultOpen,
@@ -104,11 +52,7 @@ function FloorClassBlock({
   onMark?: (id: string, status: 'attended' | 'no_show' | 'cancelled') => void;
   markBusyId?: string | null;
 }) {
-  const [over, setOver] = useState<Record<string, boolean>>({});
-  const classOpen = g.id in over ? over[g.id] : defaultOpen;
-  const coachOpen = `h:${g.id}` in over ? over[`h:${g.id}`] : classOpen;
-  const membersOpen = `m:${g.id}` in over ? over[`m:${g.id}`] : classOpen;
-  const coachTitle = g.person ? `Coach · ${g.person}` : 'Coach · unassigned';
+  const [open, setOpen] = useState(defaultOpen);
 
   return (
     <li className="px-4 py-3">
@@ -116,13 +60,13 @@ function FloorClassBlock({
         <div className="flex items-start gap-1">
           <button
             type="button"
-            aria-expanded={classOpen}
-            onClick={() => setOver((m) => toggleKey(m, g.id, defaultOpen))}
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
             className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2.5 text-left"
           >
             <ChevronDown
               className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${
-                classOpen ? '' : '-rotate-90'
+                open ? '' : '-rotate-90'
               }`}
             />
             <span className="min-w-0 flex-1">
@@ -156,80 +100,47 @@ function FloorClassBlock({
             </Link>
           ) : null}
         </div>
-        {classOpen ? (
-          <div className="space-y-1.5 border-t border-slate-100 p-2.5 dark:border-slate-700">
-            <ExpandRow
-              open={coachOpen}
-              onToggle={() =>
-                setOver((m) => toggleKey(m, `h:${g.id}`, classOpen))
-              }
-              title={coachTitle}
-              hint={g.person ? 'Assigned on the calendar' : 'No coach yet'}
-            >
-              <p className="text-[12px] font-semibold text-slate-700 dark:text-slate-200">
-                {g.person || 'Assign a coach on the calendar'}
+        {open ? (
+          <div className="space-y-3 border-t border-slate-100 p-3 dark:border-slate-700">
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+              {g.person ? `Coach · ${g.person}` : 'Coach · unassigned'}
+            </p>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">
+                Members
               </p>
-            </ExpandRow>
-            <ExpandRow
-              open={membersOpen}
-              onToggle={() =>
-                setOver((m) => toggleKey(m, `m:${g.id}`, classOpen))
-              }
-              title={`Members · ${g.members.length}`}
-              hint={
-                g.members.length
-                  ? 'Tap a member to mark attendance'
-                  : 'Nobody on this class yet'
-              }
-            >
               {g.members.length === 0 ? (
-                <p className="text-[11px] text-slate-500">
+                <p className="mt-1 text-[11px] text-slate-500">
                   Nobody booked or subscribed yet.
                 </p>
               ) : (
-                <ul className="space-y-1.5">
-                  {g.members.map((m) => {
-                    const memId = `p:${m.id}`;
-                    const memOpen =
-                      memId in over ? over[memId] : membersOpen;
-                    return (
-                      <li key={m.id}>
-                        <ExpandRow
-                          open={memOpen}
-                          onToggle={() =>
-                            setOver((m2) =>
-                              toggleKey(m2, memId, membersOpen)
-                            )
-                          }
-                          title={m.attendee || m.title}
-                          hint={
-                            m.status
-                              ? m.status.replace(/_/g, ' ')
-                              : undefined
-                          }
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-1.5">
-                            <p className="text-xs text-slate-600 dark:text-slate-300">
-                              {m.status
-                                ? m.status.replace(/_/g, ' ')
-                                : 'planned'}
-                            </p>
-                            <div className="flex flex-wrap gap-1.5">
-                              <MarkButtons
-                                id={m.id}
-                                status={m.status}
-                                onMark={onMark}
-                                markBusyId={markBusyId}
-                              />
-                            </div>
-                          </div>
-                        </ExpandRow>
-                      </li>
-                    );
-                  })}
+                <ul className="mt-1.5 space-y-1.5">
+                  {g.members.map((m) => (
+                    <li
+                      key={m.id}
+                      className="flex flex-wrap items-center justify-between gap-1.5 rounded-xl border border-slate-100 bg-slate-50 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-900/60"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                          {m.attendee || m.title}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          {m.status ? m.status.replace(/_/g, ' ') : 'planned'}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        <MarkButtons
+                          id={m.id}
+                          status={m.status}
+                          onMark={onMark}
+                          markBusyId={markBusyId}
+                        />
+                      </div>
+                    </li>
+                  ))}
                 </ul>
               )}
-            </ExpandRow>
+            </div>
           </div>
         ) : null}
       </div>
