@@ -237,11 +237,6 @@ export default function ClientsPage() {
         toast.success(
           `CRM: ${stamped} stamped (${linked} existing, ${created} new), ${numbered} client numbers from CoA, ${skipped} skipped`
         );
-        try {
-          await load();
-        } catch {
-          toast.error('CRM stamped, but could not refresh clients');
-        }
         if (cancelled) return;
       } catch (e: unknown) {
         gymCrmBackfillCompanyOnce.delete(companyId);
@@ -258,7 +253,7 @@ export default function ClientsPage() {
       cancelled = true;
       crmBackfillOnce.current = false;
     };
-  }, [loading, store, post, companyId, load]);
+  }, [loading, post, companyId, load]);
 
   const save = async () => {
     if (!form.name.trim()) {
