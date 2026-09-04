@@ -29,6 +29,7 @@ import {
 } from '@/lib/fitness/session-times';
 import { ensureDemoShopProgramme } from '@/lib/fitness/demo-shop-programme';
 import { shopCoachFirstName, vukaShopCoachRank } from '@/lib/fitness/gym-shop';
+import { rememberRemovedFitgraphIds } from '@/lib/fitness/fitgraph-merge';
 
 export const VUKA_COMPANY_ID = 110;
 
@@ -1378,7 +1379,6 @@ export const VUKA_COACH_ROSTER: Array<{
     email: 'jaredcawood77@gmail.com',
     code: 'JAR',
   },
-  { name: 'Jaryyd', email: '', code: 'JYD' },
   {
     name: 'Sophie Pearce',
     email: 'pearcesophie56@gmail.com',
@@ -1474,7 +1474,27 @@ export function ensureVukaCoaches(
   return changed;
 }
 
-/** Bianca, Miri, Jared, Jaryyd, Sophie — then everyone else. */
+function isRetiredVukaCoachStub(c: FitCoach): boolean {
+  const code = String(c.code || '').trim().toUpperCase();
+  const first = shopCoachFirstName(c.name);
+  return code === 'JYD' || first === 'jaryyd';
+}
+
+/** Drop leftover Jaryyd stubs so persist cannot mint them again. */
+export function dropRetiredVukaCoaches(store: FitgraphStore): boolean {
+  const list = store.coaches || [];
+  const drop = list.filter(isRetiredVukaCoachStub);
+  if (!drop.length) return false;
+  rememberRemovedFitgraphIds(
+    store,
+    'coaches',
+    drop.map((c) => c.id)
+  );
+  store.coaches = list.filter((c) => !isRetiredVukaCoachStub(c));
+  return true;
+}
+
+/** Bianca, Miri, Jared, Sophie — then everyone else. */
 export function ensureVukaCoachOrder(store: FitgraphStore): boolean {
   const list = store.coaches || [];
   if (!list.length) return false;
@@ -1539,6 +1559,7 @@ export async function persistVukaCatalogIfNeeded(
   const absorbed = absorbKnownClientAliases(next);
   next = absorbed.store;
   dirty = dirty || absorbed.changed;
+  if (dropRetiredVukaCoaches(next)) dirty = true;
   if (applyCatalog) {
     if (ensureDemoShopProgramme(next)) dirty = true;
     if (ensureVukaShopOffers(next)) dirty = true;

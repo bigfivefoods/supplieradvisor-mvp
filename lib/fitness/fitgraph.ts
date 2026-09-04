@@ -1642,7 +1642,12 @@ export interface FitgraphStore {
    * Owner-deleted ids. Concurrent merge unions arrays by id, so a delete
    * must tombstone or the previous snapshot resurrects the row.
    */
-  removed_ids?: { sessions?: string[]; bookings?: string[]; clients?: string[] };
+  removed_ids?: {
+    sessions?: string[];
+    bookings?: string[];
+    clients?: string[];
+    coaches?: string[];
+  };
   check_ins: FitCheckIn[];
   pt_packs: FitPtPack[];
   /** Member + coach post-class feedback */
@@ -1958,6 +1963,9 @@ export function readFitgraphFromMetadata(
         : [],
       clients: Array.isArray(removed.clients)
         ? removed.clients.map((id) => String(id))
+        : [],
+      coaches: Array.isArray(removed.coaches)
+        ? removed.coaches.map((id) => String(id))
         : [],
     };
   }
