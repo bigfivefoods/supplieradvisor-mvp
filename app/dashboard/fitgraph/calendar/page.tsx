@@ -120,8 +120,10 @@ export default function CalendarPage() {
   );
   const [statsOpen, setStatsOpen] = useState(true);
   const [calendarOpen, setCalendarOpen] = useState(true);
+  const [hoursOpen, setHoursOpen] = useState(false);
   const [colorsOpen, setColorsOpen] = useState(false);
-  const [waitlistOpen, setWaitlistOpen] = useState(true);
+  const [waitlistOpen, setWaitlistOpen] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
   const [attendOverride, setAttendOverride] = useState<
     Record<string, 'attended' | 'no_show' | 'booked'>
   >({});
@@ -924,7 +926,7 @@ export default function CalendarPage() {
     <FitgraphWorkbench
       title="Calendar"
       titleAccent="main gym diary"
-      description="Stats, then this week’s gym diary, then waitlist, then working hours. Click a class to open it. Multiple coaches can run at the same time."
+      description="This week’s gym diary. Working hours and diary colours sit under the calendar. Click a class to open it."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -961,6 +963,339 @@ export default function CalendarPage() {
                 },
               ]}
             />
+          </AdvisorExpandablePanel>
+
+          <AdvisorExpandablePanel
+            title={`Waitlist · ${waitlistCount}`}
+            description="Members waiting on a full class."
+            open={waitlistOpen}
+            onToggle={() => setWaitlistOpen((v) => !v)}
+            accentClass="border-yellow-200 bg-yellow-50/50 dark:border-yellow-800 dark:bg-yellow-950/30"
+            titleClass="text-yellow-950 dark:text-yellow-50"
+            hintClass="text-yellow-800/80 dark:text-yellow-200/80"
+          >
+            <AdvisorWaitlistDesk
+              queue={[]}
+              slotWaitlist={deskSlotWaitlist}
+              accentClass="border-yellow-200"
+              embedded
+              post={async (body) => {
+                await post(body);
+              }}
+              onRefresh={() => {
+                void load();
+              }}
+              calendarHref="/dashboard/fitgraph/calendar"
+            />
+            <p className="text-xs text-slate-500">
+              Front desk tools:{' '}
+              <Link
+                href="/dashboard/fitgraph/bookings"
+                className="font-bold text-yellow-700 underline"
+              >
+                Desk · bookings
+              </Link>{' '}
+              (mark attended, feedback links) · this calendar is the main diary.
+            </p>
+          </AdvisorExpandablePanel>
+
+          <AdvisorExpandablePanel
+            title={`Sessions on ${day}`}
+            description="List and table for this date. The week diary below is the main view."
+            open={listOpen}
+            onToggle={() => setListOpen((v) => !v)}
+            accentClass="border-yellow-200 bg-yellow-50/50 dark:border-yellow-800 dark:bg-yellow-950/30"
+            titleClass="text-yellow-950 dark:text-yellow-50"
+            hintClass="text-yellow-800/80 dark:text-yellow-200/80"
+          >
+          <p className="text-xs text-slate-500">
+            <strong>Click any session</strong> on the calendar to open it.
+            Private PT and coach personal time use start and end times. Join
+            links work for classes and PT.{' '}
+            <Link
+              href={classCatalogueHref}
+              className="font-bold text-yellow-700 underline"
+            >
+              {classSubscribe ? 'Classes' : 'Class types'}
+            </Link>{' '}
+            ·{' '}
+            <Link
+              href="/dashboard/fitgraph/bookings"
+              className="font-bold text-yellow-700 underline"
+            >
+              Desk · bookings
+            </Link>
+            .
+          </p>
+
+          <div className="space-y-2">
+            <h3 className="text-sm font-black text-slate-800 dark:text-yellow-100">
+              Sessions on {day}
+              {selectedSessionId ? ' · open session highlighted' : ''}
+            </h3>
+            {daySessions.length === 0 ? (
+              <p className="text-sm text-slate-500 py-8 text-center border border-dashed border-slate-200 rounded-2xl">
+                Nothing on {day}. Click empty calendar time to add a class, PT,
+                or personal block.
+              </p>
+            ) : (
+              daySessions.map((s) => {
+                const ct = store.class_types.find(
+                  (c) => c.id === s.class_type_id
+                );
+                const coach = store.coaches.find((c) => c.id === s.coach_id);
+                const booked = sessionBookingCount(store, s.id);
+                const cap = s.capacity ?? ct?.capacity ?? 0;
+                const managing = selectedSessionId === s.id;
+                const kind = sessionKindFromRecord({
+                  session_kind: s.session_kind,
+                  class_code: ct?.code,
+                });
+                const times = resolveSessionTimes({
+                  start_time: s.start_time,
+                  end_time: s.end_time,
+                  duration_min: s.duration_min,
+                });
+                const roster = rosterFor(s.id);
+                return (
+                  <ListRowCard
+                    key={s.id}
+                    tone="owner"
+                    actions={
+                      <>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 text-xs font-bold text-yellow-700 dark:text-yellow-300"
+                          onClick={() => {
+                            if (managing) {
+                              closeEditor();
+                            } else {
+                              openSession(s.id);
+                            }
+                          }}
+                        >
+                          {managing ? 'Close' : 'Open'}
+                        </button>
+                        {kind !== 'coach_personal' ? (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-xs font-bold text-sky-700 dark:text-sky-300"
+                            onClick={() => {
+                              openSession(s.id);
+                              setAddMemberIds([]);
+                              setMemberQuery('');
+                            }}
+                          >
+                            Members
+                          </button>
+                        ) : null}
+                        {kind !== 'coach_personal' ? (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-xs font-bold text-yellow-700 dark:text-yellow-300"
+                            onClick={() => void copyInvite(s.id)}
+                            title="Copy B2C join link for members"
+                          >
+                            <Share2 className="w-3.5 h-3.5" /> Join link
+                          </button>
+                        ) : null}
+                        {kind === 'class' ? (
+                          <button
+                            type="button"
+                            className={`text-xs font-bold ${toneLinkClass('owner')}`}
+                            onClick={() => void togglePublic(s.id, !s.public)}
+                          >
+                            {s.public ? 'Unpublish' : 'Publish'}
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="text-rose-600 dark:text-rose-400 text-xs font-bold"
+                          onClick={() =>
+                            void post({
+                              entity: 'sessions',
+                              action: 'delete',
+                              id: s.id,
+                            })
+                          }
+                        >
+                          Remove
+                        </button>
+                      </>
+                    }
+                  >
+                    <div className="space-y-3">
+                      <div className="font-bold text-sm text-slate-900 dark:text-yellow-50">
+                        {times.start_time}–{times.end_time} ·{' '}
+                        {kind === 'coach_personal'
+                          ? s.notes?.split('\n')[0] || 'Coach personal'
+                          : ct?.name || sessionKindLabel(kind)}
+                        <span className="ml-2 text-[10px] font-black uppercase text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded dark:text-slate-300 dark:bg-slate-800">
+                          {sessionKindLabel(kind)}
+                        </span>
+                        {kind === 'class' && s.public ? (
+                          <span className="ml-2 text-[10px] font-black uppercase text-yellow-700 bg-yellow-100 px-1.5 py-0.5 rounded dark:text-yellow-100 dark:bg-yellow-800">
+                            Public
+                          </span>
+                        ) : kind !== 'coach_personal' ? (
+                          <span className="ml-2 text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded dark:text-neutral-400 dark:bg-neutral-800">
+                            Invite
+                          </span>
+                        ) : null}
+                        {s.series_id ? (
+                          <span className="ml-1 text-[10px] font-black uppercase text-amber-700">
+                            series
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-yellow-200/80">
+                        {s.location || s.room || '—'} · {booked}/{cap} booked
+                        {kind === 'private_pt' &&
+                        formatAgreedRateZar(
+                          s.agreed_rate_zar ??
+                            store.clients.find((c) =>
+                              roster.some((r) => r.client_id === c.id)
+                            )?.private_rate_zar
+                        )
+                          ? ` · ${formatAgreedRateZar(
+                              s.agreed_rate_zar ??
+                                store.clients.find((c) =>
+                                  roster.some((r) => r.client_id === c.id)
+                                )?.private_rate_zar
+                            )}`
+                          : ''}
+                        {!coach ? (
+                          <span className="ml-1 font-bold text-amber-700 dark:text-amber-300">
+                            · needs coach
+                          </span>
+                        ) : null}
+                      </div>
+                      {s.class_plan ? (
+                        <p className="text-[11px] text-yellow-800 dark:text-yellow-200 whitespace-pre-wrap line-clamp-3">
+                          {s.class_plan}
+                        </p>
+                      ) : null}
+
+                      {/* Step 2 — assign coach */}
+                      <div className="rounded-xl border border-yellow-100 dark:border-yellow-800 bg-yellow-50/40 dark:bg-yellow-950/30 px-3 py-2 space-y-1.5">
+                        <p className="text-[10px] font-black uppercase tracking-wide text-yellow-700 dark:text-yellow-300">
+                          Step 2 · Assign coach
+                        </p>
+                        <select
+                          className="w-full rounded-lg border border-slate-200 text-xs px-2 py-2 dark:border-yellow-500/40 dark:bg-yellow-950 dark:text-yellow-50"
+                          value={s.coach_id || ''}
+                          onChange={(e) =>
+                            void reassignCoach(s.id, e.target.value)
+                          }
+                        >
+                          <option value="">Unassigned — pick coach…</option>
+                          {store.coaches
+                            .filter((c) => c.active !== false)
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name}
+                                {(c.specialties || []).length
+                                  ? ` · ${(c.specialties || []).join(', ')}`
+                                  : ''}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+
+                      {/* Step 3 — booked members only */}
+                      {kind === 'coach_personal' ? (
+                        <p className="text-[11px] text-indigo-700 dark:text-indigo-300">
+                          Personal block — members cannot book this slot.
+                        </p>
+                      ) : managing ? (
+                        <ClassBookedRoster
+                          roster={rosterFor(s.id)}
+                          addQuery={memberQuery}
+                          onAddQuery={setMemberQuery}
+                          addChoices={memberChoices.map((c) => ({
+                            id: c.id,
+                            name: c.name,
+                            already: roster.some((b) => b.client_id === c.id),
+                          }))}
+                          selectedIds={addMemberIds}
+                          onToggleAdd={toggleAddMember}
+                          onBook={() => void saveMembersOnSession(s.id)}
+                          onMark={(id, status, clientId) => {
+                            void markRoster(id, status, clientId);
+                          }}
+                          saving={saving}
+                        />
+                      ) : (
+                        <div className="rounded-xl border border-sky-100 dark:border-sky-900 bg-sky-50/40 dark:bg-sky-950/20 px-3 py-2">
+                          <p className="text-[10px] font-black uppercase tracking-wide text-sky-800 dark:text-sky-200">
+                            Booked members · {booked}
+                          </p>
+                          <button
+                            type="button"
+                            className="mt-1 text-[11px] font-bold text-sky-700 dark:text-sky-300 underline"
+                            onClick={() => {
+                              openSession(s.id);
+                              setAddMemberIds([]);
+                            }}
+                          >
+                            Open to see members
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </ListRowCard>
+                );
+              })
+            )}
+          </div>
+
+          <DataTable tone="owner"
+            headers={[
+              'Date',
+              'Time',
+              'Class',
+              'Coach',
+              'Room',
+              'Cap',
+              'Booked',
+              'Web',
+              'Status',
+            ]}
+            rows={[...store.sessions]
+              .sort((a, b) =>
+                a.date === b.date
+                  ? a.start_time.localeCompare(b.start_time)
+                  : a.date.localeCompare(b.date)
+              )
+              .slice(0, 50)
+              .map((s) => {
+                const ct = store.class_types.find(
+                  (c) => c.id === s.class_type_id
+                );
+                const coach = store.coaches.find((c) => c.id === s.coach_id);
+                return {
+                  id: s.id,
+                  cells: [
+                    s.date,
+                    `${s.start_time}${s.end_time ? `–${s.end_time}` : ''}`,
+                    `${ct?.name || '—'}${
+                      s.session_kind && s.session_kind !== 'class'
+                        ? ` · ${sessionKindLabel(s.session_kind)}`
+                        : ''
+                    }`,
+                    coach?.name || '—',
+                    s.location || '—',
+                    s.capacity ?? '—',
+                    String(sessionBookingCount(store, s.id)),
+                    s.public ? 'Public' : 'Private',
+                    s.status,
+                  ],
+                };
+              })}
+            onDelete={(id) =>
+              void post({ entity: 'sessions', action: 'delete', id })
+            }
+          />
           </AdvisorExpandablePanel>
 
           <AdvisorExpandablePanel
@@ -1059,6 +1394,35 @@ export default function CalendarPage() {
           </AdvisorExpandablePanel>
 
           <AdvisorExpandablePanel
+            title="Gym working hours"
+            description="Open days and studio hours. Closed days are dimmed on the calendar; day view follows your open window."
+            open={hoursOpen}
+            onToggle={() => setHoursOpen((v) => !v)}
+            accentClass="border-yellow-200 bg-yellow-50/50 dark:border-yellow-800 dark:bg-yellow-950/30"
+            titleClass="text-yellow-950 dark:text-yellow-50"
+            hintClass="text-yellow-800/80 dark:text-yellow-200/80"
+          >
+            <WorkingHoursEditor
+              value={workingHours}
+              embedded
+              collapsible={false}
+              onSave={saveHours}
+              saving={saving}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <PracticeProfilePdfButton
+                companyId={companyId}
+                module="fitgraph"
+                label="Download gym practice PDF"
+              />
+              <span className="text-[11px] text-slate-500">
+                Practice sheet (hours, coaches, classes). Schedule PDFs: A4 PDF on
+                the calendar.
+              </span>
+            </div>
+          </AdvisorExpandablePanel>
+
+          <AdvisorExpandablePanel
             title="Diary colours"
             description="Fallback colour when a class has no coach. Assigned classes use the coach’s calendar colour on Coaches."
             open={colorsOpen}
@@ -1086,62 +1450,6 @@ export default function CalendarPage() {
               }}
             />
           </AdvisorExpandablePanel>
-
-          <AdvisorExpandablePanel
-            title={`Waitlist · ${waitlistCount}`}
-            description="Members waiting on a full class. Open by default."
-            open={waitlistOpen}
-            onToggle={() => setWaitlistOpen((v) => !v)}
-            accentClass="border-yellow-200 bg-yellow-50/50 dark:border-yellow-800 dark:bg-yellow-950/30"
-            titleClass="text-yellow-950 dark:text-yellow-50"
-            hintClass="text-yellow-800/80 dark:text-yellow-200/80"
-          >
-            <AdvisorWaitlistDesk
-              queue={[]}
-              slotWaitlist={deskSlotWaitlist}
-              accentClass="border-yellow-200"
-              embedded
-              post={async (body) => {
-                await post(body);
-              }}
-              onRefresh={() => {
-                void load();
-              }}
-              calendarHref="/dashboard/fitgraph/calendar"
-            />
-            <p className="text-xs text-slate-500">
-              Front desk tools:{' '}
-              <Link
-                href="/dashboard/fitgraph/bookings"
-                className="font-bold text-yellow-700 underline"
-              >
-                Desk · bookings
-              </Link>{' '}
-              (mark attended, feedback links) · this calendar is the main diary.
-            </p>
-          </AdvisorExpandablePanel>
-
-          <WorkingHoursEditor
-            value={workingHours}
-            defaultCollapsed
-            onSave={saveHours}
-            saving={saving}
-            title="Gym working hours"
-            description="Open days and studio hours. Closed days are dimmed on the calendar; day view follows your open window."
-            accentClass="border-yellow-200 dark:border-yellow-800"
-          />
-
-          <div className="flex flex-wrap items-center gap-2 -mt-2">
-            <PracticeProfilePdfButton
-              companyId={companyId}
-              module="fitgraph"
-              label="Download gym practice PDF"
-            />
-            <span className="text-[11px] text-slate-500">
-              Practice sheet (hours, coaches, classes). Schedule PDFs: A4 PDF on
-              the calendar.
-            </span>
-          </div>
 
           <ScheduleEventPeek
             open={editorOpen}
@@ -1921,294 +2229,6 @@ export default function CalendarPage() {
           ) : null}
           </ScheduleEventPeek>
 
-          <p className="text-xs text-slate-500">
-            <strong>Click any session</strong> on the calendar to open it.
-            Private PT and coach personal time use start and end times. Join
-            links work for classes and PT.{' '}
-            <Link
-              href={classCatalogueHref}
-              className="font-bold text-yellow-700 underline"
-            >
-              {classSubscribe ? 'Classes' : 'Class types'}
-            </Link>{' '}
-            ·{' '}
-            <Link
-              href="/dashboard/fitgraph/bookings"
-              className="font-bold text-yellow-700 underline"
-            >
-              Desk · bookings
-            </Link>
-            .
-          </p>
-
-          <div className="space-y-2">
-            <h3 className="text-sm font-black text-slate-800 dark:text-yellow-100">
-              Sessions on {day}
-              {selectedSessionId ? ' · open session highlighted' : ''}
-            </h3>
-            {daySessions.length === 0 ? (
-              <p className="text-sm text-slate-500 py-8 text-center border border-dashed border-slate-200 rounded-2xl">
-                Nothing on {day}. Click empty calendar time to add a class, PT,
-                or personal block.
-              </p>
-            ) : (
-              daySessions.map((s) => {
-                const ct = store.class_types.find(
-                  (c) => c.id === s.class_type_id
-                );
-                const coach = store.coaches.find((c) => c.id === s.coach_id);
-                const booked = sessionBookingCount(store, s.id);
-                const cap = s.capacity ?? ct?.capacity ?? 0;
-                const managing = selectedSessionId === s.id;
-                const kind = sessionKindFromRecord({
-                  session_kind: s.session_kind,
-                  class_code: ct?.code,
-                });
-                const times = resolveSessionTimes({
-                  start_time: s.start_time,
-                  end_time: s.end_time,
-                  duration_min: s.duration_min,
-                });
-                const roster = rosterFor(s.id);
-                return (
-                  <ListRowCard
-                    key={s.id}
-                    tone="owner"
-                    actions={
-                      <>
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 text-xs font-bold text-yellow-700 dark:text-yellow-300"
-                          onClick={() => {
-                            if (managing) {
-                              closeEditor();
-                            } else {
-                              openSession(s.id);
-                            }
-                          }}
-                        >
-                          {managing ? 'Close' : 'Open'}
-                        </button>
-                        {kind !== 'coach_personal' ? (
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1 text-xs font-bold text-sky-700 dark:text-sky-300"
-                            onClick={() => {
-                              openSession(s.id);
-                              setAddMemberIds([]);
-                              setMemberQuery('');
-                            }}
-                          >
-                            Members
-                          </button>
-                        ) : null}
-                        {kind !== 'coach_personal' ? (
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1 text-xs font-bold text-yellow-700 dark:text-yellow-300"
-                            onClick={() => void copyInvite(s.id)}
-                            title="Copy B2C join link for members"
-                          >
-                            <Share2 className="w-3.5 h-3.5" /> Join link
-                          </button>
-                        ) : null}
-                        {kind === 'class' ? (
-                          <button
-                            type="button"
-                            className={`text-xs font-bold ${toneLinkClass('owner')}`}
-                            onClick={() => void togglePublic(s.id, !s.public)}
-                          >
-                            {s.public ? 'Unpublish' : 'Publish'}
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          className="text-rose-600 dark:text-rose-400 text-xs font-bold"
-                          onClick={() =>
-                            void post({
-                              entity: 'sessions',
-                              action: 'delete',
-                              id: s.id,
-                            })
-                          }
-                        >
-                          Remove
-                        </button>
-                      </>
-                    }
-                  >
-                    <div className="space-y-3">
-                      <div className="font-bold text-sm text-slate-900 dark:text-yellow-50">
-                        {times.start_time}–{times.end_time} ·{' '}
-                        {kind === 'coach_personal'
-                          ? s.notes?.split('\n')[0] || 'Coach personal'
-                          : ct?.name || sessionKindLabel(kind)}
-                        <span className="ml-2 text-[10px] font-black uppercase text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded dark:text-slate-300 dark:bg-slate-800">
-                          {sessionKindLabel(kind)}
-                        </span>
-                        {kind === 'class' && s.public ? (
-                          <span className="ml-2 text-[10px] font-black uppercase text-yellow-700 bg-yellow-100 px-1.5 py-0.5 rounded dark:text-yellow-100 dark:bg-yellow-800">
-                            Public
-                          </span>
-                        ) : kind !== 'coach_personal' ? (
-                          <span className="ml-2 text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded dark:text-neutral-400 dark:bg-neutral-800">
-                            Invite
-                          </span>
-                        ) : null}
-                        {s.series_id ? (
-                          <span className="ml-1 text-[10px] font-black uppercase text-amber-700">
-                            series
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="text-[11px] text-slate-500 dark:text-yellow-200/80">
-                        {s.location || s.room || '—'} · {booked}/{cap} booked
-                        {kind === 'private_pt' &&
-                        formatAgreedRateZar(
-                          s.agreed_rate_zar ??
-                            store.clients.find((c) =>
-                              roster.some((r) => r.client_id === c.id)
-                            )?.private_rate_zar
-                        )
-                          ? ` · ${formatAgreedRateZar(
-                              s.agreed_rate_zar ??
-                                store.clients.find((c) =>
-                                  roster.some((r) => r.client_id === c.id)
-                                )?.private_rate_zar
-                            )}`
-                          : ''}
-                        {!coach ? (
-                          <span className="ml-1 font-bold text-amber-700 dark:text-amber-300">
-                            · needs coach
-                          </span>
-                        ) : null}
-                      </div>
-                      {s.class_plan ? (
-                        <p className="text-[11px] text-yellow-800 dark:text-yellow-200 whitespace-pre-wrap line-clamp-3">
-                          {s.class_plan}
-                        </p>
-                      ) : null}
-
-                      {/* Step 2 — assign coach */}
-                      <div className="rounded-xl border border-yellow-100 dark:border-yellow-800 bg-yellow-50/40 dark:bg-yellow-950/30 px-3 py-2 space-y-1.5">
-                        <p className="text-[10px] font-black uppercase tracking-wide text-yellow-700 dark:text-yellow-300">
-                          Step 2 · Assign coach
-                        </p>
-                        <select
-                          className="w-full rounded-lg border border-slate-200 text-xs px-2 py-2 dark:border-yellow-500/40 dark:bg-yellow-950 dark:text-yellow-50"
-                          value={s.coach_id || ''}
-                          onChange={(e) =>
-                            void reassignCoach(s.id, e.target.value)
-                          }
-                        >
-                          <option value="">Unassigned — pick coach…</option>
-                          {store.coaches
-                            .filter((c) => c.active !== false)
-                            .map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.name}
-                                {(c.specialties || []).length
-                                  ? ` · ${(c.specialties || []).join(', ')}`
-                                  : ''}
-                              </option>
-                            ))}
-                        </select>
-                      </div>
-
-                      {/* Step 3 — booked members only */}
-                      {kind === 'coach_personal' ? (
-                        <p className="text-[11px] text-indigo-700 dark:text-indigo-300">
-                          Personal block — members cannot book this slot.
-                        </p>
-                      ) : managing ? (
-                        <ClassBookedRoster
-                          roster={rosterFor(s.id)}
-                          addQuery={memberQuery}
-                          onAddQuery={setMemberQuery}
-                          addChoices={memberChoices.map((c) => ({
-                            id: c.id,
-                            name: c.name,
-                            already: roster.some((b) => b.client_id === c.id),
-                          }))}
-                          selectedIds={addMemberIds}
-                          onToggleAdd={toggleAddMember}
-                          onBook={() => void saveMembersOnSession(s.id)}
-                          onMark={(id, status, clientId) => {
-                            void markRoster(id, status, clientId);
-                          }}
-                          saving={saving}
-                        />
-                      ) : (
-                        <div className="rounded-xl border border-sky-100 dark:border-sky-900 bg-sky-50/40 dark:bg-sky-950/20 px-3 py-2">
-                          <p className="text-[10px] font-black uppercase tracking-wide text-sky-800 dark:text-sky-200">
-                            Booked members · {booked}
-                          </p>
-                          <button
-                            type="button"
-                            className="mt-1 text-[11px] font-bold text-sky-700 dark:text-sky-300 underline"
-                            onClick={() => {
-                              openSession(s.id);
-                              setAddMemberIds([]);
-                            }}
-                          >
-                            Open to see members
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </ListRowCard>
-                );
-              })
-            )}
-          </div>
-
-          <DataTable tone="owner"
-            headers={[
-              'Date',
-              'Time',
-              'Class',
-              'Coach',
-              'Room',
-              'Cap',
-              'Booked',
-              'Web',
-              'Status',
-            ]}
-            rows={[...store.sessions]
-              .sort((a, b) =>
-                a.date === b.date
-                  ? a.start_time.localeCompare(b.start_time)
-                  : a.date.localeCompare(b.date)
-              )
-              .slice(0, 50)
-              .map((s) => {
-                const ct = store.class_types.find(
-                  (c) => c.id === s.class_type_id
-                );
-                const coach = store.coaches.find((c) => c.id === s.coach_id);
-                return {
-                  id: s.id,
-                  cells: [
-                    s.date,
-                    `${s.start_time}${s.end_time ? `–${s.end_time}` : ''}`,
-                    `${ct?.name || '—'}${
-                      s.session_kind && s.session_kind !== 'class'
-                        ? ` · ${sessionKindLabel(s.session_kind)}`
-                        : ''
-                    }`,
-                    coach?.name || '—',
-                    s.location || '—',
-                    s.capacity ?? '—',
-                    String(sessionBookingCount(store, s.id)),
-                    s.public ? 'Public' : 'Private',
-                    s.status,
-                  ],
-                };
-              })}
-            onDelete={(id) =>
-              void post({ entity: 'sessions', action: 'delete', id })
-            }
-          />
         </div>
       )}
     </FitgraphWorkbench>

@@ -26,6 +26,8 @@ type Props = {
   embedded?: boolean;
   /** Start collapsed (default true on calendar pages) */
   defaultCollapsed?: boolean;
+  /** When false, parent owns expand/collapse and this editor stays open. */
+  collapsible?: boolean;
 };
 
 export function WorkingHoursEditor({
@@ -38,11 +40,12 @@ export function WorkingHoursEditor({
   accentClass = 'border-slate-200 dark:border-slate-700',
   embedded,
   defaultCollapsed = true,
+  collapsible = true,
 }: Props) {
   const [hours, setHours] = useState<WorkingHours>(() =>
     normalizeWorkingHours(value)
   );
-  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const [collapsed, setCollapsed] = useState(defaultCollapsed && collapsible);
 
   useEffect(() => {
     setHours(normalizeWorkingHours(value));
@@ -127,9 +130,9 @@ export function WorkingHoursEditor({
 
   const body = (
     <div className="space-y-3">
-      {header}
+      {collapsible ? header : null}
 
-      {!collapsed ? (
+      {!collapsible || !collapsed ? (
         <>
           <div className="flex flex-wrap gap-2">
             <button
@@ -221,7 +224,7 @@ export function WorkingHoursEditor({
               disabled={saving}
               onClick={async () => {
                 await onSave(hours);
-                setCollapsed(true);
+                if (collapsible) setCollapsed(true);
               }}
               className="rounded-xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-4 py-2 text-sm font-bold disabled:opacity-50"
             >
