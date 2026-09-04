@@ -76,6 +76,8 @@ import {
   applyAdvisorPersonCodeFromAr,
   needsAdvisorPersonCodeFromAr,
 } from '@/lib/fitness/gym-client-number';
+import { applyFloorTaskAction } from '@/lib/services/advisor-floor-tasks';
+import { GYM_DEFAULT_TZ, isoDateInZone } from '@/lib/fitness/gym-local-time';
 
 export const runtime = 'nodejs';
 
@@ -255,6 +257,23 @@ export async function POST(request: NextRequest) {
         numbered,
         remaining,
         message: `Stamped ${stamped} patient(s) onto CRM (${linked_existing} existing, ${created} new), ${numbered} patient code(s) from CoA, ${skipped} skipped`,
+      });
+    }
+
+    if (action === 'floor_task') {
+      const today = isoDateInZone(store.settings?.timezone || GYM_DEFAULT_TZ);
+      const result = applyFloorTaskAction(store.floor_tasks, body, now, today);
+      if (result.error) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      store.floor_tasks = result.tasks;
+      await saveStore(companyId, meta, store);
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseMedicalgraph(store),
+        analysis: analysis(store),
+        task: result.task,
       });
     }
 

@@ -44,6 +44,14 @@ for (const id of ADVISOR_FLOOR_IDS) {
   assert.equal(messages!.section, 'Floor');
 }
 
+for (const id of ['fitgraph', 'medicalgraph'] as const) {
+  const mod = MODULE_NAV.find((m) => m.id === id);
+  const tasks = mod!.steps.find((s) => s.name === 'Tasks');
+  assert.ok(tasks, `${id} has Tasks`);
+  assert.equal(tasks!.section, 'Floor');
+  assert.match(String(tasks!.href), /\/tasks$/);
+}
+
 // Chevron button is shown for ALL modules with children (no Advisor exclusion).
 assert.match(sidebar, /mod\.sub\.length > 0 && \(/);
 // isExpanded must NOT force-open Advisor modules.
