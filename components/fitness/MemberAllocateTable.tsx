@@ -338,11 +338,23 @@ export function MemberAllocateTable({
     setDrafts((d) => ({ ...d, [id]: { ...current, ...patch } }));
   };
 
+  const selectedPlanIds = (d: Draft): string[] =>
+    classSubscribe
+      ? d.planIds.filter(Boolean)
+      : d.planId
+        ? [d.planId]
+        : [];
+
   const toggleMember = (c: FitClient, d: Draft) => {
     const next = !(d.personActive && d.member);
     const merged: Draft = { ...d, personActive: true, member: next };
     setDraft(c.id, { personActive: true, member: next });
-    if (next) setOpenId(c.id);
+    if (next) {
+      setOpenId(c.id);
+      // Do not POST until a class is chosen. Saving member-on with
+      // empty plan_ids parks them again and the Inactive chip snaps back.
+      if (!selectedPlanIds(merged).length) return;
+    }
     void save(c, merged);
   };
 
@@ -366,13 +378,6 @@ export function MemberAllocateTable({
     setOpenId(c.id);
     void save(c, merged);
   };
-
-  const selectedPlanIds = (d: Draft): string[] =>
-    classSubscribe
-      ? d.planIds.filter(Boolean)
-      : d.planId
-        ? [d.planId]
-        : [];
 
   const totalsFor = (d: Draft) => {
     const ids = selectedPlanIds(d);
@@ -503,8 +508,8 @@ export function MemberAllocateTable({
       return;
     }
     const planIds = selectedPlanIds(d);
-    if (d.member && !planIds.length && !classSubscribe) {
-      toast.error('Select a plan');
+    if (d.member && !planIds.length) {
+      toast.error(classSubscribe ? 'Select a class' : 'Select a plan');
       return;
     }
     if (d.privateClient && !d.coachId) {
@@ -1012,8 +1017,9 @@ export function MemberAllocateTable({
 
                     {!d.personActive ? (
                       <p className="rounded-2xl border border-dashed border-slate-200 px-3 py-3 text-sm text-slate-500 dark:border-yellow-800">
-                        Inactive. Turn on Member, Private, or both, then Save.
-                        Contracts, bank details and notes stay on file.
+                        Inactive. Turn on Member and pick their class (or
+                        Private and a coach), then Save. Contracts, bank
+                        details and notes stay on file.
                       </p>
                     ) : null}
 
