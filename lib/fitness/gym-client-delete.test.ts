@@ -14,6 +14,43 @@ const deleteBlock = route.split("action === 'delete'")[1] || '';
 assert.match(deleteBlock, /entity === 'clients'/);
 assert.match(deleteBlock, /rememberRemovedFitgraphIds\(store, 'clients'/);
 assert.match(deleteBlock, /rememberRemovedFitgraphIds\(store, 'bookings'/);
+assert.match(deleteBlock, /_deleted: true/);
+
+/** Same drop rules as sa_module_store_merge_id_array / Brief 50. */
+function mergeIdArray(
+  existing: Array<{ id: string; _deleted?: boolean; name?: string }>,
+  incoming: Array<{ id: string; _deleted?: boolean; name?: string }>,
+  removedIds: string[]
+) {
+  const incomingById = new Map(incoming.map((row) => [row.id, row]));
+  const tombstones = new Set(
+    incoming.filter((row) => row._deleted === true).map((row) => row.id)
+  );
+  const out = incoming.filter((row) => row._deleted !== true);
+  for (const row of existing) {
+    if (incomingById.has(row.id) || removedIds.includes(row.id) || tombstones.has(row.id)) {
+      continue;
+    }
+    out.push(row);
+  }
+  return out;
+}
+
+const stored = mergeIdArray(
+  [
+    { id: 'cli_gone', name: 'Gone Person' },
+    { id: 'cli_keep', name: 'Keep Person' },
+  ],
+  [
+    { id: 'cli_keep', name: 'Keep Person' },
+    { id: 'cli_gone', _deleted: true },
+  ],
+  ['cli_gone']
+);
+assert.deepEqual(
+  stored.map((row) => row.id),
+  ['cli_keep']
+);
 assert.match(
   deleteBlock,
   /deletePatchKeys\.push\('removed_ids', 'subscriptions', 'bookings'\)/

@@ -3047,6 +3047,8 @@ export async function POST(request: NextRequest) {
         (store as unknown as Record<string, unknown>)[key] = (
           list as Array<{ id?: string }>
         ).filter((row) => row.id !== id);
+        const deleteTombstone = (rowId: string) =>
+          ({ id: rowId, _deleted: true }) as { id: string; _deleted: true };
         // Drop bookings tied to a removed class
         if (entity === 'sessions') {
           const dropBookings = (store.bookings || [])
@@ -3074,11 +3076,36 @@ export async function POST(request: NextRequest) {
           store.bookings = (store.bookings || []).filter(
             (b) => b.client_id !== id
           );
+          // SQL sa_module_store_merge_id_array drops _deleted rows from the
+          // stored JSON. removed_ids alone is not enough if a later union
+          // write omits the tombstone map.
+          store.clients = [
+            ...store.clients,
+            deleteTombstone(id) as unknown as FitClient,
+          ];
+          store.bookings = [
+            ...(store.bookings || []),
+            ...dropBookings.map(
+              (bid) => deleteTombstone(bid) as unknown as FitBooking
+            ),
+          ];
         } else if (entity === 'bookings') {
           rememberRemovedFitgraphIds(store, 'bookings', [id]);
+          store.bookings = [
+            ...(store.bookings || []),
+            deleteTombstone(id) as unknown as FitBooking,
+          ];
         }
       }
       await savePatchForKeys(companyId, meta, store, ...deletePatchKeys);
+      if (entity === 'clients' || entity === 'bookings') {
+        store.clients = store.clients.filter(
+          (row) => (row as { _deleted?: boolean })._deleted !== true
+        );
+        store.bookings = (store.bookings || []).filter(
+          (row) => (row as { _deleted?: boolean })._deleted !== true
+        );
+      }
       return NextResponse.json({
         success: true,
         store,
