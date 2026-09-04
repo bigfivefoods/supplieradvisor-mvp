@@ -91,9 +91,11 @@ export async function GET(request: NextRequest) {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     const stage = request.nextUrl.searchParams.get('stage');
     const q = (request.nextUrl.searchParams.get('q') || '').trim().toLowerCase();
-    if (!Number.isFinite(companyId)) {
+    if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const supabase = getSupabaseServer();
     const { loadHoldingSubtree, annotateGroupOpportunity } = await import(
       '@/lib/business/holding-pipeline'
@@ -360,21 +362,27 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    const id = Number(body.id);
+    if (!Number.isFinite(id) || id <= 0) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
     const companyId = Number(body.companyId);
-    if (Number.isFinite(companyId) && companyId > 0) {
-      const gate = await requireCompanyAccess(request, companyId, {
-        legacyPrivyUserId: legacyPrivyFrom(request, body),
-      });
-      if (!gate.ok) return gate.response;
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!_gate.ok) return _gate.response;
+
+    const { loadHoldingSubtree } = await import('@/lib/business/holding-pipeline');
+    const tree = await loadHoldingSubtree(companyId);
 
     const supabase = getSupabaseServer();
     const { data: before } = await supabase
       .from('opportunities')
-      .select('stage, status, actual_close_date, open_date')
-      .eq('id', Number(body.id))
+      .select('stage, status, actual_close_date, open_date, profile_id')
+      .eq('id', id)
+      .in('profile_id', tree.ids)
       .maybeSingle();
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -483,7 +491,8 @@ export async function PATCH(request: NextRequest) {
     let { data, error } = await supabase
       .from('opportunities')
       .update(updates)
-      .eq('id', Number(body.id))
+      .eq('id', id)
+      .in('profile_id', tree.ids)
       .select('*')
       .single();
 
@@ -500,7 +509,8 @@ export async function PATCH(request: NextRequest) {
       const retry = await supabase
         .from('opportunities')
         .update(soft)
-        .eq('id', Number(body.id))
+        .eq('id', id)
+        .in('profile_id', tree.ids)
         .select('*')
         .single();
       data = retry.data;
@@ -548,9 +558,17 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const id = Number(request.nextUrl.searchParams.get('id'));
-    if (!Number.isFinite(id)) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    if (!Number.isFinite(id) || id <= 0) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    const companyId = Number(request.nextUrl.searchParams.get('companyId'));
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
+    const { loadHoldingSubtree } = await import('@/lib/business/holding-pipeline');
+    const tree = await loadHoldingSubtree(companyId);
     const supabase = getSupabaseServer();
-    const { error } = await supabase.from('opportunities').delete().eq('id', id);
+    const { error } = await supabase.from('opportunities').delete().eq('id', id).in('profile_id', tree.ids);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
   } catch (e: unknown) {
