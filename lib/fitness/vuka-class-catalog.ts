@@ -1264,11 +1264,20 @@ export function ensureVukaClassCatalog(
     }
   }
 
+  const ownerClassTypeIds = new Set<string>();
+  for (const p of store.membership_plans) {
+    if (p.active === false || p.unlocks_all_classes === true) continue;
+    if (p.id.startsWith('vuka_pln_')) continue;
+    for (const id of p.class_type_ids || []) ownerClassTypeIds.add(id);
+    ownerClassTypeIds.add(`cls_${p.id}`);
+  }
+
   const protectedClass = (c: { id: string; code?: string }) =>
     catalogClassIds.has(c.id) ||
     catalogClassCodes.has(String(c.code || '')) ||
     c.code === SYS_PT_CODE ||
-    c.code === SYS_COACH_TIME_CODE;
+    c.code === SYS_COACH_TIME_CODE ||
+    ownerClassTypeIds.has(c.id);
 
   const dropClassIds = new Set(
     store.class_types.filter((c) => !protectedClass(c)).map((c) => c.id)
@@ -1560,6 +1569,10 @@ export async function persistVukaCatalogIfNeeded(
   next = absorbed.store;
   dirty = dirty || absorbed.changed;
   if (dropRetiredVukaCoaches(next)) dirty = true;
+  const { ensureSubscribePlanClassTypes } = await import(
+    '@/lib/fitness/class-allocate'
+  );
+  if (ensureSubscribePlanClassTypes(next)) dirty = true;
   if (applyCatalog) {
     if (ensureDemoShopProgramme(next)) dirty = true;
     if (ensureVukaShopOffers(next)) dirty = true;

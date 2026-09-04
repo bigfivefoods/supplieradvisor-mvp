@@ -164,6 +164,39 @@ assert.equal(
   'cancelled'
 );
 
+vuka.membership_plans.push({
+  id: 'pln_hyrox',
+  code: 'HYROX',
+  name: 'Hyrox',
+  price_zar: 650,
+  billing: 'monthly',
+  public: true,
+  active: true,
+  catalog: 'vuka',
+  class_type_ids: ['cls_pln_hyrox'],
+  created_at: '2026-09-04T00:00:00.000Z',
+});
+vuka.class_types.push({
+  id: 'cls_pln_hyrox',
+  code: 'HYROX',
+  name: 'Hyrox',
+  category: 'Class',
+  default_duration_min: 60,
+  capacity: 16,
+  active: true,
+  created_at: '2026-09-04T00:00:00.000Z',
+});
+const keptOwner = ensureVukaClassCatalog(vuka, {
+  companyId: VUKA_COMPANY_ID,
+  now: '2026-08-17T10:00:00.000Z',
+});
+assert.equal(
+  vuka.class_types.some((c) => c.id === 'cls_pln_hyrox'),
+  true,
+  'Classes-desk types stay on the calendar catalog'
+);
+void keptOwner;
+
 const unlim = VUKA_MEMBERSHIP_PLANS.find((p) => p.code === 'VUKA_UNLIM')!;
 const kidsPlan = VUKA_MEMBERSHIP_PLANS.find((p) => p.code === 'VUKA_KIDS')!;
 const fsfPlan = VUKA_MEMBERSHIP_PLANS.find((p) => p.code === 'VUKA_FSF_5AM')!;
@@ -435,6 +468,48 @@ void (async () => {
   assert.equal(deskHeld.clients[0].active, false);
   assert.equal(deskHeld.clients[0].membership_status, 'cancelled');
   assert.equal(deskHeld.clients[0].membership_plan_id, 'vuka_pln_boot_1730');
+
+  const orphan = emptyFitgraphStore();
+  orphan.settings = {
+    enabled: true,
+    public_token: 'fg_110_testtoken',
+    allow_public_booking: true,
+    show_coaches: true,
+    show_pricing: true,
+    class_subscribe: true,
+    vuka_calendar_manual: true,
+    vuka_contracts_import: VUKA_CONTRACTS_IMPORT,
+    vuka_member_merge: VUKA_MEMBER_MERGE,
+    vuka_billed_class_import: VUKA_BILLED_CLASS_IMPORT,
+  };
+  orphan.membership_plans = [
+    {
+      id: 'pln_hyrox',
+      code: 'HYROX',
+      name: 'Hyrox',
+      price_zar: 650,
+      billing: 'monthly',
+      public: true,
+      active: true,
+      catalog: 'vuka',
+      class_type_ids: ['cls_never_saved'],
+      created_at: '2026-09-04T00:00:00.000Z',
+    },
+  ];
+  let orphanSaved = 0;
+  await persistVukaCatalogIfNeeded(
+    VUKA_COMPANY_ID,
+    orphan,
+    async () => {
+      orphanSaved += 1;
+    },
+    { applyCatalog: false }
+  );
+  assert.equal(orphanSaved, 1);
+  assert.ok(
+    orphan.class_types.some((c) => c.id === 'cls_pln_hyrox' && c.name === 'Hyrox')
+  );
+  assert.deepEqual(orphan.membership_plans[0]?.class_type_ids, ['cls_pln_hyrox']);
 const coaches = emptyFitgraphStore();
 coaches.coaches = [
   {

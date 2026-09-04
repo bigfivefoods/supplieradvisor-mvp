@@ -38,7 +38,7 @@ assert.match(
 );
 assert.match(
   route,
-  /const upsertPatchKeys: Array<keyof FitgraphStore> = \[entity\];[\s\S]*upsertPatchKeys\.push\('settings'\);[\s\S]*await savePatchForKeys\([\s\S]*\.\.\.upsertPatchKeys\);/
+  /const upsertPatchKeys: Array<keyof FitgraphStore> = \[entity\];[\s\S]*upsertPatchKeys\.push\('settings'\);[\s\S]*upsertPatchKeys\.push\('class_types'\);[\s\S]*await savePatchForKeys\([\s\S]*\.\.\.upsertPatchKeys\);/
 );
 
 console.log('brief54-desk-patch-save.test.ts ok');
