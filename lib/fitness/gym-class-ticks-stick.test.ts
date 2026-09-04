@@ -17,7 +17,12 @@ assert.doesNotMatch(
   table,
   /planIds.length > 0\s*\n\s*\? planIds\s*\n\s*: c\.membership_plan_id/
 );
-assert.match(table, /d\.member && !planIds.length && !classSubscribe/);
+assert.match(table, /d\.member && !planIds.length/);
+assert.match(table, /if \(!selectedPlanIds\(merged\)\.length\) return;/);
+assert.match(
+  table,
+  /toast\.error\(classSubscribe \? 'Select a class' : 'Select a plan'\)/
+);
 assert.match(table, /toggleInactive[\s\S]*void save\(c, merged\)/);
 
 const alloc = readFileSync(resolve('lib/fitness/class-allocate.ts'), 'utf8');

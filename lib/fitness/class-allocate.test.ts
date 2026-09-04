@@ -966,6 +966,24 @@ assert.equal(
   false
 );
 
+const rejoinEve = allocateMemberToClass(roster, {
+  clientId: 'cli_eve',
+  member: true,
+  planIds: [rBoot.id],
+  now: '2026-08-20T12:00:00.000Z',
+});
+if ('error' in rejoinEve) throw new Error(rejoinEve.error);
+const eveBack = roster.clients.find((c) => c.id === 'cli_eve')!;
+assert.equal(eveBack.active, true);
+assert.equal(eveBack.membership_status, 'active');
+assert.equal(eveBack.membership_plan_id, rBoot.id);
+assert.equal(
+  roster.subscriptions.find(
+    (s) => s.client_id === 'cli_eve' && s.plan_id === rBoot.id
+  )?.status,
+  'active'
+);
+
 const picker = emptyFitgraphStore();
 picker.settings = { ...picker.settings, class_subscribe: true };
 picker.membership_plans.push({

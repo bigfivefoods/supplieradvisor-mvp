@@ -1017,11 +1017,21 @@ export function allocateMemberToClass(
     ),
   ];
   const planId = planIds[0] || '';
+  const wasInactive =
+    client.active === false ||
+    client.membership_status === 'expired' ||
+    client.membership_status === 'cancelled';
   if (isMember && !planId) {
     if (!explicitPlanIds) {
       return { error: 'Select a class' };
     }
     applyPerson();
+    if (wasInactive) {
+      client.active = true;
+      client.membership_status = 'active';
+      client.updated_at = now;
+      return { subscription: null, booked: 0, cancelled: 0 };
+    }
     let cancelled = 0;
     for (const other of store.subscriptions) {
       if (other.client_id !== client.id) continue;
