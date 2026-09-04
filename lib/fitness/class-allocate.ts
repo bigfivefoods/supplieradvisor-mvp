@@ -998,7 +998,7 @@ export function allocateMemberToClass(
   }
   const explicitPlanIds = Array.isArray(opts.planIds);
   if (!isMember && !isPrivate) {
-    if (opts.inactive === true || !explicitPlanIds) {
+    if (!explicitPlanIds) {
       const cancelled = parkOnDesk();
       return { subscription: null, booked: 0, cancelled };
     }
