@@ -45,11 +45,11 @@ assert.ok(
 
 // POST requires positive companyId and customer_id
 assert.ok(
-  postFn.includes('!Number.isFinite(companyId)') || postFn.includes('!Number.isFinite(companyId)'),
+  postFn.includes('!Number.isFinite(companyId)'),
   'POST must validate companyId'
 );
 assert.ok(
-  postFn.includes('!Number.isFinite(customerId)') || postFn.includes('customer_id required'),
+  postFn.includes('!Number.isFinite(customerId)'),
   'POST must validate customer_id'
 );
 
