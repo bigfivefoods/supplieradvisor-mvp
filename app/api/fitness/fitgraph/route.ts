@@ -107,7 +107,10 @@ import {
   serviceMemberInviteEmailText,
 } from '@/lib/services/member-invite';
 import { loadFitgraphMerged, saveFitgraphMerged, saveFitgraphPatch } from '@/lib/fitness/fitgraph-io';
-import { persistVukaCatalogIfNeeded } from '@/lib/fitness/vuka-class-catalog';
+import {
+  persistVukaCatalogIfNeeded,
+  storeUsesClassSubscribe,
+} from '@/lib/fitness/vuka-class-catalog';
 import { applyFloorTaskAction } from '@/lib/services/advisor-floor-tasks';
 import { GYM_DEFAULT_TZ, isoDateInZone } from '@/lib/fitness/gym-local-time';
 import { applyMemberDebitBank } from '@/lib/fitness/member-debit-bank';
@@ -116,6 +119,7 @@ import {
   allocateMemberToClass,
   applyPrivatePtBooking,
   bookDeskMemberOntoSession,
+  ensureClassTypeForSubscribePlan,
   expandSessionToSeries,
   mergeSubscribersIntoCoachSessions,
   scheduleClassOnCalendar,
@@ -1582,7 +1586,11 @@ export async function POST(request: NextRequest) {
       if ('error' in result) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
-      const updatedAt = await savePatch(companyId, meta, { sessions: store.sessions, membership_plans: store.membership_plans });
+      const updatedAt = await savePatch(companyId, meta, {
+        sessions: store.sessions,
+        membership_plans: store.membership_plans,
+        class_types: store.class_types,
+      });
       store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
@@ -1643,7 +1651,12 @@ export async function POST(request: NextRequest) {
       if ('error' in result) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
-      const updatedAt = await savePatch(companyId, meta, { sessions: store.sessions, bookings: store.bookings });
+      const updatedAt = await savePatch(companyId, meta, {
+        sessions: store.sessions,
+        bookings: store.bookings,
+        membership_plans: store.membership_plans,
+        class_types: store.class_types,
+      });
       store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
@@ -3145,6 +3158,9 @@ export async function POST(request: NextRequest) {
     if (!hadSettings && store.settings) {
       upsertPatchKeys.push('settings');
     }
+    if (entity === 'membership_plans' && storeUsesClassSubscribe(store)) {
+      upsertPatchKeys.push('class_types');
+    }
     await savePatchForKeys(companyId, meta, store, ...upsertPatchKeys);
     return NextResponse.json({
       success: true,
@@ -3769,42 +3785,8 @@ function upsert(
       active: rec.active !== false,
       created_at: i >= 0 ? store.membership_plans[i].created_at : now,
     };
-    if (
-      store.settings?.class_subscribe === true &&
-      row.unlocks_all_classes !== true
-    ) {
-      let typeIds = row.class_type_ids || [];
-      if (!typeIds.length) {
-        const code = String(row.code || 'CLASS').toUpperCase();
-        const existing = store.class_types.find(
-          (c) => c.code === code || c.id === `cls_${id}`
-        );
-        const clsId = existing?.id || newId('cls');
-        const cls: FitClassType = {
-          id: clsId,
-          code,
-          name: String(row.name || 'Class'),
-          category: existing?.category || 'Class',
-          default_duration_min: existing?.default_duration_min ?? 60,
-          capacity: existing?.capacity ?? 16,
-          description: row.description,
-          active: true,
-          created_at: existing?.created_at || now,
-        };
-        const ci = store.class_types.findIndex((c) => c.id === clsId);
-        if (ci >= 0) store.class_types[ci] = { ...store.class_types[ci], ...cls };
-        else store.class_types.push(cls);
-        typeIds = [clsId];
-        row.class_type_ids = typeIds;
-      } else if (typeIds.length === 1) {
-        const ct = store.class_types.find((c) => c.id === typeIds[0]);
-        if (ct) {
-          const stem =
-            String(row.name || '').split(' · ')[0]?.trim() || row.name;
-          if (stem) ct.name = stem;
-          if (row.description) ct.description = row.description;
-        }
-      }
+    if (storeUsesClassSubscribe(store)) {
+      ensureClassTypeForSubscribePlan(store, row, now, { syncFields: true });
     }
     if (i >= 0) store.membership_plans[i] = row;
     else store.membership_plans.push(row);

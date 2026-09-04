@@ -9,6 +9,7 @@ import {
   sessionBookingCount,
   weekdayOf,
   type CoachSessionCard,
+  type FitClassType,
   type FitClient,
   type FitgraphStore,
   type FitMembershipPlan,
@@ -26,6 +27,7 @@ import {
   catalogSlotForSession,
   memberMayBookSession,
   planCoversSession,
+  storeUsesClassSubscribe,
   subscribersForSession,
   timetableSlotsForPlan,
 } from '@/lib/fitness/vuka-class-catalog';
@@ -155,6 +157,87 @@ export function classTypeIdForPlan(
     (c) => c.code === plan.code && c.active !== false
   );
   return byCode?.id || null;
+}
+
+function classStemName(name: string): string {
+  return String(name || '').split(' · ')[0]?.trim() || String(name || 'Class');
+}
+
+function isCatalogClassTypeId(id: string): boolean {
+  return String(id || '').startsWith('vuka_cls_');
+}
+
+/**
+ * Every subscribe-class plan needs a class_type the calendar dropdown can pick.
+ * Creating a class on the Classes desk used to write only membership_plans,
+ * so the type never landed in the diary picker.
+ */
+export function ensureClassTypeForSubscribePlan(
+  store: FitgraphStore,
+  plan: FitMembershipPlan,
+  now = new Date().toISOString(),
+  opts?: { syncFields?: boolean }
+): boolean {
+  if (plan.active === false || plan.unlocks_all_classes === true) return false;
+  if (!Array.isArray(store.class_types)) store.class_types = [];
+  const liveId = (plan.class_type_ids || []).find((id) =>
+    store.class_types.some((c) => c.id === id && c.active !== false)
+  );
+  if (liveId) {
+    if (!opts?.syncFields || isCatalogClassTypeId(liveId)) return false;
+    const ct = store.class_types.find((c) => c.id === liveId);
+    if (!ct) return false;
+    const stem = classStemName(plan.name);
+    let changed = false;
+    if (stem && ct.name !== stem) {
+      ct.name = stem;
+      changed = true;
+    }
+    if (plan.description && ct.description !== plan.description) {
+      ct.description = plan.description;
+      changed = true;
+    }
+    if (ct.active === false) {
+      ct.active = true;
+      changed = true;
+    }
+    return changed;
+  }
+  const ownId = `cls_${plan.id}`;
+  const existing = store.class_types.find((c) => c.id === ownId);
+  const clsId = existing?.id || ownId;
+  const cls: FitClassType = {
+    id: clsId,
+    code:
+      existing?.code ||
+      String(plan.code || 'CLASS').toUpperCase() ||
+      'CLASS',
+    name: classStemName(plan.name),
+    category: existing?.category || 'Class',
+    default_duration_min: existing?.default_duration_min ?? 60,
+    capacity: existing?.capacity ?? 16,
+    description: plan.description || existing?.description,
+    color: existing?.color,
+    active: true,
+    created_at: existing?.created_at || now,
+  };
+  const ci = store.class_types.findIndex((c) => c.id === clsId);
+  if (ci >= 0) store.class_types[ci] = { ...store.class_types[ci], ...cls };
+  else store.class_types.push(cls);
+  plan.class_type_ids = [clsId];
+  return true;
+}
+
+export function ensureSubscribePlanClassTypes(
+  store: FitgraphStore,
+  now = new Date().toISOString()
+): boolean {
+  if (store.settings?.class_subscribe !== true) return false;
+  let changed = false;
+  for (const plan of store.membership_plans || []) {
+    if (ensureClassTypeForSubscribePlan(store, plan, now)) changed = true;
+  }
+  return changed;
 }
 
 export type SuggestedClassSchedule = {
@@ -1189,6 +1272,9 @@ export function scheduleClassOnCalendar(
         'Schedule the individual classes — unlimited members are booked onto those',
     };
   }
+  if (storeUsesClassSubscribe(store)) {
+    ensureClassTypeForSubscribePlan(store, plan, now);
+  }
   const classTypeId = classTypeIdForPlan(store, plan);
   if (!classTypeId) {
     return { error: 'This class has no class type to put on the calendar' };
@@ -1328,6 +1414,14 @@ export function updateClassDesk(
   }
   if (opts.coachId !== undefined) {
     plan.default_coach_id = opts.coachId || null;
+  }
+  if (storeUsesClassSubscribe(store)) {
+    ensureClassTypeForSubscribePlan(
+      store,
+      plan,
+      opts.now || new Date().toISOString(),
+      { syncFields: true }
+    );
   }
   const from = opts.fromDate || (opts.now || new Date().toISOString()).slice(0, 10);
   const future = (store.sessions || []).filter(

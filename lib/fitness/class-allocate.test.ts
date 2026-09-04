@@ -8,6 +8,9 @@ import {
   allocateMemberToClass,
   calendarCoverage,
   classRosterPeople,
+  classTypeIdForPlan,
+  ensureClassTypeForSubscribePlan,
+  ensureSubscribePlanClassTypes,
   formatScheduleLabel,
   parseBilledZar,
   parseScheduleHint,
@@ -887,5 +890,145 @@ assert.equal(
   ),
   false
 );
+
+const picker = emptyFitgraphStore();
+picker.settings = { ...picker.settings, class_subscribe: true };
+picker.membership_plans.push({
+  id: 'pln_hyrox',
+  code: 'HYROX',
+  name: 'Hyrox · 6am',
+  price_zar: 650,
+  billing: 'monthly',
+  public: true,
+  active: true,
+  catalog: 'vuka',
+  created_at: '2026-09-04T00:00:00.000Z',
+});
+picker.membership_plans.push({
+  id: 'pln_unlim_skip',
+  code: 'UNLIM',
+  name: 'Unlimited',
+  price_zar: 1140,
+  billing: 'monthly',
+  public: true,
+  active: true,
+  unlocks_all_classes: true,
+  catalog: 'vuka',
+  created_at: '2026-09-04T00:00:00.000Z',
+});
+picker.class_types.push({
+  id: 'vuka_cls_fsf',
+  code: 'VUKA_FSF',
+  name: 'Functional Strength & Fitness',
+  created_at: '2026-08-01T00:00:00.000Z',
+});
+assert.equal(ensureSubscribePlanClassTypes(picker, '2026-09-04T10:00:00.000Z'), true);
+const hyroxType = picker.class_types.find((c) => c.id === 'cls_pln_hyrox');
+assert.ok(hyroxType, 'new class gets a calendar type');
+assert.equal(hyroxType?.name, 'Hyrox');
+assert.deepEqual(
+  picker.membership_plans.find((p) => p.id === 'pln_hyrox')?.class_type_ids,
+  ['cls_pln_hyrox']
+);
+assert.equal(classTypeIdForPlan(picker, picker.membership_plans[0]!), 'cls_pln_hyrox');
+assert.equal(
+  picker.class_types.some((c) => c.id === 'vuka_cls_unlim' || c.name === 'Unlimited'),
+  false,
+  'unlimited plan does not become a class type'
+);
+assert.equal(
+  ensureSubscribePlanClassTypes(picker, '2026-09-04T10:00:00.000Z'),
+  false,
+  'second pass is a no-op so GET persist does not keep rewriting'
+);
+
+picker.membership_plans[0]!.name = 'Hyrox Engine · 6am';
+assert.equal(
+  ensureClassTypeForSubscribePlan(
+    picker,
+    picker.membership_plans[0]!,
+    '2026-09-04T11:00:00.000Z'
+  ),
+  false
+);
+assert.equal(hyroxType?.name, 'Hyrox', 'GET heal does not rename an existing owner type');
+assert.equal(
+  ensureClassTypeForSubscribePlan(
+    picker,
+    picker.membership_plans[0]!,
+    '2026-09-04T11:00:00.000Z',
+    { syncFields: true }
+  ),
+  true
+);
+assert.equal(hyroxType?.name, 'Hyrox Engine');
+
+const catalogPlan = emptyFitgraphStore();
+catalogPlan.settings = { ...catalogPlan.settings, class_subscribe: true };
+catalogPlan.class_types.push({
+  id: 'vuka_cls_fsf',
+  code: 'VUKA_FSF',
+  name: 'Functional Strength & Fitness',
+  created_at: '2026-08-01T00:00:00.000Z',
+});
+catalogPlan.membership_plans.push({
+  id: 'vuka_pln_fsf_5am',
+  code: 'VUKA_FSF_5AM',
+  name: 'Functional Strength & Fitness · 5am M/W/F',
+  price_zar: 910,
+  billing: 'monthly',
+  public: true,
+  active: true,
+  catalog: 'vuka',
+  class_type_ids: ['vuka_cls_fsf'],
+  created_at: '2026-08-01T00:00:00.000Z',
+});
+assert.equal(
+  ensureClassTypeForSubscribePlan(
+    catalogPlan,
+    catalogPlan.membership_plans[0]!,
+    '2026-09-04T10:00:00.000Z',
+    { syncFields: true }
+  ),
+  false
+);
+assert.equal(
+  catalogPlan.class_types[0]?.name,
+  'Functional Strength & Fitness',
+  'must not rewrite catalog class names from plan stems'
+);
+
+const dangling = emptyFitgraphStore();
+dangling.settings = { ...dangling.settings, class_subscribe: true };
+dangling.membership_plans.push({
+  id: 'pln_new',
+  code: 'NEWCLS',
+  name: 'New Class',
+  price_zar: 400,
+  billing: 'monthly',
+  public: true,
+  active: true,
+  catalog: 'vuka',
+  class_type_ids: ['cls_never_saved'],
+  created_at: '2026-09-04T00:00:00.000Z',
+});
+assert.equal(
+  ensureClassTypeForSubscribePlan(
+    dangling,
+    dangling.membership_plans[0]!,
+    '2026-09-04T10:00:00.000Z'
+  ),
+  true
+);
+assert.equal(classTypeIdForPlan(dangling, dangling.membership_plans[0]!), 'cls_pln_new');
+const scheduledNew = scheduleClassOnCalendar(dangling, {
+  planId: 'pln_new',
+  date: '2026-09-07',
+  start_time: '06:00',
+  end_time: '07:00',
+  now: '2026-09-04T10:00:00.000Z',
+});
+if ('error' in scheduledNew) throw new Error(scheduledNew.error);
+assert.equal(scheduledNew.sessions[0]?.class_type_id, 'cls_pln_new');
 
 console.log('class-allocate.test.ts ok');
