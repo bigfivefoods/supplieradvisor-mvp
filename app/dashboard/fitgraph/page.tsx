@@ -236,7 +236,6 @@ function Inner() {
     }>
   >([]);
   const [loading, setLoading] = useState(true);
-  const [seeding, setSeeding] = useState(false);
   const [remindersBusy, setRemindersBusy] = useState(false);
   const [markBusy, setMarkBusy] = useState<string | null>(null);
 
@@ -272,30 +271,6 @@ function Inner() {
     void load();
   }, [load]);
 
-  const seed = async () => {
-    setSeeding(true);
-    try {
-      const res = await fetch('/api/fitness/fitgraph', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId,
-          action: 'seed_demo',
-          updated_at: store?.updated_at || null,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Seed failed');
-      setSummary(data.summary || null);
-      setStore(data.store || null);
-      toast.success('Demo gym loaded — coaches, classes, subscriptions, public calendar');
-      void load();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Seed failed');
-    } finally {
-      setSeeding(false);
-    }
-  };
 
   const sendReminders = async () => {
     setRemindersBusy(true);
@@ -403,19 +378,6 @@ function Inner() {
             >
               <CalendarDays className="w-4 h-4" /> Schedule
             </Link>
-            <button
-              type="button"
-              disabled={seeding}
-              onClick={() => void seed()}
-              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
-            >
-              {seeding ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Package className="w-4 h-4" />
-              )}
-              Load demo gym
-            </button>
           </div>
         }
       />
