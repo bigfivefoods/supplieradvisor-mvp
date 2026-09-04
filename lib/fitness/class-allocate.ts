@@ -492,6 +492,37 @@ export function bookDeskMemberOntoSession(
   return status;
 }
 
+export function parseFitClientIds(...raw: unknown[]): string[] {
+  const ids: string[] = [];
+  for (const value of raw) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const id = String(item || '').trim();
+        if (id) ids.push(id);
+      }
+    } else if (value != null && value !== '') {
+      const id = String(value).trim();
+      if (id) ids.push(id);
+    }
+  }
+  return [...new Set(ids)];
+}
+
+/** Semi-private PT: keep enough seats so extra members book, not waitlist. */
+export function ensureSessionCapacityForMembers(
+  session: FitSession,
+  memberCount: number
+): boolean {
+  if (memberCount <= 0) return false;
+  const cap = session.capacity;
+  if (cap === 0) return false;
+  if (cap == null || cap < memberCount) {
+    session.capacity = memberCount;
+    return true;
+  }
+  return false;
+}
+
 /** Book a private-PT member onto sessions and optionally stamp their agreed rate.
  * Desk-only — does not hit CRM / wallet. */
 export function applyPrivatePtBooking(
@@ -524,6 +555,54 @@ export function applyPrivatePtBooking(
   if (opts.rateZar != null && Number.isFinite(Number(opts.rateZar))) {
     client.private_rate_zar = Number(opts.rateZar);
     client.updated_at = opts.now;
+  }
+  return { added, skipped };
+}
+
+export function applyPrivatePtBookings(
+  store: FitgraphStore,
+  opts: {
+    sessionIds: string[];
+    clientIds: string[];
+    now: string;
+    rateZar?: number | null;
+    /** When true, drop booked/waitlist seats not in clientIds. */
+    sync?: boolean;
+  }
+): { added: number; skipped: number } {
+  const ids = parseFitClientIds(opts.clientIds);
+  const want = new Set(ids);
+  for (const sid of opts.sessionIds) {
+    const session = store.sessions.find((s) => s.id === sid);
+    if (!session) continue;
+    ensureSessionCapacityForMembers(session, ids.length);
+    if (!opts.sync) continue;
+    for (const b of store.bookings || []) {
+      if (b.session_id !== sid) continue;
+      if (
+        b.status === 'cancelled' ||
+        b.status === 'attended' ||
+        b.status === 'no_show'
+      ) {
+        continue;
+      }
+      if (!want.has(b.client_id)) {
+        b.status = 'cancelled';
+        b.updated_at = opts.now;
+      }
+    }
+  }
+  let added = 0;
+  let skipped = 0;
+  for (const clientId of ids) {
+    const row = applyPrivatePtBooking(store, {
+      sessionIds: opts.sessionIds,
+      clientId,
+      now: opts.now,
+      rateZar: opts.rateZar,
+    });
+    added += row.added;
+    skipped += row.skipped;
   }
   return { added, skipped };
 }

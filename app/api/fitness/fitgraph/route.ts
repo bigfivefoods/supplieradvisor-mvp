@@ -117,11 +117,13 @@ import { applyMemberDebitBank } from '@/lib/fitness/member-debit-bank';
 import { fitgraphDeskGetWindow } from '@/lib/fitness/fitgraph-desk-get-window';
 import {
   allocateMemberToClass,
-  applyPrivatePtBooking,
+  applyPrivatePtBookings,
   bookDeskMemberOntoSession,
   ensureClassTypeForSubscribePlan,
+  ensureSessionCapacityForMembers,
   expandSessionToSeries,
   mergeSubscribersIntoCoachSessions,
+  parseFitClientIds,
   scheduleClassOnCalendar,
   setClassMembers,
   stampCatalogSeriesAndBookSubscribers,
@@ -1175,12 +1177,12 @@ export async function POST(request: NextRequest) {
       if (resolved.kind === 'class') {
         stampCatalogSeriesAndBookSubscribers(store, created, now);
       }
-      const ptClientId = String(body.client_id || '').trim();
-      if (resolved.kind === 'private_pt' && ptClientId) {
+      const ptClientIds = parseFitClientIds(body.client_ids, body.client_id);
+      if (resolved.kind === 'private_pt' && ptClientIds.length) {
         const rateRaw = body.agreed_rate_zar;
-        applyPrivatePtBooking(store, {
+        applyPrivatePtBookings(store, {
           sessionIds: created.map((s) => s.id),
-          clientId: ptClientId,
+          clientIds: ptClientIds,
           now,
           rateZar:
             rateRaw == null || rateRaw === ''
@@ -1257,15 +1259,19 @@ export async function POST(request: NextRequest) {
           }
         ) as (typeof store.sessions)[number];
       }
-      const ptClientId = String(body.client_id || '').trim();
-      if (ptClientId) {
+      const ptClientIds = parseFitClientIds(body.client_ids, body.client_id);
+      if (
+        Array.isArray(body.client_ids) ||
+        String(body.client_id || '').trim()
+      ) {
         const rateRaw = body.agreed_rate_zar ?? patch.agreed_rate_zar;
-        applyPrivatePtBooking(store, {
+        applyPrivatePtBookings(store, {
           sessionIds: ids,
-          clientId: ptClientId,
+          clientIds: ptClientIds,
           now,
           rateZar:
             rateRaw == null || rateRaw === '' ? null : Number(rateRaw),
+          sync: true,
         });
       }
       const recurrence = parseRecurrenceBody(
@@ -2845,9 +2851,22 @@ export async function POST(request: NextRequest) {
       const { dedupeFitgraphBookings } = await import(
         '@/lib/fitness/gym-bookings'
       );
-      const ids = Array.isArray(body.client_ids)
-        ? (body.client_ids as unknown[]).map((id) => String(id || '')).filter(Boolean)
-        : [];
+      const ids = parseFitClientIds(body.client_ids, body.client_id);
+      const already = new Set(
+        (store.bookings || [])
+          .filter(
+            (b) =>
+              b.session_id === session.id &&
+              b.status !== 'cancelled' &&
+              b.status !== 'no_show'
+          )
+          .map((b) => b.client_id)
+      );
+      const incoming = ids.filter((id) => !already.has(id));
+      ensureSessionCapacityForMembers(
+        session,
+        already.size + incoming.length
+      );
       let added = 0;
       let skipped = 0;
       for (const clientId of ids) {
@@ -2863,7 +2882,10 @@ export async function POST(request: NextRequest) {
         else added += 1;
       }
       dedupeFitgraphBookings(store);
-      const updatedAt = await savePatch(companyId, meta, { bookings: store.bookings });
+      const updatedAt = await savePatch(companyId, meta, {
+        bookings: store.bookings,
+        sessions: store.sessions,
+      });
       store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
@@ -3160,6 +3182,9 @@ export async function POST(request: NextRequest) {
     }
     if (entity === 'membership_plans' && storeUsesClassSubscribe(store)) {
       upsertPatchKeys.push('class_types');
+    }
+    if (entity === 'sessions') {
+      upsertPatchKeys.push('bookings', 'clients');
     }
     await savePatchForKeys(companyId, meta, store, ...upsertPatchKeys);
     return NextResponse.json({
@@ -4066,12 +4091,12 @@ function upsert(
     if (!row.session_kind || row.session_kind === 'class') {
       stampCatalogSeriesAndBookSubscribers(store, [row], now);
     }
-    const ptClientId = String(rec.client_id || '').trim();
-    if (resolved.kind === 'private_pt' && ptClientId) {
+    const ptClientIds = parseFitClientIds(rec.client_ids, rec.client_id);
+    if (resolved.kind === 'private_pt' && ptClientIds.length) {
       const rateRaw = rec.agreed_rate_zar;
-      applyPrivatePtBooking(store, {
+      applyPrivatePtBookings(store, {
         sessionIds: [row.id],
-        clientId: ptClientId,
+        clientIds: ptClientIds,
         now,
         rateZar:
           rateRaw == null || rateRaw === '' ? null : Number(rateRaw),

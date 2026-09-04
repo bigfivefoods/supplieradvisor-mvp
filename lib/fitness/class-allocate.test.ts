@@ -18,6 +18,8 @@ import {
   scheduleClassOnCalendar,
   bookDeskMemberOntoSession,
   applyPrivatePtBooking,
+  applyPrivatePtBookings,
+  parseFitClientIds,
   expandSessionToSeries,
   sessionRosterNames,
   sessionRosterRows,
@@ -602,6 +604,79 @@ const bookedPt = applyPrivatePtBooking(ptStore, {
 assert.equal(bookedPt.added, 1);
 assert.equal(ptStore.clients[0].private_rate_zar, 650);
 assert.equal(ptStore.bookings[0].client_id, 'c-pt');
+
+assert.deepEqual(parseFitClientIds(['a', 'b'], 'c'), ['a', 'b', 'c']);
+assert.deepEqual(parseFitClientIds(undefined, 'one'), ['one']);
+assert.deepEqual(parseFitClientIds([], ''), []);
+
+const duo = emptyFitgraphStore();
+duo.clients.push(
+  {
+    id: 'c-ada',
+    code: 'A',
+    name: 'Ada',
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'c-ben',
+    code: 'B',
+    name: 'Ben',
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'c-cam',
+    code: 'C',
+    name: 'Cam',
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  }
+);
+duo.sessions.push({
+  id: 's-duo',
+  class_type_id: 'cls_sys_pt',
+  date: '2026-09-04',
+  start_time: '07:00',
+  status: 'scheduled',
+  session_kind: 'private_pt',
+  capacity: 1,
+  created_at: '2026-01-01T00:00:00.000Z',
+});
+const duoBooked = applyPrivatePtBookings(duo, {
+  sessionIds: ['s-duo'],
+  clientIds: ['c-ada', 'c-ben'],
+  now: '2026-09-04T06:00:00.000Z',
+  rateZar: 700,
+});
+assert.equal(duoBooked.added, 2);
+assert.equal(duo.sessions[0]?.capacity, 2);
+assert.deepEqual(
+  duo.bookings
+    .filter((b) => b.status === 'booked')
+    .map((b) => b.client_id)
+    .sort(),
+  ['c-ada', 'c-ben']
+);
+assert.equal(duo.clients.find((c) => c.id === 'c-ada')?.private_rate_zar, 700);
+const synced = applyPrivatePtBookings(duo, {
+  sessionIds: ['s-duo'],
+  clientIds: ['c-ben', 'c-cam'],
+  now: '2026-09-04T06:05:00.000Z',
+  sync: true,
+});
+assert.equal(synced.added >= 1, true);
+assert.equal(
+  duo.bookings.find((b) => b.client_id === 'c-ada' && b.status !== 'cancelled'),
+  undefined
+);
+assert.deepEqual(
+  duo.bookings
+    .filter((b) => b.status === 'booked')
+    .map((b) => b.client_id)
+    .sort(),
+  ['c-ben', 'c-cam']
+);
 
 const expandedPt = expandSessionToSeries(ptStore, {
   sessionId: 's-pt',
