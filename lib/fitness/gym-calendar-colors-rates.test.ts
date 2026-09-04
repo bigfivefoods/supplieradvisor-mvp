@@ -52,8 +52,18 @@ const paint = gymCalendarPaint(store, {
   status: 'scheduled',
   created_at: '2026-01-01T00:00:00.000Z',
 });
-assert.equal(paint.color, '#0ea5e9');
-assert.equal(paint.stripeColor, '#f43f5e');
+assert.equal(paint.color, '#f43f5e');
+assert.equal(paint.stripeColor, undefined);
+
+const noCoach = gymCalendarPaint(store, {
+  id: 'ses2',
+  class_type_id: 'cls_hiit',
+  date: '2026-09-02',
+  start_time: '07:00',
+  status: 'scheduled',
+  created_at: '2026-01-01T00:00:00.000Z',
+});
+assert.equal(noCoach.color, '#0ea5e9');
 
 const patched = applySeriesPatch(
   { id: 's', agreed_rate_zar: 400 },
@@ -68,6 +78,9 @@ const cal = readFileSync(
 assert.match(cal, /gymCalendarPaint/);
 assert.match(cal, /Diary colours/);
 assert.match(cal, /GymDiaryColorEditor/);
+assert.match(cal, /\/dashboard\/fitgraph\/coaches/);
+assert.match(cal, /coach's calendar colour/);
+assert.doesNotMatch(cal, /onSaveCoach/);
 assert.match(cal, /Member \/ private client/);
 assert.match(cal, /Agreed rate \(ZAR\)/);
 assert.match(cal, /store\.clients/);
@@ -95,7 +108,8 @@ const coaches = readFileSync(
   'utf8'
 );
 assert.match(coaches, /GymColorSwatch/);
-assert.match(coaches, /Calendar colour/);
+assert.match(coaches, /Calendar settings/);
+assert.match(coaches, /fills every class this coach takes/);
 
 const profile = readFileSync(
   resolve('components/fitness/GymMemberProfileDesk.tsx'),

@@ -1012,38 +1012,10 @@ export default function CalendarPage() {
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-[11px]">
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="font-black uppercase tracking-wide text-slate-500">
-                  Classes
-                </span>
-                {(store.class_types || [])
-                  .filter(
-                    (c) =>
-                      c.active !== false &&
-                      c.code !== SYS_PT_CODE &&
-                      c.code !== SYS_COACH_TIME_CODE &&
-                      c.code !== SYS_COACH_AWAY_CODE
-                  )
-                  .slice(0, 12)
-                  .map((c) => (
-                    <span
-                      key={c.id}
-                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-1.5 py-0.5 font-bold"
-                    >
-                      <span
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{
-                          backgroundColor: c.color || '#E8E830',
-                        }}
-                      />
-                      {c.name}
-                    </span>
-                  ))}
-              </div>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="font-black uppercase tracking-wide text-slate-500">
                   Coaches
                 </span>
                 {(store.coaches || [])
-                  .filter((c) => c.active !== false && c.color)
+                  .filter((c) => c.active !== false)
                   .slice(0, 12)
                   .map((c) => (
                     <span
@@ -1061,8 +1033,14 @@ export default function CalendarPage() {
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs text-slate-500">
-                Class colour fills the block; coach colour is the left stripe.
-                Set colours on Classes and Coaches.
+                Classes use the assigned coach's calendar colour.{' '}
+                <Link
+                  href="/dashboard/fitgraph/coaches"
+                  className="font-bold text-yellow-800 underline"
+                >
+                  Set it on Coaches
+                </Link>
+                .
               </p>
               <button
                 type="button"
@@ -1076,7 +1054,7 @@ export default function CalendarPage() {
 
           <AdvisorExpandablePanel
             title="Diary colours"
-            description="Owner: pick a palette colour or RGB / hex per class and coach. Class fills the block; coach is the stripe."
+            description="Fallback colour when a class has no coach. Assigned classes use the coach’s calendar colour on Coaches."
             open={colorsOpen}
             onToggle={() => setColorsOpen((v) => !v)}
             accentClass="border-yellow-200 bg-yellow-50/50 dark:border-yellow-800 dark:bg-yellow-950/30"
@@ -1091,7 +1069,6 @@ export default function CalendarPage() {
                   c.code !== SYS_COACH_TIME_CODE &&
                   c.code !== SYS_COACH_AWAY_CODE
               )}
-              coaches={(store.coaches || []).filter((c) => c.active !== false)}
               saving={saving}
               onSaveClass={async (id, color) => {
                 await post({
@@ -1100,14 +1077,6 @@ export default function CalendarPage() {
                   record: { id, color },
                 });
                 toast.success('Class colour saved');
-              }}
-              onSaveCoach={async (id, color) => {
-                await post({
-                  entity: 'coaches',
-                  action: 'upsert',
-                  record: { id, color },
-                });
-                toast.success('Coach colour saved');
               }}
             />
           </AdvisorExpandablePanel>
