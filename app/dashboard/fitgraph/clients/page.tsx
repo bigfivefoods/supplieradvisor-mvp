@@ -186,9 +186,10 @@ export default function ClientsPage() {
   });
 
   useEffect(() => {
-    if (crmBackfillOnce.current || loading || !storeRef.current) return;
+    const snapshot = storeRef.current;
+    if (crmBackfillOnce.current || loading || !snapshot) return;
     if (gymCrmBackfillCompanyOnce.has(companyId)) return;
-    const initialRemaining = countGymClientsNeedingWork(storeRef.current.clients || []);
+    const initialRemaining = countGymClientsNeedingWork(snapshot.clients || []);
     if (initialRemaining <= 0) return;
     crmBackfillOnce.current = true;
     let cancelled = false;
@@ -201,7 +202,7 @@ export default function ClientsPage() {
         let numbered = 0;
         let remaining = initialRemaining;
         let batches = 0;
-        let latestClients = [...(storeRef.current.clients || [])];
+        let latestClients = [...(snapshot.clients || [])];
         const maxBatches = 50;
         while (remaining > 0) {
           if (batches >= maxBatches) {
