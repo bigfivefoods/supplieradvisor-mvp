@@ -120,22 +120,18 @@ export function GymColorSwatch({
 
 export function GymDiaryColorEditor({
   classes,
-  coaches,
   saving,
   onSaveClass,
-  onSaveCoach,
 }: {
   classes: Array<{ id: string; name: string; color?: string | null }>;
-  coaches: Array<{ id: string; name: string; color?: string | null }>;
   saving?: boolean;
   onSaveClass: (id: string, color: string) => void | Promise<void>;
-  onSaveCoach: (id: string, color: string) => void | Promise<void>;
 }) {
   return (
     <div className="space-y-4">
       <p className="text-[12px] text-slate-600 dark:text-yellow-100/80">
-        Pick a palette colour or set RGB / hex. Class colour fills the diary
-        block; coach colour is the left stripe.
+        Class colour is used when a session has no coach. Assigned classes
+        take the coach’s calendar colour from Coaches.
       </p>
       <div>
         <p className="mb-2 text-[10px] font-black uppercase tracking-wide text-yellow-800">
@@ -157,31 +153,6 @@ export function GymDiaryColorEditor({
                   if (!saving) void onSaveClass(c.id, hex);
                 }}
                 label="Class colour"
-              />
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div>
-        <p className="mb-2 text-[10px] font-black uppercase tracking-wide text-yellow-800">
-          Coaches
-        </p>
-        <ul className="space-y-3">
-          {coaches.map((c) => (
-            <li
-              key={c.id}
-              className="rounded-xl border border-yellow-100 bg-white px-3 py-2 dark:border-yellow-800 dark:bg-yellow-950/40"
-            >
-              <p className="mb-1 text-sm font-black text-slate-900 dark:text-yellow-50">
-                {c.name}
-              </p>
-              <GymColorSwatch
-                compact
-                value={c.color || '#d97706'}
-                onChange={(hex) => {
-                  if (!saving) void onSaveCoach(c.id, hex);
-                }}
-                label="Coach colour"
               />
             </li>
           ))}

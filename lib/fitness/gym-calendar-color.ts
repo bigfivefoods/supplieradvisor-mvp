@@ -1,5 +1,5 @@
 /**
- * Gym diary paint: class colour fill, coach colour stripe.
+ * Gym diary paint: assigned coach calendar colour fills the class block.
  */
 import { normalizeEventHex } from '@/lib/schedule/event-color';
 import type { FitgraphStore, FitSession } from '@/lib/fitness/fitgraph';
@@ -41,10 +41,7 @@ export function gymCalendarPaint(
   const classHex = normalizeEventHex(ct?.color);
   const coachHex = normalizeEventHex(coach?.color);
   const fallback = TONE_HEX[sessionKindTone(kind)] || TONE_HEX.yellow;
-  if (classHex && coachHex && classHex !== coachHex) {
-    return { color: classHex, stripeColor: coachHex };
-  }
-  return { color: classHex || coachHex || fallback };
+  return { color: coachHex || classHex || fallback };
 }
 
 export function formatAgreedRateZar(raw?: number | string | null): string | null {

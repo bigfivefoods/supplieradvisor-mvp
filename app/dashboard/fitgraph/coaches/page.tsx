@@ -470,6 +470,21 @@ export default function CoachesPage() {
     toast.success('Coach details updated');
   };
 
+  const saveCalendarColor = async (c: FitCoach, color: string) => {
+    setProfile(c.id, { color });
+    await post({
+      entity: 'coaches',
+      action: 'upsert',
+      record: {
+        id: c.id,
+        code: c.code,
+        name: c.name,
+        color,
+      },
+    });
+    toast.success('Calendar colour saved');
+  };
+
   const addSpecialty = async () => {
     const name = newSpecialty.trim();
     if (!name) {
@@ -668,6 +683,11 @@ export default function CoachesPage() {
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="font-bold text-sm text-slate-900 dark:text-amber-50 flex flex-wrap items-center gap-2">
+                        <span
+                          className="h-3 w-3 rounded-full border border-white shadow"
+                          style={{ backgroundColor: c.color || '#d97706' }}
+                          title="Calendar colour"
+                        />
                         <span>
                           {c.code} · {c.name}
                         </span>
@@ -901,13 +921,6 @@ export default function CoachesPage() {
                                 accentClass="border-amber-300 dark:border-amber-500"
                               />
                             </div>
-                            <GymColorSwatch
-                              value={profile.color}
-                              onChange={(hex) =>
-                                setProfile(c.id, { color: hex })
-                              }
-                              label="Calendar colour"
-                            />
                             <div className="flex flex-col justify-end gap-1.5 pb-0.5">
                               <label className="inline-flex items-center gap-2 text-[11px] font-bold text-slate-700 dark:text-amber-100">
                                 <input
@@ -984,6 +997,23 @@ export default function CoachesPage() {
                               setProfile(c.id, { bio: e.target.value })
                             }
                           />
+                          <div className="rounded-xl border border-amber-200 bg-white p-3 dark:border-amber-700 dark:bg-amber-950/40">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                              Calendar settings
+                            </p>
+                            <p className="mb-2 text-[11px] text-slate-600 dark:text-amber-100/80">
+                              This colour fills every class this coach takes on
+                              the diary.
+                            </p>
+                            <GymColorSwatch
+                              compact
+                              value={profile.color}
+                              onChange={(hex) => {
+                                if (!saving) void saveCalendarColor(c, hex);
+                              }}
+                              label="Calendar colour"
+                            />
+                          </div>
                           <div className="flex flex-wrap gap-1.5 pt-1">
                             <button
                               type="button"
@@ -1588,11 +1618,20 @@ export default function CoachesPage() {
                 })}
               </div>
             </div>
-            <GymColorSwatch
-              value={form.color}
-              onChange={(hex) => setForm((f) => ({ ...f, color: hex }))}
-              label="Calendar colour"
-            />
+            <div className="sm:col-span-2 lg:col-span-3 rounded-xl border border-amber-200 bg-white p-3 dark:border-amber-700 dark:bg-amber-950/40">
+              <p className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                Calendar settings
+              </p>
+              <p className="mb-2 text-[11px] text-slate-600 dark:text-amber-100/80">
+                This colour fills every class this coach takes on the diary.
+              </p>
+              <GymColorSwatch
+                compact
+                value={form.color}
+                onChange={(hex) => setForm((f) => ({ ...f, color: hex }))}
+                label="Calendar colour"
+              />
+            </div>
             <ProfilePhotoField
               companyId={companyId}
               value={form.photo_url}
