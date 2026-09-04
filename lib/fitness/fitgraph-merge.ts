@@ -58,7 +58,7 @@ function mergeIdList(
 /** Record ids the owner deleted so concurrent merge cannot resurrect them. */
 export function rememberRemovedFitgraphIds(
   store: FitgraphStore,
-  kind: 'sessions' | 'bookings' | 'clients',
+  kind: 'sessions' | 'bookings' | 'clients' | 'coaches',
   ids: Iterable<string>
 ): void {
   const next = mergeIdList(store.removed_ids?.[kind], [...ids]);
@@ -166,6 +166,10 @@ export function mergeFitgraphStores(
       latest.removed_ids?.clients,
       incoming.removed_ids?.clients
     ),
+    coaches: mergeIdList(
+      latest.removed_ids?.coaches,
+      incoming.removed_ids?.coaches
+    ),
   };
   const next: FitgraphStore = {
     ...latest,
@@ -181,7 +185,9 @@ export function mergeFitgraphStores(
           ? removed.bookings
           : key === 'clients'
             ? removed.clients
-            : null;
+            : key === 'coaches'
+              ? removed.coaches
+              : null;
     const merged =
       key === 'goals'
         ? mergeGoalRows(latest[key], incoming[key])

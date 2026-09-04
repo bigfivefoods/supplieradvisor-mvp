@@ -165,7 +165,6 @@ export const VUKA_SHOP_COACH_FIRST = [
   'bianca',
   'miri',
   'jared',
-  'jaryyd',
   'sophie',
 ] as const;
 

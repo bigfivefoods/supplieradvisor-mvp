@@ -402,4 +402,31 @@ assert.ok(
   afterClientFold.removed_ids?.clients?.includes('vuka_cli_athalah_hembert')
 );
 
+const liveCoaches = emptyFitgraphStore();
+liveCoaches.coaches.push(
+  {
+    id: 'jared',
+    code: 'JAR',
+    name: 'Jared-Wade Cawood',
+    created_at: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'coh_jyd',
+    code: 'JYD',
+    name: 'Jaryyd',
+    created_at: '2026-01-01T00:00:00.000Z',
+  }
+);
+const droppedCoaches = emptyFitgraphStore();
+droppedCoaches.coaches.push({
+  id: 'jared',
+  code: 'JAR',
+  name: 'Jared-Wade Cawood',
+  created_at: '2026-01-01T00:00:00.000Z',
+});
+droppedCoaches.removed_ids = { coaches: ['coh_jyd'] };
+const afterCoachDrop = mergeFitgraphStores(liveCoaches, droppedCoaches);
+assert.equal(afterCoachDrop.coaches.map((c) => c.id).join(','), 'jared');
+assert.ok(afterCoachDrop.removed_ids?.coaches?.includes('coh_jyd'));
+
 console.log('fitgraph-merge.test.ts ok');

@@ -17,6 +17,7 @@ import {
   isVukaFitnessCompany,
   listSubscribeClasses,
   persistVukaCatalogIfNeeded,
+  dropRetiredVukaCoaches,
   ensureVukaCoachOrder,
   ensureVukaCoaches,
   membersOnClassSession,
@@ -497,6 +498,46 @@ assert.equal(
   vukaCoaches.coaches.filter((c) => /jared/i.test(c.name)).length,
   1
 );
+assert.equal(
+  vukaCoaches.coaches.filter((c) => /jaryyd/i.test(c.name)).length,
+  0
+);
+
+const leftoverCoaches = emptyFitgraphStore();
+leftoverCoaches.coaches = [
+  {
+    id: 'coh_j_jaryyd',
+    code: 'J',
+    name: 'Jaryyd',
+    created_at: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'coh_jyd',
+    code: 'JYD',
+    name: 'Jaryyd',
+    created_at: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'jared',
+    code: 'JAR',
+    name: 'Jared-Wade Cawood',
+    email: 'jaredcawood77@gmail.com',
+    created_at: '2026-01-01T00:00:00.000Z',
+  },
+];
+assert.equal(dropRetiredVukaCoaches(leftoverCoaches), true);
+assert.deepEqual(
+  leftoverCoaches.coaches.map((c) => c.id),
+  ['jared']
+);
+assert.ok(leftoverCoaches.removed_ids?.coaches?.includes('coh_j_jaryyd'));
+assert.ok(leftoverCoaches.removed_ids?.coaches?.includes('coh_jyd'));
+assert.equal(ensureVukaCoaches(leftoverCoaches), true);
+assert.equal(
+  leftoverCoaches.coaches.filter((c) => /jaryyd/i.test(c.name)).length,
+  0
+);
+assert.ok(leftoverCoaches.coaches.some((c) => /cawood/i.test(c.name)));
 
 const msgStore = emptyFitgraphStore();
 msgStore.clients = [

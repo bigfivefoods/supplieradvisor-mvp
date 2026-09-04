@@ -276,9 +276,9 @@ assert.equal(vukaShopCoachRank('Bianca Westhorpe-Pottow'), 0);
 assert.equal(vukaShopCoachRank('Miri'), 1);
 assert.equal(vukaShopCoachRank('Jared Martin'), 2);
 assert.equal(vukaShopCoachRank('Jared-Wade Cawood'), 2);
-assert.equal(vukaShopCoachRank('Jaryyd'), 3);
-assert.equal(vukaShopCoachRank('Sophie Pearce'), 4);
-assert.ok(vukaShopCoachRank('Alex') > 4);
+assert.equal(vukaShopCoachRank('Sophie Pearce'), 3);
+assert.ok(vukaShopCoachRank('Jaryyd') > 3);
+assert.ok(vukaShopCoachRank('Alex') > 3);
 
 const vukaShop = emptyFitgraphStore();
 vukaShop.settings = { ...vukaShop.settings!, brand_name: 'VUKA Fitness' };
@@ -321,7 +321,7 @@ vukaShop.coaches = [
 ];
 assert.deepEqual(
   publicShopCoaches(vukaShop).map((c) => c.id),
-  ['c_b', 'c_m', 'c_jm', 'c_j', 'c_s']
+  ['c_b', 'c_m', 'c_jm', 'c_s', 'c_j']
 );
 
 console.log('gym-shop.test.ts ok');
