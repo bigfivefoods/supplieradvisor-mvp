@@ -340,20 +340,18 @@ export function MemberAllocateTable({
 
   const toggleMember = (c: FitClient, d: Draft) => {
     const next = !(d.personActive && d.member);
-    setDraft(c.id, {
-      personActive: true,
-      member: next,
-    });
+    const merged: Draft = { ...d, personActive: true, member: next };
+    setDraft(c.id, { personActive: true, member: next });
     if (next) setOpenId(c.id);
+    void save(c, merged);
   };
 
   const togglePrivate = (c: FitClient, d: Draft) => {
     const next = !(d.personActive && d.privateClient);
-    setDraft(c.id, {
-      personActive: true,
-      privateClient: next,
-    });
+    const merged: Draft = { ...d, personActive: true, privateClient: next };
+    setDraft(c.id, { personActive: true, privateClient: next });
     if (next) setOpenId(c.id);
+    void save(c, merged);
   };
 
   const toggleInactive = (c: FitClient, d: Draft) => {
@@ -552,12 +550,29 @@ export function MemberAllocateTable({
         phone: d.phone.trim(),
         notes: d.notes,
       });
-      setDrafts((prev) => {
-        const next = { ...prev };
-        delete next[c.id];
-        return next;
-      });
-      toast.success((data?.message as string) || 'Saved');
+      const returnedSubs = (
+        data?.store as { subscriptions?: { client_id: string; plan_id: string; status: string }[] } | undefined
+      )?.subscriptions ?? [];
+      const livePlanIds = returnedSubs
+        .filter(
+          (s) =>
+            s.client_id === c.id &&
+            (s.status === 'active' || s.status === 'trialing')
+        )
+        .map((s) => s.plan_id);
+      const storeMatchesSent =
+        planIds.length === 0 ||
+        planIds.every((id) => livePlanIds.includes(id));
+      if (storeMatchesSent) {
+        setDrafts((prev) => {
+          const next = { ...prev };
+          delete next[c.id];
+          return next;
+        });
+        toast.success((data?.message as string) || 'Saved');
+      } else {
+        toast.error('Save may not have stuck — please verify and try again');
+      }
     } catch {
       /* toast */
     } finally {
@@ -1178,7 +1193,9 @@ export function MemberAllocateTable({
                                       [plan.id]: String(plan.price_zar || 0),
                                     };
                                   }
+                                  const merged: Draft = { ...d, ...next };
                                   setDraft(c.id, next);
+                                  void save(c, merged);
                                 }}
                               >
                                 <option value="">Select plan…</option>
@@ -1273,12 +1290,13 @@ export function MemberAllocateTable({
                           className={`${gymPwaFieldClass} mt-1`}
                           value={d.status}
                           disabled={!d.member}
-                          onChange={(e) =>
-                            setDraft(c.id, {
-                              status: e.target
-                                .value as FitSubscription['status'],
-                            })
-                          }
+                          onChange={(e) => {
+                            const status = e.target
+                              .value as FitSubscription['status'];
+                            const merged: Draft = { ...d, status };
+                            setDraft(c.id, { status });
+                            void save(c, merged);
+                          }}
                         >
                           {STATUSES.map((s) => (
                             <option key={s} value={s}>
