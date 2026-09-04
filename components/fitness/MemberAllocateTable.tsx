@@ -340,20 +340,26 @@ export function MemberAllocateTable({
 
   const toggleMember = (c: FitClient, d: Draft) => {
     const next = !(d.personActive && d.member);
-    setDraft(c.id, {
+    const patch: Partial<Draft> = {
       personActive: true,
       member: next,
-    });
+    };
+    const merged: Draft = { ...d, ...patch };
+    setDraft(c.id, patch);
     if (next) setOpenId(c.id);
+    void save(c, merged);
   };
 
   const togglePrivate = (c: FitClient, d: Draft) => {
     const next = !(d.personActive && d.privateClient);
-    setDraft(c.id, {
+    const patch: Partial<Draft> = {
       personActive: true,
       privateClient: next,
-    });
+    };
+    const merged: Draft = { ...d, ...patch };
+    setDraft(c.id, patch);
     if (next) setOpenId(c.id);
+    void save(c, merged);
   };
 
   const toggleInactive = (c: FitClient, d: Draft) => {
@@ -552,6 +558,24 @@ export function MemberAllocateTable({
         phone: d.phone.trim(),
         notes: d.notes,
       });
+      // Only clear draft when the returned store reflects what we sent.
+      const returnedSubs = data?.store
+        ? ((data.store as FitgraphStore).subscriptions as FitSubscription[] | undefined)
+        : undefined;
+      if (planIds.length > 0 && returnedSubs) {
+        const livePlanIds = returnedSubs
+          .filter(
+            (s) =>
+              s.client_id === c.id &&
+              (s.status === 'active' || s.status === 'trialing')
+          )
+          .map((s) => s.plan_id);
+        const allPresent = planIds.every((id) => livePlanIds.includes(id));
+        if (!allPresent) {
+          toast.error('Save may not have stuck — please check and retry');
+          return;
+        }
+      }
       setDrafts((prev) => {
         const next = { ...prev };
         delete next[c.id];
@@ -1179,6 +1203,8 @@ export function MemberAllocateTable({
                                     };
                                   }
                                   setDraft(c.id, next);
+                                  const merged: Draft = { ...d, ...next };
+                                  void save(c, merged);
                                 }}
                               >
                                 <option value="">Select plan…</option>
@@ -1273,12 +1299,14 @@ export function MemberAllocateTable({
                           className={`${gymPwaFieldClass} mt-1`}
                           value={d.status}
                           disabled={!d.member}
-                          onChange={(e) =>
-                            setDraft(c.id, {
+                          onChange={(e) => {
+                            const patch = {
                               status: e.target
                                 .value as FitSubscription['status'],
-                            })
-                          }
+                            };
+                            setDraft(c.id, patch);
+                            void save(c, { ...d, ...patch });
+                          }}
                         >
                           {STATUSES.map((s) => (
                             <option key={s} value={s}>

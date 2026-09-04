@@ -1397,24 +1397,6 @@ export async function POST(request: NextRequest) {
       if ('error' in result) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
-      const allocated = store.clients.find(
-        (c) => c.id === String(body.client_id || '')
-      );
-      if (allocated) {
-        try {
-          const { attachCrmToAdvisorPerson } = await import(
-            '@/lib/b2c/member-account-ar'
-          );
-          await attachCrmToAdvisorPerson({
-            companyId,
-            kind: 'gym',
-            person: allocated,
-          });
-          applyGymClientNumberFromAr(allocated, store.clients || []);
-        } catch {
-          /* best-effort — Brief 38 stamps the gym book */
-        }
-      }
       await savePatchForKeys(
         companyId,
         meta,
@@ -1423,6 +1405,29 @@ export async function POST(request: NextRequest) {
         'subscriptions',
         'bookings'
       );
+      // CRM stamp is best-effort and must not block the response.
+      const allocatedForCrm = store.clients.find(
+        (c) => c.id === String(body.client_id || '')
+      );
+      if (allocatedForCrm) {
+        void (async () => {
+          try {
+            const { attachCrmToAdvisorPerson } = await import(
+              '@/lib/b2c/member-account-ar'
+            );
+            await attachCrmToAdvisorPerson({
+              companyId,
+              kind: 'gym',
+              person: allocatedForCrm,
+            });
+            applyGymClientNumberFromAr(allocatedForCrm, store.clients || []);
+            // If CRM stamp mutated the client, persist the updated clients snapshot.
+            await savePatchForKeys(companyId, meta, store, 'clients');
+          } catch {
+            /* best-effort — Brief 38 stamps the gym book */
+          }
+        })();
+      }
       return NextResponse.json({
         success: true,
         store,

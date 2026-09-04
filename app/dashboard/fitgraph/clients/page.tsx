@@ -113,6 +113,7 @@ export default function ClientsPage() {
   const search = useSearchParams();
   const fileRef = useRef<HTMLInputElement>(null);
   const crmBackfillOnce = useRef(false);
+  const storeRef = useRef(store);
   const [importing, setImporting] = useState(false);
   const [form, setForm] = useState<ClientForm>(blankForm);
   const [editing, setEditing] = useState(false);
@@ -181,9 +182,13 @@ export default function ClientsPage() {
   }, [returnClass]);
 
   useEffect(() => {
-    if (crmBackfillOnce.current || loading || !store) return;
+    storeRef.current = store;
+  });
+
+  useEffect(() => {
+    if (crmBackfillOnce.current || loading || !storeRef.current) return;
     if (gymCrmBackfillCompanyOnce.has(companyId)) return;
-    const initialRemaining = countGymClientsNeedingWork(store.clients || []);
+    const initialRemaining = countGymClientsNeedingWork(storeRef.current.clients || []);
     if (initialRemaining <= 0) return;
     crmBackfillOnce.current = true;
     let cancelled = false;
@@ -196,7 +201,7 @@ export default function ClientsPage() {
         let numbered = 0;
         let remaining = initialRemaining;
         let batches = 0;
-        let latestClients = [...(store.clients || [])];
+        let latestClients = [...(storeRef.current.clients || [])];
         const maxBatches = 50;
         while (remaining > 0) {
           if (batches >= maxBatches) {
@@ -237,11 +242,6 @@ export default function ClientsPage() {
         toast.success(
           `CRM: ${stamped} stamped (${linked} existing, ${created} new), ${numbered} client numbers from CoA, ${skipped} skipped`
         );
-        try {
-          await load();
-        } catch {
-          toast.error('CRM stamped, but could not refresh clients');
-        }
         if (cancelled) return;
       } catch (e: unknown) {
         gymCrmBackfillCompanyOnce.delete(companyId);
@@ -258,7 +258,7 @@ export default function ClientsPage() {
       cancelled = true;
       crmBackfillOnce.current = false;
     };
-  }, [loading, store, post, companyId, load]);
+  }, [loading, post, companyId]);
 
   const save = async () => {
     if (!form.name.trim()) {
