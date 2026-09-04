@@ -5,7 +5,7 @@
 import { addDaysIso } from '@/lib/schedule/recurrence';
 
 export type FloorTaskList = 'floor' | 'follow_up' | 'admin';
-export type FloorTaskRepeat = 'none' | 'daily' | 'weekdays' | 'weekly';
+export type FloorTaskRepeat = 'none' | 'daily' | 'weekdays' | 'weekly' | 'monthly';
 export type FloorTaskPriority = 'normal' | 'soon' | 'now';
 export type FloorTaskStatus = 'open' | 'waiting' | 'done' | 'cancelled';
 
@@ -49,7 +49,9 @@ function asList(v: unknown): FloorTaskList {
 }
 
 function asRepeat(v: unknown): FloorTaskRepeat {
-  return v === 'daily' || v === 'weekdays' || v === 'weekly' ? v : 'none';
+  return v === 'daily' || v === 'weekdays' || v === 'weekly' || v === 'monthly'
+    ? v
+    : 'none';
 }
 
 function asPriority(v: unknown): FloorTaskPriority {
@@ -82,6 +84,12 @@ export function nextFloorTaskDue(
   if (repeat === 'none' || !isoDay(due)) return null;
   if (repeat === 'daily') return addDaysIso(due, 1);
   if (repeat === 'weekly') return addDaysIso(due, 7);
+  if (repeat === 'monthly') {
+    const [y, m, d] = due.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+    dt.setUTCMonth(dt.getUTCMonth() + 1);
+    return dt.toISOString().slice(0, 10);
+  }
   let next = addDaysIso(due, 1);
   for (let i = 0; i < 8; i++) {
     const wd = weekdayOf(next);
@@ -299,4 +307,106 @@ export function countFloorTaskSlices(
     counts[floorTaskSlice(t, today)] += 1;
   }
   return counts;
+}
+
+export type FloorTaskSeriesPoint = {
+  key: string;
+  label: string;
+  count: number;
+};
+
+export function floorTaskAnchorDate(task: FloorTask): string | null {
+  return (
+    isoDay(task.due_date) ||
+    String(task.created_at || '').slice(0, 10) ||
+    null
+  );
+}
+
+export function floorTasksInPeriod(
+  tasks: FloorTask[] | undefined,
+  from: string,
+  to: string
+): FloorTask[] {
+  return liveFloorTasks(tasks).filter((t) => {
+    const d = floorTaskAnchorDate(t);
+    if (!d) return false;
+    return d >= from && d <= to;
+  });
+}
+
+export function weekStartIso(day: string): string {
+  const d = isoDay(day);
+  if (!d) return day;
+  const wd = weekdayOf(d);
+  const back = wd === 0 ? 6 : wd - 1;
+  return addDaysIso(d, -back);
+}
+
+export function floorTaskCountByWeek(
+  tasks: FloorTask[] | undefined,
+  from: string,
+  to: string
+): FloorTaskSeriesPoint[] {
+  const map = new Map<string, number>();
+  for (const t of floorTasksInPeriod(tasks, from, to)) {
+    const d = floorTaskAnchorDate(t);
+    if (!d) continue;
+    const key = weekStartIso(d);
+    map.set(key, (map.get(key) || 0) + 1);
+  }
+  return [...map.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([key, count]) => ({
+      key,
+      label: key.slice(5),
+      count,
+    }));
+}
+
+export function floorTaskCountBySlice(
+  tasks: FloorTask[] | undefined,
+  today: string
+): FloorTaskSeriesPoint[] {
+  const counts = countFloorTaskSlices(tasks, today);
+  return (['overdue', 'today', 'upcoming', 'waiting', 'done'] as FloorTaskSlice[]).map(
+    (key) => ({
+      key,
+      label: key.replace(/_/g, ' '),
+      count: counts[key],
+    })
+  );
+}
+
+export function floorTaskCountByAssignee(
+  tasks: FloorTask[] | undefined,
+  staff: Array<{ id: string; name: string }>
+): FloorTaskSeriesPoint[] {
+  const names = new Map(staff.map((s) => [s.id, s.name]));
+  const map = new Map<string, number>();
+  for (const t of liveFloorTasks(tasks)) {
+    const key = t.assignee_id || 'unassigned';
+    map.set(key, (map.get(key) || 0) + 1);
+  }
+  return [...map.entries()]
+    .map(([key, count]) => ({
+      key,
+      label: key === 'unassigned' ? 'Unassigned' : names.get(key) || 'Team',
+      count,
+    }))
+    .sort((a, b) => b.count - a.count);
+}
+
+export function floorTaskCountByList(
+  tasks: FloorTask[] | undefined
+): FloorTaskSeriesPoint[] {
+  const map = new Map<string, number>();
+  for (const t of liveFloorTasks(tasks)) {
+    map.set(t.list, (map.get(t.list) || 0) + 1);
+  }
+  return FLOOR_TASK_LISTS.map((l) => ({
+    key: l.id,
+    label: l.label,
+    count: map.get(l.id) || 0,
+  })).filter((r) => r.count > 0);
 }
