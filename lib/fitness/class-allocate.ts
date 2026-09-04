@@ -989,13 +989,15 @@ export function allocateMemberToClass(
   const isMember = flagsExplicit
     ? opts.member === true
     : opts.kind !== 'private' || Boolean(opts.planId);
-  const coachId = opts.coachId ? String(opts.coachId) : null;
-  if (coachId) {
-    const coach = store.coaches.find((c) => c.id === coachId);
-    if (!coach || coach.active === false) {
-      return { error: 'Coach not found' };
-    }
+  const requestedCoachId = opts.coachId ? String(opts.coachId) : null;
+  const requestedCoach = requestedCoachId
+    ? store.coaches.find((c) => c.id === requestedCoachId)
+    : undefined;
+  const coachOk = Boolean(requestedCoach && requestedCoach.active !== false);
+  if (isPrivate && !coachOk) {
+    return { error: 'Select the coach for this private client' };
   }
+  const coachId = coachOk ? requestedCoachId : null;
   const explicitPlanIds = Array.isArray(opts.planIds);
   if (!isMember && !isPrivate) {
     if (!explicitPlanIds) {
@@ -1020,9 +1022,6 @@ export function allocateMemberToClass(
     cancelUncoveredFutureBookings(store, client, today);
     recomputeClientClassDenorm(store, client.id, now);
     return { subscription: null, booked: 0, cancelled };
-  }
-  if (isPrivate && !coachId) {
-    return { error: 'Select the coach for this private client' };
   }
   const planIds = [
     ...new Set(
