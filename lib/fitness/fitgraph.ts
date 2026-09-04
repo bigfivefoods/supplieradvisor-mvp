@@ -1675,6 +1675,8 @@ export interface FitgraphStore {
   /** Watch / Garmin sessions logged after class */
   watch_sessions?: import('@/lib/fitness/wearable-types').FitWatchSession[];
   garmin_oauth_pending?: import('@/lib/fitness/wearable-types').GarminOauthPending[];
+  /** Floor desk tasks (today · assigned · follow-ups) */
+  floor_tasks?: import('@/lib/services/advisor-floor-tasks').FloorTask[];
   /** Structured member goals (start / actual / target) */
   goals?: FitGoal[];
   journey_events?: FitJourneyEvent[];
@@ -1880,6 +1882,7 @@ export function emptyFitgraphStore(): FitgraphStore {
     gym_sales: [],
     watch_sessions: [],
     garmin_oauth_pending: [],
+    floor_tasks: [],
     goals: [],
     journey_events: [],
     member_stories: [],
@@ -1938,6 +1941,7 @@ export function readFitgraphFromMetadata(
     'leaderboard_activities',
     'leaderboard_assignments',
     'leaderboard_scores',
+    'floor_tasks',
   ]) {
     if (Array.isArray(extra[key])) {
       (e as unknown as Record<string, unknown>)[key] = extra[key];
