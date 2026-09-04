@@ -1202,8 +1202,8 @@ export function MemberAllocateTable({
                                       [plan.id]: String(plan.price_zar || 0),
                                     };
                                   }
-                                  setDraft(c.id, next);
                                   const merged: Draft = { ...d, ...next };
+                                  setDraft(c.id, next);
                                   void save(c, merged);
                                 }}
                               >

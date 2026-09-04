@@ -36,10 +36,8 @@ const clientsPage = readFileSync(
   resolve('app/dashboard/fitgraph/clients/page.tsx'),
   'utf8'
 );
-// Find the backfill useEffect's dep array
 const backfillIdx = clientsPage.indexOf('backfill_client_crm');
 assert(backfillIdx >= 0, 'backfill_client_crm not found in clients page');
-// The dep array for this effect should not include `store`
 const effectEnd = clientsPage.indexOf('\n  }, [', backfillIdx);
 assert(effectEnd >= 0, 'dep array not found after backfill effect');
 const depLine = clientsPage.slice(effectEnd, effectEnd + 120);
@@ -54,10 +52,8 @@ const table = readFileSync(
   resolve('components/fitness/MemberAllocateTable.tsx'),
   'utf8'
 );
-// Plan select onChange should call void save(c, merged)
-const planSelectIdx = table.indexOf("Select plan\u2026");
+const planSelectIdx = table.indexOf('Select plan\u2026');
 assert(planSelectIdx >= 0, 'Plan select not found');
-// Find the onChange handler that precedes it
 const planOnChange = table.slice(Math.max(0, planSelectIdx - 800), planSelectIdx);
 assert.match(
   planOnChange,
