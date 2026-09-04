@@ -14,7 +14,7 @@ export default function FitgraphTasksPage() {
     <FitgraphWorkbench
       title="Tasks"
       titleAccent="floor"
-      description="Today’s work for the desk and coaches — assign, link a member, repeat, and tick off without losing the thread."
+      description="Create, assign, repeat and close floor work. Slice the period, click a graph, then work the list."
     >
       {loading || !store ? (
         <LoadingBlock />

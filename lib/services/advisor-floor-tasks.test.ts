@@ -7,6 +7,9 @@ import { resolve } from 'node:path';
 import {
   applyFloorTaskAction,
   countFloorTaskSlices,
+  floorTaskCountByAssignee,
+  floorTaskCountByWeek,
+  floorTasksInPeriod,
   floorTaskSlice,
   nextFloorTaskDue,
   sortFloorTasks,
@@ -16,6 +19,7 @@ import {
 assert.equal(nextFloorTaskDue('2026-09-03', 'daily'), '2026-09-04');
 assert.equal(nextFloorTaskDue('2026-09-03', 'weekly'), '2026-09-10');
 assert.equal(nextFloorTaskDue('2026-09-04', 'weekdays'), '2026-09-07');
+assert.equal(nextFloorTaskDue('2026-09-03', 'monthly'), '2026-10-03');
 assert.equal(nextFloorTaskDue('2026-09-03', 'none'), null);
 
 const now = '2026-09-03T12:00:00.000Z';
@@ -115,6 +119,15 @@ assert.ok(counts.waiting >= 1);
 const ordered = [...tasks].sort(sortFloorTasks);
 assert.equal(ordered[0].priority, 'now');
 
+assert.equal(floorTasksInPeriod(tasks, '2026-09-01', '2026-09-30').length, tasks.length);
+assert.ok(floorTaskCountByWeek(tasks, '2026-09-01', '2026-09-30').length >= 1);
+assert.equal(
+  floorTaskCountByAssignee(tasks, [{ id: 'coh_pat', name: 'Pat' }]).some(
+    (r) => r.key === 'unassigned'
+  ),
+  true
+);
+
 const nav = readFileSync(resolve('lib/chrome/module-nav.ts'), 'utf8');
 assert.match(nav, /name: 'Tasks', href: '\/dashboard\/fitgraph\/tasks'/);
 assert.match(nav, /name: 'Tasks', href: '\/dashboard\/medicalgraph\/tasks'/);
@@ -145,5 +158,16 @@ assert.match(
   readFileSync(resolve('app/dashboard/medicalgraph/tasks/page.tsx'), 'utf8'),
   /AdvisorFloorTasks/
 );
+
+const desk = readFileSync(
+  resolve('components/services/AdvisorFloorTasks.tsx'),
+  'utf8'
+);
+assert.match(desk, /PeriodSlicer/);
+assert.match(desk, /MixDoughnut/);
+assert.match(desk, /type="date"/);
+assert.match(desk, /Assign to/);
+assert.match(desk, /Monthly/);
+assert.match(desk, /onSegmentClick/);
 
 console.log('advisor-floor-tasks.test.ts ok');

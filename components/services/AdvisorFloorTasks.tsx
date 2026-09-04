@@ -1,17 +1,29 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ChevronDown, Plus, Star } from 'lucide-react';
+import { Bar } from 'react-chartjs-2';
+import { BarChart3, ChevronDown, Plus, Star, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { gymPwaFieldClass } from '@/lib/fitness/gym-pwa-theme';
+import PeriodSlicer, {
+  initialPeriodSlicerValue,
+  type PeriodSlicerValue,
+} from '@/components/accounting/PeriodSlicer';
+import { C, ChartCard, MixDoughnut } from '@/components/accounting/AccountingCharts';
 import {
   countFloorTaskSlices,
   FLOOR_TASK_LISTS,
+  floorTaskCountByAssignee,
+  floorTaskCountBySlice,
+  floorTaskCountByWeek,
   floorTaskSlice,
+  floorTasksInPeriod,
   liveFloorTasks,
   sortFloorTasks,
+  weekStartIso,
   type FloorTask,
   type FloorTaskList,
+  type FloorTaskRepeat,
   type FloorTaskSlice,
 } from '@/lib/services/advisor-floor-tasks';
 import { isoDateInZone, GYM_DEFAULT_TZ } from '@/lib/fitness/gym-local-time';
@@ -50,16 +62,46 @@ export function AdvisorFloorTasks({
   onAction,
 }: Props) {
   const today = isoDateInZone(timezone || GYM_DEFAULT_TZ);
-  const [slice, setSlice] = useState<FloorTaskSlice>('today');
+  const [period, setPeriod] = useState<PeriodSlicerValue>(() =>
+    initialPeriodSlicerValue('this_month')
+  );
+  const [slice, setSlice] = useState<FloorTaskSlice | 'all'>('all');
   const [list, setList] = useState<FloorTaskList | 'all'>('all');
   const [assignee, setAssignee] = useState('');
+  const [person, setPerson] = useState('');
+  const [repeatFilter, setRepeatFilter] = useState<FloorTaskRepeat | 'all'>(
+    'all'
+  );
+  const [weekKey, setWeekKey] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [draft, setDraft] = useState('');
+  const [draftDue, setDraftDue] = useState(today);
+  const [draftRepeat, setDraftRepeat] = useState<FloorTaskRepeat>('none');
+  const [draftAssignee, setDraftAssignee] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const live = useMemo(() => liveFloorTasks(tasks), [tasks]);
-  const counts = useMemo(() => countFloorTaskSlices(live, today), [live, today]);
+  const inPeriod = useMemo(
+    () => floorTasksInPeriod(live, period.from, period.to),
+    [live, period.from, period.to]
+  );
+  const counts = useMemo(
+    () => countFloorTaskSlices(inPeriod, today),
+    [inPeriod, today]
+  );
+  const byWeek = useMemo(
+    () => floorTaskCountByWeek(inPeriod, period.from, period.to),
+    [inPeriod, period.from, period.to]
+  );
+  const bySlice = useMemo(
+    () => floorTaskCountBySlice(inPeriod, today),
+    [inPeriod, today]
+  );
+  const byAssignee = useMemo(
+    () => floorTaskCountByAssignee(inPeriod, staff),
+    [inPeriod, staff]
+  );
   const staffName = (id?: string | null) =>
     staff.find((s) => s.id === id)?.name || '';
   const personName = (id?: string | null) =>
@@ -67,10 +109,21 @@ export function AdvisorFloorTasks({
 
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return live
-      .filter((t) => floorTaskSlice(t, today) === slice)
+    return inPeriod
+      .filter((t) => (slice === 'all' ? true : floorTaskSlice(t, today) === slice))
       .filter((t) => (list === 'all' ? true : t.list === list))
-      .filter((t) => (assignee ? t.assignee_id === assignee : true))
+      .filter((t) => {
+        if (!assignee) return true;
+        if (assignee === 'unassigned') return !t.assignee_id;
+        return t.assignee_id === assignee;
+      })
+      .filter((t) => (person ? t.person_id === person : true))
+      .filter((t) => (repeatFilter === 'all' ? true : t.repeat === repeatFilter))
+      .filter((t) => {
+        if (!weekKey) return true;
+        const d = t.due_date || String(t.created_at || '').slice(0, 10);
+        return weekStartIso(d) === weekKey;
+      })
       .filter((t) =>
         needle
           ? `${t.title} ${t.notes || ''} ${staffName(t.assignee_id)} ${personName(t.person_id)}`
@@ -79,7 +132,19 @@ export function AdvisorFloorTasks({
           : true
       )
       .sort(sortFloorTasks);
-  }, [live, slice, list, assignee, q, today, staff, people]);
+  }, [
+    inPeriod,
+    slice,
+    list,
+    assignee,
+    person,
+    repeatFilter,
+    weekKey,
+    q,
+    today,
+    staff,
+    people,
+  ]);
 
   const run = async (body: Record<string, unknown>, id?: string) => {
     setBusyId(id || 'new');
@@ -102,10 +167,15 @@ export function AdvisorFloorTasks({
       op: 'upsert',
       title,
       list: list === 'all' ? 'floor' : list,
-      due_date: today,
+      due_date: draftDue || today,
+      repeat: draftRepeat,
+      assignee_id: draftAssignee || null,
     });
     setDraft('');
-    setSlice('today');
+    setDraftDue(today);
+    setDraftRepeat('none');
+    setDraftAssignee('');
+    setSlice('all');
   };
 
   const chip =
@@ -119,17 +189,43 @@ export function AdvisorFloorTasks({
       ? 'bg-[#E8E830] text-slate-900'
       : 'bg-emerald-600 text-white';
 
+  const sliceActive = (id: FloorTaskSlice | 'all') =>
+    slice === id ? chip : chipOff;
+  const weekIdx = weekKey
+    ? byWeek.findIndex((w) => w.key === weekKey)
+    : null;
+  const sliceIdx = bySlice.findIndex((s) => s.key === slice && slice !== 'all');
+  const assigneeIdx = byAssignee.findIndex((s) => s.key === assignee);
+
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <PeriodSlicer
+        value={period}
+        onChange={(next) => {
+          setPeriod(next);
+          setWeekKey(null);
+        }}
+        defaultOpen={false}
+        className="mb-0"
+      />
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
+        <button
+          type="button"
+          onClick={() => setSlice('all')}
+          className={`rounded-2xl border px-3 py-3 text-left ${sliceActive('all')}`}
+        >
+          <div className="text-[10px] font-black uppercase tracking-wide opacity-80">
+            In period
+          </div>
+          <div className="text-xl font-black tabular-nums">{inPeriod.length}</div>
+        </button>
         {SLICES.map((s) => (
           <button
             key={s.id}
             type="button"
             onClick={() => setSlice(s.id)}
-            className={`rounded-2xl border px-3 py-3 text-left ${
-              slice === s.id ? chip : chipOff
-            }`}
+            className={`rounded-2xl border px-3 py-3 text-left ${sliceActive(s.id)}`}
           >
             <div className="text-[10px] font-black uppercase tracking-wide opacity-80">
               {s.label}
@@ -139,10 +235,93 @@ export function AdvisorFloorTasks({
         ))}
       </div>
 
-      <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-950 sm:flex-row sm:items-center">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ChartCard
+          title="Tasks by due week"
+          subtitle="Click a bar to filter the list"
+          icon={BarChart3}
+          height={240}
+        >
+          <Bar
+            data={{
+              labels: byWeek.map((w) => w.label),
+              datasets: [
+                {
+                  label: 'Tasks',
+                  data: byWeek.map((w) => w.count),
+                  backgroundColor: byWeek.map((w, i) =>
+                    weekIdx === i ? '#E8E830' : C.net
+                  ),
+                  borderRadius: 10,
+                  maxBarThickness: 36,
+                },
+              ],
+            }}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              onClick: (_e, els) => {
+                if (!els.length) return;
+                const i = els[0].index;
+                const key = byWeek[i]?.key;
+                if (!key) return;
+                setWeekKey((cur) => (cur === key ? null : key));
+              },
+            }}
+          />
+        </ChartCard>
+        <ChartCard
+          title="Mix"
+          subtitle="Status · assignee — click a slice"
+          icon={Users}
+          height={240}
+        >
+          <div className="grid h-full gap-3 sm:grid-cols-2">
+            <MixDoughnut
+              format="count"
+              centerLabel="Status"
+              centerValue={String(inPeriod.length)}
+              emptyMessage="No tasks in this period"
+              segments={bySlice.map((s) => ({
+                label: s.label,
+                value: s.count,
+              }))}
+              activeIndex={sliceIdx >= 0 ? sliceIdx : null}
+              onSegmentClick={(_i, seg) => {
+                const key = bySlice.find((s) => s.label === seg.label)?.key as
+                  | FloorTaskSlice
+                  | undefined;
+                if (!key) return;
+                setSlice((cur) => (cur === key ? 'all' : key));
+              }}
+            />
+            <MixDoughnut
+              format="count"
+              centerLabel="Assigned"
+              emptyMessage="Nobody assigned"
+              segments={byAssignee.map((s) => ({
+                label: s.label,
+                value: s.count,
+              }))}
+              activeIndex={assigneeIdx >= 0 ? assigneeIdx : null}
+              onSegmentClick={(_i, seg) => {
+                const key = byAssignee.find((s) => s.label === seg.label)?.key;
+                if (!key) return;
+                setAssignee((cur) => (cur === key ? '' : key));
+              }}
+            />
+          </div>
+        </ChartCard>
+      </div>
+
+      <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-950">
+        <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+          Create task
+        </p>
         <input
-          className={`${gymPwaFieldClass} flex-1`}
-          placeholder="Add a floor task — Enter to save"
+          className={gymPwaFieldClass}
+          placeholder="Task title"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -152,6 +331,50 @@ export function AdvisorFloorTasks({
             }
           }}
         />
+        <div className="grid gap-2 sm:grid-cols-3">
+          <label className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+            Due date
+            <input
+              type="date"
+              className={`${gymPwaFieldClass} mt-1`}
+              value={draftDue}
+              onChange={(e) => setDraftDue(e.target.value)}
+            />
+          </label>
+          <label className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+            Repeat
+            <select
+              className={`${gymPwaFieldClass} mt-1`}
+              value={draftRepeat}
+              onChange={(e) =>
+                setDraftRepeat(e.target.value as FloorTaskRepeat)
+              }
+            >
+              <option value="none">Does not repeat</option>
+              <option value="daily">Daily</option>
+              <option value="weekdays">Weekdays</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </label>
+          <label className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+            Assign to
+            <select
+              className={`${gymPwaFieldClass} mt-1`}
+              value={draftAssignee}
+              onChange={(e) => setDraftAssignee(e.target.value)}
+            >
+              <option value="">Unassigned</option>
+              {staff
+                .filter((s) => s.active !== false)
+                .map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+        </div>
         <button
           type="button"
           disabled={saving || busyId === 'new'}
@@ -159,7 +382,7 @@ export function AdvisorFloorTasks({
           className={`inline-flex items-center justify-center gap-1 rounded-xl px-3 py-2 text-sm font-black disabled:opacity-50 ${saveBtn}`}
         >
           <Plus className="h-4 w-4" />
-          Add
+          Add task
         </button>
       </div>
 
@@ -190,17 +413,55 @@ export function AdvisorFloorTasks({
               </option>
             ))}
         </select>
+        <select
+          className={gymPwaFieldClass}
+          value={person}
+          onChange={(e) => setPerson(e.target.value)}
+        >
+          <option value="">All {personLabel.toLowerCase()}s</option>
+          {people
+            .filter((p) => p.active !== false)
+            .map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+        </select>
+        <select
+          className={gymPwaFieldClass}
+          value={repeatFilter}
+          onChange={(e) =>
+            setRepeatFilter(e.target.value as FloorTaskRepeat | 'all')
+          }
+        >
+          <option value="all">Any repeat</option>
+          <option value="none">One-off</option>
+          <option value="daily">Daily</option>
+          <option value="weekdays">Weekdays</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
         <input
           className={`${gymPwaFieldClass} min-w-[12rem] flex-1`}
           placeholder="Search title, notes, people…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
+        {weekKey ? (
+          <button
+            type="button"
+            className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold"
+            onClick={() => setWeekKey(null)}
+          >
+            Clear week
+          </button>
+        ) : null}
       </div>
 
       {visible.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-700">
-          Nothing in {slice}. Add a task or pick another slice.
+          Nothing in {slice === 'all' ? 'this period' : slice}. Add a task or
+          pick another filter.
         </p>
       ) : (
         <ul className="space-y-2">
@@ -286,6 +547,26 @@ export function AdvisorFloorTasks({
                       className="h-4 w-4"
                       fill={t.priority === 'now' ? 'currentColor' : 'none'}
                     />
+                  </button>
+                  {t.status !== 'done' ? (
+                    <button
+                      type="button"
+                      disabled={busyId === t.id}
+                      onClick={() =>
+                        void run({ op: 'complete', id: t.id }, t.id)
+                      }
+                      className="mt-0.5 rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-black uppercase"
+                    >
+                      Close
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    disabled={busyId === t.id}
+                    onClick={() => void run({ op: 'delete', id: t.id }, t.id)}
+                    className="mt-0.5 rounded-lg border border-rose-200 px-2 py-1 text-[10px] font-black uppercase text-rose-700"
+                  >
+                    Delete
                   </button>
                   <ChevronDown
                     className={`mt-1 h-4 w-4 shrink-0 text-slate-400 ${
@@ -436,6 +717,7 @@ function TaskEditor({
             <option value="daily">Every day</option>
             <option value="weekdays">Weekdays</option>
             <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
           </select>
         </label>
         <label className="text-[10px] font-black uppercase tracking-wide text-slate-500">
