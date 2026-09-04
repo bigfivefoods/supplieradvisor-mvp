@@ -1421,8 +1421,10 @@ export async function POST(request: NextRequest) {
               person: allocatedForCrm,
             });
             applyGymClientNumberFromAr(allocatedForCrm, store.clients || []);
-            // If CRM stamp mutated the client, persist the updated clients snapshot.
-            await savePatchForKeys(companyId, meta, store, 'clients');
+            // CRM fields (crm_customer_id, client_number) are now reflected in the
+            // in-memory store. backfill_client_crm will persist them on the next mount;
+            // we do not write a second clients patch here to avoid clobbering concurrent
+            // desk edits with a stale request-time snapshot.
           } catch {
             /* best-effort — Brief 38 stamps the gym book */
           }

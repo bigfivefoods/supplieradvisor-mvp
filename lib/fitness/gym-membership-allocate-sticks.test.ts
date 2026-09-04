@@ -13,7 +13,7 @@ const route = readFileSync(
 );
 const allocateStart = route.indexOf("if (action === 'allocate_member')");
 assert(allocateStart >= 0, 'allocate_member block not found');
-const allocateBlock = route.slice(allocateStart, allocateStart + 4000);
+const allocateBlock = route.slice(allocateStart, allocateStart + 6000);
 
 const saveIdx = allocateBlock.indexOf('savePatchForKeys(');
 const crmIdx = allocateBlock.indexOf('attachCrmToAdvisorPerson(');
@@ -68,7 +68,7 @@ assert.match(
 // Status select onChange should call void save
 const statusIdx = table.indexOf('status: e.target');
 assert(statusIdx >= 0, 'Status onChange not found');
-const statusBlock = table.slice(statusIdx, statusIdx + 200);
+const statusBlock = table.slice(statusIdx, statusIdx + 300);
 assert.match(
   statusBlock,
   /void save\(c,/,
