@@ -53,7 +53,9 @@ assert.ok(
 );
 
 assert.match(getFn, /!Number\.isFinite\(companyId\)\s*\|\|\s*companyId\s*<=\s*0/);
+assert.match(patchFn, /!Number\.isFinite\(id\)\s*\|\|\s*id\s*<=\s*0/);
 assert.match(patchFn, /!Number\.isFinite\(companyId\)\s*\|\|\s*companyId\s*<=\s*0/);
+assert.match(deleteFn, /!Number\.isFinite\(id\)\s*\|\|\s*id\s*<=\s*0/);
 assert.match(deleteFn, /!Number\.isFinite\(companyId\)\s*\|\|\s*companyId\s*<=\s*0/);
 assert.ok(deleteFn.includes("searchParams.get('companyId')"), 'DELETE must read companyId from search params');
 
@@ -311,6 +313,18 @@ async function main() {
 
   {
     const env = loadRoute({ denyStatus: 401 });
+    const response = await env.handlers.PATCH(
+      makeRequest('https://example.test/api/customers/leads', { id: -1, companyId: 110, status: 'won' })
+    );
+    const body = await readBody(response);
+    assert.equal(response.status, 400, 'PATCH with non-positive id should 400');
+    assert.equal(env.supabaseCalls, 0, 'PATCH with non-positive id must not query leads');
+    assert.deepEqual(env.gateCalls, [], 'PATCH with non-positive id should fail before gate');
+    assert.notEqual(body.success, true, 'PATCH with non-positive id must never report success');
+  }
+
+  {
+    const env = loadRoute({ denyStatus: 401 });
     const response = await env.handlers.DELETE(
       makeRequest('https://example.test/api/customers/leads?id=1')
     );
@@ -319,6 +333,18 @@ async function main() {
     assert.equal(env.supabaseCalls, 0, 'DELETE without companyId must not query leads');
     assert.deepEqual(env.gateCalls, [], 'DELETE without companyId should fail before gate');
     assert.notEqual(body.success, true, 'DELETE without companyId must never report success');
+  }
+
+  {
+    const env = loadRoute({ denyStatus: 401 });
+    const response = await env.handlers.DELETE(
+      makeRequest('https://example.test/api/customers/leads?id=-1&companyId=110')
+    );
+    const body = await readBody(response);
+    assert.equal(response.status, 400, 'DELETE with non-positive id should 400');
+    assert.equal(env.supabaseCalls, 0, 'DELETE with non-positive id must not query leads');
+    assert.deepEqual(env.gateCalls, [], 'DELETE with non-positive id should fail before gate');
+    assert.notEqual(body.success, true, 'DELETE with non-positive id must never report success');
   }
 
   {
