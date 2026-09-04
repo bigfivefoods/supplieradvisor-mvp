@@ -148,6 +148,8 @@ const hub = readFileSync(resolve('app/dashboard/fitgraph/page.tsx'), 'utf8');
 assert.match(hub, /gymTodayFloorClasses/);
 assert.match(hub, /Today's floor board/);
 assert.match(hub, /groups=\{todayGroups\}/);
+assert.doesNotMatch(hub, /Load demo gym/);
+assert.doesNotMatch(hub, /seed_demo/);
 
 const boardSrc = readFileSync(
   resolve('components/services/AdvisorTodayBoard.tsx'),
