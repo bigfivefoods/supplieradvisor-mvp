@@ -245,41 +245,35 @@ function attachContractRates(
     if (!(amount > 0)) continue;
     const plan = resolvePlan(store, amount, latest.class_option || undefined);
     if (!plan) continue;
-    if (client.membership_plan_id !== plan.id) {
-      client.membership_plan_id = plan.id;
-      client.updated_at = now;
-      changed = true;
-    }
     const slug = rosterSlug(client.name);
     const subId = `vuka_sub_${slug}`;
     const existingSub = store.subscriptions.find(
       (s) =>
         s.id === subId ||
-        (s.client_id === client.id &&
-          s.plan_id === plan.id &&
-          (s.status === 'active' || s.status === 'trialing'))
+        (s.client_id === client.id && s.plan_id === plan.id)
     );
-    if (!existingSub) {
-      const sub: FitSubscription = {
-        id: subId,
-        client_id: client.id,
-        plan_id: plan.id,
-        status: 'active',
-        started_at: client.start_date || today,
-        auto_renew: true,
-        charged_zar: amount,
-        notes: 'Group contract',
-        created_at: now,
-        updated_at: now,
-      };
-      store.subscriptions.push(sub);
-      changed = true;
-    } else if (existingSub.status === 'cancelled') {
-      existingSub.status = 'active';
-      existingSub.charged_zar = amount;
-      existingSub.updated_at = now;
+    // Clients desk owns membership. Do not recreate or revive a class
+    // the owner already removed.
+    if (existingSub) continue;
+    if (client.membership_plan_id !== plan.id) {
+      client.membership_plan_id = plan.id;
+      client.updated_at = now;
       changed = true;
     }
+    const sub: FitSubscription = {
+      id: subId,
+      client_id: client.id,
+      plan_id: plan.id,
+      status: 'active',
+      started_at: client.start_date || today,
+      auto_renew: true,
+      charged_zar: amount,
+      notes: 'Group contract',
+      created_at: now,
+      updated_at: now,
+    };
+    store.subscriptions.push(sub);
+    changed = true;
   }
   return changed;
 }
@@ -385,6 +379,11 @@ function applyBilledClassAllocations(
     if (!client) continue;
     if (client.active === false) continue;
     if (clientHasLiveClass(store, client.id)) continue;
+    if (
+      (store.subscriptions || []).some((s) => s.client_id === client.id)
+    ) {
+      continue;
+    }
     const result = allocateMemberToClass(store, {
       clientId: client.id,
       planId: plan.id,

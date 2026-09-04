@@ -996,14 +996,34 @@ export function allocateMemberToClass(
       return { error: 'Coach not found' };
     }
   }
+  const explicitPlanIds = Array.isArray(opts.planIds);
   if (!isMember && !isPrivate) {
-    const cancelled = parkOnDesk();
+    if (!explicitPlanIds) {
+      const cancelled = parkOnDesk();
+      return { subscription: null, booked: 0, cancelled };
+    }
+    applyPerson();
+    let cancelled = 0;
+    for (const other of store.subscriptions) {
+      if (other.client_id !== client.id) continue;
+      if (other.status !== 'active' && other.status !== 'trialing') continue;
+      const otherPlan = store.membership_plans.find((p) => p.id === other.plan_id);
+      if (otherPlan?.addon === true) continue;
+      other.status = 'cancelled';
+      other.cancel_at = today;
+      other.updated_at = now;
+      cancelled += 1;
+    }
+    client.active = true;
+    client.membership_plan_id = null;
+    client.updated_at = now;
+    cancelUncoveredFutureBookings(store, client, today);
+    recomputeClientClassDenorm(store, client.id, now);
     return { subscription: null, booked: 0, cancelled };
   }
   if (isPrivate && !coachId) {
     return { error: 'Select the coach for this private client' };
   }
-  const explicitPlanIds = Array.isArray(opts.planIds);
   const planIds = [
     ...new Set(
       (explicitPlanIds

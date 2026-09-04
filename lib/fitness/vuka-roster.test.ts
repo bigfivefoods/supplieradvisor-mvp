@@ -527,4 +527,45 @@ assert.equal(
   'vuka_pln_boot_1730'
 );
 
+const mercedee = store.clients.find((c) => /mercedee uys/i.test(c.name));
+if (mercedee) {
+  mercedee.active = true;
+  mercedee.membership_plan_id = null;
+  for (const s of store.subscriptions) {
+    if (s.client_id === mercedee.id) {
+      s.status = 'cancelled';
+      s.updated_at = '2026-08-20T14:00:00.000Z';
+    }
+  }
+  if (
+    !store.subscriptions.some(
+      (s) => s.client_id === mercedee.id && /boot/i.test(s.plan_id)
+    )
+  ) {
+    const boot = store.membership_plans.find((p) => /boot/i.test(p.code || p.id));
+    if (boot) {
+      store.subscriptions.push({
+        id: 'vuka_sub_mercedee_uys',
+        client_id: mercedee.id,
+        plan_id: boot.id,
+        status: 'cancelled',
+        started_at: '2026-03-01',
+        created_at: '2026-03-01T00:00:00.000Z',
+        updated_at: '2026-08-20T14:00:00.000Z',
+      });
+    }
+  }
+  if (store.settings) store.settings.vuka_contracts_import = 'force-reattach';
+  ensureVukaRoster(store, { now: '2026-08-20T15:00:00.000Z' });
+  assert.equal(
+    store.subscriptions.some(
+      (s) =>
+        s.client_id === mercedee.id &&
+        (s.status === 'active' || s.status === 'trialing')
+    ),
+    false,
+    'contract import must not put Mercedee back on a class after the desk removed it'
+  );
+}
+
 console.log('vuka-roster.test.ts ok');
