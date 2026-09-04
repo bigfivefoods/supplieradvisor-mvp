@@ -607,7 +607,18 @@ export default function ClientsPage() {
               if (!confirm(`Remove ${c.name || 'this member'} from the book?`)) {
                 return;
               }
-              void post({ entity: 'clients', action: 'delete', id: c.id });
+              void (async () => {
+                try {
+                  await post({
+                    entity: 'clients',
+                    action: 'delete',
+                    id: c.id,
+                  });
+                  toast.success('Removed from the book');
+                } catch {
+                  /* toast in post */
+                }
+              })();
             }}
             toolbar={
               <div className="flex flex-wrap gap-2">

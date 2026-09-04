@@ -2999,8 +2999,15 @@ export async function POST(request: NextRequest) {
         deletePatchKeys.push('leaderboard_assignments');
       } else if (entity === 'sessions') {
         deletePatchKeys.push('bookings', 'removed_ids');
+      } else if (entity === 'clients') {
+        deletePatchKeys.push('removed_ids', 'subscriptions', 'bookings');
+      } else if (entity === 'bookings') {
+        deletePatchKeys.push('removed_ids');
       }
       if (Array.isArray(list)) {
+        const { rememberRemovedFitgraphIds } = await import(
+          '@/lib/fitness/fitgraph-merge'
+        );
         // Optional: delete whole class series when series_id matches
         if (
           entity === 'sessions' &&
@@ -3019,9 +3026,6 @@ export async function POST(request: NextRequest) {
             const dropBookings = (store.bookings || [])
               .filter((b) => removeIds.has(b.session_id))
               .map((b) => b.id);
-            const { rememberRemovedFitgraphIds } = await import(
-              '@/lib/fitness/fitgraph-merge'
-            );
             rememberRemovedFitgraphIds(store, 'sessions', removeIds);
             rememberRemovedFitgraphIds(store, 'bookings', dropBookings);
             store.sessions = store.sessions.filter((s) => !removeIds.has(s.id));
@@ -3048,14 +3052,30 @@ export async function POST(request: NextRequest) {
           const dropBookings = (store.bookings || [])
             .filter((b) => b.session_id === id)
             .map((b) => b.id);
-          const { rememberRemovedFitgraphIds } = await import(
-            '@/lib/fitness/fitgraph-merge'
-          );
           rememberRemovedFitgraphIds(store, 'sessions', [id]);
           rememberRemovedFitgraphIds(store, 'bookings', dropBookings);
           store.bookings = (store.bookings || []).filter(
             (b) => b.session_id !== id
           );
+        } else if (entity === 'clients') {
+          const dropBookings = (store.bookings || [])
+            .filter((b) => b.client_id === id)
+            .map((b) => b.id);
+          rememberRemovedFitgraphIds(store, 'clients', [id]);
+          rememberRemovedFitgraphIds(store, 'bookings', dropBookings);
+          const today = now.slice(0, 10);
+          for (const sub of store.subscriptions || []) {
+            if (sub.client_id !== id) continue;
+            if (sub.status !== 'active' && sub.status !== 'trialing') continue;
+            sub.status = 'cancelled';
+            sub.cancel_at = today;
+            sub.updated_at = now;
+          }
+          store.bookings = (store.bookings || []).filter(
+            (b) => b.client_id !== id
+          );
+        } else if (entity === 'bookings') {
+          rememberRemovedFitgraphIds(store, 'bookings', [id]);
         }
       }
       await savePatchForKeys(companyId, meta, store, ...deletePatchKeys);
