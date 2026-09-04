@@ -212,7 +212,10 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
 
   const toggleModule = (id: string) => {
     setExpandedModules((prev) => {
-      const next = { ...prev, [id]: !prev[id] };
+      const current = isAdvisorOsModule(id)
+        ? prev[id] !== false
+        : prev[id] === true;
+      const next = { ...prev, [id]: !current };
       saveExpanded(next);
       return next;
     });
@@ -465,7 +468,9 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
           const isActive = isModuleActive(mod.href);
           const isExpanded = arranging
             ? false
-            : expandedModules[mod.id] === true;
+            : isAdvisorOsModule(mod.id)
+              ? expandedModules[mod.id] !== false
+              : expandedModules[mod.id] === true;
 
           return (
             <div
