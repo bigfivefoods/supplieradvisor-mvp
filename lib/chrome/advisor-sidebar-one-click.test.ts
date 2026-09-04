@@ -16,8 +16,6 @@ assert.match(sidebar, /router\.push\(mod\.href\)/);
 assert.match(sidebar, /touch-manipulation/);
 assert.match(sidebar, /@media\(hover:hover\)/);
 
-import { MODULE_NAV } from './module-nav';
-
 const ADVISOR_FLOOR_IDS = [
   'fitgraph',
   'physiograph',
@@ -46,7 +44,8 @@ for (const id of ADVISOR_FLOOR_IDS) {
 
 // Chevron button is shown for ALL modules with children (no Advisor exclusion).
 assert.match(sidebar, /mod\.sub\.length > 0 && \(/);
-// isExpanded must NOT force-open Advisor modules.
-assert.doesNotMatch(sidebar, /isAdvisorOsModule\(mod\.id\) \|\|/);
+// Advisor OS modules default to expanded (expandedModules[mod.id] !== false).
+assert.match(sidebar, /isAdvisorOsModule\(mod\.id\)/);
+assert.match(sidebar, /expandedModules\[mod\.id\] !== false/);
 
 console.log('advisor-sidebar-one-click.test.ts ok');
