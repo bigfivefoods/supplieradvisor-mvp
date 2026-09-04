@@ -327,7 +327,7 @@ export function MemberAllocateTable({
       coachId: c.coach_id || planCoach || '',
       privateRate:
         c.private_rate_zar != null ? String(c.private_rate_zar) : '',
-      status: primary?.status || 'active',
+      status: live[0]?.status || 'active',
     };
   };
 
@@ -347,8 +347,13 @@ export function MemberAllocateTable({
 
   const toggleMember = (c: FitClient, d: Draft) => {
     const next = !(d.personActive && d.member);
-    const merged: Draft = { ...d, personActive: true, member: next };
-    setDraft(c.id, { personActive: true, member: next });
+    const patch: Partial<Draft> = {
+      personActive: true,
+      member: next,
+      ...(next ? { status: 'active' as const } : {}),
+    };
+    const merged: Draft = { ...d, ...patch };
+    setDraft(c.id, patch);
     if (next) {
       setOpenId(c.id);
       // Do not POST until a class is chosen. Saving member-on with
@@ -360,8 +365,13 @@ export function MemberAllocateTable({
 
   const togglePrivate = (c: FitClient, d: Draft) => {
     const next = !(d.personActive && d.privateClient);
-    const merged: Draft = { ...d, personActive: true, privateClient: next };
-    setDraft(c.id, { personActive: true, privateClient: next });
+    const patch: Partial<Draft> = {
+      personActive: true,
+      privateClient: next,
+      ...(next ? { status: 'active' as const } : {}),
+    };
+    const merged: Draft = { ...d, ...patch };
+    setDraft(c.id, patch);
     if (next) setOpenId(c.id);
     void save(c, merged);
   };
@@ -436,6 +446,7 @@ export function MemberAllocateTable({
         planIds: [p.id],
         personActive: true,
         member: true,
+        status: 'active',
         charges,
       };
       if (!d.coachId && !d.privateClient && p.default_coach_id) {
@@ -454,6 +465,7 @@ export function MemberAllocateTable({
       planId: planIds[0] || '',
       personActive: true,
       member: true,
+      status: 'active',
       charges,
     };
     if (!d.coachId && !d.privateClient && p.default_coach_id) {
@@ -549,7 +561,10 @@ export function MemberAllocateTable({
         charged_zar: d.member ? chargedTotal : privateRateZar,
         coach_id: d.coachId || null,
         private_rate_zar: privateRateZar,
-        status: d.status,
+        status:
+          d.status === 'cancelled' || d.status === 'expired'
+            ? 'active'
+            : d.status,
         name: d.name.trim(),
         email: d.email.trim(),
         phone: d.phone.trim(),

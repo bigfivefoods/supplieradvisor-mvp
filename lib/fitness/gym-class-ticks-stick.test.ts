@@ -19,6 +19,12 @@ assert.doesNotMatch(
 );
 assert.match(table, /d\.member && !planIds.length/);
 assert.match(table, /if \(!selectedPlanIds\(merged\)\.length\) return;/);
+assert.match(table, /status: live\[0\]\?\.status \|\| 'active'/);
+assert.match(table, /status: 'active'/);
+assert.match(
+  table,
+  /d\.status === 'cancelled' \|\| d\.status === 'expired'/
+);
 assert.match(
   table,
   /toast\.error\(classSubscribe \? 'Select a class' : 'Select a plan'\)/

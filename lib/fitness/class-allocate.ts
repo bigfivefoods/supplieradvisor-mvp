@@ -1120,7 +1120,10 @@ export function allocateMemberToClass(
     planIds,
   };
   const charge = resolveAllocatedCharge(plan, chargeOpts);
-  const status = opts.status || 'active';
+  let status = opts.status || 'active';
+  if (wasInactive && (status === 'cancelled' || status === 'expired')) {
+    status = 'active';
+  }
   let sub =
     store.subscriptions.find(
       (s) => s.client_id === client.id && s.plan_id === plan.id

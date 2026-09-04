@@ -984,6 +984,28 @@ assert.equal(
   'active'
 );
 
+const parkEveAgain = allocateMemberToClass(roster, {
+  clientId: 'cli_eve',
+  inactive: true,
+  now: '2026-08-20T13:00:00.000Z',
+});
+if ('error' in parkEveAgain) throw new Error(parkEveAgain.error);
+const rejoinStaleStatus = allocateMemberToClass(roster, {
+  clientId: 'cli_eve',
+  member: true,
+  planIds: [rBoot.id],
+  status: 'cancelled',
+  now: '2026-08-20T13:05:00.000Z',
+});
+if ('error' in rejoinStaleStatus) throw new Error(rejoinStaleStatus.error);
+assert.equal(roster.clients.find((c) => c.id === 'cli_eve')?.active, true);
+assert.equal(
+  roster.subscriptions.find(
+    (s) => s.client_id === 'cli_eve' && s.plan_id === rBoot.id
+  )?.status,
+  'active'
+);
+
 const picker = emptyFitgraphStore();
 picker.settings = { ...picker.settings, class_subscribe: true };
 picker.membership_plans.push({
