@@ -98,7 +98,7 @@ export default function CalendarPage() {
     session_kind: 'class' as FitSessionKind,
     class_type_id: '',
     coach_id: '',
-    client_id: '',
+    client_ids: [] as string[],
     date: new Date().toISOString().slice(0, 10),
     start_time: '06:00',
     end_time: '06:45',
@@ -143,7 +143,7 @@ export default function CalendarPage() {
     session_kind: 'class' as FitSessionKind,
     class_type_id: '',
     coach_id: personFilter || '',
-    client_id: '',
+    client_ids: [] as string[],
     date: day,
     start_time: '06:00',
     end_time: '06:45',
@@ -194,10 +194,12 @@ export default function CalendarPage() {
       end_time: times.end_time,
       location: s.location || '',
       room: s.room || '',
-      client_id:
+      client_ids:
         kind === 'private_pt'
-          ? sessionRosterRows(store, s.id)[0]?.client_id || ''
-          : '',
+          ? sessionRosterRows(store, s.id)
+              .map((r) => r.client_id)
+              .filter((id): id is string => Boolean(id))
+          : [],
       capacity: s.capacity != null ? String(s.capacity) : '',
       public: kind === 'class' && s.public === true,
       public_notes: s.public_notes || '',
@@ -509,8 +511,8 @@ export default function CalendarPage() {
       action: 'save_calendar_sessions',
       session_id: prev.id,
       scope,
-      client_id:
-        form.session_kind === 'private_pt' ? form.client_id || undefined : undefined,
+      client_ids:
+        form.session_kind === 'private_pt' ? form.client_ids : undefined,
       agreed_rate_zar: rate,
       ...(repeatPayload || {}),
       patch: {
@@ -520,7 +522,15 @@ export default function CalendarPage() {
         location: form.location || undefined,
         room: form.room || null,
         coach_id: form.coach_id || null,
-        capacity: form.capacity ? Number(form.capacity) : null,
+        capacity:
+          form.session_kind === 'private_pt'
+            ? Math.max(
+                form.capacity ? Number(form.capacity) || 0 : 0,
+                form.client_ids.length
+              ) || null
+            : form.capacity
+              ? Number(form.capacity)
+              : null,
         class_type_id: form.class_type_id,
         session_kind: form.session_kind,
         personal_reason:
@@ -608,11 +618,17 @@ export default function CalendarPage() {
           form.agreed_rate_zar.trim() === ''
             ? null
             : Number(form.agreed_rate_zar),
-        client_id:
+        client_ids:
+          form.session_kind === 'private_pt' ? form.client_ids : undefined,
+        capacity:
           form.session_kind === 'private_pt'
-            ? form.client_id || undefined
-            : undefined,
-        capacity: form.capacity ? Number(form.capacity) : undefined,
+            ? Math.max(
+                form.capacity ? Number(form.capacity) || 0 : 0,
+                form.client_ids.length
+              ) || undefined
+            : form.capacity
+              ? Number(form.capacity)
+              : undefined,
         public: form.session_kind === 'class' && form.public,
         public_notes: form.public_notes || undefined,
         class_plan: form.class_plan.trim() || undefined,
@@ -624,8 +640,8 @@ export default function CalendarPage() {
       const sessions = (data.sessions || []) as Array<{ id: string }>;
       const firstId = sessions[0]?.id || null;
       toast.success(
-        form.session_kind === 'private_pt' && form.client_id
-          ? `${data.message || 'Series scheduled'} — member booked on ${sessions.length} session${sessions.length === 1 ? '' : 's'}`
+        form.session_kind === 'private_pt' && form.client_ids.length
+          ? `${data.message || 'Series scheduled'} — ${form.client_ids.length} member${form.client_ids.length === 1 ? '' : 's'} booked on ${sessions.length} session${sessions.length === 1 ? '' : 's'}`
           : form.coach_id
             ? data.message || 'Series scheduled'
             : `${data.message || 'Series scheduled'} — assign a coach on each class, then add members`
@@ -663,17 +679,23 @@ export default function CalendarPage() {
           form.agreed_rate_zar.trim() === ''
             ? null
             : Number(form.agreed_rate_zar),
-        capacity: form.capacity ? Number(form.capacity) : null,
         public: form.session_kind === 'class' && form.public,
         public_notes: form.public_notes || undefined,
         class_plan: form.class_plan.trim() || undefined,
         notes: form.notes.trim() || undefined,
         origin: 'owner',
         programme_id: form.programme_id || null,
-        client_id:
+        client_ids:
+          form.session_kind === 'private_pt' ? form.client_ids : undefined,
+        capacity:
           form.session_kind === 'private_pt'
-            ? form.client_id || undefined
-            : undefined,
+            ? Math.max(
+                form.capacity ? Number(form.capacity) || 0 : 0,
+                form.client_ids.length
+              ) || null
+            : form.capacity
+              ? Number(form.capacity)
+              : null,
       },
     });
     toast.success(
@@ -682,9 +704,11 @@ export default function CalendarPage() {
         : form.session_kind === 'coach_personal'
         ? 'Personal time blocked on the calendar'
         : form.session_kind === 'private_pt'
-          ? form.client_id
-            ? 'Private PT booked with the member'
-            : 'Private PT booked — add the member in this window'
+          ? form.client_ids.length
+            ? form.client_ids.length === 1
+              ? 'Private PT booked with the member'
+              : `Private PT booked with ${form.client_ids.length} members`
+            : 'Private PT booked — add members in this window'
           : form.coach_id
             ? form.public
               ? 'Class created with coach · published'
@@ -718,6 +742,11 @@ export default function CalendarPage() {
             .includes(q)
         );
       })
+      .sort((a, b) =>
+        String(a.name).localeCompare(String(b.name), undefined, {
+          sensitivity: 'base',
+        })
+      )
       .slice(0, 20);
   }, [store, memberQuery]);
 
@@ -1548,46 +1577,89 @@ export default function CalendarPage() {
             )}
             {form.session_kind === 'private_pt' ? (
               <>
-                <select
-                  className={fc()}
-                  value={form.client_id}
-                  onChange={(e) => {
-                    const id = e.target.value;
-                    const cl = store.clients.find((c) => c.id === id);
-                    const rate = cl?.private_rate_zar ?? cl?.agreed_rate_zar;
-                    setForm((f) => ({
-                      ...f,
-                      client_id: id,
-                      agreed_rate_zar:
-                        rate != null ? String(rate) : f.agreed_rate_zar,
-                    }));
-                  }}
-                >
-                  <option value="">Member / private client…</option>
-                  {[...store.clients]
-                    .sort((a, b) => {
-                      const ai = a.active === false ? 1 : 0;
-                      const bi = b.active === false ? 1 : 0;
-                      if (ai !== bi) return ai - bi;
-                      return String(a.name).localeCompare(String(b.name));
-                    })
-                    .map((c) => {
-                      const rate =
-                        c.private_rate_zar ?? c.agreed_rate_zar ?? null;
-                      const tags = [
-                        c.private_client ? 'PVT' : null,
-                        c.membership_plan_id ? 'member' : null,
-                        c.active === false ? 'inactive' : null,
-                        rate != null ? formatAgreedRateZar(rate) : null,
-                      ].filter(Boolean);
-                      return (
-                        <option key={c.id} value={c.id}>
-                          {c.code} · {c.name}
-                          {tags.length ? ` · ${tags.join(' · ')}` : ''}
-                        </option>
-                      );
-                    })}
-                </select>
+                <div className="sm:col-span-2 space-y-1.5">
+                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                    Members
+                  </p>
+                  {form.client_ids.length ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {form.client_ids.map((id) => {
+                        const cl = store.clients.find((c) => c.id === id);
+                        return (
+                          <button
+                            key={id}
+                            type="button"
+                            className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-950 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100"
+                            onClick={() =>
+                              setForm((f) => ({
+                                ...f,
+                                client_ids: f.client_ids.filter((x) => x !== id),
+                              }))
+                            }
+                          >
+                            {cl?.name || id}
+                            <span aria-hidden>×</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-500">
+                      No members yet — add one or more below.
+                    </p>
+                  )}
+                  <select
+                    className={fc()}
+                    value=""
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      if (!id) return;
+                      const cl = store.clients.find((c) => c.id === id);
+                      const rate = cl?.private_rate_zar ?? cl?.agreed_rate_zar;
+                      setForm((f) => {
+                        if (f.client_ids.includes(id)) return f;
+                        const client_ids = [...f.client_ids, id];
+                        return {
+                          ...f,
+                          client_ids,
+                          agreed_rate_zar:
+                            f.agreed_rate_zar.trim() === '' && rate != null
+                              ? String(rate)
+                              : f.agreed_rate_zar,
+                          capacity: String(
+                            Math.max(Number(f.capacity) || 0, client_ids.length, 1)
+                          ),
+                        };
+                      });
+                    }}
+                  >
+                    <option value="">Add member…</option>
+                    {[...store.clients]
+                      .filter((c) => c.active !== false)
+                      .sort((a, b) =>
+                        String(a.name).localeCompare(String(b.name), undefined, {
+                          sensitivity: 'base',
+                        })
+                      )
+                      .filter((c) => !form.client_ids.includes(c.id))
+                      .map((c) => {
+                        const rate =
+                          c.private_rate_zar ?? c.agreed_rate_zar ?? null;
+                        const tags = [
+                          c.private_client ? 'PVT' : null,
+                          c.membership_plan_id ? 'member' : null,
+                          rate != null ? formatAgreedRateZar(rate) : null,
+                        ].filter(Boolean);
+                        return (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                            {c.code ? ` · ${c.code}` : ''}
+                            {tags.length ? ` · ${tags.join(' · ')}` : ''}
+                          </option>
+                        );
+                      })}
+                  </select>
+                </div>
                 <input
                   className={fc()}
                   type="number"
@@ -1635,7 +1707,7 @@ export default function CalendarPage() {
                 </div>
                 <p className="mt-1 text-[11px] text-amber-900/80 dark:text-amber-100/80">
                   Time, room, coach
-                  {form.session_kind === 'private_pt' ? ' and member' : ''} apply
+                  {form.session_kind === 'private_pt' ? ' and members' : ''} apply
                   to{' '}
                   {seriesScope === 'one'
                     ? 'this date only'
@@ -1719,7 +1791,7 @@ export default function CalendarPage() {
                 : form.session_kind === 'coach_personal'
                 ? 'personal time is blocked on the coach diary. Members cannot book it.'
                 : form.session_kind === 'private_pt'
-                  ? 'pick the member and room here — a series books that member on every date.'
+                  ? 'pick the members and room here — a series books those members on every date.'
                   : 'the class opens automatically so you can assign a coach and add members. Coach can stay blank until later.'}
             </p>
             ) : null}
@@ -1767,7 +1839,7 @@ export default function CalendarPage() {
             ) : (
               <p className="sm:col-span-2 text-[11px] text-slate-500">
                 {form.session_kind === 'private_pt'
-                  ? 'Private PT stays off the public website. Pick the member and room on this form.'
+                  ? 'Private PT stays off the public website. Pick members and room on this form.'
                   : 'Personal time stays private on the coach diary. Members cannot book it.'}
               </p>
             )}
@@ -1814,7 +1886,7 @@ export default function CalendarPage() {
                       roster={roster}
                       emptyLabel={
                         form.session_kind === 'private_pt'
-                          ? 'No private client on this session yet. Pick the member above or search here.'
+                          ? 'No private clients on this session yet. Add members above or search here.'
                           : undefined
                       }
                       addQuery={memberQuery}

@@ -81,7 +81,7 @@ assert.match(cal, /GymDiaryColorEditor/);
 assert.match(cal, /\/dashboard\/fitgraph\/coaches/);
 assert.match(cal, /coach's calendar colour/);
 assert.doesNotMatch(cal, /onSaveCoach/);
-assert.match(cal, /Member \/ private client/);
+assert.match(cal, /Add member…/);
 assert.match(cal, /Agreed rate \(ZAR\)/);
 assert.match(cal, /store\.clients/);
 assert.match(cal, /save_calendar_sessions/);
