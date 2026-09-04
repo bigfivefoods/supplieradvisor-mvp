@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { ChevronDown, Download, Upload, X } from 'lucide-react';
@@ -10,10 +10,13 @@ import {
   useFitgraph,
 } from '@/components/fitness/FitgraphWorkbench';
 import { FormCard, StatRow, fc } from '@/components/fitness/FitForm';
-import { type FitClient } from '@/lib/fitness/fitgraph';
+import { newId, type FitClient } from '@/lib/fitness/fitgraph';
 import { omitClientRosterFields } from '@/lib/fitness/client-roster-fields';
 import { needsGymClientNumber } from '@/lib/fitness/gym-client-number';
-import { storeUsesClassSubscribe } from '@/lib/fitness/vuka-class-catalog';
+import {
+  listSubscribeClasses,
+  storeUsesClassSubscribe,
+} from '@/lib/fitness/vuka-class-catalog';
 import { MemberAllocateTable } from '@/components/fitness/MemberAllocateTable';
 import {
   gymCollectsDebitBank,
@@ -86,6 +89,11 @@ type ClientForm = {
   notes: string;
   health: InjuryFormState;
   debit_bank: DebitBankForm;
+  member: boolean;
+  privateClient: boolean;
+  planIds: string[];
+  coachId: string;
+  privateRate: string;
 };
 
 const blankForm = (): ClientForm => ({
@@ -104,6 +112,11 @@ const blankForm = (): ClientForm => ({
   notes: '',
   health: emptyInjuryForm(),
   debit_bank: emptyDebitBankForm(),
+  member: false,
+  privateClient: false,
+  planIds: [],
+  coachId: '',
+  privateRate: '',
 });
 
 export default function ClientsPage() {
@@ -119,6 +132,35 @@ export default function ClientsPage() {
   const [injuryOpen, setInjuryOpen] = useState(false);
   const classSubscribe = store ? storeUsesClassSubscribe(store) : false;
   const returnClass = search.get('returnClass');
+  const addClasses = useMemo(() => {
+    if (!store) return [];
+    if (classSubscribe) {
+      const listed = listSubscribeClasses(store);
+      if (listed.length) {
+        return listed
+          .map((c) => store.membership_plans.find((p) => p.id === c.plan_id))
+          .filter((p): p is NonNullable<typeof p> => Boolean(p));
+      }
+    }
+    return [...store.membership_plans]
+      .filter((p) => p.active !== false)
+      .sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999));
+  }, [store, classSubscribe]);
+  const addCoaches = useMemo(
+    () => (store?.coaches || []).filter((c) => c.active !== false),
+    [store?.coaches]
+  );
+
+  useEffect(() => {
+    if (!returnClass || editing) return;
+    setForm((f) => {
+      if (f.id) return f;
+      const planIds = f.planIds.includes(returnClass)
+        ? f.planIds
+        : [...f.planIds, returnClass];
+      return { ...f, member: true, planIds };
+    });
+  }, [returnClass, editing]);
 
   const openEdit = (c: FitClient) => {
     setForm({
@@ -142,6 +184,12 @@ export default function ClientsPage() {
         '',
       emergency_contact: c.emergency_contact || '',
       notes: c.notes || '',
+      member: false,
+      privateClient: c.private_client === true,
+      planIds: [],
+      coachId: c.coach_id || '',
+      privateRate:
+        c.private_rate_zar != null ? String(c.private_rate_zar) : '',
       health: healthToForm(c.health),
       debit_bank: c.debit_bank
         ? {
@@ -262,36 +310,89 @@ export default function ClientsPage() {
     }
     const health = formToHealthPayload(form.health);
     const wasNew = !form.id;
-    await post({
-      entity: 'clients',
-      action: 'upsert',
-      record: omitClientRosterFields({
-        id: form.id,
-        code: form.code,
-        name: form.name,
-        email: form.email,
-        phone: form.phone,
-        id_number: form.id_number || '',
-        photo_url: form.photo_url || '',
-        start_date: form.start_date,
-        date_of_birth: form.date_of_birth || null,
-        next_of_kin: form.next_of_kin,
-        next_of_kin_phone: form.next_of_kin_phone,
-        next_of_kin_relationship: form.next_of_kin_relationship,
-        emergency_contact:
-          form.emergency_contact ||
-          [form.next_of_kin, form.next_of_kin_relationship, form.next_of_kin_phone]
-            .filter(Boolean)
-            .join(' · '),
-        notes: form.notes,
-        debit_bank: form.debit_bank.account_number
-          ? form.debit_bank
-          : undefined,
-        ...(editing
-          ? {}
-          : { health, health_updated_by: 'desk' }),
-      }),
-    });
+    if (wasNew) {
+      if (form.member && !form.planIds.length) {
+        toast.error(classSubscribe ? 'Select a class' : 'Select a plan');
+        return;
+      }
+      if (form.privateClient && !form.coachId) {
+        toast.error('Select the coach for this private client');
+        return;
+      }
+    }
+    const privateRate =
+      form.privateRate.trim() === ''
+        ? null
+        : Number(form.privateRate.replace(',', '.'));
+    if (wasNew && form.privateClient && privateRate != null && !Number.isFinite(privateRate)) {
+      toast.error('Private rate must be a number');
+      return;
+    }
+    const id = form.id || newId('cli');
+    try {
+      await post({
+        entity: 'clients',
+        action: 'upsert',
+        record: omitClientRosterFields({
+          id,
+          code: form.code,
+          name: form.name,
+          email: form.email,
+          phone: form.phone,
+          id_number: form.id_number || '',
+          photo_url: form.photo_url || '',
+          start_date: form.start_date,
+          date_of_birth: form.date_of_birth || null,
+          next_of_kin: form.next_of_kin,
+          next_of_kin_phone: form.next_of_kin_phone,
+          next_of_kin_relationship: form.next_of_kin_relationship,
+          emergency_contact:
+            form.emergency_contact ||
+            [form.next_of_kin, form.next_of_kin_relationship, form.next_of_kin_phone]
+              .filter(Boolean)
+              .join(' · '),
+          notes: form.notes,
+          debit_bank: form.debit_bank.account_number
+            ? form.debit_bank
+            : undefined,
+          ...(editing
+            ? {}
+            : { health, health_updated_by: 'desk' }),
+        }),
+      });
+      if (wasNew && (form.member || form.privateClient)) {
+        const chargesByPlanId: Record<string, number> = {};
+        let chargedTotal = 0;
+        if (form.member) {
+          for (const planId of form.planIds) {
+            const plan = addClasses.find((p) => p.id === planId);
+            const amt = Number(plan?.price_zar) || 0;
+            chargesByPlanId[planId] = amt;
+            chargedTotal += amt;
+          }
+        }
+        await post({
+          action: 'allocate_member',
+          client_id: id,
+          inactive: false,
+          member: form.member,
+          private_client: form.privateClient,
+          plan_id: form.member ? form.planIds[0] || null : null,
+          plan_ids: form.member ? form.planIds : [],
+          charges_by_plan_id: chargesByPlanId,
+          charged_zar: form.member ? chargedTotal : privateRate,
+          coach_id: form.privateClient ? form.coachId : null,
+          private_rate_zar: privateRate,
+          status: 'active',
+          name: form.name.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim(),
+          notes: form.notes,
+        });
+      }
+    } catch {
+      return;
+    }
     toast.success(form.id ? 'Client profile updated' : 'Client saved');
     setForm(blankForm());
     setEditing(false);
@@ -640,11 +741,139 @@ export default function ClientsPage() {
               disabled={saving}
               accentClass="border-sky-300 dark:border-cyan-500"
             />
-            <p className="sm:col-span-2 lg:col-span-3 rounded-xl border border-yellow-100 bg-yellow-50/70 px-3 py-2 text-[11px] text-slate-600 dark:border-yellow-800 dark:bg-yellow-950/40 dark:text-white">
-              Member / Private / Inactive and class ticks save on the book above
-              (allocate_member). This form is who they are — contact, bank,
-              injury.
-            </p>
+            {!editing ? (
+              <div className="sm:col-span-2 lg:col-span-3 space-y-3 rounded-2xl border border-yellow-200 bg-yellow-50/70 px-3 py-3 dark:border-yellow-800 dark:bg-yellow-950/40">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                    Membership
+                  </p>
+                  <p className="text-[11px] text-slate-600 dark:text-yellow-100/80">
+                    Choose class member, private client, or both. You can leave
+                    both off and assign later on the book above.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    aria-pressed={form.member}
+                    onClick={() =>
+                      setForm((f) => ({ ...f, member: !f.member }))
+                    }
+                    className={`rounded-xl border px-3 py-1.5 text-xs font-bold ${
+                      form.member
+                        ? 'border-yellow-500 bg-yellow-300 text-yellow-950'
+                        : 'border-slate-200 bg-white text-slate-600 dark:border-white/15 dark:bg-white/5 dark:text-yellow-100'
+                    }`}
+                  >
+                    Member of a class
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={form.privateClient}
+                    onClick={() =>
+                      setForm((f) => ({
+                        ...f,
+                        privateClient: !f.privateClient,
+                      }))
+                    }
+                    className={`rounded-xl border px-3 py-1.5 text-xs font-bold ${
+                      form.privateClient
+                        ? 'border-yellow-500 bg-yellow-300 text-yellow-950'
+                        : 'border-slate-200 bg-white text-slate-600 dark:border-white/15 dark:bg-white/5 dark:text-yellow-100'
+                    }`}
+                  >
+                    Private client
+                  </button>
+                </div>
+                {form.member ? (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                      {classSubscribe ? 'Classes' : 'Plan'}
+                    </p>
+                    {addClasses.length === 0 ? (
+                      <p className="text-[11px] text-slate-500">
+                        No classes on file yet.
+                      </p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {addClasses.map((p) => {
+                          const on = form.planIds.includes(p.id);
+                          const label = p.schedule_label
+                            ? `${p.name} · ${p.schedule_label}`
+                            : p.name;
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              aria-pressed={on}
+                              onClick={() =>
+                                setForm((f) => {
+                                  if (classSubscribe) {
+                                    const planIds = on
+                                      ? f.planIds.filter((id) => id !== p.id)
+                                      : [...f.planIds, p.id];
+                                    return { ...f, planIds };
+                                  }
+                                  return { ...f, planIds: [p.id] };
+                                })
+                              }
+                              className={`rounded-xl border px-2.5 py-1 text-[11px] font-bold ${
+                                on
+                                  ? 'border-yellow-500 bg-yellow-300 text-yellow-950'
+                                  : 'border-slate-200 bg-white text-slate-700 dark:border-white/20 dark:bg-white/5 dark:text-yellow-100'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+                {form.privateClient ? (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
+                      Coach
+                      <select
+                        className={fc() + ' mt-1'}
+                        value={form.coachId}
+                        onChange={(e) =>
+                          setForm((f) => ({ ...f, coachId: e.target.value }))
+                        }
+                      >
+                        <option value="">Select coach…</option>
+                        {addCoaches.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
+                      Agreed rate (ZAR)
+                      <input
+                        className={fc() + ' mt-1'}
+                        inputMode="decimal"
+                        placeholder="Optional"
+                        value={form.privateRate}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            privateRate: e.target.value.replace(/[^0-9.,]/g, ''),
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <p className="sm:col-span-2 lg:col-span-3 rounded-xl border border-yellow-100 bg-yellow-50/70 px-3 py-2 text-[11px] text-slate-600 dark:border-yellow-800 dark:bg-yellow-950/40 dark:text-white">
+                Member / Private / Inactive and class ticks save on the book
+                above. This form is who they are — contact, bank, injury.
+              </p>
+            )}
             <label className="block text-[10px] font-black uppercase tracking-wide text-slate-500">
               Membership start
               <input
