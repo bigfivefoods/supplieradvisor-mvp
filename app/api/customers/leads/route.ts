@@ -7,9 +7,13 @@ export async function GET(request: NextRequest) {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     const status = request.nextUrl.searchParams.get('status');
     const q = (request.nextUrl.searchParams.get('q') || '').trim().toLowerCase();
-    if (!Number.isFinite(companyId)) {
+    if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!_gate.ok) return _gate.response;
     const supabase = getSupabaseServer();
     let query = supabase
       .from('leads')
@@ -131,6 +135,14 @@ export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    const companyId = Number(body.companyId);
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!_gate.ok) return _gate.response;
     const fields = [
       'name',
       'company_name',
@@ -169,12 +181,14 @@ export async function PATCH(request: NextRequest) {
       .from('leads')
       .select('status')
       .eq('id', Number(body.id))
+      .eq('profile_id', companyId)
       .maybeSingle();
 
     const { data, error } = await supabase
       .from('leads')
       .update(updates)
       .eq('id', Number(body.id))
+      .eq('profile_id', companyId)
       .select('*')
       .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -198,9 +212,17 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const id = Number(request.nextUrl.searchParams.get('id'));
+    const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     if (!Number.isFinite(id)) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!_gate.ok) return _gate.response;
     const supabase = getSupabaseServer();
-    const { error } = await supabase.from('leads').delete().eq('id', id);
+    const { error } = await supabase.from('leads').delete().eq('id', id).eq('profile_id', companyId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
   } catch (e: unknown) {
