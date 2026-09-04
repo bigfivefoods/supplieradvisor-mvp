@@ -309,7 +309,10 @@ function upsertBilledRoster(
   const today = now.slice(0, 10);
   const createOnly = opts?.createOnly === true;
   let changed = false;
+  const tombstoned = new Set(store.removed_ids?.clients || []);
   for (const row of VUKA_ROSTER) {
+    const billedId = `vuka_cli_${rosterSlug(row.name)}`;
+    if (tombstoned.has(billedId)) continue;
     let client = findRosterClient(store, row);
     if (!client) {
       const slug = rosterSlug(row.name);

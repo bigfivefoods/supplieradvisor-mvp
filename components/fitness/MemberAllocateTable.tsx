@@ -212,7 +212,9 @@ export function MemberAllocateTable({
 
   const people = useMemo(() => {
     const needle = q.trim().toLowerCase();
+    const removed = new Set(store.removed_ids?.clients || []);
     return store.clients
+      .filter((c) => !removed.has(c.id))
       .filter((c) => {
         if (stayIds[c.id]) return true;
         return statusFilter === 'active' ? isPersonActive(c) : !isPersonActive(c);
@@ -225,7 +227,7 @@ export function MemberAllocateTable({
           : true
       )
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [store.clients, q, statusFilter, stayIds]);
+  }, [store.clients, store.removed_ids?.clients, q, statusFilter, stayIds]);
 
   const isOnClass = (c: FitClient) =>
     activeSubs.some((s) => s.client_id === c.id);
