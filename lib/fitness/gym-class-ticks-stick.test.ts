@@ -13,6 +13,12 @@ const table = readFileSync(
 );
 assert.match(table, /void save\(c, merged\)/);
 assert.match(table, /const onClass = planIds.length > 0;/);
+assert.match(table, /member: planIds.length > 0/);
+assert.match(
+  table,
+  /sentUnique.length === liveUnique.length/
+);
+assert.match(table, /if \(!d\.personActive\)/);
 assert.doesNotMatch(
   table,
   /planIds.length > 0\s*\n\s*\? planIds\s*\n\s*: c\.membership_plan_id/
@@ -51,5 +57,14 @@ const getHandler = route.slice(
 assert.match(getHandler, /applyCatalog:\s*false/);
 const roster = readFileSync(resolve('lib/fitness/vuka-roster.ts'), 'utf8');
 assert.match(roster, /if \(clientHasLiveClass\(store, client\.id\)\) continue;/);
+assert.match(roster, /s\.client_id === client\.id/);
+assert.match(roster, /Clients desk owns membership/);
+
+const classesDesk = readFileSync(
+  resolve('components/fitness/ClassDeskTable.tsx'),
+  'utf8'
+);
+assert.match(classesDesk, /Change members on Clients/);
+assert.match(classesDesk, /rosterId === p.id && !classSubscribe/);
 
 console.log('gym-class-ticks-stick.test.ts ok');

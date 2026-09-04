@@ -422,6 +422,26 @@ const adaOff = store.clients.find((c) => c.id === 'cli_ada')!;
 assert.equal(adaOff.active, false);
 assert.equal(adaOff.membership_status, 'cancelled');
 
+const mercedeeDrop = allocateMemberToClass(store, {
+  clientId: 'cli_bev',
+  member: false,
+  privateClient: false,
+  planIds: [],
+  now: '2026-08-20T09:30:00.000Z',
+});
+if ('error' in mercedeeDrop) throw new Error(mercedeeDrop.error);
+const bevOpen = store.clients.find((c) => c.id === 'cli_bev')!;
+assert.equal(bevOpen.active, true);
+assert.equal(bevOpen.membership_plan_id, null);
+assert.equal(
+  store.subscriptions.some(
+    (s) =>
+      s.client_id === 'cli_bev' &&
+      (s.status === 'active' || s.status === 'trialing')
+  ),
+  false
+);
+
 const parked = allocateMemberToClass(store, {
   clientId: 'cli_bev',
   inactive: true,

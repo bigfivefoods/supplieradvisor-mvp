@@ -466,7 +466,7 @@ export function MemberAllocateTable({
       planIds,
       planId: planIds[0] || '',
       personActive: true,
-      member: true,
+      member: planIds.length > 0,
       status: 'active',
       charges,
     };
@@ -512,7 +512,7 @@ export function MemberAllocateTable({
       toast.error('Name required');
       return;
     }
-    if (!d.personActive || (!d.member && !d.privateClient)) {
+    if (!d.personActive) {
       await parkPerson(c, {
         ...d,
         personActive: false,
@@ -582,9 +582,11 @@ export function MemberAllocateTable({
             (s.status === 'active' || s.status === 'trialing')
         )
         .map((s) => s.plan_id);
+      const liveUnique = [...new Set(livePlanIds)];
+      const sentUnique = [...new Set(planIds)];
       const storeMatchesSent =
-        planIds.length === 0 ||
-        planIds.every((id) => livePlanIds.includes(id));
+        sentUnique.length === liveUnique.length &&
+        sentUnique.every((id) => liveUnique.includes(id));
       if (storeMatchesSent) {
         setDrafts((prev) => {
           const next = { ...prev };

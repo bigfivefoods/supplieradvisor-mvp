@@ -656,15 +656,24 @@ export function ClassDeskTable({
                 .map((c) => c.name)
                 .join(', ') || 'Nobody booked yet'}
             </p>
-            <button
-              type="button"
-              className="mt-2 rounded-xl border border-[#E8E830] bg-[#E8E830] px-3 py-2 text-xs font-black text-slate-900"
-              onClick={() => openRoster(opts.plan!.id)}
-            >
-              {rosterId === opts.plan.id
-                ? 'Hide booked members'
-                : 'Add / drop booked members'}
-            </button>
+            {classSubscribe ? (
+              <Link
+                href="/dashboard/fitgraph/clients"
+                className="mt-2 inline-flex rounded-xl border border-[#E8E830] bg-[#E8E830] px-3 py-2 text-xs font-black text-slate-900"
+              >
+                Change members on Clients
+              </Link>
+            ) : (
+              <button
+                type="button"
+                className="mt-2 rounded-xl border border-[#E8E830] bg-[#E8E830] px-3 py-2 text-xs font-black text-slate-900"
+                onClick={() => openRoster(opts.plan!.id)}
+              >
+                {rosterId === opts.plan.id
+                  ? 'Hide booked members'
+                  : 'Add / drop booked members'}
+              </button>
+            )}
           </div>
         ) : null}
 
@@ -939,7 +948,7 @@ export function ClassDeskTable({
                 {open
                   ? renderEditor(d, (patch) => setRow(p.id, patch), { plan: p })
                   : null}
-                {rosterId === p.id ? renderRoster(p) : null}
+                {rosterId === p.id && !classSubscribe ? renderRoster(p) : null}
               </div>
             );
           })
