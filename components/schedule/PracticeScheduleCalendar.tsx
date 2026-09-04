@@ -1282,7 +1282,13 @@ export function PracticeScheduleCalendar({
                     style={{
                       top,
                       height: h,
-                      minHeight: compact ? (ev.meta ? 36 : 18) : ev.meta ? 48 : 28,
+                      minHeight: compact
+                        ? ev.meta || ev.person_name
+                          ? 36
+                          : 18
+                        : ev.meta
+                          ? 48
+                          : 28,
                       left: `calc(${leftPct}% + 2px)`,
                       width: `calc(${widthPct}% - 4px)`,
                       ...(paint.style || {}),
@@ -1297,9 +1303,16 @@ export function PracticeScheduleCalendar({
                       {!compact ? ` · ${ev.title}` : ''}
                     </div>
                     {compact ? (
-                      <div className="text-[8px] font-semibold truncate opacity-90">
-                        {ev.title}
-                      </div>
+                      <>
+                        <div className="text-[8px] font-semibold truncate opacity-90">
+                          {ev.title}
+                        </div>
+                        {ev.person_name ? (
+                          <div className="text-[8px] truncate opacity-80">
+                            {ev.person_name}
+                          </div>
+                        ) : null}
+                      </>
                     ) : ev.person_name ? (
                       <div className="text-[10px] opacity-80 truncate">
                         {ev.person_name}

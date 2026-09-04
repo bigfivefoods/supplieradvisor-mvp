@@ -18,10 +18,7 @@ import {
   toneLinkClass,
 } from '@/components/fitness/FitForm';
 import { sessionBookingCount } from '@/lib/fitness/fitgraph';
-import {
-  sessionRosterNames,
-  sessionRosterRows,
-} from '@/lib/fitness/class-allocate';
+import { sessionRosterRows } from '@/lib/fitness/class-allocate';
 import { ClassBookedRoster } from '@/components/fitness/ClassBookedRoster';
 import { ProgrammeView } from '@/components/fitness/ProgrammeView';
 import {
@@ -297,26 +294,6 @@ export default function CalendarPage() {
               : kind === 'private_pt'
                 ? `PT · ${ct?.name || 'Personal training'}`
                 : ct?.name || 'Class';
-        const names = sessionRosterNames(store, s.id);
-        const namePreview =
-          names.length === 0
-            ? kind === 'class'
-              ? 'Nobody booked'
-              : ''
-            : names.join(', ');
-        const rateLabel =
-          kind === 'private_pt'
-            ? formatAgreedRateZar(
-                s.agreed_rate_zar ??
-                  store.clients.find((c) => names.includes(c.name))
-                    ?.private_rate_zar ??
-                  store.clients.find((c) =>
-                    sessionRosterRows(store, s.id).some(
-                      (r) => r.client_id === c.id
-                    )
-                  )?.private_rate_zar
-              )
-            : null;
         const paint = gymCalendarPaint(store, s);
         return {
           id: s.id,
@@ -337,7 +314,7 @@ export default function CalendarPage() {
               ? staffAwayTitle(s.personal_reason)
               : kind === 'coach_personal'
                 ? `Personal block${s.room ? ` · ${s.room}` : ''}`
-                : [namePreview, rateLabel].filter(Boolean).join(' · '),
+                : undefined,
           tone: sessionKindTone(kind),
           color: paint.color,
           stripeColor: paint.stripeColor,
@@ -2094,15 +2071,6 @@ export default function CalendarPage() {
                           <p className="text-[10px] font-black uppercase tracking-wide text-sky-800 dark:text-sky-200">
                             Booked members · {booked}
                           </p>
-                          {roster.length === 0 ? (
-                            <p className="text-[11px] text-slate-500 mt-1">
-                              Nobody booked yet.
-                            </p>
-                          ) : (
-                            <p className="text-[11px] text-slate-700 dark:text-slate-200 mt-1">
-                              {roster.map((b) => b.name).join(', ')}
-                            </p>
-                          )}
                           <button
                             type="button"
                             className="mt-1 text-[11px] font-bold text-sky-700 dark:text-sky-300 underline"
@@ -2111,7 +2079,7 @@ export default function CalendarPage() {
                               setAddMemberIds([]);
                             }}
                           >
-                            Open roster
+                            Open to see members
                           </button>
                         </div>
                       )}
@@ -2159,14 +2127,7 @@ export default function CalendarPage() {
                     coach?.name || '—',
                     s.location || '—',
                     s.capacity ?? '—',
-                    (() => {
-                      const names = sessionRosterNames(store, s.id);
-                      const n = sessionBookingCount(store, s.id);
-                      if (!names.length) return `${n}`;
-                      return names.length <= 2
-                        ? `${n} · ${names.join(', ')}`
-                        : `${n} · ${names.slice(0, 2).join(', ')} +${names.length - 2}`;
-                    })(),
+                    String(sessionBookingCount(store, s.id)),
                     s.public ? 'Public' : 'Private',
                     s.status,
                   ],
