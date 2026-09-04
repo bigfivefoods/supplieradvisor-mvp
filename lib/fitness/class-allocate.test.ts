@@ -1026,6 +1026,36 @@ assert.equal(
   'active'
 );
 
+const michelle = roster.clients.find((c) => c.id === 'cli_eve')!;
+michelle.active = false;
+michelle.membership_status = 'cancelled';
+michelle.membership_plan_id = null;
+michelle.private_client = true;
+michelle.coach_id = 'coh_gone';
+for (const s of roster.subscriptions) {
+  if (s.client_id === michelle.id) s.status = 'cancelled';
+}
+const rejoinMichelle = allocateMemberToClass(roster, {
+  clientId: 'cli_eve',
+  member: true,
+  privateClient: false,
+  planIds: [rBoot.id],
+  coachId: 'coh_gone',
+  now: '2026-08-20T13:10:00.000Z',
+});
+if ('error' in rejoinMichelle) throw new Error(rejoinMichelle.error);
+assert.equal(roster.clients.find((c) => c.id === 'cli_eve')?.active, true);
+assert.equal(
+  roster.subscriptions.find(
+    (s) => s.client_id === 'cli_eve' && s.plan_id === rBoot.id
+  )?.status,
+  'active'
+);
+assert.equal(
+  roster.clients.find((c) => c.id === 'cli_eve')?.membership_plan_id,
+  rBoot.id
+);
+
 const picker = emptyFitgraphStore();
 picker.settings = { ...picker.settings, class_subscribe: true };
 picker.membership_plans.push({

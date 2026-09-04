@@ -19,6 +19,15 @@ assert.match(
   /sentUnique.length === liveUnique.length/
 );
 assert.match(table, /if \(!d\.personActive\)/);
+assert.match(
+  table,
+  /privateClient: isPersonActive\(c\) && c\.private_client === true/
+);
+assert.match(table, /setStatusFilter\('active'\)/);
+assert.match(
+  table,
+  /if \(!d\.personActive\) \{\s*const next: Partial<Draft> = \{\s*personActive: true/
+);
 assert.doesNotMatch(
   table,
   /planIds.length > 0\s*\n\s*\? planIds\s*\n\s*: c\.membership_plan_id/

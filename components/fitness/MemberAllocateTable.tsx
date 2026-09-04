@@ -322,7 +322,7 @@ export function MemberAllocateTable({
       notes: c.notes || '',
       personActive: isPersonActive(c),
       member: onClass,
-      privateClient: c.private_client === true,
+      privateClient: isPersonActive(c) && c.private_client === true,
       planId: primary?.plan_id || planIds[0] || '',
       planIds,
       charges,
@@ -358,6 +358,7 @@ export function MemberAllocateTable({
     setDraft(c.id, patch);
     if (next) {
       setOpenId(c.id);
+      setStayIds((prev) => ({ ...prev, [c.id]: true }));
       // Do not POST until a class is chosen. Saving member-on with
       // empty plan_ids parks them again and the Inactive chip snaps back.
       if (!selectedPlanIds(merged).length) return;
@@ -379,7 +380,22 @@ export function MemberAllocateTable({
   };
 
   const toggleInactive = (c: FitClient, d: Draft) => {
-    if (!d.personActive) return;
+    if (!d.personActive) {
+      const next: Partial<Draft> = {
+        personActive: true,
+        member: false,
+        privateClient: false,
+        planIds: [],
+        planId: '',
+        status: 'active',
+      };
+      const merged: Draft = { ...d, ...next };
+      setDraft(c.id, next);
+      setOpenId(c.id);
+      setStayIds((prev) => ({ ...prev, [c.id]: true }));
+      void save(c, merged);
+      return;
+    }
     const next: Partial<Draft> = {
       personActive: false,
       member: false,
@@ -593,6 +609,8 @@ export function MemberAllocateTable({
           delete next[c.id];
           return next;
         });
+        setStayIds((prev) => ({ ...prev, [c.id]: true }));
+        if (!isPersonActive(c)) setStatusFilter('active');
         toast.success((data?.message as string) || 'Saved');
       } else {
         toast.error('Save may not have stuck — please verify and try again');
