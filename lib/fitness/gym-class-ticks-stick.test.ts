@@ -18,16 +18,16 @@ assert.match(
   table,
   /sentUnique.length === liveUnique.length/
 );
-assert.match(table, /if \(!d\.personActive\)/);
+assert.match(table, /if \(!d\.personActive\) return;/);
+assert.match(
+  table,
+  /member: isPersonActive\(c\) && onClass/
+);
 assert.match(
   table,
   /privateClient: isPersonActive\(c\) && c\.private_client === true/
 );
 assert.match(table, /setStatusFilter\('active'\)/);
-assert.match(
-  table,
-  /if \(!d\.personActive\) \{\s*const next: Partial<Draft> = \{\s*personActive: true/
-);
 assert.doesNotMatch(
   table,
   /planIds.length > 0\s*\n\s*\? planIds\s*\n\s*: c\.membership_plan_id/
@@ -68,6 +68,8 @@ const roster = readFileSync(resolve('lib/fitness/vuka-roster.ts'), 'utf8');
 assert.match(roster, /if \(clientHasLiveClass\(store, client\.id\)\) continue;/);
 assert.match(roster, /s\.client_id === client\.id/);
 assert.match(roster, /Clients desk owns membership/);
+assert.match(alloc, /export function healParkedGymMembership/);
+assert.match(persist, /healParkedGymMembership/);
 
 const classesDesk = readFileSync(
   resolve('components/fitness/ClassDeskTable.tsx'),

@@ -321,7 +321,7 @@ export function MemberAllocateTable({
       phone: c.phone || '',
       notes: c.notes || '',
       personActive: isPersonActive(c),
-      member: onClass,
+      member: isPersonActive(c) && onClass,
       privateClient: isPersonActive(c) && c.private_client === true,
       planId: primary?.plan_id || planIds[0] || '',
       planIds,
@@ -380,22 +380,7 @@ export function MemberAllocateTable({
   };
 
   const toggleInactive = (c: FitClient, d: Draft) => {
-    if (!d.personActive) {
-      const next: Partial<Draft> = {
-        personActive: true,
-        member: false,
-        privateClient: false,
-        planIds: [],
-        planId: '',
-        status: 'active',
-      };
-      const merged: Draft = { ...d, ...next };
-      setDraft(c.id, next);
-      setOpenId(c.id);
-      setStayIds((prev) => ({ ...prev, [c.id]: true }));
-      void save(c, merged);
-      return;
-    }
+    if (!d.personActive) return;
     const next: Partial<Draft> = {
       personActive: false,
       member: false,

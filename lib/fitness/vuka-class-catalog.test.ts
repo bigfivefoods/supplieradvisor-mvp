@@ -463,11 +463,11 @@ void (async () => {
     },
     { applyCatalog: false }
   );
-  assert.equal(deskSaved, 0);
+  assert.equal(deskSaved, 1);
   assert.equal(deskHeld.clients.length, 1);
   assert.equal(deskHeld.clients[0].active, false);
   assert.equal(deskHeld.clients[0].membership_status, 'cancelled');
-  assert.equal(deskHeld.clients[0].membership_plan_id, 'vuka_pln_boot_1730');
+  assert.equal(deskHeld.clients[0].membership_plan_id, null);
 
   const orphan = emptyFitgraphStore();
   orphan.settings = {

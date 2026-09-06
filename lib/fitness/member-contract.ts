@@ -433,16 +433,27 @@ export function applyContractSubmissions(
       changed = true;
     }
     const before = JSON.stringify(client);
-    let next: FitClient = {
-      ...client,
-      active: true,
-      membership_status:
-        client.membership_status === 'expired' || client.active === false
-          ? 'active'
-          : client.membership_status || 'active',
-    };
+    const parked =
+      client.active === false ||
+      client.membership_status === 'cancelled' ||
+      client.membership_status === 'expired';
+    let next: FitClient = parked
+      ? { ...client }
+      : {
+          ...client,
+          active: true,
+          membership_status:
+            client.membership_status === 'expired' || client.active === false
+              ? 'active'
+              : client.membership_status || 'active',
+        };
     for (const sub of [...ordered].reverse()) {
       next = applyContractToClient(next, sub, now);
+    }
+    if (parked) {
+      next.active = false;
+      next.membership_status = client.membership_status;
+      next.membership_plan_id = null;
     }
     const titled = asKind(latest.kind) === 'private'
       ? 'Private contract on file'
