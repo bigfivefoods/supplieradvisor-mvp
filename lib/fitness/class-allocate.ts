@@ -35,6 +35,11 @@ import {
   findSessionSeat,
   pickPreferredBooking,
 } from '@/lib/fitness/gym-bookings';
+import {
+  digitsOnly,
+  SA_DEBIT_BANKS,
+  type FitMemberDebitBank,
+} from '@/lib/fitness/member-debit-bank';
 
 const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -909,6 +914,22 @@ export function allocateMemberToClass(
       email?: string;
       phone?: string;
       notes?: string;
+      code?: string;
+      id_number?: string;
+      date_of_birth?: string | null;
+      start_date?: string | null;
+      occupation?: string;
+      address?: string;
+      next_of_kin?: string;
+      next_of_kin_phone?: string;
+      next_of_kin_relationship?: string;
+      emergency_contact?: string;
+      heard_about?: string;
+      employer_student_number?: string;
+      gp_contact?: string;
+      medical_aid_scheme?: string;
+      medical_aid_plan?: string;
+      debit_bank?: Partial<FitMemberDebitBank> | null;
     };
     /** Desk: keep the person on file without a class or private coach. */
     inactive?: boolean;
@@ -929,19 +950,113 @@ export function allocateMemberToClass(
 
   const applyPerson = () => {
     if (!opts.person) return;
-    if (opts.person.name != null && String(opts.person.name).trim()) {
-      client.name = String(opts.person.name).trim();
+    const p = opts.person;
+    const trimOrEmpty = (raw: unknown) => String(raw ?? '').trim();
+    const setText = (
+      key:
+        | 'email'
+        | 'phone'
+        | 'id_number'
+        | 'occupation'
+        | 'address'
+        | 'next_of_kin'
+        | 'next_of_kin_phone'
+        | 'next_of_kin_relationship'
+        | 'emergency_contact'
+        | 'heard_about'
+        | 'employer_student_number'
+        | 'gp_contact'
+        | 'notes',
+      raw: unknown
+    ) => {
+      if (raw === undefined) return;
+      const t = trimOrEmpty(raw);
+      client[key] = t || undefined;
+    };
+    if (p.name != null && trimOrEmpty(p.name)) {
+      client.name = trimOrEmpty(p.name);
     }
-    if (opts.person.email !== undefined) {
-      const email = String(opts.person.email || '').trim();
-      client.email = email || undefined;
+    if (p.code !== undefined && trimOrEmpty(p.code)) {
+      client.code = trimOrEmpty(p.code);
     }
-    if (opts.person.phone !== undefined) {
-      const phone = String(opts.person.phone || '').trim();
-      client.phone = phone || undefined;
+    setText('email', p.email);
+    setText('phone', p.phone);
+    setText('notes', p.notes);
+    setText('id_number', p.id_number);
+    setText('occupation', p.occupation);
+    setText('address', p.address);
+    setText('next_of_kin', p.next_of_kin);
+    setText('next_of_kin_phone', p.next_of_kin_phone);
+    setText('next_of_kin_relationship', p.next_of_kin_relationship);
+    setText('emergency_contact', p.emergency_contact);
+    setText('heard_about', p.heard_about);
+    setText('employer_student_number', p.employer_student_number);
+    setText('gp_contact', p.gp_contact);
+    if (p.date_of_birth !== undefined) {
+      const d = trimOrEmpty(p.date_of_birth).slice(0, 10);
+      client.date_of_birth = d || null;
     }
-    if (opts.person.notes !== undefined) {
-      client.notes = String(opts.person.notes || '');
+    if (p.start_date !== undefined) {
+      const d = trimOrEmpty(p.start_date).slice(0, 10);
+      client.start_date = d || null;
+    }
+    if (p.gp_contact !== undefined) {
+      const gp = trimOrEmpty(p.gp_contact);
+      client.medical = {
+        ...(client.medical || {}),
+        gp_name: gp || client.medical?.gp_name,
+      };
+    }
+    if (p.address !== undefined) {
+      const addr = trimOrEmpty(p.address);
+      if (addr) {
+        client.medical = { ...(client.medical || {}), address: addr };
+      }
+    }
+    if (
+      p.medical_aid_scheme !== undefined ||
+      p.medical_aid_plan !== undefined
+    ) {
+      const scheme = trimOrEmpty(
+        p.medical_aid_scheme ?? client.medical?.medical_aid?.scheme_name
+      );
+      const plan = trimOrEmpty(
+        p.medical_aid_plan ?? client.medical?.medical_aid?.plan_name
+      );
+      client.medical = {
+        ...(client.medical || {}),
+        medical_aid: {
+          ...(client.medical?.medical_aid || {}),
+          ...(scheme ? { scheme_name: scheme } : {}),
+          ...(plan ? { plan_name: plan } : {}),
+        },
+      };
+    }
+    if (p.debit_bank !== undefined && p.debit_bank && typeof p.debit_bank === 'object') {
+      const rec = p.debit_bank;
+      const acct = digitsOnly(rec.account_number);
+      if (acct.length >= 6) {
+        const bankName = trimOrEmpty(rec.bank_name);
+        const known = SA_DEBIT_BANKS.find(
+          (b) => b.name.toLowerCase() === bankName.toLowerCase()
+        );
+        const branch =
+          digitsOnly(rec.branch_code) || known?.branch_code || '';
+        client.debit_bank = {
+          account_holder:
+            trimOrEmpty(rec.account_holder) || client.name,
+          bank_name: bankName || client.debit_bank?.bank_name || '',
+          account_number: acct,
+          branch_code: branch,
+          account_type: trimOrEmpty(rec.account_type) || 'cheque',
+          debit_order_authorised: rec.debit_order_authorised === true,
+          authorised_at:
+            rec.debit_order_authorised === true
+              ? now
+              : client.debit_bank?.authorised_at,
+          updated_at: now,
+        };
+      }
     }
   };
 

@@ -288,6 +288,44 @@ assert.equal(bev.private_client, true);
 assert.equal(bev.coach_id, 'coh_pat');
 assert.equal(bev.private_rate_zar, 650);
 
+const fileSave = allocateMemberToClass(store, {
+  clientId: 'cli_bev',
+  member: true,
+  privateClient: true,
+  planIds: [boot.id],
+  coachId: 'coh_pat',
+  person: {
+    name: 'Beverly File',
+    email: 'bev@test.com',
+    phone: '0820000000',
+    notes: 'Desk note',
+    id_number: '9102060069080',
+    occupation: 'Home executive',
+    address: '41 South Road',
+    next_of_kin: 'Sam',
+    next_of_kin_phone: '0830000000',
+    start_date: '2026-03-01',
+    date_of_birth: '1991-02-06',
+    debit_bank: {
+      account_holder: 'Beverly File',
+      bank_name: 'Capitec',
+      account_number: '1516130039',
+      branch_code: '470010',
+      account_type: 'savings',
+      debit_order_authorised: true,
+    },
+  },
+  now: '2026-08-17T10:01:00.000Z',
+});
+if ('error' in fileSave) throw new Error(fileSave.error);
+const bevFile = store.clients.find((c) => c.id === 'cli_bev')!;
+assert.equal(bevFile.id_number, '9102060069080');
+assert.equal(bevFile.occupation, 'Home executive');
+assert.equal(bevFile.address, '41 South Road');
+assert.equal(bevFile.next_of_kin, 'Sam');
+assert.equal(bevFile.debit_bank?.bank_name, 'Capitec');
+assert.equal(bevFile.debit_bank?.account_number, '1516130039');
+
 const missingCoach = allocateMemberToClass(store, {
   clientId: 'cli_bev',
   kind: 'private',

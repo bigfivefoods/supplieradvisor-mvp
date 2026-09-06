@@ -1367,12 +1367,74 @@ export async function POST(request: NextRequest) {
         body.name !== undefined ||
         body.email !== undefined ||
         body.phone !== undefined ||
-        body.notes !== undefined
+        body.notes !== undefined ||
+        body.code !== undefined ||
+        body.id_number !== undefined ||
+        body.date_of_birth !== undefined ||
+        body.start_date !== undefined ||
+        body.occupation !== undefined ||
+        body.address !== undefined ||
+        body.next_of_kin !== undefined ||
+        body.next_of_kin_phone !== undefined ||
+        body.next_of_kin_relationship !== undefined ||
+        body.emergency_contact !== undefined ||
+        body.heard_about !== undefined ||
+        body.employer_student_number !== undefined ||
+        body.gp_contact !== undefined ||
+        body.medical_aid_scheme !== undefined ||
+        body.medical_aid_plan !== undefined ||
+        body.debit_bank !== undefined
           ? {
               name: body.name != null ? String(body.name) : undefined,
               email: body.email != null ? String(body.email) : undefined,
               phone: body.phone != null ? String(body.phone) : undefined,
               notes: body.notes != null ? String(body.notes) : undefined,
+              code: body.code != null ? String(body.code) : undefined,
+              id_number:
+                body.id_number != null ? String(body.id_number) : undefined,
+              date_of_birth:
+                body.date_of_birth != null
+                  ? String(body.date_of_birth)
+                  : undefined,
+              start_date:
+                body.start_date != null ? String(body.start_date) : undefined,
+              occupation:
+                body.occupation != null ? String(body.occupation) : undefined,
+              address: body.address != null ? String(body.address) : undefined,
+              next_of_kin:
+                body.next_of_kin != null ? String(body.next_of_kin) : undefined,
+              next_of_kin_phone:
+                body.next_of_kin_phone != null
+                  ? String(body.next_of_kin_phone)
+                  : undefined,
+              next_of_kin_relationship:
+                body.next_of_kin_relationship != null
+                  ? String(body.next_of_kin_relationship)
+                  : undefined,
+              emergency_contact:
+                body.emergency_contact != null
+                  ? String(body.emergency_contact)
+                  : undefined,
+              heard_about:
+                body.heard_about != null ? String(body.heard_about) : undefined,
+              employer_student_number:
+                body.employer_student_number != null
+                  ? String(body.employer_student_number)
+                  : undefined,
+              gp_contact:
+                body.gp_contact != null ? String(body.gp_contact) : undefined,
+              medical_aid_scheme:
+                body.medical_aid_scheme != null
+                  ? String(body.medical_aid_scheme)
+                  : undefined,
+              medical_aid_plan:
+                body.medical_aid_plan != null
+                  ? String(body.medical_aid_plan)
+                  : undefined,
+              debit_bank:
+                body.debit_bank && typeof body.debit_bank === 'object'
+                  ? (body.debit_bank as Record<string, unknown>)
+                  : undefined,
             }
           : undefined;
       const inactive = body.inactive === true;

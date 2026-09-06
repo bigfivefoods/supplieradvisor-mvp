@@ -87,6 +87,11 @@ type ClientForm = {
   next_of_kin_relationship: string;
   emergency_contact: string;
   notes: string;
+  occupation: string;
+  address: string;
+  heard_about: string;
+  employer_student_number: string;
+  gp_contact: string;
   health: InjuryFormState;
   debit_bank: DebitBankForm;
   member: boolean;
@@ -110,6 +115,11 @@ const blankForm = (): ClientForm => ({
   next_of_kin_relationship: '',
   emergency_contact: '',
   notes: '',
+  occupation: '',
+  address: '',
+  heard_about: '',
+  employer_student_number: '',
+  gp_contact: '',
   health: emptyInjuryForm(),
   debit_bank: emptyDebitBankForm(),
   member: false,
@@ -184,6 +194,11 @@ export default function ClientsPage() {
         '',
       emergency_contact: c.emergency_contact || '',
       notes: c.notes || '',
+      occupation: c.occupation || '',
+      address: c.address || c.medical?.address || '',
+      heard_about: c.heard_about || '',
+      employer_student_number: c.employer_student_number || '',
+      gp_contact: c.gp_contact || c.medical?.gp_name || '',
       member: false,
       privateClient: c.private_client === true,
       planIds: [],
@@ -352,12 +367,16 @@ export default function ClientsPage() {
               .filter(Boolean)
               .join(' · '),
           notes: form.notes,
+          occupation: form.occupation,
+          address: form.address,
+          heard_about: form.heard_about,
+          employer_student_number: form.employer_student_number,
+          gp_contact: form.gp_contact,
           debit_bank: form.debit_bank.account_number
             ? form.debit_bank
             : undefined,
-          ...(editing
-            ? {}
-            : { health, health_updated_by: 'desk' }),
+          health,
+          health_updated_by: 'desk',
         }),
       });
       if (wasNew && (form.member || form.privateClient)) {
@@ -940,6 +959,49 @@ export default function ClientsPage() {
                 }))
               }
             />
+            <input
+              className={fc()}
+              placeholder="Occupation"
+              value={form.occupation}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, occupation: e.target.value }))
+              }
+            />
+            <input
+              className={fc() + ' sm:col-span-2'}
+              placeholder="Address"
+              value={form.address}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, address: e.target.value }))
+              }
+            />
+            <input
+              className={fc()}
+              placeholder="Heard about us"
+              value={form.heard_about}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, heard_about: e.target.value }))
+              }
+            />
+            <input
+              className={fc()}
+              placeholder="Employer / student no."
+              value={form.employer_student_number}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  employer_student_number: e.target.value,
+                }))
+              }
+            />
+            <input
+              className={fc()}
+              placeholder="GP"
+              value={form.gp_contact}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, gp_contact: e.target.value }))
+              }
+            />
             {store && gymCollectsDebitBank(store) ? (
               <div className="sm:col-span-2 lg:col-span-3">
                 <MemberDebitBankFields
@@ -965,44 +1027,42 @@ export default function ClientsPage() {
               }
             />
 
-            {!editing ? (
-              <div className="sm:col-span-2 lg:col-span-3">
-                <button
-                  type="button"
-                  onClick={() => setInjuryOpen((v) => !v)}
-                  className="flex w-full items-center justify-between gap-2 rounded-2xl border border-teal-200 bg-teal-50/70 px-3 py-2.5 text-left dark:border-teal-800 dark:bg-teal-950/40"
-                  aria-expanded={injuryOpen}
-                >
-                  <span>
-                    <span className="flex items-center gap-2 text-sm font-black text-teal-950 dark:text-teal-100">
-                      <ChevronDown
-                        className={`h-4 w-4 transition-transform ${
-                          injuryOpen ? '' : '-rotate-90'
-                        }`}
-                      />
-                      Injury & recovery
-                    </span>
-                    <span className="mt-0.5 block text-[11px] text-slate-500">
-                      {form.health.injured
-                        ? 'Injured / managing an ailment — open to edit details'
-                        : 'Closed by default. Open only if this member needs session modifications.'}
-                    </span>
-                  </span>
-                </button>
-                {injuryOpen ? (
-                  <div className="mt-2">
-                    <InjuryProfileFields
-                      variant="coach"
-                      value={form.health}
-                      onChange={(health) =>
-                        setForm((f) => ({ ...f, health }))
-                      }
-                      inputClass={fc()}
+            <div className="sm:col-span-2 lg:col-span-3">
+              <button
+                type="button"
+                onClick={() => setInjuryOpen((v) => !v)}
+                className="flex w-full items-center justify-between gap-2 rounded-2xl border border-teal-200 bg-teal-50/70 px-3 py-2.5 text-left dark:border-teal-800 dark:bg-teal-950/40"
+                aria-expanded={injuryOpen}
+              >
+                <span>
+                  <span className="flex items-center gap-2 text-sm font-black text-teal-950 dark:text-teal-100">
+                    <ChevronDown
+                      className={`h-4 w-4 transition-transform ${
+                        injuryOpen ? '' : '-rotate-90'
+                      }`}
                     />
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
+                    Injury & recovery
+                  </span>
+                  <span className="mt-0.5 block text-[11px] text-slate-500">
+                    {form.health.injured
+                      ? 'Injured / managing an ailment — open to edit details'
+                      : 'Closed by default. Open only if this member needs session modifications.'}
+                  </span>
+                </span>
+              </button>
+              {injuryOpen ? (
+                <div className="mt-2">
+                  <InjuryProfileFields
+                    variant="coach"
+                    value={form.health}
+                    onChange={(health) =>
+                      setForm((f) => ({ ...f, health }))
+                    }
+                    inputClass={fc()}
+                  />
+                </div>
+              ) : null}
+            </div>
           </FormCard>
           </div>
 
