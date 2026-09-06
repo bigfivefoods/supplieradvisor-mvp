@@ -950,7 +950,14 @@ export function allocateMemberToClass(
     let cancelled = 0;
     for (const other of store.subscriptions) {
       if (other.client_id !== client.id) continue;
-      if (other.status !== 'active' && other.status !== 'trialing') continue;
+      if (
+        other.status !== 'active' &&
+        other.status !== 'trialing' &&
+        other.status !== 'past_due' &&
+        other.status !== 'paused'
+      ) {
+        continue;
+      }
       other.status = 'cancelled';
       other.cancel_at = today;
       other.updated_at = now;
@@ -1246,6 +1253,44 @@ export function allocateMemberToClass(
   recomputeClientClassDenorm(store, client.id, now);
 
   return { subscription: sub, booked, cancelled };
+}
+
+/** Clients desk Inactive must win: parked people cannot keep a live class. */
+export function healParkedGymMembership(
+  store: FitgraphStore,
+  now?: string
+): boolean {
+  const ts = now || new Date().toISOString();
+  const today = ts.slice(0, 10);
+  let changed = false;
+  for (const client of store.clients || []) {
+    const parked =
+      client.active === false ||
+      client.membership_status === 'cancelled' ||
+      client.membership_status === 'expired';
+    if (!parked) continue;
+    for (const sub of store.subscriptions || []) {
+      if (sub.client_id !== client.id) continue;
+      if (
+        sub.status !== 'active' &&
+        sub.status !== 'trialing' &&
+        sub.status !== 'past_due' &&
+        sub.status !== 'paused'
+      ) {
+        continue;
+      }
+      sub.status = 'cancelled';
+      sub.cancel_at = today;
+      sub.updated_at = ts;
+      changed = true;
+    }
+    if (client.membership_plan_id) {
+      client.membership_plan_id = null;
+      client.updated_at = ts;
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 /** Active people the class roster can tick — no cap. Search name, code, email, phone. */

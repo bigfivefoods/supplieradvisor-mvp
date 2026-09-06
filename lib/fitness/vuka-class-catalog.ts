@@ -1568,10 +1568,10 @@ export async function persistVukaCatalogIfNeeded(
   const absorbed = absorbKnownClientAliases(next);
   next = absorbed.store;
   dirty = dirty || absorbed.changed;
+  const { healParkedGymMembership, ensureSubscribePlanClassTypes } =
+    await import('@/lib/fitness/class-allocate');
+  if (healParkedGymMembership(next)) dirty = true;
   if (dropRetiredVukaCoaches(next)) dirty = true;
-  const { ensureSubscribePlanClassTypes } = await import(
-    '@/lib/fitness/class-allocate'
-  );
   if (ensureSubscribePlanClassTypes(next)) dirty = true;
   if (applyCatalog) {
     if (ensureDemoShopProgramme(next)) dirty = true;

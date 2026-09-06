@@ -237,6 +237,17 @@ function attachContractRates(
   let changed = false;
   for (const client of store.clients || []) {
     if (client.active === false) continue;
+    if (
+      client.membership_status === 'cancelled' ||
+      client.membership_status === 'expired'
+    ) {
+      continue;
+    }
+    if (
+      (store.subscriptions || []).some((s) => s.client_id === client.id)
+    ) {
+      continue;
+    }
     const latest = [...(client.contracts || [])].sort((a, b) =>
       String(b.submitted_at || '').localeCompare(String(a.submitted_at || ''))
     )[0];

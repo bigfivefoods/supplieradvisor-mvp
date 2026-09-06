@@ -24,6 +24,7 @@ import {
   sessionRosterNames,
   sessionRosterRows,
   setClassMembers,
+  healParkedGymMembership,
   stampCatalogSeriesAndBookSubscribers,
   suggestClassSchedule,
   updateClassDesk,
@@ -950,6 +951,26 @@ const eveParked = roster.clients.find((c) => c.id === 'cli_eve')!;
 assert.equal(eveParked.active, false);
 assert.equal(eveParked.membership_status, 'cancelled');
 assert.equal(eveParked.membership_plan_id, null);
+
+const mariam = roster.clients.find((c) => c.id === 'cli_eve')!;
+mariam.active = false;
+mariam.membership_status = 'cancelled';
+mariam.membership_plan_id = rBoot.id;
+roster.subscriptions.push({
+  id: 'sub_mariam_ghost',
+  client_id: 'cli_eve',
+  plan_id: rBoot.id,
+  status: 'active',
+  started_at: '2026-08-01',
+  created_at: '2026-08-01T00:00:00.000Z',
+  updated_at: '2026-08-01T00:00:00.000Z',
+});
+assert.equal(healParkedGymMembership(roster, '2026-08-20T10:30:00.000Z'), true);
+assert.equal(roster.clients.find((c) => c.id === 'cli_eve')?.membership_plan_id, null);
+assert.equal(
+  roster.subscriptions.find((s) => s.id === 'sub_mariam_ghost')?.status,
+  'cancelled'
+);
 assert.equal(
   roster.subscriptions.some(
     (s) =>
