@@ -13,10 +13,15 @@ import {
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
 import { listSubscribeClasses } from '@/lib/fitness/vuka-class-catalog';
+import { memberImportedSummaryLine } from '@/components/fitness/MemberMembershipFacts';
 import {
-  MemberMembershipFacts,
-  memberImportedSummaryLine,
-} from '@/components/fitness/MemberMembershipFacts';
+  emptyDebitBankForm,
+  type DebitBankForm,
+} from '@/components/fitness/MemberDebitBankFields';
+import {
+  MemberDeskEditFields,
+  type MemberDeskIdentity,
+} from '@/components/fitness/MemberDeskEditFields';
 
 type PostFn = (body: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
@@ -88,7 +93,7 @@ type Draft = {
   coachId: string;
   privateRate: string;
   status: FitSubscription['status'];
-};
+} & MemberDeskIdentity;
 
 function DeskToggle({
   label,
@@ -315,11 +320,62 @@ export function MemberAllocateTable({
       const fallback = c.agreed_rate_zar != null ? c.agreed_rate_zar : billed;
       if (fallback != null) charges[primary.plan_id] = String(fallback);
     }
+    const con = [...(c.contracts || [])].sort((a, b) =>
+      String(b.submitted_at || '').localeCompare(String(a.submitted_at || ''))
+    )[0];
+    const debit: DebitBankForm = c.debit_bank
+      ? {
+          account_holder: c.debit_bank.account_holder || '',
+          bank_name: c.debit_bank.bank_name || '',
+          account_number: c.debit_bank.account_number || '',
+          branch_code: c.debit_bank.branch_code || '',
+          account_type: c.debit_bank.account_type || 'cheque',
+          debit_order_authorised: c.debit_bank.debit_order_authorised === true,
+        }
+      : {
+          ...emptyDebitBankForm(),
+          account_holder: con?.account_holder || '',
+          bank_name: con?.bank_name || '',
+          account_number: con?.account_number || '',
+          branch_code: con?.branch_code || '',
+          account_type: con?.account_type || 'cheque',
+        };
     return {
       name: c.name || '',
       email: c.email || '',
       phone: c.phone || '',
       notes: c.notes || '',
+      code: c.code || '',
+      id_number: c.id_number || '',
+      date_of_birth: (c.date_of_birth || c.passport?.date_of_birth || '').slice(
+        0,
+        10
+      ),
+      start_date: (c.start_date || '').slice(0, 10),
+      occupation: c.occupation || con?.occupation || '',
+      address: c.address || c.medical?.address || '',
+      next_of_kin:
+        c.next_of_kin || c.passport?.emergency_name || '',
+      next_of_kin_phone:
+        c.next_of_kin_phone || c.passport?.emergency_phone || '',
+      next_of_kin_relationship:
+        c.next_of_kin_relationship ||
+        c.passport?.emergency_relationship ||
+        '',
+      emergency_contact: c.emergency_contact || '',
+      heard_about: c.heard_about || con?.heard_about || '',
+      employer_student_number:
+        c.employer_student_number || con?.employer_student_number || '',
+      gp_contact: c.gp_contact || c.medical?.gp_name || '',
+      medical_aid_scheme:
+        c.medical?.medical_aid?.scheme_name ||
+        c.passport?.medical_aid_scheme ||
+        '',
+      medical_aid_plan:
+        c.medical?.medical_aid?.plan_name ||
+        c.passport?.medical_aid_plan ||
+        '',
+      debit_bank: debit,
       personActive: isPersonActive(c),
       member: isPersonActive(c) && onClass,
       privateClient: isPersonActive(c) && c.private_client === true,
@@ -418,6 +474,22 @@ export function MemberAllocateTable({
       d.email !== base.email ||
       d.phone !== base.phone ||
       d.notes !== base.notes ||
+      d.code !== base.code ||
+      d.id_number !== base.id_number ||
+      d.date_of_birth !== base.date_of_birth ||
+      d.start_date !== base.start_date ||
+      d.occupation !== base.occupation ||
+      d.address !== base.address ||
+      d.next_of_kin !== base.next_of_kin ||
+      d.next_of_kin_phone !== base.next_of_kin_phone ||
+      d.next_of_kin_relationship !== base.next_of_kin_relationship ||
+      d.emergency_contact !== base.emergency_contact ||
+      d.heard_about !== base.heard_about ||
+      d.employer_student_number !== base.employer_student_number ||
+      d.gp_contact !== base.gp_contact ||
+      d.medical_aid_scheme !== base.medical_aid_scheme ||
+      d.medical_aid_plan !== base.medical_aid_plan ||
+      JSON.stringify(d.debit_bank) !== JSON.stringify(base.debit_bank) ||
       d.personActive !== base.personActive ||
       d.member !== base.member ||
       d.privateClient !== base.privateClient ||
@@ -492,6 +564,22 @@ export function MemberAllocateTable({
         email: d.email.trim(),
         phone: d.phone.trim(),
         notes: d.notes,
+        code: d.code.trim(),
+        id_number: d.id_number.trim(),
+        date_of_birth: d.date_of_birth.trim(),
+        start_date: d.start_date.trim(),
+        occupation: d.occupation.trim(),
+        address: d.address.trim(),
+        next_of_kin: d.next_of_kin.trim(),
+        next_of_kin_phone: d.next_of_kin_phone.trim(),
+        next_of_kin_relationship: d.next_of_kin_relationship.trim(),
+        emergency_contact: d.emergency_contact.trim(),
+        heard_about: d.heard_about.trim(),
+        employer_student_number: d.employer_student_number.trim(),
+        gp_contact: d.gp_contact.trim(),
+        medical_aid_scheme: d.medical_aid_scheme.trim(),
+        medical_aid_plan: d.medical_aid_plan.trim(),
+        debit_bank: d.debit_bank,
       });
       setStayIds((prev) => ({ ...prev, [c.id]: true }));
       setDrafts((prev) => {
@@ -572,6 +660,22 @@ export function MemberAllocateTable({
         email: d.email.trim(),
         phone: d.phone.trim(),
         notes: d.notes,
+        code: d.code.trim(),
+        id_number: d.id_number.trim(),
+        date_of_birth: d.date_of_birth.trim(),
+        start_date: d.start_date.trim(),
+        occupation: d.occupation.trim(),
+        address: d.address.trim(),
+        next_of_kin: d.next_of_kin.trim(),
+        next_of_kin_phone: d.next_of_kin_phone.trim(),
+        next_of_kin_relationship: d.next_of_kin_relationship.trim(),
+        emergency_contact: d.emergency_contact.trim(),
+        heard_about: d.heard_about.trim(),
+        employer_student_number: d.employer_student_number.trim(),
+        gp_contact: d.gp_contact.trim(),
+        medical_aid_scheme: d.medical_aid_scheme.trim(),
+        medical_aid_plan: d.medical_aid_plan.trim(),
+        debit_bank: d.debit_bank,
       });
       const returnedSubs = (
         data?.store as { subscriptions?: { client_id: string; plan_id: string; status: string }[] } | undefined
@@ -993,7 +1097,10 @@ export function MemberAllocateTable({
                       />
                     </label>
 
-                    <MemberMembershipFacts client={c} />
+                    <MemberDeskEditFields
+                      value={d}
+                      onChange={(patch) => setDraft(c.id, patch)}
+                    />
 
                     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                       <div>
