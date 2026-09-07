@@ -15,6 +15,7 @@ import {
 import { ttlDel, ttlGet, ttlSet } from '@/lib/system/memory-ttl';
 
 assert.ok(COMPANY_CHROME_META_KEYS.includes('enabled_modules'));
+assert.ok(COMPANY_CHROME_META_KEYS.includes('sandbox_module_picks'));
 assert.ok(COMPANY_CHROME_META_KEYS.includes('user_sidebar_orders'));
 assert.ok(!COMPANY_CHROME_META_KEYS.includes('fitgraph' as never));
 

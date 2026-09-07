@@ -589,6 +589,23 @@ export function hasSandboxModulePicks(metadata: unknown): boolean {
   return meta[SANDBOX_MODULE_PICKS_META] === true;
 }
 
+/**
+ * Sidenav chrome only copies enabled_modules, not sandbox_module_picks.
+ * A saved Connect map always has explicit offs; the old all-on dump does not.
+ */
+export function sandboxStoredLooksLikePicks(stored: unknown): boolean {
+  let on = 0;
+  let off = 0;
+  for (const m of MODULE_NAV) {
+    if (isAlwaysOnModule(m.id)) continue;
+    const flag = storedModuleFlag(stored, m.id);
+    if (flag == null) continue;
+    if (flag) on += 1;
+    else off += 1;
+  }
+  return off > 0;
+}
+
 /** Home, Company and Guide stay on so the owner can still open Company → Modules. */
 export function allOptionalModulesOffMap(): EnabledModulesMap {
   const map: EnabledModulesMap = {};
@@ -765,7 +782,10 @@ export function resolveVisibleModules(opts: {
         ? (opts.metadata as Record<string, unknown>).enabled_modules
         : undefined);
     let map = allOptionalModulesOffMap();
-    if (hasSandboxModulePicks(opts.metadata)) {
+    if (
+      hasSandboxModulePicks(opts.metadata) ||
+      sandboxStoredLooksLikePicks(rawStored)
+    ) {
       map = applyStoredModuleFlags(map, rawStored);
     }
     return map;

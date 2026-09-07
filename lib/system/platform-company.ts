@@ -22,6 +22,7 @@ import {
   allOptionalModulesOffMap,
   hasSandboxModulePicks,
   isBigFiveConnectCompany,
+  sandboxStoredLooksLikePicks,
 } from '@/lib/business/company-modules';
 
 /** Canonical trading name */
@@ -199,7 +200,10 @@ function platformEnabledModules(
   });
 
   if (connect) {
-    if (hasSandboxModulePicks(existing) && prevMods) {
+    if (
+      prevMods &&
+      (hasSandboxModulePicks(existing) || sandboxStoredLooksLikePicks(prevMods))
+    ) {
       return applyPrevModuleFlags(map, prevMods);
     }
     return map;
