@@ -311,9 +311,11 @@ export async function POST(request: NextRequest) {
           org_type: p.org_type || null,
           entity_kind: isPlatform ? 'platform' : ent.id,
           entity_badge: isPlatform ? 'Platform' : ent.shortLabel,
-          home_path: isPlatform
-            ? '/dashboard/platform'
-            : advisorHome || homePathForEntity(p.business_type, p.org_type),
+          home_path:
+            isPlatform && enabledModules.platform !== false
+              ? '/dashboard/platform'
+              : advisorHome ||
+                homePathForEntity(p.business_type, p.org_type),
           role: bu?.role || 'member',
         };
       })

@@ -18,6 +18,11 @@ import {
 export { platformOwnerEmails };
 import { LIFETIME_PLAN_FOUNDER } from '@/lib/billing/lifetime';
 import { MODULE_NAV } from '@/lib/chrome/module-nav';
+import {
+  allOptionalModulesOffMap,
+  hasSandboxModulePicks,
+  isBigFiveConnectCompany,
+} from '@/lib/business/company-modules';
 
 /** Canonical trading name */
 export const PLATFORM_COMPANY_TRADING_NAME = 'SupplierAdvisor';
@@ -152,20 +157,71 @@ export async function findPlatformCompany(
   return null;
 }
 
-function platformEnabledModules(): Record<string, boolean> {
-  const map: Record<string, boolean> = {};
-  for (const m of MODULE_NAV) {
-    map[m.id] = true;
+function readStoredModuleMap(
+  existing?: Record<string, unknown> | null
+): Record<string, unknown> | null {
+  if (
+    existing &&
+    typeof existing.enabled_modules === 'object' &&
+    existing.enabled_modules &&
+    !Array.isArray(existing.enabled_modules)
+  ) {
+    return existing.enabled_modules as Record<string, unknown>;
   }
+  return null;
+}
+
+function applyPrevModuleFlags(
+  map: Record<string, boolean>,
+  prevMods: Record<string, unknown>
+): Record<string, boolean> {
+  for (const m of MODULE_NAV) {
+    if (m.id === 'home' || m.id === 'my-business' || m.id === 'guide') {
+      map[m.id] = true;
+      continue;
+    }
+    const v = prevMods[m.id];
+    if (v === false || v === 'false' || v === 0) map[m.id] = false;
+    else if (v === true || v === 'true' || v === 1) map[m.id] = true;
+  }
+  return map;
+}
+
+function platformEnabledModules(
+  existing?: Record<string, unknown> | null,
+  opts?: { tradingName?: string | null; companyId?: number | null }
+): Record<string, boolean> {
+  const map = allOptionalModulesOffMap();
+  const prevMods = readStoredModuleMap(existing);
+  const connect = isBigFiveConnectCompany({
+    companyId: opts?.companyId,
+    tradingName: opts?.tradingName,
+  });
+
+  if (connect) {
+    if (hasSandboxModulePicks(existing) && prevMods) {
+      return applyPrevModuleFlags(map, prevMods);
+    }
+    return map;
+  }
+
+  if (prevMods) {
+    applyPrevModuleFlags(map, prevMods);
+    map.platform = true;
+    map.home = true;
+    map['my-business'] = true;
+    map.guide = true;
+    return map;
+  }
+
+  for (const m of MODULE_NAV) map[m.id] = true;
   map.platform = true;
-  map.home = true;
-  map['my-business'] = true;
-  map.guide = true;
   return map;
 }
 
 function platformMetadataBlob(
-  existing?: Record<string, unknown> | null
+  existing?: Record<string, unknown> | null,
+  opts?: { tradingName?: string | null; companyId?: number | null }
 ): Record<string, unknown> {
   const prev = existing && typeof existing === 'object' ? { ...existing } : {};
   return {
@@ -175,14 +231,7 @@ function platformMetadataBlob(
     slug: PLATFORM_COMPANY_SLUG,
     platform_role: 'control_plane',
     owner_emails: allPlatformOwnerEmails(),
-    enabled_modules: {
-      ...(typeof prev.enabled_modules === 'object' &&
-      prev.enabled_modules &&
-      !Array.isArray(prev.enabled_modules)
-        ? (prev.enabled_modules as Record<string, boolean>)
-        : {}),
-      ...platformEnabledModules(),
-    },
+    enabled_modules: platformEnabledModules(prev, opts),
   };
 }
 
@@ -305,7 +354,11 @@ export async function ensurePlatformCompany(opts?: {
     // Trading / legal name used to be forced back to "SupplierAdvisor" on every
     // /api/me/companies load, so Company → Profile saves never stuck.
     const meta = platformMetadataBlob(
-      company.metadata as Record<string, unknown> | null
+      company.metadata as Record<string, unknown> | null,
+      {
+        tradingName: company.trading_name,
+        companyId: company.id,
+      }
     );
     const updatePayload: Record<string, unknown> = {
       is_discoverable: false,

@@ -18,6 +18,11 @@ import { readPackagingFromMetadata } from '@/lib/product/architecture';
 
 const emptyChrome = normalizeEnabledModules({});
 assert.equal(emptyChrome.fitgraph, false, 'missing Advisor keys stay opt-in off');
+assert.equal(
+  emptyChrome.apparelgraph,
+  false,
+  'ApparelAdvisor stays opt-in off'
+);
 
 const vuka = extractEnabledModulesFromMetadata(
   { enabled_modules: { customers: true } },

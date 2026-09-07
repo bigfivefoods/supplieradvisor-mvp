@@ -1,7 +1,11 @@
 /**
  * Company-level module enablement (sidebar visibility).
  * Stored in profiles.metadata.enabled_modules as Record<moduleId, boolean>.
- * Missing keys default to true (all selected).
+ * Missing core keys default to true. Industry Advisors, government programmes,
+ * and the platform console are opt-in (missing = off).
+ *
+ * Big Five Connect / the SupplierAdvisor control-plane company is a sandbox:
+ * every optional hub starts off until Company → Modules is saved.
  */
 
 import type { ModuleNav } from '@/lib/chrome/module-nav';
@@ -16,6 +20,12 @@ import { isFounderLifetimeCompany } from '@/lib/billing/lifetime';
 
 /** Always visible — cannot be turned off in company profile */
 export const ALWAYS_ON_MODULE_IDS = ['home', 'my-business', 'guide'] as const;
+
+/** Big Five Connect — supplieradvisor.com control-plane / module sandbox */
+export const BIG_FIVE_CONNECT_PROFILE_ID = 5743;
+
+/** Set on Company → Modules save so control-plane picks survive reloads */
+export const SANDBOX_MODULE_PICKS_META = 'sandbox_module_picks';
 
 export type AlwaysOnModuleId = (typeof ALWAYS_ON_MODULE_IDS)[number];
 
@@ -119,7 +129,7 @@ export const MODULE_BANDS: Array<{
     id: 'industry',
     title: 'Sector & industry',
     blurb:
-      'Vertical modules for agri, extractives, fitness, clinics, and public programmes.',
+      'Vertical modules for agri, extractives, fitness, clinics, apparel, and public programmes.',
   },
 ];
 
@@ -190,7 +200,7 @@ export const MODULE_CATEGORIES: ModuleCategory[] = [
     band: 'industry',
     title: 'Services',
     blurb:
-      'GymAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, MedicalAdvisor®, VetAdvisor®, HireAdvisor®, RetailAdvisor® and ContainerAdvisor®.',
+      'GymAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, MedicalAdvisor®, VetAdvisor®, HireAdvisor®, RetailAdvisor®, ApparelAdvisor® and ContainerAdvisor®.',
     moduleIds: [
       'fitgraph',
       'physiograph',
@@ -546,6 +556,66 @@ export function isSupplierAdvisorPlatformCompany(opts: {
   return false;
 }
 
+export function isBigFiveConnectCompany(opts: {
+  companyId?: number | null;
+  tradingName?: string | null;
+  legalName?: string | null;
+}): boolean {
+  if (Number(opts.companyId) === BIG_FIVE_CONNECT_PROFILE_ID) return true;
+  const names = [opts.tradingName, opts.legalName]
+    .map((n) => String(n || '').trim())
+    .filter(Boolean);
+  return names.some((name) => /big\s*five\s*(group\s+)?connect/i.test(name));
+}
+
+/**
+ * Big Five Connect is the supplieradvisor.com module sandbox:
+ * optional hubs start off until Company → Modules is saved.
+ */
+export function isControlPlaneSandboxCompany(opts: {
+  companyId?: number | null;
+  tradingName?: string | null;
+  legalName?: string | null;
+  metadata?: unknown;
+}): boolean {
+  return isBigFiveConnectCompany(opts);
+}
+
+export function hasSandboxModulePicks(metadata: unknown): boolean {
+  const meta =
+    metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>)
+      : {};
+  return meta[SANDBOX_MODULE_PICKS_META] === true;
+}
+
+/** Home, Company and Guide stay on so the owner can still open Company → Modules. */
+export function allOptionalModulesOffMap(): EnabledModulesMap {
+  const map: EnabledModulesMap = {};
+  for (const m of MODULE_NAV) {
+    map[m.id] = isAlwaysOnModule(m.id);
+  }
+  map.platform = false;
+  return map;
+}
+
+function applyStoredModuleFlags(
+  map: EnabledModulesMap,
+  stored: unknown
+): EnabledModulesMap {
+  const next: EnabledModulesMap = { ...map };
+  for (const m of MODULE_NAV) {
+    if (isAlwaysOnModule(m.id)) {
+      next[m.id] = true;
+      continue;
+    }
+    const flag = storedModuleFlag(stored, m.id);
+    if (flag == null) continue;
+    next[m.id] = flag;
+  }
+  return next;
+}
+
 export const SECTOR_VERTICAL_MODULE_IDS: Record<string, readonly string[]> = {
   primary: ['fieldgraph', 'quarrygraph'],
   secondary: ['apparelgraph', 'containers'],
@@ -681,6 +751,26 @@ export function resolveVisibleModules(opts: {
   companyId?: number | null;
   companyName?: string | null;
 }): EnabledModulesMap {
+  const sandbox = isControlPlaneSandboxCompany({
+    companyId: opts.companyId,
+    tradingName: opts.companyName,
+    metadata: opts.metadata,
+  });
+  if (sandbox) {
+    const rawStored =
+      opts.stored ??
+      (opts.metadata &&
+      typeof opts.metadata === 'object' &&
+      !Array.isArray(opts.metadata)
+        ? (opts.metadata as Record<string, unknown>).enabled_modules
+        : undefined);
+    let map = allOptionalModulesOffMap();
+    if (hasSandboxModulePicks(opts.metadata)) {
+      map = applyStoredModuleFlags(map, rawStored);
+    }
+    return map;
+  }
+
   const map = normalizeEnabledModules(opts.stored);
   const packIds = uniqueStrings([
     ...(opts.packaging?.packIds || []),
@@ -773,7 +863,7 @@ export function groupWorkspaceModules(opts?: {
       layer: 'industry',
       title: 'Industry Advisors',
       blurb:
-        'Crop, quarry, gym, clinic, hire, retail and ContainerAdvisor. Subscribe to an Advisor pack to unlock, then tick the hub on.',
+        'Crop, quarry, gym, clinic, hire, retail, apparel and ContainerAdvisor. Subscribe to an Advisor pack to unlock, then tick the hub on.',
       moduleIds: industryIds,
     },
     {
@@ -852,8 +942,17 @@ export function isAlwaysOnModule(moduleId: string): boolean {
   return (ALWAYS_ON_MODULE_IDS as readonly string[]).includes(moduleId);
 }
 
+function isOptInModule(id: string): boolean {
+  return (
+    id === 'platform' ||
+    isIndustryAdvisorModule(id) ||
+    isGovernmentProgrammeModule(id)
+  );
+}
+
 /**
- * Normalize stored map. Default every known module to true when unset.
+ * Normalize stored map. Core hubs default on when unset. Advisors,
+ * government programmes, and the platform console default off.
  */
 export function normalizeEnabledModules(
   raw: unknown
@@ -882,25 +981,7 @@ export function normalizeEnabledModules(
     if (Object.prototype.hasOwnProperty.call(src, id)) {
       map[id] = src[id] === true || src[id] === 'true' || src[id] === 1;
     } else {
-      // Sector programmes + CropAdvisor agri are opt-in; others default on
-      map[id] =
-        id === 'schools' ||
-        id === 'health' ||
-        id === 'fieldgraph' ||
-        id === 'quarrygraph' ||
-        id === 'apparelgraph' ||
-        id === 'fitgraph' ||
-        id === 'physiograph' ||
-        id === 'dentalgraph' ||
-        id === 'psychiatrygraph' ||
-        id === 'medicalgraph' ||
-        id === 'vetgraph' ||
-        id === 'hiregraph' ||
-        id === 'retailgraph' ||
-        id === 'containers' ||
-        id === 'platform'
-          ? false
-          : true;
+      map[id] = !isOptInModule(id);
     }
   }
   return applyAdvisorCoreCompanions(map);
@@ -928,45 +1009,12 @@ export function isModuleEnabled(
 ): boolean {
   if (isAlwaysOnModule(moduleId)) return true;
   if (!enabled) {
-    // Fail open except opt-in sector programmes / CropAdvisor / platform console
-    return (
-      moduleId !== 'schools' &&
-      moduleId !== 'health' &&
-      moduleId !== 'fieldgraph' &&
-      moduleId !== 'quarrygraph' &&
-      moduleId !== 'apparelgraph' &&
-      moduleId !== 'fitgraph' &&
-      moduleId !== 'physiograph' &&
-      moduleId !== 'dentalgraph' &&
-      moduleId !== 'psychiatrygraph' &&
-      moduleId !== 'medicalgraph' &&
-      moduleId !== 'vetgraph' &&
-      moduleId !== 'hiregraph' &&
-      moduleId !== 'retailgraph' &&
-      moduleId !== 'containers' &&
-      moduleId !== 'platform'
-    );
+    return !isOptInModule(moduleId);
   }
   if (Object.prototype.hasOwnProperty.call(enabled, moduleId)) {
     return enabled[moduleId] !== false;
   }
-  return (
-    moduleId !== 'schools' &&
-    moduleId !== 'health' &&
-    moduleId !== 'fieldgraph' &&
-    moduleId !== 'quarrygraph' &&
-    moduleId !== 'apparelgraph' &&
-    moduleId !== 'fitgraph' &&
-    moduleId !== 'physiograph' &&
-    moduleId !== 'dentalgraph' &&
-    moduleId !== 'psychiatrygraph' &&
-    moduleId !== 'medicalgraph' &&
-    moduleId !== 'vetgraph' &&
-    moduleId !== 'hiregraph' &&
-    moduleId !== 'retailgraph' &&
-    moduleId !== 'containers' &&
-    moduleId !== 'platform'
-  );
+  return !isOptInModule(moduleId);
 }
 
 /** Sidebar / process rail: keep module if role allows AND company enabled it */
@@ -1038,7 +1086,7 @@ export function moduleIdForPath(pathname: string | null | undefined): string | n
 export function mergeEnabledModulesIntoMetadata(
   existingMetadata: unknown,
   enabledModules: EnabledModulesMap,
-  opts?: { markConfigured?: boolean }
+  opts?: { markConfigured?: boolean; sandboxPicks?: boolean }
 ): Record<string, unknown> {
   const prev =
     existingMetadata &&
@@ -1046,9 +1094,13 @@ export function mergeEnabledModulesIntoMetadata(
     !Array.isArray(existingMetadata)
       ? { ...(existingMetadata as Record<string, unknown>) }
       : {};
-  const mergedMeta = {
+  const sandbox =
+    opts?.sandboxPicks === true || prev[SANDBOX_MODULE_PICKS_META] === true;
+  const mergedMeta: Record<string, unknown> = {
     ...prev,
-    enabled_modules: normalizeEnabledModules(enabledModules),
+    enabled_modules: sandbox
+      ? applyStoredModuleFlags(allOptionalModulesOffMap(), enabledModules)
+      : normalizeEnabledModules(enabledModules),
     ...(opts?.markConfigured !== false
       ? {
           modules_configured_at:
@@ -1056,6 +1108,10 @@ export function mergeEnabledModulesIntoMetadata(
         }
       : {}),
   };
+  if (sandbox) {
+    mergedMeta[SANDBOX_MODULE_PICKS_META] = true;
+    return mergedMeta;
+  }
   mergedMeta.enabled_modules = applyGovernmentProgrammeXor(
     mergedMeta.enabled_modules as EnabledModulesMap,
     { metadata: mergedMeta }
