@@ -40,6 +40,7 @@ import {
   PawPrint,
   BriefcaseBusiness,
   Store,
+  Shirt,
 } from 'lucide-react';
 import type { ProcessStep } from '@/components/relationship/RelationshipChrome';
 import type { PermissionResource } from '@/lib/business/permissions';
@@ -85,6 +86,7 @@ export type ModuleNav = {
  * distribution Ship · accounting Landmark · quality ClipboardCheck
  * projects FolderKanban · sustainability Leaf · intelligence Brain · guide BookOpen
  * people IdCard · schools School
+ * apparelgraph Shirt
  */
 export const MODULE_NAV: readonly ModuleNav[] = [
   {
@@ -686,6 +688,64 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Lead', href: '/dashboard/intelligence/leadership-development', section: 'Lead' },
 
       { name: 'Messages', href: '/dashboard/messages?from=intelligence&channel=colleague', desc: 'Insights team notes', section: 'Home', rail: false },
+    ],
+  },
+  {
+    id: 'apparelgraph',
+    name: 'ApparelAdvisor',
+    icon: Shirt,
+    href: '/dashboard/apparelgraph',
+    resource: 'operations',
+    steps: [
+      {
+        name: 'Overview',
+        href: '/dashboard/apparelgraph',
+        exact: true,
+        desc: 'Apparel command centre',
+        section: 'Home',
+      },
+      {
+        name: 'Capability',
+        href: '/dashboard/apparelgraph/capability',
+        desc: 'Lines · operators · lead time',
+        section: 'Core',
+      },
+      {
+        name: 'Styles',
+        href: '/dashboard/apparelgraph/styles',
+        desc: 'Matrix · tech pack · BOM',
+        section: 'Core',
+      },
+      {
+        name: 'Samples',
+        href: '/dashboard/apparelgraph/samples',
+        desc: 'Proto · fit · PP approvals',
+        section: 'Core',
+      },
+      {
+        name: 'Materials',
+        href: '/dashboard/apparelgraph/materials',
+        desc: 'Rolls · ownership · lots',
+        section: 'Floor',
+      },
+      {
+        name: 'Floor',
+        href: '/dashboard/apparelgraph/floor',
+        desc: 'Ticket flow · output',
+        section: 'Floor',
+      },
+      {
+        name: 'Quality',
+        href: '/dashboard/apparelgraph/quality',
+        desc: '4-point · shade · gold-seal · AQL',
+        section: 'Quality',
+      },
+      {
+        name: 'Ship',
+        href: '/dashboard/apparelgraph/ship',
+        desc: 'Lots · POs · QA hold release',
+        section: 'Ship',
+      },
     ],
   },
   {

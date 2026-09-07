@@ -8,6 +8,7 @@ export type IndustrySlug =
   | 'agriculture'
   | 'quarry-aggregates'
   | 'manufacturing'
+  | 'apparel-clothing'
   | 'distribution'
   | 'fitness-gyms'
   | 'physio-allied-health'
@@ -156,6 +157,35 @@ export const INDUSTRIES: IndustryPage[] = [
       'Operations',
       'SHEQ',
       'Quality',
+    ],
+  },
+  {
+    slug: 'apparel-clothing',
+    name: 'Apparel & clothing',
+    headline: 'From style matrix to shipment hold gates.',
+    subhead:
+      'ApparelAdvisor® links capability, style matrix, tech packs, BOM, sampling, roll ownership, floor tickets, and quality gates before ship release.',
+    cardBlurb:
+      'ApparelAdvisor® for CMT and factory operations with QA hold-aware shipping.',
+    pack: 'ApparelAdvisor®',
+    pains: [
+      'Style matrix and BOM versions drift between teams',
+      'Roll ownership and shade control are tracked in side sheets',
+      'Ship release happens without one QA hold decision path',
+    ],
+    wins: [
+      'One apparel graph for capability, styles, samples and floor tickets',
+      'Rolls tied to lots and supplier POs for traceability',
+      '4-point, shade, gold-seal, AQL and NBC expiry gates before ship',
+    ],
+    modules: [
+      'ApparelAdvisor®',
+      'Quality',
+      'Inventory',
+      'Suppliers',
+      'Customers',
+      'Operations',
+      'Finance',
     ],
   },
   {

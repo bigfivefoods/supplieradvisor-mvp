@@ -30,7 +30,8 @@ BEGIN
     'hiregraph',
     'retailgraph',
     'fieldgraph',
-    'quarrygraph'
+    'quarrygraph',
+    'apparelgraph'
   ) THEN
     RAISE EXCEPTION 'unknown advisor module';
   END IF;

@@ -58,6 +58,7 @@ export const ADVISOR_MODULE_KEYS = [
   'dentalgraph',
   'hiregraph',
   'retailgraph',
+  'apparelgraph',
   'fieldgraph',
   'quarrygraph',
 ] as const;

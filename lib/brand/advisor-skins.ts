@@ -13,6 +13,7 @@ export type AdvisorSkinId =
   | 'supplier'
   | 'hire'
   | 'retail'
+  | 'apparel'
   | 'gym'
   | 'physio'
   | 'dental'
@@ -82,6 +83,19 @@ export const ADVISOR_SKINS: readonly AdvisorSkin[] = [
     packIds: ['retail_shop'],
     brand: '#ea580c',
     brandDeep: '#c2410c',
+  },
+  {
+    id: 'apparel',
+    name: 'ApparelAdvisor',
+    registered: 'ApparelAdvisor®',
+    shortName: 'Apparel',
+    tagline: 'Apparel manufacturing OS',
+    homeHref: '/dashboard/apparelgraph',
+    prefixes: ['/dashboard/apparelgraph'],
+    moduleIds: ['apparelgraph'],
+    packIds: ['apparel'],
+    brand: '#0891b2',
+    brandDeep: '#0e7490',
   },
   {
     id: 'gym',

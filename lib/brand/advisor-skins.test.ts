@@ -72,4 +72,19 @@ assert.equal(
   '/dashboard/vetgraph'
 );
 
+assert.equal(
+  advisorLandingPath({
+    packIds: ['apparel'],
+    enabledModules: { apparelgraph: true, quarrygraph: true },
+  }),
+  '/dashboard/apparelgraph'
+);
+
+assert.equal(
+  landingAdvisorSkins({
+    enabledModules: { apparelgraph: true },
+  })[0]?.id,
+  'apparel'
+);
+
 console.log('advisor-skins.test.ts ok');

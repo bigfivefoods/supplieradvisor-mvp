@@ -28,6 +28,7 @@ export const ADVISOR_OS_MODULE_IDS = [
   'vetgraph',
   'hiregraph',
   'retailgraph',
+  'apparelgraph',
   'quarrygraph',
   'fieldgraph',
   'schools',
@@ -46,6 +47,7 @@ const PACK_TO_ADVISOR_MODULE: Record<string, AdvisorOsModuleId> = {
   psychiatry: 'psychiatrygraph',
   staffing_hire: 'hiregraph',
   retail_shop: 'retailgraph',
+  apparel: 'apparelgraph',
   quarry_aggregates: 'quarrygraph',
   agri_regen: 'fieldgraph',
   public_procurement: 'schools',
@@ -115,6 +117,7 @@ export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
   'vetgraph', // VetAdvisor® veterinary practice OS
   'hiregraph', // HireAdvisor® hire / rental marketplace (members free)
   'retailgraph', // RetailAdvisor® B2C till OS
+  'apparelgraph', // ApparelAdvisor® apparel manufacturing OS
   'quarrygraph', // QuarryAdvisor® aggregates OS
   'fieldgraph', // CropAdvisor® agri OS
   'schools', // SchoolAdvisor® (public sector / NSNP)
@@ -172,6 +175,7 @@ export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
   medicalgraph: 'MedicalAdvisor (Medical)',
   hiregraph: 'HireAdvisor (Hire / rent)',
   retailgraph: 'RetailAdvisor (Till)',
+  apparelgraph: 'ApparelAdvisor (Apparel)',
   containers: 'ContainerAdvisor',
   schools: 'SchoolAdvisor',
   health: 'HealthAdvisor',
