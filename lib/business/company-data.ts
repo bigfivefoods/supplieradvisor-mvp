@@ -21,6 +21,7 @@ import { ttlDel, ttlGet, ttlSet } from '@/lib/system/memory-ttl';
 
 export const COMPANY_CHROME_META_KEYS = [
   'enabled_modules',
+  'sandbox_module_picks',
   'user_sidebar_orders',
   'os_entity_type',
   'os_sector',

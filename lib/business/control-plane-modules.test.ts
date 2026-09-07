@@ -15,6 +15,7 @@ import {
   resolveVisibleModules,
 } from './company-modules';
 import { MODULE_NAV } from '@/lib/chrome/module-nav';
+import { functionalSidebarModules } from '@/lib/chrome/functional-nav';
 import { getIndustryPack } from '@/lib/product/architecture';
 import { appModulesUnlockedByPack } from '@/lib/product/architecture';
 
@@ -89,6 +90,53 @@ assert.equal(picked.platform, true, 'saved platform console stays on');
 assert.equal(picked.fitgraph, false);
 assert.equal(picked.customers, false, 'companions are not forced on Connect');
 assert.equal(picked.home, true);
+
+// Sidenav chrome copies enabled_modules only — no sandbox_module_picks flag.
+const chromePicks = extractEnabledModulesFromMetadata(
+  {
+    enabled_modules: {
+      apparelgraph: true,
+      customers: true,
+      suppliers: true,
+      network: true,
+      accounting: true,
+      people: true,
+      inventory: true,
+      operations: false,
+      fitgraph: false,
+      platform: false,
+    },
+  },
+  { companyId: BIG_FIVE_CONNECT_PROFILE_ID, companyName: 'Big Five Connect' }
+);
+assert.equal(
+  chromePicks.apparelgraph,
+  true,
+  'sidenav chrome still shows ticked ApparelAdvisor'
+);
+assert.equal(chromePicks.customers, true);
+assert.equal(chromePicks.network, true);
+assert.equal(chromePicks.fitgraph, false);
+assert.equal(isModuleEnabled(chromePicks, 'apparelgraph'), true);
+assert.equal(isModuleEnabled(chromePicks, 'customers'), true);
+
+const sidenav = functionalSidebarModules({
+  isModuleEnabled: (id) => isModuleEnabled(chromePicks, id),
+  packaging: null,
+  simplifiedSchool: false,
+});
+assert.ok(
+  sidenav.some((m) => m.id === 'apparelgraph'),
+  'ApparelAdvisor appears in the sidenav after it is ticked'
+);
+assert.ok(
+  sidenav.some((m) => m.id === 'customers'),
+  'ticked Core hubs appear in the sidenav'
+);
+assert.ok(
+  !sidenav.some((m) => m.id === 'fitgraph'),
+  'unticked Advisors stay off the sidenav'
+);
 
 const saved = mergeEnabledModulesIntoMetadata(
   { slug: 'x' },
