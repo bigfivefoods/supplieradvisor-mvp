@@ -64,6 +64,8 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
     'HireAdvisor® — hire/rental marketplace: suppliers list gear, people rent free (B2C), category requirements, 2.5% on the listing business',
   retailgraph:
     'RetailAdvisor® — B2C retail till: catalogue, cash or QR/NFC phone pay, collect SA Member bills at the counter',
+  apparelgraph:
+    'ApparelAdvisor® — capability, style matrix, samples, materials, floor tickets, quality gates and ship readiness',
   intelligence: 'Pulse, forecasts, scorecards & Super-Cube® leadership',
   schools:
     'SchoolAdvisor® (public sector) — NSNP kitchen, learners, SPs, catalogue, feeding, prizes (DBE / PEU / schools)',
@@ -198,6 +200,7 @@ export const MODULE_CATEGORIES: ModuleCategory[] = [
       'vetgraph',
       'hiregraph',
       'retailgraph',
+      'apparelgraph',
       'containers',
     ],
   },
@@ -388,6 +391,7 @@ export function isGovernmentCoreModule(id: string): boolean {
 export const INDUSTRY_ADVISOR_MODULE_IDS = [
   'fieldgraph',
   'quarrygraph',
+  'apparelgraph',
   'fitgraph',
   'physiograph',
   'dentalgraph',
@@ -544,7 +548,7 @@ export function isSupplierAdvisorPlatformCompany(opts: {
 
 export const SECTOR_VERTICAL_MODULE_IDS: Record<string, readonly string[]> = {
   primary: ['fieldgraph', 'quarrygraph'],
-  secondary: ['containers'],
+  secondary: ['apparelgraph', 'containers'],
   tertiary: [
     'fitgraph',
     'physiograph',
@@ -884,6 +888,7 @@ export function normalizeEnabledModules(
         id === 'health' ||
         id === 'fieldgraph' ||
         id === 'quarrygraph' ||
+        id === 'apparelgraph' ||
         id === 'fitgraph' ||
         id === 'physiograph' ||
         id === 'dentalgraph' ||
@@ -929,6 +934,7 @@ export function isModuleEnabled(
       moduleId !== 'health' &&
       moduleId !== 'fieldgraph' &&
       moduleId !== 'quarrygraph' &&
+      moduleId !== 'apparelgraph' &&
       moduleId !== 'fitgraph' &&
       moduleId !== 'physiograph' &&
       moduleId !== 'dentalgraph' &&
@@ -949,6 +955,7 @@ export function isModuleEnabled(
     moduleId !== 'health' &&
     moduleId !== 'fieldgraph' &&
     moduleId !== 'quarrygraph' &&
+    moduleId !== 'apparelgraph' &&
     moduleId !== 'fitgraph' &&
     moduleId !== 'physiograph' &&
     moduleId !== 'dentalgraph' &&
@@ -1013,6 +1020,7 @@ export function moduleIdForPath(pathname: string | null | undefined): string | n
   if (pathname.startsWith('/dashboard/intelligence')) return 'intelligence';
   if (pathname.startsWith('/dashboard/fieldgraph')) return 'fieldgraph';
   if (pathname.startsWith('/dashboard/quarrygraph')) return 'quarrygraph';
+  if (pathname.startsWith('/dashboard/apparelgraph')) return 'apparelgraph';
   if (pathname.startsWith('/dashboard/fitgraph')) return 'fitgraph';
   if (pathname.startsWith('/dashboard/physiograph')) return 'physiograph';
   if (pathname.startsWith('/dashboard/dentalgraph')) return 'dentalgraph';

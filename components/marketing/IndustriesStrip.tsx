@@ -19,6 +19,7 @@ import {
   BriefcaseBusiness,
   Container,
   PawPrint,
+  Shirt,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -31,6 +32,7 @@ const ICONS: Record<IndustrySlug, LucideIcon> = {
   agriculture: Leaf,
   'quarry-aggregates': Mountain,
   manufacturing: Factory,
+  'apparel-clothing': Shirt,
   distribution: Truck,
   containers: Container,
   'fitness-gyms': Dumbbell,

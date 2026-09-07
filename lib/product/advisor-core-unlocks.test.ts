@@ -52,6 +52,13 @@ addAdvisorPackUnlocks(psychUnlocks, ['psychiatry']);
 assert.ok(psychUnlocks.has('psychiatrygraph'));
 assert.ok(psychUnlocks.has('people'));
 
+const apparelUnlocks = new Set<string>();
+addAdvisorPackUnlocks(apparelUnlocks, ['apparel']);
+assert.ok(apparelUnlocks.has('apparelgraph'));
+assert.ok(apparelUnlocks.has('people'));
+assert.ok(apparelUnlocks.has('customers'));
+assert.ok(apparelUnlocks.has('accounting'));
+
 assert.deepEqual(enabledAdvisorModules((id) => id === 'fitgraph'), ['fitgraph']);
 
 const fromStore = normalizeEnabledModules({ fitgraph: true });

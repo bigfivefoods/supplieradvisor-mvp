@@ -113,7 +113,7 @@ export const INDUSTRIES: readonly IndustryOption[] = [
     label: 'General manufacturing',
     description: 'Non-food manufacturing, assembly and fabrication.',
     sectorId: 'secondary',
-    packIds: ['food_bev_mfg', 'logistics_containers'],
+    packIds: ['food_bev_mfg', 'apparel', 'logistics_containers'],
     businessTypes: privateTypes([
       { id: 'discrete_mfg', label: 'Discrete / assembly manufacturer', description: 'Parts, equipment, finished goods.' },
       { id: 'process_mfg', label: 'Process / chemicals manufacturer', description: 'Chemicals, materials, continuous process.' },

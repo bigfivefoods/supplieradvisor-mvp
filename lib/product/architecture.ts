@@ -632,6 +632,44 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     ],
   },
   {
+    id: 'apparel',
+    name: 'Apparel Manufacturing',
+    shortName: 'Apparel',
+    description:
+      'ApparelAdvisor® for CMT and factory apparel operations: capability, style matrix, sampling, materials, floor tickets, quality gates and ship readiness.',
+    monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
+    priority: 1,
+    recommendSectors: ['secondary'],
+    recommendEntities: ['private_company'],
+    modules: [
+      {
+        id: 'apparel_os',
+        name: 'ApparelAdvisor® operations OS',
+        description:
+          'Capability, styles, samples, rolls, floor tickets and shipment release controls.',
+        unlocks: ['apparelgraph', 'inventory', 'quality'],
+      },
+      {
+        id: 'apparel_trade',
+        name: 'Core lot and PO links',
+        description:
+          'Link tickets and rolls to inventory lots and supplier purchase orders.',
+        unlocks: ['suppliers', 'customers', 'inventory', 'apparelgraph'],
+      },
+    ],
+    industryToolsHrefs: [
+      { name: 'ApparelAdvisor®', href: '/dashboard/apparelgraph', desc: 'Apparel OS' },
+      { name: 'Styles', href: '/dashboard/apparelgraph/styles', desc: 'Matrix · tech pack · BOM' },
+      { name: 'Samples', href: '/dashboard/apparelgraph/samples', desc: 'Proto · fit · PP' },
+      { name: 'Materials', href: '/dashboard/apparelgraph/materials', desc: 'Rolls · lots' },
+      { name: 'Floor', href: '/dashboard/apparelgraph/floor', desc: 'Tickets · output' },
+      { name: 'Quality', href: '/dashboard/apparelgraph/quality', desc: '4-point · shade · AQL' },
+      { name: 'Ship', href: '/dashboard/apparelgraph/ship', desc: 'Release readiness' },
+      { name: 'Inventory lots', href: '/dashboard/inventory/lots', desc: 'Chain of custody' },
+      { name: 'Supplier POs', href: '/dashboard/suppliers/po', desc: 'Inbound orders' },
+    ],
+  },
+  {
     id: 'logistics_containers',
     name: 'Logistics, Distribution & Containers',
     shortName: 'Logistics',
@@ -1467,6 +1505,15 @@ export function enabledModulesMapFromPacks(
     unlocked.add('sheq');
     unlocked.add('inventory');
   }
+  if (packIds.includes('apparel')) {
+    unlocked.add('apparelgraph');
+    unlocked.add('inventory');
+    unlocked.add('quality');
+    unlocked.add('suppliers');
+    unlocked.add('customers');
+    unlocked.add('operations');
+    unlocked.add('manufacturing');
+  }
   // Agri → CropAdvisor + suppliers + inventory + impact
   if (packIds.includes('agri_regen')) {
     unlocked.add('fieldgraph');
@@ -1834,6 +1881,15 @@ export function appModulesUnlockedByPack(pack: IndustryPackDef): string[] {
     ids.add('quality');
     ids.add('sheq');
     ids.add('inventory');
+  }
+  if (pack.id === 'apparel') {
+    ids.add('apparelgraph');
+    ids.add('inventory');
+    ids.add('quality');
+    ids.add('suppliers');
+    ids.add('customers');
+    ids.add('operations');
+    ids.add('manufacturing');
   }
   if (pack.id === 'agri_regen') {
     ids.add('fieldgraph');
