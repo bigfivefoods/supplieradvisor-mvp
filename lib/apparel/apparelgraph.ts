@@ -177,11 +177,11 @@ function mergeIdArray(existing: unknown, incoming: unknown): unknown[] {
   for (const row of next) {
     if (row && typeof row === 'object' && !Array.isArray(row)) {
       const id = String((row as { id?: unknown }).id || '').trim();
-      if (id) {
-        out.push(row);
-        seen.add(id);
-        continue;
-      }
+      if (!id) continue;
+      if (seen.has(id)) continue;
+      out.push(row);
+      seen.add(id);
+      continue;
     }
     out.push(row);
   }
@@ -241,7 +241,11 @@ export function writeApparelgraphToMetadata(
   };
 }
 
-export function summariseApparelgraph(store: ApparelgraphStore) {
+export function summariseApparelgraph(
+  store: ApparelgraphStore,
+  nowIso = new Date().toISOString()
+) {
+  const today = nowIso.slice(0, 10);
   const gates = {
     fourPoint: store.tickets.some((t) => t.four_point === 'fail') ? 'fail' : 'pass',
     shade: store.tickets.some((t) => t.shade_band === 'fail') ? 'fail' : 'pass',
@@ -249,7 +253,7 @@ export function summariseApparelgraph(store: ApparelgraphStore) {
     aql: store.tickets.some((t) => t.aql === 'fail') ? 'fail' : 'pass',
     expiredNbc: store.tickets.some((t) => {
       if (!t.nbc_expiry) return false;
-      return t.nbc_expiry < new Date().toISOString().slice(0, 10);
+      return t.nbc_expiry < today;
     }),
   } as const;
 

@@ -46,6 +46,7 @@ assert.deepEqual(
   ['m2', 'm3', 'm1']
 );
 assert.equal(merged.styles.matrix[0]?.planned_qty, 180);
+assert.equal(merged.styles.matrix[2]?.planned_qty, 100);
 
 const metadata = writeApparelgraphToMetadata({ timezone: 'Africa/Johannesburg' }, merged);
 assert.equal(metadata.timezone, 'Africa/Johannesburg');

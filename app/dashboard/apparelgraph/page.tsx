@@ -1,6 +1,6 @@
 'use client';
 
-import { Loader2, Shirt } from 'lucide-react';
+import { Shirt } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   ApparelLoadingBlock,
@@ -47,7 +47,7 @@ export default function ApparelgraphOverviewPage() {
             disabled={saving}
             className="btn-secondary !py-2 !px-4 text-sm inline-flex items-center gap-2"
           >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shirt className="w-4 h-4" />}
+            <Shirt className="w-4 h-4" />
             Seed ApparelAdvisor® demo
           </button>
         </div>
