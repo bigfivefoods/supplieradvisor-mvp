@@ -413,26 +413,46 @@ export default function GuestTradePortalPage() {
 
         {!portal.brochure && tab !== 'demo' ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[
-              ['Quotes', kpis.quotes],
+            {(
               [
-                portal.kind === 'customer' ? 'Orders' : 'POs',
-                kpis.orders,
-              ],
-              ['Open invoices', kpis.invoices_open],
-              ['People', kpis.people],
-            ].map(([label, value]) => (
-              <div
-                key={String(label)}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-4 dark:border-white/10 dark:bg-white/[0.07]"
+                {
+                  label: 'Quotes',
+                  value: kpis.quotes,
+                  tab: portal.kind === 'customer' ? 'quotes' : null,
+                },
+                {
+                  label: portal.kind === 'customer' ? 'Orders' : 'POs',
+                  value: kpis.orders,
+                  tab: 'orders' as GuestPortalTab,
+                },
+                {
+                  label: 'Open invoices',
+                  value: kpis.invoices_open,
+                  tab: portal.kind === 'customer' ? 'statement' : null,
+                },
+                { label: 'People', value: kpis.people, tab: 'people' as GuestPortalTab },
+              ] as Array<{
+                label: string;
+                value: number;
+                tab: GuestPortalTab | null;
+              }>
+            ).map((card) => (
+              <button
+                key={card.label}
+                type="button"
+                disabled={!card.tab}
+                onClick={() => {
+                  if (card.tab) setTab(card.tab);
+                }}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-4 text-left dark:border-white/10 dark:bg-white/[0.07] disabled:cursor-default"
               >
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-white/50">
-                  {label}
+                  {card.label}
                 </p>
                 <p className="mt-1 text-2xl font-black tabular-nums text-slate-900 dark:text-white">
-                  {value}
+                  {card.value}
                 </p>
-              </div>
+              </button>
             ))}
           </div>
         ) : null}

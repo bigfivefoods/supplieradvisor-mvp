@@ -47,6 +47,10 @@ assert.equal(groups[3].id, 'relate');
 assert.equal(groups.at(-1)?.id, 'demo');
 assert.equal(groups.at(-1)?.align, 'end');
 assert.equal(groups[0].tabs[0].label, 'Profile (2)');
+assert.equal(
+  groups[1].tabs.find((t) => t.id === 'statement')?.label,
+  'Invoices'
+);
 assert.equal(guestPortalTabGroups({ kind: 'supplier' }).at(-1)?.id, 'demo');
 
 console.log('guest-portal-tabs.test.ts ok');

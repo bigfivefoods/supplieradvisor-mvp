@@ -17,6 +17,7 @@ import type {
   PortalRiadView,
   PublicPortalPayload,
 } from '@/lib/portals/trade-portal';
+import { customerPortalInvoicePdfHref } from '@/lib/portals/trade-portal';
 import {
   applyPortalDocSlotUrl,
   emptyRequiredDocSlots,
@@ -779,6 +780,7 @@ export function GuestTradeWorkspace({
       ) : null}
       {tab === 'statement' && !isSupplier ? (
         <StatementPanel
+          token={token}
           invoices={live.invoices || []}
           hostName={live.host.name}
         />
@@ -3813,29 +3815,52 @@ function QuotesPanel({
   );
 }
 
+function invoiceStatusClass(status: string): string {
+  const s = status.toLowerCase();
+  if (['paid', 'settled', 'closed'].includes(s)) {
+    return 'bg-emerald-50 text-emerald-800';
+  }
+  if (['overdue', 'void', 'cancelled', 'written_off'].includes(s)) {
+    return 'bg-rose-50 text-rose-800';
+  }
+  if (['sent', 'issued', 'viewed', 'open', 'partial', 'partially_paid'].includes(s)) {
+    return 'bg-sky-50 text-sky-800';
+  }
+  return 'bg-neutral-100 text-neutral-600';
+}
+
 function StatementPanel({
+  token,
   invoices,
   hostName,
 }: {
+  token: string;
   invoices: PublicPortalPayload['invoices'];
   hostName: string;
 }) {
-  const open = invoices.filter((i) => {
+  const [openId, setOpenId] = useState<number | null>(null);
+  const listed = invoices
+    .slice()
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  const open = listed.filter((i) => {
     const st = i.status.toLowerCase();
-    return st !== 'paid' && st !== 'void' && st !== 'cancelled';
+    return st !== 'paid' && st !== 'void' && st !== 'cancelled' && st !== 'settled';
   });
   const due = open.reduce(
     (n, i) => n + Math.max(0, Number(i.amount || 0) - Number(i.paid || 0)),
     0
   );
-  const currency = open[0]?.currency || invoices[0]?.currency || 'ZAR';
+  const currency = open[0]?.currency || listed[0]?.currency || 'ZAR';
 
   return (
     <div className="space-y-4">
       <section className="rounded-[1.5rem] border border-white/70 bg-white/90 p-5 shadow-sm">
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
-          Statement · {hostName}
+          Invoices · {hostName}
         </p>
+        <h2 className="mt-1 text-lg font-black text-slate-900">
+          Invoices on this account
+        </h2>
         <p className="mt-1 text-3xl font-black tabular-nums text-slate-900">
           {formatMoney(due, currency)}
         </p>
@@ -3843,34 +3868,44 @@ function StatementPanel({
           Open balance · {open.length} invoice{open.length === 1 ? '' : 's'} outstanding
         </p>
       </section>
-
-      <section className="rounded-[1.5rem] border border-white/70 bg-white/90 shadow-sm overflow-hidden">
-        <div className="px-5 py-3 border-b border-slate-100">
-          <h3 className="text-sm font-black text-slate-900">Invoices</h3>
-        </div>
-        {invoices.length === 0 ? (
-          <p className="px-5 py-8 text-sm text-neutral-500">No invoices on this account yet.</p>
-        ) : (
-          <ul className="divide-y divide-slate-100">
-            {invoices.map((r) => {
-              const remaining = Math.max(
-                0,
-                Number(r.amount || 0) - Number(r.paid || 0)
-              );
-              return (
-                <li
-                  key={`inv-${r.id}`}
-                  className="px-5 py-3.5 flex flex-wrap items-center justify-between gap-2"
+      {listed.length === 0 ? (
+        <p className="rounded-[1.5rem] border border-white/70 bg-white/90 px-5 py-10 text-center text-sm text-neutral-500">
+          No invoices on this account yet.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {listed.map((r) => {
+            const openRow = openId === r.id;
+            const remaining = Math.max(
+              0,
+              Number(r.amount || 0) - Number(r.paid || 0)
+            );
+            const lines = r.lines || [];
+            const pdfHref = customerPortalInvoicePdfHref(token, r.id);
+            return (
+              <li
+                key={`inv-${r.id}`}
+                className="rounded-[1.5rem] border border-white/70 bg-white/90 shadow-sm overflow-hidden"
+              >
+                <button
+                  type="button"
+                  className="w-full px-5 py-4 flex flex-wrap items-start justify-between gap-2 text-left"
+                  onClick={() => setOpenId(openRow ? null : r.id)}
                 >
                   <div className="min-w-0">
-                    <p className="font-bold text-slate-900 text-sm">{r.number}</p>
+                    <p className="font-black text-slate-900 text-sm">{r.number}</p>
                     <p className="text-[11px] text-neutral-500 mt-0.5">
-                      {[r.date, r.due ? `due ${r.due}` : null, r.status]
+                      {[r.date, r.due ? `due ${r.due}` : null]
                         .filter(Boolean)
                         .join(' · ')}
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0 space-y-1">
+                    <span
+                      className={`text-[10px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 ${invoiceStatusClass(r.status)}`}
+                    >
+                      {r.status.replace(/_/g, ' ')}
+                    </span>
                     <p className="text-sm font-black tabular-nums text-slate-900">
                       {formatMoney(r.amount, r.currency)}
                     </p>
@@ -3880,13 +3915,56 @@ function StatementPanel({
                       </p>
                     ) : null}
                   </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
+                </button>
+                {openRow ? (
+                  <div className="px-5 pb-4 border-t border-slate-100 pt-3 space-y-3">
+                    {r.notes ? (
+                      <p className="text-sm text-slate-600 whitespace-pre-wrap">
+                        {r.notes}
+                      </p>
+                    ) : null}
+                    {lines.length ? (
+                      <ul className="space-y-1 text-sm">
+                        {lines.map((line, i) => (
+                          <li
+                            key={`${r.id}-line-${i}`}
+                            className="flex justify-between gap-3"
+                          >
+                            <span className="text-slate-700">
+                              {line.name}
+                              {line.qty != null
+                                ? ` · ${line.qty}${line.uom ? ` ${line.uom}` : ''}`
+                                : ''}
+                            </span>
+                            {line.amount != null ? (
+                              <span className="tabular-nums font-semibold">
+                                {formatMoney(line.amount, r.currency)}
+                              </span>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-neutral-500">
+                        Line items were not attached to this invoice.
+                      </p>
+                    )}
+                    <a
+                      href={pdfHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-bold text-[#0077b6]"
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      Open invoice PDF
+                    </a>
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

@@ -33,6 +33,8 @@ const guest = src('components/portals/GuestTradeWorkspace.tsx');
 assert.match(guest, /mergePortalDocRows\(ws\?\.purchase_orders, live\.purchase_orders\)/);
 assert.doesNotMatch(guest, /ws\?\.purchase_orders \|\| live\.purchase_orders/);
 assert.match(guest, /supplierPortalPoPdfHref/);
+assert.match(guest, /customerPortalInvoicePdfHref/);
+assert.match(guest, /Open invoice PDF/);
 assert.doesNotMatch(guest, /window\.prompt/);
 
 const upload = src('app/api/public/portals/trade/upload/route.ts');
@@ -49,6 +51,12 @@ assert.match(pdfRoute, /assemblePurchaseOrderPdfInput/);
 assert.match(pdfRoute, /poBelongsToSupplierViewer/);
 assert.match(pdfRoute, /poHostedByBuyer/);
 assert.doesNotMatch(pdfRoute, /from\('profiles'\)[\s\S]{0,200}\bphone\b/);
+
+const invPdf = src('app/api/public/portals/trade/invoice-pdf/route.ts');
+assert.match(invPdf, /loadCommercialDocument/);
+assert.match(invPdf, /type: 'invoice'/);
+assert.match(invPdf, /customer_id/);
+assert.doesNotMatch(invPdf, /from\('profiles'\)[\s\S]{0,200}\bphone\b/);
 
 const send = src('app/api/suppliers/purchase-orders/send/route.ts');
 assert.match(send, /poHostedByBuyer/);

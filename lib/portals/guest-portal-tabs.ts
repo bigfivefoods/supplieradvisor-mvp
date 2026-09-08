@@ -91,7 +91,7 @@ export function guestPortalTabGroups(opts: {
         { id: 'orders', label: 'Sales orders' },
         { id: 'commercial', label: 'Commercial' },
         { id: 'stock', label: 'Stock' },
-        { id: 'statement', label: 'Statement' },
+        { id: 'statement', label: 'Invoices' },
       ],
     },
     {

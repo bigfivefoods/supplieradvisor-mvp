@@ -291,6 +291,10 @@ export function portalPublicUrl(token: string): string {
   return `${getAppUrl()}${portalPublicPath(token)}`;
 }
 
+export function customerPortalInvoicePdfHref(token: string, invoiceId: number): string {
+  return `/api/public/portals/trade/invoice-pdf?token=${encodeURIComponent(String(token || '').trim())}&id=${Number(invoiceId)}`;
+}
+
 export function normalizeSections(raw: unknown): PortalSections {
   const src =
     raw && typeof raw === 'object' && !Array.isArray(raw)
@@ -676,18 +680,33 @@ async function loadCustomerDocs(
     }
   }
   if (sections.invoices !== false) {
-    const { data } = await supabase
+    const invHit = await supabase
       .from('customer_invoices')
       .select(
-        'id, invoice_number, status, issue_date, due_date, total_amount, amount_paid, currency'
+        'id, invoice_number, status, issue_date, due_date, total_amount, amount_paid, currency, notes, items'
       )
       .eq('profile_id', companyId)
       .eq('customer_id', customerId)
       .order('issue_date', { ascending: false })
-      .limit(40);
-    for (const r of data || []) {
-      invoices.push(
-        moneyRow({
+      .limit(80);
+    let invRows: Record<string, unknown>[] = (invHit.data ||
+      []) as unknown as Record<string, unknown>[];
+    if (invHit.error) {
+      const retry = await supabase
+        .from('customer_invoices')
+        .select(
+          'id, invoice_number, status, issue_date, due_date, total_amount, amount_paid, currency'
+        )
+        .eq('profile_id', companyId)
+        .eq('customer_id', customerId)
+        .order('issue_date', { ascending: false })
+        .limit(80);
+      invRows = (retry.data || []) as unknown as Record<string, unknown>[];
+    }
+    for (const raw of invRows) {
+      const r = asObject(raw);
+      invoices.push({
+        ...moneyRow({
           id: Number(r.id),
           kind: 'invoice',
           number: r.invoice_number,
@@ -697,8 +716,10 @@ async function loadCustomerDocs(
           amount: r.total_amount,
           paid: r.amount_paid,
           currency: r.currency,
-        })
-      );
+        }),
+        notes: r.notes != null ? String(r.notes).slice(0, 400) : null,
+        lines: portalQuoteLines(r.items),
+      });
     }
   }
   return { quotes, orders, invoices };
