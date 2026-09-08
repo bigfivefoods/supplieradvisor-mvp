@@ -7,6 +7,7 @@ import {
   newPortalToken,
   normalizeSections,
   portalPublicPath,
+  customerPortalInvoicePdfHref,
   DEFAULT_PORTAL_SECTIONS,
 } from './trade-portal';
 
@@ -20,6 +21,10 @@ assert.match(portalTok, /^tp_[a-f0-9]{36}$/);
 assert.match(viewerTok, /^tv_[a-f0-9]{36}$/);
 assert.notEqual(portalTok, newPortalToken('portal'));
 assert.equal(portalPublicPath(viewerTok), `/portal/${encodeURIComponent(viewerTok)}`);
+assert.equal(
+  customerPortalInvoicePdfHref('tv_abc', 12),
+  '/api/public/portals/trade/invoice-pdf?token=tv_abc&id=12'
+);
 
 const sections = normalizeSections({ quotes: false, leftover: true });
 assert.equal(sections.quotes, false);

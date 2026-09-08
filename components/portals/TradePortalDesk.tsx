@@ -59,7 +59,7 @@ const CUSTOMER_SECTIONS: Array<{ key: keyof PortalSections; label: string; hint:
   { key: 'orders', label: 'Sales orders', hint: 'SO list and status' },
   { key: 'commercial', label: 'Commercial', hint: 'Accepted prices and proposals' },
   { key: 'stock', label: 'Stock on hand', hint: 'Stock at their site' },
-  { key: 'invoices', label: 'Statement', hint: 'Invoices and open balance' },
+  { key: 'invoices', label: 'Invoices', hint: 'Invoice list, PDF and open balance' },
   { key: 'projects', label: 'Projects', hint: 'Joint waterfall — both sides edit tasks' },
   { key: 'documents', label: 'Documents', hint: 'Certs and files' },
   { key: 'messages', label: 'Messages', hint: 'Direct thread' },
@@ -877,7 +877,7 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
           <div className="p-5 space-y-4">
             <p className="text-sm text-neutral-600 leading-relaxed">
               Pick a {noun} already on your {book}, then issue their portal. That
-              account sees only their quotes, orders, OTIFEF, ratings and RIAD.
+              account sees only their quotes, orders, invoices, OTIFEF, ratings and RIAD.
               Inside the portal they can add colleagues. Issued portals are
               listed first — click <strong>View portal</strong> to work in it as
               you (your company credentials). Their own link still uses their
@@ -952,8 +952,8 @@ export function TradePortalDesk({ kind }: { kind: TradePortalKind }) {
                 Projects → Portfolio
               </a>{' '}
               and set <em>Customer portal</em> to the account (e.g. Boxer). Guest
-              portal shows separate tabs for Sales orders, OTIFEF metrics,
-              Statement and Projects.
+              portal shows separate tabs for Sales orders, invoices, OTIFEF
+              metrics and Projects.
             </p>
             <div className="flex flex-wrap gap-2">
               <button
