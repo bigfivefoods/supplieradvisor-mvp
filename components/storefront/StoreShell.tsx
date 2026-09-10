@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ShieldCheck, Building2 } from 'lucide-react';
+import { StoreProductAdd } from '@/components/storefront/StoreProductAdd';
 import type { StoreAttribution, StoreCompany, StoreProduct } from '@/lib/storefront/types';
 import {
   attributionToQuery,
@@ -166,10 +167,11 @@ export function ProductCard({
   });
 
   return (
-    <Link
-      href={href}
-      className="group rounded-3xl border border-slate-200 bg-white overflow-hidden hover:border-[#00b4d8]/50 hover:shadow-md transition-all flex flex-col"
-    >
+    <div className="group rounded-3xl border border-slate-200 bg-white overflow-hidden hover:border-[#00b4d8]/50 hover:shadow-md transition-all flex flex-col">
+      <Link
+        href={href}
+        className="flex min-h-0 flex-1 flex-col"
+      >
       {/* Full pack visible — contain on a tall plate so headers/footers stay in frame */}
       <div className="relative flex aspect-[4/5] max-h-64 w-full items-center justify-center bg-[#f8f7f5] px-3 py-3 border-b border-black/[0.06]">
         {product.imageUrl ? (
@@ -220,7 +222,11 @@ export function ProductCard({
           <span className="text-[11px] font-bold text-[#0077b6]">View →</span>
         </div>
       </div>
-    </Link>
+      </Link>
+      <div className="px-4 pb-4">
+        <StoreProductAdd product={product} />
+      </div>
+    </div>
   );
 }
 

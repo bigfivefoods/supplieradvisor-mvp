@@ -20,9 +20,11 @@ export default function QuoteRequestForm({
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<{ quoteNumber?: string; message?: string } | null>(
-    null
-  );
+  const [done, setDone] = useState<{
+    quoteNumber?: string;
+    message?: string;
+    portalUrl?: string;
+  } | null>(null);
   const [form, setForm] = useState({
     tradingName: '',
     contactName: '',
@@ -69,6 +71,7 @@ export default function QuoteRequestForm({
       setDone({
         quoteNumber: data.quote?.quote_number,
         message: data.message,
+        portalUrl: data.portalUrl,
       });
       toast.success('Quote request sent', {
         description:
@@ -103,10 +106,19 @@ export default function QuoteRequestForm({
             {done.quoteNumber}
           </p>
         ) : null}
-        <p className="text-xs text-emerald-800 mt-3">
-          Check your email for confirmation. Track status in your SupplierAdvisor®
-          workspace after you join or sign in.
-        </p>
+        {done.portalUrl ? (
+          <a
+            href={done.portalUrl}
+            className="mt-3 inline-flex btn-primary !py-2 !px-4 text-sm"
+          >
+            Open your customer portal
+          </a>
+        ) : (
+          <p className="text-xs text-emerald-800 mt-3">
+            Check your email for confirmation. Track quotes, orders and invoices
+            on the customer portal once the seller issues your link.
+          </p>
+        )}
       </div>
     );
   }

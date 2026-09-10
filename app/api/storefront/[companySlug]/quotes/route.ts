@@ -304,6 +304,10 @@ export async function POST(
         channel: String(attribution.channel || ''),
         source: String(attribution.source || ''),
       });
+      const portal = await attachStorefrontPortal({
+        sellerId: seller.id,
+        customerId,
+      });
       return NextResponse.json({
         ok: true,
         success: true,
@@ -313,14 +317,17 @@ export async function POST(
         message:
           'Quote request received. We aim to respond within 1 business day with pricing and terms.',
         seller: { id: seller.id, slug: seller.slug, tradingName: seller.tradingName },
+        ...portal,
         next: buyerCompanyId
           ? {
               connect: `/dashboard/connections/discover?peer=${seller.id}`,
               store: `/store/${seller.slug}`,
+              portal: portal.portalUrl,
             }
           : {
               onboarding: `/onboarding?type=business&partner=${seller.slug}&intent=order`,
               store: `/store/${seller.slug}`,
+              portal: portal.portalUrl,
             },
       });
     }
@@ -365,6 +372,10 @@ export async function POST(
       }
     }
 
+    const portal = await attachStorefrontPortal({
+      sellerId: seller.id,
+      customerId,
+    });
     return NextResponse.json({
       ok: true,
       success: true,
@@ -378,16 +389,19 @@ export async function POST(
         slug: seller.slug,
         tradingName: seller.tradingName,
       },
+      ...portal,
       next: buyerCompanyId
         ? {
             connect: `/dashboard/connections/discover?peer=${seller.id}`,
             store: `/store/${seller.slug}`,
             po: `/dashboard/suppliers/po?peer=${seller.id}`,
+            portal: portal.portalUrl,
           }
         : {
             onboarding: `/onboarding?type=business&partner=${seller.slug}&intent=order`,
             login: `/login?next=${encodeURIComponent(`/store/${seller.slug}`)}`,
             store: `/store/${seller.slug}`,
+            portal: portal.portalUrl,
           },
     });
   } catch (e: unknown) {
@@ -395,6 +409,30 @@ export async function POST(
       { error: e instanceof Error ? e.message : 'Error' },
       { status: 500 }
     );
+  }
+}
+
+async function attachStorefrontPortal(opts: {
+  sellerId: number;
+  customerId: number | null;
+}): Promise<{ portalUrl?: string; portalEmailSent?: boolean }> {
+  if (!opts.customerId) return {};
+  try {
+    const { issueAccountPortal } = await import(
+      '@/lib/portals/trade-portal-people'
+    );
+    const issued = await issueAccountPortal({
+      companyId: opts.sellerId,
+      kind: 'customer',
+      customerId: opts.customerId,
+    });
+    if (!issued.ok) return {};
+    return {
+      portalUrl: issued.url,
+      portalEmailSent: issued.emailSent,
+    };
+  } catch {
+    return {};
   }
 }
 

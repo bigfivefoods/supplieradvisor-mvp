@@ -11,6 +11,13 @@ import {
   BIG_FIVE_FOODS_SEED,
 } from './big-five-foods-seed';
 import type { StoreChannel, StoreCompany, StoreProduct } from './types';
+import {
+  applyStorefrontCatalog,
+  DEFAULT_STOREFRONT_CATALOG,
+  gymStorefrontItemId,
+  storefrontCatalogFromProfileMetadata,
+  type StorefrontCatalogPick,
+} from './catalog-pick';
 
 function supabaseClient(preferAdmin = false) {
   try {
@@ -127,6 +134,7 @@ function mapCompany(
     tagline:
       String(meta.store_tagline || '').trim() ||
       'Order on the verified network — one OS for trade and proof',
+    storefrontCatalog: storefrontCatalogFromProfileMetadata(meta),
   };
 }
 
@@ -277,6 +285,9 @@ export async function listStoreProducts(
   opts?: { channel?: string | null; q?: string | null }
 ): Promise<StoreProduct[]> {
   let products: StoreProduct[] = [];
+  const pick: StorefrontCatalogPick =
+    company.storefrontCatalog || DEFAULT_STOREFRONT_CATALOG;
+  let hadDbProducts = false;
 
   if (company.id > 0) {
     const supabase = supabaseClient(true);
@@ -290,9 +301,11 @@ export async function listStoreProducts(
       .limit(500);
 
     if (!error && data?.length) {
+      hadDbProducts = true;
       products = data
         .filter((p) => {
           if (p.is_sellable === false) return false;
+          if (pick.mode === 'selected') return true;
           const meta = (p.metadata || {}) as Record<string, unknown>;
           if (meta.storefront_public === false) return false;
           if (meta.storefrontPublic === false) return false;
@@ -302,17 +315,16 @@ export async function listStoreProducts(
     }
   }
 
-  // Fallback seed catalog for Big Five Foods when DB empty
-  if (
-    products.length === 0 &&
-    company.slug === BIG_FIVE_FOODS_SLUG
-  ) {
+  // Fallback seed catalog for Big Five Foods when this company has no SKUs yet
+  if (!hadDbProducts && company.slug === BIG_FIVE_FOODS_SLUG) {
     products = seedDefsAsStoreProducts();
   }
 
   if (company.id > 0) {
     products = await appendGymShopToStoreProducts(company, products);
   }
+
+  products = applyStorefrontCatalog(products, pick);
 
   if (opts?.channel) {
     const ch = String(opts.channel).toLowerCase();
@@ -370,7 +382,7 @@ async function appendGymShopToStoreProducts(
       if (sku && skus.has(sku)) continue;
       if (names.has(item.name.trim().toLowerCase())) continue;
       extra.push({
-        id: `gym-${item.kind}-${item.id}`,
+        id: gymStorefrontItemId(item.kind, item.id),
         sku: item.code || null,
         name: item.name,
         shortName: item.name,
@@ -388,7 +400,7 @@ async function appendGymShopToStoreProducts(
         currency: 'ZAR',
         priceOnRequest: false,
         inStock: true,
-        externalRef: `gym-${item.kind}-${item.id}`,
+        externalRef: gymStorefrontItemId(item.kind, item.id),
         quoteFirst: false,
         active: true,
         category:

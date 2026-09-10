@@ -1,5 +1,7 @@
 /** Public storefront types — Big Five Foods & multi-tenant sellers */
 
+import type { StorefrontCatalogPick } from './catalog-pick';
+
 export type StoreChannel = 'retail' | 'wholesale' | 'institutional';
 
 export type StoreAttribution = {
@@ -56,6 +58,8 @@ export type StoreCompany = {
   city: string | null;
   country: string | null;
   tagline: string;
+  /** Public catalogue allowlist from profiles.metadata.storefront_catalog */
+  storefrontCatalog?: StorefrontCatalogPick;
 };
 
 export type StorefrontQuoteLine = {
