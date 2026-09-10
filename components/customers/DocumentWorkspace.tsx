@@ -64,6 +64,11 @@ import { CompanyRequired, CustomersHeader } from '@/components/customers/Custome
 import CommissionBadge from '@/components/sales/CommissionBadge';
 import FxRateStrip from '@/components/fx/FxRateStrip';
 import LinkedOrdersPanel from '@/components/orders/LinkedOrdersPanel';
+import {
+  canIssueQuote,
+  canStartProcessing,
+  parseTradeThread,
+} from '@/lib/customers/trade-thread';
 
 type DocType = 'quote' | 'order' | 'invoice';
 
@@ -101,10 +106,21 @@ const CONFIG: Record<
   }
 > = {
   quote: {
-    title: 'Quotes',
-    description: 'Build commercial quotes from your product catalogue. Accept and convert to sales orders.',
+    title: 'Enquiries & quotes',
+    description:
+      'Storefront enquiries land here. Issue a quotation (portal + email). The customer accepts with a PO, pays the deposit, then you process the order.',
     numberField: 'quote_number',
-    statuses: ['draft', 'sent', 'accepted', 'rejected', 'expired', 'converted'],
+    statuses: [
+      'enquiry',
+      'draft',
+      'sent',
+      'accepted',
+      'deposit_due',
+      'deposit_paid',
+      'rejected',
+      'expired',
+      'converted',
+    ],
     convertLabel: 'Convert to order',
     convertAction: 'convert_to_order',
   },
@@ -1286,6 +1302,32 @@ function DocInner({
       toast.error(e instanceof Error ? e.message : 'Failed');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const issueQuote = async (doc: DocRecord) => {
+    setBusyId(Number(doc.id));
+    try {
+      const res = await fetch('/api/customers/docs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          type: 'quote',
+          id: doc.id,
+          action: 'issue_quote',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not issue quote');
+      toast.success('Quotation issued on the customer portal');
+      const issued = (data.quote || doc) as DocRecord;
+      await emailDoc(issued);
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -3256,7 +3298,35 @@ function DocInner({
                         </>
                       )}
                     </button>
-                    {cfg.convertAction && d.status !== 'converted' && d.status !== 'invoiced' && (
+                    {type === 'quote' &&
+                      canIssueQuote(
+                        parseTradeThread(d.metadata, d.status),
+                        d.status
+                      ) && (
+                      <button
+                        type="button"
+                        disabled={busyId === d.id}
+                        onClick={() => void issueQuote(d)}
+                        className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+                        title="Share a commercial quotation on the customer portal and email it"
+                      >
+                        {busyId === d.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <>
+                            Issue quote <ArrowRight className="w-3 h-3" />
+                          </>
+                        )}
+                      </button>
+                    )}
+                    {cfg.convertAction &&
+                      d.status !== 'converted' &&
+                      d.status !== 'invoiced' &&
+                      (type !== 'quote' ||
+                        canStartProcessing(
+                          parseTradeThread(d.metadata, d.status),
+                          d.status
+                        )) && (
                       <button
                         type="button"
                         disabled={busyId === d.id}
@@ -3265,7 +3335,9 @@ function DocInner({
                         title={
                           cfg.convertAction === 'convert_to_invoice'
                             ? 'Creates a draft invoice you can review, then send from Invoices. Nothing is emailed yet.'
-                            : cfg.convertLabel
+                            : type === 'quote'
+                              ? 'Only after the customer accepts with a PO and pays the deposit (storefront thread).'
+                              : cfg.convertLabel
                         }
                       >
                         {busyId === d.id ? (

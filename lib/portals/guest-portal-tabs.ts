@@ -86,7 +86,7 @@ export function guestPortalTabGroups(opts: {
     {
       id: 'trade',
       tabs: [
-        { id: 'quotes', label: 'Quotations' },
+        { id: 'quotes', label: 'Enquiry → order' },
         { id: 'newpo', label: 'Purchase order' },
         { id: 'orders', label: 'Sales orders' },
         { id: 'commercial', label: 'Commercial' },

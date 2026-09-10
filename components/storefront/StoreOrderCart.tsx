@@ -148,7 +148,7 @@ export function StoreOrderProvider({
         customerName: data.customer?.trading_name,
         customerCreated: data.customer?.created === true,
       });
-      toast.success('Order received', {
+      toast.success('Enquiry received', {
         description: data.quote?.quote_number
           ? `Reference ${data.quote.quote_number}`
           : 'The seller will confirm on SupplierAdvisor®',
@@ -185,11 +185,12 @@ export function StoreOrderProvider({
                   {companyName}
                 </p>
                 <h2 className="text-lg font-black text-slate-900">
-                  Order from the catalogue
+                  Send an enquiry
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  This creates your customer profile on {companyName}&apos;s
-                  CRM. You get a portal to track quotes, orders and invoices.
+                  This is an enquiry, not a quotation. We save your customer
+                  profile on {companyName}. They send a quote to your portal
+                  for you to approve with a PO, then you pay the deposit.
                 </p>
               </div>
               <button
@@ -204,10 +205,10 @@ export function StoreOrderProvider({
 
             {done ? (
               <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                <p className="font-black text-emerald-950">Request received</p>
+                <p className="font-black text-emerald-950">Enquiry received</p>
                 <p className="text-sm text-emerald-900 mt-1">
                   {done.message ||
-                    'The seller will confirm pricing and terms.'}
+                    'Not a quotation yet. The seller will issue a quote on your portal.'}
                 </p>
                 {done.quoteNumber ? (
                   <p className="mt-1 font-mono text-sm font-bold text-emerald-950">
@@ -395,7 +396,7 @@ export function StoreOrderProvider({
                   {busy ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    'Send order / quote request'
+                    'Send enquiry'
                   )}
                 </button>
               </>

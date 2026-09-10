@@ -79,6 +79,241 @@ export async function POST(request: NextRequest) {
     const stamp = portalActionStamp(hostActor, viewer);
     const supabase = getSupabaseServer();
     const now = new Date().toISOString();
+    const customerId = Number(viewer.customer_id || 0);
+
+    if (
+      (action === 'accept_quote' ||
+        action === 'pay_deposit' ||
+        action === 'confirm_deposit') &&
+      portal.kind === 'customer' &&
+      customerId > 0
+    ) {
+      const quoteId = Number(body.id || body.quoteId || 0);
+      if (!quoteId) {
+        return NextResponse.json({ error: 'Quote id required' }, { status: 400 });
+      }
+      const { data: quote, error: qErr } = await supabase
+        .from('customer_quotes')
+        .select('*')
+        .eq('id', quoteId)
+        .eq('profile_id', portal.profile_id)
+        .eq('customer_id', customerId)
+        .maybeSingle();
+      if (qErr || !quote) {
+        return NextResponse.json(
+          { error: qErr?.message || 'Quotation not found' },
+          { status: 404 }
+        );
+      }
+      const {
+        canAcceptQuote,
+        canPayDeposit,
+        depositAmountFromTotal,
+        parseTradeThread,
+        statusForStage,
+        writeTradeThread,
+      } = await import('@/lib/customers/trade-thread');
+      let thread = parseTradeThread(quote.metadata, quote.status);
+
+      if (action === 'accept_quote') {
+        if (!canAcceptQuote(thread, quote.status)) {
+          return NextResponse.json(
+            { error: 'This quotation is not waiting for your acceptance.', stage: thread.stage },
+            { status: 409 }
+          );
+        }
+        const po = String(body.po_number || body.poNumber || '').trim();
+        if (po.length < 2) {
+          return NextResponse.json(
+            { error: 'Enter your purchase order (PO) number to accept.' },
+            { status: 400 }
+          );
+        }
+        const percent = thread.deposit_percent || 50;
+        const depositAmt = depositAmountFromTotal(
+          Number(quote.total_amount || 0),
+          percent
+        );
+        thread = {
+          ...thread,
+          stage: 'deposit',
+          accepted_at: now,
+          po_number: po,
+          deposit_amount: depositAmt,
+        };
+        const { calcDocTotals, docNumber, normalizeItems } = await import(
+          '@/lib/customers/documents'
+        );
+        const items = normalizeItems(quote.items).map((line) => ({
+          ...line,
+          unit_price: Math.round(Number(line.unit_price || 0) * (percent / 100) * 100) / 100,
+          line_total:
+            Math.round(
+              Number(line.quantity || 0) *
+                Number(line.unit_price || 0) *
+                (percent / 100) *
+                100
+            ) / 100,
+        }));
+        const totals = calcDocTotals(items, Number(quote.tax_rate ?? 15));
+        const invPayload: Record<string, unknown> = {
+          profile_id: portal.profile_id,
+          customer_id: customerId,
+          quote_id: quote.id,
+          invoice_number: docNumber('DEP'),
+          status: 'sent',
+          currency: quote.currency || 'ZAR',
+          ...totals,
+          customer_name: quote.customer_name,
+          contact_name: quote.contact_name,
+          contact_email: quote.contact_email,
+          contact_phone: quote.contact_phone,
+          visibility: 'shared',
+          notes: `Deposit (${percent}%) for quotation ${quote.quote_number}. Customer PO ${po}.`,
+          items,
+          metadata: {
+            deposit_for_quote_id: quote.id,
+            po_number: po,
+            kind: 'crm_quote_deposit',
+          },
+          created_at: now,
+          updated_at: now,
+        };
+        let { data: inv, error: iErr } = await supabase
+          .from('customer_invoices')
+          .insert(invPayload)
+          .select('id, invoice_number, total_amount')
+          .single();
+        if (iErr) {
+          const retry = await supabase
+            .from('customer_invoices')
+            .insert({
+              profile_id: portal.profile_id,
+              customer_id: customerId,
+              invoice_number: invPayload.invoice_number,
+              status: 'sent',
+              currency: invPayload.currency,
+              total_amount: totals.total_amount,
+              customer_name: quote.customer_name,
+              notes: invPayload.notes,
+              items,
+              created_at: now,
+              updated_at: now,
+            })
+            .select('id, invoice_number, total_amount')
+            .single();
+          inv = retry.data;
+          iErr = retry.error;
+        }
+        if (iErr || !inv?.id) {
+          return NextResponse.json(
+            { error: iErr?.message || 'Could not raise deposit invoice' },
+            { status: 500 }
+          );
+        }
+        thread.deposit_invoice_id = Number(inv.id);
+        thread.deposit_amount = Number(inv.total_amount || depositAmt);
+        await supabase
+          .from('customer_quotes')
+          .update({
+            status: statusForStage('deposit'),
+            metadata: writeTradeThread(quote.metadata, thread),
+            updated_at: now,
+          })
+          .eq('id', quote.id)
+          .eq('profile_id', portal.profile_id);
+        return NextResponse.json({
+          success: true,
+          action: 'accept_quote',
+          thread,
+          po_number: po,
+          invoice: inv,
+        });
+      }
+
+      if (action === 'pay_deposit') {
+        if (!canPayDeposit(thread)) {
+          return NextResponse.json(
+            { error: 'Deposit is not due yet. Accept the quotation with a PO first.', stage: thread.stage },
+            { status: 409 }
+          );
+        }
+        const amount = Number(thread.deposit_amount || quote.total_amount || 0);
+        const cents = Math.round(amount * 100);
+        if (cents < 100) {
+          return NextResponse.json({ error: 'Deposit amount is not payable yet.' }, { status: 400 });
+        }
+        const email = String(quote.contact_email || viewer.email || '').trim();
+        if (!email.includes('@')) {
+          return NextResponse.json({ error: 'A contact email is required to pay.' }, { status: 400 });
+        }
+        const { initializePaystackTransaction } = await import(
+          '@/lib/billing/paystack-plans'
+        );
+        const { getAppUrl } = await import('@/lib/resend');
+        const token = String(body.token || '').trim();
+        const callback = `${getAppUrl().replace(/\/$/, '')}/portal/${encodeURIComponent(token)}?tab=quotes`;
+        const reference = `dep-${quote.id}-${Date.now().toString(36)}`;
+        const init = await initializePaystackTransaction({
+          email,
+          amountCents: cents,
+          currency: String(quote.currency || 'ZAR'),
+          reference,
+          callbackUrl: callback,
+          metadata: {
+            kind: 'crm_quote_deposit',
+            quote_id: quote.id,
+            invoice_id: thread.deposit_invoice_id,
+            company_id: portal.profile_id,
+            customer_id: customerId,
+          },
+        });
+        if (!init.ok) {
+          return NextResponse.json({ error: init.error }, { status: 503 });
+        }
+        return NextResponse.json({
+          success: true,
+          action: 'pay_deposit',
+          authorizationUrl: init.authorizationUrl,
+          reference: init.reference,
+        });
+      }
+
+      if (action === 'confirm_deposit') {
+        const ref = String(body.reference || body.trxref || '').trim();
+        if (!ref) {
+          return NextResponse.json({ error: 'Payment reference required' }, { status: 400 });
+        }
+        const { verifyPaystackTransaction } = await import('@/lib/billing/paystack');
+        const expected = Math.round(Number(thread.deposit_amount || 0) * 100);
+        const verified = await verifyPaystackTransaction(ref, {
+          expectedAmountCents: expected > 0 ? expected : undefined,
+          expectedCurrency: String(quote.currency || 'ZAR'),
+        });
+        if (!verified.ok) {
+          return NextResponse.json({ error: verified.error }, { status: 402 });
+        }
+        const { markQuoteDepositPaid } = await import(
+          '@/lib/customers/trade-thread-apply'
+        );
+        const applied = await markQuoteDepositPaid({
+          supabase,
+          companyId: portal.profile_id,
+          quoteId: quote.id,
+          invoiceId: thread.deposit_invoice_id,
+          now,
+        });
+        if (!applied.ok) {
+          return NextResponse.json({ error: applied.error }, { status: 500 });
+        }
+        return NextResponse.json({
+          success: true,
+          action: 'confirm_deposit',
+          thread: applied.thread,
+          orderId: applied.orderId,
+        });
+      }
+    }
 
     if (action === 'profile') {
       const patch: Record<string, unknown> = {

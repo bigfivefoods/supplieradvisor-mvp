@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import {
@@ -174,6 +174,9 @@ const HEAVY_ACTIONS = new Set([
   'commercial_reject',
   'commercial_add',
   'commercial_sla',
+  'accept_quote',
+  'pay_deposit',
+  'confirm_deposit',
 ]);
 const REFRESH_ACTIONS = new Set([
   'project_create',
@@ -191,6 +194,9 @@ const REFRESH_ACTIONS = new Set([
   'document_extra',
   'document_share',
   'production_update',
+  'accept_quote',
+  'pay_deposit',
+  'confirm_deposit',
 ]);
 
 function portalLotsFromAct(
@@ -678,6 +684,12 @@ export function GuestTradeWorkspace({
                                     ? null
                                     : action === 'po_update'
                               ? 'Order updated'
+                              : action === 'accept_quote'
+                                ? 'Quotation accepted — pay the deposit to start processing'
+                                : action === 'pay_deposit'
+                                  ? 'Opening Paystack for the deposit'
+                                  : action === 'confirm_deposit'
+                                    ? 'Deposit paid — the seller can process your order'
                               : 'Saved'
       );
       if (REFRESH_ACTIONS.has(action)) onRefresh();
@@ -754,6 +766,10 @@ export function GuestTradeWorkspace({
         <QuotesPanel
           quotes={live.quotes || []}
           hostName={live.host.name}
+          token={token}
+          busy={busy}
+          isHost={isHost}
+          onAct={act}
         />
       ) : null}
 
@@ -3682,7 +3698,10 @@ function OtifefPanel({
 
 function quoteStatusClass(status: string): string {
   const s = status.toLowerCase();
-  if (['accepted', 'converted', 'won'].includes(s)) {
+  if (s === 'enquiry') {
+    return 'bg-amber-50 text-amber-900';
+  }
+  if (['accepted', 'converted', 'won', 'deposit_paid', 'processing'].includes(s)) {
     return 'bg-emerald-50 text-emerald-800';
   }
   if (['rejected', 'expired', 'cancelled', 'lost'].includes(s)) {
@@ -3694,31 +3713,90 @@ function quoteStatusClass(status: string): string {
   return 'bg-neutral-100 text-neutral-600';
 }
 
+const THREAD_STEPS = [
+  { id: 'enquiry', label: 'Enquiry' },
+  { id: 'quoted', label: 'Quote' },
+  { id: 'accepted', label: 'Accept + PO' },
+  { id: 'deposit', label: 'Deposit' },
+  { id: 'processing', label: 'Processing' },
+] as const;
+
+function threadIndex(stage?: string | null): number {
+  const s = String(stage || '').toLowerCase();
+  if (s === 'enquiry') return 0;
+  if (s === 'quoted' || s === 'sent') return 1;
+  if (s === 'accepted') return 2;
+  if (s === 'deposit' || s === 'deposit_due') return 3;
+  if (s === 'processing' || s === 'deposit_paid' || s === 'converted' || s === 'fulfilled')
+    return 4;
+  return 1;
+}
+
 function QuotesPanel({
   quotes,
   hostName,
+  token,
+  busy,
+  isHost,
+  onAct,
 }: {
   quotes: PublicPortalPayload['quotes'];
   hostName: string;
+  token: string;
+  busy: boolean;
+  isHost?: boolean;
+  onAct: (p: Record<string, unknown>) => Promise<Record<string, unknown> | null>;
 }) {
   const [openId, setOpenId] = useState<number | null>(null);
+  const [poById, setPoById] = useState<Record<number, string>>({});
+  const confirmedRef = useRef(false);
   const listed = quotes
     .slice()
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || isHost || confirmedRef.current) return;
+    const qs = new URLSearchParams(window.location.search);
+    const ref = qs.get('reference') || qs.get('trxref');
+    const quoteHint = listed.find(
+      (q) =>
+        q.thread_stage === 'deposit' ||
+        q.thread_stage === 'accepted' ||
+        String(q.status).toLowerCase() === 'deposit_due'
+    );
+    if (!ref || !quoteHint) return;
+    confirmedRef.current = true;
+    void onAct({ action: 'confirm_deposit', id: quoteHint.id, reference: ref });
+  }, [isHost, listed, onAct]);
 
   return (
     <div className="space-y-4">
       <section className="rounded-[1.5rem] border border-white/70 bg-white/90 p-5 shadow-sm">
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
-          Quotations · {hostName}
+          Trade thread · {hostName}
         </p>
         <h2 className="mt-1 text-lg font-black text-slate-900">
-          Quotations on this account
+          Enquiry to order
         </h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Every quotation {hostName} created on your CRM record — including
-          drafts — shows here.
+          You send an enquiry. {hostName} issues a quotation. You accept with
+          your PO number, pay the deposit, then they process the order.
         </p>
+        <ol className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-2">
+          {THREAD_STEPS.map((s, i) => (
+            <li
+              key={s.id}
+              className="rounded-xl border border-slate-100 bg-slate-50 px-2 py-2 text-center"
+            >
+              <span className="block text-[10px] font-black text-[#0077b6]">
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              <span className="block text-[11px] font-bold text-slate-800">
+                {s.label}
+              </span>
+            </li>
+          ))}
+        </ol>
       </section>
       {listed.length === 0 ? (
         <p className="rounded-[1.5rem] border border-white/70 bg-white/90 px-5 py-10 text-center text-sm text-neutral-500">
@@ -3804,6 +3882,72 @@ function QuotesPanel({
                         Line items were not attached to this quotation.
                       </p>
                     )}
+                    <p className="text-[11px] font-semibold text-slate-500">
+                      Step{' '}
+                      {THREAD_STEPS[threadIndex(r.thread_stage || r.status)]
+                        ?.label || r.status}
+                      {r.enquiry_number ? ` · enquiry ${r.enquiry_number}` : ''}
+                      {r.po_number ? ` · PO ${r.po_number}` : ''}
+                    </p>
+                    {!isHost &&
+                    (r.thread_stage === 'quoted' ||
+                      String(r.status).toLowerCase() === 'sent') ? (
+                      <div className="rounded-xl border border-sky-100 bg-sky-50 p-3 space-y-2">
+                        <p className="text-xs font-bold text-sky-950">
+                          Approve this quotation and give your PO number
+                        </p>
+                        <input
+                          className="input w-full !py-2 !px-3 !text-sm bg-white"
+                          placeholder="Your PO number *"
+                          value={poById[r.id] || ''}
+                          onChange={(e) =>
+                            setPoById((prev) => ({
+                              ...prev,
+                              [r.id]: e.target.value,
+                            }))
+                          }
+                        />
+                        <button
+                          type="button"
+                          disabled={busy}
+                          className="btn-primary !py-2 !px-4 text-xs"
+                          onClick={() =>
+                            void onAct({
+                              action: 'accept_quote',
+                              id: r.id,
+                              po_number: poById[r.id],
+                            })
+                          }
+                        >
+                          Approve quotation
+                        </button>
+                      </div>
+                    ) : null}
+                    {!isHost &&
+                    (r.thread_stage === 'deposit' ||
+                      r.thread_stage === 'accepted' ||
+                      String(r.status).toLowerCase() === 'deposit_due') ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        className="btn-primary !py-2 !px-4 text-xs"
+                        onClick={async () => {
+                          const data = await onAct({
+                            action: 'pay_deposit',
+                            id: r.id,
+                          });
+                          const url = data?.authorizationUrl
+                            ? String(data.authorizationUrl)
+                            : '';
+                          if (url) window.location.href = url;
+                        }}
+                      >
+                        Pay {r.deposit_percent || 50}% deposit
+                        {r.deposit_amount != null
+                          ? ` · ${formatMoney(r.deposit_amount, r.currency)}`
+                          : ''}
+                      </button>
+                    ) : null}
                   </div>
                 ) : null}
               </li>

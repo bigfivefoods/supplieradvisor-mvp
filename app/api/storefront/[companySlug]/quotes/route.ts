@@ -16,6 +16,10 @@ import {
 } from '@/lib/customers/documents';
 import { logActivity } from '@/lib/customers/access';
 import { upsertStorefrontCustomer } from '@/lib/storefront/customer';
+import {
+  newStorefrontEnquiryThread,
+  writeTradeThread,
+} from '@/lib/customers/trade-thread';
 
 /**
  * POST /api/storefront/{companySlug}/quotes
@@ -183,7 +187,7 @@ export async function POST(
 
     const notes = [
       message || (body.notes ? String(body.notes) : ''),
-      `[storefront quote request]`,
+      `[storefront enquiry]`,
       `sla=response within 1 business day`,
       attribution.source ? `source=${attribution.source}` : '',
       attribution.ref ? `ref=${attribution.ref}` : '',
@@ -220,12 +224,16 @@ export async function POST(
       });
     }
 
-    const quoteNumber = docNumber('QT');
+    const enquiryNumber = docNumber('ENQ');
+    const thread = newStorefrontEnquiryThread({
+      enquiryNumber,
+      now,
+    });
     const quotePayload: Record<string, unknown> = {
       profile_id: seller.id,
       customer_id: customerId,
-      quote_number: quoteNumber,
-      status: 'draft',
+      quote_number: enquiryNumber,
+      status: 'enquiry',
       currency: 'ZAR',
       subtotal: totals.subtotal,
       tax_rate: totals.tax_rate,
@@ -237,7 +245,10 @@ export async function POST(
       contact_phone: contactPhone ? String(contactPhone) : null,
       notes,
       items,
-      terms: 'Quote request from public storefront — prices subject to confirmation.',
+      visibility: 'shared',
+      terms:
+        'Storefront enquiry — not a quotation. The seller will issue a quote on your customer portal for approval.',
+      metadata: writeTradeThread({ storefront: true, store_slug: seller.slug }, thread),
       created_at: now,
       updated_at: now,
     };
@@ -252,8 +263,8 @@ export async function POST(
       // Soft fallback without optional columns
       const minimal = {
         profile_id: seller.id,
-        quote_number: quoteNumber,
-        status: 'draft',
+        quote_number: enquiryNumber,
+        status: 'enquiry',
         currency: 'ZAR',
         total_amount: totals.total_amount,
         customer_name: tradingName,
@@ -283,13 +294,13 @@ export async function POST(
         action: 'storefront.quote_request',
         entity_type: 'customer_quotes',
         entity_id: String(retry.data?.id),
-        summary: `Storefront quote ${quoteNumber} from ${tradingName}`,
+        summary: `Storefront enquiry ${enquiryNumber} from ${tradingName}`,
         metadata: attribution,
       });
       await notifySellerQuote({
         sellerId: seller.id,
         sellerName: seller.tradingName,
-        quoteNumber,
+        quoteNumber: enquiryNumber,
         tradingName,
         contactEmail,
         contactName,
@@ -303,11 +314,16 @@ export async function POST(
       return NextResponse.json({
         ok: true,
         success: true,
-        quoteId: retry.data?.id ?? quoteNumber,
+        quoteId: retry.data?.id ?? enquiryNumber,
         quote: retry.data,
-        sla: 'Response within 1 business day',
+        enquiry: {
+          id: retry.data?.id,
+          enquiry_number: enquiryNumber,
+          status: 'enquiry',
+        },
+        sla: 'The seller will issue a quotation on your customer portal.',
         message:
-          'Quote request received. Your customer profile is on the seller CRM. We aim to respond within 1 business day.',
+          'Enquiry received. This is not a quotation yet. Watch your customer portal — the seller will send a quote to approve.',
         seller: { id: seller.id, slug: seller.slug, tradingName: seller.tradingName },
         customer,
         ...portal,
@@ -330,14 +346,14 @@ export async function POST(
       action: 'storefront.quote_request',
       entity_type: 'customer_quotes',
       entity_id: String(quote?.id),
-      summary: `Storefront quote ${quoteNumber} from ${tradingName}`,
+      summary: `Storefront enquiry ${enquiryNumber} from ${tradingName}`,
       metadata: attribution,
     });
 
     await notifySellerQuote({
       sellerId: seller.id,
       sellerName: seller.tradingName,
-      quoteNumber,
+      quoteNumber: enquiryNumber,
       tradingName,
       contactEmail,
       contactName,
@@ -354,7 +370,7 @@ export async function POST(
             requestee_profile_id: seller.id,
             status: 'pending',
             connection_type: 'customer',
-            notes: `Storefront quote ${quoteNumber}`,
+            notes: `Storefront enquiry ${enquiryNumber}`,
             metadata: attribution,
             updated_at: now,
           },
@@ -372,11 +388,16 @@ export async function POST(
     return NextResponse.json({
       ok: true,
       success: true,
-      quoteId: quote?.id ?? quoteNumber,
+      quoteId: quote?.id ?? enquiryNumber,
       quote,
-      sla: 'Response within 1 business day',
+      enquiry: {
+        id: quote?.id,
+        enquiry_number: enquiryNumber,
+        status: 'enquiry',
+      },
+      sla: 'The seller will issue a quotation on your customer portal.',
       message:
-        'Quote request received. Your customer profile is on the seller CRM. We aim to respond within 1 business day.',
+        'Enquiry received. This is not a quotation yet. Watch your customer portal — the seller will send a quote to approve.',
       seller: {
         id: seller.id,
         slug: seller.slug,
@@ -462,13 +483,13 @@ async function notifySellerQuote(opts: {
       await resend.emails.send({
         from,
         to: sellerTo,
-        subject: `New storefront quote ${opts.quoteNumber} — ${opts.tradingName}`,
-        html: `<p><strong>New quote request</strong> on SupplierAdvisor®</p>
-<p>Quote: <strong>${opts.quoteNumber}</strong><br/>
+        subject: `New storefront enquiry ${opts.quoteNumber} — ${opts.tradingName}`,
+        html: `<p><strong>New enquiry</strong> on SupplierAdvisor® (not a quotation yet)</p>
+<p>Enquiry: <strong>${opts.quoteNumber}</strong><br/>
 Buyer: ${opts.tradingName} · ${opts.contactName} · ${opts.contactEmail}<br/>
 Channel: ${opts.channel || '—'} · Source: ${opts.source || 'storefront'}</p>
-<p>SLA: respond within <strong>1 business day</strong>.</p>
-<p><a href="${quotesUrl}">Open Quotes inbox</a></p>`,
+<p>Issue a quotation from <strong>Customers → Quote</strong>, then the buyer accepts with a PO and pays the deposit on their portal.</p>
+<p><a href="${quotesUrl}">Open Enquiries & quotes</a></p>`,
       });
     }
 
@@ -479,8 +500,8 @@ Channel: ${opts.channel || '—'} · Source: ${opts.source || 'storefront'}</p>
         to: opts.contactEmail,
         subject: `Quote request received — ${opts.sellerName}`,
         html: `<p>Hi ${opts.contactName || 'there'},</p>
-<p>We received your quote request <strong>${opts.quoteNumber}</strong> for <strong>${opts.sellerName}</strong> on SupplierAdvisor®.</p>
-<p>We aim to respond within <strong>1 business day</strong> with pricing and terms.</p>
+<p>We received your enquiry <strong>${opts.quoteNumber}</strong> for <strong>${opts.sellerName}</strong> on SupplierAdvisor®.</p>
+<p>This is not a quotation yet. ${opts.sellerName} will send a quote to your customer portal for you to approve (with your PO number) before a deposit is due.</p>
 <p>This is a verified B2B trade network — not a second order book.</p>
 <p>— SupplierAdvisor®</p>`,
       });

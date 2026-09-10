@@ -55,7 +55,7 @@ type AccountOpt = {
 };
 
 const CUSTOMER_SECTIONS: Array<{ key: keyof PortalSections; label: string; hint: string }> = [
-  { key: 'quotes', label: 'Quotations', hint: 'Quotes created on this CRM account' },
+  { key: 'quotes', label: 'Enquiry → order', hint: 'Enquiries, quotations, accept + PO, deposit' },
   { key: 'orders', label: 'Sales orders', hint: 'SO list and status' },
   { key: 'commercial', label: 'Commercial', hint: 'Accepted prices and proposals' },
   { key: 'stock', label: 'Stock on hand', hint: 'Stock at their site' },
