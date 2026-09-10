@@ -22,6 +22,12 @@ import {
 import { loadHostPurchaseOrders } from '@/lib/portals/host-purchase-orders';
 import { loadSupplierHeldStock } from '@/lib/portals/supplier-dc-stock';
 import { loadCustomerHeldStock } from '@/lib/portals/customer-site-stock';
+import {
+  productListedOnStorefront,
+  storefrontCatalogFromProfileMetadata,
+  storefrontPublicFlag,
+  type StorefrontCatalogPick,
+} from '@/lib/storefront/catalog-pick';
 import type { OtifefMetrics } from '@/lib/suppliers/types';
 import {
   parsePortalTaskRiadId,
@@ -141,6 +147,8 @@ export type PortalCatalogueItem = {
   customer_brand?: boolean;
   /** Product sits on a saved order chain for this customer. */
   on_chain?: boolean;
+  /** Product is on the host storefront catalogue (Inventory → Storefront). */
+  on_storefront?: boolean;
   /** Chain MoQ for this customer (units). */
   moq?: number | null;
   /** Chain lead time in calendar days. */
@@ -172,15 +180,82 @@ export function isPortalFinishedGood(
   );
 }
 
-/** Portal PO catalogue is order-chain SKUs only. */
+export function portalPoFlags(opts: {
+  productId: number;
+  sku?: string | null;
+  metadata?: Record<string, unknown> | null;
+  customerId: number;
+  chainIds: Set<number>;
+  pick: StorefrontCatalogPick;
+}): {
+  visible: boolean;
+  on_chain: boolean;
+  on_storefront: boolean;
+  customer_brand: boolean;
+} {
+  const visible = productVisibleOnCustomerPortal(
+    opts.metadata,
+    opts.customerId
+  );
+  const on_chain = opts.chainIds.has(opts.productId);
+  const customer_brand = productAssignedToCustomer(
+    opts.metadata,
+    opts.customerId
+  );
+  const on_storefront =
+    visible &&
+    productListedOnStorefront(
+      {
+        id: opts.productId,
+        sku: opts.sku,
+        storefrontPublic: storefrontPublicFlag(opts.metadata),
+      },
+      opts.pick
+    );
+  return { visible, on_chain, on_storefront, customer_brand };
+}
+
+/** Storefront SKUs, optional chain overlay, and this customer's private-label. */
+export function includeOnPortalPo(flags: {
+  visible?: boolean;
+  on_chain?: boolean;
+  on_storefront?: boolean;
+  customer_brand?: boolean;
+}): boolean {
+  if (flags.visible === false) return false;
+  return Boolean(flags.on_storefront || flags.on_chain || flags.customer_brand);
+}
+
+export function portalPoLineAllowed(opts: {
+  productId: number;
+  sku?: string | null;
+  metadata?: Record<string, unknown> | null;
+  status?: string | null;
+  is_sellable?: boolean | null;
+  product_type?: string | null;
+  customerId: number;
+  chainIds: Set<number>;
+  pick: StorefrontCatalogPick;
+}): boolean {
+  const st = String(opts.status || 'active').toLowerCase();
+  if (st === 'archived' || st === 'inactive' || st === 'deleted') return false;
+  if (opts.is_sellable === false) return false;
+  const type = String(opts.product_type || 'finished_good').toLowerCase();
+  if (type === 'wip' || type === 'work_in_progress') return false;
+  return includeOnPortalPo(portalPoFlags(opts));
+}
+
+/** Portal PO catalogue: storefront pick plus optional order-chain overlay. */
 export function portalPoCatalogue(
   items: PortalCatalogueItem[]
 ): PortalCatalogueItem[] {
   return items
-    .filter((i) => i.on_chain)
+    .filter((i) => includeOnPortalPo(i))
     .sort((a, b) => {
       if (a.customer_brand && !b.customer_brand) return -1;
       if (!a.customer_brand && b.customer_brand) return 1;
+      if (a.on_chain && !b.on_chain) return -1;
+      if (!a.on_chain && b.on_chain) return 1;
       return a.name.localeCompare(b.name);
     });
 }
@@ -402,6 +477,9 @@ async function enrichDocLinesWithProducts(
   }
 }
 
+const PORTAL_PRODUCT_COLS =
+  'id, name, sku, product_type, uom, status, is_sellable, sell_price, cost_price, base_currency, short_description, primary_image_url, metadata';
+
 async function loadHostCatalogue(
   companyId: number,
   customerId?: number | null
@@ -414,46 +492,56 @@ async function loadHostCatalogue(
     .eq('profile_id', companyId)
     .eq('status', 'active')
     .limit(200);
-  if (setups.error) {
-    if (!isMissingRelation(setups.error)) {
-      console.warn('portal catalogue chains', setups.error.message);
-    }
-    return [];
+  if (setups.error && !isMissingRelation(setups.error)) {
+    console.warn('portal catalogue chains', setups.error.message);
   }
-  const chainRows = (setups.data || [])
-    .map(mapChainSetup)
-    .filter((s): s is NonNullable<typeof s> => Boolean(s));
+  const chainRows = setups.error
+    ? []
+    : (setups.data || [])
+        .map(mapChainSetup)
+        .filter((s): s is NonNullable<typeof s> => Boolean(s));
   const chainIds = productIdsOnCustomerChains(chainRows, customerId);
-  if (!chainIds.size) return [];
+
+  const hostHit = await supabase
+    .from('profiles')
+    .select('id, metadata')
+    .eq('id', companyId)
+    .maybeSingle();
+  const pick = storefrontCatalogFromProfileMetadata(
+    hostHit.data && typeof hostHit.data === 'object'
+      ? (hostHit.data as { metadata?: unknown }).metadata
+      : {}
+  );
 
   const { data, error } = await supabase
     .from('products')
-    .select(
-      'id, name, sku, product_type, uom, status, is_sellable, sell_price, cost_price, base_currency, short_description, primary_image_url, metadata'
-    )
+    .select(PORTAL_PRODUCT_COLS)
     .eq('profile_id', companyId)
-    .in('id', [...chainIds])
-    .order('name');
+    .order('name')
+    .limit(500);
   if (error) {
     if (!/relation|does not exist/i.test(error.message)) {
       console.warn('portal catalogue products', error.message);
     }
     return [];
   }
-  const out: PortalCatalogueItem[] = [];
-  for (const raw of data || []) {
+
+  const mapRow = (raw: Record<string, unknown>): PortalCatalogueItem | null => {
     const st = String(raw.status || 'active').toLowerCase();
-    if (st === 'archived' || st === 'inactive' || st === 'deleted') continue;
-    if (raw.is_sellable === false) continue;
+    if (st === 'archived' || st === 'inactive' || st === 'deleted') return null;
+    if (raw.is_sellable === false) return null;
     const type = String(raw.product_type || 'finished_good').toLowerCase();
-    if (type === 'wip' || type === 'work_in_progress') continue;
+    if (type === 'wip' || type === 'work_in_progress') return null;
     const meta = asObject(raw.metadata);
-    if (!productVisibleOnCustomerPortal(meta, customerId)) continue;
-    const branded = productAssignedToCustomer(meta, customerId);
-    let unit =
-      Number(raw.sell_price) > 0
-        ? Number(raw.sell_price)
-        : Number(raw.cost_price) || 0;
+    const flags = portalPoFlags({
+      productId: Number(raw.id),
+      sku: raw.sku != null ? String(raw.sku) : null,
+      metadata: meta,
+      customerId,
+      chainIds,
+      pick,
+    });
+    if (!includeOnPortalPo(flags)) return null;
     const chainTerms = termsForCustomerProduct(
       chainRows,
       customerId,
@@ -461,28 +549,52 @@ async function loadHostCatalogue(
     );
     const productMoq = Number(meta.moq ?? meta.min_order_qty);
     const productLead = Number(meta.lead_time_days);
-    out.push({
+    return {
       id: Number(raw.id),
       name: String(raw.name || 'Product'),
       sku: raw.sku != null ? String(raw.sku) : null,
       product_type: type,
       uom: raw.uom != null ? String(raw.uom) : 'ea',
-      unit_price: unit,
+      unit_price:
+        Number(raw.sell_price) > 0
+          ? Number(raw.sell_price)
+          : Number(raw.cost_price) || 0,
       currency: String(raw.base_currency || 'ZAR').toUpperCase(),
       short_description:
         raw.short_description != null ? String(raw.short_description) : null,
       primary_image_url:
         raw.primary_image_url != null ? String(raw.primary_image_url) : null,
-      customer_brand: branded,
-      on_chain: true,
+      customer_brand: flags.customer_brand,
+      on_chain: flags.on_chain,
+      on_storefront: flags.on_storefront,
       moq:
         chainTerms.moq ??
         (Number.isFinite(productMoq) && productMoq > 0 ? productMoq : null),
       lead_time_days:
         chainTerms.lead_time_days ??
         (Number.isFinite(productLead) && productLead > 0 ? productLead : null),
-    });
+    };
+  };
+
+  const byId = new Map<number, PortalCatalogueItem>();
+  const ingest = (rows: unknown[]) => {
+    for (const raw of rows) {
+      const item = mapRow(asObject(raw));
+      if (item) byId.set(item.id, item);
+    }
+  };
+  ingest((data || []) as unknown[]);
+  const missing = [...chainIds].filter((id) => !byId.has(id));
+  if (missing.length) {
+    const extra = await supabase
+      .from('products')
+      .select(PORTAL_PRODUCT_COLS)
+      .eq('profile_id', companyId)
+      .in('id', missing);
+    ingest((extra.data || []) as unknown[]);
   }
+
+  const out = [...byId.values()];
   try {
     const { lookupAcceptedMap } = await import('@/lib/commercial/db');
     const accepted = await lookupAcceptedMap({
@@ -1162,7 +1274,7 @@ export async function loadPortalWorkspace(opts: {
     });
   }
 
-  // Customer portal PO catalogue is order-chain SKUs for this customer only.
+  // Customer portal PO catalogue: storefront pick + optional chain overlay.
   const catalogue =
     kind === 'customer'
       ? await loadHostCatalogue(companyId, opts.viewer.customer_id)

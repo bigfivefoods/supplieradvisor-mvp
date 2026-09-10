@@ -22,6 +22,9 @@ export type TradeThread = {
   quoted_at?: string | null;
   accepted_at?: string | null;
   po_number?: string | null;
+  po_attachment_url?: string | null;
+  po_attachment_name?: string | null;
+  inbound_po_id?: number | null;
   deposit_percent?: number;
   deposit_invoice_id?: number | null;
   deposit_amount?: number | null;
@@ -70,6 +73,16 @@ function asMeta(raw: unknown): Record<string, unknown> {
     return { ...(raw as Record<string, unknown>) };
   }
   return {};
+}
+
+/** Customer portal Enquiry tab: still waiting for the seller to issue a quote. */
+export function isPortalEnquiryDoc(row: {
+  status?: string | null;
+  thread_stage?: string | null;
+}): boolean {
+  const stage = String(row.thread_stage || '').toLowerCase();
+  const status = String(row.status || '').toLowerCase();
+  return stage === 'enquiry' || status === 'enquiry';
 }
 
 export function stageFromStatus(status?: unknown): TradeThreadStage | null {
@@ -125,6 +138,14 @@ export function parseTradeThread(
     quoted_at: raw.quoted_at != null ? String(raw.quoted_at) : null,
     accepted_at: raw.accepted_at != null ? String(raw.accepted_at) : null,
     po_number: raw.po_number != null ? String(raw.po_number).trim() : null,
+    po_attachment_url:
+      raw.po_attachment_url != null ? String(raw.po_attachment_url) : null,
+    po_attachment_name:
+      raw.po_attachment_name != null ? String(raw.po_attachment_name) : null,
+    inbound_po_id:
+      raw.inbound_po_id != null && Number(raw.inbound_po_id) > 0
+        ? Number(raw.inbound_po_id)
+        : null,
     deposit_percent:
       Number.isFinite(pct) && pct > 0 && pct <= 100
         ? pct

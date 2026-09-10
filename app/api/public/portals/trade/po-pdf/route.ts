@@ -4,10 +4,14 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { resolveGuestViewer } from '@/lib/portals/portal-guest';
 import { buildPurchaseOrderPdf } from '@/lib/procurement/po-document-pdf';
 import { purchaseOrderPdfFilename } from '@/lib/procurement/po-email';
-import { assemblePurchaseOrderPdfInput } from '@/lib/procurement/po-parties';
+import {
+  assembleCustomerPortalPoPdfInput,
+  assemblePurchaseOrderPdfInput,
+} from '@/lib/procurement/po-parties';
 import {
   poBelongsToSupplierViewer,
   poHostedByBuyer,
+  poVisibleToCustomerViewer,
 } from '@/lib/portals/supplier-portal-party';
 
 /**
@@ -45,6 +49,35 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    if (guest.ctx.portal.kind === 'customer') {
+      const customerId = Number(guest.ctx.viewer.customer_id || 0);
+      if (
+        !po ||
+        !poVisibleToCustomerViewer(po as Record<string, unknown>, {
+          companyId,
+          customerId,
+        })
+      ) {
+        return NextResponse.json({ error: 'Purchase order not found' }, { status: 404 });
+      }
+      const input = await assembleCustomerPortalPoPdfInput({
+        companyId,
+        po: po as Record<string, unknown>,
+        buyerFallbackName: guest.ctx.accountName,
+      });
+      const pdfBuffer = await buildPurchaseOrderPdf(input);
+      const filename = purchaseOrderPdfFilename(input.number);
+      const safeName = filename.replace(/[^\w.\-]+/g, '_');
+      return new NextResponse(new Uint8Array(pdfBuffer), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `inline; filename="${safeName}"`,
+          'Cache-Control': 'private, no-store',
+          'X-Content-Type-Options': 'nosniff',
+        },
+      });
     }
     if (!po || !poHostedByBuyer(po as Record<string, unknown>, companyId)) {
       return NextResponse.json({ error: 'Purchase order not found' }, { status: 404 });

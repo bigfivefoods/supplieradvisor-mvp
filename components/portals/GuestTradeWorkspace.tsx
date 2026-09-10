@@ -17,7 +17,11 @@ import type {
   PortalRiadView,
   PublicPortalPayload,
 } from '@/lib/portals/trade-portal';
-import { customerPortalInvoicePdfHref } from '@/lib/portals/trade-portal';
+import {
+  customerPortalDocPdfHref,
+  customerPortalInvoicePdfHref,
+} from '@/lib/portals/trade-portal';
+import { isPortalEnquiryDoc } from '@/lib/customers/trade-thread';
 import {
   applyPortalDocSlotUrl,
   emptyRequiredDocSlots,
@@ -54,6 +58,10 @@ import { Building2, ChevronDown, ChevronRight, FileText, Upload } from 'lucide-r
 import { ProductPhoto } from '@/components/inventory/ProductPhoto';
 import { PortalRiadPanel } from '@/components/portals/PortalRiadPanel';
 import { PortalPurchaseOrder } from '@/components/portals/PortalPurchaseOrder';
+import {
+  PortalOfficialOrderCard,
+  PortalOfficialOrderQueue,
+} from '@/components/portals/PortalOfficialOrder';
 import { OrderChainPath } from '@/components/orders/OrderChainPath';
 import {
   chainStepIndex,
@@ -97,6 +105,30 @@ const EMPTY_PROFILE: BookProfile = {
 function pct(n: number | null | undefined) {
   if (n == null) return '—';
   return `${Math.round(n)}%`;
+}
+
+function storedOrGeneratedPdf(
+  stored: string | null | undefined,
+  generated: string
+): string {
+  const s = String(stored || '').trim();
+  if (/^https?:\/\//i.test(s)) return s;
+  return generated;
+}
+
+function PortalPdfLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className="inline-flex min-h-[44px] items-center gap-1 rounded-xl border border-sky-200 bg-sky-50 px-3 text-xs font-bold text-[#0077b6]"
+    >
+      <FileText className="h-4 w-4" />
+      {label}
+    </a>
+  );
 }
 
 function taskAssigneeKey(t: PortalProjectTask): string {
@@ -614,6 +646,7 @@ export function GuestTradeWorkspace({
   const gaps = ws?.profileGaps || [];
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const confirmedDepositRef = useRef(false);
 
   const authHeaders = useCallback(async (): Promise<HeadersInit> => {
     const headers: Record<string, string> = {
@@ -653,7 +686,9 @@ export function GuestTradeWorkspace({
         action === 'project_create'
           ? 'Project created — waterfall tasks span the full duration'
           : action === 'po_create'
-            ? 'Purchase order sent'
+            ? data.deposit_due
+              ? 'PO received — pay the deposit (it is on Statement)'
+              : 'Purchase order sent'
             : action === 'task_add'
               ? 'Task added'
               : action === 'riad_add'
@@ -701,6 +736,29 @@ export function GuestTradeWorkspace({
       if (heavy) setBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || isHost || isSupplier) return;
+    if (confirmedDepositRef.current) return;
+    const qs = new URLSearchParams(window.location.search);
+    const ref = qs.get('reference') || qs.get('trxref');
+    if (!ref) return;
+    const quoteHint = (live.quotes || []).find((q) => {
+      const stage = String(q.thread_stage || '').toLowerCase();
+      const status = String(q.status).toLowerCase();
+      return (
+        stage === 'deposit' ||
+        stage === 'accepted' ||
+        status === 'deposit_due' ||
+        status === 'accepted'
+      );
+    });
+    if (!quoteHint) return;
+    confirmedDepositRef.current = true;
+    void act({ action: 'confirm_deposit', id: quoteHint.id, reference: ref });
+    // run once after quotes are on the payload
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHost, isSupplier, live.quotes]);
 
   const ot = ws?.otifef;
   const orders = isSupplier
@@ -762,8 +820,21 @@ export function GuestTradeWorkspace({
         />
       ) : null}
 
+      {tab === 'enquiries' && !isSupplier ? (
+        <QuotesPanel
+          focus="enquiry"
+          quotes={live.quotes || []}
+          hostName={live.host.name}
+          token={token}
+          busy={busy}
+          isHost={isHost}
+          onAct={act}
+        />
+      ) : null}
+
       {tab === 'quotes' && !isSupplier ? (
         <QuotesPanel
+          focus="quote"
           quotes={live.quotes || []}
           hostName={live.host.name}
           token={token}
@@ -813,7 +884,7 @@ export function GuestTradeWorkspace({
           onAct={act}
         />
       ) : null}
-      {tab === 'commercial' ? (
+      {tab === 'commercial' && isSupplier ? (
         <CommercialPanel
           partyKind={isSupplier ? 'supplier' : 'customer'}
           actor={isHost ? 'host' : 'party'}
@@ -833,21 +904,40 @@ export function GuestTradeWorkspace({
         />
       ) : null}
       {tab === 'newpo' && !isSupplier ? (
-        <PortalPurchaseOrder
-          token={token}
-          busy={busy}
-          onAct={act}
-          catalogue={ws?.catalogue || []}
-          hostName={live.host.name}
-          hostLogo={live.host.logo_url}
-          hostCountry={live.host.country}
-          accountName={live.accountLabel}
-          accountLogo={live.accountLogo || ws?.bookProfile?.logo_url}
-          book={ws?.bookProfile}
-          viewerName={live.actor?.name || live.viewer?.name}
-          viewerEmail={live.viewer?.email}
-          onViewOrders={() => onTab('orders')}
-        />
+        <div className="space-y-4">
+          <PortalOfficialOrderQueue
+            quotes={live.quotes || []}
+            token={token}
+            hostName={live.host.name}
+            busy={busy}
+            isHost={isHost}
+            onAct={act}
+          />
+          <CustomerPurchaseOrdersPanel
+            token={token}
+            hostName={live.host.name}
+            orders={ws?.inbound_pos || []}
+            quotes={live.quotes || []}
+            busy={busy}
+            isHost={isHost}
+            onAct={act}
+          />
+          <PortalPurchaseOrder
+            token={token}
+            busy={busy}
+            onAct={act}
+            catalogue={ws?.catalogue || []}
+            hostName={live.host.name}
+            hostLogo={live.host.logo_url}
+            hostCountry={live.host.country}
+            accountName={live.accountLabel}
+            accountLogo={live.accountLogo || ws?.bookProfile?.logo_url}
+            book={ws?.bookProfile}
+            viewerName={live.actor?.name || live.viewer?.name}
+            viewerEmail={live.viewer?.email}
+            onViewOrders={() => onTab('orders')}
+          />
+        </div>
       ) : null}
       {tab === 'docs' ? (
         <CompanyDocsPanel
@@ -2681,12 +2771,12 @@ function OrdersPanel({
     <div className="space-y-4">
       <div className="rounded-[1.5rem] border border-white/70 bg-white/90 p-4 shadow-sm space-y-2">
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
-          Golden path
+          {isSupplier ? 'Golden path' : `Agreed by ${hostName || 'the seller'}`}
         </p>
         <p className="text-sm font-black text-slate-900">
           {isSupplier
             ? 'Receive, produce, ship'
-            : 'Order, produce, deliver, feedback'}
+            : 'Sales order'}
         </p>
         <p className="text-xs text-slate-500">
           {isSupplier
@@ -2757,21 +2847,21 @@ function OrdersPanel({
                         {formatMoney(o.amount, o.currency)}
                       </p>
                     ) : null}
-                    {isSupplier ? (
-                      <a
-                        href={supplierPortalPoPdfHref({
-                          token,
-                          poId: o.id,
-                          storedUrl: o.attachment_url,
-                        })}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex min-h-[44px] items-center gap-1 rounded-xl border border-sky-200 bg-sky-50 px-3 text-xs font-bold text-[#0077b6]"
-                      >
-                        <FileText className="h-4 w-4" />
-                        PDF
-                      </a>
-                    ) : null}
+                    <PortalPdfLink
+                      href={
+                        isSupplier
+                          ? supplierPortalPoPdfHref({
+                              token,
+                              poId: o.id,
+                              storedUrl: o.attachment_url,
+                            })
+                          : storedOrGeneratedPdf(
+                              o.attachment_url,
+                              customerPortalDocPdfHref(token, o.id, 'order')
+                            )
+                      }
+                      label="PDF"
+                    />
                   </div>
                 </div>
                 <div className="mt-3">
@@ -3732,12 +3822,132 @@ function threadIndex(stage?: string | null): number {
   return 1;
 }
 
+function CustomerPurchaseOrdersPanel({
+  token,
+  hostName,
+  orders,
+  quotes,
+  busy,
+  isHost,
+  onAct,
+}: {
+  token: string;
+  hostName: string;
+  orders: PublicPortalPayload['purchase_orders'];
+  quotes?: PublicPortalPayload['quotes'];
+  busy?: boolean;
+  isHost?: boolean;
+  onAct?: (p: Record<string, unknown>) => Promise<Record<string, unknown> | null>;
+}) {
+  const listed = orders
+    .slice()
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  return (
+    <section className="rounded-[1.5rem] border border-white/70 bg-white/90 p-5 shadow-sm space-y-3">
+      <div>
+        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
+          From you · {hostName}
+        </p>
+        <h2 className="mt-1 text-lg font-black text-slate-900">Your purchase orders</h2>
+        <p className="mt-1 text-sm text-neutral-600">
+          Each order carries your PO number as the commercial reference. Open
+          the PDF, or the file you attached from your system.
+        </p>
+      </div>
+      {listed.length === 0 ? (
+        <p className="text-sm text-neutral-500">
+          No purchase orders raised yet. Use the form below, or complete a
+          quotation above.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {listed.map((o) => {
+            const thread = (quotes || []).find(
+              (q) =>
+                q.po_number &&
+                o.customer_po_number &&
+                q.po_number === o.customer_po_number
+            );
+            const depositDue =
+              thread &&
+              (thread.thread_stage === 'deposit' ||
+                thread.thread_stage === 'accepted' ||
+                String(thread.status).toLowerCase() === 'deposit_due');
+            return (
+            <li
+              key={`cpo-${o.id}`}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3"
+            >
+              <div className="min-w-0">
+                <p className="font-black text-slate-900 text-sm">
+                  {o.customer_po_number || o.number}
+                </p>
+                <p className="text-[11px] text-neutral-500">
+                  {[
+                    o.number !== o.customer_po_number ? o.number : null,
+                    o.date,
+                    o.status.replace(/_/g, ' '),
+                    depositDue ? 'deposit due' : null,
+                    o.due ? `required ${o.due}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {o.amount != null ? (
+                  <p className="text-sm font-black tabular-nums">
+                    {formatMoney(o.amount, o.currency)}
+                  </p>
+                ) : null}
+                {depositDue && thread && !isHost && onAct ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    className="btn-primary !py-2 !px-3 text-xs"
+                    onClick={async () => {
+                      const data = await onAct({
+                        action: 'pay_deposit',
+                        id: thread.id,
+                        return_tab: 'newpo',
+                      });
+                      const url = data?.authorizationUrl
+                        ? String(data.authorizationUrl)
+                        : '';
+                      if (url) window.location.href = url;
+                    }}
+                  >
+                    Pay deposit
+                  </button>
+                ) : null}
+                {o.attachment_url && /^https?:\/\//i.test(o.attachment_url) ? (
+                  <PortalPdfLink href={o.attachment_url} label="Your PO" />
+                ) : null}
+                <PortalPdfLink
+                  href={supplierPortalPoPdfHref({
+                    token,
+                    poId: o.id,
+                    storedUrl: o.attachment_url,
+                  })}
+                  label="PDF"
+                />
+              </div>
+            </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function QuotesPanel({
   quotes,
   hostName,
   token,
   busy,
   isHost,
+  focus = 'quote',
   onAct,
 }: {
   quotes: PublicPortalPayload['quotes'];
@@ -3745,42 +3955,31 @@ function QuotesPanel({
   token: string;
   busy: boolean;
   isHost?: boolean;
+  focus?: 'enquiry' | 'quote';
   onAct: (p: Record<string, unknown>) => Promise<Record<string, unknown> | null>;
 }) {
   const [openId, setOpenId] = useState<number | null>(null);
-  const [poById, setPoById] = useState<Record<number, string>>({});
-  const confirmedRef = useRef(false);
   const listed = quotes
+    .filter((q) => {
+      if (q.thread_source === 'portal_po') return false;
+      return focus === 'enquiry' ? isPortalEnquiryDoc(q) : !isPortalEnquiryDoc(q);
+    })
     .slice()
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || isHost || confirmedRef.current) return;
-    const qs = new URLSearchParams(window.location.search);
-    const ref = qs.get('reference') || qs.get('trxref');
-    const quoteHint = listed.find(
-      (q) =>
-        q.thread_stage === 'deposit' ||
-        q.thread_stage === 'accepted' ||
-        String(q.status).toLowerCase() === 'deposit_due'
-    );
-    if (!ref || !quoteHint) return;
-    confirmedRef.current = true;
-    void onAct({ action: 'confirm_deposit', id: quoteHint.id, reference: ref });
-  }, [isHost, listed, onAct]);
 
   return (
     <div className="space-y-4">
       <section className="rounded-[1.5rem] border border-white/70 bg-white/90 p-5 shadow-sm">
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
-          Trade thread · {hostName}
+          {focus === 'enquiry' ? 'From you' : `From ${hostName}`}
         </p>
         <h2 className="mt-1 text-lg font-black text-slate-900">
-          Enquiry to order
+          {focus === 'enquiry' ? 'Enquiry' : 'Quote'}
         </h2>
         <p className="mt-1 text-sm text-neutral-600">
-          You send an enquiry. {hostName} issues a quotation. You accept with
-          your PO number, pay the deposit, then they process the order.
+          {focus === 'enquiry'
+            ? `Requests you sent to ${hostName}. They issue a quotation from each enquiry.`
+            : `${hostName} issues the quotation. Accept with your PO number, pay the deposit, then they process the sales order.`}
         </p>
         <ol className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-2">
           {THREAD_STEPS.map((s, i) => (
@@ -3800,7 +3999,9 @@ function QuotesPanel({
       </section>
       {listed.length === 0 ? (
         <p className="rounded-[1.5rem] border border-white/70 bg-white/90 px-5 py-10 text-center text-sm text-neutral-500">
-          No quotations on this account yet.
+          {focus === 'enquiry'
+            ? 'No enquiries on this account yet.'
+            : 'No quotations on this account yet.'}
         </p>
       ) : (
         <ul className="space-y-2">
@@ -3812,43 +4013,52 @@ function QuotesPanel({
                 key={`q-${r.id}`}
                 className="rounded-[1.5rem] border border-white/70 bg-white/90 shadow-sm overflow-hidden"
               >
-                <button
-                  type="button"
-                  className="w-full px-5 py-4 flex flex-wrap items-start justify-between gap-2 text-left"
-                  onClick={() => setOpenId(open ? null : r.id)}
-                >
-                  <div className="min-w-0">
-                    <p className="font-black text-slate-900 text-sm">
-                      {r.number}
-                      {r.title ? (
-                        <span className="font-medium text-neutral-500">
-                          {' '}
-                          · {r.title}
-                        </span>
-                      ) : null}
-                    </p>
-                    <p className="text-[11px] text-neutral-500 mt-0.5">
-                      {[
-                        r.date,
-                        r.due ? `valid until ${r.due}` : null,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0 space-y-1">
-                    <span
-                      className={`text-[10px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 ${quoteStatusClass(r.status)}`}
-                    >
-                      {r.status.replace(/_/g, ' ')}
-                    </span>
-                    {r.amount != null ? (
-                      <p className="text-sm font-black tabular-nums text-slate-900">
-                        {formatMoney(r.amount, r.currency)}
+                <div className="flex items-start gap-2 px-5 py-4">
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 flex flex-wrap items-start justify-between gap-2 text-left"
+                    onClick={() => setOpenId(open ? null : r.id)}
+                  >
+                    <div className="min-w-0">
+                      <p className="font-black text-slate-900 text-sm">
+                        {r.number}
+                        {r.title ? (
+                          <span className="font-medium text-neutral-500">
+                            {' '}
+                            · {r.title}
+                          </span>
+                        ) : null}
                       </p>
-                    ) : null}
-                  </div>
-                </button>
+                      <p className="text-[11px] text-neutral-500 mt-0.5">
+                        {[
+                          r.date,
+                          r.due ? `valid until ${r.due}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0 space-y-1">
+                      <span
+                        className={`text-[10px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 ${quoteStatusClass(r.status)}`}
+                      >
+                        {r.status.replace(/_/g, ' ')}
+                      </span>
+                      {r.amount != null ? (
+                        <p className="text-sm font-black tabular-nums text-slate-900">
+                          {formatMoney(r.amount, r.currency)}
+                        </p>
+                      ) : null}
+                    </div>
+                  </button>
+                  <PortalPdfLink
+                    href={storedOrGeneratedPdf(
+                      r.attachment_url,
+                      customerPortalDocPdfHref(token, r.id, 'quote')
+                    )}
+                    label="PDF"
+                  />
+                </div>
                 {open ? (
                   <div className="px-5 pb-4 border-t border-slate-100 pt-3 space-y-2">
                     {r.notes ? (
@@ -3889,64 +4099,22 @@ function QuotesPanel({
                       {r.enquiry_number ? ` · enquiry ${r.enquiry_number}` : ''}
                       {r.po_number ? ` · PO ${r.po_number}` : ''}
                     </p>
-                    {!isHost &&
+                    {focus === 'quote' &&
+                    !isHost &&
                     (r.thread_stage === 'quoted' ||
-                      String(r.status).toLowerCase() === 'sent') ? (
-                      <div className="rounded-xl border border-sky-100 bg-sky-50 p-3 space-y-2">
-                        <p className="text-xs font-bold text-sky-950">
-                          Approve this quotation and give your PO number
-                        </p>
-                        <input
-                          className="input w-full !py-2 !px-3 !text-sm bg-white"
-                          placeholder="Your PO number *"
-                          value={poById[r.id] || ''}
-                          onChange={(e) =>
-                            setPoById((prev) => ({
-                              ...prev,
-                              [r.id]: e.target.value,
-                            }))
-                          }
-                        />
-                        <button
-                          type="button"
-                          disabled={busy}
-                          className="btn-primary !py-2 !px-4 text-xs"
-                          onClick={() =>
-                            void onAct({
-                              action: 'accept_quote',
-                              id: r.id,
-                              po_number: poById[r.id],
-                            })
-                          }
-                        >
-                          Approve quotation
-                        </button>
-                      </div>
-                    ) : null}
-                    {!isHost &&
-                    (r.thread_stage === 'deposit' ||
                       r.thread_stage === 'accepted' ||
-                      String(r.status).toLowerCase() === 'deposit_due') ? (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        className="btn-primary !py-2 !px-4 text-xs"
-                        onClick={async () => {
-                          const data = await onAct({
-                            action: 'pay_deposit',
-                            id: r.id,
-                          });
-                          const url = data?.authorizationUrl
-                            ? String(data.authorizationUrl)
-                            : '';
-                          if (url) window.location.href = url;
-                        }}
-                      >
-                        Pay {r.deposit_percent || 50}% deposit
-                        {r.deposit_amount != null
-                          ? ` · ${formatMoney(r.deposit_amount, r.currency)}`
-                          : ''}
-                      </button>
+                      r.thread_stage === 'deposit' ||
+                      ['sent', 'accepted', 'deposit_due'].includes(
+                        String(r.status).toLowerCase()
+                      )) ? (
+                      <PortalOfficialOrderCard
+                        quote={r}
+                        token={token}
+                        hostName={hostName}
+                        busy={busy}
+                        isHost={isHost}
+                        onAct={onAct}
+                      />
                     ) : null}
                   </div>
                 ) : null}
@@ -4000,12 +4168,16 @@ function StatementPanel({
     <div className="space-y-4">
       <section className="rounded-[1.5rem] border border-white/70 bg-white/90 p-5 shadow-sm">
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
-          Invoices · {hostName}
+          Statement · {hostName}
         </p>
         <h2 className="mt-1 text-lg font-black text-slate-900">
-          Invoices on this account
+          Statement
         </h2>
-        <p className="mt-1 text-3xl font-black tabular-nums text-slate-900">
+        <p className="mt-1 text-sm text-neutral-600">
+          Deposits and tax invoices on this account. Paying a deposit on Order
+          posts a DEP invoice here immediately.
+        </p>
+        <p className="mt-2 text-3xl font-black tabular-nums text-slate-900">
           {formatMoney(due, currency)}
         </p>
         <p className="text-xs text-neutral-500 mt-0.5">
@@ -4031,35 +4203,49 @@ function StatementPanel({
                 key={`inv-${r.id}`}
                 className="rounded-[1.5rem] border border-white/70 bg-white/90 shadow-sm overflow-hidden"
               >
-                <button
-                  type="button"
-                  className="w-full px-5 py-4 flex flex-wrap items-start justify-between gap-2 text-left"
-                  onClick={() => setOpenId(openRow ? null : r.id)}
-                >
-                  <div className="min-w-0">
-                    <p className="font-black text-slate-900 text-sm">{r.number}</p>
-                    <p className="text-[11px] text-neutral-500 mt-0.5">
-                      {[r.date, r.due ? `due ${r.due}` : null]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0 space-y-1">
-                    <span
-                      className={`text-[10px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 ${invoiceStatusClass(r.status)}`}
-                    >
-                      {r.status.replace(/_/g, ' ')}
-                    </span>
-                    <p className="text-sm font-black tabular-nums text-slate-900">
-                      {formatMoney(r.amount, r.currency)}
-                    </p>
-                    {remaining > 0 && remaining !== Number(r.amount || 0) ? (
-                      <p className="text-[11px] text-amber-700 font-semibold">
-                        Open {formatMoney(remaining, r.currency)}
+                <div className="flex items-start gap-2 px-5 py-4">
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 flex flex-wrap items-start justify-between gap-2 text-left"
+                    onClick={() => setOpenId(openRow ? null : r.id)}
+                  >
+                    <div className="min-w-0">
+                      <p className="font-black text-slate-900 text-sm">
+                        {r.number}
+                        {r.deposit ? (
+                          <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-[#0077b6]">
+                            Deposit
+                          </span>
+                        ) : null}
                       </p>
-                    ) : null}
-                  </div>
-                </button>
+                      <p className="text-[11px] text-neutral-500 mt-0.5">
+                        {[
+                          r.date,
+                          r.due ? `due ${r.due}` : null,
+                          r.po_number ? `PO ${r.po_number}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0 space-y-1">
+                      <span
+                        className={`text-[10px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 ${invoiceStatusClass(r.status)}`}
+                      >
+                        {r.status.replace(/_/g, ' ')}
+                      </span>
+                      <p className="text-sm font-black tabular-nums text-slate-900">
+                        {formatMoney(r.amount, r.currency)}
+                      </p>
+                      {remaining > 0 && remaining !== Number(r.amount || 0) ? (
+                        <p className="text-[11px] text-amber-700 font-semibold">
+                          Open {formatMoney(remaining, r.currency)}
+                        </p>
+                      ) : null}
+                    </div>
+                  </button>
+                  <PortalPdfLink href={pdfHref} label="PDF" />
+                </div>
                 {openRow ? (
                   <div className="px-5 pb-4 border-t border-slate-100 pt-3 space-y-3">
                     {r.notes ? (
@@ -4093,15 +4279,7 @@ function StatementPanel({
                         Line items were not attached to this invoice.
                       </p>
                     )}
-                    <a
-                      href={pdfHref}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-bold text-[#0077b6]"
-                    >
-                      <FileText className="h-3.5 w-3.5" />
-                      Open invoice PDF
-                    </a>
+                    <PortalPdfLink href={pdfHref} label="Open invoice PDF" />
                   </div>
                 ) : null}
               </li>

@@ -10,6 +10,7 @@ import {
   canPayDeposit,
   canStartProcessing,
   depositAmountFromTotal,
+  isPortalEnquiryDoc,
   newStorefrontEnquiryThread,
   parseTradeThread,
   statusForStage,
@@ -26,6 +27,9 @@ const enquiry = newStorefrontEnquiryThread({
 });
 assert.equal(enquiry.stage, 'enquiry');
 assert.equal(enquiry.source, 'storefront');
+assert.equal(isPortalEnquiryDoc({ status: 'enquiry' }), true);
+assert.equal(isPortalEnquiryDoc({ thread_stage: 'enquiry', status: 'sent' }), true);
+assert.equal(isPortalEnquiryDoc({ status: 'sent', thread_stage: 'quoted' }), false);
 assert.equal(canIssueQuote(enquiry, 'enquiry'), true);
 assert.equal(canAcceptQuote(enquiry, 'enquiry'), false);
 assert.equal(statusForStage('quoted'), 'sent');
@@ -62,11 +66,13 @@ assert.match(docs, /canStartProcessing/);
 const act = src('app/api/public/portals/trade/act/route.ts');
 assert.match(act, /accept_quote/);
 assert.match(act, /pay_deposit/);
+assert.match(act, /createTradeDepositInvoice/);
 assert.doesNotMatch(act, /from\('profiles'\)[\s\S]{0,200}\bphone\b/);
 
 const portal = src('components/portals/GuestTradeWorkspace.tsx');
-assert.match(portal, /Approve quotation/);
+assert.match(portal, /PortalOfficialOrderCard/);
 assert.match(portal, /PO number/);
+assert.match(src('components/portals/PortalOfficialOrder.tsx'), /Your PO number/);
 
 const desk = src('components/customers/DocumentWorkspace.tsx');
 assert.match(desk, /Issue quote/);

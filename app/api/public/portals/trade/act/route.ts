@@ -108,7 +108,6 @@ export async function POST(request: NextRequest) {
       const {
         canAcceptQuote,
         canPayDeposit,
-        depositAmountFromTotal,
         parseTradeThread,
         statusForStage,
         writeTradeThread,
@@ -125,94 +124,44 @@ export async function POST(request: NextRequest) {
         const po = String(body.po_number || body.poNumber || '').trim();
         if (po.length < 2) {
           return NextResponse.json(
-            { error: 'Enter your purchase order (PO) number to accept.' },
+            { error: 'Enter your purchase order (PO) number from your system.' },
             { status: 400 }
           );
         }
+        const attachment = String(body.attachment_url || '').trim().slice(0, 2000) || null;
+        const attachmentName = String(body.attachment_name || '').trim().slice(0, 160) || null;
         const percent = thread.deposit_percent || 50;
-        const depositAmt = depositAmountFromTotal(
-          Number(quote.total_amount || 0),
-          percent
+        const { createTradeDepositInvoice, threadWithDeposit } = await import(
+          '@/lib/customers/trade-deposit'
         );
-        thread = {
-          ...thread,
-          stage: 'deposit',
-          accepted_at: now,
-          po_number: po,
-          deposit_amount: depositAmt,
-        };
-        const { calcDocTotals, docNumber, normalizeItems } = await import(
-          '@/lib/customers/documents'
-        );
-        const items = normalizeItems(quote.items).map((line) => ({
-          ...line,
-          unit_price: Math.round(Number(line.unit_price || 0) * (percent / 100) * 100) / 100,
-          line_total:
-            Math.round(
-              Number(line.quantity || 0) *
-                Number(line.unit_price || 0) *
-                (percent / 100) *
-                100
-            ) / 100,
-        }));
-        const totals = calcDocTotals(items, Number(quote.tax_rate ?? 15));
-        const invPayload: Record<string, unknown> = {
-          profile_id: portal.profile_id,
-          customer_id: customerId,
-          quote_id: quote.id,
-          invoice_number: docNumber('DEP'),
-          status: 'sent',
-          currency: quote.currency || 'ZAR',
-          ...totals,
-          customer_name: quote.customer_name,
-          contact_name: quote.contact_name,
-          contact_email: quote.contact_email,
-          contact_phone: quote.contact_phone,
-          visibility: 'shared',
-          notes: `Deposit (${percent}%) for quotation ${quote.quote_number}. Customer PO ${po}.`,
-          items,
-          metadata: {
-            deposit_for_quote_id: quote.id,
-            po_number: po,
-            kind: 'crm_quote_deposit',
-          },
-          created_at: now,
-          updated_at: now,
-        };
-        let { data: inv, error: iErr } = await supabase
-          .from('customer_invoices')
-          .insert(invPayload)
-          .select('id, invoice_number, total_amount')
-          .single();
-        if (iErr) {
-          const retry = await supabase
-            .from('customer_invoices')
-            .insert({
-              profile_id: portal.profile_id,
-              customer_id: customerId,
-              invoice_number: invPayload.invoice_number,
-              status: 'sent',
-              currency: invPayload.currency,
-              total_amount: totals.total_amount,
-              customer_name: quote.customer_name,
-              notes: invPayload.notes,
-              items,
-              created_at: now,
-              updated_at: now,
-            })
-            .select('id, invoice_number, total_amount')
-            .single();
-          inv = retry.data;
-          iErr = retry.error;
+        const inv = await createTradeDepositInvoice({
+          supabase,
+          companyId: portal.profile_id,
+          customerId,
+          quoteId: Number(quote.id),
+          poNumber: po,
+          percent,
+          currency: String(quote.currency || 'ZAR'),
+          taxRate: Number(quote.tax_rate ?? 15),
+          items: quote.items,
+          customerName: quote.customer_name != null ? String(quote.customer_name) : null,
+          contactName: quote.contact_name != null ? String(quote.contact_name) : null,
+          contactEmail: quote.contact_email != null ? String(quote.contact_email) : viewer.email,
+          contactPhone: quote.contact_phone != null ? String(quote.contact_phone) : null,
+          now,
+        });
+        if (!inv.ok) {
+          return NextResponse.json({ error: inv.error }, { status: 500 });
         }
-        if (iErr || !inv?.id) {
-          return NextResponse.json(
-            { error: iErr?.message || 'Could not raise deposit invoice' },
-            { status: 500 }
-          );
-        }
-        thread.deposit_invoice_id = Number(inv.id);
-        thread.deposit_amount = Number(inv.total_amount || depositAmt);
+        thread = threadWithDeposit(thread, {
+          poNumber: po,
+          invoiceId: inv.id,
+          amount: inv.total_amount,
+          percent: inv.percent,
+          attachmentUrl: attachment,
+          attachmentName,
+          now,
+        });
         await supabase
           .from('customer_quotes')
           .update({
@@ -227,7 +176,11 @@ export async function POST(request: NextRequest) {
           action: 'accept_quote',
           thread,
           po_number: po,
-          invoice: inv,
+          invoice: {
+            id: inv.id,
+            invoice_number: inv.invoice_number,
+            total_amount: inv.total_amount,
+          },
         });
       }
 
@@ -252,7 +205,10 @@ export async function POST(request: NextRequest) {
         );
         const { getAppUrl } = await import('@/lib/resend');
         const token = String(body.token || '').trim();
-        const callback = `${getAppUrl().replace(/\/$/, '')}/portal/${encodeURIComponent(token)}?tab=quotes`;
+        const returnTab = String(body.return_tab || body.tab || 'newpo')
+          .replace(/[^a-z]/g, '')
+          .slice(0, 24) || 'newpo';
+        const callback = `${getAppUrl().replace(/\/$/, '')}/portal/${encodeURIComponent(token)}?tab=${returnTab}`;
         const reference = `dep-${quote.id}-${Date.now().toString(36)}`;
         const init = await initializePaystackTransaction({
           email,
@@ -1994,6 +1950,12 @@ export async function POST(request: NextRequest) {
         maxLeadTimeDays,
         termsForCustomerProduct,
       } = await import('@/lib/orders/chain-setup');
+      const { portalPoLineAllowed } = await import(
+        '@/lib/portals/trade-portal-workspace'
+      );
+      const { storefrontCatalogFromProfileMetadata } = await import(
+        '@/lib/storefront/catalog-pick'
+      );
       const setupsHit = await supabase
         .from('order_chain_setups')
         .select('*')
@@ -2003,26 +1965,68 @@ export async function POST(request: NextRequest) {
       const chainSetups = (setupsHit.data || [])
         .map(mapChainSetup)
         .filter((s): s is NonNullable<typeof s> => Boolean(s));
-      const allowed = productIdsOnCustomerChains(
+      const chainIds = productIdsOnCustomerChains(
         chainSetups,
         viewer.customer_id
       );
-      if (!allowed.size) {
+      const hostHit = await supabase
+        .from('profiles')
+        .select('id, metadata')
+        .eq('id', portal.profile_id)
+        .maybeSingle();
+      const pick = storefrontCatalogFromProfileMetadata(
+        hostHit.data && typeof hostHit.data === 'object'
+          ? (hostHit.data as { metadata?: unknown }).metadata
+          : {}
+      );
+      const lineIds = [
+        ...new Set(
+          lines
+            .map((l) => Number(l.product_id))
+            .filter((id) => Number.isFinite(id) && id > 0)
+        ),
+      ];
+      const prodHit = lineIds.length
+        ? await supabase
+            .from('products')
+            .select('id, sku, status, is_sellable, product_type, metadata')
+            .eq('profile_id', portal.profile_id)
+            .in('id', lineIds)
+        : { data: [] as unknown[], error: null };
+      if (prodHit.error) {
         return NextResponse.json(
-          {
-            error:
-              'No order chain is set up for this account. Ask your supplier to add one before you can raise a purchase order.',
-          },
-          { status: 403 }
+          { error: prodHit.error.message },
+          { status: 500 }
         );
+      }
+      const productsById = new Map<number, Record<string, unknown>>();
+      for (const raw of prodHit.data || []) {
+        const row = asObj(raw);
+        const id = Number(row.id);
+        if (Number.isFinite(id) && id > 0) productsById.set(id, row);
       }
       for (const line of lines) {
         const id = Number(line.product_id);
-        if (!Number.isFinite(id) || id <= 0 || !allowed.has(id)) {
+        const product = Number.isFinite(id) && id > 0 ? productsById.get(id) : null;
+        if (
+          !product ||
+          !portalPoLineAllowed({
+            productId: id,
+            sku: product.sku != null ? String(product.sku) : null,
+            metadata: asObj(product.metadata),
+            status: product.status != null ? String(product.status) : null,
+            is_sellable: product.is_sellable as boolean | null,
+            product_type:
+              product.product_type != null ? String(product.product_type) : null,
+            customerId: Number(viewer.customer_id),
+            chainIds,
+            pick,
+          })
+        ) {
           return NextResponse.json(
             {
               error:
-                'You can only order products on your order chain. Remove items that are not set up.',
+                'You can only order products from the storefront catalogue or your order chain. Remove items that are not listed.',
             },
             { status: 403 }
           );
@@ -2181,6 +2185,168 @@ export async function POST(request: NextRequest) {
       }
       if (poIns.error) {
         return NextResponse.json({ error: poIns.error.message }, { status: 500 });
+      }
+
+      const poId = Number(poIns.data?.id || 0);
+      let depositQuoteId: number | null = null;
+      let depositInvoice: {
+        id: number;
+        invoice_number: string;
+        total_amount: number;
+        percent: number;
+      } | null = null;
+      try {
+        const { DEFAULT_DEPOSIT_PERCENT, writeTradeThread: writeThread } =
+          await import('@/lib/customers/trade-thread');
+        const { createTradeDepositInvoice, threadWithDeposit } = await import(
+          '@/lib/customers/trade-deposit'
+        );
+        const percent = DEFAULT_DEPOSIT_PERCENT;
+        const qPayload: Record<string, unknown> = {
+          profile_id: portal.profile_id,
+          customer_id: viewer.customer_id,
+          quote_number: docNumber('QT'),
+          status: 'deposit_due',
+          currency: String(body.currency || 'ZAR').slice(0, 8),
+          ...totals,
+          customer_name: accountName,
+          contact_name: contactName,
+          contact_email:
+            String(body.contact_email || viewer.email || '').slice(0, 240) ||
+            viewer.email,
+          contact_phone:
+            String(body.contact_phone || viewer.phone || '').slice(0, 40) ||
+            viewer.phone,
+          visibility: 'shared',
+          notes: `Official order. Customer PO ${clientRef || poNumber}.`,
+          items: soItems,
+          metadata: writeThread(
+            {
+              inbound_po_id: poId,
+              customer_po_number: clientRef || poNumber,
+              attachment_url: attachment,
+              attachment_name: body.attachment_name
+                ? String(body.attachment_name).slice(0, 160)
+                : null,
+              source: 'portal_po',
+            },
+            {
+              stage: 'deposit',
+              source: 'portal_po',
+              po_number: clientRef || poNumber,
+              accepted_at: now,
+              deposit_percent: percent,
+              inbound_po_id: poId > 0 ? poId : null,
+              po_attachment_url: attachment,
+              po_attachment_name: body.attachment_name
+                ? String(body.attachment_name).slice(0, 160)
+                : null,
+            }
+          ),
+          created_at: now,
+          updated_at: now,
+        };
+        let qIns = await supabase
+          .from('customer_quotes')
+          .insert(qPayload)
+          .select('id')
+          .single();
+        if (qIns.error && /column|schema cache|does not exist/i.test(qIns.error.message)) {
+          const soft = { ...qPayload };
+          delete soft.visibility;
+          delete soft.contact_phone;
+          delete soft.contact_email;
+          qIns = await supabase.from('customer_quotes').insert(soft).select('id').single();
+        }
+        if (!qIns.error && qIns.data?.id) {
+          depositQuoteId = Number(qIns.data.id);
+          const inv = await createTradeDepositInvoice({
+            supabase,
+            companyId: portal.profile_id,
+            customerId: Number(viewer.customer_id),
+            quoteId: depositQuoteId,
+            inboundPoId: poId > 0 ? poId : null,
+            poNumber: clientRef || poNumber,
+            percent,
+            currency: String(body.currency || 'ZAR'),
+            taxRate: Number.isFinite(taxRate) ? taxRate : 15,
+            items: soItems,
+            customerName: accountName,
+            contactName,
+            contactEmail:
+              String(body.contact_email || viewer.email || '').slice(0, 240) ||
+              viewer.email,
+            contactPhone:
+              String(body.contact_phone || viewer.phone || '').slice(0, 40) ||
+              null,
+            now,
+          });
+          if (inv.ok) {
+            depositInvoice = inv;
+            const thread = threadWithDeposit(
+              {
+                stage: 'deposit',
+                source: 'portal_po',
+                po_number: clientRef || poNumber,
+                deposit_percent: percent,
+                inbound_po_id: poId > 0 ? poId : null,
+                po_attachment_url: attachment,
+                po_attachment_name: body.attachment_name
+                  ? String(body.attachment_name).slice(0, 160)
+                  : null,
+              },
+              {
+                poNumber: clientRef || poNumber,
+                invoiceId: inv.id,
+                amount: inv.total_amount,
+                percent: inv.percent,
+                attachmentUrl: attachment,
+                attachmentName: body.attachment_name
+                  ? String(body.attachment_name).slice(0, 160)
+                  : null,
+                inboundPoId: poId > 0 ? poId : null,
+                now,
+              }
+            );
+            await supabase
+              .from('customer_quotes')
+              .update({
+                metadata: writeThread(qPayload.metadata, thread),
+                updated_at: now,
+              })
+              .eq('id', depositQuoteId);
+            const poMeta = asObj(insert.metadata);
+            await supabase
+              .from('purchase_orders')
+              .update({
+                metadata: {
+                  ...poMeta,
+                  deposit_quote_id: depositQuoteId,
+                  deposit_invoice_id: inv.id,
+                  deposit_amount: inv.total_amount,
+                  deposit_percent: inv.percent,
+                },
+                updated_at: now,
+              })
+              .eq('id', poId);
+          }
+        }
+      } catch (e) {
+        console.warn('portal po deposit', e);
+      }
+
+      if (depositInvoice && depositQuoteId) {
+        return NextResponse.json({
+          success: true,
+          id: poId || poIns.data?.id,
+          po_number: clientRef || poNumber,
+          deposit_due: true,
+          deposit_percent: depositInvoice.percent,
+          deposit_amount: depositInvoice.total_amount,
+          invoice_id: depositInvoice.id,
+          invoice_number: depositInvoice.invoice_number,
+          quote_id: depositQuoteId,
+        });
       }
 
       const soPayload: Record<string, unknown> = {

@@ -8,8 +8,10 @@ import {
   applyStorefrontCatalog,
   gymStorefrontItemId,
   parseStorefrontCatalog,
+  productListedOnStorefront,
   productMatchesStorefrontPick,
   storefrontCatalogFromProfileMetadata,
+  storefrontPublicFlag,
 } from './catalog-pick';
 
 function src(rel: string) {
@@ -68,6 +70,27 @@ assert.equal(
   ),
   true
 );
+assert.equal(storefrontPublicFlag({ storefront_public: false }), false);
+assert.equal(storefrontPublicFlag({}), true);
+assert.equal(
+  productListedOnStorefront({ id: 20, sku: 'BFF-SOY-BEF' }, missing),
+  true
+);
+assert.equal(
+  productListedOnStorefront(
+    { id: 20, sku: 'BFF-SOY-BEF', storefrontPublic: false },
+    missing
+  ),
+  false
+);
+assert.equal(
+  productListedOnStorefront({ id: 10, sku: 'BFF-POR-ORI' }, selected),
+  true
+);
+assert.equal(
+  productListedOnStorefront({ id: 20, sku: 'BFF-SOY-BEF' }, selected),
+  false
+);
 
 const catalog = src('lib/storefront/catalog.ts');
 assert.match(catalog, /applyStorefrontCatalog/);
@@ -82,6 +105,8 @@ assert.doesNotMatch(api, /from\('profiles'\)[\s\S]{0,200}\bphone\b/);
 const desk = src('app/dashboard/inventory/storefront/page.tsx');
 assert.match(desk, /Only selected items/);
 assert.match(desk, /Save storefront/);
+assert.match(desk, /customer portal Purchase order/);
+assert.match(desk, /Order chains are optional/);
 
 const nav = src('lib/chrome/module-nav.ts');
 assert.match(nav, /\/dashboard\/inventory\/storefront/);
