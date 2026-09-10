@@ -14,10 +14,12 @@ assert.match(quotes, /attachStorefrontPortal/);
 assert.match(quotes, /issueAccountPortal/);
 assert.match(quotes, /portalUrl/);
 assert.match(quotes, /upsertStorefrontCustomer/);
+assert.match(quotes, /status: 'enquiry'/);
+assert.match(quotes, /docNumber\('ENQ'\)/);
 assert.doesNotMatch(quotes, /from\('profiles'\)[\s\S]{0,200}\bphone\b/);
 
 const cart = src('components/storefront/StoreOrderCart.tsx');
-assert.match(cart, /Order from the catalogue/);
+assert.match(cart, /Send an enquiry/);
 assert.match(cart, /Open your customer portal/);
 assert.match(cart, /asBusiness/);
 assert.match(cart, /customerType/);

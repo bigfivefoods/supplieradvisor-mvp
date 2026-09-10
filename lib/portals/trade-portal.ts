@@ -21,6 +21,7 @@ import {
   poBelongsToSupplierViewer,
   poPdfUrlFromMeta,
 } from '@/lib/portals/supplier-portal-party';
+import { parseTradeThread } from '@/lib/customers/trade-thread';
 
 export type { PortalDocSlot } from '@/lib/portals/portal-documents';
 
@@ -123,6 +124,12 @@ export type PublicDocRow = {
   inventoryReceived?: boolean;
   requested_due?: string | null;
   actual_delivery_date?: string | null;
+  po_number?: string | null;
+  thread_stage?: string | null;
+  enquiry_number?: string | null;
+  deposit_percent?: number | null;
+  deposit_amount?: number | null;
+  deposit_invoice_id?: number | null;
   lines?: Array<{
     name: string;
     qty: number | null;
@@ -590,7 +597,7 @@ async function loadCustomerDocs(
     const qHit = await supabase
       .from('customer_quotes')
       .select(
-        'id, quote_number, status, created_at, valid_until, total_amount, currency, notes, items'
+        'id, quote_number, status, created_at, valid_until, total_amount, currency, notes, items, metadata'
       )
       .eq('profile_id', companyId)
       .eq('customer_id', customerId)
@@ -612,6 +619,7 @@ async function loadCustomerDocs(
     }
     for (const raw of quoteRows) {
       const r = asObject(raw);
+      const thread = parseTradeThread(r.metadata, r.status);
       quotes.push({
         ...moneyRow({
           id: Number(r.id),
@@ -625,6 +633,12 @@ async function loadCustomerDocs(
         }),
         notes: r.notes != null ? String(r.notes).slice(0, 400) : null,
         lines: portalQuoteLines(r.items),
+        po_number: thread.po_number,
+        thread_stage: thread.stage,
+        enquiry_number: thread.enquiry_number,
+        deposit_percent: thread.deposit_percent,
+        deposit_amount: thread.deposit_amount,
+        deposit_invoice_id: thread.deposit_invoice_id,
       });
     }
   }

@@ -29,7 +29,12 @@ export type PortalActionStamp = {
 };
 
 /** Guest-only writes — host must not rate the host as if they were the customer. */
-export const GUEST_ONLY_PORTAL_ACTIONS = new Set(['rate']);
+export const GUEST_ONLY_PORTAL_ACTIONS = new Set([
+  'rate',
+  'accept_quote',
+  'pay_deposit',
+  'confirm_deposit',
+]);
 
 export function isGuestOnlyPortalAction(action: string): boolean {
   return GUEST_ONLY_PORTAL_ACTIONS.has(String(action || '').trim());
@@ -41,6 +46,13 @@ export function guestOnlyActionMessage(
 ): string {
   if (action === 'rate') {
     return 'Ratings in this portal are from the customer or supplier, not from the host company.';
+  }
+  if (
+    action === 'accept_quote' ||
+    action === 'pay_deposit' ||
+    action === 'confirm_deposit'
+  ) {
+    return 'The customer on this portal must accept the quote, give a PO, and pay the deposit.';
   }
   return 'That action is only for the guest on this portal.';
 }

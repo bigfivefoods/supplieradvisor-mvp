@@ -14,6 +14,13 @@ import {
 } from '@/lib/customers/access';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import { promptAfterInvoicePaid } from '@/lib/ratings/create-prompt';
+import {
+  canIssueQuote,
+  canStartProcessing,
+  parseTradeThread,
+  statusForStage,
+  writeTradeThread,
+} from '@/lib/customers/trade-thread';
 
 async function booksFromCrm(
   companyId: number,
@@ -813,6 +820,86 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // ── Issue quotation from a storefront enquiry ─────────────────────────
+    if (action === 'issue_quote' && body.id) {
+      const { data: quote, error } = await supabase
+        .from('customer_quotes')
+        .select('*')
+        .eq('id', Number(body.id))
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      if (error || !quote) {
+        return NextResponse.json(
+          { error: error?.message || 'Enquiry not found' },
+          { status: 404 }
+        );
+      }
+      const thread = parseTradeThread(quote.metadata, quote.status);
+      if (!canIssueQuote(thread, quote.status)) {
+        return NextResponse.json(
+          {
+            error: 'This record is already a quotation (or converted).',
+            stage: thread.stage,
+          },
+          { status: 409 }
+        );
+      }
+      const enquiryNumber =
+        thread.enquiry_number || String(quote.quote_number || '');
+      const quoteNumber = String(quote.quote_number || '').startsWith('ENQ-')
+        ? docNumber('QT')
+        : String(quote.quote_number || docNumber('QT'));
+      const nextThread = {
+        ...thread,
+        stage: 'quoted' as const,
+        enquiry_number: enquiryNumber,
+        quoted_at: now,
+      };
+      const updates: Record<string, unknown> = {
+        status: statusForStage('quoted'),
+        quote_number: quoteNumber,
+        visibility: 'shared',
+        terms:
+          'Quotation issued from storefront enquiry. Accept on your customer portal with a PO number. A deposit is due before we process.',
+        metadata: writeTradeThread(quote.metadata, nextThread),
+        updated_at: now,
+      };
+      const { data: issued, error: uErr } = await supabase
+        .from('customer_quotes')
+        .update(updates)
+        .eq('id', quote.id)
+        .eq('profile_id', companyId)
+        .select('*')
+        .single();
+      if (uErr) {
+        const soft = { ...updates };
+        delete soft.visibility;
+        delete soft.terms;
+        const retry = await supabase
+          .from('customer_quotes')
+          .update(soft)
+          .eq('id', quote.id)
+          .eq('profile_id', companyId)
+          .select('*')
+          .single();
+        if (retry.error) {
+          return NextResponse.json({ error: retry.error.message }, { status: 500 });
+        }
+        return NextResponse.json({
+          success: true,
+          action: 'issue_quote',
+          quote: retry.data,
+          email: true,
+        });
+      }
+      return NextResponse.json({
+        success: true,
+        action: 'issue_quote',
+        quote: issued,
+        email: true,
+      });
+    }
+
     // ── Convert quote → order ──────────────────────────────────────────────
     if (action === 'convert_to_order' && body.id) {
       const { data: quote, error } = await supabase
@@ -824,6 +911,18 @@ export async function POST(request: NextRequest) {
       if (error || !quote) {
         return NextResponse.json({ error: error?.message || 'Quote not found' }, { status: 404 });
       }
+      const thread = parseTradeThread(quote.metadata, quote.status);
+      if (!canStartProcessing(thread, quote.status)) {
+        return NextResponse.json(
+          {
+            error:
+              'Storefront enquiries need the customer to accept the quote (with a PO) and pay the deposit before processing.',
+            code: 'THREAD_NOT_READY',
+            stage: thread.stage,
+          },
+          { status: 409 }
+        );
+      }
       const items = normalizeItems(quote.items);
       const totals = calcDocTotals(items, Number(quote.tax_rate ?? 15));
       const orderPayload = {
@@ -832,7 +931,8 @@ export async function POST(request: NextRequest) {
         quote_id: quote.id,
         opportunity_id: quote.opportunity_id,
         order_number: docNumber('SO'),
-        status: 'confirmed',
+        status: thread.deposit_paid_at ? 'processing' : 'confirmed',
+        customer_po_number: thread.po_number || null,
         currency: quote.currency || 'ZAR',
         ...totals,
         customer_name: quote.customer_name,

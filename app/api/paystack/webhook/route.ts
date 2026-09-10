@@ -177,6 +177,47 @@ export async function POST(request: NextRequest) {
       (eventName === 'charge.success' || String(data.status || '') === 'success') &&
       reference
     ) {
+      const metaRaw = data.metadata;
+      const meta =
+        metaRaw && typeof metaRaw === 'object' && !Array.isArray(metaRaw)
+          ? (metaRaw as Record<string, unknown>)
+          : {};
+      if (String(meta.kind || '') === 'crm_quote_deposit') {
+        const quoteId = Number(meta.quote_id || 0);
+        const companyId = Number(meta.company_id || 0);
+        const invoiceId = Number(meta.invoice_id || 0);
+        if (quoteId > 0 && companyId > 0) {
+          try {
+            const { markQuoteDepositPaid } = await import(
+              '@/lib/customers/trade-thread-apply'
+            );
+            const applied = await markQuoteDepositPaid({
+              supabase: getSupabaseServer(),
+              companyId,
+              quoteId,
+              invoiceId: invoiceId > 0 ? invoiceId : null,
+            });
+            await markPaystackWebhook(
+              reference,
+              eventName,
+              applied.ok ? 'crm_deposit' : 'crm_deposit_failed'
+            );
+            return jsonNoStore({
+              received: true,
+              handled: applied.ok ? 'crm_deposit' : 'crm_deposit_failed',
+              reference,
+              quoteId,
+              orderId: applied.ok ? applied.orderId : null,
+            });
+          } catch (e) {
+            return retry({
+              error: e instanceof Error ? e.message : 'crm deposit apply failed',
+              reference,
+            });
+          }
+        }
+      }
+
       const {
         isCipcVerificationCharge,
         companyIdFromPaystackCharge,

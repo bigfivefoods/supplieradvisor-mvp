@@ -83,6 +83,11 @@ export function formatMoney(amount: number | null | undefined, currency = 'ZAR')
 
 export function statusBadgeClass(status?: string | null) {
   switch ((status || '').toLowerCase()) {
+    case 'enquiry':
+      return 'bg-amber-100 text-amber-900';
+    case 'deposit_due':
+      return 'bg-sky-100 text-sky-800';
+    case 'deposit_paid':
     case 'accepted':
     case 'confirmed':
     case 'fulfilled':
