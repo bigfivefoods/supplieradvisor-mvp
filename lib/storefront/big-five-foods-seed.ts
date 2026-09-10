@@ -22,6 +22,9 @@ type SeedDef = {
 
 const CDN = 'https://bigfivegroup.africa';
 
+/** 1 kg retail list on bigfivefoods.com (excl. VAT). Used when inventory has no sell price. */
+const RETAIL_1KG_ZAR = 60;
+
 const PORRIDGES: SeedDef[] = [
   {
     externalRef: 'porridge-original',
@@ -32,7 +35,7 @@ const PORRIDGES: SeedDef[] = [
     category: 'Porridges',
     channels: ['retail', 'wholesale'],
     badges: ['Fortified'],
-    price: null,
+    price: RETAIL_1KG_ZAR,
   },
   {
     externalRef: 'porridge-chocolate',
@@ -43,7 +46,7 @@ const PORRIDGES: SeedDef[] = [
     category: 'Porridges',
     channels: ['retail', 'wholesale'],
     badges: ['Fortified'],
-    price: null,
+    price: RETAIL_1KG_ZAR,
   },
   {
     externalRef: 'porridge-banana',
@@ -54,7 +57,7 @@ const PORRIDGES: SeedDef[] = [
     category: 'Porridges',
     channels: ['retail', 'wholesale'],
     badges: ['Fortified'],
-    price: null,
+    price: RETAIL_1KG_ZAR,
   },
   {
     externalRef: 'porridge-strawberry',
@@ -65,7 +68,7 @@ const PORRIDGES: SeedDef[] = [
     category: 'Porridges',
     channels: ['retail', 'wholesale'],
     badges: ['Fortified'],
-    price: null,
+    price: RETAIL_1KG_ZAR,
   },
 ];
 
@@ -79,7 +82,7 @@ const SOYA: SeedDef[] = [
     category: 'Soya',
     channels: ['retail', 'wholesale'],
     badges: ['Plant-based'],
-    price: null,
+    price: RETAIL_1KG_ZAR,
   },
   {
     externalRef: 'soya-chilli-beef',
@@ -90,7 +93,7 @@ const SOYA: SeedDef[] = [
     category: 'Soya',
     channels: ['retail', 'wholesale'],
     badges: ['Plant-based'],
-    price: null,
+    price: RETAIL_1KG_ZAR,
   },
   {
     externalRef: 'soya-beef-onion',
@@ -101,7 +104,7 @@ const SOYA: SeedDef[] = [
     category: 'Soya',
     channels: ['retail', 'wholesale'],
     badges: ['Plant-based'],
-    price: null,
+    price: RETAIL_1KG_ZAR,
   },
   {
     externalRef: 'soya-mutton',
@@ -112,7 +115,7 @@ const SOYA: SeedDef[] = [
     category: 'Soya',
     channels: ['retail', 'wholesale'],
     badges: ['Plant-based'],
-    price: null,
+    price: RETAIL_1KG_ZAR,
   },
 ];
 
@@ -126,7 +129,7 @@ const ONEPOTS: SeedDef[] = [
     category: 'One-pots',
     channels: ['retail', 'wholesale'],
     badges: ['One-pot'],
-    price: null,
+    price: RETAIL_1KG_ZAR,
   },
   {
     externalRef: 'onepot-beef',
@@ -137,7 +140,7 @@ const ONEPOTS: SeedDef[] = [
     category: 'One-pots',
     channels: ['retail', 'wholesale'],
     badges: ['One-pot'],
-    price: null,
+    price: RETAIL_1KG_ZAR,
   },
   {
     externalRef: 'onepot-chilli-beef',
@@ -148,7 +151,7 @@ const ONEPOTS: SeedDef[] = [
     category: 'One-pots',
     channels: ['retail', 'wholesale'],
     badges: ['One-pot'],
-    price: null,
+    price: RETAIL_1KG_ZAR,
   },
   {
     externalRef: 'onepot-chakalaka',
@@ -159,7 +162,7 @@ const ONEPOTS: SeedDef[] = [
     category: 'One-pots',
     channels: ['retail', 'wholesale'],
     badges: ['One-pot'],
-    price: null,
+    price: RETAIL_1KG_ZAR,
   },
 ];
 
@@ -172,7 +175,7 @@ const SOUPS: SeedDef[] = [
     packSize: '1 kg',
     category: 'Soups',
     channels: ['retail', 'wholesale'],
-    price: null,
+    price: RETAIL_1KG_ZAR,
   },
   {
     externalRef: 'soup-brown-onion',
@@ -182,7 +185,7 @@ const SOUPS: SeedDef[] = [
     packSize: '1 kg',
     category: 'Soups',
     channels: ['retail', 'wholesale'],
-    price: null,
+    price: RETAIL_1KG_ZAR,
   },
   {
     externalRef: 'soup-oxtail',
@@ -192,7 +195,7 @@ const SOUPS: SeedDef[] = [
     packSize: '1 kg',
     category: 'Soups',
     channels: ['retail', 'wholesale'],
-    price: null,
+    price: RETAIL_1KG_ZAR,
   },
   {
     externalRef: 'soup-minestrone',
@@ -202,7 +205,7 @@ const SOUPS: SeedDef[] = [
     packSize: '1 kg',
     category: 'Soups',
     channels: ['retail', 'wholesale'],
-    price: null,
+    price: RETAIL_1KG_ZAR,
   },
 ];
 
@@ -266,7 +269,7 @@ export const BIG_FIVE_FOODS_TRADING_NAMES = [
 export function seedDefsAsStoreProducts(): StoreProduct[] {
   return BIG_FIVE_FOODS_SEED.map((s) => {
     const quoteFirst = Boolean(s.quoteFirst);
-    const priceOnRequest = s.price == null || quoteFirst;
+    const priceOnRequest = s.price == null;
     return {
       id: s.externalRef,
       sku: s.sku,
@@ -282,7 +285,7 @@ export function seedDefsAsStoreProducts(): StoreProduct[] {
       channels: s.channels,
       channelFlags: s.channels,
       channel: s.channels[0] || null,
-      price: priceOnRequest ? null : s.price ?? null,
+      price: s.price ?? null,
       currency: 'ZAR',
       priceOnRequest,
       inStock: !quoteFirst,

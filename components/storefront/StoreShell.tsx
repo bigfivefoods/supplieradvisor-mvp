@@ -12,6 +12,8 @@ import {
   CATEGORY_BLURBS,
   categoryAnchorId,
 } from '@/lib/storefront/categories';
+import { StorePrice } from '@/components/storefront/StorePrice';
+export { StorePrice };
 
 export function StoreHero({
   company,
@@ -209,18 +211,14 @@ export function ProductCard({
           <p className="text-xs text-slate-500 mt-1">Pack: {product.packSize}</p>
         ) : null}
         <div className="mt-auto pt-3 flex items-end justify-between gap-2">
-          <div>
-            <p className="text-[10px] font-semibold text-slate-500">
-              {product.inStock === false ? 'Made to order' : 'In stock / available'}
-            </p>
-            {product.quoteFirst ? (
-              <p className="text-[10px] font-semibold text-violet-700">
-                Quote-first (institutional)
-              </p>
-            ) : null}
-          </div>
-          <span className="text-[11px] font-bold text-[#0077b6]">View →</span>
+          <StorePrice product={product} />
+          <span className="text-[11px] font-bold text-[#0077b6] shrink-0">
+            View →
+          </span>
         </div>
+        <p className="text-[10px] font-semibold text-slate-500 mt-1">
+          {product.inStock === false ? 'Made to order' : 'In stock / available'}
+        </p>
       </div>
       </Link>
       <div className="px-4 pb-4">

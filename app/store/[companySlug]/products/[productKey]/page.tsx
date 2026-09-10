@@ -11,7 +11,10 @@ import {
   storePath,
 } from '@/lib/storefront/attribution';
 import { TradeCtas } from '@/components/storefront/StoreShell';
+import { StorePrice } from '@/components/storefront/StorePrice';
 import QuoteRequestForm from '@/components/storefront/QuoteRequestForm';
+import { StoreProductAdd } from '@/components/storefront/StoreProductAdd';
+import { StoreOrderProvider } from '@/components/storefront/StoreOrderCart';
 
 type Props = {
   params:
@@ -70,6 +73,11 @@ export default async function StoreProductPage({ params, searchParams }: Props) 
   );
 
   return (
+    <StoreOrderProvider
+      companySlug={company.slug}
+      companyName={company.tradingName}
+      attr={attr}
+    >
     <div className="max-w-6xl mx-auto px-4 py-8">
       <nav className="text-xs text-slate-500 mb-4 flex flex-wrap gap-1">
         <Link href={`/store/${company.slug}`} className="text-[#0077b6] font-semibold">
@@ -126,6 +134,11 @@ export default async function StoreProductPage({ params, searchParams }: Props) 
             </p>
           ) : null}
 
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <StorePrice product={product} size="lg" />
+          </div>
+          <StoreProductAdd product={product} />
+
           <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
             <p className="text-xs text-slate-600 font-semibold">
               {product.inStock === false
@@ -181,6 +194,9 @@ export default async function StoreProductPage({ params, searchParams }: Props) 
                   <p className="text-xs text-slate-500 mt-1">
                     {r.packSize || r.category}
                   </p>
+                  <div className="mt-2">
+                    <StorePrice product={r} />
+                  </div>
                 </Link>
               );
             })}
@@ -188,5 +204,6 @@ export default async function StoreProductPage({ params, searchParams }: Props) 
         </div>
       ) : null}
     </div>
+    </StoreOrderProvider>
   );
 }
