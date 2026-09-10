@@ -43,6 +43,8 @@ const desk = readFileSync(
   'utf8'
 );
 assert.match(desk, /focus\?: 'enquiry'/);
-assert.match(desk, /Incoming storefront enquiries/);
+assert.match(desk, /stable ENQ UID/);
+assert.match(desk, /isEnquiryInboxRow/);
+assert.match(desk, /resolveEnquiryUid/);
 
 console.log('customers-trade-nav.test.ts ok');

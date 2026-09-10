@@ -21,6 +21,11 @@ import {
   statusForStage,
   writeTradeThread,
 } from '@/lib/customers/trade-thread';
+import {
+  enquiryUidFromNumber,
+  quoteUidWhenIssuing,
+  resolveEnquiryUid,
+} from '@/lib/customers/enquiry-uid';
 
 async function booksFromCrm(
   companyId: number,
@@ -145,6 +150,29 @@ function buildPayload(
       'Prices valid until the date shown. Subject to stock availability.';
     if (paymentTerms) base.payment_terms = paymentTerms;
     base.order_id = body.order_id || null;
+    const thread = parseTradeThread(body.metadata, base.status);
+    const currentNo = String(base[numField] || '');
+    if (
+      String(base.status || '') === 'enquiry' &&
+      currentNo.toUpperCase().startsWith('QT-')
+    ) {
+      const swapped = enquiryUidFromNumber(currentNo);
+      if (swapped) base[numField] = swapped;
+    }
+    const enquiryNumber =
+      resolveEnquiryUid({
+        quote_number: base[numField],
+        status: base.status,
+        metadata: body.metadata,
+        enquiry_number: thread.enquiry_number,
+      }) || enquiryUidFromNumber(base[numField]);
+    if (enquiryNumber) {
+      base.metadata = writeTradeThread(body.metadata, {
+        ...thread,
+        enquiry_number: enquiryNumber,
+        enquiry_at: thread.enquiry_at || now,
+      });
+    }
   }
   if (kind === 'order') {
     base.quote_id = body.quote_id || null;
@@ -227,7 +255,7 @@ export async function GET(request: NextRequest) {
         ? 'id, status, invoice_number, customer_id, customer_name, total_amount, amount_paid, currency, due_date, created_at, contact_email, visibility, items'
         : kind === 'order'
           ? 'id, status, order_number, customer_id, customer_name, total_amount, currency, created_at, contact_email, visibility, items'
-          : 'id, status, quote_number, customer_id, customer_name, total_amount, currency, created_at, contact_email, visibility, items, valid_until';
+          : 'id, status, quote_number, customer_id, customer_name, total_amount, currency, created_at, contact_email, visibility, items, valid_until, metadata';
     const limit = Number.isFinite(limitRaw)
       ? Math.min(200, Math.max(1, Math.floor(limitRaw)))
       : 50;
@@ -253,7 +281,31 @@ export async function GET(request: NextRequest) {
       q = q.lte('created_at', `${toDay}T23:59:59.999`);
     }
 
-    const { data, error } = await q;
+    let { data, error } = await q;
+    if (error && kind === 'quote' && /metadata|column|schema cache/i.test(error.message)) {
+      let retry = supabase
+        .from(table)
+        .select(
+          'id, status, quote_number, customer_id, customer_name, total_amount, currency, created_at, contact_email, visibility, items, valid_until'
+        )
+        .eq('profile_id', companyId)
+        .limit(limit)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false });
+      if (status && status !== 'all') retry = retry.eq('status', status);
+      if (Number.isFinite(customerIdParam) && customerIdParam > 0) {
+        retry = retry.eq('customer_id', customerIdParam);
+      }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(fromDay)) {
+        retry = retry.gte('created_at', `${fromDay}T00:00:00`);
+      }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(toDay)) {
+        retry = retry.lte('created_at', `${toDay}T23:59:59.999`);
+      }
+      const again = await retry;
+      data = again.data;
+      error = again.error;
+    }
     if (error) {
       return NextResponse.json({
         success: true,
@@ -262,7 +314,13 @@ export async function GET(request: NextRequest) {
         hint: 'Run 20260709_crm_sales_lifecycle.sql',
       });
     }
-    return NextResponse.json({ success: true, documents: data || [], type: kind });
+    const documents = (data || []).map((row) => {
+      if (kind !== 'quote' || !row || typeof row !== 'object') return row;
+      const r = row as Record<string, unknown>;
+      const enquiry_number = resolveEnquiryUid(r);
+      return enquiry_number ? { ...r, enquiry_number } : r;
+    });
+    return NextResponse.json({ success: true, documents, type: kind });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
   }
@@ -845,10 +903,13 @@ export async function POST(request: NextRequest) {
         );
       }
       const enquiryNumber =
-        thread.enquiry_number || String(quote.quote_number || '');
-      const quoteNumber = String(quote.quote_number || '').startsWith('ENQ-')
-        ? docNumber('QT')
-        : String(quote.quote_number || docNumber('QT'));
+        resolveEnquiryUid(quote) ||
+        enquiryUidFromNumber(quote.quote_number) ||
+        String(quote.quote_number || docNumber('ENQ'));
+      const currentNo = String(quote.quote_number || '');
+      const quoteNumber = currentNo.toUpperCase().startsWith('QT-')
+        ? currentNo
+        : quoteUidWhenIssuing(enquiryNumber) || docNumber('QT');
       const nextThread = {
         ...thread,
         stage: 'quoted' as const,
