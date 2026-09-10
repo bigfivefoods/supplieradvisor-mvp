@@ -174,15 +174,15 @@ function mapDbProduct(row: Record<string, unknown>): StoreProduct {
     channels.length === 1 && channels[0] === 'institutional';
   const sell = row.sell_price != null ? Number(row.sell_price) : null;
   const prices = Array.isArray(row.prices) ? row.prices : [];
-  let price = Number.isFinite(sell as number) ? sell : null;
+  let price = Number.isFinite(sell as number) && (sell as number) > 0 ? sell : null;
   let currency = String(row.base_currency || 'ZAR');
   if (price == null && prices[0]) {
     const p0 = prices[0] as { sell_price?: number; currency?: string };
-    if (p0.sell_price != null) price = Number(p0.sell_price);
+    const n = p0.sell_price != null ? Number(p0.sell_price) : NaN;
+    if (Number.isFinite(n) && n > 0) price = n;
     if (p0.currency) currency = String(p0.currency);
   }
-  const priceOnRequest =
-    quoteFirst || price == null || meta.priceOnRequest === true;
+  const priceOnRequest = price == null;
 
   const packSize =
     meta.packSize != null
@@ -239,7 +239,7 @@ function mapDbProduct(row: Record<string, unknown>): StoreProduct {
     channels,
     channelFlags: channels,
     channel: channels[0] || null,
-    price: priceOnRequest ? null : price,
+    price,
     currency,
     priceOnRequest,
     inStock,
@@ -273,7 +273,7 @@ export function toPublicCatalogProduct(p: StoreProduct) {
     quoteFirst: p.quoteFirst,
     inStock: p.inStock !== false,
     priceOnRequest: p.priceOnRequest,
-    price: p.priceOnRequest ? null : p.price,
+    price: p.price ?? null,
     currency: p.currency,
     active: p.active,
     category: p.category,
@@ -549,7 +549,7 @@ export async function seedBigFiveFoodsCatalog(opts?: {
         channelFlags: s.channels,
         channels: s.channels,
         quoteFirst: Boolean(s.quoteFirst),
-        priceOnRequest: s.price == null || Boolean(s.quoteFirst),
+        priceOnRequest: s.price == null,
         inStock: !s.quoteFirst,
         madeToOrder: Boolean(s.quoteFirst),
         storefront_public: true,

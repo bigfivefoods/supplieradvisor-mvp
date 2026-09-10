@@ -15,6 +15,7 @@ import {
   normalizeItems,
 } from '@/lib/customers/documents';
 import { logActivity } from '@/lib/customers/access';
+import { upsertStorefrontCustomer } from '@/lib/storefront/customer';
 
 /**
  * POST /api/storefront/{companySlug}/quotes
@@ -75,6 +76,15 @@ export async function POST(
     ).trim();
     const contactPhone = body.contactPhone || body.phone || null;
     const message = body.message != null ? String(body.message) : null;
+    const customerType =
+      body.customerType === 'individual' || body.asBusiness === false
+        ? 'individual'
+        : 'business';
+    const city = body.city != null ? String(body.city) : null;
+    const country = body.country != null ? String(body.country) : null;
+    const address =
+      body.address || body.shippingAddress || body.billingAddress || null;
+    const vatNumber = body.vatNumber || body.vat_number || null;
 
     if (!contactEmail.includes('@')) {
       return NextResponse.json(
@@ -185,47 +195,29 @@ export async function POST(
       .filter(Boolean)
       .join('\n');
 
-    // Ensure CRM customer under seller
-    let customerId: number | null = null;
-    {
-      const { data: existingCust } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('profile_id', seller.id)
-        .ilike('email', contactEmail)
-        .limit(1)
-        .maybeSingle();
-      if (existingCust?.id) {
-        customerId = Number(existingCust.id);
-      } else {
-        const { data: created } = await supabase
-          .from('customers')
-          .insert({
-            profile_id: seller.id,
-            trading_name: tradingName,
-            email: contactEmail,
-            contact_name: contactName || null,
-            phone: contactPhone ? String(contactPhone) : null,
-            status: 'active',
-            source: 'storefront',
-            notes: `From storefront ${seller.slug}`,
-            created_at: now,
-            updated_at: now,
-          })
-          .select('id')
-          .single();
-        if (created?.id) {
-          customerId = Number(created.id);
-          const { ensureCustomerArLeaf } = await import(
-            '@/lib/accounting/party-gl-accounts'
-          );
-          await ensureCustomerArLeaf({
-            profileId: seller.id,
-            customerId: Number(created.id),
-            name: tradingName || 'Customer',
-          });
-        }
-      }
+    const customer = await upsertStorefrontCustomer(supabase, seller.id, {
+      tradingName,
+      contactName,
+      contactEmail,
+      contactPhone: contactPhone ? String(contactPhone) : null,
+      customerType,
+      city,
+      country,
+      address: address ? String(address) : null,
+      vatNumber: vatNumber ? String(vatNumber) : null,
+      notes: `From storefront ${seller.slug}`,
+      storeSlug: seller.slug,
+    });
+    const customerId = customer?.id ?? null;
+    if (customer?.created) {
+      const { ensureCustomerArLeaf } = await import(
+        '@/lib/accounting/party-gl-accounts'
+      );
+      await ensureCustomerArLeaf({
+        profileId: seller.id,
+        customerId: customer.id,
+        name: customer.trading_name || tradingName || 'Customer',
+      });
     }
 
     const quoteNumber = docNumber('QT');
@@ -315,8 +307,9 @@ export async function POST(
         quote: retry.data,
         sla: 'Response within 1 business day',
         message:
-          'Quote request received. We aim to respond within 1 business day with pricing and terms.',
+          'Quote request received. Your customer profile is on the seller CRM. We aim to respond within 1 business day.',
         seller: { id: seller.id, slug: seller.slug, tradingName: seller.tradingName },
+        customer,
         ...portal,
         next: buyerCompanyId
           ? {
@@ -383,12 +376,13 @@ export async function POST(
       quote,
       sla: 'Response within 1 business day',
       message:
-        'Quote request received. We aim to respond within 1 business day with pricing and terms on SupplierAdvisor®.',
+        'Quote request received. Your customer profile is on the seller CRM. We aim to respond within 1 business day.',
       seller: {
         id: seller.id,
         slug: seller.slug,
         tradingName: seller.tradingName,
       },
+      customer,
       ...portal,
       next: buyerCompanyId
         ? {

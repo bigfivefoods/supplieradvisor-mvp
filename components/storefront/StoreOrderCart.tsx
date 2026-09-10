@@ -11,6 +11,7 @@ import {
 import { Loader2, ShoppingCart, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type { StoreAttribution, StoreProduct } from '@/lib/storefront/types';
+import { formatStoreMoney, storeLineTotal } from '@/lib/storefront/money';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { usePrivy } from '@privy-io/react-auth';
@@ -48,6 +49,8 @@ export function StoreOrderProvider({
     quoteNumber?: string;
     portalUrl?: string;
     message?: string;
+    customerName?: string;
+    customerCreated?: boolean;
   } | null>(null);
   const [form, setForm] = useState({
     asBusiness: true,
@@ -55,6 +58,10 @@ export function StoreOrderProvider({
     contactName: '',
     contactEmail: user?.email?.address || '',
     contactPhone: '',
+    city: '',
+    country: 'South Africa',
+    address: '',
+    vatNumber: '',
     notes: '',
   });
 
@@ -88,6 +95,10 @@ export function StoreOrderProvider({
       toast.error('Name and email are required');
       return;
     }
+    if (form.asBusiness && !form.tradingName.trim()) {
+      toast.error('Business name is required');
+      return;
+    }
     if (!lines.length) {
       toast.error('Add at least one product');
       return;
@@ -108,12 +119,18 @@ export function StoreOrderProvider({
           contactName: form.contactName.trim(),
           contactEmail: form.contactEmail.trim(),
           contactPhone: form.contactPhone || undefined,
+          customerType: form.asBusiness ? 'business' : 'individual',
+          city: form.city || undefined,
+          country: form.country || undefined,
+          address: form.address || undefined,
+          vatNumber: form.vatNumber || undefined,
           lines: lines.map((l) => ({
             name: l.product.name,
             sku: l.product.sku,
             externalRef: l.product.externalRef,
             productId: typeof l.product.id === 'number' ? l.product.id : null,
             quantity: l.qty,
+            unitPrice: l.product.price,
           })),
           notes: form.notes || undefined,
           source: attr?.source || 'storefront-cart',
@@ -128,6 +145,8 @@ export function StoreOrderProvider({
         quoteNumber: data.quote?.quote_number,
         portalUrl: data.portalUrl,
         message: data.message,
+        customerName: data.customer?.trading_name,
+        customerCreated: data.customer?.created === true,
       });
       toast.success('Order received', {
         description: data.quote?.quote_number
@@ -169,8 +188,8 @@ export function StoreOrderProvider({
                   Order from the catalogue
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  People and businesses can request products here. You get a
-                  customer portal to track quotes, orders and invoices.
+                  This creates your customer profile on {companyName}&apos;s
+                  CRM. You get a portal to track quotes, orders and invoices.
                 </p>
               </div>
               <button
@@ -195,6 +214,12 @@ export function StoreOrderProvider({
                     {done.quoteNumber}
                   </p>
                 ) : null}
+                {done.customerName ? (
+                  <p className="mt-2 text-sm text-emerald-900">
+                    {done.customerCreated ? 'Customer profile created' : 'Customer profile updated'}{' '}
+                    on {companyName}: <strong>{done.customerName}</strong>
+                  </p>
+                ) : null}
                 {done.portalUrl ? (
                   <a
                     href={done.portalUrl}
@@ -212,7 +237,16 @@ export function StoreOrderProvider({
             ) : (
               <>
                 <ul className="mt-4 divide-y divide-slate-100">
-                  {lines.map((l) => (
+                  {lines.map((l) => {
+                    const unit = formatStoreMoney(
+                      l.product.price,
+                      l.product.currency
+                    );
+                    const line = formatStoreMoney(
+                      storeLineTotal(l.product.price, l.qty),
+                      l.product.currency
+                    );
+                    return (
                     <li
                       key={String(l.product.id)}
                       className="flex items-center justify-between gap-3 py-2.5"
@@ -223,8 +257,10 @@ export function StoreOrderProvider({
                         </p>
                         <p className="text-[11px] text-slate-500">
                           {l.product.packSize || l.product.sku || l.product.category}
+                          {unit ? ` · ${unit}` : ' · price on request'}
                         </p>
                       </div>
+                      <div className="flex items-center gap-2 shrink-0">
                       <input
                         type="number"
                         min={1}
@@ -234,9 +270,33 @@ export function StoreOrderProvider({
                           setQty(String(l.product.id), Number(e.target.value) || 0)
                         }
                       />
+                      <span className="w-20 text-right text-xs font-bold text-slate-800">
+                        {line || '—'}
+                      </span>
+                      </div>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
+                {(() => {
+                  const total = lines.reduce((n, l) => {
+                    const line = storeLineTotal(l.product.price, l.qty);
+                    return line == null ? n : n + line;
+                  }, 0);
+                  const missing = lines.some((l) => l.product.price == null);
+                  const shown = formatStoreMoney(total, lines[0]?.product.currency);
+                  if (!shown) return null;
+                  return (
+                    <p className="mt-2 text-right text-sm font-black text-slate-900">
+                      {shown} excl. VAT
+                      {missing ? (
+                        <span className="block text-[11px] font-semibold text-slate-500">
+                          Some lines are price on request
+                        </span>
+                      ) : null}
+                    </p>
+                  );
+                })()}
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
                   <label className="sm:col-span-2 flex items-center gap-2 text-sm">
                     <input
@@ -251,7 +311,7 @@ export function StoreOrderProvider({
                   {form.asBusiness ? (
                     <input
                       className="input w-full !p-2.5 !text-sm sm:col-span-2"
-                      placeholder="Business name"
+                      placeholder="Business name *"
                       value={form.tradingName}
                       onChange={(e) =>
                         setForm({ ...form, tradingName: e.target.value })
@@ -276,13 +336,47 @@ export function StoreOrderProvider({
                     }
                   />
                   <input
-                    className="input w-full !p-2.5 !text-sm sm:col-span-2"
+                    className="input w-full !p-2.5 !text-sm"
                     placeholder="Phone"
                     value={form.contactPhone}
                     onChange={(e) =>
                       setForm({ ...form, contactPhone: e.target.value })
                     }
                   />
+                  <input
+                    className="input w-full !p-2.5 !text-sm"
+                    placeholder="City"
+                    value={form.city}
+                    onChange={(e) =>
+                      setForm({ ...form, city: e.target.value })
+                    }
+                  />
+                  <input
+                    className="input w-full !p-2.5 !text-sm sm:col-span-2"
+                    placeholder="Country"
+                    value={form.country}
+                    onChange={(e) =>
+                      setForm({ ...form, country: e.target.value })
+                    }
+                  />
+                  <input
+                    className="input w-full !p-2.5 !text-sm sm:col-span-2"
+                    placeholder="Delivery / billing address"
+                    value={form.address}
+                    onChange={(e) =>
+                      setForm({ ...form, address: e.target.value })
+                    }
+                  />
+                  {form.asBusiness ? (
+                    <input
+                      className="input w-full !p-2.5 !text-sm sm:col-span-2"
+                      placeholder="VAT number (optional)"
+                      value={form.vatNumber}
+                      onChange={(e) =>
+                        setForm({ ...form, vatNumber: e.target.value })
+                      }
+                    />
+                  ) : null}
                   <textarea
                     className="input w-full !p-2.5 !text-sm sm:col-span-2 min-h-[72px]"
                     placeholder="Notes (delivery, pack sizes, site)"

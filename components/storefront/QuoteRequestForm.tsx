@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { StoreAttribution, StoreProduct } from '@/lib/storefront/types';
+import { formatStoreMoney, storeLineTotal } from '@/lib/storefront/money';
+import { StorePrice } from '@/components/storefront/StorePrice';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { usePrivy } from '@privy-io/react-auth';
@@ -30,6 +32,9 @@ export default function QuoteRequestForm({
     contactName: '',
     contactEmail: user?.email?.address || '',
     contactPhone: '',
+    city: '',
+    country: 'South Africa',
+    address: '',
     quantity: '10',
     notes: '',
   });
@@ -46,6 +51,7 @@ export default function QuoteRequestForm({
           externalRef: product?.externalRef || attr?.product,
           productId: typeof product?.id === 'number' ? product.id : null,
           quantity: Math.max(1, Number(form.quantity) || 1),
+          unitPrice: product?.price,
         },
       ];
       const res = await fetch(`/api/storefront/${companySlug}/quotes`, {
@@ -58,6 +64,10 @@ export default function QuoteRequestForm({
           contactName: form.contactName,
           contactEmail: form.contactEmail,
           contactPhone: form.contactPhone || undefined,
+          customerType: form.tradingName.trim() ? 'business' : 'individual',
+          city: form.city || undefined,
+          country: form.country || undefined,
+          address: form.address || undefined,
           lines,
           notes: form.notes || undefined,
           source: attr?.source,
@@ -135,7 +145,30 @@ export default function QuoteRequestForm({
           {product
             ? `For ${product.name}${product.packSize ? ` · ${product.packSize}` : ''}`
             : 'Institutional / wholesale pricing on the verified network'}
+          {' · '}
+          Saves your customer profile on this seller&apos;s CRM.
         </p>
+        {product ? (
+          <div className="mt-2">
+            <StorePrice product={product} />
+            {formatStoreMoney(
+              storeLineTotal(product.price, Math.max(1, Number(form.quantity) || 1)),
+              product.currency
+            ) ? (
+              <p className="text-xs text-slate-600 mt-1">
+                Line{' '}
+                {formatStoreMoney(
+                  storeLineTotal(
+                    product.price,
+                    Math.max(1, Number(form.quantity) || 1)
+                  ),
+                  product.currency
+                )}{' '}
+                excl. VAT
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       <div className="grid sm:grid-cols-2 gap-3">
         <div>
@@ -188,6 +221,32 @@ export default function QuoteRequestForm({
             className="input mt-1 w-full !p-2.5 !text-sm"
             value={form.quantity}
             onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-slate-500">City</label>
+          <input
+            className="input mt-1 w-full !p-2.5 !text-sm"
+            value={form.city}
+            onChange={(e) => setForm({ ...form, city: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-slate-500">Country</label>
+          <input
+            className="input mt-1 w-full !p-2.5 !text-sm"
+            value={form.country}
+            onChange={(e) => setForm({ ...form, country: e.target.value })}
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label className="text-xs font-medium text-slate-500">
+            Delivery / billing address
+          </label>
+          <input
+            className="input mt-1 w-full !p-2.5 !text-sm"
+            value={form.address}
+            onChange={(e) => setForm({ ...form, address: e.target.value })}
           />
         </div>
       </div>
