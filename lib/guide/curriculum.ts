@@ -1370,6 +1370,80 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     related: ['fieldgraph', 'operations', 'quality'],
   },
   {
+    slug: 'constructiongraph',
+    moduleId: 'constructiongraph',
+    title: 'ConstructionAdvisor®',
+    tagline: 'Sites → drawings/BOQ → programme → certificates → handover',
+    purpose:
+      'Building / construction OS for principal contractors and specialist trades: sites, issued drawings, BOQ, subcontractors, materials and plant, programme, site safety, variations, payment certificates and snag / handover. Core Projects stays a separate hub. Trade buyers sit on Customers; company SHEQ stays on SHEQ.',
+    who: ['Contracts manager', 'Site agent', 'QS / commercial', 'Safety officer'],
+    principles: [
+      {
+        title: 'One site code',
+        body: 'Drawings, BOQ, programme, certificates and snags all key off the same building site.',
+      },
+      {
+        title: 'Contract truth first',
+        body: 'Variations and payment certificates are the commercial trail — invoices follow on Customers Trade.',
+      },
+      {
+        title: 'Site safety is local',
+        body: 'Toolbox talks and permits live on the site book; NCR/CAPA still go through Core SHEQ.',
+      },
+    ],
+    outcomes: [
+      'At least one building site with a contract type',
+      'Drawings or BOQ keyed to that site',
+      'A variation or payment certificate path understood',
+      'Snag list used before practical completion',
+    ],
+    flow: [
+      { id: 'a', label: 'Sites', hint: 'Contracts', tone: 'amber' },
+      { id: 'b', label: 'Drawings', hint: 'IFC · BOQ', tone: 'slate' },
+      { id: 'c', label: 'Build', hint: 'Subs · plant', tone: 'cyan' },
+      { id: 'd', label: 'Programme', hint: '% complete', tone: 'violet' },
+      { id: 'e', label: 'Certificates', hint: 'IPCs', tone: 'emerald' },
+      { id: 'f', label: 'Handover', hint: 'Snags', tone: 'rose' },
+    ],
+    processes: [
+      {
+        name: 'Stand up a building site',
+        href: '/dashboard/constructiongraph/sites',
+        summary: 'Register the contract, then hang drawings, BOQ and programme off the site code.',
+        steps: [
+          'Command — seed demo or add a live site',
+          'Sites — code, client, JBCC/GCC/NEC, contract value',
+          'Drawings — IFC revision and BOQ lines',
+          'Programme — activities with % complete',
+        ],
+      },
+      {
+        name: 'Certify and handover',
+        href: '/dashboard/constructiongraph/certificates',
+        summary: 'Variations → payment certificates → snag close-out.',
+        steps: [
+          'Variations — VO number, description, amount',
+          'Certificates — IPC amount and retention',
+          'Handover — snag list through practical completion',
+          'Customers Trade — invoice the certified amount',
+        ],
+        tip: 'ConstructionAdvisor is the site book. Core Projects is not replaced.',
+      },
+    ],
+    concepts: [
+      { term: 'JBCC / GCC / NEC', meaning: 'South African and international building contract forms.' },
+      { term: 'IPC', meaning: 'Interim payment certificate against measured work and approved VOs.' },
+      { term: 'Practical completion', meaning: 'Handover with open snags tracked to close-out.' },
+    ],
+    checklist: [
+      'One site with a contract type',
+      'One drawing or BOQ line',
+      'One certificate or variation',
+      'Opened Handover once',
+    ],
+    related: ['projects', 'sheq', 'customers', 'quality'],
+  },
+  {
     slug: 'fitgraph',
     moduleId: 'fitgraph',
     title: 'GymAdvisor®',
@@ -2254,7 +2328,8 @@ export function buildGuideNavSteps(
       id === 'distribution' ||
       id === 'containers' ||
       id === 'fieldgraph' ||
-      id === 'quarrygraph'
+      id === 'quarrygraph' ||
+      id === 'constructiongraph'
     )
       return 'Operate';
     if (
@@ -2287,6 +2362,7 @@ export function buildGuideNavSteps(
     containers: 'ContainerAdvisor',
     fieldgraph: 'CropAdvisor',
     quarrygraph: 'QuarryAdvisor',
+    constructiongraph: 'ConstructionAdvisor',
     fitgraph: 'GymAdvisor',
     physiograph: 'PhysioAdvisor',
     dentalgraph: 'DentalAdvisor',

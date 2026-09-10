@@ -38,6 +38,7 @@ assert.equal(
 
 const empty = normalizeEnabledModules({});
 assert.equal(empty.apparelgraph, false, 'ApparelAdvisor is opt-in');
+assert.equal(empty.constructiongraph, false, 'ConstructionAdvisor is opt-in');
 assert.equal(empty.fitgraph, false);
 assert.equal(empty.customers, true, 'core trade hubs still default on');
 assert.equal(isModuleEnabled(empty, 'apparelgraph'), false);
@@ -155,15 +156,30 @@ assert.equal(savedMap.customers, false, 'sandbox save does not force companions'
 assert.equal(savedMap.home, true);
 
 assert.equal(moduleIdForPath('/dashboard/apparelgraph/styles'), 'apparelgraph');
+assert.equal(
+  moduleIdForPath('/dashboard/constructiongraph/sites'),
+  'constructiongraph'
+);
 assert.ok(MODULE_NAV.some((m) => m.id === 'apparelgraph'));
+assert.ok(MODULE_NAV.some((m) => m.id === 'constructiongraph'));
 assert.equal(
   MODULE_NAV.find((m) => m.id === 'apparelgraph')?.name,
   'ApparelAdvisor'
+);
+assert.equal(
+  MODULE_NAV.find((m) => m.id === 'constructiongraph')?.name,
+  'ConstructionAdvisor'
 );
 
 const pack = getIndustryPack('apparel');
 assert.ok(pack, 'ApparelAdvisor industry pack exists');
 assert.ok(appModulesUnlockedByPack(pack!).includes('apparelgraph'));
+
+const constructionPack = getIndustryPack('construction_building');
+assert.ok(constructionPack, 'ConstructionAdvisor industry pack exists');
+assert.ok(
+  appModulesUnlockedByPack(constructionPack!).includes('constructiongraph')
+);
 
 const foods = extractEnabledModulesFromMetadata(
   { enabled_modules: { customers: true } },

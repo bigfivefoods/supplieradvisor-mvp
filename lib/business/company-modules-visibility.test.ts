@@ -23,6 +23,11 @@ assert.equal(
   false,
   'ApparelAdvisor stays opt-in off'
 );
+assert.equal(
+  emptyChrome.constructiongraph,
+  false,
+  'ConstructionAdvisor stays opt-in off'
+);
 
 const vuka = extractEnabledModulesFromMetadata(
   { enabled_modules: { customers: true } },

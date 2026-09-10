@@ -87,4 +87,19 @@ assert.equal(
   'apparel'
 );
 
+assert.equal(
+  advisorLandingPath({
+    packIds: ['construction_building'],
+    enabledModules: { constructiongraph: true, apparelgraph: true },
+  }),
+  '/dashboard/constructiongraph'
+);
+
+assert.equal(
+  landingAdvisorSkins({
+    enabledModules: { constructiongraph: true },
+  })[0]?.id,
+  'construction'
+);
+
 console.log('advisor-skins.test.ts ok');

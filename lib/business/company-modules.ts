@@ -76,6 +76,8 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
     'RetailAdvisor® — B2C retail till: catalogue, cash or QR/NFC phone pay, collect SA Member bills at the counter',
   apparelgraph:
     'ApparelAdvisor® — capability, style matrix, samples, materials, floor tickets, quality gates and ship readiness',
+  constructiongraph:
+    'ConstructionAdvisor® — building sites, drawings, BOQ, subcontractors, materials, programme, site safety, variations, payment certificates and handover',
   intelligence: 'Pulse, forecasts, scorecards & Super-Cube® leadership',
   schools:
     'SchoolAdvisor® (public sector) — NSNP kitchen, learners, SPs, catalogue, feeding, prizes (DBE / PEU / schools)',
@@ -103,6 +105,7 @@ export type ModuleCategoryId =
   | 'core_assure'
   | 'core_insights'
   | 'ind_primary'
+  | 'ind_build'
   | 'ind_services'
   | 'ind_programme';
 
@@ -129,7 +132,7 @@ export const MODULE_BANDS: Array<{
     id: 'industry',
     title: 'Sector & industry',
     blurb:
-      'Vertical modules for agri, extractives, fitness, clinics, apparel, and public programmes.',
+      'Vertical modules for agri, extractives, building, fitness, clinics, apparel, and public programmes.',
   },
 ];
 
@@ -194,6 +197,14 @@ export const MODULE_CATEGORIES: ModuleCategory[] = [
     title: 'Primary production',
     blurb: 'CropAdvisor® (farming) and QuarryAdvisor® (aggregates).',
     moduleIds: ['fieldgraph', 'quarrygraph'],
+  },
+  {
+    id: 'ind_build',
+    band: 'industry',
+    title: 'Building & construction',
+    blurb:
+      'ConstructionAdvisor® — sites, drawings, BOQ, subcontractors, programme, certificates and handover.',
+    moduleIds: ['constructiongraph'],
   },
   {
     id: 'ind_services',
@@ -401,6 +412,7 @@ export function isGovernmentCoreModule(id: string): boolean {
 export const INDUSTRY_ADVISOR_MODULE_IDS = [
   'fieldgraph',
   'quarrygraph',
+  'constructiongraph',
   'apparelgraph',
   'fitgraph',
   'physiograph',
@@ -635,7 +647,7 @@ function applyStoredModuleFlags(
 
 export const SECTOR_VERTICAL_MODULE_IDS: Record<string, readonly string[]> = {
   primary: ['fieldgraph', 'quarrygraph'],
-  secondary: ['apparelgraph', 'containers'],
+  secondary: ['apparelgraph', 'constructiongraph', 'containers'],
   tertiary: [
     'fitgraph',
     'physiograph',
@@ -883,7 +895,7 @@ export function groupWorkspaceModules(opts?: {
       layer: 'industry',
       title: 'Industry Advisors',
       blurb:
-        'Crop, quarry, gym, clinic, hire, retail, apparel and ContainerAdvisor. Subscribe to an Advisor pack to unlock, then tick the hub on.',
+        'Crop, quarry, construction, gym, clinic, hire, retail, apparel and ContainerAdvisor. Subscribe to an Advisor pack to unlock, then tick the hub on.',
       moduleIds: industryIds,
     },
     {
@@ -1089,6 +1101,7 @@ export function moduleIdForPath(pathname: string | null | undefined): string | n
   if (pathname.startsWith('/dashboard/fieldgraph')) return 'fieldgraph';
   if (pathname.startsWith('/dashboard/quarrygraph')) return 'quarrygraph';
   if (pathname.startsWith('/dashboard/apparelgraph')) return 'apparelgraph';
+  if (pathname.startsWith('/dashboard/constructiongraph')) return 'constructiongraph';
   if (pathname.startsWith('/dashboard/fitgraph')) return 'fitgraph';
   if (pathname.startsWith('/dashboard/physiograph')) return 'physiograph';
   if (pathname.startsWith('/dashboard/dentalgraph')) return 'dentalgraph';

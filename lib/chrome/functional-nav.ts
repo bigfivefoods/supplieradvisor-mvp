@@ -29,6 +29,7 @@ export const ADVISOR_OS_MODULE_IDS = [
   'hiregraph',
   'retailgraph',
   'apparelgraph',
+  'constructiongraph',
   'quarrygraph',
   'fieldgraph',
   'schools',
@@ -48,6 +49,7 @@ const PACK_TO_ADVISOR_MODULE: Record<string, AdvisorOsModuleId> = {
   staffing_hire: 'hiregraph',
   retail_shop: 'retailgraph',
   apparel: 'apparelgraph',
+  construction_building: 'constructiongraph',
   quarry_aggregates: 'quarrygraph',
   agri_regen: 'fieldgraph',
   public_procurement: 'schools',
@@ -118,6 +120,7 @@ export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
   'hiregraph', // HireAdvisor® hire / rental marketplace (members free)
   'retailgraph', // RetailAdvisor® B2C till OS
   'apparelgraph', // ApparelAdvisor® apparel manufacturing OS
+  'constructiongraph', // ConstructionAdvisor® building OS
   'quarrygraph', // QuarryAdvisor® aggregates OS
   'fieldgraph', // CropAdvisor® agri OS
   'schools', // SchoolAdvisor® (public sector / NSNP)
@@ -176,6 +179,7 @@ export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
   hiregraph: 'HireAdvisor (Hire / rent)',
   retailgraph: 'RetailAdvisor (Till)',
   apparelgraph: 'ApparelAdvisor (Apparel)',
+  constructiongraph: 'ConstructionAdvisor (Building)',
   containers: 'ContainerAdvisor',
   schools: 'SchoolAdvisor',
   health: 'HealthAdvisor',

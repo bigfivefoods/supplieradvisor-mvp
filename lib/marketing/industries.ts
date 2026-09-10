@@ -9,6 +9,7 @@ export type IndustrySlug =
   | 'quarry-aggregates'
   | 'manufacturing'
   | 'apparel-clothing'
+  | 'construction-building'
   | 'distribution'
   | 'fitness-gyms'
   | 'physio-allied-health'
@@ -185,6 +186,35 @@ export const INDUSTRIES: IndustryPage[] = [
       'Suppliers',
       'Customers',
       'Operations',
+      'Finance',
+    ],
+  },
+  {
+    slug: 'construction-building',
+    name: 'Building & construction',
+    headline: 'One site book from drawings to handover.',
+    subhead:
+      'ConstructionAdvisor® keeps building sites, issued drawings, BOQ, subcontractors, programme, variations, payment certificates and snags on the same books as suppliers, customers and SHEQ.',
+    cardBlurb:
+      'ConstructionAdvisor® for principal contractors and specialist trades — sites through certificates.',
+    pack: 'ConstructionAdvisor®',
+    pains: [
+      'Drawings, BOQ and programme live in separate folders',
+      'Variations and IPCs are tracked in side sheets',
+      'Snags reopen after practical completion because nobody owns the list',
+    ],
+    wins: [
+      'One site code for drawings, BOQ, programme and certificates',
+      'Variations and payment certificates on the commercial trail',
+      'Snag list through practical completion, with Core SHEQ for NCR/CAPA',
+    ],
+    modules: [
+      'ConstructionAdvisor®',
+      'SHEQ',
+      'Projects',
+      'Suppliers',
+      'Customers',
+      'Inventory',
       'Finance',
     ],
   },
