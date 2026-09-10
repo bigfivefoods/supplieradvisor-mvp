@@ -42,6 +42,25 @@ const compareSrc = readFileSync(
 );
 assert.match(compareSrc, /ConstructionAdvisor®/);
 assert.match(compareSrc, /ApparelAdvisor®/);
+assert.match(compareSrc, /progress payments/);
+
+const homeSrc = readFileSync(
+  resolve('components/marketing/HomeBelowFold.tsx'),
+  'utf8'
+);
+assert.match(homeSrc, /ConstructionAdvisor®/);
+assert.match(homeSrc, /Progress payments/);
+assert.match(homeSrc, /BOQ quotes/);
+assert.match(homeSrc, /client\/contractor PWA/);
+
+const mockSrc = readFileSync(
+  resolve('components/marketing/ProductMocks.tsx'),
+  'utf8'
+);
+assert.match(mockSrc, /BOQ · payments · programme/);
+
+assert.match(construction?.cardBlurb || '', /progress payments/);
+assert.match(construction?.subhead || '', /progress-payment dates/);
 
 const listed = new Set(
   [

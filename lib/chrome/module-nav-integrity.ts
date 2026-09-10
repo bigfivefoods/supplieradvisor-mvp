@@ -5,7 +5,6 @@
 import { MODULE_NAV } from '@/lib/chrome/module-nav';
 import {
   FUNCTIONAL_MODULE_ORDER,
-  SIDEBAR_HUB_ONLY_MODULE_IDS,
   functionalSidebarModules,
 } from '@/lib/chrome/functional-nav';
 
@@ -48,7 +47,6 @@ export function auditModuleNavIntegrity(): IntegrityReport {
       }
       continue;
     }
-    if (SIDEBAR_HUB_ONLY_MODULE_IDS.has(m.id)) continue;
     const hrefs = new Set(item.sub.map((s) => s.href));
     for (const s of m.steps) {
       if (!hrefs.has(s.href)) {

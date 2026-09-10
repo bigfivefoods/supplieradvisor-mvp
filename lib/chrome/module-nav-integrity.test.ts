@@ -73,8 +73,12 @@ assert.ok(constructionSidebar, 'sidenav includes ConstructionAdvisor');
 assert.equal(constructionSidebar!.name, 'ConstructionAdvisor');
 assert.equal(
   constructionSidebar!.sub.length,
-  0,
-  'sidenav shows ConstructionAdvisor with no nested desks'
+  17,
+  'sidenav ConstructionAdvisor is expandable with the full desk tree'
+);
+assert.deepEqual(
+  constructionSidebar!.sub.map((s) => s.name),
+  construction!.steps.map((s) => s.name)
 );
 
 const iconKeys = MODULE_NAV.map((m) => m.icon.displayName || m.icon.name || String(m.icon));

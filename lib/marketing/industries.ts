@@ -192,21 +192,21 @@ export const INDUSTRIES: IndustryPage[] = [
   {
     slug: 'construction-building',
     name: 'Building & construction',
-    headline: 'Quote the BOQ. Run every project. Roll the programme.',
+    headline: 'Quote the BOQ. Run the plan. Get paid on dates.',
     subhead:
-      'ConstructionAdvisor® is the contractor OS: one customer with many projects, BOQ quoting, plan vs actuals, cost allocation, per-project reports rolled into a programme, and a client / contractor PWA — on the same books as suppliers, customers and SHEQ.',
+      'ConstructionAdvisor® is the contractor OS: one customer with many projects, BOQ quoting, a dated programme with plan vs actuals, cost allocation against BOQ lines, progress-payment dates (contractor claim → certify IPC → client pay), per-project reports rolled into a programme, and a client / contractor PWA — on the same books as suppliers, customers and SHEQ.',
     cardBlurb:
-      'ConstructionAdvisor® for principal contractors — BOQ quotes, multi-project clients, programme actuals.',
+      'ConstructionAdvisor® for principal contractors — BOQ quotes, dated programme, progress payments, client/contractor PWA.',
     pack: 'ConstructionAdvisor®',
     pains: [
       'Quotes are built off-system while the BOQ lives in a spreadsheet',
       'One developer has several sites and nobody can roll the programme',
-      'Actuals never update the project plan, so IPCs and reports lag',
+      'Progress claims and client payments have no dates on the project plan',
     ],
     wins: [
       'Quote from the BOQ and accept it as the contract budget',
-      'One client, many projects — detailed reports then a programme roll-up',
-      'Post actuals against BOQ items and share the plan on a client / contractor PWA',
+      'One client, many projects — dated plan vs actuals, then a programme roll-up',
+      'Date progress payments, issue the claim, certify, and let the client record pay on the PWA',
     ],
     modules: [
       'ConstructionAdvisor®',
