@@ -9,6 +9,8 @@ import { CategorySection, StoreHero } from '@/components/storefront/StoreShell';
 import { groupProductsByCategory } from '@/lib/storefront/categories';
 import StoreClientFilters from '@/components/storefront/StoreClientFilters';
 import MultiProductTray from '@/components/storefront/MultiProductTray';
+import { StoreOrderProvider } from '@/components/storefront/StoreOrderCart';
+import { storeEmbedPath } from '@/lib/storefront/public-store';
 
 type Props = {
   params: Promise<{ companySlug: string }> | { companySlug: string };
@@ -121,7 +123,14 @@ export default async function StoreHomePage({ params, searchParams }: Props) {
   const grouped = groupProductsByCategory(products);
   const categories = grouped.map((g) => g.category);
 
+  const embedPath = storeEmbedPath(company.slug);
+
   return (
+    <StoreOrderProvider
+      companySlug={company.slug}
+      companyName={company.tradingName}
+      attr={attr}
+    >
     <div>
       <StoreHero company={company} attr={attr} />
       <div className="max-w-6xl mx-auto px-4 py-8">
@@ -189,8 +198,14 @@ export default async function StoreHomePage({ params, searchParams }: Props) {
             Catalog, stock, and invoices live here — not a second order book on
             marketing sites.
           </p>
+          <p>
+            <strong className="text-slate-700">Put this catalogue on your website:</strong>{' '}
+            iframe{' '}
+            <code className="rounded bg-slate-100 px-1">{embedPath}</code>
+          </p>
         </footer>
       </div>
     </div>
+    </StoreOrderProvider>
   );
 }
