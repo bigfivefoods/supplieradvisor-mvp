@@ -65,6 +65,7 @@ export function storefrontCustomerInsertPayload(
       storefront: true,
       store_slug: clean(buyer.storeSlug),
       customer_type: customerType,
+      party_book_role: 'customer',
     },
     created_at: now,
     updated_at: now,

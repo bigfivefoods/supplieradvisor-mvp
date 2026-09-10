@@ -188,9 +188,9 @@ export function StoreOrderProvider({
                   Send an enquiry
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  This is an enquiry, not a quotation. We save your customer
-                  profile on {companyName}. They send a quote to your portal
-                  for you to approve with a PO, then you pay the deposit.
+                  This is an enquiry, not a quotation. We save your customer profile
+                  on {companyName} and open a CRM portal for you. They send a quote
+                  there for you to approve with a PO, then you pay the deposit.
                 </p>
               </div>
               <button
@@ -230,8 +230,8 @@ export function StoreOrderProvider({
                   </a>
                 ) : (
                   <p className="mt-2 text-xs text-emerald-800">
-                    Check your email. The seller can issue a customer portal
-                    from Customers → Portal.
+                    Check your email for the customer portal link. Your
+                    profile is on {companyName}&apos;s CRM.
                   </p>
                 )}
               </div>
