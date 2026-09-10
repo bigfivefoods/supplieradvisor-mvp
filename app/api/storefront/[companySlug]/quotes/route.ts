@@ -212,7 +212,17 @@ export async function POST(
       notes: `From storefront ${seller.slug}`,
       storeSlug: seller.slug,
     });
-    const customerId = customer?.id ?? null;
+    if (!customer?.id) {
+      return NextResponse.json(
+        {
+          error:
+            'Could not save your customer profile on the seller CRM. Check the email and try again.',
+          code: 'CRM_CUSTOMER_FAILED',
+        },
+        { status: 500 }
+      );
+    }
+    const customerId = customer.id;
     if (customer?.created) {
       const { ensureCustomerArLeaf } = await import(
         '@/lib/accounting/party-gl-accounts'
@@ -297,6 +307,10 @@ export async function POST(
         summary: `Storefront enquiry ${enquiryNumber} from ${tradingName}`,
         metadata: attribution,
       });
+      const portal = await attachStorefrontPortal({
+        sellerId: seller.id,
+        customerId,
+      });
       await notifySellerQuote({
         sellerId: seller.id,
         sellerName: seller.tradingName,
@@ -306,10 +320,7 @@ export async function POST(
         contactName,
         channel: String(attribution.channel || ''),
         source: String(attribution.source || ''),
-      });
-      const portal = await attachStorefrontPortal({
-        sellerId: seller.id,
-        customerId,
+        portalUrl: portal.portalUrl,
       });
       return NextResponse.json({
         ok: true,
@@ -323,7 +334,7 @@ export async function POST(
         },
         sla: 'The seller will issue a quotation on your customer portal.',
         message:
-          'Enquiry received. This is not a quotation yet. Watch your customer portal — the seller will send a quote to approve.',
+          'Enquiry received. Your customer profile and portal are ready. This is not a quotation yet — watch the portal for the quote to approve.',
         seller: { id: seller.id, slug: seller.slug, tradingName: seller.tradingName },
         customer,
         ...portal,
@@ -350,6 +361,10 @@ export async function POST(
       metadata: attribution,
     });
 
+    const portal = await attachStorefrontPortal({
+      sellerId: seller.id,
+      customerId,
+    });
     await notifySellerQuote({
       sellerId: seller.id,
       sellerName: seller.tradingName,
@@ -359,6 +374,7 @@ export async function POST(
       contactName,
       channel: String(attribution.channel || ''),
       source: String(attribution.source || ''),
+      portalUrl: portal.portalUrl,
     });
 
     // Soft handshake: pending connection from buyer → seller
@@ -381,10 +397,6 @@ export async function POST(
       }
     }
 
-    const portal = await attachStorefrontPortal({
-      sellerId: seller.id,
-      customerId,
-    });
     return NextResponse.json({
       ok: true,
       success: true,
@@ -397,7 +409,7 @@ export async function POST(
       },
       sla: 'The seller will issue a quotation on your customer portal.',
       message:
-        'Enquiry received. This is not a quotation yet. Watch your customer portal — the seller will send a quote to approve.',
+        'Enquiry received. Your customer profile and portal are ready. This is not a quotation yet — watch the portal for the quote to approve.',
       seller: {
         id: seller.id,
         slug: seller.slug,
@@ -430,9 +442,15 @@ export async function POST(
 async function attachStorefrontPortal(opts: {
   sellerId: number;
   customerId: number | null;
-}): Promise<{ portalUrl?: string; portalEmailSent?: boolean }> {
-  if (!opts.customerId) return {};
+}): Promise<{
+  portalUrl?: string;
+  portalEmailSent?: boolean;
+  portalWarning?: string;
+}> {
+  if (!opts.customerId) return { portalWarning: 'No CRM customer to issue a portal' };
   try {
+    const { getSupabaseAdmin } = await import('@/lib/supabase/admin');
+    const admin = getSupabaseAdmin();
     const { issueAccountPortal } = await import(
       '@/lib/portals/trade-portal-people'
     );
@@ -440,14 +458,24 @@ async function attachStorefrontPortal(opts: {
       companyId: opts.sellerId,
       kind: 'customer',
       customerId: opts.customerId,
+      sendEmail: true,
+      db: admin,
     });
-    if (!issued.ok) return {};
+    if (!issued.ok) {
+      console.warn('storefront portal issue failed', issued.error);
+      return { portalWarning: issued.error };
+    }
     return {
       portalUrl: issued.url,
       portalEmailSent: issued.emailSent,
+      portalWarning: issued.warning,
     };
-  } catch {
-    return {};
+  } catch (e) {
+    console.warn('storefront portal issue exception', e);
+    return {
+      portalWarning:
+        e instanceof Error ? e.message : 'Could not issue customer portal',
+    };
   }
 }
 
@@ -461,6 +489,7 @@ async function notifySellerQuote(opts: {
   contactName: string;
   channel: string;
   source: string;
+  portalUrl?: string;
 }) {
   try {
     if (!process.env.RESEND_API_KEY) return;
@@ -501,7 +530,12 @@ Channel: ${opts.channel || '—'} · Source: ${opts.source || 'storefront'}</p>
         subject: `Quote request received — ${opts.sellerName}`,
         html: `<p>Hi ${opts.contactName || 'there'},</p>
 <p>We received your enquiry <strong>${opts.quoteNumber}</strong> for <strong>${opts.sellerName}</strong> on SupplierAdvisor®.</p>
-<p>This is not a quotation yet. ${opts.sellerName} will send a quote to your customer portal for you to approve (with your PO number) before a deposit is due.</p>
+<p>Your customer profile is saved on ${opts.sellerName}'s CRM. This is not a quotation yet — they will send a quote to your portal for you to approve (with your PO number) before a deposit is due.</p>
+${
+  opts.portalUrl
+    ? `<p><a href="${opts.portalUrl}">Open your customer portal</a></p>`
+    : ''
+}
 <p>This is a verified B2B trade network — not a second order book.</p>
 <p>— SupplierAdvisor®</p>`,
       });

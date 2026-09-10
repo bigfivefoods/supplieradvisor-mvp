@@ -86,7 +86,8 @@ export async function assertSupplierPortalParty(
 
 export async function assertCustomerPortalParty(
   companyId: number,
-  customerId: number | null | undefined
+  customerId: number | null | undefined,
+  db?: { from: (table: string) => any }
 ): Promise<
   | {
       ok: true;
@@ -109,7 +110,7 @@ export async function assertCustomerPortalParty(
       reason: 'missing',
     };
   }
-  const supabase = getSupabaseServer();
+  const supabase = db || getSupabaseServer();
   const { data, error } = await supabase
     .from('customers')
     .select('id, profile_id, trading_name, linked_profile_id, status, metadata')

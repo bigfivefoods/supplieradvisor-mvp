@@ -37,6 +37,10 @@ assert.equal(payload.city, 'Durban');
 assert.equal(payload.shipping_address, '12 Bay Rd');
 assert.equal(payload.source, 'storefront');
 assert.equal((payload.metadata as { storefront: boolean }).storefront, true);
+assert.equal(
+  (payload.metadata as { party_book_role: string }).party_book_role,
+  'customer'
+);
 
 const patch = storefrontCustomerPatch(
   {

@@ -376,11 +376,13 @@ export function mapViewer(row: Record<string, unknown>): TradePortalViewer {
 export async function ensureTradePortal(opts: {
   companyId: number;
   kind: TradePortalKind;
+  /** Service-role client for unauthenticated public flows (storefront). */
+  db?: { from: (table: string) => any };
 }): Promise<
   | { ok: true; portal: TradePortalRow }
   | { ok: false; error: string; missingTable?: boolean }
 > {
-  const supabase = getSupabaseServer();
+  const supabase = opts.db || getSupabaseServer();
   const { data: existing, error } = await supabase
     .from('trade_portals')
     .select('*')

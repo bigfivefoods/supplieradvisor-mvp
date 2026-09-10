@@ -125,8 +125,8 @@ export default function QuoteRequestForm({
           </a>
         ) : (
           <p className="text-xs text-emerald-800 mt-3">
-            Check your email for confirmation. Track quotes, orders and invoices
-            on the customer portal once the seller issues your link.
+            Check your email for your customer portal link. Your profile is
+            saved on the seller CRM.
           </p>
         )}
       </div>
