@@ -72,7 +72,7 @@ function asMeta(raw: unknown): Record<string, unknown> {
   return {};
 }
 
-export function stageFromStatus(status?: string | null): TradeThreadStage | null {
+export function stageFromStatus(status?: unknown): TradeThreadStage | null {
   const s = String(status || '').toLowerCase();
   if (s === 'enquiry') return 'enquiry';
   if (s === 'sent' || s === 'quoted' || s === 'issued') return 'quoted';
@@ -152,13 +152,13 @@ export function isStorefrontThread(thread: TradeThread): boolean {
   return String(thread.source || '') === 'storefront';
 }
 
-export function canIssueQuote(thread: TradeThread, status?: string | null): boolean {
+export function canIssueQuote(thread: TradeThread, status?: unknown): boolean {
   const s = String(status || '').toLowerCase();
   if (s === 'converted') return false;
   return thread.stage === 'enquiry' || s === 'enquiry' || s === 'draft';
 }
 
-export function canAcceptQuote(thread: TradeThread, status?: string | null): boolean {
+export function canAcceptQuote(thread: TradeThread, status?: unknown): boolean {
   const s = String(status || '').toLowerCase();
   return thread.stage === 'quoted' || s === 'sent' || s === 'quoted';
 }
@@ -170,7 +170,7 @@ export function canPayDeposit(thread: TradeThread): boolean {
   );
 }
 
-export function canStartProcessing(thread: TradeThread, status?: string | null): boolean {
+export function canStartProcessing(thread: TradeThread, status?: unknown): boolean {
   if (!isStorefrontThread(thread) && !thread.enquiry_at) {
     const s = String(status || '').toLowerCase();
     return s !== 'converted' && s !== 'enquiry';
