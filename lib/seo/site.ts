@@ -17,7 +17,7 @@ export const DEFAULT_TITLE =
   'SupplierAdvisor® — The world’s most trusted supplier advice — and OS';
 
 export const DEFAULT_DESCRIPTION =
-  'SupplierAdvisor® is the supply-chain OS — not Excel, not accounting-only, not a multi-year ERP. B2B, B2G & B2C on one verified network: SRM, CRM, inventory, manufacturing, finance with live bank feeds, SHEQ, people, containers. Free SA Member app for gym check-in, clinic booking, family, waitlist, hire and pay. 30-day free trial. From R299/mo.';
+  'SupplierAdvisor® is the supply-chain OS — not Excel, not accounting-only, not a multi-year ERP. B2B, B2G & B2C on one verified network: SRM, CRM, inventory, manufacturing, finance with live bank feeds, SHEQ, people, containers, plus Industry Advisors including ConstructionAdvisor®, ApparelAdvisor®, CropAdvisor® and GymAdvisor®. Free SA Member app for gym check-in, clinic booking, family, waitlist, hire and pay. 30-day free trial. From R299/mo.';
 
 /** Core marketing + public indexable routes (no company/product dynamic pages). */
 export const STATIC_SEO_ROUTES: Array<{
@@ -68,6 +68,13 @@ export const SITE_KEYWORDS = [
   'inventory management',
   'warehouse management',
   'manufacturing ERP',
+  'ConstructionAdvisor',
+  'construction contractor software',
+  'ApparelAdvisor',
+  'apparel manufacturing OS',
+  'CropAdvisor',
+  'QuarryAdvisor',
+  'GymAdvisor',
   'MPS MRP BOM',
   'distribution software',
   'operations control tower',

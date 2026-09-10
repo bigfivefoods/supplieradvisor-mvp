@@ -216,8 +216,8 @@ const MODULE_OPTIONS: Array<{
     iconTone: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300',
     bullets: [
       'CropAdvisor® agri · QuarryAdvisor® aggregates',
-      'GymAdvisor® · HireAdvisor® · RetailAdvisor® · ContainerAdvisor®',
-      'Clinic Advisors including VetAdvisor® · diaries · PWAs',
+      'ApparelAdvisor® apparel · ConstructionAdvisor® building',
+      'GymAdvisor® · HireAdvisor® · RetailAdvisor® · clinic Advisors',
     ],
     href: '#modules-industry',
     cta: 'Explore Industry modules',
@@ -658,7 +658,7 @@ const MODULE_SECTION_BANDS: Array<{
     id: 'industry',
     title: 'Industry',
     blurb:
-      'Vertical depth — CropAdvisor®, QuarryAdvisor®, GymAdvisor®, HireAdvisor®, RetailAdvisor®, ContainerAdvisor®, and clinic Advisors (Physio · Dental · Psychiatry · Medical · Vet) with diaries, waitlist desks, industry PWAs, rooms, marketplace listings, and in-app care messages — not brochure modules.',
+      'Vertical depth — CropAdvisor®, QuarryAdvisor®, ApparelAdvisor®, ConstructionAdvisor®, GymAdvisor®, HireAdvisor®, RetailAdvisor®, ContainerAdvisor®, and clinic Advisors (Physio · Dental · Psychiatry · Medical · Vet) with diaries, waitlist desks, industry PWAs, rooms, marketplace listings, and in-app care messages — not brochure modules.',
   },
   {
     id: 'government',
@@ -699,6 +699,16 @@ const SYSTEMS = [
     icon: Factory,
     title: 'Manufacturing',
     body: 'BOM, MPS, MRP, work centers, work orders, throughput.',
+  },
+  {
+    icon: Shirt,
+    title: 'ApparelAdvisor®',
+    body: 'Style matrix, samples, rolls, floor tickets, and QA hold gates before ship.',
+  },
+  {
+    icon: Hammer,
+    title: 'ConstructionAdvisor®',
+    body: 'Building sites, drawings, BOQ, programme, variations, IPCs, and handover.',
   },
   {
     icon: Ship,
@@ -1052,12 +1062,12 @@ export default function HomeBelowFold() {
               {
                 icon: Workflow,
                 t: 'Full stack, zero silos',
-                b: 'Network, SRM, CRM, inventory, manufacturing, distribution, finance, SHEQ, projects, ESG, intelligence — plus industry packs for agri, quarry, gyms, and clinical practices — share one workspace.',
+                b: 'Network, SRM, CRM, inventory, manufacturing, distribution, finance, SHEQ, projects, ESG, intelligence — plus industry packs for agri, quarry, apparel, construction, gyms, and clinical practices — share one workspace.',
               },
               {
                 icon: Stethoscope,
                 t: 'Industry & programme solutions that operate',
-                b: 'CropAdvisor®, QuarryAdvisor®, GymAdvisor®, HireAdvisor® (hire marketplace · members free · 2.5% on the listing business), clinic Advisors, and SchoolAdvisor® (public-sector NSNP: DBE · school · SP). Most Advisors bill the operating company a subscription; members and patients never pay SupplierAdvisor®.',
+                b: 'CropAdvisor®, QuarryAdvisor®, ApparelAdvisor®, ConstructionAdvisor®, GymAdvisor®, HireAdvisor® (hire marketplace · members free · 2.5% on the listing business), clinic Advisors, and SchoolAdvisor® (public-sector NSNP: DBE · school · SP). Most Advisors bill the operating company a subscription; members and patients never pay SupplierAdvisor®.',
               },
               {
                 icon: Fingerprint,

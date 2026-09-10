@@ -1182,6 +1182,8 @@ export function NavMock() {
       items: [
         'CropAdvisor®',
         'QuarryAdvisor®',
+        'ApparelAdvisor®',
+        'ConstructionAdvisor®',
         'GymAdvisor®',
         'PhysioAdvisor®',
         'DentalAdvisor®',

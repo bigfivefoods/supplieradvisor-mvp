@@ -10,6 +10,7 @@ import {
   isMissingRelation,
   isModuleIndexKey,
   mergeCompanyChromeLayers,
+  mergeCompanyChromeSources,
   splitModuleWriteSlice,
 } from './company-data';
 import { ttlDel, ttlGet, ttlSet } from '@/lib/system/memory-ttl';
@@ -43,7 +44,26 @@ assert.equal(
 );
 assert.equal(isMissingRelation({ message: 'permission denied' }), false);
 assert.equal(isAdvisorModuleKey('fitgraph'), true);
+assert.equal(isAdvisorModuleKey('constructiongraph'), true);
 assert.equal(isAdvisorModuleKey('not_a_module'), false);
+
+const hubsFromProfile = mergeCompanyChromeSources({
+  workspace: { enabled_modules: { customers: true } },
+  rpc: { enabled_modules: { customers: true, apparelgraph: true } },
+  profileKeys: {
+    enabled_modules: {
+      customers: true,
+      apparelgraph: true,
+      constructiongraph: true,
+    },
+  },
+});
+assert.equal(
+  (hubsFromProfile.enabled_modules as { constructiongraph?: boolean })
+    .constructiongraph,
+  true,
+  'profile hub ticks win over stale workspace chrome'
+);
 assert.equal(isAdvisorTokenIndexKey('fitgraph_client_tokens'), true);
 assert.equal(isAdvisorTokenIndexKey('fitgraph'), false);
 assert.equal(isModuleIndexKey('fitgraph', 'fitgraph_public_token'), true);

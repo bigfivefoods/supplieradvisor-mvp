@@ -42,6 +42,7 @@ import {
   hasModulesConfigured,
   isAlwaysOnModule,
   isControlPlaneSandboxCompany,
+  isModuleEnabled,
   isGovernmentProgrammeModule,
   isIndustryAdvisorModule,
   isSupplierAdvisorPlatformCompany,
@@ -291,7 +292,7 @@ function ModulesInner() {
       if (govLocked && !platformOperator) return true;
       if (platformOperator) return false;
       // Always allow hiding a hub that is already on (e.g. ContainerAdvisor).
-      if (enabled[id] === true) return false;
+      if (isModuleEnabled(enabled, id)) return false;
       return !industryPackUnlocked(id);
     }
     return false;
@@ -396,7 +397,7 @@ function ModulesInner() {
       for (const id of g.moduleIds) {
         if (seen.has(id)) continue;
         seen.add(id);
-        if (enabled[id] === false) continue;
+        if (!isModuleEnabled(enabled, id)) continue;
         const opt = optionsById.get(id);
         if (!opt) continue;
         out.push({ id, name: opt.name, layer: g.layer });
@@ -773,7 +774,7 @@ function ModulesInner() {
   const renderModuleToggle = (moduleId: string, showPackBadges?: boolean) => {
     const opt = optionsById.get(moduleId);
     if (!opt) return null;
-    const on = enabled[opt.id] !== false;
+    const on = isModuleEnabled(enabled, opt.id);
     const viaPacks = showPackBadges
       ? packsUnlockingAppModule(opt.id).filter((p) => subscribedPackIds.has(p.id))
       : [];
@@ -1386,7 +1387,7 @@ function ModulesInner() {
 
       {workspaceGroups.map((group, idx) => {
         const ids = group.moduleIds.filter((id) => optionsById.get(id));
-        const onCount = ids.filter((id) => enabled[id] !== false).length;
+        const onCount = ids.filter((id) => isModuleEnabled(enabled, id)).length;
         const header =
           group.layer === 'core'
             ? 'bg-slate-900 text-white'
