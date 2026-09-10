@@ -145,12 +145,15 @@ export default function DocumentWorkspace({
   type,
   beforeHeader,
   variant = 'default',
+  focus,
 }: {
   type: DocType;
   /** Optional content rendered above CustomersHeader (e.g. Sales | Inbound tabs) */
   beforeHeader?: ReactNode;
   /** `sales` = dark sales-portal chrome (no main CRM shell) */
   variant?: 'default' | 'sales';
+  /** Incoming storefront enquiries inbox */
+  focus?: 'enquiry';
 }) {
   return (
     <CompanyRequired>
@@ -161,7 +164,12 @@ export default function DocumentWorkspace({
           </div>
         }
       >
-        <DocInner type={type} beforeHeader={beforeHeader} variant={variant} />
+        <DocInner
+          type={type}
+          beforeHeader={beforeHeader}
+          variant={variant}
+          focus={focus}
+        />
       </Suspense>
     </CompanyRequired>
   );
@@ -171,12 +179,15 @@ function DocInner({
   type,
   beforeHeader,
   variant = 'default',
+  focus,
 }: {
   type: DocType;
   beforeHeader?: ReactNode;
   variant?: 'default' | 'sales';
+  focus?: 'enquiry';
 }) {
   const sales = variant === 'sales';
+  const enquiryInbox = focus === 'enquiry';
   const canGroupList =
     type === 'quote' || type === 'order' || type === 'invoice';
   const expandableList = type === 'quote' || type === 'order';
@@ -203,7 +214,15 @@ function DocInner({
   const peerCustomerApplied = useRef(false);
   const overdueResendHinted = useRef(false);
   const whatsappTriggered = useRef(false);
-  const cfg = CONFIG[type];
+  const cfg = enquiryInbox
+    ? {
+        ...CONFIG.quote,
+        title: 'Enquiries',
+        description:
+          'Incoming storefront enquiries. Issue a quotation to the customer portal and email so they can accept with a PO.',
+        statuses: ['enquiry'],
+      }
+    : CONFIG[type];
   const [docs, setDocs] = useState<DocRecord[]>([]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
@@ -260,7 +279,11 @@ function DocInner({
   const [payRef, setPayRef] = useState('');
   const [payMethod, setPayMethod] = useState('eft');
   const [statusFilter, setStatusFilter] = useState(
-    statusFromUrl && statusFromUrl !== 'all' ? statusFromUrl : 'all'
+    enquiryInbox
+      ? 'enquiry'
+      : statusFromUrl && statusFromUrl !== 'all'
+        ? statusFromUrl
+        : 'all'
   );
   const [groupBy, setGroupBy] = useState<DocListGroupBy>('date');
   const [listCustomerId, setListCustomerId] = useState('all');
@@ -309,10 +332,14 @@ function DocInner({
   const [productSearch, setProductSearch] = useState('');
 
   useEffect(() => {
+    if (enquiryInbox) {
+      setStatusFilter('enquiry');
+      return;
+    }
     if (statusFromUrl && statusFromUrl !== 'all') {
       setStatusFilter(statusFromUrl);
     }
-  }, [statusFromUrl]);
+  }, [statusFromUrl, enquiryInbox]);
 
   // Prefill customer from linked platform peer (pending connection / network)
   useEffect(() => {
@@ -343,7 +370,8 @@ function DocInner({
     setLoading(true);
     try {
       const params = new URLSearchParams({ companyId: String(companyId), type });
-      if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (enquiryInbox) params.set('status', 'enquiry');
+      else if (statusFilter !== 'all') params.set('status', statusFilter);
       if (canGroupList) {
         if (period.from) params.set('from', period.from);
         if (period.to) params.set('to', period.to);
@@ -395,6 +423,7 @@ function DocInner({
     type,
     canGroupList,
     statusFilter,
+    enquiryInbox,
     privyUserId,
     period.from,
     period.to,
@@ -705,15 +734,32 @@ function DocInner({
   }, [customers, docs]);
 
   const visibleDocs = useMemo(() => {
-    if (!canGroupList) return docs;
+    const inbox = enquiryInbox
+      ? docs.filter((d) => {
+          const st = String(d.status || '').toLowerCase();
+          const num = String(d.quote_number || '');
+          if (st === 'enquiry') return true;
+          if (
+            num.startsWith('ENQ-') &&
+            !['sent', 'accepted', 'deposit_due', 'deposit_paid', 'converted', 'rejected', 'expired'].includes(
+              st
+            )
+          ) {
+            return true;
+          }
+          return false;
+        })
+      : docs;
+    if (!canGroupList) return inbox;
     const slice = listTimeKey ? rangeForTimeKey(listTimeKey) : null;
-    return filterGroupedDocs(docs, {
+    return filterGroupedDocs(inbox, {
       customerId: listCustomerId,
       dateFrom: slice?.from || period.from,
       dateTo: slice?.to || period.to,
     });
   }, [
     docs,
+    enquiryInbox,
     canGroupList,
     listCustomerId,
     listTimeKey,
@@ -2257,13 +2303,13 @@ function DocInner({
               Records are saved under your company · commission 4%–6% (super-link 6%)
             </p>
           </div>
-          {newBtn}
+          {enquiryInbox ? null : newBtn}
         </div>
       ) : (
         <CustomersHeader
           title={cfg.title}
           description={cfg.description}
-          action={newBtn}
+          action={enquiryInbox ? null : newBtn}
         />
       )}
 
@@ -3039,7 +3085,9 @@ function DocInner({
           <div
             className={`p-16 text-center text-sm ${sales ? 'text-neutral-500' : 'text-neutral-500'}`}
           >
-            No {cfg.title.toLowerCase()} yet. Create one and pick products from your catalogue.
+            {enquiryInbox
+              ? 'No storefront enquiries waiting. They appear here when someone orders from your public store.'
+              : `No ${cfg.title.toLowerCase()} yet. Create one and pick products from your catalogue.`}
           </div>
         ) : visibleDocs.length === 0 ? (
           <div
