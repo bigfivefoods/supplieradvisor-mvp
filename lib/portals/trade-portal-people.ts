@@ -182,7 +182,10 @@ export async function listAccountPeople(opts: {
       missingTable: isMissingRelation(error),
     };
   }
-  return { ok: true, people: (data || []).map((r) => mapViewer(asObject(r))) };
+  return {
+    ok: true,
+    people: (data || []).map((r: unknown) => mapViewer(asObject(r))),
+  };
 }
 
 export async function inviteTradePortalPerson(opts: {
