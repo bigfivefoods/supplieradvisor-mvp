@@ -4,6 +4,7 @@
 
 export type GuestPortalTab =
   | 'profile'
+  | 'enquiries'
   | 'quotes'
   | 'orders'
   | 'otifef'
@@ -86,12 +87,12 @@ export function guestPortalTabGroups(opts: {
     {
       id: 'trade',
       tabs: [
-        { id: 'quotes', label: 'Enquiry → order' },
-        { id: 'newpo', label: 'Purchase order' },
-        { id: 'orders', label: 'Sales orders' },
-        { id: 'commercial', label: 'Commercial' },
+        { id: 'enquiries', label: 'Enquiry' },
+        { id: 'quotes', label: 'Quote' },
+        { id: 'newpo', label: 'Order' },
+        { id: 'orders', label: 'Sales order' },
         { id: 'stock', label: 'Stock' },
-        { id: 'statement', label: 'Invoices' },
+        { id: 'statement', label: 'Statement' },
       ],
     },
     {

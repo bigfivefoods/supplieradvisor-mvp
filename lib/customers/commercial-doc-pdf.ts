@@ -8,7 +8,11 @@
  */
 import PDFDocument from 'pdfkit';
 import { formatMoney, type DocLineItem } from '@/lib/customers/documents';
-import type { DocRenderInput, SellerProfile } from '@/lib/customers/invoice-document';
+import {
+  isEnquiryDocument,
+  type DocRenderInput,
+  type SellerProfile,
+} from '@/lib/customers/invoice-document';
 import {
   absoluteLogoUrl,
   fetchQrPngBuffer,
@@ -401,7 +405,9 @@ export async function buildCommercialDocumentPdf(
   const ccy = input.currency || input.seller.primary_currency || 'ZAR';
   const sellerName =
     input.seller.trading_name || input.seller.legal_name || 'Supplier';
-  const kindLabel = KIND_LABEL[input.kind];
+  const kindLabel = isEnquiryDocument(input)
+    ? 'ENQUIRY'
+    : KIND_LABEL[input.kind];
   const items = (input.items || []).filter((l) => l?.name);
 
   // Compact terms for quotes so typical docs stay single-page
@@ -1036,5 +1042,6 @@ export function commercialPdfFilename(input: DocRenderInput): string {
     .replace(/[^a-zA-Z0-9._-]+/g, '-')
     .replace(/-+/g, '-')
     .slice(0, 64);
-  return `${input.kind}-${safe}.pdf`;
+  const kind = isEnquiryDocument(input) ? 'enquiry' : input.kind;
+  return `${kind}-${safe}.pdf`;
 }

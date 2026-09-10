@@ -115,6 +115,32 @@ export function productMatchesStorefrontPick(
   return false;
 }
 
+/** Explicit per-SKU hide (`storefront_public: false`) in mode `all`. */
+export function storefrontPublicFlag(metadata: unknown): boolean {
+  const m =
+    metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>)
+      : {};
+  return m.storefront_public !== false && m.storefrontPublic !== false;
+}
+
+/**
+ * Same rule as the public store: mode `all` shows every SKU except an
+ * explicit hide; mode `selected` shows only the ticked ids/keys.
+ */
+export function productListedOnStorefront(
+  p: {
+    id?: number | string | null;
+    sku?: string | null;
+    externalRef?: string | null;
+    storefrontPublic?: boolean;
+  },
+  pick: StorefrontCatalogPick
+): boolean {
+  if (pick.mode === 'selected') return productMatchesStorefrontPick(p, pick);
+  return p.storefrontPublic !== false;
+}
+
 export function applyStorefrontCatalog<
   T extends {
     id?: number | string | null;

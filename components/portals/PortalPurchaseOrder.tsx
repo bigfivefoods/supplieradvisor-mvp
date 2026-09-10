@@ -21,10 +21,11 @@ import {
   type BookProfile,
   type PortalCatalogueItem,
 } from '@/lib/portals/trade-portal-workspace';
+import { portalPoTaxRate } from '@/lib/portals/portal-po';
 import {
-  portalPoTaxRate,
-  suggestPortalPoNumber,
-} from '@/lib/portals/portal-po';
+  DEFAULT_DEPOSIT_PERCENT,
+  depositAmountFromTotal,
+} from '@/lib/customers/trade-thread';
 import { OrderChainPath } from '@/components/orders/OrderChainPath';
 
 type Line = {
@@ -90,7 +91,9 @@ function CatalogueTile({
               ? 'On your order chain'
               : item.customer_brand
                 ? 'Your brand'
-                : null,
+                : item.on_storefront
+                  ? 'Storefront'
+                  : null,
           ]
             .filter(Boolean)
             .join(' · ')}
@@ -173,9 +176,7 @@ export function PortalPurchaseOrder({
 }) {
   const currency = catalogue[0]?.currency || 'ZAR';
   const [step, setStep] = useState(1);
-  const [poNumber, setPoNumber] = useState(() =>
-    suggestPortalPoNumber(accountName)
-  );
+  const [poNumber, setPoNumber] = useState('');
   const [poDate, setPoDate] = useState(isoDay(new Date()));
   const [deliveryDate, setDeliveryDate] = useState(
     addDays(isoDay(new Date()), 7)
@@ -210,11 +211,16 @@ export function PortalPurchaseOrder({
     po: string;
     so: string | null;
     chain?: string | null;
+    quoteId?: number | null;
+    depositAmount?: number | null;
+    depositPercent?: number | null;
+    invoiceNumber?: string | null;
   } | null>(null);
 
   const taxRate = portalPoTaxRate(hostCountry || book?.country);
+  const depositPercent = DEFAULT_DEPOSIT_PERCENT;
   const pool = catalogue;
-  const hasChains = catalogue.length > 0;
+  const hasCatalogue = catalogue.length > 0;
   const filtered = useMemo(() => {
     const n = q.trim().toLowerCase();
     if (!n) return pool;
@@ -226,6 +232,14 @@ export function PortalPurchaseOrder({
         .includes(n)
     );
   }, [pool, q]);
+  const chainItems = useMemo(
+    () => filtered.filter((c) => c.on_chain),
+    [filtered]
+  );
+  const storeItems = useMemo(
+    () => filtered.filter((c) => !c.on_chain),
+    [filtered]
+  );
 
   const items = lines.map((l) => ({
     name: l.name,
@@ -234,6 +248,10 @@ export function PortalPurchaseOrder({
     line_total: calcLineTotal(l.qty, l.unit_price),
   }));
   const totals = calcDocTotals(items, taxRate);
+  const depositDueNow = depositAmountFromTotal(
+    totals.total_amount,
+    depositPercent
+  );
 
   const addFromCatalogue = (c: PortalCatalogueItem) => {
     const moq = c.moq != null && c.moq > 0 ? c.moq : 1;
@@ -353,29 +371,52 @@ export function PortalPurchaseOrder({
         po: poNumber.trim(),
         so: data.sales_order_number ? String(data.sales_order_number) : null,
         chain: data.chain != null ? String(data.chain) : null,
+        quoteId: data.quote_id != null ? Number(data.quote_id) : null,
+        depositAmount:
+          data.deposit_amount != null ? Number(data.deposit_amount) : null,
+        depositPercent:
+          data.deposit_percent != null ? Number(data.deposit_percent) : null,
+        invoiceNumber:
+          data.invoice_number != null ? String(data.invoice_number) : null,
       });
+      if (data.deposit_due && data.quote_id) {
+        try {
+          const pay = (await onAct({
+            action: 'pay_deposit',
+            id: Number(data.quote_id),
+            return_tab: 'newpo',
+          })) as Record<string, unknown> | null;
+          const url = pay?.authorizationUrl ? String(pay.authorizationUrl) : '';
+          if (url) {
+            window.location.href = url;
+            return;
+          }
+        } catch {
+          /* PO is saved — pay from the confirmation screen */
+        }
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not send PO');
     }
   };
 
-  if (!hasChains) {
+  if (!hasCatalogue) {
     return (
       <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50/80 p-6 sm:p-8 shadow-sm">
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-amber-900">
           Purchase order
         </p>
         <h2 className="mt-1 text-xl font-black text-slate-900">
-          No order chain for this account
+          No catalogue yet
         </h2>
         <p className="mt-2 text-sm text-slate-700 leading-relaxed">
-          {hostName} has not set up an order chain for{' '}
-          <strong>{accountName || 'this customer'}</strong> yet. Portal orders
-          only use products on a saved chain — customer, those products, and
-          the supplier who makes them.
+          Repeat orders use {hostName}&apos;s storefront catalogue. An order
+          chain is optional for large or standing accounts (MoQ, lead time,
+          manufacturer routing) — it is not required for{' '}
+          <strong>{accountName || 'this customer'}</strong> to raise a PO.
         </p>
         <p className="mt-2 text-sm text-slate-600">
-          Ask them to add a chain under Operations → Order chains, then refresh
+          Ask them to publish items under Inventory → Storefront, then refresh
           this page.
         </p>
       </div>
@@ -389,23 +430,41 @@ export function PortalPurchaseOrder({
           <Check className="h-6 w-6 text-emerald-700" />
         </div>
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-800">
-          Purchase order sent
+          Purchase order received
         </p>
         <h2 className="mt-1 text-2xl font-black text-slate-900">{done.po}</h2>
         <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
-          {hostName} now has this as a confirmed sales order
-          {done.so ? (
-            <>
-              {' '}
-              <strong>{done.so}</strong>
-            </>
-          ) : null}
-          . Production and delivery will update live on Sales orders.
+          {done.depositAmount != null
+            ? `${hostName} has your PO. Pay the ${done.depositPercent || depositPercent}% deposit so they can process the sales order. The deposit is on Statement${done.invoiceNumber ? ` as ${done.invoiceNumber}` : ''}.`
+            : done.so
+              ? `${hostName} now has this as sales order ${done.so}.`
+              : `${hostName} has your purchase order.`}
         </p>
         <div className="mt-4 flex justify-center">
           <OrderChainPath side="customer" current={1} />
         </div>
         <div className="mt-5 flex flex-wrap justify-center gap-2">
+          {done.quoteId && done.depositAmount != null ? (
+            <button
+              type="button"
+              className="btn-primary !py-2.5 !px-5 text-sm"
+              disabled={busy}
+              onClick={async () => {
+                const pay = (await onAct({
+                  action: 'pay_deposit',
+                  id: done.quoteId,
+                  return_tab: 'newpo',
+                })) as Record<string, unknown> | null;
+                const url = pay?.authorizationUrl
+                  ? String(pay.authorizationUrl)
+                  : '';
+                if (url) window.location.href = url;
+              }}
+            >
+              Pay {done.depositPercent || depositPercent}% deposit ·{' '}
+              {money(done.depositAmount, currency)}
+            </button>
+          ) : null}
           <button
             type="button"
             className="btn-secondary !py-2 !px-4 text-sm"
@@ -416,7 +475,7 @@ export function PortalPurchaseOrder({
               setNotes('');
               setFile(null);
               setAuthorised(false);
-              setPoNumber(suggestPortalPoNumber(accountName));
+              setPoNumber('');
             }}
           >
             Raise another PO
@@ -445,9 +504,9 @@ export function PortalPurchaseOrder({
           Official order to {hostName}
         </h2>
         <p className="mt-1 text-sm text-slate-600">
-          Four steps: header, products on your order chain, delivery, then
-          review and send. Only SKUs {hostName} set up for this account can be
-          ordered here.
+          Enter the PO number from your system, attach that PO, pick products,
+          then pay the {depositPercent}% deposit. The deposit invoice appears on
+          Statement immediately.
         </p>
         <ol className="mt-4 grid grid-cols-4 gap-1.5">
           {STEPS.map((s) => {
@@ -498,13 +557,17 @@ export function PortalPurchaseOrder({
             />
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-              Your PO number *
+            <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 sm:col-span-2">
+              Your PO number (from your system) *
               <input
                 className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
                 value={poNumber}
                 onChange={(e) => setPoNumber(e.target.value)}
+                placeholder="e.g. PO-2026-0412"
               />
+              <span className="mt-1 block text-[11px] font-medium normal-case tracking-normal text-slate-500">
+                This reference prints on the deposit, sales order, and statement.
+              </span>
             </label>
             <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
               PO date *
@@ -534,9 +597,28 @@ export function PortalPurchaseOrder({
               />
             </label>
           </div>
+          <label className="block rounded-2xl border-2 border-dashed border-sky-200 bg-sky-50/60 px-4 py-4">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-[#0077b6]">
+              <Paperclip className="h-3.5 w-3.5" /> Attach the PO from your system
+            </span>
+            <input
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,application/pdf"
+              className="mt-2 block w-full text-xs"
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+            />
+            {file ? (
+              <p className="mt-1 text-xs font-semibold text-[#0077b6]">{file.name}</p>
+            ) : (
+              <p className="mt-1 text-[11px] text-slate-600">
+                PDF, image or Word from SAP, Syspro, Excel… · max 12MB. Optional if
+                the number above is enough for now.
+              </p>
+            )}
+          </label>
           {!headerOk ? (
             <p className="text-xs font-semibold text-amber-800">
-              PO number, date, and required-by date are mandatory.
+              Your PO number, date, and required-by date are mandatory.
             </p>
           ) : null}
           {catalogue.some((c) => c.lead_time_days != null) ? (
@@ -557,8 +639,9 @@ export function PortalPurchaseOrder({
                   Catalogue
                 </p>
                 <p className="text-sm text-slate-600">
-                  Products on your order chain. Same SKU merges quantity. MoQ
-                  and lead time come from the chain.
+                  Storefront catalogue, plus any SKUs on your order chain. Same
+                  SKU merges quantity. MoQ and lead time come from the chain
+                  when one is set.
                 </p>
               </div>
               <label className="inline-flex items-center gap-1.5 text-xs font-semibold">
@@ -599,23 +682,44 @@ export function PortalPurchaseOrder({
                 </ul>
               ) : (
                 <div className="max-h-80 space-y-3 overflow-y-auto">
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-black uppercase tracking-wider text-[#0077b6]">
-                      On your order chain
-                    </p>
-                    <ul className="grid gap-2 sm:grid-cols-2">
-                      {filtered.map((c) => (
-                        <li key={c.id}>
-                          <CatalogueTile
-                            item={c}
-                            currency={currency}
-                            busy={busy}
-                            onAdd={addFromCatalogue}
-                          />
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  {chainItems.length ? (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-[#0077b6]">
+                        On your order chain
+                      </p>
+                      <ul className="grid gap-2 sm:grid-cols-2">
+                        {chainItems.map((c) => (
+                          <li key={c.id}>
+                            <CatalogueTile
+                              item={c}
+                              currency={currency}
+                              busy={busy}
+                              onAdd={addFromCatalogue}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {storeItems.length ? (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-[#0077b6]">
+                        Storefront catalogue
+                      </p>
+                      <ul className="grid gap-2 sm:grid-cols-2">
+                        {storeItems.map((c) => (
+                          <li key={c.id}>
+                            <CatalogueTile
+                              item={c}
+                              currency={currency}
+                              busy={busy}
+                              onAdd={addFromCatalogue}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
                 </div>
               )
             ) : (
@@ -631,7 +735,7 @@ export function PortalPurchaseOrder({
             </div>
             {lines.length === 0 ? (
               <p className="px-5 py-8 text-sm text-neutral-500">
-                No lines yet. Add products from your order chain.
+                No lines yet. Add products from the catalogue.
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -813,24 +917,15 @@ export function PortalPurchaseOrder({
               onChange={(e) => setNotes(e.target.value)}
             />
           </label>
-          <label className="block rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3">
-            <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">
-              <Paperclip className="h-3.5 w-3.5" /> Attach your signed PO
-            </span>
-            <input
-              type="file"
-              accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,application/pdf"
-              className="mt-2 block w-full text-xs"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
-            />
-            {file ? (
-              <p className="mt-1 text-xs font-semibold text-[#0077b6]">{file.name}</p>
-            ) : (
-              <p className="mt-1 text-[11px] text-neutral-500">
-                PDF, image or Word · optional · max 12MB
-              </p>
-            )}
-          </label>
+          {file ? (
+            <p className="text-xs font-semibold text-[#0077b6]">
+              Attached PO: {file.name}
+            </p>
+          ) : (
+            <p className="text-[11px] text-slate-500">
+              You can still attach your system PO on the first step before sending.
+            </p>
+          )}
         </div>
       ) : null}
 
@@ -914,11 +1009,21 @@ export function PortalPurchaseOrder({
               <span className="tabular-nums">{money(totals.tax_amount, currency)}</span>
             </div>
             <div className="flex justify-between text-base font-black">
-              <span>Total payable</span>
+              <span>Order total</span>
               <span className="tabular-nums">
                 {money(totals.total_amount, currency)}
               </span>
             </div>
+            <div className="flex justify-between text-[#0077b6] font-bold">
+              <span>Deposit due now ({depositPercent}%)</span>
+              <span className="tabular-nums">{money(depositDueNow, currency)}</span>
+            </div>
+            <p className="text-[11px] font-medium text-slate-500">
+              Deposit invoice {file ? `and your attached PO ` : ''}will show on
+              Statement against <strong>{poNumber || 'your PO number'}</strong>.
+              Balance {money(Math.max(0, totals.total_amount - depositDueNow), currency)}{' '}
+              follows your terms ({paymentTerms || 'as agreed'}).
+            </p>
           </div>
           <label className="flex items-start gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm">
             <input
@@ -969,7 +1074,7 @@ export function PortalPurchaseOrder({
               ? 'Uploading attachment…'
               : busy
                 ? 'Sending…'
-                : `Send purchase order · ${money(totals.total_amount, currency)}`}
+                : `Send PO & pay ${depositPercent}% deposit · ${money(depositDueNow, currency)}`}
           </button>
         )}
       </div>

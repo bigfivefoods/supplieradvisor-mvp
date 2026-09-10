@@ -165,7 +165,7 @@ function Inner() {
       <InventoryHeader
         title="Storefront"
         titleAccent="catalogue"
-        description="Choose which inventory items appear on your public store and website embed. Unticked SKUs stay in the catalogue — they just are not for sale on the store."
+        description="Choose which inventory items appear on your public store, website embed, and customer portal Purchase order. Unticked SKUs stay in inventory — they are not for sale on the store. Order chains are optional for large or standing accounts."
         action={
           <div className="flex flex-wrap gap-2">
             {storePath ? (

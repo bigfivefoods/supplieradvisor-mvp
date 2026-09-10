@@ -492,9 +492,9 @@ function InboundPosList() {
             Inbound purchase orders
           </h2>
           <p className="text-sm text-neutral-500 max-w-xl">
-            Integration loop: buyer raises PO from{' '}
-            <strong>your catalogue</strong> → you accept here → deliver → they
-            rate. Paid/completed unlocks reviews.
+            Buyer attaches the PO from their system, quotes their PO number,
+            and pays the deposit (it hits Statement). Accept here once the
+            deposit is in, then fulfil.
           </p>
         </div>
         <button
@@ -644,7 +644,10 @@ function InboundPosList() {
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="font-semibold text-lg">
-                      PO #{po.id} · {buyerLabel}
+                      {String(po.metadata?.customer_po_number || '').trim()
+                        ? `PO ${String(po.metadata?.customer_po_number)}`
+                        : `PO #${po.id}`}{' '}
+                      · {buyerLabel}
                     </div>
                     {po.description && (
                       <div className="text-sm text-neutral-600 mt-0.5">
@@ -655,6 +658,25 @@ function InboundPosList() {
                       <span className="capitalize px-2 py-0.5 rounded-full bg-neutral-100 font-semibold">
                         {po.status}
                       </span>
+                      {po.metadata?.deposit_paid_at ? (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-semibold">
+                          Deposit paid
+                        </span>
+                      ) : po.metadata?.deposit_invoice_id ? (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 font-semibold">
+                          Deposit due
+                        </span>
+                      ) : null}
+                      {po.metadata?.attachment_url ? (
+                        <a
+                          href={String(po.metadata.attachment_url)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2 py-0.5 rounded-full bg-sky-50 text-sky-800 font-semibold"
+                        >
+                          Customer PO file
+                        </a>
+                      ) : null}
                       {po.source && (
                         <span className="px-2 py-0.5 rounded-full bg-sky-50 text-sky-700">
                           {po.source}

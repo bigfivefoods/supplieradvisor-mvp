@@ -270,6 +270,65 @@ async function loadPoLotsForPdf(
   return out;
 }
 
+/** Customer portal PO: guest is the buyer, host company is the supplier. */
+export async function assembleCustomerPortalPoPdfInput(opts: {
+  companyId: number;
+  po: Record<string, unknown>;
+  buyerFallbackName?: string | null;
+}): Promise<PoPdfInput> {
+  const supplier = await loadBuyerParty(opts.companyId);
+  const buyerId = Number(opts.po.buyer_profile_id);
+  let buyer =
+    buyerId > 0
+      ? await loadBuyerParty(buyerId)
+      : { name: String(opts.buyerFallbackName || 'Customer').trim() || 'Customer' };
+  if (!buyer.name || buyer.name === 'Buyer') {
+    buyer = {
+      ...buyer,
+      name: String(opts.buyerFallbackName || buyer.name || 'Customer').trim() || 'Customer',
+    };
+  }
+  const number = formatPurchaseOrderNumber({
+    id: Number(opts.po.id),
+    po_number: opts.po.po_number != null ? String(opts.po.po_number) : null,
+    order_number:
+      opts.po.order_number != null ? String(opts.po.order_number) : null,
+  });
+  const currency = String(opts.po.currency || 'ZAR').toUpperCase();
+  const normalized = normalizePoItems(opts.po.items || []);
+  const items = 'items' in normalized ? normalized.items : [];
+  const total =
+    Number(opts.po.total_amount) ||
+    ('total' in normalized ? normalized.total : 0);
+  const meta = asMeta(opts.po.metadata);
+  const requested = meta.requested_promised_date
+    ? String(meta.requested_promised_date).slice(0, 10)
+    : null;
+  const promised = opts.po.promised_date
+    ? String(opts.po.promised_date).slice(0, 10)
+    : null;
+  return {
+    number,
+    status: opts.po.status != null ? String(opts.po.status) : null,
+    issuedAt: String(opts.po.created_at || '').slice(0, 10) || null,
+    promisedDate: promised,
+    requestedDate: requested && requested !== promised ? requested : null,
+    actualDeliveryDate: opts.po.actual_delivery_date
+      ? String(opts.po.actual_delivery_date).slice(0, 10)
+      : null,
+    paymentTerms: opts.po.payment_terms
+      ? String(opts.po.payment_terms)
+      : null,
+    currency,
+    notes: opts.po.description ? String(opts.po.description) : null,
+    items,
+    lots: await loadPoLotsForPdf(opts.companyId, Number(opts.po.id), items),
+    totalAmount: total,
+    buyer,
+    supplier,
+  };
+}
+
 export async function assemblePurchaseOrderPdfInput(opts: {
   companyId: number;
   po: Record<string, unknown>;

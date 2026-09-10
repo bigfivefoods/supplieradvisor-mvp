@@ -182,7 +182,10 @@ export async function POST(request: NextRequest) {
         metaRaw && typeof metaRaw === 'object' && !Array.isArray(metaRaw)
           ? (metaRaw as Record<string, unknown>)
           : {};
-      if (String(meta.kind || '') === 'crm_quote_deposit') {
+      if (
+        String(meta.kind || '') === 'crm_quote_deposit' ||
+        String(meta.kind || '') === 'crm_po_deposit'
+      ) {
         const quoteId = Number(meta.quote_id || 0);
         const companyId = Number(meta.company_id || 0);
         const invoiceId = Number(meta.invoice_id || 0);

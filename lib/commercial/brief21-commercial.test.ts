@@ -17,8 +17,7 @@ const customerTabs = guestPortalTabs({ kind: 'customer' }).map((t) => t.id);
 assert.ok(supplierTabs.includes('commercial'));
 assert.equal(supplierTabs.indexOf('commercial'), supplierTabs.indexOf('orders') + 1);
 assert.ok(supplierTabs.indexOf('commercial') < supplierTabs.indexOf('stock'));
-assert.ok(customerTabs.includes('commercial'));
-assert.ok(customerTabs.indexOf('commercial') > customerTabs.indexOf('orders'));
+assert.equal(customerTabs.includes('commercial'), false);
 
 assert.equal(supplierFacingUnitPrice({ costPrice: 26.52, acceptedPrice: 28 }), 26.52);
 assert.equal(KENYA_CUSTOMER_ID, 3);

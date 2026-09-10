@@ -22,6 +22,10 @@ import {
   poPdfUrlFromMeta,
 } from '@/lib/portals/supplier-portal-party';
 import { parseTradeThread } from '@/lib/customers/trade-thread';
+import {
+  depositPoNumberFromMeta,
+  invoiceLooksLikeDeposit,
+} from '@/lib/customers/trade-deposit';
 
 export type { PortalDocSlot } from '@/lib/portals/portal-documents';
 
@@ -126,10 +130,12 @@ export type PublicDocRow = {
   actual_delivery_date?: string | null;
   po_number?: string | null;
   thread_stage?: string | null;
+  thread_source?: string | null;
   enquiry_number?: string | null;
   deposit_percent?: number | null;
   deposit_amount?: number | null;
   deposit_invoice_id?: number | null;
+  deposit?: boolean;
   lines?: Array<{
     name: string;
     qty: number | null;
@@ -296,6 +302,15 @@ export function portalPublicPath(token: string): string {
 
 export function portalPublicUrl(token: string): string {
   return `${getAppUrl()}${portalPublicPath(token)}`;
+}
+
+export function customerPortalDocPdfHref(
+  token: string,
+  id: number,
+  type: 'quote' | 'order' | 'invoice'
+): string {
+  const t = encodeURIComponent(String(token || '').trim());
+  return `/api/public/portals/trade/doc-pdf?token=${t}&id=${Number(id)}&type=${type}`;
 }
 
 export function customerPortalInvoicePdfHref(token: string, invoiceId: number): string {
@@ -640,10 +655,16 @@ async function loadCustomerDocs(
         lines: portalQuoteLines(r.items),
         po_number: thread.po_number,
         thread_stage: thread.stage,
+        thread_source: thread.source,
         enquiry_number: thread.enquiry_number,
         deposit_percent: thread.deposit_percent,
         deposit_amount: thread.deposit_amount,
         deposit_invoice_id: thread.deposit_invoice_id,
+        attachment_url: (() => {
+          const meta = asObject(r.metadata);
+          const url = meta.attachment_url || meta.pdf_url || meta.document_url;
+          return url != null ? String(url) : null;
+        })(),
       });
     }
   }
@@ -695,6 +716,11 @@ async function loadCustomerDocs(
         customer_po_number: meta.customer_po_number
           ? String(meta.customer_po_number)
           : null,
+        attachment_url: meta.attachment_url
+          ? String(meta.attachment_url)
+          : meta.pdf_url
+            ? String(meta.pdf_url)
+            : null,
       });
     }
   }
@@ -702,7 +728,7 @@ async function loadCustomerDocs(
     const invHit = await supabase
       .from('customer_invoices')
       .select(
-        'id, invoice_number, status, issue_date, due_date, total_amount, amount_paid, currency, notes, items'
+        'id, invoice_number, status, issue_date, due_date, total_amount, amount_paid, currency, notes, items, metadata'
       )
       .eq('profile_id', companyId)
       .eq('customer_id', customerId)
@@ -724,6 +750,7 @@ async function loadCustomerDocs(
     }
     for (const raw of invRows) {
       const r = asObject(raw);
+      const invMeta = asObject(r.metadata);
       invoices.push({
         ...moneyRow({
           id: Number(r.id),
@@ -738,6 +765,12 @@ async function loadCustomerDocs(
         }),
         notes: r.notes != null ? String(r.notes).slice(0, 400) : null,
         lines: portalQuoteLines(r.items),
+        deposit: invoiceLooksLikeDeposit({
+          number: r.invoice_number != null ? String(r.invoice_number) : null,
+          notes: r.notes != null ? String(r.notes) : null,
+          metadata: invMeta,
+        }),
+        po_number: depositPoNumberFromMeta(invMeta),
       });
     }
   }

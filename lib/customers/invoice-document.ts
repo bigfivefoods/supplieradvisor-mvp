@@ -78,6 +78,24 @@ const KIND_LABEL: Record<DocRenderInput['kind'], string> = {
   invoice: 'Tax invoice',
 };
 
+export function isEnquiryDocument(doc: {
+  kind?: string | null;
+  status?: string | null;
+}): boolean {
+  return (
+    String(doc.kind || '') === 'quote' &&
+    String(doc.status || '').toLowerCase() === 'enquiry'
+  );
+}
+
+export function commercialDocKindLabel(doc: {
+  kind: DocRenderInput['kind'];
+  status?: string | null;
+}): string {
+  if (isEnquiryDocument(doc)) return 'Enquiry';
+  return KIND_LABEL[doc.kind];
+}
+
 const DEFAULT_PAYMENT_TERMS = `Payment is due by the due date shown on this invoice (or within 30 days of the invoice date if no due date is stated), unless otherwise agreed in writing.
 
 Please pay by electronic funds transfer (EFT) using the banking details below. Use the invoice number as your payment reference so we can allocate your payment correctly.
@@ -319,7 +337,7 @@ export function resolveCustomerVatNumber(
 
 export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
   const ccy = doc.currency || doc.seller.primary_currency || 'ZAR';
-  const title = KIND_LABEL[doc.kind];
+  const title = commercialDocKindLabel(doc);
   const sellerName =
     doc.seller.trading_name || doc.seller.legal_name || 'Supplier';
   const logoSrc = absoluteLogoUrl(doc.seller.logo_url);
@@ -783,7 +801,9 @@ export function renderCommercialDocumentHtml(doc: DocRenderInput): string {
         </div>
 
         ${
-          doc.kind === 'quote'
+          isEnquiryDocument(doc)
+            ? `<div class="quote-banner">This is your enquiry to ${esc(sellerName)}. It is not a quotation until they issue one.</div>`
+            : doc.kind === 'quote'
             ? `<div class="quote-banner">${
                 doc.validUntil
                   ? `This quotation is valid until <strong>${esc(

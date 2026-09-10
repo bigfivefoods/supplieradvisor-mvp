@@ -155,7 +155,25 @@ export default function GuestTradePortalPage() {
       if (!navReady.current) {
         navReady.current = true;
         if (gaps > 0 && !isHost) setTab('profile');
-        else if (data.portal?.kind === 'customer') setTab('quotes');
+        else if (data.portal?.kind === 'customer') {
+          const qs =
+            typeof window !== 'undefined'
+              ? new URLSearchParams(window.location.search)
+              : null;
+          const asked = String(qs?.get('tab') || '');
+          const paystack = Boolean(qs?.get('reference') || qs?.get('trxref'));
+          const allowed = new Set([
+            'enquiries',
+            'quotes',
+            'newpo',
+            'orders',
+            'statement',
+            'profile',
+          ]);
+          if (asked && allowed.has(asked)) setTab(asked as GuestPortalTab);
+          else if (paystack) setTab('newpo');
+          else setTab('enquiries');
+        }
         else setTab('orders');
       }
     } catch (e) {
@@ -416,9 +434,9 @@ export default function GuestTradePortalPage() {
             {(
               [
                 {
-                  label: 'Quotes',
+                  label: portal.kind === 'customer' ? 'Enquiries' : 'Quotes',
                   value: kpis.quotes,
-                  tab: portal.kind === 'customer' ? 'quotes' : null,
+                  tab: portal.kind === 'customer' ? 'enquiries' : null,
                 },
                 {
                   label: portal.kind === 'customer' ? 'Orders' : 'POs',
@@ -484,17 +502,17 @@ export default function GuestTradePortalPage() {
         ) : portal.kind === 'customer' ? (
           <>
             <DocTable
-              title="Quotes"
-              empty="No quotes on this account yet."
+              title="Enquiries & quotes"
+              empty="No enquiries or quotes on this account yet."
               rows={portal.quotes}
             />
             <DocTable
-              title="Orders"
-              empty="No orders on this account yet."
+              title="Sales orders"
+              empty="No sales orders on this account yet."
               rows={portal.orders}
             />
             <DocTable
-              title="Invoices"
+              title="Statement"
               empty="No invoices on this account yet."
               rows={portal.invoices}
             />

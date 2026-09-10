@@ -70,14 +70,21 @@ export async function markQuoteDepositPaid(opts: {
       notes: [
         quote.notes || '',
         thread.po_number ? `Customer PO ${thread.po_number}` : '',
-        '[storefront golden thread — deposit paid, processing]',
+        thread.po_attachment_url
+          ? `Attached PO: ${thread.po_attachment_name || thread.po_attachment_url}`
+          : '',
+        '[official order — deposit paid, processing]',
       ]
         .filter(Boolean)
         .join('\n'),
       items,
       metadata: {
         thread,
-        source: 'storefront',
+        source: thread.source || 'storefront',
+        customer_po_number: thread.po_number,
+        inbound_po_id: thread.inbound_po_id || null,
+        attachment_url: thread.po_attachment_url || null,
+        attachment_name: thread.po_attachment_name || null,
       },
       created_at: now,
       updated_at: now,
@@ -128,6 +135,30 @@ export async function markQuoteDepositPaid(opts: {
     })
     .eq('id', quote.id)
     .eq('profile_id', opts.companyId);
+
+  if (thread.inbound_po_id && thread.inbound_po_id > 0) {
+    const poHit = await opts.supabase
+      .from('purchase_orders')
+      .select('id, metadata')
+      .eq('id', thread.inbound_po_id)
+      .maybeSingle();
+    const prev =
+      poHit.data?.metadata && typeof poHit.data.metadata === 'object'
+        ? (poHit.data.metadata as Record<string, unknown>)
+        : {};
+    await opts.supabase
+      .from('purchase_orders')
+      .update({
+        metadata: {
+          ...prev,
+          deposit_paid_at: now,
+          sales_order_id: orderId,
+          deposit_invoice_id: thread.deposit_invoice_id,
+        },
+        updated_at: now,
+      })
+      .eq('id', thread.inbound_po_id);
+  }
 
   return { ok: true, thread, orderId };
 }

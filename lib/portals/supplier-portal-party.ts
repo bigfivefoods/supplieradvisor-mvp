@@ -283,6 +283,25 @@ export function poBelongsToSupplierViewer(
   return false;
 }
 
+/** Customer portal: inbound PO the guest raised to this host (seller). */
+export function poVisibleToCustomerViewer(
+  po: {
+    seller_customer_id?: unknown;
+    supplier_profile_id?: unknown;
+  },
+  opts: { companyId: number; customerId: number }
+): boolean {
+  const host = Number(opts.companyId);
+  const cid = Number(opts.customerId);
+  if (!Number.isFinite(host) || host <= 0 || !Number.isFinite(cid) || cid <= 0) {
+    return false;
+  }
+  return (
+    Number(po.supplier_profile_id) === host &&
+    Number(po.seller_customer_id) === cid
+  );
+}
+
 /** Host-company PO: buyer_profile_id, or older rows keyed on profile_id / company_id. */
 export function poHostedByBuyer(
   po: {
