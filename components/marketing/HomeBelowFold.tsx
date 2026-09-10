@@ -488,8 +488,8 @@ const MODULES = [
     title: 'ConstructionAdvisor®',
     short: 'ConstructionAdvisor',
     tagline: 'Building & construction OS',
-    body: 'Building sites, issued drawings, BOQ, subcontractors, materials and plant, programme, site safety, variations, payment certificates and snag / handover — one site book for principal contractors and specialist trades.',
-    bullets: ['Sites · drawings · BOQ', 'Programme · variations · IPCs', 'Safety · snags · handover'],
+    body: 'One customer, many projects. Quote from a BOQ, run the project plan, allocate actuals, certify, and roll every project into a contractor programme — with a client and contractor PWA.',
+    bullets: ['Clients · BOQ quotes', 'Plan vs actuals · costs', 'Project reports · programme PWA'],
     Mock: ConstructiongraphMock,
     icon: Hammer,
   },
@@ -708,7 +708,7 @@ const SYSTEMS = [
   {
     icon: Hammer,
     title: 'ConstructionAdvisor®',
-    body: 'Building sites, drawings, BOQ, programme, variations, IPCs, and handover.',
+    body: 'BOQ quotes, multi-project clients, plan vs actuals, and programme reports.',
   },
   {
     icon: Ship,

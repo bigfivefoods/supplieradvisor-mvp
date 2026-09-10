@@ -5,12 +5,19 @@ import { toast } from 'sonner';
 import {
   ConstructionEmptyHint,
   ConstructionLoadingBlock,
+  ConstructionProjectSelect,
   ConstructiongraphWorkbench,
   useConstructiongraph,
 } from '@/components/construction/ConstructiongraphWorkbench';
+import { newConstructionId } from '@/lib/construction/constructiongraph';
+
+function zar(n: number) {
+  return `R ${Number(n || 0).toLocaleString('en-ZA')}`;
+}
 
 export default function ConstructiongraphVariationsPage() {
   const { store, loading, saving, post } = useConstructiongraph();
+  const [siteId, setSiteId] = useState('');
   const [number, setNumber] = useState('');
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -27,12 +34,12 @@ export default function ConstructiongraphVariationsPage() {
       store: {
         variations: [
           {
-            id: `var_${Date.now()}`,
+            id: newConstructionId('var'),
             number: nextNo,
             description: nextDesc,
             amount: amount ? Number(amount) : null,
             status: 'draft',
-            site_id: store?.sites[0]?.id || null,
+            site_id: siteId || store?.sites[0]?.id || null,
           },
         ],
       },
@@ -46,13 +53,18 @@ export default function ConstructiongraphVariationsPage() {
   return (
     <ConstructiongraphWorkbench
       title="Variations"
-      description="Site variations and claims against the building contract."
+      description="Site variations and claims against the building contract, keyed to the project."
     >
       {loading || !store ? (
         <ConstructionLoadingBlock />
       ) : (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-stone-300 bg-white p-4 grid sm:grid-cols-4 gap-2">
+          <div className="rounded-2xl border border-stone-300 bg-white p-4 grid sm:grid-cols-5 gap-2">
+            <ConstructionProjectSelect
+              store={store}
+              value={siteId}
+              onChange={setSiteId}
+            />
             <input
               className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
               placeholder="VO-004"
@@ -86,14 +98,16 @@ export default function ConstructiongraphVariationsPage() {
             <ConstructionEmptyHint>No variations logged.</ConstructionEmptyHint>
           ) : (
             <div className="rounded-2xl border border-stone-300 bg-white p-4 text-sm space-y-2">
-              {store.variations.map((row) => (
-                <div key={row.id} className="border-t first:border-t-0 pt-2 first:pt-0">
-                  <b>{row.number}</b> · {row.description} · {row.status}
-                  {row.amount != null
-                    ? ` · R ${Number(row.amount).toLocaleString('en-ZA')}`
-                    : ''}
-                </div>
-              ))}
+              {store.variations.map((row) => {
+                const site = store.sites.find((s) => s.id === row.site_id);
+                return (
+                  <div key={row.id} className="border-t first:border-t-0 pt-2 first:pt-0">
+                    <b>{row.number}</b> · {row.description} · {row.status}
+                    {site ? ` · ${site.code}` : ''}
+                    {row.amount != null ? ` · ${zar(row.amount)}` : ''}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

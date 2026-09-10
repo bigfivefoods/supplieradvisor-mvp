@@ -179,7 +179,7 @@ export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
   hiregraph: 'HireAdvisor (Hire / rent)',
   retailgraph: 'RetailAdvisor (Till)',
   apparelgraph: 'ApparelAdvisor (Apparel)',
-  constructiongraph: 'ConstructionAdvisor (Building)',
+  constructiongraph: 'ConstructionAdvisor',
   containers: 'ContainerAdvisor',
   schools: 'SchoolAdvisor',
   health: 'HealthAdvisor',
@@ -244,6 +244,14 @@ function stepsFromModule(m: ModuleNav): SidebarModuleShape['sub'] {
   }));
 }
 
+/** Sidenav shows the hub name only — desks live in the module tabs. */
+export const SIDEBAR_HUB_ONLY_MODULE_IDS = new Set(['constructiongraph']);
+
+function sidebarSubFor(m: ModuleNav): SidebarModuleShape['sub'] {
+  if (SIDEBAR_HUB_ONLY_MODULE_IDS.has(m.id)) return [];
+  return stepsFromModule(m);
+}
+
 /**
  * Build sidebar modules:
  * - Every enabled MODULE_NAV hub is its own item with complete steps
@@ -299,8 +307,8 @@ export function functionalSidebarModules(opts: {
       name,
       icon: m.icon,
       href: m.href,
-      // FULL tree — never slice
-      sub: stepsFromModule(m),
+      // FULL tree — never slice (hub-only Advisors keep desks on the module tabs)
+      sub: sidebarSubFor(m),
       functionalId: id,
     });
     seen.add(id);
@@ -316,7 +324,7 @@ export function functionalSidebarModules(opts: {
       name: FUNCTIONAL_DISPLAY_NAME[m.id] || m.name,
       icon: m.icon,
       href: m.href,
-      sub: stepsFromModule(m),
+      sub: sidebarSubFor(m),
     });
     seen.add(m.id);
   }

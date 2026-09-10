@@ -772,11 +772,23 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         name: 'Command',
         href: '/dashboard/constructiongraph',
         exact: true,
-        desc: 'Sites · BOQ · certificates',
+        desc: 'Clients · BOQ quotes · programme',
         section: 'Home',
       },
       {
-        name: 'Sites',
+        name: 'Clients',
+        href: '/dashboard/constructiongraph/clients',
+        desc: 'Customers · many projects',
+        section: 'Core',
+      },
+      {
+        name: 'Quotes',
+        href: '/dashboard/constructiongraph/quotes',
+        desc: 'BOQ tenders · issue quote',
+        section: 'Core',
+      },
+      {
+        name: 'Projects',
         href: '/dashboard/constructiongraph/sites',
         desc: 'Contracts · building sites',
         section: 'Core',
@@ -784,14 +796,14 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Drawings',
         href: '/dashboard/constructiongraph/drawings',
-        desc: 'IFC drawings · BOQ',
+        desc: 'IFC drawings · BOQ actuals',
         section: 'Core',
       },
       {
         name: 'Subcontractors',
         href: '/dashboard/constructiongraph/subcontractors',
         desc: 'Appointed trades',
-        section: 'Core',
+        section: 'Ops',
       },
       {
         name: 'Materials',
@@ -802,8 +814,20 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Programme',
         href: '/dashboard/constructiongraph/programme',
-        desc: 'Activities · % complete',
+        desc: 'Plan vs actuals · dates',
         section: 'Ops',
+      },
+      {
+        name: 'Payments',
+        href: '/dashboard/constructiongraph/payments',
+        desc: 'Progress claims · client pay',
+        section: 'Money',
+      },
+      {
+        name: 'Costs',
+        href: '/dashboard/constructiongraph/costs',
+        desc: 'Allocate actuals to BOQ',
+        section: 'Money',
       },
       {
         name: 'Safety',
@@ -820,7 +844,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Certificates',
         href: '/dashboard/constructiongraph/certificates',
-        desc: 'Payment certificates · retention',
+        desc: 'IPCs from the payment plan',
         section: 'Money',
       },
       {
@@ -828,6 +852,18 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         href: '/dashboard/constructiongraph/handover',
         desc: 'Snags · practical completion',
         section: 'Handover',
+      },
+      {
+        name: 'Reports',
+        href: '/dashboard/constructiongraph/reports',
+        desc: 'Per project · programme roll-up',
+        section: 'Insights',
+      },
+      {
+        name: 'Portal',
+        href: '/dashboard/constructiongraph/portal',
+        desc: 'Client · contractor PWA',
+        section: 'Grow',
       },
       {
         name: 'Messages',

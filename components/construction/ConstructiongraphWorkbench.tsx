@@ -17,15 +17,21 @@ export type ConstructionSummary = ReturnType<
 
 export const CONSTRUCTIONGRAPH_PAGES = [
   { name: 'Command', href: '/dashboard/constructiongraph' },
-  { name: 'Sites', href: '/dashboard/constructiongraph/sites' },
+  { name: 'Clients', href: '/dashboard/constructiongraph/clients' },
+  { name: 'Quotes', href: '/dashboard/constructiongraph/quotes' },
+  { name: 'Projects', href: '/dashboard/constructiongraph/sites' },
   { name: 'Drawings', href: '/dashboard/constructiongraph/drawings' },
   { name: 'Subcontractors', href: '/dashboard/constructiongraph/subcontractors' },
   { name: 'Materials', href: '/dashboard/constructiongraph/materials' },
   { name: 'Programme', href: '/dashboard/constructiongraph/programme' },
+  { name: 'Payments', href: '/dashboard/constructiongraph/payments' },
+  { name: 'Costs', href: '/dashboard/constructiongraph/costs' },
   { name: 'Safety', href: '/dashboard/constructiongraph/safety' },
   { name: 'Variations', href: '/dashboard/constructiongraph/variations' },
   { name: 'Certificates', href: '/dashboard/constructiongraph/certificates' },
   { name: 'Handover', href: '/dashboard/constructiongraph/handover' },
+  { name: 'Reports', href: '/dashboard/constructiongraph/reports' },
+  { name: 'Portal', href: '/dashboard/constructiongraph/portal' },
 ] as const;
 
 export function useConstructiongraph() {
@@ -124,5 +130,32 @@ export function ConstructionEmptyHint({
     <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-6 text-sm text-stone-600">
       {children}
     </div>
+  );
+}
+
+export function ConstructionProjectSelect({
+  store,
+  value,
+  onChange,
+  allowEmpty = true,
+}: {
+  store: ConstructiongraphStore;
+  value: string;
+  onChange: (id: string) => void;
+  allowEmpty?: boolean;
+}) {
+  return (
+    <select
+      className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      {allowEmpty ? <option value="">Project</option> : null}
+      {store.sites.map((s) => (
+        <option key={s.id} value={s.id}>
+          {s.code} · {s.name}
+        </option>
+      ))}
+    </select>
   );
 }

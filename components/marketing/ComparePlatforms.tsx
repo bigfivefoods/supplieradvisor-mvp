@@ -291,8 +291,8 @@ const SECTIONS: Section[] = [
         sa: 'strong',
       },
       {
-        capability: 'ConstructionAdvisor® · building & construction',
-        hint: 'Sites, drawings, BOQ, subcontractors, programme, variations, payment certificates, snag handover',
+        capability: 'ConstructionAdvisor® · BOQ quotes · programme actuals',
+        hint: 'Clients with many projects, BOQ quotes, dated plan vs actuals, progress payments, cost allocation, programme reports, client/contractor PWA',
         excel: 'partial',
         xero: 'no',
         erp: 'partial',

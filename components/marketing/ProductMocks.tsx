@@ -745,7 +745,7 @@ export function ConstructiongraphMock() {
             ConstructionAdvisor® · Building
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
-            Sites through handover.
+            BOQ quotes · programme · actuals.
           </div>
         </div>
         <span className="rounded-full border border-stone-300 bg-stone-800 px-2 py-0.5 text-[9px] font-black uppercase text-white">
@@ -753,13 +753,13 @@ export function ConstructiongraphMock() {
         </span>
       </div>
       <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
-        <Telemetry label="Sites" value="3" tone="amber" />
-        <Telemetry label="IPC" value="R6.2m" tone="emerald" />
-        <Telemetry label="VOs" value="4" tone="violet" />
-        <Telemetry label="Snags" value="12" tone="cyan" />
+        <Telemetry label="Projects" value="3" tone="amber" />
+        <Telemetry label="BOQ" value="R8.0m" tone="emerald" />
+        <Telemetry label="Actuals" value="R0.5m" tone="violet" />
+        <Telemetry label="Plan" value="28/32%" tone="cyan" />
       </div>
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-        {['Sites', 'Certificates', 'Handover'].map((t, i) => (
+        {['Quotes', 'Programme', 'Reports'].map((t, i) => (
           <div key={t} className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] shadow-sm sm:p-3">
             <div className="mb-1 text-[9px] font-mono text-neutral-400">0{i + 1}</div>
             <div className="text-[11px] font-bold text-slate-800 sm:text-xs dark:text-white">{t}</div>
