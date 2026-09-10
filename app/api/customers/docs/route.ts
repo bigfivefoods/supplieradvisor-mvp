@@ -281,7 +281,9 @@ export async function GET(request: NextRequest) {
       q = q.lte('created_at', `${toDay}T23:59:59.999`);
     }
 
-    let { data, error } = await q;
+    const first = await q;
+    let error = first.error;
+    let rows: unknown[] = (first.data || []) as unknown[];
     if (error && kind === 'quote' && /metadata|column|schema cache/i.test(error.message)) {
       let retry = supabase
         .from(table)
@@ -303,8 +305,8 @@ export async function GET(request: NextRequest) {
         retry = retry.lte('created_at', `${toDay}T23:59:59.999`);
       }
       const again = await retry;
-      data = again.data;
       error = again.error;
+      rows = (again.data || []) as unknown[];
     }
     if (error) {
       return NextResponse.json({
@@ -314,7 +316,7 @@ export async function GET(request: NextRequest) {
         hint: 'Run 20260709_crm_sales_lifecycle.sql',
       });
     }
-    const documents = (data || []).map((row) => {
+    const documents = rows.map((row) => {
       if (kind !== 'quote' || !row || typeof row !== 'object') return row;
       const r = row as Record<string, unknown>;
       const enquiry_number = resolveEnquiryUid(r);
