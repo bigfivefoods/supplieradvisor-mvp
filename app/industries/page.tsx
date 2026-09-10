@@ -9,11 +9,13 @@ import { INDUSTRY_PACK_MONTHLY_ZAR } from '@/lib/product/architecture';
 export const metadata: Metadata = {
   title: 'Industries — supply chain & services OS by sector',
   description:
-    'SupplierAdvisor® for food & beverage, agriculture (CropAdvisor®), quarry (QuarryAdvisor®), manufacturing, distribution, containers (ContainerAdvisor®), fitness (GymAdvisor®), physio, dental, mental health, medical and veterinary practices, hire (HireAdvisor®), retail (RetailAdvisor®), public sector (SchoolAdvisor® · HealthAdvisor®), and multi-entity groups.',
+    'SupplierAdvisor® for food & beverage, agriculture (CropAdvisor®), quarry (QuarryAdvisor®), manufacturing, apparel (ApparelAdvisor®), building (ConstructionAdvisor®), distribution, containers (ContainerAdvisor®), fitness (GymAdvisor®), physio, dental, mental health, medical and veterinary practices, hire (HireAdvisor®), retail (RetailAdvisor®), public sector (SchoolAdvisor® · HealthAdvisor®), and multi-entity groups.',
   keywords: [
     'supply chain by industry',
     'CropAdvisor',
     'QuarryAdvisor',
+    'ApparelAdvisor',
+    'ConstructionAdvisor',
     'GymAdvisor',
     'PhysioAdvisor',
     'DentalAdvisor',
@@ -25,6 +27,9 @@ export const metadata: Metadata = {
     'HealthAdvisor',
     'food beverage ERP',
     'agriculture supply chain',
+    'construction contractor software',
+    'building construction OS',
+    'apparel manufacturing software',
     'gym management software',
     'clinic practice software',
     'veterinary practice software',
@@ -34,7 +39,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Industries · SupplierAdvisor®',
     description:
-      'Sector-ready depth on one OS — agri, extractives, manufacturing, logistics, containers, gyms, clinics, vets, hire, retail, SchoolAdvisor® and HealthAdvisor®, multi-entity.',
+      'Sector-ready depth on one OS — agri, extractives, manufacturing, apparel, construction, logistics, containers, gyms, clinics, vets, hire, retail, SchoolAdvisor® and HealthAdvisor®, multi-entity.',
     url: 'https://www.supplieradvisor.com/industries',
     type: 'website',
     images: [{ url: SA_OG_IMAGE_URL, width: 1200, height: 630 }],
@@ -47,7 +52,13 @@ const PRIMARY = INDUSTRIES.filter((i) =>
   ['agriculture', 'quarry-aggregates', 'food-beverage'].includes(i.slug)
 );
 const MAKE_MOVE = INDUSTRIES.filter((i) =>
-  ['manufacturing', 'distribution', 'containers'].includes(i.slug)
+  [
+    'manufacturing',
+    'apparel-clothing',
+    'construction-building',
+    'distribution',
+    'containers',
+  ].includes(i.slug)
 );
 const SERVICES = INDUSTRIES.filter((i) =>
   [
@@ -132,12 +143,12 @@ export default function IndustriesIndexPage() {
         </h1>
         <p className="mt-4 max-w-2xl text-lg text-slate-600">
           Same verified network and Core modules — plus Industry Advisors for
-          agri, extractives, gyms, clinics, vets, hire, retail, and containers:
-          exclusive diaries & rooms, industry PWAs, waitlist desks,
-          treatment-plan book next, marketplace listings, and in-app care
-          messages. Government programmes (SchoolAdvisor® · HealthAdvisor®)
-          are admin-set-up. SA bills the company subscription — practice fees
-          stay yours.
+          agri, extractives, apparel, building, gyms, clinics, vets, hire,
+          retail, and containers: exclusive diaries & rooms, industry PWAs,
+          waitlist desks, treatment-plan book next, marketplace listings, and
+          in-app care messages. Government programmes (SchoolAdvisor® ·
+          HealthAdvisor®) are admin-set-up. SA bills the company subscription —
+          practice fees stay yours.
         </p>
         <p className="mt-3 text-sm text-slate-500">
           Industry packs from +R{INDUSTRY_PACK_MONTHLY_ZAR}/mo each · Core OS
@@ -151,7 +162,7 @@ export default function IndustriesIndexPage() {
         />
         <Section
           title="Make & move"
-          blurb="Secondary manufacturing, logistics, and ContainerAdvisor® last-mile outlets on the same fabric."
+          blurb="Secondary manufacturing, ApparelAdvisor®, ConstructionAdvisor®, logistics, and ContainerAdvisor® last-mile outlets on the same fabric."
           items={MAKE_MOVE}
         />
         <Section
@@ -175,9 +186,9 @@ export default function IndustriesIndexPage() {
             Not sure which pack fits?
           </h2>
           <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
-            Start with Core OS, then enable Crop, Gym, clinic, Vet, Hire,
-            Retail, Container, or public-programme modules from Company →
-            Modules when you are ready.
+            Start with Core OS, then enable Crop, Quarry, Apparel,
+            Construction, Gym, clinic, Vet, Hire, Retail, Container, or
+            public-programme modules from Company → Modules when you are ready.
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-3">
             <Link

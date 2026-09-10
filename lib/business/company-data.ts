@@ -49,6 +49,18 @@ export function mergeCompanyChromeLayers(
   return out;
 }
 
+/**
+ * Sidenav chrome: workspace/RPC snapshots can predate a newly ticked Advisor.
+ * Profile metadata keys always win for hub enablement.
+ */
+export function mergeCompanyChromeSources(opts: {
+  workspace?: Record<string, unknown> | null;
+  rpc?: Record<string, unknown> | null;
+  profileKeys?: Record<string, unknown> | null;
+}): CompanyChromeMeta {
+  return mergeCompanyChromeLayers(opts.workspace, opts.rpc, opts.profileKeys);
+}
+
 export const ADVISOR_MODULE_KEYS = [
   'fitgraph',
   'fitgraph_lib',
@@ -60,6 +72,7 @@ export const ADVISOR_MODULE_KEYS = [
   'hiregraph',
   'retailgraph',
   'apparelgraph',
+  'constructiongraph',
   'fieldgraph',
   'quarrygraph',
 ] as const;
@@ -188,44 +201,47 @@ export async function loadCompanyChrome(
   const supabase = getSupabaseServer();
   const chromeKeys = [...COMPANY_CHROME_META_KEYS];
 
-  // Workspace chrome is a subset (e.g. only sidenav order). Never use it
-  // instead of profile keys — that drops enabled_modules and hides Advisors.
-  const rpc = await supabase.rpc('sa_get_company_chrome', {
-    p_company_id: companyId,
-  });
-  const fromRpc =
-    !rpc.error && rpc.data && typeof rpc.data === 'object'
-      ? asObject(rpc.data)
-      : {};
-  if ('enabled_modules' in fromRpc || 'industry_packs' in fromRpc) {
-    return fromRpc;
-  }
-  if (rpc.error && !isMissingRelation(rpc.error)) {
-    console.warn('loadCompanyChrome rpc', rpc.error.message);
-  }
-
-  const [ws, keyed] = await Promise.all([
-    supabase
-      .from('company_workspace')
-      .select('chrome')
-      .eq('company_id', companyId)
-      .maybeSingle(),
+  // Workspace chrome is a subset (e.g. only sidenav order). Never let it
+  // replace profile enabled_modules — that hides newly ticked Advisors.
+  const [rpc, keyed] = await Promise.all([
+    supabase.rpc('sa_get_company_chrome', {
+      p_company_id: companyId,
+    }),
     supabase.rpc('sa_get_profile_metadata_keys', {
       p_company_id: companyId,
       p_keys: chromeKeys,
     }),
   ]);
-
-  const fromWs =
-    !ws.error && ws.data?.chrome && typeof ws.data.chrome === 'object'
-      ? asObject(ws.data.chrome)
+  const fromRpc =
+    !rpc.error && rpc.data && typeof rpc.data === 'object'
+      ? asObject(rpc.data)
       : {};
   const fromKeys =
     !keyed.error && keyed.data && typeof keyed.data === 'object'
       ? asObject(keyed.data)
       : {};
+  if (rpc.error && !isMissingRelation(rpc.error)) {
+    console.warn('loadCompanyChrome rpc', rpc.error.message);
+  }
 
-  let merged = mergeCompanyChromeLayers(fromKeys, fromRpc, fromWs);
+  let fromWs: CompanyChromeMeta = {};
+  if (!('enabled_modules' in fromRpc) && !('enabled_modules' in fromKeys)) {
+    const ws = await supabase
+      .from('company_workspace')
+      .select('chrome')
+      .eq('company_id', companyId)
+      .maybeSingle();
+    fromWs =
+      !ws.error && ws.data?.chrome && typeof ws.data.chrome === 'object'
+        ? asObject(ws.data.chrome)
+        : {};
+  }
+
+  let merged = mergeCompanyChromeSources({
+    workspace: fromWs,
+    rpc: fromRpc,
+    profileKeys: fromKeys,
+  });
 
   if (!('enabled_modules' in merged) && !('industry_packs' in merged)) {
     const { data: prof } = await supabase
@@ -238,7 +254,10 @@ export async function loadCompanyChrome(
     for (const k of chromeKeys) {
       if (k in meta) fromMeta[k] = meta[k];
     }
-    merged = mergeCompanyChromeLayers(fromMeta, merged);
+    merged = mergeCompanyChromeSources({
+      workspace: merged,
+      profileKeys: fromMeta,
+    });
   }
 
   return merged;

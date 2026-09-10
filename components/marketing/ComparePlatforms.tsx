@@ -283,6 +283,22 @@ const SECTIONS: Section[] = [
         sa: 'strong',
       },
       {
+        capability: 'ApparelAdvisor® · apparel manufacturing',
+        hint: 'Capability, style matrix, samples, rolls, floor tickets, QA hold gates before ship',
+        excel: 'partial',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'ConstructionAdvisor® · building & construction',
+        hint: 'Sites, drawings, BOQ, subcontractors, programme, variations, payment certificates, snag handover',
+        excel: 'partial',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
         capability: 'GymAdvisor® · gym & fitness services',
         hint: 'Coaches, rooms, packs, waitlist, phone check-in QR, member PWA (Class · Progress), marketplace',
         excel: 'no',

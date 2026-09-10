@@ -609,7 +609,7 @@ export const INDUSTRIES: IndustryPage[] = [
       'Company switcher + roles',
       'Scoped COA, inventory, people',
       'Invite partners without sharing the group',
-      'Industry packs per company (Crop · Gym · clinic · Vet · Hire…)',
+      'Industry packs per company (Crop · Construction · Apparel · Gym · clinic · Vet · Hire…)',
     ],
     modules: [
       'Company',

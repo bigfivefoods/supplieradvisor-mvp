@@ -94,7 +94,7 @@ export const SYSTEM_OVERVIEW = {
     },
     {
       title: 'Flow of goods',
-      body: 'Inventory, operations, manufacturing, distribution, and containers move product with lots and holds. Industry packs add CropAdvisor (agri), QuarryAdvisor (aggregates), GymAdvisor (gyms), PhysioAdvisor (clinics), DentalAdvisor (dental), PsychiatryAdvisor, and MedicalAdvisor (scripts & portals).',
+      body: 'Inventory, operations, manufacturing, distribution, and containers move product with lots and holds. Industry packs add CropAdvisor (agri), QuarryAdvisor (aggregates), ApparelAdvisor (apparel), ConstructionAdvisor (building), GymAdvisor (gyms), PhysioAdvisor (clinics), DentalAdvisor (dental), PsychiatryAdvisor, and MedicalAdvisor (scripts & portals).',
     },
     {
       title: 'Flow of money',
@@ -127,7 +127,7 @@ export const SYSTEM_OVERVIEW = {
     },
     {
       name: 'Physical ops',
-      body: 'Inventory lots · transfers · make · ship · containers · CropAdvisor · QuarryAdvisor · ops tower',
+      body: 'Inventory lots · transfers · make · ship · containers · CropAdvisor · QuarryAdvisor · ApparelAdvisor · ConstructionAdvisor · ops tower',
       tone: 'emerald',
     },
     {
@@ -203,7 +203,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
         summary: 'Make the company findable, pick modules, staff the workspace.',
         steps: [
           'Company → Profile — trading name, industry, contacts (completeness ≥ 60% auto-ticks)',
-          'Company → Modules — enable only what you run (CropAdvisor, QuarryAdvisor, GymAdvisor, PhysioAdvisor, DentalAdvisor, trade, ops…); Guide mirrors this list',
+          'Company → Modules — enable only what you run (CropAdvisor, QuarryAdvisor, ApparelAdvisor, ConstructionAdvisor, GymAdvisor, PhysioAdvisor, DentalAdvisor, trade, ops…); Guide mirrors this list',
           'Company → Team — invite at least one colleague',
           'Return to Dashboard — golden path shows Auto badges when detected',
         ],

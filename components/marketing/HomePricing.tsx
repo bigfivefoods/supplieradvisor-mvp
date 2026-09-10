@@ -35,8 +35,8 @@ import {
 
 const INCLUDED = [
   'Unlimited team users per company',
-  'All 14 modules: ops, SRM, CRM, inventory, manufacturing, distribution',
-  'SHEQ, quality & HACCP, finance (GL, AR/AP, bank), containers',
+  'Core OS: ops, SRM, CRM, inventory, manufacturing, distribution',
+  'SHEQ, quality, finance, plus Industry Advisors (ConstructionAdvisor®, ApparelAdvisor®, CropAdvisor®, GymAdvisor®…)',
   'Projects, ESG/impact, intelligence & Super-Cube®',
   'Verified network, quotes, invoices & cost allocation to the balance sheet',
   'Secure Paystack billing in ZAR · 30-day free trial',

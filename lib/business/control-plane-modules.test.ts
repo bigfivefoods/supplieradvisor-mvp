@@ -130,6 +130,28 @@ assert.ok(
   sidenav.some((m) => m.id === 'apparelgraph'),
   'ApparelAdvisor appears in the sidenav after it is ticked'
 );
+
+const constructionChrome = extractEnabledModulesFromMetadata(
+  {
+    enabled_modules: {
+      constructiongraph: true,
+      customers: true,
+      suppliers: true,
+      people: true,
+      accounting: true,
+    },
+  },
+  { companyId: 8801, companyName: 'SiteCo Builders' }
+);
+assert.equal(isModuleEnabled(constructionChrome, 'constructiongraph'), true);
+assert.ok(
+  functionalSidebarModules({
+    isModuleEnabled: (id) => isModuleEnabled(constructionChrome, id),
+    packaging: { packIds: ['construction_building'] } as never,
+    simplifiedSchool: false,
+  }).some((m) => m.id === 'constructiongraph'),
+  'ConstructionAdvisor appears in the sidenav after it is ticked'
+);
 assert.ok(
   sidenav.some((m) => m.id === 'customers'),
   'ticked Core hubs appear in the sidenav'
