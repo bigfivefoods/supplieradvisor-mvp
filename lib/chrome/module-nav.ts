@@ -41,6 +41,7 @@ import {
   BriefcaseBusiness,
   Store,
   Shirt,
+  Hammer,
 } from 'lucide-react';
 import type { ProcessStep } from '@/components/relationship/RelationshipChrome';
 import type { PermissionResource } from '@/lib/business/permissions';
@@ -86,7 +87,7 @@ export type ModuleNav = {
  * distribution Ship · accounting Landmark · quality ClipboardCheck
  * projects FolderKanban · sustainability Leaf · intelligence Brain · guide BookOpen
  * people IdCard · schools School
- * apparelgraph Shirt
+ * apparelgraph Shirt · constructiongraph Hammer
  */
 export const MODULE_NAV: readonly ModuleNav[] = [
   {
@@ -757,6 +758,83 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         href: '/dashboard/apparelgraph/ship',
         desc: 'Lots · POs · QA hold release',
         section: 'Ship',
+      },
+    ],
+  },
+  {
+    id: 'constructiongraph',
+    name: 'ConstructionAdvisor',
+    icon: Hammer,
+    href: '/dashboard/constructiongraph',
+    resource: 'operations',
+    steps: [
+      {
+        name: 'Command',
+        href: '/dashboard/constructiongraph',
+        exact: true,
+        desc: 'Sites · BOQ · certificates',
+        section: 'Home',
+      },
+      {
+        name: 'Sites',
+        href: '/dashboard/constructiongraph/sites',
+        desc: 'Contracts · building sites',
+        section: 'Core',
+      },
+      {
+        name: 'Drawings',
+        href: '/dashboard/constructiongraph/drawings',
+        desc: 'IFC drawings · BOQ',
+        section: 'Core',
+      },
+      {
+        name: 'Subcontractors',
+        href: '/dashboard/constructiongraph/subcontractors',
+        desc: 'Appointed trades',
+        section: 'Core',
+      },
+      {
+        name: 'Materials',
+        href: '/dashboard/constructiongraph/materials',
+        desc: 'Deliveries · plant',
+        section: 'Ops',
+      },
+      {
+        name: 'Programme',
+        href: '/dashboard/constructiongraph/programme',
+        desc: 'Activities · % complete',
+        section: 'Ops',
+      },
+      {
+        name: 'Safety',
+        href: '/dashboard/constructiongraph/safety',
+        desc: 'Toolbox · permits · incidents',
+        section: 'Assure',
+      },
+      {
+        name: 'Variations',
+        href: '/dashboard/constructiongraph/variations',
+        desc: 'VOs · claims',
+        section: 'Money',
+      },
+      {
+        name: 'Certificates',
+        href: '/dashboard/constructiongraph/certificates',
+        desc: 'Payment certificates · retention',
+        section: 'Money',
+      },
+      {
+        name: 'Handover',
+        href: '/dashboard/constructiongraph/handover',
+        desc: 'Snags · practical completion',
+        section: 'Handover',
+      },
+      {
+        name: 'Messages',
+        href: '/dashboard/messages?from=constructiongraph&channel=connection',
+        desc: 'Site · office · trade threads',
+        section: 'Ops',
+        rail: false,
       },
     ],
   },

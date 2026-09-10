@@ -128,7 +128,7 @@ export const INDUSTRIES: readonly IndustryOption[] = [
     label: 'Construction & utilities',
     description: 'Building, infrastructure and utility-side industrial work.',
     sectorId: 'secondary',
-    packIds: ['logistics_containers', 'impact_esg'],
+    packIds: ['construction_building', 'logistics_containers', 'impact_esg'],
     businessTypes: privateTypes([
       { id: 'main_contractor', label: 'Main building contractor', description: 'Principal construction contractor.' },
       { id: 'specialist_trade', label: 'Specialist trade contractor', description: 'Electrical, plumbing, civils, etc.' },

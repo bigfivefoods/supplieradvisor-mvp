@@ -14,6 +14,7 @@ export type AdvisorSkinId =
   | 'hire'
   | 'retail'
   | 'apparel'
+  | 'construction'
   | 'gym'
   | 'physio'
   | 'dental'
@@ -96,6 +97,19 @@ export const ADVISOR_SKINS: readonly AdvisorSkin[] = [
     packIds: ['apparel'],
     brand: '#0891b2',
     brandDeep: '#0e7490',
+  },
+  {
+    id: 'construction',
+    name: 'ConstructionAdvisor',
+    registered: 'ConstructionAdvisor®',
+    shortName: 'Construction',
+    tagline: 'Building & construction OS',
+    homeHref: '/dashboard/constructiongraph',
+    prefixes: ['/dashboard/constructiongraph'],
+    moduleIds: ['constructiongraph'],
+    packIds: ['construction_building'],
+    brand: '#57534e',
+    brandDeep: '#292524',
   },
   {
     id: 'gym',

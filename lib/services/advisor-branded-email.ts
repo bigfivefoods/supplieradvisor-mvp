@@ -102,6 +102,13 @@ export const ADVISOR_EMAIL_SKINS: Record<string, AdvisorEmailSkin> = {
     accentDark: '#92400e',
     accentSoft: '#fffbeb',
   },
+  constructiongraph: {
+    moduleKey: 'constructiongraph',
+    product: 'ConstructionAdvisor®',
+    accent: '#57534e',
+    accentDark: '#292524',
+    accentSoft: '#f5f5f4',
+  },
   schools: {
     moduleKey: 'schools',
     product: 'SchoolAdvisor®',
@@ -127,6 +134,9 @@ export function advisorEmailSkin(
   if (raw.includes('retail')) return ADVISOR_EMAIL_SKINS.retailgraph;
   if (raw.includes('crop') || raw.includes('field')) return ADVISOR_EMAIL_SKINS.fieldgraph;
   if (raw.includes('quarry')) return ADVISOR_EMAIL_SKINS.quarrygraph;
+  if (raw.includes('construction') || raw.includes('building')) {
+    return ADVISOR_EMAIL_SKINS.constructiongraph;
+  }
   if (raw.includes('school')) return ADVISOR_EMAIL_SKINS.schools;
   if (raw.includes('supplier')) return SUPPLIER_EMAIL_SKIN;
   return SUPPLIER_EMAIL_SKIN;

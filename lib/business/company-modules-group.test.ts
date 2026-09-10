@@ -28,6 +28,7 @@ assert.ok(!core.moduleIds.includes('schools'));
 
 assert.ok(industry.moduleIds.includes('fitgraph'));
 assert.ok(industry.moduleIds.includes('apparelgraph'));
+assert.ok(industry.moduleIds.includes('constructiongraph'));
 assert.ok(industry.moduleIds.includes('containers'));
 assert.ok(!industry.moduleIds.includes('schools'));
 assert.ok(!industry.moduleIds.includes('health'));

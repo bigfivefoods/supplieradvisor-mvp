@@ -903,7 +903,8 @@ function ModulesInner() {
       {isSandboxCo ? (
         <div className="mb-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
           Module sandbox — all Advisors and Core OS hubs are off until you turn
-          them on, including ApparelAdvisor®. Packs do not force hubs on here.
+          them on, including ApparelAdvisor® and ConstructionAdvisor®. Packs do
+          not force hubs on here.
         </div>
       ) : null}
 

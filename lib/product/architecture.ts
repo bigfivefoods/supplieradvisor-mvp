@@ -670,6 +670,44 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     ],
   },
   {
+    id: 'construction_building',
+    name: 'Building & Construction',
+    shortName: 'Construction',
+    description:
+      'ConstructionAdvisor® for principal contractors and specialist trades: sites, drawings, BOQ, subcontractors, materials, programme, site safety, variations, payment certificates and handover.',
+    monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
+    priority: 1,
+    recommendSectors: ['secondary'],
+    recommendEntities: ['private_company'],
+    modules: [
+      {
+        id: 'construction_os',
+        name: 'ConstructionAdvisor® site OS',
+        description:
+          'Sites, drawings, BOQ, subcontractors, materials, plant, programme, safety, variations, certificates and snags.',
+        unlocks: ['constructiongraph', 'suppliers', 'inventory', 'sheq'],
+      },
+      {
+        id: 'construction_trade',
+        name: 'Contract trade & certificates',
+        description:
+          'Clients, variations and payment certificates on the same books as invoices.',
+        unlocks: ['constructiongraph', 'customers', 'accounting', 'projects'],
+      },
+    ],
+    industryToolsHrefs: [
+      { name: 'ConstructionAdvisor®', href: '/dashboard/constructiongraph', desc: 'Building OS' },
+      { name: 'Sites', href: '/dashboard/constructiongraph/sites', desc: 'Contracts · sites' },
+      { name: 'Drawings', href: '/dashboard/constructiongraph/drawings', desc: 'IFC · BOQ' },
+      { name: 'Programme', href: '/dashboard/constructiongraph/programme', desc: 'Activities' },
+      { name: 'Certificates', href: '/dashboard/constructiongraph/certificates', desc: 'IPCs' },
+      { name: 'Handover', href: '/dashboard/constructiongraph/handover', desc: 'Snags' },
+      { name: 'Customers', href: '/dashboard/customers', desc: 'Clients' },
+      { name: 'Suppliers', href: '/dashboard/suppliers', desc: 'Trades · POs' },
+      { name: 'SHEQ', href: '/dashboard/sheq', desc: 'Incidents · NCR' },
+    ],
+  },
+  {
     id: 'logistics_containers',
     name: 'Logistics, Distribution & Containers',
     shortName: 'Logistics',
@@ -1514,6 +1552,16 @@ export function enabledModulesMapFromPacks(
     unlocked.add('operations');
     unlocked.add('manufacturing');
   }
+  if (packIds.includes('construction_building')) {
+    unlocked.add('constructiongraph');
+    unlocked.add('inventory');
+    unlocked.add('quality');
+    unlocked.add('sheq');
+    unlocked.add('suppliers');
+    unlocked.add('customers');
+    unlocked.add('operations');
+    unlocked.add('projects');
+  }
   // Agri → CropAdvisor + suppliers + inventory + impact
   if (packIds.includes('agri_regen')) {
     unlocked.add('fieldgraph');
@@ -1890,6 +1938,16 @@ export function appModulesUnlockedByPack(pack: IndustryPackDef): string[] {
     ids.add('customers');
     ids.add('operations');
     ids.add('manufacturing');
+  }
+  if (pack.id === 'construction_building') {
+    ids.add('constructiongraph');
+    ids.add('inventory');
+    ids.add('quality');
+    ids.add('sheq');
+    ids.add('suppliers');
+    ids.add('customers');
+    ids.add('operations');
+    ids.add('projects');
   }
   if (pack.id === 'agri_regen') {
     ids.add('fieldgraph');

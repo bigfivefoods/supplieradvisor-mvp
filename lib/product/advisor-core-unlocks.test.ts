@@ -59,6 +59,14 @@ assert.ok(apparelUnlocks.has('people'));
 assert.ok(apparelUnlocks.has('customers'));
 assert.ok(apparelUnlocks.has('accounting'));
 
+const constructionUnlocks = new Set<string>();
+addAdvisorPackUnlocks(constructionUnlocks, ['construction_building']);
+assert.ok(constructionUnlocks.has('constructiongraph'));
+assert.ok(constructionUnlocks.has('people'));
+assert.ok(constructionUnlocks.has('customers'));
+assert.ok(constructionUnlocks.has('accounting'));
+assert.ok(constructionUnlocks.has('sheq'));
+
 assert.deepEqual(enabledAdvisorModules((id) => id === 'fitgraph'), ['fitgraph']);
 
 const fromStore = normalizeEnabledModules({ fitgraph: true });
