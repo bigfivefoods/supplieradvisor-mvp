@@ -619,7 +619,10 @@ async function loadCustomerDocs(
     }
     for (const raw of quoteRows) {
       const r = asObject(raw);
-      const thread = parseTradeThread(r.metadata, r.status);
+      const thread = parseTradeThread(
+        r.metadata,
+        r.status != null ? String(r.status) : null
+      );
       quotes.push({
         ...moneyRow({
           id: Number(r.id),

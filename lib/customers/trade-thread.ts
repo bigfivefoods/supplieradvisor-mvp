@@ -104,7 +104,7 @@ export function statusForStage(stage: TradeThreadStage): string {
 
 export function parseTradeThread(
   metadata: unknown,
-  status?: string | null
+  status?: unknown
 ): TradeThread {
   const meta = asMeta(metadata);
   const raw =
