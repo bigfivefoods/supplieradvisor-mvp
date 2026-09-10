@@ -365,7 +365,13 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         desc: 'Guest portal for buyers who have not joined',
         section: 'Source',
       },
-      { name: 'Quote', href: '/dashboard/customers/quotes', desc: 'Enquiries & quotations', section: 'Trade' },
+      {
+        name: 'Enquiry',
+        href: '/dashboard/customers/enquiries',
+        desc: 'Storefront enquiries to action',
+        section: 'Trade',
+      },
+      { name: 'Quote', href: '/dashboard/customers/quotes', desc: 'Quotations', section: 'Trade' },
       { name: 'Order', href: '/dashboard/customers/orders', desc: 'Sales orders & inbound POs', section: 'Trade' },
       { name: 'Invoice', href: '/dashboard/customers/invoices', desc: 'Bill customers', section: 'Trade' },
       {
