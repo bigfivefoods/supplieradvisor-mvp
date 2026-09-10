@@ -33,4 +33,10 @@ const profile = src('app/c/[id]/page.tsx');
 assert.match(profile, /Order from catalogue/);
 assert.match(profile, /publicStorePath/);
 
+assert.match(src('lib/storefront/catalog.ts'), /applyStorefrontCatalog/);
+assert.match(
+  src('app/dashboard/inventory/storefront/page.tsx'),
+  /Only selected items/
+);
+
 console.log('store-order.test.ts ok');

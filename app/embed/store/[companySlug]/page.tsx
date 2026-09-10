@@ -43,15 +43,25 @@ export default async function StoreEmbedPage({ params }: Props) {
       <div className="min-h-[100dvh] bg-slate-50">
         <StoreHero company={company} attr={{ source: 'website-embed' }} />
         <div className="mx-auto max-w-6xl space-y-10 px-4 py-8">
-          {grouped.map(({ category, products: items }) => (
-            <CategorySection
-              key={category}
-              category={category}
-              products={items}
-              companySlug={company.slug}
-              attr={{ source: 'website-embed' }}
-            />
-          ))}
+          {products.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-12 text-center">
+              <p className="font-bold text-slate-800">Catalog coming soon</p>
+              <p className="text-sm text-slate-500 mt-1">
+                Products appear here once the seller publishes selected items
+                on their storefront.
+              </p>
+            </div>
+          ) : (
+            grouped.map(({ category, products: items }) => (
+              <CategorySection
+                key={category}
+                category={category}
+                products={items}
+                companySlug={company.slug}
+                attr={{ source: 'website-embed' }}
+              />
+            ))
+          )}
         </div>
       </div>
     </StoreOrderProvider>

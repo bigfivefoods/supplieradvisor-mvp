@@ -155,8 +155,8 @@ export default async function StoreHomePage({ params, searchParams }: Props) {
           <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-12 text-center mt-6">
             <p className="font-bold text-slate-800">Catalog coming soon</p>
             <p className="text-sm text-slate-500 mt-1">
-              Products will appear here once the seller publishes their
-              storefront catalog.
+              Products appear here once the seller publishes selected items
+              on their storefront.
             </p>
           </div>
         ) : (

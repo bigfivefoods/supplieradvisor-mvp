@@ -419,6 +419,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     steps: [
       { name: 'Overview', href: '/dashboard/inventory', exact: true, section: 'Home' },
       { name: 'Catalog', href: '/dashboard/inventory/products', section: 'Catalog' },
+      {
+        name: 'Storefront',
+        href: '/dashboard/inventory/storefront',
+        desc: 'Choose which SKUs appear on the public store',
+        section: 'Catalog',
+      },
       { name: 'Shared SKUs', href: '/dashboard/inventory/shared', desc: 'Gym · retail · hire · clinic', section: 'Catalog' },
       { name: 'Stock', href: '/dashboard/inventory/stock', section: 'Stock' },
       {
