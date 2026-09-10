@@ -9,7 +9,7 @@ import { INDUSTRY_PACK_MONTHLY_ZAR } from '@/lib/product/architecture';
 export const metadata: Metadata = {
   title: 'Industries — supply chain & services OS by sector',
   description:
-    'SupplierAdvisor® for food & beverage, agriculture (CropAdvisor®), quarry (QuarryAdvisor®), manufacturing, apparel (ApparelAdvisor®), building (ConstructionAdvisor®), distribution, containers (ContainerAdvisor®), fitness (GymAdvisor®), physio, dental, mental health, medical and veterinary practices, hire (HireAdvisor®), retail (RetailAdvisor®), public sector (SchoolAdvisor® · HealthAdvisor®), and multi-entity groups.',
+    'SupplierAdvisor® for food & beverage, agriculture (CropAdvisor®), quarry (QuarryAdvisor®), manufacturing, apparel (ApparelAdvisor®), building (ConstructionAdvisor® — BOQ quotes, dated programme, progress payments), distribution, containers (ContainerAdvisor®), fitness (GymAdvisor®), physio, dental, mental health, medical and veterinary practices, hire (HireAdvisor®), retail (RetailAdvisor®), public sector (SchoolAdvisor® · HealthAdvisor®), and multi-entity groups.',
   keywords: [
     'supply chain by industry',
     'CropAdvisor',
@@ -162,7 +162,7 @@ export default function IndustriesIndexPage() {
         />
         <Section
           title="Make & move"
-          blurb="Secondary manufacturing, ApparelAdvisor®, ConstructionAdvisor®, logistics, and ContainerAdvisor® last-mile outlets on the same fabric."
+          blurb="Secondary manufacturing, ApparelAdvisor®, ConstructionAdvisor® (BOQ quotes, dated programme, progress payments), logistics, and ContainerAdvisor® last-mile outlets on the same fabric."
           items={MAKE_MOVE}
         />
         <Section

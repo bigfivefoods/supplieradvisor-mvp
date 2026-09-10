@@ -10,7 +10,8 @@ export async function GET() {
 > Verified supply-chain operating system for B2B, B2G & B2C.
 > Trade network — SRM, CRM, inventory, manufacturing, finance, SHEQ.
 > Industry Advisors — CropAdvisor®, QuarryAdvisor®, ApparelAdvisor®,
-> ConstructionAdvisor®, GymAdvisor®, clinic Advisors, HireAdvisor®,
+> ConstructionAdvisor® (BOQ quotes, dated programme, progress payments,
+> client/contractor PWA), GymAdvisor®, clinic Advisors, HireAdvisor®,
 > RetailAdvisor®, ContainerAdvisor®, SchoolAdvisor®, HealthAdvisor®.
 
 ## Canonical site

@@ -216,7 +216,7 @@ const MODULE_OPTIONS: Array<{
     iconTone: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300',
     bullets: [
       'CropAdvisor® agri · QuarryAdvisor® aggregates',
-      'ApparelAdvisor® apparel · ConstructionAdvisor® building',
+      'ApparelAdvisor® apparel · ConstructionAdvisor® contractor OS',
       'GymAdvisor® · HireAdvisor® · RetailAdvisor® · clinic Advisors',
     ],
     href: '#modules-industry',
@@ -487,9 +487,13 @@ const MODULES = [
     code: 'I2c',
     title: 'ConstructionAdvisor®',
     short: 'ConstructionAdvisor',
-    tagline: 'Building & construction OS',
-    body: 'One customer, many projects. Quote from a BOQ, run the project plan, allocate actuals, certify, and roll every project into a contractor programme — with a client and contractor PWA.',
-    bullets: ['Clients · BOQ quotes', 'Plan vs actuals · costs', 'Project reports · programme PWA'],
+    tagline: 'Contractor OS for building',
+    body: 'One customer, many projects. Quote from the BOQ, run a dated programme with plan vs actuals, allocate costs against BOQ lines, date progress payments (contractor claim → certify IPC → client pay), then roll every project into a contractor programme — with a client and contractor PWA. Invoices stay on Customers Trade.',
+    bullets: [
+      'Clients · many projects · BOQ quotes',
+      'Dated plan vs actuals · costs on BOQ',
+      'Progress payments · reports · client/contractor PWA',
+    ],
     Mock: ConstructiongraphMock,
     icon: Hammer,
   },
@@ -658,7 +662,7 @@ const MODULE_SECTION_BANDS: Array<{
     id: 'industry',
     title: 'Industry',
     blurb:
-      'Vertical depth — CropAdvisor®, QuarryAdvisor®, ApparelAdvisor®, ConstructionAdvisor®, GymAdvisor®, HireAdvisor®, RetailAdvisor®, ContainerAdvisor®, and clinic Advisors (Physio · Dental · Psychiatry · Medical · Vet) with diaries, waitlist desks, industry PWAs, rooms, marketplace listings, and in-app care messages — not brochure modules.',
+      'Vertical depth — CropAdvisor®, QuarryAdvisor®, ApparelAdvisor®, ConstructionAdvisor® (BOQ quotes, dated programme, progress payments, client/contractor PWA), GymAdvisor®, HireAdvisor®, RetailAdvisor®, ContainerAdvisor®, and clinic Advisors (Physio · Dental · Psychiatry · Medical · Vet) with diaries, waitlist desks, industry PWAs, rooms, marketplace listings, and in-app care messages — not brochure modules.',
   },
   {
     id: 'government',
@@ -708,7 +712,7 @@ const SYSTEMS = [
   {
     icon: Hammer,
     title: 'ConstructionAdvisor®',
-    body: 'BOQ quotes, multi-project clients, plan vs actuals, and programme reports.',
+    body: 'BOQ quotes, multi-project clients, dated plan vs actuals, progress payments, and programme reports.',
   },
   {
     icon: Ship,
@@ -1067,7 +1071,7 @@ export default function HomeBelowFold() {
               {
                 icon: Stethoscope,
                 t: 'Industry & programme solutions that operate',
-                b: 'CropAdvisor®, QuarryAdvisor®, ApparelAdvisor®, ConstructionAdvisor®, GymAdvisor®, HireAdvisor® (hire marketplace · members free · 2.5% on the listing business), clinic Advisors, and SchoolAdvisor® (public-sector NSNP: DBE · school · SP). Most Advisors bill the operating company a subscription; members and patients never pay SupplierAdvisor®.',
+                b: 'CropAdvisor®, QuarryAdvisor®, ApparelAdvisor®, ConstructionAdvisor® (BOQ quotes, dated programme, progress payments, client/contractor PWA), GymAdvisor®, HireAdvisor® (hire marketplace · members free · 2.5% on the listing business), clinic Advisors, and SchoolAdvisor® (public-sector NSNP: DBE · school · SP). Most Advisors bill the operating company a subscription; members and patients never pay SupplierAdvisor®.',
               },
               {
                 icon: Fingerprint,
