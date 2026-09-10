@@ -50,4 +50,18 @@ assert.match(getFn, /!Number\.isFinite\(companyId\)\s*\|\|\s*companyId\s*<=\s*0/
 assert.match(postFn, /!Number\.isFinite\(companyId\)\s*\|\|\s*companyId\s*<=\s*0/);
 assert.ok(!src.includes('profiles.phone'), 'must not select profiles.phone');
 
+const publicSrc = readFileSync(
+  resolve('app/api/public/constructiongraph/route.ts'),
+  'utf8'
+);
+assert.ok(
+  !publicSrc.includes('requireCompanyAccess'),
+  'public constructiongraph GET is token-gated, not company-gated'
+);
+assert.ok(publicSrc.includes('publicReadLimit'), 'public GET must rate-limit');
+assert.ok(publicSrc.includes('export async function POST'), 'public POST records claim/pay');
+assert.ok(publicSrc.includes('applyPaymentAction'), 'public POST must use payment actions');
+assert.ok(publicSrc.includes('rateLimit'), 'public POST must rate-limit');
+assert.ok(!publicSrc.includes('profiles.phone'), 'public GET must not select profiles.phone');
+
 console.log('constructiongraph-authz.test.ts ok');

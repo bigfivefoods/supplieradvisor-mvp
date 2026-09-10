@@ -24,12 +24,16 @@ export default function ConstructiongraphMaterialsPage() {
             {store.materials.length === 0 ? (
               <ConstructionEmptyHint>No material deliveries logged.</ConstructionEmptyHint>
             ) : (
-              store.materials.map((row) => (
-                <div key={row.id} className="text-xs py-1 border-t first:border-t-0">
-                  {row.item} · {row.delivered_qty ?? 0}/{row.ordered_qty} {row.uom} · PO{' '}
-                  {row.po_number || '—'}
-                </div>
-              ))
+              store.materials.map((row) => {
+                const site = store.sites.find((s) => s.id === row.site_id);
+                return (
+                  <div key={row.id} className="text-xs py-1 border-t first:border-t-0">
+                    {row.item} · {row.delivered_qty ?? 0}/{row.ordered_qty} {row.uom} · PO{' '}
+                    {row.po_number || '—'}
+                    {site ? ` · ${site.code}` : ''}
+                  </div>
+                );
+              })
             )}
             <div className="mt-3">
               <Link href="/dashboard/suppliers/po" className="text-amber-800 underline">
@@ -42,12 +46,16 @@ export default function ConstructiongraphMaterialsPage() {
             {store.plant.length === 0 ? (
               <ConstructionEmptyHint>No plant on site.</ConstructionEmptyHint>
             ) : (
-              store.plant.map((row) => (
-                <div key={row.id} className="text-xs py-1 border-t first:border-t-0">
-                  {row.plant_no} · {row.description} · {row.status}
-                  {row.hired ? ' · hired' : ''}
-                </div>
-              ))
+              store.plant.map((row) => {
+                const site = store.sites.find((s) => s.id === row.site_id);
+                return (
+                  <div key={row.id} className="text-xs py-1 border-t first:border-t-0">
+                    {row.plant_no} · {row.description} · {row.status}
+                    {row.hired ? ' · hired' : ''}
+                    {site ? ` · ${site.code}` : ''}
+                  </div>
+                );
+              })
             )}
           </div>
         </div>

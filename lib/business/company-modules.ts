@@ -77,7 +77,7 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   apparelgraph:
     'ApparelAdvisor® — capability, style matrix, samples, materials, floor tickets, quality gates and ship readiness',
   constructiongraph:
-    'ConstructionAdvisor® — building sites, drawings, BOQ, subcontractors, materials, programme, site safety, variations, payment certificates and handover',
+    'ConstructionAdvisor® — clients with many projects, BOQ quotes, dated programme, progress payments (claim → client pay), costs, reports and a PWA',
   intelligence: 'Pulse, forecasts, scorecards & Super-Cube® leadership',
   schools:
     'SchoolAdvisor® (public sector) — NSNP kitchen, learners, SPs, catalogue, feeding, prizes (DBE / PEU / schools)',
@@ -203,7 +203,7 @@ export const MODULE_CATEGORIES: ModuleCategory[] = [
     band: 'industry',
     title: 'Building & construction',
     blurb:
-      'ConstructionAdvisor® — sites, drawings, BOQ, subcontractors, programme, certificates and handover.',
+      'ConstructionAdvisor® — BOQ quotes, dated programme, progress payments, costs and a client/contractor PWA.',
     moduleIds: ['constructiongraph'],
   },
   {

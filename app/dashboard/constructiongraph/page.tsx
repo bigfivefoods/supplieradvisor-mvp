@@ -18,13 +18,13 @@ export default function ConstructiongraphOverviewPage() {
 
   const seed = async () => {
     await post({ action: 'seed_demo' });
-    toast.success('ConstructionAdvisor® starter site loaded');
+    toast.success('ConstructionAdvisor® starter programme loaded');
   };
 
   return (
     <ConstructiongraphWorkbench
       title="Command"
-      description="ConstructionAdvisor® for building contractors: sites, drawings and BOQ, subcontractors, materials and plant, programme, site safety, variations, payment certificates, and snag / handover."
+      description="ConstructionAdvisor® for contractors: one customer, many projects. Quote from a BOQ, run the project plan, allocate actuals, certify, and roll every project into a programme report — with a client and contractor PWA."
     >
       {loading || !summary ? (
         <ConstructionLoadingBlock />
@@ -32,10 +32,10 @@ export default function ConstructiongraphOverviewPage() {
         <div className="space-y-4">
           <div className="grid sm:grid-cols-4 gap-3">
             {[
-              ['Sites', summary.sites, `${summary.onSite} on site`],
-              ['Contract value', zar(summary.contractValue), `${summary.boqLines} BOQ lines`],
-              ['Certified', zar(summary.certified), `${summary.certificateCount} certificates`],
-              ['Open snags', summary.openSnags, `${zar(summary.variations)} in VOs`],
+              ['Clients', summary.clients, `${summary.sites} projects · ${summary.onSite} on site`],
+              ['BOQ quoted', zar(summary.boqAmount), `${summary.quotesAccepted} accepted / ${summary.quotes} quotes`],
+              ['Budget vs costs', zar(summary.costs), `${zar(summary.variance)} remaining vs budget`],
+              ['Cash plan', zar(summary.paidBillings), `planned ${zar(summary.plannedBillings)} · due ${zar(summary.outstandingBillings)}`],
             ].map(([label, value, sub]) => (
               <div
                 key={String(label)}
@@ -50,17 +50,38 @@ export default function ConstructiongraphOverviewPage() {
             ))}
           </div>
           <div className="rounded-2xl border border-stone-300 bg-white px-4 py-3 text-sm text-slate-700">
-            Drawings {summary.drawings} · subcontractors {summary.subcontractors} · materials{' '}
-            {summary.materials} · plant {summary.plant} · programme rows {summary.programmeRows} ·
-            open safety {summary.safetyOpen}. Core Projects stays a separate hub — this OS is the
-            building site book.
+            Quote from the BOQ, date the work programme and progress payments, post
+            actual costs, then roll project reports into the contractor programme.
+            Open snags {summary.openSnags}
+            {summary.overduePayments
+              ? ` · ${summary.overduePayments} overdue payments`
+              : ''}
+            . Core Projects stays a separate hub.
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
-              href="/dashboard/constructiongraph/sites"
+              href="/dashboard/constructiongraph/payments"
               className="btn-primary !py-2 !px-4 text-sm"
             >
-              Open sites
+              Progress payments
+            </Link>
+            <Link
+              href="/dashboard/constructiongraph/quotes"
+              className="btn-secondary !py-2 !px-4 text-sm"
+            >
+              BOQ quotes
+            </Link>
+            <Link
+              href="/dashboard/constructiongraph/reports"
+              className="btn-secondary !py-2 !px-4 text-sm"
+            >
+              Programme reports
+            </Link>
+            <Link
+              href="/dashboard/constructiongraph/portal"
+              className="btn-secondary !py-2 !px-4 text-sm"
+            >
+              Client / contractor PWA
             </Link>
             <button
               type="button"

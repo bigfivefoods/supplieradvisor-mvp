@@ -23,11 +23,15 @@ export default function ConstructiongraphSafetyPage() {
             <ConstructionEmptyHint>No site safety rows yet.</ConstructionEmptyHint>
           ) : (
             <div className="rounded-2xl border border-stone-300 bg-white p-4 space-y-2">
-              {store.safety.map((row) => (
-                <div key={row.id} className="border-t first:border-t-0 pt-2 first:pt-0">
-                  <b>{row.kind}</b> · {row.title} · {row.date || '—'} · {row.status}
-                </div>
-              ))}
+              {store.safety.map((row) => {
+                const site = store.sites.find((s) => s.id === row.site_id);
+                return (
+                  <div key={row.id} className="border-t first:border-t-0 pt-2 first:pt-0">
+                    <b>{row.kind}</b> · {row.title} · {row.date || '—'} · {row.status}
+                    {site ? ` · ${site.code}` : ''}
+                  </div>
+                );
+              })}
             </div>
           )}
           <div className="rounded-2xl border border-stone-300 bg-white p-4">

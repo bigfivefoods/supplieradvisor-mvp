@@ -5,8 +5,11 @@ import {
   constructiongraphSeedStore,
   emptyConstructiongraphStore,
   mergeConstructiongraphStore,
+  mintConstructionToken,
+  programmeReport,
   readConstructiongraphFromMetadata,
   summariseConstructiongraph,
+  upsertPortal,
   writeConstructiongraphToMetadata,
   type ConstructiongraphStore,
 } from '@/lib/construction/constructiongraph';
@@ -15,8 +18,16 @@ export const runtime = 'nodejs';
 
 type Payload = {
   companyId?: number;
-  action?: 'seed_demo' | 'merge' | 'replace';
+  action?:
+    | 'seed_demo'
+    | 'merge'
+    | 'replace'
+    | 'ensure_portal'
+    | 'ensure_client_portal'
+    | 'ensure_contractor_portal';
   store?: Partial<ConstructiongraphStore>;
+  clientId?: string;
+  siteId?: string;
 };
 
 function asObject(value: unknown): Record<string, unknown> {
@@ -53,6 +64,7 @@ export async function GET(request: NextRequest) {
       success: true,
       store,
       summary: summariseConstructiongraph(store),
+      programme: programmeReport(store),
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -92,6 +104,40 @@ export async function POST(request: NextRequest) {
 
     if (action === 'seed_demo') {
       nextStore = constructiongraphSeedStore();
+    } else if (action === 'ensure_portal') {
+      const existing = prevStore.portals.find((p) => p.kind === 'public');
+      const token =
+        prevStore.settings.public_token || existing?.token || mintConstructionToken();
+      nextStore = upsertPortal(prevStore, {
+        token,
+        kind: 'public',
+        label: 'Client & contractor PWA',
+      });
+    } else if (action === 'ensure_client_portal') {
+      const clientId = String(body.clientId || '').trim();
+      const client = prevStore.clients.find((c) => c.id === clientId);
+      if (!client) {
+        return NextResponse.json({ error: 'clientId required' }, { status: 400 });
+      }
+      nextStore = upsertPortal(prevStore, {
+        token: mintConstructionToken(),
+        kind: 'client',
+        client_id: clientId,
+        label: client.name,
+      });
+    } else if (action === 'ensure_contractor_portal') {
+      const siteId = String(body.siteId || '').trim();
+      const site = prevStore.sites.find((s) => s.id === siteId);
+      if (!site) {
+        return NextResponse.json({ error: 'siteId required' }, { status: 400 });
+      }
+      nextStore = upsertPortal(prevStore, {
+        token: mintConstructionToken(),
+        kind: 'contractor',
+        site_id: siteId,
+        client_id: site.client_id,
+        label: `${site.code} site team`,
+      });
     } else if (action === 'replace') {
       nextStore = mergeConstructiongraphStore(
         emptyConstructiongraphStore(),
@@ -116,6 +162,7 @@ export async function POST(request: NextRequest) {
       success: true,
       store: nextStore,
       summary: summariseConstructiongraph(nextStore),
+      programme: programmeReport(nextStore),
     });
   } catch (e: unknown) {
     return NextResponse.json(

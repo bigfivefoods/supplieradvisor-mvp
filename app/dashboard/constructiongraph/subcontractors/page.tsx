@@ -5,12 +5,19 @@ import { toast } from 'sonner';
 import {
   ConstructionEmptyHint,
   ConstructionLoadingBlock,
+  ConstructionProjectSelect,
   ConstructiongraphWorkbench,
   useConstructiongraph,
 } from '@/components/construction/ConstructiongraphWorkbench';
+import { newConstructionId } from '@/lib/construction/constructiongraph';
+
+function zar(n: number) {
+  return `R ${Number(n || 0).toLocaleString('en-ZA')}`;
+}
 
 export default function ConstructiongraphSubcontractorsPage() {
   const { store, loading, saving, post } = useConstructiongraph();
+  const [siteId, setSiteId] = useState('');
   const [name, setName] = useState('');
   const [trade, setTrade] = useState('');
 
@@ -26,11 +33,11 @@ export default function ConstructiongraphSubcontractorsPage() {
       store: {
         subcontractors: [
           {
-            id: `sub_${Date.now()}`,
+            id: newConstructionId('sub'),
             name: nextName,
             trade: nextTrade,
             status: 'appointed',
-            site_id: store?.sites[0]?.id || null,
+            site_id: siteId || store?.sites[0]?.id || null,
           },
         ],
       },
@@ -43,13 +50,18 @@ export default function ConstructiongraphSubcontractorsPage() {
   return (
     <ConstructiongraphWorkbench
       title="Subcontractors"
-      description="Appointed trades on each site. Supplier book and POs stay on Core Suppliers."
+      description="Appointed trades on each project. Supplier book and POs stay on Core Suppliers."
     >
       {loading || !store ? (
         <ConstructionLoadingBlock />
       ) : (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-stone-300 bg-white p-4 grid sm:grid-cols-3 gap-2">
+          <div className="rounded-2xl border border-stone-300 bg-white p-4 grid sm:grid-cols-4 gap-2">
+            <ConstructionProjectSelect
+              store={store}
+              value={siteId}
+              onChange={setSiteId}
+            />
             <input
               className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
               placeholder="Company name"
@@ -75,14 +87,16 @@ export default function ConstructiongraphSubcontractorsPage() {
             <ConstructionEmptyHint>No subcontractors appointed yet.</ConstructionEmptyHint>
           ) : (
             <div className="rounded-2xl border border-stone-300 bg-white p-4 text-sm space-y-2">
-              {store.subcontractors.map((s) => (
-                <div key={s.id} className="border-t first:border-t-0 pt-2 first:pt-0">
-                  <b>{s.name}</b> · {s.trade} · {s.status || '—'}
-                  {s.contract_value != null
-                    ? ` · R ${Number(s.contract_value).toLocaleString('en-ZA')}`
-                    : ''}
-                </div>
-              ))}
+              {store.subcontractors.map((s) => {
+                const site = store.sites.find((row) => row.id === s.site_id);
+                return (
+                  <div key={s.id} className="border-t first:border-t-0 pt-2 first:pt-0">
+                    <b>{s.name}</b> · {s.trade} · {s.status || '—'}
+                    {site ? ` · ${site.code}` : ''}
+                    {s.contract_value != null ? ` · ${zar(s.contract_value)}` : ''}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

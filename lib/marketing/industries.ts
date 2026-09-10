@@ -192,21 +192,21 @@ export const INDUSTRIES: IndustryPage[] = [
   {
     slug: 'construction-building',
     name: 'Building & construction',
-    headline: 'One site book from drawings to handover.',
+    headline: 'Quote the BOQ. Run every project. Roll the programme.',
     subhead:
-      'ConstructionAdvisor® keeps building sites, issued drawings, BOQ, subcontractors, programme, variations, payment certificates and snags on the same books as suppliers, customers and SHEQ.',
+      'ConstructionAdvisor® is the contractor OS: one customer with many projects, BOQ quoting, plan vs actuals, cost allocation, per-project reports rolled into a programme, and a client / contractor PWA — on the same books as suppliers, customers and SHEQ.',
     cardBlurb:
-      'ConstructionAdvisor® for principal contractors and specialist trades — sites through certificates.',
+      'ConstructionAdvisor® for principal contractors — BOQ quotes, multi-project clients, programme actuals.',
     pack: 'ConstructionAdvisor®',
     pains: [
-      'Drawings, BOQ and programme live in separate folders',
-      'Variations and IPCs are tracked in side sheets',
-      'Snags reopen after practical completion because nobody owns the list',
+      'Quotes are built off-system while the BOQ lives in a spreadsheet',
+      'One developer has several sites and nobody can roll the programme',
+      'Actuals never update the project plan, so IPCs and reports lag',
     ],
     wins: [
-      'One site code for drawings, BOQ, programme and certificates',
-      'Variations and payment certificates on the commercial trail',
-      'Snag list through practical completion, with Core SHEQ for NCR/CAPA',
+      'Quote from the BOQ and accept it as the contract budget',
+      'One client, many projects — detailed reports then a programme roll-up',
+      'Post actuals against BOQ items and share the plan on a client / contractor PWA',
     ],
     modules: [
       'ConstructionAdvisor®',
