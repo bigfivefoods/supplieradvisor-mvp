@@ -69,6 +69,11 @@ import {
   canStartProcessing,
   parseTradeThread,
 } from '@/lib/customers/trade-thread';
+import {
+  isEnquiryInboxRow,
+  isIssuedQuoteRow,
+  resolveEnquiryUid,
+} from '@/lib/customers/enquiry-uid';
 
 type DocType = 'quote' | 'order' | 'invoice';
 
@@ -219,8 +224,14 @@ function DocInner({
         ...CONFIG.quote,
         title: 'Enquiries',
         description:
-          'Incoming storefront enquiries. Issue a quotation to the customer portal and email so they can accept with a PO.',
-        statuses: ['enquiry'],
+          'Every enquiry has a stable ENQ UID. After you issue a quotation it stays here and also appears under Quotes as QT-… (same date and suffix).',
+        statuses: [
+          'enquiry',
+          'sent',
+          'accepted',
+          'deposit_due',
+          'deposit_paid',
+        ],
       }
     : CONFIG[type];
   const [docs, setDocs] = useState<DocRecord[]>([]);
@@ -280,7 +291,7 @@ function DocInner({
   const [payMethod, setPayMethod] = useState('eft');
   const [statusFilter, setStatusFilter] = useState(
     enquiryInbox
-      ? 'enquiry'
+      ? 'all'
       : statusFromUrl && statusFromUrl !== 'all'
         ? statusFromUrl
         : 'all'
@@ -333,7 +344,9 @@ function DocInner({
 
   useEffect(() => {
     if (enquiryInbox) {
-      setStatusFilter('enquiry');
+      if (statusFromUrl && statusFromUrl !== 'all') {
+        setStatusFilter(statusFromUrl);
+      }
       return;
     }
     if (statusFromUrl && statusFromUrl !== 'all') {
@@ -370,8 +383,7 @@ function DocInner({
     setLoading(true);
     try {
       const params = new URLSearchParams({ companyId: String(companyId), type });
-      if (enquiryInbox) params.set('status', 'enquiry');
-      else if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (statusFilter !== 'all') params.set('status', statusFilter);
       if (canGroupList) {
         if (period.from) params.set('from', period.from);
         if (period.to) params.set('to', period.to);
@@ -735,21 +747,10 @@ function DocInner({
 
   const visibleDocs = useMemo(() => {
     const inbox = enquiryInbox
-      ? docs.filter((d) => {
-          const st = String(d.status || '').toLowerCase();
-          const num = String(d.quote_number || '');
-          if (st === 'enquiry') return true;
-          if (
-            num.startsWith('ENQ-') &&
-            !['sent', 'accepted', 'deposit_due', 'deposit_paid', 'converted', 'rejected', 'expired'].includes(
-              st
-            )
-          ) {
-            return true;
-          }
-          return false;
-        })
-      : docs;
+      ? docs.filter((d) => isEnquiryInboxRow(d))
+      : type === 'quote'
+        ? docs.filter((d) => isIssuedQuoteRow(d))
+        : docs;
     if (!canGroupList) return inbox;
     const slice = listTimeKey ? rangeForTimeKey(listTimeKey) : null;
     return filterGroupedDocs(inbox, {
@@ -3128,7 +3129,21 @@ function DocInner({
                 ) : null}
           <ul className={sales ? 'divide-y divide-neutral-100' : 'divide-y'}>
             {g.items.map((d) => {
-              const num = String(d[cfg.numberField] || d.id);
+              const quoteNo = String(d[cfg.numberField] || d.id);
+              const enquiryUid = type === 'quote' ? resolveEnquiryUid(d) : null;
+              const num =
+                enquiryInbox && enquiryUid ? enquiryUid : quoteNo;
+              const pairLabel =
+                type === 'quote' && enquiryUid
+                  ? enquiryInbox &&
+                    quoteNo.toUpperCase() !== enquiryUid &&
+                    quoteNo.toUpperCase().startsWith('QT-')
+                    ? `quote ${quoteNo}`
+                    : !enquiryInbox &&
+                        enquiryUid !== quoteNo.toUpperCase()
+                      ? `enquiry ${enquiryUid}`
+                      : null
+                  : null;
               const itemCount = Array.isArray(d.items) ? d.items.length : 0;
               const isShared = (d.visibility || 'seller_only') === 'shared';
               const isHighlight = highlightDocId != null && Number(d.id) === highlightDocId;
@@ -3193,6 +3208,7 @@ function DocInner({
                     >
                       {d.customer_name || 'No customer'} · {itemCount} line{itemCount === 1 ? '' : 's'}
                       {d.created_at ? ` · ${String(d.created_at).slice(0, 10)}` : ''}
+                      {pairLabel ? ` · ${pairLabel}` : ''}
                       {type === 'invoice' && Number(d.amount_paid || 0) > 0.009
                         ? ` · paid ${formatMoney(Number(d.amount_paid || 0), String(d.currency || 'ZAR'))}`
                         : ''}
