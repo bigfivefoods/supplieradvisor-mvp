@@ -704,7 +704,7 @@ export function ApparelgraphMock() {
       <div className="mb-2 flex items-center justify-between gap-2">
         <div>
           <div className="text-[9px] font-bold uppercase tracking-widest text-cyan-700">
-            ApparelAdvisor® · Apparel
+            ApparelAdvisor®
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
             Range · ATS · ship holds.

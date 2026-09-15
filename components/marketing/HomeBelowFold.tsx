@@ -216,7 +216,7 @@ const MODULE_OPTIONS: Array<{
     iconTone: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300',
     bullets: [
       'CropAdvisor® agri · QuarryAdvisor® aggregates',
-      'ApparelAdvisor® apparel · ConstructionAdvisor® contractor OS',
+      'ApparelAdvisor® range · ATS · ConstructionAdvisor® contractor OS',
       'GymAdvisor® · HireAdvisor® · RetailAdvisor® · clinic Advisors',
     ],
     href: '#modules-industry',
@@ -666,7 +666,7 @@ const MODULE_SECTION_BANDS: Array<{
     id: 'industry',
     title: 'Industry',
     blurb:
-      'Vertical depth — CropAdvisor®, QuarryAdvisor®, ApparelAdvisor®, ConstructionAdvisor® (BOQ quotes, dated programme, progress payments, client/contractor PWA), GymAdvisor®, HireAdvisor®, RetailAdvisor®, ContainerAdvisor®, and clinic Advisors (Physio · Dental · Psychiatry · Medical · Vet) with diaries, waitlist desks, industry PWAs, rooms, marketplace listings, and in-app care messages — not brochure modules.',
+      'Vertical depth — CropAdvisor®, QuarryAdvisor®, ApparelAdvisor® (range, landed costing, wholesale ATS, buyer PWA), ConstructionAdvisor® (BOQ quotes, dated programme, progress payments, client/contractor PWA), GymAdvisor®, HireAdvisor®, RetailAdvisor®, ContainerAdvisor®, and clinic Advisors (Physio · Dental · Psychiatry · Medical · Vet) with diaries, waitlist desks, industry PWAs, rooms, marketplace listings, and in-app care messages — not brochure modules.',
   },
   {
     id: 'government',
@@ -1075,7 +1075,7 @@ export default function HomeBelowFold() {
               {
                 icon: Stethoscope,
                 t: 'Industry & programme solutions that operate',
-                b: 'CropAdvisor®, QuarryAdvisor®, ApparelAdvisor®, ConstructionAdvisor® (BOQ quotes, dated programme, progress payments, client/contractor PWA), GymAdvisor®, HireAdvisor® (hire marketplace · members free · 2.5% on the listing business), clinic Advisors, and SchoolAdvisor® (public-sector NSNP: DBE · school · SP). Most Advisors bill the operating company a subscription; members and patients never pay SupplierAdvisor®.',
+                b: 'CropAdvisor®, QuarryAdvisor®, ApparelAdvisor® (range, landed costing, wholesale ATS, buyer line-sheet PWA), ConstructionAdvisor® (BOQ quotes, dated programme, progress payments, client/contractor PWA), GymAdvisor®, HireAdvisor® (hire marketplace · members free · 2.5% on the listing business), clinic Advisors, and SchoolAdvisor® (public-sector NSNP: DBE · school · SP). Most Advisors bill the operating company a subscription; members and patients never pay SupplierAdvisor®.',
               },
               {
                 icon: Fingerprint,
