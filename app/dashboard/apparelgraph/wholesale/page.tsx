@@ -47,7 +47,8 @@ export default function ApparelgraphWholesalePage() {
   };
 
   const addPrebook = async () => {
-    const row = store?.styles.matrix.find((m) => m.id === matrixId);
+    if (!store) return;
+    const row = store.styles.matrix.find((m) => m.id === matrixId);
     const q = Number(qty);
     if (!row || !customer.trim() || !Number.isFinite(q)) {
       toast.error('Customer, SKU and qty are required');
