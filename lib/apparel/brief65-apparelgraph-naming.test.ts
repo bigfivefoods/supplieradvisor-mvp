@@ -13,13 +13,21 @@ const files = [
   'components/apparel/ApparelgraphWorkbench.tsx',
   'app/dashboard/apparelgraph/layout.tsx',
   'app/dashboard/apparelgraph/page.tsx',
+  'app/dashboard/apparelgraph/range/page.tsx',
   'app/dashboard/apparelgraph/capability/page.tsx',
   'app/dashboard/apparelgraph/styles/page.tsx',
   'app/dashboard/apparelgraph/samples/page.tsx',
+  'app/dashboard/apparelgraph/costing/page.tsx',
+  'app/dashboard/apparelgraph/path/page.tsx',
   'app/dashboard/apparelgraph/materials/page.tsx',
   'app/dashboard/apparelgraph/floor/page.tsx',
   'app/dashboard/apparelgraph/quality/page.tsx',
+  'app/dashboard/apparelgraph/wholesale/page.tsx',
   'app/dashboard/apparelgraph/ship/page.tsx',
+  'app/dashboard/apparelgraph/reports/page.tsx',
+  'app/dashboard/apparelgraph/portal/page.tsx',
+  'app/api/public/apparelgraph/route.ts',
+  'app/apparel/[token]/page.tsx',
 ];
 
 for (const rel of files) {

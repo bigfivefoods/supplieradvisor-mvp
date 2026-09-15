@@ -707,7 +707,7 @@ export function ApparelgraphMock() {
             ApparelAdvisor® · Apparel
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
-            Matrix to shipment gates.
+            Range · ATS · ship holds.
           </div>
         </div>
         <span className="rounded-full border border-cyan-200 bg-cyan-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
@@ -715,13 +715,13 @@ export function ApparelgraphMock() {
         </span>
       </div>
       <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
-        <Telemetry label="Lines" value="4" tone="cyan" />
-        <Telemetry label="Styles" value="12" tone="sky" />
-        <Telemetry label="Rolls" value="86" tone="violet" />
-        <Telemetry label="QA holds" value="2" tone="amber" />
+        <Telemetry label="Styles" value="2" tone="cyan" />
+        <Telemetry label="ATS" value="1.5k" tone="sky" />
+        <Telemetry label="Prebook" value="240" tone="violet" />
+        <Telemetry label="Hold" value="Clear" tone="amber" />
       </div>
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-        {['Styles', 'Floor', 'Ship'].map((t, i) => (
+        {['Range', 'Wholesale', 'Quality'].map((t, i) => (
           <div key={t} className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] shadow-sm sm:p-3">
             <div className="mb-1 text-[9px] font-mono text-neutral-400">0{i + 1}</div>
             <div className="text-[11px] font-bold text-slate-800 sm:text-xs dark:text-white">{t}</div>

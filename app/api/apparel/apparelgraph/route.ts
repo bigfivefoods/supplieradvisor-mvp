@@ -5,8 +5,11 @@ import {
   apparelgraphSeedStore,
   emptyApparelgraphStore,
   mergeApparelgraphStore,
+  mintApparelToken,
   readApparelgraphFromMetadata,
   summariseApparelgraph,
+  upsertPortal,
+  wholesaleReport,
   writeApparelgraphToMetadata,
   type ApparelgraphStore,
 } from '@/lib/apparel/apparelgraph';
@@ -15,7 +18,7 @@ export const runtime = 'nodejs';
 
 type Payload = {
   companyId?: number;
-  action?: 'seed_demo' | 'merge' | 'replace';
+  action?: 'seed_demo' | 'merge' | 'replace' | 'ensure_portal';
   store?: Partial<ApparelgraphStore>;
 };
 
@@ -53,6 +56,7 @@ export async function GET(request: NextRequest) {
       success: true,
       store,
       summary: summariseApparelgraph(store),
+      wholesale: wholesaleReport(store),
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -92,6 +96,15 @@ export async function POST(request: NextRequest) {
 
     if (action === 'seed_demo') {
       nextStore = apparelgraphSeedStore();
+    } else if (action === 'ensure_portal') {
+      const existing = prevStore.portals.find((p) => p.kind === 'public');
+      const token =
+        prevStore.settings.public_token || existing?.token || mintApparelToken();
+      nextStore = upsertPortal(prevStore, {
+        token,
+        kind: 'public',
+        label: 'Wholesale line-sheet PWA',
+      });
     } else if (action === 'replace') {
       nextStore = mergeApparelgraphStore(
         emptyApparelgraphStore(),
@@ -116,6 +129,7 @@ export async function POST(request: NextRequest) {
       success: true,
       store: nextStore,
       summary: summariseApparelgraph(nextStore),
+      wholesale: wholesaleReport(nextStore),
     });
   } catch (e: unknown) {
     return NextResponse.json(
