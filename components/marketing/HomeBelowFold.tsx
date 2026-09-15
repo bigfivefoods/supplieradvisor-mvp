@@ -475,9 +475,13 @@ const MODULES = [
     code: 'I2b',
     title: 'ApparelAdvisor®',
     short: 'ApparelAdvisor',
-    tagline: 'Apparel manufacturing OS',
-    body: 'Capability, style matrix, tech packs, BOM, sample gates, roll ownership, floor tickets and hold-aware shipping in one apparel workspace.',
-    bullets: ['Capability · styles · samples', 'Materials · floor tickets', '4-point · shade · AQL · ship gates'],
+    tagline: 'Apparel OS for factory and brand',
+    body: 'Seasons and line plan, style/colour/size, landed-duty BOM, critical path, sample gates, CMT roll ownership, floor tickets, QA holds that stop ship, wholesale ATS and a buyer line-sheet PWA — invoices stay on Customers Trade.',
+    bullets: [
+      'Range · styles · landed costing',
+      'Critical path · floor · QA holds',
+      'Wholesale ATS · line sheets · buyer PWA',
+    ],
     Mock: ApparelgraphMock,
     icon: Shirt,
   },
@@ -707,7 +711,7 @@ const SYSTEMS = [
   {
     icon: Shirt,
     title: 'ApparelAdvisor®',
-    body: 'Style matrix, samples, rolls, floor tickets, and QA hold gates before ship.',
+    body: 'Range, landed costing, ATS, critical path, QA ship holds, and a buyer line-sheet PWA.',
   },
   {
     icon: Hammer,

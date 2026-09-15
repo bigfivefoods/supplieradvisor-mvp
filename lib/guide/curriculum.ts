@@ -1370,6 +1370,80 @@ export const GUIDE_SECTIONS: GuideSection[] = [
     related: ['fieldgraph', 'operations', 'quality'],
   },
   {
+    slug: 'apparelgraph',
+    moduleId: 'apparelgraph',
+    title: 'ApparelAdvisor®',
+    tagline: 'Range → style/colour/size → landed BOM → path → ATS → ship holds',
+    purpose:
+      'Apparel OS for CMT factories and brands: seasons, style master, colour/size matrix, tech packs, landed-duty BOM, sample gates, critical path, customer-owned vs factory rolls, floor tickets, QA holds that actually stop ship, wholesale available-to-sell and a buyer line-sheet PWA. Core Inventory, Suppliers, Customers Trade and Finance stay the books of record.',
+    who: ['Product / merch', 'CMT factory', 'Wholesale / sales'],
+    principles: [
+      {
+        title: 'Apparel objects, not SKUs',
+        body: 'Plan on seasons, styles, colourways and size curves. Available-to-sell is a run, not a pile of unrelated items.',
+      },
+      {
+        title: 'Landed cost on the BOM',
+        body: 'Wastage and duty sit on the same record as the tech pack. Invoices still post on Customers Trade.',
+      },
+      {
+        title: 'Holds actually stop ship',
+        body: '4-point, shade, gold-seal, AQL and NBC expiry block release. Generic ERPs treat QA as a report.',
+      },
+    ],
+    outcomes: [
+      'A season with more than one style',
+      'A landed BOM on a style',
+      'A wholesale prebook against ATS',
+      'Opened the buyer line-sheet PWA',
+    ],
+    flow: [
+      { id: 'a', label: 'Range', hint: 'Season', tone: 'cyan' },
+      { id: 'b', label: 'Styles', hint: 'Colour · size', tone: 'slate' },
+      { id: 'c', label: 'Costing', hint: 'Landed duty', tone: 'violet' },
+      { id: 'd', label: 'Path', hint: 'Dates', tone: 'amber' },
+      { id: 'e', label: 'Wholesale', hint: 'ATS', tone: 'emerald' },
+      { id: 'f', label: 'Ship', hint: 'QA holds', tone: 'rose' },
+    ],
+    processes: [
+      {
+        name: 'Build the range and cost it',
+        href: '/dashboard/apparelgraph/range',
+        summary: 'Season → style master → colour/size → landed BOM → critical path.',
+        steps: [
+          'Range — season / drop',
+          'Styles — master + colour/size matrix',
+          'Costing — consumption, waste, unit cost, duty',
+          'Path — date proto, fit, PP, cut, sew, pack',
+        ],
+      },
+      {
+        name: 'Sell the run and hold the ship',
+        href: '/dashboard/apparelgraph/wholesale',
+        summary: 'Line sheet ATS, prebook, floor tickets, QA holds, buyer PWA.',
+        steps: [
+          'Wholesale — issue line sheet, prebook against ATS',
+          'Floor / Quality — tickets, 4-point, shade, AQL',
+          'Ship — blocked while a hold is open',
+          'Portal — buyer sees live ATS',
+        ],
+        tip: 'ApparelAdvisor is the apparel book. Core Inventory and Customers Trade are not replaced.',
+      },
+    ],
+    concepts: [
+      { term: 'ATS', meaning: 'Available-to-sell on the size curve after prebooks and shipments.' },
+      { term: 'Landed duty', meaning: 'BOM unit cost with wastage and duty on the same style record.' },
+      { term: 'CMT', meaning: 'Cut-make-trim — factory may sew customer-owned rolls.' },
+    ],
+    checklist: [
+      'One season with two styles',
+      'One landed BOM line',
+      'One prebook against ATS',
+      'Opened Reports and the buyer PWA',
+    ],
+    related: ['inventory', 'quality', 'customers', 'suppliers'],
+  },
+  {
     slug: 'constructiongraph',
     moduleId: 'constructiongraph',
     title: 'ConstructionAdvisor®',
@@ -2343,6 +2417,7 @@ export function buildGuideNavSteps(
       id === 'containers' ||
       id === 'fieldgraph' ||
       id === 'quarrygraph' ||
+      id === 'apparelgraph' ||
       id === 'constructiongraph'
     )
       return 'Operate';
@@ -2376,6 +2451,7 @@ export function buildGuideNavSteps(
     containers: 'ContainerAdvisor',
     fieldgraph: 'CropAdvisor',
     quarrygraph: 'QuarryAdvisor',
+    apparelgraph: 'ApparelAdvisor',
     constructiongraph: 'ConstructionAdvisor',
     fitgraph: 'GymAdvisor',
     physiograph: 'PhysioAdvisor',

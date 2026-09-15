@@ -163,21 +163,21 @@ export const INDUSTRIES: IndustryPage[] = [
   {
     slug: 'apparel-clothing',
     name: 'Apparel & clothing',
-    headline: 'From style matrix to shipment hold gates.',
+    headline: 'Style, colour, size — then land the cost and sell the run.',
     subhead:
-      'ApparelAdvisor® links capability, style matrix, tech packs, BOM, sampling, roll ownership, floor tickets, and quality gates before ship release.',
+      'ApparelAdvisor® is the apparel OS: seasons and line plan, style/colour/size matrix, tech packs, landed-duty BOM, critical path, sample gates, CMT roll ownership, floor tickets, QA holds that actually stop ship, wholesale ATS and a buyer line-sheet PWA — on the same books as suppliers, customers and finance.',
     cardBlurb:
-      'ApparelAdvisor® for CMT and factory operations with QA hold-aware shipping.',
+      'ApparelAdvisor® for CMT factories and brands — range, landed costing, ATS, QA ship holds, buyer PWA.',
     pack: 'ApparelAdvisor®',
     pains: [
-      'Style matrix and BOM versions drift between teams',
-      'Roll ownership and shade control are tracked in side sheets',
-      'Ship release happens without one QA hold decision path',
+      'Generic ERPs treat every size as an unrelated SKU',
+      'Landed duty and the tech pack live in two spreadsheets',
+      'Wholesale oversells because ATS is not on the size curve',
     ],
     wins: [
-      'One apparel graph for capability, styles, samples and floor tickets',
-      'Rolls tied to lots and supplier POs for traceability',
-      '4-point, shade, gold-seal, AQL and NBC expiry gates before ship',
+      'Plan the range, cost the BOM with duty, and date the critical path',
+      'Available-to-sell by style / colour / size, with prebooks on the line sheet',
+      '4-point, shade, gold-seal and AQL holds actually block ship — factory and brand on one OS',
     ],
     modules: [
       'ApparelAdvisor®',

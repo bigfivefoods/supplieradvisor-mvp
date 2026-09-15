@@ -646,7 +646,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
         id: 'apparel_os',
         name: 'ApparelAdvisor® operations OS',
         description:
-          'Capability, styles, samples, rolls, floor tickets and shipment release controls.',
+          'Range, style/colour/size, landed BOM, critical path, floor tickets, QA ship holds, wholesale ATS and buyer PWA.',
         unlocks: ['apparelgraph', 'inventory', 'quality'],
       },
       {
@@ -659,12 +659,13 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     ],
     industryToolsHrefs: [
       { name: 'ApparelAdvisor®', href: '/dashboard/apparelgraph', desc: 'Apparel OS' },
-      { name: 'Styles', href: '/dashboard/apparelgraph/styles', desc: 'Matrix · tech pack · BOM' },
-      { name: 'Samples', href: '/dashboard/apparelgraph/samples', desc: 'Proto · fit · PP' },
-      { name: 'Materials', href: '/dashboard/apparelgraph/materials', desc: 'Rolls · lots' },
-      { name: 'Floor', href: '/dashboard/apparelgraph/floor', desc: 'Tickets · output' },
+      { name: 'Range', href: '/dashboard/apparelgraph/range', desc: 'Seasons · line plan' },
+      { name: 'Styles', href: '/dashboard/apparelgraph/styles', desc: 'Colour · size matrix' },
+      { name: 'Costing', href: '/dashboard/apparelgraph/costing', desc: 'Landed duty BOM' },
+      { name: 'Path', href: '/dashboard/apparelgraph/path', desc: 'Critical path' },
+      { name: 'Wholesale', href: '/dashboard/apparelgraph/wholesale', desc: 'ATS · line sheets' },
       { name: 'Quality', href: '/dashboard/apparelgraph/quality', desc: '4-point · shade · AQL' },
-      { name: 'Ship', href: '/dashboard/apparelgraph/ship', desc: 'Release readiness' },
+      { name: 'Portal', href: '/dashboard/apparelgraph/portal', desc: 'Buyer PWA' },
       { name: 'Inventory lots', href: '/dashboard/inventory/lots', desc: 'Chain of custody' },
       { name: 'Supplier POs', href: '/dashboard/suppliers/po', desc: 'Inbound orders' },
     ],

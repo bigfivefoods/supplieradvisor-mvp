@@ -283,8 +283,8 @@ const SECTIONS: Section[] = [
         sa: 'strong',
       },
       {
-        capability: 'ApparelAdvisor® · apparel manufacturing',
-        hint: 'Capability, style matrix, samples, rolls, floor tickets, QA hold gates before ship',
+        capability: 'ApparelAdvisor® · range · ATS · ship holds',
+        hint: 'Seasons, style/colour/size, landed-duty BOM, critical path, CMT rolls, QA holds that stop ship, wholesale ATS, buyer PWA',
         excel: 'partial',
         xero: 'no',
         erp: 'partial',
