@@ -75,7 +75,7 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   retailgraph:
     'RetailAdvisor® — B2C retail till: catalogue, cash or QR/NFC phone pay, collect SA Member bills at the counter',
   apparelgraph:
-    'ApparelAdvisor® — capability, style matrix, samples, materials, floor tickets, quality gates and ship readiness',
+    'ApparelAdvisor® — range, style/colour/size, landed costing, critical path, QA ship holds, wholesale ATS and buyer PWA',
   constructiongraph:
     'ConstructionAdvisor® — clients with many projects, BOQ quotes, dated programme, progress payments (claim → client pay), costs, reports and a PWA',
   intelligence: 'Pulse, forecasts, scorecards & Super-Cube® leadership',

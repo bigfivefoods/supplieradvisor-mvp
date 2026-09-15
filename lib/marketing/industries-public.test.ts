@@ -52,12 +52,20 @@ assert.match(homeSrc, /ConstructionAdvisor®/);
 assert.match(homeSrc, /Progress payments/);
 assert.match(homeSrc, /BOQ quotes/);
 assert.match(homeSrc, /client\/contractor PWA/);
+assert.match(homeSrc, /ApparelAdvisor®/);
+assert.match(homeSrc, /landed costing/);
+assert.match(homeSrc, /Wholesale ATS/);
+assert.match(homeSrc, /buyer PWA/);
 
 const mockSrc = readFileSync(
   resolve('components/marketing/ProductMocks.tsx'),
   'utf8'
 );
 assert.match(mockSrc, /BOQ · payments · programme/);
+assert.match(mockSrc, /Range · ATS · ship holds/);
+assert.match(compareSrc, /wholesale ATS/);
+assert.match(apparel?.cardBlurb || '', /buyer PWA/);
+assert.match(apparel?.subhead || '', /landed-duty BOM/);
 
 assert.match(construction?.cardBlurb || '', /progress payments/);
 assert.match(construction?.subhead || '', /progress-payment dates/);

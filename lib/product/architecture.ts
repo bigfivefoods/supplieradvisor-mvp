@@ -636,7 +636,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     name: 'Apparel Manufacturing',
     shortName: 'Apparel',
     description:
-      'ApparelAdvisor® for CMT and factory apparel operations: capability, style matrix, sampling, materials, floor tickets, quality gates and ship readiness.',
+      'ApparelAdvisor® for CMT factories and brands: seasons and line plan, style/colour/size, landed-duty BOM, critical path, QA holds that stop ship, wholesale ATS and a buyer line-sheet PWA.',
     monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
     priority: 1,
     recommendSectors: ['secondary'],
