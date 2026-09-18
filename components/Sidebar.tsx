@@ -459,8 +459,8 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
         ) : null}
         {arranging ? (
           <p className="mb-2 px-1 text-[10px] leading-snug text-neutral-500">
-            Drag modules to set your order. Saved to your profile for this
-            company.
+            Drag modules, including Advisors. New Advisors start at the top
+            until you move them. Saved to your profile for this company.
           </p>
         ) : null}
         {visibleModules.map((mod) => {
