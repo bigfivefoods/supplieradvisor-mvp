@@ -4,7 +4,8 @@
  * CRITICAL: Never fold multiple MODULE_NAV hubs into one item.
  * Each existing module keeps its full step tree (Source, Book, Order, …).
  * We only reorder + rename labels for functional clarity.
- * Advisor OS hubs always sit at the top of the sidenav.
+ * Advisor OS hubs default to the top of the sidenav when enabled; a saved
+ * custom order (Arrange sidebar) can move them, and is respected afterwards.
  */
 import { MODULE_NAV, type ModuleNav } from '@/lib/chrome/module-nav';
 import { applySidebarModuleOrder } from '@/lib/chrome/sidebar-order';
@@ -59,7 +60,8 @@ const PACK_TO_ADVISOR_MODULE: Record<string, AdvisorOsModuleId> = {
 
 /**
  * This company's Advisor OS module(s), primary pack first.
- * Always returned when enabled so they stay pinned at the top of the sidenav.
+ * Returned when enabled so they default to the top of the sidenav
+ * until the user saves a custom order.
  */
 export function advisorModulesForCompany(opts: {
   isModuleEnabled: (id: string) => boolean;
@@ -104,8 +106,31 @@ export function pinAdvisorHubsFirst<T extends { id: string }>(modules: T[]): T[]
 }
 
 /**
+ * Default: enabled Advisors at the top.
+ * After Arrange sidebar: honour the saved order, including Advisors mixed
+ * with Core. A newly enabled Advisor that is not in the saved list still
+ * starts at the top until the user moves it.
+ */
+export function orderSidebarModules<T extends { id: string }>(
+  modules: T[],
+  savedOrder?: string[] | null
+): T[] {
+  if (!savedOrder?.length) return pinAdvisorHubsFirst(modules);
+  const ordered = applySidebarModuleOrder(modules, savedOrder);
+  const saved = new Set(savedOrder);
+  const unsavedAdvisors = ordered.filter(
+    (m) => isAdvisorOsModule(m.id) && !saved.has(m.id)
+  );
+  if (!unsavedAdvisors.length) return ordered;
+  const rest = ordered.filter(
+    (m) => !unsavedAdvisors.some((a) => a.id === m.id)
+  );
+  return [...unsavedAdvisors, ...rest];
+}
+
+/**
  * Functional ordering of existing MODULE_NAV ids (1:1, full trees preserved).
- * 1) Advisor OS hubs (always pinned to the top of the sidenav)
+ * 1) Advisor OS hubs (default to the top when enabled)
  * 2) Control Tower (+ Platform admin)
  * 3) Core modules
  */
@@ -247,7 +272,7 @@ function stepsFromModule(m: ModuleNav): SidebarModuleShape['sub'] {
 /**
  * Build sidebar modules:
  * - Every enabled MODULE_NAV hub is its own item with complete steps
- * - Advisor OS hubs always sit at the top (even after a saved custom order)
+ * - Advisor OS hubs default to the top; a saved Arrange order can move them
  * - Multi-entity shortcut without removing Company → Group
  */
 export function functionalSidebarModules(opts: {
@@ -349,7 +374,7 @@ export function functionalSidebarModules(opts: {
     else out.push(multi);
   }
 
-  return pinAdvisorHubsFirst(applySidebarModuleOrder(out, opts.moduleOrder));
+  return orderSidebarModules(out, opts.moduleOrder);
 }
 
 export function packagingFromCompanyMeta(
