@@ -1,6 +1,6 @@
 # Ops migrations (run in Supabase SQL Editor)
 
-**Rollup functions (run once):** paste `supabase/migrations/20260926_lock_rollup_execute.sql`. It leaves company summary functions executable only by the service role. Safe to re-run.
+**Rollup functions (run once):** open `RUN_THIS_FOR_LOCK_ROLLUPS.sql` at the top of the repo (same script as `supabase/migrations/20260926_lock_rollup_execute.sql`). It leaves company summary functions executable only by the service role. Safe to re-run.
 
 **GymAdvisor / VUKA membership stores (required):** paste this one file in the Supabase SQL editor:
 
