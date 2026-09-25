@@ -5,7 +5,6 @@ import { ADVISOR_SKINS } from '@/lib/brand/advisor-skins';
 import {
   deploymentMeta,
   probeProfileColumns,
-  type ProfileColumnProbeResult,
 } from '@/lib/system/schema-probe';
 
 const advisorRegistry = ADVISOR_SKINS.map((s) => ({
@@ -95,10 +94,12 @@ export async function runHealthOps(request: NextRequest) {
       ops:
         'Vercel → Project → Settings → Environment Variables → PAYSTACK_SECRET_KEY (Production). Redeploy once after setting.',
       webhookPulse: paystackPulse,
-      webhookStale: paystackPulse?.stale ?? !paystackSecret,
-      webhookLastAt: paystackPulse?.lastAt ?? null,
-      webhookAgeHours: paystackPulse?.ageHours ?? null,
-      webhookLast24h: paystackPulse?.last24hCount ?? 0,
+      webhookStale: paystackPulse?.stale ?? false,
+      webhookLastAt: paystackPulse?.lastRealAt ?? null,
+      webhookLastRealAt: paystackPulse?.lastRealAt ?? null,
+      webhookProbeAt: paystackPulse?.lastProbeAt ?? null,
+      webhookAgeHours: paystackPulse?.lastRealAgeHours ?? null,
+      webhookLast24h: paystackPulse?.real24hCount ?? 0,
     },
   };
   checks.verifynow = {
@@ -181,18 +182,6 @@ export async function runHealthOps(request: NextRequest) {
 
   try {
     const supabase = getSupabaseServer();
-    const t0 = Date.now();
-
-    const profiles = await supabase
-      .from('profiles')
-      .select('id', { count: 'exact', head: true });
-    checks.profiles = {
-      ok: !profiles.error,
-      ms: Date.now() - t0,
-      error: profiles.error?.message,
-      count: profiles.count ?? null,
-    };
-
     const softTables = [
       'products',
       'purchase_orders',
@@ -203,26 +192,6 @@ export async function runHealthOps(request: NextRequest) {
       'countries',
       'provinces',
     ] as const;
-
-    const softResults = await Promise.all(
-      softTables.map(async (table) => {
-        const t = Date.now();
-        const res = await supabase
-          .from(table)
-          .select('id', { count: 'exact', head: true });
-        return { table, t, res };
-      })
-    );
-    for (const { table, t, res } of softResults) {
-      checks[table] = {
-        ok: !res.error,
-        ms: Date.now() - t,
-        error: res.error?.message,
-        count: res.count ?? null,
-      };
-    }
-
-    // Settle-by-default tables (P0 ops migrations)
     const settleTables = [
       {
         key: 'customer_invoice_payments',
@@ -237,32 +206,61 @@ export async function runHealthOps(request: NextRequest) {
         migration: '20260718_installments_collections.sql',
       },
     ] as const;
+
+    const t0 = Date.now();
+    const [profiles, softResults, settleResults, colProbe, goldenLoop] = await Promise.all([
+      supabase.from('profiles').select('id', { count: 'exact', head: true }),
+      Promise.all(
+        softTables.map(async (table) => {
+          const t = Date.now();
+          const res = await supabase
+            .from(table)
+            .select('id', { count: 'exact', head: true });
+          return { table, ms: Date.now() - t, res };
+        })
+      ),
+      Promise.all(
+        settleTables.map(async ({ key, migration }) => {
+          const t = Date.now();
+          const res = await supabase
+            .from(key)
+            .select('id', { count: 'exact', head: true });
+          return { key, migration, ms: Date.now() - t, res };
+        })
+      ),
+      probeProfileColumns(),
+      import('@/lib/system/golden-loop-probe')
+        .then((m) => m.probeGoldenLoopTables(supabase))
+        .catch(() => null),
+    ]);
+    checks.profiles = {
+      ok: !profiles.error,
+      ms: Date.now() - t0,
+      error: profiles.error?.message,
+      count: profiles.count ?? null,
+    };
+    for (const { table, ms, res } of softResults) {
+      checks[table] = {
+        ok: !res.error,
+        ms,
+        error: res.error?.message,
+        count: res.count ?? null,
+      };
+    }
     const settleMissing: string[] = [];
-    const settleResults = await Promise.all(
-      settleTables.map(async ({ key, migration }) => {
-        const t = Date.now();
-        const res = await supabase
-          .from(key)
-          .select('id', { count: 'exact', head: true });
-        return { key, migration, t, res };
-      })
-    );
-    for (const { key, migration, t, res } of settleResults) {
+    for (const { key, migration, ms, res } of settleResults) {
       const missing =
         Boolean(res.error) &&
         /relation|does not exist|schema cache/i.test(res.error?.message || '');
       checks[key] = {
         ok: !missing && !res.error,
-        ms: Date.now() - t,
+        ms,
         error: res.error?.message,
         count: res.count ?? null,
         detail: { migration, requiredFor: 'settle-by-default' },
       };
       if (missing) settleMissing.push(`${key} (${migration})`);
     }
-
-    // Column-level gate for banking / discovery / verification
-    const colProbe: ProfileColumnProbeResult = await probeProfileColumns();
     const optionalMissing = colProbe.optionalMissing ?? [];
     const ghostColumns = colProbe.ghostColumns ?? [];
     checks.profiles_columns = {
@@ -279,16 +277,15 @@ export async function runHealthOps(request: NextRequest) {
     const softOk = softTables.filter((t) => checks[t]?.ok).length;
     const softTotal = softTables.length;
     const schemaColumnsOk = colProbe.ok;
+    // Optional channels (WhatsApp, VerifyNow, ops email, extra columns) stay
+    // warnings. Degraded means a blocker: env, schema, Paystack secret, or
+    // a missing settle table.
     const degraded =
       coreOk &&
       (softOk < softTotal ||
         !schemaColumnsOk ||
         !checks.paystack.ok ||
-        !checks.verifynow.ok ||
-        !checks.twilio_whatsapp.ok ||
-        optionalMissing.length > 0 ||
-        settleMissing.length > 0 ||
-        !checks.ops_alert.ok);
+        settleMissing.length > 0);
 
     // P0 production readiness (public — no secrets)
     const p0Blockers: string[] = [];
@@ -328,20 +325,10 @@ export async function runHealthOps(request: NextRequest) {
       p0Warnings.push('VERIFYNOW_API_KEY not set — CIPC match soft-fails');
     }
     if (checks.paystack.ok && paystackPulse) {
-      // Quiet paid traffic is normal between CIPC/charges. Do not put it on
-      // the global dashboard banner — it looks like the deploy failed.
-      // Ops board still shows lastRealAgeHours. Set PAYSTACK_WARN_QUIET=1
-      // to surface silence as a warning (high-volume settle).
-      const warnQuiet =
-        String(process.env.PAYSTACK_WARN_QUIET || '').toLowerCase() === '1' ||
-        String(process.env.PAYSTACK_WARN_QUIET || '').toLowerCase() === 'true';
-      if (
-        warnQuiet &&
-        paystackPulse.status === 'stale' &&
-        paystackPulse.stale
-      ) {
+      // Alert on the last real charge/CIPC, not the hourly reachability probe.
+      if (paystackPulse.status === 'stale' && paystackPulse.stale) {
         p0Warnings.push(
-          `Paystack real webhook quiet (last charge/CIPC ${paystackPulse.lastRealAgeHours ?? paystackPulse.ageHours ?? '—'}h ago, threshold=${paystackPulse.staleHoursThreshold ?? 72}h) — check Paystack Dashboard → Webhooks delivery logs for https://www.supplieradvisor.com/api/paystack/webhook`
+          `Paystack real webhook quiet (last charge/CIPC ${paystackPulse.lastRealAgeHours ?? '—'}h ago, threshold=${paystackPulse.staleHoursThreshold ?? 72}h) — check Paystack Dashboard → Webhooks delivery logs for https://www.supplieradvisor.com/api/paystack/webhook`
         );
       } else if (
         (paystackPulse.status === 'never' || !paystackPulse.lastAt) &&
@@ -362,37 +349,25 @@ export async function runHealthOps(request: NextRequest) {
       );
     }
 
-    // Golden-loop / EPM / ESG table probe (30-day readiness)
-    let goldenLoop: Awaited<
-      ReturnType<typeof import('@/lib/system/golden-loop-probe').probeGoldenLoopTables>
-    > | null = null;
-    try {
-      const { probeGoldenLoopTables } = await import(
-        '@/lib/system/golden-loop-probe'
+    if (goldenLoop?.missing.length) {
+      p0Warnings.push(
+        `Golden-loop tables missing: ${goldenLoop.missing.slice(0, 6).join(', ')}`
       );
-      goldenLoop = await probeGoldenLoopTables(supabase);
-      if (goldenLoop.missing.length) {
-        p0Warnings.push(
-          `Golden-loop tables missing: ${goldenLoop.missing.slice(0, 6).join(', ')}`
-        );
-        for (const m of goldenLoop.migrationsToApply) {
-          if (!settleMissing.includes(m)) settleMissing.push(m);
-        }
+      for (const m of goldenLoop.migrationsToApply) {
+        if (!settleMissing.includes(m)) settleMissing.push(m);
       }
-      for (const t of goldenLoop.tables) {
-        if (!checks[t.key]) {
-          checks[t.key] = {
-            ok: t.ok,
-            error: t.error,
-            detail: {
-              migration: t.migration,
-              requiredFor: t.requiredFor,
-            },
-          };
-        }
+    }
+    for (const t of goldenLoop?.tables || []) {
+      if (!checks[t.key]) {
+        checks[t.key] = {
+          ok: t.ok,
+          error: t.error,
+          detail: {
+            migration: t.migration,
+            requiredFor: t.requiredFor,
+          },
+        };
       }
-    } catch {
-      goldenLoop = null;
     }
 
     const p0Readiness = {

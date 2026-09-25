@@ -24,6 +24,13 @@ import type {
   ManagementCashTxn,
 } from '@/lib/accounting/management-cashflow';
 
+type ChartPick = {
+  id: number;
+  code: string;
+  name: string;
+  is_header?: boolean | null;
+};
+
 export default function ManagementCashflowPage() {
   return (
     <CompanyRequired>
@@ -45,6 +52,9 @@ function Inner() {
   const [loading, setLoading] = useState(true);
   const [txnQuery, setTxnQuery] = useState('');
   const [shownTxns, setShownTxns] = useState(40);
+  const [uncodedOnly, setUncodedOnly] = useState(false);
+  const [chart, setChart] = useState<ChartPick[]>([]);
+  const [codingId, setCodingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,6 +70,21 @@ function Inner() {
       if (!res.ok) throw new Error(data.error || 'Failed to build cash flow');
       setStatement(data.statement || null);
       if (data.statement?.warning) toast.message(data.statement.warning);
+      const coaParams = new URLSearchParams({
+        companyId: String(companyId),
+        balances: '0',
+        limit: '500',
+      });
+      if (privyUserId) coaParams.set('privyUserId', privyUserId);
+      const coaRes = await fetch(`/api/accounting/chart-of-accounts?${coaParams}`);
+      const coa = await coaRes.json().catch(() => ({}));
+      if (coaRes.ok) {
+        setChart(
+          ((coa as { accounts?: ChartPick[] }).accounts || []).filter(
+            (account) => !account.is_header
+          )
+        );
+      }
     } catch (err) {
       setStatement(null);
       toast.error(err instanceof Error ? err.message : 'Failed');
@@ -111,8 +136,42 @@ function Inner() {
     [companyId, privyUserId]
   );
 
+  const codeLine = useCallback(
+    async (txn: ManagementCashTxn, glAccountId: number) => {
+      setCodingId(txn.id);
+      try {
+        const res = await fetch('/api/accounting/bank/allocate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            privyUserId,
+            action: 'allocate',
+            bank_transaction_id: txn.id,
+            gl_account_id: glAccountId,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(
+            (data as { error?: string }).error || 'Could not code this line'
+          );
+        }
+        toast.success('Bank line coded to the chart');
+        await load();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Could not code this line');
+      } finally {
+        setCodingId(null);
+      }
+    },
+    [companyId, privyUserId, load]
+  );
+
   const visibleTxns = useMemo(() => {
-    const rows = statement?.transactions || [];
+    const rows = (statement?.transactions || []).filter((row) =>
+      uncodedOnly ? row.account_id == null : true
+    );
     const q = txnQuery.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((row) =>
@@ -120,7 +179,7 @@ function Inner() {
         .toLowerCase()
         .includes(q)
     );
-  }, [statement, txnQuery]);
+  }, [statement, txnQuery, uncodedOnly]);
 
   const currency = statement?.currency || 'ZAR';
   const money = (n: number) => formatMoney(n, currency, { compact: false });
@@ -356,9 +415,20 @@ function Inner() {
               <div>
                 <h2 className="text-sm font-bold text-slate-900">Transactions</h2>
                 <p className="text-[11px] text-slate-500">
-                  Comment on a bank line to explain it. The note is saved on that transaction.
+                  Comment on a line, and code any unallocated line to a chart account. Coding posts it into the ledger.
                 </p>
               </div>
+              <label className="inline-flex items-center gap-2 text-xs font-semibold text-neutral-600">
+                <input
+                  type="checkbox"
+                  checked={uncodedOnly}
+                  onChange={(e) => {
+                    setUncodedOnly(e.target.checked);
+                    setShownTxns(40);
+                  }}
+                />
+                Uncoded only
+              </label>
               <label className="block text-xs font-semibold text-neutral-600 sm:w-64">
                 Find a line
                 <input
@@ -398,8 +468,33 @@ function Inner() {
                           {row.description || '—'}
                         </td>
                         <td className="px-4 py-3 text-slate-600">
-                          <span className="font-mono text-xs">{row.code || '—'}</span>
-                          <span className="ml-2">{row.name}</span>
+                          {row.account_id == null ? (
+                            <select
+                              aria-label={`Code ${row.description || row.date}`}
+                              defaultValue=""
+                              disabled={codingId === row.id || chart.length === 0}
+                              onChange={(e) => {
+                                const id = Number(e.target.value);
+                                e.target.value = '';
+                                if (Number.isFinite(id) && id > 0) void codeLine(row, id);
+                              }}
+                              className="w-full max-w-[240px] rounded-xl border border-neutral-200 px-2 py-1.5 text-sm"
+                            >
+                              <option value="">
+                                {codingId === row.id ? 'Coding…' : 'Code to account'}
+                              </option>
+                              {chart.map((account) => (
+                                <option key={account.id} value={account.id}>
+                                  {account.code} {account.name}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <>
+                              <span className="font-mono text-xs">{row.code || '—'}</span>
+                              <span className="ml-2">{row.name}</span>
+                            </>
+                          )}
                         </td>
                         <td className={`px-4 py-3 text-right tabular-nums whitespace-nowrap ${tone(row.amount)}`}>
                           {money(row.amount)}
