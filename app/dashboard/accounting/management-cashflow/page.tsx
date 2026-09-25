@@ -415,7 +415,7 @@ function Inner() {
               <div>
                 <h2 className="text-sm font-bold text-slate-900">Transactions</h2>
                 <p className="text-[11px] text-slate-500">
-                  Comment on a line, and code any unallocated line to a chart account. Coding posts it into the ledger.
+                  Comment on a line, or code an unallocated line. A receipt or payment that matches one open invoice settles that invoice. It is not posted to sales or expenses again.
                 </p>
               </div>
               <label className="inline-flex items-center gap-2 text-xs font-semibold text-neutral-600">

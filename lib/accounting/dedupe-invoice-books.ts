@@ -112,6 +112,63 @@ export function extraCogsJournalIds(opts: {
   });
 }
 
+export type OpenInvoiceForBank = {
+  id: number;
+  invoice_number?: string | null;
+  total_amount?: number | null;
+  amount_paid?: number | null;
+  status?: string | null;
+  counterparty_name?: string | null;
+};
+
+function roundMoney(n: number): number {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+function isClosedInvoiceStatus(status: string | null | undefined): boolean {
+  return ['draft', 'void', 'cancelled', 'canceled', 'paid'].includes(
+    String(status || '').toLowerCase()
+  );
+}
+
+/**
+ * One open invoice for this receipt or payment.
+ * Invoice number in the text wins. Otherwise the amount must match exactly
+ * one open balance. Two invoices with the same balance are left alone.
+ */
+export function soleOpenInvoiceForBankLine(opts: {
+  memo: string;
+  amount: number;
+  invoices: OpenInvoiceForBank[];
+}): OpenInvoiceForBank | null {
+  const live = opts.invoices.filter((inv) => !isClosedInvoiceStatus(inv.status));
+  const memo = String(opts.memo || '').toUpperCase();
+  const numbered = live.filter((inv) => {
+    const num = String(inv.invoice_number || '').trim().toUpperCase();
+    return num.length >= 6 && memo.includes(num);
+  });
+  if (numbered.length === 1) return numbered[0];
+  if (numbered.length > 1) return null;
+
+  const want = Math.abs(Number(opts.amount) || 0);
+  if (want < 0.02) return null;
+  const amountHits = live.filter((inv) => {
+    const total = Math.abs(Number(inv.total_amount) || 0);
+    const paid = Math.abs(Number(inv.amount_paid) || 0);
+    const due = roundMoney(total - paid);
+    return Math.abs(due - want) < 0.05;
+  });
+  if (amountHits.length === 1) return amountHits[0];
+  if (amountHits.length === 0) return null;
+
+  const named = amountHits.filter((inv) => {
+    const name = String(inv.counterparty_name || '').trim().toUpperCase();
+    const token = name.split(/\s+/).find((word) => word.length >= 5);
+    return Boolean(token && memo.includes(token));
+  });
+  return named.length === 1 ? named[0] : null;
+}
+
 export function bankIncomeMatchesInvoice(opts: {
   memo: string;
   amount: number;
