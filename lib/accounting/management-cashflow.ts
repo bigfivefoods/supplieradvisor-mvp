@@ -350,6 +350,34 @@ export function assembleManagementCashflow(opts: {
   };
 }
 
+type BankTxnQueryRow = {
+  id?: string | number | null;
+  txn_date?: string | null;
+  amount?: number | string | null;
+  description?: string | null;
+  notes?: string | null;
+  gl_account_id?: number | string | null;
+  allocation_status?: string | null;
+  status?: string | null;
+};
+
+function mapBankTxnRow(row: BankTxnQueryRow): BankCashLine {
+  return {
+    id: row.id != null ? String(row.id) : null,
+    date: String(row.txn_date || '').slice(0, 10),
+    amount: Number(row.amount || 0),
+    description: row.description != null ? String(row.description) : null,
+    comment: row.notes != null ? String(row.notes) : null,
+    gl_account_id:
+      row.gl_account_id != null && row.gl_account_id !== ''
+        ? Number(row.gl_account_id)
+        : null,
+    allocation_status:
+      row.allocation_status != null ? String(row.allocation_status) : null,
+    status: row.status != null ? String(row.status) : null,
+  };
+}
+
 async function fetchBankCashLines(opts: {
   profileId: number;
   from: string;
@@ -359,22 +387,36 @@ async function fetchBankCashLines(opts: {
   const lines: BankCashLine[] = [];
   let offset = 0;
   let warning: string | undefined;
-  let columns =
-    'id, txn_date, amount, description, notes, gl_account_id, allocation_status, status';
+  let withNotes = true;
   while (offset < CAP) {
-    const { data, error } = await supabase
+    const withNotesQuery = supabase
       .from('bank_transactions')
-      .select(columns)
+      .select(
+        'id, txn_date, amount, description, notes, gl_account_id, allocation_status, status'
+      )
       .eq('profile_id', opts.profileId)
       .gte('txn_date', opts.from)
       .lte('txn_date', opts.to)
       .order('txn_date', { ascending: true })
       .order('id', { ascending: true })
       .range(offset, offset + PAGE - 1);
+    const withoutNotesQuery = supabase
+      .from('bank_transactions')
+      .select(
+        'id, txn_date, amount, description, gl_account_id, allocation_status, status'
+      )
+      .eq('profile_id', opts.profileId)
+      .gte('txn_date', opts.from)
+      .lte('txn_date', opts.to)
+      .order('txn_date', { ascending: true })
+      .order('id', { ascending: true })
+      .range(offset, offset + PAGE - 1);
+    const { data, error } = withNotes
+      ? await withNotesQuery
+      : await withoutNotesQuery;
     if (error) {
-      if (/notes|42703|column/i.test(error.message) && columns.includes('notes')) {
-        columns =
-          'id, txn_date, amount, description, gl_account_id, allocation_status, status';
+      if (withNotes && /notes|42703|column/i.test(error.message)) {
+        withNotes = false;
         warning =
           'Bank comments are not available until the notes column is on bank transactions.';
         continue;
@@ -382,20 +424,8 @@ async function fetchBankCashLines(opts: {
       warning = error.message;
       break;
     }
-    const page = data || [];
-    for (const row of page) {
-      lines.push({
-        id: row.id != null ? String(row.id) : null,
-        date: String(row.txn_date || '').slice(0, 10),
-        amount: Number(row.amount || 0),
-        description: row.description != null ? String(row.description) : null,
-        comment:
-          'notes' in row && row.notes != null ? String(row.notes) : null,
-        gl_account_id: row.gl_account_id != null ? Number(row.gl_account_id) : null,
-        allocation_status: row.allocation_status != null ? String(row.allocation_status) : null,
-        status: row.status != null ? String(row.status) : null,
-      });
-    }
+    const page = (data || []) as BankTxnQueryRow[];
+    for (const row of page) lines.push(mapBankTxnRow(row));
     if (page.length < PAGE) {
       return { lines, warning, truncated: false };
     }
