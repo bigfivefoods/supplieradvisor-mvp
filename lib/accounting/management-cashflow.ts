@@ -13,7 +13,8 @@ import {
   planOperatingCashFromBudgetRows,
   type BudgetPlanRow,
 } from '@/lib/accounting/cash-flow-budget';
-import { monthsInRange } from '@/lib/accounting/cash-flow-ias7';
+import { isCashAccount, monthsInRange } from '@/lib/accounting/cash-flow-ias7';
+import { dayBeforeIso, fetchAccountTotals } from '@/lib/accounting/account-totals';
 import { getCachedCoa } from '@/lib/accounting/read-cache';
 
 export type BankCashLine = {
@@ -83,6 +84,12 @@ export type ManagementCashflow = {
   txnCount: number;
   excludedCount: number;
   unallocatedCount: number;
+  /** Signed bank amount on lines that are not coded to an account. */
+  unallocatedNet: number;
+  /** Movement on bank and cash GL accounts from posted journals. Null when totals could not be read. */
+  ledgerCashMovement: number | null;
+  /** Bank net minus ledger cash movement. */
+  cashGap: number | null;
   actualIn: number;
   actualOut: number;
   actualNet: number;
@@ -163,6 +170,8 @@ export function assembleManagementCashflow(opts: {
   accounts: CashAccountRef[];
   truncated?: boolean;
   warning?: string | null;
+  /** Posted cash and bank GL movement for the same dates. */
+  ledgerCashMovement?: number | null;
 }): ManagementCashflow {
   const from = opts.from.slice(0, 10);
   const to = opts.to.slice(0, 10);
@@ -321,6 +330,7 @@ export function assembleManagementCashflow(opts: {
     plan.set
       ? 'Budget is the 12-month chart plan for this period: revenue as receipts, expenses and cost of sales as payments. Collections and payment timing can differ from when income and costs are recognised.'
       : 'No budget amounts fall in this period. Enter a 12-month plan to compare.',
+    'Ledger cash is the movement on bank and cash accounts in posted journals. The gap is bank net minus that movement. Unallocated lines are still inside the bank total; they are the part not coded to an account.',
   ];
   if (opts.truncated) {
     notes.push(`Showing the first ${CAP.toLocaleString('en-ZA')} bank lines in this period.`);
@@ -333,6 +343,16 @@ export function assembleManagementCashflow(opts: {
     txnCount,
     excludedCount,
     unallocatedCount,
+    unallocatedNet: round2(
+      (actualByAccount.get(null)?.inflow || 0) -
+        (actualByAccount.get(null)?.outflow || 0)
+    ),
+    ledgerCashMovement:
+      opts.ledgerCashMovement == null ? null : round2(opts.ledgerCashMovement),
+    cashGap:
+      opts.ledgerCashMovement == null
+        ? null
+        : round2(actualNet - opts.ledgerCashMovement),
     actualIn,
     actualOut,
     actualNet,
@@ -490,6 +510,31 @@ export async function buildManagementCashflow(opts: {
     loadBudgetRows(opts.profileId, from, to, fyStartMonth),
     getCachedCoa(opts.profileId),
   ]);
+  const cashIds = new Set(
+    coa.filter((account) => isCashAccount(account)).map((account) => Number(account.id))
+  );
+  let ledgerCashMovement: number | null = null;
+  let ledgerWarning: string | undefined;
+  if (cashIds.size) {
+    const [opening, closing] = await Promise.all([
+      fetchAccountTotals({ profileId: opts.profileId, to: dayBeforeIso(from) }),
+      fetchAccountTotals({ profileId: opts.profileId, to }),
+    ]);
+    ledgerWarning = [opening.warning, closing.warning].filter(Boolean).join(' ') || undefined;
+    const unreadable =
+      (opening.warning && opening.rows.length === 0) ||
+      (closing.warning && closing.rows.length === 0);
+    if (!unreadable) {
+      const signed = (rows: { account_id: number; debit: number; credit: number }[]) =>
+        round2(
+          rows.reduce((sum, row) => {
+            if (!cashIds.has(Number(row.account_id))) return sum;
+            return sum + Number(row.debit || 0) - Number(row.credit || 0);
+          }, 0)
+        );
+      ledgerCashMovement = round2(signed(closing.rows) - signed(opening.rows));
+    }
+  }
   return assembleManagementCashflow({
     from,
     to,
@@ -504,7 +549,8 @@ export async function buildManagementCashflow(opts: {
       account_type: String(a.account_type || ''),
     })),
     truncated: bank.truncated,
-    warning: bank.warning,
+    warning: [bank.warning, ledgerWarning].filter(Boolean).join(' ') || undefined,
+    ledgerCashMovement,
   });
 }
 

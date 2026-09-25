@@ -52,6 +52,7 @@ const report = assembleManagementCashflow({
     { id: 1, code: '4000', name: 'Sales', account_type: 'revenue' },
     { id: 2, code: '5000', name: 'Rent', account_type: 'expense' },
   ],
+  ledgerCashMovement: 750,
 });
 
 assert.equal(report.txnCount, 4);
@@ -93,5 +94,8 @@ assert.equal(report.transactions[0].description, 'Customer receipt');
 assert.equal(report.transactions[0].comment, 'March sales, paid late');
 assert.equal(report.transactions[0].code, '4000');
 assert.equal(report.transactions[3].date, '2026-04-02');
+assert.equal(report.unallocatedNet, 50);
+assert.equal(report.ledgerCashMovement, 750);
+assert.equal(report.cashGap, 50);
 
 console.log('management-cashflow.test.ts ok');

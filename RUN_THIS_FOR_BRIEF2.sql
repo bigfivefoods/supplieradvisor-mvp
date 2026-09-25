@@ -248,9 +248,9 @@ $$;
 REVOKE ALL ON FUNCTION public.sa_customers_hub_summary(bigint, bigint[]) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.sa_suppliers_hub_summary(bigint) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.sa_containers_hub_summary(bigint) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.sa_customers_hub_summary(bigint, bigint[]) TO service_role, authenticated;
-GRANT EXECUTE ON FUNCTION public.sa_suppliers_hub_summary(bigint) TO service_role, authenticated;
-GRANT EXECUTE ON FUNCTION public.sa_containers_hub_summary(bigint) TO service_role, authenticated;
+GRANT EXECUTE ON FUNCTION public.sa_customers_hub_summary(bigint, bigint[]) TO service_role;
+GRANT EXECUTE ON FUNCTION public.sa_suppliers_hub_summary(bigint) TO service_role;
+GRANT EXECUTE ON FUNCTION public.sa_containers_hub_summary(bigint) TO service_role;
 
 -- PO idempotency + unique chain tx
 DO $$

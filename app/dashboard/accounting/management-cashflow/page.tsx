@@ -174,6 +174,32 @@ function Inner() {
               }
             />
           </div>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+            <AccountingStat
+              label="Ledger cash"
+              value={
+                statement.ledgerCashMovement == null
+                  ? '—'
+                  : money(statement.ledgerCashMovement)
+              }
+              sub="Posted bank and cash accounts"
+            />
+            <AccountingStat
+              label="Bank minus ledger"
+              value={statement.cashGap == null ? '—' : money(statement.cashGap)}
+              warn={statement.cashGap != null && Math.abs(statement.cashGap) >= 0.05}
+            />
+            <AccountingStat
+              label="Unallocated bank"
+              value={money(statement.unallocatedNet)}
+              sub={
+                statement.unallocatedCount
+                  ? `${statement.unallocatedCount.toLocaleString('en-ZA')} lines not coded`
+                  : 'Every line is coded'
+              }
+              warn={statement.unallocatedCount > 0}
+            />
+          </div>
           <p className="text-[11px] leading-relaxed text-slate-500">
             {statement.txnCount.toLocaleString('en-ZA')} bank line
             {statement.txnCount === 1 ? '' : 's'}
