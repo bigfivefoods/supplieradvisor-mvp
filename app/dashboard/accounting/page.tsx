@@ -249,9 +249,17 @@ function HubInner() {
       accent: 'from-emerald-50 to-white border-emerald-100',
     },
     {
+      href: '/dashboard/accounting/management-cashflow',
+      icon: Wallet,
+      code: '16',
+      title: 'Management cash flow',
+      desc: 'Imported bank transactions versus the 12-month budget.',
+      accent: 'from-teal-50 to-white border-teal-100',
+    },
+    {
       href: '/dashboard/accounting/afs',
       icon: FileText,
-      code: '16',
+      code: '17',
       title: 'Annual financial statements',
       desc: 'Compiled AFS pack — SoFP, P&L, equity, cash flow, notes.',
       accent: 'from-slate-50 to-white border-slate-200',
@@ -259,7 +267,7 @@ function HubInner() {
     {
       href: '/dashboard/accounting/reports',
       icon: BarChart3,
-      code: '17',
+      code: '18',
       title: 'Reports & analytics',
       desc: 'P&L, balance sheet, cash flow, budget vs actual, aging, forecast.',
       accent: 'from-sky-50 to-white border-sky-100',
@@ -267,7 +275,7 @@ function HubInner() {
     {
       href: '/dashboard/accounting/entities',
       icon: Globe,
-      code: '18',
+      code: '19',
       title: 'Legal entities & group',
       desc: 'Multi-entity books tied to holding / association structure.',
       accent: 'from-amber-50 to-white border-amber-100',
@@ -277,7 +285,7 @@ function HubInner() {
     {
       href: '/dashboard/accounting/settings',
       icon: Settings,
-      code: '19',
+      code: '20',
       title: 'Settings',
       desc: 'FY start, periods, lock date, prefixes, customer AR and supplier AP parents.',
       accent: 'from-cyan-50 to-white border-cyan-100',

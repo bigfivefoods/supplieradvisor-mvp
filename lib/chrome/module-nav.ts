@@ -573,6 +573,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Statements',
       },
       {
+        name: 'Cash vs budget',
+        href: '/dashboard/accounting/management-cashflow',
+        desc: 'Management cash flow · bank actual vs budget',
+        section: 'Statements',
+      },
+      {
         name: 'AFS',
         href: '/dashboard/accounting/afs',
         desc: 'Annual financial statements',
