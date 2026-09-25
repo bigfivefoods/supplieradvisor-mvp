@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
+  Download,
   Loader2,
   Plus,
   Search,
@@ -34,6 +35,9 @@ import {
 } from '@/components/accounting/AccountingShell';
 import { Panel } from '@/components/relationship/RelationshipChrome';
 import { ChartCard, MixDoughnut } from '@/components/accounting/AccountingCharts';
+import PeriodSlicer from '@/components/accounting/PeriodSlicer';
+import { FinanceWorkspaceNote } from '@/components/accounting/FinanceWorkspaceNote';
+import { useAccountingPeriod } from '@/lib/accounting/use-period';
 
 export default function ChartOfAccountsPage() {
   return (
@@ -47,8 +51,14 @@ function Inner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
+  const { fyStartMonth, period, setPeriod } = useAccountingPeriod(
+    companyId,
+    privyUserId,
+    'full_fy'
+  );
   const [accounts, setAccounts] = useState<CoaAccount[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [ensuringParty, setEnsuringParty] = useState(false);
   const [q, setQ] = useState('');
@@ -68,21 +78,84 @@ function Inner() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ companyId: String(companyId) });
+      const params = new URLSearchParams({
+        companyId: String(companyId),
+        from: period.from,
+        to: period.to,
+      });
       if (privyUserId) params.set('privyUserId', privyUserId);
       if (typeFilter !== 'all') params.set('type', typeFilter);
       if (q) params.set('q', q);
       params.set('limit', '500');
       const res = await fetch(`/api/accounting/chart-of-accounts?${params}`);
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load chart');
       setAccounts(data.accounts || []);
       if (data.warning) toast.message(data.warning, { description: data.hint });
-    } catch {
+    } catch (err) {
       setAccounts([]);
+      toast.error(err instanceof Error ? err.message : 'Failed to load chart');
     } finally {
       setLoading(false);
     }
-  }, [companyId, privyUserId, typeFilter, q]);
+  }, [companyId, privyUserId, typeFilter, q, period.from, period.to]);
+
+  async function downloadXlsx() {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams({
+        companyId: String(companyId),
+        format: 'xlsx',
+        from: period.from,
+        to: period.to,
+        label: period.label,
+      });
+      if (privyUserId) params.set('privyUserId', privyUserId);
+      if (typeFilter !== 'all') params.set('type', typeFilter);
+      if (q.trim()) params.set('q', q.trim());
+      const res = await fetch(`/api/accounting/chart-of-accounts?${params}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(
+          (data as { error?: string }).error || 'Could not build spreadsheet'
+        );
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const named = res.headers
+        .get('Content-Disposition')
+        ?.match(/filename="([^"]+)"/);
+      a.href = url;
+      a.download = named?.[1] || 'chart-of-accounts.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      const narrowed = typeFilter !== 'all' || q.trim();
+      toast.success(
+        narrowed
+          ? `Chart downloaded · ${period.label} · current search and type`
+          : `Chart downloaded · ${period.label}`
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Download failed');
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  const posting = accounts.filter((account) => !account.is_header);
+  const periodDebit = posting.reduce(
+    (sum, account) => sum + Number(account.period_debit || 0),
+    0
+  );
+  const periodCredit = posting.reduce(
+    (sum, account) => sum + Number(account.period_credit || 0),
+    0
+  );
+  const money = (amount: number, currency?: string | null) =>
+    formatMoney(amount, currency || 'ZAR', { compact: false });
 
   useEffect(() => {
     const t = setTimeout(() => void load(), 200);
@@ -193,9 +266,23 @@ function Inner() {
       <AccountingHeader
         title="Chart of"
         titleAccent="Accounts"
-        description="Manage your flexible GL structure. Set where new customers and suppliers nest in Accounting → Settings — each party then gets a unique AR/AP number."
+        description="Posted balances for the period you select, with a spreadsheet download. Set where new customers and suppliers nest in Accounting → Settings — each party then gets a unique AR/AP number."
         action={
           <>
+            <button
+              type="button"
+              onClick={() => void downloadXlsx()}
+              disabled={exporting}
+              title={`Download ${period.label} as .xlsx`}
+              className="btn-secondary !py-2.5 !px-5 text-sm"
+            >
+              {exporting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              Download .xlsx
+            </button>
             <button
               type="button"
               onClick={() => void seedDefaults()}
@@ -233,6 +320,14 @@ function Inner() {
         }
       />
 
+      <PeriodSlicer
+        value={period}
+        onChange={setPeriod}
+        fyStartMonth={fyStartMonth}
+        className="mb-3"
+      />
+      <FinanceWorkspaceNote className="mb-4" />
+
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
@@ -267,27 +362,17 @@ function Inner() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 mb-4">
-        <AccountingStat label="Accounts" value={String(accounts.length)} />
+        <AccountingStat
+          label="Accounts"
+          value={String(accounts.length)}
+          sub={period.label}
+        />
         <AccountingStat
           label="Active"
           value={String(accounts.filter((a) => a.is_active !== false).length)}
         />
-        <AccountingStat
-          label="P&L"
-          value={String(
-            accounts.filter((a) =>
-              ['revenue', 'expense', 'cogs'].includes(String(a.account_type))
-            ).length
-          )}
-        />
-        <AccountingStat
-          label="Balance sheet"
-          value={String(
-            accounts.filter((a) =>
-              ['asset', 'liability', 'equity'].includes(String(a.account_type))
-            ).length
-          )}
-        />
+        <AccountingStat label="Period debits" value={formatMoney(periodDebit)} />
+        <AccountingStat label="Period credits" value={formatMoney(periodCredit)} />
       </div>
       {accounts.length > 0 ? (
         <div className="grid gap-4 lg:grid-cols-2 mb-4 print:hidden">
@@ -303,8 +388,8 @@ function Inner() {
             />
           </ChartCard>
           <ChartCard
-            title="Balances"
-            subtitle="Absolute GL balance by type"
+            title="Closing balances"
+            subtitle={`Absolute normal balance at ${period.to}`}
             height={220}
           >
             <MixDoughnut
@@ -323,6 +408,12 @@ function Inner() {
         </div>
       ) : null}
 
+      <p className="mb-3 text-[11px] leading-relaxed text-slate-500">
+        {period.label} · {period.from} to {period.to}. Opening is posted activity
+        before the period. Debit and credit are journals inside it. Closing is
+        the balance at period end, positive when the account is in its normal
+        sign.
+      </p>
       <Panel>
         {loading ? (
           <div className="flex justify-center py-16">
@@ -331,27 +422,40 @@ function Inner() {
         ) : accounts.length === 0 ? (
           <div className="px-6 py-14 text-center">
             <p className="text-sm text-neutral-500 mb-4">
-              No accounts yet. Seed a full starter chart or add your first account.
+              {q.trim() || typeFilter !== 'all'
+                ? 'No accounts match this search or type. Clear the filter to see the full chart.'
+                : 'No accounts yet. Seed a full starter chart or add your first account.'}
             </p>
-            <button
-              type="button"
-              onClick={() => void seedDefaults()}
-              disabled={seeding}
-              className="btn-primary !py-2.5 !px-5 text-sm"
-            >
-              <Sparkles className="w-4 h-4" /> Seed default CoA
-            </button>
+            {q.trim() || typeFilter !== 'all' ? null : (
+              <button
+                type="button"
+                onClick={() => void seedDefaults()}
+                disabled={seeding}
+                className="btn-primary !py-2.5 !px-5 text-sm"
+              >
+                <Sparkles className="w-4 h-4" /> Seed default CoA
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[880px] text-sm">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-400 border-b border-neutral-100">
                   <th className="px-4 py-3 font-semibold">Code</th>
                   <th className="px-4 py-3 font-semibold">Name</th>
                   <th className="px-4 py-3 font-semibold">Type</th>
                   <th className="px-4 py-3 font-semibold">Book</th>
-                  <th className="px-4 py-3 font-semibold text-right">Balance</th>
+                  <th className="px-4 py-3 font-semibold text-right">Opening</th>
+                  <th className="px-4 py-3 font-semibold text-right" title="Posted debits in the selected period">
+                    Debit
+                  </th>
+                  <th className="px-4 py-3 font-semibold text-right" title="Posted credits in the selected period">
+                    Credit
+                  </th>
+                  <th className="px-4 py-3 font-semibold text-right" title="Normal balance at period end">
+                    Closing
+                  </th>
                   <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 font-semibold text-right">Active</th>
                 </tr>
@@ -419,8 +523,17 @@ function Inner() {
                         );
                       })()}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums font-medium">
-                      {a.is_header ? '—' : formatMoney(a.balance || 0, a.currency || 'ZAR')}
+                    <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">
+                      {a.is_header ? '—' : money(a.opening_balance || 0, a.currency)}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">
+                      {a.is_header ? '—' : money(a.period_debit || 0, a.currency)}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">
+                      {a.is_header ? '—' : money(a.period_credit || 0, a.currency)}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap font-medium">
+                      {a.is_header ? '—' : money(a.balance || 0, a.currency)}
                     </td>
                     <td className="px-4 py-3">
                       <span
