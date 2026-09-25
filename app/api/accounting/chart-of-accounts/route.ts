@@ -2,14 +2,43 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertAccountingAccess } from '@/lib/accounting/access';
 import { ensureDefaultCoa, parseCompanyId } from '@/lib/accounting/server';
-import { fetchAccountTotals } from '@/lib/accounting/account-totals';
+import { dayBeforeIso, fetchAccountTotals } from '@/lib/accounting/account-totals';
+import {
+  filterCoaAccounts,
+  parseIsoDateParam,
+  sliceCoaAccounts,
+} from '@/lib/accounting/coa-slice';
+import {
+  buildCoaWorkbook,
+  COA_XLSX_MIME,
+  coaExportFilename,
+} from '@/lib/accounting/coa-xlsx';
 import {
   getCachedCoa,
   invalidateAccountingReads,
 } from '@/lib/accounting/read-cache';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
-/** GET ?companyId=&seed=1&q= — list CoA; optional seed of defaults when empty */
+export const runtime = 'nodejs';
+export const maxDuration = 30;
+
+async function companyDisplayName(companyId: number): Promise<string> {
+  try {
+    const supabase = getSupabaseServer();
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('trading_name, legal_name')
+      .eq('id', companyId)
+      .maybeSingle();
+    return (
+      profile?.trading_name || profile?.legal_name || `Company #${companyId}`
+    );
+  } catch {
+    return `Company #${companyId}`;
+  }
+}
+
+/** GET ?companyId=&from=&to=&type=&q=&format=xlsx — list CoA, or download the period slice */
 export async function GET(request: NextRequest) {
   try {
     const companyId = parseCompanyId(request.nextUrl.searchParams.get('companyId'));
@@ -17,9 +46,32 @@ export async function GET(request: NextRequest) {
     const seed = request.nextUrl.searchParams.get('seed') === '1';
     const q = request.nextUrl.searchParams.get('q');
     const type = request.nextUrl.searchParams.get('type');
+    const format = request.nextUrl.searchParams.get('format');
+    const fromRaw = request.nextUrl.searchParams.get('from');
+    const toRaw = request.nextUrl.searchParams.get('to');
+    const from = parseIsoDateParam(fromRaw);
+    const to = parseIsoDateParam(toRaw);
 
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    if ((fromRaw && !from) || (toRaw && !to)) {
+      return NextResponse.json(
+        { error: 'from and to must be YYYY-MM-DD' },
+        { status: 400 }
+      );
+    }
+    if ((from && !to) || (!from && to)) {
+      return NextResponse.json(
+        { error: 'from and to must be provided together' },
+        { status: 400 }
+      );
+    }
+    if (from && to && from > to) {
+      return NextResponse.json(
+        { error: 'from must be on or before to' },
+        { status: 400 }
+      );
     }
 
     const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
@@ -38,43 +90,81 @@ export async function GET(request: NextRequest) {
     );
     await ensurePartyGlAccountsCached(companyId);
 
-    let accounts = await getCachedCoa(companyId);
-    if (type && type !== 'all') {
-      accounts = accounts.filter((a) => a.account_type === type);
-    }
-    if (q) {
-      const n = q.toLowerCase();
-      accounts = accounts.filter(
-        (a) =>
-          a.code?.toLowerCase().includes(n) ||
-          a.name?.toLowerCase().includes(n) ||
-          a.account_type?.toLowerCase().includes(n)
-      );
-    }
-
+    const accounts = await getCachedCoa(companyId);
     const wantBalances =
-      request.nextUrl.searchParams.get('balances') !== '0';
-    const bal: Record<number, number> = {};
-    if (wantBalances) {
-      const totals = await fetchAccountTotals({ profileId: companyId });
-      for (const row of totals.rows) {
-        bal[row.account_id] = row.debit - row.credit;
-      }
+      format === 'xlsx' || request.nextUrl.searchParams.get('balances') !== '0';
+
+    if (!wantBalances) {
+      return NextResponse.json({
+        success: true,
+        accounts: filterCoaAccounts(accounts, { type, q }).map((account) => ({
+          ...account,
+          balance: 0,
+        })),
+        seeded,
+        warning: seedWarning,
+      });
     }
 
-    const enriched = accounts.map((a) => {
-      const raw = bal[a.id] || 0;
-      // Present normal balance: liabilities/equity/revenue show credit-positive
-      const normal = a.normal_balance || (['liability', 'equity', 'revenue'].includes(a.account_type) ? 'credit' : 'debit');
-      const balance = normal === 'credit' ? -raw : raw;
-      return { ...a, balance };
-    });
+    let totalsWarning: string | undefined;
+    let sliced: ReturnType<typeof sliceCoaAccounts>;
+    if (from && to) {
+      const [openingTotals, periodTotals] = await Promise.all([
+        fetchAccountTotals({ profileId: companyId, to: dayBeforeIso(from) }),
+        fetchAccountTotals({ profileId: companyId, from, to }),
+      ]);
+      sliced = sliceCoaAccounts({
+        accounts,
+        opening: openingTotals.rows,
+        period: periodTotals.rows,
+      });
+      totalsWarning =
+        [openingTotals.warning, periodTotals.warning].filter(Boolean).join(' ') ||
+        undefined;
+    } else {
+      const totals = await fetchAccountTotals({ profileId: companyId });
+      sliced = sliceCoaAccounts({
+        accounts,
+        opening: [],
+        period: totals.rows,
+      });
+      totalsWarning = totals.warning;
+    }
+
+    const view = filterCoaAccounts(sliced, { type, q });
+    if (format === 'xlsx') {
+      const label = request.nextUrl.searchParams.get('label');
+      const bytes = new Uint8Array(
+        buildCoaWorkbook({
+          companyName: await companyDisplayName(companyId),
+          periodLabel:
+            label || (from && to ? `${from} to ${to}` : 'All posted activity'),
+          from,
+          to,
+          typeFilter: type,
+          search: q,
+          warning: seedWarning || totalsWarning,
+          rows: view,
+        })
+      );
+      const filename = coaExportFilename(from, to);
+      return new NextResponse(bytes, {
+        status: 200,
+        headers: {
+          'Content-Type': COA_XLSX_MIME,
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Content-Length': String(bytes.byteLength),
+          'Cache-Control': 'private, no-store',
+        },
+      });
+    }
 
     return NextResponse.json({
       success: true,
-      accounts: enriched,
+      accounts: view,
       seeded,
-      warning: seedWarning,
+      warning: seedWarning || totalsWarning,
+      period: from && to ? { from, to, label: request.nextUrl.searchParams.get('label') } : null,
     });
   } catch (e: unknown) {
     return NextResponse.json(
