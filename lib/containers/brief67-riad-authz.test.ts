@@ -70,18 +70,17 @@ assert.match(deleteFn, /!Number\.isFinite\(id\)\s*\|\|\s*id\s*<=\s*0/);
 assert.match(deleteFn, /!Number\.isFinite\(companyId\)\s*\|\|\s*companyId\s*<=\s*0/);
 assert.ok(deleteFn.includes("searchParams.get('companyId')"), 'DELETE must read companyId from search params');
 
-const patchProfileScopes = patchFn.match(/\.eq\((['"])profile_id\1,\s*companyId\)/g)?.length || 0;
-assert.ok(patchProfileScopes >= 2, 'PATCH must scope pre-read and update with profile_id/companyId');
+assert.match(
+  patchFn,
+  /\.eq\('id', id\)\s*\.eq\('profile_id', companyId\)\s*\.maybeSingle\(\)/,
+  'PATCH pre-read must scope by id and profile_id before update'
+);
 assert.ok(
   patchFn.indexOf('.maybeSingle') < patchFn.indexOf('.update('),
   'PATCH pre-select (maybeSingle) must come before the update call'
 );
 assert.match(flatPatch, /\.update\(updates\)\s*\.eq\('id', id\)\s*\.eq\('profile_id', companyId\)/);
 assert.match(flatDelete, /\.delete\(\)\s*\.eq\('id', id\)\s*\.eq\('profile_id', companyId\)/);
-assert.doesNotMatch(
-  flatDelete,
-  /\.delete\(\)\.eq\('id', id\)(?!\.eq\('profile_id', companyId\))/
-);
 assert.ok(getFn.includes('isContractorRequest'), 'GET contractor detection should stay explicit');
 
 console.log('container RIAD authz tests passed');

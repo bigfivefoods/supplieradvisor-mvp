@@ -430,14 +430,14 @@ export async function DELETE(request: NextRequest) {
   try {
     const id = Number(request.nextUrl.searchParams.get('id'));
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
-    if (!Number.isFinite(id) || id <= 0) return NextResponse.json({ error: 'id required' }, { status: 400 });
-    if (!Number.isFinite(companyId) || companyId <= 0) {
-      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
-    }
 
     // Contractors cannot delete — only business (no privyUserId path)
     if (request.nextUrl.searchParams.get('privyUserId')) {
       return NextResponse.json({ error: 'Contractors cannot delete RIAD entries' }, { status: 403 });
+    }
+    if (!Number.isFinite(id) || id <= 0) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
 
     const _gate = await requireCompanyAccess(request, companyId, {
