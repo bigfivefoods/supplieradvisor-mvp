@@ -257,6 +257,7 @@ export default function ContainerRiadRegister({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: item.id,
+          companyId: mode === 'business' ? companyId ?? undefined : undefined,
           status,
           containerId: item.container_id || fixedContainerId || undefined,
           privyUserId: mode === 'contractor' ? privyUserId : undefined,
@@ -308,7 +309,10 @@ export default function ContainerRiadRegister({
       return;
     }
     if (!confirm('Delete this RIAD entry?')) return;
-    const res = await fetch(`/api/containers/riad?id=${item.id}`, { method: 'DELETE' });
+    const res = await fetch(
+      `/api/containers/riad?id=${item.id}${mode === 'business' && companyId ? `&companyId=${companyId}` : ''}`,
+      { method: 'DELETE' }
+    );
     if (!res.ok) {
       const d = await res.json();
       toast.error(d.error || 'Delete failed');
