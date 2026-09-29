@@ -7,6 +7,8 @@ import {
   newPortalToken,
   normalizeSections,
   portalPublicPath,
+  customerPortalDocPdfHref,
+  customerPortalInvoicePdfHref,
   DEFAULT_PORTAL_SECTIONS,
 } from './trade-portal';
 
@@ -20,6 +22,18 @@ assert.match(portalTok, /^tp_[a-f0-9]{36}$/);
 assert.match(viewerTok, /^tv_[a-f0-9]{36}$/);
 assert.notEqual(portalTok, newPortalToken('portal'));
 assert.equal(portalPublicPath(viewerTok), `/portal/${encodeURIComponent(viewerTok)}`);
+assert.equal(
+  customerPortalInvoicePdfHref('tv_abc', 12),
+  '/api/public/portals/trade/invoice-pdf?token=tv_abc&id=12'
+);
+assert.equal(
+  customerPortalDocPdfHref('tv_abc', 9, 'quote'),
+  '/api/public/portals/trade/doc-pdf?token=tv_abc&id=9&type=quote'
+);
+assert.equal(
+  customerPortalDocPdfHref('tv_abc', 4, 'order'),
+  '/api/public/portals/trade/doc-pdf?token=tv_abc&id=4&type=order'
+);
 
 const sections = normalizeSections({ quotes: false, leftover: true });
 assert.equal(sections.quotes, false);

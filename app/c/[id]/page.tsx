@@ -23,6 +23,7 @@ import {
 } from '@/lib/seo/company-public';
 import VerifiedSlaBadge from '@/components/seo/VerifiedSlaBadge';
 import { SA_OG_IMAGE_URL } from '@/lib/brand/assets';
+import { publicStorePath } from '@/lib/storefront/public-store';
 
 /** Aggregate public ratings (quote QR + invoice feedback). Soft if table missing. */
 async function loadPublicRatingStats(companyId: number): Promise<{
@@ -304,6 +305,11 @@ export default async function PublicCompanyPage({
   const registrationNumber = c.registration_number;
   const beeLevel = c.bee_level;
   const website = c.website;
+  const storePath = publicStorePath({
+    tradingName: c.trading_name,
+    legalName: c.legal_name,
+    metadata: c.metadata,
+  });
   const publicRatings = await loadPublicRatingStats(c.id);
   const showBankBadge = (() => {
     const meta =
@@ -528,6 +534,14 @@ export default async function PublicCompanyPage({
           ) : null}
 
           <div className="mt-8 flex flex-wrap gap-3 items-center">
+            {storePath ? (
+              <Link
+                href={storePath}
+                className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
+              >
+                Order from catalogue
+              </Link>
+            ) : null}
             <Link
               href={`/me?join=1&company=${c.id}&brand=${encodeURIComponent(name)}&kind=customer`}
               className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"

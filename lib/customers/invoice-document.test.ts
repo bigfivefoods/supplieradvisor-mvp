@@ -3,6 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import {
+  commercialDocKindLabel,
   renderCommercialDocumentHtml,
   resolveCustomerVatNumber,
   type DocRenderInput,
@@ -44,5 +45,16 @@ assert.match(withBuyerVat, /VAT<\/strong> 4123456789/);
 
 const withoutBuyerVat = renderCommercialDocumentHtml(base);
 assert.doesNotMatch(withoutBuyerVat, /Bill to[\s\S]*VAT<\/strong>/);
+
+assert.equal(commercialDocKindLabel({ kind: 'quote', status: 'enquiry' }), 'Enquiry');
+assert.equal(commercialDocKindLabel({ kind: 'quote', status: 'sent' }), 'Quotation');
+const enquiryHtml = renderCommercialDocumentHtml({
+  ...base,
+  kind: 'quote',
+  status: 'enquiry',
+  number: 'ENQ-1',
+});
+assert.match(enquiryHtml, />Enquiry</);
+assert.match(enquiryHtml, /not a quotation/);
 
 console.log('invoice-document.test.ts ok');

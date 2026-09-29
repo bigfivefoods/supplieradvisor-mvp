@@ -154,11 +154,12 @@ export async function listAccountPeople(opts: {
   portalId: number;
   customerId?: number | null;
   supplierId?: number | null;
+  db?: { from: (table: string) => any };
 }): Promise<
   | { ok: true; people: TradePortalViewer[] }
   | { ok: false; error: string; missingTable?: boolean }
 > {
-  const supabase = getSupabaseServer();
+  const supabase = opts.db || getSupabaseServer();
   let q = supabase
     .from('trade_portal_viewers')
     .select('*')
@@ -181,7 +182,10 @@ export async function listAccountPeople(opts: {
       missingTable: isMissingRelation(error),
     };
   }
-  return { ok: true, people: (data || []).map((r) => mapViewer(asObject(r))) };
+  return {
+    ok: true,
+    people: (data || []).map((r: unknown) => mapViewer(asObject(r))),
+  };
 }
 
 export async function inviteTradePortalPerson(opts: {
@@ -194,6 +198,7 @@ export async function inviteTradePortalPerson(opts: {
   customerId?: number | null;
   supplierId?: number | null;
   sendEmail?: boolean;
+  db?: { from: (table: string) => any };
 }): Promise<
   | {
       ok: true;
@@ -236,7 +241,11 @@ export async function inviteTradePortalPerson(opts: {
     const { assertCustomerPortalParty } = await import(
       '@/lib/portals/assert-supplier-portal-party'
     );
-    const gate = await assertCustomerPortalParty(opts.companyId, customerId);
+    const gate = await assertCustomerPortalParty(
+      opts.companyId,
+      customerId,
+      opts.db
+    );
     if (!gate.ok) {
       return { ok: false, error: gate.error, status: gate.status };
     }
@@ -251,6 +260,7 @@ export async function inviteTradePortalPerson(opts: {
   const ensured = await ensureTradePortal({
     companyId: opts.companyId,
     kind: opts.kind,
+    db: opts.db,
   });
   if (!ensured.ok) {
     return {
@@ -265,6 +275,7 @@ export async function inviteTradePortalPerson(opts: {
     portalId: ensured.portal.id,
     customerId,
     supplierId,
+    db: opts.db,
   });
   if (!listed.ok) {
     return {
@@ -279,13 +290,36 @@ export async function inviteTradePortalPerson(opts: {
       (p) => String(p.email || '').toLowerCase() === email
     );
     if (same) {
+      const url = portalPublicUrl(same.token);
+      let emailSent = false;
+      let warning: string | undefined = 'This person already has access';
+      if (email && opts.sendEmail !== false) {
+        const supabaseHost = opts.db || getSupabaseServer();
+        const { data: host } = await supabaseHost
+          .from('profiles')
+          .select('trading_name, legal_name, logo_url')
+          .eq('id', opts.companyId)
+          .maybeSingle();
+        const mailed = await sendTradePortalAccessEmail({
+          to: email,
+          guestName: name,
+          hostName:
+            String(host?.trading_name || host?.legal_name || '').trim() ||
+            'SupplierAdvisor company',
+          kind: opts.kind,
+          portalUrl: url,
+          logoUrl: host?.logo_url ? String(host.logo_url) : null,
+        });
+        emailSent = mailed.sent;
+        warning = mailed.warning || warning;
+      }
       return {
         ok: true,
         viewer: same,
-        url: portalPublicUrl(same.token),
-        emailSent: false,
+        url,
+        emailSent,
         existing: true,
-        warning: 'This person already has access',
+        warning,
       };
     }
   }
@@ -297,7 +331,7 @@ export async function inviteTradePortalPerson(opts: {
     };
   }
 
-  const supabase = getSupabaseServer();
+  const supabase = opts.db || getSupabaseServer();
   const { data, error } = await supabase
     .from('trade_portal_viewers')
     .insert({
@@ -348,6 +382,8 @@ export async function issueAccountPortal(opts: {
   kind: TradePortalKind;
   customerId?: number | null;
   supplierId?: number | null;
+  sendEmail?: boolean;
+  db?: { from: (table: string) => any };
 }): Promise<
   | {
       ok: true;
@@ -359,7 +395,7 @@ export async function issueAccountPortal(opts: {
     }
   | { ok: false; error: string; status: number }
 > {
-  const supabase = getSupabaseServer();
+  const supabase = opts.db || getSupabaseServer();
   let name = '';
   let email: string | null = null;
   let phone: string | null = null;
@@ -372,7 +408,7 @@ export async function issueAccountPortal(opts: {
     const { assertCustomerPortalParty } = await import(
       '@/lib/portals/assert-supplier-portal-party'
     );
-    const gate = await assertCustomerPortalParty(opts.companyId, id);
+    const gate = await assertCustomerPortalParty(opts.companyId, id, opts.db);
     if (!gate.ok) {
       return { ok: false, error: gate.error, status: gate.status };
     }
@@ -426,6 +462,7 @@ export async function issueAccountPortal(opts: {
   const ensured = await ensureTradePortal({
     companyId: opts.companyId,
     kind: opts.kind,
+    db: opts.db,
   });
   if (!ensured.ok) {
     return {
@@ -439,16 +476,41 @@ export async function issueAccountPortal(opts: {
     portalId: ensured.portal.id,
     customerId: opts.kind === 'customer' ? Number(opts.customerId) : null,
     supplierId: opts.kind === 'supplier' ? Number(opts.supplierId) : null,
+    db: opts.db,
   });
+  const sendEmail = opts.sendEmail !== false && Boolean(email);
   if (listed.ok) {
     const existing = listed.people.find((p) => p.status === 'active');
     if (existing) {
+      const url = portalPublicUrl(existing.token);
+      let emailSent = false;
+      let warning: string | undefined;
+      if (sendEmail && email) {
+        const { data: host } = await supabase
+          .from('profiles')
+          .select('trading_name, legal_name, logo_url')
+          .eq('id', opts.companyId)
+          .maybeSingle();
+        const mailed = await sendTradePortalAccessEmail({
+          to: email,
+          guestName: name,
+          hostName:
+            String(host?.trading_name || host?.legal_name || '').trim() ||
+            'SupplierAdvisor company',
+          kind: opts.kind,
+          portalUrl: url,
+          logoUrl: host?.logo_url ? String(host.logo_url) : null,
+        });
+        emailSent = mailed.sent;
+        warning = mailed.warning;
+      }
       return {
         ok: true,
         viewer: existing,
-        url: portalPublicUrl(existing.token),
-        emailSent: false,
+        url,
+        emailSent,
         existing: true,
+        warning,
       };
     }
   }
@@ -462,6 +524,7 @@ export async function issueAccountPortal(opts: {
     job_title: job,
     customerId: opts.customerId,
     supplierId: opts.supplierId,
-    sendEmail: Boolean(email),
+    sendEmail,
+    db: opts.db,
   });
 }

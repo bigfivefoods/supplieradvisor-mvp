@@ -7,6 +7,7 @@ import {
   extraCogsJournalIds,
   extraRecognitionJournalIds,
   isLivePosted,
+  soleOpenInvoiceForBankLine,
 } from './dedupe-invoice-books';
 
 assert.equal(isLivePosted({ status: 'posted', metadata: {} }), true);
@@ -78,5 +79,55 @@ assert.equal(
   }),
   false
 );
+
+const palm = soleOpenInvoiceForBankLine({
+  memo: 'PALM FOOTWEAR MANUFACTURERS PT',
+  amount: 129375,
+  invoices: [
+    {
+      id: 12,
+      invoice_number: 'INV-20260828-Q4HD-R2',
+      total_amount: 258750,
+      amount_paid: 129375,
+      status: 'partial',
+      counterparty_name: 'Palm Footwear Manufacturers Pty Ltd',
+    },
+    {
+      id: 16,
+      invoice_number: 'INV-20260918-T991-R2',
+      total_amount: 136102.5,
+      amount_paid: 0,
+      status: 'sent',
+      counterparty_name: 'Palm Footwear Manufacturers Pty Ltd',
+    },
+  ],
+});
+assert.equal(palm?.id, 12);
+
+const ambiguous = soleOpenInvoiceForBankLine({
+  memo: 'FNB PAYMENT',
+  amount: 100,
+  invoices: [
+    { id: 1, total_amount: 100, amount_paid: 0, status: 'sent', counterparty_name: 'Alpha' },
+    { id: 2, total_amount: 100, amount_paid: 0, status: 'sent', counterparty_name: 'Beta' },
+  ],
+});
+assert.equal(ambiguous, null);
+
+const paidIgnored = soleOpenInvoiceForBankLine({
+  memo: 'PALM FOOTWEAR',
+  amount: 136102.5,
+  invoices: [
+    {
+      id: 16,
+      invoice_number: 'INV-20260918-T991-R2',
+      total_amount: 136102.5,
+      amount_paid: 136102.5,
+      status: 'paid',
+      counterparty_name: 'Palm Footwear',
+    },
+  ],
+});
+assert.equal(paidIgnored, null);
 
 console.log('dedupe-invoice-books.test.ts ok');

@@ -15,17 +15,6 @@ export type ApparelSummary = ReturnType<
   typeof import('@/lib/apparel/apparelgraph').summariseApparelgraph
 >;
 
-export const APPARELGRAPH_PAGES = [
-  { name: 'Overview', href: '/dashboard/apparelgraph' },
-  { name: 'Capability', href: '/dashboard/apparelgraph/capability' },
-  { name: 'Styles', href: '/dashboard/apparelgraph/styles' },
-  { name: 'Samples', href: '/dashboard/apparelgraph/samples' },
-  { name: 'Materials', href: '/dashboard/apparelgraph/materials' },
-  { name: 'Floor', href: '/dashboard/apparelgraph/floor' },
-  { name: 'Quality', href: '/dashboard/apparelgraph/quality' },
-  { name: 'Ship', href: '/dashboard/apparelgraph/ship' },
-] as const;
-
 export function useApparelgraph() {
   const companyId = getSelectedCompanyId()!;
   const [store, setStore] = useState<ApparelgraphStore | null>(null);

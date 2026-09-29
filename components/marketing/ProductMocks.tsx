@@ -704,10 +704,10 @@ export function ApparelgraphMock() {
       <div className="mb-2 flex items-center justify-between gap-2">
         <div>
           <div className="text-[9px] font-bold uppercase tracking-widest text-cyan-700">
-            ApparelAdvisor® · Apparel
+            ApparelAdvisor®
           </div>
           <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
-            Matrix to shipment gates.
+            Range · ATS · ship holds.
           </div>
         </div>
         <span className="rounded-full border border-cyan-200 bg-cyan-700 px-2 py-0.5 text-[9px] font-black uppercase text-white">
@@ -715,18 +715,56 @@ export function ApparelgraphMock() {
         </span>
       </div>
       <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
-        <Telemetry label="Lines" value="4" tone="cyan" />
-        <Telemetry label="Styles" value="12" tone="sky" />
-        <Telemetry label="Rolls" value="86" tone="violet" />
-        <Telemetry label="QA holds" value="2" tone="amber" />
+        <Telemetry label="Styles" value="2" tone="cyan" />
+        <Telemetry label="ATS" value="1.5k" tone="sky" />
+        <Telemetry label="Prebook" value="240" tone="violet" />
+        <Telemetry label="Hold" value="Clear" tone="amber" />
       </div>
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-        {['Styles', 'Floor', 'Ship'].map((t, i) => (
+        {['Range', 'Wholesale', 'Quality'].map((t, i) => (
           <div key={t} className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] shadow-sm sm:p-3">
             <div className="mb-1 text-[9px] font-mono text-neutral-400">0{i + 1}</div>
             <div className="text-[11px] font-bold text-slate-800 sm:text-xs dark:text-white">{t}</div>
             <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-100">
               <div className="h-full rounded-full bg-cyan-500" style={{ width: `${58 + i * 14}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+/** Industry — building / construction OS */
+export function ConstructiongraphMock() {
+  return (
+    <Frame title="dashboard/constructiongraph">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[9px] font-bold uppercase tracking-widest text-stone-700">
+            ConstructionAdvisor®
+          </div>
+          <div className="text-sm sm:text-base font-black text-slate-900 tracking-tight dark:text-white">
+            BOQ · payments · programme.
+          </div>
+        </div>
+        <span className="rounded-full border border-stone-300 bg-stone-800 px-2 py-0.5 text-[9px] font-black uppercase text-white">
+          Secondary
+        </span>
+      </div>
+      <div className="mb-3 grid grid-cols-4 gap-1.5 sm:gap-2">
+        <Telemetry label="Projects" value="3" tone="amber" />
+        <Telemetry label="BOQ" value="R8.0m" tone="emerald" />
+        <Telemetry label="Paid" value="R6.2m" tone="violet" />
+        <Telemetry label="Plan" value="28/32%" tone="cyan" />
+      </div>
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+        {['Quotes', 'Payments', 'Programme'].map((t, i) => (
+          <div key={t} className="rounded-xl border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-[#151c26] shadow-sm sm:p-3">
+            <div className="mb-1 text-[9px] font-mono text-neutral-400">0{i + 1}</div>
+            <div className="text-[11px] font-bold text-slate-800 sm:text-xs dark:text-white">{t}</div>
+            <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full rounded-full bg-stone-600" style={{ width: `${54 + i * 16}%` }} />
             </div>
           </div>
         ))}
@@ -1144,6 +1182,8 @@ export function NavMock() {
       items: [
         'CropAdvisor®',
         'QuarryAdvisor®',
+        'ApparelAdvisor®',
+        'ConstructionAdvisor®',
         'GymAdvisor®',
         'PhysioAdvisor®',
         'DentalAdvisor®',

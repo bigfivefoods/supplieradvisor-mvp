@@ -104,6 +104,12 @@ function Inner() {
           description="IAS 7 / ASC 230. Direct method from the cash and bank general ledger, plus the required reconciliation of profit to operating cash. Annual budget overlays as an operating plan when set. Unaudited."
           action={
             <div className="flex flex-wrap gap-2">
+              <Link
+                href="/dashboard/accounting/management-cashflow"
+                className="btn-secondary !py-2.5 !px-5 text-sm inline-flex items-center gap-2"
+              >
+                Bank vs budget
+              </Link>
               <button
                 type="button"
                 onClick={() => void load()}

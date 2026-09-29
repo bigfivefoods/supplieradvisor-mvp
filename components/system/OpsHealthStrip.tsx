@@ -74,7 +74,7 @@ export default function OpsHealthStrip({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/system/health', { cache: 'no-store' });
+      const res = await fetch('/api/system/health/ops?live=1', { cache: 'no-store' });
       const json = (await res.json()) as HealthPayload;
       setData(json);
       if (json.degraded || json.ok === false) setOpen(true);
@@ -90,6 +90,10 @@ export default function OpsHealthStrip({
   }, [load]);
 
   const checks = data?.checks || {};
+  const paystackDetail = checks.paystack?.detail as
+    | { webhookStale?: boolean; webhookAgeHours?: number | null }
+    | undefined;
+  const paystackQuiet = paystackDetail?.webhookStale === true;
   const paystackOk = checks.paystack?.ok === true;
   const twilioOk = checks.twilio_whatsapp?.ok === true;
   const verifyOk = checks.verifynow?.ok === true;
@@ -111,7 +115,7 @@ export default function OpsHealthStrip({
   if (!data) return null;
 
   // Compact: only show when something is wrong
-  if (compact && !degraded && data.ok !== false) {
+  if (compact && !degraded && !paystackQuiet && data.ok !== false) {
     return (
       <div
         className={`mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-1.5 text-[11px] text-emerald-900 ${className}`}
@@ -179,8 +183,13 @@ export default function OpsHealthStrip({
           <div className="flex flex-wrap gap-1.5">
             <Pill
               label="Paystack"
-              ok={paystackOk}
-              detail={checks.paystack?.error}
+              ok={paystackOk && !paystackQuiet}
+              warn={paystackOk && paystackQuiet}
+              detail={
+                paystackQuiet
+                  ? `No real charge.success for ${paystackDetail?.webhookAgeHours ?? '—'}h. Confirm the Paystack webhook is https://www.supplieradvisor.com/api/paystack/webhook`
+                  : checks.paystack?.error
+              }
             />
             <Pill
               label="Twilio WA"
@@ -205,6 +214,15 @@ export default function OpsHealthStrip({
             <Pill label="Resend" ok={resendOk} detail={checks.resend?.error} />
           </div>
 
+          {paystackQuiet ? (
+            <p className="text-[11px] text-amber-950/90 leading-relaxed">
+              <strong>No real Paystack payment recently.</strong> The hourly
+              probe does not count. In Paystack, set{' '}
+              <code className="text-[10px]">charge.success</code> to{' '}
+              <code className="text-[10px]">https://www.supplieradvisor.com/api/paystack/webhook</code>{' '}
+              and confirm the Vercel secret is that account&apos;s key.
+            </p>
+          ) : null}
           {!paystackOk ? (
             <p className="text-[11px] text-amber-950/90 leading-relaxed">
               <strong>Paystack secret missing.</strong> Set{' '}

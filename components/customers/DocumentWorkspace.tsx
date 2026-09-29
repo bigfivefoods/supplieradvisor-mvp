@@ -64,6 +64,16 @@ import { CompanyRequired, CustomersHeader } from '@/components/customers/Custome
 import CommissionBadge from '@/components/sales/CommissionBadge';
 import FxRateStrip from '@/components/fx/FxRateStrip';
 import LinkedOrdersPanel from '@/components/orders/LinkedOrdersPanel';
+import {
+  canIssueQuote,
+  canStartProcessing,
+  parseTradeThread,
+} from '@/lib/customers/trade-thread';
+import {
+  isEnquiryInboxRow,
+  isIssuedQuoteRow,
+  resolveEnquiryUid,
+} from '@/lib/customers/enquiry-uid';
 
 type DocType = 'quote' | 'order' | 'invoice';
 
@@ -101,10 +111,21 @@ const CONFIG: Record<
   }
 > = {
   quote: {
-    title: 'Quotes',
-    description: 'Build commercial quotes from your product catalogue. Accept and convert to sales orders.',
+    title: 'Enquiries & quotes',
+    description:
+      'Storefront enquiries land here. Issue a quotation (portal + email). The customer accepts with a PO, pays the deposit, then you process the order.',
     numberField: 'quote_number',
-    statuses: ['draft', 'sent', 'accepted', 'rejected', 'expired', 'converted'],
+    statuses: [
+      'enquiry',
+      'draft',
+      'sent',
+      'accepted',
+      'deposit_due',
+      'deposit_paid',
+      'rejected',
+      'expired',
+      'converted',
+    ],
     convertLabel: 'Convert to order',
     convertAction: 'convert_to_order',
   },
@@ -129,12 +150,15 @@ export default function DocumentWorkspace({
   type,
   beforeHeader,
   variant = 'default',
+  focus,
 }: {
   type: DocType;
   /** Optional content rendered above CustomersHeader (e.g. Sales | Inbound tabs) */
   beforeHeader?: ReactNode;
   /** `sales` = dark sales-portal chrome (no main CRM shell) */
   variant?: 'default' | 'sales';
+  /** Incoming storefront enquiries inbox */
+  focus?: 'enquiry';
 }) {
   return (
     <CompanyRequired>
@@ -145,7 +169,12 @@ export default function DocumentWorkspace({
           </div>
         }
       >
-        <DocInner type={type} beforeHeader={beforeHeader} variant={variant} />
+        <DocInner
+          type={type}
+          beforeHeader={beforeHeader}
+          variant={variant}
+          focus={focus}
+        />
       </Suspense>
     </CompanyRequired>
   );
@@ -155,12 +184,15 @@ function DocInner({
   type,
   beforeHeader,
   variant = 'default',
+  focus,
 }: {
   type: DocType;
   beforeHeader?: ReactNode;
   variant?: 'default' | 'sales';
+  focus?: 'enquiry';
 }) {
   const sales = variant === 'sales';
+  const enquiryInbox = focus === 'enquiry';
   const canGroupList =
     type === 'quote' || type === 'order' || type === 'invoice';
   const expandableList = type === 'quote' || type === 'order';
@@ -187,7 +219,21 @@ function DocInner({
   const peerCustomerApplied = useRef(false);
   const overdueResendHinted = useRef(false);
   const whatsappTriggered = useRef(false);
-  const cfg = CONFIG[type];
+  const cfg = enquiryInbox
+    ? {
+        ...CONFIG.quote,
+        title: 'Enquiries',
+        description:
+          'Every enquiry has a stable ENQ UID. After you issue a quotation it stays here and also appears under Quotes as QT-… (same date and suffix).',
+        statuses: [
+          'enquiry',
+          'sent',
+          'accepted',
+          'deposit_due',
+          'deposit_paid',
+        ],
+      }
+    : CONFIG[type];
   const [docs, setDocs] = useState<DocRecord[]>([]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
@@ -244,7 +290,11 @@ function DocInner({
   const [payRef, setPayRef] = useState('');
   const [payMethod, setPayMethod] = useState('eft');
   const [statusFilter, setStatusFilter] = useState(
-    statusFromUrl && statusFromUrl !== 'all' ? statusFromUrl : 'all'
+    enquiryInbox
+      ? 'all'
+      : statusFromUrl && statusFromUrl !== 'all'
+        ? statusFromUrl
+        : 'all'
   );
   const [groupBy, setGroupBy] = useState<DocListGroupBy>('date');
   const [listCustomerId, setListCustomerId] = useState('all');
@@ -293,10 +343,16 @@ function DocInner({
   const [productSearch, setProductSearch] = useState('');
 
   useEffect(() => {
+    if (enquiryInbox) {
+      if (statusFromUrl && statusFromUrl !== 'all') {
+        setStatusFilter(statusFromUrl);
+      }
+      return;
+    }
     if (statusFromUrl && statusFromUrl !== 'all') {
       setStatusFilter(statusFromUrl);
     }
-  }, [statusFromUrl]);
+  }, [statusFromUrl, enquiryInbox]);
 
   // Prefill customer from linked platform peer (pending connection / network)
   useEffect(() => {
@@ -379,6 +435,7 @@ function DocInner({
     type,
     canGroupList,
     statusFilter,
+    enquiryInbox,
     privyUserId,
     period.from,
     period.to,
@@ -689,15 +746,21 @@ function DocInner({
   }, [customers, docs]);
 
   const visibleDocs = useMemo(() => {
-    if (!canGroupList) return docs;
+    const inbox = enquiryInbox
+      ? docs.filter((d) => isEnquiryInboxRow(d))
+      : type === 'quote'
+        ? docs.filter((d) => isIssuedQuoteRow(d))
+        : docs;
+    if (!canGroupList) return inbox;
     const slice = listTimeKey ? rangeForTimeKey(listTimeKey) : null;
-    return filterGroupedDocs(docs, {
+    return filterGroupedDocs(inbox, {
       customerId: listCustomerId,
       dateFrom: slice?.from || period.from,
       dateTo: slice?.to || period.to,
     });
   }, [
     docs,
+    enquiryInbox,
     canGroupList,
     listCustomerId,
     listTimeKey,
@@ -1286,6 +1349,32 @@ function DocInner({
       toast.error(e instanceof Error ? e.message : 'Failed');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const issueQuote = async (doc: DocRecord) => {
+    setBusyId(Number(doc.id));
+    try {
+      const res = await fetch('/api/customers/docs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          type: 'quote',
+          id: doc.id,
+          action: 'issue_quote',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not issue quote');
+      toast.success('Quotation issued on the customer portal');
+      const issued = (data.quote || doc) as DocRecord;
+      await emailDoc(issued);
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -2215,13 +2304,13 @@ function DocInner({
               Records are saved under your company · commission 4%–6% (super-link 6%)
             </p>
           </div>
-          {newBtn}
+          {enquiryInbox ? null : newBtn}
         </div>
       ) : (
         <CustomersHeader
           title={cfg.title}
           description={cfg.description}
-          action={newBtn}
+          action={enquiryInbox ? null : newBtn}
         />
       )}
 
@@ -2997,7 +3086,9 @@ function DocInner({
           <div
             className={`p-16 text-center text-sm ${sales ? 'text-neutral-500' : 'text-neutral-500'}`}
           >
-            No {cfg.title.toLowerCase()} yet. Create one and pick products from your catalogue.
+            {enquiryInbox
+              ? 'No storefront enquiries waiting. They appear here when someone orders from your public store.'
+              : `No ${cfg.title.toLowerCase()} yet. Create one and pick products from your catalogue.`}
           </div>
         ) : visibleDocs.length === 0 ? (
           <div
@@ -3038,7 +3129,21 @@ function DocInner({
                 ) : null}
           <ul className={sales ? 'divide-y divide-neutral-100' : 'divide-y'}>
             {g.items.map((d) => {
-              const num = String(d[cfg.numberField] || d.id);
+              const quoteNo = String(d[cfg.numberField] || d.id);
+              const enquiryUid = type === 'quote' ? resolveEnquiryUid(d) : null;
+              const num =
+                enquiryInbox && enquiryUid ? enquiryUid : quoteNo;
+              const pairLabel =
+                type === 'quote' && enquiryUid
+                  ? enquiryInbox &&
+                    quoteNo.toUpperCase() !== enquiryUid &&
+                    quoteNo.toUpperCase().startsWith('QT-')
+                    ? `quote ${quoteNo}`
+                    : !enquiryInbox &&
+                        enquiryUid !== quoteNo.toUpperCase()
+                      ? `enquiry ${enquiryUid}`
+                      : null
+                  : null;
               const itemCount = Array.isArray(d.items) ? d.items.length : 0;
               const isShared = (d.visibility || 'seller_only') === 'shared';
               const isHighlight = highlightDocId != null && Number(d.id) === highlightDocId;
@@ -3103,6 +3208,7 @@ function DocInner({
                     >
                       {d.customer_name || 'No customer'} · {itemCount} line{itemCount === 1 ? '' : 's'}
                       {d.created_at ? ` · ${String(d.created_at).slice(0, 10)}` : ''}
+                      {pairLabel ? ` · ${pairLabel}` : ''}
                       {type === 'invoice' && Number(d.amount_paid || 0) > 0.009
                         ? ` · paid ${formatMoney(Number(d.amount_paid || 0), String(d.currency || 'ZAR'))}`
                         : ''}
@@ -3256,7 +3362,35 @@ function DocInner({
                         </>
                       )}
                     </button>
-                    {cfg.convertAction && d.status !== 'converted' && d.status !== 'invoiced' && (
+                    {type === 'quote' &&
+                      canIssueQuote(
+                        parseTradeThread(d.metadata, d.status),
+                        d.status
+                      ) && (
+                      <button
+                        type="button"
+                        disabled={busyId === d.id}
+                        onClick={() => void issueQuote(d)}
+                        className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+                        title="Share a commercial quotation on the customer portal and email it"
+                      >
+                        {busyId === d.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <>
+                            Issue quote <ArrowRight className="w-3 h-3" />
+                          </>
+                        )}
+                      </button>
+                    )}
+                    {cfg.convertAction &&
+                      d.status !== 'converted' &&
+                      d.status !== 'invoiced' &&
+                      (type !== 'quote' ||
+                        canStartProcessing(
+                          parseTradeThread(d.metadata, d.status),
+                          d.status
+                        )) && (
                       <button
                         type="button"
                         disabled={busyId === d.id}
@@ -3265,7 +3399,9 @@ function DocInner({
                         title={
                           cfg.convertAction === 'convert_to_invoice'
                             ? 'Creates a draft invoice you can review, then send from Invoices. Nothing is emailed yet.'
-                            : cfg.convertLabel
+                            : type === 'quote'
+                              ? 'Only after the customer accepts with a PO and pays the deposit (storefront thread).'
+                              : cfg.convertLabel
                         }
                       >
                         {busyId === d.id ? (

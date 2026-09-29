@@ -91,6 +91,11 @@ export const OPTIONAL_LEDGER_COLUMNS: Array<{
     migrationHint: '20260821_saas_db_harden.sql',
   },
   {
+    table: 'bank_transactions',
+    column: 'notes',
+    migrationHint: '20260710_accounting_bank_allocation.sql',
+  },
+  {
     table: 'trade_portals',
     column: 'public_token',
     migrationHint: '20260822_trade_portals.sql',

@@ -41,6 +41,7 @@ import {
   BriefcaseBusiness,
   Store,
   Shirt,
+  Hammer,
 } from 'lucide-react';
 import type { ProcessStep } from '@/components/relationship/RelationshipChrome';
 import type { PermissionResource } from '@/lib/business/permissions';
@@ -86,7 +87,7 @@ export type ModuleNav = {
  * distribution Ship · accounting Landmark · quality ClipboardCheck
  * projects FolderKanban · sustainability Leaf · intelligence Brain · guide BookOpen
  * people IdCard · schools School
- * apparelgraph Shirt
+ * apparelgraph Shirt · constructiongraph Hammer
  */
 export const MODULE_NAV: readonly ModuleNav[] = [
   {
@@ -365,7 +366,13 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         desc: 'Guest portal for buyers who have not joined',
         section: 'Source',
       },
-      { name: 'Quote', href: '/dashboard/customers/quotes', desc: 'Quotes', section: 'Trade' },
+      {
+        name: 'Enquiry',
+        href: '/dashboard/customers/enquiries',
+        desc: 'Storefront enquiries to action',
+        section: 'Trade',
+      },
+      { name: 'Quote', href: '/dashboard/customers/quotes', desc: 'Quotations', section: 'Trade' },
       { name: 'Order', href: '/dashboard/customers/orders', desc: 'Sales orders & inbound POs', section: 'Trade' },
       { name: 'Invoice', href: '/dashboard/customers/invoices', desc: 'Bill customers', section: 'Trade' },
       {
@@ -419,6 +426,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     steps: [
       { name: 'Overview', href: '/dashboard/inventory', exact: true, section: 'Home' },
       { name: 'Catalog', href: '/dashboard/inventory/products', section: 'Catalog' },
+      {
+        name: 'Storefront',
+        href: '/dashboard/inventory/storefront',
+        desc: 'Choose which SKUs appear on the public store',
+        section: 'Catalog',
+      },
       { name: 'Shared SKUs', href: '/dashboard/inventory/shared', desc: 'Gym · retail · hire · clinic', section: 'Catalog' },
       { name: 'Stock', href: '/dashboard/inventory/stock', section: 'Stock' },
       {
@@ -557,6 +570,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         name: 'Cash flow',
         href: '/dashboard/accounting/cash-flow',
         desc: 'IAS 7 / ASC 230 statement',
+        section: 'Statements',
+      },
+      {
+        name: 'Cash vs budget',
+        href: '/dashboard/accounting/management-cashflow',
+        desc: 'Management cash flow · bank actual vs budget',
         section: 'Statements',
       },
       {
@@ -705,22 +724,40 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Home',
       },
       {
-        name: 'Capability',
-        href: '/dashboard/apparelgraph/capability',
-        desc: 'Lines · operators · lead time',
-        section: 'Core',
+        name: 'Range',
+        href: '/dashboard/apparelgraph/range',
+        desc: 'Seasons · line plan',
+        section: 'PLM',
       },
       {
         name: 'Styles',
         href: '/dashboard/apparelgraph/styles',
-        desc: 'Matrix · tech pack · BOM',
-        section: 'Core',
+        desc: 'Style master · colour · size',
+        section: 'PLM',
       },
       {
         name: 'Samples',
         href: '/dashboard/apparelgraph/samples',
         desc: 'Proto · fit · PP approvals',
-        section: 'Core',
+        section: 'PLM',
+      },
+      {
+        name: 'Costing',
+        href: '/dashboard/apparelgraph/costing',
+        desc: 'BOM · landed duty',
+        section: 'PLM',
+      },
+      {
+        name: 'Path',
+        href: '/dashboard/apparelgraph/path',
+        desc: 'Critical path dates',
+        section: 'PLM',
+      },
+      {
+        name: 'Capability',
+        href: '/dashboard/apparelgraph/capability',
+        desc: 'Lines · operators · lead time',
+        section: 'Floor',
       },
       {
         name: 'Materials',
@@ -741,10 +778,148 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Quality',
       },
       {
+        name: 'Wholesale',
+        href: '/dashboard/apparelgraph/wholesale',
+        desc: 'Line sheets · ATS · prebook',
+        section: 'Sell',
+      },
+      {
         name: 'Ship',
         href: '/dashboard/apparelgraph/ship',
         desc: 'Lots · POs · QA hold release',
         section: 'Ship',
+      },
+      {
+        name: 'Reports',
+        href: '/dashboard/apparelgraph/reports',
+        desc: 'Range · WIP · sell-through',
+        section: 'Sell',
+      },
+      {
+        name: 'Portal',
+        href: '/dashboard/apparelgraph/portal',
+        desc: 'Buyer line-sheet PWA',
+        section: 'Sell',
+      },
+      {
+        name: 'Messages',
+        href: '/dashboard/messages?from=apparelgraph&channel=connection',
+        desc: 'Apparel notes',
+        section: 'Home',
+        rail: false,
+      },
+    ],
+  },
+  {
+    id: 'constructiongraph',
+    name: 'ConstructionAdvisor',
+    icon: Hammer,
+    href: '/dashboard/constructiongraph',
+    resource: 'operations',
+    steps: [
+      {
+        name: 'Command',
+        href: '/dashboard/constructiongraph',
+        exact: true,
+        desc: 'Clients · BOQ quotes · programme',
+        section: 'Home',
+      },
+      {
+        name: 'Clients',
+        href: '/dashboard/constructiongraph/clients',
+        desc: 'Customers · many projects',
+        section: 'Core',
+      },
+      {
+        name: 'Quotes',
+        href: '/dashboard/constructiongraph/quotes',
+        desc: 'BOQ tenders · issue quote',
+        section: 'Core',
+      },
+      {
+        name: 'Projects',
+        href: '/dashboard/constructiongraph/sites',
+        desc: 'Contracts · building sites',
+        section: 'Core',
+      },
+      {
+        name: 'Drawings',
+        href: '/dashboard/constructiongraph/drawings',
+        desc: 'IFC drawings · BOQ actuals',
+        section: 'Core',
+      },
+      {
+        name: 'Subcontractors',
+        href: '/dashboard/constructiongraph/subcontractors',
+        desc: 'Appointed trades',
+        section: 'Ops',
+      },
+      {
+        name: 'Materials',
+        href: '/dashboard/constructiongraph/materials',
+        desc: 'Deliveries · plant',
+        section: 'Ops',
+      },
+      {
+        name: 'Programme',
+        href: '/dashboard/constructiongraph/programme',
+        desc: 'Plan vs actuals · dates',
+        section: 'Ops',
+      },
+      {
+        name: 'Payments',
+        href: '/dashboard/constructiongraph/payments',
+        desc: 'Progress claims · client pay',
+        section: 'Money',
+      },
+      {
+        name: 'Costs',
+        href: '/dashboard/constructiongraph/costs',
+        desc: 'Allocate actuals to BOQ',
+        section: 'Money',
+      },
+      {
+        name: 'Safety',
+        href: '/dashboard/constructiongraph/safety',
+        desc: 'Toolbox · permits · incidents',
+        section: 'Assure',
+      },
+      {
+        name: 'Variations',
+        href: '/dashboard/constructiongraph/variations',
+        desc: 'VOs · claims',
+        section: 'Money',
+      },
+      {
+        name: 'Certificates',
+        href: '/dashboard/constructiongraph/certificates',
+        desc: 'IPCs from the payment plan',
+        section: 'Money',
+      },
+      {
+        name: 'Handover',
+        href: '/dashboard/constructiongraph/handover',
+        desc: 'Snags · practical completion',
+        section: 'Handover',
+      },
+      {
+        name: 'Reports',
+        href: '/dashboard/constructiongraph/reports',
+        desc: 'Per project · programme roll-up',
+        section: 'Insights',
+      },
+      {
+        name: 'Portal',
+        href: '/dashboard/constructiongraph/portal',
+        desc: 'Client · contractor PWA',
+        section: 'Grow',
+      },
+      {
+        name: 'Messages',
+        href: '/dashboard/messages?from=constructiongraph&channel=connection',
+        desc: 'Site · office · trade threads',
+        section: 'Ops',
+        rail: false,
       },
     ],
   },

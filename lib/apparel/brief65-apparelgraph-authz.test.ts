@@ -48,5 +48,17 @@ for (const [name, fnBody] of [
 
 assert.match(getFn, /!Number\.isFinite\(companyId\)\s*\|\|\s*companyId\s*<=\s*0/);
 assert.match(postFn, /!Number\.isFinite\(companyId\)\s*\|\|\s*companyId\s*<=\s*0/);
+assert.ok(!src.includes('profiles.phone'), 'must not select profiles.phone');
+
+const publicSrc = readFileSync(
+  resolve('app/api/public/apparelgraph/route.ts'),
+  'utf8'
+);
+assert.ok(
+  !publicSrc.includes('requireCompanyAccess'),
+  'public apparelgraph GET is token-gated, not company-gated'
+);
+assert.ok(publicSrc.includes('publicReadLimit'), 'public GET must rate-limit');
+assert.ok(!publicSrc.includes('profiles.phone'), 'public GET must not select profiles.phone');
 
 console.log('brief65-apparelgraph-authz.test.ts ok');

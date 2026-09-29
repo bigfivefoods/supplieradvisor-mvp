@@ -20,6 +20,7 @@ import {
   Container,
   PawPrint,
   Shirt,
+  Hammer,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -33,6 +34,7 @@ const ICONS: Record<IndustrySlug, LucideIcon> = {
   'quarry-aggregates': Mountain,
   manufacturing: Factory,
   'apparel-clothing': Shirt,
+  'construction-building': Hammer,
   distribution: Truck,
   containers: Container,
   'fitness-gyms': Dumbbell,
@@ -73,9 +75,9 @@ export default function IndustriesStrip() {
           </h2>
           <p className="mt-4 text-base text-slate-600 sm:text-lg">
             Same platform fabric — Core OS, Industry Advisors (CropAdvisor®,
-            QuarryAdvisor®, GymAdvisor®, PhysioAdvisor®, DentalAdvisor®,
+            QuarryAdvisor®, ConstructionAdvisor®, GymAdvisor®, PhysioAdvisor®, DentalAdvisor®,
             PsychiatryAdvisor®, MedicalAdvisor®, VetAdvisor®, HireAdvisor®,
-            RetailAdvisor®, ContainerAdvisor®), and government programmes
+            RetailAdvisor®, ApparelAdvisor®, ContainerAdvisor®), and government programmes
             (SchoolAdvisor® · HealthAdvisor®). Exclusive diaries &amp; rooms,
             industry PWAs, waitlist desks, kitchens, and marketplace — SA bills
             the company subscription, not member or patient fees.

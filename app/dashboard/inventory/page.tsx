@@ -16,6 +16,7 @@ import {
   Fingerprint,
   Navigation,
   RefreshCw,
+  Store,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
@@ -91,6 +92,14 @@ function HubInner() {
       accent: 'from-violet-50 to-white border-violet-100',
       metric: s?.products ?? '—',
       metricLabel: 'SKUs',
+    },
+    {
+      href: '/dashboard/inventory/storefront',
+      icon: Store,
+      code: '09',
+      title: 'Storefront',
+      desc: 'Pick which catalogue items appear on the public store and website embed.',
+      accent: 'from-cyan-50 to-white border-cyan-100',
     },
     {
       href: '/dashboard/inventory/warehouses',

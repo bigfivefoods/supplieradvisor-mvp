@@ -15,6 +15,11 @@ import {
   normalizeItems,
 } from '@/lib/customers/documents';
 import { logActivity } from '@/lib/customers/access';
+import { upsertStorefrontCustomer } from '@/lib/storefront/customer';
+import {
+  newStorefrontEnquiryThread,
+  writeTradeThread,
+} from '@/lib/customers/trade-thread';
 
 /**
  * POST /api/storefront/{companySlug}/quotes
@@ -75,6 +80,15 @@ export async function POST(
     ).trim();
     const contactPhone = body.contactPhone || body.phone || null;
     const message = body.message != null ? String(body.message) : null;
+    const customerType =
+      body.customerType === 'individual' || body.asBusiness === false
+        ? 'individual'
+        : 'business';
+    const city = body.city != null ? String(body.city) : null;
+    const country = body.country != null ? String(body.country) : null;
+    const address =
+      body.address || body.shippingAddress || body.billingAddress || null;
+    const vatNumber = body.vatNumber || body.vat_number || null;
 
     if (!contactEmail.includes('@')) {
       return NextResponse.json(
@@ -173,7 +187,7 @@ export async function POST(
 
     const notes = [
       message || (body.notes ? String(body.notes) : ''),
-      `[storefront quote request]`,
+      `[storefront enquiry]`,
       `sla=response within 1 business day`,
       attribution.source ? `source=${attribution.source}` : '',
       attribution.ref ? `ref=${attribution.ref}` : '',
@@ -185,55 +199,51 @@ export async function POST(
       .filter(Boolean)
       .join('\n');
 
-    // Ensure CRM customer under seller
-    let customerId: number | null = null;
-    {
-      const { data: existingCust } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('profile_id', seller.id)
-        .ilike('email', contactEmail)
-        .limit(1)
-        .maybeSingle();
-      if (existingCust?.id) {
-        customerId = Number(existingCust.id);
-      } else {
-        const { data: created } = await supabase
-          .from('customers')
-          .insert({
-            profile_id: seller.id,
-            trading_name: tradingName,
-            email: contactEmail,
-            contact_name: contactName || null,
-            phone: contactPhone ? String(contactPhone) : null,
-            status: 'active',
-            source: 'storefront',
-            notes: `From storefront ${seller.slug}`,
-            created_at: now,
-            updated_at: now,
-          })
-          .select('id')
-          .single();
-        if (created?.id) {
-          customerId = Number(created.id);
-          const { ensureCustomerArLeaf } = await import(
-            '@/lib/accounting/party-gl-accounts'
-          );
-          await ensureCustomerArLeaf({
-            profileId: seller.id,
-            customerId: Number(created.id),
-            name: tradingName || 'Customer',
-          });
-        }
-      }
+    const customer = await upsertStorefrontCustomer(supabase, seller.id, {
+      tradingName,
+      contactName,
+      contactEmail,
+      contactPhone: contactPhone ? String(contactPhone) : null,
+      customerType,
+      city,
+      country,
+      address: address ? String(address) : null,
+      vatNumber: vatNumber ? String(vatNumber) : null,
+      notes: `From storefront ${seller.slug}`,
+      storeSlug: seller.slug,
+    });
+    if (!customer?.id) {
+      return NextResponse.json(
+        {
+          error:
+            'Could not save your customer profile on the seller CRM. Check the email and try again.',
+          code: 'CRM_CUSTOMER_FAILED',
+        },
+        { status: 500 }
+      );
+    }
+    const customerId = customer.id;
+    if (customer?.created) {
+      const { ensureCustomerArLeaf } = await import(
+        '@/lib/accounting/party-gl-accounts'
+      );
+      await ensureCustomerArLeaf({
+        profileId: seller.id,
+        customerId: customer.id,
+        name: customer.trading_name || tradingName || 'Customer',
+      });
     }
 
-    const quoteNumber = docNumber('QT');
+    const enquiryNumber = docNumber('ENQ');
+    const thread = newStorefrontEnquiryThread({
+      enquiryNumber,
+      now,
+    });
     const quotePayload: Record<string, unknown> = {
       profile_id: seller.id,
       customer_id: customerId,
-      quote_number: quoteNumber,
-      status: 'draft',
+      quote_number: enquiryNumber,
+      status: 'enquiry',
       currency: 'ZAR',
       subtotal: totals.subtotal,
       tax_rate: totals.tax_rate,
@@ -245,7 +255,10 @@ export async function POST(
       contact_phone: contactPhone ? String(contactPhone) : null,
       notes,
       items,
-      terms: 'Quote request from public storefront — prices subject to confirmation.',
+      visibility: 'shared',
+      terms:
+        'Storefront enquiry — not a quotation. The seller will issue a quote on your customer portal for approval.',
+      metadata: writeTradeThread({ storefront: true, store_slug: seller.slug }, thread),
       created_at: now,
       updated_at: now,
     };
@@ -260,8 +273,8 @@ export async function POST(
       // Soft fallback without optional columns
       const minimal = {
         profile_id: seller.id,
-        quote_number: quoteNumber,
-        status: 'draft',
+        quote_number: enquiryNumber,
+        status: 'enquiry',
         currency: 'ZAR',
         total_amount: totals.total_amount,
         customer_name: tradingName,
@@ -291,36 +304,50 @@ export async function POST(
         action: 'storefront.quote_request',
         entity_type: 'customer_quotes',
         entity_id: String(retry.data?.id),
-        summary: `Storefront quote ${quoteNumber} from ${tradingName}`,
+        summary: `Storefront enquiry ${enquiryNumber} from ${tradingName}`,
         metadata: attribution,
+      });
+      const portal = await attachStorefrontPortal({
+        sellerId: seller.id,
+        customerId,
       });
       await notifySellerQuote({
         sellerId: seller.id,
         sellerName: seller.tradingName,
-        quoteNumber,
+        quoteNumber: enquiryNumber,
         tradingName,
         contactEmail,
         contactName,
         channel: String(attribution.channel || ''),
         source: String(attribution.source || ''),
+        portalUrl: portal.portalUrl,
       });
       return NextResponse.json({
         ok: true,
         success: true,
-        quoteId: retry.data?.id ?? quoteNumber,
+        quoteId: retry.data?.id ?? enquiryNumber,
         quote: retry.data,
-        sla: 'Response within 1 business day',
+        enquiry: {
+          id: retry.data?.id,
+          enquiry_number: enquiryNumber,
+          status: 'enquiry',
+        },
+        sla: 'The seller will issue a quotation on your customer portal.',
         message:
-          'Quote request received. We aim to respond within 1 business day with pricing and terms.',
+          'Enquiry received. Your customer profile and portal are ready. This is not a quotation yet — watch the portal for the quote to approve.',
         seller: { id: seller.id, slug: seller.slug, tradingName: seller.tradingName },
+        customer,
+        ...portal,
         next: buyerCompanyId
           ? {
               connect: `/dashboard/connections/discover?peer=${seller.id}`,
               store: `/store/${seller.slug}`,
+              portal: portal.portalUrl,
             }
           : {
               onboarding: `/onboarding?type=business&partner=${seller.slug}&intent=order`,
               store: `/store/${seller.slug}`,
+              portal: portal.portalUrl,
             },
       });
     }
@@ -330,19 +357,24 @@ export async function POST(
       action: 'storefront.quote_request',
       entity_type: 'customer_quotes',
       entity_id: String(quote?.id),
-      summary: `Storefront quote ${quoteNumber} from ${tradingName}`,
+      summary: `Storefront enquiry ${enquiryNumber} from ${tradingName}`,
       metadata: attribution,
     });
 
+    const portal = await attachStorefrontPortal({
+      sellerId: seller.id,
+      customerId,
+    });
     await notifySellerQuote({
       sellerId: seller.id,
       sellerName: seller.tradingName,
-      quoteNumber,
+      quoteNumber: enquiryNumber,
       tradingName,
       contactEmail,
       contactName,
       channel: String(attribution.channel || ''),
       source: String(attribution.source || ''),
+      portalUrl: portal.portalUrl,
     });
 
     // Soft handshake: pending connection from buyer → seller
@@ -354,7 +386,7 @@ export async function POST(
             requestee_profile_id: seller.id,
             status: 'pending',
             connection_type: 'customer',
-            notes: `Storefront quote ${quoteNumber}`,
+            notes: `Storefront enquiry ${enquiryNumber}`,
             metadata: attribution,
             updated_at: now,
           },
@@ -368,26 +400,35 @@ export async function POST(
     return NextResponse.json({
       ok: true,
       success: true,
-      quoteId: quote?.id ?? quoteNumber,
+      quoteId: quote?.id ?? enquiryNumber,
       quote,
-      sla: 'Response within 1 business day',
+      enquiry: {
+        id: quote?.id,
+        enquiry_number: enquiryNumber,
+        status: 'enquiry',
+      },
+      sla: 'The seller will issue a quotation on your customer portal.',
       message:
-        'Quote request received. We aim to respond within 1 business day with pricing and terms on SupplierAdvisor®.',
+        'Enquiry received. Your customer profile and portal are ready. This is not a quotation yet — watch the portal for the quote to approve.',
       seller: {
         id: seller.id,
         slug: seller.slug,
         tradingName: seller.tradingName,
       },
+      customer,
+      ...portal,
       next: buyerCompanyId
         ? {
             connect: `/dashboard/connections/discover?peer=${seller.id}`,
             store: `/store/${seller.slug}`,
             po: `/dashboard/suppliers/po?peer=${seller.id}`,
+            portal: portal.portalUrl,
           }
         : {
             onboarding: `/onboarding?type=business&partner=${seller.slug}&intent=order`,
             login: `/login?next=${encodeURIComponent(`/store/${seller.slug}`)}`,
             store: `/store/${seller.slug}`,
+            portal: portal.portalUrl,
           },
     });
   } catch (e: unknown) {
@@ -395,6 +436,46 @@ export async function POST(
       { error: e instanceof Error ? e.message : 'Error' },
       { status: 500 }
     );
+  }
+}
+
+async function attachStorefrontPortal(opts: {
+  sellerId: number;
+  customerId: number | null;
+}): Promise<{
+  portalUrl?: string;
+  portalEmailSent?: boolean;
+  portalWarning?: string;
+}> {
+  if (!opts.customerId) return { portalWarning: 'No CRM customer to issue a portal' };
+  try {
+    const { getSupabaseAdmin } = await import('@/lib/supabase/admin');
+    const admin = getSupabaseAdmin();
+    const { issueAccountPortal } = await import(
+      '@/lib/portals/trade-portal-people'
+    );
+    const issued = await issueAccountPortal({
+      companyId: opts.sellerId,
+      kind: 'customer',
+      customerId: opts.customerId,
+      sendEmail: true,
+      db: admin,
+    });
+    if (!issued.ok) {
+      console.warn('storefront portal issue failed', issued.error);
+      return { portalWarning: issued.error };
+    }
+    return {
+      portalUrl: issued.url,
+      portalEmailSent: issued.emailSent,
+      portalWarning: issued.warning,
+    };
+  } catch (e) {
+    console.warn('storefront portal issue exception', e);
+    return {
+      portalWarning:
+        e instanceof Error ? e.message : 'Could not issue customer portal',
+    };
   }
 }
 
@@ -408,6 +489,7 @@ async function notifySellerQuote(opts: {
   contactName: string;
   channel: string;
   source: string;
+  portalUrl?: string;
 }) {
   try {
     if (!process.env.RESEND_API_KEY) return;
@@ -430,13 +512,13 @@ async function notifySellerQuote(opts: {
       await resend.emails.send({
         from,
         to: sellerTo,
-        subject: `New storefront quote ${opts.quoteNumber} — ${opts.tradingName}`,
-        html: `<p><strong>New quote request</strong> on SupplierAdvisor®</p>
-<p>Quote: <strong>${opts.quoteNumber}</strong><br/>
+        subject: `New storefront enquiry ${opts.quoteNumber} — ${opts.tradingName}`,
+        html: `<p><strong>New enquiry</strong> on SupplierAdvisor® (not a quotation yet)</p>
+<p>Enquiry: <strong>${opts.quoteNumber}</strong><br/>
 Buyer: ${opts.tradingName} · ${opts.contactName} · ${opts.contactEmail}<br/>
 Channel: ${opts.channel || '—'} · Source: ${opts.source || 'storefront'}</p>
-<p>SLA: respond within <strong>1 business day</strong>.</p>
-<p><a href="${quotesUrl}">Open Quotes inbox</a></p>`,
+<p>Issue a quotation from <strong>Customers → Quote</strong>, then the buyer accepts with a PO and pays the deposit on their portal.</p>
+<p><a href="${quotesUrl}">Open Enquiries & quotes</a></p>`,
       });
     }
 
@@ -447,8 +529,13 @@ Channel: ${opts.channel || '—'} · Source: ${opts.source || 'storefront'}</p>
         to: opts.contactEmail,
         subject: `Quote request received — ${opts.sellerName}`,
         html: `<p>Hi ${opts.contactName || 'there'},</p>
-<p>We received your quote request <strong>${opts.quoteNumber}</strong> for <strong>${opts.sellerName}</strong> on SupplierAdvisor®.</p>
-<p>We aim to respond within <strong>1 business day</strong> with pricing and terms.</p>
+<p>We received your enquiry <strong>${opts.quoteNumber}</strong> for <strong>${opts.sellerName}</strong> on SupplierAdvisor®.</p>
+<p>Your customer profile is saved on ${opts.sellerName}'s CRM. This is not a quotation yet — they will send a quote to your portal for you to approve (with your PO number) before a deposit is due.</p>
+${
+  opts.portalUrl
+    ? `<p><a href="${opts.portalUrl}">Open your customer portal</a></p>`
+    : ''
+}
 <p>This is a verified B2B trade network — not a second order book.</p>
 <p>— SupplierAdvisor®</p>`,
       });

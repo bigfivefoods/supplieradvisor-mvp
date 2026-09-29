@@ -41,6 +41,8 @@ import {
   groupWorkspaceModules,
   hasModulesConfigured,
   isAlwaysOnModule,
+  isControlPlaneSandboxCompany,
+  isModuleEnabled,
   isGovernmentProgrammeModule,
   isIndustryAdvisorModule,
   isSupplierAdvisorPlatformCompany,
@@ -220,6 +222,15 @@ function ModulesInner() {
       }),
     [tradingName, metadata]
   );
+  const isSandboxCo = useMemo(
+    () =>
+      isControlPlaneSandboxCompany({
+        companyId,
+        tradingName,
+        metadata,
+      }),
+    [companyId, tradingName, metadata]
+  );
 
   const programmeForced = useMemo(() => {
     const s = new Set<string>();
@@ -268,6 +279,7 @@ function ModulesInner() {
 
   const moduleToggleLocked = (id: string) => {
     if (isAlwaysOnModule(id)) return true;
+    if (isSandboxCo) return false;
     if (id === 'platform') return true;
     if (isGovernmentProgrammeModule(id)) {
       if (programmeForced.has(id)) return true;
@@ -280,7 +292,7 @@ function ModulesInner() {
       if (govLocked && !platformOperator) return true;
       if (platformOperator) return false;
       // Always allow hiding a hub that is already on (e.g. ContainerAdvisor).
-      if (enabled[id] === true) return false;
+      if (isModuleEnabled(enabled, id)) return false;
       return !industryPackUnlocked(id);
     }
     return false;
@@ -373,9 +385,9 @@ function ModulesInner() {
     () =>
       groupWorkspaceModules({
         knownModuleIds: [...optionsById.keys()],
-        showPlatform: isPlatformCo,
+        showPlatform: isPlatformCo || isSandboxCo,
       }),
-    [optionsById, isPlatformCo]
+    [optionsById, isPlatformCo, isSandboxCo]
   );
 
   const selectedHubs = useMemo(() => {
@@ -385,7 +397,7 @@ function ModulesInner() {
       for (const id of g.moduleIds) {
         if (seen.has(id)) continue;
         seen.add(id);
-        if (enabled[id] === false) continue;
+        if (!isModuleEnabled(enabled, id)) continue;
         const opt = optionsById.get(id);
         if (!opt) continue;
         out.push({ id, name: opt.name, layer: g.layer });
@@ -403,6 +415,7 @@ function ModulesInner() {
     try {
       const nextMeta = mergeEnabledModulesIntoMetadata(metadata, map, {
         markConfigured: true,
+        sandboxPicks: isSandboxCo,
       });
       const res = await fetch('/api/business/profile', {
         method: 'PATCH',
@@ -761,7 +774,7 @@ function ModulesInner() {
   const renderModuleToggle = (moduleId: string, showPackBadges?: boolean) => {
     const opt = optionsById.get(moduleId);
     if (!opt) return null;
-    const on = enabled[opt.id] !== false;
+    const on = isModuleEnabled(enabled, opt.id);
     const viaPacks = showPackBadges
       ? packsUnlockingAppModule(opt.id).filter((p) => subscribedPackIds.has(p.id))
       : [];
@@ -784,7 +797,7 @@ function ModulesInner() {
           <span className="min-w-0">
             <span className="block text-sm font-bold text-slate-900">
               {opt.name}
-              {opt.alwaysOn || opt.id === 'platform' ? (
+              {opt.alwaysOn || (opt.id === 'platform' && !isSandboxCo) ? (
                 <span className="ml-1.5 text-[9px] font-black uppercase tracking-wide text-neutral-400">
                   always on
                 </span>
@@ -840,7 +853,11 @@ function ModulesInner() {
       <BusinessHeader
         title="Workspace"
         titleAccent="modules"
-        description={`${tradingName || 'Your company'} — Core OS hubs are available to every subscriber. Industry Advisors unlock when you subscribe to that pack. SchoolAdvisor and HealthAdvisor are set up by SupplierAdvisor admin. Fine-tune per person under Team.`}
+        description={
+          isSandboxCo
+            ? `${tradingName || 'Big Five Connect'} — every optional hub starts off. Tick only the modules you want to test. Home, Company and Guide stay on so you can get back here.`
+            : `${tradingName || 'Your company'} — Core OS hubs are available to every subscriber. Industry Advisors unlock when you subscribe to that pack. SchoolAdvisor and HealthAdvisor are set up by SupplierAdvisor admin. Fine-tune per person under Team.`
+        }
         action={
           <div className="flex flex-wrap gap-2">
             <Link
@@ -883,6 +900,14 @@ function ModulesInner() {
           </div>
         }
       />
+
+      {isSandboxCo ? (
+        <div className="mb-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
+          Module sandbox — all Advisors and Core OS hubs are off until you turn
+          them on, including ApparelAdvisor® and ConstructionAdvisor®. Packs do
+          not force hubs on here.
+        </div>
+      ) : null}
 
       {govLocked ? (
         <div className="mb-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950">
@@ -1362,7 +1387,7 @@ function ModulesInner() {
 
       {workspaceGroups.map((group, idx) => {
         const ids = group.moduleIds.filter((id) => optionsById.get(id));
-        const onCount = ids.filter((id) => enabled[id] !== false).length;
+        const onCount = ids.filter((id) => isModuleEnabled(enabled, id)).length;
         const header =
           group.layer === 'core'
             ? 'bg-slate-900 text-white'
