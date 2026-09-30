@@ -18,22 +18,31 @@ export async function GET(request: NextRequest) {
     const status = sp.get('status');
     const privyUserId = sp.get('privyUserId');
     const email = sp.get('email');
+    const isContractorRequest = !!privyUserId && !!containerId && Number.isFinite(containerId) && containerId > 0;
 
-    const supabase = getSupabaseServer();
     let profileId = companyId;
 
-    if (privyUserId && containerId) {
+    if (isContractorRequest) {
       const access = await assertContractorContainerAccess(containerId, privyUserId, email);
       if (!access.ok) {
         return NextResponse.json({ error: access.error }, { status: access.status });
       }
       profileId = Number(access.container.profile_id);
+    } else {
+      if (!Number.isFinite(companyId) || companyId <= 0) {
+        return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+      }
+      const _gate = await requireCompanyAccess(request, companyId, {
+        legacyPrivyUserId: legacyPrivyFrom(request),
+      });
+      if (!_gate.ok) return _gate.response;
     }
 
     if (!Number.isFinite(profileId) && !containerId) {
       return NextResponse.json({ error: 'companyId or containerId required' }, { status: 400 });
     }
 
+    const supabase = getSupabaseServer();
     let q = supabase.from('riad_logs').select('*').order('created_at', { ascending: false });
 
     if (Number.isFinite(profileId)) q = q.eq('profile_id', profileId);
@@ -292,10 +301,17 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    const id = Number(body.id);
+    const containerId = body.containerId != null ? Number(body.containerId) : null;
+    const contractorRequest = !!body.privyUserId && !!containerId && Number.isFinite(containerId) && containerId > 0;
+    let companyId = Number(body.companyId);
+    if (!Number.isFinite(id) || id <= 0) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    if (!contractorRequest && (!Number.isFinite(companyId) || companyId <= 0)) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
 
     // Contractor may only patch items on their container
-    if (body.privyUserId && body.containerId) {
+    if (contractorRequest) {
       const access = await assertContractorContainerAccess(
         Number(body.containerId),
         body.privyUserId,
@@ -304,6 +320,12 @@ export async function PATCH(request: NextRequest) {
       if (!access.ok) {
         return NextResponse.json({ error: access.error }, { status: access.status });
       }
+      companyId = Number(access.container.profile_id);
+    } else {
+      const _gate = await requireCompanyAccess(request, companyId, {
+        legacyPrivyUserId: legacyPrivyFrom(request),
+      });
+      if (!_gate.ok) return _gate.response;
     }
 
     const allowed = [
@@ -360,8 +382,21 @@ export async function PATCH(request: NextRequest) {
     }
 
     const supabase = getSupabaseServer();
+    const { data: existing, error: existingError } = await supabase
+      .from('riad_logs')
+      .select('id')
+      .eq('id', id)
+      .eq('profile_id', companyId)
+      .maybeSingle();
+    if (existingError) return NextResponse.json({ error: existingError.message }, { status: 500 });
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
     // Do not force container_id match when null (company-wide items)
-    let q = supabase.from('riad_logs').update(updates).eq('id', Number(body.id));
+    let q = supabase
+      .from('riad_logs')
+      .update(updates)
+      .eq('id', id)
+      .eq('profile_id', companyId);
     if (body.containerId != null && Number.isFinite(Number(body.containerId))) {
       q = q.eq('container_id', Number(body.containerId));
     }
@@ -376,7 +411,8 @@ export async function PATCH(request: NextRequest) {
         const retry = await supabase
           .from('riad_logs')
           .update(soft)
-          .eq('id', Number(body.id))
+          .eq('id', id)
+          .eq('profile_id', companyId)
           .select('*')
           .single();
         if (retry.error) return NextResponse.json({ error: retry.error.message }, { status: 500 });
@@ -393,15 +429,28 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const id = Number(request.nextUrl.searchParams.get('id'));
-    if (!Number.isFinite(id)) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    const companyId = Number(request.nextUrl.searchParams.get('companyId'));
 
     // Contractors cannot delete — only business (no privyUserId path)
     if (request.nextUrl.searchParams.get('privyUserId')) {
       return NextResponse.json({ error: 'Contractors cannot delete RIAD entries' }, { status: 403 });
     }
+    if (!Number.isFinite(id) || id <= 0) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();
-    const { error } = await supabase.from('riad_logs').delete().eq('id', id);
+    const { error } = await supabase
+      .from('riad_logs')
+      .delete()
+      .eq('id', id)
+      .eq('profile_id', companyId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
   } catch (e: unknown) {
