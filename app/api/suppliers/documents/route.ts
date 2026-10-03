@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember, assertSupplierConnection } from '@/lib/suppliers/access';
+import { assertSupplierConnection } from '@/lib/suppliers/access';
 import { logActivity } from '@/lib/customers/access';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
@@ -14,9 +14,11 @@ export async function GET(request: NextRequest) {
     const companyId = Number(sp.get('companyId'));
     const supplierId = sp.get('supplierId') ? Number(sp.get('supplierId')) : null;
     const sharedOnly = sp.get('sharedOnly') === '1';
-    if (!Number.isFinite(companyId)) {
+    if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();
     let q = supabase
@@ -57,8 +59,6 @@ export async function POST(request: NextRequest) {
 
     const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
     if (!_gate.ok) return _gate.response;
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
-    if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
 
     const supabase = getSupabaseServer();
     let supplierProfileId = body.supplier_profile_id || body.supplierProfileId || null;
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
         visibility: body.visibility === 'shared' ? 'shared' : 'private',
         shared_at: body.visibility === 'shared' ? new Date().toISOString() : null,
         content_hash: body.content_hash || null,
-        created_by: mem.userId,
+        created_by: _gate.userId,
         updated_at: new Date().toISOString(),
       })
       .select('*')
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
 
     await logActivity({
       profile_id: companyId,
-      actor_user_id: mem.userId,
+      actor_user_id: _gate.userId,
       action: 'supplier.document_create',
       entity_type: 'supplier_documents',
       entity_id: String(data.id),
@@ -123,11 +123,11 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const companyId = Number(body.companyId);
     const docId = Number(body.id);
-    if (!Number.isFinite(companyId) || !Number.isFinite(docId)) {
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(docId) || docId <= 0) {
       return NextResponse.json({ error: 'companyId and id required' }, { status: 400 });
     }
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
-    if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();
     const { data: doc, error: loadErr } = await supabase
@@ -177,13 +177,14 @@ export async function PATCH(request: NextRequest) {
       .from('supplier_documents')
       .update(updates)
       .eq('id', docId)
+      .eq('profile_id', companyId)
       .select('*')
       .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     await logActivity({
       profile_id: companyId,
-      actor_user_id: mem.userId,
+      actor_user_id: _gate.userId,
       action:
         updates.visibility === 'shared'
           ? 'supplier.document_share'
