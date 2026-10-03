@@ -7,6 +7,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { Loader2, ShieldCheck, Smartphone, Sparkles } from 'lucide-react';
 import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
 import { peekOauthReturnParams } from '@/lib/auth/oauth-return';
+import { safeNextPath } from '@/lib/auth/safe-next';
 import { fetchLoginRole } from '@/lib/auth/login-role';
 import ThemeToggle from '@/components/theme/ThemeToggle';
 import { AuthLoginActions } from '@/components/auth/AuthLoginActions';
@@ -18,7 +19,8 @@ function LoginForm() {
   const claimed = searchParams.get('claimed');
   const nextFromQuery = searchParams.get('next') || '';
   const [stashedNext, setStashedNext] = useState('');
-  const next = nextFromQuery || stashedNext;
+  // Same-site relative paths only: an off-site or protocol-relative next is dropped (no open redirect).
+  const next = safeNextPath(nextFromQuery) || safeNextPath(stashedNext);
   const prefillEmail = searchParams.get('email') || '';
   const isContractorFlow =
     next.startsWith('/contractor') || next.includes('contractor');
