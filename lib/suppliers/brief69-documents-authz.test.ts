@@ -66,7 +66,7 @@ assert.match(
 );
 assert.doesNotMatch(
   flatPatch,
-  /\.update\(updates\)\.eq\('id', docId\)(?!\s*\.eq\('profile_id', companyId\))/
+  /\.update\(updates\)\s*\.eq\('id', docId\)(?!\s*\.eq\('profile_id', companyId\))/
 );
 
 type JsonBody = Record<string, unknown>;
