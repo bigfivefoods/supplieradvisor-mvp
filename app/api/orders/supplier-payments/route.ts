@@ -85,11 +85,18 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const companyId = Number(body.companyId);
-    const poId = Number(body.poId);
+    const poIdRaw = body.poId;
+    const poId = Number(poIdRaw);
     const amount = Number(body.amount);
 
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    if (poIdRaw == null) {
+      return NextResponse.json(
+        { error: 'poId is required' },
+        { status: 400 }
+      );
     }
     if (!Number.isFinite(poId) || poId <= 0) {
       return NextResponse.json(
@@ -221,11 +228,18 @@ export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
     const companyId = Number(body.companyId);
-    const paymentId = Number(body.paymentId);
+    const paymentIdRaw = body.paymentId;
+    const paymentId = Number(paymentIdRaw);
     const action = String(body.action || '').toLowerCase();
 
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    if (paymentIdRaw == null) {
+      return NextResponse.json(
+        { error: 'paymentId required' },
+        { status: 400 }
+      );
     }
     if (!Number.isFinite(paymentId) || paymentId <= 0) {
       return NextResponse.json(

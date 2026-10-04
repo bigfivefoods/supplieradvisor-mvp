@@ -16,6 +16,8 @@ function fnBlock(src: string, name: 'GET' | 'POST' | 'PATCH') {
   const start = src.indexOf(signature);
   assert.ok(start >= 0, `Could not locate ${name} in source`);
 
+  // Route handlers in this repo avoid unmatched braces in strings/comments, so
+  // a simple brace-depth walk is sufficient for this lightweight regression test.
   const bodyStart = src.indexOf('{', start + signature.length);
   assert.ok(bodyStart >= 0, `Could not locate ${name} body start`);
 
@@ -42,6 +44,7 @@ for (const [name, fn] of [
   ['supplier-payments PATCH', patchFn],
 ] as const) {
   assert.ok(fn.includes('requireCompanyAccess'), `${name} must call requireCompanyAccess`);
+  assert.ok(fn.includes('getSupabaseServer'), `${name} must call getSupabaseServer`);
   assert.ok(
     fn.indexOf('requireCompanyAccess') < fn.indexOf('getSupabaseServer'),
     `${name} must gate before getSupabaseServer`
