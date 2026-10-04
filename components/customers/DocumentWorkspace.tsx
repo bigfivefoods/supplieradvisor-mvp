@@ -2256,7 +2256,9 @@ function DocInner({
 
   const remove = async (id: number) => {
     if (!confirm('Delete this document?')) return;
-    const res = await fetch(`/api/customers/docs?type=${type}&id=${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/customers/docs?type=${type}&id=${id}&companyId=${companyId}`, {
+      method: 'DELETE',
+    });
     if (res.ok) {
       toast.success('Deleted');
       void load();
