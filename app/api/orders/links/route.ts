@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember } from '@/lib/customers/access';
+import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 import type { LinkType, OrderType } from '@/lib/orders/order-links';
 
 /**
@@ -23,21 +23,18 @@ export async function GET(req: NextRequest) {
     const companyId = Number(searchParams.get('companyId'));
     const orderId = Number(searchParams.get('orderId'));
     const orderType = (searchParams.get('orderType') || 'sales_order') as OrderType;
-    const privyUserId = searchParams.get('privyUserId');
 
-    if (!companyId || !orderId) {
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(orderId) || orderId <= 0) {
       return NextResponse.json(
         { error: 'companyId and orderId are required' },
         { status: 400 }
       );
     }
 
-    if (privyUserId) {
-      const mem = await assertCompanyMember(privyUserId, companyId);
-      if (!mem.ok) {
-        return NextResponse.json({ error: mem.error }, { status: mem.status });
-      }
-    }
+    const gate = await requireCompanyAccess(req, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(req),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
 
@@ -73,9 +70,15 @@ export async function POST(req: NextRequest) {
     const targetOrderType = (body.targetOrderType || 'purchase_order') as OrderType;
     const linkType = (body.linkType || 'fulfillment') as LinkType;
     const notes = body.notes ? String(body.notes) : null;
-    const privyUserId = body.privyUserId as string | undefined;
 
-    if (!companyId || !sourceOrderId || !targetOrderId) {
+    if (
+      !Number.isFinite(companyId) ||
+      companyId <= 0 ||
+      !Number.isFinite(sourceOrderId) ||
+      sourceOrderId <= 0 ||
+      !Number.isFinite(targetOrderId) ||
+      targetOrderId <= 0
+    ) {
       return NextResponse.json(
         { error: 'companyId, sourceOrderId and targetOrderId are required' },
         { status: 400 }
@@ -89,14 +92,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!privyUserId) {
-      return NextResponse.json({ error: 'privyUserId required' }, { status: 400 });
-    }
-
-    const mem = await assertCompanyMember(privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const gate = await requireCompanyAccess(req, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(req, body),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
 
@@ -125,7 +124,7 @@ export async function POST(req: NextRequest) {
         link_type: linkType,
         status: 'active',
         notes,
-        created_by: privyUserId,
+        created_by: gate.userId,
         metadata: {},
       })
       .select('*')
@@ -143,7 +142,7 @@ export async function POST(req: NextRequest) {
         action: 'order.link.created',
         entity_type: 'order_link',
         entity_id: String(data.id),
-        actor_id: privyUserId,
+        actor_id: gate.userId,
         metadata: {
           source_order_id: sourceOrderId,
           target_order_id: targetOrderId,
@@ -166,19 +165,23 @@ export async function DELETE(req: NextRequest) {
     const body = await req.json();
     const companyId = Number(body.companyId);
     const linkId = Number(body.linkId);
-    const privyUserId = body.privyUserId as string | undefined;
 
-    if (!companyId || !linkId || !privyUserId) {
+    if (
+      !Number.isFinite(companyId) ||
+      companyId <= 0 ||
+      !Number.isFinite(linkId) ||
+      linkId <= 0
+    ) {
       return NextResponse.json(
-        { error: 'companyId, linkId and privyUserId are required' },
+        { error: 'companyId and linkId are required' },
         { status: 400 }
       );
     }
 
-    const mem = await assertCompanyMember(privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const gate = await requireCompanyAccess(req, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(req, body),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
 
@@ -186,7 +189,7 @@ export async function DELETE(req: NextRequest) {
       .from('order_links')
       .update({
         status: 'unlinked',
-        unlinked_by: privyUserId,
+        unlinked_by: gate.userId,
         unlinked_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -211,7 +214,7 @@ export async function DELETE(req: NextRequest) {
         action: 'order.link.unlinked',
         entity_type: 'order_link',
         entity_id: String(linkId),
-        actor_id: privyUserId,
+        actor_id: gate.userId,
         metadata: {
           source_order_id: data.source_order_id,
           target_order_id: data.target_order_id,
