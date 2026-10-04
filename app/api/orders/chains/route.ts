@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember } from '@/lib/customers/access';
+import { legacyPrivyFrom, requireCompanyAccess } from '@/lib/auth/api-auth';
 import { customerVisibleProductionStatus } from '@/lib/orders/order-links';
 import { isMissingRelation } from '@/lib/business/company-data';
 
 /**
- * GET /api/orders/chains?companyId=&privyUserId=&filter=linked|independent|all
+ * GET /api/orders/chains?companyId=&filter=linked|independent|all
  * Commercial + operational view of order chains for Operations tower.
  * BFF-only: includes cost (supplier paid) vs revenue (customer invoiced).
  */
@@ -13,18 +13,15 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const companyId = Number(searchParams.get('companyId'));
-    const privyUserId = searchParams.get('privyUserId');
     const filter = (searchParams.get('filter') || 'linked').toLowerCase();
 
-    if (!companyId) {
+    if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    if (privyUserId) {
-      const mem = await assertCompanyMember(privyUserId, companyId);
-      if (!mem.ok) {
-        return NextResponse.json({ error: mem.error }, { status: mem.status });
-      }
-    }
+    const gate = await requireCompanyAccess(req, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(req),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
 

@@ -50,7 +50,6 @@ function ChainsInner() {
     try {
       const q = new URLSearchParams({
         companyId: String(companyId),
-        privyUserId,
         filter,
       });
       const res = await fetch(`/api/orders/chains?${q}`);
