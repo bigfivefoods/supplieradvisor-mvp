@@ -15,8 +15,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'companyId or privyUserId required' }, { status: 400 });
     }
 
-    const supabase = getSupabaseServer();
-    let profileId = companyId;
+    let profileId: number;
 
     if (containerId && privyUserId) {
       const access = await assertContractorContainerAccess(
@@ -27,13 +26,23 @@ export async function GET(request: NextRequest) {
       if (!access.ok) {
         return NextResponse.json({ error: access.error }, { status: access.status });
       }
-      if (access.container.profile_id) profileId = access.container.profile_id;
+      profileId = Number(access.container.profile_id);
+    } else {
+      if (!Number.isFinite(companyId) || companyId <= 0) {
+        return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+      }
+      const _gate = await requireCompanyAccess(request, companyId, {
+        legacyPrivyUserId: legacyPrivyFrom(request),
+      });
+      if (!_gate.ok) return _gate.response;
+      profileId = companyId;
     }
 
-    if (!Number.isFinite(profileId)) {
+    if (!Number.isFinite(profileId) || profileId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
 
+    const supabase = getSupabaseServer();
     let q = supabase.from('container_inventory').select('*').eq('profile_id', profileId);
     if (containerId) q = q.eq('container_id', Number(containerId));
     const { data, error } = await q.order('product_name');
@@ -257,10 +266,18 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     const id = Number(request.nextUrl.searchParams.get('id'));
-    if (!Number.isFinite(id)) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    if (!Number.isFinite(id) || id <= 0) {
+      return NextResponse.json({ error: 'id required' }, { status: 400 });
+    }
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const supabase = getSupabaseServer();
-    const { error } = await supabase.from('container_inventory').delete().eq('id', id);
+    const { error } = await supabase.from('container_inventory').delete().eq('id', id).eq('profile_id', companyId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
   } catch (e: unknown) {

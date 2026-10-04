@@ -271,7 +271,18 @@ function InventoryContent() {
 
   const removeItem = async (id: number) => {
     if (!confirm('Remove this inventory line?')) return;
-    await fetch(`/api/containers/inventory?id=${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/containers/inventory?companyId=${companyId}&id=${id}`, { method: 'DELETE' });
+    let data: { error?: string } = {};
+    try {
+      data = (await res.json()) as { error?: string };
+    } catch {
+      data = {};
+    }
+    if (!res.ok) {
+      toast.error(data.error || 'Failed to remove inventory line');
+      return;
+    }
+    toast.success('Inventory line removed');
     void load();
   };
 
