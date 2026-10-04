@@ -110,7 +110,16 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    if (!body.id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
+    const companyId = Number(body.companyId);
+    const id = Number(body.id);
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(id) || id <= 0) {
+      return NextResponse.json({ error: 'companyId and id are required' }, { status: 400 });
+    }
+
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!_gate.ok) return _gate.response;
 
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     for (const f of CONTRACTOR_FIELDS) {
@@ -129,7 +138,8 @@ export async function PATCH(request: NextRequest) {
     const { data, error } = await supabase
       .from('container_contractors')
       .update(updates)
-      .eq('id', Number(body.id))
+      .eq('id', id)
+      .eq('profile_id', companyId)
       .select('*')
       .single();
 
@@ -142,10 +152,15 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     const id = Number(request.nextUrl.searchParams.get('id'));
-    if (!Number.isFinite(id)) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(id) || id <= 0) {
+      return NextResponse.json({ error: 'companyId and id are required' }, { status: 400 });
+    }
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const supabase = getSupabaseServer();
-    const { error } = await supabase.from('container_contractors').delete().eq('id', id);
+    const { error } = await supabase.from('container_contractors').delete().eq('id', id).eq('profile_id', companyId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
   } catch (e: unknown) {
