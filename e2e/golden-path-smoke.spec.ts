@@ -49,6 +49,34 @@ test.describe('Golden path smoke (public)', () => {
     expect(body.toLowerCase()).toMatch(/user-agent|sitemap/);
   });
 
+  test('public pages send anti-framing headers and embed stays framable', async ({
+    request,
+  }) => {
+    test.setTimeout(120_000);
+
+    for (const path of ['/', '/login']) {
+      const res = await request.get(`${base}${path}`);
+      expect(res.headers()['x-frame-options']).toBe('DENY');
+      expect(res.headers()['x-content-type-options']).toBe('nosniff');
+      expect(res.headers()['referrer-policy']).toBe(
+        'strict-origin-when-cross-origin'
+      );
+      expect(res.headers()['content-security-policy']).toContain(
+        "frame-ancestors 'none'"
+      );
+      expect(res.headers()['content-security-policy-report-only']).toContain(
+        "default-src 'self'"
+      );
+    }
+
+    const embedRes = await request.get(`${base}/embed/containers/test`);
+    expect(embedRes.headers()['x-frame-options']).toBeFalsy();
+    expect(embedRes.headers()['content-security-policy']).toContain(
+      "frame-ancestors *"
+    );
+    expect(embedRes.headers()['content-security-policy-report-only']).toBeFalsy();
+  });
+
   test('protected invoice docs without auth → 401', async ({ request }) => {
     const res = await request.get(
       `${base}/api/customers/docs?companyId=1&type=invoice`
