@@ -205,7 +205,10 @@ function ContractorsInner() {
   };
 
   const attachIdDocument = async (contractor: ContractorRecord, file: File) => {
-    if (!companyId) return;
+    if (!companyId) {
+      toast.error('Select a company first');
+      return;
+    }
     setUploadingId(contractor.id);
     try {
       const uploaded = await uploadContractorIdDocument(
