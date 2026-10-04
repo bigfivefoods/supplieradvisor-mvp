@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember } from '@/lib/customers/access';
+import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 import type { OrderType } from '@/lib/orders/order-links';
 
 /**
@@ -16,12 +16,17 @@ export async function GET(req: NextRequest) {
     const orderId = Number(searchParams.get('orderId'));
     const orderType = (searchParams.get('orderType') || 'purchase_order') as OrderType;
 
-    if (!companyId || !orderId) {
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(orderId) || orderId <= 0) {
       return NextResponse.json(
         { error: 'companyId and orderId required' },
         { status: 400 }
       );
     }
+
+    const gate = await requireCompanyAccess(req, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(req),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
     const { data, error } = await supabase
@@ -51,20 +56,24 @@ export async function POST(req: NextRequest) {
     const companyId = Number(body.companyId);
     const orderId = Number(body.orderId);
     const orderType = (body.orderType || 'purchase_order') as OrderType;
-    const privyUserId = body.privyUserId as string | undefined;
     const batchesIn = Array.isArray(body.batches) ? body.batches : [];
 
-    if (!companyId || !orderId || !privyUserId) {
+    if (
+      !Number.isFinite(companyId) ||
+      companyId <= 0 ||
+      !Number.isFinite(orderId) ||
+      orderId <= 0
+    ) {
       return NextResponse.json(
-        { error: 'companyId, orderId and privyUserId required' },
+        { error: 'companyId and orderId required' },
         { status: 400 }
       );
     }
 
-    const mem = await assertCompanyMember(privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const gate = await requireCompanyAccess(req, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(req, body),
+    });
+    if (!gate.ok) return gate.response;
 
     if (!batchesIn.length) {
       return NextResponse.json({ error: 'batches[] required' }, { status: 400 });
@@ -88,7 +97,7 @@ export async function POST(req: NextRequest) {
           ? Number(b.manufacturer_profile_id)
           : null,
         notes: b.notes || null,
-        created_by: privyUserId,
+        created_by: gate.userId,
       });
     }
 
