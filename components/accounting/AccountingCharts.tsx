@@ -580,12 +580,16 @@ export function MixDoughnut({
   centerValue,
   format = 'money',
   emptyMessage,
+  onSegmentClick,
+  activeIndex,
 }: {
   segments: Array<{ label: string; value: number; color?: string }>;
   centerLabel?: string;
   centerValue?: string;
   format?: 'money' | 'count';
   emptyMessage?: string;
+  onSegmentClick?: (index: number, segment: { label: string; value: number }) => void;
+  activeIndex?: number | null;
 }) {
   const palette = [
     C.revenue,
@@ -609,6 +613,9 @@ export function MixDoughnut({
         borderWidth: 3,
         borderColor: '#fff',
         hoverOffset: 8,
+        offset: filtered.map((_, i) =>
+          activeIndex != null && i === activeIndex ? 10 : 0
+        ),
       },
     ],
   };
@@ -617,6 +624,20 @@ export function MixDoughnut({
     responsive: true,
     maintainAspectRatio: false,
     cutout: '70%',
+    onHover: onSegmentClick
+      ? (evt, els) => {
+          const t = evt.native?.target as HTMLElement | undefined;
+          if (t) t.style.cursor = els.length ? 'pointer' : 'default';
+        }
+      : undefined,
+    onClick: onSegmentClick
+      ? (_evt, els) => {
+          if (!els.length) return;
+          const i = els[0].index;
+          const seg = filtered[i];
+          if (seg) onSegmentClick(i, { label: seg.label, value: seg.value });
+        }
+      : undefined,
     plugins: {
       ...basePlugins,
       legend: {

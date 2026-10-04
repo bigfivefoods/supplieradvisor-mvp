@@ -30,8 +30,16 @@ export type CoaAccount = {
   metadata?: Record<string, unknown> | null;
   created_at?: string;
   updated_at?: string;
-  /** computed */
+  /** Natural closing balance. With a period, this is the balance at period end. */
   balance?: number;
+  /** Parent account code, when the chart is sliced for export. */
+  parent_code?: string | null;
+  /** Natural balance of posted activity before the period. */
+  opening_balance?: number;
+  period_debit?: number;
+  period_credit?: number;
+  /** Closing natural balance minus opening natural balance. */
+  period_movement?: number;
 };
 
 export type JournalLineInput = {

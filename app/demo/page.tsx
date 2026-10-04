@@ -13,6 +13,8 @@ import {
   ManufacturingMock,
   InventoryMock,
   NetworkMock,
+  ApparelgraphMock,
+  ConstructiongraphMock,
   ProductMockShell,
   ModuleGallery,
 } from '@/components/marketing/ProductMocks';
@@ -23,6 +25,8 @@ const DEMOS = [
   { id: 'srm', label: 'Suppliers', Mock: SrmMock, gallery: 'srm' },
   { id: 'inv', label: 'Inventory', Mock: InventoryMock, gallery: 'inv' },
   { id: 'mfg', label: 'Manufacturing', Mock: ManufacturingMock, gallery: 'mfg' },
+  { id: 'apparel', label: 'ApparelAdvisor', Mock: ApparelgraphMock, gallery: 'mfg' },
+  { id: 'construction', label: 'ConstructionAdvisor', Mock: ConstructiongraphMock, gallery: 'ops' },
   { id: 'fin', label: 'Finance', Mock: AccountingMock, gallery: 'fin' },
   { id: 'sheq', label: 'SHEQ', Mock: SheqMock, gallery: 'sheq' },
   { id: 'qa', label: 'Quality', Mock: QualityMock, gallery: 'qa' },
@@ -47,8 +51,9 @@ export default function InteractiveDemoPage() {
               Click through the OS — no signup
             </h1>
             <p className="mt-2 max-w-xl text-slate-600">
-              Live product mocks for core modules. When you&apos;re ready, start
-              your {COMPANY_TRIAL_DAYS}-day free trial with real data.
+              Live product mocks for Core OS and Industry Advisors including
+              ApparelAdvisor® and ConstructionAdvisor®. When you&apos;re ready,
+              start your {COMPANY_TRIAL_DAYS}-day free trial with real data.
             </p>
           </div>
           <Link

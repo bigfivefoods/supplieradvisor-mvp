@@ -50,6 +50,8 @@ import {
   School,
   BriefcaseBusiness,
   Store,
+  Shirt,
+  Hammer,
   QrCode,
   Smartphone,
   BadgeCheck,
@@ -84,6 +86,8 @@ import {
   ProjectsMock,
   SustainabilityMock,
   FieldgraphMock,
+  ApparelgraphMock,
+  ConstructiongraphMock,
   QuarrygraphMock,
   FitgraphMock,
   PhysiographMock,
@@ -212,8 +216,8 @@ const MODULE_OPTIONS: Array<{
     iconTone: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300',
     bullets: [
       'CropAdvisor® agri · QuarryAdvisor® aggregates',
-      'GymAdvisor® · HireAdvisor® · RetailAdvisor® · ContainerAdvisor®',
-      'Clinic Advisors including VetAdvisor® · diaries · PWAs',
+      'ApparelAdvisor® range · ATS · ConstructionAdvisor® contractor OS',
+      'GymAdvisor® · HireAdvisor® · RetailAdvisor® · clinic Advisors',
     ],
     href: '#modules-industry',
     cta: 'Explore Industry modules',
@@ -466,6 +470,38 @@ const MODULES = [
     icon: Mountain,
   },
   {
+    id: 'apparel-clothing',
+    band: 'industry' as ModuleBand,
+    code: 'I2b',
+    title: 'ApparelAdvisor®',
+    short: 'ApparelAdvisor',
+    tagline: 'Apparel OS for factory and brand',
+    body: 'Seasons and line plan, style/colour/size, landed-duty BOM, critical path, sample gates, CMT roll ownership, floor tickets, QA holds that stop ship, wholesale ATS and a buyer line-sheet PWA — invoices stay on Customers Trade.',
+    bullets: [
+      'Range · styles · landed costing',
+      'Critical path · floor · QA holds',
+      'Wholesale ATS · line sheets · buyer PWA',
+    ],
+    Mock: ApparelgraphMock,
+    icon: Shirt,
+  },
+  {
+    id: 'constructiongraph',
+    band: 'industry' as ModuleBand,
+    code: 'I2c',
+    title: 'ConstructionAdvisor®',
+    short: 'ConstructionAdvisor',
+    tagline: 'Contractor OS for building',
+    body: 'One customer, many projects. Quote from the BOQ, run a dated programme with plan vs actuals, allocate costs against BOQ lines, date progress payments (contractor claim → certify IPC → client pay), then roll every project into a contractor programme — with a client and contractor PWA. Invoices stay on Customers Trade.',
+    bullets: [
+      'Clients · many projects · BOQ quotes',
+      'Dated plan vs actuals · costs on BOQ',
+      'Progress payments · reports · client/contractor PWA',
+    ],
+    Mock: ConstructiongraphMock,
+    icon: Hammer,
+  },
+  {
     id: 'fitgraph',
     band: 'industry' as ModuleBand,
     code: 'I3',
@@ -630,7 +666,7 @@ const MODULE_SECTION_BANDS: Array<{
     id: 'industry',
     title: 'Industry',
     blurb:
-      'Vertical depth — CropAdvisor®, QuarryAdvisor®, GymAdvisor®, HireAdvisor®, RetailAdvisor®, ContainerAdvisor®, and clinic Advisors (Physio · Dental · Psychiatry · Medical · Vet) with diaries, waitlist desks, industry PWAs, rooms, marketplace listings, and in-app care messages — not brochure modules.',
+      'Vertical depth — CropAdvisor®, QuarryAdvisor®, ApparelAdvisor® (range, landed costing, wholesale ATS, buyer PWA), ConstructionAdvisor® (BOQ quotes, dated programme, progress payments, client/contractor PWA), GymAdvisor®, HireAdvisor®, RetailAdvisor®, ContainerAdvisor®, and clinic Advisors (Physio · Dental · Psychiatry · Medical · Vet) with diaries, waitlist desks, industry PWAs, rooms, marketplace listings, and in-app care messages — not brochure modules.',
   },
   {
     id: 'government',
@@ -671,6 +707,16 @@ const SYSTEMS = [
     icon: Factory,
     title: 'Manufacturing',
     body: 'BOM, MPS, MRP, work centers, work orders, throughput.',
+  },
+  {
+    icon: Shirt,
+    title: 'ApparelAdvisor®',
+    body: 'Range, landed costing, ATS, critical path, QA ship holds, and a buyer line-sheet PWA.',
+  },
+  {
+    icon: Hammer,
+    title: 'ConstructionAdvisor®',
+    body: 'BOQ quotes, multi-project clients, dated plan vs actuals, progress payments, and programme reports.',
   },
   {
     icon: Ship,
@@ -1024,12 +1070,12 @@ export default function HomeBelowFold() {
               {
                 icon: Workflow,
                 t: 'Full stack, zero silos',
-                b: 'Network, SRM, CRM, inventory, manufacturing, distribution, finance, SHEQ, projects, ESG, intelligence — plus industry packs for agri, quarry, gyms, and clinical practices — share one workspace.',
+                b: 'Network, SRM, CRM, inventory, manufacturing, distribution, finance, SHEQ, projects, ESG, intelligence — plus industry packs for agri, quarry, apparel, construction, gyms, and clinical practices — share one workspace.',
               },
               {
                 icon: Stethoscope,
                 t: 'Industry & programme solutions that operate',
-                b: 'CropAdvisor®, QuarryAdvisor®, GymAdvisor®, HireAdvisor® (hire marketplace · members free · 2.5% on the listing business), clinic Advisors, and SchoolAdvisor® (public-sector NSNP: DBE · school · SP). Most Advisors bill the operating company a subscription; members and patients never pay SupplierAdvisor®.',
+                b: 'CropAdvisor®, QuarryAdvisor®, ApparelAdvisor® (range, landed costing, wholesale ATS, buyer line-sheet PWA), ConstructionAdvisor® (BOQ quotes, dated programme, progress payments, client/contractor PWA), GymAdvisor®, HireAdvisor® (hire marketplace · members free · 2.5% on the listing business), clinic Advisors, and SchoolAdvisor® (public-sector NSNP: DBE · school · SP). Most Advisors bill the operating company a subscription; members and patients never pay SupplierAdvisor®.',
               },
               {
                 icon: Fingerprint,

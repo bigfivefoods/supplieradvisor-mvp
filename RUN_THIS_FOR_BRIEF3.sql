@@ -75,4 +75,3 @@ $$;
 
 REVOKE ALL ON FUNCTION public.sa_accounting_kpi_rollup(bigint) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.sa_accounting_kpi_rollup(bigint) TO service_role;
-GRANT EXECUTE ON FUNCTION public.sa_accounting_kpi_rollup(bigint) TO authenticated;

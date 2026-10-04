@@ -56,6 +56,7 @@ import {
   needsAdvisorIdentity,
 } from '@/components/services/AdvisorIdentityPanel';
 import { ProfilePhotoField } from '@/components/chrome/ProfilePhotoField';
+import { GymColorSwatch } from '@/components/fitness/GymColorSwatch';
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -101,6 +102,7 @@ function emptyForm() {
     public_bio: '',
     bio: '',
     photo_url: '',
+    color: '#d97706',
     start_date: todayIso(),
     end_date: '',
     ...emptyContractorCommercialDraft({ rate_basis: 'per_class' }),
@@ -275,6 +277,7 @@ export default function CoachesPage() {
         public_bio: form.public_bio,
         bio: form.bio || form.public_bio,
         photo_url: form.photo_url || undefined,
+        color: form.color || undefined,
         specialties: form.specialties.length
           ? form.specialties
           : ['General'],
@@ -442,7 +445,7 @@ export default function CoachesPage() {
         specialties: p.specialties.length ? p.specialties : ['General'],
         public_bio: p.public_bio,
         bio: p.bio || p.public_bio,
-        photo_url: p.photo_url.trim() || '',
+        photo_url: p.photo_url.trim() || undefined,
         color: p.color || undefined,
         can_manage_classes: p.can_manage_classes,
         engagement: p.engagement || 'contractor',
@@ -465,6 +468,21 @@ export default function CoachesPage() {
       return next;
     });
     toast.success('Coach details updated');
+  };
+
+  const saveCalendarColor = async (c: FitCoach, color: string) => {
+    setProfile(c.id, { color });
+    await post({
+      entity: 'coaches',
+      action: 'upsert',
+      record: {
+        id: c.id,
+        code: c.code,
+        name: c.name,
+        color,
+      },
+    });
+    toast.success('Calendar colour saved');
   };
 
   const addSpecialty = async () => {
@@ -665,6 +683,11 @@ export default function CoachesPage() {
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="font-bold text-sm text-slate-900 dark:text-amber-50 flex flex-wrap items-center gap-2">
+                        <span
+                          className="h-3 w-3 rounded-full border border-white shadow"
+                          style={{ backgroundColor: c.color || '#d97706' }}
+                          title="Calendar colour"
+                        />
                         <span>
                           {c.code} · {c.name}
                         </span>
@@ -898,19 +921,6 @@ export default function CoachesPage() {
                                 accentClass="border-amber-300 dark:border-amber-500"
                               />
                             </div>
-                            <label className="block">
-                              <span className="text-[10px] text-slate-600 dark:text-amber-200/70">
-                                Colour
-                              </span>
-                              <input
-                                className={fc() + ' mt-0.5 h-10'}
-                                type="color"
-                                value={profile.color || '#d97706'}
-                                onChange={(e) =>
-                                  setProfile(c.id, { color: e.target.value })
-                                }
-                              />
-                            </label>
                             <div className="flex flex-col justify-end gap-1.5 pb-0.5">
                               <label className="inline-flex items-center gap-2 text-[11px] font-bold text-slate-700 dark:text-amber-100">
                                 <input
@@ -987,6 +997,23 @@ export default function CoachesPage() {
                               setProfile(c.id, { bio: e.target.value })
                             }
                           />
+                          <div className="rounded-xl border border-amber-200 bg-white p-3 dark:border-amber-700 dark:bg-amber-950/40">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                              Calendar settings
+                            </p>
+                            <p className="mb-2 text-[11px] text-slate-600 dark:text-amber-100/80">
+                              This colour fills every class this coach takes on
+                              the diary.
+                            </p>
+                            <GymColorSwatch
+                              compact
+                              value={profile.color}
+                              onChange={(hex) => {
+                                if (!saving) void saveCalendarColor(c, hex);
+                              }}
+                              label="Calendar colour"
+                            />
+                          </div>
                           <div className="flex flex-wrap gap-1.5 pt-1">
                             <button
                               type="button"
@@ -1590,6 +1617,20 @@ export default function CoachesPage() {
                   );
                 })}
               </div>
+            </div>
+            <div className="sm:col-span-2 lg:col-span-3 rounded-xl border border-amber-200 bg-white p-3 dark:border-amber-700 dark:bg-amber-950/40">
+              <p className="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                Calendar settings
+              </p>
+              <p className="mb-2 text-[11px] text-slate-600 dark:text-amber-100/80">
+                This colour fills every class this coach takes on the diary.
+              </p>
+              <GymColorSwatch
+                compact
+                value={form.color}
+                onChange={(hex) => setForm((f) => ({ ...f, color: hex }))}
+                label="Calendar colour"
+              />
             </div>
             <ProfilePhotoField
               companyId={companyId}

@@ -23,6 +23,9 @@ assert.equal(personalReasonOrNull(''), null);
 assert.equal(personalReasonOrNull('leave'), 'leave');
 assert.equal(personalReasonOrNull('unknown'), 'personal');
 assert.equal(appointmentKindLabel('personal', 'leave'), 'Leave');
+assert.equal(appointmentKindLabel('personal', 'away'), 'Away');
+assert.equal(personalReasonOrNull('away'), 'away');
+assert.equal(personalReasonOrNull('sick'), 'sick');
 assert.equal(appointmentKindLabel('consult'), 'Appointment');
 
 const services = ensureSystemPersonalService([]);

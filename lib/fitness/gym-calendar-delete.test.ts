@@ -22,8 +22,7 @@ const cal = readFileSync(
 );
 assert.match(cal, /removed_ids\?\.sessions/);
 assert.match(cal, /delete_series/);
-assert.match(cal, /sessionRosterNames/);
-assert.match(cal, /names\.join\(', '\)/);
+assert.match(cal, /ClassBookedRoster/);
 assert.match(
   route,
   /stampCatalogSeriesAndBookSubscribers\(store, \[row\]/

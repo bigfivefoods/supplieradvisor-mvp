@@ -23,6 +23,7 @@ import {
   formatMoney,
   LEAD_STATUSES,
   OPPORTUNITY_STAGES,
+  type CustomerRecord,
   type LeadRecord,
   type OpportunityRecord,
 } from '@/lib/customers/types';
@@ -45,6 +46,12 @@ import {
 type Tab = 'map' | 'leads' | 'list' | 'team';
 type FormMode = 'opportunity' | 'lead' | 'customer';
 
+function customerOptionLabel(c: CustomerRecord): string {
+  const name = String(c.trading_name || c.legal_name || `Customer ${c.id}`).trim();
+  const extra = [c.contact_name, c.city].filter(Boolean).join(' · ');
+  return extra ? `${name} · ${extra}` : name;
+}
+
 type TeamMember = {
   user_id: string;
   name: string;
@@ -63,6 +70,7 @@ export default function SalesPipelinePage() {
   const [tab, setTab] = useState<Tab>('map');
   const [leads, setLeads] = useState<LeadRecord[]>([]);
   const [opps, setOpps] = useState<OpportunityRecord[]>([]);
+  const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [group, setGroup] = useState<GroupPipelineMeta | null>(null);
   const [userGroupView, setUserGroupView] = useState<GroupPipelineView | null>(
     null
@@ -99,13 +107,19 @@ export default function SalesPipelinePage() {
     open_date: '',
     expected_close_date: '',
     actual_close_date: '',
+    customer_id: '',
   });
 
   const load = useCallback(async () => {
     if (!companyId) return;
     setLoading(true);
     try {
-      const [lRes, oRes, cRes, pRes, tRes] = await Promise.all([
+      const custQs = new URLSearchParams({
+        companyId: String(companyId),
+        limit: '100',
+      });
+      if (privyUserId) custQs.set('privyUserId', privyUserId);
+      const [lRes, oRes, cRes, pRes, tRes, cuRes] = await Promise.all([
         fetch(`/api/customers/leads?companyId=${companyId}`),
         fetch(`/api/customers/opportunities?companyId=${companyId}`),
         privyUserId
@@ -127,11 +141,22 @@ export default function SalesPipelinePage() {
         fetch(`/api/sales/team-members?companyId=${companyId}`, {
           cache: 'no-store',
         }),
+        fetch(`/api/customers?${custQs}`, { cache: 'no-store' }),
       ]);
       const lData = await lRes.json();
       const oData = await oRes.json();
       setLeads(lData.leads || []);
       setOpps(oData.opportunities || []);
+      if (cuRes.ok) {
+        const cuData = await cuRes.json().catch(() => ({}));
+        setCustomers(
+          Array.isArray(cuData.customers)
+            ? (cuData.customers as CustomerRecord[])
+            : []
+        );
+      } else {
+        setCustomers([]);
+      }
       const nextGroup =
         oData.group &&
         typeof oData.group === 'object' &&
@@ -181,6 +206,37 @@ export default function SalesPipelinePage() {
     () => filterOpportunitiesByGroupView(opps, groupView),
     [opps, groupView]
   );
+
+  const bookCustomers = useMemo(
+    () =>
+      [...customers].sort((a, b) =>
+        String(a.trading_name || a.legal_name || '')
+          .localeCompare(String(b.trading_name || b.legal_name || ''))
+      ),
+    [customers]
+  );
+
+  const applyBookCustomer = (id: string) => {
+    const c = bookCustomers.find((x) => String(x.id) === id);
+    setForm((f) => {
+      if (!c) return { ...f, customer_id: '' };
+      const trading = String(c.trading_name || c.legal_name || '').trim();
+      return {
+        ...f,
+        customer_id: String(c.id),
+        trading_name: trading,
+        legal_name: String(c.legal_name || ''),
+        company_name: trading || f.company_name,
+        contact_name: String(c.contact_name || f.contact_name),
+        email: String(c.email || f.email),
+        phone: String(c.phone || f.phone),
+        city: String(c.city || f.city),
+        country: String(c.country || f.country || 'South Africa'),
+        name: f.name.trim() ? f.name : trading,
+        send_invite: false,
+      };
+    });
+  };
 
   const patchOpp = async (
     id: number,
@@ -365,6 +421,7 @@ export default function SalesPipelinePage() {
             company_name: form.company_name.trim() || null,
             contact_email: form.email.trim() || null,
             contact_phone: form.phone.trim() || null,
+            customer_id: form.customer_id ? Number(form.customer_id) : null,
             stage: form.stage,
             amount: Number(form.amount) || 0,
             notes: form.notes.trim() || null,
@@ -390,36 +447,46 @@ export default function SalesPipelinePage() {
         return;
       }
 
-      // Optionally create CRM customer + invite from opportunity details
-      let customerId: number | null = null;
+      // Link an existing book customer, or optionally create + invite a new one
+      let customerId: number | null = form.customer_id
+        ? Number(form.customer_id)
+        : null;
       if (form.send_invite && form.email.trim() && form.email.includes('@')) {
-        const trading =
-          form.company_name.trim() || form.name.trim() || form.email.trim();
-        const cRes = await fetch('/api/customers', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            companyId,
-            privyUserId,
-            trading_name: trading,
-            contact_name: form.name.trim() || null,
-            email: form.email.trim().toLowerCase(),
-            phone: form.phone || null,
-            city: form.city || null,
-            country: form.country || 'South Africa',
-            notes: form.notes || null,
-            source: 'sales_pipeline',
-            sales_rep_user_id: privyUserId || null,
-          }),
-        });
-        const cData = await cRes.json();
-        if (cRes.ok && cData.customer?.id) {
-          customerId = Number(cData.customer.id);
-          await sendInvite(customerId, form.email, form.name);
-        } else if (!cRes.ok) {
-          toast.message('Opportunity will save without invite', {
-            description: cData.error || 'Could not create customer record',
+        if (customerId) {
+          await sendInvite(
+            customerId,
+            form.email,
+            form.contact_name || form.name
+          );
+        } else {
+          const trading =
+            form.company_name.trim() || form.name.trim() || form.email.trim();
+          const newCustRes = await fetch('/api/customers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              companyId,
+              privyUserId,
+              trading_name: trading,
+              contact_name: form.name.trim() || form.contact_name.trim() || null,
+              email: form.email.trim().toLowerCase(),
+              phone: form.phone || null,
+              city: form.city || null,
+              country: form.country || 'South Africa',
+              notes: form.notes || null,
+              source: 'sales_pipeline',
+              sales_rep_user_id: privyUserId || null,
+            }),
           });
+          const cData = await newCustRes.json();
+          if (newCustRes.ok && cData.customer?.id) {
+            customerId = Number(cData.customer.id);
+            await sendInvite(customerId, form.email, form.name);
+          } else if (!newCustRes.ok) {
+            toast.message('Opportunity will save without invite', {
+              description: cData.error || 'Could not create customer record',
+            });
+          }
         }
       }
 
@@ -430,7 +497,7 @@ export default function SalesPipelinePage() {
           companyId,
           privyUserId,
           name: form.name,
-          contact_name: form.name.trim(),
+          contact_name: form.contact_name.trim() || form.name.trim(),
           company_name: form.company_name || null,
           contact_email: form.email || null,
           contact_phone: form.phone || null,
@@ -456,9 +523,13 @@ export default function SalesPipelinePage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
       toast.success(
-        customerId
-          ? 'Opportunity added · customer created & invite sent'
-          : 'Opportunity added to the map'
+        customerId && form.send_invite
+          ? form.customer_id
+            ? 'Opportunity added · invite sent to existing customer'
+            : 'Opportunity added · customer created & invite sent'
+          : customerId
+            ? 'Opportunity added and linked to customer'
+            : 'Opportunity added to the map'
       );
       setShowForm(false);
       setEditingOppId(null);
@@ -510,12 +581,17 @@ export default function SalesPipelinePage() {
 
   const saveCustomer = async () => {
     if (!companyId) return;
+    const existingId = form.customer_id ? Number(form.customer_id) : 0;
     const trading =
       form.trading_name.trim() ||
       form.company_name.trim() ||
       form.contact_name.trim();
-    if (!trading) {
-      toast.error('Customer / trading name is required');
+    if (!existingId && !trading) {
+      toast.error('Pick an existing customer or enter a trading name');
+      return;
+    }
+    if (existingId && !form.send_invite && !form.also_create_opportunity) {
+      toast.error('Send an invite or add a pipeline deal for this customer');
       return;
     }
     if (form.send_invite) {
@@ -527,29 +603,32 @@ export default function SalesPipelinePage() {
     setSaving(true);
     setLastInviteLink(null);
     try {
-      const res = await fetch('/api/customers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyId,
-          privyUserId,
-          trading_name: trading,
-          legal_name: form.legal_name.trim() || null,
-          contact_name:
-            form.contact_name.trim() || form.name.trim() || null,
-          email: form.email.trim().toLowerCase() || null,
-          phone: form.phone.trim() || null,
-          city: form.city.trim() || null,
-          country: form.country.trim() || 'South Africa',
-          notes: form.notes.trim() || null,
-          source: 'sales_pipeline',
-          status: 'active',
-          sales_rep_user_id: privyUserId || null,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to create customer');
-      const customerId = Number(data.customer?.id);
+      let customerId = existingId > 0 ? existingId : 0;
+      if (!customerId) {
+        const res = await fetch('/api/customers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            companyId,
+            privyUserId,
+            trading_name: trading,
+            legal_name: form.legal_name.trim() || null,
+            contact_name:
+              form.contact_name.trim() || form.name.trim() || null,
+            email: form.email.trim().toLowerCase() || null,
+            phone: form.phone.trim() || null,
+            city: form.city.trim() || null,
+            country: form.country.trim() || 'South Africa',
+            notes: form.notes.trim() || null,
+            source: 'sales_pipeline',
+            status: 'active',
+            sales_rep_user_id: privyUserId || null,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to create customer');
+        customerId = Number(data.customer?.id);
+      }
       let inviteLink: string | undefined;
 
       if (form.send_invite && customerId && form.email.trim()) {
@@ -559,6 +638,12 @@ export default function SalesPipelinePage() {
             form.email,
             form.contact_name || form.name
           )) || undefined;
+      } else if (existingId) {
+        toast.success(
+          form.also_create_opportunity
+            ? 'Deal added for this customer'
+            : 'Existing customer selected'
+        );
       } else {
         toast.success('Customer added to your book');
       }
@@ -625,6 +710,7 @@ export default function SalesPipelinePage() {
       open_date: new Date().toISOString().slice(0, 10),
       expected_close_date: '',
       actual_close_date: '',
+      customer_id: '',
     });
   };
 
@@ -668,6 +754,7 @@ export default function SalesPipelinePage() {
       open_date: o.open_date || '',
       expected_close_date: o.expected_close_date || '',
       actual_close_date: o.actual_close_date || '',
+      customer_id: o.customer_id ? String(o.customer_id) : '',
     });
     setShowForm(true);
     setTab('map');
@@ -684,6 +771,33 @@ export default function SalesPipelinePage() {
     toast.success('Invite link copied');
     setTimeout(() => setLinkCopied(false), 2000);
   };
+
+  const customerPicker = (
+    <label className="block text-xs font-bold text-slate-600 sm:col-span-2">
+      Existing customer
+      <select
+        className="mt-1 w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800"
+        value={form.customer_id}
+        onChange={(e) => applyBookCustomer(e.target.value)}
+      >
+        <option value="">
+          {formMode === 'customer'
+            ? 'New customer — type details below'
+            : 'None — new or unlinked deal'}
+        </option>
+        {bookCustomers.map((c) => (
+          <option key={c.id} value={c.id}>
+            {customerOptionLabel(c)}
+          </option>
+        ))}
+      </select>
+      <span className="mt-0.5 block font-normal text-[10px] text-neutral-400">
+        {bookCustomers.length
+          ? 'Pick someone already on your book, or leave blank to add a new customer.'
+          : 'No customers on the book yet — add new details below.'}
+      </span>
+    </label>
+  );
 
   if (!companyId) {
     return (
@@ -776,7 +890,9 @@ export default function SalesPipelinePage() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-bold text-slate-900">
               {formMode === 'customer'
-                ? 'Add customer & invite to SupplierAdvisor'
+                ? form.customer_id
+                  ? 'Existing customer — invite or add a deal'
+                  : 'Add customer & invite to SupplierAdvisor'
                 : formMode === 'opportunity'
                   ? editingOppId
                     ? 'Edit pipeline deal'
@@ -819,10 +935,14 @@ export default function SalesPipelinePage() {
           {formMode === 'customer' ? (
             <>
               <p className="text-xs text-slate-500 leading-relaxed">
-                Create a CRM customer on your book, then optionally email them an
-                invitation link to join SupplierAdvisor as a buyer.
+                {form.customer_id
+                  ? 'This customer is already on your book. Invite them to SupplierAdvisor and/or add a pipeline deal.'
+                  : 'Create a CRM customer on your book, then optionally email them an invitation link to join SupplierAdvisor as a buyer.'}
               </p>
               <div className="grid sm:grid-cols-2 gap-3">
+                {customerPicker}
+                {form.customer_id ? null : (
+                  <>
                 <label className="block text-xs font-bold text-slate-600 sm:col-span-2">
                   Trading / business name *
                   <input
@@ -844,6 +964,8 @@ export default function SalesPipelinePage() {
                     }
                   />
                 </label>
+                  </>
+                )}
                 <label className="block text-xs font-bold text-slate-600">
                   Contact person
                   <input
@@ -1010,6 +1132,7 @@ export default function SalesPipelinePage() {
           ) : (
             <>
               <div className="grid sm:grid-cols-2 gap-3">
+                {formMode === 'opportunity' ? customerPicker : null}
                 <input
                   className="rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
                   placeholder={
@@ -1166,10 +1289,13 @@ export default function SalesPipelinePage() {
                         />
                         <span className="text-xs text-slate-700">
                           <strong className="text-slate-900">
-                            Also add as CRM customer &amp; send invite
+                            {form.customer_id
+                              ? 'Send SupplierAdvisor invitation'
+                              : 'Also add as CRM customer & send invite'}
                           </strong>{' '}
-                          when email is filled — creates the customer and emails a
-                          join link to SupplierAdvisor.
+                          {form.customer_id
+                            ? 'emails this existing customer a join link.'
+                            : 'when email is filled — creates the customer and emails a join link to SupplierAdvisor.'}
                         </span>
                       </label>
                     ) : (
@@ -1250,9 +1376,15 @@ export default function SalesPipelinePage() {
               ) : formMode === 'customer' ? (
                 <>
                   <Users className="w-4 h-4" />
-                  {form.send_invite
-                    ? 'Save customer & send invite'
-                    : 'Save customer'}
+                  {form.customer_id
+                    ? form.send_invite
+                      ? 'Invite this customer'
+                      : form.also_create_opportunity
+                        ? 'Add deal for this customer'
+                        : 'Use this customer'
+                    : form.send_invite
+                      ? 'Save customer & send invite'
+                      : 'Save customer'}
                 </>
               ) : editingOppId ? (
                 'Save deal changes'

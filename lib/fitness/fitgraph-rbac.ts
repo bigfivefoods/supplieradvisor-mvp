@@ -506,6 +506,12 @@ export const FIT_SCREEN_ACCESS: Record<
     member: false,
     desk: false,
   },
+  '/dashboard/fitgraph/portal': {
+    owner: true,
+    coach: false,
+    member: false,
+    desk: false,
+  },
   '/dashboard/fitgraph/report': {
     owner: true,
     coach: false,

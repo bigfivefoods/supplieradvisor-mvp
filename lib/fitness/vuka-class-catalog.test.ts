@@ -2,6 +2,8 @@
  * Run: npx --yes tsx lib/fitness/vuka-class-catalog.test.ts
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   emptyFitgraphStore,
   findCoachForPortalSignIn,
@@ -15,6 +17,7 @@ import {
   isVukaFitnessCompany,
   listSubscribeClasses,
   persistVukaCatalogIfNeeded,
+  dropRetiredVukaCoaches,
   ensureVukaCoachOrder,
   ensureVukaCoaches,
   membersOnClassSession,
@@ -160,6 +163,39 @@ assert.equal(
   vuka.sessions.find((s) => s.id === 'ses_owner_extra')?.status,
   'cancelled'
 );
+
+vuka.membership_plans.push({
+  id: 'pln_hyrox',
+  code: 'HYROX',
+  name: 'Hyrox',
+  price_zar: 650,
+  billing: 'monthly',
+  public: true,
+  active: true,
+  catalog: 'vuka',
+  class_type_ids: ['cls_pln_hyrox'],
+  created_at: '2026-09-04T00:00:00.000Z',
+});
+vuka.class_types.push({
+  id: 'cls_pln_hyrox',
+  code: 'HYROX',
+  name: 'Hyrox',
+  category: 'Class',
+  default_duration_min: 60,
+  capacity: 16,
+  active: true,
+  created_at: '2026-09-04T00:00:00.000Z',
+});
+const keptOwner = ensureVukaClassCatalog(vuka, {
+  companyId: VUKA_COMPANY_ID,
+  now: '2026-08-17T10:00:00.000Z',
+});
+assert.equal(
+  vuka.class_types.some((c) => c.id === 'cls_pln_hyrox'),
+  true,
+  'Classes-desk types stay on the calendar catalog'
+);
+void keptOwner;
 
 const unlim = VUKA_MEMBERSHIP_PLANS.find((p) => p.code === 'VUKA_UNLIM')!;
 const kidsPlan = VUKA_MEMBERSHIP_PLANS.find((p) => p.code === 'VUKA_KIDS')!;
@@ -333,6 +369,147 @@ void (async () => {
     otherSaved += 1;
   });
   assert.equal(otherSaved, 0);
+
+  const leftover = emptyFitgraphStore();
+  leftover.settings = {
+    enabled: true,
+    public_token: 'fg_110_testtoken',
+    allow_public_booking: true,
+    show_coaches: true,
+    show_pricing: true,
+    vuka_calendar_manual: true,
+    vuka_contracts_import: VUKA_CONTRACTS_IMPORT,
+    vuka_member_merge: VUKA_MEMBER_MERGE,
+    vuka_billed_class_import: VUKA_BILLED_CLASS_IMPORT,
+  };
+  leftover.clients = [
+    {
+      id: 'vuka_cli_athalah_hembert',
+      code: 'VUKA-001',
+      name: 'Athalah Hembert',
+      email: 'athalah@old.test',
+      active: true,
+      created_at: '2026-08-01T00:00:00.000Z',
+      updated_at: '2026-08-01T00:00:00.000Z',
+    },
+    {
+      id: 'cli_athaliah',
+      code: 'VUKA-002',
+      name: 'Athaliah Hembert',
+      email: 'athaliahhembert9@gmail.com',
+      active: true,
+      created_at: '2026-07-28T00:00:00.000Z',
+      updated_at: '2026-07-28T00:00:00.000Z',
+    },
+  ];
+  leftover.programmes = settled.programmes;
+  leftover.coaches = settled.coaches;
+  leftover.membership_plans = settled.membership_plans;
+  leftover.class_types = settled.class_types;
+  assert.equal(vukaDeskSettled(leftover), true);
+  let leftoverSaved = 0;
+  await persistVukaCatalogIfNeeded(
+    VUKA_COMPANY_ID,
+    leftover,
+    async () => {
+      leftoverSaved += 1;
+    },
+    { applyCatalog: false }
+  );
+  assert.equal(leftoverSaved, 1);
+  assert.equal(
+    leftover.clients.filter((c) => /hembert/i.test(c.name)).length,
+    1
+  );
+  assert.equal(
+    leftover.clients.filter((c) => /athalah/i.test(c.name)).length,
+    0
+  );
+  assert.equal(
+    leftover.clients.find((c) => /hembert/i.test(c.name))?.name,
+    'Athaliah Hembert'
+  );
+
+  const fitgraphRoute = readFileSync(
+    resolve('app/api/fitness/fitgraph/route.ts'),
+    'utf8'
+  );
+  const getHandler = fitgraphRoute.slice(
+    fitgraphRoute.indexOf('export async function GET'),
+    fitgraphRoute.indexOf('export async function POST')
+  );
+  assert.match(getHandler, /persistVukaCatalogIfNeeded/);
+  assert.match(getHandler, /applyCatalog:\s*false/);
+
+  const deskHeld = emptyFitgraphStore();
+  deskHeld.clients = [
+    {
+      id: 'cli_ada',
+      code: 'A',
+      name: 'Ada',
+      active: false,
+      membership_status: 'cancelled',
+      membership_plan_id: 'vuka_pln_boot_1730',
+      created_at: '2026-08-01T00:00:00.000Z',
+      updated_at: '2026-09-03T12:00:00.000Z',
+    },
+  ];
+  let deskSaved = 0;
+  await persistVukaCatalogIfNeeded(
+    VUKA_COMPANY_ID,
+    deskHeld,
+    async () => {
+      deskSaved += 1;
+    },
+    { applyCatalog: false }
+  );
+  assert.equal(deskSaved, 1);
+  assert.equal(deskHeld.clients.length, 1);
+  assert.equal(deskHeld.clients[0].active, false);
+  assert.equal(deskHeld.clients[0].membership_status, 'cancelled');
+  assert.equal(deskHeld.clients[0].membership_plan_id, null);
+
+  const orphan = emptyFitgraphStore();
+  orphan.settings = {
+    enabled: true,
+    public_token: 'fg_110_testtoken',
+    allow_public_booking: true,
+    show_coaches: true,
+    show_pricing: true,
+    class_subscribe: true,
+    vuka_calendar_manual: true,
+    vuka_contracts_import: VUKA_CONTRACTS_IMPORT,
+    vuka_member_merge: VUKA_MEMBER_MERGE,
+    vuka_billed_class_import: VUKA_BILLED_CLASS_IMPORT,
+  };
+  orphan.membership_plans = [
+    {
+      id: 'pln_hyrox',
+      code: 'HYROX',
+      name: 'Hyrox',
+      price_zar: 650,
+      billing: 'monthly',
+      public: true,
+      active: true,
+      catalog: 'vuka',
+      class_type_ids: ['cls_never_saved'],
+      created_at: '2026-09-04T00:00:00.000Z',
+    },
+  ];
+  let orphanSaved = 0;
+  await persistVukaCatalogIfNeeded(
+    VUKA_COMPANY_ID,
+    orphan,
+    async () => {
+      orphanSaved += 1;
+    },
+    { applyCatalog: false }
+  );
+  assert.equal(orphanSaved, 1);
+  assert.ok(
+    orphan.class_types.some((c) => c.id === 'cls_pln_hyrox' && c.name === 'Hyrox')
+  );
+  assert.deepEqual(orphan.membership_plans[0]?.class_type_ids, ['cls_pln_hyrox']);
 const coaches = emptyFitgraphStore();
 coaches.coaches = [
   {
@@ -396,6 +573,46 @@ assert.equal(
   vukaCoaches.coaches.filter((c) => /jared/i.test(c.name)).length,
   1
 );
+assert.equal(
+  vukaCoaches.coaches.filter((c) => /jaryyd/i.test(c.name)).length,
+  0
+);
+
+const leftoverCoaches = emptyFitgraphStore();
+leftoverCoaches.coaches = [
+  {
+    id: 'coh_j_jaryyd',
+    code: 'J',
+    name: 'Jaryyd',
+    created_at: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'coh_jyd',
+    code: 'JYD',
+    name: 'Jaryyd',
+    created_at: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'jared',
+    code: 'JAR',
+    name: 'Jared-Wade Cawood',
+    email: 'jaredcawood77@gmail.com',
+    created_at: '2026-01-01T00:00:00.000Z',
+  },
+];
+assert.equal(dropRetiredVukaCoaches(leftoverCoaches), true);
+assert.deepEqual(
+  leftoverCoaches.coaches.map((c) => c.id),
+  ['jared']
+);
+assert.ok(leftoverCoaches.removed_ids?.coaches?.includes('coh_j_jaryyd'));
+assert.ok(leftoverCoaches.removed_ids?.coaches?.includes('coh_jyd'));
+assert.equal(ensureVukaCoaches(leftoverCoaches), true);
+assert.equal(
+  leftoverCoaches.coaches.filter((c) => /jaryyd/i.test(c.name)).length,
+  0
+);
+assert.ok(leftoverCoaches.coaches.some((c) => /cawood/i.test(c.name)));
 
 const msgStore = emptyFitgraphStore();
 msgStore.clients = [

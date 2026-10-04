@@ -17,12 +17,14 @@ import {
   type FitContractSubmission,
 } from '@/lib/fitness/member-contract';
 import {
+  absorbKnownClientAliases,
   clientsAreSamePerson,
   mergeDuplicateFitClients,
   normalizePersonName,
 } from '@/lib/fitness/merge-fit-clients';
 
 export {
+  absorbKnownClientAliases,
   clientsAreSamePerson,
   mergeDuplicateFitClients,
   normalizePersonName,
@@ -39,7 +41,7 @@ export type VukaRosterRow = {
 /** Unique billed members (Malan Snyman listed once). */
 export const VUKA_ROSTER: VukaRosterRow[] = [
   { name: 'Aimee Le Roux', amount_zar: 770.5 },
-  { name: 'Athalah Hembert', amount_zar: 770.5 },
+  { name: 'Athaliah Hembert', amount_zar: 770.5 },
   { name: 'Bandile Ntombola', amount_zar: 713 },
   { name: 'Barbara Pretorius', amount_zar: 816.5 },
   { name: 'Bibi Ayesha Yusuf', amount_zar: 574 },
@@ -218,7 +220,7 @@ function resolvePlan(
 }
 
 export const VUKA_BILLED_CLASS_IMPORT = '2026-08-20-classcodes-v2';
-export const VUKA_MEMBER_MERGE = '2026-08-20-merge';
+export const VUKA_MEMBER_MERGE = '2026-09-03-athalah-fold';
 
 export const VUKA_CONTRACTS_IMPORT = `${String(
   (generated as { import_version?: string }).import_version || '2026-08-19'
@@ -235,6 +237,17 @@ function attachContractRates(
   let changed = false;
   for (const client of store.clients || []) {
     if (client.active === false) continue;
+    if (
+      client.membership_status === 'cancelled' ||
+      client.membership_status === 'expired'
+    ) {
+      continue;
+    }
+    if (
+      (store.subscriptions || []).some((s) => s.client_id === client.id)
+    ) {
+      continue;
+    }
     const latest = [...(client.contracts || [])].sort((a, b) =>
       String(b.submitted_at || '').localeCompare(String(a.submitted_at || ''))
     )[0];
@@ -243,41 +256,35 @@ function attachContractRates(
     if (!(amount > 0)) continue;
     const plan = resolvePlan(store, amount, latest.class_option || undefined);
     if (!plan) continue;
-    if (client.membership_plan_id !== plan.id) {
-      client.membership_plan_id = plan.id;
-      client.updated_at = now;
-      changed = true;
-    }
     const slug = rosterSlug(client.name);
     const subId = `vuka_sub_${slug}`;
     const existingSub = store.subscriptions.find(
       (s) =>
         s.id === subId ||
-        (s.client_id === client.id &&
-          s.plan_id === plan.id &&
-          (s.status === 'active' || s.status === 'trialing'))
+        (s.client_id === client.id && s.plan_id === plan.id)
     );
-    if (!existingSub) {
-      const sub: FitSubscription = {
-        id: subId,
-        client_id: client.id,
-        plan_id: plan.id,
-        status: 'active',
-        started_at: client.start_date || today,
-        auto_renew: true,
-        charged_zar: amount,
-        notes: 'Group contract',
-        created_at: now,
-        updated_at: now,
-      };
-      store.subscriptions.push(sub);
-      changed = true;
-    } else if (existingSub.status === 'cancelled') {
-      existingSub.status = 'active';
-      existingSub.charged_zar = amount;
-      existingSub.updated_at = now;
+    // Clients desk owns membership. Do not recreate or revive a class
+    // the owner already removed.
+    if (existingSub) continue;
+    if (client.membership_plan_id !== plan.id) {
+      client.membership_plan_id = plan.id;
+      client.updated_at = now;
       changed = true;
     }
+    const sub: FitSubscription = {
+      id: subId,
+      client_id: client.id,
+      plan_id: plan.id,
+      status: 'active',
+      started_at: client.start_date || today,
+      auto_renew: true,
+      charged_zar: amount,
+      notes: 'Group contract',
+      created_at: now,
+      updated_at: now,
+    };
+    store.subscriptions.push(sub);
+    changed = true;
   }
   return changed;
 }
@@ -307,7 +314,10 @@ function upsertBilledRoster(
   const today = now.slice(0, 10);
   const createOnly = opts?.createOnly === true;
   let changed = false;
+  const tombstoned = new Set(store.removed_ids?.clients || []);
   for (const row of VUKA_ROSTER) {
+    const billedId = `vuka_cli_${rosterSlug(row.name)}`;
+    if (tombstoned.has(billedId)) continue;
     let client = findRosterClient(store, row);
     if (!client) {
       const slug = rosterSlug(row.name);
@@ -379,7 +389,12 @@ function applyBilledClassAllocations(
     const client = findRosterClient(store, row);
     if (!client) continue;
     if (client.active === false) continue;
-    if (!row.class_hint && clientHasLiveClass(store, client.id)) continue;
+    if (clientHasLiveClass(store, client.id)) continue;
+    if (
+      (store.subscriptions || []).some((s) => s.client_id === client.id)
+    ) {
+      continue;
+    }
     const result = allocateMemberToClass(store, {
       clientId: client.id,
       planId: plan.id,
@@ -416,6 +431,7 @@ export function ensureVukaRoster(
   let changed = removeVukaDeskPlans(store);
   const contractsLive =
     store.settings?.vuka_contracts_import === VUKA_CONTRACTS_IMPORT;
+  let added = 0;
   if (contractsLive) {
     if (upsertBilledRoster(store, now, { createOnly: true })) changed = true;
     if (store.settings?.vuka_member_merge !== VUKA_MEMBER_MERGE) {
@@ -431,28 +447,30 @@ export function ensureVukaRoster(
     if (store.settings?.vuka_billed_class_import !== VUKA_BILLED_CLASS_IMPORT) {
       if (applyBilledClassAllocations(store, now)) changed = true;
     }
-    return { store, changed, added: 0 };
+  } else {
+    const replace =
+      store.settings?.vuka_contracts_import !== VUKA_CONTRACTS_IMPORT;
+    const applied = applyContractSubmissions(store, VUKA_CONTRACT_SUBMISSIONS, {
+      now,
+      replaceRoster: replace,
+      importVersion: VUKA_CONTRACTS_IMPORT,
+    });
+    changed = changed || applied.changed;
+    added = applied.added;
+    if (upsertBilledRoster(store, now)) changed = true;
+    const merged = mergeDuplicateFitClients(store, {
+      now,
+      preferredNames: VUKA_ROSTER.map((r) => r.name),
+    });
+    if (merged.changed) changed = true;
+    if (!store.settings) store.settings = defaultPublicSettings();
+    if (store.settings.vuka_member_merge !== VUKA_MEMBER_MERGE) {
+      store.settings.vuka_member_merge = VUKA_MEMBER_MERGE;
+      changed = true;
+    }
+    if (attachContractRates(store, now)) changed = true;
+    if (applyBilledClassAllocations(store, now)) changed = true;
   }
-  const replace =
-    store.settings?.vuka_contracts_import !== VUKA_CONTRACTS_IMPORT;
-  const applied = applyContractSubmissions(store, VUKA_CONTRACT_SUBMISSIONS, {
-    now,
-    replaceRoster: replace,
-    importVersion: VUKA_CONTRACTS_IMPORT,
-  });
-  changed = changed || applied.changed;
-  if (upsertBilledRoster(store, now)) changed = true;
-  const merged = mergeDuplicateFitClients(store, {
-    now,
-    preferredNames: VUKA_ROSTER.map((r) => r.name),
-  });
-  if (merged.changed) changed = true;
-  if (!store.settings) store.settings = defaultPublicSettings();
-  if (store.settings.vuka_member_merge !== VUKA_MEMBER_MERGE) {
-    store.settings.vuka_member_merge = VUKA_MEMBER_MERGE;
-    changed = true;
-  }
-  if (attachContractRates(store, now)) changed = true;
-  if (applyBilledClassAllocations(store, now)) changed = true;
-  return { store, changed, added: applied.added };
+  const absorbed = absorbKnownClientAliases(store, { now });
+  return { store, changed: changed || absorbed.changed, added };
 }

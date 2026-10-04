@@ -151,9 +151,15 @@ export async function GET(request: NextRequest) {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     const status = request.nextUrl.searchParams.get('status');
     const id = request.nextUrl.searchParams.get('id');
-    if (!Number.isFinite(companyId)) {
+    if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!_gate.ok) return _gate.response;
+
     const supabase = getSupabaseServer();
 
     if (id) {

@@ -13,10 +13,15 @@ import {
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
 import { listSubscribeClasses } from '@/lib/fitness/vuka-class-catalog';
+import { memberImportedSummaryLine } from '@/components/fitness/MemberMembershipFacts';
 import {
-  MemberMembershipFacts,
-  memberImportedSummaryLine,
-} from '@/components/fitness/MemberMembershipFacts';
+  emptyDebitBankForm,
+  type DebitBankForm,
+} from '@/components/fitness/MemberDebitBankFields';
+import {
+  MemberDeskEditFields,
+  type MemberDeskIdentity,
+} from '@/components/fitness/MemberDeskEditFields';
 
 type PostFn = (body: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
@@ -88,7 +93,7 @@ type Draft = {
   coachId: string;
   privateRate: string;
   status: FitSubscription['status'];
-};
+} & MemberDeskIdentity;
 
 function DeskToggle({
   label,
@@ -212,7 +217,9 @@ export function MemberAllocateTable({
 
   const people = useMemo(() => {
     const needle = q.trim().toLowerCase();
+    const removed = new Set(store.removed_ids?.clients || []);
     return store.clients
+      .filter((c) => !removed.has(c.id))
       .filter((c) => {
         if (stayIds[c.id]) return true;
         return statusFilter === 'active' ? isPersonActive(c) : !isPersonActive(c);
@@ -225,11 +232,10 @@ export function MemberAllocateTable({
           : true
       )
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [store.clients, q, statusFilter, stayIds]);
+  }, [store.clients, store.removed_ids?.clients, q, statusFilter, stayIds]);
 
   const isOnClass = (c: FitClient) =>
-    activeSubs.some((s) => s.client_id === c.id) ||
-    Boolean(c.membership_plan_id);
+    activeSubs.some((s) => s.client_id === c.id);
 
   const classGroupOf = (c: FitClient) => {
     const liveIds = activeSubs
@@ -299,7 +305,7 @@ export function MemberAllocateTable({
     const planIds = live
       .map((s) => s.plan_id)
       .filter((id) => classes.some((p) => p.id === id));
-    const onClass = planIds.length > 0 || Boolean(c.membership_plan_id);
+    const onClass = planIds.length > 0;
     const charges: Record<string, string> = {};
     for (const s of live) {
       const p = classes.find((x) => x.id === s.plan_id);
@@ -314,26 +320,72 @@ export function MemberAllocateTable({
       const fallback = c.agreed_rate_zar != null ? c.agreed_rate_zar : billed;
       if (fallback != null) charges[primary.plan_id] = String(fallback);
     }
+    const con = [...(c.contracts || [])].sort((a, b) =>
+      String(b.submitted_at || '').localeCompare(String(a.submitted_at || ''))
+    )[0];
+    const debit: DebitBankForm = c.debit_bank
+      ? {
+          account_holder: c.debit_bank.account_holder || '',
+          bank_name: c.debit_bank.bank_name || '',
+          account_number: c.debit_bank.account_number || '',
+          branch_code: c.debit_bank.branch_code || '',
+          account_type: c.debit_bank.account_type || 'cheque',
+          debit_order_authorised: c.debit_bank.debit_order_authorised === true,
+        }
+      : {
+          ...emptyDebitBankForm(),
+          account_holder: con?.account_holder || '',
+          bank_name: con?.bank_name || '',
+          account_number: con?.account_number || '',
+          branch_code: con?.branch_code || '',
+          account_type: con?.account_type || 'cheque',
+        };
     return {
       name: c.name || '',
       email: c.email || '',
       phone: c.phone || '',
       notes: c.notes || '',
+      code: c.code || '',
+      id_number: c.id_number || '',
+      date_of_birth: (c.date_of_birth || c.passport?.date_of_birth || '').slice(
+        0,
+        10
+      ),
+      start_date: (c.start_date || '').slice(0, 10),
+      occupation: c.occupation || con?.occupation || '',
+      address: c.address || c.medical?.address || '',
+      next_of_kin:
+        c.next_of_kin || c.passport?.emergency_name || '',
+      next_of_kin_phone:
+        c.next_of_kin_phone || c.passport?.emergency_phone || '',
+      next_of_kin_relationship:
+        c.next_of_kin_relationship ||
+        c.passport?.emergency_relationship ||
+        '',
+      emergency_contact: c.emergency_contact || '',
+      heard_about: c.heard_about || con?.heard_about || '',
+      employer_student_number:
+        c.employer_student_number || con?.employer_student_number || '',
+      gp_contact: c.gp_contact || c.medical?.gp_name || '',
+      medical_aid_scheme:
+        c.medical?.medical_aid?.scheme_name ||
+        c.passport?.medical_aid_scheme ||
+        '',
+      medical_aid_plan:
+        c.medical?.medical_aid?.plan_name ||
+        c.passport?.medical_aid_plan ||
+        '',
+      debit_bank: debit,
       personActive: isPersonActive(c),
-      member: onClass,
-      privateClient: c.private_client === true,
-      planId: primary?.plan_id || c.membership_plan_id || planIds[0] || '',
-      planIds:
-        planIds.length > 0
-          ? planIds
-          : c.membership_plan_id
-            ? [c.membership_plan_id]
-            : [],
+      member: isPersonActive(c) && onClass,
+      privateClient: isPersonActive(c) && c.private_client === true,
+      planId: primary?.plan_id || planIds[0] || '',
+      planIds,
       charges,
       coachId: c.coach_id || planCoach || '',
       privateRate:
         c.private_rate_zar != null ? String(c.private_rate_zar) : '',
-      status: primary?.status || 'active',
+      status: live[0]?.status || 'active',
     };
   };
 
@@ -344,40 +396,57 @@ export function MemberAllocateTable({
     setDrafts((d) => ({ ...d, [id]: { ...current, ...patch } }));
   };
 
-  const toggleMember = (c: FitClient, d: Draft) => {
-    const next = !(d.personActive && d.member);
-    setDraft(c.id, {
-      personActive: true,
-      member: next,
-    });
-    if (next) setOpenId(c.id);
-  };
-
-  const togglePrivate = (c: FitClient, d: Draft) => {
-    const next = !(d.personActive && d.privateClient);
-    setDraft(c.id, {
-      personActive: true,
-      privateClient: next,
-    });
-    if (next) setOpenId(c.id);
-  };
-
-  const toggleInactive = (c: FitClient, d: Draft) => {
-    if (!d.personActive) return;
-    setDraft(c.id, {
-      personActive: false,
-      member: false,
-      privateClient: false,
-    });
-    setOpenId(c.id);
-  };
-
   const selectedPlanIds = (d: Draft): string[] =>
     classSubscribe
       ? d.planIds.filter(Boolean)
       : d.planId
         ? [d.planId]
         : [];
+
+  const toggleMember = (c: FitClient, d: Draft) => {
+    const next = !(d.personActive && d.member);
+    const patch: Partial<Draft> = {
+      personActive: true,
+      member: next,
+      ...(next ? { status: 'active' as const } : {}),
+    };
+    const merged: Draft = { ...d, ...patch };
+    setDraft(c.id, patch);
+    if (next) {
+      setOpenId(c.id);
+      setStayIds((prev) => ({ ...prev, [c.id]: true }));
+      // Do not POST until a class is chosen. Saving member-on with
+      // empty plan_ids parks them again and the Inactive chip snaps back.
+      if (!selectedPlanIds(merged).length) return;
+    }
+    void save(c, merged);
+  };
+
+  const togglePrivate = (c: FitClient, d: Draft) => {
+    const next = !(d.personActive && d.privateClient);
+    const patch: Partial<Draft> = {
+      personActive: true,
+      privateClient: next,
+      ...(next ? { status: 'active' as const } : {}),
+    };
+    const merged: Draft = { ...d, ...patch };
+    setDraft(c.id, patch);
+    if (next) setOpenId(c.id);
+    void save(c, merged);
+  };
+
+  const toggleInactive = (c: FitClient, d: Draft) => {
+    if (!d.personActive) return;
+    const next: Partial<Draft> = {
+      personActive: false,
+      member: false,
+      privateClient: false,
+    };
+    const merged: Draft = { ...d, ...next };
+    setDraft(c.id, next);
+    setOpenId(c.id);
+    void save(c, merged);
+  };
 
   const totalsFor = (d: Draft) => {
     const ids = selectedPlanIds(d);
@@ -405,6 +474,22 @@ export function MemberAllocateTable({
       d.email !== base.email ||
       d.phone !== base.phone ||
       d.notes !== base.notes ||
+      d.code !== base.code ||
+      d.id_number !== base.id_number ||
+      d.date_of_birth !== base.date_of_birth ||
+      d.start_date !== base.start_date ||
+      d.occupation !== base.occupation ||
+      d.address !== base.address ||
+      d.next_of_kin !== base.next_of_kin ||
+      d.next_of_kin_phone !== base.next_of_kin_phone ||
+      d.next_of_kin_relationship !== base.next_of_kin_relationship ||
+      d.emergency_contact !== base.emergency_contact ||
+      d.heard_about !== base.heard_about ||
+      d.employer_student_number !== base.employer_student_number ||
+      d.gp_contact !== base.gp_contact ||
+      d.medical_aid_scheme !== base.medical_aid_scheme ||
+      d.medical_aid_plan !== base.medical_aid_plan ||
+      JSON.stringify(d.debit_bank) !== JSON.stringify(base.debit_bank) ||
       d.personActive !== base.personActive ||
       d.member !== base.member ||
       d.privateClient !== base.privateClient ||
@@ -436,6 +521,7 @@ export function MemberAllocateTable({
         planIds: [p.id],
         personActive: true,
         member: true,
+        status: 'active',
         charges,
       };
       if (!d.coachId && !d.privateClient && p.default_coach_id) {
@@ -453,13 +539,16 @@ export function MemberAllocateTable({
       planIds,
       planId: planIds[0] || '',
       personActive: true,
-      member: true,
+      member: planIds.length > 0,
+      status: 'active',
       charges,
     };
     if (!d.coachId && !d.privateClient && p.default_coach_id) {
       next.coachId = p.default_coach_id;
     }
+    const merged: Draft = { ...d, ...next };
     setDraft(c.id, next);
+    void save(c, merged);
   };
 
   const parkPerson = async (c: FitClient, d: Draft) => {
@@ -475,6 +564,22 @@ export function MemberAllocateTable({
         email: d.email.trim(),
         phone: d.phone.trim(),
         notes: d.notes,
+        code: d.code.trim(),
+        id_number: d.id_number.trim(),
+        date_of_birth: d.date_of_birth.trim(),
+        start_date: d.start_date.trim(),
+        occupation: d.occupation.trim(),
+        address: d.address.trim(),
+        next_of_kin: d.next_of_kin.trim(),
+        next_of_kin_phone: d.next_of_kin_phone.trim(),
+        next_of_kin_relationship: d.next_of_kin_relationship.trim(),
+        emergency_contact: d.emergency_contact.trim(),
+        heard_about: d.heard_about.trim(),
+        employer_student_number: d.employer_student_number.trim(),
+        gp_contact: d.gp_contact.trim(),
+        medical_aid_scheme: d.medical_aid_scheme.trim(),
+        medical_aid_plan: d.medical_aid_plan.trim(),
+        debit_bank: d.debit_bank,
       });
       setStayIds((prev) => ({ ...prev, [c.id]: true }));
       setDrafts((prev) => {
@@ -490,13 +595,13 @@ export function MemberAllocateTable({
     }
   };
 
-  const save = async (c: FitClient) => {
-    const d = draftFor(c);
+  const save = async (c: FitClient, override?: Draft) => {
+    const d = override || draftFor(c);
     if (!d.name.trim()) {
       toast.error('Name required');
       return;
     }
-    if (!d.personActive || (!d.member && !d.privateClient)) {
+    if (!d.personActive) {
       await parkPerson(c, {
         ...d,
         personActive: false,
@@ -507,9 +612,7 @@ export function MemberAllocateTable({
     }
     const planIds = selectedPlanIds(d);
     if (d.member && !planIds.length) {
-      toast.error(
-        classSubscribe ? 'Select the classes they are booked to' : 'Select a plan'
-      );
+      toast.error(classSubscribe ? 'Select a class' : 'Select a plan');
       return;
     }
     if (d.privateClient && !d.coachId) {
@@ -549,18 +652,58 @@ export function MemberAllocateTable({
         charged_zar: d.member ? chargedTotal : privateRateZar,
         coach_id: d.coachId || null,
         private_rate_zar: privateRateZar,
-        status: d.status,
+        status:
+          d.status === 'cancelled' || d.status === 'expired'
+            ? 'active'
+            : d.status,
         name: d.name.trim(),
         email: d.email.trim(),
         phone: d.phone.trim(),
         notes: d.notes,
+        code: d.code.trim(),
+        id_number: d.id_number.trim(),
+        date_of_birth: d.date_of_birth.trim(),
+        start_date: d.start_date.trim(),
+        occupation: d.occupation.trim(),
+        address: d.address.trim(),
+        next_of_kin: d.next_of_kin.trim(),
+        next_of_kin_phone: d.next_of_kin_phone.trim(),
+        next_of_kin_relationship: d.next_of_kin_relationship.trim(),
+        emergency_contact: d.emergency_contact.trim(),
+        heard_about: d.heard_about.trim(),
+        employer_student_number: d.employer_student_number.trim(),
+        gp_contact: d.gp_contact.trim(),
+        medical_aid_scheme: d.medical_aid_scheme.trim(),
+        medical_aid_plan: d.medical_aid_plan.trim(),
+        debit_bank: d.debit_bank,
       });
-      setDrafts((prev) => {
-        const next = { ...prev };
-        delete next[c.id];
-        return next;
-      });
-      toast.success((data?.message as string) || 'Saved');
+      const returnedSubs = (
+        data?.store as { subscriptions?: { client_id: string; plan_id: string; status: string }[] } | undefined
+      )?.subscriptions ?? [];
+      const livePlanIds = returnedSubs
+        .filter(
+          (s) =>
+            s.client_id === c.id &&
+            (s.status === 'active' || s.status === 'trialing')
+        )
+        .map((s) => s.plan_id);
+      const liveUnique = [...new Set(livePlanIds)];
+      const sentUnique = [...new Set(planIds)];
+      const storeMatchesSent =
+        sentUnique.length === liveUnique.length &&
+        sentUnique.every((id) => liveUnique.includes(id));
+      if (storeMatchesSent) {
+        setDrafts((prev) => {
+          const next = { ...prev };
+          delete next[c.id];
+          return next;
+        });
+        setStayIds((prev) => ({ ...prev, [c.id]: true }));
+        if (!isPersonActive(c)) setStatusFilter('active');
+        toast.success((data?.message as string) || 'Saved');
+      } else {
+        toast.error('Save may not have stuck — please verify and try again');
+      }
     } catch {
       /* toast */
     } finally {
@@ -954,7 +1097,10 @@ export function MemberAllocateTable({
                       />
                     </label>
 
-                    <MemberMembershipFacts client={c} />
+                    <MemberDeskEditFields
+                      value={d}
+                      onChange={(patch) => setDraft(c.id, patch)}
+                    />
 
                     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                       <div>
@@ -1000,8 +1146,9 @@ export function MemberAllocateTable({
 
                     {!d.personActive ? (
                       <p className="rounded-2xl border border-dashed border-slate-200 px-3 py-3 text-sm text-slate-500 dark:border-yellow-800">
-                        Inactive. Turn on Member, Private, or both, then Save.
-                        Contracts, bank details and notes stay on file.
+                        Inactive. Turn on Member and pick their class (or
+                        Private and a coach), then Save. Contracts, bank
+                        details and notes stay on file.
                       </p>
                     ) : null}
 
@@ -1064,6 +1211,7 @@ export function MemberAllocateTable({
                                           type="checkbox"
                                           className="mt-1"
                                           checked={on}
+                                          disabled={busyId === c.id}
                                           onChange={() => toggleClass(c, p)}
                                         />
                                         <span>
@@ -1180,7 +1328,9 @@ export function MemberAllocateTable({
                                       [plan.id]: String(plan.price_zar || 0),
                                     };
                                   }
+                                  const merged: Draft = { ...d, ...next };
                                   setDraft(c.id, next);
+                                  void save(c, merged);
                                 }}
                               >
                                 <option value="">Select plan…</option>
@@ -1275,12 +1425,13 @@ export function MemberAllocateTable({
                           className={`${gymPwaFieldClass} mt-1`}
                           value={d.status}
                           disabled={!d.member}
-                          onChange={(e) =>
-                            setDraft(c.id, {
-                              status: e.target
-                                .value as FitSubscription['status'],
-                            })
-                          }
+                          onChange={(e) => {
+                            const status = e.target
+                              .value as FitSubscription['status'];
+                            const merged: Draft = { ...d, status };
+                            setDraft(c.id, { status });
+                            void save(c, merged);
+                          }}
                         >
                           {STATUSES.map((s) => (
                             <option key={s} value={s}>

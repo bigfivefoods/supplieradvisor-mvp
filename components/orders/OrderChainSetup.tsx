@@ -254,10 +254,11 @@ export function OrderChainSetupBoard({
           </p>
           <h2 className="text-lg font-black text-slate-900">Order chains</h2>
           <p className="text-sm text-slate-500 max-w-2xl">
-            Each chain is three cards: the customer, which of your finished
-            goods they order (with MoQ and lead time), and the supplier who
-            makes those goods. You can have many chains — different products
-            can go to different suppliers.
+            Optional for large or standing accounts. Everyone else raises a PO
+            from the storefront catalogue (Inventory → Storefront). A chain is
+            three cards: the customer, which of your finished goods they order
+            (with MoQ and lead time), and the supplier who makes those goods.
+            Different products can go to different suppliers.
           </p>
         </div>
         <button

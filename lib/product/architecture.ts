@@ -632,6 +632,86 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     ],
   },
   {
+    id: 'apparel',
+    name: 'Apparel Manufacturing',
+    shortName: 'Apparel',
+    description:
+      'ApparelAdvisor® for CMT factories and brands: seasons and line plan, style/colour/size, landed-duty BOM, critical path, QA holds that stop ship, wholesale ATS and a buyer line-sheet PWA.',
+    monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
+    priority: 1,
+    recommendSectors: ['secondary'],
+    recommendEntities: ['private_company'],
+    modules: [
+      {
+        id: 'apparel_os',
+        name: 'ApparelAdvisor® operations OS',
+        description:
+          'Range, style/colour/size, landed BOM, critical path, floor tickets, QA ship holds, wholesale ATS and buyer PWA.',
+        unlocks: ['apparelgraph', 'inventory', 'quality'],
+      },
+      {
+        id: 'apparel_trade',
+        name: 'Core lot and PO links',
+        description:
+          'Link tickets and rolls to inventory lots and supplier purchase orders.',
+        unlocks: ['suppliers', 'customers', 'inventory', 'apparelgraph'],
+      },
+    ],
+    industryToolsHrefs: [
+      { name: 'ApparelAdvisor®', href: '/dashboard/apparelgraph', desc: 'Apparel OS' },
+      { name: 'Range', href: '/dashboard/apparelgraph/range', desc: 'Seasons · line plan' },
+      { name: 'Styles', href: '/dashboard/apparelgraph/styles', desc: 'Colour · size matrix' },
+      { name: 'Costing', href: '/dashboard/apparelgraph/costing', desc: 'Landed duty BOM' },
+      { name: 'Path', href: '/dashboard/apparelgraph/path', desc: 'Critical path' },
+      { name: 'Wholesale', href: '/dashboard/apparelgraph/wholesale', desc: 'ATS · line sheets' },
+      { name: 'Quality', href: '/dashboard/apparelgraph/quality', desc: '4-point · shade · AQL' },
+      { name: 'Portal', href: '/dashboard/apparelgraph/portal', desc: 'Buyer PWA' },
+      { name: 'Inventory lots', href: '/dashboard/inventory/lots', desc: 'Chain of custody' },
+      { name: 'Supplier POs', href: '/dashboard/suppliers/po', desc: 'Inbound orders' },
+    ],
+  },
+  {
+    id: 'construction_building',
+    name: 'Building & Construction',
+    shortName: 'Construction',
+    description:
+      'ConstructionAdvisor® for principal contractors: one customer with many projects, BOQ quoting, dated programme plan vs actuals, progress payments (claim → certify → client pay), cost allocation, per-project reports and a client/contractor PWA.',
+    monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
+    priority: 1,
+    recommendSectors: ['secondary'],
+    recommendEntities: ['private_company'],
+    modules: [
+      {
+        id: 'construction_os',
+        name: 'ConstructionAdvisor® site OS',
+        description:
+          'Clients, BOQ quotes, dated programme, progress payments, cost allocation, reports and PWA.',
+        unlocks: ['constructiongraph', 'suppliers', 'inventory', 'sheq'],
+      },
+      {
+        id: 'construction_trade',
+        name: 'Contract trade & certificates',
+        description:
+          'Clients, variations and payment certificates on the same books as invoices.',
+        unlocks: ['constructiongraph', 'customers', 'accounting', 'projects'],
+      },
+    ],
+    industryToolsHrefs: [
+      { name: 'ConstructionAdvisor®', href: '/dashboard/constructiongraph', desc: 'Building OS' },
+      { name: 'Clients', href: '/dashboard/constructiongraph/clients', desc: 'Many projects' },
+      { name: 'Quotes', href: '/dashboard/constructiongraph/quotes', desc: 'BOQ tenders' },
+      { name: 'Projects', href: '/dashboard/constructiongraph/sites', desc: 'Contracts · sites' },
+      { name: 'Programme', href: '/dashboard/constructiongraph/programme', desc: 'Plan vs actuals' },
+      { name: 'Payments', href: '/dashboard/constructiongraph/payments', desc: 'Claims · client pay' },
+      { name: 'Costs', href: '/dashboard/constructiongraph/costs', desc: 'Allocate actuals' },
+      { name: 'Reports', href: '/dashboard/constructiongraph/reports', desc: 'Programme roll-up' },
+      { name: 'Portal', href: '/dashboard/constructiongraph/portal', desc: 'Client · contractor PWA' },
+      { name: 'Customers', href: '/dashboard/customers', desc: 'Trade book' },
+      { name: 'Suppliers', href: '/dashboard/suppliers', desc: 'Trades · POs' },
+      { name: 'SHEQ', href: '/dashboard/sheq', desc: 'Incidents · NCR' },
+    ],
+  },
+  {
     id: 'logistics_containers',
     name: 'Logistics, Distribution & Containers',
     shortName: 'Logistics',
@@ -711,7 +791,7 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       { name: 'Clients', href: '/dashboard/fitgraph/clients', desc: 'Member book · member / private · classes' },
       { name: 'Classes', href: '/dashboard/fitgraph/classes', desc: 'Edit class · coach · calendar · booked members' },
       { name: 'Calendar', href: '/dashboard/fitgraph/calendar', desc: 'Schedule coaches' },
-      { name: 'Website', href: '/dashboard/fitgraph/website', desc: 'Embed calendar' },
+      { name: 'Website & apps', href: '/dashboard/fitgraph/website', desc: 'Publish site · member app · preview' },
       { name: 'Comms', href: '/dashboard/fitgraph/comms', desc: 'Ads · notices to members' },
       { name: 'Bookings', href: '/dashboard/fitgraph/bookings', desc: 'Book & attend' },
       { name: 'Suppliers', href: '/dashboard/suppliers', desc: 'Gym suppliers' },
@@ -1467,6 +1547,25 @@ export function enabledModulesMapFromPacks(
     unlocked.add('sheq');
     unlocked.add('inventory');
   }
+  if (packIds.includes('apparel')) {
+    unlocked.add('apparelgraph');
+    unlocked.add('inventory');
+    unlocked.add('quality');
+    unlocked.add('suppliers');
+    unlocked.add('customers');
+    unlocked.add('operations');
+    unlocked.add('manufacturing');
+  }
+  if (packIds.includes('construction_building')) {
+    unlocked.add('constructiongraph');
+    unlocked.add('inventory');
+    unlocked.add('quality');
+    unlocked.add('sheq');
+    unlocked.add('suppliers');
+    unlocked.add('customers');
+    unlocked.add('operations');
+    unlocked.add('projects');
+  }
   // Agri → CropAdvisor + suppliers + inventory + impact
   if (packIds.includes('agri_regen')) {
     unlocked.add('fieldgraph');
@@ -1834,6 +1933,25 @@ export function appModulesUnlockedByPack(pack: IndustryPackDef): string[] {
     ids.add('quality');
     ids.add('sheq');
     ids.add('inventory');
+  }
+  if (pack.id === 'apparel') {
+    ids.add('apparelgraph');
+    ids.add('inventory');
+    ids.add('quality');
+    ids.add('suppliers');
+    ids.add('customers');
+    ids.add('operations');
+    ids.add('manufacturing');
+  }
+  if (pack.id === 'construction_building') {
+    ids.add('constructiongraph');
+    ids.add('inventory');
+    ids.add('quality');
+    ids.add('sheq');
+    ids.add('suppliers');
+    ids.add('customers');
+    ids.add('operations');
+    ids.add('projects');
   }
   if (pack.id === 'agri_regen') {
     ids.add('fieldgraph');

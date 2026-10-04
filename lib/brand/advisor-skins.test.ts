@@ -72,4 +72,34 @@ assert.equal(
   '/dashboard/vetgraph'
 );
 
+assert.equal(
+  advisorLandingPath({
+    packIds: ['apparel'],
+    enabledModules: { apparelgraph: true, quarrygraph: true },
+  }),
+  '/dashboard/apparelgraph'
+);
+
+assert.equal(
+  landingAdvisorSkins({
+    enabledModules: { apparelgraph: true },
+  })[0]?.id,
+  'apparel'
+);
+
+assert.equal(
+  advisorLandingPath({
+    packIds: ['construction_building'],
+    enabledModules: { constructiongraph: true, apparelgraph: true },
+  }),
+  '/dashboard/constructiongraph'
+);
+
+assert.equal(
+  landingAdvisorSkins({
+    enabledModules: { constructiongraph: true },
+  })[0]?.id,
+  'construction'
+);
+
 console.log('advisor-skins.test.ts ok');

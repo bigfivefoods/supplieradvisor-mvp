@@ -8,15 +8,23 @@ import {
   allocateMemberToClass,
   calendarCoverage,
   classRosterPeople,
+  classTypeIdForPlan,
+  ensureClassTypeForSubscribePlan,
+  ensureSubscribePlanClassTypes,
   formatScheduleLabel,
   parseBilledZar,
   parseScheduleHint,
   resolveAllocatedCharge,
   scheduleClassOnCalendar,
   bookDeskMemberOntoSession,
+  applyPrivatePtBooking,
+  applyPrivatePtBookings,
+  parseFitClientIds,
+  expandSessionToSeries,
   sessionRosterNames,
   sessionRosterRows,
   setClassMembers,
+  healParkedGymMembership,
   stampCatalogSeriesAndBookSubscribers,
   suggestClassSchedule,
   updateClassDesk,
@@ -280,6 +288,44 @@ assert.equal(bev.private_client, true);
 assert.equal(bev.coach_id, 'coh_pat');
 assert.equal(bev.private_rate_zar, 650);
 
+const fileSave = allocateMemberToClass(store, {
+  clientId: 'cli_bev',
+  member: true,
+  privateClient: true,
+  planIds: [boot.id],
+  coachId: 'coh_pat',
+  person: {
+    name: 'Beverly File',
+    email: 'bev@test.com',
+    phone: '0820000000',
+    notes: 'Desk note',
+    id_number: '9102060069080',
+    occupation: 'Home executive',
+    address: '41 South Road',
+    next_of_kin: 'Sam',
+    next_of_kin_phone: '0830000000',
+    start_date: '2026-03-01',
+    date_of_birth: '1991-02-06',
+    debit_bank: {
+      account_holder: 'Beverly File',
+      bank_name: 'Capitec',
+      account_number: '1516130039',
+      branch_code: '470010',
+      account_type: 'savings',
+      debit_order_authorised: true,
+    },
+  },
+  now: '2026-08-17T10:01:00.000Z',
+});
+if ('error' in fileSave) throw new Error(fileSave.error);
+const bevFile = store.clients.find((c) => c.id === 'cli_bev')!;
+assert.equal(bevFile.id_number, '9102060069080');
+assert.equal(bevFile.occupation, 'Home executive');
+assert.equal(bevFile.address, '41 South Road');
+assert.equal(bevFile.next_of_kin, 'Sam');
+assert.equal(bevFile.debit_bank?.bank_name, 'Capitec');
+assert.equal(bevFile.debit_bank?.account_number, '1516130039');
+
 const missingCoach = allocateMemberToClass(store, {
   clientId: 'cli_bev',
   kind: 'private',
@@ -362,6 +408,48 @@ assert.equal(
   400
 );
 
+const dropBoot = allocateMemberToClass(store, {
+  clientId: 'cli_bev',
+  member: true,
+  privateClient: true,
+  planIds: [fsf.id],
+  coachId: 'coh_pat',
+  now: '2026-08-17T11:00:00.000Z',
+});
+if ('error' in dropBoot) throw new Error(dropBoot.error);
+assert.equal(
+  store.subscriptions.find(
+    (s) => s.client_id === 'cli_bev' && s.plan_id === boot.id
+  )?.status,
+  'cancelled'
+);
+assert.equal(
+  store.subscriptions.find(
+    (s) => s.client_id === 'cli_bev' && s.plan_id === fsf.id
+  )?.status,
+  'active'
+);
+
+const dropAllClasses = allocateMemberToClass(store, {
+  clientId: 'cli_bev',
+  member: true,
+  privateClient: true,
+  planIds: [],
+  coachId: 'coh_pat',
+  now: '2026-08-17T11:05:00.000Z',
+});
+if ('error' in dropAllClasses) throw new Error(dropAllClasses.error);
+assert.equal(
+  store.subscriptions.filter(
+    (s) =>
+      s.client_id === 'cli_bev' &&
+      (s.status === 'active' || s.status === 'trialing')
+  ).length,
+  0
+);
+assert.equal(store.clients.find((c) => c.id === 'cli_bev')?.membership_plan_id, null);
+assert.equal(store.clients.find((c) => c.id === 'cli_bev')?.active !== false, true);
+
 const parkedByFlags = allocateMemberToClass(store, {
   clientId: 'cli_ada',
   member: false,
@@ -372,6 +460,26 @@ if ('error' in parkedByFlags) throw new Error(parkedByFlags.error);
 const adaOff = store.clients.find((c) => c.id === 'cli_ada')!;
 assert.equal(adaOff.active, false);
 assert.equal(adaOff.membership_status, 'cancelled');
+
+const mercedeeDrop = allocateMemberToClass(store, {
+  clientId: 'cli_bev',
+  member: false,
+  privateClient: false,
+  planIds: [],
+  now: '2026-08-20T09:30:00.000Z',
+});
+if ('error' in mercedeeDrop) throw new Error(mercedeeDrop.error);
+const bevOpen = store.clients.find((c) => c.id === 'cli_bev')!;
+assert.equal(bevOpen.active, true);
+assert.equal(bevOpen.membership_plan_id, null);
+assert.equal(
+  store.subscriptions.some(
+    (s) =>
+      s.client_id === 'cli_bev' &&
+      (s.status === 'active' || s.status === 'trialing')
+  ),
+  false
+);
 
 const parked = allocateMemberToClass(store, {
   clientId: 'cli_bev',
@@ -528,6 +636,131 @@ assert.equal(
   1
 );
 assert.equal(sessionRosterRows(seatStore, 's-seat').length, 1);
+
+const ptStore = emptyFitgraphStore();
+ptStore.clients.push({
+  id: 'c-pt',
+  code: 'P1',
+  name: 'Pat Member',
+  created_at: '2026-01-01T00:00:00.000Z',
+  updated_at: '2026-01-01T00:00:00.000Z',
+});
+ptStore.sessions.push({
+  id: 's-pt',
+  class_type_id: 'cls',
+  date: '2026-09-02',
+  start_time: '07:00',
+  status: 'scheduled',
+  session_kind: 'private_pt',
+  created_at: '2026-01-01T00:00:00.000Z',
+});
+const bookedPt = applyPrivatePtBooking(ptStore, {
+  sessionIds: ['s-pt'],
+  clientId: 'c-pt',
+  now: '2026-09-02T06:00:00.000Z',
+  rateZar: 650,
+});
+assert.equal(bookedPt.added, 1);
+assert.equal(ptStore.clients[0].private_rate_zar, 650);
+assert.equal(ptStore.bookings[0].client_id, 'c-pt');
+
+assert.deepEqual(parseFitClientIds(['a', 'b'], 'c'), ['a', 'b', 'c']);
+assert.deepEqual(parseFitClientIds(undefined, 'one'), ['one']);
+assert.deepEqual(parseFitClientIds([], ''), []);
+
+const duo = emptyFitgraphStore();
+duo.clients.push(
+  {
+    id: 'c-ada',
+    code: 'A',
+    name: 'Ada',
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'c-ben',
+    code: 'B',
+    name: 'Ben',
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'c-cam',
+    code: 'C',
+    name: 'Cam',
+    created_at: '2026-01-01T00:00:00.000Z',
+    updated_at: '2026-01-01T00:00:00.000Z',
+  }
+);
+duo.sessions.push({
+  id: 's-duo',
+  class_type_id: 'cls_sys_pt',
+  date: '2026-09-04',
+  start_time: '07:00',
+  status: 'scheduled',
+  session_kind: 'private_pt',
+  capacity: 1,
+  created_at: '2026-01-01T00:00:00.000Z',
+});
+const duoBooked = applyPrivatePtBookings(duo, {
+  sessionIds: ['s-duo'],
+  clientIds: ['c-ada', 'c-ben'],
+  now: '2026-09-04T06:00:00.000Z',
+  rateZar: 700,
+});
+assert.equal(duoBooked.added, 2);
+assert.equal(duo.sessions[0]?.capacity, 2);
+assert.deepEqual(
+  duo.bookings
+    .filter((b) => b.status === 'booked')
+    .map((b) => b.client_id)
+    .sort(),
+  ['c-ada', 'c-ben']
+);
+assert.equal(duo.clients.find((c) => c.id === 'c-ada')?.private_rate_zar, 700);
+const synced = applyPrivatePtBookings(duo, {
+  sessionIds: ['s-duo'],
+  clientIds: ['c-ben', 'c-cam'],
+  now: '2026-09-04T06:05:00.000Z',
+  sync: true,
+});
+assert.equal(synced.added >= 1, true);
+assert.equal(
+  duo.bookings.find((b) => b.client_id === 'c-ada' && b.status !== 'cancelled'),
+  undefined
+);
+assert.deepEqual(
+  duo.bookings
+    .filter((b) => b.status === 'booked')
+    .map((b) => b.client_id)
+    .sort(),
+  ['c-ben', 'c-cam']
+);
+
+const expandedPt = expandSessionToSeries(ptStore, {
+  sessionId: 's-pt',
+  recurrence: { frequency: 'weekly', interval: 1, count: 4 },
+  now: '2026-09-02T06:30:00.000Z',
+});
+assert.equal(expandedPt.added, 3);
+assert.ok(expandedPt.seriesId);
+assert.equal(ptStore.sessions.find((s) => s.id === 's-pt')?.series_id, expandedPt.seriesId);
+assert.equal(
+  ptStore.sessions.filter((s) => s.series_id === expandedPt.seriesId).length,
+  4
+);
+assert.equal(
+  ptStore.bookings.filter(
+    (b) => b.client_id === 'c-pt' && b.status !== 'cancelled'
+  ).length,
+  4
+);
+const again = expandSessionToSeries(ptStore, {
+  sessionId: 's-pt',
+  recurrence: { frequency: 'weekly', interval: 1, count: 4 },
+  now: '2026-09-02T06:31:00.000Z',
+});
+assert.equal(again.added, 0);
 
 // ── setClassMembers (Brief 34): this class only, denorm, diary ────────────
 const roster = emptyFitgraphStore();
@@ -756,6 +989,26 @@ const eveParked = roster.clients.find((c) => c.id === 'cli_eve')!;
 assert.equal(eveParked.active, false);
 assert.equal(eveParked.membership_status, 'cancelled');
 assert.equal(eveParked.membership_plan_id, null);
+
+const mariam = roster.clients.find((c) => c.id === 'cli_eve')!;
+mariam.active = false;
+mariam.membership_status = 'cancelled';
+mariam.membership_plan_id = rBoot.id;
+roster.subscriptions.push({
+  id: 'sub_mariam_ghost',
+  client_id: 'cli_eve',
+  plan_id: rBoot.id,
+  status: 'active',
+  started_at: '2026-08-01',
+  created_at: '2026-08-01T00:00:00.000Z',
+  updated_at: '2026-08-01T00:00:00.000Z',
+});
+assert.equal(healParkedGymMembership(roster, '2026-08-20T10:30:00.000Z'), true);
+assert.equal(roster.clients.find((c) => c.id === 'cli_eve')?.membership_plan_id, null);
+assert.equal(
+  roster.subscriptions.find((s) => s.id === 'sub_mariam_ghost')?.status,
+  'cancelled'
+);
 assert.equal(
   roster.subscriptions.some(
     (s) =>
@@ -791,5 +1044,215 @@ assert.equal(
   ),
   false
 );
+
+const rejoinEve = allocateMemberToClass(roster, {
+  clientId: 'cli_eve',
+  member: true,
+  planIds: [rBoot.id],
+  now: '2026-08-20T12:00:00.000Z',
+});
+if ('error' in rejoinEve) throw new Error(rejoinEve.error);
+const eveBack = roster.clients.find((c) => c.id === 'cli_eve')!;
+assert.equal(eveBack.active, true);
+assert.equal(eveBack.membership_status, 'active');
+assert.equal(eveBack.membership_plan_id, rBoot.id);
+assert.equal(
+  roster.subscriptions.find(
+    (s) => s.client_id === 'cli_eve' && s.plan_id === rBoot.id
+  )?.status,
+  'active'
+);
+
+const parkEveAgain = allocateMemberToClass(roster, {
+  clientId: 'cli_eve',
+  inactive: true,
+  now: '2026-08-20T13:00:00.000Z',
+});
+if ('error' in parkEveAgain) throw new Error(parkEveAgain.error);
+const rejoinStaleStatus = allocateMemberToClass(roster, {
+  clientId: 'cli_eve',
+  member: true,
+  planIds: [rBoot.id],
+  status: 'cancelled',
+  now: '2026-08-20T13:05:00.000Z',
+});
+if ('error' in rejoinStaleStatus) throw new Error(rejoinStaleStatus.error);
+assert.equal(roster.clients.find((c) => c.id === 'cli_eve')?.active, true);
+assert.equal(
+  roster.subscriptions.find(
+    (s) => s.client_id === 'cli_eve' && s.plan_id === rBoot.id
+  )?.status,
+  'active'
+);
+
+const michelle = roster.clients.find((c) => c.id === 'cli_eve')!;
+michelle.active = false;
+michelle.membership_status = 'cancelled';
+michelle.membership_plan_id = null;
+michelle.private_client = true;
+michelle.coach_id = 'coh_gone';
+for (const s of roster.subscriptions) {
+  if (s.client_id === michelle.id) s.status = 'cancelled';
+}
+const rejoinMichelle = allocateMemberToClass(roster, {
+  clientId: 'cli_eve',
+  member: true,
+  privateClient: false,
+  planIds: [rBoot.id],
+  coachId: 'coh_gone',
+  now: '2026-08-20T13:10:00.000Z',
+});
+if ('error' in rejoinMichelle) throw new Error(rejoinMichelle.error);
+assert.equal(roster.clients.find((c) => c.id === 'cli_eve')?.active, true);
+assert.equal(
+  roster.subscriptions.find(
+    (s) => s.client_id === 'cli_eve' && s.plan_id === rBoot.id
+  )?.status,
+  'active'
+);
+assert.equal(
+  roster.clients.find((c) => c.id === 'cli_eve')?.membership_plan_id,
+  rBoot.id
+);
+
+const picker = emptyFitgraphStore();
+picker.settings = { ...picker.settings, class_subscribe: true };
+picker.membership_plans.push({
+  id: 'pln_hyrox',
+  code: 'HYROX',
+  name: 'Hyrox · 6am',
+  price_zar: 650,
+  billing: 'monthly',
+  public: true,
+  active: true,
+  catalog: 'vuka',
+  created_at: '2026-09-04T00:00:00.000Z',
+});
+picker.membership_plans.push({
+  id: 'pln_unlim_skip',
+  code: 'UNLIM',
+  name: 'Unlimited',
+  price_zar: 1140,
+  billing: 'monthly',
+  public: true,
+  active: true,
+  unlocks_all_classes: true,
+  catalog: 'vuka',
+  created_at: '2026-09-04T00:00:00.000Z',
+});
+picker.class_types.push({
+  id: 'vuka_cls_fsf',
+  code: 'VUKA_FSF',
+  name: 'Functional Strength & Fitness',
+  created_at: '2026-08-01T00:00:00.000Z',
+});
+assert.equal(ensureSubscribePlanClassTypes(picker, '2026-09-04T10:00:00.000Z'), true);
+const hyroxType = picker.class_types.find((c) => c.id === 'cls_pln_hyrox');
+assert.ok(hyroxType, 'new class gets a calendar type');
+assert.equal(hyroxType?.name, 'Hyrox');
+assert.deepEqual(
+  picker.membership_plans.find((p) => p.id === 'pln_hyrox')?.class_type_ids,
+  ['cls_pln_hyrox']
+);
+assert.equal(classTypeIdForPlan(picker, picker.membership_plans[0]!), 'cls_pln_hyrox');
+assert.equal(
+  picker.class_types.some((c) => c.id === 'vuka_cls_unlim' || c.name === 'Unlimited'),
+  false,
+  'unlimited plan does not become a class type'
+);
+assert.equal(
+  ensureSubscribePlanClassTypes(picker, '2026-09-04T10:00:00.000Z'),
+  false,
+  'second pass is a no-op so GET persist does not keep rewriting'
+);
+
+picker.membership_plans[0]!.name = 'Hyrox Engine · 6am';
+assert.equal(
+  ensureClassTypeForSubscribePlan(
+    picker,
+    picker.membership_plans[0]!,
+    '2026-09-04T11:00:00.000Z'
+  ),
+  false
+);
+assert.equal(hyroxType?.name, 'Hyrox', 'GET heal does not rename an existing owner type');
+assert.equal(
+  ensureClassTypeForSubscribePlan(
+    picker,
+    picker.membership_plans[0]!,
+    '2026-09-04T11:00:00.000Z',
+    { syncFields: true }
+  ),
+  true
+);
+assert.equal(hyroxType?.name, 'Hyrox Engine');
+
+const catalogPlan = emptyFitgraphStore();
+catalogPlan.settings = { ...catalogPlan.settings, class_subscribe: true };
+catalogPlan.class_types.push({
+  id: 'vuka_cls_fsf',
+  code: 'VUKA_FSF',
+  name: 'Functional Strength & Fitness',
+  created_at: '2026-08-01T00:00:00.000Z',
+});
+catalogPlan.membership_plans.push({
+  id: 'vuka_pln_fsf_5am',
+  code: 'VUKA_FSF_5AM',
+  name: 'Functional Strength & Fitness · 5am M/W/F',
+  price_zar: 910,
+  billing: 'monthly',
+  public: true,
+  active: true,
+  catalog: 'vuka',
+  class_type_ids: ['vuka_cls_fsf'],
+  created_at: '2026-08-01T00:00:00.000Z',
+});
+assert.equal(
+  ensureClassTypeForSubscribePlan(
+    catalogPlan,
+    catalogPlan.membership_plans[0]!,
+    '2026-09-04T10:00:00.000Z',
+    { syncFields: true }
+  ),
+  false
+);
+assert.equal(
+  catalogPlan.class_types[0]?.name,
+  'Functional Strength & Fitness',
+  'must not rewrite catalog class names from plan stems'
+);
+
+const dangling = emptyFitgraphStore();
+dangling.settings = { ...dangling.settings, class_subscribe: true };
+dangling.membership_plans.push({
+  id: 'pln_new',
+  code: 'NEWCLS',
+  name: 'New Class',
+  price_zar: 400,
+  billing: 'monthly',
+  public: true,
+  active: true,
+  catalog: 'vuka',
+  class_type_ids: ['cls_never_saved'],
+  created_at: '2026-09-04T00:00:00.000Z',
+});
+assert.equal(
+  ensureClassTypeForSubscribePlan(
+    dangling,
+    dangling.membership_plans[0]!,
+    '2026-09-04T10:00:00.000Z'
+  ),
+  true
+);
+assert.equal(classTypeIdForPlan(dangling, dangling.membership_plans[0]!), 'cls_pln_new');
+const scheduledNew = scheduleClassOnCalendar(dangling, {
+  planId: 'pln_new',
+  date: '2026-09-07',
+  start_time: '06:00',
+  end_time: '07:00',
+  now: '2026-09-04T10:00:00.000Z',
+});
+if ('error' in scheduledNew) throw new Error(scheduledNew.error);
+assert.equal(scheduledNew.sessions[0]?.class_type_id, 'cls_pln_new');
 
 console.log('class-allocate.test.ts ok');

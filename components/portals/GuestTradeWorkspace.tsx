@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import {
@@ -17,6 +17,11 @@ import type {
   PortalRiadView,
   PublicPortalPayload,
 } from '@/lib/portals/trade-portal';
+import {
+  customerPortalDocPdfHref,
+  customerPortalInvoicePdfHref,
+} from '@/lib/portals/trade-portal';
+import { isPortalEnquiryDoc } from '@/lib/customers/trade-thread';
 import {
   applyPortalDocSlotUrl,
   emptyRequiredDocSlots,
@@ -53,6 +58,10 @@ import { Building2, ChevronDown, ChevronRight, FileText, Upload } from 'lucide-r
 import { ProductPhoto } from '@/components/inventory/ProductPhoto';
 import { PortalRiadPanel } from '@/components/portals/PortalRiadPanel';
 import { PortalPurchaseOrder } from '@/components/portals/PortalPurchaseOrder';
+import {
+  PortalOfficialOrderCard,
+  PortalOfficialOrderQueue,
+} from '@/components/portals/PortalOfficialOrder';
 import { OrderChainPath } from '@/components/orders/OrderChainPath';
 import {
   chainStepIndex,
@@ -96,6 +105,30 @@ const EMPTY_PROFILE: BookProfile = {
 function pct(n: number | null | undefined) {
   if (n == null) return '—';
   return `${Math.round(n)}%`;
+}
+
+function storedOrGeneratedPdf(
+  stored: string | null | undefined,
+  generated: string
+): string {
+  const s = String(stored || '').trim();
+  if (/^https?:\/\//i.test(s)) return s;
+  return generated;
+}
+
+function PortalPdfLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className="inline-flex min-h-[44px] items-center gap-1 rounded-xl border border-sky-200 bg-sky-50 px-3 text-xs font-bold text-[#0077b6]"
+    >
+      <FileText className="h-4 w-4" />
+      {label}
+    </a>
+  );
 }
 
 function taskAssigneeKey(t: PortalProjectTask): string {
@@ -173,6 +206,9 @@ const HEAVY_ACTIONS = new Set([
   'commercial_reject',
   'commercial_add',
   'commercial_sla',
+  'accept_quote',
+  'pay_deposit',
+  'confirm_deposit',
 ]);
 const REFRESH_ACTIONS = new Set([
   'project_create',
@@ -190,6 +226,9 @@ const REFRESH_ACTIONS = new Set([
   'document_extra',
   'document_share',
   'production_update',
+  'accept_quote',
+  'pay_deposit',
+  'confirm_deposit',
 ]);
 
 function portalLotsFromAct(
@@ -607,6 +646,7 @@ export function GuestTradeWorkspace({
   const gaps = ws?.profileGaps || [];
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const confirmedDepositRef = useRef(false);
 
   const authHeaders = useCallback(async (): Promise<HeadersInit> => {
     const headers: Record<string, string> = {
@@ -646,7 +686,9 @@ export function GuestTradeWorkspace({
         action === 'project_create'
           ? 'Project created — waterfall tasks span the full duration'
           : action === 'po_create'
-            ? 'Purchase order sent'
+            ? data.deposit_due
+              ? 'PO received — pay the deposit (it is on Statement)'
+              : 'Purchase order sent'
             : action === 'task_add'
               ? 'Task added'
               : action === 'riad_add'
@@ -677,6 +719,12 @@ export function GuestTradeWorkspace({
                                     ? null
                                     : action === 'po_update'
                               ? 'Order updated'
+                              : action === 'accept_quote'
+                                ? 'Quotation accepted — pay the deposit to start processing'
+                                : action === 'pay_deposit'
+                                  ? 'Opening Paystack for the deposit'
+                                  : action === 'confirm_deposit'
+                                    ? 'Deposit paid — the seller can process your order'
                               : 'Saved'
       );
       if (REFRESH_ACTIONS.has(action)) onRefresh();
@@ -688,6 +736,29 @@ export function GuestTradeWorkspace({
       if (heavy) setBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || isHost || isSupplier) return;
+    if (confirmedDepositRef.current) return;
+    const qs = new URLSearchParams(window.location.search);
+    const ref = qs.get('reference') || qs.get('trxref');
+    if (!ref) return;
+    const quoteHint = (live.quotes || []).find((q) => {
+      const stage = String(q.thread_stage || '').toLowerCase();
+      const status = String(q.status).toLowerCase();
+      return (
+        stage === 'deposit' ||
+        stage === 'accepted' ||
+        status === 'deposit_due' ||
+        status === 'accepted'
+      );
+    });
+    if (!quoteHint) return;
+    confirmedDepositRef.current = true;
+    void act({ action: 'confirm_deposit', id: quoteHint.id, reference: ref });
+    // run once after quotes are on the payload
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHost, isSupplier, live.quotes]);
 
   const ot = ws?.otifef;
   const orders = isSupplier
@@ -749,10 +820,27 @@ export function GuestTradeWorkspace({
         />
       ) : null}
 
-      {tab === 'quotes' && !isSupplier ? (
+      {tab === 'enquiries' && !isSupplier ? (
         <QuotesPanel
+          focus="enquiry"
           quotes={live.quotes || []}
           hostName={live.host.name}
+          token={token}
+          busy={busy}
+          isHost={isHost}
+          onAct={act}
+        />
+      ) : null}
+
+      {tab === 'quotes' && !isSupplier ? (
+        <QuotesPanel
+          focus="quote"
+          quotes={live.quotes || []}
+          hostName={live.host.name}
+          token={token}
+          busy={busy}
+          isHost={isHost}
+          onAct={act}
         />
       ) : null}
 
@@ -779,6 +867,7 @@ export function GuestTradeWorkspace({
       ) : null}
       {tab === 'statement' && !isSupplier ? (
         <StatementPanel
+          token={token}
           invoices={live.invoices || []}
           hostName={live.host.name}
         />
@@ -795,7 +884,7 @@ export function GuestTradeWorkspace({
           onAct={act}
         />
       ) : null}
-      {tab === 'commercial' ? (
+      {tab === 'commercial' && isSupplier ? (
         <CommercialPanel
           partyKind={isSupplier ? 'supplier' : 'customer'}
           actor={isHost ? 'host' : 'party'}
@@ -815,21 +904,40 @@ export function GuestTradeWorkspace({
         />
       ) : null}
       {tab === 'newpo' && !isSupplier ? (
-        <PortalPurchaseOrder
-          token={token}
-          busy={busy}
-          onAct={act}
-          catalogue={ws?.catalogue || []}
-          hostName={live.host.name}
-          hostLogo={live.host.logo_url}
-          hostCountry={live.host.country}
-          accountName={live.accountLabel}
-          accountLogo={live.accountLogo || ws?.bookProfile?.logo_url}
-          book={ws?.bookProfile}
-          viewerName={live.actor?.name || live.viewer?.name}
-          viewerEmail={live.viewer?.email}
-          onViewOrders={() => onTab('orders')}
-        />
+        <div className="space-y-4">
+          <PortalOfficialOrderQueue
+            quotes={live.quotes || []}
+            token={token}
+            hostName={live.host.name}
+            busy={busy}
+            isHost={isHost}
+            onAct={act}
+          />
+          <CustomerPurchaseOrdersPanel
+            token={token}
+            hostName={live.host.name}
+            orders={ws?.inbound_pos || []}
+            quotes={live.quotes || []}
+            busy={busy}
+            isHost={isHost}
+            onAct={act}
+          />
+          <PortalPurchaseOrder
+            token={token}
+            busy={busy}
+            onAct={act}
+            catalogue={ws?.catalogue || []}
+            hostName={live.host.name}
+            hostLogo={live.host.logo_url}
+            hostCountry={live.host.country}
+            accountName={live.accountLabel}
+            accountLogo={live.accountLogo || ws?.bookProfile?.logo_url}
+            book={ws?.bookProfile}
+            viewerName={live.actor?.name || live.viewer?.name}
+            viewerEmail={live.viewer?.email}
+            onViewOrders={() => onTab('orders')}
+          />
+        </div>
       ) : null}
       {tab === 'docs' ? (
         <CompanyDocsPanel
@@ -2663,12 +2771,12 @@ function OrdersPanel({
     <div className="space-y-4">
       <div className="rounded-[1.5rem] border border-white/70 bg-white/90 p-4 shadow-sm space-y-2">
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
-          Golden path
+          {isSupplier ? 'Golden path' : `Agreed by ${hostName || 'the seller'}`}
         </p>
         <p className="text-sm font-black text-slate-900">
           {isSupplier
             ? 'Receive, produce, ship'
-            : 'Order, produce, deliver, feedback'}
+            : 'Sales order'}
         </p>
         <p className="text-xs text-slate-500">
           {isSupplier
@@ -2739,21 +2847,21 @@ function OrdersPanel({
                         {formatMoney(o.amount, o.currency)}
                       </p>
                     ) : null}
-                    {isSupplier ? (
-                      <a
-                        href={supplierPortalPoPdfHref({
-                          token,
-                          poId: o.id,
-                          storedUrl: o.attachment_url,
-                        })}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex min-h-[44px] items-center gap-1 rounded-xl border border-sky-200 bg-sky-50 px-3 text-xs font-bold text-[#0077b6]"
-                      >
-                        <FileText className="h-4 w-4" />
-                        PDF
-                      </a>
-                    ) : null}
+                    <PortalPdfLink
+                      href={
+                        isSupplier
+                          ? supplierPortalPoPdfHref({
+                              token,
+                              poId: o.id,
+                              storedUrl: o.attachment_url,
+                            })
+                          : storedOrGeneratedPdf(
+                              o.attachment_url,
+                              customerPortalDocPdfHref(token, o.id, 'order')
+                            )
+                      }
+                      label="PDF"
+                    />
                   </div>
                 </div>
                 <div className="mt-3">
@@ -3680,7 +3788,10 @@ function OtifefPanel({
 
 function quoteStatusClass(status: string): string {
   const s = status.toLowerCase();
-  if (['accepted', 'converted', 'won'].includes(s)) {
+  if (s === 'enquiry') {
+    return 'bg-amber-50 text-amber-900';
+  }
+  if (['accepted', 'converted', 'won', 'deposit_paid', 'processing'].includes(s)) {
     return 'bg-emerald-50 text-emerald-800';
   }
   if (['rejected', 'expired', 'cancelled', 'lost'].includes(s)) {
@@ -3692,15 +3803,167 @@ function quoteStatusClass(status: string): string {
   return 'bg-neutral-100 text-neutral-600';
 }
 
+const THREAD_STEPS = [
+  { id: 'enquiry', label: 'Enquiry' },
+  { id: 'quoted', label: 'Quote' },
+  { id: 'accepted', label: 'Accept + PO' },
+  { id: 'deposit', label: 'Deposit' },
+  { id: 'processing', label: 'Processing' },
+] as const;
+
+function threadIndex(stage?: string | null): number {
+  const s = String(stage || '').toLowerCase();
+  if (s === 'enquiry') return 0;
+  if (s === 'quoted' || s === 'sent') return 1;
+  if (s === 'accepted') return 2;
+  if (s === 'deposit' || s === 'deposit_due') return 3;
+  if (s === 'processing' || s === 'deposit_paid' || s === 'converted' || s === 'fulfilled')
+    return 4;
+  return 1;
+}
+
+function CustomerPurchaseOrdersPanel({
+  token,
+  hostName,
+  orders,
+  quotes,
+  busy,
+  isHost,
+  onAct,
+}: {
+  token: string;
+  hostName: string;
+  orders: PublicPortalPayload['purchase_orders'];
+  quotes?: PublicPortalPayload['quotes'];
+  busy?: boolean;
+  isHost?: boolean;
+  onAct?: (p: Record<string, unknown>) => Promise<Record<string, unknown> | null>;
+}) {
+  const listed = orders
+    .slice()
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  return (
+    <section className="rounded-[1.5rem] border border-white/70 bg-white/90 p-5 shadow-sm space-y-3">
+      <div>
+        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
+          From you · {hostName}
+        </p>
+        <h2 className="mt-1 text-lg font-black text-slate-900">Your purchase orders</h2>
+        <p className="mt-1 text-sm text-neutral-600">
+          Each order carries your PO number as the commercial reference. Open
+          the PDF, or the file you attached from your system.
+        </p>
+      </div>
+      {listed.length === 0 ? (
+        <p className="text-sm text-neutral-500">
+          No purchase orders raised yet. Use the form below, or complete a
+          quotation above.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {listed.map((o) => {
+            const thread = (quotes || []).find(
+              (q) =>
+                q.po_number &&
+                o.customer_po_number &&
+                q.po_number === o.customer_po_number
+            );
+            const depositDue =
+              thread &&
+              (thread.thread_stage === 'deposit' ||
+                thread.thread_stage === 'accepted' ||
+                String(thread.status).toLowerCase() === 'deposit_due');
+            return (
+            <li
+              key={`cpo-${o.id}`}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3"
+            >
+              <div className="min-w-0">
+                <p className="font-black text-slate-900 text-sm">
+                  {o.customer_po_number || o.number}
+                </p>
+                <p className="text-[11px] text-neutral-500">
+                  {[
+                    o.number !== o.customer_po_number ? o.number : null,
+                    o.date,
+                    o.status.replace(/_/g, ' '),
+                    depositDue ? 'deposit due' : null,
+                    o.due ? `required ${o.due}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {o.amount != null ? (
+                  <p className="text-sm font-black tabular-nums">
+                    {formatMoney(o.amount, o.currency)}
+                  </p>
+                ) : null}
+                {depositDue && thread && !isHost && onAct ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    className="btn-primary !py-2 !px-3 text-xs"
+                    onClick={async () => {
+                      const data = await onAct({
+                        action: 'pay_deposit',
+                        id: thread.id,
+                        return_tab: 'newpo',
+                      });
+                      const url = data?.authorizationUrl
+                        ? String(data.authorizationUrl)
+                        : '';
+                      if (url) window.location.href = url;
+                    }}
+                  >
+                    Pay deposit
+                  </button>
+                ) : null}
+                {o.attachment_url && /^https?:\/\//i.test(o.attachment_url) ? (
+                  <PortalPdfLink href={o.attachment_url} label="Your PO" />
+                ) : null}
+                <PortalPdfLink
+                  href={supplierPortalPoPdfHref({
+                    token,
+                    poId: o.id,
+                    storedUrl: o.attachment_url,
+                  })}
+                  label="PDF"
+                />
+              </div>
+            </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function QuotesPanel({
   quotes,
   hostName,
+  token,
+  busy,
+  isHost,
+  focus = 'quote',
+  onAct,
 }: {
   quotes: PublicPortalPayload['quotes'];
   hostName: string;
+  token: string;
+  busy: boolean;
+  isHost?: boolean;
+  focus?: 'enquiry' | 'quote';
+  onAct: (p: Record<string, unknown>) => Promise<Record<string, unknown> | null>;
 }) {
   const [openId, setOpenId] = useState<number | null>(null);
   const listed = quotes
+    .filter((q) => {
+      if (q.thread_source === 'portal_po') return false;
+      return focus === 'enquiry' ? isPortalEnquiryDoc(q) : !isPortalEnquiryDoc(q);
+    })
     .slice()
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
 
@@ -3708,19 +3971,37 @@ function QuotesPanel({
     <div className="space-y-4">
       <section className="rounded-[1.5rem] border border-white/70 bg-white/90 p-5 shadow-sm">
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
-          Quotations · {hostName}
+          {focus === 'enquiry' ? 'From you' : `From ${hostName}`}
         </p>
         <h2 className="mt-1 text-lg font-black text-slate-900">
-          Quotations on this account
+          {focus === 'enquiry' ? 'Enquiry' : 'Quote'}
         </h2>
         <p className="mt-1 text-sm text-neutral-600">
-          Every quotation {hostName} created on your CRM record — including
-          drafts — shows here.
+          {focus === 'enquiry'
+            ? `Requests you sent to ${hostName}. They issue a quotation from each enquiry.`
+            : `${hostName} issues the quotation. Accept with your PO number, pay the deposit, then they process the sales order.`}
         </p>
+        <ol className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-2">
+          {THREAD_STEPS.map((s, i) => (
+            <li
+              key={s.id}
+              className="rounded-xl border border-slate-100 bg-slate-50 px-2 py-2 text-center"
+            >
+              <span className="block text-[10px] font-black text-[#0077b6]">
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              <span className="block text-[11px] font-bold text-slate-800">
+                {s.label}
+              </span>
+            </li>
+          ))}
+        </ol>
       </section>
       {listed.length === 0 ? (
         <p className="rounded-[1.5rem] border border-white/70 bg-white/90 px-5 py-10 text-center text-sm text-neutral-500">
-          No quotations on this account yet.
+          {focus === 'enquiry'
+            ? 'No enquiries on this account yet.'
+            : 'No quotations on this account yet.'}
         </p>
       ) : (
         <ul className="space-y-2">
@@ -3732,43 +4013,52 @@ function QuotesPanel({
                 key={`q-${r.id}`}
                 className="rounded-[1.5rem] border border-white/70 bg-white/90 shadow-sm overflow-hidden"
               >
-                <button
-                  type="button"
-                  className="w-full px-5 py-4 flex flex-wrap items-start justify-between gap-2 text-left"
-                  onClick={() => setOpenId(open ? null : r.id)}
-                >
-                  <div className="min-w-0">
-                    <p className="font-black text-slate-900 text-sm">
-                      {r.number}
-                      {r.title ? (
-                        <span className="font-medium text-neutral-500">
-                          {' '}
-                          · {r.title}
-                        </span>
-                      ) : null}
-                    </p>
-                    <p className="text-[11px] text-neutral-500 mt-0.5">
-                      {[
-                        r.date,
-                        r.due ? `valid until ${r.due}` : null,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0 space-y-1">
-                    <span
-                      className={`text-[10px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 ${quoteStatusClass(r.status)}`}
-                    >
-                      {r.status.replace(/_/g, ' ')}
-                    </span>
-                    {r.amount != null ? (
-                      <p className="text-sm font-black tabular-nums text-slate-900">
-                        {formatMoney(r.amount, r.currency)}
+                <div className="flex items-start gap-2 px-5 py-4">
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 flex flex-wrap items-start justify-between gap-2 text-left"
+                    onClick={() => setOpenId(open ? null : r.id)}
+                  >
+                    <div className="min-w-0">
+                      <p className="font-black text-slate-900 text-sm">
+                        {r.number}
+                        {r.title ? (
+                          <span className="font-medium text-neutral-500">
+                            {' '}
+                            · {r.title}
+                          </span>
+                        ) : null}
                       </p>
-                    ) : null}
-                  </div>
-                </button>
+                      <p className="text-[11px] text-neutral-500 mt-0.5">
+                        {[
+                          r.date,
+                          r.due ? `valid until ${r.due}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0 space-y-1">
+                      <span
+                        className={`text-[10px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 ${quoteStatusClass(r.status)}`}
+                      >
+                        {r.status.replace(/_/g, ' ')}
+                      </span>
+                      {r.amount != null ? (
+                        <p className="text-sm font-black tabular-nums text-slate-900">
+                          {formatMoney(r.amount, r.currency)}
+                        </p>
+                      ) : null}
+                    </div>
+                  </button>
+                  <PortalPdfLink
+                    href={storedOrGeneratedPdf(
+                      r.attachment_url,
+                      customerPortalDocPdfHref(token, r.id, 'quote')
+                    )}
+                    label="PDF"
+                  />
+                </div>
                 {open ? (
                   <div className="px-5 pb-4 border-t border-slate-100 pt-3 space-y-2">
                     {r.notes ? (
@@ -3802,6 +4092,30 @@ function QuotesPanel({
                         Line items were not attached to this quotation.
                       </p>
                     )}
+                    <p className="text-[11px] font-semibold text-slate-500">
+                      Step{' '}
+                      {THREAD_STEPS[threadIndex(r.thread_stage || r.status)]
+                        ?.label || r.status}
+                      {r.enquiry_number ? ` · enquiry ${r.enquiry_number}` : ''}
+                      {r.po_number ? ` · PO ${r.po_number}` : ''}
+                    </p>
+                    {focus === 'quote' &&
+                    !isHost &&
+                    (r.thread_stage === 'quoted' ||
+                      r.thread_stage === 'accepted' ||
+                      r.thread_stage === 'deposit' ||
+                      ['sent', 'accepted', 'deposit_due'].includes(
+                        String(r.status).toLowerCase()
+                      )) ? (
+                      <PortalOfficialOrderCard
+                        quote={r}
+                        token={token}
+                        hostName={hostName}
+                        busy={busy}
+                        isHost={isHost}
+                        onAct={onAct}
+                      />
+                    ) : null}
                   </div>
                 ) : null}
               </li>
@@ -3813,22 +4127,42 @@ function QuotesPanel({
   );
 }
 
+function invoiceStatusClass(status: string): string {
+  const s = status.toLowerCase();
+  if (['paid', 'settled', 'closed'].includes(s)) {
+    return 'bg-emerald-50 text-emerald-800';
+  }
+  if (['overdue', 'void', 'cancelled', 'written_off'].includes(s)) {
+    return 'bg-rose-50 text-rose-800';
+  }
+  if (['sent', 'issued', 'viewed', 'open', 'partial', 'partially_paid'].includes(s)) {
+    return 'bg-sky-50 text-sky-800';
+  }
+  return 'bg-neutral-100 text-neutral-600';
+}
+
 function StatementPanel({
+  token,
   invoices,
   hostName,
 }: {
+  token: string;
   invoices: PublicPortalPayload['invoices'];
   hostName: string;
 }) {
-  const open = invoices.filter((i) => {
+  const [openId, setOpenId] = useState<number | null>(null);
+  const listed = invoices
+    .slice()
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  const open = listed.filter((i) => {
     const st = i.status.toLowerCase();
-    return st !== 'paid' && st !== 'void' && st !== 'cancelled';
+    return st !== 'paid' && st !== 'void' && st !== 'cancelled' && st !== 'settled';
   });
   const due = open.reduce(
     (n, i) => n + Math.max(0, Number(i.amount || 0) - Number(i.paid || 0)),
     0
   );
-  const currency = open[0]?.currency || invoices[0]?.currency || 'ZAR';
+  const currency = open[0]?.currency || listed[0]?.currency || 'ZAR';
 
   return (
     <div className="space-y-4">
@@ -3836,57 +4170,123 @@ function StatementPanel({
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
           Statement · {hostName}
         </p>
-        <p className="mt-1 text-3xl font-black tabular-nums text-slate-900">
+        <h2 className="mt-1 text-lg font-black text-slate-900">
+          Statement
+        </h2>
+        <p className="mt-1 text-sm text-neutral-600">
+          Deposits and tax invoices on this account. Paying a deposit on Order
+          posts a DEP invoice here immediately.
+        </p>
+        <p className="mt-2 text-3xl font-black tabular-nums text-slate-900">
           {formatMoney(due, currency)}
         </p>
         <p className="text-xs text-neutral-500 mt-0.5">
           Open balance · {open.length} invoice{open.length === 1 ? '' : 's'} outstanding
         </p>
       </section>
-
-      <section className="rounded-[1.5rem] border border-white/70 bg-white/90 shadow-sm overflow-hidden">
-        <div className="px-5 py-3 border-b border-slate-100">
-          <h3 className="text-sm font-black text-slate-900">Invoices</h3>
-        </div>
-        {invoices.length === 0 ? (
-          <p className="px-5 py-8 text-sm text-neutral-500">No invoices on this account yet.</p>
-        ) : (
-          <ul className="divide-y divide-slate-100">
-            {invoices.map((r) => {
-              const remaining = Math.max(
-                0,
-                Number(r.amount || 0) - Number(r.paid || 0)
-              );
-              return (
-                <li
-                  key={`inv-${r.id}`}
-                  className="px-5 py-3.5 flex flex-wrap items-center justify-between gap-2"
-                >
-                  <div className="min-w-0">
-                    <p className="font-bold text-slate-900 text-sm">{r.number}</p>
-                    <p className="text-[11px] text-neutral-500 mt-0.5">
-                      {[r.date, r.due ? `due ${r.due}` : null, r.status]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-black tabular-nums text-slate-900">
-                      {formatMoney(r.amount, r.currency)}
-                    </p>
-                    {remaining > 0 && remaining !== Number(r.amount || 0) ? (
-                      <p className="text-[11px] text-amber-700 font-semibold">
-                        Open {formatMoney(remaining, r.currency)}
+      {listed.length === 0 ? (
+        <p className="rounded-[1.5rem] border border-white/70 bg-white/90 px-5 py-10 text-center text-sm text-neutral-500">
+          No invoices on this account yet.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {listed.map((r) => {
+            const openRow = openId === r.id;
+            const remaining = Math.max(
+              0,
+              Number(r.amount || 0) - Number(r.paid || 0)
+            );
+            const lines = r.lines || [];
+            const pdfHref = customerPortalInvoicePdfHref(token, r.id);
+            return (
+              <li
+                key={`inv-${r.id}`}
+                className="rounded-[1.5rem] border border-white/70 bg-white/90 shadow-sm overflow-hidden"
+              >
+                <div className="flex items-start gap-2 px-5 py-4">
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 flex flex-wrap items-start justify-between gap-2 text-left"
+                    onClick={() => setOpenId(openRow ? null : r.id)}
+                  >
+                    <div className="min-w-0">
+                      <p className="font-black text-slate-900 text-sm">
+                        {r.number}
+                        {r.deposit ? (
+                          <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-[#0077b6]">
+                            Deposit
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className="text-[11px] text-neutral-500 mt-0.5">
+                        {[
+                          r.date,
+                          r.due ? `due ${r.due}` : null,
+                          r.po_number ? `PO ${r.po_number}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0 space-y-1">
+                      <span
+                        className={`text-[10px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 ${invoiceStatusClass(r.status)}`}
+                      >
+                        {r.status.replace(/_/g, ' ')}
+                      </span>
+                      <p className="text-sm font-black tabular-nums text-slate-900">
+                        {formatMoney(r.amount, r.currency)}
+                      </p>
+                      {remaining > 0 && remaining !== Number(r.amount || 0) ? (
+                        <p className="text-[11px] text-amber-700 font-semibold">
+                          Open {formatMoney(remaining, r.currency)}
+                        </p>
+                      ) : null}
+                    </div>
+                  </button>
+                  <PortalPdfLink href={pdfHref} label="PDF" />
+                </div>
+                {openRow ? (
+                  <div className="px-5 pb-4 border-t border-slate-100 pt-3 space-y-3">
+                    {r.notes ? (
+                      <p className="text-sm text-slate-600 whitespace-pre-wrap">
+                        {r.notes}
                       </p>
                     ) : null}
+                    {lines.length ? (
+                      <ul className="space-y-1 text-sm">
+                        {lines.map((line, i) => (
+                          <li
+                            key={`${r.id}-line-${i}`}
+                            className="flex justify-between gap-3"
+                          >
+                            <span className="text-slate-700">
+                              {line.name}
+                              {line.qty != null
+                                ? ` · ${line.qty}${line.uom ? ` ${line.uom}` : ''}`
+                                : ''}
+                            </span>
+                            {line.amount != null ? (
+                              <span className="tabular-nums font-semibold">
+                                {formatMoney(line.amount, r.currency)}
+                              </span>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-neutral-500">
+                        Line items were not attached to this invoice.
+                      </p>
+                    )}
+                    <PortalPdfLink href={pdfHref} label="Open invoice PDF" />
                   </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

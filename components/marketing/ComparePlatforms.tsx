@@ -283,6 +283,22 @@ const SECTIONS: Section[] = [
         sa: 'strong',
       },
       {
+        capability: 'ApparelAdvisor® · range · ATS · ship holds',
+        hint: 'Seasons, style/colour/size, landed-duty BOM, critical path, CMT rolls, QA holds that stop ship, wholesale ATS, buyer PWA',
+        excel: 'partial',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
+        capability: 'ConstructionAdvisor® · BOQ · progress payments',
+        hint: 'One customer, many projects. BOQ quotes, dated plan vs actuals, cost allocation, claim → certify → client pay, programme reports, client/contractor PWA',
+        excel: 'partial',
+        xero: 'no',
+        erp: 'partial',
+        sa: 'strong',
+      },
+      {
         capability: 'GymAdvisor® · gym & fitness services',
         hint: 'Coaches, rooms, packs, waitlist, phone check-in QR, member PWA (Class · Progress), marketplace',
         excel: 'no',

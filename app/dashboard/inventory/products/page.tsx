@@ -508,6 +508,12 @@ function ProductsInner() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
+            href="/dashboard/inventory/storefront"
+            className="btn-secondary !py-3 !px-5 text-sm"
+          >
+            Storefront items
+          </Link>
+          <Link
             href="/dashboard/connections/pricing"
             className="btn-secondary !py-3 !px-5 text-sm"
           >

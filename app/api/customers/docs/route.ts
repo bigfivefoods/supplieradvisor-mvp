@@ -14,6 +14,18 @@ import {
 } from '@/lib/customers/access';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import { promptAfterInvoicePaid } from '@/lib/ratings/create-prompt';
+import {
+  canIssueQuote,
+  canStartProcessing,
+  parseTradeThread,
+  statusForStage,
+  writeTradeThread,
+} from '@/lib/customers/trade-thread';
+import {
+  enquiryUidFromNumber,
+  quoteUidWhenIssuing,
+  resolveEnquiryUid,
+} from '@/lib/customers/enquiry-uid';
 
 async function booksFromCrm(
   companyId: number,
@@ -138,6 +150,29 @@ function buildPayload(
       'Prices valid until the date shown. Subject to stock availability.';
     if (paymentTerms) base.payment_terms = paymentTerms;
     base.order_id = body.order_id || null;
+    const thread = parseTradeThread(body.metadata, base.status);
+    const currentNo = String(base[numField] || '');
+    if (
+      String(base.status || '') === 'enquiry' &&
+      currentNo.toUpperCase().startsWith('QT-')
+    ) {
+      const swapped = enquiryUidFromNumber(currentNo);
+      if (swapped) base[numField] = swapped;
+    }
+    const enquiryNumber =
+      resolveEnquiryUid({
+        quote_number: base[numField],
+        status: base.status,
+        metadata: body.metadata,
+        enquiry_number: thread.enquiry_number,
+      }) || enquiryUidFromNumber(base[numField]);
+    if (enquiryNumber) {
+      base.metadata = writeTradeThread(body.metadata, {
+        ...thread,
+        enquiry_number: enquiryNumber,
+        enquiry_at: thread.enquiry_at || now,
+      });
+    }
   }
   if (kind === 'order') {
     base.quote_id = body.quote_id || null;
@@ -175,6 +210,18 @@ export async function GET(request: NextRequest) {
     const kind = kindOf(request);
     const id = request.nextUrl.searchParams.get('id');
     const status = request.nextUrl.searchParams.get('status');
+    const customerIdParam = Number(
+      request.nextUrl.searchParams.get('customerId') || 0
+    );
+    const fromDay = String(request.nextUrl.searchParams.get('from') || '').slice(
+      0,
+      10
+    );
+    const toDay = String(request.nextUrl.searchParams.get('to') || '').slice(
+      0,
+      10
+    );
+    const limitRaw = Number(request.nextUrl.searchParams.get('limit') || 50);
     if (!Number.isFinite(companyId)) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
@@ -208,16 +255,59 @@ export async function GET(request: NextRequest) {
         ? 'id, status, invoice_number, customer_id, customer_name, total_amount, amount_paid, currency, due_date, created_at, contact_email, visibility, items'
         : kind === 'order'
           ? 'id, status, order_number, customer_id, customer_name, total_amount, currency, created_at, contact_email, visibility, items'
-          : 'id, status, quote_number, customer_id, customer_name, total_amount, currency, created_at, contact_email, visibility, items, valid_until';
+          : 'id, status, quote_number, customer_id, customer_name, total_amount, currency, created_at, contact_email, visibility, items, valid_until, metadata';
+    const limit = Number.isFinite(limitRaw)
+      ? Math.min(200, Math.max(1, Math.floor(limitRaw)))
+      : 50;
     let q = supabase
       .from(table)
       .select(listCols)
       .eq('profile_id', companyId)
-      .order('id', { ascending: false })
-      .limit(50);
+      .limit(limit);
+    q =
+      kind === 'quote' || kind === 'order' || kind === 'invoice'
+        ? q
+            .order('created_at', { ascending: false })
+            .order('id', { ascending: false })
+        : q.order('id', { ascending: false });
     if (status && status !== 'all') q = q.eq('status', status);
+    if (Number.isFinite(customerIdParam) && customerIdParam > 0) {
+      q = q.eq('customer_id', customerIdParam);
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(fromDay)) {
+      q = q.gte('created_at', `${fromDay}T00:00:00`);
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(toDay)) {
+      q = q.lte('created_at', `${toDay}T23:59:59.999`);
+    }
 
-    const { data, error } = await q;
+    const first = await q;
+    let error = first.error;
+    let rows: unknown[] = (first.data || []) as unknown[];
+    if (error && kind === 'quote' && /metadata|column|schema cache/i.test(error.message)) {
+      let retry = supabase
+        .from(table)
+        .select(
+          'id, status, quote_number, customer_id, customer_name, total_amount, currency, created_at, contact_email, visibility, items, valid_until'
+        )
+        .eq('profile_id', companyId)
+        .limit(limit)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false });
+      if (status && status !== 'all') retry = retry.eq('status', status);
+      if (Number.isFinite(customerIdParam) && customerIdParam > 0) {
+        retry = retry.eq('customer_id', customerIdParam);
+      }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(fromDay)) {
+        retry = retry.gte('created_at', `${fromDay}T00:00:00`);
+      }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(toDay)) {
+        retry = retry.lte('created_at', `${toDay}T23:59:59.999`);
+      }
+      const again = await retry;
+      error = again.error;
+      rows = (again.data || []) as unknown[];
+    }
     if (error) {
       return NextResponse.json({
         success: true,
@@ -226,7 +316,13 @@ export async function GET(request: NextRequest) {
         hint: 'Run 20260709_crm_sales_lifecycle.sql',
       });
     }
-    return NextResponse.json({ success: true, documents: data || [], type: kind });
+    const documents = rows.map((row) => {
+      if (kind !== 'quote' || !row || typeof row !== 'object') return row;
+      const r = row as Record<string, unknown>;
+      const enquiry_number = resolveEnquiryUid(r);
+      return enquiry_number ? { ...r, enquiry_number } : r;
+    });
+    return NextResponse.json({ success: true, documents, type: kind });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
   }
@@ -784,6 +880,89 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // ── Issue quotation from a storefront enquiry ─────────────────────────
+    if (action === 'issue_quote' && body.id) {
+      const { data: quote, error } = await supabase
+        .from('customer_quotes')
+        .select('*')
+        .eq('id', Number(body.id))
+        .eq('profile_id', companyId)
+        .maybeSingle();
+      if (error || !quote) {
+        return NextResponse.json(
+          { error: error?.message || 'Enquiry not found' },
+          { status: 404 }
+        );
+      }
+      const thread = parseTradeThread(quote.metadata, quote.status);
+      if (!canIssueQuote(thread, quote.status)) {
+        return NextResponse.json(
+          {
+            error: 'This record is already a quotation (or converted).',
+            stage: thread.stage,
+          },
+          { status: 409 }
+        );
+      }
+      const enquiryNumber =
+        resolveEnquiryUid(quote) ||
+        enquiryUidFromNumber(quote.quote_number) ||
+        String(quote.quote_number || docNumber('ENQ'));
+      const currentNo = String(quote.quote_number || '');
+      const quoteNumber = currentNo.toUpperCase().startsWith('QT-')
+        ? currentNo
+        : quoteUidWhenIssuing(enquiryNumber) || docNumber('QT');
+      const nextThread = {
+        ...thread,
+        stage: 'quoted' as const,
+        enquiry_number: enquiryNumber,
+        quoted_at: now,
+      };
+      const updates: Record<string, unknown> = {
+        status: statusForStage('quoted'),
+        quote_number: quoteNumber,
+        visibility: 'shared',
+        terms:
+          'Quotation issued from storefront enquiry. Accept on your customer portal with a PO number. A deposit is due before we process.',
+        metadata: writeTradeThread(quote.metadata, nextThread),
+        updated_at: now,
+      };
+      const { data: issued, error: uErr } = await supabase
+        .from('customer_quotes')
+        .update(updates)
+        .eq('id', quote.id)
+        .eq('profile_id', companyId)
+        .select('*')
+        .single();
+      if (uErr) {
+        const soft = { ...updates };
+        delete soft.visibility;
+        delete soft.terms;
+        const retry = await supabase
+          .from('customer_quotes')
+          .update(soft)
+          .eq('id', quote.id)
+          .eq('profile_id', companyId)
+          .select('*')
+          .single();
+        if (retry.error) {
+          return NextResponse.json({ error: retry.error.message }, { status: 500 });
+        }
+        return NextResponse.json({
+          success: true,
+          action: 'issue_quote',
+          quote: retry.data,
+          email: true,
+        });
+      }
+      return NextResponse.json({
+        success: true,
+        action: 'issue_quote',
+        quote: issued,
+        email: true,
+      });
+    }
+
     // ── Convert quote → order ──────────────────────────────────────────────
     if (action === 'convert_to_order' && body.id) {
       const { data: quote, error } = await supabase
@@ -795,6 +974,18 @@ export async function POST(request: NextRequest) {
       if (error || !quote) {
         return NextResponse.json({ error: error?.message || 'Quote not found' }, { status: 404 });
       }
+      const thread = parseTradeThread(quote.metadata, quote.status);
+      if (!canStartProcessing(thread, quote.status)) {
+        return NextResponse.json(
+          {
+            error:
+              'Storefront enquiries need the customer to accept the quote (with a PO) and pay the deposit before processing.',
+            code: 'THREAD_NOT_READY',
+            stage: thread.stage,
+          },
+          { status: 409 }
+        );
+      }
       const items = normalizeItems(quote.items);
       const totals = calcDocTotals(items, Number(quote.tax_rate ?? 15));
       const orderPayload = {
@@ -803,7 +994,8 @@ export async function POST(request: NextRequest) {
         quote_id: quote.id,
         opportunity_id: quote.opportunity_id,
         order_number: docNumber('SO'),
-        status: 'confirmed',
+        status: thread.deposit_paid_at ? 'processing' : 'confirmed',
+        customer_po_number: thread.po_number || null,
         currency: quote.currency || 'ZAR',
         ...totals,
         customer_name: quote.customer_name,

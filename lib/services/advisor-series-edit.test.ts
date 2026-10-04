@@ -23,7 +23,9 @@ const items = [
 
 assert.deepEqual(resolveSeriesEditIds(items, 'a2', 'one'), ['a2']);
 assert.deepEqual(resolveSeriesEditIds(items, 'a2', 'future'), ['a2', 'a3']);
+assert.deepEqual(resolveSeriesEditIds(items, 'a2', 'all'), ['a1', 'a2', 'a3']);
 assert.deepEqual(resolveSeriesEditIds(items, 'b1', 'future'), ['b1']);
+assert.deepEqual(resolveSeriesEditIds(items, 'b1', 'all'), ['b1']);
 
 const patched = applySeriesPatch(
   { id: 'a1', date: '2026-08-01', start_time: '09:00', location: 'A' },
@@ -40,6 +42,13 @@ const timed = applySeriesPatch(
 );
 assert.equal(timed.end_time, '10:30');
 assert.equal(timed.session_kind, 'private_pt');
+
+const roomed = applySeriesPatch(
+  { id: 'a1', room: 'Studio A', coach_id: 'c1' },
+  { room: 'Spin room', coach_id: 'c2' }
+);
+assert.equal(roomed.room, 'Spin room');
+assert.equal(roomed.coach_id, 'c2');
 
 const bookings = [
   { id: '1', status: 'cancelled', booked_at: '2026-01-01', appointment_id: 'a' },

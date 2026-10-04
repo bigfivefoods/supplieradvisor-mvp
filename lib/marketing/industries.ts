@@ -8,6 +8,8 @@ export type IndustrySlug =
   | 'agriculture'
   | 'quarry-aggregates'
   | 'manufacturing'
+  | 'apparel-clothing'
+  | 'construction-building'
   | 'distribution'
   | 'fitness-gyms'
   | 'physio-allied-health'
@@ -156,6 +158,64 @@ export const INDUSTRIES: IndustryPage[] = [
       'Operations',
       'SHEQ',
       'Quality',
+    ],
+  },
+  {
+    slug: 'apparel-clothing',
+    name: 'Apparel & clothing',
+    headline: 'Style, colour, size — then land the cost and sell the run.',
+    subhead:
+      'ApparelAdvisor® is the apparel OS: seasons and line plan, style/colour/size matrix, tech packs, landed-duty BOM, critical path, sample gates, CMT roll ownership, floor tickets, QA holds that actually stop ship, wholesale ATS and a buyer line-sheet PWA — on the same books as suppliers, customers and finance.',
+    cardBlurb:
+      'ApparelAdvisor® for CMT factories and brands — range, landed costing, ATS, QA ship holds, buyer PWA.',
+    pack: 'ApparelAdvisor®',
+    pains: [
+      'Generic ERPs treat every size as an unrelated SKU',
+      'Landed duty and the tech pack live in two spreadsheets',
+      'Wholesale oversells because ATS is not on the size curve',
+    ],
+    wins: [
+      'Plan the range, cost the BOM with duty, and date the critical path',
+      'Available-to-sell by style / colour / size, with prebooks on the line sheet',
+      '4-point, shade, gold-seal and AQL holds actually block ship — factory and brand on one OS',
+    ],
+    modules: [
+      'ApparelAdvisor®',
+      'Quality',
+      'Inventory',
+      'Suppliers',
+      'Customers',
+      'Operations',
+      'Finance',
+    ],
+  },
+  {
+    slug: 'construction-building',
+    name: 'Building & construction',
+    headline: 'Quote the BOQ. Run the plan. Get paid on dates.',
+    subhead:
+      'ConstructionAdvisor® is the contractor OS: one customer with many projects, BOQ quoting, a dated programme with plan vs actuals, cost allocation against BOQ lines, progress-payment dates (contractor claim → certify IPC → client pay), per-project reports rolled into a programme, and a client / contractor PWA — on the same books as suppliers, customers and SHEQ.',
+    cardBlurb:
+      'ConstructionAdvisor® for principal contractors — BOQ quotes, dated programme, progress payments, client/contractor PWA.',
+    pack: 'ConstructionAdvisor®',
+    pains: [
+      'Quotes are built off-system while the BOQ lives in a spreadsheet',
+      'One developer has several sites and nobody can roll the programme',
+      'Progress claims and client payments have no dates on the project plan',
+    ],
+    wins: [
+      'Quote from the BOQ and accept it as the contract budget',
+      'One client, many projects — dated plan vs actuals, then a programme roll-up',
+      'Date progress payments, issue the claim, certify, and let the client record pay on the PWA',
+    ],
+    modules: [
+      'ConstructionAdvisor®',
+      'SHEQ',
+      'Projects',
+      'Suppliers',
+      'Customers',
+      'Inventory',
+      'Finance',
     ],
   },
   {
@@ -549,7 +609,7 @@ export const INDUSTRIES: IndustryPage[] = [
       'Company switcher + roles',
       'Scoped COA, inventory, people',
       'Invite partners without sharing the group',
-      'Industry packs per company (Crop · Gym · clinic · Vet · Hire…)',
+      'Industry packs per company (Crop · Construction · Apparel · Gym · clinic · Vet · Hire…)',
     ],
     modules: [
       'Company',

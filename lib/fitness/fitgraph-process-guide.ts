@@ -288,9 +288,9 @@ export const PROCESS_PHASES: ProcessPhase[] = [
       },
       {
         n: '8b',
-        title: 'View portal',
+        title: 'Preview apps',
         who: 'Owner',
-        desc: 'See what members, coaches and a programme look like — plus the optional public website.',
+        desc: 'See what members, coaches and a programme look like — plus the optional public website (Website & apps → Preview).',
       },
       {
         n: '8c',

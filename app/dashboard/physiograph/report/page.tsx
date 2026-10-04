@@ -8,6 +8,7 @@ import {
 import { DataTable, StatRow } from '@/components/clinic/PhysioForm';
 import { healthSummaryLabel, isInjured } from '@/lib/health/body-map';
 import ManagementReportPanel from '@/components/advisors/ManagementReportPanel';
+import { CLINIC_REPORT_STATUS_DIM } from '@/lib/advisors/management-report';
 
 export default function ReportPage() {
   const { store, loading, summary, analysis } = usePhysiograph();
@@ -23,19 +24,44 @@ export default function ReportPage() {
     }>) || [];
   const injured =
     store?.patients.filter((p) => isInjured(p.clinical)).length || 0;
+  const clinicianOpts = (store?.practitioners || [])
+    .filter((p) => p.active !== false)
+    .map((p) => ({ id: p.id, label: p.name }));
 
   return (
     <PhysiographWorkbench
-      title="Management report"
-      titleAccent="Insights · A4 landscape"
-      description="Practitioner load, injury awareness, patient book, and this week’s diary utilisation."
+      title="Reports"
+      titleAccent="slice & dice · pack · trends"
+      description="One slicer at the top. Tabs of reports underneath — each list has a graph above it."
     >
       {loading || !store ? (
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
 
-      <ManagementReportPanel advisor="physiograph" className="mb-6" />
+      <ManagementReportPanel
+        advisor="physiograph"
+        className="mb-6"
+        dimensions={[
+          ...(clinicianOpts.length
+            ? [
+                {
+                  key: 'practitionerId',
+                  label: 'Clinician',
+                  options: clinicianOpts,
+                },
+              ]
+            : []),
+          {
+            key: 'serviceId',
+            label: 'Service',
+            options: (store?.services || [])
+              .filter((s) => s.active !== false)
+              .map((s) => ({ id: s.id, label: s.name })),
+          },
+          CLINIC_REPORT_STATUS_DIM,
+        ]}
+      />
 
           <StatRow
             items={[

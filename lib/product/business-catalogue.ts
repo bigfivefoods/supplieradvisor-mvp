@@ -113,7 +113,7 @@ export const INDUSTRIES: readonly IndustryOption[] = [
     label: 'General manufacturing',
     description: 'Non-food manufacturing, assembly and fabrication.',
     sectorId: 'secondary',
-    packIds: ['food_bev_mfg', 'logistics_containers'],
+    packIds: ['food_bev_mfg', 'apparel', 'logistics_containers'],
     businessTypes: privateTypes([
       { id: 'discrete_mfg', label: 'Discrete / assembly manufacturer', description: 'Parts, equipment, finished goods.' },
       { id: 'process_mfg', label: 'Process / chemicals manufacturer', description: 'Chemicals, materials, continuous process.' },
@@ -128,7 +128,7 @@ export const INDUSTRIES: readonly IndustryOption[] = [
     label: 'Construction & utilities',
     description: 'Building, infrastructure and utility-side industrial work.',
     sectorId: 'secondary',
-    packIds: ['logistics_containers', 'impact_esg'],
+    packIds: ['construction_building', 'logistics_containers', 'impact_esg'],
     businessTypes: privateTypes([
       { id: 'main_contractor', label: 'Main building contractor', description: 'Principal construction contractor.' },
       { id: 'specialist_trade', label: 'Specialist trade contractor', description: 'Electrical, plumbing, civils, etc.' },

@@ -11,6 +11,8 @@ export const ADVISOR_OS_MODULE_IDS = [
   'vetgraph',
   'hiregraph',
   'retailgraph',
+  'apparelgraph',
+  'constructiongraph',
 ] as const;
 
 export type AdvisorOsModuleId = (typeof ADVISOR_OS_MODULE_IDS)[number];
@@ -120,6 +122,28 @@ export const ADVISOR_PACK_UNLOCKS: Record<string, readonly string[]> = {
     'operations',
     'network',
   ],
+  apparel: [
+    'apparelgraph',
+    'people',
+    'customers',
+    'accounting',
+    'suppliers',
+    'operations',
+    'inventory',
+    'quality',
+  ],
+  construction_building: [
+    'constructiongraph',
+    'people',
+    'customers',
+    'accounting',
+    'suppliers',
+    'operations',
+    'inventory',
+    'quality',
+    'sheq',
+    'projects',
+  ],
 };
 
 export const ADVISOR_MODULE_CORE_HREF: Record<
@@ -173,6 +197,18 @@ export const ADVISOR_MODULE_CORE_HREF: Record<
     staff: '/dashboard/retailgraph/customers',
     book: '/dashboard/retailgraph/customers',
     money: '/dashboard/retailgraph/accounts',
+  },
+  apparelgraph: {
+    label: 'ApparelAdvisor',
+    staff: '/dashboard/people/directory',
+    book: '/dashboard/customers/profiles',
+    money: '/dashboard/accounting',
+  },
+  constructiongraph: {
+    label: 'ConstructionAdvisor',
+    staff: '/dashboard/people/directory',
+    book: '/dashboard/customers/profiles',
+    money: '/dashboard/accounting',
   },
 };
 

@@ -73,6 +73,11 @@ import {
   parseFitClientsImport,
 } from '@/lib/fitness/fitgraph-clients-xlsx';
 import { omitClientRosterFields } from '@/lib/fitness/client-roster-fields';
+import {
+  applyGymClientNumberFromAr,
+  needsGymClientNumber,
+  recodeGymClientNumbers,
+} from '@/lib/fitness/gym-client-number';
 import { mergeHealthProfile } from '@/lib/health/body-map';
 import {
   applyMessageAction,
@@ -84,6 +89,7 @@ import {
   issueFeedbackPrompt,
 } from '@/lib/services/booking-feedback';
 import { applyGymAttendanceMark } from '@/lib/fitness/apply-gym-attendance';
+import { gymCoachAwayOn } from '@/lib/services/staff-away';
 import { notifyMemberToRateClass } from '@/lib/fitness/notify-class-feedback';
 import {
   applyAnnouncementAction,
@@ -100,21 +106,35 @@ import {
   serviceMemberInviteEmailHtml,
   serviceMemberInviteEmailText,
 } from '@/lib/services/member-invite';
-import { loadFitgraphMerged, saveFitgraphMerged } from '@/lib/fitness/fitgraph-io';
-import { persistVukaCatalogIfNeeded } from '@/lib/fitness/vuka-class-catalog';
+import { loadFitgraphMerged, saveFitgraphMerged, saveFitgraphPatch } from '@/lib/fitness/fitgraph-io';
+import {
+  persistVukaCatalogIfNeeded,
+  storeUsesClassSubscribe,
+} from '@/lib/fitness/vuka-class-catalog';
+import { applyFloorTaskAction } from '@/lib/services/advisor-floor-tasks';
+import { GYM_DEFAULT_TZ, isoDateInZone } from '@/lib/fitness/gym-local-time';
 import { applyMemberDebitBank } from '@/lib/fitness/member-debit-bank';
+import { fitgraphDeskGetWindow } from '@/lib/fitness/fitgraph-desk-get-window';
 import {
   allocateMemberToClass,
+  applyPrivatePtBookings,
+  bookDeskMemberOntoSession,
+  ensureClassTypeForSubscribePlan,
+  ensureSessionCapacityForMembers,
+  expandSessionToSeries,
   mergeSubscribersIntoCoachSessions,
+  parseFitClientIds,
   scheduleClassOnCalendar,
   setClassMembers,
   stampCatalogSeriesAndBookSubscribers,
   updateClassDesk,
 } from '@/lib/fitness/class-allocate';
+import { parseRecurrenceBody } from '@/lib/schedule/recurrence';
 import { appendJoinEvent } from '@/lib/fitness/member-profile';
 import { parseMemberPassport } from '@/lib/b2c/member-passport';
 import { mergeMedicalRecord } from '@/lib/clinic/patient-medical';
 import { resolveCompanyEmails } from '@/lib/billing/company-emails';
+import { isStaleModuleStoreError } from '@/lib/business/company-data';
 
 export const runtime = 'nodejs';
 
@@ -140,10 +160,61 @@ async function loadStore(companyId: number, opts?: { fresh?: boolean }) {
 
 async function saveStore(
   companyId: number,
-  _meta: Record<string, unknown>,
+  meta: Record<string, unknown>,
   store: FitgraphStore
 ) {
-  await saveFitgraphMerged(companyId, store);
+  const ifUpdatedAtRaw = meta.__if_updated_at;
+  const ifUpdatedAt =
+    typeof ifUpdatedAtRaw === 'string' && ifUpdatedAtRaw.trim()
+      ? ifUpdatedAtRaw.trim()
+      : null;
+  await saveFitgraphMerged(companyId, store, { ifUpdatedAt });
+}
+
+/**
+ * Brief 52 — fast calendar patch save.
+ * Only the keys present in `patch` are written; all other arrays on the server
+ * row are untouched (Brief 50/52 SQL union-merge preserves them).
+ * Returns the `updated_at` stamp written into the data so the client can
+ * update its CAS token without a full reload.
+ */
+async function savePatch(
+  companyId: number,
+  meta: Record<string, unknown>,
+  patch: Partial<FitgraphStore>
+): Promise<string> {
+  const ifUpdatedAtRaw = meta.__if_updated_at;
+  const ifUpdatedAt =
+    typeof ifUpdatedAtRaw === 'string' && ifUpdatedAtRaw.trim()
+      ? ifUpdatedAtRaw.trim()
+      : null;
+  return saveFitgraphPatch(companyId, patch, { ifUpdatedAt });
+}
+
+function keyedStorePatch<K extends keyof FitgraphStore>(
+  store: FitgraphStore,
+  ...keys: K[]
+): Pick<FitgraphStore, K> {
+  const patch = {} as Pick<FitgraphStore, K>;
+  for (const key of keys) {
+    patch[key] = store[key] as Pick<FitgraphStore, K>[K];
+  }
+  return patch;
+}
+
+async function savePatchForKeys<K extends keyof FitgraphStore>(
+  companyId: number,
+  meta: Record<string, unknown>,
+  store: FitgraphStore,
+  ...keys: K[]
+): Promise<string> {
+  const updatedAt = await savePatch(
+    companyId,
+    meta,
+    keyedStorePatch(store, ...keys)
+  );
+  store.updated_at = updatedAt;
+  return updatedAt;
 }
 
 function analysis(store: FitgraphStore) {
@@ -195,12 +266,27 @@ export async function GET(request: NextRequest) {
       legacyPrivyUserId: legacyPrivyFrom(request),
     });
     if (!gate.ok) return gate.response;
-    const { store } = await loadStore(companyId);
+    const loaded = await loadStore(companyId);
+    const store = await persistVukaCatalogIfNeeded(
+      companyId,
+      loaded.store,
+      async (next) => {
+        await saveStore(companyId, loaded.meta, next);
+      },
+      {
+        tradingName: loaded.store.settings?.brand_name,
+        applyCatalog: false,
+      }
+    );
 
     // Stamp owner emails so coachIsGymOwner works correctly on every load
     await stampOwnerEmails(companyId, store);
-    const wantLibrary =
-      request.nextUrl.searchParams.get('include') === 'library';
+    const include = request.nextUrl.searchParams.get('include');
+    const windowedStore = fitgraphDeskGetWindow(store, {
+      include,
+      bookings: request.nextUrl.searchParams.get('bookings'),
+      checkIns: request.nextUrl.searchParams.get('check_ins'),
+    });
 
     const exportKind = request.nextUrl.searchParams.get('export');
     if (exportKind === 'clients' || exportKind === 'clients_template') {
@@ -229,9 +315,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        store: wantLibrary
-          ? store
-          : { ...store, movements: [], watch_sessions: [] },
+        store: windowedStore,
         summary: summariseFitgraph(store),
       },
       {
@@ -263,6 +347,37 @@ export async function POST(request: NextRequest) {
     const action = String(body.action || 'upsert');
     const entity = String(body.entity || '') as Entity;
     const { meta, store } = await loadStore(companyId, { fresh: true });
+    const payloadUpdatedAt =
+      (body &&
+      typeof body === 'object' &&
+      'updated_at' in body &&
+      typeof body.updated_at === 'string' &&
+      body.updated_at.trim()
+        ? body.updated_at.trim()
+        : null) ||
+      (body &&
+      typeof body === 'object' &&
+      'store' in body &&
+      body.store &&
+      typeof body.store === 'object' &&
+      'updated_at' in body.store &&
+      typeof body.store.updated_at === 'string' &&
+      body.store.updated_at.trim()
+        ? body.store.updated_at.trim()
+        : null) ||
+      (body &&
+      typeof body === 'object' &&
+      'data' in body &&
+      body.data &&
+      typeof body.data === 'object' &&
+      'updated_at' in body.data &&
+      typeof body.data.updated_at === 'string' &&
+      body.data.updated_at.trim()
+        ? body.data.updated_at.trim()
+        : null);
+    if (payloadUpdatedAt) {
+      meta.__if_updated_at = payloadUpdatedAt;
+    }
     const now = new Date().toISOString();
 
     // Stamp owner emails on every mutation load so coachIsGymOwner resolves correctly
@@ -285,6 +400,23 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (action === 'floor_task') {
+      const today = isoDateInZone(store.settings?.timezone || GYM_DEFAULT_TZ);
+      const result = applyFloorTaskAction(store.floor_tasks, body, now, today);
+      if (result.error) {
+        return NextResponse.json({ error: result.error }, { status: 400 });
+      }
+      store.floor_tasks = result.tasks;
+      await savePatchForKeys(companyId, meta, store, 'floor_tasks');
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        analysis: analysis(store),
+        task: result.task,
+      });
+    }
+
     /** Messaging: desk · coaches · members (+ fan-out to member company inboxes) */
     if (
       action.startsWith('message_') ||
@@ -298,7 +430,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
       store.threads = result.threads;
-      await saveStore(companyId, meta, store);
+      const updatedAt = await savePatch(companyId, meta, { threads: store.threads });
+      store.updated_at = updatedAt;
 
       // Mirror coach/desk care messages into members' own company Messages
       // when their client email matches a platform company (e.g. craig@…).
@@ -405,6 +538,7 @@ export async function POST(request: NextRequest) {
         });
         if (id) stamped += 1;
       }
+      recodeGymClientNumbers(store.clients || []);
       await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
@@ -422,20 +556,35 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'backfill_client_crm') {
-      const { attachCrmToAdvisorPerson, needsGymCrmStamp } = await import(
+      const {
+        attachCrmToAdvisorPerson,
+        isPaddedMemberArCode,
+        needsGymCrmStamp,
+      } = await import(
         '@/lib/b2c/member-account-ar'
       );
+      const { backfillAdvisorPartyUids } = await import(
+        '@/lib/accounting/party-gl-accounts'
+      );
+      await backfillAdvisorPartyUids(companyId);
       const requestedLimit = Number(body.limit);
       const limit = Number.isFinite(requestedLimit)
-        ? Math.min(80, Math.max(1, Math.trunc(requestedLimit)))
-        : 40;
+        ? Math.min(600, Math.max(1, Math.trunc(requestedLimit)))
+        : 300;
       let stamped = 0;
       let skipped = 0;
       let linked_existing = 0;
       let created = 0;
       let processed = 0;
       for (const person of store.clients || []) {
-        if (!needsGymCrmStamp(person)) continue;
+        const needsStamp = needsGymCrmStamp(person);
+        const needsCode = needsGymClientNumber(person, store.clients || []);
+        const needsRecode =
+          !needsStamp &&
+          !needsCode &&
+          Number(person.crm_customer_id || 0) > 0 &&
+          isPaddedMemberArCode(person.ar_account_code);
+        if (!needsStamp && !needsCode && !needsRecode) continue;
         if (processed >= limit) break;
         processed += 1;
         try {
@@ -455,9 +604,14 @@ export async function POST(request: NextRequest) {
           skipped += 1;
         }
       }
-      await saveStore(companyId, meta, store);
+      const numbered = recodeGymClientNumbers(store.clients || []);
+      await savePatchForKeys(companyId, meta, store, 'clients');
       const remaining = (store.clients || []).reduce(
-        (count, person) => (needsGymCrmStamp(person) ? count + 1 : count),
+        (count, person) =>
+          needsGymCrmStamp(person) ||
+          needsGymClientNumber(person, store.clients || [])
+            ? count + 1
+            : count,
         0
       );
       return NextResponse.json({
@@ -469,8 +623,9 @@ export async function POST(request: NextRequest) {
         skipped,
         linked_existing,
         created,
+        numbered,
         remaining,
-        message: `Stamped ${stamped} client(s) onto CRM (${linked_existing} existing, ${created} new), ${skipped} skipped`,
+        message: `Stamped ${stamped} client(s) onto CRM (${linked_existing} existing, ${created} new), ${numbered} client number(s) from CoA, ${skipped} skipped`,
       });
     }
 
@@ -491,7 +646,8 @@ export async function POST(request: NextRequest) {
       if (!store.settings.brand_name && typeof body.brand_name === 'string') {
         store.settings.brand_name = body.brand_name;
       }
-      await saveStore(companyId, meta, store);
+      const updatedAt = await savePatch(companyId, meta, { settings: store.settings });
+      store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
         store,
@@ -509,7 +665,8 @@ export async function POST(request: NextRequest) {
           body
         );
         store.announcements = result.list;
-        await saveStore(companyId, meta, store);
+        const updatedAt = await savePatch(companyId, meta, { announcements: store.announcements });
+        store.updated_at = updatedAt;
         return NextResponse.json({
           success: true,
           store,
@@ -533,7 +690,8 @@ export async function POST(request: NextRequest) {
       }
       coach.portal_token = issueCoachPortalToken(companyId);
       coach.can_manage_classes = true;
-      await saveStore(companyId, meta, store);
+      const updatedAt = await savePatch(companyId, meta, { coaches: store.coaches });
+      store.updated_at = updatedAt;
 
       // Send the work-invite link to the coach's email.
       // When the coach IS the gym owner (coachIsGymOwner), coachPortalEmails
@@ -583,7 +741,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Client not found' }, { status: 404 });
       }
       const portalToken = ensureClientPortalToken(client, companyId);
-      await saveStore(companyId, meta, store);
+      const updatedAt = await savePatch(companyId, meta, { clients: store.clients });
+      store.updated_at = updatedAt;
       void import('@/lib/b2c/directory').then(({ indexBrandPerson }) =>
         indexBrandPerson({
           kind: 'gym',
@@ -720,7 +879,7 @@ export async function POST(request: NextRequest) {
         emailWarning = `Invite saved but email failed: ${msg}`;
       }
 
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'clients');
       void import('@/lib/b2c/directory').then(({ indexBrandPerson }) =>
         indexBrandPerson({
           kind: 'gym',
@@ -772,7 +931,7 @@ export async function POST(request: NextRequest) {
       client.invite_token = null;
       client.invite_expires_at = null;
       client.updated_at = new Date().toISOString();
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'clients');
       return NextResponse.json({
         success: true,
         store,
@@ -800,7 +959,7 @@ export async function POST(request: NextRequest) {
         reason: body.reason != null ? String(body.reason) : undefined,
         nowIso: now,
       });
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'coaches');
       return NextResponse.json({
         success: true,
         store,
@@ -836,7 +995,7 @@ export async function POST(request: NextRequest) {
         });
       }
       store.coaches[idx] = reopenCoachEngagement(coach, startDate);
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'coaches');
       return NextResponse.json({
         success: true,
         store,
@@ -903,18 +1062,22 @@ export async function POST(request: NextRequest) {
       if (coachId && !store.coaches.find((c) => c.id === coachId)) {
         return NextResponse.json({ error: 'Coach not found' }, { status: 404 });
       }
-      if (coachId) {
+      if (coachId && resolved.kind !== 'away' && resolved.kind !== 'coach_personal') {
         try {
-          const { readLeaveBlocksFromMeta, leaveBlocksAssignment } = await import(
+          const { readLeaveBlocksFromMeta } = await import(
             '@/lib/core-os/leave'
           );
-          const coach = store.coaches.find((c) => c.id === coachId);
-          const gate = leaveBlocksAssignment(
-            readLeaveBlocksFromMeta(meta),
-            coachId,
-            date,
-            coach?.hr_employee_id
+          const { gymCoachAwayOn, staffAssignmentBlocked } = await import(
+            '@/lib/services/staff-away'
           );
+          const coach = store.coaches.find((c) => c.id === coachId);
+          const gate = staffAssignmentBlocked({
+            personId: coachId,
+            date,
+            hrEmployeeId: coach?.hr_employee_id,
+            hrWindows: readLeaveBlocksFromMeta(meta),
+            diaryAway: gymCoachAwayOn(store.sessions, coachId, date),
+          });
           if (gate.blocked) {
             return NextResponse.json(
               { error: `Coach ${gate.reason}` },
@@ -922,7 +1085,7 @@ export async function POST(request: NextRequest) {
             );
           }
         } catch {
-          /* leave gate is best-effort */
+          /* leave / away gate is best-effort */
         }
       }
       if (!store.class_types.find((c) => c.id === resolved.class_type_id)) {
@@ -933,7 +1096,7 @@ export async function POST(request: NextRequest) {
       }
       if (resolved.kind !== 'class' && !coachId) {
         return NextResponse.json(
-          { error: 'Pick a coach for private PT or personal time' },
+          { error: 'Pick a coach for private PT, personal time, or away' },
           { status: 400 }
         );
       }
@@ -966,6 +1129,13 @@ export async function POST(request: NextRequest) {
               : null,
         };
       }
+      if (resolved.kind === 'away' && (!recurrence || recurrence.frequency === 'none')) {
+        const { awayUntilRecurrence } = await import(
+          '@/lib/services/staff-away'
+        );
+        const untilRec = awayUntilRecurrence(date, body.until);
+        if (untilRec) recurrence = untilRec;
+      }
       const created = createSessionsFromTemplate(
         store,
         {
@@ -977,9 +1147,17 @@ export async function POST(request: NextRequest) {
           duration_min:
             body.duration_min != null ? Number(body.duration_min) : null,
           session_kind: resolved.kind,
+          personal_reason:
+            resolved.kind === 'away'
+              ? String(body.personal_reason || body.away_reason || 'leave')
+              : null,
           capacity: body.capacity != null ? Number(body.capacity) : null,
           location: body.location != null ? String(body.location) : undefined,
           room: body.room != null ? String(body.room) : null,
+          agreed_rate_zar:
+            body.agreed_rate_zar != null && body.agreed_rate_zar !== ''
+              ? Number(body.agreed_rate_zar)
+              : null,
           public: body.public === true,
           notes: body.notes != null ? String(body.notes) : undefined,
           public_notes:
@@ -996,7 +1174,22 @@ export async function POST(request: NextRequest) {
         now
       );
       store.sessions.push(...created);
-      stampCatalogSeriesAndBookSubscribers(store, created, now);
+      if (resolved.kind === 'class') {
+        stampCatalogSeriesAndBookSubscribers(store, created, now);
+      }
+      const ptClientIds = parseFitClientIds(body.client_ids, body.client_id);
+      if (resolved.kind === 'private_pt' && ptClientIds.length) {
+        const rateRaw = body.agreed_rate_zar;
+        applyPrivatePtBookings(store, {
+          sessionIds: created.map((s) => s.id),
+          clientIds: ptClientIds,
+          now,
+          rateZar:
+            rateRaw == null || rateRaw === ''
+              ? null
+              : Number(rateRaw),
+        });
+      }
       {
         const { emailSessionCalendar } = await import(
           '@/lib/fitness/session-calendar'
@@ -1005,12 +1198,13 @@ export async function POST(request: NextRequest) {
           void emailSessionCalendar({ store, sessionId: s.id }).catch(() => null);
         }
       }
-      await saveStore(companyId, meta, store);
+      const updatedAt = await savePatch(companyId, meta, { sessions: store.sessions, bookings: store.bookings });
+      store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
-        store,
+        ...(body.lite === true ? { updated_at: updatedAt } : { store }),
         summary: summariseFitgraph(store),
-        analysis: analysis(store),
+        ...(body.lite === true ? {} : { analysis: analysis(store) }),
         created: created.length,
         sessions: created,
         message:
@@ -1025,6 +1219,87 @@ export async function POST(request: NextRequest) {
               : resolved.kind === 'private_pt'
                 ? 'Private PT scheduled'
                 : 'Bespoke class scheduled',
+      });
+    }
+
+    if (action === 'save_calendar_sessions') {
+      const selectedId = String(body.session_id || '').trim();
+      const selected = store.sessions.find((s) => s.id === selectedId);
+      if (!selected) {
+        return NextResponse.json({ error: 'Class not found' }, { status: 400 });
+      }
+      const seriesEdit = await import('@/lib/services/advisor-series-edit');
+      const scopeRaw = String(body.scope || 'one');
+      const scope =
+        scopeRaw === 'future' || scopeRaw === 'all' ? scopeRaw : 'one';
+      const ids = seriesEdit.resolveSeriesEditIds(
+        store.sessions.map((s) => ({
+          id: s.id,
+          date: s.date,
+          series_id: s.series_id,
+        })),
+        selected.id,
+        scope
+      );
+      const rawPatch = (body.patch || {}) as Record<string, unknown>;
+      const patch =
+        rawPatch as import('@/lib/services/advisor-series-edit').SeriesPatch;
+      const newDate =
+        rawPatch.date != null ? String(rawPatch.date) : undefined;
+      for (const id of ids) {
+        const i = store.sessions.findIndex((s) => s.id === id);
+        if (i < 0) continue;
+        const isAnchor = id === selected.id;
+        store.sessions[i] = seriesEdit.applySeriesPatch(
+          store.sessions[i],
+          patch,
+          {
+            isAnchor,
+            newDate: isAnchor ? newDate : undefined,
+          }
+        ) as (typeof store.sessions)[number];
+      }
+      const ptClientIds = parseFitClientIds(body.client_ids, body.client_id);
+      if (
+        Array.isArray(body.client_ids) ||
+        String(body.client_id || '').trim()
+      ) {
+        const rateRaw = body.agreed_rate_zar ?? patch.agreed_rate_zar;
+        applyPrivatePtBookings(store, {
+          sessionIds: ids,
+          clientIds: ptClientIds,
+          now,
+          rateZar:
+            rateRaw == null || rateRaw === '' ? null : Number(rateRaw),
+          sync: true,
+        });
+      }
+      const recurrence = parseRecurrenceBody(
+        body as Record<string, unknown>
+      );
+      const expanded =
+        recurrence.frequency === 'none'
+          ? { added: 0, created: [] as typeof store.sessions }
+          : expandSessionToSeries(store, {
+              sessionId: selected.id,
+              recurrence,
+              now,
+            });
+      const updatedAt = await savePatch(companyId, meta, { sessions: store.sessions, bookings: store.bookings });
+      store.updated_at = updatedAt;
+      const updated = ids.length + expanded.added;
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summariseFitgraph(store),
+        updated,
+        added: expanded.added,
+        message:
+          expanded.added > 0
+            ? `Saved as a series · ${expanded.added + 1} dates`
+            : ids.length > 1
+              ? `Updated ${ids.length} sessions`
+              : 'Session updated',
       });
     }
 
@@ -1092,12 +1367,74 @@ export async function POST(request: NextRequest) {
         body.name !== undefined ||
         body.email !== undefined ||
         body.phone !== undefined ||
-        body.notes !== undefined
+        body.notes !== undefined ||
+        body.code !== undefined ||
+        body.id_number !== undefined ||
+        body.date_of_birth !== undefined ||
+        body.start_date !== undefined ||
+        body.occupation !== undefined ||
+        body.address !== undefined ||
+        body.next_of_kin !== undefined ||
+        body.next_of_kin_phone !== undefined ||
+        body.next_of_kin_relationship !== undefined ||
+        body.emergency_contact !== undefined ||
+        body.heard_about !== undefined ||
+        body.employer_student_number !== undefined ||
+        body.gp_contact !== undefined ||
+        body.medical_aid_scheme !== undefined ||
+        body.medical_aid_plan !== undefined ||
+        body.debit_bank !== undefined
           ? {
               name: body.name != null ? String(body.name) : undefined,
               email: body.email != null ? String(body.email) : undefined,
               phone: body.phone != null ? String(body.phone) : undefined,
               notes: body.notes != null ? String(body.notes) : undefined,
+              code: body.code != null ? String(body.code) : undefined,
+              id_number:
+                body.id_number != null ? String(body.id_number) : undefined,
+              date_of_birth:
+                body.date_of_birth != null
+                  ? String(body.date_of_birth)
+                  : undefined,
+              start_date:
+                body.start_date != null ? String(body.start_date) : undefined,
+              occupation:
+                body.occupation != null ? String(body.occupation) : undefined,
+              address: body.address != null ? String(body.address) : undefined,
+              next_of_kin:
+                body.next_of_kin != null ? String(body.next_of_kin) : undefined,
+              next_of_kin_phone:
+                body.next_of_kin_phone != null
+                  ? String(body.next_of_kin_phone)
+                  : undefined,
+              next_of_kin_relationship:
+                body.next_of_kin_relationship != null
+                  ? String(body.next_of_kin_relationship)
+                  : undefined,
+              emergency_contact:
+                body.emergency_contact != null
+                  ? String(body.emergency_contact)
+                  : undefined,
+              heard_about:
+                body.heard_about != null ? String(body.heard_about) : undefined,
+              employer_student_number:
+                body.employer_student_number != null
+                  ? String(body.employer_student_number)
+                  : undefined,
+              gp_contact:
+                body.gp_contact != null ? String(body.gp_contact) : undefined,
+              medical_aid_scheme:
+                body.medical_aid_scheme != null
+                  ? String(body.medical_aid_scheme)
+                  : undefined,
+              medical_aid_plan:
+                body.medical_aid_plan != null
+                  ? String(body.medical_aid_plan)
+                  : undefined,
+              debit_bank:
+                body.debit_bank && typeof body.debit_bank === 'object'
+                  ? (body.debit_bank as Record<string, unknown>)
+                  : undefined,
             }
           : undefined;
       const inactive = body.inactive === true;
@@ -1125,21 +1462,31 @@ export async function POST(request: NextRequest) {
       const allocated = store.clients.find(
         (c) => c.id === String(body.client_id || '')
       );
+      await savePatchForKeys(
+        companyId,
+        meta,
+        store,
+        'clients',
+        'subscriptions',
+        'bookings'
+      );
       if (allocated) {
-        try {
-          const { attachCrmToAdvisorPerson } = await import(
-            '@/lib/b2c/member-account-ar'
-          );
-          await attachCrmToAdvisorPerson({
-            companyId,
-            kind: 'gym',
-            person: allocated,
-          });
-        } catch {
-          /* best-effort — Brief 38 stamps the gym book */
-        }
+        void (async () => {
+          try {
+            const { attachCrmToAdvisorPerson } = await import(
+              '@/lib/b2c/member-account-ar'
+            );
+            await attachCrmToAdvisorPerson({
+              companyId,
+              kind: 'gym',
+              person: allocated,
+            });
+            applyGymClientNumberFromAr(allocated, store.clients || []);
+          } catch {
+            /* best-effort — Brief 38 stamps the gym book */
+          }
+        })();
       }
-      await saveStore(companyId, meta, store);
       return NextResponse.json({
         success: true,
         store,
@@ -1185,7 +1532,13 @@ export async function POST(request: NextRequest) {
       } catch {
         /* best-effort — CRM miss must not fail the class save */
       }
-      await saveStore(companyId, meta, store);
+      recodeGymClientNumbers(store.clients || []);
+      const updatedAt = await savePatch(companyId, meta, {
+        clients: store.clients,
+        subscriptions: store.subscriptions,
+        bookings: store.bookings,
+      });
+      store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
         store,
@@ -1303,7 +1656,12 @@ export async function POST(request: NextRequest) {
       if ('error' in result) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
-      await saveStore(companyId, meta, store);
+      const updatedAt = await savePatch(companyId, meta, {
+        sessions: store.sessions,
+        membership_plans: store.membership_plans,
+        class_types: store.class_types,
+      });
+      store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
         store,
@@ -1363,7 +1721,13 @@ export async function POST(request: NextRequest) {
       if ('error' in result) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
-      await saveStore(companyId, meta, store);
+      const updatedAt = await savePatch(companyId, meta, {
+        sessions: store.sessions,
+        bookings: store.bookings,
+        membership_plans: store.membership_plans,
+        class_types: store.class_types,
+      });
+      store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
         store,
@@ -1400,13 +1764,19 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      const hadPublicToken = Boolean(store.settings?.public_token);
+      const hadAllowPublicBooking = store.settings?.allow_public_booking !== false;
       store.settings = ensurePublicToken(store.settings, companyId);
       // Keep calendar usable for invites even if not fully published
       if (store.settings.allow_public_booking === false) {
         store.settings.allow_public_booking = true;
       }
+      const hadShareCode = Boolean(session.share_code);
       const shareCode = ensureSessionShareCode(session);
-      await saveStore(companyId, meta, store);
+      // Skip the write when both tokens already existed and settings unchanged.
+      if (!hadPublicToken || !hadShareCode || !hadAllowPublicBooking) {
+        await savePatchForKeys(companyId, meta, store, 'settings', 'sessions');
+      }
       const path = buildClassJoinPath(
         store.settings.public_token,
         shareCode
@@ -1461,7 +1831,8 @@ export async function POST(request: NextRequest) {
           session.public_notes = firstLine;
         }
       }
-      await saveStore(companyId, meta, store);
+      const updatedAt = await savePatch(companyId, meta, { sessions: store.sessions });
+      store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
         store,
@@ -1608,7 +1979,12 @@ export async function POST(request: NextRequest) {
         Object.assign(meta, ev.metadata);
         void dispatchAdvisorEventSideEffects(ev.event);
       }
-      await saveStore(companyId, meta, store);
+      const updatedAt = await savePatch(companyId, meta, {
+        bookings: store.bookings,
+        pt_packs: store.pt_packs,
+        treatment_plans: store.treatment_plans,
+      });
+      store.updated_at = updatedAt;
       if (marked.newlyAttended) {
         await notifyMemberToRateClass({ store, booking }).catch(() => null);
       }
@@ -1687,7 +2063,7 @@ export async function POST(request: NextRequest) {
         source: 'desk',
       });
       client.updated_at = now;
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'clients');
       return NextResponse.json({
         success: true,
         store,
@@ -1712,7 +2088,8 @@ export async function POST(request: NextRequest) {
           { status: 404 }
         );
       }
-      await saveStore(companyId, meta, store);
+      const updatedAt = await savePatch(companyId, meta, { bookings: store.bookings });
+      store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
         store,
@@ -1771,7 +2148,7 @@ export async function POST(request: NextRequest) {
           errors.push(result.error || 'fail');
         }
       }
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'bookings');
       return NextResponse.json({
         success: true,
         store,
@@ -1876,7 +2253,7 @@ export async function POST(request: NextRequest) {
           booked_at: now,
           source: 'treatment_plan',
         });
-        await saveStore(companyId, meta, store);
+        await savePatchForKeys(companyId, meta, store, 'bookings');
         return NextResponse.json({
           success: true,
           store,
@@ -1972,7 +2349,13 @@ export async function POST(request: NextRequest) {
           );
         }
       }
-      await saveStore(companyId, meta, store);
+      const clinicalPatchKeys: Array<keyof FitgraphStore> =
+        action === 'upsert_visit_note'
+          ? ['visit_notes']
+          : action === 'record_outcome'
+            ? ['outcome_scores']
+            : ['treatment_plans'];
+      await savePatchForKeys(companyId, meta, store, ...clinicalPatchKeys);
       return NextResponse.json({
         success: true,
         store,
@@ -2044,7 +2427,8 @@ export async function POST(request: NextRequest) {
         },
       });
       Object.assign(meta, ev.metadata);
-      await saveStore(companyId, meta, store);
+      const updatedAt = await savePatch(companyId, meta, { bookings: store.bookings });
+      store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
         store,
@@ -2124,7 +2508,7 @@ export async function POST(request: NextRequest) {
         if (!result.ok) {
           return NextResponse.json({ error: result.error }, { status: 400 });
         }
-        await saveStore(companyId, meta, store);
+        await savePatchForKeys(companyId, meta, store, 'settings');
         return NextResponse.json({
           success: true,
           specialties: result.options,
@@ -2144,7 +2528,7 @@ export async function POST(request: NextRequest) {
         if (!result.ok) {
           return NextResponse.json({ error: result.error }, { status: 400 });
         }
-        await saveStore(companyId, meta, store);
+        await savePatchForKeys(companyId, meta, store, 'settings', 'coaches');
         return NextResponse.json({
           success: true,
           specialties: result.options,
@@ -2164,7 +2548,7 @@ export async function POST(request: NextRequest) {
         if (!result.ok) {
           return NextResponse.json({ error: result.error }, { status: 400 });
         }
-        await saveStore(companyId, meta, store);
+        await savePatchForKeys(companyId, meta, store, 'settings', 'coaches');
         return NextResponse.json({
           success: true,
           specialties: result.options,
@@ -2197,7 +2581,7 @@ export async function POST(request: NextRequest) {
           unique.push(s.slice(0, 48));
         }
         store.settings.coach_specialties = unique;
-        await saveStore(companyId, meta, store);
+        await savePatchForKeys(companyId, meta, store, 'settings');
         return NextResponse.json({
           success: true,
           specialties: unique,
@@ -2265,7 +2649,13 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(
+        companyId,
+        meta,
+        store,
+        'programme_enrollments',
+        'clients'
+      );
       return NextResponse.json({
         success: true,
         store,
@@ -2303,7 +2693,7 @@ export async function POST(request: NextRequest) {
         now,
         newId
       );
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'programme_logs');
       return NextResponse.json({
         success: true,
         store,
@@ -2338,7 +2728,7 @@ export async function POST(request: NextRequest) {
           : now,
       });
       applyGoalToStore(store, next);
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'goals');
       return NextResponse.json({
         success: true,
         store,
@@ -2362,7 +2752,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
       store.leaderboard_activities = result.list;
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'leaderboard_activities');
       return NextResponse.json({
         success: true,
         store,
@@ -2389,7 +2779,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: result.error }, { status: 400 });
       }
       store.leaderboard_assignments = result.list;
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'leaderboard_assignments');
       return NextResponse.json({
         success: true,
         store,
@@ -2407,7 +2797,7 @@ export async function POST(request: NextRequest) {
         store.leaderboard_assignments,
         String(body.id || body.assignment_id || '')
       );
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'leaderboard_assignments');
       return NextResponse.json({
         success: true,
         store,
@@ -2447,7 +2837,7 @@ export async function POST(request: NextRequest) {
         now
       );
       store.leaderboard_scores = scored.list;
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'leaderboard_scores');
       return NextResponse.json({
         success: true,
         store,
@@ -2501,7 +2891,7 @@ export async function POST(request: NextRequest) {
         },
         now
       );
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, 'class_feedback');
       return NextResponse.json({
         success: true,
         store,
@@ -2522,21 +2912,29 @@ export async function POST(request: NextRequest) {
       if (blocked) {
         return NextResponse.json({ error: blocked }, { status: 400 });
       }
-      const { bookDeskMemberOntoSession } = await import(
-        '@/lib/fitness/class-allocate'
-      );
       const { dedupeFitgraphBookings } = await import(
         '@/lib/fitness/gym-bookings'
       );
-      const ids = Array.isArray(body.client_ids)
-        ? (body.client_ids as unknown[]).map((id) => String(id || '')).filter(Boolean)
-        : [];
+      const ids = parseFitClientIds(body.client_ids, body.client_id);
+      const already = new Set(
+        (store.bookings || [])
+          .filter(
+            (b) =>
+              b.session_id === session.id &&
+              b.status !== 'cancelled' &&
+              b.status !== 'no_show'
+          )
+          .map((b) => b.client_id)
+      );
+      const incoming = ids.filter((id) => !already.has(id));
+      ensureSessionCapacityForMembers(
+        session,
+        already.size + incoming.length
+      );
       let added = 0;
       let skipped = 0;
       for (const clientId of ids) {
-        const client = store.clients.find(
-          (c) => c.id === clientId && c.active !== false
-        );
+        const client = store.clients.find((c) => c.id === clientId);
         if (!client) {
           skipped += 1;
           continue;
@@ -2548,7 +2946,11 @@ export async function POST(request: NextRequest) {
         else added += 1;
       }
       dedupeFitgraphBookings(store);
-      await saveStore(companyId, meta, store);
+      const updatedAt = await savePatch(companyId, meta, {
+        bookings: store.bookings,
+        sessions: store.sessions,
+      });
+      store.updated_at = updatedAt;
       return NextResponse.json({
         success: true,
         store,
@@ -2587,7 +2989,8 @@ export async function POST(request: NextRequest) {
         });
         if (marked.ok && marked.newlyAttended) rateBookings.push(marked.booking);
       }
-      await saveStore(companyId, meta, store);
+      const updatedAt = await savePatch(companyId, meta, { bookings: store.bookings });
+      store.updated_at = updatedAt;
       await Promise.all(
         rateBookings.map((booking) =>
           notifyMemberToRateClass({ store, booking }).catch(() => null)
@@ -2649,7 +3052,24 @@ export async function POST(request: NextRequest) {
           (a) => a.activity_id !== id
         );
       }
+      const deletePatchKeys: Array<keyof FitgraphStore> = [entity];
+      if (entity === 'movements') {
+        deletePatchKeys.push('programmes');
+      } else if (entity === 'programmes') {
+        deletePatchKeys.push('sessions', 'programme_enrollments');
+      } else if (entity === 'leaderboard_activities') {
+        deletePatchKeys.push('leaderboard_assignments');
+      } else if (entity === 'sessions') {
+        deletePatchKeys.push('bookings', 'removed_ids');
+      } else if (entity === 'clients') {
+        deletePatchKeys.push('removed_ids', 'subscriptions', 'bookings');
+      } else if (entity === 'bookings') {
+        deletePatchKeys.push('removed_ids');
+      }
       if (Array.isArray(list)) {
+        const { rememberRemovedFitgraphIds } = await import(
+          '@/lib/fitness/fitgraph-merge'
+        );
         // Optional: delete whole class series when series_id matches
         if (
           entity === 'sessions' &&
@@ -2668,16 +3088,13 @@ export async function POST(request: NextRequest) {
             const dropBookings = (store.bookings || [])
               .filter((b) => removeIds.has(b.session_id))
               .map((b) => b.id);
-            const { rememberRemovedFitgraphIds } = await import(
-              '@/lib/fitness/fitgraph-merge'
-            );
             rememberRemovedFitgraphIds(store, 'sessions', removeIds);
             rememberRemovedFitgraphIds(store, 'bookings', dropBookings);
             store.sessions = store.sessions.filter((s) => !removeIds.has(s.id));
             store.bookings = (store.bookings || []).filter(
               (b) => !removeIds.has(b.session_id)
             );
-            await saveStore(companyId, meta, store);
+            await savePatchForKeys(companyId, meta, store, ...deletePatchKeys);
             return NextResponse.json({
               success: true,
               store,
@@ -2692,22 +3109,65 @@ export async function POST(request: NextRequest) {
         (store as unknown as Record<string, unknown>)[key] = (
           list as Array<{ id?: string }>
         ).filter((row) => row.id !== id);
+        const deleteTombstone = (rowId: string) =>
+          ({ id: rowId, _deleted: true }) as { id: string; _deleted: true };
         // Drop bookings tied to a removed class
         if (entity === 'sessions') {
           const dropBookings = (store.bookings || [])
             .filter((b) => b.session_id === id)
             .map((b) => b.id);
-          const { rememberRemovedFitgraphIds } = await import(
-            '@/lib/fitness/fitgraph-merge'
-          );
           rememberRemovedFitgraphIds(store, 'sessions', [id]);
           rememberRemovedFitgraphIds(store, 'bookings', dropBookings);
           store.bookings = (store.bookings || []).filter(
             (b) => b.session_id !== id
           );
+        } else if (entity === 'clients') {
+          const dropBookings = (store.bookings || [])
+            .filter((b) => b.client_id === id)
+            .map((b) => b.id);
+          rememberRemovedFitgraphIds(store, 'clients', [id]);
+          rememberRemovedFitgraphIds(store, 'bookings', dropBookings);
+          const today = now.slice(0, 10);
+          for (const sub of store.subscriptions || []) {
+            if (sub.client_id !== id) continue;
+            if (sub.status !== 'active' && sub.status !== 'trialing') continue;
+            sub.status = 'cancelled';
+            sub.cancel_at = today;
+            sub.updated_at = now;
+          }
+          store.bookings = (store.bookings || []).filter(
+            (b) => b.client_id !== id
+          );
+          // SQL sa_module_store_merge_id_array drops _deleted rows from the
+          // stored JSON. removed_ids alone is not enough if a later union
+          // write omits the tombstone map.
+          store.clients = [
+            ...store.clients,
+            deleteTombstone(id) as unknown as FitClient,
+          ];
+          store.bookings = [
+            ...(store.bookings || []),
+            ...dropBookings.map(
+              (bid) => deleteTombstone(bid) as unknown as FitBooking
+            ),
+          ];
+        } else if (entity === 'bookings') {
+          rememberRemovedFitgraphIds(store, 'bookings', [id]);
+          store.bookings = [
+            ...(store.bookings || []),
+            deleteTombstone(id) as unknown as FitBooking,
+          ];
         }
       }
-      await saveStore(companyId, meta, store);
+      await savePatchForKeys(companyId, meta, store, ...deletePatchKeys);
+      if (entity === 'clients' || entity === 'bookings') {
+        store.clients = store.clients.filter(
+          (row) => (row as { _deleted?: boolean })._deleted !== true
+        );
+        store.bookings = (store.bookings || []).filter(
+          (row) => (row as { _deleted?: boolean })._deleted !== true
+        );
+      }
       return NextResponse.json({
         success: true,
         store,
@@ -2730,6 +3190,7 @@ export async function POST(request: NextRequest) {
       }
     }
     const existingClientId = rec.id ? String(rec.id) : '';
+    const hadSettings = Boolean(store.settings);
     const clientWasNew =
       entity === 'clients' &&
       (!existingClientId ||
@@ -2743,7 +3204,7 @@ export async function POST(request: NextRequest) {
       wallet_linked?: boolean;
       email?: string;
     } | null = null;
-    if (entity === 'clients') {
+    if (entity === 'clients' && body.lite !== true && rec.lite !== true) {
       const person =
         store.clients.find(
           (c) => existingClientId && c.id === existingClientId
@@ -2775,6 +3236,7 @@ export async function POST(request: NextRequest) {
           kind: 'gym',
           person: linked.person,
         });
+        applyGymClientNumberFromAr(linked.person, store.clients || []);
         if (ci >= 0) store.clients[ci] = linked.person;
         walletInvite = {
           email_sent: linked.invite?.email_sent,
@@ -2825,12 +3287,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await saveStore(companyId, meta, store);
+    const upsertPatchKeys: Array<keyof FitgraphStore> = [entity];
+    if (!hadSettings && store.settings) {
+      upsertPatchKeys.push('settings');
+    }
+    if (entity === 'membership_plans' && storeUsesClassSubscribe(store)) {
+      upsertPatchKeys.push('class_types');
+    }
+    if (entity === 'sessions') {
+      upsertPatchKeys.push('bookings', 'clients');
+    }
+    await savePatchForKeys(companyId, meta, store, ...upsertPatchKeys);
     return NextResponse.json({
       success: true,
       store,
       summary: summariseFitgraph(store),
-      analysis: analysis(store),
+      ...(body.lite === true ? {} : { analysis: analysis(store) }),
       people_sync: peopleSync,
       invite_sent: walletInvite?.email_sent,
       invite_link: walletInvite?.invite_link,
@@ -2850,6 +3322,16 @@ export async function POST(request: NextRequest) {
                 : undefined,
     });
   } catch (e: unknown) {
+    if (isStaleModuleStoreError(e)) {
+      return NextResponse.json(
+        {
+          error: 'stale_store',
+          updated_at: e.updatedAt,
+          message: 'This GymAdvisor book changed in another tab. Refresh and try again.',
+        },
+        { status: 409 }
+      );
+    }
     console.error('[fitgraph]', e);
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },
@@ -2914,8 +3396,8 @@ function upsert(
       rec.active !== undefined ? rec.active !== false : undefined;
     const row: FitCoach = {
       id,
-      code: String(rec.code || `C-${store.coaches.length + 1}`),
-      name: String(rec.name || 'Coach'),
+      code: String(rec.code || prev?.code || `C-${store.coaches.length + 1}`),
+      name: String(rec.name || prev?.name || 'Coach'),
       email: rec.email != null ? String(rec.email) : prev?.email,
       phone: rec.phone != null ? String(rec.phone) : prev?.phone,
       id_number:
@@ -3003,6 +3485,48 @@ function upsert(
             ? false
             : prev?.active !== false,
       created_at: prev?.created_at || now,
+      // Sticky fields — only the owner of that data updates them; a desk or
+      // calendar save that omits these must not wipe them from the stored row.
+      platform_user_id:
+        rec.platform_user_id !== undefined
+          ? rec.platform_user_id
+            ? String(rec.platform_user_id)
+            : null
+          : prev?.platform_user_id ?? null,
+      goals: rec.goals !== undefined
+        ? (Array.isArray(rec.goals) ? (rec.goals as FitCoach['goals']) : prev?.goals)
+        : prev?.goals,
+      personal_bests: rec.personal_bests !== undefined
+        ? (Array.isArray(rec.personal_bests)
+            ? (rec.personal_bests as FitCoach['personal_bests'])
+            : prev?.personal_bests)
+        : prev?.personal_bests,
+      result_logs: rec.result_logs !== undefined
+        ? (Array.isArray(rec.result_logs)
+            ? (rec.result_logs as FitCoach['result_logs'])
+            : prev?.result_logs)
+        : prev?.result_logs,
+      injuries: rec.injuries !== undefined
+        ? (Array.isArray(rec.injuries)
+            ? (rec.injuries as FitCoach['injuries'])
+            : prev?.injuries)
+        : prev?.injuries,
+      auth_code_hash:
+        rec.auth_code_hash !== undefined
+          ? rec.auth_code_hash
+            ? String(rec.auth_code_hash)
+            : null
+          : prev?.auth_code_hash ?? null,
+      pin_hash:
+        rec.pin_hash !== undefined
+          ? rec.pin_hash
+            ? String(rec.pin_hash)
+            : null
+          : prev?.pin_hash ?? null,
+      sort_order:
+        rec.sort_order != null
+          ? Number(rec.sort_order)
+          : prev?.sort_order,
     };
     if (i >= 0) store.coaches[i] = row;
     else store.coaches.push(row);
@@ -3241,6 +3765,44 @@ function upsert(
         rec.active !== undefined ? rec.active !== false : prev?.active !== false,
       created_at: prev?.created_at || now,
       updated_at: now,
+      // Sticky fields — only the PWA / coach pathway writes these; desk saves
+      // that omit them must not wipe the stored values.
+      platform_user_id:
+        rec.platform_user_id !== undefined
+          ? rec.platform_user_id
+            ? String(rec.platform_user_id)
+            : null
+          : prev?.platform_user_id ?? null,
+      goals: rec.goals !== undefined
+        ? (Array.isArray(rec.goals) ? (rec.goals as FitClient['goals']) : prev?.goals)
+        : prev?.goals,
+      personal_bests: rec.personal_bests !== undefined
+        ? (Array.isArray(rec.personal_bests)
+            ? (rec.personal_bests as FitClient['personal_bests'])
+            : prev?.personal_bests)
+        : prev?.personal_bests,
+      result_logs: rec.result_logs !== undefined
+        ? (Array.isArray(rec.result_logs)
+            ? (rec.result_logs as FitClient['result_logs'])
+            : prev?.result_logs)
+        : prev?.result_logs,
+      injuries: rec.injuries !== undefined
+        ? (Array.isArray(rec.injuries)
+            ? (rec.injuries as FitClient['injuries'])
+            : prev?.injuries)
+        : prev?.injuries,
+      auth_code_hash:
+        rec.auth_code_hash !== undefined
+          ? rec.auth_code_hash
+            ? String(rec.auth_code_hash)
+            : null
+          : prev?.auth_code_hash ?? null,
+      pin_hash:
+        rec.pin_hash !== undefined
+          ? rec.pin_hash
+            ? String(rec.pin_hash)
+            : null
+          : prev?.pin_hash ?? null,
     };
     if (!prev) {
       row.join_events = appendJoinEvent(row, {
@@ -3359,42 +3921,8 @@ function upsert(
       active: rec.active !== false,
       created_at: i >= 0 ? store.membership_plans[i].created_at : now,
     };
-    if (
-      store.settings?.class_subscribe === true &&
-      row.unlocks_all_classes !== true
-    ) {
-      let typeIds = row.class_type_ids || [];
-      if (!typeIds.length) {
-        const code = String(row.code || 'CLASS').toUpperCase();
-        const existing = store.class_types.find(
-          (c) => c.code === code || c.id === `cls_${id}`
-        );
-        const clsId = existing?.id || newId('cls');
-        const cls: FitClassType = {
-          id: clsId,
-          code,
-          name: String(row.name || 'Class'),
-          category: existing?.category || 'Class',
-          default_duration_min: existing?.default_duration_min ?? 60,
-          capacity: existing?.capacity ?? 16,
-          description: row.description,
-          active: true,
-          created_at: existing?.created_at || now,
-        };
-        const ci = store.class_types.findIndex((c) => c.id === clsId);
-        if (ci >= 0) store.class_types[ci] = { ...store.class_types[ci], ...cls };
-        else store.class_types.push(cls);
-        typeIds = [clsId];
-        row.class_type_ids = typeIds;
-      } else if (typeIds.length === 1) {
-        const ct = store.class_types.find((c) => c.id === typeIds[0]);
-        if (ct) {
-          const stem =
-            String(row.name || '').split(' · ')[0]?.trim() || row.name;
-          if (stem) ct.name = stem;
-          if (row.description) ct.description = row.description;
-        }
-      }
+    if (storeUsesClassSubscribe(store)) {
+      ensureClassTypeForSubscribePlan(store, row, now, { syncFields: true });
     }
     if (i >= 0) store.membership_plans[i] = row;
     else store.membership_plans.push(row);
@@ -3460,20 +3988,36 @@ function upsert(
   } else if (entity === 'class_types') {
     const id = String(rec.id || newId('cls'));
     const i = store.class_types.findIndex((c) => c.id === id);
+    const prev = i >= 0 ? store.class_types[i] : null;
     const row: FitClassType = {
       id,
-      code: String(rec.code || `T-${store.class_types.length + 1}`),
-      name: String(rec.name || 'Class'),
-      category: rec.category != null ? String(rec.category) : undefined,
+      code: String(rec.code || prev?.code || `T-${store.class_types.length + 1}`),
+      name: String(rec.name || prev?.name || 'Class'),
+      category:
+        rec.category != null
+          ? String(rec.category)
+          : prev?.category,
       default_duration_min:
         rec.default_duration_min != null
           ? Number(rec.default_duration_min)
-          : 45,
-      capacity: rec.capacity != null ? Number(rec.capacity) : 20,
+          : prev?.default_duration_min ?? 45,
+      capacity:
+        rec.capacity != null
+          ? Number(rec.capacity)
+          : prev?.capacity ?? 20,
       description:
-        rec.description != null ? String(rec.description) : undefined,
-      active: rec.active !== false,
-      created_at: i >= 0 ? store.class_types[i].created_at : now,
+        rec.description != null
+          ? String(rec.description)
+          : prev?.description,
+      color:
+        rec.color !== undefined
+          ? rec.color
+            ? String(rec.color)
+            : null
+          : prev?.color ?? null,
+      active:
+        rec.active !== undefined ? rec.active !== false : prev?.active !== false,
+      created_at: prev?.created_at || now,
     };
     if (i >= 0) store.class_types[i] = row;
     else store.class_types.push(row);
@@ -3556,6 +4100,27 @@ function upsert(
           : prev?.capacity ?? ct?.capacity ?? 20,
     });
     const makePublic = rules.public;
+    const nextCoachId =
+      rec.coach_id !== undefined
+        ? rec.coach_id
+          ? String(rec.coach_id)
+          : null
+        : prev?.coach_id ?? null;
+    const nextDate = String(rec.date || prev?.date || now.slice(0, 10));
+    if (
+      nextCoachId &&
+      resolved.kind !== 'away' &&
+      resolved.kind !== 'coach_personal'
+    ) {
+      const diaryAway = gymCoachAwayOn(
+        store.sessions.filter((s) => s.id !== id),
+        nextCoachId,
+        nextDate
+      );
+      if (diaryAway) {
+        throw new Error(`Coach is away on ${nextDate}`);
+      }
+    }
     const row: FitSession = {
       id,
       class_type_id: resolved.class_type_id,
@@ -3570,6 +4135,13 @@ function upsert(
       end_time: times.end_time,
       duration_min: times.duration_min,
       session_kind: resolved.kind,
+      personal_reason:
+        rec.personal_reason !== undefined
+          ? rec.personal_reason
+            ? String(rec.personal_reason)
+            : null
+          : prev?.personal_reason ??
+            (resolved.kind === 'away' ? 'leave' : null),
       capacity: rules.capacity,
       location:
         rec.location != null
@@ -3581,6 +4153,12 @@ function upsert(
             ? String(rec.room)
             : null
           : prev?.room ?? (rec.location != null ? String(rec.location) : null),
+      agreed_rate_zar:
+        rec.agreed_rate_zar !== undefined
+          ? rec.agreed_rate_zar == null || rec.agreed_rate_zar === ''
+            ? null
+            : Number(rec.agreed_rate_zar)
+          : prev?.agreed_rate_zar ?? null,
       status: (rec.status as FitSession['status']) || prev?.status || 'scheduled',
       public: rules.public,
       share_code:
@@ -3623,6 +4201,17 @@ function upsert(
     else store.sessions.push(row);
     if (!row.session_kind || row.session_kind === 'class') {
       stampCatalogSeriesAndBookSubscribers(store, [row], now);
+    }
+    const ptClientIds = parseFitClientIds(rec.client_ids, rec.client_id);
+    if (resolved.kind === 'private_pt' && ptClientIds.length) {
+      const rateRaw = rec.agreed_rate_zar;
+      applyPrivatePtBookings(store, {
+        sessionIds: [row.id],
+        clientIds: ptClientIds,
+        now,
+        rateZar:
+          rateRaw == null || rateRaw === '' ? null : Number(rateRaw),
+      });
     }
   } else if (entity === 'bookings') {
     const sessionId = String(rec.session_id || '');

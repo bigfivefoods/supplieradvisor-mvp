@@ -18,10 +18,7 @@ import {
   toneLinkClass,
 } from '@/components/fitness/FitForm';
 import { sessionBookingCount } from '@/lib/fitness/fitgraph';
-import {
-  sessionRosterNames,
-  sessionRosterRows,
-} from '@/lib/fitness/class-allocate';
+import { sessionRosterRows } from '@/lib/fitness/class-allocate';
 import { ClassBookedRoster } from '@/components/fitness/ClassBookedRoster';
 import { ProgrammeView } from '@/components/fitness/ProgrammeView';
 import {
@@ -31,6 +28,7 @@ import {
 import { listedFitMovements } from '@/lib/fitness/movement-catalog';
 import {
   SESSION_KIND_OPTIONS,
+  SYS_COACH_AWAY_CODE,
   SYS_COACH_TIME_CODE,
   SYS_PT_CODE,
   durationFromStartEnd,
@@ -59,9 +57,22 @@ import {
   type RecurrenceFormValue,
 } from '@/components/schedule/RecurrenceFields';
 import { normalizeWorkingHours } from '@/lib/schedule/working-hours';
+import {
+  formatAgreedRateZar,
+  gymCalendarPaint,
+} from '@/lib/fitness/gym-calendar-color';
+import { clinicRoomNames } from '@/lib/clinic/clinic-rooms';
+import type { SeriesEditScope } from '@/lib/services/advisor-series-edit';
 import { AdvisorExpandablePanel } from '@/components/advisors/AdvisorExpandablePanel';
+import { GymDiaryColorEditor } from '@/components/fitness/GymColorSwatch';
 import { AdvisorWaitlistDesk } from '@/components/services/AdvisorWaitlistDesk';
 import { buildDeskSlotWaitlist } from '@/lib/services/advisor-waitlist-desk';
+import {
+  STAFF_AWAY_REASON_OPTIONS,
+  awayUntilRecurrence,
+  isGymDiaryBlockKind,
+  staffAwayTitle,
+} from '@/lib/services/staff-away';
 
 export default function CalendarPage() {
   const { companyId, store, loading, saving, post, summary, load } =
@@ -82,10 +93,12 @@ export default function CalendarPage() {
   );
   const [addMemberIds, setAddMemberIds] = useState<string[]>([]);
   const [memberQuery, setMemberQuery] = useState('');
+  const [seriesScope, setSeriesScope] = useState<SeriesEditScope>('future');
   const [form, setForm] = useState({
     session_kind: 'class' as FitSessionKind,
     class_type_id: '',
     coach_id: '',
+    client_ids: [] as string[],
     date: new Date().toISOString().slice(0, 10),
     start_time: '06:00',
     end_time: '06:45',
@@ -98,13 +111,19 @@ export default function CalendarPage() {
     notes: '',
     status: 'scheduled',
     programme_id: '',
+    personal_reason: 'leave',
+    until: '',
+    agreed_rate_zar: '',
   });
   const [recurrence, setRecurrence] = useState<RecurrenceFormValue>(
     emptyRecurrenceForm
   );
   const [statsOpen, setStatsOpen] = useState(true);
   const [calendarOpen, setCalendarOpen] = useState(true);
-  const [waitlistOpen, setWaitlistOpen] = useState(true);
+  const [hoursOpen, setHoursOpen] = useState(false);
+  const [colorsOpen, setColorsOpen] = useState(false);
+  const [waitlistOpen, setWaitlistOpen] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
   const [attendOverride, setAttendOverride] = useState<
     Record<string, 'attended' | 'no_show' | 'booked'>
   >({});
@@ -126,6 +145,7 @@ export default function CalendarPage() {
     session_kind: 'class' as FitSessionKind,
     class_type_id: '',
     coach_id: personFilter || '',
+    client_ids: [] as string[],
     date: day,
     start_time: '06:00',
     end_time: '06:45',
@@ -138,12 +158,15 @@ export default function CalendarPage() {
     notes: '',
     status: 'scheduled',
     programme_id: '',
+    personal_reason: 'leave',
+    until: '',
+    agreed_rate_zar: '',
   });
 
   /** Open an existing class from the calendar grid for view / edit. */
   const openSession = (sessionId: string) => {
     const s = store?.sessions.find((x) => x.id === sessionId);
-    if (!s) {
+    if (!store || !s) {
       toast.error('Class not found');
       return;
     }
@@ -152,6 +175,7 @@ export default function CalendarPage() {
     setSlotPicked(null);
     setAddMemberIds([]);
     setMemberQuery('');
+    setSeriesScope('future');
     const kind = sessionKindFromRecord({
       session_kind: s.session_kind,
       class_code: store?.class_types.find((c) => c.id === s.class_type_id)
@@ -172,6 +196,12 @@ export default function CalendarPage() {
       end_time: times.end_time,
       location: s.location || '',
       room: s.room || '',
+      client_ids:
+        kind === 'private_pt'
+          ? sessionRosterRows(store, s.id)
+              .map((r) => r.client_id)
+              .filter((id): id is string => Boolean(id))
+          : [],
       capacity: s.capacity != null ? String(s.capacity) : '',
       public: kind === 'class' && s.public === true,
       public_notes: s.public_notes || '',
@@ -179,6 +209,19 @@ export default function CalendarPage() {
       notes: s.notes || '',
       status: s.status || 'scheduled',
       programme_id: s.programme_id || '',
+      personal_reason: s.personal_reason || 'leave',
+      until: '',
+      agreed_rate_zar:
+        s.agreed_rate_zar != null
+          ? String(s.agreed_rate_zar)
+          : (() => {
+              const member = sessionRosterRows(store, s.id)[0];
+              const cl = member
+                ? store.clients.find((c) => c.id === member.client_id)
+                : null;
+              const r = cl?.private_rate_zar ?? cl?.agreed_rate_zar;
+              return r != null ? String(r) : '';
+            })(),
     });
     setRecurrence(emptyRecurrenceForm());
     setEditorOpen(true);
@@ -200,6 +243,7 @@ export default function CalendarPage() {
     setSelectedSessionId(null);
     setAddMemberIds([]);
     setMemberQuery('');
+    setSeriesScope('future');
     setRecurrence(emptyRecurrenceForm());
     const d = partial?.date || day;
     setDay(d);
@@ -246,18 +290,15 @@ export default function CalendarPage() {
         });
         const noteTitle = (s.notes || '').split('\n')[0]?.trim();
         const title =
-          kind === 'coach_personal'
-            ? noteTitle || 'Coach personal'
-            : kind === 'private_pt'
-              ? `PT · ${ct?.name || 'Personal training'}`
-              : ct?.name || 'Class';
-        const names = sessionRosterNames(store, s.id);
-        const namePreview =
-          names.length === 0
-            ? kind === 'class'
-              ? 'Nobody booked'
-              : ''
-            : names.join(', ');
+          kind === 'away'
+            ? staffAwayTitle(s.personal_reason) +
+              (noteTitle ? ` · ${noteTitle}` : '')
+            : kind === 'coach_personal'
+              ? noteTitle || 'Coach personal'
+              : kind === 'private_pt'
+                ? `PT · ${ct?.name || 'Personal training'}`
+                : ct?.name || 'Class';
+        const paint = gymCalendarPaint(store, s);
         return {
           id: s.id,
           date: s.date,
@@ -265,7 +306,7 @@ export default function CalendarPage() {
           end_time: times.end_time,
           duration_min: times.duration_min,
           title,
-          subtitle: s.location || undefined,
+          subtitle: [s.room, s.location].filter(Boolean).join(' · ') || undefined,
           person_id: s.coach_id || null,
           person_name:
             coach?.name ||
@@ -273,10 +314,14 @@ export default function CalendarPage() {
           status: s.status,
           public: s.public === true,
           meta:
-            kind === 'coach_personal'
-              ? `Personal block${s.room ? ` · ${s.room}` : ''}`
-              : namePreview,
+            kind === 'away'
+              ? staffAwayTitle(s.personal_reason)
+              : kind === 'coach_personal'
+                ? `Personal block${s.room ? ` · ${s.room}` : ''}`
+                : undefined,
           tone: sessionKindTone(kind),
+          color: paint.color,
+          stripeColor: paint.stripeColor,
         };
       });
   }, [store]);
@@ -297,6 +342,13 @@ export default function CalendarPage() {
     () => normalizeWorkingHours(store?.settings?.working_hours),
     [store?.settings?.working_hours]
   );
+
+  const roomNames = useMemo(() => {
+    const listed = clinicRoomNames(store?.settings?.rooms);
+    const current = String(form.room || '').trim();
+    if (current && !listed.includes(current)) return [...listed, current];
+    return listed;
+  }, [store?.settings?.rooms, form.room]);
 
   const deskSlotWaitlist = useMemo(() => {
     if (!store) return [];
@@ -408,8 +460,8 @@ export default function CalendarPage() {
     }
   };
 
-  /** Save edits to the open class (view/edit mode). Supports series “this & future”. */
-  const saveSelected = async (editScope: 'one' | 'future' = 'one') => {
+  /** Save edits to the open class (view/edit mode). Supports series scopes. */
+  const saveSelected = async (editScope: SeriesEditScope = 'one') => {
     if (!selectedSessionId || !store) return;
     const prev = store.sessions.find((x) => x.id === selectedSessionId);
     if (!prev) {
@@ -421,71 +473,89 @@ export default function CalendarPage() {
       return;
     }
     if (form.session_kind !== 'class' && !form.coach_id) {
-      toast.error('Pick a coach for private PT or personal time');
+      toast.error('Pick a coach for private PT, personal time, or away');
       return;
     }
     if (!form.date || !form.start_time) {
       toast.error('Set date and start time');
       return;
     }
-    const { resolveSeriesEditIds, applySeriesPatch } = await import(
-      '@/lib/services/advisor-series-edit'
-    );
-    const scope =
-      editScope === 'future' && prev.series_id
-        ? ('future' as const)
-        : ('one' as const);
-    const ids = resolveSeriesEditIds(
-      store.sessions.map((s) => ({
-        id: s.id,
-        date: s.date,
-        series_id: s.series_id,
-      })),
-      prev.id,
-      scope
-    );
+    const scope: SeriesEditScope =
+      prev.series_id && (editScope === 'future' || editScope === 'all')
+        ? editScope
+        : 'one';
     const times = resolveSessionTimes({
       start_time: form.start_time,
       end_time: form.end_time,
     });
-    const patch = {
-      start_time: times.start_time,
-      end_time: times.end_time,
-      duration_min: times.duration_min,
-      location: form.location || undefined,
-      capacity: form.capacity ? Number(form.capacity) : null,
-      class_type_id: form.class_type_id,
-      session_kind: form.session_kind,
-      public: form.session_kind === 'class' && form.public,
-      public_notes: form.public_notes || undefined,
-      class_plan: form.class_plan || undefined,
-      notes: form.notes || undefined,
-      status: form.status || prev.status || 'scheduled',
-      programme_id: form.programme_id || null,
-    };
-    for (const id of ids) {
-      const row = store.sessions.find((s) => s.id === id);
-      if (!row) continue;
-      const isAnchor = id === prev.id;
-      const next = applySeriesPatch(row, patch, {
-        isAnchor,
-        newDate: isAnchor ? form.date : undefined,
-      });
-      await post({
-        entity: 'sessions',
-        action: 'upsert',
-        record: {
-          ...next,
-          coach_id: isAnchor ? form.coach_id || null : row.coach_id,
-          room: isAnchor ? form.room || null : row.room,
-        },
-      });
+    const rate =
+      form.agreed_rate_zar.trim() === ''
+        ? null
+        : Number(form.agreed_rate_zar);
+    const seriesN = prev.series_id
+      ? store.sessions.filter(
+          (s) => s.series_id === prev.series_id && s.status !== 'cancelled'
+        ).length
+      : 0;
+    const wantRepeat =
+      seriesN <= 1 && recurrence.frequency !== 'none';
+    if (wantRepeat) {
+      const recErr = validateRecurrenceForm(recurrence);
+      if (recErr) {
+        toast.error(recErr);
+        return;
+      }
     }
+    const repeatPayload = wantRepeat
+      ? recurrenceApiPayload(recurrence, form.date)
+      : null;
+    const data = await post({
+      action: 'save_calendar_sessions',
+      session_id: prev.id,
+      scope,
+      client_ids:
+        form.session_kind === 'private_pt' ? form.client_ids : undefined,
+      agreed_rate_zar: rate,
+      ...(repeatPayload || {}),
+      patch: {
+        start_time: times.start_time,
+        end_time: times.end_time,
+        duration_min: times.duration_min,
+        location: form.location || undefined,
+        room: form.room || null,
+        coach_id: form.coach_id || null,
+        capacity:
+          form.session_kind === 'private_pt'
+            ? Math.max(
+                form.capacity ? Number(form.capacity) || 0 : 0,
+                form.client_ids.length
+              ) || null
+            : form.capacity
+              ? Number(form.capacity)
+              : null,
+        class_type_id: form.class_type_id,
+        session_kind: form.session_kind,
+        personal_reason:
+          form.session_kind === 'away' ? form.personal_reason : null,
+        public: form.session_kind === 'class' && form.public,
+        public_notes: form.public_notes || undefined,
+        class_plan: form.class_plan || undefined,
+        notes: form.notes || undefined,
+        status: form.status || prev.status || 'scheduled',
+        programme_id: form.programme_id || null,
+        agreed_rate_zar: rate,
+        date: form.date,
+      },
+    });
     setDay(form.date);
+    if (wantRepeat) setRecurrence(emptyRecurrenceForm());
     toast.success(
-      scope === 'future'
-        ? `Updated ${ids.length} sessions (this & future)`
-        : `${sessionKindLabel(form.session_kind)} updated`
+      (data?.message as string) ||
+        (scope === 'all'
+          ? 'Entire series updated'
+          : scope === 'future'
+            ? 'This and future sessions updated'
+            : `${sessionKindLabel(form.session_kind)} updated`)
     );
   };
 
@@ -494,8 +564,9 @@ export default function CalendarPage() {
    * Coach and members are assigned afterwards on the class card.
    */
   const add = async () => {
+    try {
     if (selectedSessionId) {
-      await saveSelected();
+      await saveSelected(seriesScope);
       return;
     }
     if (form.session_kind === 'class' && !form.class_type_id) {
@@ -503,7 +574,7 @@ export default function CalendarPage() {
       return;
     }
     if (form.session_kind !== 'class' && !form.coach_id) {
-      toast.error('Pick a coach for private PT or personal time');
+      toast.error('Pick a coach for private PT, personal time, or away');
       return;
     }
     if (!form.date || !form.start_time) {
@@ -514,38 +585,68 @@ export default function CalendarPage() {
       start_time: form.start_time,
       end_time: form.end_time,
     });
-    if (recurrence.frequency !== 'none') {
-      const recErr = validateRecurrenceForm(recurrence);
+    const awayUntil = awayUntilRecurrence(form.date, form.until);
+    const useSeries =
+      recurrence.frequency !== 'none' ||
+      (form.session_kind === 'away' && Boolean(awayUntil));
+    if (useSeries) {
+      const recErr =
+        recurrence.frequency !== 'none'
+          ? validateRecurrenceForm(recurrence)
+          : null;
       if (recErr) {
         toast.error(recErr);
         return;
       }
-      const payload = recurrenceApiPayload(recurrence, form.date);
+      const payload =
+        recurrence.frequency !== 'none'
+          ? recurrenceApiPayload(recurrence, form.date)
+          : awayUntil;
       const data = await post({
         action: 'create_session_series',
+        lite: true,
         coach_id: form.coach_id || null,
         class_type_id: form.class_type_id,
         session_kind: form.session_kind,
+        personal_reason:
+          form.session_kind === 'away' ? form.personal_reason : undefined,
         date: form.date,
         start_time: createTimes.start_time,
         end_time: createTimes.end_time,
         duration_min: createTimes.duration_min,
         location: form.location || undefined,
         room: form.room || undefined,
-        capacity: form.capacity ? Number(form.capacity) : undefined,
+        agreed_rate_zar:
+          form.agreed_rate_zar.trim() === ''
+            ? null
+            : Number(form.agreed_rate_zar),
+        client_ids:
+          form.session_kind === 'private_pt' ? form.client_ids : undefined,
+        capacity:
+          form.session_kind === 'private_pt'
+            ? Math.max(
+                form.capacity ? Number(form.capacity) || 0 : 0,
+                form.client_ids.length
+              ) || undefined
+            : form.capacity
+              ? Number(form.capacity)
+              : undefined,
         public: form.session_kind === 'class' && form.public,
         public_notes: form.public_notes || undefined,
         class_plan: form.class_plan.trim() || undefined,
         notes: form.notes.trim() || undefined,
         programme_id: form.programme_id || null,
+        until: form.session_kind === 'away' ? form.until || undefined : undefined,
         ...payload,
       });
       const sessions = (data.sessions || []) as Array<{ id: string }>;
       const firstId = sessions[0]?.id || null;
       toast.success(
-        form.coach_id
-          ? data.message || 'Series scheduled'
-          : `${data.message || 'Series scheduled'} — assign a coach on each class, then add members`
+        form.session_kind === 'private_pt' && form.client_ids.length
+          ? `${data.message || 'Series scheduled'} — ${form.client_ids.length} member${form.client_ids.length === 1 ? '' : 's'} booked on ${sessions.length} session${sessions.length === 1 ? '' : 's'}`
+          : form.coach_id
+            ? data.message || 'Series scheduled'
+            : `${data.message || 'Series scheduled'} — assign a coach on each class, then add members`
       );
       setSlotPicked(null);
       if (firstId) {
@@ -562,10 +663,13 @@ export default function CalendarPage() {
     await post({
       entity: 'sessions',
       action: 'upsert',
+      lite: true,
       record: {
         id: sessionId,
         class_type_id: form.class_type_id,
         session_kind: form.session_kind,
+        personal_reason:
+          form.session_kind === 'away' ? form.personal_reason : undefined,
         coach_id: form.coach_id || null,
         date: form.date,
         start_time: createTimes.start_time,
@@ -573,20 +677,40 @@ export default function CalendarPage() {
         duration_min: createTimes.duration_min,
         location: form.location,
         room: form.room || null,
-        capacity: form.capacity ? Number(form.capacity) : null,
+        agreed_rate_zar:
+          form.agreed_rate_zar.trim() === ''
+            ? null
+            : Number(form.agreed_rate_zar),
         public: form.session_kind === 'class' && form.public,
         public_notes: form.public_notes || undefined,
         class_plan: form.class_plan.trim() || undefined,
         notes: form.notes.trim() || undefined,
         origin: 'owner',
         programme_id: form.programme_id || null,
+        client_ids:
+          form.session_kind === 'private_pt' ? form.client_ids : undefined,
+        capacity:
+          form.session_kind === 'private_pt'
+            ? Math.max(
+                form.capacity ? Number(form.capacity) || 0 : 0,
+                form.client_ids.length
+              ) || null
+            : form.capacity
+              ? Number(form.capacity)
+              : null,
       },
     });
     toast.success(
-      form.session_kind === 'coach_personal'
+      form.session_kind === 'away'
+        ? 'Away marked on the calendar'
+        : form.session_kind === 'coach_personal'
         ? 'Personal time blocked on the calendar'
         : form.session_kind === 'private_pt'
-          ? 'Private PT booked — add the member in this window'
+          ? form.client_ids.length
+            ? form.client_ids.length === 1
+              ? 'Private PT booked with the member'
+              : `Private PT booked with ${form.client_ids.length} members`
+            : 'Private PT booked — add members in this window'
           : form.coach_id
             ? form.public
               ? 'Class created with coach · published'
@@ -598,6 +722,9 @@ export default function CalendarPage() {
     // Reload form from server store happens via post(); open by id after brief tick
     setSelectedSessionId(sessionId);
     setAddMemberIds([]);
+    } catch {
+      /* useFitgraph post already toasts */
+    }
   };
 
   const memberChoices = useMemo(() => {
@@ -617,6 +744,11 @@ export default function CalendarPage() {
             .includes(q)
         );
       })
+      .sort((a, b) =>
+        String(a.name).localeCompare(String(b.name), undefined, {
+          sensitivity: 'base',
+        })
+      )
       .slice(0, 20);
   }, [store, memberQuery]);
 
@@ -764,6 +896,18 @@ export default function CalendarPage() {
     toast.success(next ? 'Shared on website' : 'Hidden from website');
   };
 
+  const selectedRow = store?.sessions.find((s) => s.id === selectedSessionId);
+  const selectedSeriesCount =
+    selectedRow?.series_id && store
+      ? store.sessions.filter(
+          (s) =>
+            s.series_id === selectedRow.series_id && s.status !== 'cancelled'
+        ).length
+      : 0;
+  const showRepeatFields =
+    selectedSeriesCount <= 1 &&
+    !(form.session_kind === 'away' && !selectedSessionId);
+
   const reassignCoach = async (id: string, coachId: string) => {
     const s = store?.sessions.find((x) => x.id === id);
     if (!s) return;
@@ -782,7 +926,7 @@ export default function CalendarPage() {
     <FitgraphWorkbench
       title="Calendar"
       titleAccent="main gym diary"
-      description="Stats, then this week’s gym diary, then waitlist, then working hours. Click a class to open it. Multiple coaches can run at the same time."
+      description="This week’s gym diary. Working hours and diary colours sit under the calendar. Click a class to open it."
     >
       {loading || !store ? (
         <LoadingBlock />
@@ -822,75 +966,8 @@ export default function CalendarPage() {
           </AdvisorExpandablePanel>
 
           <AdvisorExpandablePanel
-            title="Gym schedule · this week"
-            description="Default is this week. Click a class to open it; click empty time to schedule a class, private PT, or personal block."
-            open={calendarOpen}
-            onToggle={() => setCalendarOpen((v) => !v)}
-            accentClass="border-yellow-200 bg-white dark:border-yellow-800 dark:bg-neutral-950"
-            titleClass="text-yellow-950 dark:text-yellow-50"
-            hintClass="text-yellow-800/80 dark:text-yellow-200/80"
-          >
-            <PracticeScheduleCalendar
-              title="Gym schedule"
-              defaultView="week"
-              printBrand={
-                store.settings?.brand_name || 'GymAdvisor · SupplierAdvisor'
-              }
-              pdfExport={{
-                companyId: companyId || '',
-                module: 'fitgraph',
-                personId: personFilter || null,
-              }}
-              accent="yellow"
-              events={scheduleEvents}
-              people={schedulePeople}
-              peopleLabel="Coach"
-              workingHours={workingHours}
-              diaryScope={diaryScope}
-              onDiaryScopeChange={(scope) => {
-                setDiaryScope(scope);
-                if (scope === 'practice') setPersonFilter('');
-              }}
-              showDiaryScopeToggle
-              personFilter={personFilter}
-              onPersonFilterChange={(id) => {
-                setPersonFilter(id);
-                if (id) setForm((f) => ({ ...f, coach_id: id }));
-              }}
-              initialDate={day}
-              emptyLabel="No sessions"
-              slotHint="Click empty time to add a class, PT, or personal block"
-              selectedEventId={selectedSessionId}
-              onSelectDate={(date) => {
-                setDay(date);
-                setForm((f) => ({ ...f, date }));
-              }}
-              onSelectSlot={pickSlot}
-              onSelectEvent={(ev) => {
-                openSession(ev.id);
-                toast.message('Class open', {
-                  description: `${ev.start_time.slice(0, 5)} · ${ev.title} — edit in the pop-out`,
-                });
-              }}
-            />
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-slate-500">
-                Switch to day or month from the diary toolbar. Expand to fill
-                the screen.
-              </p>
-              <button
-                type="button"
-                className="rounded-xl border border-yellow-300 bg-white px-3 py-2 text-xs font-bold text-yellow-800 dark:border-yellow-600 dark:bg-yellow-950 dark:text-yellow-100"
-                onClick={() => startCreateMode({ date: day })}
-              >
-                + Class / PT / block
-              </button>
-            </div>
-          </AdvisorExpandablePanel>
-
-          <AdvisorExpandablePanel
             title={`Waitlist · ${waitlistCount}`}
-            description="Members waiting on a full class. Open by default."
+            description="Members waiting on a full class."
             open={waitlistOpen}
             onToggle={() => setWaitlistOpen((v) => !v)}
             accentClass="border-yellow-200 bg-yellow-50/50 dark:border-yellow-800 dark:bg-yellow-950/30"
@@ -922,583 +999,15 @@ export default function CalendarPage() {
             </p>
           </AdvisorExpandablePanel>
 
-          <WorkingHoursEditor
-            value={workingHours}
-            defaultCollapsed
-            onSave={saveHours}
-            saving={saving}
-            title="Gym working hours"
-            description="Open days and studio hours. Closed days are dimmed on the calendar; day view follows your open window."
-            accentClass="border-yellow-200 dark:border-yellow-800"
-          />
-
-          <div className="flex flex-wrap items-center gap-2 -mt-2">
-            <PracticeProfilePdfButton
-              companyId={companyId}
-              module="fitgraph"
-              label="Download gym practice PDF"
-            />
-            <span className="text-[11px] text-slate-500">
-              Practice sheet (hours, coaches, classes). Schedule PDFs: A4 PDF on
-              the calendar.
-            </span>
-          </div>
-
-          <ScheduleEventPeek
-            open={editorOpen}
-            title={
-              selectedSessionId
-                ? `${sessionKindLabel(form.session_kind)} · ${form.date} ${form.start_time}${form.end_time ? `–${form.end_time}` : ''}${
-                    form.coach_id
-                      ? ` · ${store.coaches.find((c) => c.id === form.coach_id)?.name || 'coach'}`
-                      : ' · no coach'
-                  }`
-                : slotPicked
-                  ? `New session · ${slotPicked}`
-                  : 'New session'
-            }
-            subtitle={
-              selectedSessionId
-                ? form.session_kind === 'coach_personal'
-                  ? 'Coach’s own training or blocked diary time'
-                  : 'Coach, time and booked members — change the coach if they can’t take this class'
-                : 'Group class, private PT, or coach personal time'
-            }
-            onClose={closeEditor}
+          <AdvisorExpandablePanel
+            title={`Sessions on ${day}`}
+            description="List and table for this date. The week diary below is the main view."
+            open={listOpen}
+            onToggle={() => setListOpen((v) => !v)}
+            accentClass="border-yellow-200 bg-yellow-50/50 dark:border-yellow-800 dark:bg-yellow-950/30"
+            titleClass="text-yellow-950 dark:text-yellow-50"
+            hintClass="text-yellow-800/80 dark:text-yellow-200/80"
           >
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div className="grid flex-1 min-w-[240px] grid-cols-3 gap-2 text-center text-[11px] font-bold">
-              {[
-                {
-                  n: '1',
-                  t: selectedSessionId ? 'View / edit' : 'Create',
-                  d: selectedSessionId ? 'Details · time' : 'Kind · when · room',
-                },
-                { n: '2', t: 'Assign coach', d: 'Required for PT / block' },
-                { n: '3', t: 'Booked members', d: 'Roster for this class' },
-              ].map((s) => (
-                <div
-                  key={s.n}
-                  className={`rounded-2xl border px-2 py-2 ${
-                    selectedSessionId
-                      ? 'border-yellow-400 bg-yellow-50 text-yellow-900 dark:border-yellow-500 dark:bg-yellow-950 dark:text-yellow-100'
-                      : s.n === '1'
-                        ? 'border-yellow-400 bg-yellow-50 text-yellow-900 dark:border-yellow-500 dark:bg-yellow-950 dark:text-yellow-100'
-                        : 'border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300'
-                  }`}
-                >
-                  <div className="text-[10px] font-black uppercase tracking-wide opacity-70">
-                    Step {s.n}
-                  </div>
-                  <div>{s.t}</div>
-                  <div className="text-[10px] font-medium opacity-70">{s.d}</div>
-                </div>
-              ))}
-            </div>
-            {selectedSessionId ? (
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="rounded-xl border border-yellow-300 bg-white px-3 py-2 text-xs font-bold text-yellow-800 dark:border-yellow-600 dark:bg-yellow-950 dark:text-yellow-100"
-                  onClick={() => startCreateMode({ date: day })}
-                >
-                  + New session
-                </button>
-                {store?.sessions.find((s) => s.id === selectedSessionId)
-                  ?.series_id ? (
-                  <button
-                    type="button"
-                    disabled={saving}
-                    className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 disabled:opacity-50 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-100"
-                    onClick={() => void saveSelected('future')}
-                  >
-                    Save this &amp; future
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  disabled={saving}
-                  className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-800 hover:bg-rose-100 disabled:opacity-50 dark:border-rose-700 dark:bg-rose-950/50 dark:text-rose-200"
-                  onClick={() => void deleteSelected()}
-                >
-                  Delete
-                </button>
-              </div>
-            ) : null}
-          </div>
-          {selectedSessionId && form.session_kind !== 'coach_personal' ? (
-            <div className="mb-3 rounded-2xl border border-yellow-300 bg-yellow-50 px-3 py-3 dark:border-yellow-700 dark:bg-yellow-950/40">
-              <p className="text-[10px] font-black uppercase tracking-wide text-yellow-800 dark:text-yellow-200">
-                Coach for this session
-              </p>
-              <p className="text-base font-black text-slate-900 dark:text-yellow-50">
-                {store.coaches.find((c) => c.id === form.coach_id)?.name ||
-                  'No coach assigned'}
-                {(() => {
-                  const c = store.coaches.find((x) => x.id === form.coach_id);
-                  if (!c) return null;
-                  const unavailable =
-                    c.active === false ||
-                    (c.end_date && c.end_date < form.date);
-                  return unavailable ? (
-                    <span className="ml-2 text-xs font-bold text-rose-700 dark:text-rose-300">
-                      Not available
-                    </span>
-                  ) : null;
-                })()}
-              </p>
-              <select
-                className="mt-2 w-full rounded-xl border border-yellow-200 bg-white px-3 py-2 text-sm font-semibold dark:border-yellow-700 dark:bg-yellow-950 dark:text-yellow-50"
-                value={form.coach_id}
-                onChange={(e) => {
-                  const id = e.target.value;
-                  setForm((f) => ({ ...f, coach_id: id }));
-                  void reassignCoach(selectedSessionId, id);
-                }}
-              >
-                <option value="">Unassigned — pick a coach…</option>
-                {store.coaches
-                  .filter((c) => c.active !== false || c.id === form.coach_id)
-                  .map((c) => {
-                    const unavailable =
-                      c.active === false ||
-                      (c.end_date && c.end_date < form.date);
-                    return (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                        {unavailable ? ' · not available' : ''}
-                        {(c.specialties || []).length
-                          ? ` · ${(c.specialties || []).join(', ')}`
-                          : ''}
-                      </option>
-                    );
-                  })}
-              </select>
-              <p className="mt-1 text-[11px] text-slate-600 dark:text-yellow-100/80">
-                Change the coach if they can’t take this class. Saves as soon as
-                you pick someone.
-              </p>
-            </div>
-          ) : null}
-          <FormCard
-            tone="owner"
-            title={
-              selectedSessionId
-                ? `${sessionKindLabel(form.session_kind)} · ${form.date} ${form.start_time}${form.end_time ? `–${form.end_time}` : ''}`
-                : slotPicked
-                  ? `Create session · ${slotPicked}`
-                  : 'Create session'
-            }
-            description={
-              selectedSessionId
-                ? 'Edit details here, then Save — or Delete above. Coach is on this form; members are listed under the save button (not for personal blocks).'
-                : undefined
-            }
-            onSubmit={() => void add()}
-            saving={saving}
-            submitLabel={
-              selectedSessionId
-                ? 'Save changes'
-                : recurrence.frequency !== 'none'
-                  ? form.session_kind === 'coach_personal'
-                    ? 'Block repeating personal time'
-                    : form.session_kind === 'private_pt'
-                      ? 'Create PT series'
-                      : 'Create class series'
-                  : form.session_kind === 'coach_personal'
-                    ? 'Block personal time'
-                    : form.session_kind === 'private_pt'
-                      ? 'Book private PT'
-                      : 'Create class'
-            }
-          >
-            {selectedSessionId ? (
-              <p className="sm:col-span-2 lg:col-span-3 text-xs text-yellow-700 dark:text-yellow-300 font-medium rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50/80 dark:bg-yellow-950/40 px-3 py-2">
-                Viewing / editing this class. Change fields and <strong>Save changes</strong>,
-                use <strong>Delete class</strong> to remove it from the calendar
-                (series can delete one date or all), or assign coach and members on the
-                this window. Click empty calendar time for a new class.
-              </p>
-            ) : slotPicked ? (
-              <p className="sm:col-span-2 lg:col-span-3 text-xs text-yellow-700 dark:text-yellow-300 font-medium rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50/80 dark:bg-yellow-950/40 px-3 py-2">
-                Slot from calendar: <strong>{slotPicked}</strong>. Choose a{' '}
-                <strong>class type</strong> (add types under Classes first),
-                save the class, then assign coach and members on the open card.
-              </p>
-            ) : (
-              <p className="sm:col-span-2 lg:col-span-3 text-xs text-slate-500">
-                <strong>Click a class</strong> on the calendar to open it, or click empty
-                time to create. Catalogue first under{' '}
-                {classSubscribe ? 'Classes' : 'Class types'} if needed.
-                {!store.class_types.length ? (
-                  <>
-                    {' '}
-                    No classes yet —{' '}
-                    <Link
-                      href={classCatalogueHref}
-                      className="font-bold text-yellow-700 underline"
-                    >
-                      add {classSubscribe ? 'a class' : 'class types'}
-                    </Link>{' '}
-                    first.
-                  </>
-                ) : null}
-              </p>
-            )}
-            <select
-              className={fc()}
-              value={form.session_kind}
-              onChange={(e) =>
-                setForm((f) =>
-                  patchFormForSessionKind(
-                    f,
-                    e.target.value as FitSessionKind,
-                    store.class_types
-                  )
-                )
-              }
-            >
-              {SESSION_KIND_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            {form.session_kind !== 'coach_personal' ? (
-              <select
-                className={fc()}
-                value={form.class_type_id}
-                onChange={(e) => {
-                  const ct = store.class_types.find(
-                    (c) => c.id === e.target.value
-                  );
-                  const inferred = sessionKindFromRecord({
-                    class_code: ct?.code,
-                  });
-                  setForm((f) => {
-                    if (inferred !== 'class' && inferred !== f.session_kind) {
-                      return {
-                        ...patchFormForSessionKind(
-                          f,
-                          inferred,
-                          store.class_types
-                        ),
-                        class_type_id: e.target.value,
-                      };
-                    }
-                    return { ...f, class_type_id: e.target.value };
-                  });
-                }}
-              >
-                <option value="">
-                  {form.session_kind === 'private_pt'
-                    ? 'PT type (optional)…'
-                    : 'Class type (required)…'}
-                </option>
-                {store.class_types
-                  .filter((c) =>
-                    c.active !== false &&
-                    (form.session_kind === 'private_pt'
-                      ? c.code !== SYS_COACH_TIME_CODE
-                      : c.code !== SYS_PT_CODE && c.code !== SYS_COACH_TIME_CODE)
-                  )
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-              </select>
-            ) : (
-              <p className="text-xs text-slate-500 px-1 self-center">
-                Blocks the coach’s diary — not member-bookable.
-              </p>
-            )}
-            {selectedSessionId ? null : (
-            <select
-              className={fc()}
-              value={form.coach_id}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, coach_id: e.target.value }))
-              }
-            >
-              <option value="">
-                {form.session_kind === 'class'
-                  ? 'Coach (optional now — assign after create)…'
-                  : 'Coach (required)…'}
-              </option>
-              {store.coaches
-                .filter((c) => c.active !== false)
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                    {(c.specialties || []).length
-                      ? ` · ${(c.specialties || []).join(', ')}`
-                      : ''}
-                  </option>
-                ))}
-            </select>
-            )}
-            <input
-              className={fc()}
-              type="date"
-              value={form.date}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, date: e.target.value }))
-              }
-            />
-            <label className="flex flex-col gap-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
-              Start
-              <input
-                className={fc()}
-                type="time"
-                value={form.start_time}
-                onChange={(e) =>
-                  setForm((f) => {
-                    const next = e.target.value;
-                    const dur = f.end_time
-                      ? durationFromStartEnd(f.start_time, f.end_time)
-                      : 45;
-                    return {
-                      ...f,
-                      start_time: next,
-                      end_time: endFromStartDuration(next, dur),
-                    };
-                  })
-                }
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
-              End
-              <input
-                className={fc()}
-                type="time"
-                value={form.end_time}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, end_time: e.target.value }))
-                }
-              />
-            </label>
-            <input
-              className={fc()}
-              placeholder="Location / site"
-              value={form.location}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, location: e.target.value }))
-              }
-            />
-            {(store.settings?.rooms || []).length > 0 ? (
-              <select
-                className={fc()}
-                value={form.room}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, room: e.target.value }))
-                }
-              >
-                <option value="">Room / studio…</option>
-                {(store.settings?.rooms || []).map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                className={fc()}
-                placeholder="Room / studio (set list under Floor → Rooms)"
-                value={form.room}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, room: e.target.value }))
-                }
-              />
-            )}
-            {form.session_kind !== 'coach_personal' ? (
-              <input
-                className={fc()}
-                type="number"
-                placeholder="Capacity override"
-                value={form.capacity}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, capacity: e.target.value }))
-                }
-              />
-            ) : null}
-            {form.session_kind === 'coach_personal' ? (
-              <textarea
-                className={fc() + ' min-h-[4rem] resize-y sm:col-span-2'}
-                placeholder="What this time is for (private — own training, admin, errands…)"
-                value={form.notes}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, notes: e.target.value }))
-                }
-              />
-            ) : (
-              <textarea
-                className={fc() + ' min-h-[4rem] resize-y sm:col-span-2'}
-                placeholder="Class plan / activities (members see this)"
-                value={form.class_plan}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, class_plan: e.target.value }))
-                }
-              />
-            )}
-            {selectedSessionId ? (
-              <select
-                className={fc()}
-                value={form.status}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, status: e.target.value }))
-                }
-              >
-                <option value="scheduled">Status: scheduled</option>
-                <option value="completed">Status: completed</option>
-                <option value="cancelled">Status: cancelled</option>
-              </select>
-            ) : null}
-            {!selectedSessionId ? (
-              <RecurrenceFields
-                value={recurrence}
-                onChange={setRecurrence}
-                startDate={form.date}
-                inputClass={fc()}
-                accent="yellow"
-                unitLabel={
-                  form.session_kind === 'coach_personal'
-                    ? 'blocks'
-                    : form.session_kind === 'private_pt'
-                      ? 'sessions'
-                      : 'classes'
-                }
-              />
-            ) : null}
-            {!selectedSessionId ? (
-            <p className="sm:col-span-2 lg:col-span-3 text-[11px] text-slate-500 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 px-3 py-2">
-              <strong>After create:</strong>{' '}
-              {form.session_kind === 'coach_personal'
-                ? 'personal time is blocked on the coach diary. Members cannot book it.'
-                : form.session_kind === 'private_pt'
-                  ? 'the PT session opens so you can add the member.'
-                  : 'the class opens automatically so you can assign a coach and add members. Coach can stay blank until later.'}
-            </p>
-            ) : null}
-            {form.date && form.start_time ? (
-              <a
-                className="sm:col-span-2 text-xs font-bold text-yellow-700 underline"
-                href={`/api/public/advisor/ics?module=fitgraph&date=${encodeURIComponent(form.date)}&start=${encodeURIComponent(form.start_time)}&title=${encodeURIComponent(
-                  form.session_kind === 'coach_personal'
-                    ? form.notes.split('\n')[0] || 'Coach personal time'
-                    : form.session_kind === 'private_pt'
-                      ? 'Private PT'
-                      : 'GymAdvisor class'
-                )}&duration=${durationFromStartEnd(form.start_time, form.end_time || endFromStartDuration(form.start_time, 45))}&location=${encodeURIComponent(form.location || '')}`}
-              >
-                Download .ics (add to calendar)
-              </a>
-            ) : null}
-            <select
-              className={fc()}
-              value={form.programme_id}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, programme_id: e.target.value }))
-              }
-            >
-              <option value="">Programme (optional)…</option>
-              {(store.programmes || []).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-            {form.session_kind === 'class' ? (
-              <label className="flex items-center gap-2 text-sm font-medium px-1 sm:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={form.public}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, public: e.target.checked }))
-                  }
-                />
-                List on public website calendar
-              </label>
-            ) : (
-              <p className="sm:col-span-2 text-[11px] text-slate-500">
-                {form.session_kind === 'private_pt'
-                  ? 'Private PT stays off the public website. Add the member after saving.'
-                  : 'Personal time stays private on the coach diary. Members cannot book it.'}
-              </p>
-            )}
-          </FormCard>
-          {store && (form.programme_id || selectedSessionId)
-            ? (() => {
-                const s = selectedSessionId
-                  ? store.sessions.find((x) => x.id === selectedSessionId)
-                  : null;
-                const found =
-                  (form.programme_id &&
-                    (store.programmes || []).find(
-                      (p) => p.id === form.programme_id
-                    )) ||
-                  (s
-                    ? resolveProgrammeForSession(store.programmes || [], {
-                        id: s.id,
-                        class_type_id: s.class_type_id,
-                        coach_id: s.coach_id,
-                        session_kind: s.session_kind,
-                        programme_id: s.programme_id,
-                      })
-                    : null);
-                if (!found) return null;
-                return (
-                  <ProgrammeView
-                    programme={hydrateProgramme(
-                      found,
-                      listedFitMovements(store)
-                    )}
-                  />
-                );
-              })()
-            : null}
-          {selectedSessionId && store && form.session_kind !== 'coach_personal' ? (
-            <div className="mt-4 space-y-3">
-              {(() => {
-                const s = store.sessions.find((x) => x.id === selectedSessionId);
-                if (!s) return null;
-                const roster = rosterFor(s.id);
-                return (
-                  <>
-                    <ClassBookedRoster
-                      roster={roster}
-                      addQuery={memberQuery}
-                      onAddQuery={setMemberQuery}
-                      addChoices={memberChoices.map((c) => ({
-                        id: c.id,
-                        name: c.name,
-                        already: roster.some((b) => b.client_id === c.id),
-                      }))}
-                      selectedIds={addMemberIds}
-                      onToggleAdd={toggleAddMember}
-                      onBook={() => void saveMembersOnSession(s.id)}
-                      onMark={(id, status, clientId) => {
-                        void markRoster(id, status, clientId);
-                      }}
-                      saving={saving}
-                    />
-                    <p className="text-[11px] text-slate-500">
-                      Members saved to this class appear here — not the whole
-                      gym.{' '}
-                      <Link
-                        href="/dashboard/fitgraph/accounts"
-                        className="font-bold text-yellow-800 underline"
-                      >
-                        Send this month’s invoices
-                      </Link>
-                    </p>
-                  </>
-                );
-              })()}
-            </div>
-          ) : null}
-          </ScheduleEventPeek>
-
           <p className="text-xs text-slate-500">
             <strong>Click any session</strong> on the calendar to open it.
             Private PT and coach personal time use start and end times. Join
@@ -1641,6 +1150,20 @@ export default function CalendarPage() {
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-yellow-200/80">
                         {s.location || s.room || '—'} · {booked}/{cap} booked
+                        {kind === 'private_pt' &&
+                        formatAgreedRateZar(
+                          s.agreed_rate_zar ??
+                            store.clients.find((c) =>
+                              roster.some((r) => r.client_id === c.id)
+                            )?.private_rate_zar
+                        )
+                          ? ` · ${formatAgreedRateZar(
+                              s.agreed_rate_zar ??
+                                store.clients.find((c) =>
+                                  roster.some((r) => r.client_id === c.id)
+                                )?.private_rate_zar
+                            )}`
+                          : ''}
                         {!coach ? (
                           <span className="ml-1 font-bold text-amber-700 dark:text-amber-300">
                             · needs coach
@@ -1707,15 +1230,6 @@ export default function CalendarPage() {
                           <p className="text-[10px] font-black uppercase tracking-wide text-sky-800 dark:text-sky-200">
                             Booked members · {booked}
                           </p>
-                          {roster.length === 0 ? (
-                            <p className="text-[11px] text-slate-500 mt-1">
-                              Nobody booked yet.
-                            </p>
-                          ) : (
-                            <p className="text-[11px] text-slate-700 dark:text-slate-200 mt-1">
-                              {roster.map((b) => b.name).join(', ')}
-                            </p>
-                          )}
                           <button
                             type="button"
                             className="mt-1 text-[11px] font-bold text-sky-700 dark:text-sky-300 underline"
@@ -1724,7 +1238,7 @@ export default function CalendarPage() {
                               setAddMemberIds([]);
                             }}
                           >
-                            Open roster
+                            Open to see members
                           </button>
                         </div>
                       )}
@@ -1772,14 +1286,7 @@ export default function CalendarPage() {
                     coach?.name || '—',
                     s.location || '—',
                     s.capacity ?? '—',
-                    (() => {
-                      const names = sessionRosterNames(store, s.id);
-                      const n = sessionBookingCount(store, s.id);
-                      if (!names.length) return `${n}`;
-                      return names.length <= 2
-                        ? `${n} · ${names.join(', ')}`
-                        : `${n} · ${names.slice(0, 2).join(', ')} +${names.length - 2}`;
-                    })(),
+                    String(sessionBookingCount(store, s.id)),
                     s.public ? 'Public' : 'Private',
                     s.status,
                   ],
@@ -1789,6 +1296,939 @@ export default function CalendarPage() {
               void post({ entity: 'sessions', action: 'delete', id })
             }
           />
+          </AdvisorExpandablePanel>
+
+          <AdvisorExpandablePanel
+            title="Gym schedule · this week"
+            description="Default is this week. Click a class to open it; click empty time to schedule a class, private PT, or personal block."
+            open={calendarOpen}
+            onToggle={() => setCalendarOpen((v) => !v)}
+            accentClass="border-yellow-200 bg-white dark:border-yellow-800 dark:bg-neutral-950"
+            titleClass="text-yellow-950 dark:text-yellow-50"
+            hintClass="text-yellow-800/80 dark:text-yellow-200/80"
+          >
+            <PracticeScheduleCalendar
+              title="Gym schedule"
+              defaultView="week"
+              printBrand={
+                store.settings?.brand_name || 'GymAdvisor · SupplierAdvisor'
+              }
+              pdfExport={{
+                companyId: companyId || '',
+                module: 'fitgraph',
+                personId: personFilter || null,
+              }}
+              accent="yellow"
+              events={scheduleEvents}
+              people={schedulePeople}
+              peopleLabel="Coach"
+              workingHours={workingHours}
+              diaryScope={diaryScope}
+              onDiaryScopeChange={(scope) => {
+                setDiaryScope(scope);
+                if (scope === 'practice') setPersonFilter('');
+              }}
+              showDiaryScopeToggle
+              personFilter={personFilter}
+              onPersonFilterChange={(id) => {
+                setPersonFilter(id);
+                if (id) setForm((f) => ({ ...f, coach_id: id }));
+              }}
+              initialDate={day}
+              emptyLabel="No sessions"
+              slotHint="Click empty time to add a class, PT, or personal block"
+              selectedEventId={selectedSessionId}
+              onSelectDate={(date) => {
+                setDay(date);
+                setForm((f) => ({ ...f, date }));
+              }}
+              onSelectSlot={pickSlot}
+              onSelectEvent={(ev) => {
+                openSession(ev.id);
+                toast.message('Class open', {
+                  description: `${ev.start_time.slice(0, 5)} · ${ev.title} — edit in the pop-out`,
+                });
+              }}
+            />
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-[11px]">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="font-black uppercase tracking-wide text-slate-500">
+                  Coaches
+                </span>
+                {(store.coaches || [])
+                  .filter((c) => c.active !== false)
+                  .slice(0, 12)
+                  .map((c) => (
+                    <span
+                      key={c.id}
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-1.5 py-0.5 font-bold"
+                    >
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: c.color || '#d97706' }}
+                      />
+                      {c.name}
+                    </span>
+                  ))}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-slate-500">
+                Classes use the assigned coach's calendar colour.{' '}
+                <Link
+                  href="/dashboard/fitgraph/coaches"
+                  className="font-bold text-yellow-800 underline"
+                >
+                  Set it on Coaches
+                </Link>
+                .
+              </p>
+              <button
+                type="button"
+                className="rounded-xl border border-yellow-300 bg-white px-3 py-2 text-xs font-bold text-yellow-800 dark:border-yellow-600 dark:bg-yellow-950 dark:text-yellow-100"
+                onClick={() => startCreateMode({ date: day })}
+              >
+                + Class / PT / block
+              </button>
+            </div>
+          </AdvisorExpandablePanel>
+
+          <AdvisorExpandablePanel
+            title="Gym working hours"
+            description="Open days and studio hours. Closed days are dimmed on the calendar; day view follows your open window."
+            open={hoursOpen}
+            onToggle={() => setHoursOpen((v) => !v)}
+            accentClass="border-yellow-200 bg-yellow-50/50 dark:border-yellow-800 dark:bg-yellow-950/30"
+            titleClass="text-yellow-950 dark:text-yellow-50"
+            hintClass="text-yellow-800/80 dark:text-yellow-200/80"
+          >
+            <WorkingHoursEditor
+              value={workingHours}
+              embedded
+              collapsible={false}
+              onSave={saveHours}
+              saving={saving}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <PracticeProfilePdfButton
+                companyId={companyId}
+                module="fitgraph"
+                label="Download gym practice PDF"
+              />
+              <span className="text-[11px] text-slate-500">
+                Practice sheet (hours, coaches, classes). Schedule PDFs: A4 PDF on
+                the calendar.
+              </span>
+            </div>
+          </AdvisorExpandablePanel>
+
+          <AdvisorExpandablePanel
+            title="Diary colours"
+            description="Fallback colour when a class has no coach. Assigned classes use the coach’s calendar colour on Coaches."
+            open={colorsOpen}
+            onToggle={() => setColorsOpen((v) => !v)}
+            accentClass="border-yellow-200 bg-yellow-50/50 dark:border-yellow-800 dark:bg-yellow-950/30"
+            titleClass="text-yellow-950 dark:text-yellow-50"
+            hintClass="text-yellow-800/80 dark:text-yellow-200/80"
+          >
+            <GymDiaryColorEditor
+              classes={(store.class_types || []).filter(
+                (c) =>
+                  c.active !== false &&
+                  c.code !== SYS_PT_CODE &&
+                  c.code !== SYS_COACH_TIME_CODE &&
+                  c.code !== SYS_COACH_AWAY_CODE
+              )}
+              saving={saving}
+              onSaveClass={async (id, color) => {
+                await post({
+                  entity: 'class_types',
+                  action: 'upsert',
+                  record: { id, color },
+                });
+                toast.success('Class colour saved');
+              }}
+            />
+          </AdvisorExpandablePanel>
+
+          <ScheduleEventPeek
+            open={editorOpen}
+            title={
+              selectedSessionId
+                ? `${sessionKindLabel(form.session_kind)} · ${form.date} ${form.start_time}${form.end_time ? `–${form.end_time}` : ''}${
+                    form.coach_id
+                      ? ` · ${store.coaches.find((c) => c.id === form.coach_id)?.name || 'coach'}`
+                      : ' · no coach'
+                  }`
+                : slotPicked
+                  ? `New session · ${slotPicked}`
+                  : 'New session'
+            }
+            subtitle={
+              selectedSessionId
+                ? form.session_kind === 'away'
+                  ? 'This person is not available — do not assign them classes'
+                  : form.session_kind === 'coach_personal'
+                  ? 'Coach’s own training or blocked diary time'
+                  : 'Coach, time and booked members — change the coach if they can’t take this class'
+                : 'Group class, private PT, personal time, or away / leave'
+            }
+            onClose={closeEditor}
+          >
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="grid flex-1 min-w-[240px] grid-cols-3 gap-2 text-center text-[11px] font-bold">
+              {[
+                {
+                  n: '1',
+                  t: selectedSessionId ? 'View / edit' : 'Create',
+                  d: selectedSessionId ? 'Details · time' : 'Kind · when · room',
+                },
+                { n: '2', t: 'Assign coach', d: 'Required for PT / block' },
+                {
+                  n: '3',
+                  t: 'Booked members',
+                  d:
+                    form.session_kind === 'private_pt'
+                      ? 'Private client on this session'
+                      : 'Roster for this class',
+                },
+              ].map((s) => (
+                <div
+                  key={s.n}
+                  className={`rounded-2xl border px-2 py-2 ${
+                    selectedSessionId
+                      ? 'border-yellow-400 bg-yellow-50 text-yellow-900 dark:border-yellow-500 dark:bg-yellow-950 dark:text-yellow-100'
+                      : s.n === '1'
+                        ? 'border-yellow-400 bg-yellow-50 text-yellow-900 dark:border-yellow-500 dark:bg-yellow-950 dark:text-yellow-100'
+                        : 'border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300'
+                  }`}
+                >
+                  <div className="text-[10px] font-black uppercase tracking-wide opacity-70">
+                    Step {s.n}
+                  </div>
+                  <div>{s.t}</div>
+                  <div className="text-[10px] font-medium opacity-70">{s.d}</div>
+                </div>
+              ))}
+            </div>
+            {selectedSessionId ? (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="rounded-xl border border-yellow-300 bg-white px-3 py-2 text-xs font-bold text-yellow-800 dark:border-yellow-600 dark:bg-yellow-950 dark:text-yellow-100"
+                  onClick={() => startCreateMode({ date: day })}
+                >
+                  + New session
+                </button>
+                {store?.sessions.find((s) => s.id === selectedSessionId)
+                  ?.series_id ? (
+                  <span className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-900 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-100">
+                    Series · save uses the scope below
+                  </span>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={saving}
+                  className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-800 hover:bg-rose-100 disabled:opacity-50 dark:border-rose-700 dark:bg-rose-950/50 dark:text-rose-200"
+                  onClick={() => void deleteSelected()}
+                >
+                  Delete
+                </button>
+              </div>
+            ) : null}
+          </div>
+          {selectedSessionId && !isGymDiaryBlockKind(form.session_kind) ? (
+            <div className="mb-3 rounded-2xl border border-yellow-300 bg-yellow-50 px-3 py-3 dark:border-yellow-700 dark:bg-yellow-950/40">
+              <p className="text-[10px] font-black uppercase tracking-wide text-yellow-800 dark:text-yellow-200">
+                Coach for this session
+              </p>
+              <p className="text-base font-black text-slate-900 dark:text-yellow-50">
+                {store.coaches.find((c) => c.id === form.coach_id)?.name ||
+                  'No coach assigned'}
+                {(() => {
+                  const c = store.coaches.find((x) => x.id === form.coach_id);
+                  if (!c) return null;
+                  const unavailable =
+                    c.active === false ||
+                    (c.end_date && c.end_date < form.date);
+                  return unavailable ? (
+                    <span className="ml-2 text-xs font-bold text-rose-700 dark:text-rose-300">
+                      Not available
+                    </span>
+                  ) : null;
+                })()}
+              </p>
+              <select
+                className="mt-2 w-full rounded-xl border border-yellow-200 bg-white px-3 py-2 text-sm font-semibold dark:border-yellow-700 dark:bg-yellow-950 dark:text-yellow-50"
+                value={form.coach_id}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setForm((f) => ({ ...f, coach_id: id }));
+                  const seriesId = store.sessions.find(
+                    (s) => s.id === selectedSessionId
+                  )?.series_id;
+                  if (!seriesId) void reassignCoach(selectedSessionId, id);
+                }}
+              >
+                <option value="">Unassigned — pick a coach…</option>
+                {store.coaches
+                  .filter((c) => c.active !== false || c.id === form.coach_id)
+                  .map((c) => {
+                    const unavailable =
+                      c.active === false ||
+                      (c.end_date && c.end_date < form.date);
+                    return (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                        {unavailable ? ' · not available' : ''}
+                        {(c.specialties || []).length
+                          ? ` · ${(c.specialties || []).join(', ')}`
+                          : ''}
+                      </option>
+                    );
+                  })}
+              </select>
+              <p className="mt-1 text-[11px] text-slate-600 dark:text-yellow-100/80">
+                {store.sessions.find((s) => s.id === selectedSessionId)
+                  ?.series_id
+                  ? 'On a series, pick the coach then Save with This and future or Entire series.'
+                  : 'Change the coach if they can’t take this class. Saves as soon as you pick someone.'}
+              </p>
+            </div>
+          ) : null}
+          <FormCard
+            tone="owner"
+            title={
+              selectedSessionId
+                ? `${sessionKindLabel(form.session_kind)} · ${form.date} ${form.start_time}${form.end_time ? `–${form.end_time}` : ''}`
+                : slotPicked
+                  ? `Create session · ${slotPicked}`
+                  : 'Create session'
+            }
+            description={
+              selectedSessionId
+                ? 'Edit details here, then Save — or Delete above. Coach is on this form; members are listed under the save button (not for personal blocks).'
+                : undefined
+            }
+            onSubmit={() => void add()}
+            saving={saving}
+            submitLabel={
+              selectedSessionId
+                ? recurrence.frequency !== 'none' && selectedSeriesCount <= 1
+                  ? form.session_kind === 'away'
+                    ? 'Save repeating away'
+                    : form.session_kind === 'coach_personal'
+                      ? 'Save repeating personal time'
+                      : form.session_kind === 'private_pt'
+                        ? 'Save as PT series'
+                        : 'Save as class series'
+                  : store?.sessions.find((s) => s.id === selectedSessionId)
+                      ?.series_id
+                    ? seriesScope === 'all'
+                      ? 'Save entire series'
+                      : seriesScope === 'future'
+                        ? 'Save this & future'
+                        : 'Save this date only'
+                    : 'Save changes'
+                : recurrence.frequency !== 'none' ||
+                    (form.session_kind === 'away' && Boolean(form.until))
+                  ? form.session_kind === 'away'
+                    ? 'Mark away (all days)'
+                    : form.session_kind === 'coach_personal'
+                    ? 'Block repeating personal time'
+                    : form.session_kind === 'private_pt'
+                      ? 'Create PT series'
+                      : 'Create class series'
+                  : form.session_kind === 'away'
+                    ? 'Mark away'
+                    : form.session_kind === 'coach_personal'
+                    ? 'Block personal time'
+                    : form.session_kind === 'private_pt'
+                      ? 'Book private PT'
+                      : 'Create class'
+            }
+          >
+            {selectedSessionId ? (
+              <p className="sm:col-span-2 lg:col-span-3 text-xs text-yellow-700 dark:text-yellow-300 font-medium rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50/80 dark:bg-yellow-950/40 px-3 py-2">
+                Viewing / editing this session. Change time, room, coach or
+                member, then save.
+                {selectedSeriesCount > 1
+                  ? ' Series dates use the scope below. Delete can remove one date or the whole series.'
+                  : ' Repeat below turns this one date into a series.'}
+              </p>
+            ) : slotPicked ? (
+              <p className="sm:col-span-2 lg:col-span-3 text-xs text-yellow-700 dark:text-yellow-300 font-medium rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50/80 dark:bg-yellow-950/40 px-3 py-2">
+                Slot from calendar: <strong>{slotPicked}</strong>. Choose a{' '}
+                <strong>class type</strong> (add types under Classes first),
+                save the class, then assign coach and members on the open card.
+              </p>
+            ) : (
+              <p className="sm:col-span-2 lg:col-span-3 text-xs text-slate-500">
+                <strong>Click a class</strong> on the calendar to open it, or click empty
+                time to create. Catalogue first under{' '}
+                {classSubscribe ? 'Classes' : 'Class types'} if needed.
+                {!store.class_types.length ? (
+                  <>
+                    {' '}
+                    No classes yet —{' '}
+                    <Link
+                      href={classCatalogueHref}
+                      className="font-bold text-yellow-700 underline"
+                    >
+                      add {classSubscribe ? 'a class' : 'class types'}
+                    </Link>{' '}
+                    first.
+                  </>
+                ) : null}
+              </p>
+            )}
+            <select
+              className={fc()}
+              value={form.session_kind}
+              onChange={(e) =>
+                setForm((f) =>
+                  patchFormForSessionKind(
+                    f,
+                    e.target.value as FitSessionKind,
+                    store.class_types
+                  )
+                )
+              }
+            >
+              {SESSION_KIND_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            {form.session_kind === 'away' ? (
+              <>
+                <select
+                  className={fc()}
+                  value={form.personal_reason}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, personal_reason: e.target.value }))
+                  }
+                >
+                  {STAFF_AWAY_REASON_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                {!selectedSessionId ? (
+                  <input
+                    className={fc()}
+                    type="date"
+                    title="Last day away (optional)"
+                    value={form.until}
+                    min={form.date}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, until: e.target.value }))
+                    }
+                  />
+                ) : null}
+              </>
+            ) : null}
+            {!isGymDiaryBlockKind(form.session_kind) ? (
+              <select
+                className={fc()}
+                value={form.class_type_id}
+                onChange={(e) => {
+                  const ct = store.class_types.find(
+                    (c) => c.id === e.target.value
+                  );
+                  const inferred = sessionKindFromRecord({
+                    class_code: ct?.code,
+                  });
+                  setForm((f) => {
+                    if (inferred !== 'class' && inferred !== f.session_kind) {
+                      return {
+                        ...patchFormForSessionKind(
+                          f,
+                          inferred,
+                          store.class_types
+                        ),
+                        class_type_id: e.target.value,
+                      };
+                    }
+                    return { ...f, class_type_id: e.target.value };
+                  });
+                }}
+              >
+                <option value="">
+                  {form.session_kind === 'private_pt'
+                    ? 'PT type (optional)…'
+                    : 'Class type (required)…'}
+                </option>
+                {store.class_types
+                  .filter((c) =>
+                    c.active !== false &&
+                    (form.session_kind === 'private_pt'
+                      ? c.code !== SYS_COACH_TIME_CODE &&
+                        c.code !== SYS_COACH_AWAY_CODE
+                      : c.code !== SYS_PT_CODE &&
+                        c.code !== SYS_COACH_TIME_CODE &&
+                        c.code !== SYS_COACH_AWAY_CODE)
+                  )
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </select>
+            ) : (
+              <p className="text-xs text-slate-500 px-1 self-center">
+                Blocks the coach’s diary — not member-bookable.
+              </p>
+            )}
+            {selectedSessionId ? null : (
+            <select
+              className={fc()}
+              value={form.coach_id}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, coach_id: e.target.value }))
+              }
+            >
+              <option value="">
+                {form.session_kind === 'class'
+                  ? 'Coach (optional now — assign after create)…'
+                  : 'Coach (required)…'}
+              </option>
+              {store.coaches
+                .filter((c) => c.active !== false)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {(c.specialties || []).length
+                      ? ` · ${(c.specialties || []).join(', ')}`
+                      : ''}
+                  </option>
+                ))}
+            </select>
+            )}
+            <input
+              className={fc()}
+              type="date"
+              value={form.date}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, date: e.target.value }))
+              }
+            />
+            <label className="flex flex-col gap-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
+              Start
+              <input
+                className={fc()}
+                type="time"
+                value={form.start_time}
+                onChange={(e) =>
+                  setForm((f) => {
+                    const next = e.target.value;
+                    const dur = f.end_time
+                      ? durationFromStartEnd(f.start_time, f.end_time)
+                      : 45;
+                    return {
+                      ...f,
+                      start_time: next,
+                      end_time: endFromStartDuration(next, dur),
+                    };
+                  })
+                }
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
+              End
+              <input
+                className={fc()}
+                type="time"
+                value={form.end_time}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, end_time: e.target.value }))
+                }
+              />
+            </label>
+            <input
+              className={fc()}
+              placeholder="Location / site"
+              value={form.location}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, location: e.target.value }))
+              }
+            />
+            {roomNames.length > 0 ? (
+              <select
+                className={fc()}
+                value={form.room}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, room: e.target.value }))
+                }
+                title="Room / studio from Floor → Rooms"
+              >
+                <option value="">Room / studio…</option>
+                {roomNames.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-[11px] text-slate-500 self-center">
+                No rooms yet — add them under{' '}
+                <Link
+                  href="/dashboard/fitgraph/rooms"
+                  className="font-bold text-yellow-700 underline"
+                >
+                  Floor → Rooms
+                </Link>
+                .
+              </p>
+            )}
+            {form.session_kind === 'private_pt' ? (
+              <>
+                <div className="sm:col-span-2 space-y-1.5">
+                  <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
+                    Members
+                  </p>
+                  {form.client_ids.length ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {form.client_ids.map((id) => {
+                        const cl = store.clients.find((c) => c.id === id);
+                        return (
+                          <button
+                            key={id}
+                            type="button"
+                            className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-950 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100"
+                            onClick={() =>
+                              setForm((f) => ({
+                                ...f,
+                                client_ids: f.client_ids.filter((x) => x !== id),
+                              }))
+                            }
+                          >
+                            {cl?.name || id}
+                            <span aria-hidden>×</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-500">
+                      No members yet — add one or more below.
+                    </p>
+                  )}
+                  <select
+                    className={fc()}
+                    value=""
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      if (!id) return;
+                      const cl = store.clients.find((c) => c.id === id);
+                      const rate = cl?.private_rate_zar ?? cl?.agreed_rate_zar;
+                      setForm((f) => {
+                        if (f.client_ids.includes(id)) return f;
+                        const client_ids = [...f.client_ids, id];
+                        return {
+                          ...f,
+                          client_ids,
+                          agreed_rate_zar:
+                            f.agreed_rate_zar.trim() === '' && rate != null
+                              ? String(rate)
+                              : f.agreed_rate_zar,
+                          capacity: String(
+                            Math.max(Number(f.capacity) || 0, client_ids.length, 1)
+                          ),
+                        };
+                      });
+                    }}
+                  >
+                    <option value="">Add member…</option>
+                    {[...store.clients]
+                      .filter((c) => c.active !== false)
+                      .sort((a, b) =>
+                        String(a.name).localeCompare(String(b.name), undefined, {
+                          sensitivity: 'base',
+                        })
+                      )
+                      .filter((c) => !form.client_ids.includes(c.id))
+                      .map((c) => {
+                        const rate =
+                          c.private_rate_zar ?? c.agreed_rate_zar ?? null;
+                        const tags = [
+                          c.private_client ? 'PVT' : null,
+                          c.membership_plan_id ? 'member' : null,
+                          rate != null ? formatAgreedRateZar(rate) : null,
+                        ].filter(Boolean);
+                        return (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                            {c.code ? ` · ${c.code}` : ''}
+                            {tags.length ? ` · ${tags.join(' · ')}` : ''}
+                          </option>
+                        );
+                      })}
+                  </select>
+                </div>
+                <input
+                  className={fc()}
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="Agreed rate (ZAR)"
+                  value={form.agreed_rate_zar}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      agreed_rate_zar: e.target.value,
+                    }))
+                  }
+                />
+              </>
+            ) : null}
+            {selectedSessionId &&
+            store.sessions.find((s) => s.id === selectedSessionId)
+              ?.series_id ? (
+              <div className="sm:col-span-2 lg:col-span-3 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 dark:border-amber-700 dark:bg-amber-950/40">
+                <p className="mb-1.5 text-[10px] font-black uppercase tracking-wide text-amber-800 dark:text-amber-200">
+                  Edit series
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(
+                    [
+                      ['one', 'This date only'],
+                      ['future', 'This and future'],
+                      ['all', 'Entire series'],
+                    ] as Array<[SeriesEditScope, string]>
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setSeriesScope(id)}
+                      className={`rounded-full border px-3 py-1 text-[11px] font-black ${
+                        seriesScope === id
+                          ? 'border-amber-500 bg-amber-400 text-slate-900'
+                          : 'border-amber-200 bg-white text-amber-900 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-100'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-[11px] text-amber-900/80 dark:text-amber-100/80">
+                  Time, room, coach
+                  {form.session_kind === 'private_pt' ? ' and members' : ''} apply
+                  to{' '}
+                  {seriesScope === 'one'
+                    ? 'this date only'
+                    : seriesScope === 'future'
+                      ? 'this date and later dates in the series'
+                      : 'every date in the series'}
+                  .
+                </p>
+              </div>
+            ) : null}
+            {!isGymDiaryBlockKind(form.session_kind) ? (
+              <input
+                className={fc()}
+                type="number"
+                placeholder="Capacity override"
+                value={form.capacity}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, capacity: e.target.value }))
+                }
+              />
+            ) : null}
+            {isGymDiaryBlockKind(form.session_kind) ? (
+              <textarea
+                className={fc() + ' min-h-[4rem] resize-y sm:col-span-2'}
+                placeholder={
+                  form.session_kind === 'away'
+                    ? 'Optional note (leave, flight, cover coach…)'
+                    : 'What this time is for (private — own training, admin, errands…)'
+                }
+                value={form.notes}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, notes: e.target.value }))
+                }
+              />
+            ) : (
+              <textarea
+                className={fc() + ' min-h-[4rem] resize-y sm:col-span-2'}
+                placeholder="Class plan / activities (members see this)"
+                value={form.class_plan}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, class_plan: e.target.value }))
+                }
+              />
+            )}
+            {selectedSessionId ? (
+              <select
+                className={fc()}
+                value={form.status}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, status: e.target.value }))
+                }
+              >
+                <option value="scheduled">Status: scheduled</option>
+                <option value="completed">Status: completed</option>
+                <option value="cancelled">Status: cancelled</option>
+              </select>
+            ) : null}
+            {showRepeatFields ? (
+              <RecurrenceFields
+                value={recurrence}
+                onChange={setRecurrence}
+                startDate={form.date}
+                inputClass={fc()}
+                accent="yellow"
+                unitLabel={
+                  form.session_kind === 'coach_personal'
+                    ? 'blocks'
+                    : form.session_kind === 'private_pt'
+                      ? 'sessions'
+                      : form.session_kind === 'away'
+                        ? 'days'
+                        : 'classes'
+                }
+              />
+            ) : null}
+            {!selectedSessionId ? (
+            <p className="sm:col-span-2 lg:col-span-3 text-[11px] text-slate-500 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 px-3 py-2">
+              <strong>After create:</strong>{' '}
+              {form.session_kind === 'away'
+                ? 'this person is marked away. Do not assign them classes until they are back. Last day away is optional.'
+                : form.session_kind === 'coach_personal'
+                ? 'personal time is blocked on the coach diary. Members cannot book it.'
+                : form.session_kind === 'private_pt'
+                  ? 'pick the members and room here — a series books those members on every date.'
+                  : 'the class opens automatically so you can assign a coach and add members. Coach can stay blank until later.'}
+            </p>
+            ) : null}
+            {form.date && form.start_time ? (
+              <a
+                className="sm:col-span-2 text-xs font-bold text-yellow-700 underline"
+                href={`/api/public/advisor/ics?module=fitgraph&date=${encodeURIComponent(form.date)}&start=${encodeURIComponent(form.start_time)}&title=${encodeURIComponent(
+                  form.session_kind === 'away'
+                    ? staffAwayTitle(form.personal_reason)
+                    : form.session_kind === 'coach_personal'
+                    ? form.notes.split('\n')[0] || 'Coach personal time'
+                    : form.session_kind === 'private_pt'
+                      ? 'Private PT'
+                      : 'GymAdvisor class'
+                )}&duration=${durationFromStartEnd(form.start_time, form.end_time || endFromStartDuration(form.start_time, 45))}&location=${encodeURIComponent(form.location || '')}`}
+              >
+                Download .ics (add to calendar)
+              </a>
+            ) : null}
+            <select
+              className={fc()}
+              value={form.programme_id}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, programme_id: e.target.value }))
+              }
+            >
+              <option value="">Programme (optional)…</option>
+              {(store.programmes || []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            {form.session_kind === 'class' ? (
+              <label className="flex items-center gap-2 text-sm font-medium px-1 sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={form.public}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, public: e.target.checked }))
+                  }
+                />
+                List on public website calendar
+              </label>
+            ) : (
+              <p className="sm:col-span-2 text-[11px] text-slate-500">
+                {form.session_kind === 'private_pt'
+                  ? 'Private PT stays off the public website. Pick members and room on this form.'
+                  : 'Personal time stays private on the coach diary. Members cannot book it.'}
+              </p>
+            )}
+          </FormCard>
+          {store && (form.programme_id || selectedSessionId)
+            ? (() => {
+                const s = selectedSessionId
+                  ? store.sessions.find((x) => x.id === selectedSessionId)
+                  : null;
+                const found =
+                  (form.programme_id &&
+                    (store.programmes || []).find(
+                      (p) => p.id === form.programme_id
+                    )) ||
+                  (s
+                    ? resolveProgrammeForSession(store.programmes || [], {
+                        id: s.id,
+                        class_type_id: s.class_type_id,
+                        coach_id: s.coach_id,
+                        session_kind: s.session_kind,
+                        programme_id: s.programme_id,
+                      })
+                    : null);
+                if (!found) return null;
+                return (
+                  <ProgrammeView
+                    programme={hydrateProgramme(
+                      found,
+                      listedFitMovements(store)
+                    )}
+                  />
+                );
+              })()
+            : null}
+          {selectedSessionId && store && !isGymDiaryBlockKind(form.session_kind) ? (
+            <div className="mt-4 space-y-3">
+              {(() => {
+                const s = store.sessions.find((x) => x.id === selectedSessionId);
+                if (!s) return null;
+                const roster = rosterFor(s.id);
+                return (
+                  <>
+                    <ClassBookedRoster
+                      roster={roster}
+                      emptyLabel={
+                        form.session_kind === 'private_pt'
+                          ? 'No private clients on this session yet. Add members above or search here.'
+                          : undefined
+                      }
+                      addQuery={memberQuery}
+                      onAddQuery={setMemberQuery}
+                      addChoices={memberChoices.map((c) => ({
+                        id: c.id,
+                        name: c.name,
+                        already: roster.some((b) => b.client_id === c.id),
+                      }))}
+                      selectedIds={addMemberIds}
+                      onToggleAdd={toggleAddMember}
+                      onBook={() => void saveMembersOnSession(s.id)}
+                      onMark={(id, status, clientId) => {
+                        void markRoster(id, status, clientId);
+                      }}
+                      saving={saving}
+                    />
+                    <p className="text-[11px] text-slate-500">
+                      Members saved to this class appear here — not the whole
+                      gym.{' '}
+                      <Link
+                        href="/dashboard/fitgraph/accounts"
+                        className="font-bold text-yellow-800 underline"
+                      >
+                        Send this month’s invoices
+                      </Link>
+                    </p>
+                  </>
+                );
+              })()}
+            </div>
+          ) : null}
+          </ScheduleEventPeek>
+
         </div>
       )}
     </FitgraphWorkbench>

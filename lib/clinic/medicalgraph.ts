@@ -503,6 +503,8 @@ export type MedicalgraphStore = {
   appointment_feedback?: import('@/lib/services/booking-feedback').ServiceFeedback[];
   announcements?: import('@/lib/services/member-announcements').MemberAnnouncement[];
   desk_notices?: import('@/lib/services/advisor-member-calendar').DeskMemberNotice[];
+  /** Floor desk tasks (today · assigned · follow-ups) */
+  floor_tasks?: import('@/lib/services/advisor-floor-tasks').FloorTask[];
   settings?: MedicalPublicSettings;
   updated_at?: string;
 };
@@ -547,6 +549,7 @@ export function emptyMedicalgraphStore(): MedicalgraphStore {
     appointment_feedback: [],
     announcements: [],
     desk_notices: [],
+    floor_tasks: [],
     record_shares: [],
     settings: defaultPublicSettings(),
   };

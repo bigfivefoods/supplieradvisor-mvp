@@ -286,7 +286,6 @@ $$;
 
 REVOKE ALL ON FUNCTION public.sa_dashboard_home_rollup(bigint) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.sa_dashboard_home_rollup(bigint) TO service_role;
-GRANT EXECUTE ON FUNCTION public.sa_dashboard_home_rollup(bigint) TO authenticated;
 
 -- ── Hot-path indexes (skip if column missing) ────────────────────────────────
 DO $$

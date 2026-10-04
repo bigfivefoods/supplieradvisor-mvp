@@ -61,6 +61,7 @@ export function AdvisorPortalManager({
   logoUrl,
   settings,
   onSavePwa,
+  showGrowPreviews = true,
 }: {
   eyebrow: string;
   values: AdvisorPortalValues;
@@ -81,6 +82,8 @@ export function AdvisorPortalManager({
   showBooking?: boolean;
   settings?: Record<string, unknown> | null;
   onSavePwa?: (patch: AdvisorPwaSettings) => void | Promise<void>;
+  /** Hide phone mocks when a sibling Preview tab already shows them. */
+  showGrowPreviews?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const origin =
@@ -292,7 +295,7 @@ export function AdvisorPortalManager({
           </div>
         </div>
 
-        {module ? (
+        {module && showGrowPreviews !== false ? (
           <AdvisorGrowPreviews
             module={module}
             eyebrow={eyebrow}

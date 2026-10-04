@@ -90,7 +90,29 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    const claimId = Number(body.id);
+    const companyId = Number(body.companyId);
+    if (!Number.isFinite(claimId) || claimId <= 0) {
+      return NextResponse.json({ error: 'id required' }, { status: 400 });
+    }
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
+
+    const supabase = getSupabaseServer();
+    const { data: existing, error: fetchError } = await supabase
+      .from('customer_claims')
+      .select('*')
+      .eq('id', claimId)
+      .eq('profile_id', companyId)
+      .single();
+    if (fetchError || !existing) {
+      return NextResponse.json({ error: 'Claim not found' }, { status: 404 });
+    }
+
     const fields = [
       'status',
       'priority',
@@ -109,11 +131,11 @@ export async function PATCH(request: NextRequest) {
     if (['resolved', 'closed', 'approved', 'rejected'].includes(String(body.status))) {
       updates.resolved_at = new Date().toISOString();
     }
-    const supabase = getSupabaseServer();
     const { data, error } = await supabase
       .from('customer_claims')
       .update(updates)
-      .eq('id', Number(body.id))
+      .eq('id', claimId)
+      .eq('profile_id', companyId)
       .select('*')
       .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -126,9 +148,23 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const id = Number(request.nextUrl.searchParams.get('id'));
-    if (!Number.isFinite(id)) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    const companyId = Number(request.nextUrl.searchParams.get('companyId'));
+    if (!Number.isFinite(id) || id <= 0) {
+      return NextResponse.json({ error: 'id required' }, { status: 400 });
+    }
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
+
     const supabase = getSupabaseServer();
-    const { error } = await supabase.from('customer_claims').delete().eq('id', id);
+    const { error } = await supabase
+      .from('customer_claims')
+      .delete()
+      .eq('id', id)
+      .eq('profile_id', companyId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
   } catch (e: unknown) {

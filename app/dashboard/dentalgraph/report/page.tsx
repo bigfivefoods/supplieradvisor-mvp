@@ -10,6 +10,7 @@ import { DataTable, StatRow } from '@/components/dental/DentalForm';
 import { healthSummaryLabel, isInjured } from '@/lib/health/body-map';
 import { clinicDiaryMetrics } from '@/lib/services/clinician-portal';
 import ManagementReportPanel from '@/components/advisors/ManagementReportPanel';
+import { CLINIC_REPORT_STATUS_DIM } from '@/lib/advisors/management-report';
 
 export default function ReportPage() {
   const { store, loading, summary, analysis } = useDentalgraph();
@@ -40,16 +41,40 @@ export default function ReportPage() {
 
   return (
     <DentalgraphWorkbench
-      title="Management report"
-      titleAccent="Insights · A4 landscape"
-      description="Fill rate, attendance, clinician load, clinical alerts, and no-show soft-blocks (last 30 days)."
+      title="Reports"
+      titleAccent="slice & dice · pack · trends"
+      description="One slicer at the top. Tabs of reports underneath — each list has a graph above it."
     >
       {loading || !store ? (
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
 
-      <ManagementReportPanel advisor="dentalgraph" className="mb-6" />
+      <ManagementReportPanel
+        advisor="dentalgraph"
+        className="mb-6"
+        dimensions={[
+          ...((store?.staff || []).filter((p) => p.active !== false).length
+            ? [
+                {
+                  key: 'staffId',
+                  label: 'Clinician',
+                  options: (store?.staff || [])
+                    .filter((p) => p.active !== false)
+                    .map((p) => ({ id: p.id, label: p.name })),
+                },
+              ]
+            : []),
+          {
+            key: 'serviceId',
+            label: 'Service',
+            options: (store?.services || [])
+              .filter((s) => s.active !== false)
+              .map((s) => ({ id: s.id, label: s.name })),
+          },
+          CLINIC_REPORT_STATUS_DIM,
+        ]}
+      />
 
           <StatRow
             items={[

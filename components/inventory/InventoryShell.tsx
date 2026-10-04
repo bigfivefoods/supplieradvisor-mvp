@@ -11,6 +11,7 @@ import { RelationshipHeader } from '@/components/relationship/RelationshipChrome
 export const INVENTORY_PROCESS = [
   { href: '/dashboard/inventory', label: 'Command', short: 'Command', exact: true },
   { href: '/dashboard/inventory/products', label: 'Products', short: 'Products', exact: false },
+  { href: '/dashboard/inventory/storefront', label: 'Storefront', short: 'Storefront', exact: false },
   { href: '/dashboard/inventory/shared', label: 'Shared SKUs', short: 'SKUs', exact: false },
   { href: '/dashboard/inventory/warehouses', label: 'Locations', short: 'Locations', exact: false },
   { href: '/dashboard/inventory/stock', label: 'Live stock', short: 'Stock', exact: false },

@@ -64,7 +64,6 @@ async function allocateInflowToInvoiceIfRecognised(opts: {
   glAccountId: number;
   amount: number;
   memo: string;
-  date: string;
   privyUserId?: string | null;
 }): Promise<{ ok: true; journalId: number; entryNumber: string } | null> {
   const supabase = getSupabaseServer();
@@ -84,28 +83,29 @@ async function allocateInflowToInvoiceIfRecognised(opts: {
     (code.startsWith('4') && type !== 'asset');
   if (!isRevenue) return null;
 
-  const { bankIncomeMatchesInvoice } = await import(
+  const { soleOpenInvoiceForBankLine } = await import(
     '@/lib/accounting/dedupe-invoice-books'
   );
   const { data: invoices } = await supabase
     .from('invoices')
-    .select('id, invoice_number, total_amount, issue_date, status, metadata')
+    .select('id, invoice_number, total_amount, amount_paid, issue_date, status, counterparty_name')
     .eq('profile_id', opts.profileId)
     .eq('direction', 'receivable')
-    .not('status', 'in', '("draft","void","cancelled","canceled")')
+    .not('status', 'in', '("draft","void","cancelled","canceled","paid")')
     .limit(400);
-  const hit = (invoices || []).find((inv) =>
-    bankIncomeMatchesInvoice({
-      memo: opts.memo,
-      amount: opts.amount,
-      date: opts.date,
-      invoice: {
-        invoice_number: inv.invoice_number != null ? String(inv.invoice_number) : null,
-        total_amount: Number(inv.total_amount || 0),
-        issue_date: inv.issue_date != null ? String(inv.issue_date) : null,
-      },
-    })
-  );
+  const hit = soleOpenInvoiceForBankLine({
+    memo: opts.memo,
+    amount: opts.amount,
+    invoices: (invoices || []).map((inv) => ({
+      id: Number(inv.id),
+      invoice_number: inv.invoice_number != null ? String(inv.invoice_number) : null,
+      total_amount: Number(inv.total_amount || 0),
+      amount_paid: Number(inv.amount_paid || 0),
+      status: inv.status != null ? String(inv.status) : null,
+      counterparty_name:
+        inv.counterparty_name != null ? String(inv.counterparty_name) : null,
+    })),
+  });
   if (!hit) return null;
 
   const matched = await matchBankToInvoice({
@@ -205,6 +205,71 @@ async function matchBankInflowToMemberAccount(opts: {
     ok: true,
     journalId: Number(txn?.matched_journal_id || 0),
     entryNumber: 'AR-SETTLE',
+  };
+}
+
+/**
+ * Payment coded to an expense account: settle the one open supplier bill with
+ * the same balance instead of debiting the expense again.
+ */
+async function allocateOutflowToBillIfRecognised(opts: {
+  profileId: number;
+  bankTxnId: number | string;
+  glAccountId: number;
+  amount: number;
+  memo: string;
+  privyUserId?: string | null;
+}): Promise<{ ok: true; journalId: number; entryNumber: string } | null> {
+  const supabase = getSupabaseServer();
+  const { data: acct } = await supabase
+    .from('chart_of_accounts')
+    .select('id, code, account_type')
+    .eq('id', opts.glAccountId)
+    .eq('profile_id', opts.profileId)
+    .maybeSingle();
+  const type = String(acct?.account_type || '').toLowerCase();
+  if (type !== 'expense' && type !== 'cogs') return null;
+  const { soleOpenInvoiceForBankLine } = await import(
+    '@/lib/accounting/dedupe-invoice-books'
+  );
+  const { data: invoices } = await supabase
+    .from('invoices')
+    .select('id, invoice_number, total_amount, amount_paid, status, counterparty_name')
+    .eq('profile_id', opts.profileId)
+    .eq('direction', 'payable')
+    .not('status', 'in', '("draft","void","cancelled","canceled","paid")')
+    .limit(400);
+  const hit = soleOpenInvoiceForBankLine({
+    memo: opts.memo,
+    amount: Math.abs(opts.amount),
+    invoices: (invoices || []).map((inv) => ({
+      id: Number(inv.id),
+      invoice_number: inv.invoice_number != null ? String(inv.invoice_number) : null,
+      total_amount: Number(inv.total_amount || 0),
+      amount_paid: Number(inv.amount_paid || 0),
+      status: inv.status != null ? String(inv.status) : null,
+      counterparty_name:
+        inv.counterparty_name != null ? String(inv.counterparty_name) : null,
+    })),
+  });
+  if (!hit) return null;
+  const matched = await matchBankToInvoice({
+    profileId: opts.profileId,
+    bankTxnId: opts.bankTxnId,
+    invoiceId: hit.id,
+    privyUserId: opts.privyUserId,
+  });
+  if (!matched.ok) return null;
+  const { data: txn } = await supabase
+    .from('bank_transactions')
+    .select('matched_journal_id')
+    .eq('id', opts.bankTxnId)
+    .eq('profile_id', opts.profileId)
+    .maybeSingle();
+  return {
+    ok: true,
+    journalId: Number(txn?.matched_journal_id || 0),
+    entryNumber: 'AP-SETTLE',
   };
 }
 
@@ -368,10 +433,6 @@ export async function allocateBankTransaction(params: AllocateParams): Promise<
         glAccountId: Number(params.glAccountId),
         amount,
         memo: String(params.memo || txn.description || ''),
-        date:
-          (txn.txn_date as string | null) ||
-          (txn.tx_date ? String(txn.tx_date).slice(0, 10) : null) ||
-          new Date().toISOString().slice(0, 10),
         privyUserId: params.privyUserId,
       });
       if (matched) return matched;
@@ -411,6 +472,16 @@ export async function allocateBankTransaction(params: AllocateParams): Promise<
         privyUserId: params.privyUserId,
       });
       if (supplierMatch) return supplierMatch;
+    } else {
+      const billed = await allocateOutflowToBillIfRecognised({
+        profileId: params.profileId,
+        bankTxnId: params.bankTxnId,
+        glAccountId: Number(params.glAccountId),
+        amount,
+        memo: String(params.memo || txn.description || ''),
+        privyUserId: params.privyUserId,
+      });
+      if (billed) return billed;
     }
   }
 
@@ -642,6 +713,38 @@ export async function unallocateBankTransaction(params: {
  * Match bank receipt/payment to an invoice and record a payment.
  * Inflow → AR invoice; Outflow → AP bill.
  */
+async function settledAmountForInvoice(
+  profileId: number,
+  invoiceId: number
+): Promise<number> {
+  const supabase = getSupabaseServer();
+  const { data: journals } = await supabase
+    .from('journal_entries')
+    .select('id, metadata')
+    .eq('profile_id', profileId)
+    .eq('source', 'invoice_settlement')
+    .eq('status', 'posted')
+    .filter('metadata->>invoice_id', 'eq', String(invoiceId));
+  const ids = (journals || [])
+    .filter((journal) => {
+      const meta =
+        journal.metadata && typeof journal.metadata === 'object'
+          ? (journal.metadata as Record<string, unknown>)
+          : {};
+      return !Number(meta.reversed_by_journal_id || 0);
+    })
+    .map((journal) => Number(journal.id))
+    .filter((id) => Number.isFinite(id));
+  if (!ids.length) return 0;
+  const { data: lines } = await supabase
+    .from('journal_lines')
+    .select('credit')
+    .in('journal_entry_id', ids);
+  return round2(
+    (lines || []).reduce((sum, line) => sum + Number(line.credit || 0), 0)
+  );
+}
+
 export async function matchBankToInvoice(params: {
   profileId: number;
   bankTxnId: number | string;
@@ -660,6 +763,13 @@ export async function matchBankToInvoice(params: {
     .eq('profile_id', params.profileId)
     .maybeSingle();
   if (!txn) return { ok: false, error: 'Bank transaction not found', status: 404 };
+  if (
+    txn.allocation_status === 'matched_invoice' ||
+    txn.allocation_status === 'excluded' ||
+    (txn.allocation_status === 'allocated' && txn.matched_journal_id)
+  ) {
+    return { ok: false, error: 'Transaction already allocated', status: 400 };
+  }
   const txnDate =
     (txn.txn_date as string | null) ||
     (txn.tx_date ? String(txn.tx_date).slice(0, 10) : null) ||
@@ -685,6 +795,14 @@ export async function matchBankToInvoice(params: {
     return {
       ok: false,
       error: `Invoice direction is ${inv.direction}; bank amount is ${isInflow ? 'inflow (AR)' : 'outflow (AP)'}`,
+      status: 400,
+    };
+  }
+  const alreadySettled = await settledAmountForInvoice(params.profileId, Number(inv.id));
+  if (alreadySettled + amount > round2(Number(inv.total_amount || 0)) + 0.05) {
+    return {
+      ok: false,
+      error: 'This invoice is already settled for that amount',
       status: 400,
     };
   }

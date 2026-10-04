@@ -11,10 +11,13 @@ assert.match(routeActionBody, /Math\.min\(80,\s*Math\.max\(1,\s*Math\.trunc\(req
 assert.match(routeActionBody, /remaining/);
 assert.match(routeActionBody, /needsGymCrmStamp\(person\)/);
 assert.match(routeActionBody, /if \(processed >= limit\) break/);
-assert.match(routeActionBody, /await saveStore\(companyId,\s*meta,\s*store\)/);
+assert.match(
+  routeActionBody,
+  /await savePatchForKeys\(companyId,\s*meta,\s*store,\s*'clients'\)/
+);
 assert.match(routeActionBody, /return NextResponse\.json/);
 assert.ok(
-  routeActionBody.indexOf('await saveStore(companyId, meta, store)') <
+  routeActionBody.indexOf("await savePatchForKeys(companyId, meta, store, 'clients')") <
     routeActionBody.indexOf('return NextResponse.json')
 );
 

@@ -11,6 +11,13 @@ import {
   BIG_FIVE_FOODS_SEED,
 } from './big-five-foods-seed';
 import type { StoreChannel, StoreCompany, StoreProduct } from './types';
+import {
+  applyStorefrontCatalog,
+  DEFAULT_STOREFRONT_CATALOG,
+  gymStorefrontItemId,
+  storefrontCatalogFromProfileMetadata,
+  type StorefrontCatalogPick,
+} from './catalog-pick';
 
 function supabaseClient(preferAdmin = false) {
   try {
@@ -127,6 +134,7 @@ function mapCompany(
     tagline:
       String(meta.store_tagline || '').trim() ||
       'Order on the verified network — one OS for trade and proof',
+    storefrontCatalog: storefrontCatalogFromProfileMetadata(meta),
   };
 }
 
@@ -166,15 +174,15 @@ function mapDbProduct(row: Record<string, unknown>): StoreProduct {
     channels.length === 1 && channels[0] === 'institutional';
   const sell = row.sell_price != null ? Number(row.sell_price) : null;
   const prices = Array.isArray(row.prices) ? row.prices : [];
-  let price = Number.isFinite(sell as number) ? sell : null;
+  let price = Number.isFinite(sell as number) && (sell as number) > 0 ? sell : null;
   let currency = String(row.base_currency || 'ZAR');
   if (price == null && prices[0]) {
     const p0 = prices[0] as { sell_price?: number; currency?: string };
-    if (p0.sell_price != null) price = Number(p0.sell_price);
+    const n = p0.sell_price != null ? Number(p0.sell_price) : NaN;
+    if (Number.isFinite(n) && n > 0) price = n;
     if (p0.currency) currency = String(p0.currency);
   }
-  const priceOnRequest =
-    quoteFirst || price == null || meta.priceOnRequest === true;
+  const priceOnRequest = price == null;
 
   const packSize =
     meta.packSize != null
@@ -231,7 +239,7 @@ function mapDbProduct(row: Record<string, unknown>): StoreProduct {
     channels,
     channelFlags: channels,
     channel: channels[0] || null,
-    price: priceOnRequest ? null : price,
+    price,
     currency,
     priceOnRequest,
     inStock,
@@ -265,7 +273,7 @@ export function toPublicCatalogProduct(p: StoreProduct) {
     quoteFirst: p.quoteFirst,
     inStock: p.inStock !== false,
     priceOnRequest: p.priceOnRequest,
-    price: p.priceOnRequest ? null : p.price,
+    price: p.price ?? null,
     currency: p.currency,
     active: p.active,
     category: p.category,
@@ -277,6 +285,9 @@ export async function listStoreProducts(
   opts?: { channel?: string | null; q?: string | null }
 ): Promise<StoreProduct[]> {
   let products: StoreProduct[] = [];
+  const pick: StorefrontCatalogPick =
+    company.storefrontCatalog || DEFAULT_STOREFRONT_CATALOG;
+  let hadDbProducts = false;
 
   if (company.id > 0) {
     const supabase = supabaseClient(true);
@@ -290,9 +301,11 @@ export async function listStoreProducts(
       .limit(500);
 
     if (!error && data?.length) {
+      hadDbProducts = true;
       products = data
         .filter((p) => {
           if (p.is_sellable === false) return false;
+          if (pick.mode === 'selected') return true;
           const meta = (p.metadata || {}) as Record<string, unknown>;
           if (meta.storefront_public === false) return false;
           if (meta.storefrontPublic === false) return false;
@@ -302,17 +315,16 @@ export async function listStoreProducts(
     }
   }
 
-  // Fallback seed catalog for Big Five Foods when DB empty
-  if (
-    products.length === 0 &&
-    company.slug === BIG_FIVE_FOODS_SLUG
-  ) {
+  // Fallback seed catalog for Big Five Foods when this company has no SKUs yet
+  if (!hadDbProducts && company.slug === BIG_FIVE_FOODS_SLUG) {
     products = seedDefsAsStoreProducts();
   }
 
   if (company.id > 0) {
     products = await appendGymShopToStoreProducts(company, products);
   }
+
+  products = applyStorefrontCatalog(products, pick);
 
   if (opts?.channel) {
     const ch = String(opts.channel).toLowerCase();
@@ -370,7 +382,7 @@ async function appendGymShopToStoreProducts(
       if (sku && skus.has(sku)) continue;
       if (names.has(item.name.trim().toLowerCase())) continue;
       extra.push({
-        id: `gym-${item.kind}-${item.id}`,
+        id: gymStorefrontItemId(item.kind, item.id),
         sku: item.code || null,
         name: item.name,
         shortName: item.name,
@@ -388,7 +400,7 @@ async function appendGymShopToStoreProducts(
         currency: 'ZAR',
         priceOnRequest: false,
         inStock: true,
-        externalRef: `gym-${item.kind}-${item.id}`,
+        externalRef: gymStorefrontItemId(item.kind, item.id),
         quoteFirst: false,
         active: true,
         category:
@@ -537,7 +549,7 @@ export async function seedBigFiveFoodsCatalog(opts?: {
         channelFlags: s.channels,
         channels: s.channels,
         quoteFirst: Boolean(s.quoteFirst),
-        priceOnRequest: s.price == null || Boolean(s.quoteFirst),
+        priceOnRequest: s.price == null,
         inStock: !s.quoteFirst,
         madeToOrder: Boolean(s.quoteFirst),
         storefront_public: true,

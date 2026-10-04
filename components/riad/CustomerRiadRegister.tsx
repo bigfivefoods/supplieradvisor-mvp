@@ -209,6 +209,7 @@ export default function CustomerRiadRegister({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: item.id,
+          companyId,
           status,
           resolution:
             extras?.resolution ??
@@ -256,7 +257,7 @@ export default function CustomerRiadRegister({
 
   const remove = async (item: CustomerRiadRecord) => {
     if (!confirm('Delete this RIAD entry?')) return;
-    const res = await fetch(`/api/customers/riad?id=${item.id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/customers/riad?id=${item.id}&companyId=${companyId}`, { method: 'DELETE' });
     if (!res.ok) {
       const d = await res.json();
       toast.error(d.error || 'Delete failed');

@@ -23,6 +23,7 @@ import {
   MessageCircle,
   Pencil,
   X,
+  ChevronDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
@@ -35,6 +36,18 @@ import {
   statusBadgeClass,
   type DocLineItem,
 } from '@/lib/customers/documents';
+import {
+  filterGroupedDocs,
+  groupDocs,
+  groupMoneyTotal,
+  type DocListGroupBy,
+} from '@/lib/customers/doc-list-group';
+import { rangeForTimeKey } from '@/lib/customers/doc-desk-analytics';
+import {
+  initialPeriodSlicerValue,
+  type PeriodSlicerValue,
+} from '@/components/accounting/PeriodSlicer';
+import DocDeskAnalytics from '@/components/customers/DocDeskAnalytics';
 import type { CustomerRecord } from '@/lib/customers/types';
 import {
   customerInviteStatusLabel,
@@ -51,6 +64,16 @@ import { CompanyRequired, CustomersHeader } from '@/components/customers/Custome
 import CommissionBadge from '@/components/sales/CommissionBadge';
 import FxRateStrip from '@/components/fx/FxRateStrip';
 import LinkedOrdersPanel from '@/components/orders/LinkedOrdersPanel';
+import {
+  canIssueQuote,
+  canStartProcessing,
+  parseTradeThread,
+} from '@/lib/customers/trade-thread';
+import {
+  isEnquiryInboxRow,
+  isIssuedQuoteRow,
+  resolveEnquiryUid,
+} from '@/lib/customers/enquiry-uid';
 
 type DocType = 'quote' | 'order' | 'invoice';
 
@@ -63,6 +86,7 @@ type DocRecord = Record<string, unknown> & {
   total_amount?: number;
   amount_paid?: number | null;
   currency?: string;
+  created_at?: string | null;
   notes?: string | null;
   invoice_number?: string | null;
   source_po_id?: number | null;
@@ -87,10 +111,21 @@ const CONFIG: Record<
   }
 > = {
   quote: {
-    title: 'Quotes',
-    description: 'Build commercial quotes from your product catalogue. Accept and convert to sales orders.',
+    title: 'Enquiries & quotes',
+    description:
+      'Storefront enquiries land here. Issue a quotation (portal + email). The customer accepts with a PO, pays the deposit, then you process the order.',
     numberField: 'quote_number',
-    statuses: ['draft', 'sent', 'accepted', 'rejected', 'expired', 'converted'],
+    statuses: [
+      'enquiry',
+      'draft',
+      'sent',
+      'accepted',
+      'deposit_due',
+      'deposit_paid',
+      'rejected',
+      'expired',
+      'converted',
+    ],
     convertLabel: 'Convert to order',
     convertAction: 'convert_to_order',
   },
@@ -115,12 +150,15 @@ export default function DocumentWorkspace({
   type,
   beforeHeader,
   variant = 'default',
+  focus,
 }: {
   type: DocType;
   /** Optional content rendered above CustomersHeader (e.g. Sales | Inbound tabs) */
   beforeHeader?: ReactNode;
   /** `sales` = dark sales-portal chrome (no main CRM shell) */
   variant?: 'default' | 'sales';
+  /** Incoming storefront enquiries inbox */
+  focus?: 'enquiry';
 }) {
   return (
     <CompanyRequired>
@@ -131,7 +169,12 @@ export default function DocumentWorkspace({
           </div>
         }
       >
-        <DocInner type={type} beforeHeader={beforeHeader} variant={variant} />
+        <DocInner
+          type={type}
+          beforeHeader={beforeHeader}
+          variant={variant}
+          focus={focus}
+        />
       </Suspense>
     </CompanyRequired>
   );
@@ -141,12 +184,18 @@ function DocInner({
   type,
   beforeHeader,
   variant = 'default',
+  focus,
 }: {
   type: DocType;
   beforeHeader?: ReactNode;
   variant?: 'default' | 'sales';
+  focus?: 'enquiry';
 }) {
   const sales = variant === 'sales';
+  const enquiryInbox = focus === 'enquiry';
+  const canGroupList =
+    type === 'quote' || type === 'order' || type === 'invoice';
+  const expandableList = type === 'quote' || type === 'order';
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
@@ -170,7 +219,21 @@ function DocInner({
   const peerCustomerApplied = useRef(false);
   const overdueResendHinted = useRef(false);
   const whatsappTriggered = useRef(false);
-  const cfg = CONFIG[type];
+  const cfg = enquiryInbox
+    ? {
+        ...CONFIG.quote,
+        title: 'Enquiries',
+        description:
+          'Every enquiry has a stable ENQ UID. After you issue a quotation it stays here and also appears under Quotes as QT-… (same date and suffix).',
+        statuses: [
+          'enquiry',
+          'sent',
+          'accepted',
+          'deposit_due',
+          'deposit_paid',
+        ],
+      }
+    : CONFIG[type];
   const [docs, setDocs] = useState<DocRecord[]>([]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
@@ -227,7 +290,20 @@ function DocInner({
   const [payRef, setPayRef] = useState('');
   const [payMethod, setPayMethod] = useState('eft');
   const [statusFilter, setStatusFilter] = useState(
-    statusFromUrl && statusFromUrl !== 'all' ? statusFromUrl : 'all'
+    enquiryInbox
+      ? 'all'
+      : statusFromUrl && statusFromUrl !== 'all'
+        ? statusFromUrl
+        : 'all'
+  );
+  const [groupBy, setGroupBy] = useState<DocListGroupBy>('date');
+  const [listCustomerId, setListCustomerId] = useState('all');
+  const [listTimeKey, setListTimeKey] = useState<string | null>(null);
+  const [period, setPeriod] = useState<PeriodSlicerValue>(() =>
+    initialPeriodSlicerValue('this_month')
+  );
+  const [collapsedIds, setCollapsedIds] = useState<Record<number, boolean>>(
+    {}
   );
 
   const [customerId, setCustomerId] = useState('');
@@ -267,10 +343,16 @@ function DocInner({
   const [productSearch, setProductSearch] = useState('');
 
   useEffect(() => {
+    if (enquiryInbox) {
+      if (statusFromUrl && statusFromUrl !== 'all') {
+        setStatusFilter(statusFromUrl);
+      }
+      return;
+    }
     if (statusFromUrl && statusFromUrl !== 'all') {
       setStatusFilter(statusFromUrl);
     }
-  }, [statusFromUrl]);
+  }, [statusFromUrl, enquiryInbox]);
 
   // Prefill customer from linked platform peer (pending connection / network)
   useEffect(() => {
@@ -302,6 +384,11 @@ function DocInner({
     try {
       const params = new URLSearchParams({ companyId: String(companyId), type });
       if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (canGroupList) {
+        if (period.from) params.set('from', period.from);
+        if (period.to) params.set('to', period.to);
+        params.set('limit', '200');
+      }
       const settingsQs = privyUserId
         ? `companyId=${companyId}&privyUserId=${encodeURIComponent(privyUserId)}`
         : `companyId=${companyId}`;
@@ -343,7 +430,16 @@ function DocInner({
     } finally {
       setLoading(false);
     }
-  }, [companyId, type, statusFilter, privyUserId]);
+  }, [
+    companyId,
+    type,
+    canGroupList,
+    statusFilter,
+    enquiryInbox,
+    privyUserId,
+    period.from,
+    period.to,
+  ]);
 
   useEffect(() => {
     void load();
@@ -631,6 +727,51 @@ function DocInner({
   const totals = useMemo(
     () => calcDocTotals(lines.filter((l) => l.name), Number(taxRate) || 0),
     [lines, taxRate]
+  );
+
+  const quoteCustomerOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const c of customers) {
+      const label = String(
+        c.trading_name || c.legal_name || c.company_name || `Customer ${c.id}`
+      ).trim();
+      if (c.id) byId.set(String(c.id), label || `Customer ${c.id}`);
+    }
+    for (const d of docs) {
+      const id = d.customer_id ? String(d.customer_id) : '';
+      if (!id || byId.has(id)) continue;
+      byId.set(id, String(d.customer_name || `Customer ${id}`).trim());
+    }
+    return [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [customers, docs]);
+
+  const visibleDocs = useMemo(() => {
+    const inbox = enquiryInbox
+      ? docs.filter((d) => isEnquiryInboxRow(d))
+      : type === 'quote'
+        ? docs.filter((d) => isIssuedQuoteRow(d))
+        : docs;
+    if (!canGroupList) return inbox;
+    const slice = listTimeKey ? rangeForTimeKey(listTimeKey) : null;
+    return filterGroupedDocs(inbox, {
+      customerId: listCustomerId,
+      dateFrom: slice?.from || period.from,
+      dateTo: slice?.to || period.to,
+    });
+  }, [
+    docs,
+    enquiryInbox,
+    canGroupList,
+    listCustomerId,
+    listTimeKey,
+    period.from,
+    period.to,
+  ]);
+
+  const docGroups = useMemo(
+    () =>
+      canGroupList ? groupDocs(visibleDocs, groupBy) : groupDocs(docs, 'none'),
+    [canGroupList, visibleDocs, docs, groupBy]
   );
 
   const catalogueCurrencies = useMemo(() => {
@@ -1208,6 +1349,32 @@ function DocInner({
       toast.error(e instanceof Error ? e.message : 'Failed');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const issueQuote = async (doc: DocRecord) => {
+    setBusyId(Number(doc.id));
+    try {
+      const res = await fetch('/api/customers/docs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          type: 'quote',
+          id: doc.id,
+          action: 'issue_quote',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not issue quote');
+      toast.success('Quotation issued on the customer portal');
+      const issued = (data.quote || doc) as DocRecord;
+      await emailDoc(issued);
+      void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -2137,13 +2304,13 @@ function DocInner({
               Records are saved under your company · commission 4%–6% (super-link 6%)
             </p>
           </div>
-          {newBtn}
+          {enquiryInbox ? null : newBtn}
         </div>
       ) : (
         <CustomersHeader
           title={cfg.title}
           description={cfg.description}
-          action={newBtn}
+          action={enquiryInbox ? null : newBtn}
         />
       )}
 
@@ -2779,6 +2946,28 @@ function DocInner({
         </div>
       ) : null}
 
+      {canGroupList ? (
+        <DocDeskAnalytics
+          noun={cfg.title}
+          period={period}
+          onPeriod={(next) => {
+            setPeriod(next);
+            setListTimeKey(null);
+          }}
+          docs={docs}
+          listDocs={visibleDocs}
+          groupBy={groupBy}
+          onGroupBy={setGroupBy}
+          statusFilter={statusFilter}
+          onStatus={setStatusFilter}
+          statuses={cfg.statuses}
+          customerId={listCustomerId}
+          onCustomer={setListCustomerId}
+          timeKey={listTimeKey}
+          onTimeKey={setListTimeKey}
+          customers={quoteCustomerOptions.map(([id, name]) => ({ id, name }))}
+        />
+      ) : (
       <div className="flex flex-wrap gap-2 mb-4 items-center">
         <select
           className={
@@ -2795,6 +2984,7 @@ function DocInner({
           ))}
         </select>
       </div>
+      )}
 
       {type === 'invoice' &&
       (statusFilter === 'overdue' || actionFromUrl === 'resend') ? (
@@ -2856,6 +3046,29 @@ function DocInner({
         </div>
       ) : null}
 
+      {expandableList && visibleDocs.length > 0 ? (
+        <div className="mb-2 flex justify-end gap-2">
+          <button
+            type="button"
+            className="text-[11px] font-black uppercase tracking-wide text-[#0077b6]"
+            onClick={() => setCollapsedIds({})}
+          >
+            Expand all
+          </button>
+          <button
+            type="button"
+            className="text-[11px] font-black uppercase tracking-wide text-slate-500"
+            onClick={() =>
+              setCollapsedIds(
+                Object.fromEntries(visibleDocs.map((d) => [d.id, true]))
+              )
+            }
+          >
+            Collapse all
+          </button>
+        </div>
+      ) : null}
+
       <div
         className={
           sales
@@ -2873,15 +3086,69 @@ function DocInner({
           <div
             className={`p-16 text-center text-sm ${sales ? 'text-neutral-500' : 'text-neutral-500'}`}
           >
-            No {cfg.title.toLowerCase()} yet. Create one and pick products from your catalogue.
+            {enquiryInbox
+              ? 'No storefront enquiries waiting. They appear here when someone orders from your public store.'
+              : `No ${cfg.title.toLowerCase()} yet. Create one and pick products from your catalogue.`}
+          </div>
+        ) : visibleDocs.length === 0 ? (
+          <div
+            className={`p-16 text-center text-sm ${sales ? 'text-neutral-500' : 'text-neutral-500'}`}
+          >
+            No {cfg.title.toLowerCase()} match this date or customer.
           </div>
         ) : (
+          <div>
+            {docGroups.map((g) => (
+              <div key={g.key}>
+                {g.label ? (
+                  <div
+                    className={`px-5 py-2.5 flex flex-wrap items-center justify-between gap-2 ${
+                      sales
+                        ? 'bg-slate-50 border-b border-neutral-100'
+                        : 'bg-slate-50 border-b'
+                    }`}
+                  >
+                    <span
+                      className={`text-sm font-black ${sales ? 'text-slate-900' : 'text-slate-800'}`}
+                    >
+                      {g.label}
+                    </span>
+                    <span className="text-xs font-semibold text-neutral-500 tabular-nums">
+                      {g.items.length}{' '}
+                      {g.items.length === 1
+                        ? cfg.title.replace(/s$/, '').toLowerCase()
+                        : cfg.title.toLowerCase()}
+                      {(() => {
+                        const t = groupMoneyTotal(g.items);
+                        return t
+                          ? ` · ${formatMoney(t.amount, t.currency)}`
+                          : '';
+                      })()}
+                    </span>
+                  </div>
+                ) : null}
           <ul className={sales ? 'divide-y divide-neutral-100' : 'divide-y'}>
-            {docs.map((d) => {
-              const num = String(d[cfg.numberField] || d.id);
+            {g.items.map((d) => {
+              const quoteNo = String(d[cfg.numberField] || d.id);
+              const enquiryUid = type === 'quote' ? resolveEnquiryUid(d) : null;
+              const num =
+                enquiryInbox && enquiryUid ? enquiryUid : quoteNo;
+              const pairLabel =
+                type === 'quote' && enquiryUid
+                  ? enquiryInbox &&
+                    quoteNo.toUpperCase() !== enquiryUid &&
+                    quoteNo.toUpperCase().startsWith('QT-')
+                    ? `quote ${quoteNo}`
+                    : !enquiryInbox &&
+                        enquiryUid !== quoteNo.toUpperCase()
+                      ? `enquiry ${enquiryUid}`
+                      : null
+                  : null;
               const itemCount = Array.isArray(d.items) ? d.items.length : 0;
               const isShared = (d.visibility || 'seller_only') === 'shared';
               const isHighlight = highlightDocId != null && Number(d.id) === highlightDocId;
+              const isExpanded =
+                expandableList && collapsedIds[d.id] !== true;
               return (
                 <li
                   key={d.id}
@@ -2896,6 +3163,25 @@ function DocInner({
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
+                      {expandableList ? (
+                        <button
+                          type="button"
+                          className="p-0.5 rounded-lg text-slate-500 hover:bg-slate-100"
+                          title={isExpanded ? 'Collapse' : 'Expand'}
+                          onClick={() =>
+                            setCollapsedIds((prev) => ({
+                              ...prev,
+                              [d.id]: prev[d.id] !== true,
+                            }))
+                          }
+                        >
+                          <ChevronDown
+                            className={`w-4 h-4 transition-transform ${
+                              isExpanded ? '' : 'rotate-[-90deg]'
+                            }`}
+                          />
+                        </button>
+                      ) : null}
                       <span className={`font-bold font-mono ${sales ? 'text-slate-900' : ''}`}>
                         {num}
                       </span>
@@ -2922,6 +3208,7 @@ function DocInner({
                     >
                       {d.customer_name || 'No customer'} · {itemCount} line{itemCount === 1 ? '' : 's'}
                       {d.created_at ? ` · ${String(d.created_at).slice(0, 10)}` : ''}
+                      {pairLabel ? ` · ${pairLabel}` : ''}
                       {type === 'invoice' && Number(d.amount_paid || 0) > 0.009
                         ? ` · paid ${formatMoney(Number(d.amount_paid || 0), String(d.currency || 'ZAR'))}`
                         : ''}
@@ -3075,7 +3362,35 @@ function DocInner({
                         </>
                       )}
                     </button>
-                    {cfg.convertAction && d.status !== 'converted' && d.status !== 'invoiced' && (
+                    {type === 'quote' &&
+                      canIssueQuote(
+                        parseTradeThread(d.metadata, d.status),
+                        d.status
+                      ) && (
+                      <button
+                        type="button"
+                        disabled={busyId === d.id}
+                        onClick={() => void issueQuote(d)}
+                        className="btn-primary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
+                        title="Share a commercial quotation on the customer portal and email it"
+                      >
+                        {busyId === d.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <>
+                            Issue quote <ArrowRight className="w-3 h-3" />
+                          </>
+                        )}
+                      </button>
+                    )}
+                    {cfg.convertAction &&
+                      d.status !== 'converted' &&
+                      d.status !== 'invoiced' &&
+                      (type !== 'quote' ||
+                        canStartProcessing(
+                          parseTradeThread(d.metadata, d.status),
+                          d.status
+                        )) && (
                       <button
                         type="button"
                         disabled={busyId === d.id}
@@ -3084,7 +3399,9 @@ function DocInner({
                         title={
                           cfg.convertAction === 'convert_to_invoice'
                             ? 'Creates a draft invoice you can review, then send from Invoices. Nothing is emailed yet.'
-                            : cfg.convertLabel
+                            : type === 'quote'
+                              ? 'Only after the customer accepts with a PO and pays the deposit (storefront thread).'
+                              : cfg.convertLabel
                         }
                       >
                         {busyId === d.id ? (
@@ -3201,9 +3518,15 @@ function DocInner({
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
-                  {isHighlight && Array.isArray(d.items) && d.items.length > 0 ? (
-                    <div className="w-full rounded-xl border border-amber-200/80 bg-white/80 px-3 py-2">
-                      <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-amber-900">
+                  {(isHighlight || isExpanded) &&
+                  Array.isArray(d.items) &&
+                  d.items.length > 0 ? (
+                    <div className={`w-full rounded-xl border px-3 py-2 ${
+                      isHighlight
+                        ? 'border-amber-200/80 bg-white/80'
+                        : 'border-slate-200 bg-slate-50/70'
+                    }`}>
+                      <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
                         {type === 'invoice' ? 'Invoice lines' : 'Lines'}
                       </p>
                       <ul className="space-y-0.5">
@@ -3230,6 +3553,9 @@ function DocInner({
               );
             })}
           </ul>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 

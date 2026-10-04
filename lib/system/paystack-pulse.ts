@@ -40,6 +40,8 @@ export type PaystackWebhookPulse = {
   lastRealAt?: string | null;
   lastRealAgeHours?: number | null;
   lastProbeAt?: string | null;
+  /** Real charge/refund/CIPC events in the last 24h. Probes are not counted. */
+  real24hCount?: number;
 };
 
 function thresholdHours(): number {
@@ -70,13 +72,14 @@ export async function loadPaystackWebhookPulse(): Promise<PaystackWebhookPulse> 
     lastRealAt: null,
     lastRealAgeHours: null,
     lastProbeAt: null,
+    real24hCount: 0,
   };
 
   try {
     const supabase = getSupabaseServer();
     const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
 
-    const [latestAny, latestReal, latestProbe, countRes] = await Promise.all([
+    const [latestAny, latestReal, latestProbe, countRes, realCountRes] = await Promise.all([
       supabase
         .from('activity_log')
         .select('profile_id, action, summary, metadata, created_at')
@@ -103,6 +106,11 @@ export async function loadPaystackWebhookPulse(): Promise<PaystackWebhookPulse> 
         .select('id', { count: 'exact', head: true })
         .in('action', [...PULSE_ACTIONS])
         .gte('created_at', since),
+      supabase
+        .from('activity_log')
+        .select('id', { count: 'exact', head: true })
+        .in('action', [...REAL_PULSE_ACTIONS])
+        .gte('created_at', since),
     ]);
 
     const latest = latestAny.data;
@@ -111,11 +119,13 @@ export async function loadPaystackWebhookPulse(): Promise<PaystackWebhookPulse> 
       ? String(latestProbe.data.created_at)
       : null;
     const last24hCount = countRes.count ?? 0;
+    const real24hCount = realCountRes.count ?? 0;
 
     if (!latest?.created_at) {
       return {
         ...empty,
         last24hCount,
+        real24hCount,
         stale: false,
         status: 'never',
       };
@@ -149,6 +159,7 @@ export async function loadPaystackWebhookPulse(): Promise<PaystackWebhookPulse> 
       lastCompanyId: latest.profile_id ? Number(latest.profile_id) : null,
       lastReference: meta.reference ? String(meta.reference) : null,
       last24hCount,
+      real24hCount,
       stale: isStale,
       status,
       staleHoursThreshold: thr,

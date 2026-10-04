@@ -246,6 +246,11 @@ function ChartCard({
   );
 }
 
+export function ManagementChartCard({ chart }: { chart: ManagementChart }) {
+  const isDark = useIsDark();
+  return <ChartCard chart={chart} isDark={isDark} />;
+}
+
 export default function ManagementReportCharts({
   report,
 }: {
@@ -274,7 +279,7 @@ export default function ManagementReportCharts({
               : 'md:grid-cols-2'
         }`}
       >
-        {charts.slice(0, 4).map((c) => (
+        {charts.map((c) => (
           <ChartCard key={c.id} chart={c} isDark={isDark} />
         ))}
       </div>

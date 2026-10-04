@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { docNumber } from '@/lib/customers/documents';
-import {
-  assertCustomersAccess,
-  assertSellerCustomerNotSuspended,
-} from '@/lib/customers/access';
+import { assertSellerCustomerNotSuspended } from '@/lib/customers/access';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 export async function GET(request: NextRequest) {
@@ -95,7 +92,30 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    const contractId = Number(body.id);
+    const companyId = Number(body.companyId);
+    if (!Number.isFinite(contractId) || contractId <= 0) {
+      return NextResponse.json({ error: 'id required' }, { status: 400 });
+    }
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
+    const supabase = getSupabaseServer();
+    const { data: existing, error: loadErr } = await supabase
+      .from('customer_contracts')
+      .select('id, profile_id, customer_id, shared_with_buyer, buyer_profile_id')
+      .eq('id', contractId)
+      .eq('profile_id', companyId)
+      .maybeSingle();
+    if (loadErr) {
+      return NextResponse.json({ error: loadErr.message }, { status: 500 });
+    }
+    if (!existing) {
+      return NextResponse.json({ error: 'Contract not found for this company' }, { status: 404 });
+    }
+
     const fields = [
       'title',
       'status',
@@ -119,9 +139,6 @@ export async function PATCH(request: NextRequest) {
       updates.signed_at = new Date().toISOString();
     }
 
-    const supabase = getSupabaseServer();
-    const contractId = Number(body.id);
-
     // Share-related: shared_with_buyer toggle and/or customer reassignment while shared.
     // New share + reassignment while shared → membership + suspend check + rebind buyer_profile_id.
     // Unshare always allowed; clears buyer_profile_id + shared_at.
@@ -129,23 +146,6 @@ export async function PATCH(request: NextRequest) {
     const changingCustomer = body.customer_id !== undefined;
 
     if (changingShare || changingCustomer) {
-      const companyId = Number(body.companyId);
-
-      let existingQ = supabase
-        .from('customer_contracts')
-        .select('id, profile_id, customer_id, shared_with_buyer, buyer_profile_id')
-        .eq('id', contractId);
-      if (Number.isFinite(companyId) && companyId > 0) {
-        existingQ = existingQ.eq('profile_id', companyId);
-      }
-      const { data: existing, error: loadErr } = await existingQ.maybeSingle();
-      if (loadErr) {
-        return NextResponse.json({ error: loadErr.message }, { status: 500 });
-      }
-      if (!existing) {
-        return NextResponse.json({ error: 'Contract not found for this company' }, { status: 404 });
-      }
-
       const wasShared = existing.shared_with_buyer === true;
       const nextShared = changingShare
         ? body.shared_with_buyer === true || body.shared_with_buyer === 'true'
@@ -162,16 +162,6 @@ export async function PATCH(request: NextRequest) {
         nextShared && ((changingShare && nextShared) || (wasShared && customerChanged));
 
       if (becomingOrStayingSharedWithChange) {
-        if (!Number.isFinite(companyId) || companyId <= 0) {
-          return NextResponse.json(
-            { error: 'companyId required when sharing or reassigning a shared contract' },
-            { status: 400 }
-          );
-        }
-        const member = await assertCustomersAccess(body.privyUserId, companyId, 'write');
-        if (!member.ok) {
-          return NextResponse.json({ error: member.error }, { status: member.status });
-        }
         if (!Number.isFinite(nextCustomerId) || nextCustomerId <= 0) {
           return NextResponse.json(
             { error: 'Assign a customer before sharing this contract with the buyer' },
@@ -203,25 +193,19 @@ export async function PATCH(request: NextRequest) {
           updates.customer_id = nextCustomerId;
         }
       } else if (changingShare && !nextShared) {
-        // Unshare allowed while suspended — tighten access
-        if (Number.isFinite(companyId) && companyId > 0) {
-          const member = await assertCustomersAccess(body.privyUserId, companyId, 'write');
-          if (!member.ok) {
-            return NextResponse.json({ error: member.error }, { status: member.status });
-          }
-        }
         updates.shared_with_buyer = false;
         updates.shared_at = null;
         updates.buyer_profile_id = null;
       }
     }
 
-    let q = supabase.from('customer_contracts').update(updates).eq('id', contractId);
-    if (body.companyId != null && Number.isFinite(Number(body.companyId))) {
-      q = q.eq('profile_id', Number(body.companyId));
-    }
-
-    const { data, error } = await q.select('*').single();
+    const { data, error } = await supabase
+      .from('customer_contracts')
+      .update(updates)
+      .eq('id', contractId)
+      .eq('profile_id', companyId)
+      .select('*')
+      .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, contract: data });
   } catch (e: unknown) {
@@ -232,9 +216,19 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const id = Number(request.nextUrl.searchParams.get('id'));
-    if (!Number.isFinite(id)) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    const companyId = Number(request.nextUrl.searchParams.get('companyId'));
+    if (!Number.isFinite(id) || id <= 0) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const supabase = getSupabaseServer();
-    const { error } = await supabase.from('customer_contracts').delete().eq('id', id);
+    const { error } = await supabase
+      .from('customer_contracts')
+      .delete()
+      .eq('id', id)
+      .eq('profile_id', companyId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
   } catch (e: unknown) {

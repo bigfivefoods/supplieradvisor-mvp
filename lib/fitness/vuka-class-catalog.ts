@@ -23,11 +23,13 @@ import {
   memberDebitBankComplete,
 } from '@/lib/fitness/member-debit-bank';
 import {
+  SYS_COACH_AWAY_CODE,
   SYS_COACH_TIME_CODE,
   SYS_PT_CODE,
 } from '@/lib/fitness/session-times';
 import { ensureDemoShopProgramme } from '@/lib/fitness/demo-shop-programme';
 import { shopCoachFirstName, vukaShopCoachRank } from '@/lib/fitness/gym-shop';
+import { rememberRemovedFitgraphIds } from '@/lib/fitness/fitgraph-merge';
 
 export const VUKA_COMPANY_ID = 110;
 
@@ -793,7 +795,11 @@ function isSystemSession(session: SessionCoverageInput, store?: FitgraphStore) {
   if (kind && kind !== 'class') return true;
   const ct = store?.class_types.find((c) => c.id === session.class_type_id);
   const code = String(ct?.code || '');
-  return code === SYS_PT_CODE || code === SYS_COACH_TIME_CODE;
+  return (
+    code === SYS_PT_CODE ||
+    code === SYS_COACH_TIME_CODE ||
+    code === SYS_COACH_AWAY_CODE
+  );
 }
 
 export function planCoversSession(
@@ -1258,11 +1264,20 @@ export function ensureVukaClassCatalog(
     }
   }
 
+  const ownerClassTypeIds = new Set<string>();
+  for (const p of store.membership_plans) {
+    if (p.active === false || p.unlocks_all_classes === true) continue;
+    if (p.id.startsWith('vuka_pln_')) continue;
+    for (const id of p.class_type_ids || []) ownerClassTypeIds.add(id);
+    ownerClassTypeIds.add(`cls_${p.id}`);
+  }
+
   const protectedClass = (c: { id: string; code?: string }) =>
     catalogClassIds.has(c.id) ||
     catalogClassCodes.has(String(c.code || '')) ||
     c.code === SYS_PT_CODE ||
-    c.code === SYS_COACH_TIME_CODE;
+    c.code === SYS_COACH_TIME_CODE ||
+    ownerClassTypeIds.has(c.id);
 
   const dropClassIds = new Set(
     store.class_types.filter((c) => !protectedClass(c)).map((c) => c.id)
@@ -1373,7 +1388,6 @@ export const VUKA_COACH_ROSTER: Array<{
     email: 'jaredcawood77@gmail.com',
     code: 'JAR',
   },
-  { name: 'Jaryyd', email: '', code: 'JYD' },
   {
     name: 'Sophie Pearce',
     email: 'pearcesophie56@gmail.com',
@@ -1469,7 +1483,27 @@ export function ensureVukaCoaches(
   return changed;
 }
 
-/** Bianca, Miri, Jared, Jaryyd, Sophie — then everyone else. */
+function isRetiredVukaCoachStub(c: FitCoach): boolean {
+  const code = String(c.code || '').trim().toUpperCase();
+  const first = shopCoachFirstName(c.name);
+  return code === 'JYD' || first === 'jaryyd';
+}
+
+/** Drop leftover Jaryyd stubs so persist cannot mint them again. */
+export function dropRetiredVukaCoaches(store: FitgraphStore): boolean {
+  const list = store.coaches || [];
+  const drop = list.filter(isRetiredVukaCoachStub);
+  if (!drop.length) return false;
+  rememberRemovedFitgraphIds(
+    store,
+    'coaches',
+    drop.map((c) => c.id)
+  );
+  store.coaches = list.filter((c) => !isRetiredVukaCoachStub(c));
+  return true;
+}
+
+/** Bianca, Miri, Jared, Sophie — then everyone else. */
 export function ensureVukaCoachOrder(store: FitgraphStore): boolean {
   const list = store.coaches || [];
   if (!list.length) return false;
@@ -1498,7 +1532,12 @@ export async function persistVukaCatalogIfNeeded(
   companyId: number,
   store: FitgraphStore,
   save: (next: FitgraphStore) => Promise<void>,
-  identity?: { tradingName?: string | null; legalName?: string | null }
+  identity?: {
+    tradingName?: string | null;
+    legalName?: string | null;
+    /** Seed/demo only. Clients GET must not re-apply billed classes. */
+    applyCatalog?: boolean;
+  }
 ): Promise<FitgraphStore> {
   if (
     !isVukaFitnessCompany({
@@ -1509,12 +1548,12 @@ export async function persistVukaCatalogIfNeeded(
   ) {
     return store;
   }
-  const { ensureVukaRoster, vukaDeskSettled } = await import(
-    '@/lib/fitness/vuka-roster'
-  );
+  const applyCatalog = identity?.applyCatalog !== false;
+  const { absorbKnownClientAliases, ensureVukaRoster, vukaDeskSettled } =
+    await import('@/lib/fitness/vuka-roster');
   let next = store;
   let dirty = false;
-  if (!vukaDeskSettled(store)) {
+  if (applyCatalog && !vukaDeskSettled(store)) {
     const result = ensureVukaClassCatalog(store, {
       companyId,
       tradingName: identity?.tradingName,
@@ -1522,16 +1561,24 @@ export async function persistVukaCatalogIfNeeded(
     });
     next = result.store;
     dirty = result.changed;
-    if (result.applied) {
-      const roster = ensureVukaRoster(next);
-      next = roster.store;
-      dirty = dirty || roster.changed;
-    }
+    const roster = ensureVukaRoster(next);
+    next = roster.store;
+    dirty = dirty || roster.changed;
   }
-  if (ensureDemoShopProgramme(next)) dirty = true;
-  if (ensureVukaShopOffers(next)) dirty = true;
-  if (ensureVukaCoaches(next)) dirty = true;
-  if (ensureVukaCoachOrder(next)) dirty = true;
+  const absorbed = absorbKnownClientAliases(next);
+  next = absorbed.store;
+  dirty = dirty || absorbed.changed;
+  const { healParkedGymMembership, ensureSubscribePlanClassTypes } =
+    await import('@/lib/fitness/class-allocate');
+  if (healParkedGymMembership(next)) dirty = true;
+  if (dropRetiredVukaCoaches(next)) dirty = true;
+  if (ensureSubscribePlanClassTypes(next)) dirty = true;
+  if (applyCatalog) {
+    if (ensureDemoShopProgramme(next)) dirty = true;
+    if (ensureVukaShopOffers(next)) dirty = true;
+    if (ensureVukaCoaches(next)) dirty = true;
+    if (ensureVukaCoachOrder(next)) dirty = true;
+  }
   if (dirty) {
     await save(next);
   }

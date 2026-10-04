@@ -206,6 +206,17 @@ const CTX: Record<string, ModuleMessageContext> = {
     defaultCompose: 'connection',
     filterChannel: 'trade',
   },
+  apparelgraph: {
+    from: 'apparelgraph',
+    label: 'ApparelAdvisor',
+    backHref: '/dashboard/apparelgraph',
+    backLabel: 'ApparelAdvisor',
+    titleAccent: 'merch · floor · trade',
+    description:
+      'Message customers, suppliers, and floor teams from ApparelAdvisor.',
+    defaultCompose: 'connection',
+    filterChannel: 'trade',
+  },
   schools: {
     from: 'schools',
     label: 'Schools / NSNP',

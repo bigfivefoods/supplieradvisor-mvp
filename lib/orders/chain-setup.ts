@@ -230,7 +230,7 @@ export function scoreChainSetup(
   return score;
 }
 
-/** Product ids this customer may order on the portal (active chains only). */
+/** Product ids on this customer's saved order chains (optional overlay). */
 export function productIdsOnCustomerChains(
   setups: Array<{
     customer_id: number | null;

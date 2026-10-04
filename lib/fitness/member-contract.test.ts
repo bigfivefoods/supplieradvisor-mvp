@@ -146,4 +146,28 @@ const second = applyContractSubmissions(store, applied ? [
 ] : [], { now, replaceRoster: false });
 assert.equal(second.added, 0);
 
+serah.active = false;
+serah.membership_status = 'cancelled';
+serah.membership_plan_id = 'vuka_pln_boot_1730';
+const parkedKeep = applyContractSubmissions(
+  store,
+  [
+    {
+      kind: 'group',
+      name: 'Serah Shange',
+      email: 'hanna.serah@gmail.com',
+      id_number: '9906220431083',
+      class_option: 'Bootcamp',
+      debit_amount_zar: 475,
+      source_id: 'g1',
+    },
+  ],
+  { now, replaceRoster: false }
+);
+assert.equal(parkedKeep.added, 0);
+const serahParked = store.clients.find((c) => /shange/i.test(c.name))!;
+assert.equal(serahParked.active, false);
+assert.equal(serahParked.membership_status, 'cancelled');
+assert.equal(serahParked.membership_plan_id, null);
+
 console.log('member-contract.test.ts ok');

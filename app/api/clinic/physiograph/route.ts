@@ -87,6 +87,10 @@ import {
   serviceMemberInviteEmailHtml,
   serviceMemberInviteEmailText,
 } from '@/lib/services/member-invite';
+import {
+  applyAdvisorPersonCodeFromAr,
+  needsAdvisorPersonCodeFromAr,
+} from '@/lib/fitness/gym-client-number';
 
 export const runtime = 'nodejs';
 
@@ -189,6 +193,75 @@ export async function POST(request: NextRequest) {
         summary: summarisePhysiograph(demo),
         analysis: analysis(demo),
         message: 'Demo clinic loaded',
+      });
+    }
+
+    if (action === 'backfill_patient_crm') {
+      const { attachCrmToAdvisorPerson, needsGymCrmStamp } = await import(
+        '@/lib/b2c/member-account-ar'
+      );
+      const { backfillAdvisorPartyUids } = await import(
+        '@/lib/accounting/party-gl-accounts'
+      );
+      await backfillAdvisorPartyUids(companyId);
+      const requestedLimit = Number(body.limit);
+      const limit = Number.isFinite(requestedLimit)
+        ? Math.min(120, Math.max(1, Math.trunc(requestedLimit)))
+        : 60;
+      let stamped = 0;
+      let skipped = 0;
+      let linked_existing = 0;
+      let created = 0;
+      let processed = 0;
+      for (const person of store.patients || []) {
+        const needsStamp = needsGymCrmStamp(person);
+        const needsCode = needsAdvisorPersonCodeFromAr(person, store.patients || []);
+        if (!needsStamp && !needsCode) continue;
+        if (processed >= limit) break;
+        processed += 1;
+        try {
+          const result = await attachCrmToAdvisorPerson({
+            companyId,
+            kind: 'physio',
+            person,
+          });
+          applyAdvisorPersonCodeFromAr(person, store.patients || []);
+          if (result?.id) {
+            stamped += 1;
+            if (result.created) created += 1;
+            else linked_existing += 1;
+          } else {
+            skipped += 1;
+          }
+        } catch {
+          skipped += 1;
+        }
+      }
+      let numbered = 0;
+      for (const person of store.patients || []) {
+        if (applyAdvisorPersonCodeFromAr(person, store.patients || [])) numbered += 1;
+      }
+      await saveStore(companyId, meta, store);
+      const remaining = (store.patients || []).reduce(
+        (count, person) =>
+          needsGymCrmStamp(person) ||
+          needsAdvisorPersonCodeFromAr(person, store.patients || [])
+            ? count + 1
+            : count,
+        0
+      );
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summarisePhysiograph(store),
+        analysis: analysis(store),
+        stamped,
+        skipped,
+        linked_existing,
+        created,
+        numbered,
+        remaining,
+        message: `Stamped ${stamped} patient(s) onto CRM (${linked_existing} existing, ${created} new), ${numbered} patient code(s) from CoA, ${skipped} skipped`,
       });
     }
 
@@ -1370,27 +1443,37 @@ export async function POST(request: NextRequest) {
           { status: 404 }
         );
       }
-      try {
-        const { readLeaveBlocksFromMeta, leaveBlocksAssignment } = await import(
-          '@/lib/core-os/leave'
-        );
-        const prac = store.practitioners.find((p) => p.id === pracId);
-        const gate = leaveBlocksAssignment(
-          readLeaveBlocksFromMeta(meta),
-          pracId,
-          date,
-          prac && 'hr_employee_id' in prac
-            ? (prac as { hr_employee_id?: number | null }).hr_employee_id
-            : null
-        );
-        if (gate.blocked) {
-          return NextResponse.json(
-            { error: `Practitioner ${gate.reason}` },
-            { status: 409 }
+      if (fields.appointment_kind !== 'personal') {
+        try {
+          const { readLeaveBlocksFromMeta } = await import(
+            '@/lib/core-os/leave'
           );
+          const { clinicPractitionerAwayOn, staffAssignmentBlocked } =
+            await import('@/lib/services/staff-away');
+          const prac = store.practitioners.find((p) => p.id === pracId);
+          const gate = staffAssignmentBlocked({
+            personId: pracId,
+            date,
+            hrEmployeeId:
+              prac && 'hr_employee_id' in prac
+                ? (prac as { hr_employee_id?: number | null }).hr_employee_id
+                : null,
+            hrWindows: readLeaveBlocksFromMeta(meta),
+            diaryAway: clinicPractitionerAwayOn(
+              store.appointments,
+              pracId,
+              date
+            ),
+          });
+          if (gate.blocked) {
+            return NextResponse.json(
+              { error: `Practitioner ${gate.reason}` },
+              { status: 409 }
+            );
+          }
+        } catch {
+          /* leave / away gate is best-effort */
         }
-      } catch {
-        /* leave gate is best-effort */
       }
 
       const { planAppointmentSeries, recurrenceFromRequestBody } =
@@ -1652,6 +1735,7 @@ export async function POST(request: NextRequest) {
             kind: 'physio',
             person: linked.person,
           });
+          applyAdvisorPersonCodeFromAr(linked.person, store.patients || []);
           if (pi >= 0) store.patients[pi] = linked.person;
           walletInvite = {
             email_sent: linked.invite?.email_sent,

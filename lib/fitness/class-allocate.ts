@@ -9,6 +9,7 @@ import {
   sessionBookingCount,
   weekdayOf,
   type CoachSessionCard,
+  type FitClassType,
   type FitClient,
   type FitgraphStore,
   type FitMembershipPlan,
@@ -26,6 +27,7 @@ import {
   catalogSlotForSession,
   memberMayBookSession,
   planCoversSession,
+  storeUsesClassSubscribe,
   subscribersForSession,
   timetableSlotsForPlan,
 } from '@/lib/fitness/vuka-class-catalog';
@@ -33,6 +35,11 @@ import {
   findSessionSeat,
   pickPreferredBooking,
 } from '@/lib/fitness/gym-bookings';
+import {
+  digitsOnly,
+  SA_DEBIT_BANKS,
+  type FitMemberDebitBank,
+} from '@/lib/fitness/member-debit-bank';
 
 const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -155,6 +162,87 @@ export function classTypeIdForPlan(
     (c) => c.code === plan.code && c.active !== false
   );
   return byCode?.id || null;
+}
+
+function classStemName(name: string): string {
+  return String(name || '').split(' · ')[0]?.trim() || String(name || 'Class');
+}
+
+function isCatalogClassTypeId(id: string): boolean {
+  return String(id || '').startsWith('vuka_cls_');
+}
+
+/**
+ * Every subscribe-class plan needs a class_type the calendar dropdown can pick.
+ * Creating a class on the Classes desk used to write only membership_plans,
+ * so the type never landed in the diary picker.
+ */
+export function ensureClassTypeForSubscribePlan(
+  store: FitgraphStore,
+  plan: FitMembershipPlan,
+  now = new Date().toISOString(),
+  opts?: { syncFields?: boolean }
+): boolean {
+  if (plan.active === false || plan.unlocks_all_classes === true) return false;
+  if (!Array.isArray(store.class_types)) store.class_types = [];
+  const liveId = (plan.class_type_ids || []).find((id) =>
+    store.class_types.some((c) => c.id === id && c.active !== false)
+  );
+  if (liveId) {
+    if (!opts?.syncFields || isCatalogClassTypeId(liveId)) return false;
+    const ct = store.class_types.find((c) => c.id === liveId);
+    if (!ct) return false;
+    const stem = classStemName(plan.name);
+    let changed = false;
+    if (stem && ct.name !== stem) {
+      ct.name = stem;
+      changed = true;
+    }
+    if (plan.description && ct.description !== plan.description) {
+      ct.description = plan.description;
+      changed = true;
+    }
+    if (ct.active === false) {
+      ct.active = true;
+      changed = true;
+    }
+    return changed;
+  }
+  const ownId = `cls_${plan.id}`;
+  const existing = store.class_types.find((c) => c.id === ownId);
+  const clsId = existing?.id || ownId;
+  const cls: FitClassType = {
+    id: clsId,
+    code:
+      existing?.code ||
+      String(plan.code || 'CLASS').toUpperCase() ||
+      'CLASS',
+    name: classStemName(plan.name),
+    category: existing?.category || 'Class',
+    default_duration_min: existing?.default_duration_min ?? 60,
+    capacity: existing?.capacity ?? 16,
+    description: plan.description || existing?.description,
+    color: existing?.color,
+    active: true,
+    created_at: existing?.created_at || now,
+  };
+  const ci = store.class_types.findIndex((c) => c.id === clsId);
+  if (ci >= 0) store.class_types[ci] = { ...store.class_types[ci], ...cls };
+  else store.class_types.push(cls);
+  plan.class_type_ids = [clsId];
+  return true;
+}
+
+export function ensureSubscribePlanClassTypes(
+  store: FitgraphStore,
+  now = new Date().toISOString()
+): boolean {
+  if (store.settings?.class_subscribe !== true) return false;
+  let changed = false;
+  for (const plan of store.membership_plans || []) {
+    if (ensureClassTypeForSubscribePlan(store, plan, now)) changed = true;
+  }
+  return changed;
 }
 
 export type SuggestedClassSchedule = {
@@ -409,6 +497,196 @@ export function bookDeskMemberOntoSession(
   return status;
 }
 
+export function parseFitClientIds(...raw: unknown[]): string[] {
+  const ids: string[] = [];
+  for (const value of raw) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const id = String(item || '').trim();
+        if (id) ids.push(id);
+      }
+    } else if (value != null && value !== '') {
+      const id = String(value).trim();
+      if (id) ids.push(id);
+    }
+  }
+  return [...new Set(ids)];
+}
+
+/** Semi-private PT: keep enough seats so extra members book, not waitlist. */
+export function ensureSessionCapacityForMembers(
+  session: FitSession,
+  memberCount: number
+): boolean {
+  if (memberCount <= 0) return false;
+  const cap = session.capacity;
+  if (cap === 0) return false;
+  if (cap == null || cap < memberCount) {
+    session.capacity = memberCount;
+    return true;
+  }
+  return false;
+}
+
+/** Book a private-PT member onto sessions and optionally stamp their agreed rate.
+ * Desk-only — does not hit CRM / wallet. */
+export function applyPrivatePtBooking(
+  store: FitgraphStore,
+  opts: {
+    sessionIds: string[];
+    clientId: string;
+    now: string;
+    rateZar?: number | null;
+  }
+): { added: number; skipped: number } {
+  const client = store.clients.find((c) => c.id === opts.clientId);
+  if (!client) {
+    return { added: 0, skipped: opts.sessionIds.length };
+  }
+  let added = 0;
+  let skipped = 0;
+  for (const id of opts.sessionIds) {
+    const session = store.sessions.find((s) => s.id === id);
+    if (!session) {
+      skipped += 1;
+      continue;
+    }
+    const result = bookDeskMemberOntoSession(store, session, client, opts.now, {
+      force: true,
+    });
+    if (result === 'skipped') skipped += 1;
+    else added += 1;
+  }
+  if (opts.rateZar != null && Number.isFinite(Number(opts.rateZar))) {
+    client.private_rate_zar = Number(opts.rateZar);
+    client.updated_at = opts.now;
+  }
+  return { added, skipped };
+}
+
+export function applyPrivatePtBookings(
+  store: FitgraphStore,
+  opts: {
+    sessionIds: string[];
+    clientIds: string[];
+    now: string;
+    rateZar?: number | null;
+    /** When true, drop booked/waitlist seats not in clientIds. */
+    sync?: boolean;
+  }
+): { added: number; skipped: number } {
+  const ids = parseFitClientIds(opts.clientIds);
+  const want = new Set(ids);
+  for (const sid of opts.sessionIds) {
+    const session = store.sessions.find((s) => s.id === sid);
+    if (!session) continue;
+    ensureSessionCapacityForMembers(session, ids.length);
+    if (!opts.sync) continue;
+    for (const b of store.bookings || []) {
+      if (b.session_id !== sid) continue;
+      if (
+        b.status === 'cancelled' ||
+        b.status === 'attended' ||
+        b.status === 'no_show'
+      ) {
+        continue;
+      }
+      if (!want.has(b.client_id)) {
+        b.status = 'cancelled';
+        b.updated_at = opts.now;
+      }
+    }
+  }
+  let added = 0;
+  let skipped = 0;
+  for (const clientId of ids) {
+    const row = applyPrivatePtBooking(store, {
+      sessionIds: opts.sessionIds,
+      clientId,
+      now: opts.now,
+      rateZar: opts.rateZar,
+    });
+    added += row.added;
+    skipped += row.skipped;
+  }
+  return { added, skipped };
+}
+
+/** Turn a one-off (or singleton) diary row into a repeating series. Keeps the original. */
+export function expandSessionToSeries(
+  store: FitgraphStore,
+  opts: {
+    sessionId: string;
+    recurrence: FitRecurrence;
+    now: string;
+  }
+): { added: number; seriesId: string | null; created: FitSession[] } {
+  const session = store.sessions.find((s) => s.id === opts.sessionId);
+  if (!session || !opts.recurrence || opts.recurrence.frequency === 'none') {
+    return { added: 0, seriesId: session?.series_id || null, created: [] };
+  }
+  const seriesId = String(session.series_id || '').trim() || newId('ser');
+  const created = createSessionsFromTemplate(
+    store,
+    {
+      class_type_id: session.class_type_id,
+      coach_id: session.coach_id || null,
+      date: session.date,
+      start_time: session.start_time,
+      end_time: session.end_time ?? null,
+      duration_min: session.duration_min ?? null,
+      session_kind: session.session_kind,
+      personal_reason: session.personal_reason,
+      capacity: session.capacity ?? null,
+      location: session.location,
+      room: session.room ?? null,
+      agreed_rate_zar: session.agreed_rate_zar ?? null,
+      public: session.public === true,
+      notes: session.notes,
+      public_notes: session.public_notes,
+      class_plan: session.class_plan,
+      origin: 'series',
+      programme_id: session.programme_id ?? null,
+      shared_coach_ids: session.shared_coach_ids ?? null,
+      series_id: seriesId,
+    },
+    opts.recurrence,
+    opts.now
+  );
+  const existing = new Set(
+    (store.sessions || [])
+      .filter((s) => s.status !== 'cancelled')
+      .map(sessionKey)
+  );
+  const fresh = created.filter(
+    (s) => s.date !== session.date && !existing.has(sessionKey(s))
+  );
+  session.series_id = seriesId;
+  if (!session.origin || session.origin === 'one_off') {
+    session.origin = 'series';
+  }
+  if (!fresh.length) {
+    return { added: 0, seriesId, created: [] };
+  }
+  store.sessions.push(...fresh);
+  const members = (store.bookings || []).filter(
+    (b) => b.session_id === session.id && b.status !== 'cancelled'
+  );
+  for (const b of members) {
+    const client = store.clients.find((c) => c.id === b.client_id);
+    if (!client) continue;
+    for (const row of fresh) {
+      bookDeskMemberOntoSession(store, row, client, opts.now, { force: true });
+    }
+  }
+  stampCatalogSeriesAndBookSubscribers(store, [session, ...fresh], opts.now);
+  return {
+    added: fresh.length,
+    seriesId: session.series_id || seriesId,
+    created: fresh,
+  };
+}
+
 function bookMemberOntoUpcoming(
   store: FitgraphStore,
   client: FitClient,
@@ -636,6 +914,22 @@ export function allocateMemberToClass(
       email?: string;
       phone?: string;
       notes?: string;
+      code?: string;
+      id_number?: string;
+      date_of_birth?: string | null;
+      start_date?: string | null;
+      occupation?: string;
+      address?: string;
+      next_of_kin?: string;
+      next_of_kin_phone?: string;
+      next_of_kin_relationship?: string;
+      emergency_contact?: string;
+      heard_about?: string;
+      employer_student_number?: string;
+      gp_contact?: string;
+      medical_aid_scheme?: string;
+      medical_aid_plan?: string;
+      debit_bank?: Partial<FitMemberDebitBank> | null;
     };
     /** Desk: keep the person on file without a class or private coach. */
     inactive?: boolean;
@@ -656,19 +950,113 @@ export function allocateMemberToClass(
 
   const applyPerson = () => {
     if (!opts.person) return;
-    if (opts.person.name != null && String(opts.person.name).trim()) {
-      client.name = String(opts.person.name).trim();
+    const p = opts.person;
+    const trimOrEmpty = (raw: unknown) => String(raw ?? '').trim();
+    const setText = (
+      key:
+        | 'email'
+        | 'phone'
+        | 'id_number'
+        | 'occupation'
+        | 'address'
+        | 'next_of_kin'
+        | 'next_of_kin_phone'
+        | 'next_of_kin_relationship'
+        | 'emergency_contact'
+        | 'heard_about'
+        | 'employer_student_number'
+        | 'gp_contact'
+        | 'notes',
+      raw: unknown
+    ) => {
+      if (raw === undefined) return;
+      const t = trimOrEmpty(raw);
+      client[key] = t || undefined;
+    };
+    if (p.name != null && trimOrEmpty(p.name)) {
+      client.name = trimOrEmpty(p.name);
     }
-    if (opts.person.email !== undefined) {
-      const email = String(opts.person.email || '').trim();
-      client.email = email || undefined;
+    if (p.code !== undefined && trimOrEmpty(p.code)) {
+      client.code = trimOrEmpty(p.code);
     }
-    if (opts.person.phone !== undefined) {
-      const phone = String(opts.person.phone || '').trim();
-      client.phone = phone || undefined;
+    setText('email', p.email);
+    setText('phone', p.phone);
+    setText('notes', p.notes);
+    setText('id_number', p.id_number);
+    setText('occupation', p.occupation);
+    setText('address', p.address);
+    setText('next_of_kin', p.next_of_kin);
+    setText('next_of_kin_phone', p.next_of_kin_phone);
+    setText('next_of_kin_relationship', p.next_of_kin_relationship);
+    setText('emergency_contact', p.emergency_contact);
+    setText('heard_about', p.heard_about);
+    setText('employer_student_number', p.employer_student_number);
+    setText('gp_contact', p.gp_contact);
+    if (p.date_of_birth !== undefined) {
+      const d = trimOrEmpty(p.date_of_birth).slice(0, 10);
+      client.date_of_birth = d || null;
     }
-    if (opts.person.notes !== undefined) {
-      client.notes = String(opts.person.notes || '');
+    if (p.start_date !== undefined) {
+      const d = trimOrEmpty(p.start_date).slice(0, 10);
+      client.start_date = d || null;
+    }
+    if (p.gp_contact !== undefined) {
+      const gp = trimOrEmpty(p.gp_contact);
+      client.medical = {
+        ...(client.medical || {}),
+        gp_name: gp || client.medical?.gp_name,
+      };
+    }
+    if (p.address !== undefined) {
+      const addr = trimOrEmpty(p.address);
+      if (addr) {
+        client.medical = { ...(client.medical || {}), address: addr };
+      }
+    }
+    if (
+      p.medical_aid_scheme !== undefined ||
+      p.medical_aid_plan !== undefined
+    ) {
+      const scheme = trimOrEmpty(
+        p.medical_aid_scheme ?? client.medical?.medical_aid?.scheme_name
+      );
+      const plan = trimOrEmpty(
+        p.medical_aid_plan ?? client.medical?.medical_aid?.plan_name
+      );
+      client.medical = {
+        ...(client.medical || {}),
+        medical_aid: {
+          ...(client.medical?.medical_aid || {}),
+          ...(scheme ? { scheme_name: scheme } : {}),
+          ...(plan ? { plan_name: plan } : {}),
+        },
+      };
+    }
+    if (p.debit_bank !== undefined && p.debit_bank && typeof p.debit_bank === 'object') {
+      const rec = p.debit_bank;
+      const acct = digitsOnly(rec.account_number);
+      if (acct.length >= 6) {
+        const bankName = trimOrEmpty(rec.bank_name);
+        const known = SA_DEBIT_BANKS.find(
+          (b) => b.name.toLowerCase() === bankName.toLowerCase()
+        );
+        const branch =
+          digitsOnly(rec.branch_code) || known?.branch_code || '';
+        client.debit_bank = {
+          account_holder:
+            trimOrEmpty(rec.account_holder) || client.name,
+          bank_name: bankName || client.debit_bank?.bank_name || '',
+          account_number: acct,
+          branch_code: branch,
+          account_type: trimOrEmpty(rec.account_type) || 'cheque',
+          debit_order_authorised: rec.debit_order_authorised === true,
+          authorised_at:
+            rec.debit_order_authorised === true
+              ? now
+              : client.debit_bank?.authorised_at,
+          updated_at: now,
+        };
+      }
     }
   };
 
@@ -677,7 +1065,14 @@ export function allocateMemberToClass(
     let cancelled = 0;
     for (const other of store.subscriptions) {
       if (other.client_id !== client.id) continue;
-      if (other.status !== 'active' && other.status !== 'trialing') continue;
+      if (
+        other.status !== 'active' &&
+        other.status !== 'trialing' &&
+        other.status !== 'past_due' &&
+        other.status !== 'paused'
+      ) {
+        continue;
+      }
       other.status = 'cancelled';
       other.cancel_at = today;
       other.updated_at = now;
@@ -716,24 +1111,44 @@ export function allocateMemberToClass(
   const isMember = flagsExplicit
     ? opts.member === true
     : opts.kind !== 'private' || Boolean(opts.planId);
-  const coachId = opts.coachId ? String(opts.coachId) : null;
-  if (coachId) {
-    const coach = store.coaches.find((c) => c.id === coachId);
-    if (!coach || coach.active === false) {
-      return { error: 'Coach not found' };
-    }
-  }
-  if (!isMember && !isPrivate) {
-    const cancelled = parkOnDesk();
-    return { subscription: null, booked: 0, cancelled };
-  }
-  if (isPrivate && !coachId) {
+  const requestedCoachId = opts.coachId ? String(opts.coachId) : null;
+  const requestedCoach = requestedCoachId
+    ? store.coaches.find((c) => c.id === requestedCoachId)
+    : undefined;
+  const coachOk = Boolean(requestedCoach && requestedCoach.active !== false);
+  if (isPrivate && !coachOk) {
     return { error: 'Select the coach for this private client' };
+  }
+  const coachId = coachOk ? requestedCoachId : null;
+  const explicitPlanIds = Array.isArray(opts.planIds);
+  if (!isMember && !isPrivate) {
+    if (!explicitPlanIds) {
+      const cancelled = parkOnDesk();
+      return { subscription: null, booked: 0, cancelled };
+    }
+    applyPerson();
+    let cancelled = 0;
+    for (const other of store.subscriptions) {
+      if (other.client_id !== client.id) continue;
+      if (other.status !== 'active' && other.status !== 'trialing') continue;
+      const otherPlan = store.membership_plans.find((p) => p.id === other.plan_id);
+      if (otherPlan?.addon === true) continue;
+      other.status = 'cancelled';
+      other.cancel_at = today;
+      other.updated_at = now;
+      cancelled += 1;
+    }
+    client.active = true;
+    client.membership_plan_id = null;
+    client.updated_at = now;
+    cancelUncoveredFutureBookings(store, client, today);
+    recomputeClientClassDenorm(store, client.id, now);
+    return { subscription: null, booked: 0, cancelled };
   }
   const planIds = [
     ...new Set(
-      (Array.isArray(opts.planIds) && opts.planIds.length
-        ? opts.planIds
+      (explicitPlanIds
+        ? opts.planIds || []
         : opts.planId
           ? [opts.planId]
           : []
@@ -743,8 +1158,37 @@ export function allocateMemberToClass(
     ),
   ];
   const planId = planIds[0] || '';
+  const wasInactive =
+    client.active === false ||
+    client.membership_status === 'expired' ||
+    client.membership_status === 'cancelled';
   if (isMember && !planId) {
-    return { error: 'Select a class' };
+    if (!explicitPlanIds) {
+      return { error: 'Select a class' };
+    }
+    applyPerson();
+    if (wasInactive) {
+      client.active = true;
+      client.membership_status = 'active';
+      client.updated_at = now;
+      return { subscription: null, booked: 0, cancelled: 0 };
+    }
+    let cancelled = 0;
+    for (const other of store.subscriptions) {
+      if (other.client_id !== client.id) continue;
+      if (other.status !== 'active' && other.status !== 'trialing') continue;
+      const otherPlan = store.membership_plans.find((p) => p.id === other.plan_id);
+      if (otherPlan?.addon === true) continue;
+      other.status = 'cancelled';
+      other.cancel_at = today;
+      other.updated_at = now;
+      cancelled += 1;
+    }
+    client.membership_plan_id = null;
+    client.updated_at = now;
+    cancelUncoveredFutureBookings(store, client, today);
+    recomputeClientClassDenorm(store, client.id, now);
+    return { subscription: null, booked: 0, cancelled };
   }
   const plan = planId
     ? store.membership_plans.find((p) => p.id === planId)
@@ -817,7 +1261,10 @@ export function allocateMemberToClass(
     planIds,
   };
   const charge = resolveAllocatedCharge(plan, chargeOpts);
-  const status = opts.status || 'active';
+  let status = opts.status || 'active';
+  if (wasInactive && (status === 'cancelled' || status === 'expired')) {
+    status = 'active';
+  }
   let sub =
     store.subscriptions.find(
       (s) => s.client_id === client.id && s.plan_id === plan.id
@@ -921,6 +1368,44 @@ export function allocateMemberToClass(
   recomputeClientClassDenorm(store, client.id, now);
 
   return { subscription: sub, booked, cancelled };
+}
+
+/** Clients desk Inactive must win: parked people cannot keep a live class. */
+export function healParkedGymMembership(
+  store: FitgraphStore,
+  now?: string
+): boolean {
+  const ts = now || new Date().toISOString();
+  const today = ts.slice(0, 10);
+  let changed = false;
+  for (const client of store.clients || []) {
+    const parked =
+      client.active === false ||
+      client.membership_status === 'cancelled' ||
+      client.membership_status === 'expired';
+    if (!parked) continue;
+    for (const sub of store.subscriptions || []) {
+      if (sub.client_id !== client.id) continue;
+      if (
+        sub.status !== 'active' &&
+        sub.status !== 'trialing' &&
+        sub.status !== 'past_due' &&
+        sub.status !== 'paused'
+      ) {
+        continue;
+      }
+      sub.status = 'cancelled';
+      sub.cancel_at = today;
+      sub.updated_at = ts;
+      changed = true;
+    }
+    if (client.membership_plan_id) {
+      client.membership_plan_id = null;
+      client.updated_at = ts;
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 /** Active people the class roster can tick — no cap. Search name, code, email, phone. */
@@ -1057,6 +1542,9 @@ export function scheduleClassOnCalendar(
       error:
         'Schedule the individual classes — unlimited members are booked onto those',
     };
+  }
+  if (storeUsesClassSubscribe(store)) {
+    ensureClassTypeForSubscribePlan(store, plan, now);
   }
   const classTypeId = classTypeIdForPlan(store, plan);
   if (!classTypeId) {
@@ -1197,6 +1685,14 @@ export function updateClassDesk(
   }
   if (opts.coachId !== undefined) {
     plan.default_coach_id = opts.coachId || null;
+  }
+  if (storeUsesClassSubscribe(store)) {
+    ensureClassTypeForSubscribePlan(
+      store,
+      plan,
+      opts.now || new Date().toISOString(),
+      { syncFields: true }
+    );
   }
   const from = opts.fromDate || (opts.now || new Date().toISOString()).slice(0, 10);
   const future = (store.sessions || []).filter(

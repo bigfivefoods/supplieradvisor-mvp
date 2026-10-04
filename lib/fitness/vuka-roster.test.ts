@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { emptyFitgraphStore } from './fitgraph';
 import { ensureVukaClassCatalog, VUKA_COMPANY_ID } from './vuka-class-catalog';
 import {
+  absorbKnownClientAliases,
   clientsAreSamePerson,
   ensureVukaRoster,
   matchCatalogPlan,
@@ -12,6 +13,9 @@ import {
   mergeDuplicateFitClients,
   normalizePersonName,
   vukaDeskSettled,
+  VUKA_BILLED_CLASS_IMPORT,
+  VUKA_CONTRACTS_IMPORT,
+  VUKA_MEMBER_MERGE,
   VUKA_ROSTER,
 } from './vuka-roster';
 
@@ -195,6 +199,187 @@ assert.equal(
   ),
   false
 );
+assert.ok(
+  clientsAreSamePerson(
+    {
+      id: 'a',
+      code: 'a',
+      name: 'Athalah Hembert',
+      created_at: '',
+      updated_at: '',
+    },
+    {
+      id: 'b',
+      code: 'b',
+      name: 'Athaliah Hembert',
+      created_at: '',
+      updated_at: '',
+    }
+  )
+);
+assert.ok(
+  VUKA_ROSTER.some((r) => r.name === 'Athaliah Hembert')
+);
+assert.equal(
+  VUKA_ROSTER.filter((r) => /athalah/i.test(r.name)).length,
+  0
+);
+assert.equal(
+  store.clients.filter((c) => /hembert/i.test(c.name) && c.active !== false)
+    .length,
+  1
+);
+assert.equal(
+  normalizePersonName(
+    store.clients.find((c) => /hembert/i.test(c.name))?.name || ''
+  ),
+  'athaliah hembert'
+);
+
+const leftover = emptyFitgraphStore();
+leftover.clients = [
+  {
+    id: 'vuka_cli_athalah_hembert',
+    code: 'VUKA-001',
+    name: 'Athalah Hembert',
+    active: true,
+    created_at: '2026-08-01T00:00:00.000Z',
+    updated_at: '2026-08-01T00:00:00.000Z',
+  },
+  {
+    id: 'cli_athaliah',
+    code: 'VUKA-002',
+    name: 'Athaliah Hembert',
+    email: 'athaliahhembert9@gmail.com',
+    active: true,
+    contracts: [{ id: 'con_ath', kind: 'group', source_id: 'jot' }],
+    created_at: '2026-07-28T00:00:00.000Z',
+    updated_at: '2026-07-28T00:00:00.000Z',
+  },
+];
+leftover.bookings = [
+  {
+    id: 'bkg_athalah',
+    session_id: 'ses_1',
+    client_id: 'vuka_cli_athalah_hembert',
+    status: 'booked',
+    booked_at: '2026-08-20T00:00:00.000Z',
+  },
+];
+const hembertMerge = mergeDuplicateFitClients(leftover, {
+  now: '2026-09-02T12:00:00.000Z',
+  preferredNames: VUKA_ROSTER.map((r) => r.name),
+});
+assert.equal(hembertMerge.merged, 1);
+assert.equal(
+  leftover.clients.filter((c) => /hembert/i.test(c.name)).length,
+  1
+);
+const kept = leftover.clients[0];
+assert.equal(normalizePersonName(kept.name), 'athaliah hembert');
+assert.equal(leftover.bookings[0].client_id, kept.id);
+assert.ok(leftover.removed_ids?.clients?.includes('vuka_cli_athalah_hembert'));
+
+assert.equal(
+  clientsAreSamePerson(
+    {
+      id: 'a',
+      code: 'a',
+      name: 'Athalah Hembert',
+      email: 'athalah@old.test',
+      created_at: '',
+      updated_at: '',
+    },
+    {
+      id: 'b',
+      code: 'b',
+      name: 'Athaliah Hembert',
+      email: 'athaliahhembert9@gmail.com',
+      created_at: '',
+      updated_at: '',
+    }
+  ),
+  false
+);
+
+const emailClash = emptyFitgraphStore();
+emailClash.settings = {
+  enabled: true,
+  public_token: 'fg_110_testtoken',
+  allow_public_booking: true,
+  show_coaches: true,
+  show_pricing: true,
+  vuka_calendar_manual: true,
+  vuka_contracts_import: VUKA_CONTRACTS_IMPORT,
+  vuka_member_merge: VUKA_MEMBER_MERGE,
+  vuka_billed_class_import: VUKA_BILLED_CLASS_IMPORT,
+};
+emailClash.clients = [
+  {
+    id: 'vuka_cli_athalah_hembert',
+    code: 'VUKA-001',
+    name: 'Athalah Hembert',
+    email: 'athalah@old.test',
+    active: true,
+    created_at: '2026-08-01T00:00:00.000Z',
+    updated_at: '2026-08-01T00:00:00.000Z',
+  },
+  {
+    id: 'cli_athaliah',
+    code: 'VUKA-002',
+    name: 'Athaliah Hembert',
+    email: 'athaliahhembert9@gmail.com',
+    active: true,
+    contracts: [{ id: 'con_ath', kind: 'group', source_id: 'jot' }],
+    created_at: '2026-07-28T00:00:00.000Z',
+    updated_at: '2026-07-28T00:00:00.000Z',
+  },
+];
+emailClash.bookings = [
+  {
+    id: 'bkg_athalah',
+    session_id: 'ses_1',
+    client_id: 'vuka_cli_athalah_hembert',
+    status: 'booked',
+    booked_at: '2026-08-20T00:00:00.000Z',
+  },
+];
+assert.equal(vukaDeskSettled(emailClash), true);
+const folded = ensureVukaRoster(emailClash, { now: '2026-09-03T12:00:00.000Z' });
+assert.equal(folded.changed, true);
+assert.equal(
+  emailClash.clients.filter((c) => /hembert/i.test(c.name)).length,
+  1
+);
+assert.equal(
+  emailClash.clients.filter((c) => /athalah/i.test(c.name)).length,
+  0
+);
+const foldedKept = emailClash.clients.find((c) => /hembert/i.test(c.name))!;
+assert.equal(normalizePersonName(foldedKept.name), 'athaliah hembert');
+assert.equal(emailClash.bookings[0].client_id, foldedKept.id);
+assert.ok(
+  emailClash.removed_ids?.clients?.includes('vuka_cli_athalah_hembert')
+);
+
+const typoOnly = emptyFitgraphStore();
+typoOnly.clients = [
+  {
+    id: 'vuka_cli_athalah_hembert',
+    code: 'VUKA-001',
+    name: 'Athalah Hembert',
+    active: true,
+    created_at: '2026-08-01T00:00:00.000Z',
+    updated_at: '2026-08-01T00:00:00.000Z',
+  },
+];
+const renamed = absorbKnownClientAliases(typoOnly, {
+  now: '2026-09-03T12:00:00.000Z',
+});
+assert.equal(renamed.changed, true);
+assert.equal(typoOnly.clients.length, 1);
+assert.equal(typoOnly.clients[0].name, 'Athaliah Hembert');
+
 assert.equal(
   clientsAreSamePerson(
     {
@@ -337,5 +522,50 @@ assert.equal(
   store.clients.find((c) => /yunis leandre herbert/i.test(c.name))?.active,
   false
 );
+assert.equal(
+  store.clients.find((c) => /christine j brown/i.test(c.name))?.membership_plan_id,
+  'vuka_pln_boot_1730'
+);
+
+const mercedee = store.clients.find((c) => /mercedee uys/i.test(c.name));
+if (mercedee) {
+  mercedee.active = true;
+  mercedee.membership_plan_id = null;
+  for (const s of store.subscriptions) {
+    if (s.client_id === mercedee.id) {
+      s.status = 'cancelled';
+      s.updated_at = '2026-08-20T14:00:00.000Z';
+    }
+  }
+  if (
+    !store.subscriptions.some(
+      (s) => s.client_id === mercedee.id && /boot/i.test(s.plan_id)
+    )
+  ) {
+    const boot = store.membership_plans.find((p) => /boot/i.test(p.code || p.id));
+    if (boot) {
+      store.subscriptions.push({
+        id: 'vuka_sub_mercedee_uys',
+        client_id: mercedee.id,
+        plan_id: boot.id,
+        status: 'cancelled',
+        started_at: '2026-03-01',
+        created_at: '2026-03-01T00:00:00.000Z',
+        updated_at: '2026-08-20T14:00:00.000Z',
+      });
+    }
+  }
+  if (store.settings) store.settings.vuka_contracts_import = 'force-reattach';
+  ensureVukaRoster(store, { now: '2026-08-20T15:00:00.000Z' });
+  assert.equal(
+    store.subscriptions.some(
+      (s) =>
+        s.client_id === mercedee.id &&
+        (s.status === 'active' || s.status === 'trialing')
+    ),
+    false,
+    'contract import must not put Mercedee back on a class after the desk removed it'
+  );
+}
 
 console.log('vuka-roster.test.ts ok');

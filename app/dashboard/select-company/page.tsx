@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePrivy } from '@privy-io/react-auth';
@@ -23,6 +23,7 @@ import { fetchLoginRole } from '@/lib/auth/login-role';
 import { defaultHomePathForRole } from '@/lib/business/permissions';
 import { toast } from 'sonner';
 import { sortCompaniesForSwitcher } from '@/lib/business/company-switcher-order';
+import { findDeepLinkedCompany, parseCompanyParam } from '@/lib/business/company-deeplink';
 import {
   HubHero,
   HubPrinciples,
@@ -63,6 +64,17 @@ export default function SelectCompanyPage() {
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
   const [restoreBusy, setRestoreBusy] = useState<string | null>(null);
   const [backfillBusy, setBackfillBusy] = useState(false);
+  /** ?company=<id> deep link (leadership portal cards). Read once on mount. */
+  const [deepLinkCompany, setDeepLinkCompany] = useState<string | null>(null);
+  const [deepLinkOpening, setDeepLinkOpening] = useState<string | null>(null);
+  const deepLinkHandled = useRef(false);
+  useEffect(() => {
+    try {
+      setDeepLinkCompany(parseCompanyParam(new URLSearchParams(window.location.search).get('company')));
+    } catch {
+      /* no deep link */
+    }
+  }, []);
   const [personal, setPersonal] = useState<{
     name?: string | null;
     memberships: number;
@@ -181,7 +193,15 @@ export default function SelectCompanyPage() {
   useEffect(() => {
     if (!ready) return;
     if (!authenticated) {
-      router.replace('/login?next=' + encodeURIComponent('/dashboard/select-company'));
+      // Keep ?company= through sign-in (email code and Google/Apple both return via /login?next=)
+      let back = '/dashboard/select-company';
+      try {
+        const id = parseCompanyParam(new URLSearchParams(window.location.search).get('company'));
+        if (id) back += `?company=${id}`;
+      } catch {
+        /* plain picker */
+      }
+      router.replace('/login?next=' + encodeURIComponent(back));
     }
   }, [ready, authenticated, router]);
 
@@ -232,6 +252,33 @@ export default function SelectCompanyPage() {
     }
     router.push(path);
   };
+
+  // ?company=<id>: auto-open it only when it is in this user's own active memberships
+  // (the /api/me/companies list); otherwise drop the param and show the normal picker.
+  useEffect(() => {
+    if (deepLinkHandled.current || !deepLinkCompany) return;
+    if (!ready || !authenticated || loading) return;
+    deepLinkHandled.current = true;
+    const match = findDeepLinkedCompany(companies, deepLinkCompany);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('company');
+      window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+    } catch {
+      /* cosmetic */
+    }
+    if (match) {
+      setDeepLinkOpening(match.trading_name || 'your company');
+      handleSelectCompany(String(match.id), match.trading_name, match.role, match.home_path);
+      return;
+    }
+    if (!error) {
+      toast.message('That company is not on your account', {
+        description: 'Pick one of your companies below, or ask its owner to invite this email.',
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkCompany, ready, authenticated, loading, companies, error]);
 
   const handleOpenPersonal = () => {
     try {
@@ -285,12 +332,14 @@ export default function SelectCompanyPage() {
     return s.size;
   }, [companies]);
 
-  if (!ready || (authenticated && loading)) {
+  if (!ready || (authenticated && loading) || deepLinkOpening) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-[#f8fafc] px-6">
         <div className="text-center">
           <Loader2 className="mx-auto mb-4 h-10 w-10 animate-spin text-[#00b4d8]" />
-          <p className="font-medium text-neutral-600">Loading your workspaces…</p>
+          <p className="font-medium text-neutral-600">
+            {deepLinkOpening ? `Opening ${deepLinkOpening}…` : 'Loading your workspaces…'}
+          </p>
           <p className="mt-2 text-sm text-neutral-400">Restoring secure session</p>
         </div>
       </div>

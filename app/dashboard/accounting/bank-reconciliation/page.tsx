@@ -1410,10 +1410,10 @@ function Inner() {
               </div>
               <p className="text-sm text-slate-600 mt-0.5">
                 {bankProvider?.fnb?.configured
-                  ? 'FNB Integration Channel is configured — connect Big Five Foods and sync statements.'
+                  ? 'FNB Integration Channel is configured for this company — connect and sync statements.'
                   : bankProvider?.mode === 'sandbox' || !bankProvider?.configured
-                    ? 'Sandbox mode — demo FNB feed without API keys. Set FNB_CLIENT_ID / FNB_CLIENT_SECRET or BANKLINK_API_KEY.'
-                    : 'Live BankLink mode — FNB and roadmap banks via open-banking style link.'}
+                    ? 'No live bank API for this company. Use Connect bank for a demo feed, or keep importing PDF/CSV.'
+                    : 'Connect a bank feed for this company via BankLink, or keep using PDF/CSV import.'}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -2528,8 +2528,8 @@ function Inner() {
           <div className="space-y-4">
             <p className="text-sm text-slate-600 leading-relaxed">
               {bankProvider?.fnb?.configured
-                ? 'Connect FNB through the Integration Channel (client ID + secret). Statements land in the same allocation queue as PDF/CSV imports.'
-                : 'Link a South African bank account via BankLink open banking (FNB live; other banks on roadmap). Transactions land in the same allocation queue as PDF/CSV imports.'}
+                ? 'Connect this company through the FNB Integration Channel. Statements land in the same allocation queue as PDF/CSV imports.'
+                : 'Link a bank account for this company via BankLink (open banking). Transactions land in the same allocation queue as PDF/CSV imports.'}
             </p>
             <div className="rounded-2xl border border-cyan-100 bg-sky-50/60 px-4 py-3 text-xs text-slate-700 space-y-1.5">
               <div className="font-bold text-slate-900">How it works</div>
@@ -2653,7 +2653,7 @@ function Inner() {
                   ? 'Connect FNB Integration Channel'
                   : bankProvider?.configured
                     ? 'Connect with BankLink'
-                    : 'Connect sandbox FNB'}
+                    : 'Connect demo bank feed'}
               </button>
             </div>
           </div>

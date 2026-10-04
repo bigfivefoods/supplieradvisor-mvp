@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Check, Copy, ExternalLink, QrCode, RefreshCw } from 'lucide-react';
 import { AdvisorOpsPoliciesCard } from '@/components/services/AdvisorOpsPoliciesCard';
@@ -26,9 +27,25 @@ import { AdvisorPortalManager } from '@/components/advisors/AdvisorPortalManager
 import { logoUrlFromSettings } from '@/lib/business/company-logo';
 import { AdvisorMemberCalendarShareCard } from '@/components/advisors/AdvisorMemberCalendarShareCard';
 import type { WorkingHours } from '@/lib/schedule/working-hours';
+import { AdvisorPortalPreviewDesk } from '@/components/advisors/AdvisorPortalPreviewDesk';
+import {
+  advisorPublicEmbedPath,
+  portalSectionsToLegacyFlags,
+} from '@/lib/advisors/portal-sections';
 
 export default function FitgraphWebsitePage() {
-  const { companyId, store, loading, saving, post, summary } = useFitgraph();
+  const { companyId, store, loading, saving, post } = useFitgraph();
+  const search = useSearchParams();
+  const router = useRouter();
+  const tab = search.get('tab') === 'preview' ? 'preview' : 'publish';
+  const setTab = (next: 'publish' | 'preview') => {
+    router.replace(
+      next === 'preview'
+        ? '/dashboard/fitgraph/website?tab=preview'
+        : '/dashboard/fitgraph/website',
+      { scroll: false }
+    );
+  };
   const [form, setForm] = useState({
     enabled: false,
     brand_name: '',
@@ -150,16 +167,79 @@ export default function FitgraphWebsitePage() {
 
   return (
     <FitgraphWorkbench
-      title="Website"
-      titleAccent="QR · embed · profile"
-      description="Unique gym check-in QR for member phones, ops model, public bio, contracts, and class calendar embed with online booking."
+      title="Website & apps"
+      titleAccent="publish · preview"
+      description="Publish the public gym site, door QR and embed. Preview the member and coach apps on the Preview tab."
     >
       {loading || !store ? (
         <LoadingBlock />
       ) : (
         <div className="space-y-6">
+          <div
+            className="flex flex-wrap gap-1.5"
+            role="tablist"
+            aria-label="Website and apps"
+          >
+            {(
+              [
+                ['publish', 'Publish'],
+                ['preview', 'Preview'],
+              ] as const
+            ).map(([id, label]) => {
+              const on = tab === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={on}
+                  onClick={() => setTab(id)}
+                  className={`rounded-full border px-3 py-1.5 text-[11px] font-black uppercase tracking-wide ${
+                    on
+                      ? 'border-yellow-500 bg-[#E8E830] text-slate-900'
+                      : 'border-yellow-200 bg-white text-yellow-900 dark:border-yellow-600 dark:bg-yellow-950 dark:text-yellow-100'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {tab === 'preview' ? (
+            <AdvisorPortalPreviewDesk
+              module="fitgraph"
+              eyebrow="GymAdvisor®"
+              embedPath={
+                token ? advisorPublicEmbedPath('fitgraph', token) : ''
+              }
+              settings={store.settings}
+              websiteHref="/dashboard/fitgraph/website"
+              saving={saving}
+              onSave={async (sections) => {
+                await post({
+                  action: 'update_settings',
+                  settings: {
+                    portal_sections: sections,
+                    ...portalSectionsToLegacyFlags('fitgraph', sections),
+                  },
+                });
+                toast.success('Portal sections saved');
+              }}
+              onSavePwa={async (pwa) => {
+                await post({
+                  action: 'update_settings',
+                  settings: pwa,
+                });
+              }}
+            />
+          ) : null}
+
+          {tab === 'publish' ? (
+          <>
           <AdvisorPortalManager
             module="fitgraph"
+            showGrowPreviews={false}
             logoUrl={logoUrlFromSettings(store.settings)}
             eyebrow="GymAdvisor®"
             values={{
@@ -670,6 +750,8 @@ export default function FitgraphWebsitePage() {
               classes appear on the website.
             </p>
           </div>
+          </>
+          ) : null}
         </div>
       )}
     </FitgraphWorkbench>

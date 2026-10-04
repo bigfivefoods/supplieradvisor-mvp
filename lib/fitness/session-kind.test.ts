@@ -54,4 +54,19 @@ assert.equal(pt[0].public, false);
 assert.equal(pt[0].capacity, 1);
 assert.equal(applySessionKindRules('class', { public: true, capacity: 18 }).public, true);
 
+const away = createSessionsFromTemplate(store, {
+  class_type_id: '',
+  session_kind: 'away',
+  coach_id: coachId,
+  date: '2026-08-18',
+  start_time: '08:00',
+  end_time: '17:00',
+  personal_reason: 'leave',
+  public: true,
+});
+assert.equal(away[0].session_kind, 'away');
+assert.equal(away[0].public, false);
+assert.equal(away[0].capacity, 0);
+assert.equal(sessionKindOf(store, away[0]), 'away');
+
 console.log('session-kind create ok');

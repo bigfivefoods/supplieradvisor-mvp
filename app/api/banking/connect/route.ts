@@ -8,7 +8,9 @@ import {
   fetchBankLinkTransactions,
   fetchFnbTransactions,
   fnbConfig,
+  fnbConfiguredForCompany,
   getFnbAccessToken,
+  isFnbIntegrationCompany,
   ingestCanonicalTxns,
   startSyncRun,
   finishSyncRun,
@@ -46,8 +48,14 @@ export async function POST(request: NextRequest) {
     const cfg = banklinkConfig();
     const fnb = fnbConfig();
 
-    if (action === 'start_fnb' || (action === 'start' && fnb.configured && body.provider === 'fnb')) {
-      if (!fnb.configured) {
+    if (action === 'start_fnb' || (action === 'start' && body.provider === 'fnb')) {
+      if (!isFnbIntegrationCompany(companyId)) {
+        return NextResponse.json(
+          { error: 'FNB Integration Channel is not available for this company' },
+          { status: 403 }
+        );
+      }
+      if (!fnbConfiguredForCompany(companyId)) {
         return NextResponse.json(
           { error: 'FNB_CLIENT_ID and FNB_CLIENT_SECRET are not set' },
           { status: 503 }
@@ -312,6 +320,12 @@ export async function POST(request: NextRequest) {
       // Pull transactions (sandbox demo or live)
       let txns = sandboxTransactions();
       if (conn.provider === 'fnb') {
+        if (!isFnbIntegrationCompany(companyId)) {
+          return NextResponse.json(
+            { error: 'FNB Integration Channel is not available for this company' },
+            { status: 403 }
+          );
+        }
         const pulled = await fetchFnbTransactions({
           accountNumber: String(
             conn.external_account_id || fnb.accountNumber || ''

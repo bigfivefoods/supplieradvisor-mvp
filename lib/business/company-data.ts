@@ -21,6 +21,7 @@ import { ttlDel, ttlGet, ttlSet } from '@/lib/system/memory-ttl';
 
 export const COMPANY_CHROME_META_KEYS = [
   'enabled_modules',
+  'sandbox_module_picks',
   'user_sidebar_orders',
   'os_entity_type',
   'os_sector',
@@ -48,6 +49,18 @@ export function mergeCompanyChromeLayers(
   return out;
 }
 
+/**
+ * Sidenav chrome: workspace/RPC snapshots can predate a newly ticked Advisor.
+ * Profile metadata keys always win for hub enablement.
+ */
+export function mergeCompanyChromeSources(opts: {
+  workspace?: Record<string, unknown> | null;
+  rpc?: Record<string, unknown> | null;
+  profileKeys?: Record<string, unknown> | null;
+}): CompanyChromeMeta {
+  return mergeCompanyChromeLayers(opts.workspace, opts.rpc, opts.profileKeys);
+}
+
 export const ADVISOR_MODULE_KEYS = [
   'fitgraph',
   'fitgraph_lib',
@@ -58,6 +71,8 @@ export const ADVISOR_MODULE_KEYS = [
   'dentalgraph',
   'hiregraph',
   'retailgraph',
+  'apparelgraph',
+  'constructiongraph',
   'fieldgraph',
   'quarrygraph',
 ] as const;
@@ -120,6 +135,37 @@ export function isMissingRelation(error: unknown): boolean {
   );
 }
 
+export class StaleModuleStoreError extends Error {
+  readonly updatedAt: string | null;
+
+  constructor(updatedAt: string | null) {
+    super('stale_module_store');
+    this.name = 'StaleModuleStoreError';
+    this.updatedAt = updatedAt;
+  }
+}
+
+export function isStaleModuleStoreError(error: unknown): error is StaleModuleStoreError {
+  return error instanceof StaleModuleStoreError;
+}
+
+function staleUpdatedAtFromRpcError(
+  error: unknown
+): { updatedAt: string | null } | null {
+  if (!error || typeof error !== 'object') return null;
+  const raw = error as {
+    code?: string;
+    message?: string;
+    details?: string | null;
+    hint?: string | null;
+  };
+  const msg = String(raw.message || '');
+  const isStale = /stale_module_store/i.test(msg);
+  if (!isStale) return null;
+  const detail = String(raw.details || '').trim();
+  return { updatedAt: detail || null };
+}
+
 function asObject(raw: unknown): Record<string, unknown> {
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     return { ...(raw as Record<string, unknown>) };
@@ -155,44 +201,47 @@ export async function loadCompanyChrome(
   const supabase = getSupabaseServer();
   const chromeKeys = [...COMPANY_CHROME_META_KEYS];
 
-  // Workspace chrome is a subset (e.g. only sidenav order). Never use it
-  // instead of profile keys — that drops enabled_modules and hides Advisors.
-  const rpc = await supabase.rpc('sa_get_company_chrome', {
-    p_company_id: companyId,
-  });
-  const fromRpc =
-    !rpc.error && rpc.data && typeof rpc.data === 'object'
-      ? asObject(rpc.data)
-      : {};
-  if ('enabled_modules' in fromRpc || 'industry_packs' in fromRpc) {
-    return fromRpc;
-  }
-  if (rpc.error && !isMissingRelation(rpc.error)) {
-    console.warn('loadCompanyChrome rpc', rpc.error.message);
-  }
-
-  const [ws, keyed] = await Promise.all([
-    supabase
-      .from('company_workspace')
-      .select('chrome')
-      .eq('company_id', companyId)
-      .maybeSingle(),
+  // Workspace chrome is a subset (e.g. only sidenav order). Never let it
+  // replace profile enabled_modules — that hides newly ticked Advisors.
+  const [rpc, keyed] = await Promise.all([
+    supabase.rpc('sa_get_company_chrome', {
+      p_company_id: companyId,
+    }),
     supabase.rpc('sa_get_profile_metadata_keys', {
       p_company_id: companyId,
       p_keys: chromeKeys,
     }),
   ]);
-
-  const fromWs =
-    !ws.error && ws.data?.chrome && typeof ws.data.chrome === 'object'
-      ? asObject(ws.data.chrome)
+  const fromRpc =
+    !rpc.error && rpc.data && typeof rpc.data === 'object'
+      ? asObject(rpc.data)
       : {};
   const fromKeys =
     !keyed.error && keyed.data && typeof keyed.data === 'object'
       ? asObject(keyed.data)
       : {};
+  if (rpc.error && !isMissingRelation(rpc.error)) {
+    console.warn('loadCompanyChrome rpc', rpc.error.message);
+  }
 
-  let merged = mergeCompanyChromeLayers(fromKeys, fromRpc, fromWs);
+  let fromWs: CompanyChromeMeta = {};
+  if (!('enabled_modules' in fromRpc) && !('enabled_modules' in fromKeys)) {
+    const ws = await supabase
+      .from('company_workspace')
+      .select('chrome')
+      .eq('company_id', companyId)
+      .maybeSingle();
+    fromWs =
+      !ws.error && ws.data?.chrome && typeof ws.data.chrome === 'object'
+        ? asObject(ws.data.chrome)
+        : {};
+  }
+
+  let merged = mergeCompanyChromeSources({
+    workspace: fromWs,
+    rpc: fromRpc,
+    profileKeys: fromKeys,
+  });
 
   if (!('enabled_modules' in merged) && !('industry_packs' in merged)) {
     const { data: prof } = await supabase
@@ -205,7 +254,10 @@ export async function loadCompanyChrome(
     for (const k of chromeKeys) {
       if (k in meta) fromMeta[k] = meta[k];
     }
-    merged = mergeCompanyChromeLayers(fromMeta, merged);
+    merged = mergeCompanyChromeSources({
+      workspace: merged,
+      profileKeys: fromMeta,
+    });
   }
 
   return merged;
@@ -425,7 +477,8 @@ async function tryEnsureSystemSchema(): Promise<boolean> {
 export async function saveModuleSlice(
   companyId: number,
   moduleKey: string,
-  slice: Record<string, unknown>
+  slice: Record<string, unknown>,
+  opts?: { ifUpdatedAt?: string | null }
 ): Promise<void> {
   if (!isAdvisorModuleKey(moduleKey)) {
     throw new Error('unknown advisor module');
@@ -444,6 +497,7 @@ export async function saveModuleSlice(
     p_data: data ?? {},
     p_indexes: indexes,
     p_public_token: publicToken,
+    p_if_updated_at: opts?.ifUpdatedAt ?? null,
   };
   let rpc = await supabase.rpc('sa_put_module_store', args);
   if (rpc.error && isMissingRelation(rpc.error)) {
@@ -458,6 +512,10 @@ export async function saveModuleSlice(
         /* tests without Next cache */
       });
     return;
+  }
+  const stale = staleUpdatedAtFromRpcError(rpc.error);
+  if (stale) {
+    throw new StaleModuleStoreError(stale.updatedAt);
   }
   throw new Error(
     isMissingRelation(rpc.error)
@@ -481,8 +539,9 @@ export async function saveAdvisorModuleStore<T>(
   companyId: number,
   moduleKey: string,
   store: T,
-  write: (meta: Record<string, unknown>, store: T) => Record<string, unknown>
+  write: (meta: Record<string, unknown>, store: T) => Record<string, unknown>,
+  opts?: { ifUpdatedAt?: string | null }
 ): Promise<void> {
   const slice = write({}, store);
-  await saveModuleSlice(companyId, moduleKey, slice);
+  await saveModuleSlice(companyId, moduleKey, slice, opts);
 }

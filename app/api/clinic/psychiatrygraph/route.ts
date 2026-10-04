@@ -71,6 +71,10 @@ import { normalizeRecordShares } from '@/lib/clinic/record-shares';
 import { applyClinicFollowUp } from '@/lib/clinic/follow-up-action';
 import { upsertClientNote } from '@/lib/clinic/clinic-movements';
 import { mergeInviteFieldsFromRecord } from '@/lib/services/member-invite';
+import {
+  applyAdvisorPersonCodeFromAr,
+  needsAdvisorPersonCodeFromAr,
+} from '@/lib/fitness/gym-client-number';
 
 export const runtime = 'nodejs';
 
@@ -172,6 +176,75 @@ export async function POST(request: NextRequest) {
         summary: summarisePsychiatrygraph(demo),
         analysis: analysis(demo),
         message: 'Demo clinic loaded',
+      });
+    }
+
+    if (action === 'backfill_patient_crm') {
+      const { attachCrmToAdvisorPerson, needsGymCrmStamp } = await import(
+        '@/lib/b2c/member-account-ar'
+      );
+      const { backfillAdvisorPartyUids } = await import(
+        '@/lib/accounting/party-gl-accounts'
+      );
+      await backfillAdvisorPartyUids(companyId);
+      const requestedLimit = Number(body.limit);
+      const limit = Number.isFinite(requestedLimit)
+        ? Math.min(120, Math.max(1, Math.trunc(requestedLimit)))
+        : 60;
+      let stamped = 0;
+      let skipped = 0;
+      let linked_existing = 0;
+      let created = 0;
+      let processed = 0;
+      for (const person of store.patients || []) {
+        const needsStamp = needsGymCrmStamp(person);
+        const needsCode = needsAdvisorPersonCodeFromAr(person, store.patients || []);
+        if (!needsStamp && !needsCode) continue;
+        if (processed >= limit) break;
+        processed += 1;
+        try {
+          const result = await attachCrmToAdvisorPerson({
+            companyId,
+            kind: 'psychiatry',
+            person,
+          });
+          applyAdvisorPersonCodeFromAr(person, store.patients || []);
+          if (result?.id) {
+            stamped += 1;
+            if (result.created) created += 1;
+            else linked_existing += 1;
+          } else {
+            skipped += 1;
+          }
+        } catch {
+          skipped += 1;
+        }
+      }
+      let numbered = 0;
+      for (const person of store.patients || []) {
+        if (applyAdvisorPersonCodeFromAr(person, store.patients || [])) numbered += 1;
+      }
+      await saveStore(companyId, meta, store);
+      const remaining = (store.patients || []).reduce(
+        (count, person) =>
+          needsGymCrmStamp(person) ||
+          needsAdvisorPersonCodeFromAr(person, store.patients || [])
+            ? count + 1
+            : count,
+        0
+      );
+      return NextResponse.json({
+        success: true,
+        store,
+        summary: summarisePsychiatrygraph(store),
+        analysis: analysis(store),
+        stamped,
+        skipped,
+        linked_existing,
+        created,
+        numbered,
+        remaining,
+        message: `Stamped ${stamped} patient(s) onto CRM (${linked_existing} existing, ${created} new), ${numbered} patient code(s) from CoA, ${skipped} skipped`,
       });
     }
 
@@ -1463,6 +1536,7 @@ export async function POST(request: NextRequest) {
             kind: 'psychiatry',
             person: linked.person,
           });
+          applyAdvisorPersonCodeFromAr(linked.person, store.patients || []);
           if (pi >= 0) store.patients[pi] = linked.person;
           walletInvite = {
             email_sent: linked.invite?.email_sent,

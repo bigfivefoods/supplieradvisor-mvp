@@ -4,6 +4,7 @@
  */
 import { appointmentKindOf } from '@/lib/clinic/appointment-kind';
 import {
+  SYS_COACH_AWAY_CODE,
   SYS_COACH_TIME_CODE,
   SYS_PT_CODE,
   normalizeSessionKind,
@@ -251,6 +252,7 @@ function gymSessionKind(
   const ct = types.find((t) => t.id === session.class_type_id);
   if (ct?.code === SYS_PT_CODE) return 'private_pt';
   if (ct?.code === SYS_COACH_TIME_CODE) return 'coach_personal';
+  if (ct?.code === SYS_COACH_AWAY_CODE) return 'away';
   return 'class';
 }
 
@@ -327,7 +329,8 @@ export function gymCommandBookingMetrics(
   const types = store.class_types || [];
   const sessions = (store.sessions || []).filter((s) => {
     if (s.status === 'cancelled') return false;
-    return gymSessionKind(s, types) !== 'coach_personal';
+    const kind = gymSessionKind(s, types);
+    return kind !== 'coach_personal' && kind !== 'away';
   });
   const seats = new Map<string, Array<{ client_id?: string }>>();
   for (const b of store.bookings || []) {

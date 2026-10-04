@@ -7,6 +7,7 @@ import {
   fetchBankLinkTransactions,
   fetchFnbTransactions,
   fnbConfig,
+  isFnbIntegrationCompany,
   ingestCanonicalTxns,
   startSyncRun,
   finishSyncRun,
@@ -112,6 +113,12 @@ export async function POST(request: NextRequest) {
         : [];
 
     if (conn.provider === 'fnb') {
+      if (!isFnbIntegrationCompany(companyId)) {
+        return NextResponse.json(
+          { error: 'FNB Integration Channel is not available for this company' },
+          { status: 403 }
+        );
+      }
       let accountNumber = String(
         externalAccountId || fnb.accountNumber || ''
       ).replace(/\s+/g, '');

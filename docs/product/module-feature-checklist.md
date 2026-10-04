@@ -35,10 +35,11 @@ Automated: `lib/chrome/module-nav-integrity.test.ts` (or script).
 | 19 | `people` | People | 9 | ✅ Full |
 | 20 | `my-business` | Company | 15 | ✅ Full (+ Packaging) |
 | 21 | `guide` | Guide | 12 | ✅ Full |
+| 22 | `apparelgraph` | ApparelAdvisor | 8 | ✅ Full |
 
 \* SchoolAdvisor/Health step counts include DBE / School / SP (or DoH / Facility / SP) groups; sidebar filters by programme role but does **not** drop the module tree definition. SchoolAdvisor is public-sector only.
 
-**Total:** 21 modules · **233** process steps in `MODULE_NAV`.
+**Total:** 22 modules · **241** process steps in `MODULE_NAV`.
 
 **Additive (not MODULE_NAV):**  
 - `industry_tools` — pack shortcuts into existing hubs  
@@ -145,6 +146,12 @@ Overview · Chart · Journals · AR · AP · Payments · Bank · Budget · Manag
 ## Containers (`containers`)
 
 Command · Manage · Map · Impact · Feasibility · Add · Contractors · Resellers · Train · Metrics · Share · RIAD · Reports — all ✅  
+
+---
+
+## ApparelAdvisor (`apparelgraph`)
+
+Overview · Capability · Styles · Samples · Materials · Floor · Quality · Ship — all ✅
 
 ---
 

@@ -62,6 +62,8 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(companyId) || !Number.isFinite(customerId)) {
       return NextResponse.json({ error: 'companyId and customer_id required' }, { status: 400 });
     }
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    if (!_gate.ok) return _gate.response;
     const supabase = getSupabaseServer();
     const now = new Date().toISOString();
 

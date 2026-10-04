@@ -125,8 +125,8 @@ const MODULES: HubModule[] = [
     href: '/dashboard/physiograph/report',
     icon: Sparkles,
     code: '09',
-    title: 'Management report',
-    desc: 'Practitioners, patients, appointments utilisation.',
+    title: 'Reports',
+    desc: 'Slice & dice · pack · trends · A4 PDF',
     accent: 'from-slate-50 to-white border-slate-200',
   },
 ];

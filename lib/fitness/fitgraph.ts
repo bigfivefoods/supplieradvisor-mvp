@@ -31,12 +31,14 @@ import { bookingEligibleForClientRating } from '@/lib/services/booking-feedback'
 import { isoDateInZone } from '@/lib/fitness/gym-local-time';
 import { compactWorkingHours } from '@/lib/schedule/working-hours';
 import {
+  SYS_COACH_AWAY_CODE,
   SYS_COACH_TIME_CODE,
   SYS_PT_CODE,
   normalizeSessionKind,
   resolveSessionTimes,
   type FitSessionKind,
 } from '@/lib/fitness/session-times';
+import { gymClientLookupKeys } from '@/lib/fitness/gym-client-number';
 import type {
   FitMovement,
   FitProgramme,
@@ -72,6 +74,7 @@ import { isPortalSectionOn } from '@/lib/advisors/portal-sections';
 import { gymCommandBookingMetrics } from '@/lib/advisors/command-booking-metrics';
 
 export {
+  SYS_COACH_AWAY_CODE,
   SYS_COACH_TIME_CODE,
   SYS_PT_CODE,
   normalizeSessionKind,
@@ -492,6 +495,7 @@ export type FitMemberJoinEvent = {
 
 export type FitClient = {
   id: string;
+  /** Desk client number — padded CoA AR, e.g. 1180-0000123 */
   code: string;
   name: string;
   email?: string;
@@ -693,6 +697,8 @@ export type FitClassType = {
   default_duration_min?: number;
   capacity?: number | null;
   description?: string;
+  /** Diary chip colour (hex). */
+  color?: string | null;
   active?: boolean;
   created_at: string;
 };
@@ -709,13 +715,18 @@ export type FitSession = {
   duration_min?: number | null;
   /**
    * class = group class · private_pt = 1:1 personal training ·
-   * coach_personal = coach's own training / blocked time (not member-bookable)
+   * coach_personal = coach's own training / admin (they are in) ·
+   * away = leave / sick / travel (not available)
    */
   session_kind?: FitSessionKind;
+  /** Why this away block exists (leave, sick, travel…). */
+  personal_reason?: string | null;
   capacity?: number | null;
   location?: string;
   /** Multi-resource diary: room / studio / court */
   room?: string | null;
+  /** Agreed fee for this session (ZAR), usually private PT. */
+  agreed_rate_zar?: number | null;
   status: 'scheduled' | 'cancelled' | 'completed' | 'full';
   /** Visible on public website / embed calendar */
   public?: boolean;
@@ -1428,12 +1439,10 @@ export function findClientForCheckIn(
   }
   const code = String(lookup.code || '').trim().toLowerCase();
   if (code) {
-    const byCode = store.clients.find(
-      (c) =>
-        c.active !== false &&
-        (String(c.code || '').toLowerCase() === code ||
-          String(c.id_number || '').toLowerCase() === code)
-    );
+    const byCode = store.clients.find((c) => {
+      if (c.active === false) return false;
+      return gymClientLookupKeys(c).includes(code);
+    });
     if (byCode) return byCode;
   }
   const email = String(lookup.email || '').trim().toLowerCase();
@@ -1631,9 +1640,14 @@ export interface FitgraphStore {
   bookings: FitBooking[];
   /**
    * Owner-deleted ids. Concurrent merge unions arrays by id, so a delete
-   * must tombstone or the previous snapshot resurrects the class.
+   * must tombstone or the previous snapshot resurrects the row.
    */
-  removed_ids?: { sessions?: string[]; bookings?: string[] };
+  removed_ids?: {
+    sessions?: string[];
+    bookings?: string[];
+    clients?: string[];
+    coaches?: string[];
+  };
   check_ins: FitCheckIn[];
   pt_packs: FitPtPack[];
   /** Member + coach post-class feedback */
@@ -1666,6 +1680,8 @@ export interface FitgraphStore {
   /** Watch / Garmin sessions logged after class */
   watch_sessions?: import('@/lib/fitness/wearable-types').FitWatchSession[];
   garmin_oauth_pending?: import('@/lib/fitness/wearable-types').GarminOauthPending[];
+  /** Floor desk tasks (today · assigned · follow-ups) */
+  floor_tasks?: import('@/lib/services/advisor-floor-tasks').FloorTask[];
   /** Structured member goals (start / actual / target) */
   goals?: FitGoal[];
   journey_events?: FitJourneyEvent[];
@@ -1725,6 +1741,19 @@ export function ensureSystemClassTypes(store: FitgraphStore): void {
       created_at: now,
     });
   }
+  if (!store.class_types.some((c) => c.code === SYS_COACH_AWAY_CODE)) {
+    store.class_types.push({
+      id: 'cls_sys_coach_away',
+      code: SYS_COACH_AWAY_CODE,
+      name: 'Away / leave',
+      category: 'Coach',
+      default_duration_min: 540,
+      capacity: 0,
+      description: 'Coach or contractor is not available (leave, sick, travel)',
+      active: true,
+      created_at: now,
+    });
+  }
 }
 
 export function sessionKindOf(
@@ -1737,6 +1766,7 @@ export function sessionKindOf(
   const ct = store.class_types.find((c) => c.id === session.class_type_id);
   if (ct?.code === SYS_PT_CODE) return 'private_pt';
   if (ct?.code === SYS_COACH_TIME_CODE) return 'coach_personal';
+  if (ct?.code === SYS_COACH_AWAY_CODE) return 'away';
   return 'class';
 }
 
@@ -1758,15 +1788,23 @@ export function resolveClassTypeForSession(
       ? 'private_pt'
       : ct?.code === SYS_COACH_TIME_CODE
         ? 'coach_personal'
-        : 'class';
+        : ct?.code === SYS_COACH_AWAY_CODE
+          ? 'away'
+          : 'class';
   const isSystem =
-    ct?.code === SYS_PT_CODE || ct?.code === SYS_COACH_TIME_CODE;
+    ct?.code === SYS_PT_CODE ||
+    ct?.code === SYS_COACH_TIME_CODE ||
+    ct?.code === SYS_COACH_AWAY_CODE;
   if (kind === 'private_pt' && (!ct || isSystem)) {
     const sys = store.class_types.find((c) => c.code === SYS_PT_CODE);
     return { class_type_id: sys?.id || ctId, kind };
   }
   if (kind === 'coach_personal' && (!ct || isSystem)) {
     const sys = store.class_types.find((c) => c.code === SYS_COACH_TIME_CODE);
+    return { class_type_id: sys?.id || ctId, kind };
+  }
+  if (kind === 'away' && (!ct || isSystem)) {
+    const sys = store.class_types.find((c) => c.code === SYS_COACH_AWAY_CODE);
     return { class_type_id: sys?.id || ctId, kind };
   }
   return { class_type_id: ctId, kind };
@@ -1776,7 +1814,7 @@ export function applySessionKindRules(
   kind: FitSessionKind,
   opts?: { public?: boolean; capacity?: number | null }
 ): { public: boolean; capacity: number | null } {
-  if (kind === 'coach_personal') {
+  if (kind === 'coach_personal' || kind === 'away') {
     return { public: false, capacity: 0 };
   }
   if (kind === 'private_pt') {
@@ -1809,8 +1847,12 @@ export function coachPersonalBookingError(
   session: FitSession | undefined | null
 ): string | null {
   if (!session) return null;
-  if (sessionKindOf(store, session) === 'coach_personal') {
+  const kind = sessionKindOf(store, session);
+  if (kind === 'coach_personal') {
     return 'Coach personal time cannot be booked by members';
+  }
+  if (kind === 'away') {
+    return 'This coach is away and cannot be booked';
   }
   return null;
 }
@@ -1845,6 +1887,7 @@ export function emptyFitgraphStore(): FitgraphStore {
     gym_sales: [],
     watch_sessions: [],
     garmin_oauth_pending: [],
+    floor_tasks: [],
     goals: [],
     journey_events: [],
     member_stories: [],
@@ -1903,6 +1946,7 @@ export function readFitgraphFromMetadata(
     'leaderboard_activities',
     'leaderboard_assignments',
     'leaderboard_scores',
+    'floor_tasks',
   ]) {
     if (Array.isArray(extra[key])) {
       (e as unknown as Record<string, unknown>)[key] = extra[key];
@@ -1916,6 +1960,12 @@ export function readFitgraphFromMetadata(
         : [],
       bookings: Array.isArray(removed.bookings)
         ? removed.bookings.map((id) => String(id))
+        : [],
+      clients: Array.isArray(removed.clients)
+        ? removed.clients.map((id) => String(id))
+        : [],
+      coaches: Array.isArray(removed.coaches)
+        ? removed.coaches.map((id) => String(id))
         : [],
     };
   }
@@ -1996,6 +2046,31 @@ export function writeFitgraphToMetadata(
     [FITGRAPH_PUBLIC_TOKEN_KEY]: store.settings?.public_token || null,
     [FITGRAPH_COACH_TOKENS_KEY]: coachTokens,
     [FITGRAPH_CLIENT_TOKENS_KEY]: clientTokens,
+  };
+}
+
+/**
+ * Write ONLY the keys present in `patch` into the fitgraph metadata object.
+ * Omitted keys are NOT written, so the Brief 50/52 SQL merge will retain them
+ * from the existing server row without scanning or rewriting them.
+ *
+ * Use this with saveFitgraphPatch for calendar actions that touch only
+ * sessions / bookings / settings — not the full gym book.
+ */
+export function writeFitgraphPatchToMetadata(
+  meta: Record<string, unknown>,
+  patch: Partial<FitgraphStore>,
+  updatedAt?: string
+): Record<string, unknown> {
+  // Build a partial fitgraph payload containing only the patched keys.
+  // updated_at is always stamped so the server row's timestamp is fresh.
+  const partial: Record<string, unknown> = { updated_at: updatedAt ?? new Date().toISOString() };
+  for (const key of Object.keys(patch) as (keyof FitgraphStore)[]) {
+    partial[key] = patch[key];
+  }
+  return {
+    ...meta,
+    [FITGRAPH_META_KEY]: partial,
   };
 }
 
@@ -2789,6 +2864,7 @@ export function createSessionsFromTemplate(
     capacity?: number | null;
     location?: string;
     room?: string | null;
+    agreed_rate_zar?: number | null;
     public?: boolean;
     notes?: string;
     public_notes?: string;
@@ -2798,6 +2874,7 @@ export function createSessionsFromTemplate(
     shared_coach_ids?: string[] | null;
     /** Reuse a catalog series so class-specific plans still match. */
     series_id?: string | null;
+    personal_reason?: string | null;
   },
   recurrence?: FitRecurrence | null,
   nowIso?: string
@@ -2820,7 +2897,9 @@ export function createSessionsFromTemplate(
     start_time: template.start_time,
     end_time: template.end_time,
     duration_min: template.duration_min,
-    fallbackDuration: ct?.default_duration_min ?? (kind === 'class' ? 45 : 60),
+    fallbackDuration:
+      ct?.default_duration_min ??
+      (kind === 'away' ? 540 : kind === 'class' ? 45 : 60),
   });
   const rules = applySessionKindRules(kind, {
     public: template.public,
@@ -2840,9 +2919,16 @@ export function createSessionsFromTemplate(
       end_time: times.end_time,
       duration_min: times.duration_min,
       session_kind: kind,
+      personal_reason:
+        kind === 'away' ? template.personal_reason || 'leave' : null,
       capacity: rules.capacity,
       location: template.location,
       room: template.room ?? null,
+      agreed_rate_zar:
+        template.agreed_rate_zar != null &&
+        Number.isFinite(Number(template.agreed_rate_zar))
+          ? Number(template.agreed_rate_zar)
+          : null,
       status: 'scheduled' as const,
       public: rules.public,
       // Always issue a share code so B2C join links work (invite-only or public)

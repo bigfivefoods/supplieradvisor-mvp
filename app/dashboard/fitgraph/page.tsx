@@ -34,15 +34,17 @@ import {
 } from '@/components/chrome/CommandHubChrome';
 import { AdvisorOutcomesPanel } from '@/components/services/AdvisorOutcomesPanel';
 import { AdvisorRecallPanel } from '@/components/services/AdvisorRecallPanel';
-import { AdvisorTodayBoard } from '@/components/services/AdvisorTodayBoard';
+import {
+  AdvisorTodayBoard,
+  type TodayBoardGroup,
+} from '@/components/services/AdvisorTodayBoard';
+import { gymTodayFloorClasses } from '@/lib/fitness/gym-today-floor';
+import type { FitgraphStore } from '@/lib/fitness/fitgraph';
 import { AdvisorBillingClarityCard } from '@/components/services/AdvisorBillingClarityCard';
 import { AdvisorMemberJoinInbox } from '@/components/advisors/AdvisorMemberJoinInbox';
 import { AdvisorCommandBookingCards } from '@/components/advisors/AdvisorCommandBookingCards';
 import { MemberSpecialDatesPanel } from '@/components/fitness/MemberSpecialDatesPanel';
-import {
-  memberSpecialDates,
-  type SpecialDatePerson,
-} from '@/lib/fitness/member-special-dates';
+import { memberSpecialDates } from '@/lib/fitness/member-special-dates';
 
 function hubModules(
   hasFrontDesk: boolean,
@@ -165,16 +167,16 @@ function hubModules(
     href: '/dashboard/fitgraph/website',
     icon: Globe,
     code: '10',
-    title: 'Website & ops',
-    desc: 'Front desk vs coach-led ops model, public calendar, embed, contracts.',
+    title: 'Website & apps',
+    desc: 'Publish the public site, door QR, member app and preview.',
     accent: 'from-indigo-50 to-white border-indigo-100',
   },
   {
     href: '/dashboard/fitgraph/report',
     icon: Package,
     code: '11',
-    title: 'Management report',
-    desc: 'Insights · A4 landscape key metrics PDF · slice & dice.',
+    title: 'Reports',
+    desc: 'Slice & dice · pack · trends · A4 PDF',
     accent: 'from-slate-50 to-white border-slate-200',
   },
   {
@@ -222,28 +224,7 @@ function Inner() {
   const [summary, setSummary] = useState<
     Record<string, number | boolean | string | null | undefined> | null
   >(null);
-  const [store, setStore] = useState<{
-    sessions?: Array<{
-      id: string;
-      date: string;
-      start_time: string;
-      class_type_id?: string;
-      coach_id?: string | null;
-      status?: string;
-      location?: string;
-    }>;
-    bookings?: Array<{
-      id: string;
-      session_id: string;
-      client_id: string;
-      status: string;
-      family_member_name?: string | null;
-    }>;
-    clients?: SpecialDatePerson[];
-    coaches?: Array<{ id: string; name: string }>;
-    class_types?: Array<{ id: string; name: string }>;
-    settings?: { brand_name?: string; class_subscribe?: boolean } | null;
-  } | null>(null);
+  const [store, setStore] = useState<FitgraphStore | null>(null);
   const [outcomes, setOutcomes] = useState<import('@/lib/services/advisor-outcomes').OutcomesSnapshot | null>(null);
   const [recalls, setRecalls] = useState<
     Array<{
@@ -255,7 +236,6 @@ function Inner() {
     }>
   >([]);
   const [loading, setLoading] = useState(true);
-  const [seeding, setSeeding] = useState(false);
   const [remindersBusy, setRemindersBusy] = useState(false);
   const [markBusy, setMarkBusy] = useState<string | null>(null);
 
@@ -291,26 +271,6 @@ function Inner() {
     void load();
   }, [load]);
 
-  const seed = async () => {
-    setSeeding(true);
-    try {
-      const res = await fetch('/api/fitness/fitgraph', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId, action: 'seed_demo' }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Seed failed');
-      setSummary(data.summary || null);
-      setStore(data.store || null);
-      toast.success('Demo gym loaded — coaches, classes, subscriptions, public calendar');
-      void load();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Seed failed');
-    } finally {
-      setSeeding(false);
-    }
-  };
 
   const sendReminders = async () => {
     setRemindersBusy(true);
@@ -318,7 +278,11 @@ function Inner() {
       const res = await fetch('/api/fitness/fitgraph', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId, action: 'send_reminders' }),
+        body: JSON.stringify({
+          companyId,
+          action: 'send_reminders',
+          updated_at: store?.updated_at || null,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Reminders failed');
@@ -345,10 +309,18 @@ function Inner() {
           action: 'mark_attendance',
           booking_id: bookingId,
           status,
+          updated_at: store?.updated_at || null,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Update failed');
+      if (!res.ok) {
+        if (res.status === 409 && data?.error === 'stale_store') {
+          throw new Error(
+            'This GymAdvisor book changed in another tab. Please refresh and try again.'
+          );
+        }
+        throw new Error(data.error || 'Update failed');
+      }
       if (data.message) toast.success(data.message);
       else toast.success(`Marked ${status.replace('_', ' ')}`);
       void load();
@@ -367,49 +339,23 @@ function Inner() {
   const specialToday = specialDates.filter(
     (r) => r.days_until === 0 && r.kind !== 'joined'
   ).length;
-  const todayRows = (() => {
-    if (!store) return [];
-    const sessions = (store.sessions || []).filter(
-      (s) => s.date === today && s.status !== 'cancelled'
-    );
-    const rows: import('@/components/services/AdvisorTodayBoard').TodayBoardRow[] =
-      [];
-    for (const s of sessions) {
-      const ct = store.class_types?.find((c) => c.id === s.class_type_id);
-      const coach = store.coaches?.find((c) => c.id === s.coach_id);
-      const books = (store.bookings || []).filter(
-        (b) =>
-          b.session_id === s.id &&
-          b.status !== 'cancelled'
-      );
-      if (books.length === 0) {
-        rows.push({
-          id: `s-${s.id}`,
-          time: s.start_time,
-          title: ct?.name || 'Class',
-          person: coach?.name,
-          status: 'open',
-          meta: s.location,
-          href: '/dashboard/fitgraph/calendar',
-        });
-      } else {
-        for (const b of books) {
-          const client = store.clients?.find((c) => c.id === b.client_id);
-          rows.push({
-            id: b.id,
-            time: s.start_time,
-            title: ct?.name || 'Class',
-            person: coach?.name,
-            attendee: b.family_member_name || client?.name,
-            status: b.status,
-            meta: s.location,
-            href: '/dashboard/fitgraph/bookings',
-          });
-        }
-      }
-    }
-    return rows.sort((a, b) => a.time.localeCompare(b.time));
-  })();
+  const todayGroups: TodayBoardGroup[] = store
+    ? gymTodayFloorClasses(store, today).map((cls) => ({
+        id: cls.id,
+        time: cls.time,
+        title: cls.title,
+        person: cls.person,
+        meta: cls.meta,
+        href: cls.href,
+        members: cls.members.map((m) => ({
+          id: m.id,
+          time: cls.time,
+          title: cls.title,
+          attendee: m.name,
+          status: m.status,
+        })),
+      }))
+    : [];
 
   return (
     <FitgraphPage>
@@ -424,7 +370,7 @@ function Inner() {
               href="/dashboard/fitgraph/website"
               className="btn-primary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
             >
-              <Globe className="w-4 h-4" /> Website
+              <Globe className="w-4 h-4" /> Website & apps
             </Link>
             <Link
               href="/dashboard/fitgraph/calendar"
@@ -432,19 +378,6 @@ function Inner() {
             >
               <CalendarDays className="w-4 h-4" /> Schedule
             </Link>
-            <button
-              type="button"
-              disabled={seeding}
-              onClick={() => void seed()}
-              className="btn-secondary !py-2.5 !px-4 text-sm inline-flex items-center gap-1.5"
-            >
-              {seeding ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Package className="w-4 h-4" />
-              )}
-              Load demo gym
-            </button>
           </div>
         }
       />
@@ -504,14 +437,10 @@ function Inner() {
           />
           <AdvisorTodayBoard
             date={today}
-            rows={todayRows}
+            groups={todayGroups}
             title="Today's floor board"
             accentClass="border-yellow-200 dark:border-yellow-800"
             onMark={(id, status) => {
-              if (id.startsWith('s-')) {
-                toast.message('Open calendar to book members into this class');
-                return;
-              }
               void markBooking(id, status);
             }}
             markBusyId={markBusy}

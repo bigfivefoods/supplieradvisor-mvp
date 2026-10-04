@@ -12,6 +12,7 @@ import {
   messageMatchesPo,
   poBelongsToSupplierViewer,
   poHostedByBuyer,
+  poVisibleToCustomerViewer,
   rowOnCustomerDesk,
   rowOnSupplierDesk,
   stripMissingMessageColumn,
@@ -153,6 +154,20 @@ assert.equal(
 );
 assert.equal(
   poHostedByBuyer({ buyer_profile_id: 99, profile_id: 12 }, 12),
+  false
+);
+assert.equal(
+  poVisibleToCustomerViewer(
+    { supplier_profile_id: 5743, seller_customer_id: 88 },
+    { companyId: 5743, customerId: 88 }
+  ),
+  true
+);
+assert.equal(
+  poVisibleToCustomerViewer(
+    { supplier_profile_id: 5743, seller_customer_id: 88 },
+    { companyId: 5743, customerId: 99 }
+  ),
   false
 );
 
