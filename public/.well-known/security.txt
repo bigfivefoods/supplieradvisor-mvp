@@ -1,0 +1,4 @@
+Contact: mailto:security@supplieradvisor.com
+Expires: 2027-10-04T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://www.supplieradvisor.com/.well-known/security.txt
