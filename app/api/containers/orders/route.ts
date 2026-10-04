@@ -170,9 +170,14 @@ export async function PATCH(request: NextRequest) {
     let companyId: number;
     const isContractorPath = Boolean(body.privyUserId && body.containerId);
     const requestedContainerId = Number(body.containerId);
+    const hasRequestedContainerId =
+      Number.isFinite(requestedContainerId) && requestedContainerId > 0;
 
     // Contractors may mark received only for their containers
     if (isContractorPath) {
+      if (!hasRequestedContainerId) {
+        return NextResponse.json({ error: 'containerId must be a positive integer' }, { status: 400 });
+      }
       const access = await assertContractorContainerAccess(
         requestedContainerId,
         body.privyUserId,
@@ -197,20 +202,19 @@ export async function PATCH(request: NextRequest) {
     }
 
     const supabase = getSupabaseServer();
-    const { data: order, error: fetchErr } = await supabase
+    let orderQuery = supabase
       .from('container_orders')
       .select('*')
       .eq('id', id)
-      .eq('profile_id', companyId)
-      .single();
+      .eq('profile_id', companyId);
+    if (hasRequestedContainerId) {
+      orderQuery = orderQuery.eq('container_id', requestedContainerId);
+    }
+    const { data: order, error: fetchErr } = await orderQuery.single();
 
     if (fetchErr || !order) {
       return NextResponse.json({ error: fetchErr?.message || 'Order not found' }, { status: 404 });
     }
-    if (isContractorPath && order.container_id !== requestedContainerId) {
-      return NextResponse.json({ error: 'Order not found for container' }, { status: 404 });
-    }
-
     const status = body.status || order.status;
     const updates: Record<string, unknown> = {
       status,

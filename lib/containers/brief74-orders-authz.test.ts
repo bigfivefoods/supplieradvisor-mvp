@@ -5,36 +5,23 @@
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const routePath = resolve('app/api/containers/orders/route.ts');
+const here = dirname(fileURLToPath(import.meta.url));
+const routePath = resolve(here, '../../app/api/containers/orders/route.ts');
 const src = readFileSync(routePath, 'utf8');
+const getStart = src.indexOf('export async function GET(');
+const postStart = src.indexOf('export async function POST(');
+const patchStart = src.indexOf('export async function PATCH(');
 
-function extractFn(name: string): string {
-  const marker = `export async function ${name}(`;
-  const start = src.indexOf(marker);
-  assert.ok(start >= 0, `Could not find ${name} in containers/orders route`);
-  let depth = 0;
-  let inside = false;
-  let end = start;
-  for (let i = start; i < src.length; i++) {
-    if (src[i] === '{') {
-      depth++;
-      inside = true;
-    } else if (src[i] === '}') {
-      depth--;
-    }
-    if (inside && depth === 0) {
-      end = i;
-      break;
-    }
-  }
-  return src.slice(start, end + 1);
-}
+assert.ok(getStart >= 0 && postStart > getStart, 'Could not locate GET/POST boundaries');
+assert.ok(postStart >= 0 && patchStart > postStart, 'Could not locate POST/PATCH boundaries');
 
-const getFn = extractFn('GET');
-const postFn = extractFn('POST');
-const patchFn = extractFn('PATCH');
+const getFn = src.slice(getStart, postStart);
+const postFn = src.slice(postStart, patchStart);
+const patchEnd = src.indexOf('export async function ', patchStart + 1);
+const patchFn = src.slice(patchStart, patchEnd >= 0 ? patchEnd : undefined);
 const flatPatch = patchFn.replace(/\s+/g, ' ');
 
 assert.ok(getFn.includes('requireCompanyAccess'), 'GET gate should remain requireCompanyAccess');
@@ -54,7 +41,15 @@ assert.match(patchFn, /!Number\.isFinite\(id\)\s*\|\|\s*id\s*<=\s*0/);
 
 assert.match(
   flatPatch,
-  /\.select\('\*'\)\s*\.eq\('id', id\)\s*\.eq\('profile_id', companyId\)\s*\.single\(\)/
+  /let orderQuery = supabase\s*\.from\('container_orders'\)\s*\.select\('\*'\)\s*\.eq\('id', id\)\s*\.eq\('profile_id', companyId\)/
+);
+assert.match(
+  flatPatch,
+  /orderQuery = orderQuery\.eq\('container_id', requestedContainerId\)/
+);
+assert.match(
+  flatPatch,
+  /await orderQuery\.single\(\)/
 );
 assert.match(
   flatPatch,
