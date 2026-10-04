@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
     }
     if (!Number.isFinite(poId) || poId <= 0) {
       return NextResponse.json(
-        { error: 'poId is required' },
+        { error: 'poId must be a positive number' },
         { status: 400 }
       );
     }
@@ -229,7 +229,7 @@ export async function PATCH(req: NextRequest) {
     }
     if (!Number.isFinite(paymentId) || paymentId <= 0) {
       return NextResponse.json(
-        { error: 'paymentId required' },
+        { error: 'paymentId must be a positive number' },
         { status: 400 }
       );
     }

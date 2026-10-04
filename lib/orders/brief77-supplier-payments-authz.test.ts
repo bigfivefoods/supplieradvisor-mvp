@@ -15,8 +15,20 @@ function fnBlock(src: string, name: 'GET' | 'POST' | 'PATCH') {
   const signature = `export async function ${name}(`;
   const start = src.indexOf(signature);
   assert.ok(start >= 0, `Could not locate ${name} in source`);
-  const next = src.indexOf('export async function ', start + signature.length);
-  return src.slice(start, next >= 0 ? next : undefined);
+
+  const bodyStart = src.indexOf('{', start + signature.length);
+  assert.ok(bodyStart >= 0, `Could not locate ${name} body start`);
+
+  let depth = 0;
+  for (let i = bodyStart; i < src.length; i += 1) {
+    const ch = src[i];
+    if (ch === '{') depth += 1;
+    if (ch === '}') depth -= 1;
+    if (depth === 0) {
+      return src.slice(start, i + 1);
+    }
+  }
+  assert.fail(`Could not locate ${name} body end`);
 }
 
 const src = readFileSync(routePath, 'utf8');
