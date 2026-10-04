@@ -13,9 +13,10 @@ const linksPath = resolve(here, '../../app/api/orders/links/route.ts');
 const batchesPath = resolve(here, '../../app/api/orders/batches/route.ts');
 
 function fnBlock(src: string, name: 'GET' | 'POST' | 'DELETE') {
-  const start = src.indexOf(`export async function ${name}(`);
+  const signature = `export async function ${name}(`;
+  const start = src.indexOf(signature);
   assert.ok(start >= 0, `Could not locate ${name} in source`);
-  const next = src.indexOf('export async function ', start + 1);
+  const next = src.indexOf('export async function ', start + signature.length);
   return src.slice(start, next >= 0 ? next : undefined);
 }
 
