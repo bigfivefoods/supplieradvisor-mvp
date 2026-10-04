@@ -1,0 +1,59 @@
+/**
+ * Brief 77 — orders supplier-payments authz regression test
+ * Run: npx --yes tsx lib/orders/brief77-supplier-payments-authz.test.ts
+ */
+
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const routePath = resolve(here, '../../app/api/orders/supplier-payments/route.ts');
+
+function fnBlock(src: string, name: 'GET' | 'POST' | 'PATCH') {
+  const signature = new RegExp(`^export async function ${name}\\(`, 'm');
+  const match = signature.exec(src);
+  const start = match?.index ?? -1;
+  assert.ok(start >= 0, `Could not locate ${name} in source`);
+
+  const bodyStart = src.indexOf('{', start);
+  assert.ok(bodyStart >= 0, `Could not locate ${name} body start`);
+
+  let depth = 0;
+  for (let i = bodyStart; i < src.length; i += 1) {
+    const ch = src[i];
+    if (ch === '{') depth += 1;
+    if (ch === '}') depth -= 1;
+    if (depth === 0) {
+      return src.slice(start, i + 1);
+    }
+  }
+  assert.fail(`Could not locate ${name} body end`);
+}
+
+const src = readFileSync(routePath, 'utf8');
+const getFn = fnBlock(src, 'GET');
+const postFn = fnBlock(src, 'POST');
+const patchFn = fnBlock(src, 'PATCH');
+
+for (const [name, fn] of [
+  ['supplier-payments GET', getFn],
+  ['supplier-payments POST', postFn],
+  ['supplier-payments PATCH', patchFn],
+] as const) {
+  assert.ok(fn.includes('requireCompanyAccess'), `${name} must call requireCompanyAccess`);
+  assert.ok(fn.includes('getSupabaseServer'), `${name} must call getSupabaseServer`);
+  assert.ok(
+    fn.indexOf('requireCompanyAccess') < fn.indexOf('getSupabaseServer'),
+    `${name} must gate before getSupabaseServer`
+  );
+}
+
+assert.ok(!src.includes('assertCompanyMember'), 'supplier-payments route should not use assertCompanyMember');
+assert.ok(!getFn.includes('if (privyUserId)'), 'supplier-payments GET must not have skippable privyUserId branch');
+assert.match(getFn, /!Number\.isFinite\(companyId\)\s*\|\|\s*companyId\s*<=\s*0/);
+assert.match(postFn, /!Number\.isFinite\(companyId\)\s*\|\|\s*companyId\s*<=\s*0/);
+assert.match(patchFn, /!Number\.isFinite\(companyId\)\s*\|\|\s*companyId\s*<=\s*0/);
+
+console.log('✓ Brief 77 orders supplier-payments authz assertions passed');

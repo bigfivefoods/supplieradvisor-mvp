@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember, logActivity } from '@/lib/customers/access';
+import { logActivity } from '@/lib/customers/access';
+import { legacyPrivyFrom, requireCompanyAccess } from '@/lib/auth/api-auth';
 
 function paymentStatusFromTotals(total: number, paid: number): 'unpaid' | 'partial' | 'paid' {
   if (paid <= 0.009) return 'unpaid';
@@ -49,18 +50,14 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const companyId = Number(searchParams.get('companyId'));
     const poId = Number(searchParams.get('poId'));
-    const privyUserId = searchParams.get('privyUserId');
 
-    if (!companyId) {
+    if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-
-    if (privyUserId) {
-      const mem = await assertCompanyMember(privyUserId, companyId);
-      if (!mem.ok) {
-        return NextResponse.json({ error: mem.error }, { status: mem.status });
-      }
-    }
+    const gate = await requireCompanyAccess(req, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(req),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
     let q = supabase
@@ -88,13 +85,22 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const companyId = Number(body.companyId);
-    const poId = Number(body.poId);
-    const privyUserId = body.privyUserId as string | undefined;
+    const poIdRaw = body.poId;
+    const poId = Number(poIdRaw);
     const amount = Number(body.amount);
 
-    if (!companyId || !poId || !privyUserId) {
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    if (poIdRaw == null) {
       return NextResponse.json(
-        { error: 'companyId, poId and privyUserId are required' },
+        { error: 'poId is required' },
+        { status: 400 }
+      );
+    }
+    if (!Number.isFinite(poId) || poId <= 0) {
+      return NextResponse.json(
+        { error: 'poId must be a positive integer' },
         { status: 400 }
       );
     }
@@ -102,10 +108,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'amount must be > 0' }, { status: 400 });
     }
 
-    const mem = await assertCompanyMember(privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const gate = await requireCompanyAccess(req, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(req, body),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
 
@@ -145,7 +151,7 @@ export async function POST(req: NextRequest) {
         pop_url: body.pop_url || null,
         share_with_supplier: body.share_with_supplier === true,
         notes: body.notes ? String(body.notes).slice(0, 1000) : null,
-        created_by: privyUserId,
+        created_by: gate.userId,
         metadata: {},
       })
       .select('*')
@@ -163,7 +169,7 @@ export async function POST(req: NextRequest) {
 
     await logActivity({
       profile_id: companyId,
-      actor_user_id: mem.userId,
+      actor_user_id: gate.userId,
       action: 'po.supplier_payment.recorded',
       entity_type: 'purchase_order',
       entity_id: String(poId),
@@ -222,21 +228,30 @@ export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
     const companyId = Number(body.companyId);
-    const paymentId = Number(body.paymentId);
-    const privyUserId = body.privyUserId as string | undefined;
+    const paymentIdRaw = body.paymentId;
+    const paymentId = Number(paymentIdRaw);
     const action = String(body.action || '').toLowerCase();
 
-    if (!companyId || !paymentId || !privyUserId) {
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    if (paymentIdRaw == null) {
       return NextResponse.json(
-        { error: 'companyId, paymentId and privyUserId required' },
+        { error: 'paymentId required' },
+        { status: 400 }
+      );
+    }
+    if (!Number.isFinite(paymentId) || paymentId <= 0) {
+      return NextResponse.json(
+        { error: 'paymentId must be a positive integer' },
         { status: 400 }
       );
     }
 
-    const mem = await assertCompanyMember(privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const gate = await requireCompanyAccess(req, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(req, body),
+    });
+    if (!gate.ok) return gate.response;
 
     if (action !== 'void') {
       return NextResponse.json(
@@ -285,7 +300,7 @@ export async function PATCH(req: NextRequest) {
 
     await logActivity({
       profile_id: companyId,
-      actor_user_id: mem.userId,
+      actor_user_id: gate.userId,
       action: 'po.supplier_payment.voided',
       entity_type: 'purchase_order',
       entity_id: String(payment.po_id),
