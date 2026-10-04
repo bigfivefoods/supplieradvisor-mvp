@@ -12,13 +12,12 @@ const here = dirname(fileURLToPath(import.meta.url));
 const routePath = resolve(here, '../../app/api/orders/supplier-payments/route.ts');
 
 function fnBlock(src: string, name: 'GET' | 'POST' | 'PATCH') {
-  const signature = `export async function ${name}(`;
-  const start = src.indexOf(signature);
+  const signature = new RegExp(`^export async function ${name}\\(`, 'm');
+  const match = signature.exec(src);
+  const start = match?.index ?? -1;
   assert.ok(start >= 0, `Could not locate ${name} in source`);
 
-  // Route handlers in this repo avoid unmatched braces in strings/comments, so
-  // a simple brace-depth walk is sufficient for this lightweight regression test.
-  const bodyStart = src.indexOf('{', start + signature.length);
+  const bodyStart = src.indexOf('{', start);
   assert.ok(bodyStart >= 0, `Could not locate ${name} body start`);
 
   let depth = 0;
