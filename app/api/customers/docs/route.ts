@@ -2306,11 +2306,18 @@ export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     const kind = kindOf(request, body);
-    if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    const docId = Number(body.id);
+    const companyId = Number(body.companyId);
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(docId) || docId <= 0) {
+      return NextResponse.json({ error: 'companyId and id required' }, { status: 400 });
+    }
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!_gate.ok) return _gate.response;
 
     const supabase = getSupabaseServer();
     const table = TABLES[kind];
-    const docId = Number(body.id);
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
     if (body.status !== undefined) {
@@ -2321,15 +2328,12 @@ export async function PATCH(request: NextRequest) {
         String(body.status).toLowerCase() === 'sent' &&
         body.forceCreditHold !== true
       ) {
-        const companyId = Number(body.companyId);
         const custId = Number(
           body.customer_id || updates.customer_id || 0
         );
         let resolveCust = custId;
         if (
-          (!Number.isFinite(resolveCust) || resolveCust <= 0) &&
-          Number.isFinite(companyId) &&
-          companyId > 0
+          !Number.isFinite(resolveCust) || resolveCust <= 0
         ) {
           const { data: invRow } = await supabase
             .from('customer_invoices')
@@ -2339,12 +2343,7 @@ export async function PATCH(request: NextRequest) {
             .maybeSingle();
           resolveCust = Number(invRow?.customer_id || 0);
         }
-        if (
-          Number.isFinite(companyId) &&
-          companyId > 0 &&
-          Number.isFinite(resolveCust) &&
-          resolveCust > 0
-        ) {
+        if (Number.isFinite(resolveCust) && resolveCust > 0) {
           try {
             const { checkCustomerCreditLimit } = await import(
               '@/lib/customers/credit-limit'
@@ -2374,9 +2373,7 @@ export async function PATCH(request: NextRequest) {
     const runShareChecklist =
       kind === 'invoice' &&
       body.status !== undefined &&
-      String(body.status).toLowerCase() === 'sent' &&
-      Number.isFinite(Number(body.companyId)) &&
-      Number(body.companyId) > 0;
+      String(body.status).toLowerCase() === 'sent';
     if (body.notes !== undefined) updates.notes = body.notes;
     if (body.customer_id !== undefined) {
       updates.customer_id =
@@ -2407,27 +2404,13 @@ export async function PATCH(request: NextRequest) {
 
     // Full document edit (quote lines / totals) — block after convert
     if (body.items !== undefined || body.action === 'update') {
-      const companyId = Number(body.companyId);
-      if (Number.isFinite(companyId) && companyId > 0) {
-        const _gate = await requireCompanyAccess(request, companyId, {
-          legacyPrivyUserId: legacyPrivyFrom(request, body),
-        });
-        if (!_gate.ok) return _gate.response;
-      }
-
       const { data: existingDoc } = await supabase
         .from(table)
         .select('id, status, profile_id, customer_id')
         .eq('id', docId)
+        .eq('profile_id', companyId)
         .maybeSingle();
       if (!existingDoc) {
-        return NextResponse.json({ error: 'Document not found' }, { status: 404 });
-      }
-      if (
-        Number.isFinite(companyId) &&
-        companyId > 0 &&
-        Number(existingDoc.profile_id) !== companyId
-      ) {
         return NextResponse.json({ error: 'Document not found for this company' }, { status: 404 });
       }
       const st = String(existingDoc.status || '').toLowerCase();
@@ -2491,16 +2474,12 @@ export async function PATCH(request: NextRequest) {
     const changingCustomer = body.customer_id !== undefined;
 
     if (changingVisibility || changingCustomer) {
-      const companyId = Number(body.companyId);
-      // Load existing (scoped when companyId present)
-      let existingQ = supabase
+      const { data: existing, error: loadErr } = await supabase
         .from(table)
         .select('id, profile_id, customer_id, visibility')
-        .eq('id', docId);
-      if (Number.isFinite(companyId) && companyId > 0) {
-        existingQ = existingQ.eq('profile_id', companyId);
-      }
-      const { data: existing, error: loadErr } = await existingQ.maybeSingle();
+        .eq('id', docId)
+        .eq('profile_id', companyId)
+        .maybeSingle();
       if (loadErr) {
         return NextResponse.json({ error: loadErr.message }, { status: 500 });
       }
@@ -2532,16 +2511,7 @@ export async function PATCH(request: NextRequest) {
           (wasShared && customerChanged));
 
       if (needsShareAuth) {
-        if (!Number.isFinite(companyId) || companyId <= 0) {
-          return NextResponse.json(
-            { error: 'companyId required when sharing or reassigning a shared document' },
-            { status: 400 }
-          );
-        }
-
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
-    if (!_gate.ok) return _gate.response;
-        const member = await assertCustomersAccess(body.privyUserId, companyId, 'write');
+        const member = await assertCustomersAccess(_gate.userId, companyId, 'write');
         if (!member.ok) {
           return NextResponse.json({ error: member.error }, { status: member.status });
         }
@@ -2585,12 +2555,10 @@ export async function PATCH(request: NextRequest) {
           }
         }
       } else if (changingVisibility && nextVisibility === 'seller_only') {
-        // Unshare: membership when companyId/privy provided (tighten access while suspended OK)
-        if (Number.isFinite(companyId) && companyId > 0) {
-          const member = await assertCustomersAccess(body.privyUserId, companyId, 'write');
-          if (!member.ok) {
-            return NextResponse.json({ error: member.error }, { status: member.status });
-          }
+        // Unshare: membership allowed while suspended
+        const member = await assertCustomersAccess(_gate.userId, companyId, 'write');
+        if (!member.ok) {
+          return NextResponse.json({ error: member.error }, { status: member.status });
         }
       }
 
@@ -2599,13 +2567,13 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    let q = supabase.from(table).update(updates).eq('id', docId);
-    // Scope ownership when companyId provided (required for share; optional for other fields)
-    if (body.companyId != null && Number.isFinite(Number(body.companyId))) {
-      q = q.eq('profile_id', Number(body.companyId));
-    }
-
-    const { data, error } = await q.select('*').single();
+    const { data, error } = await supabase
+      .from(table)
+      .update(updates)
+      .eq('id', docId)
+      .eq('profile_id', companyId)
+      .select('*')
+      .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     if (kind === 'invoice' && data) {
@@ -2623,9 +2591,9 @@ export async function PATCH(request: NextRequest) {
           '@/lib/customers/share-checklist'
         );
         shareChecklist = await ensureInvoiceSharedForBuyer({
-          companyId: Number(body.companyId),
+          companyId,
           invoiceId: docId,
-          actorUserId: String(body.privyUserId || 'seller'),
+          actorUserId: String(_gate.userId || 'seller'),
         });
       } catch {
         shareChecklist = null;
@@ -2646,10 +2614,24 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const kind = kindOf(request);
+    const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     const id = Number(request.nextUrl.searchParams.get('id'));
-    if (!Number.isFinite(id)) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    if (!Number.isFinite(id) || id <= 0) {
+      return NextResponse.json({ error: 'id required' }, { status: 400 });
+    }
+    const _gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!_gate.ok) return _gate.response;
     const supabase = getSupabaseServer();
-    const { error } = await supabase.from(TABLES[kind]).delete().eq('id', id);
+    const { error } = await supabase
+      .from(TABLES[kind])
+      .delete()
+      .eq('id', id)
+      .eq('profile_id', companyId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
   } catch (e: unknown) {
