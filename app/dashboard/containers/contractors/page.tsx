@@ -174,10 +174,14 @@ function ContractorsInner() {
   };
 
   const updateTraining = async (id: number, training_status: string) => {
+    if (!companyId) {
+      toast.error('Select a company first');
+      return;
+    }
     const res = await fetch('/api/containers/contractors', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, training_status }),
+      body: JSON.stringify({ companyId, id, training_status }),
     });
     if (res.ok) {
       toast.success('Training status updated');
@@ -186,8 +190,17 @@ function ContractorsInner() {
   };
 
   const remove = async (id: number) => {
+    if (!companyId) {
+      toast.error('Select a company first');
+      return;
+    }
     if (!confirm('Remove this contractor?')) return;
-    await fetch(`/api/containers/contractors?id=${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/containers/contractors?companyId=${companyId}&id=${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      toast.error(data.error || 'Failed to remove contractor');
+      return;
+    }
     void load();
   };
 
@@ -205,6 +218,7 @@ function ContractorsInner() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          companyId,
           id: contractor.id,
           id_document_url: uploaded.url,
           id_document_name: uploaded.fileName || file.name,
