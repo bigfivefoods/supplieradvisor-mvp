@@ -162,31 +162,59 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    const id = Number(body.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      return NextResponse.json({ error: 'id required' }, { status: 400 });
+    }
+
+    let companyId: number;
+    const isContractorPath = Boolean(body.privyUserId && body.containerId);
+    const requestedContainerId = Number(body.containerId);
+    const hasRequestedContainerId =
+      Number.isFinite(requestedContainerId) && requestedContainerId > 0;
 
     // Contractors may mark received only for their containers
-    if (body.privyUserId && body.containerId) {
+    if (isContractorPath) {
+      if (!hasRequestedContainerId) {
+        return NextResponse.json({ error: 'containerId must be a positive integer' }, { status: 400 });
+      }
       const access = await assertContractorContainerAccess(
-        Number(body.containerId),
+        requestedContainerId,
         body.privyUserId,
         body.email
       );
       if (!access.ok) {
         return NextResponse.json({ error: access.error }, { status: access.status });
       }
+      companyId = Number(access.container?.profile_id);
+      if (!Number.isFinite(companyId) || companyId <= 0) {
+        return NextResponse.json({ error: 'Container company scope missing' }, { status: 403 });
+      }
+    } else {
+      companyId = Number(body.companyId);
+      if (!Number.isFinite(companyId) || companyId <= 0) {
+        return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+      }
+      const _gate = await requireCompanyAccess(request, companyId, {
+        legacyPrivyUserId: legacyPrivyFrom(request, body),
+      });
+      if (!_gate.ok) return _gate.response;
     }
 
     const supabase = getSupabaseServer();
-    const { data: order, error: fetchErr } = await supabase
+    let orderQuery = supabase
       .from('container_orders')
       .select('*')
-      .eq('id', Number(body.id))
-      .single();
+      .eq('id', id)
+      .eq('profile_id', companyId);
+    if (hasRequestedContainerId) {
+      orderQuery = orderQuery.eq('container_id', requestedContainerId);
+    }
+    const { data: order, error: fetchErr } = await orderQuery.single();
 
     if (fetchErr || !order) {
       return NextResponse.json({ error: fetchErr?.message || 'Order not found' }, { status: 404 });
     }
-
     const status = body.status || order.status;
     const updates: Record<string, unknown> = {
       status,
@@ -198,7 +226,8 @@ export async function PATCH(request: NextRequest) {
     const { data: updated, error } = await supabase
       .from('container_orders')
       .update(updates)
-      .eq('id', order.id)
+      .eq('id', id)
+      .eq('profile_id', companyId)
       .select('*')
       .single();
 
@@ -217,6 +246,7 @@ export async function PATCH(request: NextRequest) {
         const { data: existing } = await supabase
           .from('container_inventory')
           .select('id, qty_on_hand')
+          .eq('profile_id', order.profile_id)
           .eq('container_id', order.container_id)
           .eq('product_name', item.product_name)
           .maybeSingle();
@@ -229,7 +259,8 @@ export async function PATCH(request: NextRequest) {
               last_received_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             })
-            .eq('id', existing.id);
+            .eq('id', existing.id)
+            .eq('profile_id', order.profile_id);
         } else {
           await supabase.from('container_inventory').insert({
             profile_id: order.profile_id,

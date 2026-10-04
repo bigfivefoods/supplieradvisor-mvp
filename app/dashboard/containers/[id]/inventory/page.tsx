@@ -257,7 +257,7 @@ function InventoryContent() {
     const res = await fetch('/api/containers/orders', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: orderId, status: 'received' }),
+      body: JSON.stringify({ companyId, containerId, id: orderId, status: 'received' }),
     });
     const data = await res.json();
     setSaving(false);
