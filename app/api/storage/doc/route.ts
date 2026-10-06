@@ -16,71 +16,75 @@ async function companyOwnsStoredDoc(companyId: number, urlOrRef: string): Promis
   if (ref?.path?.startsWith(`${companyId}/`)) return true;
 
   const supabase = getSupabaseServer();
+  const [
+    profile,
+    claim,
+    contractor,
+    productDirect,
+    productUpstream,
+    training,
+    imports,
+  ] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select(
+        'registration_document_url,registration_certificate_url,vat_document_url,vat_certificate_url,bee_certificate_url,bank_confirmation_url,import_document_url,import_license_url,export_document_url,export_license_url,tax_document_url'
+      )
+      .eq('id', companyId)
+      .maybeSingle(),
+    supabase
+      .from('customer_payment_claims')
+      .select('id')
+      .eq('profile_id', companyId)
+      .eq('proof_url', urlOrRef)
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('container_contractors')
+      .select('id')
+      .eq('profile_id', companyId)
+      .eq('id_document_url', urlOrRef)
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('products')
+      .select('id')
+      .eq('profile_id', companyId)
+      .eq('specs_sheet_url', urlOrRef)
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('products')
+      .select('id')
+      .eq('profile_id', companyId)
+      .eq('upstream_specs_sheet_url', urlOrRef)
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('training_records')
+      .select('id')
+      .eq('profile_id', companyId)
+      .eq('certificate_url', urlOrRef)
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('bank_import_batches')
+      .select('metadata')
+      .eq('profile_id', companyId)
+      .order('id', { ascending: false })
+      .limit(250),
+  ]);
 
-  const profile = await supabase
-    .from('profiles')
-    .select(
-      'registration_document_url,registration_certificate_url,vat_document_url,vat_certificate_url,bee_certificate_url,bank_confirmation_url,import_document_url,import_license_url,export_document_url,export_license_url,tax_document_url'
-    )
-    .eq('id', companyId)
-    .maybeSingle();
   if (!profile.error && profile.data) {
     for (const value of Object.values(profile.data)) {
       if (value && String(value).trim() === urlOrRef) return true;
     }
   }
-
-  const claim = await supabase
-    .from('customer_payment_claims')
-    .select('id')
-    .eq('profile_id', companyId)
-    .eq('proof_url', urlOrRef)
-    .limit(1)
-    .maybeSingle();
   if (!claim.error && claim.data?.id) return true;
-
-  const contractor = await supabase
-    .from('container_contractors')
-    .select('id')
-    .eq('profile_id', companyId)
-    .eq('id_document_url', urlOrRef)
-    .limit(1)
-    .maybeSingle();
   if (!contractor.error && contractor.data?.id) return true;
-
-  const productDirect = await supabase
-    .from('products')
-    .select('id')
-    .eq('profile_id', companyId)
-    .eq('specs_sheet_url', urlOrRef)
-    .limit(1)
-    .maybeSingle();
   if (!productDirect.error && productDirect.data?.id) return true;
-
-  const productUpstream = await supabase
-    .from('products')
-    .select('id')
-    .eq('profile_id', companyId)
-    .eq('upstream_specs_sheet_url', urlOrRef)
-    .limit(1)
-    .maybeSingle();
   if (!productUpstream.error && productUpstream.data?.id) return true;
-
-  const training = await supabase
-    .from('training_records')
-    .select('id')
-    .eq('profile_id', companyId)
-    .eq('certificate_url', urlOrRef)
-    .limit(1)
-    .maybeSingle();
   if (!training.error && training.data?.id) return true;
-
-  const imports = await supabase
-    .from('bank_import_batches')
-    .select('metadata')
-    .eq('profile_id', companyId)
-    .order('id', { ascending: false })
-    .limit(250);
   if (!imports.error && Array.isArray(imports.data)) {
     for (const row of imports.data) {
       const meta = row?.metadata;

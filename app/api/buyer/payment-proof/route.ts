@@ -12,10 +12,6 @@ import { uploadSensitiveDoc } from '@/lib/storage/private-docs';
  * Returns private storage reference for proof_url on payment claim.
  */
 
-function safeName(name?: string) {
-  return (name || 'pop').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
-}
-
 export async function POST(request: NextRequest) {
   try {
     const ip = clientIp(request);
@@ -76,17 +72,13 @@ export async function POST(request: NextRequest) {
     const ext =
       file.name.split('.').pop()?.toLowerCase() ||
       (file.type === 'application/pdf' ? 'pdf' : 'jpg');
-    const invPart = invoiceId > 0 ? `inv-${invoiceId}` : 'claim';
-    const filePath = `${companyId}/payment-proofs/${invPart}-${Date.now()}-${safeName(
-      file.name.replace(/\.[^.]+$/, '')
-    )}.${ext}`;
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const contentType = file.type || 'application/octet-stream';
 
     const proofRef = await uploadSensitiveDoc({
       companyId,
-      kind: 'payment-proofs',
+      kind: invoiceId > 0 ? `payment-proofs-inv-${invoiceId}` : 'payment-proofs-claim',
       body: buffer,
       contentType,
       ext,
@@ -96,7 +88,6 @@ export async function POST(request: NextRequest) {
       success: true,
       url: proofRef,
       proofUrl: proofRef,
-      path: filePath,
     });
   } catch (e: unknown) {
     return NextResponse.json(

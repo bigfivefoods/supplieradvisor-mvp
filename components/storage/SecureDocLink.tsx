@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useApiAuth } from '@/lib/client/use-api-auth';
+import { toast } from 'sonner';
 
 type Props = {
   companyId: number;
@@ -42,7 +43,7 @@ export default function SecureDocLink({
         window.location.href = url;
       }
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Could not open document');
+      toast.error(error instanceof Error ? error.message : 'Could not open document');
     } finally {
       setBusy(false);
     }
