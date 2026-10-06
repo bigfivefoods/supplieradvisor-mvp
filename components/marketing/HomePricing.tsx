@@ -17,21 +17,24 @@ import {
   Network,
 } from 'lucide-react';
 import {
-  BILLING_TERMS,
   COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
   COMPANY_TRIAL_DAYS,
   formatZar,
-  type BillingTerm,
 } from '@/lib/billing/company-subscription';
 import { FOUNDING_FREE_COMPANY_LIMIT } from '@/lib/billing/lifetime';
 import {
-  REFERRAL_LEVEL_LABELS,
   REFERRAL_LEVEL_RATES_PCT,
   REFERRAL_SCALE_SCENARIO_COUNTS,
   REFERRAL_TOTAL_CAP_PCT,
   referralChainScaleScenario,
   referralRatesSummary,
 } from '@/lib/billing/supply-chain-referral';
+import {
+  MARKETING_PRICING_TERMS,
+  PRICING_SECTION_IDS,
+  REFERRAL_EXPLAINER_STEPS,
+  REFERRAL_LEVEL_DETAILS,
+} from '@/lib/marketing/pricing-plans';
 
 const INCLUDED = [
   'Unlimited team users per company',
@@ -65,21 +68,14 @@ const HIGHLIGHTS = [
   },
 ];
 
-function termCta(t: BillingTerm): string {
-  if (t.id === 'monthly') return 'Start monthly';
-  if (t.id === '3y') return 'Lock in 3 years';
-  if (t.id === '2y') return 'Choose 2 years';
-  return 'Choose 1 year';
-}
-
 /** Round to cents for display */
 function feeZar(base: number, ratePct: number): number {
   return Math.round(((base * ratePct) / 100) * 100) / 100;
 }
 
 export default function HomePricing() {
-  const annual = BILLING_TERMS.find((t) => t.id === '1y')!;
-  const best = BILLING_TERMS.find((t) => t.id === '3y')!;
+  const annual = MARKETING_PRICING_TERMS.find((t) => t.id === '1y')!;
+  const best = MARKETING_PRICING_TERMS.find((t) => t.id === '3y')!;
   const exampleBase = COMPANY_SUBSCRIPTION_MONTHLY_ZAR;
   const exampleFees = REFERRAL_LEVEL_RATES_PCT.map((rate) => ({
     rate,
@@ -91,7 +87,10 @@ export default function HomePricing() {
   );
 
   return (
-    <div id="pricing" className="sa-anchor border-t border-slate-200 bg-[#f8fafc] text-slate-900">
+    <div
+      id={PRICING_SECTION_IDS.pricing}
+      className="sa-anchor border-t border-slate-200 bg-[#f8fafc] text-slate-900"
+    >
       {/* Pricing intro */}
         <section className="relative overflow-hidden">
           <div
@@ -156,7 +155,7 @@ export default function HomePricing() {
 
         {/* Pricing tiers */}
         <section
-          id="tiers"
+          id={PRICING_SECTION_IDS.tiers}
           className="sa-anchor mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10 pb-16 sm:pb-20"
         >
           <div className="text-center mb-10">
@@ -170,7 +169,7 @@ export default function HomePricing() {
           </div>
 
           <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 xl:grid-cols-4">
-            {BILLING_TERMS.map((t) => {
+            {MARKETING_PRICING_TERMS.map((t) => {
               const featured = t.id === '1y';
               const bestValue = t.id === '3y';
               return (
@@ -259,7 +258,7 @@ export default function HomePricing() {
                           : 'border border-slate-200 bg-white text-slate-800 hover:bg-slate-50'
                     }`}
                   >
-                    {termCta(t)}
+                    {t.cta}
                     <ArrowRight className="w-4 h-4" />
                   </Link>
                 </div>
@@ -391,7 +390,7 @@ export default function HomePricing() {
 
         {/* Supply-chain referral programme */}
         <section
-          id="referral"
+          id={PRICING_SECTION_IDS.referral}
           className="sa-anchor border-y border-slate-200/80 bg-gradient-to-b from-emerald-50/40 via-white to-white"
         >
           <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10 py-14 sm:py-16">
@@ -420,24 +419,9 @@ export default function HomePricing() {
             {/* Process */}
             <div className="grid md:grid-cols-3 gap-4 mb-10">
               {[
-                {
-                  step: '1',
-                  icon: Link2,
-                  title: 'Invite good partners',
-                  body: 'Share your referral link from Billing, or invite suppliers, customers, and partners you actually trade with. First invite wins (first-touch).',
-                },
-                {
-                  step: '2',
-                  icon: Building2,
-                  title: 'They do the work',
-                  body: `They register (or claim your invite), run a free trial, then subscribe — monthly or prepaid multi-year from R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo. You earn when they pay, not when they merely sign up.`,
-                },
-                {
-                  step: '3',
-                  icon: Gift,
-                  title: 'You get paid',
-                  body: 'A share of their subscription credits to your company. Request payout after review — pending → approved → paid. Be good: bring real companies that stay.',
-                },
+                { step: '1', icon: Link2, ...REFERRAL_EXPLAINER_STEPS[0] },
+                { step: '2', icon: Building2, ...REFERRAL_EXPLAINER_STEPS[1] },
+                { step: '3', icon: Gift, ...REFERRAL_EXPLAINER_STEPS[2] },
               ].map((s) => (
                 <div
                   key={s.step}
@@ -638,25 +622,21 @@ export default function HomePricing() {
                   chain:
                 </p>
                 <ul className="mt-5 space-y-3">
-                  {REFERRAL_LEVEL_RATES_PCT.map((rate, i) => (
+                  {REFERRAL_LEVEL_DETAILS.map((level, i) => (
                     <li
                       key={i}
                       className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3"
                     >
                       <div>
                         <div className="text-sm font-bold text-slate-900">
-                          {REFERRAL_LEVEL_LABELS[i]}
+                          {level.label}
                         </div>
                         <div className="text-xs text-slate-500 mt-0.5">
-                          {i === 0
-                            ? 'Company you invited directly'
-                            : i === 1
-                              ? 'Company invited by your referral'
-                              : 'One more level deeper'}
+                          {level.description}
                         </div>
                       </div>
                       <div className="text-2xl font-black text-emerald-700 tabular-nums">
-                        {rate}%
+                        {level.rate}%
                       </div>
                     </li>
                   ))}

@@ -14,6 +14,15 @@ export default function ApiAuthBridge({ children }: { children: React.ReactNode 
   const { ready, authenticated, getAccessToken } = usePrivy();
 
   useEffect(() => {
+    if (typeof document === 'undefined' || !ready) return;
+    if (authenticated) {
+      document.cookie = 'sa_authed=1; Path=/; Max-Age=2592000; SameSite=Lax; Secure';
+      return;
+    }
+    document.cookie = 'sa_authed=; Path=/; Max-Age=0; SameSite=Lax; Secure';
+  }, [ready, authenticated]);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!ready || !authenticated || !getAccessToken) return;
 
