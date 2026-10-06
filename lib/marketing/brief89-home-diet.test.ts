@@ -58,7 +58,7 @@ const page = src('app/page.tsx');
 assert.match(page, /<main[\s>]/, 'home page should render a <main> element');
 assert.doesNotMatch(page, /next\/dynamic/);
 assert.doesNotMatch(page, /ProductMocks/);
-assert.doesNotMatch(page, /HeroAudienceStage/);
+assert.match(page, /HeroAudienceStage/);
 assert.doesNotMatch(page, /@privy-io\/react-auth/);
 assert.doesNotMatch(page, /\bviem\b/);
 assert.doesNotMatch(page, /\bundici\b/);

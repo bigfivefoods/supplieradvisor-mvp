@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import LandingNav from '@/components/marketing/LandingNav';
+import HeroAudienceStage from '@/components/marketing/HeroAudienceStage';
 import HomeBelowFoldLazy from '@/components/marketing/HomeBelowFoldLazy';
 import { COMPANY_TRIAL_DAYS } from '@/lib/billing/company-subscription';
 
@@ -18,6 +19,7 @@ export default function LandingPage() {
   return (
     <div className="relative z-0 min-h-dvh bg-sa-bg text-sa-text antialiased selection:bg-cyan-100 dark:selection:bg-cyan-500/30">
       <LandingNav />
+      <HeroAudienceStage />
       <main>
         <section className="border-b border-slate-200 bg-white px-4 pb-16 pt-28 sm:px-6 sm:pb-20 sm:pt-32 lg:px-10">
           <div className="mx-auto grid w-full max-w-screen-2xl gap-10 lg:grid-cols-[1.3fr_1fr] lg:gap-12">
@@ -25,9 +27,9 @@ export default function LandingPage() {
               <p className="text-xs font-black uppercase tracking-[0.22em] text-[#00b4d8]">
                 SupplierAdvisor®
               </p>
-              <h1 className="mt-4 text-4xl font-black tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">
+              <h2 className="mt-4 text-4xl font-black tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">
                 One operating system for verified trade, operations, and member experiences.
-              </h1>
+              </h2>
               <p className="mt-6 max-w-3xl text-lg leading-relaxed text-slate-700">
                 SupplierAdvisor brings your supplier network, customer relationships, inventory movement,
                 production commitments, quality evidence, and financial controls into a single workspace.
