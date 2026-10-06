@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useRef } from 'react';
+import { log } from '@/lib/logging/logger';
 
 type RouteErrorProps = {
   error: Error & { digest?: string };
@@ -17,6 +19,17 @@ export default function RouteError({
   backLabel,
   title = 'This section hit a problem — your data is safe',
 }: RouteErrorProps) {
+  const loggedErrorRef = useRef<Error | null>(null);
+
+  useEffect(() => {
+    if (loggedErrorRef.current === error) return;
+    log.error('app.route_error', {
+      err: error,
+      digest: error.digest || null,
+    });
+    loggedErrorRef.current = error;
+  }, [error]);
+
   return (
     <main className="mx-auto w-full max-w-4xl p-4 sm:p-6">
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
