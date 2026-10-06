@@ -162,7 +162,13 @@ function Inner() {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || 'Could not save');
-        toast.success('Saved');
+        toast.success(
+          body.action === 'email_statement' && data.emailed_to
+            ? `Statement sent to ${data.emailed_to}`
+            : body.action === 'redeem'
+              ? 'Redemption recorded on the statement and on the ledger'
+              : 'Saved'
+        );
         await load();
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Could not save');
@@ -172,6 +178,33 @@ function Inner() {
     },
     [companyId, privyUserId, load]
   );
+
+  const downloadStatement = async (sellerId: number, partnerProfileId: number) => {
+    const params = new URLSearchParams({
+      companyId: String(companyId),
+      sellerId: String(sellerId),
+      partnerId: String(partnerProfileId),
+      from: period.from,
+      to: period.to,
+    });
+    if (privyUserId) params.set('privyUserId', privyUserId);
+    try {
+      const res = await fetch(`/api/accounting/referral-commission/pdf?${params}`);
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || 'Could not download the statement');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `referral-commission-${partnerProfileId}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not download the statement');
+    }
+  };
 
   const search = async () => {
     const params = new URLSearchParams({
@@ -376,6 +409,17 @@ function Inner() {
             })
           }
           onDeleteRedemption={(id) => void post({ action: 'delete_redemption', id })}
+          onDownload={() =>
+            void downloadStatement(companyId, selected.partner_profile_id)
+          }
+          onEmail={() =>
+            void post({
+              action: 'email_statement',
+              partner_profile_id: selected.partner_profile_id,
+              from: period.from,
+              to: period.to,
+            })
+          }
         />
       ) : null}
 
@@ -393,6 +437,9 @@ function Inner() {
                 periodLabel={period.label}
                 canWrite={false}
                 heading={`From ${row.seller_name}`}
+                onDownload={() =>
+                  void downloadStatement(row.seller_profile_id, companyId)
+                }
               />
             ))}
         </div>
@@ -502,6 +549,8 @@ function Statement(props: {
   onRedeemNotes?: (value: string) => void;
   onRedeem?: () => void;
   onDeleteRedemption?: (id: number) => void;
+  onDownload?: () => void;
+  onEmail?: () => void;
 }) {
   const row = props.row;
   return (
@@ -525,6 +574,25 @@ function Statement(props: {
               warn={row.owing_at_end < -0.05}
             />
           </div>
+          {props.onDownload || props.onEmail ? (
+            <div className="flex flex-wrap gap-2 print:hidden">
+              {props.onDownload ? (
+                <button type="button" className="btn-secondary !py-2 !px-3 text-sm" onClick={props.onDownload}>
+                  Download PDF
+                </button>
+              ) : null}
+              {props.onEmail ? (
+                <button
+                  type="button"
+                  className="btn-secondary !py-2 !px-3 text-sm"
+                  disabled={props.saving}
+                  onClick={props.onEmail}
+                >
+                  Email this statement
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           <EarnTable lines={row.lines} />
           <RedeemTable
             rows={row.redemptions}
@@ -653,6 +721,11 @@ function Statement(props: {
                 onChange={(event) => props.onRedeemNotes?.(event.target.value)}
               />
             </label>
+            <p className="text-sm text-slate-600 sm:col-span-2">
+              Recording this posts the commission to Marketing &amp; sales and Accounts payable.
+              It does not move the bank. When you pay it, code that bank line to Accounts payable
+              so the expense is not counted twice.
+            </p>
             <button
               type="button"
               className="btn-primary !py-2 !px-4 text-sm sm:col-span-2 sm:w-fit"
@@ -731,6 +804,9 @@ function RedeemTable(props: {
               <td className="py-2 pr-3">
                 {methodLabel(row.method)}
                 {row.notes ? <span className="block text-xs text-slate-500">{row.notes}</span> : null}
+                {row.journal_entry_id ? (
+                  <span className="block text-xs text-slate-500">On the ledger</span>
+                ) : null}
               </td>
               <td className="py-2 pr-3">{row.reference || '—'}</td>
               <td className="py-2 text-right tabular-nums">
@@ -740,7 +816,7 @@ function RedeemTable(props: {
                     type="button"
                     className="ml-2 text-xs text-slate-500 underline print:hidden"
                     onClick={() => {
-                      if (window.confirm('Remove this redemption?')) props.onDelete?.(row.id);
+                      if (window.confirm('Remove this redemption and reverse its journal?')) props.onDelete?.(row.id);
                     }}
                   >
                     Remove

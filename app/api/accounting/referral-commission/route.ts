@@ -13,6 +13,9 @@ import {
   searchReferralCompanies,
 } from '@/lib/accounting/referral-commission-store';
 import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
+import { buildReferralStatementPdf } from '@/lib/accounting/referral-statement-pdf';
+import { emailReferralStatement } from '@/lib/accounting/referral-statement-mail';
+import { getSupabaseServer } from '@/lib/supabase/server-client';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -163,6 +166,42 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    if (action === 'email_statement') {
+      const from = String(body.from || '').slice(0, 10);
+      const to = String(body.to || '').slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) {
+        return NextResponse.json({ error: 'Choose a period first.' }, { status: 400 });
+      }
+      if (!Number.isFinite(partnerProfileId) || partnerProfileId <= 0) {
+        return NextResponse.json({ error: 'Choose the partner company.' }, { status: 400 });
+      }
+      const book = await loadSellerCommission({ sellerId: companyId, from, to });
+      const statement = book.partners.find((row) => row.partner_profile_id === partnerProfileId);
+      if (!statement) {
+        return NextResponse.json({ error: 'Save the commission rate first.' }, { status: 400 });
+      }
+      const supabase = getSupabaseServer();
+      const { data: partner } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('id', partnerProfileId)
+        .maybeSingle();
+      const toEmail = String((partner as { email?: string | null } | null)?.email || '');
+      const pdf = await buildReferralStatementPdf({
+        statement,
+        periodLabel: `${from} to ${to}`,
+      });
+      await emailReferralStatement({
+        to: toEmail,
+        sellerName: statement.seller_name,
+        partnerName: statement.partner_name,
+        periodLabel: `${from} to ${to}`,
+        pdf,
+        filename: `referral-commission-${partnerProfileId}-${from}-${to}.pdf`,
+      });
+      return NextResponse.json({ success: true, emailed_to: toEmail.trim().toLowerCase() });
+    }
+
     if (action === 'delete_redemption') {
       const id = Number(body.id);
       if (!Number.isFinite(id) || id <= 0) {
@@ -175,7 +214,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
-    const status = /choose|enter|save the commission|not on this|not found|cannot earn/i.test(
+    const status = /choose|enter|save the commission|not on this|not found|cannot earn|email|chart needs|period/i.test(
       message
     )
       ? 400

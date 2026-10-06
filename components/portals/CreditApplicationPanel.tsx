@@ -4,13 +4,16 @@ import { useState } from 'react';
 import { formatMoney } from '@/lib/accounting/types';
 import {
   CREDIT_DECLARATION,
+  CREDIT_DOCUMENT_KINDS,
   CREDIT_PAYMENT_TERMS,
+  creditDocumentLabel,
   creditInputErrors,
   creditStatusLabel,
   emptyCreditInput,
   prefillCreditFromBook,
   type CreditApplication,
   type CreditApplicationInput,
+  type CreditDocumentKind,
   type TradeReference,
 } from '@/lib/customers/credit-application';
 import type { BookProfile } from '@/lib/portals/trade-portal-workspace';
@@ -59,17 +62,22 @@ export function CreditApplicationPanel({
   book,
   application,
   busy,
+  token,
   onAct,
+  onRefresh,
 }: {
   hostName: string;
   book: BookProfile | null;
   application: CreditApplication | null;
   busy: boolean;
+  token: string;
   onAct: (payload: Record<string, unknown>) => Promise<unknown>;
+  onRefresh?: () => void;
 }) {
   const [restart, setRestart] = useState(false);
   const [form, setForm] = useState<FormState>(() => formFromInput(emptyCreditInput()));
   const [errors, setErrors] = useState<string[]>([]);
+  const [files, setFiles] = useState<Partial<Record<CreditDocumentKind, File>>>({});
 
   const locked =
     application?.status === 'submitted' || application?.status === 'in_review';
@@ -129,7 +137,53 @@ export function CreditApplicationPanel({
       mode,
       ...form,
     });
-    if (saved) setRestart(false);
+    if (!saved) return;
+    setRestart(false);
+    const chosen = CREDIT_DOCUMENT_KINDS.filter((kind) => files[kind.id]);
+    for (const kind of chosen) {
+      const file = files[kind.id];
+      if (!file) continue;
+      const body = new FormData();
+      body.append('token', token);
+      body.append('kind', kind.id);
+      body.append('file', file);
+      const res = await fetch('/api/public/portals/trade/credit-document', {
+        method: 'POST',
+        body,
+        credentials: 'include',
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setErrors([data.error || `Could not attach ${kind.label}`]);
+        onRefresh?.();
+        return;
+      }
+    }
+    if (chosen.length) {
+      setFiles({});
+      onRefresh?.();
+    }
+  };
+
+  const downloadPdf = async () => {
+    const res = await fetch('/api/public/portals/trade/credit-file', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ token, doc: 'pdf' }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      setErrors([data.error || 'Could not download the PDF']);
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'credit-application.pdf';
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -152,6 +206,11 @@ export function CreditApplicationPanel({
               ? ` · submitted ${application.submitted_at.slice(0, 10)}`
               : ''}
           </p>
+        ) : null}
+        {application ? (
+          <button type="button" className="btn-secondary mt-3" onClick={() => void downloadPdf()}>
+            Download PDF
+          </button>
         ) : null}
       </section>
 
@@ -262,6 +321,39 @@ export function CreditApplicationPanel({
               <Field label="Branch code" value={form.bank_branch_code} onChange={(v) => setText('bank_branch_code', v)} />
               <Field label="Account number" value={form.bank_account_number} onChange={(v) => setText('bank_account_number', v)} />
             </div>
+            <p className="text-sm text-neutral-600">
+              The account number is stored protected. The seller sees it on the application. It is not put in the email.
+            </p>
+          </section>
+
+          <section className="rounded-[1.5rem] border border-white/70 bg-white/90 p-5 space-y-3">
+            <h3 className="text-sm font-semibold text-neutral-900">Documents</h3>
+            <p className="text-sm text-neutral-600">
+              Company registration, a bank confirmation letter, and the signatory identity document. PDF or image, under 12MB. They attach when you save or submit.
+            </p>
+            {CREDIT_DOCUMENT_KINDS.map((kind) => (
+              <label key={kind.id} className="block text-xs font-semibold text-neutral-600">
+                {kind.label}
+                <input
+                  className="mt-1 block w-full text-sm"
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png,image/webp"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    setFiles((prev) => ({ ...prev, [kind.id]: file }));
+                  }}
+                />
+              </label>
+            ))}
+            {(application?.supporting_documents || []).length ? (
+              <ul className="text-sm text-neutral-800">
+                {application!.supporting_documents.map((doc) => (
+                  <li key={doc.id}>
+                    {creditDocumentLabel(doc.kind)} — {doc.name}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </section>
 
           <section className="rounded-[1.5rem] border border-white/70 bg-white/90 p-5 space-y-4">
@@ -371,6 +463,12 @@ function Summary({
       `${formatMoney(application.requested_limit, application.currency, { compact: false })} · ${application.payment_terms || 'terms not set'}`,
     ],
     ['Bank', [application.bank_name, application.bank_account_name, application.bank_account_number].filter(Boolean).join(' · ')],
+    [
+      'Documents',
+      (application.supporting_documents || [])
+        .map((doc) => `${creditDocumentLabel(doc.kind)}: ${doc.name}`)
+        .join('; '),
+    ],
   ];
   return (
     <section className="rounded-[1.5rem] border border-white/70 bg-white/90 p-5 space-y-2">

@@ -12,6 +12,7 @@ import {
 import { useApiAuth } from '@/lib/client/use-api-auth';
 import {
   CREDIT_PAYMENT_TERMS,
+  creditDocumentLabel,
   creditStatusLabel,
   sellerDecisionPlan,
   type CreditApplication,
@@ -114,6 +115,28 @@ function Inner() {
     return row.status === filter;
   });
 
+  const downloadFile = async (id: number, doc: string) => {
+    if (!companyId) return;
+    try {
+      const res = await withAuth(
+        `/api/customers/credit-applications/file?companyId=${companyId}&id=${id}&doc=${encodeURIComponent(doc)}`
+      );
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || 'Could not download');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = doc === 'pdf' ? `credit-application-${id}.pdf` : 'credit-document';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not download');
+    }
+  };
+
   const decide = async (decision: 'in_review' | 'approved' | 'declined') => {
     if (!detail || !companyId) return;
     setBusy(true);
@@ -151,7 +174,7 @@ function Inner() {
       <CustomersHeader
         title="Credit"
         titleAccent="applications"
-        description="Customers fill this in on their portal, under Credit. Approving a limit saves it on the customer. Orders already stop when that limit would be exceeded. A credit hold on Money still blocks the account until you clear it."
+        description="Customers fill this in on their portal, under Credit. You are emailed when one is submitted, and they are emailed when you approve or decline. The bank account number is stored protected and is left out of those emails. Approving a limit saves it on the customer, and orders stop when that limit would be exceeded. A credit hold on Money still blocks the account until you clear it."
       />
       <div className="mb-4 flex flex-wrap gap-2">
         {FILTERS.map((item) => (
@@ -238,6 +261,7 @@ function Inner() {
           onTerms={setTerms}
           onNotes={setNotes}
           onDecide={(decision) => void decide(decision)}
+          onDownload={(doc) => void downloadFile(detail.id, doc)}
         />
       ) : null}
     </CustomersPage>
@@ -255,6 +279,7 @@ function Detail({
   onTerms,
   onNotes,
   onDecide,
+  onDownload,
 }: {
   application: CreditApplication;
   canWrite: boolean;
@@ -266,6 +291,7 @@ function Detail({
   onTerms: (value: string) => void;
   onNotes: (value: string) => void;
   onDecide: (decision: 'in_review' | 'approved' | 'declined') => void;
+  onDownload: (doc: string) => void;
 }) {
   const plan = sellerDecisionPlan(application.status);
   const facts: Array<[string, string]> = [
@@ -320,6 +346,21 @@ function Detail({
           </div>
         ))}
       </dl>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className="btn-secondary" onClick={() => onDownload('pdf')}>
+          Download PDF
+        </button>
+        {(application.supporting_documents || []).map((doc) => (
+          <button
+            key={doc.id}
+            type="button"
+            className="btn-secondary"
+            onClick={() => onDownload(doc.id)}
+          >
+            {creditDocumentLabel(doc.kind)}
+          </button>
+        ))}
+      </div>
       {application.trade_references.length ? (
         <div>
           <h3 className="text-sm font-semibold text-neutral-900">Trade references</h3>

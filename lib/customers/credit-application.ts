@@ -56,11 +56,38 @@ export type CreditApplicationInput = {
   declaration_accepted: boolean;
 };
 
+export const CREDIT_DOCUMENT_KINDS = [
+  { id: 'cipc', label: 'Company registration (CIPC)' },
+  { id: 'bank_letter', label: 'Bank confirmation letter' },
+  { id: 'identity', label: 'Signatory identity document' },
+] as const;
+
+export type CreditDocumentKind = (typeof CREDIT_DOCUMENT_KINDS)[number]['id'];
+
+export type CreditDocumentMeta = {
+  id: string;
+  kind: CreditDocumentKind;
+  name: string;
+  uploaded_at: string;
+};
+
+export function creditDocumentKind(value: unknown): CreditDocumentKind | null {
+  const id = String(value || '');
+  return CREDIT_DOCUMENT_KINDS.some((kind) => kind.id === id)
+    ? (id as CreditDocumentKind)
+    : null;
+}
+
+export function creditDocumentLabel(kind: string): string {
+  return CREDIT_DOCUMENT_KINDS.find((row) => row.id === kind)?.label || 'Document';
+}
+
 export type CreditApplication = CreditApplicationInput & {
   id: number;
   profile_id: number;
   customer_id: number;
   status: CreditApplicationStatus;
+  supporting_documents: CreditDocumentMeta[];
   approved_limit: number | null;
   approved_terms: string | null;
   decision_notes: string | null;

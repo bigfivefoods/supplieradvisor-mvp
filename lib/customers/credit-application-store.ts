@@ -1,7 +1,18 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { missingSchemaColumn } from '@/lib/customers/schema-column';
+import { openAccountNumber, sealAccountNumber } from '@/lib/customers/account-secret';
+import {
+  emailCreditDecision,
+  emailCreditSubmitted,
+} from '@/lib/customers/credit-application-mail';
+import {
+  publicCreditDocuments,
+  storeCreditDocument,
+  storedCreditDocuments,
+} from '@/lib/customers/credit-documents';
 import {
   accountLast4,
+  creditDocumentKind,
   creditInputErrors,
   isCreditStatus,
   maskAccountNumber,
@@ -12,11 +23,12 @@ import {
   type CreditApplication,
   type CreditApplicationInput,
   type CreditApplicationStatus,
+  type CreditDocumentKind,
   type TradeReference,
 } from '@/lib/customers/credit-application';
 
 const APP_COLS =
-  'id, profile_id, customer_id, status, legal_name, trading_name, registration_number, vat_number, billing_address, contact_name, contact_email, contact_phone, industry, years_trading, requested_limit, currency, payment_terms, expected_monthly, bank_name, bank_account_name, bank_branch_code, bank_account_number, trade_references, signatory_name, signatory_title, declaration_accepted, approved_limit, approved_terms, decision_notes, submitted_at, reviewed_at, reviewed_by, created_at, updated_at' as const;
+  'id, profile_id, customer_id, status, legal_name, trading_name, registration_number, vat_number, billing_address, contact_name, contact_email, contact_phone, industry, years_trading, requested_limit, currency, payment_terms, expected_monthly, bank_name, bank_account_name, bank_branch_code, bank_account_number, trade_references, supporting_documents, signatory_name, signatory_title, declaration_accepted, approved_limit, approved_terms, decision_notes, submitted_at, reviewed_at, reviewed_by, created_at, updated_at' as const;
 
 const LIST_COLS =
   'id, profile_id, customer_id, status, legal_name, trading_name, requested_limit, currency, payment_terms, bank_name, bank_account_number, submitted_at, updated_at' as const;
@@ -53,6 +65,7 @@ type AppRow = {
   bank_branch_code: string | null;
   bank_account_number: string | null;
   trade_references: unknown;
+  supporting_documents?: unknown;
   signatory_name: string | null;
   signatory_title: string | null;
   declaration_accepted: boolean | null;
@@ -146,8 +159,9 @@ function toApplication(row: AppRow): CreditApplication {
     bank_name: text(row.bank_name),
     bank_account_name: text(row.bank_account_name),
     bank_branch_code: text(row.bank_branch_code),
-    bank_account_number: text(row.bank_account_number),
+    bank_account_number: openAccountNumber(row.bank_account_number),
     trade_references: referencesOf(row.trade_references),
+    supporting_documents: publicCreditDocuments(row.supporting_documents),
     signatory_name: text(row.signatory_name),
     signatory_title: text(row.signatory_title),
     declaration_accepted: row.declaration_accepted === true,
@@ -165,6 +179,19 @@ function toApplication(row: AppRow): CreditApplication {
 function blank(value: string): string | null {
   const t = value.trim();
   return t ? t : null;
+}
+
+function sealedAccount(plain: string): string | null {
+  const digits = plain.replace(/\D/g, '');
+  if (!digits) return null;
+  try {
+    return sealAccountNumber(digits);
+  } catch (error) {
+    throw new CreditApplicationError(
+      error instanceof Error ? error.message : 'Could not protect the account number',
+      500
+    );
+  }
 }
 
 function columnsFromInput(
@@ -190,7 +217,7 @@ function columnsFromInput(
     bank_name: blank(input.bank_name),
     bank_account_name: blank(input.bank_account_name),
     bank_branch_code: blank(input.bank_branch_code),
-    bank_account_number: blank(input.bank_account_number),
+    bank_account_number: sealedAccount(input.bank_account_number),
     trade_references: input.trade_references,
     signatory_name: blank(input.signatory_name),
     signatory_title: blank(input.signatory_title),
@@ -300,7 +327,9 @@ export async function savePortalCreditApplication(opts: {
     if (error || !data) {
       throw new CreditApplicationError(error?.message || 'Could not save the draft', 500);
     }
-    return toApplication(data as AppRow);
+    const saved = toApplication(data as AppRow);
+    if (mode === 'submit') void notifyCreditSubmitted(opts.companyId, saved);
+    return saved;
   }
   const inserted = await supabase
     .from('customer_credit_applications')
@@ -325,7 +354,9 @@ export async function savePortalCreditApplication(opts: {
       if (error || !data) {
         throw new CreditApplicationError(error?.message || 'Could not save the application', 500);
       }
-      return toApplication(data as AppRow);
+      const saved = toApplication(data as AppRow);
+      if (mode === 'submit') void notifyCreditSubmitted(opts.companyId, saved);
+      return saved;
     }
     throw new CreditApplicationError(
       'This application is with the seller. You can apply again after they decide.'
@@ -338,7 +369,9 @@ export async function savePortalCreditApplication(opts: {
       500
     );
   }
-  return toApplication(inserted.data as AppRow);
+  const saved = toApplication(inserted.data as AppRow);
+  if (mode === 'submit') void notifyCreditSubmitted(opts.companyId, saved);
+  return saved;
 }
 
 async function customerFacts(
@@ -410,7 +443,7 @@ export async function listCreditApplications(opts: {
   return rows
     .map((row) => {
       const status: CreditApplicationStatus = isCreditStatus(row.status) ? row.status : 'draft';
-      const account = text(row.bank_account_number);
+      const account = openAccountNumber(row.bank_account_number);
       const named = names.get(Number(row.customer_id));
       const fallback = String(row.trading_name || row.legal_name || '').trim();
       return {
@@ -560,5 +593,153 @@ export async function decideCreditApplication(opts: {
   const fact = facts.get(saved.customer_id);
   saved.customer_name = fact?.name || saved.trading_name || saved.legal_name;
   saved.current_credit_limit = fact?.credit_limit ?? null;
+  if (decision === 'approved' || decision === 'declined') {
+    void notifyCreditDecision(opts.companyId, saved, decision);
+  }
   return saved;
+}
+
+async function companyIdentity(
+  companyId: number
+): Promise<{ name: string; email: string }> {
+  const supabase = getSupabaseServer();
+  const { data } = await supabase
+    .from('profiles')
+    .select('trading_name, legal_name, email')
+    .eq('id', companyId)
+    .maybeSingle();
+  const row = (data || {}) as {
+    trading_name?: string | null;
+    legal_name?: string | null;
+    email?: string | null;
+  };
+  const name = String(row.trading_name || row.legal_name || 'Your supplier').trim();
+  return { name, email: String(row.email || '').trim() };
+}
+
+async function notifyCreditSubmitted(
+  companyId: number,
+  application: CreditApplication
+): Promise<void> {
+  try {
+    const seller = await companyIdentity(companyId);
+    if (!seller.email) return;
+    const applicant =
+      application.trading_name || application.legal_name || application.customer_name || 'A customer';
+    await emailCreditSubmitted({
+      to: seller.email,
+      sellerName: seller.name,
+      applicantName: applicant,
+      requestedLimit: application.requested_limit,
+      currency: application.currency,
+      terms: application.payment_terms,
+    });
+  } catch (error) {
+    console.warn(
+      'credit submit email',
+      error instanceof Error ? error.message : 'failed'
+    );
+  }
+}
+
+async function notifyCreditDecision(
+  companyId: number,
+  application: CreditApplication,
+  decision: 'approved' | 'declined'
+): Promise<void> {
+  try {
+    if (!application.contact_email) return;
+    const seller = await companyIdentity(companyId);
+    await emailCreditDecision({
+      to: application.contact_email,
+      sellerName: seller.name,
+      decision,
+      approvedLimit: application.approved_limit,
+      currency: application.currency,
+      terms: application.approved_terms || '',
+      notes: application.decision_notes || '',
+    });
+  } catch (error) {
+    console.warn(
+      'credit decision email',
+      error instanceof Error ? error.message : 'failed'
+    );
+  }
+}
+
+export async function attachCreditDocument(opts: {
+  companyId: number;
+  customerId: number;
+  kind: unknown;
+  fileName: string;
+  contentType: string;
+  body: Buffer;
+}): Promise<CreditApplication> {
+  const kind: CreditDocumentKind | null = creditDocumentKind(opts.kind);
+  if (!kind) throw new CreditApplicationError('Choose the document type.');
+  const open = await openApplication(opts.companyId, opts.customerId);
+  if (!open) {
+    throw new CreditApplicationError('Save the application before attaching a document.');
+  }
+  const supabase = getSupabaseServer();
+  const { data: row, error: readError } = await supabase
+    .from('customer_credit_applications')
+    .select('supporting_documents')
+    .eq('id', open.id)
+    .eq('profile_id', opts.companyId)
+    .maybeSingle();
+  if (isMissingSchema(readError)) throw schemaError();
+  if (readError) throw new CreditApplicationError(readError.message, 500);
+  const existing = storedCreditDocuments(
+    (row as { supporting_documents?: unknown } | null)?.supporting_documents
+  );
+  const next = await storeCreditDocument({
+    companyId: opts.companyId,
+    customerId: opts.customerId,
+    applicationId: open.id,
+    kind,
+    fileName: opts.fileName,
+    contentType: opts.contentType,
+    body: opts.body,
+    existing,
+  });
+  const { data, error } = await supabase
+    .from('customer_credit_applications')
+    .update({
+      supporting_documents: next,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', open.id)
+    .eq('profile_id', opts.companyId)
+    .eq('customer_id', opts.customerId)
+    .select(APP_COLS)
+    .maybeSingle();
+  if (isMissingSchema(error)) throw schemaError();
+  if (error || !data) {
+    throw new CreditApplicationError(error?.message || 'Could not save the document', 500);
+  }
+  return toApplication(data as AppRow);
+}
+
+export async function creditDocumentBytes(opts: {
+  companyId: number;
+  applicationId: number;
+  documentId: string;
+}): Promise<{ name: string; body: Buffer; contentType: string } | null> {
+  const supabase = getSupabaseServer();
+  const { data, error } = await supabase
+    .from('customer_credit_applications')
+    .select('supporting_documents')
+    .eq('id', opts.applicationId)
+    .eq('profile_id', opts.companyId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const doc = storedCreditDocuments(
+    (data as { supporting_documents?: unknown }).supporting_documents
+  ).find((row) => row.id === opts.documentId);
+  if (!doc) return null;
+  const { readCreditDocument } = await import('@/lib/customers/credit-documents');
+  const file = await readCreditDocument(doc.path);
+  if (!file) return null;
+  return { name: doc.name, body: file.body, contentType: file.contentType || doc.content_type };
 }

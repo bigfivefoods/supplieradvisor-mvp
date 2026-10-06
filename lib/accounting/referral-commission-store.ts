@@ -1,4 +1,14 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import {
+  postBalancedJournal,
+  resolveCoaAccountIdByCode,
+  reversePostedJournal,
+} from '@/lib/accounting/post-journal';
+import {
+  REFERRAL_EXPENSE_CODES,
+  REFERRAL_PAYABLE_CODE,
+  referralJournalLines,
+} from '@/lib/accounting/referral-commission-journal';
 import { bookIlikeOr } from '@/lib/security/book-search';
 import {
   buildReferralCommission,
@@ -22,7 +32,7 @@ const CUSTOMER_COLS =
   'id, trading_name, legal_name, referral_partner_profile_id';
 const PAYMENT_COLS = 'id, invoice_id, amount, paid_at, reference';
 const REDEEM_COLS =
-  'id, profile_id, partner_profile_id, amount, redeemed_on, method, reference, notes';
+  'id, profile_id, partner_profile_id, amount, redeemed_on, method, reference, notes, journal_entry_id';
 
 export class ReferralSchemaError extends Error {
   constructor() {
@@ -82,6 +92,7 @@ type RedeemRow = {
   method: string | null;
   reference: string | null;
   notes: string | null;
+  journal_entry_id?: number | string | null;
 };
 
 export type ReferralCustomerChoice = {
@@ -214,6 +225,10 @@ function toRedemption(row: RedeemRow): ReferralRedemption {
     method: String(row.method || 'paid'),
     reference: row.reference,
     notes: row.notes,
+    journal_entry_id:
+      row.journal_entry_id != null && Number(row.journal_entry_id) > 0
+        ? Number(row.journal_entry_id)
+        : null,
   };
 }
 
@@ -239,15 +254,14 @@ async function loadSellerBooks(sellerId: number, partnerId?: number): Promise<{
   truncated: boolean;
 }> {
   const supabase = getSupabaseServer();
-  const customerQuery = supabase
+  let customerQuery = supabase
     .from('customers')
     .select(CUSTOMER_COLS)
     .eq('profile_id', sellerId)
     .order('trading_name')
     .limit(2000);
-  const { data: customerData, error: customerError } = partnerId
-    ? await customerQuery.eq('referral_partner_profile_id', partnerId)
-    : await customerQuery;
+  if (partnerId) customerQuery = customerQuery.eq('referral_partner_profile_id', partnerId);
+  const { data: customerData, error: customerError } = await customerQuery;
   throwIfSchema(customerError);
   if (customerError) throw new Error(customerError.message);
   const customers = (customerData || []) as CustomerRow[];
@@ -264,32 +278,39 @@ async function loadSellerBooks(sellerId: number, partnerId?: number): Promise<{
     if (ids.length) parts.push(`customer_id.in.(${ids.join(',')})`);
     invoiceQuery = invoiceQuery.or(parts.join(','));
   }
-  const { data: invoiceData, error: invoiceError } = await invoiceQuery;
-  throwIfSchema(invoiceError);
-  if (invoiceError) throw new Error(invoiceError.message);
-  const invoiceRows = (invoiceData || []) as InvoiceRow[];
-
-  const invoiceIds = invoiceRows.map((row) => Number(row.id));
-  const payments: ReferralPayment[] = [];
-  for (let i = 0; i < invoiceIds.length; i += 150) {
-    const slice = invoiceIds.slice(i, i + 150);
-    const { data, error } = await supabase
-      .from('customer_invoice_payments')
-      .select(PAYMENT_COLS)
-      .eq('profile_id', sellerId)
-      .in('invoice_id', slice);
-    if (error) throw new Error(error.message);
-    payments.push(...((data || []) as PaymentRow[]).map(toPayment));
-  }
-
   let redeemQuery = supabase
     .from('referral_commission_redemptions')
     .select(REDEEM_COLS)
     .eq('profile_id', sellerId);
   if (partnerId) redeemQuery = redeemQuery.eq('partner_profile_id', partnerId);
-  const { data: redeemData, error: redeemError } = await redeemQuery;
+  const [invoiceResult, redeemResult] = await Promise.all([invoiceQuery, redeemQuery]);
+  const { data: invoiceData, error: invoiceError } = invoiceResult;
+  throwIfSchema(invoiceError);
+  if (invoiceError) throw new Error(invoiceError.message);
+  const invoiceRows = (invoiceData || []) as InvoiceRow[];
+  const { data: redeemData, error: redeemError } = redeemResult;
   throwIfSchema(redeemError);
   if (redeemError) throw new Error(redeemError.message);
+
+  const invoiceIds = invoiceRows.map((row) => Number(row.id));
+  const slices: number[][] = [];
+  for (let i = 0; i < invoiceIds.length; i += 150) {
+    slices.push(invoiceIds.slice(i, i + 150));
+  }
+  const paymentBatches = await Promise.all(
+    slices.map((slice) =>
+      supabase
+        .from('customer_invoice_payments')
+        .select(PAYMENT_COLS)
+        .eq('profile_id', sellerId)
+        .in('invoice_id', slice)
+    )
+  );
+  const payments: ReferralPayment[] = [];
+  for (const batch of paymentBatches) {
+    if (batch.error) throw new Error(batch.error.message);
+    payments.push(...((batch.data || []) as PaymentRow[]).map(toPayment));
+  }
 
   return {
     invoices: invoiceRows.map(toInvoice),
@@ -310,9 +331,12 @@ export async function loadSellerCommission(opts: {
   warning: string | null;
 }> {
   const rows = await loadAgreements({ sellerId: opts.sellerId });
-  const names = await profileNames([
-    opts.sellerId,
-    ...rows.map((row) => Number(row.partner_profile_id)),
+  const [names, books] = await Promise.all([
+    profileNames([
+      opts.sellerId,
+      ...rows.map((row) => Number(row.partner_profile_id)),
+    ]),
+    loadSellerBooks(opts.sellerId),
   ]);
   const sellerName = names.get(opts.sellerId) || `Company ${opts.sellerId}`;
   const agreements = rows.map((row) => {
@@ -321,7 +345,6 @@ export async function loadSellerCommission(opts: {
       names.get(agreement.partner_profile_id) || agreement.partner_name;
     return agreement;
   });
-  const books = await loadSellerBooks(opts.sellerId);
   const partners = buildReferralCommission({
     from: opts.from,
     to: opts.to,
@@ -355,9 +378,13 @@ export async function loadPartnerCommission(opts: {
   const rows = await loadAgreements({ partnerId: opts.partnerId });
   if (!rows.length) return [];
   const sellerIds = [...new Set(rows.map((row) => Number(row.profile_id)))];
-  const names = await profileNames([opts.partnerId, ...sellerIds]);
+  const [names, booksBySeller] = await Promise.all([
+    profileNames([opts.partnerId, ...sellerIds]),
+    Promise.all(sellerIds.map((sellerId) => loadSellerBooks(sellerId, opts.partnerId))),
+  ]);
   const statements: PartnerCommissionStatement[] = [];
-  for (const sellerId of sellerIds) {
+  sellerIds.forEach((sellerId, index) => {
+    const books = booksBySeller[index];
     const sellerRows = rows.filter((row) => Number(row.profile_id) === sellerId);
     const sellerName = names.get(sellerId) || `Company ${sellerId}`;
     const agreements = sellerRows.map((row) => {
@@ -366,7 +393,6 @@ export async function loadPartnerCommission(opts: {
         names.get(opts.partnerId) || agreement.partner_name;
       return agreement;
     });
-    const books = await loadSellerBooks(sellerId, opts.partnerId);
     statements.push(
       ...buildReferralCommission({
         from: opts.from,
@@ -378,7 +404,7 @@ export async function loadPartnerCommission(opts: {
         redemptions: books.redemptions,
       })
     );
-  }
+  });
   return statements;
 }
 
@@ -565,18 +591,74 @@ export async function addReferralRedemption(opts: {
   throwIfSchema(agreementError);
   if (agreementError) throw new Error(agreementError.message);
   if (!agreement?.id) throw new Error('That partner is not on this commission book.');
-  const { error } = await supabase.from('referral_commission_redemptions').insert({
-    profile_id: opts.sellerId,
-    partner_profile_id: opts.partnerProfileId,
-    amount,
-    redeemed_on: opts.redeemedOn,
-    method: normalizeRedeemMethod(opts.method),
-    reference: opts.reference ? opts.reference.slice(0, 80) : null,
-    notes: opts.notes ? opts.notes.slice(0, 500) : null,
-    created_by: opts.createdBy,
-  });
+  const method = normalizeRedeemMethod(opts.method);
+  const names = await profileNames([opts.partnerProfileId]);
+  const partnerName = names.get(opts.partnerProfileId) || `Company ${opts.partnerProfileId}`;
+  const accounts = await referralAccounts(opts.sellerId);
+  const { data: inserted, error } = await supabase
+    .from('referral_commission_redemptions')
+    .insert({
+      profile_id: opts.sellerId,
+      partner_profile_id: opts.partnerProfileId,
+      amount,
+      redeemed_on: opts.redeemedOn,
+      method,
+      reference: opts.reference ? opts.reference.slice(0, 80) : null,
+      notes: opts.notes ? opts.notes.slice(0, 500) : null,
+      created_by: opts.createdBy,
+    })
+    .select('id')
+    .single();
   throwIfSchema(error);
-  if (error) throw new Error(error.message);
+  if (error || !inserted?.id) throw new Error(error?.message || 'Could not record the redemption');
+  const redemptionId = Number(inserted.id);
+  const posted = await postBalancedJournal({
+    profileId: opts.sellerId,
+    entryDate: opts.redeemedOn,
+    memo: `Referral commission ${method} — ${partnerName}`.slice(0, 500),
+    source: 'referral_redemption',
+    sourceId: String(redemptionId),
+    createdBy: opts.createdBy,
+    metadata: {
+      partner_profile_id: opts.partnerProfileId,
+      method,
+      redemption_id: redemptionId,
+    },
+    lines: referralJournalLines({
+      expenseAccountId: accounts.expenseId,
+      payableAccountId: accounts.payableId,
+      amount,
+      partnerName,
+      method,
+    }),
+  });
+  if (!posted.ok) {
+    await supabase
+      .from('referral_commission_redemptions')
+      .delete()
+      .eq('id', redemptionId)
+      .eq('profile_id', opts.sellerId);
+    throw new Error(posted.error);
+  }
+  const { error: stampError } = await supabase
+    .from('referral_commission_redemptions')
+    .update({ journal_entry_id: posted.journalId })
+    .eq('id', redemptionId)
+    .eq('profile_id', opts.sellerId);
+  if (stampError) {
+    await reversePostedJournal({
+      profileId: opts.sellerId,
+      journalId: posted.journalId,
+      createdBy: opts.createdBy,
+      memo: `Reversal of referral commission — ${partnerName}`,
+    });
+    await supabase
+      .from('referral_commission_redemptions')
+      .delete()
+      .eq('id', redemptionId)
+      .eq('profile_id', opts.sellerId);
+    throw new Error(stampError.message);
+  }
 }
 
 export async function deleteReferralRedemption(opts: {
@@ -584,6 +666,26 @@ export async function deleteReferralRedemption(opts: {
   id: number;
 }): Promise<void> {
   const supabase = getSupabaseServer();
+  const { data: existing, error: findError } = await supabase
+    .from('referral_commission_redemptions')
+    .select('id, journal_entry_id')
+    .eq('id', opts.id)
+    .eq('profile_id', opts.sellerId)
+    .maybeSingle();
+  throwIfSchema(findError);
+  if (findError) throw new Error(findError.message);
+  if (!existing?.id) throw new Error('Redemption not found.');
+  const journalId = Number(
+    (existing as { journal_entry_id?: number | null }).journal_entry_id
+  );
+  if (Number.isFinite(journalId) && journalId > 0) {
+    const reversed = await reversePostedJournal({
+      profileId: opts.sellerId,
+      journalId,
+      memo: 'Reversal of referral commission redemption',
+    });
+    if (!reversed.ok) throw new Error(reversed.error);
+  }
   const { data, error } = await supabase
     .from('referral_commission_redemptions')
     .delete()
@@ -593,4 +695,21 @@ export async function deleteReferralRedemption(opts: {
   throwIfSchema(error);
   if (error) throw new Error(error.message);
   if (!data?.length) throw new Error('Redemption not found.');
+}
+
+async function referralAccounts(
+  sellerId: number
+): Promise<{ expenseId: number; payableId: number }> {
+  let expenseId: number | null = null;
+  for (const code of REFERRAL_EXPENSE_CODES) {
+    expenseId = await resolveCoaAccountIdByCode(sellerId, code);
+    if (expenseId) break;
+  }
+  const payableId = await resolveCoaAccountIdByCode(sellerId, REFERRAL_PAYABLE_CODE);
+  if (!expenseId || !payableId) {
+    throw new Error(
+      'The chart needs Marketing & sales (6400) or Professional fees (6600), and Accounts payable (2110), before a redemption can be recorded.'
+    );
+  }
+  return { expenseId, payableId };
 }

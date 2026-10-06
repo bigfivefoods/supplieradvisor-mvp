@@ -52,6 +52,7 @@ export type ReferralRedemption = {
   method: string;
   reference: string | null;
   notes: string | null;
+  journal_entry_id?: number | null;
 };
 
 export type ReferralEarnLine = {

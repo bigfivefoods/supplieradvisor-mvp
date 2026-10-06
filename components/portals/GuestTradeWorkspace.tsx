@@ -897,7 +897,9 @@ export function GuestTradeWorkspace({
             book={ws?.bookProfile || null}
             application={ws?.creditApplication || null}
             busy={busy}
+            token={token}
             onAct={act}
+            onRefresh={onRefresh}
           />
         </div>
       ) : null}
