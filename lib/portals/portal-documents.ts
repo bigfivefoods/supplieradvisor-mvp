@@ -49,6 +49,7 @@ export type PortalDocSlot = {
   field: string;
   name: string;
   url: string | null;
+  ref?: string | null;
   category: string;
   extra?: boolean;
 };
@@ -199,6 +200,27 @@ export function urlsFromDocMetadata(
   return out;
 }
 
+export function refsFromDocMetadata(
+  metadata: unknown
+): Record<string, string | null> {
+  const out: Record<string, string | null> = {};
+  const meta = asObject(metadata);
+  const required = asObject(meta.required_documents_refs);
+  for (const d of PORTAL_REQUIRED_DOCS) {
+    const hit = String(required[d.field] || '').trim();
+    if (hit) out[d.field] = hit;
+  }
+  const list = Array.isArray(meta.documents) ? meta.documents : [];
+  for (const item of list) {
+    const row = asObject(item);
+    const ref = String(row.ref || '').trim();
+    if (!ref) continue;
+    const match = matchRequired(String(row.field || ''), String(row.name || ''));
+    if (match && !out[match.field]) out[match.field] = ref;
+  }
+  return out;
+}
+
 function extraSlotsFromMetadata(metadata: unknown): PortalDocSlot[] {
   const meta = asObject(metadata);
   const list = Array.isArray(meta.documents) ? meta.documents : [];
@@ -218,6 +240,7 @@ function extraSlotsFromMetadata(metadata: unknown): PortalDocSlot[] {
       field: field || `extra:${name.toLowerCase().replace(/\s+/g, '_').slice(0, 40)}`,
       name,
       url,
+      ref: cleanUrl(row.ref),
       category: String(row.category || 'Other'),
       extra: true,
     });
@@ -240,13 +263,19 @@ export function mergePortalDocSlots(opts: {
   const bookMeta = urlsFromDocMetadata(
     opts.metadata !== undefined ? opts.metadata : row?.metadata
   );
+  const profileRefs = refsFromDocMetadata(row?.metadata);
+  const bookRefs = refsFromDocMetadata(
+    opts.metadata !== undefined ? opts.metadata : row?.metadata
+  );
   const urls: Record<string, string | null> = {};
+  const refs: Record<string, string | null> = {};
   for (const d of PORTAL_REQUIRED_DOCS) {
     urls[d.field] =
       bookMeta[d.field] ||
       profileMeta[d.field] ||
       cleanUrl(rowUrls[d.field]) ||
       null;
+    refs[d.field] = bookRefs[d.field] || profileRefs[d.field] || null;
   }
   const extras = [
     ...extraSlotsFromMetadata(row?.metadata),
@@ -268,6 +297,7 @@ export function mergePortalDocSlots(opts: {
       name: d.name,
       category: d.category,
       url: urls[d.field] || null,
+      ref: refs[d.field] || null,
     })),
     ...extra,
   ];
@@ -276,19 +306,22 @@ export function mergePortalDocSlots(opts: {
 export function applyPortalDocSlotUrl(
   slots: PortalDocSlot[] | undefined,
   field: string,
-  url: string | null
+  url: string | null,
+  ref?: string | null
 ): PortalDocSlot[] {
   const list = slots?.length ? slots : emptyRequiredDocSlots();
   let hit = false;
   const next = list.map((d) => {
     if (d.field !== field) return d;
     hit = true;
-    return { ...d, url };
+    return { ...d, url, ref: ref ?? d.ref ?? null };
   });
   if (hit) return next;
   const known = PORTAL_REQUIRED_DOCS.find((d) => d.field === field);
   if (!known) return next;
-  return next.map((d) => (d.field === known.field ? { ...d, url } : d));
+  return next.map((d) =>
+    d.field === known.field ? { ...d, url, ref: ref ?? d.ref ?? null } : d
+  );
 }
 
 /** Persist a required-doc URL into CRM/SRM metadata without dropping other keys. */
@@ -296,14 +329,19 @@ export function mergeRequiredDocIntoMetadata(
   metadata: unknown,
   field: string,
   url: string | null,
-  nowIso: string
+  nowIso: string,
+  ref?: string | null
 ): Record<string, unknown> {
   const meta = { ...asObject(metadata) };
   const required = { ...asObject(meta.required_documents) };
+  const requiredRefs = { ...asObject(meta.required_documents_refs) };
   const known = PORTAL_REQUIRED_DOCS.find((d) => d.field === field);
   if (url) required[field] = url;
   else delete required[field];
+  if (ref) requiredRefs[field] = ref;
+  else delete requiredRefs[field];
   meta.required_documents = required;
+  meta.required_documents_refs = requiredRefs;
   const list = Array.isArray(meta.documents) ? [...meta.documents] : [];
   const nextList: unknown[] = [];
   for (const item of list) {
@@ -317,6 +355,7 @@ export function mergeRequiredDocIntoMetadata(
       field,
       name: known.name,
       url,
+      ref: ref || undefined,
       category: known.category,
       uploaded_at: nowIso,
     });

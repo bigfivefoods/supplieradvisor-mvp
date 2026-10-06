@@ -22,6 +22,7 @@ import {
   BuyerCompanyRequired,
   BuyerHeader,
 } from '@/components/buyer/BuyerShell';
+import SecureDocLink from '@/components/storage/SecureDocLink';
 
 type Inv = {
   id: number;
@@ -448,15 +449,14 @@ function Inner() {
                 {proofUrl ? 'Replace POP' : 'Upload POP'}
               </button>
               {proofUrl ? (
-                <a
-                  href={proofUrl}
-                  target="_blank"
-                  rel="noreferrer"
+                <SecureDocLink
+                  companyId={companyId}
+                  refOrUrl={proofUrl}
                   className="inline-flex items-center gap-1 text-xs font-bold text-[#0077b6] underline"
                 >
                   <FileText className="w-3.5 h-3.5" />
                   {proofName || 'View proof'}
-                </a>
+                </SecureDocLink>
               ) : (
                 <span className="text-[11px] text-neutral-400 self-center">
                   Optional but recommended

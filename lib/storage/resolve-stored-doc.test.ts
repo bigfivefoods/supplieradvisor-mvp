@@ -23,5 +23,13 @@ for (const bucket of ['company-documents', 'certificates', 'product-documents'])
 
 assert.throws(() => resolveStoredDoc('https://example.com/file.pdf'));
 assert.throws(() => resolveStoredDoc('sb://missing-parts'));
+assert.throws(() => resolveStoredDoc('sb://credit-documents/42/proof.pdf'));
+assert.throws(() => resolveStoredDoc('sb://sensitive-documents/42/../43/proof.pdf'));
+assert.throws(() => resolveStoredDoc('sb://sensitive-documents/42//proof.pdf'));
+assert.throws(() => resolveStoredDoc('sb://sensitive-documents//42/proof.pdf'));
+assert.throws(() => resolveStoredDoc('sb://sensitive-documents/42\\proof.pdf'));
+assert.throws(() => resolveStoredDoc('sb://sensitive-documents/42/%2fproof.pdf'));
+assert.throws(() => resolveStoredDoc('sb://sensitive-documents/42/%2e%2e/proof.pdf'));
+assert.throws(() => resolveStoredDoc('sb://sensitive-documents/42/%5cproof.pdf'));
 
 console.log('✓ resolveStoredDoc passed');

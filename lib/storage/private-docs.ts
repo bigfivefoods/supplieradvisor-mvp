@@ -22,6 +22,19 @@ export type ResolvedStoredDoc = {
   legacy: boolean;
 };
 
+function hasUnsafeStoragePath(path: string): boolean {
+  if (!path) return true;
+  if (path.startsWith('/')) return true;
+  if (path.includes('\\')) return true;
+  if (path.includes('//')) return true;
+  const lower = path.toLowerCase();
+  if (lower.includes('%2e') || lower.includes('%2f') || lower.includes('%5c')) {
+    return true;
+  }
+  const parts = path.split('/');
+  return parts.some((part) => part === '..');
+}
+
 function clampSeconds(seconds?: number): number {
   const n = Number(seconds || 300);
   if (!Number.isFinite(n)) return 300;
@@ -56,8 +69,8 @@ export function parseStorageRef(ref: string): StoredDocTarget | null {
   const slash = rest.indexOf('/');
   if (slash <= 0) return null;
   const bucket = rest.slice(0, slash).trim();
-  const path = rest.slice(slash + 1).trim().replace(/^\/+/, '');
-  if (!bucket || !path) return null;
+  const path = rest.slice(slash + 1).trim();
+  if (bucket !== SENSITIVE_DOC_BUCKET || !path || hasUnsafeStoragePath(path)) return null;
   return { bucket, path };
 }
 
@@ -76,7 +89,7 @@ export function parseLegacyPublicStorageUrl(input: string): StoredDocTarget | nu
     if (parts.length < 2) return null;
     const bucket = parts[0];
     const path = parts.slice(1).join('/');
-    if (!LEGACY_PUBLIC_BUCKETS.has(bucket) || !path) return null;
+    if (!LEGACY_PUBLIC_BUCKETS.has(bucket) || !path || hasUnsafeStoragePath(path)) return null;
     return { bucket, path };
   } catch {
     return null;

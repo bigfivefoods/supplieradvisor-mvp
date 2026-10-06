@@ -58,21 +58,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File must be under 15MB' }, { status: 400 });
     }
 
-    const isLogo =
+    const isPublicAsset =
+      kind === 'logo' ||
+      kind === 'school_photo' ||
+      kind === 'nsnp_product' ||
+      kind.startsWith('product_image') ||
+      kind.startsWith('product_specs') ||
+      kind.startsWith('container_photo') ||
+      profileField === 'logo_url';
+    const isImageOnlyAsset =
       kind === 'logo' ||
       kind === 'school_photo' ||
       kind === 'nsnp_product' ||
       kind.startsWith('product_image') ||
       kind.startsWith('container_photo') ||
       profileField === 'logo_url';
-    if (isLogo && file.type && !file.type.startsWith('image/')) {
+    if (isImageOnlyAsset && file.type && !file.type.startsWith('image/')) {
       return NextResponse.json(
         { error: 'Image must be JPG, PNG, or WebP' },
         { status: 400 }
       );
     }
 
-    let ext = file.name.split('.').pop()?.toLowerCase() || (isLogo ? 'png' : 'pdf');
+    let ext = file.name.split('.').pop()?.toLowerCase() || (isImageOnlyAsset ? 'png' : 'pdf');
     let buffer = Buffer.from(await file.arrayBuffer());
     let contentType = file.type || 'application/octet-stream';
 
@@ -80,14 +88,16 @@ export async function POST(request: NextRequest) {
     let publicUrl: string | null = null;
     let usedBucket: string | null = null;
 
-    if (isLogo) {
+    if (isPublicAsset) {
       try {
         const sharp = (await import('sharp')).default;
-        buffer = Buffer.from(
-          await sharp(buffer).rotate().png({ compressionLevel: 8 }).toBuffer()
-        );
-        ext = 'png';
-        contentType = 'image/png';
+        if (isImageOnlyAsset) {
+          buffer = Buffer.from(
+            await sharp(buffer).rotate().png({ compressionLevel: 8 }).toBuffer()
+          );
+          ext = 'png';
+          contentType = 'image/png';
+        }
       } catch {
         /* keep original bytes if this runtime cannot decode the upload */
       }

@@ -21,6 +21,7 @@ import {
   poBelongsToSupplierViewer,
   poPdfUrlFromMeta,
 } from '@/lib/portals/supplier-portal-party';
+import { signPortalDocumentRef } from '@/lib/portals/portal-storage';
 import { parseTradeThread } from '@/lib/customers/trade-thread';
 import {
   depositPoNumberFromMeta,
@@ -342,6 +343,11 @@ function asObject(raw: unknown): Record<string, unknown> {
   return {};
 }
 
+function portalPoRefFromMeta(meta: Record<string, unknown>): string | null {
+  const ref = String(meta.attachment_ref || meta.pdf_ref || '').trim();
+  return ref || null;
+}
+
 function mapPortal(row: Record<string, unknown>): TradePortalRow {
   return {
     id: Number(row.id),
@@ -640,6 +646,19 @@ async function loadCustomerDocs(
         r.metadata,
         r.status != null ? String(r.status) : null
       );
+      const quoteMeta = asObject(r.metadata);
+      let attachmentUrl: string | null = (() => {
+        const url = quoteMeta.attachment_url || quoteMeta.pdf_url || quoteMeta.document_url;
+        return url != null ? String(url) : null;
+      })();
+      const attachmentRef = portalPoRefFromMeta(quoteMeta);
+      if (attachmentRef) {
+        try {
+          attachmentUrl = await signPortalDocumentRef(attachmentRef);
+        } catch {
+          // keep stored URL fallback
+        }
+      }
       quotes.push({
         ...moneyRow({
           id: Number(r.id),
@@ -660,11 +679,7 @@ async function loadCustomerDocs(
         deposit_percent: thread.deposit_percent,
         deposit_amount: thread.deposit_amount,
         deposit_invoice_id: thread.deposit_invoice_id,
-        attachment_url: (() => {
-          const meta = asObject(r.metadata);
-          const url = meta.attachment_url || meta.pdf_url || meta.document_url;
-          return url != null ? String(url) : null;
-        })(),
+        attachment_url: attachmentUrl,
       });
     }
   }
@@ -707,6 +722,19 @@ async function loadCustomerDocs(
       const prod =
         (r as { production_status?: string | null }).production_status || null;
       const meta = asObject((r as { metadata?: unknown }).metadata);
+      let attachmentUrl: string | null = meta.attachment_url
+        ? String(meta.attachment_url)
+        : meta.pdf_url
+          ? String(meta.pdf_url)
+          : null;
+      const attachmentRef = portalPoRefFromMeta(meta);
+      if (attachmentRef) {
+        try {
+          attachmentUrl = await signPortalDocumentRef(attachmentRef);
+        } catch {
+          // keep stored URL fallback
+        }
+      }
       orders.push({
         ...row,
         production_status: prod,
@@ -716,11 +744,7 @@ async function loadCustomerDocs(
         customer_po_number: meta.customer_po_number
           ? String(meta.customer_po_number)
           : null,
-        attachment_url: meta.attachment_url
-          ? String(meta.attachment_url)
-          : meta.pdf_url
-            ? String(meta.pdf_url)
-            : null,
+        attachment_url: attachmentUrl,
       });
     }
   }
@@ -798,18 +822,32 @@ async function loadSupplierPos(
       linkedProfileId: linked,
     })
   );
-  return rows.slice(0, 40).map((r) => ({
-    ...moneyRow({
-      id: Number(r.id),
-      kind: 'purchase_order',
-      number: r.po_number || r.order_number,
-      status: r.status,
-      date: r.created_at,
-      amount: r.total_amount,
-      currency: r.currency,
-    }),
-    attachment_url: poPdfUrlFromMeta(r.metadata),
-  }));
+  const out: PublicDocRow[] = [];
+  for (const r of rows.slice(0, 40)) {
+    const meta = asObject(r.metadata);
+    let attachmentUrl = poPdfUrlFromMeta(meta);
+    const attachmentRef = portalPoRefFromMeta(meta);
+    if (attachmentRef) {
+      try {
+        attachmentUrl = await signPortalDocumentRef(attachmentRef);
+      } catch {
+        // keep stored URL fallback
+      }
+    }
+    out.push({
+      ...moneyRow({
+        id: Number(r.id),
+        kind: 'purchase_order',
+        number: r.po_number || r.order_number,
+        status: r.status,
+        date: r.created_at,
+        amount: r.total_amount,
+        currency: r.currency,
+      }),
+      attachment_url: attachmentUrl,
+    });
+  }
+  return out;
 }
 
 const PROFILE_DOC_SELECT = `${ALL_DOCUMENT_DB_COLUMNS.filter(
@@ -839,7 +877,8 @@ async function loadProfileDocRow(
 
 async function loadSharedDocs(companyId: number): Promise<PortalDocSlot[]> {
   const row = await loadProfileDocRow(companyId);
-  return mergePortalDocSlots({ profileRow: row });
+  const slots = mergePortalDocSlots({ profileRow: row });
+  return signPortalSlots(slots);
 }
 
 async function loadAccountDocs(opts: {
@@ -900,7 +939,23 @@ async function loadAccountDocs(opts: {
   if (linked && linked > 0 && linked !== opts.companyId) {
     linkedRow = await loadProfileDocRow(linked);
   }
-  return mergePortalDocSlots({ profileRow: linkedRow, metadata });
+  const slots = mergePortalDocSlots({ profileRow: linkedRow, metadata });
+  return signPortalSlots(slots);
+}
+
+async function signPortalSlots(slots: PortalDocSlot[]): Promise<PortalDocSlot[]> {
+  return Promise.all(
+    slots.map(async (slot) => {
+      const ref = String(slot.ref || '').trim();
+      if (!ref) return slot;
+      try {
+        const url = await signPortalDocumentRef(ref);
+        return { ...slot, url };
+      } catch {
+        return slot;
+      }
+    })
+  );
 }
 
 export type PublicPortalPayload = {

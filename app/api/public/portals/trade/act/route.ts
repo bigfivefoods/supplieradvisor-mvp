@@ -129,6 +129,8 @@ export async function POST(request: NextRequest) {
           );
         }
         const attachment = String(body.attachment_url || '').trim().slice(0, 2000) || null;
+        const attachmentRef =
+          String(body.attachment_ref || '').trim().slice(0, 2000) || null;
         const attachmentName = String(body.attachment_name || '').trim().slice(0, 160) || null;
         const percent = thread.deposit_percent || 50;
         const { createTradeDepositInvoice, threadWithDeposit } = await import(
@@ -166,7 +168,16 @@ export async function POST(request: NextRequest) {
           .from('customer_quotes')
           .update({
             status: statusForStage('deposit'),
-            metadata: writeTradeThread(quote.metadata, thread),
+            metadata: writeTradeThread(
+              {
+                ...(quote.metadata && typeof quote.metadata === 'object'
+                  ? (quote.metadata as Record<string, unknown>)
+                  : {}),
+                attachment_ref: attachmentRef,
+                pdf_ref: attachmentRef,
+              },
+              thread
+            ),
             updated_at: now,
           })
           .eq('id', quote.id)
@@ -1523,6 +1534,11 @@ export async function POST(request: NextRequest) {
         meta.attachment_url = String(body.attachment_url).trim().slice(0, 2000);
         patch.metadata = meta;
       }
+      if (typeof body.attachment_ref === 'string' && body.attachment_ref.trim()) {
+        meta.attachment_ref = String(body.attachment_ref).trim().slice(0, 2000);
+        meta.pdf_ref = String(body.attachment_ref).trim().slice(0, 2000);
+        patch.metadata = meta;
+      }
       if (body.stock_on_hand != null) {
         meta.supplier_stock_on_hand = Number(body.stock_on_hand);
         patch.metadata = meta;
@@ -2116,6 +2132,9 @@ export async function POST(request: NextRequest) {
       const attachment = body.attachment_url
         ? String(body.attachment_url).slice(0, 2000)
         : null;
+      const attachmentRef = body.attachment_ref
+        ? String(body.attachment_ref).slice(0, 2000)
+        : null;
       const shipTo = String(body.ship_to || '').trim().slice(0, 800) || null;
       const billTo = String(body.bill_to || '').trim().slice(0, 800) || null;
       const paymentTerms =
@@ -2174,6 +2193,8 @@ export async function POST(request: NextRequest) {
         payment_terms: paymentTerms,
         metadata: {
           attachment_url: attachment,
+          attachment_ref: attachmentRef,
+          pdf_ref: attachmentRef,
           attachment_name: body.attachment_name
             ? String(body.attachment_name).slice(0, 160)
             : null,
@@ -2251,6 +2272,8 @@ export async function POST(request: NextRequest) {
               inbound_po_id: poId,
               customer_po_number: clientRef || poNumber,
               attachment_url: attachment,
+              attachment_ref: attachmentRef,
+              pdf_ref: attachmentRef,
               attachment_name: body.attachment_name
                 ? String(body.attachment_name).slice(0, 160)
                 : null,
@@ -2672,6 +2695,8 @@ export async function POST(request: NextRequest) {
       }
       const rawUrl = body.url == null ? '' : String(body.url).trim();
       const url = rawUrl ? rawUrl : null;
+      const rawRef = body.ref == null ? '' : String(body.ref).trim();
+      const ref = rawRef ? rawRef.slice(0, 2000) : null;
       if (url && !isPortalDocUrl(url)) {
         return NextResponse.json(
           { error: 'Document URL must be http or https' },
@@ -2702,7 +2727,7 @@ export async function POST(request: NextRequest) {
         if (upd.error) {
           return NextResponse.json({ error: upd.error.message }, { status: 500 });
         }
-        return NextResponse.json({ success: true, pack, field, url });
+        return NextResponse.json({ success: true, pack, field, url, ref });
       }
 
       const table = portal.kind === 'customer' ? 'customers' : 'srm_suppliers';
@@ -2734,7 +2759,8 @@ export async function POST(request: NextRequest) {
         row.metadata,
         field,
         url,
-        now
+        now,
+        ref
       );
       const { error: metaErr } = await supabase
         .from(table)
@@ -2763,7 +2789,7 @@ export async function POST(request: NextRequest) {
             .eq('id', linked);
         }
       }
-      return NextResponse.json({ success: true, pack, field, url });
+      return NextResponse.json({ success: true, pack, field, url, ref });
     }
 
     if (action === 'document_extra') {

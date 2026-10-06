@@ -314,6 +314,7 @@ export function PortalPurchaseOrder({
       return;
     }
     let attachment_url: string | undefined;
+    let attachment_ref: string | undefined;
     let attachment_name: string | undefined;
     try {
       if (file) {
@@ -329,6 +330,7 @@ export function PortalPurchaseOrder({
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'Upload failed');
           attachment_url = data.url;
+          attachment_ref = typeof data.ref === 'string' ? data.ref : undefined;
           attachment_name = data.name || file.name;
         } finally {
           setUploading(false);
@@ -352,6 +354,7 @@ export function PortalPurchaseOrder({
         contact_email: contactEmail.trim() || undefined,
         contact_phone: contactPhone.trim() || undefined,
         attachment_url,
+        attachment_ref,
         attachment_name,
         items: lines.map((l) => ({
           name: l.name,

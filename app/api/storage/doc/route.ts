@@ -24,8 +24,6 @@ async function companyOwnsStoredDoc(companyId: number, values: string[]): Promis
     profile,
     claim,
     contractor,
-    productDirect,
-    productUpstream,
     training,
     imports,
   ] = await Promise.all([
@@ -51,20 +49,6 @@ async function companyOwnsStoredDoc(companyId: number, values: string[]): Promis
       .limit(1)
       .maybeSingle(),
     supabase
-      .from('products')
-      .select('id')
-      .eq('profile_id', companyId)
-      .in('specs_sheet_url', refs)
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from('products')
-      .select('id')
-      .eq('profile_id', companyId)
-      .in('upstream_specs_sheet_url', refs)
-      .limit(1)
-      .maybeSingle(),
-    supabase
       .from('training_records')
       .select('id')
       .eq('profile_id', companyId)
@@ -86,8 +70,6 @@ async function companyOwnsStoredDoc(companyId: number, values: string[]): Promis
   }
   if (!claim.error && claim.data?.id) return true;
   if (!contractor.error && contractor.data?.id) return true;
-  if (!productDirect.error && productDirect.data?.id) return true;
-  if (!productUpstream.error && productUpstream.data?.id) return true;
   if (!training.error && training.data?.id) return true;
   if (!imports.error && Array.isArray(imports.data)) {
     for (const row of imports.data) {
@@ -142,16 +124,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
+    const supabase = getSupabaseServer();
     for (const candidate of resolved.candidates) {
       try {
-        const signed = await signSensitiveRef(
-          toStorageRef({ bucket: candidate.bucket, path: candidate.path }),
-          300
-        );
+        const signed =
+          candidate.bucket === 'sensitive-documents'
+            ? await signSensitiveRef(
+                toStorageRef({ bucket: candidate.bucket, path: candidate.path }),
+                300
+              )
+            : null;
+        if (!signed) throw new Error('fallback');
         if (asJson) return NextResponse.json({ ok: true, url: signed }, { status: 200 });
         return NextResponse.redirect(signed, 302);
       } catch {
-        // try next candidate
+        try {
+          const signedHit = await supabase.storage
+            .from(candidate.bucket)
+            .createSignedUrl(candidate.path, 300);
+          const signed = signedHit.data?.signedUrl;
+          if (signedHit.error || !signed) throw signedHit.error || new Error('sign failed');
+          if (asJson) return NextResponse.json({ ok: true, url: signed }, { status: 200 });
+          return NextResponse.redirect(signed, 302);
+        } catch {
+          // try next candidate
+        }
       }
     }
 

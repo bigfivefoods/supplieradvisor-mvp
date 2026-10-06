@@ -1363,6 +1363,7 @@ function CompanyDocsPanel({
     setDocNote(null);
     try {
       let url = String(pasted || '').trim();
+      let ref = '';
       if (file && file.size > 0) {
         const form = new FormData();
         form.append('token', token);
@@ -1374,14 +1375,15 @@ function CompanyDocsPanel({
           body: form,
           credentials: 'include',
         });
-        const data = (await res.json()) as { url?: string; error?: string };
+        const data = (await res.json()) as { url?: string; ref?: string; error?: string };
         if (!res.ok || !data.url) {
           throw new Error(data.error || 'Upload failed');
         }
         url = data.url;
+        ref = String(data.ref || '').trim();
       }
       if (!url) throw new Error('Upload a file or share the one already on file');
-      await onAct({ action: 'document_save', pack, field, url });
+      await onAct({ action: 'document_save', pack, field, url, ref: ref || undefined });
       if (pack === 'host' && isHost) {
         setDocNote(
           `${accountName || 'The supplier'} can view this on the portal`

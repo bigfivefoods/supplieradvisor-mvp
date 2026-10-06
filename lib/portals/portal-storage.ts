@@ -1,8 +1,9 @@
 import { isPortalDocUrl } from '@/lib/portals/portal-documents';
-import { signSensitiveRef, uploadSensitiveDoc } from '@/lib/storage/private-docs';
+import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { parseStorageRef, uploadSensitiveDoc } from '@/lib/storage/private-docs';
 
 /** Short-lived signed URLs for portal docs. */
-export const PORTAL_SIGNED_URL_SECONDS = 300;
+export const PORTAL_SIGNED_URL_SECONDS = 60 * 60 * 24 * 7;
 
 function companyIdFromPath(path: string): string {
   return String(path.split('/').filter(Boolean)[0] || 'portal').slice(0, 80);
@@ -24,7 +25,7 @@ export async function uploadPortalDocument(opts: {
       contentType: opts.contentType,
       ext,
     });
-    const url = await signSensitiveRef(ref, PORTAL_SIGNED_URL_SECONDS);
+    const url = await signPortalDocumentRef(ref);
     if (!isPortalDocUrl(url)) {
       return { ok: false, error: 'Upload stored but signed URL is invalid' };
     }
@@ -35,4 +36,17 @@ export async function uploadPortalDocument(opts: {
       error: error instanceof Error ? error.message : 'Upload failed',
     };
   }
+}
+
+export async function signPortalDocumentRef(ref: string): Promise<string> {
+  const parsed = parseStorageRef(ref);
+  if (!parsed) throw new Error('Invalid storage reference');
+  const supabase = getSupabaseServer();
+  const signed = await supabase.storage
+    .from(parsed.bucket)
+    .createSignedUrl(parsed.path, PORTAL_SIGNED_URL_SECONDS);
+  if (signed.error || !signed.data?.signedUrl) {
+    throw new Error(signed.error?.message || 'Could not sign file');
+  }
+  return signed.data.signedUrl;
 }

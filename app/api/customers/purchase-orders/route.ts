@@ -6,6 +6,14 @@ import {
   SELLER_PO_TRANSITIONS,
 } from '@/lib/procurement/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { signPortalDocumentRef } from '@/lib/portals/portal-storage';
+
+function asObject(raw: unknown): Record<string, unknown> {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    return raw as Record<string, unknown>;
+  }
+  return {};
+}
 
 /**
  * GET /api/customers/purchase-orders?companyId=&privyUserId=
@@ -75,15 +83,32 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const enriched = pos.map((p) => {
+    const enriched = await Promise.all(pos.map(async (p) => {
       const items = Array.isArray(p.items) ? p.items : [];
       const bid = Number(p.buyer_profile_id);
+      const metadata = asObject(p.metadata);
+      const attachmentRef =
+        typeof metadata.attachment_ref === 'string' && metadata.attachment_ref.trim()
+          ? metadata.attachment_ref.trim()
+          : typeof metadata.pdf_ref === 'string' && metadata.pdf_ref.trim()
+            ? metadata.pdf_ref.trim()
+            : null;
+      if (attachmentRef) {
+        try {
+          const signed = await signPortalDocumentRef(attachmentRef);
+          metadata.attachment_url = signed;
+          metadata.pdf_url = signed;
+        } catch {
+          // keep stored URL fallback
+        }
+      }
       return {
         ...p,
+        metadata,
         buyer_name: Number.isFinite(bid) ? buyerMap[bid] || null : null,
         line_count: items.length,
       };
-    });
+    }));
 
     const counts = {
       total: enriched.length,

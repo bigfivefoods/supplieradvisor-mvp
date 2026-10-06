@@ -35,6 +35,7 @@ const PROFILE_PUBLIC_IMAGE_KINDS = new Set([
 function shouldCopyLegacy(bucket: BucketName, path: string): boolean {
   if (bucket === 'certificates' || bucket === 'product-documents') return true;
   const p = path.toLowerCase();
+  if (/\/products\/specs-/.test(p)) return false;
   if (p.startsWith('people/')) return false;
   if (/^did_privy_[^/]+\/photo-/.test(p)) return false;
   const profileMatch = p.match(/\/profile\/([a-z0-9_]+)-/);
