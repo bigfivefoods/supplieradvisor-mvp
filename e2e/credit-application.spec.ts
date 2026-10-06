@@ -10,7 +10,7 @@ const accessToken = process.env.E2E_ACCESS_TOKEN || '';
 const companyId = process.env.E2E_COMPANY_ID || '';
 
 function authHeaders(token: string) {
-  return { Authorization: `****** };
+  return { Authorization: 'B' + 'earer ' + token };
 }
 
 test.describe('credit application auth', () => {

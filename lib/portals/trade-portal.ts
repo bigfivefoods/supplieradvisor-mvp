@@ -941,6 +941,7 @@ export type PublicPortalPayload = {
   hostDocShare?: Record<string, boolean> | null;
   /** Customer/supplier book + linked company required + extra docs */
   accountDocuments?: PortalDocSlot[];
+  sections: PortalSections;
   joinPath: string;
   moneyHint: string | null;
   kpis: {
@@ -1231,6 +1232,7 @@ export async function loadPublicPortal(
       hostDocuments: hostSlots,
       hostDocShare: portalSharedHostDocsFromMeta(partyMeta),
       accountDocuments,
+      sections: portal.sections,
       joinPath,
       moneyHint,
       kpis: {

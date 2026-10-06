@@ -219,8 +219,8 @@ function validateCommon(input: CreditApplicationInput): string[] {
 }
 
 export function validateDraft(input: CreditApplicationInput): ValidationResult {
+  const errors = validateCommon(input);
   const sanitized = sanitizeCreditInput(input);
-  const errors = validateCommon(sanitized);
   if (sanitized.requested_limit != null && (!Number.isFinite(Number(sanitized.requested_limit)) || Number(sanitized.requested_limit) < 0)) {
     errors.push('requested_limit must be >= 0');
   }
@@ -233,8 +233,8 @@ function requireField(value: unknown, label: string, errors: string[]) {
 }
 
 export function validateSubmit(input: CreditApplicationInput, documents: CreditApplicationDocument[]): ValidationResult {
+  const errors = validateCommon(input);
   const sanitized = sanitizeCreditInput(input);
-  const errors = validateCommon(sanitized);
   const fieldDef = fieldDefForCountry(sanitized.country_code);
 
   requireField(sanitized.business?.trading_name, 'business.trading_name', errors);

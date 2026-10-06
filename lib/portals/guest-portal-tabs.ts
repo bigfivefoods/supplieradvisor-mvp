@@ -49,7 +49,6 @@ export function guestPortalTabGroups(opts: {
           { id: 'profile', label: profile },
           { id: 'people', label: 'People' },
           { id: 'docs', label: 'Documents' },
-          ...(opts.sections?.credit === false ? [] : [{ id: 'credit' as const, label: 'Credit application' }]),
         ],
       },
       {
@@ -85,6 +84,7 @@ export function guestPortalTabGroups(opts: {
         { id: 'profile', label: profile },
         { id: 'people', label: 'People' },
         { id: 'docs', label: 'Documents' },
+        ...(opts.sections?.credit === false ? [] : [{ id: 'credit' as const, label: 'Credit application' }]),
       ],
     },
     {

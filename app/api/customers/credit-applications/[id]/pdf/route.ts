@@ -171,7 +171,7 @@ export async function GET(
     });
 
     const fileName = `${(app.reference || `CA-${id}`).replace(/[^A-Za-z0-9\-_]/g, '_')}.pdf`;
-    return new NextResponse(pdf, {
+    return new NextResponse(new Uint8Array(pdf), {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',

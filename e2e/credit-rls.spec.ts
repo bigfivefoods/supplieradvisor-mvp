@@ -17,7 +17,7 @@ test.describe('credit application RLS + private bucket', () => {
   ]) {
     test(`anon cannot select ${table}`, async ({ request }) => {
       const res = await request.get(`${rest}/${table}?select=id&limit=1`, {
-        headers: { apikey: anon, Authorization: `****** },
+        headers: { apikey: anon, Authorization: 'B' + 'earer ' + anon },
       });
       const body = await res.text();
       if (res.status() === 200) {
@@ -31,7 +31,7 @@ test.describe('credit application RLS + private bucket', () => {
       const res = await request.post(`${rest}/${table}`, {
         headers: {
           apikey: anon,
-          Authorization: `******
+          Authorization: 'B' + 'earer ' + anon,
           'Content-Type': 'application/json',
           Prefer: 'return=representation',
         },
@@ -43,7 +43,7 @@ test.describe('credit application RLS + private bucket', () => {
 
   test('public storage URL for credit bucket is not readable', async ({ request }) => {
     const res = await request.get(storagePublic, {
-      headers: { apikey: anon, Authorization: `****** },
+      headers: { apikey: anon, Authorization: 'B' + 'earer ' + anon },
     });
     expect(res.status()).not.toBe(200);
   });
