@@ -3,9 +3,8 @@ import { SITE_URL } from '@/lib/seo/site';
 import { SA_OG_IMAGE_URL } from '@/lib/brand/assets';
 
 export const metadata: Metadata = {
-  title: 'Interactive demo — try SupplierAdvisor free',
-  description:
-    'Click through SupplierAdvisor® product mocks — operations, suppliers, finance, quality, inventory, and Super-Cube leadership — without signing up.',
+  title: 'Interactive demo — try it free',
+  description: 'Explore SupplierAdvisor product flows without signing up — operations, suppliers, finance, quality, and trade.',
   keywords: [
     'SupplierAdvisor demo',
     'supply chain software demo',
@@ -14,7 +13,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: `${SITE_URL}/demo` },
   openGraph: {
-    title: 'Interactive demo · SupplierAdvisor®',
+    title: 'Interactive demo',
     description:
       'Explore product mocks without signing up — ops, suppliers, finance, quality, and more.',
     url: `${SITE_URL}/demo`,
@@ -23,8 +22,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Interactive demo · SupplierAdvisor®',
-    description: 'Click through the product without signing up.',
+    title: 'Interactive demo',
+    description: 'Explore product flows without signing up.',
     images: [SA_OG_IMAGE_URL],
   },
   robots: { index: true, follow: true },

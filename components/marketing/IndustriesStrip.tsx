@@ -47,12 +47,9 @@ const ICONS: Record<IndustrySlug, LucideIcon> = {
   'retail-shop': Store,
   'public-sector': Landmark,
   'multi-entity': Building2,
-  'staffing-recruitment': BriefcaseBusiness,
 };
 
-const HIDE = new Set<IndustrySlug>(['staffing-recruitment']);
-
-const INDUSTRIES = CATALOGUE.filter((i) => !HIDE.has(i.slug)).map((i) => ({
+const INDUSTRIES = CATALOGUE.map((i) => ({
   slug: i.slug,
   name: i.name,
   desc: i.cardBlurb || i.subhead,
