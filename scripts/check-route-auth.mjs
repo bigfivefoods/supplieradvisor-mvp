@@ -201,6 +201,14 @@ function collectHelperBodies(src) {
   return helpers;
 }
 
+function collectExportedHandlerBodies(handlers) {
+  const exported = new Map();
+  for (const handler of handlers) {
+    exported.set(handler.method, handler.block);
+  }
+  return exported;
+}
+
 function findExportedHandlers(src) {
   const out = [];
   const handlerRx = /export\s+(?:async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE)\s*\(|export\s+const\s+(GET|POST|PUT|PATCH|DELETE)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>/g;
@@ -257,10 +265,12 @@ for (const file of files) {
     continue;
   }
   const helperBodies = collectHelperBodies(src);
+  const exportedBodies = collectExportedHandlerBodies(handlers);
+  const callableBodies = new Map([...helperBodies, ...exportedBodies]);
   for (const handler of handlers) {
     const method = handler.method;
     if (matchesAllowlist(route, method)) continue;
-    if (isGuarded(handler.block, helperBodies)) continue;
+    if (isGuarded(handler.block, callableBodies)) continue;
     offenders.push(`${relative(root, file)}:${method}`);
   }
 }
