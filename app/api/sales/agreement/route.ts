@@ -33,7 +33,6 @@ export async function GET(request: NextRequest) {
 
     const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
     if (!_gate.ok) return _gate.response;
-    const privyUserId = _gate.userId;
     const format = String(
       request.nextUrl.searchParams.get('format') || ''
     ).toLowerCase();
@@ -177,7 +176,7 @@ export async function GET(request: NextRequest) {
           },
       contractVersion: contractVersion || SALES_CONTRACTOR_CONTRACT_VERSION,
       html: bodyHtml,
-      downloadUrl: `/api/sales/agreement?companyId=${companyId}&privyUserId=${encodeURIComponent(_gate.userId || '')}&format=download`,
+      downloadUrl: `/api/sales/agreement?companyId=${companyId}&format=download`,
     });
   } catch (e: unknown) {
     return NextResponse.json(

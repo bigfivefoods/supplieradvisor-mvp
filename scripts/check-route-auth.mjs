@@ -98,23 +98,21 @@ function fileToRoute(file) {
 
 function globToRegExp(pattern) {
   let regex = '';
-  for (let i = 0; i < pattern.length; i += 1) {
+  let i = 0;
+  while (i < pattern.length) {
     const ch = pattern[i];
     if (ch === '*') {
       if (pattern[i + 1] === '*') {
         regex += '.*';
-        i += 1;
+        i += 2;
       } else {
         regex += '[^/]*';
+        i += 1;
       }
       continue;
     }
     regex += ch.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
-  }
-  if (pattern.startsWith('**/')) {
-    regex = `.*${regex.slice(3)}`;
-  } else if (pattern.startsWith('*/')) {
-    regex = `(?:^|.*/)+${regex.slice(2)}`;
+    i += 1;
   }
   return new RegExp(`^${regex}$`);
 }
@@ -213,7 +211,7 @@ function findExportedHandlers(src) {
     if (brace < 0) continue;
     const end = findMatchingBrace(src, brace);
     if (end < 0) continue;
-    out.push({ method, block: src.slice(brace + 1, end), source: src.slice(brace + 1, end) });
+    out.push({ method, block: src.slice(brace + 1, end) });
   }
   return out;
 }

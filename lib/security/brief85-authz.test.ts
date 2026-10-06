@@ -37,24 +37,25 @@ for (const path of gateChecks) {
 const verifyNow = src('app/api/verify-now/route.ts');
 const verifyNowSaCall = verifyNow.indexOf('const vn = await callVerifyNowSaid');
 const verifyNowCipcCall = verifyNow.indexOf('const vn = await callVerifyNowCipcCompany');
-assert.ok(
-  verifyNow.indexOf('requireVerifiedUser') < verifyNowSaCall,
-  'verify-now must gate before VerifyNow SA check'
-);
-assert.ok(
-  verifyNow.indexOf('requireVerifiedUser') < verifyNowCipcCall,
-  'verify-now must gate before VerifyNow CIPC check'
-);
+const verifyNowGateIndex = verifyNow.indexOf('requireVerifiedUser');
+assert.ok(verifyNowGateIndex >= 0, 'verify-now must include requireVerifiedUser');
+if (verifyNowSaCall >= 0) {
+  assert.ok(verifyNowGateIndex < verifyNowSaCall, 'verify-now must gate before VerifyNow SA check');
+}
+if (verifyNowCipcCall >= 0) {
+  assert.ok(verifyNowGateIndex < verifyNowCipcCall, 'verify-now must gate before VerifyNow CIPC check');
+}
 for (const banned of ['assertCompanyMember(body.privyUserId', 'assertCompanyPermission(body.privyUserId']) {
   assert.ok(!verifyNow.includes(banned), 'verify-now must not trust client privyUserId');
 }
 
 const contractorVerify = src('app/api/containers/contractors/verify/route.ts');
 const contractorVerifyCall = contractorVerify.indexOf('const vn = await callVerifyNowSaid');
-assert.ok(
-  contractorVerify.indexOf('requireVerifiedUser') < contractorVerifyCall,
-  'contractor verify must gate before VerifyNow call'
-);
+const contractorVerifyGateIndex = contractorVerify.indexOf('requireVerifiedUser');
+assert.ok(contractorVerifyGateIndex >= 0, 'contractor verify must include requireVerifiedUser');
+if (contractorVerifyCall >= 0) {
+  assert.ok(contractorVerifyGateIndex < contractorVerifyCall, 'contractor verify must gate before VerifyNow call');
+}
 assert.ok(contractorVerify.includes(".eq('profile_id', companyId)"), 'contractor verify must scope lookup by profile_id');
 for (const banned of ['assertCompanyMember(body.privyUserId', 'assertCompanyPermission(body.privyUserId']) {
   assert.ok(!contractorVerify.includes(banned), 'contractor verify must not trust client identity');

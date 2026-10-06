@@ -84,10 +84,8 @@ export async function GET(request: NextRequest) {
       legacyPrivyUserId: legacyPrivyFrom(request),
     });
     if (!_gate.ok) return _gate.response;
-    if (_gate.userId) {
-      const mem = await assertCompanyMember(_gate.userId, companyId);
-      if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const mem = await assertCompanyMember(_gate.userId, companyId);
+    if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
 
     const supabase = getSupabaseServer();
     const byId = Number.isFinite(id) && id > 0;
