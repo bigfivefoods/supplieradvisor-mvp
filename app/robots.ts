@@ -26,6 +26,7 @@ export default function robots(): MetadataRoute.Robots {
         ],
         disallow: [
           '/api/',
+          '/dashboard',
           '/dashboard/',
           '/login',
           '/onboarding',
@@ -59,6 +60,7 @@ export default function robots(): MetadataRoute.Robots {
         ],
         disallow: [
           '/api/',
+          '/dashboard',
           '/dashboard/',
           '/login',
           '/onboarding',
@@ -72,37 +74,37 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: 'Bingbot',
         allow: ['/', '/c/', '/marketplace', '/industries'],
-        disallow: ['/api/', '/dashboard/', '/login', '/directory', '/r/', '/p/'],
+        disallow: ['/api/', '/dashboard', '/dashboard/', '/login', '/directory', '/r/', '/p/'],
       },
       {
         userAgent: 'GPTBot',
         allow: ['/', '/c/', '/marketplace', '/industries', '/llms.txt'],
-        disallow: ['/api/', '/dashboard/', '/login', '/directory'],
+        disallow: ['/api/', '/dashboard', '/dashboard/', '/login', '/directory'],
       },
       {
         userAgent: 'ChatGPT-User',
         allow: ['/', '/c/', '/marketplace', '/llms.txt'],
-        disallow: ['/api/', '/dashboard/', '/directory'],
+        disallow: ['/api/', '/dashboard', '/dashboard/', '/directory'],
       },
       {
         userAgent: 'Google-Extended',
         allow: ['/', '/c/', '/marketplace', '/industries', '/llms.txt'],
-        disallow: ['/api/', '/dashboard/', '/directory'],
+        disallow: ['/api/', '/dashboard', '/dashboard/', '/directory'],
       },
       {
         userAgent: 'anthropic-ai',
         allow: ['/', '/c/', '/llms.txt'],
-        disallow: ['/api/', '/dashboard/', '/directory'],
+        disallow: ['/api/', '/dashboard', '/dashboard/', '/directory'],
       },
       {
         userAgent: 'ClaudeBot',
         allow: ['/', '/c/', '/llms.txt'],
-        disallow: ['/api/', '/dashboard/', '/directory'],
+        disallow: ['/api/', '/dashboard', '/dashboard/', '/directory'],
       },
       {
         userAgent: 'PerplexityBot',
         allow: ['/', '/c/', '/marketplace', '/llms.txt'],
-        disallow: ['/api/', '/dashboard/', '/directory'],
+        disallow: ['/api/', '/dashboard', '/dashboard/', '/directory'],
       },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

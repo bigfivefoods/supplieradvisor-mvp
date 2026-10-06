@@ -14,17 +14,37 @@ import { isPublicApiPath } from '@/lib/auth/public-paths';
  */
 export function middleware(request: NextRequest) {
   const response = NextResponse.next();
-  response.headers.set('X-Frame-Options', 'DENY');
-  response.headers.set('X-Content-Type-Options', 'nosniff');
-  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  // payment=(self) required for Apple Pay / Payment Request API on Safari
-  response.headers.set(
-    'Permissions-Policy',
-    'camera=(), microphone=(), geolocation=(self), payment=(self), identity-credentials-get=*, publickey-credentials-get=(self), otp-credentials=(self)'
-  );
-  response.headers.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  const { pathname, search } = request.nextUrl;
 
-  const { pathname } = request.nextUrl;
+  const applySecurityHeaders = (res: NextResponse) => {
+    res.headers.set('X-Frame-Options', 'DENY');
+    res.headers.set('X-Content-Type-Options', 'nosniff');
+    res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+    // payment=(self) required for Apple Pay / Payment Request API on Safari
+    res.headers.set(
+      'Permissions-Policy',
+      'camera=(), microphone=(), geolocation=(self), payment=(self), identity-credentials-get=*, publickey-credentials-get=(self), otp-credentials=(self)'
+    );
+    res.headers.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  };
+
+  const isDashboardPath = pathname === '/dashboard' || pathname.startsWith('/dashboard/');
+  if (isDashboardPath) {
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    const hasPrivyToken = Boolean(request.cookies.get('privy-token')?.value);
+    const hasPrivySession = Boolean(request.cookies.get('privy-session')?.value);
+    const hasAuthHint = request.cookies.get('sa_authed')?.value === '1';
+    if (!hasPrivyToken && !hasPrivySession && !hasAuthHint) {
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('next', `${pathname}${search}`);
+      const redirect = NextResponse.redirect(loginUrl, 307);
+      applySecurityHeaders(redirect);
+      redirect.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+      return redirect;
+    }
+  }
+
+  applySecurityHeaders(response);
 
   // Coarse API gate: production requires some credential signal
   if (pathname.startsWith('/api/')) {
