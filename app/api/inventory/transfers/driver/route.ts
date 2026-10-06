@@ -91,7 +91,7 @@ async function logEvent(
 
 async function loadByToken(supabase: ReturnType<typeof getSupabaseServer>, token: string) {
   const clean = token.trim();
-  // public_token is the only token accepted; transfer_number is not a public lookup key
+  // public_token is the only token accepted; public routes intentionally avoid transfer numbers
   const { data: order } = await supabase
     .from('stock_transfer_orders')
     .select('*')
@@ -105,7 +105,6 @@ function publicTransferView(order: Record<string, unknown>, lines: unknown[], ev
   const token = String(order.public_token || '');
   return {
     id: order.id,
-    transfer_number: order.transfer_number,
     status: order.status,
     from_warehouse_name: order.from_warehouse_name,
     to_warehouse_name: order.to_warehouse_name,
@@ -303,7 +302,7 @@ export async function POST(request: NextRequest) {
             quantity: -qty,
             reference_type: 'stock_transfer_order',
             reference_id: String(order.id),
-            notes: `Driver pickup ${order.transfer_number}`,
+            notes: `Driver pickup ${order.public_token || order.id}`,
             lot_number: l.lot_number || null,
             created_by: driverName || driverPhone || 'driver',
             onchain_hash: hashMovement({
@@ -312,7 +311,7 @@ export async function POST(request: NextRequest) {
               movementType: 'transfer_ship_driver',
               quantity: qty,
               at: now,
-              reference: order.transfer_number,
+              reference: order.public_token || String(order.id),
             }),
             created_at: now,
           });
@@ -474,7 +473,7 @@ export async function POST(request: NextRequest) {
           quantity: qty,
           reference_type: 'stock_transfer_order',
           reference_id: String(order.id),
-          notes: `Driver deliver ${order.transfer_number}`,
+          notes: `Driver deliver ${order.public_token || order.id}`,
           lot_number: existing.lot_number || null,
           created_by: driverName || driverPhone || 'driver',
           onchain_hash: hashMovement({
@@ -483,7 +482,7 @@ export async function POST(request: NextRequest) {
             movementType: 'transfer_receive_driver',
             quantity: qty,
             at: now,
-            reference: order.transfer_number,
+            reference: order.public_token || String(order.id),
           }),
           created_at: now,
         });

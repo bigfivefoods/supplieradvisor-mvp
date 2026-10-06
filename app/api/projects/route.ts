@@ -254,7 +254,7 @@ export async function POST(request: NextRequest) {
 
     const methodology = String(body.methodology || 'standard');
     const isDmaic = methodology === 'dmaic' || methodology === 'hybrid';
-    const gate = isDmaicGate(body.methodology_gate)
+    const methodologyGate = isDmaicGate(body.methodology_gate)
       ? body.methodology_gate
       : isDmaic
         ? 'define'
@@ -275,7 +275,7 @@ export async function POST(request: NextRequest) {
       target_date: body.target_date || null,
       health: body.health || 'green',
       methodology,
-      methodology_gate: gate,
+      methodology_gate: methodologyGate,
       project_type: body.project_type || 'initiative',
       programme_id:
         body.programme_id != null && Number(body.programme_id) > 0
@@ -289,7 +289,7 @@ export async function POST(request: NextRequest) {
       problem_statement: body.problem_statement || null,
       goal_statement: body.goal_statement || null,
       charter_date: body.charter_date || null,
-      gate_entered_at: gate ? now : null,
+      gate_entered_at: methodologyGate ? now : null,
       created_by: mem.userId,
       updated_at: now,
       customer_id:
