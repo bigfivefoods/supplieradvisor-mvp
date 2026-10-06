@@ -4,9 +4,8 @@ import { ShieldCheck, Clock, CreditCard, RefreshCw, BadgeCheck } from 'lucide-re
 import { SITE_URL } from '@/lib/seo/company-public';
 
 export const metadata: Metadata = {
-  title: 'CIPC verification SLA — paid identity in 24 hours | SupplierAdvisor',
-  description:
-    'SupplierAdvisor paid CIPC company verification: R69 via Paystack, live CIPC match, 24-hour SLA from payment to badge (or clear mismatch with free re-run). Money → trust for B2B trade.',
+  title: 'CIPC verification SLA',
+  description: 'Pay R69 for CIPC verification. Target badge within 24 hours or clear mismatch with free re-run.',
   keywords: [
     'CIPC verification',
     'company verification South Africa',
@@ -18,8 +17,7 @@ export const metadata: Metadata = {
   alternates: { canonical: `${SITE_URL}/verification-sla` },
   openGraph: {
     title: 'Paid CIPC verification with a 24-hour SLA',
-    description:
-      'Pay R69 → CIPC company match → public verified badge. Target under 24 hours, self-serve re-run if stuck — no second charge.',
+    description: 'Pay R69 for CIPC verification and get a public badge within 24 hours.',
     url: `${SITE_URL}/verification-sla`,
     siteName: 'SupplierAdvisor®',
     type: 'website',

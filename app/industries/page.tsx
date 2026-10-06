@@ -7,9 +7,8 @@ import { SA_OG_IMAGE_URL } from '@/lib/brand/assets';
 import { INDUSTRY_PACK_MONTHLY_ZAR } from '@/lib/product/architecture';
 
 export const metadata: Metadata = {
-  title: 'Industries — supply chain & services OS by sector',
-  description:
-    'SupplierAdvisor® for food & beverage, agriculture (CropAdvisor®), quarry (QuarryAdvisor®), manufacturing, apparel (ApparelAdvisor® — range, landed costing, wholesale ATS, buyer PWA), building (ConstructionAdvisor® — BOQ quotes, dated programme, progress payments), distribution, containers (ContainerAdvisor®), fitness (GymAdvisor®), physio, dental, mental health, medical and veterinary practices, hire (HireAdvisor®), retail (RetailAdvisor®), public sector (SchoolAdvisor® · HealthAdvisor®), and multi-entity groups.',
+  title: 'Industries',
+  description: 'Industry-specific supply-chain workflows for agri, manufacturing, retail, gyms, clinics, and public programmes.',
   keywords: [
     'supply chain by industry',
     'CropAdvisor',
@@ -38,8 +37,7 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     title: 'Industries · SupplierAdvisor®',
-    description:
-      'Sector-ready depth on one OS — agri, extractives, manufacturing, apparel, construction, logistics, containers, gyms, clinics, vets, hire, retail, SchoolAdvisor® and HealthAdvisor®, multi-entity.',
+    description: 'Industry-specific supply-chain workflows for agri, construction, retail, clinics, gyms, and public programmes.',
     url: 'https://www.supplieradvisor.com/industries',
     type: 'website',
     images: [{ url: SA_OG_IMAGE_URL, width: 1200, height: 630 }],

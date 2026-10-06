@@ -24,8 +24,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const ind = getIndustry(slug);
   if (!ind) return { title: 'Industry' };
   return {
-    title: `${ind.name} · SupplierAdvisor®`,
-    description: ind.subhead,
+    title: ind.name,
+    description: ind.metaDescription || ind.subhead,
     alternates: {
       canonical: `https://www.supplieradvisor.com/industries/${ind.slug}`,
     },

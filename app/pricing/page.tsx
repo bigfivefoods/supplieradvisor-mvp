@@ -9,9 +9,8 @@ import {
   REFERRAL_LEVEL_DETAILS,
 } from '@/lib/marketing/pricing-plans';
 
-const title = 'SupplierAdvisor Pricing | From R299/mo company billing';
-const description =
-  'SupplierAdvisor company pricing from R299/mo with unlimited users, prepaid discounts, and a transparent 6%/3%/1% referral model built for trusted supply-chain growth.';
+const title = 'Pricing';
+const description = 'Company pricing from R299/mo with unlimited users and clear referral savings.';
 const canonicalUrl = 'https://www.supplieradvisor.com/pricing';
 
 export const metadata: Metadata = {

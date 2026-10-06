@@ -52,8 +52,7 @@ export const metadata: Metadata = {
     url: SITE_URL,
     siteName: SITE_NAME,
     title: DEFAULT_TITLE,
-    description:
-      'The world’s most trusted supplier advice — and OS. Public directory of verified B2B suppliers. 30-day free trial.',
+    description: 'SupplierAdvisor® supply-chain OS for verified B2B trade, industry workflows, and SA Member accounts.',
     images: [
       {
         url: SA_OG_IMAGE_URL,
@@ -67,8 +66,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: DEFAULT_TITLE,
-    description:
-      'SupplierAdvisor® unites B2B, B2G & B2C on one verified network. Browse the public supplier directory · 30-day free trial.',
+    description: 'Supply-chain OS for verified B2B trade and member journeys — 30-day free trial from R299/mo.',
     images: [SA_OG_IMAGE_URL],
     creator: '@supplieradvisa',
     site: '@supplieradvisa',

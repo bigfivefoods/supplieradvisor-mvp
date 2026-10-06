@@ -125,6 +125,11 @@ const nextConfig = {
         permanent: true,
       },
       {
+        source: '/industries/staffing-recruitment',
+        destination: '/industries/hire-rental',
+        permanent: true,
+      },
+      {
         source: '/directory/:path*',
         destination: '/',
         permanent: true,

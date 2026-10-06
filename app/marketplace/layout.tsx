@@ -3,9 +3,8 @@ import { SITE_URL } from '@/lib/seo/site';
 import { SA_OG_IMAGE_URL } from '@/lib/brand/assets';
 
 export const metadata: Metadata = {
-  title: 'B2B Marketplace — products from verified suppliers',
-  description:
-    'Browse public B2B product listings from verified suppliers on SupplierAdvisor. Inquire, connect, trade, and settle — open catalogue for African and global trade.',
+  title: 'Marketplace',
+  description: 'Browse verified B2B product listings and connect with trusted suppliers on SupplierAdvisor.',
   keywords: [
     'B2B marketplace',
     'supplier products',
@@ -16,8 +15,7 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     title: 'SupplierAdvisor Marketplace',
-    description:
-      'Open B2B catalogue — connect, raise POs, settle with claims or USDC escrow.',
+    description: 'Browse verified B2B product listings and connect with trusted suppliers.',
     url: `${SITE_URL}/marketplace`,
     type: 'website',
     siteName: 'SupplierAdvisor®',
@@ -27,7 +25,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'SupplierAdvisor Marketplace',
-    description: 'Open B2B catalogue from verified suppliers.',
+    description: 'Browse verified B2B product listings and connect with trusted suppliers.',
     images: [SA_OG_IMAGE_URL],
   },
   alternates: {
