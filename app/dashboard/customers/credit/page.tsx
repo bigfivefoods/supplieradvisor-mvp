@@ -52,7 +52,7 @@ export default function CustomerCreditPage() {
 }
 
 function Inner() {
-  const { companyId, withAuthJson } = useApiAuth();
+  const { companyId, withAuth, withAuthJson } = useApiAuth();
   const [rows, setRows] = useState<ListItem[]>([]);
   const [canWrite, setCanWrite] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
