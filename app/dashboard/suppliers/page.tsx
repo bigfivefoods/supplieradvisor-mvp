@@ -4,14 +4,10 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePrivy } from '@privy-io/react-auth';
 import {
-  Truck,
   Users,
-  AlertTriangle,
   Award,
-  TrendingUp,
   Search,
   Handshake,
-  ShieldCheck,
   Globe,
   RefreshCw,
 } from 'lucide-react';
@@ -28,8 +24,6 @@ import {
   RelationshipHeader,
 } from '@/components/relationship/RelationshipChrome';
 import {
-  HubHero,
-  HubPrinciples,
   HubTelemetryGrid,
   TelemetryCard,
 } from '@/components/chrome/CommandHubChrome';
@@ -136,7 +130,7 @@ function HubInner() {
         eyebrow="Supplier relationship management"
         title="Suppliers"
         titleAccent="Sourcing"
-        description="End-to-end SRM: source (find & search) → connect & invite → procure (PO / escrow) → rate OTIFEF & peers → report performance. One precision supply tower."
+        description="The supply book, what needs a decision, and the suppliers you rely on. Source, order, and score live on the rail."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -188,146 +182,148 @@ function HubInner() {
         </AlertBanner>
       )}
 
-      <HubHero
-        pill="Live SRM · discover → rate"
-        title="Suppliers you can trust."
-        description="OTIFEF, peer ratings, and verification compose a living trust score. Connect when it matters — invite offline partners who claim and take ownership."
-        stats={[
-          {
-            label: 'In book',
-            value: loading ? '—' : s?.total ?? 0,
-            valueClass: 'text-[#00b4d8]',
-          },
-          {
-            label: 'OTIFEF',
-            value: loading ? '—' : `${(ot?.overall ?? 0).toFixed(0)}%`,
-            valueClass: 'text-emerald-600',
-          },
-          {
-            label: 'Open RIAD',
-            value: loading ? '—' : s?.openRiads ?? 0,
-            valueClass: 'text-amber-600',
-          },
-        ]}
-      />
-
-      <HubTelemetryGrid>
+      <HubTelemetryGrid className="mb-6">
         <TelemetryCard
-          label="In my book"
-          value={s?.total ?? 0}
-          sub="Prospects + active"
+          label="In the book"
+          value={loading ? '—' : s?.total ?? 0}
+          sub={`${s?.active ?? 0} active · ${s?.preferred ?? 0} preferred`}
           accent="violet"
           icon={Users}
           href="/dashboard/suppliers/network"
         />
         <TelemetryCard
           label="Connected"
-          value={s?.connected ?? 0}
-          sub="On-platform edges"
+          value={loading ? '—' : s?.connected ?? 0}
+          sub={`${s?.verified ?? 0} verified on the network`}
           accent="emerald"
           icon={Handshake}
           href="/dashboard/suppliers/network"
         />
         <TelemetryCard
-          label="Pending invites"
-          value={s?.invitePending ?? 0}
-          sub="Awaiting claim"
-          accent={(s?.invitePending || 0) > 0 ? 'amber' : 'cyan'}
+          label="Awaiting claim"
+          value={loading ? '—' : s?.invitePending ?? 0}
+          sub="Invites not yet accepted"
+          accent={(s?.invitePending || 0) > 0 ? 'amber' : 'slate'}
           icon={Globe}
           href="/dashboard/suppliers/invites"
         />
         <TelemetryCard
-          label="Verified"
-          value={s?.verified ?? 0}
-          sub="In network"
-          accent="sky"
-          icon={ShieldCheck}
-        />
-        <TelemetryCard
-          label="Avg trust"
-          value={s?.avgTrust ?? 0}
-          sub={trust.label}
-          accent="violet"
-          icon={TrendingUp}
-          href="/dashboard/suppliers/performance"
-        />
-        <TelemetryCard
-          label="On time"
-          value={loading ? '—' : `${(ot?.onTime ?? 0).toFixed(0)}%`}
-          sub="By promised date"
+          label="OTIFEF"
+          value={loading ? '—' : `${(ot?.overall ?? 0).toFixed(0)}%`}
+          sub={`${band.label} · trust ${trust.label} · ${ot?.totalPOs ?? 0} POs`}
           accent="cyan"
-          icon={Truck}
-          href="/dashboard/suppliers/performance"
-        />
-        <TelemetryCard
-          label="Overall OTIFEF"
-          value={loading ? '—' : `${(ot?.overall ?? 0).toFixed(1)}%`}
-          sub={`${band.label} · ${ot?.totalPOs ?? 0} POs`}
-          accent="emerald"
           icon={Award}
           href="/dashboard/suppliers/performance"
         />
-        <TelemetryCard
-          label="Open RIADs"
-          value={s?.openRiads ?? 0}
-          sub="Supply-base risks"
-          accent={(s?.openRiads || 0) > 0 ? 'amber' : 'slate'}
-          icon={AlertTriangle}
-          href="/dashboard/suppliers/riad-log"
-        />
       </HubTelemetryGrid>
 
-      {!loading && s?.topSuppliers && s.topSuppliers.length > 0 && (
-        <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-black text-slate-800">Top OTIFEF suppliers</h3>
-            <Link
-              href="/dashboard/suppliers/performance"
-              className="text-xs font-bold text-[#00b4d8]"
-            >
-              Full scorecards →
-            </Link>
-          </div>
-          <ul className="space-y-2">
-            {s.topSuppliers.map((row, i) => (
-              <li
-                key={row.supplier_id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-neutral-100 px-3 py-2.5"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="text-[10px] font-black text-neutral-300 w-5">
-                    {String(i + 1).padStart(2, '0')}
+      <div className="mb-8 grid items-start gap-4 lg:grid-cols-2">
+        <section className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <h3 className="text-sm font-black text-slate-800">Needs a decision</h3>
+          <p className="mt-0.5 text-xs text-neutral-500">
+            Open work on this supply base. A zero means that queue is clear.
+          </p>
+          <ul className="mt-3 divide-y divide-neutral-100">
+            {[
+              {
+                label: 'Purchase orders still open',
+                value: openInboundPos,
+                href: '/dashboard/suppliers/po',
+              },
+              {
+                label: 'Connection requests',
+                value: pendingConnections,
+                href: '/dashboard/connections',
+              },
+              {
+                label: 'Invites awaiting claim',
+                value: s?.invitePending ?? 0,
+                href: '/dashboard/suppliers/invites',
+              },
+              {
+                label: 'Open supply risks',
+                value: s?.openRiads ?? 0,
+                href: '/dashboard/suppliers/riad-log',
+              },
+            ].map((row) => (
+              <li key={row.label}>
+                <Link
+                  href={row.href}
+                  className="flex items-center justify-between gap-3 py-3 text-sm hover:text-[#0077b6]"
+                >
+                  <span className="font-medium text-slate-700">{row.label}</span>
+                  <span
+                    className={`tabular-nums font-black ${
+                      row.value > 0 ? 'text-amber-700' : 'text-slate-400'
+                    }`}
+                  >
+                    {loading ? '—' : row.value}
                   </span>
-                  <span className="font-semibold text-slate-900 truncate">{row.name}</span>
-                  <span className="text-[11px] text-neutral-400">{row.total_pos} POs</span>
-                </div>
-                <span className="font-black text-[#00b4d8] tabular-nums">
-                  {row.overall.toFixed(1)}%
-                </span>
+                </Link>
               </li>
             ))}
           </ul>
-        </div>
-      )}
+        </section>
 
-      {/* Process steps live in the top module rail — not repeated here. */}
-
-      <HubPrinciples
-        items={[
-          {
-            title: 'Trust is measurable',
-            body: 'OTIFEF, peer ratings, and verification compose a living trust score — not a gut feel.',
-          },
-          {
-            title: 'Connect on-chain when it matters',
-            body: 'Standard POs for speed; optional POEscrowV2 create → fund → ship → confirmDelivery when capital must be locked.',
-          },
-          {
-            title: 'Invite, then hand over',
-            body: 'Add any supplier offline. They claim, verify, and take ownership — your edge stays live.',
-          },
-        ]}
-      />
+        <section className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-black text-slate-800">Who you rely on</h3>
+            <Link
+              href="/dashboard/suppliers/performance"
+              className="text-xs font-bold text-[#0077b6] hover:underline"
+            >
+              Scorecards
+            </Link>
+          </div>
+          {!loading && s?.topSuppliers && s.topSuppliers.length > 0 ? (
+            <ul className="mt-3 divide-y divide-neutral-100">
+              {s.topSuppliers.map((row, i) => (
+                <li key={row.supplier_id}>
+                  <Link
+                    href={`/dashboard/suppliers/network?id=${row.supplier_id}`}
+                    className="flex items-center justify-between gap-3 py-3 hover:text-[#0077b6]"
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <span className="w-5 text-[10px] font-black text-neutral-300">
+                        {String(i + 1).padStart(2, '0')}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold text-slate-900">
+                          {row.name}
+                        </span>
+                        <span className="text-[11px] text-neutral-400">
+                          {row.total_pos} POs
+                        </span>
+                      </span>
+                    </span>
+                    <span className="font-black tabular-nums text-[#0077b6]">
+                      {row.overall.toFixed(0)}%
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="px-1 py-10 text-center text-sm text-neutral-500">
+              {loading ? (
+                'Loading the book…'
+              ) : (
+                <>
+                  No scored suppliers yet.{' '}
+                  <Link href="/dashboard/suppliers/discover" className="font-semibold text-[#0077b6] hover:underline">
+                    Discover
+                  </Link>{' '}
+                  or{' '}
+                  <Link href="/dashboard/suppliers/add" className="font-semibold text-[#0077b6] hover:underline">
+                    add one
+                  </Link>
+                  .
+                </>
+              )}
+            </div>
+          )}
+        </section>
+      </div>
     </SuppliersPage>
   );
 }

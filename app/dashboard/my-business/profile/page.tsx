@@ -93,6 +93,15 @@ const BANK_VERIFY_AMOUNT_CENTS = BANK_VERIFY_AMOUNT_ZAR * 100;
 
 const BANK_ACCOUNT_TYPES = ['Current', 'Savings', 'Cheque', 'Transmission', 'Bond', 'Credit'] as const;
 
+const PROFILE_SECTIONS = [
+  { id: 'identity', label: 'Identity' },
+  { id: 'reach', label: 'Reach' },
+  { id: 'industry', label: 'Industry' },
+  { id: 'certs', label: 'Certifications' },
+  { id: 'banking', label: 'Banking' },
+  { id: 'licenses', label: 'Licenses' },
+] as const;
+
 function extractWalletFromPrivy(user: {
   wallet?: { address?: string | null } | null;
   linkedAccounts?: ReadonlyArray<{ type?: string; address?: string | null }> | null;
@@ -174,6 +183,26 @@ function ProfileInner() {
     accountType: string;
     accountName: string;
   } | null>(null);
+  const [activeSection, setActiveSection] = useState('identity');
+
+  useEffect(() => {
+    if (loading) return;
+    const nodes = PROFILE_SECTIONS.map((section) =>
+      document.getElementById(section.id)
+    ).filter((node): node is HTMLElement => Boolean(node));
+    if (!nodes.length) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible?.target.id) setActiveSection(visible.target.id);
+      },
+      { rootMargin: '-18% 0px -55% 0px', threshold: [0.15, 0.4] }
+    );
+    nodes.forEach((node) => observer.observe(node));
+    return () => observer.disconnect();
+  }, [loading]);
 
   const subIndustryOptions = useMemo(
     () => subIndustriesFor(selectedIndustries),
@@ -1557,28 +1586,30 @@ function ProfileInner() {
       })()}
 
       <nav
-        className="sticky top-0 z-20 mb-4 flex gap-1 overflow-x-auto rounded-2xl border border-neutral-200 bg-white/95 p-1.5 shadow-sm backdrop-blur"
+        className="sticky top-16 z-30 mb-4 flex gap-1 overflow-x-auto rounded-2xl border border-neutral-200 bg-white/95 p-1.5 shadow-sm backdrop-blur"
         aria-label="Profile sections"
       >
-        {[
-          { id: 'identity', label: 'Identity' },
-          { id: 'reach', label: 'Reach' },
-          { id: 'industry', label: 'Industry' },
-          { id: 'certs', label: 'Certs' },
-          { id: 'banking', label: 'Banking' },
-          { id: 'licenses', label: 'Licenses' },
-        ].map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            className="shrink-0 rounded-xl px-3 py-1.5 text-[11px] font-black text-slate-600 hover:bg-[#00b4d8]/10 hover:text-[#0077b6]"
-            onClick={() =>
-              document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-            }
-          >
-            {s.label}
-          </button>
-        ))}
+        {PROFILE_SECTIONS.map((s) => {
+          const active = activeSection === s.id;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              aria-current={active ? 'true' : undefined}
+              className={`shrink-0 rounded-xl px-3 py-1.5 text-[11px] font-black ${
+                active
+                  ? 'bg-[#00b4d8] text-white'
+                  : 'text-slate-600 hover:bg-[#00b4d8]/10 hover:text-[#0077b6]'
+              }`}
+              onClick={() => {
+                setActiveSection(s.id);
+                document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+            >
+              {s.label}
+            </button>
+          );
+        })}
       </nav>
 
       {/* Compact summary strip */}
@@ -2966,7 +2997,7 @@ function ProfileChapter({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="space-y-3 scroll-mt-16">
+    <section id={id} className="space-y-3 scroll-mt-32">
       <div className="px-0.5">
         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0077b6]">
           {step}

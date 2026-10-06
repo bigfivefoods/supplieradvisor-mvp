@@ -13,7 +13,6 @@ import {
   Settings,
   CheckCircle2,
   AlertTriangle,
-  Globe,
   RefreshCw,
   CreditCard,
   Network,
@@ -32,15 +31,14 @@ import {
 } from '@/components/business/BusinessShell';
 import { RelationshipHeader, SectionLabel } from '@/components/relationship/RelationshipChrome';
 import {
-  HubHero,
   HubModuleGrid,
-  HubPrinciples,
-  HubTelemetryGrid,
-  TelemetryCard,
   type HubModule,
 } from '@/components/chrome/CommandHubChrome';
 import DiscoverableChecklist from '@/components/business/DiscoverableChecklist';
-import { type CompletenessResult } from '@/lib/business/completeness';
+import {
+  DISCOVERABLE_MIN_COMPLETENESS_PCT,
+  type CompletenessResult,
+} from '@/lib/business/completeness';
 
 type Summary = {
   trading_name: string;
@@ -319,7 +317,7 @@ function HubInner() {
         eyebrow="Company"
         title="Company"
         titleAccent="overview"
-        description="Identity → workspace → people → trust → billing. Invite partners onto the platform — they finish their own company setup while staying linked to your book."
+        description="One company record: identity, the modules you run, the people who can see them, then trust and billing."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -346,97 +344,99 @@ function HubInner() {
         }
       />
 
+      <section className="mb-8 rounded-3xl border border-neutral-200 bg-white p-5 sm:p-6 shadow-sm">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-widest text-[#0077b6]">
+              This company
+            </p>
+            <h2 className="mt-1 truncate text-2xl font-black tracking-tight text-slate-900">
+              {loading ? 'Loading…' : s?.trading_name || 'Your company'}
+            </h2>
+            <p className="mt-1 text-sm text-neutral-500">
+              {s?.primary_currency || 'ZAR'} · {s?.timezone || 'Africa/Johannesburg'}
+              {' · '}
+              {s?.is_verified ? 'CIPC verified' : 'Verification pending'}
+              {' · '}
+              {s?.is_discoverable === false ? 'Hidden from the network' : 'Discoverable'}
+            </p>
+          </div>
+          <div className="w-full shrink-0 lg:w-64">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                Profile
+              </span>
+              <span className="text-3xl font-black tabular-nums tracking-tighter text-slate-900">
+                {loading ? '—' : `${pct}%`}
+              </span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-neutral-100">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#00b4d8] to-[#0077b6]"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <p className="mt-1.5 text-[11px] text-neutral-500">
+              {pct >= DISCOVERABLE_MIN_COMPLETENESS_PCT
+                ? 'Ready to be found on the network.'
+                : 'The checklist under this card is what is still open.'}
+            </p>
+          </div>
+        </div>
+        {Object.keys(s?.completeness || {}).length > 0 &&
+        (s?.is_discoverable === false || pct >= DISCOVERABLE_MIN_COMPLETENESS_PCT) ? (
+          <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {Object.entries(s?.completeness || {}).map(([k, ok]) => (
+              <div
+                key={k}
+                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium ${
+                  ok
+                    ? 'border-emerald-100 bg-emerald-50/50 text-emerald-900'
+                    : 'border-neutral-100 bg-neutral-50 text-neutral-500'
+                }`}
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${ok ? 'bg-emerald-500' : 'bg-neutral-300'}`}
+                />
+                {labelFor(k)}
+              </div>
+            ))}
+          </div>
+        ) : null}
+        <p className="mt-4 max-w-3xl text-xs leading-relaxed text-slate-600">
+          A supplier or customer starts in your book. When they claim an invite they
+          finish their own company profile, and your link stays.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold">
+          <Link href="/dashboard/suppliers/add" className="text-[#0077b6] hover:underline">
+            Add a supplier
+          </Link>
+          <span className="text-neutral-300" aria-hidden>
+            ·
+          </span>
+          <Link href="/dashboard/customers/onboard" className="text-[#0077b6] hover:underline">
+            Add a customer
+          </Link>
+          <span className="text-neutral-300" aria-hidden>
+            ·
+          </span>
+          <Link
+            href="/dashboard/invite-business"
+            className="inline-flex items-center gap-0.5 text-[#0077b6] hover:underline"
+          >
+            Invite a business <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
+      </section>
+
       {!loading && completeness ? (
-        <div className="mb-5">
+        <div className="mb-8">
           <DiscoverableChecklist
             completeness={completeness}
             isDiscoverable={s?.is_discoverable}
           />
         </div>
       ) : null}
-
-      {/* Setup journey */}
-      <div className="mb-6 rounded-3xl border border-cyan-100 bg-gradient-to-br from-white via-sky-50/50 to-cyan-50 p-5 sm:p-6">
-        <p className="text-[11px] font-black uppercase tracking-widest text-[#0077b6] mb-3">
-          Recommended company journey
-        </p>
-        <ol className="grid sm:grid-cols-2 lg:grid-cols-5 gap-2">
-          {[
-            {
-              n: '1',
-              t: 'Profile',
-              d: 'Identity ≥ 80%',
-              href: '/dashboard/my-business/profile',
-            },
-            {
-              n: '2',
-              t: 'Modules',
-              d: 'Enable the hubs you run',
-              href: '/dashboard/my-business/modules',
-            },
-            {
-              n: '3',
-              t: 'Team',
-              d: 'Invite with roles',
-              href: '/dashboard/my-business/team',
-            },
-            {
-              n: '4',
-              t: 'Trust',
-              d: 'Verify & discover',
-              href: '/dashboard/my-business/trust',
-            },
-            {
-              n: '5',
-              t: 'Billing',
-              d: 'Trial or plan',
-              href: '/dashboard/my-business/billing',
-            },
-          ].map((step) => (
-            <Link
-              key={step.n}
-              href={step.href}
-              className="rounded-2xl border border-white bg-white/90 px-3 py-3 shadow-sm hover:border-[#00b4d8]/40 transition-colors"
-            >
-              <span className="text-[10px] font-black text-[#00b4d8]">
-                {step.n}
-              </span>
-              <div className="text-sm font-bold text-slate-900 mt-0.5">
-                {step.t}
-              </div>
-              <div className="text-[11px] text-neutral-500">{step.d}</div>
-            </Link>
-          ))}
-        </ol>
-        <p className="text-xs text-slate-600 mt-4 max-w-3xl leading-relaxed">
-          <strong>Partner invite model:</strong> you can start a supplier or customer
-          in <em>your</em> book, then invite them to SupplierAdvisor. They complete
-          their own company profile, modules, team, and billing — your CRM/SRM link
-          stays intact when they claim.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Link
-            href="/dashboard/suppliers/add"
-            className="text-xs font-bold text-[#0077b6] underline"
-          >
-            Add & invite supplier
-          </Link>
-          <span className="text-neutral-300">·</span>
-          <Link
-            href="/dashboard/customers/onboard"
-            className="text-xs font-bold text-[#0077b6] underline"
-          >
-            Add & invite customer
-          </Link>
-          <span className="text-neutral-300">·</span>
-          <Link
-            href="/dashboard/invite-business"
-            className="text-xs font-bold text-[#0077b6] underline inline-flex items-center gap-0.5"
-          >
-            Invite any business <ArrowRight className="w-3 h-3" />
-          </Link>
-        </div>
-      </div>
 
       {!loading && (s?.groupInvitesPending || 0) > 0 ? (
         <Link
@@ -459,139 +459,6 @@ function HubInner() {
         </Link>
       ) : null}
 
-      <HubHero
-        pill="Profile → modules → team → trust → billing"
-        title={s?.trading_name || 'Your company, mastered.'}
-        description="A complete, verified profile plus the right modules is the foundation of trust across CRM, SRM, and on-chain flows."
-        stats={[
-          {
-            label: 'Profile',
-            value: loading ? '—' : `${pct}%`,
-            valueClass: 'text-[#00b4d8]',
-          },
-          {
-            label: 'Team',
-            value: loading ? '—' : s?.teamActive ?? 0,
-            valueClass: 'text-emerald-600',
-          },
-          {
-            label: 'Open RIAD',
-            value: loading ? '—' : s?.openRiads ?? 0,
-            valueClass: 'text-amber-600',
-          },
-        ]}
-      />
-
-      <HubTelemetryGrid>
-        <TelemetryCard
-          label="Profile complete"
-          value={loading ? '—' : `${pct}%`}
-          sub={pct >= 80 ? 'World class' : pct >= 50 ? 'Building' : 'Needs attention'}
-          accent={pct >= 80 ? 'emerald' : pct >= 50 ? 'cyan' : 'amber'}
-          icon={CheckCircle2}
-          href="/dashboard/my-business/profile"
-        />
-        <TelemetryCard
-          label="Modules"
-          value="Setup"
-          sub="Sidebar capabilities"
-          accent="cyan"
-          icon={LayoutGrid}
-          href="/dashboard/my-business/modules"
-        />
-        <TelemetryCard
-          label="Team active"
-          value={s?.teamActive ?? 0}
-          sub={`${s?.teamInvited ?? 0} invited · ${s?.teamTotal ?? 0} total`}
-          accent="sky"
-          icon={Users}
-          href="/dashboard/my-business/team"
-        />
-        <TelemetryCard
-          label="Verification"
-          value={s?.is_verified ? 'Verified' : 'Pending'}
-          sub={s?.verification_status || 'unverified'}
-          accent={s?.is_verified ? 'emerald' : 'amber'}
-          icon={ShieldCheck}
-          href="/dashboard/my-business/verifications"
-        />
-        <TelemetryCard
-          label="Discoverable"
-          value={s?.is_discoverable === false ? 'Off' : 'On'}
-          sub="Network visibility"
-          accent="cyan"
-          icon={Globe}
-          href="/dashboard/my-business/settings"
-        />
-        <TelemetryCard
-          label="Documents"
-          value={s?.documents ?? 0}
-          sub="Company vault"
-          accent="violet"
-          icon={FileText}
-          href="/dashboard/my-business/documents"
-        />
-        <TelemetryCard
-          label="Open RIADs"
-          value={s?.openRiads ?? 0}
-          sub="Company risks"
-          accent={(s?.openRiads || 0) > 0 ? 'amber' : 'slate'}
-          icon={AlertTriangle}
-          href="/dashboard/my-business/riad-log"
-        />
-        <TelemetryCard
-          label="Plan"
-          value={billingMetric}
-          sub={billingLabel}
-          accent="amber"
-          icon={CreditCard}
-          href="/dashboard/my-business/billing"
-        />
-      </HubTelemetryGrid>
-
-      {/* Completeness checklist */}
-      <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-sm font-black text-slate-800">Profile integrity</h3>
-            <div className="text-xs text-neutral-500 mt-0.5">
-              {s?.primary_currency || 'ZAR'} · {s?.timezone || 'Africa/Johannesburg'}
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-3xl font-black tracking-tighter text-slate-900 tabular-nums">
-              {pct}%
-            </div>
-            <div className="text-[10px] uppercase tracking-wider text-neutral-400 font-semibold">
-              complete
-            </div>
-          </div>
-        </div>
-        <div className="h-2 rounded-full bg-neutral-100 overflow-hidden mb-5">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-[#00b4d8] to-[#0077b6] transition-all duration-500"
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-2">
-          {Object.entries(s?.completeness || {}).map(([k, ok]) => (
-            <div
-              key={k}
-              className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium ${
-                ok
-                  ? 'border-emerald-100 bg-emerald-50/50 text-emerald-900'
-                  : 'border-neutral-100 bg-neutral-50 text-neutral-500'
-              }`}
-            >
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${ok ? 'bg-emerald-500' : 'bg-neutral-300'}`}
-              />
-              {labelFor(k)}
-            </div>
-          ))}
-        </div>
-      </div>
-
       {groups.map((g) => (
         <div key={g.id} className="mb-8">
           <SectionLabel>{g.title}</SectionLabel>
@@ -600,22 +467,6 @@ function HubInner() {
         </div>
       ))}
 
-      <HubPrinciples
-        items={[
-          {
-            title: 'Identity first',
-            body: 'A complete, verified profile is the foundation of trust across CRM, SRM, and on-chain flows.',
-          },
-          {
-            title: 'Modules that match the business',
-            body: 'Enable only the capabilities you run — less noise, faster first trade.',
-          },
-          {
-            title: 'Invite to complete',
-            body: 'Start a partner in your book, invite them onto the platform, and let them finish their own company setup without losing your link.',
-          },
-        ]}
-      />
     </BusinessPage>
   );
 }

@@ -5,12 +5,9 @@ import Link from 'next/link';
 import {
   Users,
   UserPlus,
-  AlertTriangle,
   Award,
-  Globe,
   Target,
   TrendingUp,
-  Handshake,
   RefreshCw,
 } from 'lucide-react';
 import { getSelectedCompanyId, getSelectedCompanyName } from '@/lib/containers/company';
@@ -22,8 +19,6 @@ import {
 } from '@/components/customers/CustomersShell';
 import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 import {
-  HubHero,
-  HubPrinciples,
   HubTelemetryGrid,
   TelemetryCard,
 } from '@/components/chrome/CommandHubChrome';
@@ -88,7 +83,7 @@ function HubInner() {
         eyebrow="Customer relationship management"
         title="Customers"
         titleAccent="Selling"
-        description="Source leads → book & invite buyers → quote, order, invoice, collect → rate → report. Advisor members, patients and hirers land on this book so the Advisor OS and Core CRM stay one system."
+        description="The customer book, the pipeline, and the follow-ups that are late. Quote, invoice, and collect live on the rail."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -124,120 +119,139 @@ function HubInner() {
         />
       </div>
 
-      <HubHero
-        pill="Live CRM · source → sell → rate"
-        title="Customers you can grow."
-        description="Leads and book first, then quote through collect, then rate and report — parallel to suppliers, without duplicate nav."
-        stats={[
-          {
-            label: 'Customers',
-            value: loading ? '—' : s?.customers ?? 0,
-            valueClass: 'text-[#00b4d8]',
-          },
-          {
-            label: 'Pipeline',
-            value: loading ? '—' : formatMoney(s?.pipelineValue ?? 0),
-            valueClass: 'text-emerald-600',
-          },
-          {
-            label: 'Open leads',
-            value: loading ? '—' : s?.leadsOpen ?? 0,
-            valueClass: 'text-amber-600',
-          },
-        ]}
-      />
-
-      <HubTelemetryGrid>
+      <HubTelemetryGrid className="mb-6">
         <TelemetryCard
-          label="Customers"
-          value={s?.customers ?? 0}
+          label="In the book"
+          value={loading ? '—' : s?.customers ?? 0}
           sub={`${s?.customersActive ?? 0} active`}
           accent="violet"
           icon={Users}
           href="/dashboard/customers/profiles"
         />
         <TelemetryCard
+          label="Open pipeline"
+          value={loading ? '—' : formatMoney(s?.pipelineValue ?? 0)}
+          sub={`${s?.opportunitiesOpen ?? 0} deals · weighted ${formatMoney(s?.weightedPipeline ?? 0)}`}
+          accent="cyan"
+          icon={TrendingUp}
+          href="/dashboard/customers/leads?tab=pipeline"
+        />
+        <TelemetryCard
           label="Open leads"
-          value={s?.leadsOpen ?? 0}
+          value={loading ? '—' : s?.leadsOpen ?? 0}
           sub={`${s?.leads ?? 0} total · ${s?.overdueFollowups ?? 0} overdue`}
           accent={(s?.overdueFollowups || 0) > 0 ? 'amber' : 'sky'}
           icon={Target}
           href="/dashboard/customers/leads"
         />
         <TelemetryCard
-          label="Open pipeline"
-          value={formatMoney(s?.pipelineValue ?? 0)}
-          sub={`${s?.opportunitiesOpen ?? 0} deals · wtd ${formatMoney(s?.weightedPipeline ?? 0)}${
-            s?.pipelineIncludesGroup
-              ? ` · incl. ${s.pipelineGroupCompanies} group ${
-                  s.pipelineGroupCompanies === 1 ? 'company' : 'companies'
-                }`
-              : ''
-          }`}
-          accent="cyan"
-          icon={TrendingUp}
-          href="/dashboard/customers/leads?tab=pipeline"
-        />
-        <TelemetryCard
-          label="Won value"
-          value={formatMoney(s?.wonValue ?? 0)}
+          label="Won"
+          value={loading ? '—' : formatMoney(s?.wonValue ?? 0)}
           sub={`${s?.wonCount ?? 0} closed won`}
           accent="emerald"
           icon={Award}
           href="/dashboard/customers/leads?tab=pipeline"
         />
-        <TelemetryCard
-          label="Pending invites"
-          value={s?.invitePending ?? 0}
-          sub="Awaiting buyer claim"
-          accent={(s?.invitePending || 0) > 0 ? 'amber' : 'slate'}
-          icon={Handshake}
-          href="/dashboard/customers/invites"
-        />
-        <TelemetryCard
-          label="Connected"
-          value={s?.inviteAccepted ?? 0}
-          sub="Platform buyers linked"
-          accent="sky"
-          icon={Globe}
-          href="/dashboard/customers/invites"
-        />
-        <TelemetryCard
-          label="Suspended"
-          value={s?.inviteSuspended ?? 0}
-          sub="Collaboration frozen"
-          accent={(s?.inviteSuspended || 0) > 0 ? 'rose' : 'slate'}
-          icon={AlertTriangle}
-          href="/dashboard/customers/invites"
-        />
-        <TelemetryCard
-          label="Customer book"
-          value="Open"
-          sub="Profiles & accounts"
-          accent="violet"
-          icon={Users}
-          href="/dashboard/customers/profiles"
-        />
       </HubTelemetryGrid>
 
-      {/* Process steps live in the top module rail — not repeated here. */}
+      <div className="mb-8 grid items-start gap-4 lg:grid-cols-2">
+        <section className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <h3 className="text-sm font-black text-slate-800">Needs a decision</h3>
+          <p className="mt-0.5 text-xs text-neutral-500">
+            Follow-ups and invites. A zero means that queue is clear.
+          </p>
+          <ul className="mt-3 divide-y divide-neutral-100">
+            {[
+              {
+                label: 'Overdue follow-ups',
+                value: s?.overdueFollowups ?? 0,
+                href: '/dashboard/customers/leads',
+              },
+              {
+                label: 'Invites awaiting claim',
+                value: s?.invitePending ?? 0,
+                href: '/dashboard/customers/invites',
+              },
+              {
+                label: 'Connections suspended',
+                value: s?.inviteSuspended ?? 0,
+                href: '/dashboard/customers/invites',
+              },
+              {
+                label: 'Open deals',
+                value: s?.opportunitiesOpen ?? 0,
+                href: '/dashboard/customers/leads?tab=pipeline',
+              },
+            ].map((row) => (
+              <li key={row.label}>
+                <Link
+                  href={row.href}
+                  className="flex items-center justify-between gap-3 py-3 text-sm hover:text-[#0077b6]"
+                >
+                  <span className="font-medium text-slate-700">{row.label}</span>
+                  <span
+                    className={`font-black tabular-nums ${
+                      row.value > 0 ? 'text-amber-700' : 'text-slate-400'
+                    }`}
+                  >
+                    {loading ? '—' : row.value}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
 
-      <HubPrinciples
-        items={[
-          {
-            title: 'Source demand',
-            body: 'Leads, search, and onboard — build a clean book before you quote.',
-          },
-          {
-            title: 'Connect, then sell',
-            body: 'Invite buyers to the platform; quote and invoice even while invite is pending.',
-          },
-          {
-            title: 'Score & report',
-            body: 'Loyalty, peer ratings, AR, and the customer report pack close the loop after cash.',
-          },
-        ]}
-      />
+        <section className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-black text-slate-800">Pipeline</h3>
+            <Link
+              href="/dashboard/customers/leads?tab=pipeline"
+              className="text-xs font-bold text-[#0077b6] hover:underline"
+            >
+              Open pipeline
+            </Link>
+          </div>
+          <dl className="mt-3 divide-y divide-neutral-100 text-sm">
+            <div className="flex items-baseline justify-between gap-3 py-3">
+              <dt className="text-neutral-500">Open value</dt>
+              <dd className="font-black tabular-nums text-slate-900">
+                {loading ? '—' : formatMoney(s?.pipelineValue ?? 0)}
+              </dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-3 py-3">
+              <dt className="text-neutral-500">Weighted</dt>
+              <dd className="font-black tabular-nums text-slate-900">
+                {loading ? '—' : formatMoney(s?.weightedPipeline ?? 0)}
+              </dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-3 py-3">
+              <dt className="text-neutral-500">Won</dt>
+              <dd className="font-black tabular-nums text-emerald-700">
+                {loading ? '—' : formatMoney(s?.wonValue ?? 0)}
+              </dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-3 py-3">
+              <dt className="text-neutral-500">Buyers on the platform</dt>
+              <dd className="font-black tabular-nums text-slate-900">
+                {loading ? '—' : s?.inviteAccepted ?? 0}
+              </dd>
+            </div>
+          </dl>
+          {s?.pipelineIncludesGroup ? (
+            <p className="text-[11px] text-neutral-500">
+              Pipeline includes {s.pipelineGroupCompanies} group{' '}
+              {s.pipelineGroupCompanies === 1 ? 'company' : 'companies'}.
+            </p>
+          ) : null}
+          <Link
+            href="/dashboard/customers/profiles"
+            className="mt-3 inline-flex text-xs font-bold text-[#0077b6] hover:underline"
+          >
+            Open the customer book
+          </Link>
+        </section>
+      </div>
     </CustomersPage>
   );
 }

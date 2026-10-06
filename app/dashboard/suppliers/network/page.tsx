@@ -8,12 +8,8 @@ import {
   Search,
   ShieldCheck,
   Star,
-  FileText,
-  Truck,
   Mail,
-  TrendingUp,
   Trash2,
-  ChevronRight,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
@@ -251,7 +247,7 @@ function NetworkInner() {
       <div className="pb-8">
         <SuppliersHeader
           title="My supplier network"
-          description="Select a supplier to open the SRM profile that syncs with their portal — trading name, contacts, VAT, address, and documents."
+          description="The supply book. Open a row for the profile, documents, and purchase order. Invite and delete stay on the row."
           action={
             <div className="flex flex-wrap gap-2">
               <Link
@@ -313,7 +309,6 @@ function NetworkInner() {
             <ul className="divide-y divide-neutral-100">
               {rows.map((s) => {
                 const trust = trustBand(Number(s.trust_score || 0));
-                const canPo = Boolean(s.linked_profile_id);
                 const canInvite =
                   !s.linked_profile_id &&
                   s.invite_status !== 'accepted' &&
@@ -408,87 +403,30 @@ function NetworkInner() {
                           </span>
                         ))}
                       </div>
-                      <div className="flex flex-wrap gap-2 mt-3">
-                        <button
-                          type="button"
-                          onClick={() => selectSupplier(isSelected ? null : s)}
-                          className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
-                            isSelected
-                              ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
-                              : 'border-[#00b4d8]/30 bg-[#00b4d8]/10 text-[#0077b6] hover:bg-[#00b4d8]/15'
-                          }`}
-                        >
-                          <ChevronRight className="w-3.5 h-3.5" />
-                          {isSelected ? 'Profile open' : 'Open profile'}
-                        </button>
-                        <Link
-                          href={
-                            canPo
-                              ? `/dashboard/suppliers/po?supplierId=${s.id}`
-                              : '/dashboard/suppliers/po'
-                          }
-                          className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
-                            canPo
-                              ? 'border-[#00b4d8]/30 bg-[#00b4d8]/10 text-[#0077b6] hover:bg-[#00b4d8]/15'
-                              : 'border-neutral-200 text-neutral-400 cursor-not-allowed'
-                          }`}
-                          title={
-                            canPo
-                              ? 'Raise purchase order'
-                              : 'Invite supplier to link a platform profile first'
-                          }
-                          onClick={(e) => {
-                            if (!canPo) {
-                              e.preventDefault();
-                              toast.message('Link required', {
-                                description:
-                                  'Invite this supplier so they claim a profile before raising a PO.',
-                              });
-                            }
-                          }}
-                        >
-                          <Truck className="w-3.5 h-3.5" /> Raise PO
-                        </Link>
-                        <Link
-                          href="/dashboard/suppliers/documents"
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40 hover:text-[#0077b6]"
-                        >
-                          <FileText className="w-3.5 h-3.5" /> Documents
-                        </Link>
-                        <Link
-                          href="/dashboard/suppliers/performance"
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40 hover:text-[#0077b6]"
-                        >
-                          <TrendingUp className="w-3.5 h-3.5" /> OTIFEF
-                        </Link>
-                        {canInvite && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {canInvite ? (
                           <button
                             type="button"
                             disabled={busyId === s.id}
                             onClick={() => void invite(s)}
-                            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-[#00b4d8] bg-[#00b4d8] text-white hover:bg-[#0096c7] disabled:opacity-50 cursor-pointer"
+                            className="inline-flex items-center gap-1.5 rounded-full border border-[#00b4d8] bg-[#00b4d8] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0096c7] disabled:opacity-50"
                           >
                             {busyId === s.id ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             ) : (
-                              <Mail className="w-3.5 h-3.5" />
+                              <Mail className="h-3.5 w-3.5" />
                             )}
                             Invite
                           </button>
-                        )}
+                        ) : null}
                         {s.status !== 'archived' ? (
                           <button
                             type="button"
                             disabled={busyId === s.id}
                             onClick={() => void remove(s)}
-                            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-rose-200 text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
                           >
-                            {busyId === s.id ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <Trash2 className="w-3.5 h-3.5" />
-                            )}
-                            Delete
+                            <Trash2 className="h-3.5 w-3.5" /> Delete
                           </button>
                         ) : null}
                       </div>

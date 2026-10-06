@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Loader2,
   Plus,
@@ -12,6 +13,8 @@ import {
   PauseCircle,
   PlayCircle,
   Globe,
+  FileText,
+  Receipt,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
@@ -25,7 +28,11 @@ import {
   resolveCustomerConnectionPhase,
   type CustomerRecord,
 } from '@/lib/customers/types';
-import { CompanyRequired, CustomersHeader } from '@/components/customers/CustomersShell';
+import {
+  CompanyRequired,
+  CustomersHeader,
+  CustomersPage,
+} from '@/components/customers/CustomersShell';
 import InviteCustomerButton from '@/components/customers/InviteCustomerButton';
 import { AccountLogoField } from '@/components/relationship/AccountLogoField';
 import type { PartyRoleRow } from '@/lib/accounting/party-roles';
@@ -36,7 +43,17 @@ import { HostCommercial } from '@/components/commercial/CommercialPanel';
 export default function CustomerProfilesPage() {
   return (
     <CompanyRequired>
-      <ProfilesInner />
+      <Suspense
+        fallback={
+          <CustomersPage>
+            <div className="flex justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-[#00b4d8]" />
+            </div>
+          </CustomersPage>
+        }
+      >
+        <ProfilesInner />
+      </Suspense>
     </CompanyRequired>
   );
 }
@@ -45,6 +62,12 @@ function ProfilesInner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlId = Number(searchParams.get('id') || 0);
+  const [selectedId, setSelectedId] = useState<number | null>(
+    Number.isFinite(urlId) && urlId > 0 ? urlId : null
+  );
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
@@ -55,6 +78,22 @@ function ProfilesInner() {
     Record<number, PartyRoleRow>
   >({});
   const [commercialId, setCommercialId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (Number.isFinite(urlId) && urlId > 0) setSelectedId(urlId);
+  }, [urlId]);
+
+  const selectCustomer = (id: number | null) => {
+    setSelectedId(id);
+    if (id !== commercialId) setCommercialId(null);
+    const next = new URLSearchParams(searchParams.toString());
+    if (id && id > 0) next.set('id', String(id));
+    else next.delete('id');
+    const qs = next.toString();
+    router.replace(`/dashboard/customers/profiles${qs ? `?${qs}` : ''}`, {
+      scroll: false,
+    });
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -254,11 +293,13 @@ function ProfilesInner() {
     }
   };
 
+  const selected = customers.find((c) => c.id === selectedId) || null;
+
   return (
-    <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
+    <CustomersPage>
       <CustomersHeader
-        title="Customer profiles"
-        description="Account master data — contacts, commercial terms, and service history anchors. Platform invites are optional; offline customers stay fully editable."
+        title="Customer book"
+        description="Select an account to see who they are, how they pay, and the next trade action. Offline customers stay fully editable."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -311,273 +352,379 @@ function ProfilesInner() {
         </select>
       </div>
 
-      <div className="bg-white border rounded-3xl overflow-hidden">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)]">
+        <div className="overflow-hidden rounded-3xl border border-neutral-200 bg-white lg:order-1">
         {loading ? (
-          <div className="p-16 flex justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+          <div className="flex justify-center p-16">
+            <Loader2 className="h-8 w-8 animate-spin text-[#00b4d8]" />
           </div>
         ) : customers.length === 0 ? (
           <div className="p-16 text-center text-neutral-500">
-            <Users className="w-10 h-10 mx-auto mb-3 text-neutral-300" />
+            <Users className="mx-auto mb-3 h-10 w-10 text-neutral-300" />
             <p className="mb-4">No customers yet. Onboard your first account.</p>
             <Link href="/dashboard/customers/onboard" className="btn-primary !py-2.5 !px-5 text-sm">
               Add customer
             </Link>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-neutral-50 border-b text-left text-xs text-neutral-500">
-                <tr>
-                  <th className="px-5 py-3 font-semibold">Customer</th>
-                  <th className="px-3 py-3 font-semibold">Contact</th>
-                  <th className="px-3 py-3 font-semibold">Type</th>
-                  <th className="px-3 py-3 font-semibold">Book</th>
-                  <th className="px-3 py-3 font-semibold">Location</th>
-                  <th className="px-3 py-3 font-semibold">Status</th>
-                  <th className="px-3 py-3 font-semibold">Connection</th>
-                  <th className="px-3 py-3 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {customers.map((c) => (
-                  <tr key={c.id} className="hover:bg-neutral-50">
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        {/* linked company logo when on platform; customer book may not have logo */}
-                        <AccountLogoField
-                          companyId={companyId}
-                          privyUserId={privyUserId}
-                          kind="customer"
-                          recordId={c.id}
-                          logoUrl={c.logo_url}
-                          name={c.trading_name}
-                          size="sm"
-                          compact
-                          onChange={(url) =>
-                            setCustomers((prev) =>
-                              prev.map((row) =>
-                                row.id === c.id ? { ...row, logo_url: url } : row
-                              )
-                            )
-                          }
-                        />
-                        <div className="min-w-0">
-                          <div className="font-semibold truncate">{c.trading_name}</div>
-                          <div className="text-xs text-neutral-500 truncate">
-                            {c.legal_name || c.industry || '—'}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <div>{c.contact_name || '—'}</div>
-                      <div className="text-xs text-neutral-500">
-                        {[c.email, c.phone].filter(Boolean).join(' · ') || '—'}
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 capitalize text-xs">
-                      {(c.customer_type || 'business').replace(/_/g, ' ')}
-                    </td>
-                    <td className="px-3 py-3">
-                      <PartyBookRoleSelect
-                        companyId={companyId}
-                        customerId={c.id}
-                        supplierId={partyByCustomer[c.id]?.supplier_id}
-                        role={partyByCustomer[c.id]?.role || 'customer'}
-                        arCode={
-                          partyByCustomer[c.id]?.ar_account_code ||
-                          glCodeFromMeta(c.metadata)
-                        }
-                        apCode={partyByCustomer[c.id]?.ap_account_code}
-                        compact
-                        onChanged={() => void load()}
-                      />
-                      {partyByCustomer[c.id]?.supplier_id ? (
-                        <Link
-                          href={`/dashboard/suppliers/network?id=${partyByCustomer[c.id].supplier_id}`}
-                          className="text-[11px] font-semibold text-emerald-700 hover:underline"
-                        >
-                          Open supplier book
-                        </Link>
-                      ) : null}
-                    </td>
-                    <td className="px-3 py-3 text-xs text-neutral-600">
-                      {[c.city, c.country].filter(Boolean).join(', ') || '—'}
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800">
-                        {c.status || 'active'}
-                      </span>
-                      {c.credit_limit != null &&
-                      Number(c.credit_limit) > 0 ? (
+          <ul className="divide-y divide-neutral-100">
+            {customers.map((c) => {
+              const isSelected = selectedId === c.id;
+              const held =
+                String(c.notes || '').includes('[credit hold]') ||
+                String(c.status || '').toLowerCase() === 'credit_hold';
+              return (
+                <li
+                  key={c.id}
+                  className={`flex items-start gap-3 px-4 py-3.5 ${
+                    isSelected ? 'bg-sky-50/80' : ''
+                  }`}
+                >
+                    <AccountLogoField
+                      companyId={companyId}
+                      privyUserId={privyUserId}
+                      kind="customer"
+                      recordId={c.id}
+                      logoUrl={c.logo_url}
+                      name={c.trading_name}
+                      size="sm"
+                      compact
+                      onChange={(url) =>
+                        setCustomers((prev) =>
+                          prev.map((row) =>
+                            row.id === c.id ? { ...row, logo_url: url } : row
+                          )
+                        )
+                      }
+                    />
+                    <button
+                      type="button"
+                      onClick={() => selectCustomer(isSelected ? null : c.id)}
+                      className="min-w-0 flex-1 text-left"
+                    >
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-slate-900">{c.trading_name}</span>
                         <span
-                          className="text-[10px] font-bold text-slate-500"
-                          title="Credit limit (open AR checked ledger-aware on write)"
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${customerStatusClass(c.status)}`}
                         >
-                          Limit {Number(c.credit_limit).toLocaleString()}
+                          {(c.status || 'active').replace(/_/g, ' ')}
                         </span>
-                      ) : null}
-                      {String(c.notes || '').includes('[credit hold]') ||
-                      String(c.status || '').toLowerCase() === 'credit_hold' ? (
-                        <div className="mt-1">
-                          <span className="text-[9px] font-black uppercase text-rose-800 bg-rose-50 border border-rose-100 rounded-full px-2 py-0.5">
+                        {held ? (
+                          <span className="rounded-full border border-rose-100 bg-rose-50 px-2 py-0.5 text-[10px] font-bold uppercase text-rose-800">
                             Credit hold
                           </span>
-                          <button
-                            type="button"
-                            className="ml-1 text-[10px] font-bold text-[#0077b6] hover:underline"
-                            onClick={() => void clearCreditHold(c)}
-                          >
-                            Clear
-                          </button>
-                        </div>
-                      ) : null}
-                    </td>
-                    <td className="px-3 py-3">
-                      <span
-                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${customerInviteStatusClass(c.invite_status, c.linked_profile_id)}`}
-                      >
-                        {customerInviteStatusLabel(c.invite_status, c.linked_profile_id)}
+                        ) : null}
                       </span>
-                      {inviteOpenId === c.id && canInviteCustomer(c) && (
-                        <div className="mt-2 min-w-[240px]">
-                          <InviteCustomerButton
-                            key={c.id}
-                            customerId={c.id}
-                            customerName={c.trading_name}
-                            defaultEmail={c.email || c.invited_email || ''}
-                            defaultContactName={c.contact_name || ''}
-                            defaultOpen
-                            resend={
-                              c.invite_status === 'invited' ||
-                              c.invite_status === 'declined' ||
-                              c.invite_status === 'expired'
-                            }
-                            onCancel={() => setInviteOpenId(null)}
-                            onSent={() => {
-                              setInviteOpenId(null);
-                              void load();
-                            }}
-                          />
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-3 py-3 text-right">
-                      <div className="inline-flex items-center justify-end gap-0.5">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setCommercialId((cur) => (cur === c.id ? null : c.id))
-                          }
-                          className="text-xs font-semibold text-[#0077b6] hover:underline px-2 py-1"
-                        >
-                          Commercial
-                        </button>
-                        {canInviteCustomer(c) && inviteOpenId !== c.id && (
-                          <button
-                            type="button"
-                            onClick={() => setInviteOpenId(c.id)}
-                            className="text-xs font-semibold text-[#00b4d8] hover:underline px-2 py-1"
-                          >
-                            {customerInviteActionLabel(c)}
-                          </button>
-                        )}
-                        {(() => {
-                          const phase = resolveCustomerConnectionPhase(c);
-                          const busy = actionId === c.id;
-                          if (phase === 'accepted') {
-                            return (
-                              <button
-                                type="button"
-                                disabled={busy || !privyUserId}
-                                onClick={() => void setSuspended(c, true)}
-                                className="p-2 inline-flex rounded-xl hover:bg-amber-50 text-amber-700 disabled:opacity-50"
-                                title="Suspend connection"
-                              >
-                                {busy ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <PauseCircle className="w-4 h-4" />
-                                )}
-                              </button>
-                            );
-                          }
-                          if (phase === 'suspended') {
-                            return (
-                              <button
-                                type="button"
-                                disabled={busy || !privyUserId}
-                                onClick={() => void setSuspended(c, false)}
-                                className="p-2 inline-flex rounded-xl hover:bg-emerald-50 text-emerald-700 disabled:opacity-50"
-                                title="Unsuspend connection"
-                              >
-                                {busy ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <PlayCircle className="w-4 h-4" />
-                                )}
-                              </button>
-                            );
-                          }
-                          return null;
-                        })()}
-                        <button
-                          type="button"
-                          disabled={actionId === c.id || !privyUserId}
-                          onClick={() => void issuePortal(c)}
-                          className="p-2 inline-flex rounded-xl hover:bg-cyan-50 text-[#0077b6] disabled:opacity-50"
-                          title="Issue customer portal"
-                        >
-                          {actionId === c.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Globe className="w-4 h-4" />
-                          )}
-                        </button>
-                        <Link
-                          href={`/dashboard/customers/360`}
-                          className="text-[10px] font-bold text-[#0077b6] px-2"
-                          title="Customer 360"
-                        >
-                          360
-                        </Link>
-                        <Link
-                          href={`/dashboard/customers/onboard?id=${c.id}`}
-                          className="p-2 inline-flex rounded-xl hover:bg-neutral-100 text-neutral-600"
-                          title="Edit"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Link>
-                        <button
-                          type="button"
-                          onClick={() => void remove(c.id)}
-                          className="p-2 inline-flex rounded-xl hover:bg-red-50 text-red-600"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      <span className="mt-0.5 block truncate text-xs text-neutral-500">
+                        {[c.contact_name, c.city, c.country].filter(Boolean).join(' · ') ||
+                          c.legal_name ||
+                          c.industry ||
+                          '—'}
+                      </span>
+                    </button>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${customerInviteStatusClass(c.invite_status, c.linked_profile_id)}`}
+                    >
+                      {customerInviteStatusLabel(c.invite_status, c.linked_profile_id)}
+                    </span>
+                </li>
+              );
+            })}
+          </ul>
         )}
+        </div>
+
+        <div className="order-first lg:sticky lg:top-24 lg:order-2">
+          {selected ? (
+            <CustomerAccountPanel
+              customer={selected}
+              companyId={companyId}
+              privyUserId={privyUserId}
+              party={partyByCustomer[selected.id]}
+              busy={actionId === selected.id}
+              inviting={inviteOpenId === selected.id}
+              commercialOpen={commercialId === selected.id}
+              onClose={() => selectCustomer(null)}
+              onChanged={() => void load()}
+              onToggleCommercial={() =>
+                setCommercialId((cur) => (cur === selected.id ? null : selected.id))
+              }
+              onInvite={() => setInviteOpenId(selected.id)}
+              onCancelInvite={() => setInviteOpenId(null)}
+              onInvited={() => {
+                setInviteOpenId(null);
+                void load();
+              }}
+              onPortal={() => void issuePortal(selected)}
+              onSuspend={(suspend) => void setSuspended(selected, suspend)}
+              onClearHold={() => void clearCreditHold(selected)}
+              onDelete={() => void remove(selected.id)}
+            />
+          ) : (
+            <div className="hidden rounded-[1.5rem] border border-dashed border-neutral-200 bg-white/70 px-5 py-10 text-center text-sm text-neutral-500 lg:block">
+              Select a customer to see the account, credit, and the next quote or invoice.
+            </div>
+          )}
+        </div>
       </div>
-      {commercialId ? (
+    </CustomersPage>
+  );
+}
+
+function customerStatusClass(status?: string | null) {
+  const s = (status || 'active').toLowerCase();
+  if (s === 'on_hold' || s === 'credit_hold') return 'bg-rose-50 text-rose-800';
+  if (s === 'inactive') return 'bg-neutral-100 text-neutral-600';
+  if (s === 'prospect') return 'bg-amber-50 text-amber-900';
+  return 'bg-emerald-50 text-emerald-800';
+}
+
+function CustomerAccountPanel({
+  customer: c,
+  companyId,
+  privyUserId,
+  party,
+  busy,
+  inviting,
+  commercialOpen,
+  onClose,
+  onChanged,
+  onToggleCommercial,
+  onInvite,
+  onCancelInvite,
+  onInvited,
+  onPortal,
+  onSuspend,
+  onClearHold,
+  onDelete,
+}: {
+  customer: CustomerRecord;
+  companyId: number;
+  privyUserId: string | null;
+  party?: PartyRoleRow;
+  busy: boolean;
+  inviting: boolean;
+  commercialOpen: boolean;
+  onClose: () => void;
+  onChanged: () => void;
+  onToggleCommercial: () => void;
+  onInvite: () => void;
+  onCancelInvite: () => void;
+  onInvited: () => void;
+  onPortal: () => void;
+  onSuspend: (suspend: boolean) => void;
+  onClearHold: () => void;
+  onDelete: () => void;
+}) {
+  const phase = resolveCustomerConnectionPhase(c);
+  const held =
+    String(c.notes || '').includes('[credit hold]') ||
+    String(c.status || '').toLowerCase() === 'credit_hold';
+  return (
+    <aside className="rounded-[1.5rem] border border-neutral-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6]">
+            Account
+          </p>
+          <h2 className="truncate text-lg font-black tracking-tight text-slate-900">
+            {c.trading_name}
+          </h2>
+          <p className="truncate text-xs text-neutral-500">
+            {c.legal_name || c.industry || 'Customer'}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-xs font-semibold text-neutral-500 hover:text-slate-800"
+        >
+          Close
+        </button>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${customerStatusClass(c.status)}`}>
+          {(c.status || 'active').replace(/_/g, ' ')}
+        </span>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${customerInviteStatusClass(c.invite_status, c.linked_profile_id)}`}
+        >
+          {customerInviteStatusLabel(c.invite_status, c.linked_profile_id)}
+        </span>
+        <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase text-neutral-600">
+          {(c.customer_type || 'business').replace(/_/g, ' ')}
+        </span>
+      </div>
+
+      <dl className="mt-4 space-y-2 text-sm">
+        <Fact label="Contact" value={c.contact_name} />
+        <Fact label="Email" value={c.email} />
+        <Fact label="Phone" value={c.phone} />
+        <Fact label="Location" value={[c.city, c.country].filter(Boolean).join(', ')} />
+        <Fact label="Terms" value={c.payment_terms} />
+        <Fact
+          label="Credit limit"
+          value={
+            c.credit_limit != null && Number(c.credit_limit) > 0
+              ? Number(c.credit_limit).toLocaleString()
+              : null
+          }
+        />
+      </dl>
+
+      {held ? (
+        <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2">
+          <span className="text-xs font-bold text-rose-800">Credit hold</span>
+          <button
+            type="button"
+            onClick={onClearHold}
+            className="text-xs font-bold text-[#0077b6] hover:underline"
+          >
+            Clear
+          </button>
+        </div>
+      ) : null}
+
+      <div className="mt-4">
+        <PartyBookRoleSelect
+          companyId={companyId}
+          customerId={c.id}
+          supplierId={party?.supplier_id}
+          role={party?.role || 'customer'}
+          arCode={party?.ar_account_code || glCodeFromMeta(c.metadata)}
+          apCode={party?.ap_account_code}
+          compact
+          onChanged={onChanged}
+        />
+        {party?.supplier_id ? (
+          <Link
+            href={`/dashboard/suppliers/network?id=${party.supplier_id}`}
+            className="mt-1 inline-flex text-[11px] font-semibold text-emerald-700 hover:underline"
+          >
+            Open supplier book
+          </Link>
+        ) : null}
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Link
+          href={`/dashboard/customers/onboard?id=${c.id}`}
+          className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:border-[#00b4d8]/40 hover:text-[#0077b6]"
+        >
+          <Pencil className="h-3.5 w-3.5" /> Edit
+        </Link>
+        <Link
+          href="/dashboard/customers/quotes"
+          className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:border-[#00b4d8]/40 hover:text-[#0077b6]"
+        >
+          <FileText className="h-3.5 w-3.5" /> Quote
+        </Link>
+        <Link
+          href="/dashboard/customers/invoices"
+          className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:border-[#00b4d8]/40 hover:text-[#0077b6]"
+        >
+          <Receipt className="h-3.5 w-3.5" /> Invoice
+        </Link>
+        <Link
+          href="/dashboard/customers/360"
+          className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:border-[#00b4d8]/40 hover:text-[#0077b6]"
+        >
+          360
+        </Link>
+        <button
+          type="button"
+          onClick={onToggleCommercial}
+          className="inline-flex items-center gap-1.5 rounded-full border border-[#00b4d8]/30 bg-[#00b4d8]/10 px-3 py-1.5 text-xs font-semibold text-[#0077b6]"
+        >
+          {commercialOpen ? 'Hide commercial' : 'Commercial'}
+        </button>
+        {canInviteCustomer(c) && !inviting ? (
+          <button
+            type="button"
+            onClick={onInvite}
+            className="inline-flex items-center gap-1.5 rounded-full border border-[#00b4d8] bg-[#00b4d8] px-3 py-1.5 text-xs font-semibold text-white"
+          >
+            {customerInviteActionLabel(c)}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          disabled={busy || !privyUserId}
+          onClick={onPortal}
+          className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-[#0077b6] disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
+          Portal
+        </button>
+        {phase === 'accepted' ? (
+          <button
+            type="button"
+            disabled={busy || !privyUserId}
+            onClick={() => onSuspend(true)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-800 disabled:opacity-50"
+          >
+            <PauseCircle className="h-3.5 w-3.5" /> Suspend
+          </button>
+        ) : null}
+        {phase === 'suspended' ? (
+          <button
+            type="button"
+            disabled={busy || !privyUserId}
+            onClick={() => onSuspend(false)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-800 disabled:opacity-50"
+          >
+            <PlayCircle className="h-3.5 w-3.5" /> Restore
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={onDelete}
+          className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700"
+        >
+          <Trash2 className="h-3.5 w-3.5" /> Delete
+        </button>
+      </div>
+
+      {inviting && canInviteCustomer(c) ? (
+        <div className="mt-3">
+          <InviteCustomerButton
+            key={c.id}
+            customerId={c.id}
+            customerName={c.trading_name}
+            defaultEmail={c.email || c.invited_email || ''}
+            defaultContactName={c.contact_name || ''}
+            defaultOpen
+            resend={
+              c.invite_status === 'invited' ||
+              c.invite_status === 'declined' ||
+              c.invite_status === 'expired'
+            }
+            onCancel={onCancelInvite}
+            onSent={onInvited}
+          />
+        </div>
+      ) : null}
+
+      {commercialOpen ? (
         <div className="mt-4">
           <HostCommercial
             companyId={companyId}
             partyKind="customer"
-            customerId={commercialId}
-            partyName={
-              customers.find((c) => c.id === commercialId)?.trading_name ||
-              'Customer'
-            }
+            customerId={c.id}
+            partyName={c.trading_name || 'Customer'}
           />
         </div>
       ) : null}
+    </aside>
+  );
+}
+
+function Fact({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">{label}</dt>
+      <dd className="truncate text-right text-slate-800">{value || '—'}</dd>
     </div>
   );
 }

@@ -539,7 +539,7 @@ export function Panel({
   return (
     <div
       id={id}
-      className={`rounded-2xl sm:rounded-3xl border border-neutral-200 bg-white shadow-sm min-w-0 scroll-mt-16 ${className}`}
+      className={`rounded-2xl sm:rounded-3xl border border-neutral-200 bg-white shadow-sm min-w-0 scroll-mt-32 ${className}`}
     >
       {(title || action) && (
         <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-neutral-100">
