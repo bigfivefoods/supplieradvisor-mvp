@@ -5,6 +5,7 @@ import {
   parseVerifyNowCipcResult,
   parseVerifyNowSaidResult,
 } from '@/lib/verifynow/client';
+import { legacyPrivyFrom, requireCompanyAccess, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * Generic VerifyNow proxy used by business profile + contractors.
@@ -17,6 +18,18 @@ import {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const companyId = Number(body.companyId);
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'Valid companyId is required' }, { status: 400 });
+    }
+    const auth = await requireVerifiedUser(request, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!auth.ok) return auth.response;
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
     const mode = body.mode === 'sandbox' ? 'sandbox' : undefined;
 
     const wantsCipc =

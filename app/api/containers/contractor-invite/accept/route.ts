@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { getCanonicalUserId } from '@/lib/auth/identity';
 import { CONTRACTOR_CONTRACT_VERSION } from '@/lib/contracts/independent-contractor-agreement';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
 /**
  * POST — accept contractor invite after Privy login + contract agreement
@@ -12,7 +11,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const token = body.token;
-    const userId = getCanonicalUserId(body.privyUserId);
+    const auth = await requireVerifiedUser(request, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!auth.ok) return auth.response;
+    const userId = auth.userId;
     const email = body.email ? String(body.email).toLowerCase().trim() : null;
 
     if (!token || !userId) {

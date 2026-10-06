@@ -91,21 +91,12 @@ async function logEvent(
 
 async function loadByToken(supabase: ReturnType<typeof getSupabaseServer>, token: string) {
   const clean = token.trim();
-  // token or transfer_number
-  let { data: order } = await supabase
+  // public_token is the only token accepted; transfer_number is not a public lookup key
+  const { data: order } = await supabase
     .from('stock_transfer_orders')
     .select('*')
     .eq('public_token', clean)
     .maybeSingle();
-
-  if (!order) {
-    const byNumber = await supabase
-      .from('stock_transfer_orders')
-      .select('*')
-      .eq('transfer_number', clean.toUpperCase())
-      .maybeSingle();
-    order = byNumber.data;
-  }
 
   return order;
 }

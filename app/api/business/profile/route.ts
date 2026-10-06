@@ -31,8 +31,8 @@ export async function GET(request: NextRequest) {
     if (!_gate.ok) return _gate.response;
 
     let membershipWarning: string | undefined;
-    if (privyUserId) {
-      const mem = await assertCompanyMember(privyUserId, companyId);
+    if (_gate.userId) {
+      const mem = await assertCompanyMember(_gate.userId, companyId);
       if (!mem.ok) {
         // Soft-fail: still load the profile for the selected company so data
         // is not "lost" in the UI if membership id formats drift.
@@ -82,8 +82,12 @@ export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
     const mem = await assertCompanyPermission(
-      body.privyUserId,
+      gate.userId,
       companyId,
       'profile',
       'write'
