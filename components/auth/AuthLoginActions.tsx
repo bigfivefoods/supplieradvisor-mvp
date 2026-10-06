@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLoginWithOAuth, usePrivy } from '@privy-io/react-auth';
 import { Loader2, Mail } from 'lucide-react';
 import {
@@ -13,6 +13,8 @@ import {
   stripUrlForOauthRedirect,
 } from '@/lib/auth/oauth-return';
 
+type LoginIntent = 'google' | 'apple' | 'email';
+
 type AuthLoginActionsProps = {
   prefillEmail?: string;
   /** Compact stack for marketing / member-app cards */
@@ -20,6 +22,8 @@ type AuthLoginActionsProps = {
   emailLabel?: string;
   /** Company app name (Balance, VUKA, …) — never say “gym app”. */
   appName?: string | null;
+  queuedIntent?: LoginIntent | null;
+  onQueuedIntentConsumed?: () => void;
 };
 
 /**
@@ -32,10 +36,12 @@ export function AuthLoginActions({
   variant = 'default',
   emailLabel = 'Continue with email',
   appName,
+  queuedIntent,
+  onQueuedIntentConsumed,
 }: AuthLoginActionsProps) {
   const { login, ready } = usePrivy();
   const { initOAuth, loading: oauthLoading } = useLoginWithOAuth();
-  const [busy, setBusy] = useState<'google' | 'apple' | 'email' | null>(null);
+  const [busy, setBusy] = useState<LoginIntent | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const startOAuth = async (provider: 'google' | 'apple') => {
@@ -85,6 +91,20 @@ export function AuthLoginActions({
       setBusy(null);
     }
   };
+
+  useEffect(() => {
+    if (!queuedIntent || !ready || busy || oauthLoading) return;
+
+    if (queuedIntent === 'email') {
+      startEmail();
+      onQueuedIntentConsumed?.();
+      return;
+    }
+
+    void startOAuth(queuedIntent).finally(() => {
+      onQueuedIntentConsumed?.();
+    });
+  }, [queuedIntent, ready, busy, oauthLoading]);
 
   const disabled = !ready || oauthLoading || busy != null;
   const onBrand = variant === 'onBrand';

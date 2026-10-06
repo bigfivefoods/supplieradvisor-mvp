@@ -54,11 +54,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
           landingHeader: 'Sign in to SupplierAdvisor',
           loginMessage: 'Google, Apple, or the email on your invitation.',
         },
-        embeddedWallets: {
-          ethereum: {
-            createOnLogin: 'off',
-          },
-        },
+        ...(hasRealWalletConnect
+          ? {
+              embeddedWallets: {
+                ethereum: {
+                  createOnLogin: 'off' as const,
+                },
+              },
+            }
+          : {}),
       }}
     >
       <ApiAuthBridge>
