@@ -40,6 +40,20 @@ import {
   sectorLabel,
 } from '@/lib/product/business-catalogue';
 import { B2B_ORG_TYPES } from '@/lib/product/org-types';
+import {
+  industriesForSector as catalogueNamesForSector,
+  searchIndustries,
+  subIndustriesFor,
+} from '@/lib/business/industries';
+import {
+  CURRENCIES,
+  DEFAULT_PAYMENT_TERMS_OPTIONS,
+} from '@/lib/business/types';
+import GeoSelectFields, { type GeoValue } from '@/components/geo/GeoSelectFields';
+import {
+  economicSectorForOsSector,
+  governmentWorkspaceSeed,
+} from '@/lib/onboarding/register-profile';
 
 const B2B_STEPS = [
   'Account',
@@ -105,10 +119,20 @@ type FormState = {
   trading_name: string;
   legal_name: string;
   registration_number: string;
+  vat_number: string;
+  /** Company-profile catalogue names buyers filter on */
+  catalogue_industries: string[];
+  sub_industries: string[];
   industry: string;
   country: string;
+  continent: string;
+  province: string;
   city: string;
+  street: string;
+  postal_code: string;
   website: string;
+  primary_currency: string;
+  payment_terms: string;
   contact_name: string;
   contact_email: string;
   contact_phone: string;
@@ -178,14 +202,29 @@ export default function BusinessOnboardingWizard() {
     trading_name: claimName || '',
     legal_name: claimName || '',
     registration_number: '',
+    vat_number: '',
+    catalogue_industries: [],
+    sub_industries: [],
     industry: '',
     country: 'South Africa',
+    continent: 'Africa',
+    province: '',
     city: '',
+    street: '',
+    postal_code: '',
     website: '',
+    primary_currency: 'ZAR',
+    payment_terms: 'Net 30',
     contact_name: '',
     contact_email: prefillEmail || '',
     contact_phone: '',
     short_description: '',
+  });
+  const [geo, setGeo] = useState<GeoValue>({
+    continent: 'Africa',
+    country: 'South Africa',
+    province: '',
+    city: '',
   });
 
   const sectorDef = useMemo(
@@ -229,7 +268,9 @@ export default function BusinessOnboardingWizard() {
     if (current === 'Org type') return Boolean(form.legal_form);
     if (current === 'Government') return Boolean(form.legal_form);
     if (current === 'Sector') return Boolean(form.os_sector);
-    if (current === 'Industry') return form.os_industries.length > 0;
+    if (current === 'Industry') {
+      return form.os_industries.length > 0 && form.catalogue_industries.length > 0;
+    }
     if (current === 'Business type') return form.os_business_types.length > 0;
     if (current === 'Details') {
       return (
@@ -250,13 +291,20 @@ export default function BusinessOnboardingWizard() {
       | (typeof B2B_ORG_TYPES)[number]
       | (typeof B2G_ORG_TYPES)[number]
   ) => {
+    const gov =
+      form.join_lane === 'b2g' ? governmentWorkspaceSeed(row.id) : null;
+    const govIndustry = gov ? getIndustry(gov.industryId) : null;
     setForm((prev) => ({
       ...prev,
       legal_form: row.id,
       os_entity_type: row.entityTypeId,
       business_type: row.businessType,
-      os_sector:
-        form.join_lane === 'b2g' ? 'public_sector' : prev.os_sector,
+      os_sector: form.join_lane === 'b2g' ? 'public_sector' : prev.os_sector,
+      os_industries: gov ? [gov.industryId] : prev.os_industries,
+      os_business_types: gov ? [gov.businessTypeId] : prev.os_business_types,
+      industry_packs: govIndustry ? [...govIndustry.packIds] : prev.industry_packs,
+      catalogue_industries: gov ? [...gov.catalogue] : prev.catalogue_industries,
+      sub_industries: gov ? [] : prev.sub_industries,
     }));
   };
 
@@ -272,6 +320,46 @@ export default function BusinessOnboardingWizard() {
         sectorId === 'public_sector' ? 'municipal' : 'private_company',
       business_type: sectorId === 'public_sector' ? 'municipal_government' : 'business',
       industry: '',
+      catalogue_industries: [],
+      sub_industries: [],
+    }));
+  };
+
+  const toggleCatalogue = (name: string) => {
+    setForm((prev) => {
+      const has = prev.catalogue_industries.includes(name);
+      const catalogue_industries = has
+        ? prev.catalogue_industries.filter((item) => item !== name)
+        : [...prev.catalogue_industries, name];
+      const allowed = new Set(subIndustriesFor(catalogue_industries));
+      return {
+        ...prev,
+        catalogue_industries,
+        sub_industries: prev.sub_industries.filter((item) => allowed.has(item)),
+      };
+    });
+  };
+
+  const toggleSubIndustry = (name: string) => {
+    setForm((prev) => {
+      const has = prev.sub_industries.includes(name);
+      return {
+        ...prev,
+        sub_industries: has
+          ? prev.sub_industries.filter((item) => item !== name)
+          : [...prev.sub_industries, name],
+      };
+    });
+  };
+
+  const onGeoChange = (next: GeoValue) => {
+    setGeo(next);
+    setForm((prev) => ({
+      ...prev,
+      continent: next.continent,
+      country: next.country,
+      province: next.province,
+      city: next.city,
     }));
   };
 
@@ -397,14 +485,24 @@ export default function BusinessOnboardingWizard() {
           trading_name: form.trading_name,
           legal_name: form.legal_name,
           registration_number: form.registration_number,
+          vat_number: form.vat_number,
           industry:
+            form.catalogue_industries.join(', ') ||
             industryDefs.map((i) => i.label).join(', ') ||
             form.industry ||
             form.os_sector,
           industries: industryDefs.map((i) => i.label),
+          catalogue_industries: form.catalogue_industries,
+          sub_industries: form.sub_industries,
           country: form.country,
+          continent: form.continent,
+          province: form.province,
           city: form.city,
+          street: form.street,
+          postal_code: form.postal_code,
           website: form.website,
+          primary_currency: form.primary_currency,
+          payment_terms: form.payment_terms,
           contact_name: form.contact_name,
           contact_email:
             form.contact_email || extractEmailFromPrivyUser(user),
@@ -760,7 +858,7 @@ export default function BusinessOnboardingWizard() {
                     Quaternary
                   </li>
                   <li>
-                    <strong>Industry</strong> — e.g. Food manufacturing, Logistics
+                    <strong>Industry</strong> — workspace pack, then the full catalogue
                   </li>
                   <li>
                     <strong>Business type</strong> — role within that industry
@@ -898,11 +996,12 @@ export default function BusinessOnboardingWizard() {
               Which industries?
             </h1>
             <p className="text-sm text-slate-600">
-              Select one or more industries in{' '}
+              Pick the workspace industries in{' '}
               <strong className="text-slate-900">
                 {sectorLabel(form.os_sector)}
               </strong>
-              . Each selection adds recommended Industry Packs.
+              . Each one turns on the matching Industry Packs. Then choose the
+              exact catalogue industries your company profile and buyer search use.
             </p>
             {!form.os_sector ? (
               <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
@@ -960,6 +1059,14 @@ export default function BusinessOnboardingWizard() {
                 })}
               </div>
             )}
+            <CataloguePicker
+              osSector={form.os_sector}
+              selected={form.catalogue_industries}
+              subs={form.sub_industries}
+              onToggle={toggleCatalogue}
+              onToggleSub={toggleSubIndustry}
+              required
+            />
           </section>
         ) : null}
 
@@ -1082,17 +1189,50 @@ export default function BusinessOnboardingWizard() {
                   onChange={(e) =>
                     update('registration_number', e.target.value)
                   }
+                  placeholder="2020/123456/07"
                 />
               </label>
               <label className="text-xs">
                 <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
-                  City
+                  VAT number
                 </span>
                 <input
                   className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
-                  value={form.city}
-                  onChange={(e) => update('city', e.target.value)}
+                  value={form.vat_number}
+                  onChange={(e) => update('vat_number', e.target.value)}
                 />
+              </label>
+              <label className="text-xs">
+                <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                  Currency
+                </span>
+                <select
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm bg-white"
+                  value={form.primary_currency}
+                  onChange={(e) => update('primary_currency', e.target.value)}
+                >
+                  {CURRENCIES.map((code) => (
+                    <option key={code} value={code}>
+                      {code}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-xs">
+                <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                  Default payment terms
+                </span>
+                <select
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm bg-white"
+                  value={form.payment_terms}
+                  onChange={(e) => update('payment_terms', e.target.value)}
+                >
+                  {DEFAULT_PAYMENT_TERMS_OPTIONS.map((term) => (
+                    <option key={term} value={term}>
+                      {term}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="text-xs">
                 <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
@@ -1115,7 +1255,7 @@ export default function BusinessOnboardingWizard() {
                   onChange={(e) => update('contact_email', e.target.value)}
                 />
               </label>
-              <label className="text-xs sm:col-span-2">
+              <label className="text-xs">
                 <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
                   Phone
                 </span>
@@ -1125,7 +1265,76 @@ export default function BusinessOnboardingWizard() {
                   onChange={(e) => update('contact_phone', e.target.value)}
                 />
               </label>
+              <label className="text-xs">
+                <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                  Website
+                </span>
+                <input
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                  value={form.website}
+                  onChange={(e) => update('website', e.target.value)}
+                  placeholder="https://"
+                />
+              </label>
+              <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-[10px] font-bold uppercase text-slate-400 mb-2">
+                  Where you operate
+                </p>
+                <GeoSelectFields
+                  value={geo}
+                  onChange={onGeoChange}
+                  countryRequired
+                  continentRequired
+                />
+                <div className="mt-3 grid sm:grid-cols-3 gap-3">
+                  <label className="text-xs sm:col-span-2">
+                    <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                      Street
+                    </span>
+                    <input
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                      value={form.street}
+                      onChange={(e) => update('street', e.target.value)}
+                    />
+                  </label>
+                  <label className="text-xs">
+                    <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                      Postal code
+                    </span>
+                    <input
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                      value={form.postal_code}
+                      onChange={(e) => update('postal_code', e.target.value)}
+                    />
+                  </label>
+                </div>
+              </div>
+              <label className="text-xs sm:col-span-2">
+                <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                  About
+                </span>
+                <textarea
+                  className="w-full min-h-[96px] rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                  value={form.short_description}
+                  onChange={(e) => update('short_description', e.target.value)}
+                  placeholder="What this company does"
+                />
+              </label>
             </div>
+            {joinLane === 'b2g' ? (
+              <CataloguePicker
+                osSector="public_sector"
+                selected={form.catalogue_industries}
+                subs={form.sub_industries}
+                onToggle={toggleCatalogue}
+                onToggleSub={toggleSubIndustry}
+              />
+            ) : null}
+            <p className="text-xs text-slate-500">
+              Bank details, logo, and certificates are on the company profile
+              once this workspace opens. Currency and payment terms are the
+              defaults for quotes and purchase orders.
+            </p>
           </section>
         ) : null}
 
@@ -1148,12 +1357,26 @@ export default function BusinessOnboardingWizard() {
                 <>
               <Row label="Sector" value={sectorDef?.label || form.os_sector} />
               <Row
-                label="Industries"
+                label="Workspace industries"
                 value={
                   industryDefs.map((i) => i.label).join(' · ') ||
                   form.os_industries.join(', ')
                 }
               />
+              <Row
+                label="Catalogue"
+                value={
+                  form.catalogue_industries.length
+                    ? form.catalogue_industries.join(' · ')
+                    : '—'
+                }
+              />
+              {form.sub_industries.length ? (
+                <Row
+                  label="Sub-industries"
+                  value={form.sub_industries.join(' · ')}
+                />
+              ) : null}
               <Row
                 label="Business type(s)"
                 value={
@@ -1167,6 +1390,19 @@ export default function BusinessOnboardingWizard() {
                 value={entityDef?.label || form.os_entity_type}
               />
                 </>
+              ) : form.catalogue_industries.length ? (
+                <>
+                  <Row
+                    label="Catalogue"
+                    value={form.catalogue_industries.join(' · ')}
+                  />
+                  {form.sub_industries.length ? (
+                    <Row
+                      label="Sub-industries"
+                      value={form.sub_industries.join(' · ')}
+                    />
+                  ) : null}
+                </>
               ) : null}
               <Row
                 label="Industry packs"
@@ -1179,6 +1415,17 @@ export default function BusinessOnboardingWizard() {
                 }
               />
               <Row label="Company" value={form.trading_name} />
+              <Row
+                label="Place"
+                value={
+                  [form.city, form.province, form.country].filter(Boolean).join(', ') ||
+                  '—'
+                }
+              />
+              <Row
+                label="Currency"
+                value={`${form.primary_currency} · ${form.payment_terms}`}
+              />
               <Row
                 label="Contact"
                 value={`${form.contact_name} · ${form.contact_email}`}
@@ -1252,6 +1499,119 @@ export default function BusinessOnboardingWizard() {
           )}
         </div>
       </footer>
+    </div>
+  );
+}
+
+function CataloguePicker({
+  osSector,
+  selected,
+  subs,
+  onToggle,
+  onToggleSub,
+  required = false,
+}: {
+  osSector: string;
+  selected: string[];
+  subs: string[];
+  onToggle: (name: string) => void;
+  onToggleSub: (name: string) => void;
+  required?: boolean;
+}) {
+  const [query, setQuery] = useState('');
+  const econ = economicSectorForOsSector(osSector);
+  const names = useMemo(() => {
+    const q = query.trim();
+    if (q) return searchIndustries(q, 80).map((item) => item.name);
+    if (econ) return catalogueNamesForSector(econ);
+    return [];
+  }, [query, econ]);
+  const subOptions = subIndustriesFor(selected);
+
+  return (
+    <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
+      <div>
+        <p className="font-black text-slate-900">
+          Catalogue industries{required ? ' *' : ''}
+        </p>
+        <p className="mt-1 text-xs leading-relaxed text-slate-500">
+          {query.trim()
+            ? 'Search covers the full catalogue, including other sectors.'
+            : econ
+              ? `${names.length} industries in this sector. Search to reach every industry and sub-industry.`
+              : 'Search the full catalogue.'}
+        </p>
+      </div>
+      <input
+        className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search all industries and sub-industries"
+      />
+      {selected.length ? (
+        <div className="flex flex-wrap gap-2">
+          {selected.map((name) => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => onToggle(name)}
+              className="rounded-full border border-[#00b4d8] bg-[#00b4d8] px-2.5 py-1 text-xs font-semibold text-white"
+            >
+              {name} ×
+            </button>
+          ))}
+        </div>
+      ) : required ? (
+        <p className="text-xs text-amber-800">Choose at least one catalogue industry.</p>
+      ) : null}
+      <div className="flex max-h-72 flex-wrap gap-2 overflow-y-auto pr-1">
+        {names.map((name) => {
+          if (selected.includes(name)) return null;
+          return (
+            <button
+              key={name}
+              type="button"
+              onClick={() => onToggle(name)}
+              className="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-[#00b4d8]/40"
+            >
+              {name}
+            </button>
+          );
+        })}
+        {names.length === 0 ? (
+          <p className="text-xs text-slate-400">No industries match that search.</p>
+        ) : null}
+      </div>
+      {selected.length ? (
+        <div>
+          <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-[#0077b6]">
+            Sub-industries
+          </p>
+          {subOptions.length === 0 ? (
+            <p className="text-xs text-slate-400">None listed for this selection.</p>
+          ) : (
+            <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
+              {subOptions.map((name) => {
+                const on = subs.includes(name);
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => onToggleSub(name)}
+                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                      on
+                        ? 'border-[#0077b6] bg-[#0077b6]/10 text-[#0077b6]'
+                        : 'border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

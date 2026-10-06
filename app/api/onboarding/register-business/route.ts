@@ -23,6 +23,7 @@ import {
   recordReferralAttribution,
 } from '@/lib/billing/referral-controls';
 import { isMissingRelation } from '@/lib/business/company-data';
+import { registrationProfileFacts } from '@/lib/onboarding/register-profile';
 
 /**
  * POST /api/onboarding/register-business
@@ -65,6 +66,15 @@ export async function POST(request: NextRequest) {
       industry_packs,
       industry_modules,
       industries: industriesBody,
+      catalogue_industries,
+      sub_industries,
+      vat_number,
+      province,
+      continent,
+      street,
+      postal_code,
+      primary_currency,
+      payment_terms,
     } = body;
 
     const _auth = await requireVerifiedUser(request, { legacyPrivyUserId: privyUserId });
@@ -163,6 +173,27 @@ export async function POST(request: NextRequest) {
       if (short_description) claimPatch.short_description = String(short_description);
       if (registration_number)
         claimPatch.registration_number = String(registration_number);
+      const claimFacts = registrationProfileFacts({
+        catalogueIndustries: catalogue_industries,
+        subIndustries: sub_industries,
+        fallbackIndustries: industriesBody,
+        vatNumber: vat_number,
+        website,
+        shortDescription: short_description,
+        country,
+        city,
+        province,
+        continent,
+        street,
+        postalCode: postal_code,
+        currency: primary_currency,
+        paymentTerms: payment_terms,
+      });
+      for (const [key, value] of Object.entries(claimFacts)) {
+        if (value == null) continue;
+        if (Array.isArray(value) && value.length === 0) continue;
+        claimPatch[key] = value;
+      }
       await supabaseClaim.from('profiles').update(claimPatch).eq('id', claimId);
 
       return NextResponse.json({
@@ -254,11 +285,27 @@ export async function POST(request: NextRequest) {
       ? industry_modules.map(String)
       : [];
 
-    const industriesList = Array.isArray(industriesBody)
-      ? industriesBody.map(String).filter(Boolean)
-      : industry
-        ? [String(industry)]
-        : [];
+    const facts = registrationProfileFacts({
+      catalogueIndustries: catalogue_industries,
+      subIndustries: sub_industries,
+      fallbackIndustries: Array.isArray(industriesBody)
+        ? industriesBody
+        : industry
+          ? [industry]
+          : [],
+      vatNumber: vat_number,
+      website,
+      shortDescription: short_description,
+      country,
+      city,
+      province,
+      continent,
+      street,
+      postalCode: postal_code,
+      currency: primary_currency,
+      paymentTerms: payment_terms,
+    });
+    const industriesList = facts.industries || [];
 
     const baseInsert: Record<string, unknown> = {
       trading_name: tradingNameTrim,
@@ -266,15 +313,27 @@ export async function POST(request: NextRequest) {
       registration_number: registration_number || null,
       industry: industriesList[0] || industry || entityKind.group || null,
       industries: industriesList.length ? industriesList : null,
+      sub_industries: facts.sub_industries,
+      sub_industry: facts.sub_industry,
+      vat_number: facts.vat_number,
+      province: facts.province,
+      region: facts.region,
+      continent: facts.continent,
+      street: facts.street,
+      address: facts.address,
+      postal_code: facts.postal_code,
+      description: facts.description,
+      primary_currency: facts.primary_currency,
+      settings: facts.settings,
       business_type: entityKind.business_type,
       org_type: entityKind.org_type,
-      country: country || 'South Africa',
-      city: city || null,
-      website: website || null,
+      country: facts.country,
+      city: facts.city,
+      website: facts.website,
       contact_name: contact_name || null,
       contact_phone: contact_phone || null,
       email,
-      short_description: short_description || null,
+      short_description: facts.short_description,
       supplier_status: 'active',
       relationship_type:
         entityKind.id === 'supplier'
@@ -329,15 +388,15 @@ export async function POST(request: NextRequest) {
       p_profile: {
         trading_name: tradingNameTrim,
         legal_name: legalNameTrim,
-        country: country || 'South Africa',
-        city: city || null,
-        website: website || null,
+        country: facts.country,
+        city: facts.city,
+        website: facts.website,
         contact_name: contact_name || null,
         contact_phone: contact_phone || null,
         industry: industriesList[0] || industry || entityKind.group || null,
         business_type: entityKind.business_type,
         org_type: entityKind.org_type,
-        short_description: short_description || null,
+        short_description: facts.short_description,
         registration_number: registration_number || null,
       },
     });
