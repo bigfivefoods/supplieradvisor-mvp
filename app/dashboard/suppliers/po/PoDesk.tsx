@@ -157,6 +157,7 @@ type BookSupplier = {
   phone?: string | null;
   contact_name?: string | null;
   email?: string | null;
+  payment_terms?: string | null;
 };
 
 type PurchaseOrder = {
@@ -301,6 +302,14 @@ function PoInner() {
     'CIA (Cash in advance)',
     'On receipt',
   ]);
+  const supplierTermsPinned = useRef(false);
+  const applySupplierTerms = useCallback((supplier: BookSupplier | null | undefined) => {
+    const t = String(supplier?.payment_terms || '').trim();
+    if (!t) return;
+    supplierTermsPinned.current = true;
+    setPaymentTerms(t);
+    setPaymentTermsOptions((opts) => (opts.includes(t) ? opts : [t, ...opts]));
+  }, []);
   /** standard | hub (blanket) | call_off */
   const [orderKind, setOrderKind] = useState<'standard' | 'hub' | 'call_off'>(
     'standard'
@@ -718,7 +727,9 @@ function PoInner() {
           const cfg = resolvePaymentTermsConfig(sj.settings || {});
           setPaymentTermsOptions(cfg.options);
           setPaymentTerms((prev) =>
-            cfg.options.includes(prev) ? prev : cfg.defaultTerms
+            supplierTermsPinned.current || cfg.options.includes(prev)
+              ? prev
+              : cfg.defaultTerms
           );
         } catch {
           /* soft */
@@ -731,6 +742,7 @@ function PoInner() {
       // Preselect from ?supplierId= (network Raise PO) or ?peer= platform profile
       if (preselectSupplierId && filtered.some((s) => s.id === preselectSupplierId)) {
         setSelectedSrmId(preselectSupplierId);
+        applySupplierTerms(filtered.find((s) => s.id === preselectSupplierId));
         setTab('create');
       } else if (peerProfileId) {
         const byPeer = filtered.find(
@@ -738,6 +750,7 @@ function PoInner() {
         );
         if (byPeer) {
           setSelectedSrmId(byPeer.id);
+          applySupplierTerms(byPeer);
           setTab('create');
         }
       }
@@ -1103,6 +1116,7 @@ function PoInner() {
             contact_email: email,
             contact_name: newSupplier.contact_name || null,
             contact_phone: newSupplier.contact_phone || null,
+            payment_terms: paymentTerms || null,
           },
         });
         const data = await res.json();
@@ -1119,12 +1133,22 @@ function PoInner() {
             email: email || null,
             contact_name: newSupplier.contact_name || null,
             phone: newSupplier.contact_phone || null,
+            payment_terms: paymentTerms || null,
           },
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Could not add supplier');
         supplierId = Number(data.supplier?.id ?? data.id ?? data.supplierId);
         toast.success(`Added ${name} to your supplier book`);
+      }
+      if (supplierId && Number.isFinite(supplierId) && paymentTerms) {
+        const termsRes = await withAuth('/api/suppliers', {
+          method: 'PATCH',
+          jsonBody: { id: supplierId, payment_terms: paymentTerms },
+        });
+        if (!termsRes.ok) {
+          toast.message('Supplier added. Payment terms were not saved on the book.');
+        }
       }
       await load();
       if (supplierId && Number.isFinite(supplierId)) {
@@ -2082,9 +2106,11 @@ function PoInner() {
               <select
                 className="input mt-1 w-full !p-3 !text-sm"
                 value={selectedSrmId ?? ''}
-                onChange={(e) =>
-                  setSelectedSrmId(e.target.value ? Number(e.target.value) : null)
-                }
+                onChange={(e) => {
+                  const id = e.target.value ? Number(e.target.value) : null;
+                  setSelectedSrmId(id);
+                  applySupplierTerms(suppliers.find((s) => s.id === id));
+                }}
               >
                 <option value="">Select supplier…</option>
                 {suppliers.map((s) => (
@@ -2532,13 +2558,14 @@ function PoInner() {
                   ))}
                 </select>
                 <p className="text-[10px] text-neutral-500 mt-0.5">
-                  Options from{' '}
+                  Copied from the supplier book. The option list lives in{' '}
                   <Link
                     href="/dashboard/my-business/settings"
                     className="text-[#00b4d8] underline"
                   >
                     Company settings
                   </Link>
+                  .
                 </p>
               </div>
               <div>

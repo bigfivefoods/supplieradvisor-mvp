@@ -48,6 +48,7 @@ import {
   type PeriodSlicerValue,
 } from '@/components/accounting/PeriodSlicer';
 import DocDeskAnalytics from '@/components/customers/DocDeskAnalytics';
+import { savedPartyCommercial } from '@/lib/customers/book-persist';
 import type { CustomerRecord } from '@/lib/customers/types';
 import {
   customerInviteStatusLabel,
@@ -209,6 +210,7 @@ function DocInner({
         searchParams.get('peer') ||
         0
     ) || null;
+  const urlCustomerId = Number(searchParams.get('customerId') || 0) || null;
   const focusDocId = Number(searchParams.get('docId') || searchParams.get('invoiceId') || 0) || null;
   const previewFromUrl = searchParams.get('preview') === '1';
   const statusFromUrl = String(searchParams.get('status') || '').toLowerCase();
@@ -217,6 +219,7 @@ function DocInner({
   const fromPoApplied = useRef(false);
   const focusDocApplied = useRef(false);
   const peerCustomerApplied = useRef(false);
+  const urlCustomerApplied = useRef(false);
   const overdueResendHinted = useRef(false);
   const whatsappTriggered = useRef(false);
   const cfg = enquiryInbox
@@ -324,6 +327,17 @@ function DocInner({
     'CIA (Cash in advance)',
     'On receipt',
   ]);
+
+  const adoptSavedCustomer = (cust: CustomerRecord) => {
+    setCustomerId(String(cust.id));
+    const commercial = savedPartyCommercial(cust);
+    if (commercial.paymentTerms) {
+      const t = commercial.paymentTerms;
+      setPaymentTerms(t);
+      setPaymentTermsOptions((opts) => (opts.includes(t) ? opts : [t, ...opts]));
+    }
+    if (commercial.currency) setDocCurrency(commercial.currency);
+  };
   /** Inline add & invite when customer not in book */
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   const [addingCustomer, setAddingCustomer] = useState(false);
@@ -357,7 +371,7 @@ function DocInner({
   // Prefill customer from linked platform peer (pending connection / network)
   useEffect(() => {
     if (peerCustomerApplied.current) return;
-    if (fromPo) return; // from-PO path handles its own match
+    if (fromPo || urlCustomerId || focusDocId) return;
     if (!buyerProfileIdParam || buyerProfileIdParam <= 0) return;
     if (loading || !customers.length) return;
     const match = customers.find(
@@ -367,17 +381,29 @@ function DocInner({
     );
     if (match) {
       peerCustomerApplied.current = true;
-      setCustomerId(String(match.id));
+      adoptSavedCustomer(match);
       setShowForm(true);
       toast.message(
         `Customer selected: ${match.trading_name || match.legal_name || 'peer'}`,
         {
           description:
-            'Connection may still be pending — you can quote & invoice now.',
+            'Terms and currency come from the saved customer. Connection may still be pending.',
         }
       );
     }
-  }, [buyerProfileIdParam, customers, loading, fromPo]);
+  }, [buyerProfileIdParam, customers, loading, fromPo, urlCustomerId, focusDocId]);
+
+  // Quote / invoice opened from the customer book (?customerId=)
+  useEffect(() => {
+    if (urlCustomerApplied.current) return;
+    if (fromPo || focusDocId) return;
+    if (!urlCustomerId || loading || !customers.length) return;
+    const match = customers.find((c) => Number(c.id) === urlCustomerId);
+    if (!match) return;
+    urlCustomerApplied.current = true;
+    adoptSavedCustomer(match);
+    setShowForm(true);
+  }, [urlCustomerId, customers, loading, fromPo, focusDocId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -619,7 +645,15 @@ function DocInner({
         if (cancelled) return;
         fromPoApplied.current = true;
         setShowForm(true);
-        if (match?.id) setCustomerId(String(match.id));
+        if (match?.id) {
+          const commercial = savedPartyCommercial(match);
+          setCustomerId(String(match.id));
+          if (commercial.paymentTerms) {
+            const t = commercial.paymentTerms;
+            setPaymentTerms(t);
+            setPaymentTermsOptions((opts) => (opts.includes(t) ? opts : [t, ...opts]));
+          }
+        }
         if (po.currency) setDocCurrency(String(po.currency));
         if (poLines.length) setLines(poLines);
         setNotes(
@@ -902,6 +936,7 @@ function DocInner({
           contact_name: newCustomer.contact_name || null,
           phone: newCustomer.phone || null,
           payment_terms: paymentTerms || 'Net 30',
+          currency: docCurrency || 'ZAR',
           invite_status: newCustomer.sendInvite ? 'invited' : 'not_invited',
         }),
       });
@@ -2494,19 +2529,15 @@ function DocInner({
                 className="input mt-1 w-full !p-3 !text-sm"
                 value={customerId}
                 onChange={(e) => {
-                  setCustomerId(e.target.value);
                   const cust = customers.find(
                     (x) => String(x.id) === String(e.target.value)
                   );
-                  if (cust?.payment_terms) {
-                    const t = String(cust.payment_terms);
-                    if (paymentTermsOptions.includes(t) || t) {
-                      setPaymentTerms(t);
-                      if (!paymentTermsOptions.includes(t)) {
-                        setPaymentTermsOptions((opts) => [t, ...opts]);
-                      }
-                    }
+                  if (!cust) {
+                    setCustomerId(e.target.value);
+                    return;
                   }
+                  adoptSavedCustomer(cust);
+                  if (cust.currency) applyDocCurrency(String(cust.currency).trim().toUpperCase());
                 }}
               >
                 <option value="">Select customer…</option>
@@ -2528,8 +2559,8 @@ function DocInner({
                 })}
               </select>
               <p className="text-[10px] text-neutral-400 mt-1 leading-relaxed">
-                Invited companies appear here even before they accept — quote and
-                invoice now. Buyer portal share unlocks after they connect.
+                Name, payment terms, and currency come from the saved customer.
+                Invited companies appear here even before they accept.
               </p>
               {showAddCustomer && (
                 <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-3 space-y-2">
@@ -2659,13 +2690,14 @@ function DocInner({
                 ))}
               </select>
               <p className="text-[10px] text-neutral-400 mt-0.5">
-                From{' '}
+                Copied from the customer book. The option list lives in{' '}
                 <a
                   href="/dashboard/my-business/settings"
                   className="text-[#00b4d8] underline"
                 >
                   Company settings
                 </a>
+                .
               </p>
             </div>
             <div>

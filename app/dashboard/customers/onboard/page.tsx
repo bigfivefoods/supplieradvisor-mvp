@@ -20,7 +20,7 @@ import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
-import { LEAD_SOURCES } from '@/lib/customers/types';
+import { LEAD_SOURCES, type CustomerRecord } from '@/lib/customers/types';
 import {
   CompanyRequired,
   CustomersHeader,
@@ -148,13 +148,13 @@ function OnboardInner() {
     if (!editId) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/customers?companyId=${companyId}`);
-      const data = await res.json();
-      const c = (data.customers || []).find(
-        (x: { id: number }) => String(x.id) === editId
+      const res = await fetch(
+        `/api/customers?companyId=${companyId}&id=${encodeURIComponent(editId)}`
       );
-      if (!c) {
-        toast.error('Customer not found');
+      const data = await res.json();
+      const c = (data.customers || [])[0] as CustomerRecord | undefined;
+      if (!data.book || !c || String(c.id) !== String(editId)) {
+        toast.error(data.warning || 'Customer not found');
         return;
       }
       setForm({
@@ -217,7 +217,7 @@ function OnboardInner() {
       if (!res.ok) throw new Error(data.error || data.hint || 'Failed');
       toast.success(editId ? 'Customer updated' : 'Customer onboarded');
       if (editId) {
-        router.push('/dashboard/customers/profiles');
+        router.push(`/dashboard/customers/profiles?id=${editId}`);
       } else if (data.customer?.id) {
         setCreatedCustomer({
           id: data.customer.id,
@@ -285,7 +285,7 @@ function OnboardInner() {
 
               <div className="flex flex-wrap gap-2 pt-2 border-t border-neutral-100">
                 <Link
-                  href="/dashboard/customers/profiles"
+                  href={`/dashboard/customers/profiles?id=${createdCustomer.id}`}
                   className="btn-primary !py-2.5 !px-5 text-sm"
                 >
                   Go to profiles <ArrowRight className="w-4 h-4" />
@@ -297,7 +297,7 @@ function OnboardInner() {
                   <Handshake className="w-4 h-4" /> View invites
                 </Link>
                 <Link
-                  href="/dashboard/customers/quotes"
+                  href={`/dashboard/customers/quotes?customerId=${createdCustomer.id}`}
                   className="btn-secondary !py-2.5 !px-5 text-sm"
                 >
                   <FileText className="w-4 h-4" /> Create quote

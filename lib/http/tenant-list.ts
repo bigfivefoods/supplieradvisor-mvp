@@ -18,10 +18,14 @@ export function parseBeforeId(raw: string | null | undefined): number | null {
 }
 
 export const CUSTOMER_LIST_COLUMNS =
-  'id, trading_name, legal_name, email, phone, contact_name, status, customer_type, city, country, industry, linked_profile_id, invite_status, credit_limit, currency, logo_url, source, created_at, updated_at, metadata';
+  'id, trading_name, legal_name, email, phone, contact_name, status, customer_type, city, country, industry, linked_profile_id, invite_status, credit_limit, currency, payment_terms, logo_url, source, created_at, updated_at, metadata';
+
+/** Full CRM book — GET ?id= so a save round-trips every column the panel edits. */
+export const CUSTOMER_BOOK_COLUMNS =
+  'id, trading_name, legal_name, email, phone, contact_name, job_title, status, customer_type, billing_address, shipping_address, credit_limit, website, industry, vat_number, registration_number, city, country, continent, province, region, postal_code, currency, payment_terms, source, owner_name, notes, rating, logo_url, linked_profile_id, connection_id, invite_status, invited_email, metadata, created_at, updated_at';
 
 export const SUPPLIER_LIST_COLUMNS =
-  'id, trading_name, legal_name, email, phone, contact_name, status, invite_status, city, country, industry, linked_profile_id, logo_url, connection_id, verified, otifef_pct, rating_avg, trust_score, wallet_address, created_at, updated_at, metadata';
+  'id, trading_name, legal_name, email, phone, contact_name, status, invite_status, city, country, industry, linked_profile_id, logo_url, connection_id, verified, otifef_pct, rating_avg, trust_score, wallet_address, payment_terms, created_at, updated_at, metadata';
 
 /** Full SRM book profile — GET ?id= and PATCH round-trip. */
 export const SUPPLIER_BOOK_COLUMNS =

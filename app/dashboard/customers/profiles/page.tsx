@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -15,6 +15,7 @@ import {
   Globe,
   FileText,
   Receipt,
+  Save,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
@@ -39,6 +40,7 @@ import type { PartyRoleRow } from '@/lib/accounting/party-roles';
 import { glCodeFromMeta } from '@/lib/accounting/party-roles';
 import { PartyBookRoleSelect } from '@/components/accounting/PartyBookRoleSelect';
 import { HostCommercial } from '@/components/commercial/CommercialPanel';
+import { CURRENCIES, DEFAULT_PAYMENT_TERMS_OPTIONS } from '@/lib/business/types';
 
 export default function CustomerProfilesPage() {
   return (
@@ -78,12 +80,16 @@ function ProfilesInner() {
     Record<number, PartyRoleRow>
   >({});
   const [commercialId, setCommercialId] = useState<number | null>(null);
+  const [bookHold, setBookHold] = useState<CustomerRecord | null>(null);
+  const [bookMiss, setBookMiss] = useState(false);
 
   useEffect(() => {
     if (Number.isFinite(urlId) && urlId > 0) setSelectedId(urlId);
   }, [urlId]);
 
   const selectCustomer = (id: number | null) => {
+    setBookHold(null);
+    setBookMiss(false);
     setSelectedId(id);
     if (id !== commercialId) setCommercialId(null);
     const next = new URLSearchParams(searchParams.toString());
@@ -127,6 +133,29 @@ function ProfilesInner() {
     const t = setTimeout(() => void load(), 200);
     return () => clearTimeout(t);
   }, [load]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    let cancelled = false;
+    setBookMiss(false);
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/customers?companyId=${companyId}&id=${selectedId}`
+        );
+        const data = await res.json();
+        const found = ((data.customers || []) as CustomerRecord[])[0];
+        if (cancelled) return;
+        if (data.book && found && Number(found.id) === selectedId) setBookHold(found);
+        else setBookMiss(true);
+      } catch {
+        if (!cancelled) setBookMiss(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, selectedId]);
 
   const issuePortal = async (c: CustomerRecord) => {
     if (!privyUserId) {
@@ -293,13 +322,25 @@ function ProfilesInner() {
     }
   };
 
-  const selected = customers.find((c) => c.id === selectedId) || null;
+  const listRow = customers.find((c) => c.id === selectedId) || null;
+  const selected =
+    bookHold && bookHold.id === selectedId
+      ? { ...(listRow || {}), ...bookHold }
+      : listRow;
+  const bookReady = Boolean(bookHold && selected && bookHold.id === selected.id);
+
+  const mergeSaved = (saved: CustomerRecord) => {
+    setBookHold(saved);
+    setCustomers((prev) =>
+      prev.map((row) => (row.id === saved.id ? { ...row, ...saved } : row))
+    );
+  };
 
   return (
     <CustomersPage>
       <CustomersHeader
         title="Customer book"
-        description="Select an account to see who they are, how they pay, and the next trade action. Offline customers stay fully editable."
+        description="One customer record. Save it here and quotes, orders, and invoices use that same row."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -389,13 +430,16 @@ function ProfilesInner() {
                       name={c.trading_name}
                       size="sm"
                       compact
-                      onChange={(url) =>
+                      onChange={(url) => {
                         setCustomers((prev) =>
                           prev.map((row) =>
                             row.id === c.id ? { ...row, logo_url: url } : row
                           )
-                        )
-                      }
+                        );
+                        setBookHold((prev) =>
+                          prev && prev.id === c.id ? { ...prev, logo_url: url } : prev
+                        );
+                      }}
                     />
                     <button
                       type="button"
@@ -444,7 +488,10 @@ function ProfilesInner() {
               busy={actionId === selected.id}
               inviting={inviteOpenId === selected.id}
               commercialOpen={commercialId === selected.id}
+              bookReady={bookReady}
+              bookMiss={bookMiss}
               onClose={() => selectCustomer(null)}
+              onSaved={mergeSaved}
               onChanged={() => void load()}
               onToggleCommercial={() =>
                 setCommercialId((cur) => (cur === selected.id ? null : selected.id))
@@ -479,6 +526,49 @@ function customerStatusClass(status?: string | null) {
   return 'bg-emerald-50 text-emerald-800';
 }
 
+type BookForm = {
+  trading_name: string;
+  legal_name: string;
+  contact_name: string;
+  email: string;
+  phone: string;
+  customer_type: string;
+  status: string;
+  industry: string;
+  vat_number: string;
+  billing_address: string;
+  city: string;
+  country: string;
+  currency: string;
+  payment_terms: string;
+  credit_limit: string;
+};
+
+function bookFormFrom(c: CustomerRecord): BookForm {
+  return {
+    trading_name: c.trading_name || '',
+    legal_name: c.legal_name || '',
+    contact_name: c.contact_name || '',
+    email: c.email || '',
+    phone: c.phone || '',
+    customer_type: c.customer_type || 'business',
+    status: c.status || 'active',
+    industry: c.industry || '',
+    vat_number: c.vat_number || '',
+    billing_address: c.billing_address || '',
+    city: c.city || '',
+    country: c.country || '',
+    currency: c.currency || 'ZAR',
+    payment_terms: c.payment_terms || 'Net 30',
+    credit_limit:
+      c.credit_limit != null && Number(c.credit_limit) > 0
+        ? String(c.credit_limit)
+        : '',
+  };
+}
+
+const STATUS_OPTIONS = ['active', 'prospect', 'inactive', 'on_hold'];
+
 function CustomerAccountPanel({
   customer: c,
   companyId,
@@ -487,7 +577,10 @@ function CustomerAccountPanel({
   busy,
   inviting,
   commercialOpen,
+  bookReady,
+  bookMiss,
   onClose,
+  onSaved,
   onChanged,
   onToggleCommercial,
   onInvite,
@@ -505,7 +598,10 @@ function CustomerAccountPanel({
   busy: boolean;
   inviting: boolean;
   commercialOpen: boolean;
+  bookReady: boolean;
+  bookMiss: boolean;
   onClose: () => void;
+  onSaved: (customer: CustomerRecord) => void;
   onChanged: () => void;
   onToggleCommercial: () => void;
   onInvite: () => void;
@@ -520,18 +616,87 @@ function CustomerAccountPanel({
   const held =
     String(c.notes || '').includes('[credit hold]') ||
     String(c.status || '').toLowerCase() === 'credit_hold';
+  const [form, setForm] = useState<BookForm>(() => bookFormFrom(c));
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!bookReady) return;
+    setForm(bookFormFrom(c));
+  }, [bookReady, c.id, c.updated_at]);
+
+  const set = (key: keyof BookForm, value: string) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
+
+  const save = async () => {
+    if (!form.trading_name.trim()) {
+      toast.error('Trading name required');
+      return;
+    }
+    if (form.credit_limit.trim() && !Number.isFinite(Number(form.credit_limit))) {
+      toast.error('Credit limit must be a number');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: c.id,
+          companyId,
+          privyUserId: privyUserId || undefined,
+          trading_name: form.trading_name.trim(),
+          legal_name: form.legal_name,
+          contact_name: form.contact_name,
+          email: form.email,
+          phone: form.phone,
+          customer_type: form.customer_type,
+          ...(held ? {} : { status: form.status }),
+          industry: form.industry,
+          vat_number: form.vat_number,
+          billing_address: form.billing_address,
+          city: form.city,
+          country: form.country,
+          currency: form.currency,
+          payment_terms: form.payment_terms,
+          credit_limit: form.credit_limit.trim() === '' ? null : Number(form.credit_limit),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Save failed');
+      const saved = (data.customer || null) as CustomerRecord | null;
+      toast.success('Saved to the customer book');
+      onSaved(saved && saved.id ? saved : { ...c, ...form, credit_limit: numericCredit(form.credit_limit) });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const terms = form.payment_terms &&
+    !(DEFAULT_PAYMENT_TERMS_OPTIONS as readonly string[]).includes(form.payment_terms)
+    ? [form.payment_terms, ...DEFAULT_PAYMENT_TERMS_OPTIONS]
+    : [...DEFAULT_PAYMENT_TERMS_OPTIONS];
+  const currencies = (CURRENCIES as readonly string[]).includes(form.currency)
+    ? CURRENCIES
+    : [form.currency, ...CURRENCIES];
+  const statuses = STATUS_OPTIONS.includes(form.status)
+    ? STATUS_OPTIONS
+    : [form.status, ...STATUS_OPTIONS];
+
   return (
-    <aside className="rounded-[1.5rem] border border-neutral-200 bg-white p-4 shadow-sm">
+    <aside className="max-h-[calc(100vh-7rem)] overflow-y-auto rounded-[1.5rem] border border-neutral-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6]">
             Account
           </p>
           <h2 className="truncate text-lg font-black tracking-tight text-slate-900">
-            {c.trading_name}
+            {form.trading_name || c.trading_name}
           </h2>
-          <p className="truncate text-xs text-neutral-500">
-            {c.legal_name || c.industry || 'Customer'}
+          <p className="text-xs text-neutral-500">
+            One database record. Quotes and invoices copy the terms and currency saved here.
           </p>
         </div>
         <button
@@ -557,21 +722,173 @@ function CustomerAccountPanel({
         </span>
       </div>
 
-      <dl className="mt-4 space-y-2 text-sm">
-        <Fact label="Contact" value={c.contact_name} />
-        <Fact label="Email" value={c.email} />
-        <Fact label="Phone" value={c.phone} />
-        <Fact label="Location" value={[c.city, c.country].filter(Boolean).join(', ')} />
-        <Fact label="Terms" value={c.payment_terms} />
-        <Fact
-          label="Credit limit"
-          value={
-            c.credit_limit != null && Number(c.credit_limit) > 0
-              ? Number(c.credit_limit).toLocaleString()
-              : null
-          }
-        />
-      </dl>
+      {bookReady ? (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <BookField label="Trading name *">
+            <input
+              className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
+              value={form.trading_name}
+              onChange={(e) => set('trading_name', e.target.value)}
+            />
+          </BookField>
+          <BookField label="Legal name">
+            <input
+              className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
+              value={form.legal_name}
+              onChange={(e) => set('legal_name', e.target.value)}
+            />
+          </BookField>
+          <BookField label="Contact">
+            <input
+              className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
+              value={form.contact_name}
+              onChange={(e) => set('contact_name', e.target.value)}
+            />
+          </BookField>
+          <BookField label="Email">
+            <input
+              type="email"
+              className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
+              value={form.email}
+              onChange={(e) => set('email', e.target.value)}
+            />
+          </BookField>
+          <BookField label="Phone">
+            <input
+              className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
+              value={form.phone}
+              onChange={(e) => set('phone', e.target.value)}
+            />
+          </BookField>
+          <BookField label="Type">
+            <select
+              className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
+              value={form.customer_type}
+              onChange={(e) => set('customer_type', e.target.value)}
+            >
+              <option value="business">Business</option>
+              <option value="individual">Individual</option>
+              <option value="government">Government</option>
+              <option value="ngo">NGO</option>
+            </select>
+          </BookField>
+          {held ? (
+            <BookField label="Status">
+              <p className="mt-1 text-sm font-semibold normal-case tracking-normal text-rose-800">
+                Credit hold. Press Clear to lift it.
+              </p>
+            </BookField>
+          ) : (
+            <BookField label="Status">
+              <select
+                className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
+                value={form.status}
+                onChange={(e) => set('status', e.target.value)}
+              >
+                {statuses.map((s) => (
+                  <option key={s} value={s}>
+                    {s.replace(/_/g, ' ')}
+                  </option>
+                ))}
+              </select>
+            </BookField>
+          )}
+          <BookField label="City">
+            <input
+              className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
+              value={form.city}
+              onChange={(e) => set('city', e.target.value)}
+            />
+          </BookField>
+          <BookField label="Country">
+            <input
+              className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
+              value={form.country}
+              onChange={(e) => set('country', e.target.value)}
+            />
+          </BookField>
+          <BookField label="Payment terms">
+            <select
+              className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
+              value={form.payment_terms}
+              onChange={(e) => set('payment_terms', e.target.value)}
+            >
+              {terms.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </BookField>
+          <BookField label="Currency">
+            <select
+              className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
+              value={form.currency}
+              onChange={(e) => set('currency', e.target.value)}
+            >
+              {currencies.map((cur) => (
+                <option key={cur} value={cur}>
+                  {cur}
+                </option>
+              ))}
+            </select>
+          </BookField>
+          <BookField label="Credit limit">
+            <input
+              inputMode="decimal"
+              className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
+              value={form.credit_limit}
+              placeholder="No limit"
+              onChange={(e) => set('credit_limit', e.target.value)}
+            />
+          </BookField>
+          <BookField label="VAT number">
+            <input
+              className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
+              value={form.vat_number}
+              onChange={(e) => set('vat_number', e.target.value)}
+            />
+          </BookField>
+          <BookField label="Industry" wide>
+            <input
+              className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
+              value={form.industry}
+              onChange={(e) => set('industry', e.target.value)}
+            />
+          </BookField>
+          <BookField label="Billing address" wide>
+            <textarea
+              className="input mt-0.5 min-h-[64px] w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
+              value={form.billing_address}
+              onChange={(e) => set('billing_address', e.target.value)}
+            />
+          </BookField>
+          <div className="sm:col-span-2">
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void save()}
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#0077b6] px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Save to customer book
+            </button>
+          </div>
+        </div>
+      ) : (
+        <dl className="mt-4 space-y-2 text-sm">
+          <Fact label="Contact" value={c.contact_name} />
+          <Fact label="Email" value={c.email} />
+          <Fact label="Phone" value={c.phone} />
+          <Fact label="Location" value={[c.city, c.country].filter(Boolean).join(', ')} />
+          <Fact label="Terms" value={c.payment_terms} />
+          <p className="text-xs text-neutral-500">
+            {bookMiss
+              ? 'The saved record did not load. Use Full record to edit it.'
+              : 'Loading the saved record…'}
+          </p>
+        </dl>
+      )}
 
       {held ? (
         <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2">
@@ -612,16 +929,16 @@ function CustomerAccountPanel({
           href={`/dashboard/customers/onboard?id=${c.id}`}
           className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:border-[#00b4d8]/40 hover:text-[#0077b6]"
         >
-          <Pencil className="h-3.5 w-3.5" /> Edit
+          <Pencil className="h-3.5 w-3.5" /> Full record
         </Link>
         <Link
-          href="/dashboard/customers/quotes"
+          href={`/dashboard/customers/quotes?customerId=${c.id}`}
           className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:border-[#00b4d8]/40 hover:text-[#0077b6]"
         >
           <FileText className="h-3.5 w-3.5" /> Quote
         </Link>
         <Link
-          href="/dashboard/customers/invoices"
+          href={`/dashboard/customers/invoices?customerId=${c.id}`}
           className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:border-[#00b4d8]/40 hover:text-[#0077b6]"
         >
           <Receipt className="h-3.5 w-3.5" /> Invoice
@@ -717,6 +1034,33 @@ function CustomerAccountPanel({
         </div>
       ) : null}
     </aside>
+  );
+}
+
+function numericCredit(raw: string): number | null {
+  if (!raw.trim()) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+function BookField({
+  label,
+  children,
+  wide,
+}: {
+  label: string;
+  children: ReactNode;
+  wide?: boolean;
+}) {
+  return (
+    <label
+      className={`block text-[10px] font-bold uppercase tracking-wider text-neutral-400 ${
+        wide ? 'sm:col-span-2' : ''
+      }`}
+    >
+      {label}
+      {children}
+    </label>
   );
 }
 

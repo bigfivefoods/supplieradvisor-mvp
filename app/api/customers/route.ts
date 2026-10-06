@@ -3,7 +3,9 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCustomersAccess } from '@/lib/customers/access';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 import { bookIlikeOr } from '@/lib/security/book-search';
+import { customerPatchUpdates } from '@/lib/customers/book-persist';
 import {
+  CUSTOMER_BOOK_COLUMNS,
   CUSTOMER_LIST_COLUMNS,
   parseBeforeId,
   parseListLimit,
@@ -37,8 +39,60 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = getSupabaseServer();
+    const rawId = Number(request.nextUrl.searchParams.get('id'));
+    const byId = Number.isFinite(rawId) && rawId > 0;
     const limit = parseListLimit(request.nextUrl.searchParams.get('limit'));
     const beforeId = parseBeforeId(request.nextUrl.searchParams.get('beforeId'));
+
+    if (byId) {
+      const hit = await supabase
+        .from('customers')
+        .select(CUSTOMER_BOOK_COLUMNS)
+        .eq('profile_id', companyId)
+        .eq('id', rawId)
+        .limit(1);
+      if (hit.error) {
+        return NextResponse.json({
+          success: true,
+          customers: [],
+          book: false,
+          warning: hit.error.message,
+          hint: 'Run supabase/migrations/20260709_crm_leads_opportunities.sql',
+        });
+      }
+      let customers = hit.data || [];
+      const linkedIds = [
+        ...new Set(
+          customers
+            .map((c) => Number(c.linked_profile_id))
+            .filter((n) => Number.isFinite(n) && n > 0)
+        ),
+      ];
+      if (linkedIds.length) {
+        const { data: logos } = await supabase
+          .from('profiles')
+          .select('id, logo_url')
+          .in('id', linkedIds);
+        const logoById: Record<number, string | null> = {};
+        for (const p of logos || []) {
+          logoById[Number(p.id)] = p.logo_url ? String(p.logo_url) : null;
+        }
+        customers = customers.map((c) => ({
+          ...c,
+          logo_url:
+            c.logo_url ||
+            (c.linked_profile_id ? logoById[Number(c.linked_profile_id)] || null : null),
+        }));
+      }
+      const { data: srm } = await supabase
+        .from('srm_suppliers')
+        .select('id, linked_profile_id, email, trading_name, legal_name, metadata')
+        .eq('profile_id', companyId)
+        .limit(400);
+      customers = filterCustomerDeskRows(customers, srm || []);
+      return NextResponse.json({ success: true, customers, book: true });
+    }
+
     let query = supabase
       .from('customers')
       .select(CUSTOMER_LIST_COLUMNS)
@@ -138,7 +192,7 @@ export async function GET(request: NextRequest) {
       .limit(400);
     customers = filterCustomerDeskRows(customers, srm || []);
 
-    return NextResponse.json({ success: true, customers });
+    return NextResponse.json({ success: true, customers, book: false });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
   }
@@ -479,46 +533,7 @@ export async function PATCH(request: NextRequest) {
       });
     }
 
-    const fields = [
-      'trading_name',
-      'legal_name',
-      'email',
-      'phone',
-      'contact_name',
-      'job_title',
-      'status',
-      'customer_type',
-      'billing_address',
-      'shipping_address',
-      'credit_limit',
-      'website',
-      'industry',
-      'vat_number',
-      'registration_number',
-      'city',
-      'country',
-      'continent',
-      'province',
-      'region',
-      'postal_code',
-      'currency',
-      'payment_terms',
-      'source',
-      'owner_name',
-      'notes',
-      'rating',
-      'logo_url',
-    ] as const;
-    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    for (const f of fields) {
-      if (body[f] !== undefined) updates[f] = body[f];
-    }
-    if (updates.province != null && updates.region === undefined) {
-      updates.region = updates.province;
-    }
-    if (updates.region != null && updates.province === undefined) {
-      updates.province = updates.region;
-    }
+    const updates = customerPatchUpdates(body);
     let q = supabase.from('customers').update(updates).eq('id', Number(body.id)).eq('profile_id', companyId);
     let { data, error } = await q.select('*').single();
     if (error && /logo_url|continent|province|column|schema cache|does not exist/i.test(error.message || '')) {

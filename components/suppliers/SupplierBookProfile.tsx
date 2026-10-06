@@ -137,8 +137,8 @@ export function SupplierBookProfile({
             {form.trading_name || supplier.trading_name}
           </h2>
           <p className="text-sm text-neutral-600 mt-1">
-            Same record the supplier portal saves. Changes here show there, and
-            the other way around.
+            Same record the supplier portal saves. Purchase orders copy the
+            payment terms saved here.
           </p>
         </div>
         <button
