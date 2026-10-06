@@ -43,6 +43,7 @@ import {
 import { writeCustomerBrand } from '@/lib/inventory/customer-brand';
 import { ProductPhoto } from '@/components/inventory/ProductPhoto';
 import { ProductCommercial } from '@/components/commercial/CommercialPanel';
+import SecureDocLink from '@/components/storage/SecureDocLink';
 
 type CategoryRow = {
   id: number;
@@ -669,29 +670,25 @@ function ProductsInner() {
                           )}
                           <div className="flex flex-wrap items-center gap-2 mt-0.5">
                             {p.specs_sheet_url && (
-                              <a
-                                href={p.specs_sheet_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <SecureDocLink
+                                companyId={companyId}
+                                refOrUrl={p.specs_sheet_url}
                                 className="text-[11px] text-[#00b4d8] inline-flex items-center gap-1 hover:underline"
-                                onClick={(e) => e.stopPropagation()}
                               >
                                 <FileText className="w-3 h-3" />
-                                Specs
-                              </a>
+                                <span>Specs</span>
+                              </SecureDocLink>
                             )}
                             {p.upstream_specs_sheet_url &&
                               p.upstream_specs_sheet_url !== p.specs_sheet_url && (
-                                <a
-                                  href={p.upstream_specs_sheet_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                                <SecureDocLink
+                                  companyId={companyId}
+                                  refOrUrl={p.upstream_specs_sheet_url}
                                   className="text-[11px] text-violet-700 inline-flex items-center gap-1 hover:underline"
-                                  onClick={(e) => e.stopPropagation()}
                                 >
                                   <FileText className="w-3 h-3" />
-                                  Manufacturer
-                                </a>
+                                  <span>Manufacturer</span>
+                                </SecureDocLink>
                               )}
                             {(() => {
                               const meta =
@@ -933,14 +930,13 @@ function ProductsInner() {
                     {(specFile || existingSpecUrl) && (
                       <div className="flex items-center gap-3 mt-1">
                         {existingSpecUrl && !specFile && (
-                          <a
-                            href={existingSpecUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <SecureDocLink
+                            companyId={companyId}
+                            refOrUrl={existingSpecUrl}
                             className="text-[11px] text-[#00b4d8] hover:underline inline-flex items-center gap-1"
                           >
                             <ExternalLink className="w-3 h-3" /> View current
-                          </a>
+                          </SecureDocLink>
                         )}
                         <button
                           type="button"
@@ -957,16 +953,15 @@ function ProductsInner() {
                     )}
                     {editingId &&
                       products.find((x) => x.id === editingId)?.upstream_specs_sheet_url && (
-                        <a
-                          href={
+                        <SecureDocLink
+                          companyId={companyId}
+                          refOrUrl={
                             products.find((x) => x.id === editingId)!.upstream_specs_sheet_url!
                           }
-                          target="_blank"
-                          rel="noopener noreferrer"
                           className="text-[11px] text-violet-700 hover:underline inline-flex items-center gap-1 mt-1.5"
                         >
                           <ExternalLink className="w-3 h-3" /> Manufacturer sheet (upstream)
-                        </a>
+                        </SecureDocLink>
                       )}
                   </div>
                 </div>

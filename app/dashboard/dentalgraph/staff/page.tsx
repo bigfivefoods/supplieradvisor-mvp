@@ -1133,6 +1133,7 @@ export default function StaffPage() {
 
                       <div className="mt-3">
                         <PersonQualificationsEditor
+                          companyId={companyId}
                           qualifications={p.qualifications || []}
                           onChange={(next) => void saveQualifications(p, next)}
                           uploadFile={async (file) => {

@@ -3,12 +3,12 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCompanyMember } from '@/lib/customers/access';
 import { normalizeProfileRow } from '@/lib/business/types';
 import {
-  COMPANY_DOC_BUCKETS,
   COMPANY_IMAGE_BUCKETS,
   dbColumnsForAppField,
   APP_DOCUMENT_FIELDS,
 } from '@/lib/business/documentFields';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
+import { uploadSensitiveDoc } from '@/lib/storage/private-docs';
 
 /**
  * POST multipart — upload a company document via service-role Supabase storage,
@@ -62,7 +62,8 @@ export async function POST(request: NextRequest) {
       kind === 'logo' ||
       kind === 'school_photo' ||
       kind === 'nsnp_product' ||
-      kind === 'product_image' ||
+      kind.startsWith('product_image') ||
+      kind.startsWith('container_photo') ||
       profileField === 'logo_url';
     if (isLogo && file.type && !file.type.startsWith('image/')) {
       return NextResponse.json(
@@ -72,9 +73,13 @@ export async function POST(request: NextRequest) {
     }
 
     let ext = file.name.split('.').pop()?.toLowerCase() || (isLogo ? 'png' : 'pdf');
-    const buckets = isLogo ? [...COMPANY_IMAGE_BUCKETS] : [...COMPANY_DOC_BUCKETS];
     let buffer = Buffer.from(await file.arrayBuffer());
     let contentType = file.type || 'application/octet-stream';
+
+    const supabase = getSupabaseServer();
+    let publicUrl: string | null = null;
+    let usedBucket: string | null = null;
+
     if (isLogo) {
       try {
         const sharp = (await import('sharp')).default;
@@ -86,40 +91,41 @@ export async function POST(request: NextRequest) {
       } catch {
         /* keep original bytes if this runtime cannot decode the upload */
       }
-    }
-    const filePath = `${companyId}/profile/${safeName(kind)}-${Date.now()}.${ext}`;
-
-    const supabase = getSupabaseServer();
-    let publicUrl: string | null = null;
-    let usedBucket: string | null = null;
-    const errors: string[] = [];
-
-    for (const bucket of buckets) {
-      const { error } = await supabase.storage.from(bucket).upload(filePath, buffer, {
-        cacheControl: '3600',
-        upsert: true,
-        contentType,
-      });
-      if (!error) {
-        const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
-        publicUrl = data.publicUrl;
-        usedBucket = bucket;
-        break;
+      const filePath = `${companyId}/profile/${safeName(kind)}-${Date.now()}.${ext}`;
+      const errors: string[] = [];
+      for (const bucket of COMPANY_IMAGE_BUCKETS) {
+        const { error } = await supabase.storage.from(bucket).upload(filePath, buffer, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType,
+        });
+        if (!error) {
+          const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
+          publicUrl = data.publicUrl;
+          usedBucket = bucket;
+          break;
+        }
+        errors.push(`${bucket}: ${error.message}`);
       }
-      errors.push(`${bucket}: ${error.message}`);
-    }
-
-    if (!publicUrl) {
-      return NextResponse.json(
-        {
-          error: 'Storage upload failed',
-          hint:
-            'Ensure Supabase Storage has a public bucket "company-documents" (or "certificates"). Service role must be able to upload.',
-          details: errors,
-          bucketsTried: buckets,
-        },
-        { status: 502 }
-      );
+      if (!publicUrl) {
+        return NextResponse.json(
+          {
+            error: 'Storage upload failed',
+            details: errors,
+            bucketsTried: [...COMPANY_IMAGE_BUCKETS],
+          },
+          { status: 502 }
+        );
+      }
+    } else {
+      publicUrl = await uploadSensitiveDoc({
+        companyId,
+        kind: safeName(kind || profileField || 'document'),
+        body: buffer,
+        contentType,
+        ext,
+      });
+      usedBucket = 'sensitive-documents';
     }
 
     // Persist URL onto all alias columns that exist on profiles

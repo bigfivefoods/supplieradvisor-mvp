@@ -1,29 +1,23 @@
-import { createClient } from '@/utils/supabase/client';
+async function uploadViaServer(opts: {
+  file: File;
+  companyId: number | string;
+  kind: string;
+}): Promise<{ url: string | null; error?: string }> {
+  const body = new FormData();
+  body.append('file', opts.file);
+  body.append('companyId', String(opts.companyId));
+  body.append('kind', opts.kind);
 
-const IMAGE_BUCKETS = ['product-images', 'container-photos', 'company-documents'];
-const DOC_BUCKETS = ['product-documents', 'company-documents', 'contractor-documents'];
-
-async function uploadToBuckets(
-  file: File,
-  filePath: string,
-  buckets: string[]
-): Promise<{ url: string | null; error?: string }> {
-  const supabase = createClient();
-  for (const bucket of buckets) {
-    const { error } = await supabase.storage.from(bucket).upload(filePath, file, {
-      cacheControl: '3600',
-      upsert: true,
-      contentType: file.type || 'application/octet-stream',
-    });
-    if (!error) {
-      const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
-      return { url: data.publicUrl };
-    }
+  const res = await fetch('/api/business/upload', {
+    method: 'POST',
+    body,
+    credentials: 'include',
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data?.url) {
+    return { url: null, error: data?.error || 'Upload failed' };
   }
-  return {
-    url: null,
-    error: `Upload failed. Create a public Storage bucket: ${buckets[0]} (or company-documents).`,
-  };
+  return { url: String(data.url) };
 }
 
 /** Product photo (JPG/PNG/WebP). */
@@ -38,10 +32,8 @@ export async function uploadProductImage(
   if (file.size > 8 * 1024 * 1024) {
     return { url: null, error: 'Image must be under 8MB' };
   }
-  const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-  const safe = (skuOrName || 'product').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
-  const filePath = `${companyId}/products/images/${safe}-${Date.now()}.${ext}`;
-  return uploadToBuckets(file, filePath, IMAGE_BUCKETS);
+  const suffix = (skuOrName || 'product').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
+  return uploadViaServer({ file, companyId, kind: `product_image-${suffix}` });
 }
 
 /** Specifications sheet (PDF preferred; also Office docs). */
@@ -63,9 +55,7 @@ export async function uploadProductSpecSheet(
   if (file.size > 15 * 1024 * 1024) {
     return { url: null, error: 'Spec sheet must be under 15MB' };
   }
-  const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
-  const safe = (skuOrName || 'product').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
-  const filePath = `${companyId}/products/specs/${safe}-${Date.now()}.${ext}`;
-  const result = await uploadToBuckets(file, filePath, DOC_BUCKETS);
+  const suffix = (skuOrName || 'product').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
+  const result = await uploadViaServer({ file, companyId, kind: `product_specs-${suffix}` });
   return { ...result, fileName: file.name };
 }

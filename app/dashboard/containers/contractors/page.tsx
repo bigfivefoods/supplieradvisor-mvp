@@ -26,6 +26,7 @@ import {
   ContainersHeader,
   ContainersPage,
 } from '@/components/containers/ContainersShell';
+import SecureDocLink from '@/components/storage/SecureDocLink';
 
 const TRAINING = ['pending', 'in_progress', 'certified', 'expired'] as const;
 
@@ -587,16 +588,17 @@ function ContractorsInner() {
                         />
                       </label>
                       {c.id_document_url && (
-                        <a
-                          href={c.id_document_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <SecureDocLink
+                          companyId={companyId}
+                          refOrUrl={String(c.id_document_url)}
                           className="text-neutral-600 text-sm inline-flex items-center gap-1.5 hover:underline"
                         >
                           <FileText className="w-4 h-4" />
-                          View ID doc
-                          {c.id_document_name ? ` (${c.id_document_name})` : ''}
-                        </a>
+                          <span>
+                            View ID doc
+                            {c.id_document_name ? ` (${c.id_document_name})` : ''}
+                          </span>
+                        </SecureDocLink>
                       )}
                       <button
                         type="button"

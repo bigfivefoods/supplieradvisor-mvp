@@ -6,6 +6,7 @@ import { TillPresentPay } from '@/components/till/TillPresentPay';
 import { AdvisorPayoutSettings } from '@/components/advisors/AdvisorPayoutSettings';
 import { toast } from 'sonner';
 import { useApiAuth } from '@/lib/client/use-api-auth';
+import SecureDocLink from '@/components/storage/SecureDocLink';
 import {
   formatZar,
   kindAccountLabel,
@@ -215,15 +216,14 @@ export function AdvisorMemberAccounts({
                     {p.notes ? ` · ${p.notes}` : ''}
                   </p>
                 </div>
-                {p.proof_url ? (
-                  <a
-                    href={p.proof_url}
-                    target="_blank"
-                    rel="noreferrer"
+                {p.proof_url && companyId ? (
+                  <SecureDocLink
+                    companyId={companyId}
+                    refOrUrl={p.proof_url}
                     className="text-xs font-bold text-sky-700"
                   >
                     View proof
-                  </a>
+                  </SecureDocLink>
                 ) : null}
                 <button
                   type="button"

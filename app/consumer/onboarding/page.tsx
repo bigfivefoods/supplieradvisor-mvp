@@ -24,11 +24,16 @@ export default function ConsumerOnboarding() {
   const handleIDUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const fileName = `${cleanId}-id-${Date.now()}.${file.name.split('.').pop()}`;
-    const { error } = await supabase.storage.from('certificates').upload(fileName, file, { upsert: true });
-    if (error) return toast.error('Upload failed');
-    const { data: { publicUrl } } = supabase.storage.from('certificates').getPublicUrl(fileName);
-    setForm(p => ({ ...p, id_document_url: publicUrl }));
+    const body = new FormData();
+    body.append('file', file);
+    const res = await fetch('/api/consumer/onboarding/document', {
+      method: 'POST',
+      body,
+      credentials: 'include',
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.url) return toast.error(data?.error || 'Upload failed');
+    setForm(p => ({ ...p, id_document_url: String(data.url) }));
     toast.success('✅ ID uploaded');
   };
 

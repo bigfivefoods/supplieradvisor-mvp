@@ -1,8 +1,7 @@
 /**
  * Server-only movement image / video storage.
  */
-import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { COMPANY_DOC_BUCKETS } from '@/lib/business/documentFields';
+import { uploadSensitiveDoc } from '@/lib/storage/private-docs';
 
 function safeName(name?: string) {
   return (name || 'file').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 60);
@@ -40,24 +39,18 @@ export async function storeFitMovementMedia(opts: {
   const ext =
     opts.fileName.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') ||
     'bin';
-  const filePath = `${opts.companyId}/movements/${Date.now()}-${safeName(
-    opts.fileName.replace(/\.[^.]+$/, '')
-  )}.${ext}`;
-  const supabase = getSupabaseServer();
-  const errors: string[] = [];
-  for (const bucket of COMPANY_DOC_BUCKETS) {
-    const { error } = await supabase.storage
-      .from(bucket)
-      .upload(filePath, opts.buffer, {
-        cacheControl: '3600',
-        upsert: true,
-        contentType: opts.contentType || 'application/octet-stream',
-      });
-    if (!error) {
-      const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
-      return { url: data.publicUrl, fileName: opts.fileName };
-    }
-    errors.push(`${bucket}: ${error.message}`);
+  const isImage = (opts.contentType || '').startsWith('image/');
+  const kind = isImage ? 'movements-image' : 'movements-document';
+  try {
+    const ref = await uploadSensitiveDoc({
+      companyId: opts.companyId,
+      kind,
+      body: opts.buffer,
+      contentType: opts.contentType || 'application/octet-stream',
+      ext,
+    });
+    return { url: ref, fileName: opts.fileName };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Upload failed' };
   }
-  return { error: errors.join('; ') || 'Upload failed' };
 }
