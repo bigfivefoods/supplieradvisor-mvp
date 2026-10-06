@@ -2,6 +2,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { isMissingRelation } from '@/lib/business/company-data';
 import {
   migrationHint,
+  normalizeSections,
   type TradePortalKind,
   type TradePortalRow,
   type TradePortalViewer,
@@ -88,7 +89,16 @@ export async function resolveGuestViewer(
     title: p.title != null ? String(p.title) : null,
     welcome_message:
       p.welcome_message != null ? String(p.welcome_message) : null,
-    sections: (p.sections as TradePortalRow['sections']) || {},
+    sections: {
+      ...normalizeSections(p.sections),
+      credit:
+        p.sections &&
+        typeof p.sections === 'object' &&
+        !Array.isArray(p.sections) &&
+        typeof (p.sections as Record<string, unknown>).credit === 'boolean'
+          ? Boolean((p.sections as Record<string, unknown>).credit)
+          : kind === 'customer',
+    },
     status: 'active',
   };
 

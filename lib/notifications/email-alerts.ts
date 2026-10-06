@@ -7,11 +7,14 @@ import { resolveCompanyEmails } from '@/lib/billing/company-emails';
 import {
   escapeEmailHtml,
   renderAdvisorNoticeEmail,
+  renderClientEmailLayout,
 } from '@/lib/services/advisor-branded-email';
 import {
   chainPoSubject,
   chainProductionSubject,
 } from '@/lib/orders/chain-mail-copy';
+import { isVukaNotificationSuppressed } from '@/lib/notifications/email-suppress';
+import { getSupabaseServer } from '@/lib/supabase/server-client';
 
 function appBase() {
   return (
@@ -38,6 +41,149 @@ async function sendAlert(params: {
   if (!process.env.RESEND_API_KEY) {
     console.warn('[email-alerts] RESEND_API_KEY not set — skip');
     return { ok: false, error: 'RESEND_API_KEY not set' };
+  }
+
+  export async function notifyCreditApplicationSubmitted(params: {
+    profileId: number;
+    applicationId: number;
+  }): Promise<void> {
+    try {
+      if (
+        isVukaNotificationSuppressed({
+          companyId: params.profileId,
+        })
+      ) {
+        return;
+      }
+      const to = await companyEmails(params.profileId);
+      const href = `${appBase()}/dashboard/customers/credit/${params.applicationId}`;
+      const mail = renderAdvisorNoticeEmail({
+        brand: 'SupplierAdvisor',
+        subject: 'New customer credit application submitted',
+        headline: 'Credit application submitted',
+        leadHtml: `A customer submitted a credit application. Review and decide in the credit desk.`,
+        detailKicker: 'Application',
+        detailTitle: `#${params.applicationId}`,
+        ctaUrl: href,
+        ctaLabel: 'Open credit application →',
+      });
+      await sendAlert({
+        to,
+        subject: `[SupplierAdvisor] ${mail.subject}`,
+        html: mail.html,
+      });
+    } catch (e) {
+      console.warn('notifyCreditApplicationSubmitted', e);
+    }
+  }
+
+  export async function notifyCreditApplicationStatus(params: {
+    profileId: number;
+    applicationId: number;
+    toStatus: 'more_info_needed' | 'approved' | 'declined';
+    note?: string | null;
+    approvedLimit?: number | null;
+    approvedTerms?: string | null;
+  }): Promise<void> {
+    try {
+      if (
+        isVukaNotificationSuppressed({
+          companyId: params.profileId,
+        })
+      ) {
+        return;
+      }
+
+      const supabase = getSupabaseServer();
+      const { data: app } = await supabase
+        .from('credit_applications')
+        .select('id, customer_id, viewer_id')
+        .eq('id', params.applicationId)
+        .eq('profile_id', params.profileId)
+        .maybeSingle();
+      if (!app) return;
+
+      const [{ data: viewer }, { data: customer }, { data: host }] = await Promise.all([
+        app.viewer_id
+          ? supabase
+              .from('trade_portal_viewers')
+              .select('email, token, name')
+              .eq('id', Number(app.viewer_id))
+              .eq('profile_id', params.profileId)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        supabase
+          .from('customers')
+          .select('email, trading_name, contact_name')
+          .eq('id', Number(app.customer_id))
+          .eq('profile_id', params.profileId)
+          .maybeSingle(),
+        supabase
+          .from('profiles')
+          .select('trading_name, legal_name, logo_url')
+          .eq('id', params.profileId)
+          .maybeSingle(),
+      ]);
+
+      const to = String(viewer?.email || customer?.email || '')
+        .trim()
+        .toLowerCase();
+      if (!to.includes('@')) return;
+      const linkToken = String(viewer?.token || '').trim();
+      const href = linkToken
+        ? `${appBase()}/portal/${encodeURIComponent(linkToken)}?tab=credit`
+        : `${appBase()}/dashboard/customers/credit/${params.applicationId}`;
+      const supplierName =
+        String(host?.trading_name || host?.legal_name || '').trim() ||
+        'SupplierAdvisor company';
+      const customerName =
+        String(customer?.contact_name || customer?.trading_name || viewer?.name || 'there').trim() ||
+        'there';
+
+      const statusLabel =
+        params.toStatus === 'more_info_needed'
+          ? 'More information needed'
+          : params.toStatus === 'approved'
+            ? 'Approved'
+            : 'Declined';
+
+      const detailLines = [
+        params.toStatus === 'approved' && params.approvedLimit != null
+          ? `Approved limit: ${Number(params.approvedLimit).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+          : '',
+        params.toStatus === 'approved' && params.approvedTerms
+          ? `Approved terms: ${escapeEmailHtml(String(params.approvedTerms).slice(0, 80))}`
+          : '',
+        params.toStatus === 'declined' && params.note
+          ? `Reason: ${escapeEmailHtml(String(params.note).slice(0, 500))}`
+          : '',
+        params.toStatus === 'more_info_needed' && params.note
+          ? `Note: ${escapeEmailHtml(String(params.note).slice(0, 500))}`
+          : '',
+      ]
+        .filter(Boolean)
+        .map((line) => `<li style=\"margin:0 0 6px\">${line}</li>`)
+        .join('');
+
+      const html = renderClientEmailLayout({
+        brand: supplierName,
+        logoUrl: host?.logo_url ? String(host.logo_url) : null,
+        headline: `Credit application update: ${statusLabel}`,
+        leadHtml: `Hello ${escapeEmailHtml(customerName)} — your credit application was updated by <strong>${escapeEmailHtml(supplierName)}</strong>.`,
+        detailHtml: detailLines ? `<ul style=\"margin:8px 0 0;padding-left:18px\">${detailLines}</ul>` : undefined,
+        ctaLabel: 'Open credit application',
+        ctaUrl: href,
+        footerNote: 'For security, this email does not include bank details, ID numbers, or document links.',
+      });
+
+      await sendAlert({
+        to: [to],
+        subject: `${supplierName} updated your credit application (${statusLabel})`,
+        html,
+      });
+    } catch (e) {
+      console.warn('notifyCreditApplicationStatus', e);
+    }
   }
   try {
     const resend = getResend();

@@ -15,6 +15,7 @@ assert.deepEqual(customer, [
   'profile',
   'people',
   'docs',
+  'credit',
   'enquiries',
   'quotes',
   'newpo',
@@ -30,10 +31,16 @@ assert.deepEqual(customer, [
 ]);
 const customerLabels = guestPortalTabs({ kind: 'customer' }).map((t) => t.label);
 assert.deepEqual(
-  customerLabels.slice(3, 9),
+  customerLabels.slice(4, 10),
   ['Enquiry', 'Quote', 'Order', 'Sales order', 'Stock', 'Statement']
 );
 assert.equal(customerLabels.includes('Commercial'), false);
+assert.equal(
+guestPortalTabs({ kind: 'customer', sections: { credit: false } })
+  .map((t) => t.id)
+  .includes('credit'),
+false
+);
 
 const supplier = guestPortalTabs({ kind: 'supplier' }).map((t) => t.id);
 assert.deepEqual(supplier, [
@@ -59,6 +66,7 @@ assert.equal(groups[3].id, 'relate');
 assert.equal(groups.at(-1)?.id, 'demo');
 assert.equal(groups.at(-1)?.align, 'end');
 assert.equal(groups[0].tabs[0].label, 'Profile (2)');
+assert.equal(groups[0].tabs.some((t) => t.id === 'credit'), true);
 assert.equal(
   groups[1].tabs.find((t) => t.id === 'statement')?.label,
   'Statement'

@@ -60,6 +60,7 @@ const CUSTOMER_SECTIONS: Array<{ key: keyof PortalSections; label: string; hint:
   { key: 'commercial', label: 'Commercial', hint: 'Accepted prices and proposals' },
   { key: 'stock', label: 'Stock on hand', hint: 'Stock at their site' },
   { key: 'invoices', label: 'Invoices', hint: 'Invoice list, PDF and open balance' },
+  { key: 'credit', label: 'Credit application', hint: 'Customer credit onboarding and review status' },
   { key: 'projects', label: 'Projects', hint: 'Joint waterfall — both sides edit tasks' },
   { key: 'documents', label: 'Documents', hint: 'Certs and files' },
   { key: 'messages', label: 'Messages', hint: 'Direct thread' },

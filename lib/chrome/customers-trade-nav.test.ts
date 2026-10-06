@@ -18,6 +18,7 @@ assert.deepEqual(tradeRail, [
   'Quote',
   'Order',
   'Invoice',
+  'Credit',
   'Projects',
 ]);
 assert.equal(
@@ -27,9 +28,11 @@ assert.equal(
 
 const names = customers!.steps.filter((s) => s.rail !== false).map((s) => s.name);
 const invoiceAt = names.indexOf('Invoice');
+const creditAt = names.indexOf('Credit');
 const projectsAt = names.indexOf('Projects');
-assert.ok(invoiceAt >= 0 && projectsAt >= 0);
-assert.ok(projectsAt === invoiceAt + 1, 'Projects sits immediately below Invoice');
+assert.ok(invoiceAt >= 0 && creditAt >= 0 && projectsAt >= 0);
+assert.ok(creditAt === invoiceAt + 1, 'Credit sits immediately below Invoice');
+assert.ok(projectsAt === creditAt + 1, 'Projects sits immediately below Credit');
 
 const page = readFileSync(
   resolve('app/dashboard/customers/enquiries/page.tsx'),

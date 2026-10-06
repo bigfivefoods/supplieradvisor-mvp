@@ -375,6 +375,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       { name: 'Quote', href: '/dashboard/customers/quotes', desc: 'Quotations', section: 'Trade' },
       { name: 'Order', href: '/dashboard/customers/orders', desc: 'Sales orders & inbound POs', section: 'Trade' },
       { name: 'Invoice', href: '/dashboard/customers/invoices', desc: 'Bill customers', section: 'Trade' },
+      { name: 'Credit', href: '/dashboard/customers/credit', desc: 'Credit applications and approvals', section: 'Trade' },
       {
         name: 'Projects',
         href: '/dashboard/customers/projects',
