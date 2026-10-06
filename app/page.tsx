@@ -24,7 +24,7 @@ export default function LandingPage() {
         <section className="border-b border-slate-200 bg-white px-4 pb-16 pt-28 sm:px-6 sm:pb-20 sm:pt-32 lg:px-10">
           <div className="mx-auto grid w-full max-w-screen-2xl gap-10 lg:grid-cols-[1.3fr_1fr] lg:gap-12">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-[#00b4d8]">
+              <p className="sa-text-brand-on-light text-xs font-black uppercase tracking-[0.22em]">
                 SupplierAdvisor®
               </p>
               <h2 className="mt-4 text-4xl font-black tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">
@@ -48,7 +48,7 @@ export default function LandingPage() {
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Link
                   href="/join"
-                  className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#0096c7]"
+                  className="sa-btn-brand inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-black shadow-sm transition hover:bg-[#22d3ee]"
                 >
                   Start free trial
                   <ArrowRight className="h-4 w-4" />

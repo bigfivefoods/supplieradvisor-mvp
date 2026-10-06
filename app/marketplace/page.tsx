@@ -76,7 +76,7 @@ export default function PublicMarketplacePage() {
             </Link>
             <Link
               href="/login?next=/dashboard/connections/marketplace"
-              className="rounded-full bg-[#00b4d8] text-white text-xs font-bold px-3 py-1.5"
+              className="sa-btn-brand rounded-full px-3 py-1.5 text-xs font-bold"
             >
               Sign in to trade
             </Link>

@@ -107,7 +107,7 @@ export default function HomePricing() {
             </div>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-[-1.5px] sm:tracking-[-2px] text-slate-900 max-w-3xl mx-auto leading-[1.08]">
               One plan. Full platform.
-              <span className="block text-[#00b4d8] mt-1">
+              <span className="sa-text-brand-on-light mt-1 block">
                 {COMPANY_TRIAL_DAYS} days free, then from R
                 {COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo
               </span>
@@ -270,7 +270,7 @@ export default function HomePricing() {
             After trial, subscribe in{' '}
             <Link
               href="/dashboard/my-business/billing"
-              className="font-semibold text-[#00b4d8] hover:underline"
+              className="sa-text-brand-on-light font-semibold hover:underline"
             >
               My Business → Billing
             </Link>{' '}
@@ -462,7 +462,7 @@ export default function HomePricing() {
                     {referralRatesSummary()}.
                   </p>
                 </div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700/80 shrink-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-800 shrink-0">
                   Illustrative only · not a forecast
                 </p>
               </div>
@@ -513,7 +513,7 @@ export default function HomePricing() {
                           <div className="text-[11px] text-slate-500 mt-0.5">
                             {row.hint}
                           </div>
-                          <div className="text-[10px] text-slate-400 mt-0.5 tabular-nums">
+                          <div className="mt-0.5 text-[10px] tabular-nums text-slate-600">
                             {formatZar(
                               scaleScenarios[0].levels[row.level].perCompanyMonthly
                             )}

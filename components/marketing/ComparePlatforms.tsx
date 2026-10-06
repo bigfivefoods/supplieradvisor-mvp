@@ -826,7 +826,7 @@ function MobileCompareCards() {
                       >
                         {col.key === 'sa' ? 'SA®' : col.name.split(' ')[0]}
                       </div>
-                      <div className="truncate text-[9px] font-medium text-slate-400 dark:text-neutral-500">
+                      <div className="truncate text-[10px] font-medium text-slate-600 dark:text-neutral-500">
                         {col.sub}
                       </div>
                     </div>
@@ -851,12 +851,12 @@ export default function ComparePlatforms() {
     >
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-10">
         <div className="mx-auto mb-12 max-w-3xl text-center sm:mb-14">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#00b4d8]">
+          <p className="sa-text-brand-on-light mb-3 text-[11px] font-semibold uppercase tracking-[0.28em]">
             Compare
           </p>
           <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 dark:text-white sm:text-5xl">
             Excel. Xero. Enterprise ERP.
-            <span className="mt-2 block text-[#00b4d8]">
+            <span className="sa-text-brand-on-light mt-2 block">
               Or the operating system they never became.
             </span>
           </h2>
@@ -918,9 +918,9 @@ export default function ComparePlatforms() {
               }`}
             >
               <c.icon
-                className={`mb-3 h-5 w-5 ${c.highlight ? 'text-[#00b4d8]' : 'text-slate-400'}`}
+                className={`mb-3 h-5 w-5 ${c.highlight ? 'text-[#00b4d8]' : 'text-slate-500'}`}
               />
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
                 {c.who}
               </div>
               <h3 className="mt-1 text-lg font-black text-slate-900 dark:text-white">
@@ -942,7 +942,7 @@ export default function ComparePlatforms() {
             <table className="w-full min-w-[720px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/90 dark:border-neutral-800 dark:bg-neutral-900">
-                  <th className="sticky left-0 z-10 min-w-[200px] bg-slate-50 px-4 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:bg-neutral-900 sm:px-5">
+                  <th className="sticky left-0 z-10 min-w-[200px] bg-slate-50 px-4 py-4 text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:bg-neutral-900 sm:px-5">
                     Capability
                   </th>
                   {COLS.map((col) => (
@@ -956,12 +956,12 @@ export default function ComparePlatforms() {
                     >
                       <div className="flex flex-col items-center gap-1">
                         <col.icon
-                          className={`h-4 w-4 ${col.highlight ? 'text-[#00b4d8]' : 'text-slate-400'}`}
+                          className={`h-4 w-4 ${col.highlight ? 'text-[#00b4d8]' : 'text-slate-500'}`}
                         />
                         <span className="text-[12px] font-black leading-tight sm:text-[13px]">
                           {col.name}
                         </span>
-                        <span className="text-[10px] font-medium text-slate-400">
+                        <span className="text-[10px] font-medium text-slate-600">
                           {col.sub}
                         </span>
                       </div>
@@ -1000,7 +1000,7 @@ export default function ComparePlatforms() {
                               {row.capability}
                             </div>
                             {row.hint && (
-                              <div className="mt-0.5 text-[11px] leading-snug text-slate-400 dark:text-neutral-500">
+                              <div className="mt-0.5 text-[11px] leading-snug text-slate-600 dark:text-neutral-500">
                                 {row.hint}
                               </div>
                             )}
@@ -1039,7 +1039,7 @@ export default function ComparePlatforms() {
               </Link>
               <Link
                 href="/onboarding?type=business"
-                className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#0099b8]"
+                className="sa-btn-brand inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold shadow-sm hover:bg-[#22d3ee]"
               >
                 Start free trial <ArrowRight className="h-4 w-4" />
               </Link>
@@ -1058,13 +1058,13 @@ export default function ComparePlatforms() {
           </Link>
           <Link
             href="/onboarding?type=business"
-            className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#0099b8]"
+            className="sa-btn-brand inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-bold shadow-sm hover:bg-[#22d3ee]"
           >
             Start free trial <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
 
-        <p className="mx-auto mt-6 max-w-3xl text-center text-[12px] leading-relaxed text-slate-400 dark:text-neutral-500">
+        <p className="mx-auto mt-6 max-w-3xl text-center text-[12px] leading-relaxed text-slate-600 dark:text-neutral-500">
           Comparison is illustrative of typical capability classes (spreadsheets,
           cloud accounting, enterprise ERP suites). Individual products and
           add-ons vary. SupplierAdvisor® is a unified operating system — not a

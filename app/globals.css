@@ -1537,6 +1537,16 @@ html.sa-smooth-scroll {
   .sa-muted {
     color: var(--sa-muted);
   }
+  .sa-btn-brand {
+    background: var(--sa-brand);
+    color: #0f172a;
+  }
+  .sa-text-brand-on-light {
+    color: var(--sa-brand-deep);
+  }
+  html.dark .sa-text-brand-on-light {
+    color: var(--sa-brand);
+  }
 }
 
 /* ============================================

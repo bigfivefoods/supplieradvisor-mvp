@@ -81,7 +81,7 @@ export default function HomeBelowFold() {
       <section id="modules" className="sa-anchor border-t border-slate-200 bg-white">
         <div className="mx-auto max-w-screen-2xl px-4 py-14 sm:px-6 lg:px-10">
           <div className="max-w-3xl">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-[#00b4d8]">Core OS</p>
+            <p className="sa-text-brand-on-light text-xs font-black uppercase tracking-[0.2em]">Core OS</p>
             <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
               Start with a focused module set
             </h2>
@@ -107,7 +107,7 @@ export default function HomeBelowFold() {
       <section id="packaging" className="sa-anchor border-t border-slate-200 bg-[#f8fafc]">
         <div className="mx-auto grid max-w-screen-2xl gap-4 px-4 py-14 sm:px-6 lg:grid-cols-3 lg:px-10">
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
-            <p className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#00b4d8]">
+            <p className="sa-text-brand-on-light inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em]">
               <Layers className="h-3.5 w-3.5" />
               Core
             </p>
@@ -116,7 +116,7 @@ export default function HomeBelowFold() {
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
-            <p className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#00b4d8]">
+            <p className="sa-text-brand-on-light inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em]">
               <Layers className="h-3.5 w-3.5" />
               Sector
             </p>
@@ -125,7 +125,7 @@ export default function HomeBelowFold() {
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
-            <p className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#00b4d8]">
+            <p className="sa-text-brand-on-light inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em]">
               <Layers className="h-3.5 w-3.5" />
               Industry
             </p>
@@ -184,7 +184,7 @@ export default function HomeBelowFold() {
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
                 href="/me"
-                className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0096c7]"
+                className="sa-btn-brand inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22d3ee]"
               >
                 Open SA Member
                 <ArrowRight className="h-4 w-4" />

@@ -144,7 +144,7 @@ export default function InstallAppBanner() {
           type="button"
           onClick={() => void installNative()}
           disabled={busy}
-          className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-4 py-2.5 text-sm font-black text-white touch-manipulation active:scale-95 disabled:opacity-70"
+          className="sa-btn-brand inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-black touch-manipulation active:scale-95 disabled:opacity-70"
         >
           {deferred ? (
             <Download className="w-4 h-4" />
