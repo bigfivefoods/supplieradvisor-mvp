@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember, logActivity } from '@/lib/customers/access';
+import { logActivity } from '@/lib/customers/access';
 import type { MarketplaceListing } from '@/lib/marketplace/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
@@ -178,10 +178,13 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
     const productId = body.productId ? Number(body.productId) : null;
@@ -209,7 +212,7 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
 
       if (existing?.id && !body.forceNew) {
-        return await patchListing(Number(existing.id), companyId, mem.userId, body, product);
+        return await patchListing(Number(existing.id), companyId, gate.userId, body, product);
       }
     }
 
@@ -279,7 +282,7 @@ export async function POST(request: NextRequest) {
       onchain_status: product?.onchain_status || null,
       metadata: {
         source: productId ? 'inventory' : 'manual',
-        created_by: mem.userId,
+        created_by: gate.userId,
       },
       published_at: status === 'active' ? now : null,
       created_at: now,
@@ -304,7 +307,7 @@ export async function POST(request: NextRequest) {
 
     await logActivity({
       profile_id: companyId,
-      actor_user_id: mem.userId,
+      actor_user_id: gate.userId,
       action: 'marketplace.listing_created',
       entity_type: 'marketplace_listings',
       entity_id: String(created.id),
@@ -330,15 +333,18 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const companyId = Number(body.companyId);
     const listingId = Number(body.listingId || body.id);
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
     if (!Number.isFinite(listingId)) {
       return NextResponse.json({ error: 'listingId required' }, { status: 400 });
     }
 
-    return await patchListing(listingId, companyId, mem.userId, body, null);
+    return await patchListing(listingId, companyId, gate.userId, body, null);
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },
@@ -354,11 +360,13 @@ export async function DELETE(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     const listingId = Number(request.nextUrl.searchParams.get('listingId'));
-    const privyUserId = request.nextUrl.searchParams.get('privyUserId');
-    const mem = await assertCompanyMember(privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(listingId)) {
+      return NextResponse.json({ error: 'companyId and listingId required' }, { status: 400 });
     }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
     const { error } = await supabase

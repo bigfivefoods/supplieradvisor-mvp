@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember } from '@/lib/suppliers/access';
 import { logActivity } from '@/lib/customers/access';
 import {
   ensureSrmBookEntry,
@@ -34,7 +33,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const companyId = Number(body.companyId);
 
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request, body) });
     if (!_gate.ok) return _gate.response;
     const targetProfileId = Number(body.targetProfileId);
     let mode = String(body.mode || 'request').toLowerCase();
@@ -43,7 +42,7 @@ export async function POST(request: NextRequest) {
         ? body.message.trim().slice(0, 500)
         : null;
 
-    if (!Number.isFinite(companyId) || !Number.isFinite(targetProfileId)) {
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(targetProfileId) || targetProfileId <= 0) {
       return NextResponse.json(
         { error: 'companyId and targetProfileId required' },
         { status: 400 }
@@ -53,16 +52,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Cannot connect to your own company' }, { status: 400 });
     }
 
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
-    if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
-
     const target = await loadProfileLite(targetProfileId);
     if (!target) {
       return NextResponse.json({ error: 'Target company profile not found' }, { status: 404 });
     }
 
     const sameOwner = await userOwnsBothCompanies(
-      body.privyUserId,
+      _gate.userId,
       companyId,
       targetProfileId
     );
@@ -82,14 +78,14 @@ export async function POST(request: NextRequest) {
         requesteeId: Number(existingEdge.requestee_profile_id),
         connectionId: Number(existingEdge.id),
         connectionType: String(existingEdge.connection_type || 'supplier'),
-        userId: mem.userId,
+        userId: _gate.userId,
       });
       const supplierId = await ensureSrmBookEntry({
         buyerProfileId: companyId,
         supplierProfileId: targetProfileId,
         connectionId: Number(existingEdge.id),
         inviteStatus: 'accepted',
-        userId: mem.userId,
+        userId: _gate.userId,
         peer: target,
       });
       return NextResponse.json({
@@ -124,7 +120,7 @@ export async function POST(request: NextRequest) {
             ...(typeof existingEdge.metadata === 'object' && existingEdge.metadata
               ? (existingEdge.metadata as object)
               : {}),
-            accepted_by: mem.userId,
+            accepted_by: _gate.userId,
             accepted_at: now,
             accepted_via: 'connect_api',
           },
@@ -143,7 +139,7 @@ export async function POST(request: NextRequest) {
         requesteeId: Number(existingEdge.requestee_profile_id),
         connectionId,
         connectionType: String(updated.connection_type || 'supplier'),
-        userId: mem.userId,
+        userId: _gate.userId,
       });
 
       const supplierId = await ensureSrmBookEntry({
@@ -151,13 +147,13 @@ export async function POST(request: NextRequest) {
         supplierProfileId: targetProfileId,
         connectionId,
         inviteStatus: 'accepted',
-        userId: mem.userId,
+        userId: _gate.userId,
         peer: target,
       });
 
       await logActivity({
         profile_id: companyId,
-        actor_user_id: mem.userId,
+        actor_user_id: _gate.userId,
         action: 'network.accept',
         entity_type: 'business_connections',
         entity_id: String(connectionId),
@@ -186,7 +182,7 @@ export async function POST(request: NextRequest) {
         requesteeId: targetProfileId,
         connectionId: Number(existingEdge.id),
         connectionType: String(existingEdge.connection_type || 'supplier'),
-        userId: mem.userId,
+        userId: _gate.userId,
       });
       return NextResponse.json({
         success: true,
@@ -210,7 +206,7 @@ export async function POST(request: NextRequest) {
       supplierProfileId: targetProfileId,
       connectionId: existingEdge?.id ? Number(existingEdge.id) : null,
       inviteStatus,
-      userId: mem.userId,
+      userId: _gate.userId,
       peer: target,
     });
 
@@ -240,7 +236,7 @@ export async function POST(request: NextRequest) {
         requesteeId: targetProfileId,
         connectionId,
         connectionType: body.connectionType || 'supplier',
-        userId: mem.userId,
+        userId: _gate.userId,
       });
     } else {
       // Standard secure handshake: pending request
@@ -277,13 +273,13 @@ export async function POST(request: NextRequest) {
         requesteeId: targetProfileId,
         connectionId,
         connectionType: String(body.connectionType || 'supplier'),
-        userId: mem.userId,
+        userId: _gate.userId,
       });
     }
 
     await logActivity({
       profile_id: companyId,
-      actor_user_id: mem.userId,
+      actor_user_id: _gate.userId,
       action:
         finalStatus === 'pending' ? 'supplier.connect_request' : 'supplier.connect',
       entity_type: 'business_connections',
@@ -318,8 +314,13 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const companyId = Number(body.companyId);
     const action = String(body.action || '').toLowerCase();
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
-    if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
     let connectionId = body.connectionId ? Number(body.connectionId) : null;
@@ -375,7 +376,7 @@ export async function PATCH(request: NextRequest) {
       updates.accepted_at = now;
       updates.approved_at = now;
       if (!conn.connection_type) updates.connection_type = 'supplier';
-      meta.accepted_by = mem.userId;
+      meta.accepted_by = gate.userId;
       meta.accepted_at = now;
       updates.metadata = meta;
     } else if (action === 'decline') {
@@ -390,7 +391,7 @@ export async function PATCH(request: NextRequest) {
       }
       updates.status = 'declined';
       updates.responded_at = now;
-      meta.declined_by = mem.userId;
+      meta.declined_by = gate.userId;
       updates.metadata = meta;
     } else if (action === 'cancel') {
       if (requesterId !== companyId) {
@@ -404,7 +405,7 @@ export async function PATCH(request: NextRequest) {
       }
       updates.status = 'cancelled';
       updates.responded_at = now;
-      meta.cancelled_by = mem.userId;
+      meta.cancelled_by = gate.userId;
       updates.metadata = meta;
     } else if (action === 'suspend') {
       if (status !== 'accepted') {
@@ -415,12 +416,12 @@ export async function PATCH(request: NextRequest) {
       }
       meta.suspended = true;
       meta.suspended_at = now;
-      meta.suspended_by = mem.userId;
+      meta.suspended_by = gate.userId;
       updates.metadata = meta;
     } else if (action === 'unsuspend') {
       meta.suspended = false;
       meta.unsuspended_at = now;
-      meta.unsuspended_by = mem.userId;
+      meta.unsuspended_by = gate.userId;
       updates.metadata = meta;
     } else {
       return NextResponse.json(
@@ -443,7 +444,7 @@ export async function PATCH(request: NextRequest) {
         requesteeId,
         connectionId,
         connectionType: String(updated.connection_type || conn.connection_type || 'supplier'),
-        userId: mem.userId,
+        userId: gate.userId,
       });
     }
 
@@ -472,7 +473,7 @@ export async function PATCH(request: NextRequest) {
 
     await logActivity({
       profile_id: companyId,
-      actor_user_id: mem.userId,
+      actor_user_id: gate.userId,
       action: `network.${action}`,
       entity_type: 'business_connections',
       entity_id: String(connectionId),

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember } from '@/lib/suppliers/access';
 import { computeTrustScore } from '@/lib/suppliers/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
 
@@ -12,7 +11,7 @@ import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/li
 export async function GET(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
-    if (!Number.isFinite(companyId)) {
+    if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
 
@@ -143,7 +142,7 @@ export async function POST(request: NextRequest) {
     const supplierProfileId = Number(body.supplierProfileId || body.reviewee_profile_id);
     const overall = Number(body.overall ?? body.rating ?? body.overall_rating);
 
-    if (!Number.isFinite(companyId) || !Number.isFinite(supplierProfileId)) {
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(supplierProfileId) || supplierProfileId <= 0) {
       return NextResponse.json(
         { error: 'companyId and supplierProfileId required' },
         { status: 400 }
@@ -153,8 +152,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'overall rating must be integer 1–5' }, { status: 400 });
     }
 
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
-    if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
     const payload: Record<string, unknown> = {

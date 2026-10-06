@@ -14,6 +14,7 @@ import {
   RefreshCw,
   XCircle,
 } from 'lucide-react';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 
 type Check = {
   ok: boolean;
@@ -70,11 +71,16 @@ export default function OpsHealthStrip({
   const [data, setData] = useState<HealthPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(!compact);
+  const { withAuth } = useApiAuth();
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/system/health/ops?live=1', { cache: 'no-store' });
+      const res = await withAuth('/api/system/health/ops?live=1', { cache: 'no-store' });
+      if (res.status === 401 || res.status === 403) {
+        setData(null);
+        return;
+      }
       const json = (await res.json()) as HealthPayload;
       setData(json);
       if (json.degraded || json.ok === false) setOpen(true);
@@ -83,7 +89,7 @@ export default function OpsHealthStrip({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [withAuth]);
 
   useEffect(() => {
     void load();

@@ -12,7 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getSelectedCompanyId } from '@/lib/containers/company';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import {
   PO_STATUS_META,
   completionPct,
@@ -81,7 +81,7 @@ export default function ProductionOrdersPage() {
 }
 
 function OrdersInner() {
-  const companyId = getSelectedCompanyId();
+  const { companyId, withAuth } = useApiAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [workCenters, setWorkCenters] = useState<WorkCenter[]>([]);
@@ -104,13 +104,13 @@ function OrdersInner() {
     setLoading(true);
     try {
       const [oRes, pRes, wRes] = await Promise.all([
-        fetch(
+        withAuth(
           `/api/manufacturing/production-orders?companyId=${companyId}${
             filter !== 'all' ? `&status=${filter}` : ''
           }`
         ),
-        fetch(`/api/inventory/products?companyId=${companyId}`),
-        fetch(`/api/manufacturing/work-centers?companyId=${companyId}`),
+        withAuth(`/api/inventory/products?companyId=${companyId}`),
+        withAuth(`/api/manufacturing/work-centers?companyId=${companyId}`),
       ]);
       const oData = await oRes.json();
       const pData = await pRes.json();
@@ -145,7 +145,7 @@ function OrdersInner() {
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/manufacturing/production-orders', {
+      const res = await withAuth('/api/manufacturing/production-orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -172,7 +172,7 @@ function OrdersInner() {
 
   const act = async (id: number, action: string, extra?: Record<string, unknown>) => {
     if (!companyId) return;
-    const res = await fetch('/api/manufacturing/production-orders', {
+    const res = await withAuth('/api/manufacturing/production-orders', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ companyId, id, action, ...extra }),
@@ -207,7 +207,7 @@ function OrdersInner() {
     }
     if (!companyId) return;
     const complete = qty >= Number(order.qty_planned);
-    const res = await fetch('/api/manufacturing/production-orders', {
+    const res = await withAuth('/api/manufacturing/production-orders', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

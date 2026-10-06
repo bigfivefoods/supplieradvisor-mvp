@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember } from '@/lib/customers/access';
 import { cascadeFromPo } from '@/lib/orders/cascade';
 import { notifyProductionCascade } from '@/lib/orders/notify-chain';
 import {
   PRODUCTION_STATUS_OPTIONS,
   type ProductionStatus,
 } from '@/lib/orders/order-links';
+import { legacyPrivyFrom, requireCompanyAccess } from '@/lib/auth/api-auth';
 
 /**
  * POST /api/orders/production-status
@@ -17,7 +17,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const companyId = Number(body.companyId);
     const poId = Number(body.poId);
-    const privyUserId = body.privyUserId as string | undefined;
     const buyerCompanyId = body.buyerCompanyId
       ? Number(body.buyerCompanyId)
       : companyId;
@@ -27,9 +26,9 @@ export async function POST(req: NextRequest) {
       | undefined;
     const doCascade = body.cascade !== false;
 
-    if (!companyId || !poId || !privyUserId) {
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(poId) || poId <= 0) {
       return NextResponse.json(
-        { error: 'companyId, poId and privyUserId are required' },
+        { error: 'companyId and poId are required' },
         { status: 400 }
       );
     }
@@ -46,10 +45,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const mem = await assertCompanyMember(privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const gate = await requireCompanyAccess(req, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(req, body),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
 
@@ -134,7 +133,7 @@ export async function POST(req: NextRequest) {
           produced_at: b.produced_at || null,
           manufacturer_profile_id: isSupplier ? companyId : po.supplier_profile_id,
           notes: b.notes ? String(b.notes).slice(0, 500) : null,
-          created_by: privyUserId,
+          created_by: gate.userId,
         })
         .select('*')
         .single();
@@ -169,7 +168,7 @@ export async function POST(req: NextRequest) {
         action: 'order.production_status.updated',
         entity_type: 'purchase_order',
         entity_id: String(poId),
-        actor_id: privyUserId,
+        actor_id: gate.userId,
         metadata: {
           production_status: productionStatus,
           confirmed_qty: body.confirmed_qty,

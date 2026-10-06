@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
-  assertCompanyMember,
   isPoReviewsEnabled,
   logActivity,
 } from '@/lib/customers/access';
@@ -35,11 +34,6 @@ export async function GET(request: NextRequest) {
 
     const _gate = await requireCompanyAccess(request, buyerCompanyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
     if (!_gate.ok) return _gate.response;
-
-    const member = await assertCompanyMember(privyUserId, buyerCompanyId);
-    if (!member.ok) {
-      return NextResponse.json({ error: member.error }, { status: member.status });
-    }
 
     const supabase = getSupabaseServer();
 
@@ -116,7 +110,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const buyerCompanyId = Number(body.buyerCompanyId);
     const purchaseOrderId = Number(body.purchaseOrderId);
-    const privyUserId = body.privyUserId;
     const rating = Number(body.rating);
 
     // Explicitly ignore spoofed party ids
@@ -139,10 +132,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const member = await assertCompanyMember(privyUserId, buyerCompanyId);
-    if (!member.ok) {
-      return NextResponse.json({ error: member.error }, { status: member.status });
-    }
+    const gate = await requireCompanyAccess(request, buyerCompanyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
     const { data: po, error: loadErr } = await supabase
@@ -261,7 +254,7 @@ export async function POST(request: NextRequest) {
 
     await logActivity({
       profile_id: buyerCompanyId,
-      actor_user_id: member.userId,
+      actor_user_id: gate.userId,
       action: 'po.review.submitted',
       entity_type: 'po_review',
       entity_id: data?.id != null ? String(data.id) : undefined,
@@ -277,7 +270,7 @@ export async function POST(request: NextRequest) {
     // Also log on seller side for their activity feed
     await logActivity({
       profile_id: revieweeProfileId,
-      actor_user_id: member.userId,
+      actor_user_id: gate.userId,
       action: 'po.review.submitted',
       entity_type: 'po_review',
       entity_id: data?.id != null ? String(data.id) : undefined,

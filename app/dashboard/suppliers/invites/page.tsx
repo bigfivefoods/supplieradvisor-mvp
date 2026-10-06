@@ -6,6 +6,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId, getSelectedCompanyName } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import { inviteStatusClass, type SupplierInvitation } from '@/lib/suppliers/types';
 import {
   CompanyRequired,
@@ -25,6 +26,7 @@ export default function SupplierInvitesPage() {
 function InvitesInner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
+  const { withAuth } = useApiAuth();
   const privyUserId = getCanonicalUserId(user?.id);
   const [rows, setRows] = useState<SupplierInvitation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,14 +37,14 @@ function InvitesInner() {
     try {
       const params = new URLSearchParams({ companyId: String(companyId) });
       if (privyUserId) params.set('privyUserId', privyUserId);
-      const res = await fetch(`/api/suppliers/invites?${params}`);
+      const res = await withAuth(`/api/suppliers/invites?${params}`);
       const data = await res.json();
       setRows(data.invitations || []);
       if (data.warning) toast.message(data.warning);
     } finally {
       setLoading(false);
     }
-  }, [companyId, privyUserId]);
+  }, [companyId, privyUserId, withAuth]);
 
   useEffect(() => {
     void load();
@@ -51,7 +53,7 @@ function InvitesInner() {
   const act = async (id: number, action: 'resend' | 'revoke') => {
     setBusy(id);
     try {
-      const res = await fetch('/api/suppliers/invites', {
+      const res = await withAuth('/api/suppliers/invites', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

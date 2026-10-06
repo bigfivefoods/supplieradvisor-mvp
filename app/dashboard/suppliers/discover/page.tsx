@@ -29,6 +29,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import {
   SUPPLIER_CERTIFICATIONS,
   SUPPLIER_INDUSTRIES,
@@ -99,6 +100,7 @@ export default function DiscoverSuppliersPage() {
 function DiscoverInner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
+  const { withAuth } = useApiAuth();
   const privyUserId = getCanonicalUserId(user?.id) || '';
 
   // ── Deep search state ─────────────────────────────────────────────────────
@@ -392,7 +394,7 @@ function DiscoverInner() {
     }
     setConnecting(s.id);
     try {
-      const res = await fetch('/api/suppliers/connect', {
+      const res = await withAuth('/api/suppliers/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -430,7 +432,7 @@ function DiscoverInner() {
     if (!privyUserId) return;
     setConnecting(s.id);
     try {
-      const res = await fetch('/api/suppliers/connect', {
+      const res = await withAuth('/api/suppliers/connect', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

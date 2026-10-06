@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Layers, Loader2, Play, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import { getSelectedCompanyId } from '@/lib/containers/company';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import {
   CompanyRequired,
   EmptyMission,
@@ -62,7 +62,7 @@ export default function MrpPage() {
 }
 
 function MrpInner() {
-  const companyId = getSelectedCompanyId();
+  const { companyId, withAuth } = useApiAuth();
   const [runs, setRuns] = useState<Run[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [requirements, setRequirements] = useState<Req[]>([]);
@@ -76,7 +76,7 @@ function MrpInner() {
     if (!companyId) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/manufacturing/mrp?companyId=${companyId}`);
+      const res = await withAuth(`/api/manufacturing/mrp?companyId=${companyId}`);
       const data = await res.json();
       setRuns(data.runs || []);
       setWarning(data.warning);
@@ -92,7 +92,7 @@ function MrpInner() {
       setRun(null);
       return;
     }
-    const res = await fetch(
+    const res = await withAuth(
       `/api/manufacturing/mrp?companyId=${companyId}&runId=${selectedId}`
     );
     const data = await res.json();
@@ -113,7 +113,7 @@ function MrpInner() {
     if (!companyId) return;
     setRunning(true);
     try {
-      const res = await fetch('/api/manufacturing/mrp', {
+      const res = await withAuth('/api/manufacturing/mrp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ companyId, horizon_days: 90 }),

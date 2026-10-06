@@ -25,6 +25,7 @@ import {
 import { toast } from 'sonner';
 import { getSelectedCompanyId, getSelectedCompanyName } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import {
   BUYER_PO_CANCEL_STATUSES,
   isCustomerPoEscrowEnabled,
@@ -94,6 +95,7 @@ interface PurchaseOrder {
 
 export default function BuyerPurchaseOrdersPage() {
   const { user } = usePrivy();
+  const { withAuth } = useApiAuth();
   const companyId = getSelectedCompanyId();
   const companyName = getSelectedCompanyName();
   const privyUserId = getCanonicalUserId(user?.id);
@@ -206,7 +208,7 @@ export default function BuyerPurchaseOrdersPage() {
       buyerCompanyId: String(companyId),
       privyUserId,
     });
-    const res = await fetch(`/api/buyer/purchase-orders?${params}`);
+    const res = await withAuth(`/api/buyer/purchase-orders?${params}`);
     const json = await res.json();
     if (!res.ok) {
       toast.error(json.error || 'Failed to load purchase orders');
@@ -214,7 +216,7 @@ export default function BuyerPurchaseOrdersPage() {
     }
     const pos = (json.purchaseOrders || []) as PurchaseOrder[];
     setPurchaseOrders(pos);
-  }, [companyId, privyUserId]);
+  }, [companyId, privyUserId, withAuth]);
 
   useEffect(() => {
     if (!companyId) {
@@ -602,7 +604,7 @@ export default function BuyerPurchaseOrdersPage() {
 
     setSaving(true);
     try {
-      const res = await fetch('/api/buyer/purchase-orders', {
+      const res = await withAuth('/api/buyer/purchase-orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -727,7 +729,7 @@ export default function BuyerPurchaseOrdersPage() {
     if (!confirm(`Cancel PO #${poId}?`)) return;
     setSaving(true);
     try {
-      const res = await fetch('/api/buyer/purchase-orders', {
+      const res = await withAuth('/api/buyer/purchase-orders', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

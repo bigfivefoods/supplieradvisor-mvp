@@ -7,6 +7,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import { SUPPLIER_CERTIFICATIONS, SUPPLIER_INDUSTRIES } from '@/lib/suppliers/types';
 import {
   CompanyRequired,
@@ -38,6 +39,7 @@ export default function AddSupplierPage() {
 function AddInner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
+  const { withAuth } = useApiAuth();
   const privyUserId = getCanonicalUserId(user?.id);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -90,7 +92,7 @@ function AddInner() {
     setSaving(true);
     try {
       if (sendInvite) {
-        const res = await fetch('/api/suppliers/invites', {
+        const res = await withAuth('/api/suppliers/invites', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -130,7 +132,7 @@ function AddInner() {
           }
         }
       } else {
-        const res = await fetch('/api/suppliers', {
+        const res = await withAuth('/api/suppliers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

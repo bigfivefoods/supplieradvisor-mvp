@@ -13,6 +13,7 @@ import {
 import { toast } from 'sonner';
 import { getSelectedCompanyId, getSelectedCompanyName } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import {
   ReviewForm,
   ReviewCard,
@@ -35,6 +36,7 @@ interface PendingPO {
 
 export default function BuyerReviewsPage() {
   const { user } = usePrivy();
+  const { withAuth } = useApiAuth();
   const companyId = getSelectedCompanyId();
   const companyName = getSelectedCompanyName();
   const privyUserId = getCanonicalUserId(user?.id);
@@ -52,7 +54,7 @@ export default function BuyerReviewsPage() {
       buyerCompanyId: String(companyId),
       privyUserId,
     });
-    const res = await fetch(`/api/buyer/reviews?${params}`);
+    const res = await withAuth(`/api/buyer/reviews?${params}`);
     const json = await res.json();
     if (!res.ok) {
       toast.error(json.error || 'Failed to load reviews');
@@ -60,7 +62,7 @@ export default function BuyerReviewsPage() {
     }
     setReviews(json.reviews || []);
     setPending(json.pending || []);
-  }, [companyId, privyUserId]);
+  }, [companyId, privyUserId, withAuth]);
 
   useEffect(() => {
     if (!companyId) {
@@ -117,7 +119,7 @@ export default function BuyerReviewsPage() {
     if (!companyId || !privyUserId || activePoId == null) return;
     setSubmitting(true);
     try {
-      const res = await fetch('/api/buyer/reviews', {
+      const res = await withAuth('/api/buyer/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

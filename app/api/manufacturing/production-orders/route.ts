@@ -8,9 +8,13 @@ export async function GET(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     const status = request.nextUrl.searchParams.get('status');
-    if (!Number.isFinite(companyId)) {
+    if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
     let query = supabase
@@ -150,9 +154,13 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const companyId = Number(body.companyId);
     const id = Number(body.id);
-    if (!Number.isFinite(companyId) || !Number.isFinite(id)) {
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(id)) {
       return NextResponse.json({ error: 'companyId and id required' }, { status: 400 });
     }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -314,9 +322,13 @@ export async function DELETE(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     const id = Number(request.nextUrl.searchParams.get('id'));
-    if (!Number.isFinite(companyId) || !Number.isFinite(id)) {
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(id)) {
       return NextResponse.json({ error: 'companyId and id required' }, { status: 400 });
     }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!gate.ok) return gate.response;
     const supabase = getSupabaseServer();
     const { error } = await supabase
       .from('manufacturing_production_orders')

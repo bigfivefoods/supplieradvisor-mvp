@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, Plus, Star, Trash2, Truck, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { getSelectedCompanyId } from '@/lib/containers/company';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import {
   CompanyRequired,
   DistributionHeader,
@@ -41,7 +41,7 @@ export default function CarriersPage() {
 }
 
 function CarriersInner() {
-  const companyId = getSelectedCompanyId();
+  const { companyId, withAuth } = useApiAuth();
   const [items, setItems] = useState<Carrier[]>([]);
   const [warning, setWarning] = useState<string>();
   const [loading, setLoading] = useState(true);
@@ -62,7 +62,7 @@ function CarriersInner() {
     if (!companyId) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/distribution/carriers?companyId=${companyId}`);
+      const res = await withAuth(`/api/distribution/carriers?companyId=${companyId}`);
       const data = await res.json();
       setItems(data.carriers || []);
       setWarning(data.warning);
@@ -82,7 +82,7 @@ function CarriersInner() {
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/distribution/carriers', {
+      const res = await withAuth('/api/distribution/carriers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -116,7 +116,7 @@ function CarriersInner() {
   const toggle = async (c: Carrier) => {
     if (!companyId) return;
     const next = c.status === 'active' ? 'suspended' : 'active';
-    const res = await fetch('/api/distribution/carriers', {
+    const res = await withAuth('/api/distribution/carriers', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -135,7 +135,7 @@ function CarriersInner() {
 
   const remove = async (id: number) => {
     if (!companyId || !confirm('Remove this carrier?')) return;
-    const res = await fetch(
+    const res = await withAuth(
       `/api/distribution/carriers?companyId=${companyId}&id=${id}`,
       { method: 'DELETE' }
     );

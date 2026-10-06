@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 
 type Props = {
   companyId: number;
@@ -21,6 +22,7 @@ export default function RaiseInvoiceFromSo({
   onRaised,
   className = '',
 }: Props) {
+  const { withAuth } = useApiAuth();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -31,7 +33,7 @@ export default function RaiseInvoiceFromSo({
     setError(null);
     setSuccess(null);
     try {
-      const res = await fetch('/api/orders/raise-invoice-from-so', {
+      const res = await withAuth('/api/orders/raise-invoice-from-so', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

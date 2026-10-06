@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember } from '@/lib/customers/access';
 import { cascadeFromPo } from '@/lib/orders/cascade';
+import { legacyPrivyFrom, requireCompanyAccess } from '@/lib/auth/api-auth';
 
 /**
  * POST /api/orders/cascade
@@ -16,19 +16,18 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const companyId = Number(body.companyId);
     const poId = Number(body.poId);
-    const privyUserId = body.privyUserId as string | undefined;
 
-    if (!companyId || !poId || !privyUserId) {
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(poId) || poId <= 0) {
       return NextResponse.json(
-        { error: 'companyId, poId and privyUserId are required' },
+        { error: 'companyId and poId are required' },
         { status: 400 }
       );
     }
 
-    const mem = await assertCompanyMember(privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const gate = await requireCompanyAccess(req, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(req, body),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Car, Loader2, Plus, Trash2, User, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { getSelectedCompanyId } from '@/lib/containers/company';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import {
   CompanyRequired,
   DistributionHeader,
@@ -42,7 +42,7 @@ export default function FleetPage() {
 }
 
 function FleetInner() {
-  const companyId = getSelectedCompanyId();
+  const { companyId, withAuth } = useApiAuth();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [warning, setWarning] = useState<string>();
@@ -68,7 +68,7 @@ function FleetInner() {
     if (!companyId) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/distribution/fleet?companyId=${companyId}`);
+      const res = await withAuth(`/api/distribution/fleet?companyId=${companyId}`);
       const data = await res.json();
       setVehicles(data.vehicles || []);
       setDrivers(data.drivers || []);
@@ -89,7 +89,7 @@ function FleetInner() {
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/distribution/fleet', {
+      const res = await withAuth('/api/distribution/fleet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -118,7 +118,7 @@ function FleetInner() {
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/distribution/fleet', {
+      const res = await withAuth('/api/distribution/fleet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -141,7 +141,7 @@ function FleetInner() {
 
   const setVehicleStatus = async (id: number, status: string) => {
     if (!companyId) return;
-    await fetch('/api/distribution/fleet', {
+    await withAuth('/api/distribution/fleet', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ companyId, kind: 'vehicle', id, status }),
@@ -151,7 +151,7 @@ function FleetInner() {
 
   const setDriverStatus = async (id: number, status: string) => {
     if (!companyId) return;
-    await fetch('/api/distribution/fleet', {
+    await withAuth('/api/distribution/fleet', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ companyId, kind: 'driver', id, status }),
@@ -161,7 +161,7 @@ function FleetInner() {
 
   const remove = async (kind: 'vehicle' | 'driver', id: number) => {
     if (!companyId || !confirm('Remove?')) return;
-    await fetch(
+    await withAuth(
       `/api/distribution/fleet?companyId=${companyId}&id=${id}&kind=${kind}`,
       { method: 'DELETE' }
     );

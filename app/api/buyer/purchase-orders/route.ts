@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import {
-  assertCompanyMember,
   assertCustomerConnection,
   logActivity,
 } from '@/lib/customers/access';
@@ -28,11 +27,6 @@ export async function GET(request: NextRequest) {
       legacyPrivyUserId: privyUserId || legacyPrivyFrom(request),
     });
     if (!_gate.ok) return _gate.response;
-
-    const member = await assertCompanyMember(_gate.userId, buyerCompanyId);
-    if (!member.ok) {
-      return NextResponse.json({ error: member.error }, { status: member.status });
-    }
 
     const supabase = getSupabaseServer();
     const poListCols =
@@ -84,7 +78,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const buyerCompanyId = Number(body.buyerCompanyId);
     const supplierProfileId = Number(body.supplierProfileId);
-    const privyUserId = body.privyUserId;
 
     if (!Number.isFinite(buyerCompanyId) || buyerCompanyId <= 0) {
       return NextResponse.json({ error: 'buyerCompanyId is required' }, { status: 400 });
@@ -93,10 +86,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'supplierProfileId is required' }, { status: 400 });
     }
 
-    const member = await assertCompanyMember(privyUserId, buyerCompanyId);
-    if (!member.ok) {
-      return NextResponse.json({ error: member.error }, { status: member.status });
-    }
+    const gate = await requireCompanyAccess(request, buyerCompanyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
 
     // New collaboration — reject suspended connections
     const conn = await assertCustomerConnection(buyerCompanyId, supplierProfileId, {
@@ -237,7 +230,7 @@ export async function POST(request: NextRequest) {
 
     await logActivity({
       profile_id: buyerCompanyId,
-      actor_user_id: member.userId,
+      actor_user_id: gate.userId,
       action: 'po.created.by_customer',
       entity_type: 'purchase_order',
       entity_id: data?.id != null ? String(data.id) : undefined,
@@ -306,7 +299,6 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const buyerCompanyId = Number(body.buyerCompanyId);
     const id = Number(body.id);
-    const privyUserId = body.privyUserId;
     const nextStatus = String(body.status || '').toLowerCase();
 
     if (!Number.isFinite(buyerCompanyId) || buyerCompanyId <= 0) {
@@ -322,10 +314,10 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const member = await assertCompanyMember(privyUserId, buyerCompanyId);
-    if (!member.ok) {
-      return NextResponse.json({ error: member.error }, { status: member.status });
-    }
+    const gate = await requireCompanyAccess(request, buyerCompanyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
     const { data: po, error: loadErr } = await supabase
