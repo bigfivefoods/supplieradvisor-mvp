@@ -6,6 +6,7 @@
  */
 
 import { useState } from 'react';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import {
   PRODUCTION_STATUS_OPTIONS,
   type ProductionStatus,
@@ -49,6 +50,7 @@ export default function ProductionStatusForm({
   onSaved,
   className = '',
 }: Props) {
+  const { withAuth } = useApiAuth();
   const [status, setStatus] = useState<string>(initialStatus || 'released');
   const [confirmedQty, setConfirmedQty] = useState(
     initialConfirmedQty != null ? String(initialConfirmedQty) : ''
@@ -82,7 +84,7 @@ export default function ProductionStatusForm({
           notes: b.notes || null,
         }));
 
-      const res = await fetch('/api/orders/production-status', {
+      const res = await withAuth('/api/orders/production-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

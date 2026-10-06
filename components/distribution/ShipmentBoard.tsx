@@ -16,6 +16,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import {
   EVENT_PRESETS,
   SHIPMENT_STATUS_META,
@@ -89,6 +90,7 @@ export function ShipmentBoard({
   direction: ShipmentDirection;
   titleNoun: string;
 }) {
+  const { withAuth } = useApiAuth();
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -129,9 +131,9 @@ export function ShipmentBoard({
     setLoading(true);
     try {
       const [sRes, cRes, fRes] = await Promise.all([
-        fetch(`/api/distribution/shipments?companyId=${companyId}&direction=${direction}`),
-        fetch(`/api/distribution/carriers?companyId=${companyId}`),
-        fetch(`/api/distribution/fleet?companyId=${companyId}`),
+        withAuth(`/api/distribution/shipments?companyId=${companyId}&direction=${direction}`),
+        withAuth(`/api/distribution/carriers?companyId=${companyId}`),
+        withAuth(`/api/distribution/fleet?companyId=${companyId}`),
       ]);
       const sData = await sRes.json();
       const cData = await cRes.json();
@@ -191,7 +193,7 @@ export function ShipmentBoard({
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/distribution/shipments', {
+      const res = await withAuth('/api/distribution/shipments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -219,7 +221,7 @@ export function ShipmentBoard({
   };
 
   const advance = async (id: number) => {
-    const res = await fetch('/api/distribution/shipments', {
+    const res = await withAuth('/api/distribution/shipments', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ companyId, id, action: 'advance' }),
@@ -238,7 +240,7 @@ export function ShipmentBoard({
     const label = eventForm.label || preset?.label || 'Update';
     setSaving(true);
     try {
-      const res = await fetch('/api/distribution/shipments', {
+      const res = await withAuth('/api/distribution/shipments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

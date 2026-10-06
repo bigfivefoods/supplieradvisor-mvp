@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember } from '@/lib/customers/access';
 import { isMissingRelation } from '@/lib/business/company-data';
 import {
   mapChainSetup,
@@ -8,28 +7,19 @@ import {
   parseProductTerms,
   serializeProductTerms,
 } from '@/lib/orders/chain-setup';
-
-async function gate(privyUserId: string | null, companyId: number) {
-  if (!privyUserId) {
-    return { ok: false as const, error: 'Sign in required', status: 401 };
-  }
-  const mem = await assertCompanyMember(privyUserId, companyId);
-  if (!mem.ok) return { ok: false as const, error: mem.error, status: mem.status };
-  return { ok: true as const };
-}
+import { legacyPrivyFrom, requireCompanyAccess } from '@/lib/auth/api-auth';
 
 export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams;
     const companyId = Number(sp.get('companyId'));
-    const privyUserId = sp.get('privyUserId');
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
-    const mem = await gate(privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const gate = await requireCompanyAccess(req, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(req),
+    });
+    if (!gate.ok) return gate.response;
     const supabase = getSupabaseServer();
     const { data, error } = await supabase
       .from('order_chain_setups')
@@ -65,11 +55,13 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as Record<string, unknown>;
     const companyId = Number(body.companyId);
-    const privyUserId = body.privyUserId != null ? String(body.privyUserId) : null;
-    const mem = await gate(privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+    const gate = await requireCompanyAccess(req, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(req, body),
+    });
+    if (!gate.ok) return gate.response;
     const customerId = Number(body.customer_id);
     const srmId = Number(body.srm_supplier_id);
     const productIds = parseProductIds(body.product_ids);
@@ -102,7 +94,7 @@ export async function POST(req: NextRequest) {
       product_ids: productIds,
       metadata: { product_terms: productTerms },
       status: 'active',
-      created_by: privyUserId,
+      created_by: gate.userId,
       created_at: now,
       updated_at: now,
     };
@@ -152,11 +144,13 @@ export async function PATCH(req: NextRequest) {
     const body = (await req.json()) as Record<string, unknown>;
     const companyId = Number(body.companyId);
     const id = Number(body.id);
-    const privyUserId = body.privyUserId != null ? String(body.privyUserId) : null;
-    const mem = await gate(privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+    const gate = await requireCompanyAccess(req, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(req, body),
+    });
+    if (!gate.ok) return gate.response;
     if (!Number.isFinite(id) || id <= 0) {
       return NextResponse.json({ error: 'id required' }, { status: 400 });
     }
@@ -240,11 +234,13 @@ export async function DELETE(req: NextRequest) {
     const sp = req.nextUrl.searchParams;
     const id = Number(sp.get('id'));
     const companyId = Number(sp.get('companyId'));
-    const privyUserId = sp.get('privyUserId');
-    const mem = await gate(privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+    const gate = await requireCompanyAccess(req, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(req),
+    });
+    if (!gate.ok) return gate.response;
     if (!Number.isFinite(id) || id <= 0) {
       return NextResponse.json({ error: 'id required' }, { status: 400 });
     }

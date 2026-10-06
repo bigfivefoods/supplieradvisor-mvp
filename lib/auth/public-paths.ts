@@ -5,7 +5,6 @@
 export const PUBLIC_API_PREFIXES = [
   '/api/public/',
   '/api/fx/rates',
-  '/api/system/health',
   '/api/system/apple-pay-domain-status',
   '/api/invites/validate',
   '/api/banking/webhooks/',

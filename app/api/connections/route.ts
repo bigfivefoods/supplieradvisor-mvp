@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember, logActivity } from '@/lib/customers/access';
+import { logActivity } from '@/lib/customers/access';
 import {
   edgeHrefs,
   isSuspendedMeta,
@@ -268,7 +268,7 @@ export async function POST(request: NextRequest) {
     const connectionType = String(body.connectionType || 'partner').toLowerCase();
     let mode = String(body.mode || 'request').toLowerCase();
 
-    if (!Number.isFinite(companyId) || !Number.isFinite(targetProfileId)) {
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(targetProfileId) || targetProfileId <= 0) {
       return NextResponse.json(
         { error: 'companyId and targetProfileId required' },
         { status: 400 }
@@ -278,13 +278,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Cannot connect to your own company' }, { status: 400 });
     }
 
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
 
     const sameOwner = await userOwnsBothCompanies(
-      body.privyUserId,
+      gate.userId,
       companyId,
       targetProfileId
     );
@@ -297,7 +297,7 @@ export async function POST(request: NextRequest) {
         requesteeId: Number(existing.requestee_profile_id),
         connectionId: Number(existing.id),
         connectionType: String(existing.connection_type || connectionType),
-        userId: mem.userId,
+        userId: gate.userId,
       });
       return NextResponse.json({
         success: true,
@@ -322,7 +322,7 @@ export async function POST(request: NextRequest) {
         requesteeId: targetProfileId,
         connectionId: Number(existing.id),
         connectionType: resolvedPendingType,
-        userId: mem.userId,
+        userId: gate.userId,
       });
       return NextResponse.json({
         success: true,
@@ -353,7 +353,7 @@ export async function POST(request: NextRequest) {
             ...(typeof existing.metadata === 'object' && existing.metadata
               ? (existing.metadata as object)
               : {}),
-            accepted_by: mem.userId,
+            accepted_by: gate.userId,
             accepted_at: now,
           },
         })
@@ -368,7 +368,7 @@ export async function POST(request: NextRequest) {
         requesteeId: Number(existing.requestee_profile_id),
         connectionId: Number(existing.id),
         connectionType: String(updated.connection_type || connectionType),
-        userId: mem.userId,
+        userId: gate.userId,
       });
       return NextResponse.json({
         success: true,
@@ -409,7 +409,7 @@ export async function POST(request: NextRequest) {
         requesteeId: targetProfileId,
         connectionId: up.connectionId,
         connectionType: resolvedType,
-        userId: mem.userId,
+        userId: gate.userId,
       });
     } else {
       // Pending: seed requester books so they can quote/invoice/PO without re-adding
@@ -418,13 +418,13 @@ export async function POST(request: NextRequest) {
         requesteeId: targetProfileId,
         connectionId: up.connectionId,
         connectionType: resolvedType,
-        userId: mem.userId,
+        userId: gate.userId,
       });
     }
 
     await logActivity({
       profile_id: companyId,
-      actor_user_id: mem.userId,
+      actor_user_id: gate.userId,
       action: status === 'accepted' ? 'network.connect' : 'network.request',
       entity_type: 'business_connections',
       entity_id: String(up.connectionId),
@@ -487,10 +487,13 @@ export async function PATCH(request: NextRequest) {
     const connectionId = Number(body.connectionId);
     const action = String(body.action || '').toLowerCase();
 
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
     if (!Number.isFinite(connectionId) || connectionId <= 0) {
       return NextResponse.json({ error: 'connectionId required' }, { status: 400 });
     }
@@ -534,14 +537,14 @@ export async function PATCH(request: NextRequest) {
       updates.responded_at = now;
       updates.accepted_at = now;
       updates.approved_at = now;
-      meta.accepted_by = mem.userId;
+      meta.accepted_by = gate.userId;
       meta.accepted_at = now;
       updates.metadata = meta;
       // Soft: log activation for first-trade funnel
       try {
         await supabase.from('activity_log').insert({
           profile_id: companyId,
-          actor_user_id: mem.userId,
+          actor_user_id: gate.userId,
           action: 'network.connection_accepted',
           entity_type: 'business_connections',
           entity_id: String(conn.id),
@@ -567,7 +570,7 @@ export async function PATCH(request: NextRequest) {
       }
       updates.status = 'declined';
       updates.responded_at = now;
-      meta.declined_by = mem.userId;
+      meta.declined_by = gate.userId;
       updates.metadata = meta;
     } else if (action === 'cancel') {
       if (requesterId !== companyId) {
@@ -581,7 +584,7 @@ export async function PATCH(request: NextRequest) {
       }
       updates.status = 'cancelled';
       updates.responded_at = now;
-      meta.cancelled_by = mem.userId;
+      meta.cancelled_by = gate.userId;
       updates.metadata = meta;
     } else if (action === 'suspend') {
       if (status !== 'accepted') {
@@ -589,12 +592,12 @@ export async function PATCH(request: NextRequest) {
       }
       meta.suspended = true;
       meta.suspended_at = now;
-      meta.suspended_by = mem.userId;
+      meta.suspended_by = gate.userId;
       updates.metadata = meta;
     } else if (action === 'unsuspend') {
       meta.suspended = false;
       meta.unsuspended_at = now;
-      meta.unsuspended_by = mem.userId;
+      meta.unsuspended_by = gate.userId;
       updates.metadata = meta;
     } else {
       return NextResponse.json(
@@ -621,14 +624,14 @@ export async function PATCH(request: NextRequest) {
         requesteeId,
         connectionId,
         connectionType: String(conn.connection_type || 'partner'),
-        userId: mem.userId,
+        userId: gate.userId,
       });
       // Soft mutual rating prompts after network accept
       void promptAfterConnectionAccepted({
         companyA: requesterId,
         companyB: requesteeId,
         connectionType: String(conn.connection_type || 'partner'),
-        userId: mem.userId,
+        userId: gate.userId,
       }).catch(() => undefined);
       // Golden path: partners connected (first + 3-partner goal when count hits)
       void import('@/lib/onboarding/checklist').then(
@@ -669,7 +672,7 @@ export async function PATCH(request: NextRequest) {
           });
           await supabase.from('activity_log').insert({
             profile_id: notifyId,
-            actor_user_id: mem.userId,
+            actor_user_id: gate.userId,
             action: 'notify.connection_accepted',
             entity_type: 'business_connections',
             entity_id: String(connectionId),
@@ -701,7 +704,7 @@ export async function PATCH(request: NextRequest) {
 
     await logActivity({
       profile_id: companyId,
-      actor_user_id: mem.userId,
+      actor_user_id: gate.userId,
       action: `network.${action}`,
       entity_type: 'business_connections',
       entity_id: String(connectionId),

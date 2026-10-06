@@ -18,6 +18,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import {
   formatMoney,
   visibilityLabel,
@@ -47,6 +48,7 @@ export default function MarketplaceBrowsePage() {
 function BrowseInner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
+  const { withAuth } = useApiAuth();
   const privyUserId = getCanonicalUserId(user?.id);
 
   const [listings, setListings] = useState<MarketplaceListing[]>([]);
@@ -70,7 +72,7 @@ function BrowseInner() {
       });
       if (q) params.set('q', q);
       if (category !== 'all') params.set('category', category);
-      const res = await fetch(`/api/marketplace/listings?${params}`);
+      const res = await withAuth(`/api/marketplace/listings?${params}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load marketplace');
       setListings(data.listings || []);
@@ -81,7 +83,7 @@ function BrowseInner() {
     } finally {
       setLoading(false);
     }
-  }, [companyId, q, category]);
+  }, [companyId, q, category, withAuth]);
 
   useEffect(() => {
     const t = setTimeout(() => void load(), 200);
@@ -103,7 +105,7 @@ function BrowseInner() {
     }
     setSending(true);
     try {
-      const res = await fetch('/api/marketplace/inquiries', {
+      const res = await withAuth('/api/marketplace/inquiries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarRange, Loader2, Plus, Rocket } from 'lucide-react';
 import { toast } from 'sonner';
-import { getSelectedCompanyId } from '@/lib/containers/company';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import {
   CompanyRequired,
   EmptyMission,
@@ -45,7 +45,7 @@ export default function MpsPage() {
 }
 
 function MpsInner() {
-  const companyId = getSelectedCompanyId();
+  const { companyId, withAuth } = useApiAuth();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
@@ -60,7 +60,7 @@ function MpsInner() {
     if (!companyId) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/manufacturing/mps?companyId=${companyId}`);
+      const res = await withAuth(`/api/manufacturing/mps?companyId=${companyId}`);
       const data = await res.json();
       setPlans(data.plans || []);
       setWarning(data.warning);
@@ -80,7 +80,7 @@ function MpsInner() {
     }
     setLoadingLines(true);
     try {
-      const res = await fetch(
+      const res = await withAuth(
         `/api/manufacturing/mps?companyId=${companyId}&planId=${selectedId}`
       );
       const data = await res.json();
@@ -130,7 +130,7 @@ function MpsInner() {
     if (!companyId) return;
     setCreating(true);
     try {
-      const res = await fetch('/api/manufacturing/mps', {
+      const res = await withAuth('/api/manufacturing/mps', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -166,7 +166,7 @@ function MpsInner() {
 
     setSaving(true);
     try {
-      const res = await fetch('/api/manufacturing/mps', {
+      const res = await withAuth('/api/manufacturing/mps', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -215,7 +215,7 @@ function MpsInner() {
 
   const activatePlan = async () => {
     if (!companyId || !selectedId) return;
-    const res = await fetch('/api/manufacturing/mps', {
+    const res = await withAuth('/api/manufacturing/mps', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ companyId, id: selectedId, status: 'active' }),
@@ -234,7 +234,7 @@ function MpsInner() {
     if (!confirm('Create work orders from all firm quantities in this plan?')) return;
     setSaving(true);
     try {
-      const res = await fetch('/api/manufacturing/mps', {
+      const res = await withAuth('/api/manufacturing/mps', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -5,7 +5,6 @@ import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import { businessInviteEmailHtml, buildBusinessInviteLink } from '@/lib/invites/email';
 import { INVITE_EXPIRY_DAYS } from '@/lib/auth/identity';
 import {
-  assertCompanyMember,
   checkSupplierInviteRateLimits,
   isSupplierInvitesEnabled,
   SUPPLIER_INVITATION_LIST_COLUMNS,
@@ -24,7 +23,7 @@ export async function GET(request: NextRequest) {
     }
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     const privyUserId = request.nextUrl.searchParams.get('privyUserId');
-    if (!Number.isFinite(companyId)) {
+    if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId required' }, { status: 400 });
     }
 
@@ -69,15 +68,17 @@ export async function POST(request: NextRequest) {
       .trim();
     const tradingName = String(body.trading_name || body.company_name || '').trim();
 
-    if (!Number.isFinite(companyId) || !email || !tradingName) {
+    if (!Number.isFinite(companyId) || companyId <= 0 || !email || !tradingName) {
       return NextResponse.json(
         { error: 'companyId, trading_name, and contact_email required' },
         { status: 400 }
       );
     }
 
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
-    if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
     let supplierId = body.supplier_id ? Number(body.supplier_id) : null;
@@ -99,7 +100,7 @@ export async function POST(request: NextRequest) {
         logo_url: body.logo_url != null ? String(body.logo_url).trim() || null : null,
         status: 'prospect',
         invite_status: 'not_invited',
-        created_by: mem.userId,
+        created_by: gate.userId,
         updated_at: new Date().toISOString(),
       };
       let created = await supabase.from('srm_suppliers').insert(row).select('id').single();
@@ -158,7 +159,7 @@ export async function POST(request: NextRequest) {
         status: 'pending',
         target_profile_id: targetProfileId,
         invited_by: body.invitedBy || body.invited_by || 'Buyer',
-        invited_by_user_id: mem.userId,
+        invited_by_user_id: gate.userId,
         expires_at: expiresAt.toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -241,7 +242,7 @@ export async function POST(request: NextRequest) {
 
     await logActivity({
       profile_id: companyId,
-      actor_user_id: mem.userId,
+      actor_user_id: gate.userId,
       action: 'supplier.invite_sent',
       entity_type: 'supplier_invitations',
       entity_id: String(inv.id),
@@ -279,8 +280,13 @@ export async function PATCH(request: NextRequest) {
     const companyId = Number(body.companyId);
     const action = String(body.action || '');
     const invitationId = Number(body.invitationId || body.id);
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
-    if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+    }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
     if (!Number.isFinite(invitationId)) {
       return NextResponse.json({ error: 'invitationId required' }, { status: 400 });
     }
@@ -347,7 +353,7 @@ export async function PATCH(request: NextRequest) {
           status: 'pending',
           target_profile_id: inv.target_profile_id,
           invited_by: inv.invited_by,
-          invited_by_user_id: mem.userId,
+          invited_by_user_id: gate.userId,
           expires_at: expiresAt.toISOString(),
           updated_at: new Date().toISOString(),
         })

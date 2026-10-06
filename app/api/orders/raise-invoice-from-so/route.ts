@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember, logActivity } from '@/lib/customers/access';
+import { logActivity } from '@/lib/customers/access';
 import {
   calcDocTotals,
   docNumber,
   normalizeItems,
 } from '@/lib/customers/documents';
+import { legacyPrivyFrom, requireCompanyAccess } from '@/lib/auth/api-auth';
 
 /**
  * POST /api/orders/raise-invoice-from-so
@@ -20,19 +21,18 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const companyId = Number(body.companyId);
     const salesOrderId = Number(body.salesOrderId);
-    const privyUserId = body.privyUserId as string | undefined;
 
-    if (!companyId || !salesOrderId || !privyUserId) {
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(salesOrderId) || salesOrderId <= 0) {
       return NextResponse.json(
-        { error: 'companyId, salesOrderId and privyUserId are required' },
+        { error: 'companyId and salesOrderId are required' },
         { status: 400 }
       );
     }
 
-    const mem = await assertCompanyMember(privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const gate = await requireCompanyAccess(req, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(req, body),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
     const now = new Date().toISOString();
@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
         ? `${order.notes}\n[from SO ${order.order_number || order.id}]`
         : `[from SO ${order.order_number || order.id}]`,
       items,
-      created_by: privyUserId,
+      created_by: gate.userId,
       updated_at: now,
     };
 
@@ -198,7 +198,7 @@ export async function POST(req: NextRequest) {
         await syncCrmInvoiceToBooks({
           profileId: companyId,
           crmInvoice: invoice as Record<string, unknown>,
-          createdBy: privyUserId,
+          createdBy: gate.userId,
         });
       } catch {
         /* soft */
@@ -207,7 +207,7 @@ export async function POST(req: NextRequest) {
 
     await logActivity({
       profile_id: companyId,
-      actor_user_id: mem.userId,
+      actor_user_id: gate.userId,
       action: 'invoice.created.from_so',
       entity_type: 'customer_invoices',
       entity_id: String(invoice.id),

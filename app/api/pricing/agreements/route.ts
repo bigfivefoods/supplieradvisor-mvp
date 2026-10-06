@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember, logActivity } from '@/lib/customers/access';
+import { logActivity } from '@/lib/customers/access';
 import {
   assertPricingTradeLink,
 } from '@/lib/pricing/access';
@@ -175,17 +175,17 @@ export async function POST(request: NextRequest) {
     const buyerProfileId = Number(body.buyerProfileId || body.buyer_profile_id);
     const title = String(body.title || '').trim();
 
-    if (!Number.isFinite(companyId) || !Number.isFinite(buyerProfileId) || !title) {
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(buyerProfileId) || buyerProfileId <= 0 || !title) {
       return NextResponse.json(
         { error: 'companyId, buyerProfileId, and title required' },
         { status: 400 }
       );
     }
 
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
 
     const link = await assertPricingTradeLink(companyId, buyerProfileId);
     if (!link.ok) {
@@ -242,7 +242,7 @@ export async function POST(request: NextRequest) {
         notes: body.notes || null,
         connection_id: link.connectionId,
         metadata: body.metadata || { source: 'network_pricing' },
-        created_by: mem.userId,
+        created_by: gate.userId,
         updated_at: now,
       })
       .select('*')
@@ -311,7 +311,7 @@ export async function POST(request: NextRequest) {
 
     await logActivity({
       profile_id: companyId,
-      actor_user_id: mem.userId,
+      actor_user_id: gate.userId,
       action: 'pricing.agreement_create',
       entity_type: 'pricing_agreements',
       entity_id: String(agreementId),
@@ -347,14 +347,14 @@ export async function PATCH(request: NextRequest) {
     const companyId = Number(body.companyId);
     const id = Number(body.id);
 
-    if (!Number.isFinite(companyId) || !Number.isFinite(id)) {
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(id) || id <= 0) {
       return NextResponse.json({ error: 'companyId and id required' }, { status: 400 });
     }
 
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
     const { data: existing, error } = await supabase
@@ -396,7 +396,7 @@ export async function PATCH(request: NextRequest) {
           ...(typeof existing.metadata === 'object' && existing.metadata
             ? (existing.metadata as object)
             : {}),
-          suspended_by_buyer: mem.userId,
+          suspended_by_buyer: gate.userId,
           suspended_at: now,
         };
       }
@@ -470,7 +470,7 @@ export async function PATCH(request: NextRequest) {
 
     await logActivity({
       profile_id: companyId,
-      actor_user_id: mem.userId,
+      actor_user_id: gate.userId,
       action: 'pricing.agreement_update',
       entity_type: 'pricing_agreements',
       entity_id: String(id),

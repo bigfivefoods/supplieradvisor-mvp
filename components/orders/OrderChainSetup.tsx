@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Loader2, Plus, Save, Trash2 } from 'lucide-react';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import { readCustomerBrand } from '@/lib/inventory/customer-brand';
 import {
   formatChainTermsSummary,
@@ -95,6 +96,7 @@ export function OrderChainSetupBoard({
   companyId: number;
   privyUserId: string;
 }) {
+  const { withAuth } = useApiAuth();
   const [setups, setSetups] = useState<OrderChainSetup[]>([]);
   const [customers, setCustomers] = useState<CustomerOpt[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierOpt[]>([]);
@@ -123,10 +125,10 @@ export function OrderChainSetupBoard({
     setError(null);
     try {
       const [setupRes, custRes, srmRes, prodRes] = await Promise.all([
-        fetch(`/api/orders/chain-setups?${qs}`),
-        fetch(`/api/customers?${qs}`),
-        fetch(`/api/suppliers?${qs}`),
-        fetch(`/api/inventory/products?companyId=${companyId}`),
+        withAuth(`/api/orders/chain-setups?${qs}`),
+        withAuth(`/api/customers?${qs}`),
+        withAuth(`/api/suppliers?${qs}`),
+        withAuth(`/api/inventory/products?companyId=${companyId}`),
       ]);
       const setupJson = await setupRes.json();
       const custJson = await custRes.json();
@@ -160,7 +162,7 @@ export function OrderChainSetupBoard({
     } finally {
       setLoading(false);
     }
-  }, [qs, companyId]);
+  }, [qs, companyId, withAuth]);
 
   useEffect(() => {
     void load();
@@ -182,7 +184,7 @@ export function OrderChainSetupBoard({
     setSavingId(key);
     setError(null);
     try {
-      const res = await fetch('/api/orders/chain-setups', {
+      const res = await withAuth('/api/orders/chain-setups', {
         method: row.id ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -222,7 +224,7 @@ export function OrderChainSetupBoard({
     }
     setSavingId(String(id));
     try {
-      const res = await fetch(
+      const res = await withAuth(
         `/api/orders/chain-setups?id=${id}&${qs}`,
         { method: 'DELETE' }
       );

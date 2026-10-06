@@ -8,6 +8,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import {
   CompanyRequired,
   SuppliersHeader,
@@ -46,6 +47,7 @@ export default function SupplierRatingsPage() {
 function RatingsInner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
+  const { withAuth } = useApiAuth();
   const privyUserId = getCanonicalUserId(user?.id);
   const searchParams = useSearchParams();
   const rateeFromPrompt = searchParams.get('ratee');
@@ -73,11 +75,11 @@ function RatingsInner() {
       if (privyUserId) params.set('privyUserId', privyUserId);
 
       const [ratingsRes, connRes, bookRes] = await Promise.all([
-        fetch(`/api/business/ratings?${params}`),
-        fetch(
+        withAuth(`/api/business/ratings?${params}`),
+        withAuth(
           `/api/connections?companyId=${companyId}${privyUserId ? `&privyUserId=${encodeURIComponent(privyUserId)}` : ''}`
         ),
-        fetch(`/api/suppliers?companyId=${companyId}`),
+        withAuth(`/api/suppliers?companyId=${companyId}`),
       ]);
 
       const ratingsData = await ratingsRes.json();
@@ -141,7 +143,7 @@ function RatingsInner() {
     } finally {
       setLoading(false);
     }
-  }, [companyId, privyUserId]);
+  }, [companyId, privyUserId, withAuth]);
 
   useEffect(() => {
     void load();

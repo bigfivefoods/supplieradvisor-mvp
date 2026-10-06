@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, Plus, Trash2, Workflow } from 'lucide-react';
 import { toast } from 'sonner';
-import { getSelectedCompanyId } from '@/lib/containers/company';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import {
   CompanyRequired,
   EmptyMission,
@@ -35,7 +35,7 @@ export default function WorkCentersPage() {
 }
 
 function WorkCentersInner() {
-  const companyId = getSelectedCompanyId();
+  const { companyId, withAuth } = useApiAuth();
   const [items, setItems] = useState<WorkCenter[]>([]);
   const [warning, setWarning] = useState<string>();
   const [loading, setLoading] = useState(true);
@@ -53,7 +53,7 @@ function WorkCentersInner() {
     if (!companyId) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/manufacturing/work-centers?companyId=${companyId}`);
+      const res = await withAuth(`/api/manufacturing/work-centers?companyId=${companyId}`);
       const data = await res.json();
       setItems(data.workCenters || []);
       setWarning(data.warning);
@@ -73,7 +73,7 @@ function WorkCentersInner() {
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/manufacturing/work-centers', {
+      const res = await withAuth('/api/manufacturing/work-centers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -100,7 +100,7 @@ function WorkCentersInner() {
 
   const setStatus = async (id: number, status: string) => {
     if (!companyId) return;
-    const res = await fetch('/api/manufacturing/work-centers', {
+    const res = await withAuth('/api/manufacturing/work-centers', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ companyId, id, status }),
@@ -115,7 +115,7 @@ function WorkCentersInner() {
 
   const remove = async (id: number) => {
     if (!companyId || !confirm('Decommission this work cell?')) return;
-    const res = await fetch(
+    const res = await withAuth(
       `/api/manufacturing/work-centers?companyId=${companyId}&id=${id}`,
       { method: 'DELETE' }
     );

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, Network, Plus, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { getSelectedCompanyId } from '@/lib/containers/company';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import {
   BOM_STATUS_META,
   type BomStatus,
@@ -53,7 +53,7 @@ export default function BomsPage() {
 }
 
 function BomsInner() {
-  const companyId = getSelectedCompanyId();
+  const { companyId, withAuth } = useApiAuth();
   const [boms, setBoms] = useState<Bom[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [warning, setWarning] = useState<string>();
@@ -83,8 +83,8 @@ function BomsInner() {
     setLoading(true);
     try {
       const [bRes, pRes] = await Promise.all([
-        fetch(`/api/manufacturing/boms?companyId=${companyId}`),
-        fetch(`/api/inventory/products?companyId=${companyId}`),
+        withAuth(`/api/manufacturing/boms?companyId=${companyId}`),
+        withAuth(`/api/inventory/products?companyId=${companyId}`),
       ]);
       const bData = await bRes.json();
       const pData = await pRes.json();
@@ -129,7 +129,7 @@ function BomsInner() {
       lead_time_days: String(bom.lead_time_days ?? 1),
       notes: bom.notes || '',
     });
-    const res = await fetch(`/api/manufacturing/boms?companyId=${companyId}&id=${bom.id}`);
+    const res = await withAuth(`/api/manufacturing/boms?companyId=${companyId}&id=${bom.id}`);
     const data = await res.json();
     setLines(
       (data.lines || []).map((l: BomLine & { component_product_id: number }) => ({
@@ -181,7 +181,7 @@ function BomsInner() {
             line_no: l.line_no ?? (i + 1) * 10,
           })),
       };
-      const res = await fetch('/api/manufacturing/boms', {
+      const res = await withAuth('/api/manufacturing/boms', {
         method: editId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -200,7 +200,7 @@ function BomsInner() {
 
   const remove = async (id: number) => {
     if (!companyId || !confirm('Delete this BOM structure?')) return;
-    const res = await fetch(`/api/manufacturing/boms?companyId=${companyId}&id=${id}`, {
+    const res = await withAuth(`/api/manufacturing/boms?companyId=${companyId}&id=${id}`, {
       method: 'DELETE',
     });
     if (!res.ok) {
@@ -213,7 +213,7 @@ function BomsInner() {
 
   const activate = async (bom: Bom) => {
     if (!companyId) return;
-    const res = await fetch('/api/manufacturing/boms', {
+    const res = await withAuth('/api/manufacturing/boms', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ companyId, id: bom.id, status: 'active' }),

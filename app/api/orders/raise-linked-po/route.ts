@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { assertCompanyMember, logActivity } from '@/lib/customers/access';
+import { logActivity } from '@/lib/customers/access';
 import {
   raiseFulfillmentPosFromSo,
   raiseLinkedPoFromSo,
   type RaiseLinkedPoInput,
 } from '@/lib/orders/raise-linked-po';
+import { legacyPrivyFrom, requireCompanyAccess } from '@/lib/auth/api-auth';
 
 /**
  * POST /api/orders/raise-linked-po
@@ -16,20 +17,19 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const companyId = Number(body.companyId);
     const salesOrderId = Number(body.salesOrderId);
-    const privyUserId = body.privyUserId as string | undefined;
     const status: 'draft' | 'sent' = body.status === 'sent' ? 'sent' : 'draft';
 
-    if (!companyId || !salesOrderId || !privyUserId) {
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(salesOrderId) || salesOrderId <= 0) {
       return NextResponse.json(
-        { error: 'companyId, salesOrderId and privyUserId are required' },
+        { error: 'companyId and salesOrderId are required' },
         { status: 400 }
       );
     }
 
-    const mem = await assertCompanyMember(privyUserId, companyId);
-    if (!mem.ok) {
-      return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const gate = await requireCompanyAccess(req, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(req, body),
+    });
+    if (!gate.ok) return gate.response;
 
     const supabase = getSupabaseServer();
     const pickedSupplier =
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       companyId,
       salesOrderId,
       status,
-      createdBy: privyUserId,
+      createdBy: gate.userId,
       srmSupplierId: body.srmSupplierId ? Number(body.srmSupplierId) : null,
       supplierProfileId: body.supplierProfileId
         ? Number(body.supplierProfileId)
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
 
     await logActivity({
       profile_id: companyId,
-      actor_user_id: mem.userId,
+      actor_user_id: gate.userId,
       action: 'po.created.linked_so',
       entity_type: 'purchase_order',
       entity_id: String(result.purchaseOrder?.id || ''),

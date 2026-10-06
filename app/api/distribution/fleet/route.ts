@@ -115,9 +115,13 @@ export async function PATCH(request: NextRequest) {
     const companyId = Number(body.companyId);
     const id = Number(body.id);
     const kind = body.kind || 'vehicle';
-    if (!Number.isFinite(companyId) || !Number.isFinite(id)) {
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(id)) {
       return NextResponse.json({ error: 'companyId and id required' }, { status: 400 });
     }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
     const supabase = getSupabaseServer();
     const table =
       kind === 'driver' ? 'distribution_drivers' : 'distribution_vehicles';
@@ -175,9 +179,13 @@ export async function DELETE(request: NextRequest) {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     const id = Number(request.nextUrl.searchParams.get('id'));
     const kind = request.nextUrl.searchParams.get('kind') || 'vehicle';
-    if (!Number.isFinite(companyId) || !Number.isFinite(id)) {
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(id)) {
       return NextResponse.json({ error: 'companyId and id required' }, { status: 400 });
     }
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!gate.ok) return gate.response;
     const supabase = getSupabaseServer();
     const table =
       kind === 'driver' ? 'distribution_drivers' : 'distribution_vehicles';

@@ -17,6 +17,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import type { ProductRecord } from '@/lib/inventory/types';
 import {
   formatMoney,
@@ -52,6 +53,7 @@ export default function MarketplaceSellPage() {
 function SellInner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
+  const { withAuth } = useApiAuth();
   const privyUserId = getCanonicalUserId(user?.id);
 
   const [listings, setListings] = useState<MarketplaceListing[]>([]);
@@ -74,13 +76,13 @@ function SellInner() {
     setLoading(true);
     try {
       const [lRes, pRes, iRes] = await Promise.all([
-        fetch(
+        withAuth(
           `/api/marketplace/listings?companyId=${companyId}&mode=mine`
         ).then((r) => r.json()),
-        fetch(`/api/inventory/products?companyId=${companyId}`).then((r) =>
+        withAuth(`/api/inventory/products?companyId=${companyId}`).then((r) =>
           r.json()
         ),
-        fetch(
+        withAuth(
           `/api/marketplace/inquiries?companyId=${companyId}&role=seller`
         ).then((r) => r.json()),
       ]);
@@ -101,7 +103,7 @@ function SellInner() {
     } finally {
       setLoading(false);
     }
-  }, [companyId]);
+  }, [companyId, withAuth]);
 
   useEffect(() => {
     void load();
@@ -127,7 +129,7 @@ function SellInner() {
     }
     setPublishing(true);
     try {
-      const res = await fetch('/api/marketplace/listings', {
+      const res = await withAuth('/api/marketplace/listings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -164,7 +166,7 @@ function SellInner() {
     if (!privyUserId) return;
     setBusyId(listingId);
     try {
-      const res = await fetch('/api/marketplace/listings', {
+      const res = await withAuth('/api/marketplace/listings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -198,7 +200,7 @@ function SellInner() {
   ) => {
     if (!privyUserId) return;
     try {
-      const res = await fetch('/api/marketplace/inquiries', {
+      const res = await withAuth('/api/marketplace/inquiries', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

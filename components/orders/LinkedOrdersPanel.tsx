@@ -6,6 +6,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 import {
   customerVisibleProductionStatus,
   type OrderLink,
@@ -38,6 +39,7 @@ export default function LinkedOrdersPanel({
   defaultSrmSupplierId,
   className = '',
 }: Props) {
+  const { withAuth } = useApiAuth();
   const [links, setLinks] = useState<OrderLink[]>([]);
   const [suppliers, setSuppliers] = useState<SrmOption[]>([]);
   const [selectedSrmId, setSelectedSrmId] = useState<string>(
@@ -59,7 +61,7 @@ export default function LinkedOrdersPanel({
         orderType,
         privyUserId,
       });
-      const res = await fetch(`/api/orders/links?${q}`);
+      const res = await withAuth(`/api/orders/links?${q}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to load links');
       setLinks(json.links || []);
@@ -68,13 +70,13 @@ export default function LinkedOrdersPanel({
     } finally {
       setLoading(false);
     }
-  }, [companyId, orderId, orderType, privyUserId]);
+  }, [companyId, orderId, orderType, privyUserId, withAuth]);
 
   const loadSuppliers = useCallback(async () => {
     if (orderType !== 'sales_order') return;
     try {
       // Prefer existing SRM list endpoint if present; soft-fail to empty
-      const res = await fetch(
+      const res = await withAuth(
         `/api/suppliers?companyId=${companyId}&privyUserId=${encodeURIComponent(privyUserId)}`
       );
       if (!res.ok) return;
@@ -99,7 +101,7 @@ export default function LinkedOrdersPanel({
     } catch {
       /* soft — picker remains manual */
     }
-  }, [companyId, privyUserId, orderType, defaultSrmSupplierId, selectedSrmId]);
+  }, [companyId, privyUserId, orderType, defaultSrmSupplierId, selectedSrmId, withAuth]);
 
   useEffect(() => {
     void load();
@@ -116,7 +118,7 @@ export default function LinkedOrdersPanel({
     setMessage(null);
     try {
       const srmId = selectedSrmId ? Number(selectedSrmId) : defaultSrmSupplierId;
-      const res = await fetch('/api/orders/raise-linked-po', {
+      const res = await withAuth('/api/orders/raise-linked-po', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -158,7 +160,7 @@ export default function LinkedOrdersPanel({
     setMessage(null);
     try {
       const isSo = orderType === 'sales_order';
-      const res = await fetch('/api/orders/links', {
+      const res = await withAuth('/api/orders/links', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -188,7 +190,7 @@ export default function LinkedOrdersPanel({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch('/api/orders/links', {
+      const res = await withAuth('/api/orders/links', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ companyId, privyUserId, linkId }),

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { OrderChainPath } from '@/components/orders/OrderChainPath';
 import { chainStepIndex, nextSupplierProductionAction } from '@/lib/orders/chain-path';
 import { PRODUCTION_STATUS_OPTIONS } from '@/lib/orders/order-links';
+import { useApiAuth } from '@/lib/client/use-api-auth';
 
 type Chain = {
   linkId: number;
@@ -58,6 +59,7 @@ export default function OrderChainCard({
   privyUserId,
   onChanged,
 }: Props) {
+  const { withAuth } = useApiAuth();
   const ccy = chain.commercial?.currency || 'ZAR';
   const margin = chain.commercial?.margin;
   const marginPositive = margin != null && margin >= 0;
@@ -84,7 +86,7 @@ export default function OrderChainCard({
     setBusy(true);
     setNote(null);
     try {
-      const res = await fetch('/api/orders/production-status', {
+      const res = await withAuth('/api/orders/production-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
