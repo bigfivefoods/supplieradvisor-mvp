@@ -39,6 +39,7 @@ import {
   type RiadType,
 } from '@/lib/containers/riad';
 import type { BookProfile } from '@/lib/portals/trade-portal-workspace';
+import { CreditApplicationPanel } from '@/components/portals/CreditApplicationPanel';
 import GeoSelectFields from '@/components/geo/GeoSelectFields';
 import {
   addDays,
@@ -209,6 +210,7 @@ const HEAVY_ACTIONS = new Set([
   'accept_quote',
   'pay_deposit',
   'confirm_deposit',
+  'credit_application',
 ]);
 const REFRESH_ACTIONS = new Set([
   'project_create',
@@ -229,6 +231,7 @@ const REFRESH_ACTIONS = new Set([
   'accept_quote',
   'pay_deposit',
   'confirm_deposit',
+  'credit_application',
 ]);
 
 function portalLotsFromAct(
@@ -592,6 +595,17 @@ function applyActLocally(
       accountDocuments: applyPortalDocSlotUrl(prev.accountDocuments, field, url),
     };
   }
+  if (action === 'credit_application' && ws && data.application && typeof data.application === 'object') {
+    return {
+      ...prev,
+      workspace: {
+        ...ws,
+        creditApplication: data.application as NonNullable<
+          PublicPortalPayload['workspace']
+        >['creditApplication'],
+      },
+    };
+  }
   if (action === 'riad_update' && ws) {
     const id = Number(payload.id);
     return {
@@ -725,6 +739,10 @@ export function GuestTradeWorkspace({
                                   ? 'Opening Paystack for the deposit'
                                   : action === 'confirm_deposit'
                                     ? 'Deposit paid — the seller can process your order'
+                                    : action === 'credit_application'
+                                      ? payload.mode === 'submit'
+                                        ? 'Credit application submitted'
+                                        : 'Credit application draft saved'
                               : 'Saved'
       );
       if (REFRESH_ACTIONS.has(action)) onRefresh();
@@ -871,6 +889,17 @@ export function GuestTradeWorkspace({
           invoices={live.invoices || []}
           hostName={live.host.name}
         />
+      ) : null}
+      {!isSupplier ? (
+        <div hidden={tab !== 'credit'}>
+          <CreditApplicationPanel
+            hostName={live.host.name}
+            book={ws?.bookProfile || null}
+            application={ws?.creditApplication || null}
+            busy={busy}
+            onAct={act}
+          />
+        </div>
       ) : null}
       {tab === 'projects' ? (
         <ProjectsPanel

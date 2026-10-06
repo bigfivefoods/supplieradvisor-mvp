@@ -1,4 +1,5 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import type { CreditApplication } from '@/lib/customers/credit-application';
 import {
   productAssignedToCustomer,
   productVisibleOnCustomerPortal,
@@ -276,6 +277,8 @@ export type PortalWorkspace = {
   /** Host sellable products (customer portal only) for PO product picker */
   catalogue: PortalCatalogueItem[];
   commercial: import('@/lib/commercial/types').PartyCatalogueLine[];
+  /** Latest trade-credit application for this customer, if the table exists. */
+  creditApplication: CreditApplication | null;
 };
 
 function mapBatchLot(raw: Record<string, unknown>): PortalBatchLot | null {
@@ -642,6 +645,7 @@ export async function loadPortalWorkspace(opts: {
     projects: [],
     catalogue: [],
     commercial: [],
+    creditApplication: null,
   };
 
   let linkedProfileId: number | null = null;
@@ -1294,6 +1298,21 @@ export async function loadPortalWorkspace(opts: {
     commercial = [];
   }
 
+  let creditApplication: CreditApplication | null = null;
+  if (kind === 'customer' && opts.viewer.customer_id) {
+    try {
+      const { loadPortalCreditApplication } = await import(
+        '@/lib/customers/credit-application-store'
+      );
+      creditApplication = await loadPortalCreditApplication({
+        companyId,
+        customerId: opts.viewer.customer_id,
+      });
+    } catch {
+      creditApplication = null;
+    }
+  }
+
   return {
     onBooks: true,
     linkedProfileId,
@@ -1309,5 +1328,6 @@ export async function loadPortalWorkspace(opts: {
     projects,
     catalogue,
     commercial,
+    creditApplication,
   };
 }

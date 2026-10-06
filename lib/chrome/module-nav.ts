@@ -382,6 +382,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Trade',
       },
       { name: 'Money', href: '/dashboard/customers/money', desc: 'Collect, claims, AR, settle', section: 'Money' },
+      {
+        name: 'Credit',
+        href: '/dashboard/customers/credit',
+        desc: 'Trade credit applications from the customer portal',
+        section: 'Money',
+      },
       { name: 'Rate', href: '/dashboard/customers/ratings', desc: 'Peer ratings after trade', section: 'Score' },
       {
         name: 'Report',
@@ -576,6 +582,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         name: 'Cash vs budget',
         href: '/dashboard/accounting/management-cashflow',
         desc: 'Management cash flow · bank actual vs budget',
+        section: 'Statements',
+      },
+      {
+        name: 'Referrals',
+        href: '/dashboard/accounting/referral-commission',
+        desc: 'Commission earned by partner companies',
         section: 'Statements',
       },
       {

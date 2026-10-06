@@ -375,6 +375,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    if (action === 'credit_application') {
+      if (portal.kind !== 'customer' || !viewer.customer_id) {
+        return NextResponse.json(
+          { error: 'Credit applications are for customer portals.' },
+          { status: 403 }
+        );
+      }
+      const { savePortalCreditApplication, CreditApplicationError } = await import(
+        '@/lib/customers/credit-application-store'
+      );
+      try {
+        const application = await savePortalCreditApplication({
+          companyId: portal.profile_id,
+          customerId: viewer.customer_id,
+          mode: body.mode,
+          input: body,
+        });
+        return NextResponse.json({ success: true, application });
+      } catch (error) {
+        const status = error instanceof CreditApplicationError ? error.status : 500;
+        const message =
+          error instanceof Error ? error.message : 'Could not save the credit application';
+        return NextResponse.json({ error: message }, { status });
+      }
+    }
+
     async function assertJointProject(projectId: number) {
       const { data: proj } = await supabase
         .from('pm_projects')

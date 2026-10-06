@@ -21,6 +21,7 @@ assert.deepEqual(customer, [
   'orders',
   'stock',
   'statement',
+  'credit',
   'projects',
   'otifef',
   'messages',
@@ -34,8 +35,11 @@ assert.deepEqual(
   ['Enquiry', 'Quote', 'Order', 'Sales order', 'Stock', 'Statement']
 );
 assert.equal(customerLabels.includes('Commercial'), false);
+assert.equal(customer[customer.indexOf('statement') + 1], 'credit');
+assert.equal(customerLabels[customer.indexOf('credit')], 'Credit');
 
 const supplier = guestPortalTabs({ kind: 'supplier' }).map((t) => t.id);
+assert.equal(supplier.includes('credit'), false);
 assert.deepEqual(supplier, [
   'profile',
   'people',

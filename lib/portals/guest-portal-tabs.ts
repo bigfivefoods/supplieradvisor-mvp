@@ -9,6 +9,7 @@ export type GuestPortalTab =
   | 'orders'
   | 'otifef'
   | 'statement'
+  | 'credit'
   | 'stock'
   | 'riad'
   | 'messages'
@@ -93,6 +94,7 @@ export function guestPortalTabGroups(opts: {
         { id: 'orders', label: 'Sales order' },
         { id: 'stock', label: 'Stock' },
         { id: 'statement', label: 'Statement' },
+        { id: 'credit', label: 'Credit' },
       ],
     },
     {

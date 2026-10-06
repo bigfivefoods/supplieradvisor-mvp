@@ -19,6 +19,7 @@ import {
   Scale,
   Wallet,
   Users,
+  Handshake,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -257,9 +258,17 @@ function HubInner() {
       accent: 'from-teal-50 to-white border-teal-100',
     },
     {
+      href: '/dashboard/accounting/referral-commission',
+      icon: Handshake,
+      code: '17',
+      title: 'Referral commission',
+      desc: 'What a partner company earned on sales they brought in, and what has been redeemed.',
+      accent: 'from-orange-50 to-white border-orange-100',
+    },
+    {
       href: '/dashboard/accounting/afs',
       icon: FileText,
-      code: '17',
+      code: '18',
       title: 'Annual financial statements',
       desc: 'Compiled AFS pack — SoFP, P&L, equity, cash flow, notes.',
       accent: 'from-slate-50 to-white border-slate-200',
@@ -267,7 +276,7 @@ function HubInner() {
     {
       href: '/dashboard/accounting/reports',
       icon: BarChart3,
-      code: '18',
+      code: '19',
       title: 'Reports & analytics',
       desc: 'P&L, balance sheet, cash flow, budget vs actual, aging, forecast.',
       accent: 'from-sky-50 to-white border-sky-100',
@@ -275,7 +284,7 @@ function HubInner() {
     {
       href: '/dashboard/accounting/entities',
       icon: Globe,
-      code: '19',
+      code: '20',
       title: 'Legal entities & group',
       desc: 'Multi-entity books tied to holding / association structure.',
       accent: 'from-amber-50 to-white border-amber-100',
@@ -285,7 +294,7 @@ function HubInner() {
     {
       href: '/dashboard/accounting/settings',
       icon: Settings,
-      code: '20',
+      code: '21',
       title: 'Settings',
       desc: 'FY start, periods, lock date, prefixes, customer AR and supplier AP parents.',
       accent: 'from-cyan-50 to-white border-cyan-100',

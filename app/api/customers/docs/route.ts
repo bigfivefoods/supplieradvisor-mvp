@@ -26,6 +26,7 @@ import {
   quoteUidWhenIssuing,
   resolveEnquiryUid,
 } from '@/lib/customers/enquiry-uid';
+import { missingSchemaColumn } from '@/lib/customers/schema-column';
 
 async function booksFromCrm(
   companyId: number,
@@ -194,6 +195,14 @@ function buildPayload(
     if (paymentTerms) {
       base.payment_terms = paymentTerms;
       base.terms = paymentTerms;
+    }
+    const referralPartner = Number(customer?.referral_partner_profile_id);
+    if (
+      body.referral_partner_profile_id === undefined &&
+      Number.isFinite(referralPartner) &&
+      referralPartner > 0
+    ) {
+      base.referral_partner_profile_id = referralPartner;
     }
     // fromPo: durable link for double-invoice guard (column may strip if migration not run)
     const sourcePo = body.source_po_id != null ? Number(body.source_po_id) : NaN;
@@ -2260,15 +2269,27 @@ export async function POST(request: NextRequest) {
   }
 }
 
+type DocWriteResult =
+  | { ok: true; data: Record<string, unknown> }
+  | { ok: false; error: string };
+
+/** Drop a column PostgREST does not know yet, then retry. */
+function stripMissingColumn(
+  row: Record<string, unknown>,
+  message: string
+): boolean {
+  const column = missingSchemaColumn(message);
+  if (!column || row[column] === undefined) return false;
+  delete row[column];
+  return true;
+}
+
 /** Insert; on missing-column schema errors strip the column and retry (up to 6 times). */
 async function insertDocTolerant(
   supabase: ReturnType<typeof getSupabaseServer>,
   table: string,
   payload: Record<string, unknown>
-): Promise<
-  | { ok: true; data: Record<string, unknown> }
-  | { ok: false; error: string }
-> {
+): Promise<DocWriteResult> {
   let row = { ...payload };
   let lastError = '';
 
@@ -2284,18 +2305,7 @@ async function insertDocTolerant(
     }
 
     lastError = error?.message || 'Insert failed';
-    // e.g. Could not find the 'contact_phone' column of 'customer_invoices' in the schema cache
-    const m =
-      /'([^']+)' column/i.exec(lastError) ||
-      /column [\"']?([a-z0-9_]+)[\"']?/i.exec(lastError);
-    if (
-      m?.[1] &&
-      row[m[1]] !== undefined &&
-      /column|schema cache|does not exist|could not find/i.test(lastError)
-    ) {
-      delete row[m[1]];
-      continue;
-    }
+    if (stripMissingColumn(row, lastError)) continue;
     break;
   }
 
@@ -2454,6 +2464,12 @@ export async function PATCH(request: NextRequest) {
             if (body.billing_address === undefined && kind === 'quote') {
               updates.billing_address = customer.billing_address || null;
             }
+            if (kind === 'invoice' && body.referral_partner_profile_id === undefined) {
+              const referralPartner = Number(customer.referral_partner_profile_id);
+              if (Number.isFinite(referralPartner) && referralPartner > 0) {
+                updates.referral_partner_profile_id = referralPartner;
+              }
+            }
           }
         }
       }
@@ -2567,14 +2583,27 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    const { data, error } = await supabase
-      .from(table)
-      .update(updates)
-      .eq('id', docId)
-      .eq('profile_id', companyId)
-      .select('*')
-      .single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    let data: Record<string, unknown> | null = null;
+    let errorMessage = '';
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const result = await supabase
+        .from(table)
+        .update(updates)
+        .eq('id', docId)
+        .eq('profile_id', companyId)
+        .select('*')
+        .single();
+      if (!result.error && result.data) {
+        data = result.data as Record<string, unknown>;
+        errorMessage = '';
+        break;
+      }
+      errorMessage = result.error?.message || 'Update failed';
+      if (!stripMissingColumn(updates, errorMessage)) break;
+    }
+    if (!data) {
+      return NextResponse.json({ error: errorMessage || 'Update failed' }, { status: 500 });
+    }
 
     if (kind === 'invoice' && data) {
       await booksFromCrm(
