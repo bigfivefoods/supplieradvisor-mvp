@@ -374,14 +374,14 @@ function ProfilesInner() {
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
           <input
-            className="input w-full !pl-9 !py-2.5 !text-sm"
+            className="input min-h-11 w-full !pl-9 !py-2.5 !text-sm"
             placeholder="Search name, email, city…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
         <select
-          className="input !py-2.5 !px-3 !text-sm"
+          className="input min-h-11 !py-2.5 !px-3 !text-sm"
           value={status}
           onChange={(e) => setStatus(e.target.value)}
         >
@@ -417,7 +417,7 @@ function ProfilesInner() {
               return (
                 <li
                   key={c.id}
-                  className={`flex items-start gap-3 px-4 py-3.5 ${
+                  className={`flex items-start gap-3 px-3 py-3 sm:px-4 sm:py-3.5 ${
                     isSelected ? 'bg-sky-50/80' : ''
                   }`}
                 >
@@ -444,7 +444,7 @@ function ProfilesInner() {
                     <button
                       type="button"
                       onClick={() => selectCustomer(isSelected ? null : c.id)}
-                      className="min-w-0 flex-1 text-left"
+                      className="min-h-11 min-w-0 flex-1 py-0.5 text-left"
                     >
                       <span className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold text-slate-900">{c.trading_name}</span>
@@ -465,9 +465,14 @@ function ProfilesInner() {
                           c.industry ||
                           '—'}
                       </span>
+                      <span
+                        className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase sm:hidden ${customerInviteStatusClass(c.invite_status, c.linked_profile_id)}`}
+                      >
+                        {customerInviteStatusLabel(c.invite_status, c.linked_profile_id)}
+                      </span>
                     </button>
                     <span
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${customerInviteStatusClass(c.invite_status, c.linked_profile_id)}`}
+                      className={`mt-1 hidden shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase sm:inline-flex ${customerInviteStatusClass(c.invite_status, c.linked_profile_id)}`}
                     >
                       {customerInviteStatusLabel(c.invite_status, c.linked_profile_id)}
                     </span>
@@ -686,7 +691,7 @@ function CustomerAccountPanel({
     : [form.status, ...STATUS_OPTIONS];
 
   return (
-    <aside className="max-h-[calc(100vh-7rem)] overflow-y-auto rounded-[1.5rem] border border-neutral-200 bg-white p-4 shadow-sm">
+    <aside className="rounded-[1.5rem] border border-neutral-200 bg-white p-4 shadow-sm lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6]">
@@ -702,7 +707,7 @@ function CustomerAccountPanel({
         <button
           type="button"
           onClick={onClose}
-          className="text-xs font-semibold text-neutral-500 hover:text-slate-800"
+          className="inline-flex min-h-11 shrink-0 items-center px-3 text-sm font-semibold text-neutral-600 hover:text-slate-900"
         >
           Close
         </button>
@@ -723,7 +728,7 @@ function CustomerAccountPanel({
       </div>
 
       {bookReady ? (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 [&_input]:min-h-11 [&_select]:min-h-11">
           <BookField label="Trading name *">
             <input
               className="input mt-0.5 w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
@@ -868,9 +873,9 @@ function CustomerAccountPanel({
               type="button"
               disabled={saving}
               onClick={() => void save()}
-              className="inline-flex items-center gap-1.5 rounded-full bg-[#0077b6] px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#0077b6] px-4 text-sm font-bold text-white disabled:opacity-50"
             >
-              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               Save to customer book
             </button>
           </div>
@@ -892,11 +897,11 @@ function CustomerAccountPanel({
 
       {held ? (
         <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2">
-          <span className="text-xs font-bold text-rose-800">Credit hold</span>
+          <span className="text-sm font-bold text-rose-800">Credit hold</span>
           <button
             type="button"
             onClick={onClearHold}
-            className="text-xs font-bold text-[#0077b6] hover:underline"
+            className="inline-flex min-h-11 items-center px-3 text-sm font-bold text-[#0077b6]"
           >
             Clear
           </button>
@@ -924,35 +929,35 @@ function CustomerAccountPanel({
         ) : null}
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 grid grid-cols-2 gap-2">
         <Link
           href={`/dashboard/customers/onboard?id=${c.id}`}
-          className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:border-[#00b4d8]/40 hover:text-[#0077b6]"
+          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-neutral-200 px-3 text-sm font-semibold text-neutral-700 hover:border-[#00b4d8]/40 hover:text-[#0077b6]"
         >
-          <Pencil className="h-3.5 w-3.5" /> Full record
+          <Pencil className="h-4 w-4" /> Full record
         </Link>
         <Link
           href={`/dashboard/customers/quotes?customerId=${c.id}`}
-          className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:border-[#00b4d8]/40 hover:text-[#0077b6]"
+          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-neutral-200 px-3 text-sm font-semibold text-neutral-700 hover:border-[#00b4d8]/40 hover:text-[#0077b6]"
         >
-          <FileText className="h-3.5 w-3.5" /> Quote
+          <FileText className="h-4 w-4" /> Quote
         </Link>
         <Link
           href={`/dashboard/customers/invoices?customerId=${c.id}`}
-          className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:border-[#00b4d8]/40 hover:text-[#0077b6]"
+          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-neutral-200 px-3 text-sm font-semibold text-neutral-700 hover:border-[#00b4d8]/40 hover:text-[#0077b6]"
         >
-          <Receipt className="h-3.5 w-3.5" /> Invoice
+          <Receipt className="h-4 w-4" /> Invoice
         </Link>
         <Link
           href="/dashboard/customers/360"
-          className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:border-[#00b4d8]/40 hover:text-[#0077b6]"
+          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-neutral-200 px-3 text-sm font-semibold text-neutral-700 hover:border-[#00b4d8]/40 hover:text-[#0077b6]"
         >
           360
         </Link>
         <button
           type="button"
           onClick={onToggleCommercial}
-          className="inline-flex items-center gap-1.5 rounded-full border border-[#00b4d8]/30 bg-[#00b4d8]/10 px-3 py-1.5 text-xs font-semibold text-[#0077b6]"
+          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-[#00b4d8]/30 bg-[#00b4d8]/10 px-3 text-sm font-semibold text-[#0077b6]"
         >
           {commercialOpen ? 'Hide commercial' : 'Commercial'}
         </button>
@@ -960,7 +965,7 @@ function CustomerAccountPanel({
           <button
             type="button"
             onClick={onInvite}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[#00b4d8] bg-[#00b4d8] px-3 py-1.5 text-xs font-semibold text-white"
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-[#00b4d8] bg-[#00b4d8] px-3 text-sm font-semibold text-white"
           >
             {customerInviteActionLabel(c)}
           </button>
@@ -969,9 +974,9 @@ function CustomerAccountPanel({
           type="button"
           disabled={busy || !privyUserId}
           onClick={onPortal}
-          className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-[#0077b6] disabled:opacity-50"
+          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-neutral-200 px-3 text-sm font-semibold text-[#0077b6] disabled:opacity-50"
         >
-          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe className="h-3.5 w-3.5" />}
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
           Portal
         </button>
         {phase === 'accepted' ? (
@@ -979,9 +984,9 @@ function CustomerAccountPanel({
             type="button"
             disabled={busy || !privyUserId}
             onClick={() => onSuspend(true)}
-            className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-800 disabled:opacity-50"
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-amber-200 px-3 text-sm font-semibold text-amber-800 disabled:opacity-50"
           >
-            <PauseCircle className="h-3.5 w-3.5" /> Suspend
+            <PauseCircle className="h-4 w-4" /> Suspend
           </button>
         ) : null}
         {phase === 'suspended' ? (
@@ -989,17 +994,17 @@ function CustomerAccountPanel({
             type="button"
             disabled={busy || !privyUserId}
             onClick={() => onSuspend(false)}
-            className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-800 disabled:opacity-50"
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-emerald-200 px-3 text-sm font-semibold text-emerald-800 disabled:opacity-50"
           >
-            <PlayCircle className="h-3.5 w-3.5" /> Restore
+            <PlayCircle className="h-4 w-4" /> Restore
           </button>
         ) : null}
         <button
           type="button"
           onClick={onDelete}
-          className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700"
+          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-rose-200 px-3 text-sm font-semibold text-rose-700"
         >
-          <Trash2 className="h-3.5 w-3.5" /> Delete
+          <Trash2 className="h-4 w-4" /> Delete
         </button>
       </div>
 

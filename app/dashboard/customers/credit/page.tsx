@@ -181,7 +181,11 @@ function Inner() {
           <button
             key={item.id}
             type="button"
-            className={filter === item.id ? 'btn-primary !py-1.5 !px-3 text-xs' : 'btn-secondary !py-1.5 !px-3 text-xs'}
+            className={
+              filter === item.id
+                ? 'btn-primary min-h-11 !px-4 text-sm'
+                : 'btn-secondary min-h-11 !px-4 text-sm'
+            }
             onClick={() => setFilter(item.id)}
           >
             {item.label}
@@ -199,7 +203,42 @@ function Inner() {
         </section>
       ) : null}
       {visible.length ? (
-        <div className="overflow-x-auto rounded-[1.5rem] border border-white/70 bg-white/90">
+        <ul className="space-y-2 md:hidden">
+          {visible.map((row) => {
+            const bank = [row.bank_name, row.bank_masked].filter(Boolean).join(' ');
+            const submitted = row.submitted_at ? row.submitted_at.slice(0, 10) : '';
+            return (
+              <li key={row.id}>
+                <button
+                  type="button"
+                  onClick={() => void open(row.id)}
+                  className={
+                    selectedId === row.id
+                      ? 'w-full rounded-2xl border border-[#00b4d8] bg-sky-50 px-4 py-3 text-left'
+                      : 'w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-left'
+                  }
+                >
+                  <span className="flex items-start justify-between gap-3">
+                    <span className="font-semibold text-neutral-900">{row.customer_name}</span>
+                    <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-[#0077b6]">
+                      {creditStatusLabel(row.status)}
+                    </span>
+                  </span>
+                  <span className="mt-1 block text-sm text-neutral-800">
+                    {formatMoney(row.requested_limit, row.currency, { compact: false })}
+                    {row.payment_terms ? ` · ${row.payment_terms}` : ''}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-neutral-500">
+                    {[bank, submitted].filter(Boolean).join(' · ') || 'No bank or date yet'}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+      {visible.length ? (
+        <div className="hidden overflow-x-auto rounded-[1.5rem] border border-white/70 bg-white/90 md:block">
           <table className="min-w-full text-left text-sm">
             <thead className="text-xs uppercase tracking-wide text-neutral-500">
               <tr>
@@ -347,14 +386,14 @@ function Detail({
         ))}
       </dl>
       <div className="flex flex-wrap gap-2">
-        <button type="button" className="btn-secondary" onClick={() => onDownload('pdf')}>
+        <button type="button" className="btn-secondary min-h-11" onClick={() => onDownload('pdf')}>
           Download PDF
         </button>
         {(application.supporting_documents || []).map((doc) => (
           <button
             key={doc.id}
             type="button"
-            className="btn-secondary"
+            className="btn-secondary min-h-11"
             onClick={() => onDownload(doc.id)}
           >
             {creditDocumentLabel(doc.kind)}
@@ -391,7 +430,7 @@ function Detail({
           <label className="block text-xs font-semibold text-neutral-600">
             Approved limit
             <input
-              className="input mt-0.5 w-full !p-2.5 !text-sm"
+              className="input mt-0.5 min-h-11 w-full !p-2.5 !text-sm"
               inputMode="decimal"
               value={limit}
               onChange={(e) => onLimit(e.target.value)}
@@ -400,7 +439,7 @@ function Detail({
           <label className="block text-xs font-semibold text-neutral-600">
             Payment terms on the customer
             <select
-              className="input mt-0.5 w-full !p-2.5 !text-sm"
+              className="input mt-0.5 min-h-11 w-full !p-2.5 !text-sm"
               value={terms}
               onChange={(e) => onTerms(e.target.value)}
             >
@@ -415,37 +454,39 @@ function Detail({
           <label className="block text-xs font-semibold text-neutral-600 sm:col-span-2">
             Note to keep with the decision
             <textarea
-              className="input mt-0.5 w-full !p-2.5 !text-sm"
+              className="input mt-0.5 min-h-[5.5rem] w-full !p-2.5 !text-sm"
               rows={3}
               value={notes}
               onChange={(e) => onNotes(e.target.value)}
             />
           </label>
-          <div className="flex flex-wrap gap-2 sm:col-span-2">
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={busy}
-              onClick={() => onDecide('in_review')}
-            >
-              Mark in review
-            </button>
-            <button
-              type="button"
-              className="btn-primary"
-              disabled={busy}
-              onClick={() => onDecide('approved')}
-            >
-              Approve
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={busy}
-              onClick={() => onDecide('declined')}
-            >
-              Decline
-            </button>
+          <div className="sticky bottom-0 z-20 -mx-5 border-t border-neutral-200 bg-white/95 px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:static sm:col-span-2 sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:pb-0">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                className="btn-secondary min-h-11"
+                disabled={busy}
+                onClick={() => onDecide('in_review')}
+              >
+                Mark in review
+              </button>
+              <button
+                type="button"
+                className="btn-secondary min-h-11"
+                disabled={busy}
+                onClick={() => onDecide('declined')}
+              >
+                Decline
+              </button>
+              <button
+                type="button"
+                className="btn-primary col-span-2 min-h-11"
+                disabled={busy}
+                onClick={() => onDecide('approved')}
+              >
+                Approve
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

@@ -1485,7 +1485,7 @@ function ProfileInner() {
         }
       : null;
 
-  const inputCls = 'input w-full !py-2.5 !px-3 !text-sm';
+  const inputCls = 'input min-h-11 w-full !py-2.5 !px-3 !text-sm';
   const recordTrade = String(form.trading_name || '').trim();
   const recordLegal = String(form.legal_name || '').trim();
   const recordTitle = recordTrade || recordLegal || 'Your company';
@@ -1585,7 +1585,7 @@ function ProfileInner() {
                   type="button"
                   disabled={saving || verifying}
                   onClick={() => void applyCipcNameToProfile()}
-                  className="btn-primary !py-2 !px-3 text-xs"
+                  className="btn-primary min-h-11 w-full justify-center !px-4 text-sm sm:w-auto"
                 >
                   {verifying || saving
                     ? 'Applying…'
@@ -1676,7 +1676,7 @@ function ProfileInner() {
       </section>
 
       <nav
-        className="sticky top-16 z-30 mb-8 flex gap-1 overflow-x-auto rounded-2xl border border-neutral-200 bg-white/95 p-1.5 shadow-sm backdrop-blur"
+        className="sticky top-[calc(3.75rem+env(safe-area-inset-top,0px))] z-30 mb-8 flex gap-1.5 overflow-x-auto rounded-2xl border border-neutral-200 bg-white/95 p-1.5 shadow-sm backdrop-blur sm:top-[calc(4.25rem+env(safe-area-inset-top,0px))]"
         aria-label="Profile sections"
       >
         {PROFILE_SECTIONS.map((s, index) => {
@@ -1686,7 +1686,7 @@ function ProfileInner() {
               key={s.id}
               type="button"
               aria-current={active ? 'true' : undefined}
-              className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold ${
+              className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-3.5 text-sm font-semibold ${
                 active
                   ? 'bg-[#00b4d8] text-white'
                   : 'text-slate-600 hover:bg-[#00b4d8]/10 hover:text-[#0077b6]'
@@ -2981,8 +2981,9 @@ function ProfileInner() {
         </ProfileChapter>
       </div>
 
-      <div className="sticky bottom-0 z-20 mt-10 border-t border-neutral-200 bg-white/95 py-3 backdrop-blur">
-        <div className="flex items-center justify-between gap-4">
+      <div className="h-28 sm:hidden" aria-hidden />
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-neutral-200 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:sticky sm:inset-auto sm:z-20 sm:mt-10 sm:px-0">
+        <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4">
           <p className="hidden text-sm text-neutral-500 sm:block">
             Save writes this company record.
           </p>
@@ -2990,7 +2991,7 @@ function ProfileInner() {
             type="button"
             disabled={saving}
             onClick={() => void save()}
-            className="btn-primary ml-auto inline-flex items-center gap-1.5 !px-5 !py-2.5 text-sm"
+            className="btn-primary inline-flex min-h-11 w-full items-center justify-center gap-1.5 !px-5 text-sm sm:ml-auto sm:w-auto"
           >
             {saving ? (
               <Loader2 className="w-4 h-4 animate-spin" />
