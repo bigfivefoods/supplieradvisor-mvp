@@ -340,7 +340,7 @@ export async function PATCH(request: NextRequest) {
       legacyPrivyUserId: legacyPrivyFrom(request, body),
     });
     if (!gate.ok) return gate.response;
-    if (!Number.isFinite(listingId)) {
+    if (!Number.isFinite(listingId) || listingId <= 0) {
       return NextResponse.json({ error: 'listingId required' }, { status: 400 });
     }
 
@@ -360,7 +360,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     const listingId = Number(request.nextUrl.searchParams.get('listingId'));
-    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(listingId)) {
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(listingId) || listingId <= 0) {
       return NextResponse.json({ error: 'companyId and listingId required' }, { status: 400 });
     }
     const gate = await requireCompanyAccess(request, companyId, {

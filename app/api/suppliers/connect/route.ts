@@ -32,15 +32,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
-
-    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request, body) });
-    if (!_gate.ok) return _gate.response;
     const targetProfileId = Number(body.targetProfileId);
-    let mode = String(body.mode || 'request').toLowerCase();
-    const message =
-      typeof body.message === 'string' && body.message.trim()
-        ? body.message.trim().slice(0, 500)
-        : null;
 
     if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(targetProfileId) || targetProfileId <= 0) {
       return NextResponse.json(
@@ -48,6 +40,15 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request, body) });
+    if (!_gate.ok) return _gate.response;
+    let mode = String(body.mode || 'request').toLowerCase();
+    const message =
+      typeof body.message === 'string' && body.message.trim()
+        ? body.message.trim().slice(0, 500)
+        : null;
+
     if (companyId === targetProfileId) {
       return NextResponse.json({ error: 'Cannot connect to your own company' }, { status: 400 });
     }

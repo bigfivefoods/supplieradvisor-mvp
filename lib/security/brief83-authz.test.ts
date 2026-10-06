@@ -11,31 +11,20 @@ import { isPublicApiPath } from '../auth/public-paths';
 type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
 function fnBlock(src: string, method: Method): string {
-  const signature = new RegExp(`^export async function ${method}\\(`, 'm');
-  const match = signature.exec(src);
-  const start = match?.index ?? -1;
+  const signature = `export async function ${method}(`;
+  const start = src.indexOf(signature);
   assert.ok(start >= 0, `Could not locate ${method} handler`);
-
-  const bodyStart = src.indexOf('{', start);
-  assert.ok(bodyStart >= 0, `Could not locate ${method} body start`);
-
-  let depth = 0;
-  for (let i = bodyStart; i < src.length; i += 1) {
-    const ch = src[i];
-    if (ch === '{') depth += 1;
-    if (ch === '}') depth -= 1;
-    if (depth === 0) return src.slice(start, i + 1);
-  }
-
-  assert.fail(`Could not locate ${method} body end`);
+  const next = src.indexOf('export async function ', start + signature.length);
+  return src.slice(start, next >= 0 ? next : undefined);
 }
 
 function assertGateBeforeSupabase(label: string, fnSrc: string) {
-  const gateIdx = Math.max(
+  const gateIdxs = [
     fnSrc.indexOf('requireCompanyAccess'),
     fnSrc.indexOf('requireCompanyPermission'),
-    fnSrc.indexOf('requireCompanyRoles')
-  );
+    fnSrc.indexOf('requireCompanyRoles'),
+  ].filter((idx) => idx >= 0);
+  const gateIdx = gateIdxs.length ? Math.min(...gateIdxs) : -1;
   const sbIdx = fnSrc.indexOf('getSupabaseServer');
   assert.ok(gateIdx >= 0, `${label} must call a company auth gate`);
   if (sbIdx >= 0) {
@@ -81,7 +70,7 @@ for (const target of targets) {
     );
     assert.match(
       block,
-      /<=\s*0/,
+      /(?:companyId|[A-Za-z_][A-Za-z0-9_]*CompanyId)\s*<=\s*0/,
       `${target.path} ${method} must reject non-positive companyId`
     );
   }

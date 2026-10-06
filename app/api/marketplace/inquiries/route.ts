@@ -230,7 +230,7 @@ export async function PATCH(request: NextRequest) {
     const status = body.status != null ? String(body.status) : null;
     const settlementStatus =
       body.settlement_status != null ? String(body.settlement_status) : null;
-    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(inquiryId)) {
+    if (!Number.isFinite(companyId) || companyId <= 0 || !Number.isFinite(inquiryId) || inquiryId <= 0) {
       return NextResponse.json({ error: 'companyId and inquiryId required' }, { status: 400 });
     }
     const gate = await requireCompanyAccess(request, companyId, {
