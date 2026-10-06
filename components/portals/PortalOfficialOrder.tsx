@@ -24,6 +24,7 @@ async function uploadPortalPo(token: string, file: File) {
   if (!res.ok) throw new Error(data.error || 'Upload failed');
   return {
     url: String(data.url || ''),
+    ref: String(data.ref || ''),
     name: String(data.name || file.name),
   };
 }
@@ -100,12 +101,14 @@ export function PortalOfficialOrderCard({
       return;
     }
     let attachment_url: string | undefined;
+    let attachment_ref: string | undefined;
     let attachment_name: string | undefined;
     if (file) {
       setUploading(true);
       try {
         const up = await uploadPortalPo(token, file);
         attachment_url = up.url;
+        attachment_ref = up.ref || undefined;
         attachment_name = up.name;
       } catch (e) {
         setErr(e instanceof Error ? e.message : 'Could not attach the PO');
@@ -120,6 +123,7 @@ export function PortalOfficialOrderCard({
         id: quote.id,
         po_number: poNumber.trim(),
         attachment_url,
+        attachment_ref,
         attachment_name,
       });
       if (data && !data.error) {

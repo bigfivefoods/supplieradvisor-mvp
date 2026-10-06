@@ -23,6 +23,7 @@ import {
 import { loadHostPurchaseOrders } from '@/lib/portals/host-purchase-orders';
 import { loadSupplierHeldStock } from '@/lib/portals/supplier-dc-stock';
 import { loadCustomerHeldStock } from '@/lib/portals/customer-site-stock';
+import { signPortalDocumentRef } from '@/lib/portals/portal-storage';
 import {
   productListedOnStorefront,
   storefrontCatalogFromProfileMetadata,
@@ -59,6 +60,11 @@ function strOrNull(v: unknown): string | null {
   if (v == null) return null;
   const s = String(v);
   return s.trim() ? s : null;
+}
+
+function portalPoRefFromMeta(meta: Record<string, unknown>): string | null {
+  const ref = String(meta.attachment_ref || meta.pdf_ref || '').trim();
+  return ref || null;
 }
 
 function bookStr(row: Record<string, unknown>, key: string): string {
@@ -824,15 +830,22 @@ export async function loadPortalWorkspace(opts: {
       ) {
         continue;
       }
-      pos.push(
-        poToDoc(r, {
-          promised_date: r.promised_date as string | null,
-          actual_date: r.actual_delivery_date as string | null,
-          ordered: r.order_quantity as number | null,
-          delivered: r.delivered_quantity as number | null,
-          damaged: r.damaged_quantity as number | null,
-        })
-      );
+      const row = poToDoc(r, {
+        promised_date: r.promised_date as string | null,
+        actual_date: r.actual_delivery_date as string | null,
+        ordered: r.order_quantity as number | null,
+        delivered: r.delivered_quantity as number | null,
+        damaged: r.damaged_quantity as number | null,
+      });
+      const ref = portalPoRefFromMeta(metaOf(r));
+      if (ref) {
+        try {
+          row.attachment_url = await signPortalDocumentRef(ref);
+        } catch {
+          // keep stored URL fallback
+        }
+      }
+      pos.push(row);
       const items = Array.isArray(r.items) ? r.items : [];
       for (const item of items) {
         const it = asObject(item);
@@ -891,15 +904,22 @@ export async function loadPortalWorkspace(opts: {
       .limit(80);
     for (const raw of data || []) {
       const r = asObject(raw);
-      inbound.push(
-        poToDoc(r, {
-          promised_date: r.promised_date as string | null,
-          actual_date: r.actual_delivery_date as string | null,
-          ordered: r.order_quantity as number | null,
-          delivered: r.delivered_quantity as number | null,
-          damaged: r.damaged_quantity as number | null,
-        })
-      );
+      const row = poToDoc(r, {
+        promised_date: r.promised_date as string | null,
+        actual_date: r.actual_delivery_date as string | null,
+        ordered: r.order_quantity as number | null,
+        delivered: r.delivered_quantity as number | null,
+        damaged: r.damaged_quantity as number | null,
+      });
+      const ref = portalPoRefFromMeta(metaOf(r));
+      if (ref) {
+        try {
+          row.attachment_url = await signPortalDocumentRef(ref);
+        } catch {
+          // keep stored URL fallback
+        }
+      }
+      inbound.push(row);
     }
     const ordersHit = await supabase
       .from('sales_orders')

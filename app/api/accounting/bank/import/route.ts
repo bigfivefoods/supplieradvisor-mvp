@@ -13,7 +13,8 @@ import {
   isOfxContent,
   type CanonicalTxn,
 } from '@/lib/banking';
-import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
+import { uploadSensitiveDoc } from '@/lib/storage/private-docs';
 
 type ImportBody = {
   companyId?: unknown;
@@ -72,26 +73,18 @@ async function storeStatementPdf(
   bankAccountId: number,
   filename: string,
   buffer: Buffer
-): Promise<{ storage_path?: string; public_url?: string; storage_error?: string }> {
+): Promise<{ storage_ref?: string; storage_error?: string }> {
   try {
-    const supabase = getSupabaseServer();
     const safe = (filename || 'statement.pdf').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
-    const path = `${companyId}/bank-statements/${bankAccountId}/${Date.now()}-${safe}`;
-    const buckets = ['company-documents', 'certificates'];
-    const errors: string[] = [];
-    for (const bucket of buckets) {
-      const { error } = await supabase.storage.from(bucket).upload(path, buffer, {
-        cacheControl: '3600',
-        upsert: false,
-        contentType: 'application/pdf',
-      });
-      if (!error) {
-        const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-        return { storage_path: `${bucket}/${path}`, public_url: data.publicUrl };
-      }
-      errors.push(`${bucket}: ${error.message}`);
-    }
-    return { storage_error: errors.join('; ') };
+    const ext = safe.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'pdf';
+    const ref = await uploadSensitiveDoc({
+      companyId,
+      kind: `bank-statements-${bankAccountId}`,
+      body: buffer,
+      contentType: 'application/pdf',
+      ext,
+    });
+    return { storage_ref: ref };
   } catch (e) {
     return { storage_error: e instanceof Error ? e.message : 'storage failed' };
   }
@@ -149,8 +142,7 @@ export async function POST(request: NextRequest) {
     let pages: number | undefined;
     let textPreview: string | undefined;
     let statementStorage: {
-      storage_path?: string;
-      public_url?: string;
+      storage_ref?: string;
       storage_error?: string;
     } = {};
 
@@ -381,10 +373,9 @@ export async function POST(request: NextRequest) {
       csv: csvOut,
       middleware: true,
       sync_run_id: runId,
-      statement: statementStorage.public_url
+      statement: statementStorage.storage_ref
         ? {
-            url: statementStorage.public_url,
-            path: statementStorage.storage_path,
+            ref: statementStorage.storage_ref,
           }
         : statementStorage.storage_error
           ? { storage_error: statementStorage.storage_error }

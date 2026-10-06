@@ -10,6 +10,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import SecureDocLink from '@/components/storage/SecureDocLink';
 import {
   newQualificationId,
   type PersonQualification,
@@ -17,6 +18,7 @@ import {
 
 export function PersonQualificationsEditor({
   qualifications,
+  companyId,
   onChange,
   uploadFile,
   disabled,
@@ -25,6 +27,7 @@ export function PersonQualificationsEditor({
   description = 'Degrees, HPCSA / BHF numbers, short courses — upload the certificate next to each one.',
 }: {
   qualifications: PersonQualification[];
+  companyId?: number;
   onChange: (next: PersonQualification[]) => void | Promise<void>;
   uploadFile: (file: File) => Promise<{ url: string; fileName: string }>;
   disabled?: boolean;
@@ -162,15 +165,26 @@ export function PersonQualificationsEditor({
                       key={c.id}
                       className="flex flex-wrap items-center gap-1.5 text-[11px]"
                     >
-                      <a
-                        href={c.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 font-bold text-sky-800"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        {c.file_name}
-                      </a>
+                      {companyId ? (
+                        <SecureDocLink
+                          companyId={companyId}
+                          refOrUrl={c.url}
+                          className="inline-flex items-center gap-1 font-bold text-sky-800"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          <span>{c.file_name}</span>
+                        </SecureDocLink>
+                      ) : (
+                        <a
+                          href={c.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-bold text-sky-800"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          {c.file_name}
+                        </a>
+                      )}
                       <button
                         type="button"
                         disabled={disabled}
@@ -273,6 +287,7 @@ export function PersonQualificationsEditor({
 
 export function PersonQualificationsList({
   qualifications,
+  companyId,
   empty = null,
 }: {
   qualifications?: PersonQualification[] | Array<{
@@ -281,6 +296,7 @@ export function PersonQualificationsList({
     year?: string | null;
     certificates?: Array<{ file_name: string; url: string }>;
   }>;
+  companyId?: number;
   empty?: ReactNode;
 }) {
   const rows = qualifications || [];
@@ -297,15 +313,26 @@ export function PersonQualificationsList({
             </span>
           ) : null}
           {(q.certificates || []).map((c) => (
-            <a
-              key={c.url}
-              href={c.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="ml-1.5 text-[11px] font-bold text-sky-800"
-            >
-              Certificate
-            </a>
+            <span key={c.url} className="ml-1.5">
+              {companyId ? (
+                <SecureDocLink
+                  companyId={companyId}
+                  refOrUrl={c.url}
+                  className="text-[11px] font-bold text-sky-800"
+                >
+                  Certificate
+                </SecureDocLink>
+              ) : (
+                <a
+                  href={c.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] font-bold text-sky-800"
+                >
+                  Certificate
+                </a>
+              )}
+            </span>
           ))}
         </li>
       ))}

@@ -65,7 +65,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: stored.error,
-          hint: 'Paste RUN_THIS_FOR_BRIEF19.sql in the Supabase SQL editor to create a public company-documents bucket.',
         },
         { status: 500 }
       );
@@ -73,6 +72,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       url: stored.url,
+      ref: stored.ref,
       name: file.name.slice(0, 160),
     });
   } catch (e) {

@@ -3,24 +3,14 @@ import {
   requireCompanyAccess,
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
-import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { rateLimit, clientIp } from '@/lib/http/rate-limit';
+import { uploadSensitiveDoc } from '@/lib/storage/private-docs';
 
 /**
  * POST multipart — upload proof-of-payment (POP) for a buyer claim.
  * Form: file, buyerCompanyId|companyId, invoiceId?
- * Returns public URL for proof_url on payment claim.
+ * Returns private storage reference for proof_url on payment claim.
  */
-const POP_BUCKETS = [
-  'company-documents',
-  'product-documents',
-  'contractor-documents',
-  'payment-proofs',
-];
-
-function safeName(name?: string) {
-  return (name || 'pop').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -82,53 +72,22 @@ export async function POST(request: NextRequest) {
     const ext =
       file.name.split('.').pop()?.toLowerCase() ||
       (file.type === 'application/pdf' ? 'pdf' : 'jpg');
-    const invPart = invoiceId > 0 ? `inv-${invoiceId}` : 'claim';
-    const filePath = `${companyId}/payment-proofs/${invPart}-${Date.now()}-${safeName(
-      file.name.replace(/\.[^.]+$/, '')
-    )}.${ext}`;
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const contentType = file.type || 'application/octet-stream';
-    const supabase = getSupabaseServer();
 
-    let publicUrl: string | null = null;
-    let usedBucket: string | null = null;
-    const errors: string[] = [];
-
-    for (const bucket of POP_BUCKETS) {
-      const { error } = await supabase.storage
-        .from(bucket)
-        .upload(filePath, buffer, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType,
-        });
-      if (!error) {
-        const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
-        publicUrl = data.publicUrl;
-        usedBucket = bucket;
-        break;
-      }
-      errors.push(`${bucket}: ${error.message}`);
-    }
-
-    if (!publicUrl) {
-      return NextResponse.json(
-        {
-          error:
-            'Could not upload proof. Create a public Storage bucket: company-documents (or payment-proofs).',
-          detail: errors.slice(0, 3),
-        },
-        { status: 503 }
-      );
-    }
+    const proofRef = await uploadSensitiveDoc({
+      companyId,
+      kind: invoiceId > 0 ? `payment-proofs-inv-${invoiceId}` : 'payment-proofs-claim',
+      body: buffer,
+      contentType,
+      ext,
+    });
 
     return NextResponse.json({
       success: true,
-      url: publicUrl,
-      proofUrl: publicUrl,
-      bucket: usedBucket,
-      path: filePath,
+      url: proofRef,
+      proofUrl: proofRef,
     });
   } catch (e: unknown) {
     return NextResponse.json(

@@ -100,8 +100,8 @@ export function dbColumnsForAppField(profileField: string): string[] {
   return [profileField];
 }
 
-/** Storage buckets that exist in production (verified). */
-export const COMPANY_DOC_BUCKETS = ['company-documents', 'certificates'] as const;
+/** Sensitive company docs now live in private storage refs. */
+export const SENSITIVE_COMPANY_DOC_BUCKETS = ['sensitive-documents'] as const;
 export const COMPANY_IMAGE_BUCKETS = [
   'company-documents',
   'certificates',

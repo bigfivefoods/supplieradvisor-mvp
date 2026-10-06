@@ -1,18 +1,11 @@
-import { createClient } from '@/utils/supabase/client';
-
 /**
- * Upload a contractor SA ID document (image or PDF) to Supabase Storage.
+ * Upload a contractor SA ID document through a gated server route.
  */
 export async function uploadContractorIdDocument(
   file: File,
   companyId: number | string,
   contractorKey?: string
 ): Promise<{ url: string | null; fileName?: string; error?: string }> {
-  const supabase = createClient();
-  const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
-  const safeKey = (contractorKey || 'contractor').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
-  const filePath = `${companyId}/id-docs/${safeKey}-${Date.now()}.${ext}`;
-
   const allowed = [
     'image/jpeg',
     'image/png',
@@ -27,24 +20,20 @@ export async function uploadContractorIdDocument(
     return { url: null, error: 'ID document must be under 12MB' };
   }
 
-  const buckets = ['contractor-documents', 'company-documents', 'container-photos'];
+  const body = new FormData();
+  body.append('file', file);
+  body.append('companyId', String(companyId));
+  body.append('contractorKey', String(contractorKey || 'contractor'));
 
-  for (const bucket of buckets) {
-    const { error } = await supabase.storage.from(bucket).upload(filePath, file, {
-      cacheControl: '3600',
-      upsert: true,
-      contentType: file.type || 'application/octet-stream',
-    });
-
-    if (!error) {
-      const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
-      return { url: data.publicUrl, fileName: file.name };
-    }
+  const res = await fetch('/api/containers/id-document', {
+    method: 'POST',
+    body,
+    credentials: 'include',
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data?.url) {
+    return { url: null, error: data?.error || 'Could not upload ID document' };
   }
 
-  return {
-    url: null,
-    error:
-      'Could not upload ID document. Create a public Storage bucket named contractor-documents or company-documents.',
-  };
+  return { url: String(data.url), fileName: String(data.fileName || file.name) };
 }

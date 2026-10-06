@@ -672,12 +672,11 @@ function ProductsInner() {
                               <a
                                 href={p.specs_sheet_url}
                                 target="_blank"
-                                rel="noopener noreferrer"
+                                rel="noreferrer"
                                 className="text-[11px] text-[#00b4d8] inline-flex items-center gap-1 hover:underline"
-                                onClick={(e) => e.stopPropagation()}
                               >
                                 <FileText className="w-3 h-3" />
-                                Specs
+                                <span>Specs</span>
                               </a>
                             )}
                             {p.upstream_specs_sheet_url &&
@@ -685,12 +684,11 @@ function ProductsInner() {
                                 <a
                                   href={p.upstream_specs_sheet_url}
                                   target="_blank"
-                                  rel="noopener noreferrer"
+                                  rel="noreferrer"
                                   className="text-[11px] text-violet-700 inline-flex items-center gap-1 hover:underline"
-                                  onClick={(e) => e.stopPropagation()}
                                 >
                                   <FileText className="w-3 h-3" />
-                                  Manufacturer
+                                  <span>Manufacturer</span>
                                 </a>
                               )}
                             {(() => {
@@ -936,7 +934,7 @@ function ProductsInner() {
                           <a
                             href={existingSpecUrl}
                             target="_blank"
-                            rel="noopener noreferrer"
+                            rel="noreferrer"
                             className="text-[11px] text-[#00b4d8] hover:underline inline-flex items-center gap-1"
                           >
                             <ExternalLink className="w-3 h-3" /> View current
@@ -958,11 +956,9 @@ function ProductsInner() {
                     {editingId &&
                       products.find((x) => x.id === editingId)?.upstream_specs_sheet_url && (
                         <a
-                          href={
-                            products.find((x) => x.id === editingId)!.upstream_specs_sheet_url!
-                          }
+                          href={products.find((x) => x.id === editingId)!.upstream_specs_sheet_url!}
                           target="_blank"
-                          rel="noopener noreferrer"
+                          rel="noreferrer"
                           className="text-[11px] text-violet-700 hover:underline inline-flex items-center gap-1 mt-1.5"
                         >
                           <ExternalLink className="w-3 h-3" /> Manufacturer sheet (upstream)

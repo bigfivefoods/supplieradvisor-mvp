@@ -1234,6 +1234,7 @@ export default function CoachesPage() {
 
                       <div className="mt-3">
                         <PersonQualificationsEditor
+                          companyId={companyId}
                           qualifications={c.qualifications || []}
                           onChange={(next) =>
                             void saveCoachQualifications(c, next)

@@ -48,6 +48,7 @@ import {
 } from '@/lib/product/org-types';
 import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
 import SearchVisibilityCard from '@/components/business/SearchVisibilityCard';
+import SecureDocLink from '@/components/storage/SecureDocLink';
 
 const LocationMap = dynamic(() => import('@/components/LocationMap'), {
   ssr: false,
@@ -1716,6 +1717,7 @@ function ProfileInner() {
           <div className="p-5 sm:p-6">
             <div className="grid gap-6 lg:grid-cols-[200px_minmax(0,1fr)] lg:items-start">
               <FileUploadField
+                companyId={companyId}
                 label="Logo"
                 url={form.logo_url}
                 accept="image/*"
@@ -1837,6 +1839,7 @@ function ProfileInner() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <FileUploadField
+                companyId={companyId}
                 label="Registration document"
                 url={form.registration_certificate_url}
                 uploading={uploading === 'registration'}
@@ -1856,6 +1859,7 @@ function ProfileInner() {
                 }}
               />
               <FileUploadField
+                companyId={companyId}
                 label="VAT certificate"
                 url={form.vat_certificate_url}
                 uploading={uploading === 'vat'}
@@ -2442,6 +2446,7 @@ function ProfileInner() {
                   </select>
                 </Field>
                 <FileUploadField
+                companyId={companyId}
                   label="BEE certificate"
                   url={form.bee_certificate_url}
                   compact
@@ -2520,6 +2525,7 @@ function ProfileInner() {
                       />
                     </div>
                     <FileUploadField
+                companyId={companyId}
                       label="File"
                       url={c.file_url}
                       compact
@@ -2668,6 +2674,7 @@ function ProfileInner() {
                 </Field>
               </div>
               <FileUploadField
+                companyId={companyId}
                 label="Bank confirmation letter"
                 url={form.bank_confirmation_url}
                 compact
@@ -2872,6 +2879,7 @@ function ProfileInner() {
                 </Field>
               </div>
               <FileUploadField
+                companyId={companyId}
                 label="Import license document"
                 url={form.import_license_url}
                 compact
@@ -2924,6 +2932,7 @@ function ProfileInner() {
                       </button>
                     </div>
                     <FileUploadField
+                companyId={companyId}
                       label="File"
                       url={lic.file_url}
                       compact
@@ -3074,6 +3083,7 @@ function CardSubhead({
 function FileUploadField({
   label,
   url,
+  companyId,
   onFile,
   onClear,
   uploading,
@@ -3084,6 +3094,7 @@ function FileUploadField({
 }: {
   label: string;
   url?: string | null;
+  companyId?: number;
   onFile: (file: File | null) => void;
   onClear?: () => void;
   uploading?: boolean;
@@ -3114,14 +3125,24 @@ function FileUploadField({
                   <FileText className="h-6 w-6 text-[#00b4d8]" />
                 </div>
               )}
-              <a
-                href={String(url)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm font-semibold text-[#0077b6] hover:underline"
-              >
-                View file
-              </a>
+              {companyId && !previewImage ? (
+                <SecureDocLink
+                  companyId={companyId}
+                  refOrUrl={String(url)}
+                  className="text-sm font-semibold text-[#0077b6] hover:underline"
+                >
+                  View file
+                </SecureDocLink>
+              ) : (
+                <a
+                  href={String(url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-semibold text-[#0077b6] hover:underline"
+                >
+                  View file
+                </a>
+              )}
               <div className="flex items-center gap-1">
                 <label className="cursor-pointer rounded-lg border border-transparent px-2 py-1 text-xs font-semibold text-neutral-600 hover:border-neutral-200 hover:bg-white">
                   Replace
@@ -3197,14 +3218,24 @@ function FileUploadField({
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <a
-                href={String(url)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs font-semibold text-[#00b4d8] hover:underline truncate block"
-              >
-                View file
-              </a>
+              {companyId && !previewImage ? (
+                <SecureDocLink
+                  companyId={companyId}
+                  refOrUrl={String(url)}
+                  className="text-xs font-semibold text-[#00b4d8] hover:underline truncate block text-left"
+                >
+                  View file
+                </SecureDocLink>
+              ) : (
+                <a
+                  href={String(url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-semibold text-[#00b4d8] hover:underline truncate block"
+                >
+                  View file
+                </a>
+              )}
               <p className="text-[10px] text-neutral-400 truncate font-mono">{String(url)}</p>
             </div>
             <div className="flex items-center gap-1 shrink-0">

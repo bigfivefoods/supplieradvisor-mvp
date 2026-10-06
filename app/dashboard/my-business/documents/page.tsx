@@ -12,6 +12,7 @@ import {
   BusinessPage,
 } from '@/components/business/BusinessShell';
 import { Panel } from '@/components/relationship/RelationshipChrome';
+import SecureDocLink from '@/components/storage/SecureDocLink';
 
 type DocRow = {
   id?: number;
@@ -193,14 +194,13 @@ function DocsInner() {
                   <div className="font-semibold text-slate-900">{d.name}</div>
                   <div className="text-xs text-neutral-500">{d.category} · from company profile</div>
                 </div>
-                <a
-                  href={d.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn-secondary !py-1.5 !px-3 text-xs"
+                <SecureDocLink
+                  companyId={companyId}
+                  refOrUrl={d.url}
+                  className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
                 >
                   <ExternalLink className="w-3 h-3" /> Open
-                </a>
+                </SecureDocLink>
               </li>
             ))}
           </ul>
@@ -276,14 +276,13 @@ function DocsInner() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <a
-                      href={d.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="btn-secondary !py-1.5 !px-3 text-xs"
+                    <SecureDocLink
+                      companyId={companyId}
+                      refOrUrl={d.url}
+                      className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1"
                     >
                       <ExternalLink className="w-3 h-3" /> Open
-                    </a>
+                    </SecureDocLink>
                     <button
                       type="button"
                       onClick={() => void remove(d.id)}

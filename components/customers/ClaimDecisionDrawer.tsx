@@ -12,6 +12,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import SecureDocLink from '@/components/storage/SecureDocLink';
 
 export type ClaimRow = {
   id: number;
@@ -124,10 +125,6 @@ export default function ClaimDecisionDrawer({
     }
   };
 
-  const isImg =
-    claim.proof_url &&
-    /\.(png|jpe?g|gif|webp)(\?|$)/i.test(String(claim.proof_url));
-
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <button
@@ -189,24 +186,14 @@ export default function ClaimDecisionDrawer({
             <FileText className="w-3.5 h-3.5" /> Proof of payment
           </p>
           {claim.proof_url ? (
-            <div className="rounded-xl border border-neutral-200 overflow-hidden bg-neutral-50">
-              {isImg ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={String(claim.proof_url)}
-                  alt="POP"
-                  className="w-full max-h-56 object-contain bg-white"
-                />
-              ) : (
-                <a
-                  href={String(claim.proof_url)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block p-4 text-sm font-bold text-[#0077b6] underline"
-                >
-                  Open POP file / URL
-                </a>
-              )}
+            <div className="rounded-xl border border-neutral-200 overflow-hidden bg-neutral-50 p-3">
+              <SecureDocLink
+                companyId={companyId}
+                refOrUrl={String(claim.proof_url)}
+                className="block p-2 text-sm font-bold text-[#0077b6] underline"
+              >
+                Open POP file / URL
+              </SecureDocLink>
             </div>
           ) : (
             <p className="text-xs text-neutral-500">No POP attached</p>

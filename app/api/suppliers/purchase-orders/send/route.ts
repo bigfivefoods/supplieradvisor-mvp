@@ -205,6 +205,8 @@ export async function POST(request: NextRequest) {
       if (stored.ok) {
         prevMeta.pdf_url = stored.url;
         prevMeta.attachment_url = stored.url;
+        prevMeta.pdf_ref = stored.ref;
+        prevMeta.attachment_ref = stored.ref;
       }
     } catch (storeErr) {
       console.warn('PO PDF store', storeErr);
