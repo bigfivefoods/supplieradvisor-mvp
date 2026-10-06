@@ -101,7 +101,7 @@ export function dbColumnsForAppField(profileField: string): string[] {
 }
 
 /** Sensitive company docs now live in private storage refs. */
-export const COMPANY_DOC_BUCKETS = ['sensitive-documents'] as const;
+export const SENSITIVE_COMPANY_DOC_BUCKETS = ['sensitive-documents'] as const;
 export const COMPANY_IMAGE_BUCKETS = [
   'company-documents',
   'certificates',

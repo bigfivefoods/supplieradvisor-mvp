@@ -142,7 +142,7 @@ export async function uploadSensitiveDoc(opts: {
     contentType: opts.contentType || 'application/octet-stream',
   });
 
-  if (error && /not found|does not exist|bucket/i.test(error.message || '')) {
+  if (error && /bucket[^\n]*not found|does not exist/i.test(error.message || '')) {
     const ensured = await ensureSensitiveBucket();
     if (ensured) throw new Error(ensured);
     const retry = await supabase.storage.from(SENSITIVE_DOC_BUCKET).upload(path, opts.body, {

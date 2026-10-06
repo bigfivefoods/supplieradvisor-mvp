@@ -11,9 +11,13 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-async function companyOwnsStoredDoc(companyId: number, urlOrRef: string): Promise<boolean> {
-  const ref = parseStorageRef(urlOrRef);
-  if (ref?.path?.startsWith(`${companyId}/`)) return true;
+async function companyOwnsStoredDoc(companyId: number, values: string[]): Promise<boolean> {
+  const refs = Array.from(new Set(values.map((v) => String(v || '').trim()).filter(Boolean)));
+  if (refs.length === 0) return false;
+  for (const candidate of refs) {
+    const parsed = parseStorageRef(candidate);
+    if (parsed?.path?.startsWith(`${companyId}/`)) return true;
+  }
 
   const supabase = getSupabaseServer();
   const [
@@ -36,35 +40,35 @@ async function companyOwnsStoredDoc(companyId: number, urlOrRef: string): Promis
       .from('customer_payment_claims')
       .select('id')
       .eq('profile_id', companyId)
-      .eq('proof_url', urlOrRef)
+      .in('proof_url', refs)
       .limit(1)
       .maybeSingle(),
     supabase
       .from('container_contractors')
       .select('id')
       .eq('profile_id', companyId)
-      .eq('id_document_url', urlOrRef)
+      .in('id_document_url', refs)
       .limit(1)
       .maybeSingle(),
     supabase
       .from('products')
       .select('id')
       .eq('profile_id', companyId)
-      .eq('specs_sheet_url', urlOrRef)
+      .in('specs_sheet_url', refs)
       .limit(1)
       .maybeSingle(),
     supabase
       .from('products')
       .select('id')
       .eq('profile_id', companyId)
-      .eq('upstream_specs_sheet_url', urlOrRef)
+      .in('upstream_specs_sheet_url', refs)
       .limit(1)
       .maybeSingle(),
     supabase
       .from('training_records')
       .select('id')
       .eq('profile_id', companyId)
-      .eq('certificate_url', urlOrRef)
+      .in('certificate_url', refs)
       .limit(1)
       .maybeSingle(),
     supabase
@@ -77,7 +81,7 @@ async function companyOwnsStoredDoc(companyId: number, urlOrRef: string): Promis
 
   if (!profile.error && profile.data) {
     for (const value of Object.values(profile.data)) {
-      if (value && String(value).trim() === urlOrRef) return true;
+      if (value && refs.includes(String(value).trim())) return true;
     }
   }
   if (!claim.error && claim.data?.id) return true;
@@ -90,9 +94,9 @@ async function companyOwnsStoredDoc(companyId: number, urlOrRef: string): Promis
       const meta = row?.metadata;
       if (!meta || typeof meta !== 'object') continue;
       const asRecord = meta as Record<string, unknown>;
-      if (String(asRecord.public_url || '').trim() === urlOrRef) return true;
-      if (String(asRecord.storage_ref || '').trim() === urlOrRef) return true;
-      if (String(asRecord.storage_path || '').trim() === urlOrRef) return true;
+      if (refs.includes(String(asRecord.public_url || '').trim())) return true;
+      if (refs.includes(String(asRecord.storage_ref || '').trim())) return true;
+      if (refs.includes(String(asRecord.storage_path || '').trim())) return true;
     }
   }
 
@@ -130,13 +134,9 @@ export async function GET(request: NextRequest) {
         ? ref
         : toStorageRef({ bucket: resolved.candidates[0].bucket, path: resolved.candidates[0].path });
 
-    let ownedByRow = ownedByPrefix;
-    if (!ownedByRow) {
-      ownedByRow = await companyOwnsStoredDoc(companyId, ref);
-    }
-    if (!ownedByRow && storedRef !== ref) {
-      ownedByRow = await companyOwnsStoredDoc(companyId, storedRef);
-    }
+    const ownedByRow = ownedByPrefix
+      ? true
+      : await companyOwnsStoredDoc(companyId, storedRef === ref ? [ref] : [ref, storedRef]);
 
     if (!ownedByPrefix && !ownedByRow) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });

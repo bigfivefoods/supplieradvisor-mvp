@@ -90,7 +90,10 @@ export default function PlatformConsolePage() {
                 type="button"
                 className="btn-secondary !py-2 !px-3 text-xs"
                 disabled={migrating != null}
-                onClick={() => void runStorageMigration('delete')}
+                onClick={() => {
+                  if (!window.confirm('Delete original public files that already have verified private copies?')) return;
+                  void runStorageMigration('delete');
+                }}
               >
                 {migrating === 'delete' ? 'Deleting…' : 'Delete originals'}
               </button>
