@@ -84,10 +84,8 @@ export async function GET(request: NextRequest) {
       legacyPrivyUserId: legacyPrivyFrom(request),
     });
     if (!_gate.ok) return _gate.response;
-    if (privyUserId) {
-      const mem = await assertCompanyMember(privyUserId, companyId);
-      if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const mem = await assertCompanyMember(_gate.userId, companyId);
+    if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
 
     const supabase = getSupabaseServer();
     const byId = Number.isFinite(id) && id > 0;
@@ -291,10 +289,8 @@ export async function POST(request: NextRequest) {
 
     const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
     if (!_gate.ok) return _gate.response;
-    if (body.privyUserId) {
-      const mem = await assertCompanyMember(body.privyUserId, companyId);
-      if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
-    }
+    const mem = await assertCompanyMember(_gate.userId, companyId);
+    if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
 
     const certs = Array.isArray(body.certifications)
       ? body.certifications.map(String)

@@ -56,13 +56,17 @@ export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
     const settingsWrite = await assertCompanyPermission(
-      body.privyUserId,
+      gate.userId,
       companyId,
       'settings',
       'write'
     );
-    const membership = await getCompanyMembership(body.privyUserId, companyId);
+    const membership = await getCompanyMembership(gate.userId, companyId);
     const canSetFy =
       membership.ok && ROLES_OWNER_OR_FINANCE.includes(membership.role);
 
@@ -193,7 +197,7 @@ export async function PATCH(request: NextRequest) {
         ? membership.userId
         : settingsWrite.ok
           ? settingsWrite.userId
-          : String(body.privyUserId || ''),
+          : gate.userId,
       action: 'business.settings_updated',
       entity_type: 'profiles',
       entity_id: String(companyId),

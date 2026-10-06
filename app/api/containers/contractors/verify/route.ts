@@ -14,6 +14,18 @@ import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/li
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const companyId = Number(body.companyId);
+    if (!Number.isFinite(companyId) || companyId <= 0) {
+      return NextResponse.json({ error: 'Valid companyId is required' }, { status: 400 });
+    }
+    const auth = await requireVerifiedUser(request, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!auth.ok) return auth.response;
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
     const contractorId = Number(body.contractorId ?? body.id);
     if (!Number.isFinite(contractorId)) {
       return NextResponse.json({ error: 'contractorId is required' }, { status: 400 });
@@ -32,6 +44,7 @@ export async function POST(request: NextRequest) {
     const { data: contractor, error: fetchErr } = await supabase
       .from('container_contractors')
       .select('*')
+      .eq('profile_id', companyId)
       .eq('id', contractorId)
       .maybeSingle();
 

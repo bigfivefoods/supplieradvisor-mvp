@@ -24,6 +24,10 @@ export async function GET(request: NextRequest) {
 
     const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
     if (!_gate.ok) return _gate.response;
+    const mem = await assertCompanyMember(_gate.userId, companyId);
+    if (!mem.ok) {
+      return NextResponse.json({ error: mem.error }, { status: mem.status });
+    }
 
     const supabase = getSupabaseServer();
     const now = new Date();
@@ -326,13 +330,16 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
+    const mem = await assertCompanyMember(gate.userId, companyId);
     if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
 
     // Rebuild pack via internal GET logic — call same assembly by reusing GET
     const url = new URL(request.url);
     url.searchParams.set('companyId', String(companyId));
-    url.searchParams.set('privyUserId', String(body.privyUserId || ''));
     const fakeReq = new NextRequest(url);
     const res = await GET(fakeReq);
     const json = await res.json();

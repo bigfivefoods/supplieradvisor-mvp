@@ -37,10 +37,10 @@ export async function POST(request: NextRequest) {
     const companyId = Number(body.companyId);
 
     const _gate = await requireCompanyAccess(request, companyId, {
-      legacyPrivyUserId: legacyPrivyFrom(request) || body.privyUserId,
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
     });
     if (!_gate.ok) return _gate.response;
-    const mem = await assertCompanyMember(body.privyUserId || _gate.userId, companyId);
+    const mem = await assertCompanyMember(_gate.userId, companyId);
     if (!mem.ok) {
       return NextResponse.json({ error: mem.error }, { status: mem.status });
     }

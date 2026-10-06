@@ -33,11 +33,10 @@ export async function GET(request: NextRequest) {
 
     const _gate = await requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request) });
     if (!_gate.ok) return _gate.response;
-    const privyUserId = request.nextUrl.searchParams.get('privyUserId');
     const format = String(
       request.nextUrl.searchParams.get('format') || ''
     ).toLowerCase();
-    const ctx = await assertSalesPortalAccess(privyUserId, companyId);
+    const ctx = await assertSalesPortalAccess(_gate.userId, companyId);
     if (!ctx.ok) {
       return NextResponse.json({ error: ctx.error }, { status: ctx.status });
     }
@@ -177,7 +176,7 @@ export async function GET(request: NextRequest) {
           },
       contractVersion: contractVersion || SALES_CONTRACTOR_CONTRACT_VERSION,
       html: bodyHtml,
-      downloadUrl: `/api/sales/agreement?companyId=${companyId}&privyUserId=${encodeURIComponent(privyUserId || '')}&format=download`,
+      downloadUrl: `/api/sales/agreement?companyId=${companyId}&format=download`,
     });
   } catch (e: unknown) {
     return NextResponse.json(
@@ -195,7 +194,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
-    const ctx = await assertSalesPortalAccess(body.privyUserId, companyId);
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
+    const ctx = await assertSalesPortalAccess(gate.userId, companyId);
     if (!ctx.ok) {
       return NextResponse.json({ error: ctx.error }, { status: ctx.status });
     }

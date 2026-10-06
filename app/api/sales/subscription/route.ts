@@ -92,7 +92,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
-    const ctx = await assertSalesPortalAccess(body.privyUserId, companyId);
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
+    const ctx = await assertSalesPortalAccess(gate.userId, companyId);
     if (!ctx.ok) {
       return NextResponse.json({ error: ctx.error }, { status: ctx.status });
     }

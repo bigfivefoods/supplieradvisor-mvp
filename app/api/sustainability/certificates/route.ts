@@ -65,7 +65,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
+    const mem = await assertCompanyMember(gate.userId, companyId);
     if (!mem.ok) {
       return NextResponse.json({ error: mem.error }, { status: mem.status });
     }
@@ -143,7 +147,11 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const companyId = Number(body.companyId);
     const id = Number(body.id);
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
+    const mem = await assertCompanyMember(gate.userId, companyId);
     if (!mem.ok) {
       return NextResponse.json({ error: mem.error }, { status: mem.status });
     }

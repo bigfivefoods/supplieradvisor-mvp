@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       legacyPrivyUserId: legacyPrivyFrom(request),
     });
     if (!_gate.ok) return _gate.response;
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
+    const mem = await assertCompanyMember(_gate.userId, companyId);
     if (!mem.ok) {
       return NextResponse.json({ error: mem.error }, { status: mem.status });
     }

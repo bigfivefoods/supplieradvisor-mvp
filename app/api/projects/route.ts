@@ -242,7 +242,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
+    const mem = await assertCompanyMember(gate.userId, companyId);
     if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
     if (!String(body.name || '').trim()) {
       return NextResponse.json({ error: 'name required' }, { status: 400 });
@@ -250,7 +254,7 @@ export async function POST(request: NextRequest) {
 
     const methodology = String(body.methodology || 'standard');
     const isDmaic = methodology === 'dmaic' || methodology === 'hybrid';
-    const gate = isDmaicGate(body.methodology_gate)
+    const methodologyGate = isDmaicGate(body.methodology_gate)
       ? body.methodology_gate
       : isDmaic
         ? 'define'
@@ -271,7 +275,7 @@ export async function POST(request: NextRequest) {
       target_date: body.target_date || null,
       health: body.health || 'green',
       methodology,
-      methodology_gate: gate,
+      methodology_gate: methodologyGate,
       project_type: body.project_type || 'initiative',
       programme_id:
         body.programme_id != null && Number(body.programme_id) > 0
@@ -285,7 +289,7 @@ export async function POST(request: NextRequest) {
       problem_statement: body.problem_statement || null,
       goal_statement: body.goal_statement || null,
       charter_date: body.charter_date || null,
-      gate_entered_at: gate ? now : null,
+      gate_entered_at: methodologyGate ? now : null,
       created_by: mem.userId,
       updated_at: now,
       customer_id:
@@ -400,7 +404,11 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const companyId = Number(body.companyId);
     const id = Number(body.id);
-    const mem = await assertCompanyMember(body.privyUserId, companyId);
+    const gate = await requireCompanyAccess(request, companyId, {
+      legacyPrivyUserId: legacyPrivyFrom(request, body),
+    });
+    if (!gate.ok) return gate.response;
+    const mem = await assertCompanyMember(gate.userId, companyId);
     if (!mem.ok) return NextResponse.json({ error: mem.error }, { status: mem.status });
     if (!Number.isFinite(id)) {
       return NextResponse.json({ error: 'id required' }, { status: 400 });
