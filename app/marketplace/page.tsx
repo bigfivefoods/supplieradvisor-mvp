@@ -6,6 +6,7 @@
  * SEO: pair with app/marketplace/layout.tsx metadata.
  */
 import { useCallback, useEffect, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { Loader2, Store, Search, ArrowRight, ShieldCheck } from 'lucide-react';
 
@@ -140,12 +141,15 @@ export default function PublicMarketplacePage() {
                 className="rounded-2xl border border-neutral-200 bg-white overflow-hidden shadow-sm hover:border-[#00b4d8]/40 transition-colors"
               >
                 {l.primary_image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={l.primary_image_url}
-                    alt=""
-                    className="sa-product-photo w-full h-44 object-contain bg-[#f8f7f5]"
-                  />
+                  <div className="relative w-full h-44 bg-[#f8f7f5]">
+                    <Image
+                      src={l.primary_image_url}
+                      alt={`${l.title} by ${l.seller?.trading_name || 'seller'}`}
+                      fill
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      className="sa-product-photo object-contain p-2"
+                    />
+                  </div>
                 ) : (
                   <div className="h-36 bg-slate-50 flex items-center justify-center">
                     <Store className="w-8 h-8 text-slate-300" />
