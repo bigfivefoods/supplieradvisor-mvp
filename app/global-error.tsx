@@ -1,8 +1,7 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import Link from 'next/link';
-
-const loggedGlobalErrors = new WeakSet<Error>();
 
 export default function GlobalError({
   error,
@@ -11,10 +10,13 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  if (!loggedGlobalErrors.has(error)) {
+  const loggedErrorRef = useRef<Error | null>(null);
+
+  useEffect(() => {
+    if (loggedErrorRef.current === error) return;
     console.error(error);
-    loggedGlobalErrors.add(error);
-  }
+    loggedErrorRef.current = error;
+  }, [error]);
 
   return (
     <html lang="en">

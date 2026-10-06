@@ -2,8 +2,6 @@
 
 import Link from 'next/link';
 
-const loggedErrors = new WeakSet<Error>();
-
 type RouteErrorProps = {
   error: Error & { digest?: string };
   reset: () => void;
@@ -19,11 +17,6 @@ export default function RouteError({
   backLabel,
   title = 'This section hit a problem — your data is safe',
 }: RouteErrorProps) {
-  if (!loggedErrors.has(error)) {
-    console.error(error);
-    loggedErrors.add(error);
-  }
-
   return (
     <main className="mx-auto w-full max-w-4xl p-4 sm:p-6">
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
