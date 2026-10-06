@@ -20,8 +20,6 @@
   { "route": "/api/inventory/products/public", "methods": ["GET"], "reason": "Public product lookup by public_id" },
   { "route": "/api/inventory/transfers/driver", "methods": ["GET", "POST"], "reason": "Public token-based transfer driver flow" },
   { "route": "/api/push/vapid-public-key", "methods": ["GET"], "reason": "Public VAPID key" },
-  { "route": "/api/schools/field-tokens", "methods": ["POST"], "reason": "School field-token issuance endpoint" },
-  { "route": "/api/schools/migrate-schooladvisor", "methods": ["GET"], "reason": "School migration public route" },
   { "route": "/api/reseller/invite", "methods": ["GET"], "reason": "Token-based invite preview is intentionally public" },
   { "route": "/api/banking/cron-sync", "methods": ["GET", "POST"], "reason": "Cron secret protected sync endpoint" },
   { "route": "/api/banking/webhooks/banklink", "methods": ["GET", "POST"], "reason": "Banking webhook" }

@@ -5,7 +5,15 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  merge_group:
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   tsc:
@@ -24,3 +32,19 @@ jobs:
         run: npm run typecheck
       - name: Route auth guard
         run: npm run check:route-auth
+      - name: Security string-scan smoke tests
+        run: |
+          set -euo pipefail
+          for file in \
+            lib/security/brief83-authz.test.ts \
+            lib/security/brief84-storage.test.ts \
+            lib/security/brief85-authz.test.ts \
+            lib/storage/resolve-stored-doc.test.ts \
+            lib/auth/public-paths.test.ts
+          do
+            if [ -f "$file" ]; then
+              npx --yes tsx "$file"
+            else
+              echo "Skipping missing test: $file"
+            fi
+          done
