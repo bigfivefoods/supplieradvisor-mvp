@@ -142,8 +142,7 @@ export async function POST(request: NextRequest) {
     let pages: number | undefined;
     let textPreview: string | undefined;
     let statementStorage: {
-      storage_path?: string;
-      public_url?: string;
+      storage_ref?: string;
       storage_error?: string;
     } = {};
 
