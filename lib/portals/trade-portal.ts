@@ -45,6 +45,7 @@ export const DEFAULT_PORTAL_SECTIONS = {
   stock: true,
   projects: true,
   commercial: true,
+  credit: false,
 } as const;
 
 export type PortalSections = {
@@ -60,6 +61,7 @@ export type PortalSections = {
   stock?: boolean;
   projects?: boolean;
   commercial?: boolean;
+  credit?: boolean;
 };
 
 export type TradePortalRow = {
@@ -343,15 +345,24 @@ function asObject(raw: unknown): Record<string, unknown> {
 }
 
 function mapPortal(row: Record<string, unknown>): TradePortalRow {
+  const kind = row.kind === 'supplier' ? 'supplier' : 'customer';
+  const src =
+    row.sections && typeof row.sections === 'object' && !Array.isArray(row.sections)
+      ? (row.sections as Record<string, unknown>)
+      : {};
+  const sections = normalizeSections(row.sections);
+  if (typeof src.credit !== 'boolean') {
+    sections.credit = kind === 'customer';
+  }
   return {
     id: Number(row.id),
     profile_id: Number(row.profile_id),
-    kind: row.kind === 'supplier' ? 'supplier' : 'customer',
+    kind,
     public_token: String(row.public_token || ''),
     title: row.title != null ? String(row.title) : null,
     welcome_message:
       row.welcome_message != null ? String(row.welcome_message) : null,
-    sections: normalizeSections(row.sections),
+    sections,
     status: row.status === 'paused' ? 'paused' : 'active',
     created_at: row.created_at != null ? String(row.created_at) : undefined,
     updated_at: row.updated_at != null ? String(row.updated_at) : undefined,
@@ -423,7 +434,10 @@ export async function ensureTradePortal(opts: {
       title:
         opts.kind === 'customer' ? 'Customer portal' : 'Supplier portal',
       welcome_message: '',
-      sections: DEFAULT_PORTAL_SECTIONS,
+      sections: {
+        ...DEFAULT_PORTAL_SECTIONS,
+        credit: opts.kind === 'customer',
+      },
       status: 'active',
     })
     .select('*')
@@ -927,6 +941,7 @@ export type PublicPortalPayload = {
   hostDocShare?: Record<string, boolean> | null;
   /** Customer/supplier book + linked company required + extra docs */
   accountDocuments?: PortalDocSlot[];
+  sections: PortalSections;
   joinPath: string;
   moneyHint: string | null;
   kpis: {
@@ -1217,6 +1232,7 @@ export async function loadPublicPortal(
       hostDocuments: hostSlots,
       hostDocShare: portalSharedHostDocsFromMeta(partyMeta),
       accountDocuments,
+      sections: portal.sections,
       joinPath,
       moneyHint,
       kpis: {

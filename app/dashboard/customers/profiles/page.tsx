@@ -131,6 +131,43 @@ function ProfilesInner() {
     }
   };
 
+  const sendCreditApplication = async (c: CustomerRecord) => {
+    if (!privyUserId) {
+      toast.error('Sign in required');
+      return;
+    }
+    setActionId(c.id);
+    try {
+      const res = await fetch('/api/customers/credit-applications/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          customerId: c.id,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not send credit application');
+      if (data.link) {
+        try {
+          await navigator.clipboard.writeText(String(data.link));
+        } catch {
+          /* ignore */
+        }
+      }
+      toast.success(
+        data.emailSent
+          ? 'Credit application sent — link copied'
+          : 'Credit application link copied'
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed');
+    } finally {
+      setActionId(null);
+    }
+  };
+
   const remove = async (id: number) => {
     if (!confirm('Delete this customer?')) return;
     const res = await fetch(`/api/customers?id=${id}`, { method: 'DELETE' });
@@ -522,6 +559,13 @@ function ProfilesInner() {
                           }
                           return null;
                         })()}
+                        <button
+                          type="button"
+                          onClick={() => void sendCreditApplication(c)}
+                          className="text-xs font-semibold text-[#0ea5e9] hover:underline px-2 py-1"
+                        >
+                          Send credit app
+                        </button>
                         <button
                           type="button"
                           disabled={actionId === c.id || !privyUserId}

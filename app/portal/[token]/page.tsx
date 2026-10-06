@@ -170,6 +170,7 @@ export default function GuestTradePortalPage() {
             'statement',
             'profile',
           ]);
+          if (data.portal?.sections?.credit !== false) allowed.add('credit');
           if (asked && allowed.has(asked)) setTab(asked as GuestPortalTab);
           else if (paystack) setTab('newpo');
           else setTab('enquiries');
@@ -239,6 +240,7 @@ export default function GuestTradePortalPage() {
     kind: portal.kind,
     profileGaps: portal.workspace?.profileGaps?.length || 0,
     isHost,
+    sections: portal.sections,
   });
   const mainGroups = tabGroups.filter((g) => g.align !== 'end');
   const endGroup = tabGroups.find((g) => g.align === 'end');

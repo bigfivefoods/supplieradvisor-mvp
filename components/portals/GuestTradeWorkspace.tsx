@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import dynamic from 'next/dynamic';
 import { usePrivy } from '@privy-io/react-auth';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import {
@@ -78,6 +79,11 @@ import {
 } from '@/lib/portals/portal-activity';
 import type { GuestPortalTab } from '@/lib/portals/guest-portal-tabs';
 import { CommercialPanel } from '@/components/commercial/CommercialPanel';
+
+const CreditApplicationTab = dynamic(
+  () => import('@/components/portals/CreditApplicationTab'),
+  { ssr: false }
+);
 
 export type { GuestPortalTab, GuestPortalTabGroup, GuestPortalTabItem } from '@/lib/portals/guest-portal-tabs';
 export { guestPortalTabGroups, guestPortalTabs } from '@/lib/portals/guest-portal-tabs';
@@ -954,6 +960,9 @@ export function GuestTradeWorkspace({
           accountDocs={live.accountDocuments || []}
           onAct={act}
         />
+      ) : null}
+      {tab === 'credit' && !isSupplier ? (
+        <CreditApplicationTab token={token} />
       ) : null}
       {tab === 'riad' ? (
         <PortalRiadPanel

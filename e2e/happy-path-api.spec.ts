@@ -26,6 +26,8 @@ const protectedGets = [
   '/api/notifications?companyId=1',
   '/api/suppliers/discover?companyId=1',
   '/api/suppliers/otifef?companyId=1',
+  '/api/customers/credit-applications?companyId=1',
+  '/api/customers/credit-applications/1?companyId=1',
 ];
 
 test.describe('Happy-path protected APIs', () => {
@@ -54,6 +56,23 @@ test.describe('Happy-path protected APIs', () => {
   test('period lock without token → 401', async ({ request }) => {
     const res = await request.post(`${base}/api/accounting/period-locks`, {
       data: { companyId: 1, period_key: '2026-01', locked: true },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('credit application patch without token → 401', async ({ request }) => {
+    const res = await request.patch(`${base}/api/customers/credit-applications/1`, {
+      data: { companyId: 1, action: 'start_review' },
+    });
+    expect(res.status()).toBe(401);
+  });
+
+  test('credit application invite without token → 401', async ({ request }) => {
+    const res = await request.post(`${base}/api/customers/credit-applications/invite`, {
+      data: {
+        companyId: 1,
+        prospect: { tradingName: 'Fake', contactName: 'Fake', email: 'fake@example.com' },
+      },
     });
     expect(res.status()).toBe(401);
   });

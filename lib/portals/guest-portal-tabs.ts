@@ -18,6 +18,7 @@ export type GuestPortalTab =
   | 'people'
   | 'docs'
   | 'commercial'
+  | 'credit'
   | 'demo';
 
 export type GuestPortalTabItem = { id: GuestPortalTab; label: string };
@@ -31,6 +32,7 @@ export function guestPortalTabGroups(opts: {
   kind: 'customer' | 'supplier';
   profileGaps?: number;
   isHost?: boolean;
+  sections?: { credit?: boolean };
 }): GuestPortalTabGroup[] {
   const gaps = opts.profileGaps || 0;
   const profile = gaps ? `Profile (${gaps})` : 'Profile';
@@ -82,6 +84,7 @@ export function guestPortalTabGroups(opts: {
         { id: 'profile', label: profile },
         { id: 'people', label: 'People' },
         { id: 'docs', label: 'Documents' },
+        ...(opts.sections?.credit === false ? [] : [{ id: 'credit' as const, label: 'Credit application' }]),
       ],
     },
     {
@@ -118,6 +121,7 @@ export function guestPortalTabs(opts: {
   kind: 'customer' | 'supplier';
   profileGaps?: number;
   isHost?: boolean;
+  sections?: { credit?: boolean };
 }): GuestPortalTabItem[] {
   return guestPortalTabGroups(opts).flatMap((g) => g.tabs);
 }

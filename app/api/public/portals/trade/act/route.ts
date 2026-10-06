@@ -289,9 +289,11 @@ export async function POST(request: NextRequest) {
         country: 'country',
         province: 'province',
         city: 'city',
-        payment_terms: 'payment_terms',
         industry: 'industry',
       };
+      if (portal.kind === 'supplier') {
+        map.payment_terms = 'payment_terms';
+      }
       for (const [k, col] of Object.entries(map)) {
         if (body[k] != null) patch[col] = String(body[k]).trim().slice(0, 240);
       }
