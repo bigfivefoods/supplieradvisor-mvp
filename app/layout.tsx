@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { PublicProviders } from '@/components/PublicProviders';
 import JsonLd from '@/components/seo/JsonLd';
+import { SpeedInsights } from '@vercel/speed-insights/next';
+import { Analytics } from '@vercel/analytics/next';
 import {
   DEFAULT_DESCRIPTION,
   DEFAULT_TITLE,
@@ -141,6 +143,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-dvh antialiased bg-sa-bg text-sa-text">
         <PublicProviders>{children}</PublicProviders>
+        <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );

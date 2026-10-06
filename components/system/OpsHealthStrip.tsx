@@ -221,13 +221,26 @@ export default function OpsHealthStrip({
           </div>
 
           {paystackQuiet ? (
-            <p className="text-[11px] text-amber-950/90 leading-relaxed">
-              <strong>No real Paystack payment recently.</strong> The hourly
-              probe does not count. In Paystack, set{' '}
-              <code className="text-[10px]">charge.success</code> to{' '}
-              <code className="text-[10px]">https://www.supplieradvisor.com/api/paystack/webhook</code>{' '}
-              and confirm the Vercel secret is that account&apos;s key.
-            </p>
+            <div className="text-[11px] text-amber-950/90 leading-relaxed space-y-1">
+              <p>
+                <strong>Paystack webhook quiet for {paystackDetail?.webhookAgeHours ?? '—'}h.</strong> Only real charge/refund/CIPC events count (hourly probes are ignored).
+              </p>
+              <p className="font-semibold">Fix checklist:</p>
+              <ul className="ml-4 space-y-0.5 list-disc">
+                <li>
+                  Paystack Dashboard → Settings → Webhooks → delivery logs for{' '}
+                  <code className="text-[10px] bg-amber-100 px-1">charge.success</code> event
+                </li>
+                <li>
+                  Confirm webhook URL is{' '}
+                  <code className="text-[10px] bg-amber-100 px-1">https://www.supplieradvisor.com/api/paystack/webhook</code>
+                </li>
+                <li>
+                  Verify{' '}
+                  <code className="text-[10px] bg-amber-100 px-1">PAYSTACK_SECRET_KEY</code> in Vercel matches your Paystack account
+                </li>
+              </ul>
+            </div>
           ) : null}
           {!paystackOk ? (
             <p className="text-[11px] text-amber-950/90 leading-relaxed">
