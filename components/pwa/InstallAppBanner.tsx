@@ -7,7 +7,7 @@ import { Download, Smartphone, X } from 'lucide-react';
 
 const DISMISS_KEY = 'sa_pwa_install_dismissed_at';
 const DISMISS_DAYS = 14;
-const REVEAL_DELAY_MS = 15000;
+const INSTALL_BANNER_PADDING = 'calc(5.5rem + env(safe-area-inset-bottom, 0px))';
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -23,14 +23,19 @@ export function shouldRevealInstallPrompt({
   standalone,
   heroVisible = true,
   elapsedMs = 0,
+  stashedInstallEvent = false,
 }: {
   dismissed: boolean;
   standalone: boolean;
   heroVisible?: boolean;
   elapsedMs?: number;
+  stashedInstallEvent?: boolean;
 }): boolean {
   if (dismissed || standalone) return false;
-  return !heroVisible || elapsedMs >= REVEAL_DELAY_MS;
+  if (heroVisible) return false;
+  void elapsedMs;
+  void stashedInstallEvent;
+  return true;
 }
 
 export function isStandalone(): boolean {
@@ -65,6 +70,20 @@ export default function InstallAppBanner() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const syncPagePadding = useCallback((visible: boolean) => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    if (
+      !visible ||
+      (typeof window !== 'undefined' &&
+        window.matchMedia('(min-width: 1024px)').matches)
+    ) {
+      root.style.removeProperty('padding-bottom');
+      return;
+    }
+    root.style.setProperty('padding-bottom', INSTALL_BANNER_PADDING);
+  }, []);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -75,7 +94,6 @@ export default function InstallAppBanner() {
     setDismissed(dismissedState);
     if (dismissedState) return;
 
-    let timer: number | undefined;
     let observer: IntersectionObserver | null = null;
     const passiveListenerOptions: AddEventListenerOptions = { passive: true };
     let heroVisible = true;
@@ -83,13 +101,10 @@ export default function InstallAppBanner() {
     const reveal = (nextHeroVisible: boolean) => {
       heroVisible = nextHeroVisible;
       setReady(true);
-      if (timer) {
-        window.clearTimeout(timer);
-        timer = undefined;
-      }
     };
 
     const hide = () => {
+      heroVisible = true;
       setReady(false);
     };
 
@@ -142,26 +157,18 @@ export default function InstallAppBanner() {
 
     window.addEventListener('scroll', onScroll, passiveListenerOptions);
     onScroll();
-    timer = window.setTimeout(() => {
-      const nextHeroVisible = heroVisible;
-      if (
-        shouldRevealInstallPrompt({
-          dismissed: dismissedState,
-          standalone: false,
-          heroVisible: nextHeroVisible,
-          elapsedMs: REVEAL_DELAY_MS,
-        })
-      ) {
-        reveal(nextHeroVisible);
-      }
-    }, REVEAL_DELAY_MS);
 
     return () => {
       window.removeEventListener('scroll', onScroll, passiveListenerOptions);
       if (observer) observer.disconnect();
-      if (timer) window.clearTimeout(timer);
+      syncPagePadding(false);
     };
-  }, []);
+  }, [syncPagePadding]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    syncPagePadding(ready && !dismissed && !isStandalone() && window.innerWidth < 1024);
+  }, [dismissed, ready, syncPagePadding]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || isStandalone()) return;
@@ -169,9 +176,6 @@ export default function InstallAppBanner() {
     const onBip = (e: Event) => {
       e.preventDefault();
       setDeferred(e as BeforeInstallPromptEvent);
-      if (typeof window !== 'undefined' && !isStandalone() && !isDismissed()) {
-        setReady(true);
-      }
     };
     window.addEventListener('beforeinstallprompt', onBip);
 
@@ -215,7 +219,8 @@ export default function InstallAppBanner() {
     }
     setDismissed(true);
     setReady(false);
-  }, []);
+    syncPagePadding(false);
+  }, [syncPagePadding]);
 
   const installNative = useCallback(async () => {
     // iPhone never gets beforeinstallprompt — always open the Safari guide

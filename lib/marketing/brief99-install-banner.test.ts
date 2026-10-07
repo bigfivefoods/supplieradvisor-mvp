@@ -33,6 +33,17 @@ assert.equal(
     standalone: false,
     heroVisible: true,
     elapsedMs: 15000,
+    stashedInstallEvent: true,
+  }),
+  false
+);
+assert.equal(
+  shouldRevealInstallPrompt({
+    dismissed: false,
+    standalone: false,
+    heroVisible: false,
+    elapsedMs: 15000,
+    stashedInstallEvent: true,
   }),
   true
 );
@@ -96,6 +107,7 @@ try {
       standalone: false,
       heroVisible: false,
       elapsedMs: 0,
+      stashedInstallEvent: true,
     }),
     false
   );
