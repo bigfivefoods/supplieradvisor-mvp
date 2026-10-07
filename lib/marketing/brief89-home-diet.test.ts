@@ -10,26 +10,45 @@ function src(rel: string) {
 }
 
 const page = src('app/page.tsx');
-assert.match(page, /HeroAudienceStage/, 'home page should include hero');
-assert.match(page, /HomeBelowFoldLazy/, 'home page should include lazy below-fold boundary');
-assert.match(page, /COMPANY_TRIAL_DAYS/, 'home page should include compact trial CTA strip');
-assert.match(page, /href="\/onboarding\?lane=b2b"/, 'trial CTA should route to /onboarding?lane=b2b');
+assert.match(page, /HomeLanding/, 'home page should render HomeLanding shell');
 const mainCount = page.match(/<main[\s>]/g)?.length ?? 0;
-assert.equal(mainCount, 1, 'home page should render exactly one <main> landmark');
+assert.equal(mainCount, 0, 'home page shell should not inline additional <main> landmarks');
 
 assert.doesNotMatch(page, /next\/dynamic/);
 assert.doesNotMatch(page, /ProductMocks/);
 assert.doesNotMatch(page, /@privy-io\/react-auth/);
 assert.doesNotMatch(page, /\bviem\b/);
+assert.doesNotMatch(page, /\bwagmi\b/);
 assert.doesNotMatch(page, /\bundici\b/);
+assert.doesNotMatch(page, /dict\/(fr|ar|pt|sw|zu)/);
 
 const description = page.match(/description:\s*'([^']+)'/);
 assert.ok(description?.[1], 'home metadata description should be present');
 assert.ok(description![1].length <= 160, 'home metadata description should stay concise');
 
+const landing = src('components/marketing/HomeLanding.tsx');
+assert.match(landing, /HeroAudienceStage/, 'home landing should include hero');
+assert.match(landing, /HomeBelowFoldLazy/, 'home landing should include lazy below-fold boundary');
+assert.match(landing, /COMPANY_TRIAL_DAYS/, 'home landing should include compact trial CTA strip');
+assert.match(landing, /onboarding\?lane=b2b/, 'trial CTA should route to /onboarding?lane=b2b');
+const landingMainCount = landing.match(/<main[\s>]/g)?.length ?? 0;
+assert.equal(landingMainCount, 1, 'home landing should render exactly one <main> landmark');
+
 const lazy = src('components/marketing/HomeBelowFoldLazy.tsx');
 assert.match(lazy, /ssr:\s*false/);
 assert.match(lazy, /HomeBelowFold/);
+
+const nav = src('components/marketing/LandingNav.tsx');
+assert.doesNotMatch(nav, /dict\/(fr|ar|pt|sw|zu)/);
+assert.doesNotMatch(nav, /@privy-io\/react-auth|\bviem\b|\bwagmi\b|\bundici\b/);
+
+const hero = src('components/marketing/HeroAudienceStage.tsx');
+assert.doesNotMatch(hero, /dict\/(fr|ar|pt|sw|zu)/);
+assert.doesNotMatch(hero, /@privy-io\/react-auth|\bviem\b|\bwagmi\b|\bundici\b/);
+
+const footer = src('components/marketing/SiteFooter.tsx');
+assert.doesNotMatch(footer, /dict\/(fr|ar|pt|sw|zu)/);
+assert.doesNotMatch(footer, /@privy-io\/react-auth|\bviem\b|\bwagmi\b|\bundici\b/);
 
 const homeBelowFold = src('components/marketing/HomeBelowFold.tsx');
 assert.match(

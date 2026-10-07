@@ -4,6 +4,12 @@ const cspReportAbsoluteEndpoint = 'https://www.supplieradvisor.com/api/csp-repor
 const cspReportGroup = 'csp-endpoint';
 const cspReportToValue = `{"group":"${cspReportGroup}","max_age":10886400,"endpoints":[{"url":"${cspReportAbsoluteEndpoint}"}]}`;
 const cspReportingEndpointsValue = `${cspReportGroup}="${cspReportAbsoluteEndpoint}"`;
+const localePrefixes = ['fr', 'ar', 'pt', 'sw', 'zu'];
+const translatedPaths = ['/', '/pricing'];
+const translatedPathPattern = translatedPaths
+  .map((path) => path.replace(/^\//, ''))
+  .map((path) => (path ? `${path}/?$` : '$'))
+  .join('|');
 
 const cspScriptHosts = [
   'https://va.vercel-scripts.com',
@@ -229,6 +235,11 @@ const nextConfig = {
   async redirects() {
     // Public company directory retired — permanent redirect to home
     return [
+      {
+        source: `/:locale(${localePrefixes.join('|')})/:path((?!${translatedPathPattern}).*)`,
+        destination: '/:path',
+        permanent: false,
+      },
       {
         source: '/directory',
         destination: '/',

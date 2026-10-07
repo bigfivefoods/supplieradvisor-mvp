@@ -1,14 +1,18 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
-import LandingNav from '@/components/marketing/LandingNav';
-import HeroAudienceStage from '@/components/marketing/HeroAudienceStage';
-import HomeBelowFoldLazy from '@/components/marketing/HomeBelowFoldLazy';
-import { COMPANY_TRIAL_DAYS } from '@/lib/billing/company-subscription';
+import HomeLanding from '@/components/marketing/HomeLanding';
+import { hreflangAlternates } from '@/lib/i18n/config';
+import { SITE_URL } from '@/lib/seo/site';
 
 export const metadata: Metadata = {
   description:
     'SupplierAdvisor® is the supply-chain OS for verified trade, industry workflows, and SA Member accounts with a 30-day free trial.',
+  alternates: {
+    canonical: SITE_URL,
+    languages: hreflangAlternates('/', SITE_URL),
+  },
+  openGraph: {
+    locale: 'en_ZA',
+  },
 };
 
 /**
@@ -16,28 +20,5 @@ export const metadata: Metadata = {
  * Product mocks load in a client island (HomeBelowFoldLazy) with ssr: false.
  */
 export default function LandingPage() {
-  return (
-    <div className="relative z-0 min-h-dvh bg-sa-bg text-sa-text antialiased selection:bg-cyan-100 dark:selection:bg-cyan-500/30">
-      <LandingNav />
-      <HeroAudienceStage />
-      <main>
-        <section className="border-t border-slate-200 bg-white px-4 py-10 sm:px-6 sm:py-12 lg:px-10">
-          <div className="mx-auto flex max-w-screen-2xl flex-col items-center gap-4 text-center sm:flex-row sm:justify-center sm:text-left">
-            <p className="text-sm font-semibold text-slate-700 sm:text-base">
-              {COMPANY_TRIAL_DAYS}-day free trial. Register your company and run
-              the first trade loop.
-            </p>
-            <Link
-              href="/onboarding?lane=b2b"
-              className="sa-btn-brand inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold shadow-sm hover:bg-[#22d3ee]"
-            >
-              Start free trial
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        </section>
-      </main>
-      <HomeBelowFoldLazy />
-    </div>
-  );
+  return <HomeLanding />;
 }

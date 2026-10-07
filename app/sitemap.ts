@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { LOCALES, TRANSLATED_PATHS, localizedPath } from '@/lib/i18n/config';
 import { companyPublicPath } from '@/lib/seo/company-public';
 import { loadAllPublicCompanyRows } from '@/lib/seo/load-public-companies';
 import { SITE_URL, STATIC_SEO_ROUTES } from '@/lib/seo/site';
@@ -35,12 +36,23 @@ export default async function sitemap(props: {
   const now = new Date();
 
   if (!Number.isFinite(id) || id <= 0) {
-    return STATIC_SEO_ROUTES.map((r) => ({
+    const staticEntries = STATIC_SEO_ROUTES.map((r) => ({
       url: `${BASE}${r.path === '/' ? '/' : r.path}`,
       lastModified: now,
       changeFrequency: r.changeFrequency,
       priority: r.priority,
     }));
+
+    const localizedEntries = LOCALES.filter((locale) => locale !== 'en').flatMap((locale) =>
+      TRANSLATED_PATHS.map((path) => ({
+        url: `${BASE}${localizedPath(locale, path)}`,
+        lastModified: now,
+        changeFrequency: 'weekly' as const,
+        priority: path === '/' ? 0.9 : 0.8,
+      }))
+    );
+
+    return [...staticEntries, ...localizedEntries];
   }
 
   return buildCompanyShard(id - 1, now);

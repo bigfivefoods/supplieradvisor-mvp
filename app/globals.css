@@ -168,6 +168,17 @@ html.dark[data-advisor]:not([data-advisor='supplier']) {
     transition: background-color 0.2s ease, color 0.15s ease;
   }
 
+  [dir='rtl'] body {
+    font-family: var(--font-arabic), ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: normal;
+  }
+
+  [dir='rtl'] h1,
+  [dir='rtl'] h2,
+  [dir='rtl'] h3 {
+    line-height: 1.3;
+  }
+
   /* Media never force page width */
   img, video, canvas, svg:not([class*='w-']):not([width]) {
     max-width: 100%;

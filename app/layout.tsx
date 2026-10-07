@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
+import { Noto_Sans_Arabic } from 'next/font/google';
 import './globals.css';
+import LocaleHtml from '@/components/i18n/LocaleHtml';
 import { PublicProviders } from '@/components/PublicProviders';
 import JsonLd from '@/components/seo/JsonLd';
 import { SpeedInsights } from '@vercel/speed-insights/next';
@@ -13,6 +15,12 @@ import {
 } from '@/lib/seo/site';
 import { SA_OG_IMAGE_URL } from '@/lib/brand/assets';
 import { THEME_BOOT_SCRIPT } from '@/lib/theme/theme';
+
+const notoSansArabic = Noto_Sans_Arabic({
+  subsets: ['arabic'],
+  variable: '--font-arabic',
+  preload: false,
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -118,7 +126,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="scroll-smooth" suppressHydrationWarning>
+    <LocaleHtml className="scroll-smooth">
       <head>
         <JsonLd />
         {/* Apply stored theme before paint — avoids light flash in dark mode */}
@@ -141,11 +149,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className="min-h-dvh antialiased bg-sa-bg text-sa-text">
+      <body className={`min-h-dvh antialiased bg-sa-bg text-sa-text ${notoSansArabic.variable}`}>
         <PublicProviders>{children}</PublicProviders>
         <SpeedInsights />
         <Analytics />
       </body>
-    </html>
+    </LocaleHtml>
   );
 }

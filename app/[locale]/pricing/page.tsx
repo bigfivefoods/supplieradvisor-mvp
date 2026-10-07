@@ -1,35 +1,48 @@
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import PricingContent from '@/components/marketing/PricingContent';
-import { hreflangAlternates } from '@/lib/i18n/config';
+import { t } from '@/lib/i18n/dict';
+import { getLocaleDict } from '@/lib/i18n/server';
+import { DEFAULT_LOCALE, OG_LOCALE, hreflangAlternates, isLocale, type Locale } from '@/lib/i18n/config';
 import { SITE_URL } from '@/lib/seo/site';
-import { COMPANY_PROFILE_PDF } from '@/lib/marketing/company-profile';
 import {
   MARKETING_PRICING_TERMS,
   PRICING_FAQ_ITEMS,
 } from '@/lib/marketing/pricing-plans';
 
-const title = 'Pricing';
-const description = 'Company pricing from R299/mo with unlimited users and clear referral savings.';
-const canonicalUrl = `${SITE_URL}/pricing`;
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale } = await params;
+  if (!isLocale(locale) || locale === DEFAULT_LOCALE) return {};
+  const dict = await getLocaleDict(locale);
+  const canonical = `${SITE_URL}/${locale}/pricing`;
 
-export const metadata: Metadata = {
-  title,
-  description,
-  alternates: {
-    canonical: canonicalUrl,
-    languages: hreflangAlternates('/pricing', SITE_URL),
-  },
-  openGraph: {
-    title,
-    description,
-    url: canonicalUrl,
-    type: 'website',
-    locale: 'en_ZA',
-  },
-};
+  return {
+    title: t(dict, 'meta.pricing.title'),
+    description: t(dict, 'meta.pricing.description'),
+    alternates: {
+      canonical,
+      languages: hreflangAlternates('/pricing', SITE_URL),
+    },
+    openGraph: {
+      title: t(dict, 'meta.pricing.title'),
+      description: t(dict, 'meta.pricing.description'),
+      locale: OG_LOCALE[locale],
+      url: canonical,
+    },
+    twitter: {
+      title: t(dict, 'meta.pricing.title'),
+      description: t(dict, 'meta.pricing.description'),
+    },
+  };
+}
 
-export default function PricingPage() {
-  const companyProfileHref = COMPANY_PROFILE_PDF.href;
+export default async function LocalizedPricingPage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
+  if (!isLocale(locale) || locale === DEFAULT_LOCALE) notFound();
+
+  const dict = await getLocaleDict(locale as Locale);
+  const canonicalUrl = `${SITE_URL}/${locale}/pricing`;
+  const description = 'Company pricing from R299/mo with unlimited users and clear referral savings.';
   const productJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -77,7 +90,7 @@ export default function PricingPage() {
 
   return (
     <>
-      <PricingContent companyProfileHref={companyProfileHref} />
+      <PricingContent locale={locale as Locale} dict={dict} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
