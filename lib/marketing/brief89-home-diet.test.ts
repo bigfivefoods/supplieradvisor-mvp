@@ -1,5 +1,5 @@
 /**
- * Brief 97 — restore pre-89 homepage composition with lazy module loading.
+ * Brief 89/97 — homepage composition + lazy module-loading guardrails.
  * Run: npx --yes tsx lib/marketing/brief89-home-diet.test.ts
  */
 import assert from 'node:assert/strict';

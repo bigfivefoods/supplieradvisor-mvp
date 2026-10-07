@@ -2167,7 +2167,7 @@ export default function HomeBelowFold() {
             </div>
           </div>
           <div className="flex flex-col justify-between gap-3 border-t border-slate-200 pt-6 text-xs text-slate-600 sm:flex-row sm:items-center">
-            <span>SupplierAdvisor® {currentYear} © All rights reserved.</span>
+            <span>© {currentYear} SupplierAdvisor®. All rights reserved.</span>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
               <a
                 href="https://x.com/supplieradvisa"
