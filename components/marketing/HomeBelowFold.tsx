@@ -857,6 +857,7 @@ function DeferredProductMock({
 
 export default function HomeBelowFold() {
   const [activeModule, setActiveModule] = useState(0);
+  const currentYear = new Date().getFullYear();
 
   const heroModules = MODULES;
 
@@ -1531,7 +1532,7 @@ export default function HomeBelowFold() {
                                   : '/onboarding?type=government'
                                 : '/onboarding?type=business'
                             }
-                            className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-[#0077b6] transition-colors hover:text-[#0077b6] dark:text-[#00b4d8] dark:hover:text-[#0077b6]"
+                            className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-[#0077b6] transition-colors hover:text-[#005f8e] dark:text-[#00b4d8] dark:hover:text-cyan-300"
                           >
                             Join to use {mod.short}
                             <ChevronRight className="h-4 w-4" />
@@ -2166,7 +2167,7 @@ export default function HomeBelowFold() {
             </div>
           </div>
           <div className="flex flex-col justify-between gap-3 border-t border-slate-200 pt-6 text-xs text-slate-600 sm:flex-row sm:items-center">
-            <span>SupplierAdvisor® 2026 © All rights reserved.</span>
+            <span>SupplierAdvisor® {currentYear} © All rights reserved.</span>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
               <a
                 href="https://x.com/supplieradvisa"
