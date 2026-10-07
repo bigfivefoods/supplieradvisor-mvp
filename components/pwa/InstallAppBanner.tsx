@@ -7,7 +7,8 @@ import { Download, Smartphone, X } from 'lucide-react';
 
 const DISMISS_KEY = 'sa_pwa_install_dismissed_at';
 const DISMISS_DAYS = 14;
-const INSTALL_BANNER_PADDING = 'calc(5.5rem + env(safe-area-inset-bottom, 0px))';
+// Bar is ~91px tall and docks 0.75rem above the safe area (~103px total at 390x844).
+const INSTALL_BANNER_PADDING = 'calc(6.5rem + env(safe-area-inset-bottom, 0px))';
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -30,6 +31,19 @@ export function shouldRevealInstallPrompt({
   if (dismissed || standalone) return false;
   if (heroVisible) return false;
   return true;
+}
+
+/** Routes that own their install chrome (or are public business sites) never show the SA bar. */
+export function isInstallBannerSuppressedPath(path: string): boolean {
+  return (
+    path.startsWith('/me') ||
+    path.startsWith('/pwa') ||
+    path.startsWith('/member') ||
+    path.startsWith('/hire/') ||
+    path.startsWith('/join/') ||
+    path.startsWith('/coach') ||
+    path.startsWith('/embed')
+  );
 }
 
 export function isStandalone(): boolean {
@@ -174,8 +188,16 @@ export default function InstallAppBanner() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    syncPagePadding(ready && !dismissed && !isStandalone());
-  }, [dismissed, ready, syncPagePadding]);
+    syncPagePadding(
+      ready && !dismissed && !isStandalone() && !isInstallBannerSuppressedPath(pathname)
+    );
+  }, [dismissed, pathname, ready, syncPagePadding]);
+
+  useEffect(() => {
+    // Marker for the e2e regression test: this build gates the bar on the hero leaving view.
+    if (typeof document === 'undefined') return;
+    document.documentElement.dataset.saInstallGate = 'hero';
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined' || isStandalone()) return;
@@ -252,16 +274,9 @@ export default function InstallAppBanner() {
     }
   }, [deferred]);
 
-  // SA Member has its own install chrome — avoid a second floating bar
-  if (pathname.startsWith('/me')) return null;
-  // Company-branded member/patient/hire apps have their own install chrome
-  if (pathname.startsWith('/pwa')) return null;
-  if (pathname.startsWith('/member')) return null;
-  if (pathname.startsWith('/hire/')) return null;
-  if (pathname.startsWith('/join/')) return null;
-  if (pathname.startsWith('/coach')) return null;
-  // Public business websites should not look like an SA app install
-  if (pathname.startsWith('/embed')) return null;
+  // SA Member, company-branded member/patient/hire apps and coach have their own
+  // install chrome; public business websites (/embed) should not look like an SA app install.
+  if (isInstallBannerSuppressedPath(pathname)) return null;
   if (typeof window !== 'undefined' && isStandalone()) return null;
   if (!ready) return null;
   if (dismissed) return null;

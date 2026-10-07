@@ -182,15 +182,29 @@ test.describe('Golden path smoke (public)', () => {
       ).toEqual([]);
     };
 
-    await assertNoFixedStickyOverlap();
-    await page.waitForTimeout(500);
-    await assertNoFixedStickyOverlap();
+    const gated = await page.evaluate(
+      () => document.documentElement.dataset.saInstallGate === 'hero'
+    );
+    test.skip(!gated, 'Target deployment predates the Brief 101 hero-gated install banner');
 
+    const dismissButton = page.getByRole('button', { name: 'Dismiss install banner' });
+
+    // On load: no fixed bar over the hero CTAs.
+    await assertNoFixedStickyOverlap();
+    await expect(dismissButton).toHaveCount(0);
+
+    // Android: a beforeinstallprompt right after load is stashed, not revealed.
     await page.evaluate(() => {
       window.dispatchEvent(new Event('beforeinstallprompt', { cancelable: true }));
     });
     await page.waitForTimeout(500);
-    await expect(page.getByText('Add to Home Screen')).not.toBeVisible();
+    await expect(dismissButton).toHaveCount(0);
+    await assertNoFixedStickyOverlap();
+
+    // Idle: 16s with no scrolling still never covers the hero CTAs.
+    await page.waitForTimeout(16_000);
+    await expect(dismissButton).toHaveCount(0);
+    await assertNoFixedStickyOverlap();
 
     await page.evaluate(() => {
       window.scrollTo({ top: window.innerHeight * 1.8, behavior: 'instant' });
