@@ -28,16 +28,31 @@ function readSeededDict(): Dict | null {
   }
 }
 
-export function LocaleDictionaryProvider({ children }: { children: React.ReactNode }) {
+export function LocaleDictionaryProvider({
+  children,
+  initialLocale,
+  initialDict,
+}: {
+  children: React.ReactNode;
+  initialLocale?: Locale;
+  initialDict?: Dict;
+}) {
   const pathname = usePathname() || '/';
   const detected = stripLocale(pathname).locale;
-  const [locale, setLocale] = useState<Locale>(detected);
-  const [dict, setDict] = useState<Dict>(() => resolveDict(readSeededDict()));
+  const startingLocale = initialLocale || detected;
+  const [locale, setLocale] = useState<Locale>(startingLocale);
+  const [dict, setDict] = useState<Dict>(() => resolveDict(initialDict || readSeededDict() || en));
 
   useEffect(() => {
     let cancelled = false;
     const nextLocale = stripLocale(pathname).locale;
     setLocale(nextLocale);
+
+    if (initialLocale && nextLocale === initialLocale && initialDict) {
+      setDict(resolveDict(initialDict));
+      return;
+    }
+
     if (nextLocale === DEFAULT_LOCALE) {
       setDict(en);
       return;
@@ -56,7 +71,7 @@ export function LocaleDictionaryProvider({ children }: { children: React.ReactNo
     return () => {
       cancelled = true;
     };
-  }, [pathname]);
+  }, [initialDict, initialLocale, pathname]);
 
   const value = useMemo<LocaleDictionaryContextValue>(
     () => ({

@@ -17,6 +17,7 @@ import ar from '@/lib/i18n/dict/ar';
 import pt from '@/lib/i18n/dict/pt';
 import sw from '@/lib/i18n/dict/sw';
 import zu from '@/lib/i18n/dict/zu';
+import type { DictKey } from '@/lib/i18n/dict/en';
 
 assert.equal(localizedPath('fr', '/'), '/fr');
 assert.equal(localizedPath('en', '/pricing'), '/pricing');
@@ -35,6 +36,126 @@ assert.equal(rootAlternates['x-default'], 'https://www.supplieradvisor.com/');
 for (const dict of [fr, ar, pt, sw, zu]) {
   for (const key of Object.keys(dict)) {
     assert.ok(key in en, `missing english fallback for key: ${key}`);
+  }
+}
+
+const usedKeys: DictKey[] = [
+  'meta.home.title',
+  'meta.home.description',
+  'meta.pricing.title',
+  'meta.pricing.description',
+  'switcher.chooseLanguage',
+  'notice.englishOnlyPage',
+  'notice.englishOnlySection',
+  'nav.ariaPrimary',
+  'nav.ariaOpenMenu',
+  'nav.ariaCloseMenu',
+  'nav.ariaCloseOverlay',
+  'nav.ariaSiteMenu',
+  'nav.groupProduct',
+  'nav.groupPricing',
+  'nav.groupTry',
+  'nav.product',
+  'nav.member',
+  'nav.why',
+  'nav.modules',
+  'nav.howFits',
+  'nav.pricing',
+  'nav.roi',
+  'nav.industries',
+  'nav.demo',
+  'nav.appearance',
+  'nav.logIn',
+  'nav.startTrial',
+  'nav.freeTrial',
+  'nav.memberCreate',
+  'home.trialStrip',
+  'home.startTrial',
+  'hero.headlineLead',
+  'hero.headlineAccent',
+  'hero.compare',
+  'hero.businessRun',
+  'hero.bookDemo',
+  'hero.notExcel',
+  'hero.trialDays',
+  'hero.membersNeverPay',
+  'hero.scene.b2b.title',
+  'hero.scene.b2b.short',
+  'hero.scene.b2b.body',
+  'hero.scene.b2b.point1',
+  'hero.scene.b2b.point2',
+  'hero.scene.b2b.point3',
+  'hero.scene.b2b.cta',
+  'hero.scene.b2g.title',
+  'hero.scene.b2g.short',
+  'hero.scene.b2g.body',
+  'hero.scene.b2g.point1',
+  'hero.scene.b2g.point2',
+  'hero.scene.b2g.point3',
+  'hero.scene.b2g.cta',
+  'hero.scene.b2c.title',
+  'hero.scene.b2c.short',
+  'hero.scene.b2c.body',
+  'hero.scene.b2c.point1',
+  'hero.scene.b2c.point2',
+  'hero.scene.b2c.point3',
+  'hero.scene.b2c.cta',
+  'footer.tagline',
+  'footer.motto',
+  'footer.explore',
+  'footer.industries',
+  'footer.resources',
+  'footer.social',
+  'footer.industriesBySector',
+  'footer.legalNav',
+  'footer.foundingTitle',
+  'footer.foundingBlurb',
+  'footer.rights',
+  'footer.bigFiveCompany',
+  'footer.contact.country',
+  'footer.form.emailLabel',
+  'footer.form.emailPlaceholder',
+  'footer.form.consentLead',
+  'footer.form.privacy',
+  'footer.form.join',
+  'footer.form.success',
+  'footer.form.error',
+  'pricing.kicker',
+  'pricing.title',
+  'pricing.ctaTrial',
+  'pricing.ctaDemo',
+  'pricing.tiers',
+  'pricing.tiersBody',
+  'pricing.monthlyList',
+  'pricing.prepaidTerm',
+  'pricing.save',
+  'pricing.referralTitle',
+  'pricing.faq',
+  'pricing.step',
+];
+
+for (const [locale, dict] of Object.entries({ fr, ar, pt, sw, zu })) {
+  for (const key of usedKeys) {
+    assert.ok(dict[key], `${locale} missing required key: ${key}`);
+  }
+}
+
+for (const [locale, dict] of Object.entries({ fr, ar, pt, sw, zu })) {
+  assert.equal(dict['nav.member'], 'SA Member', `${locale} nav.member should keep SA Member untranslated`);
+}
+
+const mustDifferFromEnglish: DictKey[] = [
+  'nav.ariaPrimary',
+  'footer.social',
+  'footer.industriesBySector',
+  'footer.legalNav',
+  'footer.contact.country',
+  'footer.form.success',
+  'footer.form.error',
+];
+for (const [locale, dict] of Object.entries({ fr, ar, pt, sw, zu })) {
+  for (const key of mustDifferFromEnglish) {
+    assert.notEqual(dict[key], en[key], `${locale} should translate ${key}`);
   }
 }
 
@@ -61,6 +182,6 @@ const localePages = readdirSync(resolve(process.cwd(), 'app/[locale]'), {
 const normalized = new Set(localePages.map((p) => (p === '/page.tsx' ? '/' : p)));
 assert.ok(normalized.has('/'), 'localized / page missing');
 assert.ok(normalized.has('/pricing'), 'localized /pricing page missing');
-assert.deepEqual(new Set(TRANSLATED_PATHS), new Set(['/','/pricing']));
+assert.deepEqual(new Set(TRANSLATED_PATHS), new Set(['/', '/pricing']));
 
 console.log('brief102-i18n.test.ts ok');

@@ -1,18 +1,22 @@
 'use client';
 
-import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { isRtlLocale, stripLocale } from '@/lib/i18n/config';
 
-export default function LocaleHtml() {
+export default function LocaleHtml({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   const pathname = usePathname() || '/';
+  const { locale } = stripLocale(pathname);
+  const dir = isRtlLocale(locale) ? 'rtl' : 'ltr';
 
-  useEffect(() => {
-    const { locale } = stripLocale(pathname);
-    const root = document.documentElement;
-    root.lang = locale;
-    root.dir = isRtlLocale(locale) ? 'rtl' : 'ltr';
-  }, [pathname]);
-
-  return null;
+  return (
+    <html lang={locale} dir={dir} className={className} suppressHydrationWarning>
+      {children}
+    </html>
+  );
 }

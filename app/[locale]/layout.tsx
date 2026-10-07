@@ -1,5 +1,7 @@
 import { notFound } from 'next/navigation';
+import { LocaleDictionaryProvider } from '@/components/i18n/LocaleDictionaryProvider';
 import { LOCALES, type Locale } from '@/lib/i18n/config';
+import { getLocaleDict } from '@/lib/i18n/server';
 
 export const dynamicParams = false;
 
@@ -19,5 +21,12 @@ export default async function LocalizedLayout({
     notFound();
   }
 
-  return children;
+  const activeLocale = locale as Locale;
+  const dict = await getLocaleDict(activeLocale);
+
+  return (
+    <LocaleDictionaryProvider initialLocale={activeLocale} initialDict={dict}>
+      {children}
+    </LocaleDictionaryProvider>
+  );
 }

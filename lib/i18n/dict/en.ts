@@ -1,6 +1,12 @@
 /** MACHINE-DRAFTED: Brief 102 i18n dictionary */
 
 export const en = {
+  'meta.home.title': "SupplierAdvisor® — The world's most trusted supplier advice — and OS",
+  'meta.home.description':
+    'SupplierAdvisor® is the supply-chain OS for verified trade, industry workflows, and SA Member accounts with a 30-day free trial.',
+  'meta.pricing.title': 'Pricing',
+  'meta.pricing.description': 'Company pricing from R299/mo with unlimited users and clear referral savings.',
+
   'switcher.chooseLanguage': 'Choose a language',
   'notice.englishOnlyPage': 'This page is available in English only.',
   'notice.englishOnlySection': 'EN · This section is not translated yet.',

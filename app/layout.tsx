@@ -126,7 +126,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="scroll-smooth" suppressHydrationWarning>
+    <LocaleHtml className="scroll-smooth">
       <head>
         <JsonLd />
         {/* Apply stored theme before paint — avoids light flash in dark mode */}
@@ -150,11 +150,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className={`min-h-dvh antialiased bg-sa-bg text-sa-text ${notoSansArabic.variable}`}>
-        <LocaleHtml />
         <PublicProviders>{children}</PublicProviders>
         <SpeedInsights />
         <Analytics />
       </body>
-    </html>
+    </LocaleHtml>
   );
 }

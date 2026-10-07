@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import PricingContent from '@/components/marketing/PricingContent';
+import { t } from '@/lib/i18n/dict';
 import { getLocaleDict } from '@/lib/i18n/server';
 import { DEFAULT_LOCALE, OG_LOCALE, hreflangAlternates, isLocale, type Locale } from '@/lib/i18n/config';
 import { SITE_URL } from '@/lib/seo/site';
@@ -12,14 +13,19 @@ import {
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
   if (!isLocale(locale) || locale === DEFAULT_LOCALE) return {};
+  const dict = await getLocaleDict(locale);
   const canonical = `${SITE_URL}/${locale}/pricing`;
 
   return {
+    title: t(dict, 'meta.pricing.title'),
+    description: t(dict, 'meta.pricing.description'),
     alternates: {
       canonical,
       languages: hreflangAlternates('/pricing', SITE_URL),
     },
     openGraph: {
+      title: t(dict, 'meta.pricing.title'),
+      description: t(dict, 'meta.pricing.description'),
       locale: OG_LOCALE[locale],
       url: canonical,
     },
