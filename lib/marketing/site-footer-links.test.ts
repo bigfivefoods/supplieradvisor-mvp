@@ -71,8 +71,10 @@ for (const href of internalHrefs.filter((item) => item.startsWith('/#'))) {
 const industryEntries = FOOTER_INDUSTRY_GROUPS.flatMap((group) => group.links)
   .filter((link) => link.href.startsWith('/industries/') && link.href !== '/industries');
 const slugsFromFooter = industryEntries.map((item) => item.href.replace('/industries/', ''));
-assert.equal(slugsFromFooter.length, 18, 'industry footer links should include 18 slugs');
-assert.equal(new Set(slugsFromFooter).size, 18, 'industry slugs should appear exactly once');
+const expectedIndustryCount = industrySlugs().length;
+assert.equal(expectedIndustryCount, 18, 'industry source list should contain 18 slugs');
+assert.equal(slugsFromFooter.length, expectedIndustryCount, 'industry footer links should include all slugs');
+assert.equal(new Set(slugsFromFooter).size, expectedIndustryCount, 'industry slugs should appear exactly once');
 
 for (const link of industryEntries) {
   const slug = link.href.replace('/industries/', '');

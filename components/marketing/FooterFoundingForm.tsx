@@ -21,7 +21,7 @@ export default function FooterFoundingForm() {
       const res = await fetch('/api/public/founding-waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, consent }),
       });
       const data = (await res.json()) as { message?: string; error?: string };
       if (!res.ok) {

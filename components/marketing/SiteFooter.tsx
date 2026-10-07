@@ -38,7 +38,7 @@ function FooterNav({
 }
 
 function FooterLinkItem({ href, label }: FooterLink) {
-  if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('mailto:') || href.startsWith('tel:')) {
+  if (href.startsWith('http://') || href.startsWith('https://')) {
     return (
       <a
         href={href}
@@ -46,6 +46,14 @@ function FooterLinkItem({ href, label }: FooterLink) {
         target="_blank"
         rel="noopener noreferrer"
       >
+        <span className="whitespace-nowrap">{label}</span>
+      </a>
+    );
+  }
+
+  if (href.startsWith('mailto:') || href.startsWith('tel:')) {
+    return (
+      <a href={href} className={linkClass}>
         <span className="whitespace-nowrap">{label}</span>
       </a>
     );
