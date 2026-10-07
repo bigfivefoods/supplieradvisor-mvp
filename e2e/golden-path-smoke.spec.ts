@@ -17,24 +17,25 @@ test.describe('Golden path smoke (public)', () => {
   }) => {
     const paths = ['/', '/login', '/pricing', '/marketplace'];
 
-    for (const path of paths) {
-      await page.addInitScript(() => {
+    await page.addInitScript(() => {
+      (
+        window as Window & {
+          __saCspViolations?: Array<{ directive: string; blocked: string }>;
+        }
+      ).__saCspViolations = [];
+      window.addEventListener('securitypolicyviolation', (event) => {
         (
           window as Window & {
             __saCspViolations?: Array<{ directive: string; blocked: string }>;
           }
-        ).__saCspViolations = [];
-        window.addEventListener('securitypolicyviolation', (event) => {
-          (
-            window as Window & {
-              __saCspViolations?: Array<{ directive: string; blocked: string }>;
-            }
-          ).__saCspViolations?.push({
-            directive: event.effectiveDirective || '',
-            blocked: event.blockedURI || '',
-          });
+        ).__saCspViolations?.push({
+          directive: event.effectiveDirective || '',
+          blocked: event.blockedURI || '',
         });
       });
+    });
+
+    for (const path of paths) {
       await page.goto(`${base}${path}`, { waitUntil: 'networkidle' });
       const violations = await page.evaluate(() => {
         const records =

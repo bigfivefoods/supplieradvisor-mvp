@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const MAX_REPORT_BYTES = 16 * 1024;
+// Keep CSP report ingestion lightweight: log only a subset to control volume/noise.
 const SAMPLE_RATE = 0.2;
 
 function asString(value: unknown, max = 240): string | undefined {
@@ -50,14 +51,21 @@ function pickFirst(report: Record<string, unknown>, keys: string[]) {
 export async function POST(request: NextRequest) {
   const ip = clientIp(request);
   const rl = rateLimit(`csp-report:${ip}`, { limit: 120, windowMs: 60 * 1000 });
-  if (!rl.ok) return new NextResponse(null, { status: 204 });
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: 'rate_limited' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
+    );
+  }
 
-  const contentLength = Number(request.headers.get('content-length') || 0);
+  // Best-effort fast reject when header is honest; byte-length check below is authoritative.
+  const contentLength = Number.parseInt(request.headers.get('content-length') || '', 10);
   if (Number.isFinite(contentLength) && contentLength > MAX_REPORT_BYTES) {
     return NextResponse.json({ error: 'payload_too_large' }, { status: 413 });
   }
 
   const raw = await request.text();
+  // Authoritative cap in case content-length is absent or invalid.
   if (Buffer.byteLength(raw, 'utf8') > MAX_REPORT_BYTES) {
     return NextResponse.json({ error: 'payload_too_large' }, { status: 413 });
   }
@@ -85,15 +93,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'invalid_report' }, { status: 400 });
   }
 
-  if (Math.random() < SAMPLE_RATE) {
+  const effectiveDirective = asString(
+    pickFirst(report, ['effective-directive', 'effectiveDirective'])
+  );
+  const violatedDirective = asString(
+    pickFirst(report, ['violated-directive', 'violatedDirective'])
+  );
+  const primaryDirective = (effectiveDirective || violatedDirective || '').toLowerCase();
+  const shouldAlwaysLog =
+    primaryDirective.startsWith('script-src') ||
+    primaryDirective.startsWith('default-src') ||
+    primaryDirective.startsWith('object-src') ||
+    primaryDirective.startsWith('base-uri') ||
+    primaryDirective.startsWith('frame-ancestors');
+
+  if (shouldAlwaysLog || Math.random() < SAMPLE_RATE) {
     logApi('/api/csp-report', 'warn', 'csp violation report', {
       disposition: asString(pickFirst(report, ['disposition'])),
-      effectiveDirective: asString(
-        pickFirst(report, ['effective-directive', 'effectiveDirective'])
-      ),
-      violatedDirective: asString(
-        pickFirst(report, ['violated-directive', 'violatedDirective'])
-      ),
+      effectiveDirective,
+      violatedDirective,
       blockedUri: asString(pickFirst(report, ['blocked-uri', 'blockedURL', 'blockedUri'])),
       sourceFile: asString(pickFirst(report, ['source-file', 'sourceFile'])),
       statusCode: Number(pickFirst(report, ['status-code', 'statusCode']) || 0) || undefined,

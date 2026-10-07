@@ -66,7 +66,7 @@ function buildCspValue({
     `script-src 'self' 'unsafe-inline' ${cspScriptHosts.join(' ')}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
-    `connect-src ${connectSrc}`,
+    `connect-src ${connectSrc.join(' ')}`,
     `frame-src ${cspFrameHosts.join(' ')}`,
     "base-uri 'self'",
     "form-action 'self'",
@@ -80,17 +80,19 @@ function buildCspValue({
 
 const enforcedNonEmbedCsp = buildCspValue({
   frameAncestors: "frame-ancestors 'none'",
-  connectSrc: "'self' https: wss:",
+  connectSrc: ["'self'", 'https:', 'wss:'],
 });
 
 const reportOnlyNonEmbedCsp = buildCspValue({
   frameAncestors: "frame-ancestors 'none'",
-  connectSrc: cspReportOnlyConnectHosts.join(' '),
+  connectSrc: cspReportOnlyConnectHosts,
 });
 
 const embedCsp = buildCspValue({
+  // Brief 70/98: embed surfaces are intentionally open-framable by partner sites.
+  // Risk accepted for public embeds: this is intentionally wider than fixed-origin framing.
   frameAncestors: "frame-ancestors *",
-  connectSrc: "'self' https: wss:",
+  connectSrc: ["'self'", 'https:', 'wss:'],
 });
 
 const nonEmbedSecurityHeaders = [
@@ -151,6 +153,7 @@ const nextConfig = {
         headers: nonEmbedSecurityHeaders,
       },
       {
+        // Embed routes must stay framable on partner domains.
         source: '/embed/:path*',
         headers: [
           { key: 'Report-To', value: cspReportToValue },

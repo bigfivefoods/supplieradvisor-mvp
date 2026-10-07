@@ -27,7 +27,7 @@ function matches(source: string, pathname: string) {
     );
   }
   if (source === '/embed/:path*') {
-    return pathname === '/embed' || pathname.startsWith('/embed/');
+    return pathname.startsWith('/embed/');
   }
   return false;
 }
