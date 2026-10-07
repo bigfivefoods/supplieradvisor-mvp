@@ -134,7 +134,7 @@ export default function InstallAppBanner() {
 
   return (
     <div
-      className="fixed z-[500] right-3 flex flex-col items-end gap-2 pointer-events-none"
+      className="fixed z-[500] right-3 flex flex-col items-end gap-2 pointer-events-none lg:hidden"
       style={{
         bottom: 'max(1rem, calc(5.5rem + env(safe-area-inset-bottom, 0px)))',
       }}

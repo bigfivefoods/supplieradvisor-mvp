@@ -348,13 +348,17 @@ export default function HeroAudienceStage() {
       />
 
       <div className="relative z-[1] mx-auto flex min-h-[100svh] w-full max-w-screen-2xl">
-        {/* Product shots sit on the photo, not in the text column */}
-        <div className="pointer-events-none absolute bottom-6 left-4 hidden w-[min(44rem,56%)] lg:block lg:bottom-8 lg:left-10 xl:w-[min(48rem,58%)]">
-          <HeroProductShots sceneId={scene.id} />
+        {/* Desktop shots stay in the left column so they never overlap hero copy */}
+        <div className="relative hidden min-w-0 flex-1 overflow-hidden lg:block">
+          <div className="pointer-events-none absolute bottom-8 left-10 right-6 xl:left-12 xl:right-10">
+            <div className="w-full max-w-[44rem] xl:max-w-[48rem]">
+              <HeroProductShots sceneId={scene.id} />
+            </div>
+          </div>
         </div>
 
         {/* Right-hand copy — big type, no glass card */}
-        <div className="relative ml-auto flex w-full max-w-xl flex-col justify-end px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[calc(var(--sa-nav-offset)+0.75rem)] sm:px-6 sm:pb-8 lg:max-w-[34rem] lg:justify-center lg:px-10 lg:pb-10 xl:max-w-[38rem]">
+        <div className="relative ml-auto flex w-full max-w-xl flex-col justify-end px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[calc(var(--sa-nav-offset)+0.75rem)] sm:px-6 sm:pb-8 lg:w-[34rem] lg:max-w-[34rem] lg:justify-center lg:px-10 lg:pb-10 xl:w-[38rem] xl:max-w-[38rem]">
           <div className="w-full">
             <h1 className="text-[1.9rem] font-black leading-[1.04] tracking-[-0.048em] text-white [text-shadow:0_2px_28px_rgba(0,0,0,0.45)] sm:text-5xl lg:text-[3.35rem] xl:text-7xl">
               The world&apos;s most trusted
