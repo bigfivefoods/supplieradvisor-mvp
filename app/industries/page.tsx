@@ -5,6 +5,7 @@ import { INDUSTRIES } from '@/lib/marketing/industries';
 import { ArrowRight } from 'lucide-react';
 import { SA_OG_IMAGE_URL } from '@/lib/brand/assets';
 import { INDUSTRY_PACK_MONTHLY_ZAR } from '@/lib/product/architecture';
+import SiteFooter from '@/components/marketing/SiteFooter';
 
 export const metadata: Metadata = {
   title: 'Industries',
@@ -210,6 +211,7 @@ export default function IndustriesIndexPage() {
           </Link>
         </p>
       </main>
+      <SiteFooter />
     </div>
   );
 }
