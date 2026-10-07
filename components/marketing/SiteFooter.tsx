@@ -128,8 +128,6 @@ export default function SiteFooter() {
                 <a
                   href={FOOTER_CONTACT.email.href}
                   className="flex min-h-6 items-center gap-2 hover:text-[#0077b6] dark:hover:text-white"
-                  target="_blank"
-                  rel="noopener noreferrer"
                 >
                   <Mail className="w-4 h-4 shrink-0" />
                   <span className="break-all">{FOOTER_CONTACT.email.label}</span>
@@ -137,8 +135,6 @@ export default function SiteFooter() {
                 <a
                   href={FOOTER_CONTACT.phone.href}
                   className="flex min-h-6 items-center gap-2 hover:text-[#0077b6] dark:hover:text-white"
-                  target="_blank"
-                  rel="noopener noreferrer"
                 >
                   <Phone className="w-4 h-4 shrink-0" />
                   {FOOTER_CONTACT.phone.label}

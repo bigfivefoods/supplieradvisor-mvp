@@ -39,7 +39,10 @@ for (const href of internalHrefs) {
 
   if (route.startsWith('/industries/') && route !== '/industries') {
     const slug = route.slice('/industries/'.length);
-    assert.ok(industrySlugs().includes(slug as (typeof industrySlugs)[number]), `${href}: unknown industry slug`);
+    assert.ok(
+      industrySlugs().includes(slug as ReturnType<typeof industrySlugs>[number]),
+      `${href}: unknown industry slug`
+    );
     assert.ok(existsSync(resolve(root, 'app/industries/[slug]/page.tsx')), 'industries dynamic page missing');
     continue;
   }
