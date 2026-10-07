@@ -10,6 +10,7 @@ const base =
   process.env.PLAYWRIGHT_BASE_URL ||
   process.env.NEXT_PUBLIC_APP_URL ||
   'http://localhost:3000';
+const hasPrivyAppId = Boolean(String(process.env.NEXT_PUBLIC_PRIVY_APP_ID || '').trim());
 
 test.describe('Golden path smoke (public)', () => {
   test('public pages have no enforced CSP violations, login modal opens, embed renders in iframe', async ({
@@ -68,26 +69,33 @@ test.describe('Golden path smoke (public)', () => {
       });
     }
 
-    await page.goto(`${base}/login`, { waitUntil: 'domcontentloaded' });
-    const trigger = page.getByRole('button', { name: /continue with email/i }).first();
-    await expect(trigger).toBeVisible({ timeout: 20_000 });
-    await trigger.click();
-    const modalSignals = await Promise.all([
-      page
-        .waitForSelector('[role="dialog"]', { timeout: 12_000 })
-        .then(() => true)
-        .catch(() => false),
-      page
-        .waitForSelector('iframe[src*="privy"], iframe[src*="walletconnect"]', {
-          timeout: 12_000,
-        })
-        .then(() => true)
-        .catch(() => false),
-    ]);
-    expect(
-      modalSignals.some(Boolean),
-      'Privy login modal should open after clicking login'
-    ).toBeTruthy();
+    if (hasPrivyAppId) {
+      await page.goto(`${base}/login`, { waitUntil: 'domcontentloaded' });
+      const trigger = page.getByRole('button', { name: /continue with email/i }).first();
+      await expect(trigger).toBeVisible({ timeout: 20_000 });
+      await trigger.click();
+      const modalSignals = await Promise.all([
+        page
+          .waitForSelector('[role="dialog"]', { timeout: 12_000 })
+          .then(() => true)
+          .catch(() => false),
+        page
+          .waitForSelector('iframe[src*="privy"], iframe[src*="walletconnect"]', {
+            timeout: 12_000,
+          })
+          .then(() => true)
+          .catch(() => false),
+      ]);
+      expect(
+        modalSignals.some(Boolean),
+        'Privy login modal should open after clicking login'
+      ).toBeTruthy();
+    } else if (process.env.CI) {
+      test.info().annotations.push({
+        type: 'skip-check',
+        description: 'Privy modal assertion skipped in CI because NEXT_PUBLIC_PRIVY_APP_ID is not set',
+      });
+    }
 
     const parentServer = createServer((_, res) => {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });

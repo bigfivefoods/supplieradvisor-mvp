@@ -1,13 +1,17 @@
 /** @type {import('next').NextConfig} */
 const cspReportEndpoint = '/api/csp-report';
+const cspReportAbsoluteEndpoint = 'https://www.supplieradvisor.com/api/csp-report';
 const cspReportGroup = 'csp-endpoint';
-const cspReportToValue = `{"group":"${cspReportGroup}","max_age":10886400,"endpoints":[{"url":"${cspReportEndpoint}"}]}`;
+const cspReportToValue = `{"group":"${cspReportGroup}","max_age":10886400,"endpoints":[{"url":"${cspReportAbsoluteEndpoint}"}]}`;
+const cspReportingEndpointsValue = `${cspReportGroup}="${cspReportAbsoluteEndpoint}"`;
 
 const cspScriptHosts = [
   'https://va.vercel-scripts.com',
   'https://maps.googleapis.com',
   'https://maps.gstatic.com',
   'https://js.paystack.co',
+  'https://applepay.cdn-apple.com',
+  'https://pay.google.com',
   'https://auth.privy.io',
   'https://*.privy.io',
   'https://*.privy.systems',
@@ -25,6 +29,7 @@ const cspFrameHosts = [
   'https://*.walletconnect.com',
   'https://*.walletconnect.org',
   'https://checkout.paystack.com',
+  'https://pay.google.com',
   'https://www.youtube.com',
   'https://www.youtube-nocookie.com',
   'https://player.vimeo.com',
@@ -60,11 +65,13 @@ const cspReportOnlyConnectHosts = [
 function buildCspValue({
   frameAncestors,
   connectSrc,
+  includeUpgradeInsecureRequests = true,
 }) {
   return [
     "default-src 'self'",
     `script-src 'self' 'unsafe-inline' ${cspScriptHosts.join(' ')}`,
     "style-src 'self' 'unsafe-inline'",
+    "font-src 'self' data: https://fonts.gstatic.com https://fonts.walletconnect.com",
     "img-src 'self' data: blob: https:",
     `connect-src ${connectSrc.join(' ')}`,
     `frame-src ${cspFrameHosts.join(' ')}`,
@@ -74,7 +81,7 @@ function buildCspValue({
     `report-uri ${cspReportEndpoint}`,
     `report-to ${cspReportGroup}`,
     frameAncestors,
-    'upgrade-insecure-requests',
+    ...(includeUpgradeInsecureRequests ? ['upgrade-insecure-requests'] : []),
   ].join('; ');
 }
 
@@ -86,6 +93,7 @@ const enforcedNonEmbedCsp = buildCspValue({
 const reportOnlyNonEmbedCsp = buildCspValue({
   frameAncestors: "frame-ancestors 'none'",
   connectSrc: cspReportOnlyConnectHosts,
+  includeUpgradeInsecureRequests: false,
 });
 
 const embedCsp = buildCspValue({
@@ -98,6 +106,7 @@ const embedCsp = buildCspValue({
 const nonEmbedSecurityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'Report-To', value: cspReportToValue },
+  { key: 'Reporting-Endpoints', value: cspReportingEndpointsValue },
   { key: 'Content-Security-Policy', value: enforcedNonEmbedCsp },
   { key: 'Content-Security-Policy-Report-Only', value: reportOnlyNonEmbedCsp },
 ];
@@ -157,6 +166,7 @@ const nextConfig = {
         source: '/embed/:path*',
         headers: [
           { key: 'Report-To', value: cspReportToValue },
+          { key: 'Reporting-Endpoints', value: cspReportingEndpointsValue },
           { key: 'Content-Security-Policy', value: embedCsp },
         ],
       },
