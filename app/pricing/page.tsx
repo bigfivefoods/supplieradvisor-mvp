@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import SiteFooter from '@/components/marketing/SiteFooter';
+import { COMPANY_PROFILE_PDF } from '@/lib/marketing/company-profile';
 import { formatZar } from '@/lib/billing/company-subscription';
 import {
   MARKETING_PRICING_TERMS,
@@ -116,6 +117,15 @@ export default function PricingPage() {
             >
               Book a demo
             </Link>
+            <a
+              href={COMPANY_PROFILE_PDF.href}
+              download
+              type="application/pdf"
+              className="inline-flex items-center gap-2 rounded-xl px-2 py-3 text-sm font-semibold text-[#0077b6] underline-offset-4 hover:underline"
+            >
+              {COMPANY_PROFILE_PDF.label}
+              <span className="text-xs font-medium text-slate-500">{COMPANY_PROFILE_PDF.meta}</span>
+            </a>
           </div>
         </div>
       </section>
