@@ -5,10 +5,10 @@ const locales = ['fr', 'ar', 'pt', 'sw', 'zu'] as const;
 const navLocales = ['en', 'fr', 'sw', 'zu', 'ar'] as const;
 const navWidths = [1024, 1280, 1440] as const;
 const minInlineByLocaleWidth: Partial<Record<(typeof navLocales)[number], Partial<Record<(typeof navWidths)[number], number>>>> = {
-  en: { 1280: 6, 1440: 9 },
-  fr: { 1280: 4, 1440: 6 },
-  sw: { 1280: 4, 1440: 6 },
-  zu: { 1280: 4, 1440: 6 },
+  en: { 1280: 5, 1440: 7 },
+  fr: { 1280: 3, 1440: 5 },
+  sw: { 1280: 3, 1440: 5 },
+  zu: { 1280: 3, 1440: 5 },
 };
 const referralL1ByLocale: Record<(typeof locales)[number], string> = {
   fr: 'Invitation directe (L1)',
@@ -352,9 +352,36 @@ for (const locale of navLocales) {
         expect(inlineCount).toBeGreaterThanOrEqual(expectedMin);
       }
 
+      if (width >= 1280) {
+        const loginCta = page.locator('[data-top-nav-item="login-cta"]');
+        const trialCta = page.locator('[data-top-nav-item="trial-cta"]');
+        await expect(loginCta).toBeVisible();
+        await expect(trialCta).toBeVisible();
+        const ctaInViewport = await page.evaluate(() => {
+          const nodes = [
+            document.querySelector<HTMLElement>('[data-top-nav-item="login-cta"]'),
+            document.querySelector<HTMLElement>('[data-top-nav-item="trial-cta"]'),
+          ].filter((node): node is HTMLElement => Boolean(node));
+          return nodes.every((node) => {
+            const rect = node.getBoundingClientRect();
+            return rect.left >= 0 && rect.right <= window.innerWidth && rect.top >= 0 && rect.bottom <= window.innerHeight;
+          });
+        });
+        expect(ctaInViewport).toBeTruthy();
+      }
+
       const inlineLabels = (await inlineLinks.allTextContents()).map((text) => text.trim()).filter(Boolean);
       const moreTrigger = page.locator('[data-landing-nav] button[data-top-nav-item="more"]');
       if (await moreTrigger.isVisible()) {
+        const moreNotClipped = await moreTrigger.evaluate((node) => {
+          const rect = node.getBoundingClientRect();
+          return (
+            rect.left >= 0 &&
+            rect.right <= window.innerWidth &&
+            node.scrollWidth <= node.clientWidth + 1
+          );
+        });
+        expect(moreNotClipped).toBeTruthy();
         await moreTrigger.click();
         const menu = page.locator('[data-top-nav-more-menu]');
         await expect(menu).toBeVisible();

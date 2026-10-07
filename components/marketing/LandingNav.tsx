@@ -102,6 +102,18 @@ const LINKS: NavLink[] = [
   { id: 'demo', labelKey: 'nav.demo', href: '/demo', group: 'try' },
 ];
 
+const OVERFLOW_PRIORITY: NavLink['id'][] = [
+  'demo',
+  'industries',
+  'roi',
+  'how',
+  'pricing',
+  'modules',
+  'why',
+  'member',
+  'product',
+];
+
 /** Document order — scroll-spy walks this list top → bottom. */
 const SPY_SECTIONS = [
   'video',
@@ -147,7 +159,7 @@ const GROUP_LABELS: Record<NavLink['group'], 'nav.groupProduct' | 'nav.groupPric
 
 function linkClass(active: boolean) {
   return [
-    'inline-flex items-center rounded-full px-2.5 py-2 text-xs font-semibold transition-colors whitespace-nowrap',
+    'inline-flex shrink-0 items-center rounded-full px-2.5 py-2 text-xs font-semibold transition-colors whitespace-nowrap',
     active
       ? 'bg-[#00b4d8]/12 text-[#0077b6] dark:bg-cyan-500/15 dark:text-cyan-300'
       : 'text-slate-600 hover:bg-slate-50 hover:text-[#0077b6] dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-cyan-300',
@@ -171,7 +183,9 @@ export default function LandingNav() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
-  const [desktopVisibleCount, setDesktopVisibleCount] = useState(6);
+  const [desktopVisibleLinkIds, setDesktopVisibleLinkIds] = useState<string[]>(
+    LINKS.slice(0, 6).map((link) => link.id)
+  );
   const [desktopMoreOpen, setDesktopMoreOpen] = useState(false);
   const desktopNavRef = useRef<HTMLElement | null>(null);
   const desktopMeasureMoreRef = useRef<HTMLSpanElement | null>(null);
@@ -282,7 +296,7 @@ export default function LandingNav() {
   const updateDesktopVisibleCount = useCallback(() => {
     if (typeof window === 'undefined') return;
     if (window.innerWidth < 1024) {
-      setDesktopVisibleCount(LINKS.length);
+      setDesktopVisibleLinkIds(LINKS.map((link) => link.id));
       return;
     }
 
@@ -292,23 +306,33 @@ export default function LandingNav() {
     if (available <= 0) return;
 
     const moreWidth = Math.ceil(desktopMeasureMoreRef.current?.offsetWidth ?? 64);
-    let used = 0;
-    let count = 0;
+    const allIds = LINKS.map((link) => link.id);
+    const widthById = new Map(
+      allIds.map((id) => [id, Math.ceil(desktopMeasureLinkRefs.current[id]?.offsetWidth ?? 0)])
+    );
 
-    for (const link of LINKS) {
-      const width = Math.ceil(desktopMeasureLinkRefs.current[link.id]?.offsetWidth ?? 0);
-      if (!width) continue;
-      const remaining = LINKS.length - (count + 1);
-      const reservedForMore = remaining > 0 ? moreWidth : 0;
-      if (used + width + reservedForMore <= available || count === 0) {
-        used += width;
-        count += 1;
-      } else {
-        break;
-      }
+    let visibleIds = [...allIds];
+    const removableIds = [...OVERFLOW_PRIORITY];
+    const navGapPx = 2;
+
+    const totalWidth = () => {
+      const linksWidth = visibleIds.reduce((sum, id) => sum + (widthById.get(id) ?? 0), 0);
+      const linksGap = Math.max(0, visibleIds.length - 1) * navGapPx;
+      const hiddenCount = allIds.length - visibleIds.length;
+      const moreGap = hiddenCount > 0 && visibleIds.length > 0 ? navGapPx : 0;
+      const moreTotal = hiddenCount > 0 ? moreWidth + moreGap : 0;
+      return linksWidth + linksGap + moreTotal;
+    };
+
+    while (visibleIds.length > 1 && totalWidth() > available) {
+      const removeId = removableIds.find((id) => visibleIds.includes(id));
+      if (!removeId) break;
+      visibleIds = visibleIds.filter((id) => id !== removeId);
+      const idx = removableIds.indexOf(removeId);
+      if (idx >= 0) removableIds.splice(idx, 1);
     }
 
-    setDesktopVisibleCount(Math.max(1, Math.min(count, LINKS.length)));
+    setDesktopVisibleLinkIds(visibleIds);
   }, []);
 
   useLayoutEffect(() => {
@@ -440,14 +464,14 @@ export default function LandingNav() {
     );
   };
 
-  const desktopPrimaryLinks = useMemo(
-    () => LINKS.slice(0, Math.min(desktopVisibleCount, LINKS.length)),
-    [desktopVisibleCount]
-  );
-  const desktopOverflowLinks = useMemo(
-    () => LINKS.slice(Math.min(desktopVisibleCount, LINKS.length)),
-    [desktopVisibleCount]
-  );
+  const desktopPrimaryLinks = useMemo(() => {
+    const visibleSet = new Set(desktopVisibleLinkIds);
+    return LINKS.filter((link) => visibleSet.has(link.id));
+  }, [desktopVisibleLinkIds]);
+  const desktopOverflowLinks = useMemo(() => {
+    const visibleSet = new Set(desktopVisibleLinkIds);
+    return LINKS.filter((link) => !visibleSet.has(link.id));
+  }, [desktopVisibleLinkIds]);
 
   useEffect(() => {
     if (!desktopOverflowLinks.length) setDesktopMoreOpen(false);
@@ -527,7 +551,7 @@ export default function LandingNav() {
                 <button
                   ref={desktopMoreButtonRef}
                   type="button"
-                  className="rounded-full px-2.5 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-[#0077b6] dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-cyan-300"
+                  className="shrink-0 rounded-full px-2.5 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-[#0077b6] dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-cyan-300"
                   aria-haspopup="menu"
                   aria-expanded={desktopMoreOpen}
                   aria-label={desktopMoreOpen ? t('nav.ariaCloseMore') : t('nav.ariaOpenMore')}
@@ -575,14 +599,14 @@ export default function LandingNav() {
             <button
               type="button"
               onClick={goLogin}
-              className="hidden min-h-[40px] rounded-full border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition-all hover:border-[#00b4d8] hover:text-[#0077b6] 2xl:inline-flex 2xl:px-5 2xl:py-2.5 dark:border-slate-700 dark:text-slate-200"
+              className="hidden min-h-[40px] rounded-full border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition-all hover:border-[#00b4d8] hover:text-[#0077b6] xl:inline-flex xl:px-5 xl:py-2.5 dark:border-slate-700 dark:text-slate-200"
               data-top-nav-item="login-cta"
             >
               {t('nav.logIn')}
             </button>
             <Link
               href="/join"
-              className="hidden min-h-[40px] items-center gap-1.5 rounded-full bg-[#00b4d8] px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0099b8] 2xl:inline-flex 2xl:px-5 2xl:py-2.5"
+              className="hidden min-h-[40px] items-center gap-1.5 rounded-full bg-[#00b4d8] px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0099b8] xl:inline-flex xl:px-5 xl:py-2.5"
               data-top-nav-item="trial-cta"
             >
               {t('nav.startTrial')}
