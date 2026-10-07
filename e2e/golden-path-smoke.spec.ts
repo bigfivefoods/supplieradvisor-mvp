@@ -58,6 +58,13 @@ test.describe('Golden path smoke (public)', () => {
         violationMessages,
         `${path} should not trigger enforced CSP violations`
       ).toEqual([]);
+      await page.evaluate(() => {
+        (
+          window as Window & {
+            __saCspViolations?: Array<{ directive: string; blocked: string }>;
+          }
+        ).__saCspViolations = [];
+      });
     }
 
     await page.goto(`${base}/login`, { waitUntil: 'domcontentloaded' });

@@ -102,6 +102,7 @@ export async function POST(request: NextRequest) {
   const primaryDirective = (effectiveDirective || violatedDirective || '').toLowerCase();
   const shouldAlwaysLog =
     primaryDirective.startsWith('script-src') ||
+    primaryDirective.startsWith('frame-src') ||
     primaryDirective.startsWith('default-src') ||
     primaryDirective.startsWith('object-src') ||
     primaryDirective.startsWith('base-uri') ||
