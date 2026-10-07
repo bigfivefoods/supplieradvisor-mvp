@@ -54,14 +54,6 @@ export default function FooterFoundingForm() {
           className="w-full rounded-full border border-black/10 bg-white pl-10 pr-4 py-3 text-sm text-slate-900 placeholder:text-[#6b7280]"
         />
       </div>
-      <button
-        type="submit"
-        disabled={busy}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0077b6] px-5 py-3 text-sm font-semibold text-white hover:bg-[#005f92] disabled:opacity-60"
-      >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ArrowRight className="h-4 w-4" aria-hidden />}
-        Join
-      </button>
       <label className="flex items-start gap-2 text-xs text-[#525252]">
         <input
           type="checkbox"
@@ -81,6 +73,14 @@ export default function FooterFoundingForm() {
           </Link>
         </span>
       </label>
+      <button
+        type="submit"
+        disabled={busy}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0077b6] px-5 py-3 text-sm font-semibold text-white hover:bg-[#005f92] disabled:opacity-60"
+      >
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ArrowRight className="h-4 w-4" aria-hidden />}
+        Join
+      </button>
       {message ? (
         <p role="status" className="text-sm text-[#6b7280]">
           {message}
