@@ -72,6 +72,7 @@ const industryEntries = FOOTER_INDUSTRY_GROUPS.flatMap((group) => group.links)
   .filter((link) => link.href.startsWith('/industries/') && link.href !== '/industries');
 const slugsFromFooter = industryEntries.map((item) => item.href.replace('/industries/', ''));
 const expectedIndustryCount = industrySlugs().length;
+// Brief 100 explicitly requires all 18 industry slugs to be present exactly once in the footer.
 assert.equal(expectedIndustryCount, 18, 'industry source list should contain 18 slugs');
 assert.equal(slugsFromFooter.length, expectedIndustryCount, 'industry footer links should include all slugs');
 assert.equal(new Set(slugsFromFooter).size, expectedIndustryCount, 'industry slugs should appear exactly once');
