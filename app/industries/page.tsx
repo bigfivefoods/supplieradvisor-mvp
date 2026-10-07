@@ -6,6 +6,7 @@ import { ArrowRight } from 'lucide-react';
 import { SA_OG_IMAGE_URL } from '@/lib/brand/assets';
 import { INDUSTRY_PACK_MONTHLY_ZAR } from '@/lib/product/architecture';
 import SiteFooter from '@/components/marketing/SiteFooter';
+import { COMPANY_PROFILE_PDF } from '@/lib/marketing/company-profile';
 
 export const metadata: Metadata = {
   title: 'Industries',
@@ -203,6 +204,17 @@ export default function IndustriesIndexPage() {
               View Industry modules
             </Link>
           </div>
+          <p className="mt-4 text-sm text-slate-600">
+            <a
+              href={COMPANY_PROFILE_PDF.href}
+              download
+              type="application/pdf"
+              className="font-semibold text-[#0077b6] underline underline-offset-4"
+            >
+              {COMPANY_PROFILE_PDF.label}
+            </a>{' '}
+            <span className="text-xs text-slate-500">{COMPANY_PROFILE_PDF.meta}</span>
+          </p>
         </div>
 
         <p className="mt-12 text-center text-sm text-slate-500">
