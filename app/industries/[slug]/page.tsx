@@ -8,6 +8,7 @@ import {
   industrySlugs,
   type IndustrySlug,
 } from '@/lib/marketing/industries';
+import SiteFooter from '@/components/marketing/SiteFooter';
 import {
   COMPANY_SUBSCRIPTION_MONTHLY_ZAR,
   COMPANY_TRIAL_DAYS,
@@ -160,6 +161,7 @@ export default async function IndustryDetailPage({ params }: Props) {
           </div>
         </div>
       </main>
+      <SiteFooter />
     </div>
   );
 }

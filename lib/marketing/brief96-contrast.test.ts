@@ -14,6 +14,8 @@ const files = [
   'components/marketing/ComparePlatforms.tsx',
   'components/marketing/HomeBelowFold.tsx',
   'components/marketing/HomePricing.tsx',
+  'components/marketing/SiteFooter.tsx',
+  'components/marketing/FooterFoundingForm.tsx',
   'app/industries/page.tsx',
   'app/login/page.tsx',
   'app/page.tsx',

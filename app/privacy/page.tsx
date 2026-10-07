@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowLeft } from 'lucide-react';
+import SiteFooter from '@/components/marketing/SiteFooter';
 
 export const metadata = {
   title: 'Privacy Policy',
@@ -172,6 +173,7 @@ export default function PrivacyPage() {
           </Link>
         </div>
       </main>
+      <SiteFooter />
     </div>
   );
 }

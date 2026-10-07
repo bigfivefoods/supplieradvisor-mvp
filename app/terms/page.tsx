@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowLeft } from 'lucide-react';
+import SiteFooter from '@/components/marketing/SiteFooter';
 
 export const metadata = {
   title: 'Terms of Service',
@@ -242,6 +243,7 @@ export default function TermsPage() {
           </Link>
         </div>
       </main>
+      <SiteFooter />
     </div>
   );
 }

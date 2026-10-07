@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ShieldCheck, Clock, CreditCard, RefreshCw, BadgeCheck } from 'lucide-react';
 import { SITE_URL } from '@/lib/seo/company-public';
+import SiteFooter from '@/components/marketing/SiteFooter';
 
 export const metadata: Metadata = {
   title: 'CIPC verification SLA',
@@ -207,6 +208,7 @@ export default function VerificationSlaPage() {
           </Link>
         </div>
       </main>
+      <SiteFooter />
     </div>
   );
 }

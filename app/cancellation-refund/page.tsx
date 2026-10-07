@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowLeft } from 'lucide-react';
+import SiteFooter from '@/components/marketing/SiteFooter';
 
 export const metadata = {
   title: 'Cancellation & Refund Policy',
@@ -340,6 +341,7 @@ export default function CancellationRefundPage() {
           </Link>
         </div>
       </main>
+      <SiteFooter />
     </div>
   );
 }

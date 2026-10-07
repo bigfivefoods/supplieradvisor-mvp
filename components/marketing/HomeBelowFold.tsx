@@ -61,6 +61,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState, type ComponentType } from 'react';
 import dynamic from 'next/dynamic';
+import SiteFooter from '@/components/marketing/SiteFooter';
 const HomePricing = dynamic(() => import('@/components/marketing/HomePricing'), { ssr: false });
 const ComparePlatforms = dynamic(() => import('@/components/marketing/ComparePlatforms'), { ssr: false });
 const SocialProofStrip = dynamic(() => import('@/components/marketing/SocialProofStrip'), { ssr: false });
@@ -857,8 +858,6 @@ function DeferredProductMock({
 
 export default function HomeBelowFold() {
   const [activeModule, setActiveModule] = useState(0);
-  const currentYear = new Date().getFullYear();
-
   const heroModules = MODULES;
 
   useEffect(() => {
@@ -2077,115 +2076,7 @@ export default function HomeBelowFold() {
         </div>
       </section>
 
-      {/* ═══════════ FOOTER ═══════════ */}
-      <footer className="border-t border-slate-200 bg-white py-12 px-4 sm:px-6">
-        <div className="mx-auto max-w-screen-2xl">
-          <div className="mb-10 flex flex-col justify-between gap-8 md:flex-row md:items-start">
-            <div>
-              <div className="text-lg font-black tracking-tight text-slate-900">
-                SupplierAdvisor<span className="sa-text-brand-on-light">®</span>
-              </div>
-              <p className="mt-2 max-w-xs text-sm leading-relaxed text-slate-500">
-                The world&apos;s most trusted supplier advice and supply-chain OS —
-                B2B, B2G, and B2C on one verified network.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-8 text-sm sm:grid-cols-3 sm:gap-12">
-              <div className="space-y-2">
-                <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                  Product
-                </div>
-                <a href="#why-join" className="block text-slate-600 hover:text-slate-900">
-                  Why SA
-                </a>
-                <a href="#modules" className="block text-slate-600 hover:text-slate-900">
-                  Product
-                </a>
-                <a href="#packaging" className="block text-slate-600 hover:text-slate-900">
-                  How it fits
-                </a>
-                <a href="#pricing" className="block text-slate-600 hover:text-slate-900">
-                  Pricing
-                </a>
-                <Link href="/industries" className="block text-slate-600 hover:text-slate-900">
-                  Industries
-                </Link>
-                <Link href="/demo" className="block text-slate-600 hover:text-slate-900">
-                  Demo
-                </Link>
-                <a href="#compare" className="block text-slate-600 hover:text-slate-900">
-                  Compare platforms
-                </a>
-                <a href="#roi" className="block text-slate-600 hover:text-slate-900">
-                  ROI calculator
-                </a>
-                <a href="#security" className="block text-slate-600 hover:text-slate-900">
-                  Security
-                </a>
-                <Link href="/login" className="block text-slate-600 hover:text-slate-900">
-                  Log in
-                </Link>
-                <Link href="/me" className="block text-slate-600 hover:text-slate-900">
-                  SA Member signup
-                </Link>
-                <Link href="/join" className="block text-slate-600 hover:text-slate-900">
-                  Join as business
-                </Link>
-              </div>
-              <div className="space-y-2">
-                <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                  Legal
-                </div>
-                <Link href="/privacy" className="block text-slate-600 hover:text-slate-900">
-                  Privacy
-                </Link>
-                <Link href="/terms" className="block text-slate-600 hover:text-slate-900">
-                  Terms
-                </Link>
-                <Link
-                  href="/cancellation-refund"
-                  className="block text-slate-600 hover:text-slate-900"
-                >
-                  Cancellation &amp; refunds
-                </Link>
-              </div>
-              <div className="col-span-2 space-y-2 sm:col-span-1">
-                <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                  Contact
-                </div>
-                <a
-                  href="mailto:hello@supplieradvisor.com"
-                  className="block break-all text-slate-600 hover:text-slate-900"
-                >
-                  hello@supplieradvisor.com
-                </a>
-                <a href="tel:+27825814215" className="block text-slate-600 hover:text-slate-900">
-                  +27 (0) 82 581 4215
-                </a>
-                <span className="block text-slate-500">South Africa</span>
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col justify-between gap-3 border-t border-slate-200 pt-6 text-xs text-slate-600 sm:flex-row sm:items-center">
-            <span>© {currentYear} SupplierAdvisor®. All rights reserved.</span>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
-              <a
-                href="https://x.com/supplieradvisa"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-900"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden className="h-4 w-4 fill-current">
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.727-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
-                </svg>
-                @supplieradvisa
-              </a>
-              <span className="hidden sm:inline text-slate-300">·</span>
-              <span>Built for operators who measure trust.</span>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </>
   );
 }

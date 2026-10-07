@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import SiteFooter from '@/components/marketing/SiteFooter';
 import { formatZar } from '@/lib/billing/company-subscription';
 import {
   MARKETING_PRICING_TERMS,
@@ -74,8 +75,9 @@ export default function PricingPage() {
   };
 
   return (
-    <main className="bg-white text-slate-900">
-      <section id={PRICING_SECTION_IDS.pricing} className="sa-anchor border-b border-slate-200">
+    <>
+      <main className="bg-white text-slate-900">
+        <section id={PRICING_SECTION_IDS.pricing} className="sa-anchor border-b border-slate-200">
         <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
           <p className="text-sm font-semibold uppercase tracking-wide text-sky-700">Pricing</p>
           <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">
@@ -176,26 +178,28 @@ export default function PricingPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
-        <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Pricing FAQ</h2>
-        <div className="mt-6 space-y-4">
-          {PRICING_FAQ_ITEMS.map((item) => (
-            <article key={item.question} className="rounded-2xl border border-slate-200 p-5">
-              <h3 className="text-lg font-bold text-slate-900">{item.question}</h3>
-              <p className="mt-2 leading-relaxed text-slate-700">{item.answer}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+        <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
+          <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Pricing FAQ</h2>
+          <div className="mt-6 space-y-4">
+            {PRICING_FAQ_ITEMS.map((item) => (
+              <article key={item.question} className="rounded-2xl border border-slate-200 p-5">
+                <h3 className="text-lg font-bold text-slate-900">{item.question}</h3>
+                <p className="mt-2 leading-relaxed text-slate-700">{item.answer}</p>
+              </article>
+            ))}
+          </div>
+        </section>
 
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
-      />
-    </main>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+        />
+      </main>
+      <SiteFooter />
+    </>
   );
 }
