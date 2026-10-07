@@ -1,0 +1,31 @@
+import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+import HomeLanding from '@/components/marketing/HomeLanding';
+import { getLocaleDict } from '@/lib/i18n/server';
+import { DEFAULT_LOCALE, OG_LOCALE, hreflangAlternates, isLocale, type Locale } from '@/lib/i18n/config';
+import { SITE_URL } from '@/lib/seo/site';
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale } = await params;
+  if (!isLocale(locale) || locale === DEFAULT_LOCALE) return {};
+  const canonical = `${SITE_URL}/${locale}`;
+
+  return {
+    alternates: {
+      canonical,
+      languages: hreflangAlternates('/', SITE_URL),
+    },
+    openGraph: {
+      locale: OG_LOCALE[locale],
+      url: canonical,
+    },
+  };
+}
+
+export default async function LocalizedHomePage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
+  if (!isLocale(locale) || locale === DEFAULT_LOCALE) notFound();
+
+  const dict = await getLocaleDict(locale as Locale);
+  return <HomeLanding locale={locale as Locale} dict={dict} />;
+}

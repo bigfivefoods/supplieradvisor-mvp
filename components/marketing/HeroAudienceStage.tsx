@@ -12,6 +12,8 @@ import {
   WalletCards,
 } from 'lucide-react';
 import { COMPANY_TRIAL_DAYS } from '@/lib/billing/company-subscription';
+import { useLocaleDictionary } from '@/components/i18n/LocaleDictionaryProvider';
+import { format } from '@/lib/i18n/dict';
 
 const SCENES = [
   {
@@ -290,6 +292,7 @@ function HeroProductShots({ sceneId }: { sceneId: (typeof SCENES)[number]['id'] 
 
 export default function HeroAudienceStage() {
   const [i, setI] = useState(0);
+  const { t } = useLocaleDictionary();
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -299,6 +302,16 @@ export default function HeroAudienceStage() {
   }, []);
 
   const scene = SCENES[i];
+  const scenePrefix = `hero.scene.${scene.id}`;
+  const sceneTitle = t(`${scenePrefix}.title`);
+  const sceneShort = t(`${scenePrefix}.short`);
+  const sceneBody = t(`${scenePrefix}.body`);
+  const scenePoints = [
+    t(`${scenePrefix}.point1`),
+    t(`${scenePrefix}.point2`),
+    t(`${scenePrefix}.point3`),
+  ];
+  const sceneCta = t(`${scenePrefix}.cta`);
 
   return (
     <section
@@ -361,9 +374,9 @@ export default function HeroAudienceStage() {
         <div className="relative ml-auto flex w-full max-w-xl flex-col justify-end px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[calc(var(--sa-nav-offset)+0.75rem)] sm:px-6 sm:pb-8 lg:w-[34rem] lg:max-w-[34rem] lg:justify-center lg:px-10 lg:pb-10 xl:w-[38rem] xl:max-w-[38rem]">
           <div className="w-full">
             <h1 className="text-[1.9rem] font-black leading-[1.04] tracking-[-0.048em] text-white [text-shadow:0_2px_28px_rgba(0,0,0,0.45)] sm:text-5xl lg:text-[3.35rem] xl:text-7xl">
-              The world&apos;s most trusted
+              {t('hero.headlineLead')}
               <span className="mt-1 block text-[#67e8f9] sm:mt-1.5">
-                supplier advice — and OS.
+                {t('hero.headlineAccent')}
               </span>
             </h1>
 
@@ -371,18 +384,18 @@ export default function HeroAudienceStage() {
               {scene.code}
             </p>
             <h2 className="mt-1 text-lg font-black tracking-tight text-white sm:text-2xl lg:text-[1.65rem]">
-              {scene.title}
+              {sceneTitle}
             </h2>
             <p className="mt-2 max-w-md text-[14px] leading-relaxed text-slate-100 sm:hidden">
-              {scene.short}
+              {sceneShort}
             </p>
             <p className="mt-2 hidden max-w-lg text-[15px] leading-relaxed text-slate-100 sm:block sm:text-base lg:text-[17px]">
-              {scene.body}
+              {sceneBody}
             </p>
             <ul className="mt-3 hidden space-y-1.5 xl:block">
-              {scene.points.map((pt) => (
+              {scenePoints.map((pt) => (
                 <li key={pt} className="text-sm font-medium text-slate-200">
-                  <span className="mr-2 text-cyan-300">—</span>
+                  <span className="me-2 text-cyan-300">—</span>
                   {pt}
                 </li>
               ))}
@@ -393,41 +406,41 @@ export default function HeroAudienceStage() {
                 href={scene.cta.href}
                 className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-950/40 transition-all hover:bg-[#0099b8] active:scale-[0.99] sm:min-h-12 sm:px-6 sm:text-[15px]"
               >
-                {scene.cta.label}
-                <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" />
+                {sceneCta}
+                <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 rtl:-scale-x-100" />
               </Link>
               {scene.id === 'b2c' ? (
                 <Link
                   href="/onboarding?type=business"
                   className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/30 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-[2px] hover:bg-white/18 sm:min-h-12 sm:px-6 sm:text-[15px]"
                 >
-                  I run a business
+                  {t('hero.businessRun')}
                 </Link>
               ) : (
                 <Link
                   href="/demo"
                   className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/30 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-[2px] hover:bg-white/18 sm:min-h-12 sm:px-6 sm:text-[15px]"
                 >
-                  Book a demo
+                  {t('hero.bookDemo')}
                 </Link>
               )}
             </div>
 
             <p className="mt-3 hidden text-xs leading-relaxed text-slate-300 sm:block sm:text-sm">
-              Not Excel. Not accounting-only. Not a multi-year ERP project.{' '}
+              {t('hero.notExcel')}{' '}
               <a
                 href="#compare"
                 className="font-semibold text-cyan-200 underline decoration-cyan-200/40 underline-offset-4 hover:text-white"
               >
-                See how we compare
+                {t('hero.compare')}
               </a>
               {scene.id !== 'b2c' ? (
                 <>
                   {' · '}
-                  {COMPANY_TRIAL_DAYS}-day free trial
+                  {format(t('hero.trialDays'), { days: COMPANY_TRIAL_DAYS })}
                 </>
               ) : (
-                ' · Members never pay us'
+                ` · ${t('hero.membersNeverPay')}`
               )}
             </p>
 
@@ -443,7 +456,7 @@ export default function HeroAudienceStage() {
                       : 'bg-white/10 text-white ring-1 ring-white/20 hover:bg-white/20'
                   }`}
                   aria-pressed={idx === i}
-                  aria-label={`Show ${s.title}`}
+                  aria-label={`Show ${t(`hero.scene.${s.id}.title`)}`}
                 >
                   {s.code}
                 </button>

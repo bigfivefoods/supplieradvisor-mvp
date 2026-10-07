@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Loader2, Mail } from 'lucide-react';
+import { useLocaleDictionary } from '@/components/i18n/LocaleDictionaryProvider';
 
 export default function FooterFoundingForm() {
+  const { t } = useLocaleDictionary();
   const [email, setEmail] = useState('');
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -25,13 +27,13 @@ export default function FooterFoundingForm() {
       });
       const data = (await res.json()) as { message?: string; error?: string };
       if (!res.ok) {
-        throw new Error(data.error || 'Unable to join right now. Please try again.');
+        throw new Error(data.error || t('footer.form.error'));
       }
-      setMessage(data.message || 'Thanks — you are on the founding list.');
+      setMessage(data.message || t('footer.form.success'));
       setEmail('');
       setConsent(false);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Unable to join right now. Please try again.');
+      setError(err instanceof Error ? err.message : t('footer.form.error'));
     } finally {
       setBusy(false);
     }
@@ -41,7 +43,7 @@ export default function FooterFoundingForm() {
     <form onSubmit={(event) => void onSubmit(event)} className="space-y-3">
       <div className="relative">
         <label htmlFor="footer-founding-email" className="sr-only">
-          Email address
+          {t('footer.form.emailLabel')}
         </label>
         <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6b7280]" />
         <input
@@ -50,7 +52,7 @@ export default function FooterFoundingForm() {
           required
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          placeholder="you@company.com"
+          placeholder={t('footer.form.emailPlaceholder')}
           className="w-full rounded-full border border-black/10 bg-white pl-10 pr-4 py-3 text-sm text-slate-900 placeholder:text-[#6b7280]"
         />
       </div>
@@ -63,13 +65,13 @@ export default function FooterFoundingForm() {
           className="mt-0.5 h-4 w-4 rounded border-black/20"
         />
         <span>
-          I agree to the{' '}
+          {t('footer.form.consentLead')}{' '}
           <Link
             href="/privacy"
             prefetch={false}
             className="inline-flex min-h-6 items-center underline underline-offset-2 hover:text-[#0077b6]"
           >
-            Privacy Policy
+            {t('footer.form.privacy')}
           </Link>
         </span>
       </label>
@@ -79,7 +81,7 @@ export default function FooterFoundingForm() {
         className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0077b6] px-5 py-3 text-sm font-semibold text-white hover:bg-[#005f92] disabled:opacity-60"
       >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ArrowRight className="h-4 w-4" aria-hidden />}
-        Join
+        {t('footer.form.join')}
       </button>
       {message ? (
         <p role="status" className="text-sm text-[#6b7280] dark:text-slate-300">

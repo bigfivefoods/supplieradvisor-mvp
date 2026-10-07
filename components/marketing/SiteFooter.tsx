@@ -1,18 +1,19 @@
+'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { Mail, MessageCircle, Phone } from 'lucide-react';
+import { useLocaleDictionary } from '@/components/i18n/LocaleDictionaryProvider';
+import { isTranslatedPath, localizedPath } from '@/lib/i18n/config';
 import FooterFoundingForm from '@/components/marketing/FooterFoundingForm';
 import FooterYear from '@/components/marketing/FooterYear';
 import {
   FOOTER_CONTACT,
   FOOTER_EXPLORE_GROUPS,
-  FOOTER_FOUNDING,
   FOOTER_INDUSTRY_GROUPS,
   FOOTER_LEGAL_LINKS,
-  FOOTER_MOTTO,
   FOOTER_RESOURCE_GROUPS,
   FOOTER_SOCIALS,
-  FOOTER_TAGLINE,
   type FooterLink,
   type FooterLinkGroup,
 } from '@/lib/marketing/site-footer';
@@ -21,6 +22,18 @@ const sectionTitleClass = 'text-sm font-semibold text-slate-900 mb-4 dark:text-w
 const groupLabelClass = 'text-xs font-medium text-[#737373] mb-2 dark:text-slate-400';
 const linkClass =
   'block min-h-6 text-sm text-[#6b7280] hover:text-[#0077b6] transition-colors leading-snug dark:text-slate-300 dark:hover:text-white';
+
+const LINK_KEY_BY_LABEL: Record<string, string> = {
+  Product: 'nav.product',
+  'SA Member': 'nav.member',
+  'Why SA': 'nav.why',
+  Modules: 'nav.modules',
+  'How it fits': 'nav.howFits',
+  Pricing: 'nav.pricing',
+  Industries: 'nav.industries',
+  'Log in': 'nav.logIn',
+  'Start free trial': 'nav.startTrial',
+};
 
 function FooterNav({
   title,
@@ -38,6 +51,20 @@ function FooterNav({
 }
 
 function FooterLinkItem({ href, label }: FooterLink) {
+  const { locale, t } = useLocaleDictionary();
+  const localizedLabel = LINK_KEY_BY_LABEL[label] ? t(LINK_KEY_BY_LABEL[label]) : label;
+
+  let nextHref = href;
+  let hrefLang: string | undefined;
+  if (href.startsWith('/#')) {
+    const hash = href.replace('/#', '');
+    nextHref = `${localizedPath(locale, '/')}#${hash}`;
+    hrefLang = locale;
+  } else if (href.startsWith('/')) {
+    nextHref = isTranslatedPath(href) ? localizedPath(locale, href) : href;
+    hrefLang = isTranslatedPath(href) ? locale : 'en';
+  }
+
   if (href.startsWith('http://') || href.startsWith('https://')) {
     return (
       <a
@@ -46,7 +73,7 @@ function FooterLinkItem({ href, label }: FooterLink) {
         target="_blank"
         rel="noopener noreferrer"
       >
-        <span className="whitespace-nowrap">{label}</span>
+        <span className="whitespace-nowrap">{localizedLabel}</span>
       </a>
     );
   }
@@ -54,14 +81,14 @@ function FooterLinkItem({ href, label }: FooterLink) {
   if (href.startsWith('mailto:') || href.startsWith('tel:')) {
     return (
       <a href={href} className={linkClass}>
-        <span className="whitespace-nowrap">{label}</span>
+        <span className="whitespace-nowrap">{localizedLabel}</span>
       </a>
     );
   }
 
   return (
-    <Link href={href} prefetch={false} className={linkClass}>
-      <span className="whitespace-nowrap">{label}</span>
+    <Link href={nextHref} hrefLang={hrefLang} prefetch={false} className={linkClass}>
+    <span className="whitespace-nowrap">{localizedLabel}</span>
     </Link>
   );
 }
@@ -96,6 +123,7 @@ function GroupedNav({ groups, ariaLabel }: { groups: FooterLinkGroup[]; ariaLabe
 }
 
 export default function SiteFooter() {
+  const { t } = useLocaleDictionary();
   return (
     <footer className="bg-[#f3f4f6] text-black dark:bg-neutral-950">
       <div className="max-w-7xl 2xl:max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-12 pb-[max(2rem,env(safe-area-inset-bottom))]">
@@ -119,9 +147,9 @@ export default function SiteFooter() {
                   SupplierAdvisor<span className="sa-text-brand-on-light">®</span>
                 </span>
               </Link>
-              <p className="mt-4 max-w-xs text-sm leading-relaxed text-[#6b7280] dark:text-slate-300">{FOOTER_TAGLINE}</p>
-              <p className="mt-2 max-w-xs text-sm text-[#6b7280] dark:text-slate-300">{FOOTER_MOTTO}</p>
-              <nav className="mt-4 -ms-2.5 flex items-center gap-1" aria-label="Social media">
+              <p className="mt-4 max-w-xs text-sm leading-relaxed text-[#6b7280] dark:text-slate-300">{t('footer.tagline')}</p>
+              <p className="mt-2 max-w-xs text-sm text-[#6b7280] dark:text-slate-300">{t('footer.motto')}</p>
+              <nav className="mt-4 -ms-2.5 flex items-center gap-1" aria-label={t('footer.social')}>
                 {FOOTER_SOCIALS.map((social) => (
                   <a
                     key={social.href}
@@ -159,38 +187,38 @@ export default function SiteFooter() {
                   className="flex min-h-6 items-center gap-2 hover:text-[#0077b6] dark:hover:text-white"
                 >
                   <MessageCircle className="w-4 h-4 shrink-0" />
-                  {FOOTER_CONTACT.whatsapp.label}
+                  {t('footer.contact.whatsapp')}
                 </a>
-                <p className="pt-1 text-xs dark:text-slate-300">{FOOTER_CONTACT.country}</p>
+                <p className="pt-1 text-xs dark:text-slate-300">{t('footer.contact.country')}</p>
               </div>
               <div className="mt-8">
-                <p className="text-sm font-semibold text-slate-900 dark:text-white mb-3">{FOOTER_FOUNDING.title}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white mb-3">{t('footer.foundingTitle')}</p>
                 <p className="text-sm text-[#6b7280] dark:text-slate-300 leading-relaxed mb-3">
-                  {FOOTER_FOUNDING.blurb}
+                  {t('footer.foundingBlurb')}
                 </p>
                 <FooterFoundingForm />
               </div>
             </div>
             <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-3 gap-8 sm:gap-6 lg:gap-10">
-              <nav className="min-w-0 space-y-8" aria-label="Explore">
+              <nav className="min-w-0 space-y-8" aria-label={t('footer.explore')}>
                 {FOOTER_EXPLORE_GROUPS.map((group) => (
                   <FooterNav key={group.label} title={group.label}>
                     <SimpleNav links={group.links} />
                   </FooterNav>
                 ))}
               </nav>
-              <FooterNav title="Industries">
-                <GroupedNav groups={FOOTER_INDUSTRY_GROUPS} ariaLabel="Industries by sector" />
+              <FooterNav title={t('footer.industries')}>
+                <GroupedNav groups={FOOTER_INDUSTRY_GROUPS} ariaLabel={t('footer.industriesBySector')} />
               </FooterNav>
-              <FooterNav title="Resources">
-                <GroupedNav groups={FOOTER_RESOURCE_GROUPS} ariaLabel="Resources" />
+              <FooterNav title={t('footer.resources')}>
+                <GroupedNav groups={FOOTER_RESOURCE_GROUPS} ariaLabel={t('footer.resources')} />
               </FooterNav>
             </div>
           </div>
           <div className="mt-10 pt-6 border-t border-black/[0.06] dark:border-white/10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-xs text-[#6b7280] dark:text-slate-300">
             <div className="space-y-1">
               <p>
-                © <FooterYear /> SupplierAdvisor®. All rights reserved.
+                © <FooterYear /> SupplierAdvisor®. {t('footer.rights')}
               </p>
               <p>
                 SupplierAdvisor® is a{' '}
@@ -200,11 +228,12 @@ export default function SiteFooter() {
                   rel="noopener noreferrer"
                   className="underline underline-offset-2 hover:text-[#0077b6]"
                 >
-                  Big Five Group company
+                  Big Five Group
                 </a>
+                {' '}company
               </p>
             </div>
-            <nav className="flex flex-wrap items-center gap-x-5 gap-y-2" aria-label="Legal">
+            <nav className="flex flex-wrap items-center gap-x-5 gap-y-2" aria-label={t('footer.legalNav')}>
               {FOOTER_LEGAL_LINKS.map((link) => (
                 <Link
                   key={link.href}
