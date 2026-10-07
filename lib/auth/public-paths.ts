@@ -5,6 +5,7 @@
 export const PUBLIC_API_PREFIXES = [
   '/api/public/',
   '/api/fx/rates',
+  '/api/csp-report',
   '/api/system/apple-pay-domain-status',
   '/api/invites/validate',
   '/api/banking/webhooks/',
@@ -21,6 +22,7 @@ export const PUBLIC_API_PREFIXES = [
 const PUBLIC_EXACT = new Set([
   '/api/health',
   '/api/system/health',
+  '/api/csp-report',
   '/api/system/apple-pay-domain-status',
   '/api/fx/rates',
   '/api/invites/validate',

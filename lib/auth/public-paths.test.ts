@@ -11,6 +11,7 @@ assert.equal(isPublicApiPath('/api/health'), true);
 assert.equal(isPublicApiPath('/api/health/agency'), false);
 assert.equal(isPublicApiPath('/api/health/programme-role'), false);
 assert.equal(isPublicApiPath('/api/system/health'), true);
+assert.equal(isPublicApiPath('/api/csp-report'), true);
 assert.equal(isPublicApiPath('/api/system/health/ops'), false);
 assert.equal(isPublicApiPath('/api/public/constructiongraph'), true);
 assert.equal(isPublicApiPath('/api/construction/constructiongraph'), false);

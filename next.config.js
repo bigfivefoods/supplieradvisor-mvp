@@ -1,11 +1,103 @@
 /** @type {import('next').NextConfig} */
-const cspReportOnlyValue =
-  "default-src 'self'; script-src 'self' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; frame-src https:; base-uri 'self'; form-action 'self'; object-src 'none'";
+const cspReportEndpoint = '/api/csp-report';
+const cspReportGroup = 'csp-endpoint';
+const cspReportToValue = `{"group":"${cspReportGroup}","max_age":10886400,"endpoints":[{"url":"${cspReportEndpoint}"}]}`;
+
+const cspScriptHosts = [
+  'https://va.vercel-scripts.com',
+  'https://maps.googleapis.com',
+  'https://maps.gstatic.com',
+  'https://js.paystack.co',
+  'https://auth.privy.io',
+  'https://*.privy.io',
+  'https://*.privy.systems',
+  'https://*.walletconnect.com',
+  'https://*.walletconnect.org',
+  'https://challenges.cloudflare.com',
+];
+
+const cspFrameHosts = [
+  'https://auth.privy.io',
+  'https://*.privy.io',
+  'https://*.privy.systems',
+  'https://verify.walletconnect.com',
+  'https://verify.walletconnect.org',
+  'https://*.walletconnect.com',
+  'https://*.walletconnect.org',
+  'https://checkout.paystack.com',
+  'https://www.youtube.com',
+  'https://www.youtube-nocookie.com',
+  'https://player.vimeo.com',
+  'https://maps.googleapis.com',
+  'https://maps.google.com',
+];
+
+const cspReportOnlyConnectHosts = [
+  "'self'",
+  'https://onkklullmgrdqoertngp.supabase.co',
+  'wss://onkklullmgrdqoertngp.supabase.co',
+  'https://auth.privy.io',
+  'https://*.privy.io',
+  'https://*.privy.systems',
+  'wss://*.privy.io',
+  'wss://*.privy.systems',
+  'https://*.walletconnect.com',
+  'https://*.walletconnect.org',
+  'https://relay.walletconnect.com',
+  'https://relay.walletconnect.org',
+  'wss://relay.walletconnect.com',
+  'wss://relay.walletconnect.org',
+  'https://maps.googleapis.com',
+  'https://maps.gstatic.com',
+  'https://js.paystack.co',
+  'https://checkout.paystack.com',
+  'https://va.vercel-scripts.com',
+  'https://vitals.vercel-insights.com',
+  'https://vitals.vercel-analytics.com',
+  'https://challenges.cloudflare.com',
+];
+
+function buildCspValue({
+  frameAncestors,
+  connectSrc,
+}) {
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'unsafe-inline' ${cspScriptHosts.join(' ')}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    `connect-src ${connectSrc}`,
+    `frame-src ${cspFrameHosts.join(' ')}`,
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+    `report-uri ${cspReportEndpoint}`,
+    `report-to ${cspReportGroup}`,
+    frameAncestors,
+    'upgrade-insecure-requests',
+  ].join('; ');
+}
+
+const enforcedNonEmbedCsp = buildCspValue({
+  frameAncestors: "frame-ancestors 'none'",
+  connectSrc: "'self' https: wss:",
+});
+
+const reportOnlyNonEmbedCsp = buildCspValue({
+  frameAncestors: "frame-ancestors 'none'",
+  connectSrc: cspReportOnlyConnectHosts.join(' '),
+});
+
+const embedCsp = buildCspValue({
+  frameAncestors: "frame-ancestors *",
+  connectSrc: "'self' https: wss:",
+});
 
 const nonEmbedSecurityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
-  { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
-  { key: 'Content-Security-Policy-Report-Only', value: cspReportOnlyValue },
+  { key: 'Report-To', value: cspReportToValue },
+  { key: 'Content-Security-Policy', value: enforcedNonEmbedCsp },
+  { key: 'Content-Security-Policy-Report-Only', value: reportOnlyNonEmbedCsp },
 ];
 
 const nextConfig = {
@@ -60,7 +152,10 @@ const nextConfig = {
       },
       {
         source: '/embed/:path*',
-        headers: [{ key: 'Content-Security-Policy', value: "frame-ancestors *" }],
+        headers: [
+          { key: 'Report-To', value: cspReportToValue },
+          { key: 'Content-Security-Policy', value: embedCsp },
+        ],
       },
       {
         // Service worker must not be long-cached or scoped incorrectly
