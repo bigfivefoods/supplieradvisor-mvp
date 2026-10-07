@@ -7,7 +7,8 @@ import { Download, Smartphone, X } from 'lucide-react';
 
 const DISMISS_KEY = 'sa_pwa_install_dismissed_at';
 const DISMISS_DAYS = 14;
-const REVEAL_DELAY_MS = 15000;
+// Bar is ~91px tall and docks 0.75rem above the safe area (~103px total at 390x844).
+const INSTALL_BANNER_PADDING = 'calc(6.5rem + env(safe-area-inset-bottom, 0px))';
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -22,15 +23,27 @@ export function shouldRevealInstallPrompt({
   dismissed,
   standalone,
   heroVisible = true,
-  elapsedMs = 0,
 }: {
   dismissed: boolean;
   standalone: boolean;
   heroVisible?: boolean;
-  elapsedMs?: number;
 }): boolean {
   if (dismissed || standalone) return false;
-  return !heroVisible || elapsedMs >= REVEAL_DELAY_MS;
+  if (heroVisible) return false;
+  return true;
+}
+
+/** Routes that own their install chrome (or are public business sites) never show the SA bar. */
+export function isInstallBannerSuppressedPath(path: string): boolean {
+  return (
+    path.startsWith('/me') ||
+    path.startsWith('/pwa') ||
+    path.startsWith('/member') ||
+    path.startsWith('/hire/') ||
+    path.startsWith('/join/') ||
+    path.startsWith('/coach') ||
+    path.startsWith('/embed')
+  );
 }
 
 export function isStandalone(): boolean {
@@ -65,6 +78,20 @@ export default function InstallAppBanner() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const syncPagePadding = useCallback((visible: boolean) => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    if (
+      !visible ||
+      (typeof window !== 'undefined' &&
+        window.matchMedia('(min-width: 1024px)').matches)
+    ) {
+      root.style.removeProperty('padding-bottom');
+      return;
+    }
+    root.style.setProperty('padding-bottom', INSTALL_BANNER_PADDING);
+  }, []);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -75,41 +102,43 @@ export default function InstallAppBanner() {
     setDismissed(dismissedState);
     if (dismissedState) return;
 
-    let timer: number | undefined;
     let observer: IntersectionObserver | null = null;
     const passiveListenerOptions: AddEventListenerOptions = { passive: true };
-    let heroVisible = true;
 
-    const reveal = (nextHeroVisible: boolean) => {
-      heroVisible = nextHeroVisible;
-      setReady(true);
-      if (timer) {
-        window.clearTimeout(timer);
-        timer = undefined;
+    const isHeroVisible = (): boolean => {
+      const hero = document.getElementById('platform');
+      if (!hero) {
+        return !heroPassedViewport(window.scrollY, window.innerHeight);
       }
+      const rect = hero.getBoundingClientRect();
+      return rect.top < window.innerHeight && rect.bottom > 0;
     };
 
-    const hide = () => {
-      setReady(false);
+    const revealIfEligible = () => {
+      if (isHeroVisible()) {
+        setReady(false);
+        return false;
+      }
+      if (
+        !shouldRevealInstallPrompt({
+          dismissed: dismissedState,
+          standalone: false,
+          heroVisible: false,
+        })
+      ) {
+        setReady(false);
+        return false;
+      }
+      setReady(true);
+      return true;
     };
 
     const onScroll = () => {
-      const nextHeroVisible = !heroPassedViewport(window.scrollY, window.innerHeight);
-      heroVisible = nextHeroVisible;
-      if (nextHeroVisible) {
-        hide();
+      if (isHeroVisible()) {
+        setReady(false);
         return;
       }
-      if (
-        shouldRevealInstallPrompt({
-          dismissed: dismissedState,
-          standalone: false,
-          heroVisible: nextHeroVisible,
-          elapsedMs: 0,
-        })
-      ) {
-        reveal(nextHeroVisible);
-      }
+      revealIfEligible();
     };
 
     const hero = document.getElementById('platform');
@@ -119,21 +148,10 @@ export default function InstallAppBanner() {
           const entry = entries[0];
           if (!entry) return;
           if (entry.isIntersecting) {
-            hide();
+            setReady(false);
             return;
           }
-          const nextHeroVisible = false;
-          heroVisible = nextHeroVisible;
-          if (
-            shouldRevealInstallPrompt({
-              dismissed: dismissedState,
-              standalone: false,
-              heroVisible: nextHeroVisible,
-              elapsedMs: 0,
-            })
-          ) {
-            reveal(nextHeroVisible);
-          }
+          revealIfEligible();
         },
         { threshold: 0.2 }
       );
@@ -142,25 +160,43 @@ export default function InstallAppBanner() {
 
     window.addEventListener('scroll', onScroll, passiveListenerOptions);
     onScroll();
-    timer = window.setTimeout(() => {
-      const nextHeroVisible = heroVisible;
-      if (
-        shouldRevealInstallPrompt({
-          dismissed: dismissedState,
-          standalone: false,
-          heroVisible: nextHeroVisible,
-          elapsedMs: REVEAL_DELAY_MS,
-        })
-      ) {
-        reveal(nextHeroVisible);
-      }
-    }, REVEAL_DELAY_MS);
 
     return () => {
       window.removeEventListener('scroll', onScroll, passiveListenerOptions);
       if (observer) observer.disconnect();
-      if (timer) window.clearTimeout(timer);
+      syncPagePadding(false);
     };
+  }, [syncPagePadding]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || dismissed || isStandalone()) return;
+    if (!deferred) return;
+
+    const hero = document.getElementById('platform');
+    const heroRect = hero?.getBoundingClientRect();
+    const heroVisible = heroRect
+      ? heroRect.top < window.innerHeight && heroRect.bottom > 0
+      : !heroPassedViewport(window.scrollY, window.innerHeight);
+
+    if (heroVisible) {
+      setReady(false);
+      return;
+    }
+
+    setReady(true);
+  }, [deferred, dismissed]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    syncPagePadding(
+      ready && !dismissed && !isStandalone() && !isInstallBannerSuppressedPath(pathname)
+    );
+  }, [dismissed, pathname, ready, syncPagePadding]);
+
+  useEffect(() => {
+    // Marker for the e2e regression test: this build gates the bar on the hero leaving view.
+    if (typeof document === 'undefined') return;
+    document.documentElement.dataset.saInstallGate = 'hero';
   }, []);
 
   useEffect(() => {
@@ -169,9 +205,6 @@ export default function InstallAppBanner() {
     const onBip = (e: Event) => {
       e.preventDefault();
       setDeferred(e as BeforeInstallPromptEvent);
-      if (typeof window !== 'undefined' && !isStandalone() && !isDismissed()) {
-        setReady(true);
-      }
     };
     window.addEventListener('beforeinstallprompt', onBip);
 
@@ -215,7 +248,8 @@ export default function InstallAppBanner() {
     }
     setDismissed(true);
     setReady(false);
-  }, []);
+    syncPagePadding(false);
+  }, [syncPagePadding]);
 
   const installNative = useCallback(async () => {
     // iPhone never gets beforeinstallprompt — always open the Safari guide
@@ -240,16 +274,9 @@ export default function InstallAppBanner() {
     }
   }, [deferred]);
 
-  // SA Member has its own install chrome — avoid a second floating bar
-  if (pathname.startsWith('/me')) return null;
-  // Company-branded member/patient/hire apps have their own install chrome
-  if (pathname.startsWith('/pwa')) return null;
-  if (pathname.startsWith('/member')) return null;
-  if (pathname.startsWith('/hire/')) return null;
-  if (pathname.startsWith('/join/')) return null;
-  if (pathname.startsWith('/coach')) return null;
-  // Public business websites should not look like an SA app install
-  if (pathname.startsWith('/embed')) return null;
+  // SA Member, company-branded member/patient/hire apps and coach have their own
+  // install chrome; public business websites (/embed) should not look like an SA app install.
+  if (isInstallBannerSuppressedPath(pathname)) return null;
   if (typeof window !== 'undefined' && isStandalone()) return null;
   if (!ready) return null;
   if (dismissed) return null;

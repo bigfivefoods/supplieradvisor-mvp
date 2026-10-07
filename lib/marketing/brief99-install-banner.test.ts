@@ -3,18 +3,24 @@ import assert from 'node:assert/strict';
 import {
   heroPassedViewport,
   isDismissed,
+  isInstallBannerSuppressedPath,
   isStandalone,
   shouldRevealInstallPrompt,
 } from '../../components/pwa/InstallAppBanner';
 
 assert.equal(heroPassedViewport(0, 844), false);
 assert.equal(heroPassedViewport(900, 844), true);
+
+assert.equal(isInstallBannerSuppressedPath('/'), false);
+assert.equal(isInstallBannerSuppressedPath('/pricing'), false);
+assert.equal(isInstallBannerSuppressedPath('/embed/containers/abc'), true);
+assert.equal(isInstallBannerSuppressedPath('/coach'), true);
+
 assert.equal(
   shouldRevealInstallPrompt({
     dismissed: false,
     standalone: false,
     heroVisible: true,
-    elapsedMs: 0,
   }),
   false
 );
@@ -23,18 +29,24 @@ assert.equal(
     dismissed: false,
     standalone: false,
     heroVisible: false,
-    elapsedMs: 0,
   }),
   true
 );
 assert.equal(
   shouldRevealInstallPrompt({
-    dismissed: false,
+    dismissed: true,
     standalone: false,
-    heroVisible: true,
-    elapsedMs: 15000,
+    heroVisible: false,
   }),
-  true
+  false
+);
+assert.equal(
+  shouldRevealInstallPrompt({
+    dismissed: false,
+    standalone: true,
+    heroVisible: false,
+  }),
+  false
 );
 assert.equal(
   shouldRevealInstallPrompt({
@@ -95,7 +107,6 @@ try {
       dismissed: savedDismissed,
       standalone: false,
       heroVisible: false,
-      elapsedMs: 0,
     }),
     false
   );
