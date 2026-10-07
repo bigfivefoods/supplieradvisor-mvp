@@ -58,6 +58,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const contentType = String(request.headers.get('content-type') || '').toLowerCase();
+  if (
+    !contentType.includes('application/csp-report') &&
+    !contentType.includes('application/reports+json')
+  ) {
+    return NextResponse.json({ error: 'invalid_report' }, { status: 400 });
+  }
+
   // Best-effort fast reject when header is honest; byte-length check below is authoritative.
   const contentLength = Number.parseInt(request.headers.get('content-length') || '', 10);
   if (Number.isFinite(contentLength) && contentLength > MAX_REPORT_BYTES) {
@@ -70,14 +78,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'payload_too_large' }, { status: 413 });
   }
   if (!raw.trim()) {
-    return NextResponse.json({ error: 'invalid_report' }, { status: 400 });
-  }
-
-  const contentType = String(request.headers.get('content-type') || '').toLowerCase();
-  if (
-    !contentType.includes('application/csp-report') &&
-    !contentType.includes('application/reports+json')
-  ) {
     return NextResponse.json({ error: 'invalid_report' }, { status: 400 });
   }
 

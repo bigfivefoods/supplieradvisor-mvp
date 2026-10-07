@@ -23,6 +23,7 @@ test.describe('Golden path smoke (public)', () => {
           __saCspViolations?: Array<{ directive: string; blocked: string }>;
         }
       ).__saCspViolations = [];
+      // Best-effort listener: captures runtime violations after document start.
       window.addEventListener('securitypolicyviolation', (event) => {
         (
           window as Window & {
