@@ -2,6 +2,20 @@ import { test, expect } from '@playwright/test';
 
 const base = process.env.PLAYWRIGHT_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 const locales = ['fr', 'ar', 'pt', 'sw', 'zu'] as const;
+const referralL1ByLocale: Record<(typeof locales)[number], string> = {
+  fr: 'Invitation directe (L1)',
+  ar: 'دعوة مباشرة (L1)',
+  pt: 'Convite direto (L1)',
+  sw: 'Mwito wa moja kwa moja (L1)',
+  zu: 'Isimemo esiqondile (L1)',
+};
+const footerGroupByLocale: Record<(typeof locales)[number], { product: string; network: string; trust: string; apps: string }> = {
+  fr: { product: 'Produit', network: 'Réseau', trust: 'Confiance', apps: 'Applications' },
+  ar: { product: 'المنتج', network: 'الشبكة', trust: 'الثقة', apps: 'التطبيقات' },
+  pt: { product: 'Produto', network: 'Rede', trust: 'Confiança', apps: 'Aplicações' },
+  sw: { product: 'Bidhaa', network: 'Mtandao', trust: 'Uaminifu', apps: 'Programu' },
+  zu: { product: 'Umkhiqizo', network: 'Inethiwekhi', trust: 'Ukwethembeka', apps: 'Ama-app' },
+};
 
 test('raw HTML for /fr includes lang and localized h1', async ({ request }) => {
   const response = await request.get(`${base}/fr`);
@@ -32,6 +46,15 @@ test('localized /pricing pages include translated body copy and tier labels', as
   expect(ptHtml).toContain('Teste gratuito');
 });
 
+test('/fr/pricing includes localized PDF link with English hreflang', async ({ request }) => {
+  const response = await request.get(`${base}/fr/pricing`);
+  expect(response.status()).toBe(200);
+  const html = await response.text();
+  expect(html).toContain('Télécharger le profil entreprise (PDF)');
+  expect(html).toContain('href="/supplieradvisor-company-profile.pdf"');
+  expect(html).toMatch(/hrefLang="en"|hreflang="en"/);
+});
+
 for (const locale of locales) {
   test(`/${locale} locale metadata + hero`, async ({ page }) => {
     const res = await page.goto(`/${locale}`);
@@ -51,6 +74,19 @@ for (const locale of locales) {
     await expect(page.locator('link[rel="alternate"][hreflang]')).toHaveCount(7);
     await expect(page.locator('h1')).not.toContainText("The world's most trusted");
     await expect(page.getByText('SupplierAdvisor®').first()).toBeVisible();
+  });
+}
+
+for (const locale of locales) {
+  test(`/${locale}/pricing localizes referral labels and footer group headings`, async ({ request }) => {
+    const response = await request.get(`${base}/${locale}/pricing`);
+    expect(response.status()).toBe(200);
+    const html = await response.text();
+    expect(html).toContain(referralL1ByLocale[locale]);
+    expect(html).toContain(footerGroupByLocale[locale].product);
+    expect(html).toContain(footerGroupByLocale[locale].network);
+    expect(html).toContain(footerGroupByLocale[locale].trust);
+    expect(html).toContain(footerGroupByLocale[locale].apps);
   });
 }
 

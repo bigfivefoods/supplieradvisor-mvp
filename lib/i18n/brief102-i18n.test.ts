@@ -69,6 +69,10 @@ const usedKeys: DictKey[] = [
   'nav.startTrial',
   'nav.freeTrial',
   'nav.memberCreate',
+  'theme.ariaLabel',
+  'theme.light',
+  'theme.dark',
+  'theme.system',
   'home.trialStrip',
   'home.startTrial',
   'hero.headlineLead',
@@ -105,9 +109,27 @@ const usedKeys: DictKey[] = [
   'footer.explore',
   'footer.industries',
   'footer.resources',
+  'footer.group.product',
+  'footer.group.getStarted',
+  'footer.group.network',
+  'footer.group.trust',
+  'footer.group.apps',
   'footer.social',
   'footer.industriesBySector',
   'footer.legalNav',
+  'footer.link.compare',
+  'footer.link.security',
+  'footer.link.roi',
+  'footer.link.demo',
+  'footer.link.joinBusiness',
+  'footer.link.marketplace',
+  'footer.link.findAdvisor',
+  'footer.link.cipcSla',
+  'footer.link.memberSignup',
+  'footer.link.installApp',
+  'footer.link.privacy',
+  'footer.link.terms',
+  'footer.link.cancellation',
   'footer.foundingTitle',
   'footer.foundingBlurb',
   'footer.rights',
@@ -125,6 +147,8 @@ const usedKeys: DictKey[] = [
   'pricing.lede',
   'pricing.ctaTrial',
   'pricing.ctaDemo',
+  'pricing.companyProfile',
+  'pricing.englishNote',
   'pricing.tiers',
   'pricing.tiersBody',
   'pricing.tier.monthly',
@@ -139,6 +163,9 @@ const usedKeys: DictKey[] = [
   'pricing.prepaidTerm',
   'pricing.save',
   'pricing.referralTitle',
+  'pricing.referral.label1',
+  'pricing.referral.label2',
+  'pricing.referral.label3',
   'pricing.referral.level1',
   'pricing.referral.level2',
   'pricing.referral.level3',
@@ -184,6 +211,9 @@ const mustDifferFromEnglish: DictKey[] = [
   'footer.contact.country',
   'footer.form.success',
   'footer.form.error',
+  'pricing.referral.label1',
+  'pricing.referral.label2',
+  'pricing.referral.label3',
 ];
 for (const [locale, dict] of Object.entries({ fr, ar, pt, sw, zu })) {
   for (const key of mustDifferFromEnglish) {
@@ -197,6 +227,10 @@ assert.match(
   /teste gratuito|período experimental gratuito/i,
   'pt should use European Portuguese trial wording'
 );
+assert.match(pt['nav.why'] || '', /porquê/i, 'pt should use European Portuguese “Porquê” phrasing');
+assert.match(pt['hero.headlineLead'] || '', /fiável/i, 'pt should use “fiável”');
+assert.match(pt['meta.pricing.description'] || '', /utilizadores/i, 'pt pricing meta should use “utilizadores”');
+assert.match(pt['meta.pricing.description'] || '', /poupança/i, 'pt pricing meta should use “poupança”');
 
 for (const dict of [fr, ar, pt, sw, zu]) {
   assert.match(dict['brand.supplierAdvisor'] || '', /SupplierAdvisor®/);
@@ -209,6 +243,11 @@ assert.match(ar['brand.supplierAdvisor'] || '', /\u2066.*\u2069/);
 assert.match(ar['brand.schoolAdvisor'] || '', /\u2066.*\u2069/);
 assert.match(ar['brand.superCube'] || '', /\u2066.*\u2069/);
 assert.match(ar['brand.bigFiveGroup'] || '', /\u2066.*\u2069/);
+
+for (const [locale, dict] of Object.entries({ fr, ar, pt, sw, zu })) {
+  const serialized = JSON.stringify(dict);
+  assert.ok(!/\/mo(?!is)/i.test(serialized), `${locale} should not contain "/mo" short month marker`);
+}
 
 const localePages = readdirSync(resolve(process.cwd(), 'app/[locale]'), {
   recursive: true,

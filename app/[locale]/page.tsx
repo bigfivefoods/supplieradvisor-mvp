@@ -13,7 +13,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const canonical = `${SITE_URL}/${locale}`;
 
   return {
-    title: t(dict, 'meta.home.title'),
+    title: { absolute: t(dict, 'meta.home.title') },
     description: t(dict, 'meta.home.description'),
     alternates: {
       canonical,

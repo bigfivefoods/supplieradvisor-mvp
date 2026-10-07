@@ -5,13 +5,14 @@
  * Use on public marketing chrome. Signed-in desks keep ThemeToggle.
  */
 import { Moon, Sun, Monitor } from 'lucide-react';
+import { useLocaleDictionary } from '@/components/i18n/LocaleDictionaryProvider';
 import { useTheme } from '@/components/theme/ThemeProvider';
 import type { ThemeMode } from '@/lib/theme/theme';
 
-const APPEARANCE: Array<{ id: ThemeMode; label: string; Icon: typeof Sun }> = [
-  { id: 'light', label: 'Light', Icon: Sun },
-  { id: 'dark', label: 'Dark', Icon: Moon },
-  { id: 'system', label: 'System', Icon: Monitor },
+const APPEARANCE: Array<{ id: ThemeMode; key: 'theme.light' | 'theme.dark' | 'theme.system'; Icon: typeof Sun }> = [
+  { id: 'light', key: 'theme.light', Icon: Sun },
+  { id: 'dark', key: 'theme.dark', Icon: Moon },
+  { id: 'system', key: 'theme.system', Icon: Monitor },
 ];
 
 export default function AppearanceToggle({
@@ -20,14 +21,16 @@ export default function AppearanceToggle({
   className?: string;
 }) {
   const { mode, setMode } = useTheme();
+  const { t } = useLocaleDictionary();
   return (
     <div
       className={`inline-flex items-center gap-0.5 rounded-full border border-slate-200 bg-slate-50/90 p-0.5 dark:border-neutral-700 dark:bg-black/80 ${className}`}
       role="group"
-      aria-label="Colour theme"
+      aria-label={t('theme.ariaLabel')}
     >
-      {APPEARANCE.map(({ id, label, Icon }) => {
+      {APPEARANCE.map(({ id, key, Icon }) => {
         const active = mode === id;
+        const label = t(key);
         return (
           <button
             key={id}

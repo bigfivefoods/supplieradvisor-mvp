@@ -29,10 +29,31 @@ const LINK_KEY_BY_HREF: Record<string, string> = {
   '/#why-join': 'nav.why',
   '/#modules': 'nav.modules',
   '/#packaging': 'nav.howFits',
+  '/#compare': 'footer.link.compare',
+  '/#security': 'footer.link.security',
   '/pricing': 'nav.pricing',
+  '/#roi': 'footer.link.roi',
   '/industries': 'nav.industries',
+  '/demo': 'footer.link.demo',
+  '/join': 'footer.link.joinBusiness',
+  '/marketplace': 'footer.link.marketplace',
+  '/marketplace/advisors': 'footer.link.findAdvisor',
+  '/verification-sla': 'footer.link.cipcSla',
+  '/me': 'footer.link.memberSignup',
+  '/install': 'footer.link.installApp',
   '/login': 'nav.logIn',
   '/onboarding?lane=b2b': 'nav.startTrial',
+  '/privacy': 'footer.link.privacy',
+  '/terms': 'footer.link.terms',
+  '/cancellation-refund': 'footer.link.cancellation',
+};
+
+const GROUP_LABEL_KEY_BY_LABEL: Record<string, string> = {
+  Product: 'footer.group.product',
+  'Get started': 'footer.group.getStarted',
+  Network: 'footer.group.network',
+  Trust: 'footer.group.trust',
+  Apps: 'footer.group.apps',
 };
 
 function FooterNav({
@@ -88,7 +109,7 @@ function FooterLinkItem({ href, label }: FooterLink) {
 
   return (
     <Link href={nextHref} hrefLang={hrefLang} prefetch={false} className={linkClass}>
-    <span className="whitespace-nowrap">{localizedLabel}</span>
+      <span className="whitespace-nowrap">{localizedLabel}</span>
     </Link>
   );
 }
@@ -103,12 +124,22 @@ function SimpleNav({ links }: { links: FooterLink[] }) {
   );
 }
 
-function GroupedNav({ groups, ariaLabel }: { groups: FooterLinkGroup[]; ariaLabel: string }) {
+function GroupedNav({
+  groups,
+  ariaLabel,
+  lang,
+  resolveLabel,
+}: {
+  groups: FooterLinkGroup[];
+  ariaLabel: string;
+  lang?: string;
+  resolveLabel?: (label: string) => string;
+}) {
   return (
-    <nav className="space-y-4 sm:space-y-5" aria-label={ariaLabel}>
+    <nav className="space-y-4 sm:space-y-5" aria-label={ariaLabel} lang={lang}>
       {groups.map((group) => (
         <div key={group.label}>
-          <div className={groupLabelClass}>{group.label}</div>
+          <div className={groupLabelClass}>{resolveLabel ? resolveLabel(group.label) : group.label}</div>
           <ul className="space-y-1.5 sm:space-y-2">
             {group.links.map((link) => (
               <li key={`${link.href}:${link.label}`}>
@@ -124,6 +155,14 @@ function GroupedNav({ groups, ariaLabel }: { groups: FooterLinkGroup[]; ariaLabe
 
 export default function SiteFooter() {
   const { t } = useLocaleDictionary();
+  const localizedGroupTitle = (label: string) => {
+    const key = GROUP_LABEL_KEY_BY_LABEL[label];
+    return key ? t(key) : label;
+  };
+  const localizedLabel = (link: FooterLink) => {
+    const key = LINK_KEY_BY_HREF[link.href];
+    return key ? t(key) : link.label;
+  };
   return (
     <footer className="bg-[#f3f4f6] text-black dark:bg-neutral-950">
       <div className="max-w-7xl 2xl:max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-12 pb-[max(2rem,env(safe-area-inset-bottom))]">
@@ -202,16 +241,24 @@ export default function SiteFooter() {
             <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-3 gap-8 sm:gap-6 lg:gap-10">
               <nav className="min-w-0 space-y-8" aria-label={t('footer.explore')}>
                 {FOOTER_EXPLORE_GROUPS.map((group) => (
-                  <FooterNav key={group.label} title={group.label}>
+                  <FooterNav key={group.label} title={localizedGroupTitle(group.label)}>
                     <SimpleNav links={group.links} />
                   </FooterNav>
                 ))}
               </nav>
               <FooterNav title={t('footer.industries')}>
-                <GroupedNav groups={FOOTER_INDUSTRY_GROUPS} ariaLabel={t('footer.industriesBySector')} />
+                <GroupedNav
+                  groups={FOOTER_INDUSTRY_GROUPS}
+                  ariaLabel={t('footer.industriesBySector')}
+                  lang="en"
+                />
               </FooterNav>
               <FooterNav title={t('footer.resources')}>
-                <GroupedNav groups={FOOTER_RESOURCE_GROUPS} ariaLabel={t('footer.resources')} />
+                <GroupedNav
+                  groups={FOOTER_RESOURCE_GROUPS}
+                  ariaLabel={t('footer.resources')}
+                  resolveLabel={localizedGroupTitle}
+                />
               </FooterNav>
             </div>
           </div>
@@ -232,7 +279,7 @@ export default function SiteFooter() {
                   prefetch={false}
                   className="underline underline-offset-2 hover:text-[#0077b6] dark:hover:text-white"
                 >
-                  {link.label}
+                  {localizedLabel(link)}
                 </Link>
               ))}
             </nav>

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import SiteFooter from '@/components/marketing/SiteFooter';
 import LocaleDataScript from '@/components/i18n/LocaleDataScript';
 import { formatZar } from '@/lib/billing/company-subscription';
+import { COMPANY_PROFILE_PDF } from '@/lib/marketing/company-profile';
 import {
   MARKETING_PRICING_TERMS,
   PRICING_FAQ_ITEMS,
@@ -12,7 +13,15 @@ import {
 import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/config';
 import { en, format, t, type Dict } from '@/lib/i18n/dict';
 
-export default function PricingContent({ locale = DEFAULT_LOCALE, dict = en }: { locale?: Locale; dict?: Dict }) {
+export default function PricingContent({
+  locale = DEFAULT_LOCALE,
+  dict = en,
+  companyProfileHref = COMPANY_PROFILE_PDF.href,
+}: {
+  locale?: Locale;
+  dict?: Dict;
+  companyProfileHref?: string;
+}) {
   const tierLabel = (id: string) =>
     id === 'monthly'
       ? t(dict, 'pricing.tier.monthly')
@@ -37,6 +46,13 @@ export default function PricingContent({ locale = DEFAULT_LOCALE, dict = en }: {
       : index === 1
         ? t(dict, 'pricing.referral.level2')
         : t(dict, 'pricing.referral.level3');
+
+  const referralLevelLabel = (index: number) =>
+    index === 0
+      ? t(dict, 'pricing.referral.label1')
+      : index === 1
+        ? t(dict, 'pricing.referral.label2')
+        : t(dict, 'pricing.referral.label3');
 
   const stepTitle = (index: number) =>
     index === 0
@@ -108,6 +124,18 @@ export default function PricingContent({ locale = DEFAULT_LOCALE, dict = en }: {
               >
                 {t(dict, 'pricing.ctaDemo')}
               </Link>
+              <a
+                href={companyProfileHref}
+                download
+                type="application/pdf"
+                hrefLang="en"
+                className="inline-flex items-center gap-2 rounded-xl px-2 py-3 text-sm font-semibold text-[#0077b6] underline-offset-4 hover:underline"
+              >
+                {locale === DEFAULT_LOCALE ? COMPANY_PROFILE_PDF.label : t(dict, 'pricing.companyProfile')}
+                <span className="text-xs font-medium text-slate-500">
+                  {locale === DEFAULT_LOCALE ? COMPANY_PROFILE_PDF.meta : `(${t(dict, 'pricing.englishNote')})`}
+                </span>
+              </a>
             </div>
           </div>
         </section>
@@ -148,7 +176,7 @@ export default function PricingContent({ locale = DEFAULT_LOCALE, dict = en }: {
             <div className="mt-6 grid gap-4 sm:grid-cols-3">
               {REFERRAL_LEVEL_DETAILS.map((level, index) => (
                 <article key={level.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <h3 className="font-bold text-slate-900">{level.label}</h3>
+                  <h3 className="font-bold text-slate-900">{referralLevelLabel(index)}</h3>
                   <p className="mt-1 text-2xl font-black text-emerald-700">{level.rate}%</p>
                   <p className="mt-1 text-sm text-slate-600">{referralLevelDescription(index)}</p>
                 </article>
