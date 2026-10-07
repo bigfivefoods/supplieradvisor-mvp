@@ -82,7 +82,7 @@ export default function FooterFoundingForm() {
         Join
       </button>
       {message ? (
-        <p role="status" className="text-sm text-[#6b7280]">
+        <p role="status" className="text-sm text-[#6b7280] dark:text-slate-300">
           {message}
         </p>
       ) : null}
