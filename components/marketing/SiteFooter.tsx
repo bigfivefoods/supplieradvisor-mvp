@@ -23,16 +23,16 @@ const groupLabelClass = 'text-xs font-medium text-[#737373] mb-2 dark:text-slate
 const linkClass =
   'block min-h-6 text-sm text-[#6b7280] hover:text-[#0077b6] transition-colors leading-snug dark:text-slate-300 dark:hover:text-white';
 
-const LINK_KEY_BY_LABEL: Record<string, string> = {
-  Product: 'nav.product',
-  'SA Member': 'nav.member',
-  'Why SA': 'nav.why',
-  Modules: 'nav.modules',
-  'How it fits': 'nav.howFits',
-  Pricing: 'nav.pricing',
-  Industries: 'nav.industries',
-  'Log in': 'nav.logIn',
-  'Start free trial': 'nav.startTrial',
+const LINK_KEY_BY_HREF: Record<string, string> = {
+  '/#video': 'nav.product',
+  '/#member-app': 'nav.member',
+  '/#why-join': 'nav.why',
+  '/#modules': 'nav.modules',
+  '/#packaging': 'nav.howFits',
+  '/pricing': 'nav.pricing',
+  '/industries': 'nav.industries',
+  '/login': 'nav.logIn',
+  '/onboarding?lane=b2b': 'nav.startTrial',
 };
 
 function FooterNav({
@@ -52,7 +52,7 @@ function FooterNav({
 
 function FooterLinkItem({ href, label }: FooterLink) {
   const { locale, t } = useLocaleDictionary();
-  const localizedLabel = LINK_KEY_BY_LABEL[label] ? t(LINK_KEY_BY_LABEL[label]) : label;
+  const localizedLabel = LINK_KEY_BY_HREF[href] ? t(LINK_KEY_BY_HREF[href]) : label;
 
   let nextHref = href;
   let hrefLang: string | undefined;
@@ -221,16 +221,7 @@ export default function SiteFooter() {
                 © <FooterYear /> SupplierAdvisor®. {t('footer.rights')}
               </p>
               <p>
-                SupplierAdvisor® is a{' '}
-                <a
-                  href="https://bigfivegroup.africa"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline underline-offset-2 hover:text-[#0077b6]"
-                >
-                  Big Five Group
-                </a>
-                {' '}company
+                {t('footer.bigFiveCompany')}
               </p>
             </div>
             <nav className="flex flex-wrap items-center gap-x-5 gap-y-2" aria-label={t('footer.legalNav')}>
