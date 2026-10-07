@@ -23,7 +23,7 @@ export function PublicProviders({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
       <ServiceWorkerRegister />
-      <div className="min-h-dvh pointer-events-auto isolate bg-sa-bg text-sa-text">
+      <div className="min-h-dvh pointer-events-auto isolate bg-sa-bg pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] text-sa-text lg:pb-0">
         {children}
       </div>
       <InstallAppBanner />

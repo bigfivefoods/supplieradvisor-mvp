@@ -6,14 +6,34 @@ import { usePathname } from 'next/navigation';
 import { Download, Smartphone, X } from 'lucide-react';
 
 const DISMISS_KEY = 'sa_pwa_install_dismissed_at';
-const DISMISS_DAYS = 3;
+const DISMISS_DAYS = 14;
+const REVEAL_DELAY_MS = 15000;
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 };
 
-function isStandalone(): boolean {
+export function heroPassedViewport(scrollY: number, viewportHeight: number): boolean {
+  return scrollY > Math.max(viewportHeight * 0.8, 220);
+}
+
+export function shouldRevealInstallPrompt({
+  dismissed,
+  standalone,
+  heroVisible = true,
+  elapsedMs = 0,
+}: {
+  dismissed: boolean;
+  standalone: boolean;
+  heroVisible?: boolean;
+  elapsedMs?: number;
+}): boolean {
+  if (dismissed || standalone) return false;
+  return !heroVisible || elapsedMs >= REVEAL_DELAY_MS;
+}
+
+export function isStandalone(): boolean {
   if (typeof window === 'undefined') return false;
   return (
     window.matchMedia('(display-mode: standalone)').matches ||
@@ -23,7 +43,7 @@ function isStandalone(): boolean {
   );
 }
 
-function isDismissed(): boolean {
+export function isDismissed(): boolean {
   try {
     const raw = localStorage.getItem(DISMISS_KEY);
     if (!raw) return false;
@@ -40,19 +60,59 @@ function isDismissed(): boolean {
  */
 export default function InstallAppBanner() {
   const pathname = usePathname() || '';
-  const [chip, setChip] = useState(false);
+  const [ready, setReady] = useState(false);
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined' || isStandalone()) return;
+    if (isDismissed()) return;
 
-    if (!isDismissed()) setChip(true);
+    let timer: number | undefined;
+    let observer: IntersectionObserver | null = null;
+
+    const reveal = () => {
+      setReady(true);
+      if (timer) window.clearTimeout(timer);
+      if (observer) observer.disconnect();
+    };
+
+    const onScroll = () => {
+      if (heroPassedViewport(window.scrollY, window.innerHeight)) {
+        reveal();
+      }
+    };
+
+    const hero = document.getElementById('platform');
+    if (hero) {
+      observer = new IntersectionObserver(
+        (entries) => {
+          const [entry] = entries;
+          if (!entry || entry.isIntersecting) return;
+          reveal();
+        },
+        { threshold: 0.2 }
+      );
+      observer.observe(hero);
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    timer = window.setTimeout(reveal, REVEAL_DELAY_MS);
+
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (observer) observer.disconnect();
+      if (timer) window.clearTimeout(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || isStandalone()) return;
 
     const onBip = (e: Event) => {
       e.preventDefault();
       setDeferred(e as BeforeInstallPromptEvent);
-      setChip(true);
     };
     window.addEventListener('beforeinstallprompt', onBip);
 
@@ -77,7 +137,7 @@ export default function InstallAppBanner() {
       } catch {
         /* ignore */
       }
-      setChip(true);
+      setReady(true);
       window.location.href = '/add-to-home.html';
     };
     window.addEventListener('sa-open-install', onOpen);
@@ -94,7 +154,7 @@ export default function InstallAppBanner() {
     } catch {
       /* ignore */
     }
-    setChip(false);
+    setReady(false);
   }, []);
 
   const installNative = useCallback(async () => {
@@ -112,7 +172,7 @@ export default function InstallAppBanner() {
       await deferred.prompt();
       const { outcome } = await deferred.userChoice;
       setDeferred(null);
-      if (outcome === 'accepted') setChip(false);
+      if (outcome === 'accepted') setReady(false);
     } catch {
       window.location.href = '/add-to-home.html';
     } finally {
@@ -130,48 +190,52 @@ export default function InstallAppBanner() {
   if (pathname.startsWith('/coach')) return null;
   // Public business websites should not look like an SA app install
   if (pathname.startsWith('/embed')) return null;
-  if (!chip || (typeof window !== 'undefined' && isStandalone())) return null;
+  if (typeof window !== 'undefined' && isStandalone()) return null;
+  if (isDismissed()) return null;
+  if (!ready) return null;
 
   return (
     <div
-      className="fixed z-[500] right-3 flex flex-col items-end gap-2 pointer-events-none lg:hidden"
+      className="pointer-events-none fixed inset-x-0 z-[500] flex justify-center px-3 lg:hidden"
       style={{
-        bottom: 'max(1rem, calc(5.5rem + env(safe-area-inset-bottom, 0px)))',
+        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
       }}
     >
-      <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-white shadow-2xl shadow-slate-900/20 border-2 border-[#00b4d8] p-1 pl-1.5">
-        <button
-          type="button"
-          onClick={() => void installNative()}
-          disabled={busy}
-          className="sa-btn-brand inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-black touch-manipulation active:scale-95 disabled:opacity-70"
+      <div className="pointer-events-auto w-full max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white/95 shadow-[0_18px_40px_-12px_rgba(15,23,42,0.35)] backdrop-blur-sm">
+        <div className="flex items-center gap-1.5 px-2 py-2">
+          <button
+            type="button"
+            onClick={() => void installNative()}
+            disabled={busy}
+            className="sa-btn-brand inline-flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-black touch-manipulation active:scale-95 disabled:opacity-70"
+          >
+            {deferred ? (
+              <Download className="h-4 w-4" />
+            ) : (
+              <Smartphone className="h-4 w-4" />
+            )}
+            {busy
+              ? '…'
+              : deferred
+                ? 'Install app'
+                : 'Add to Home Screen'}
+          </button>
+          <button
+            type="button"
+            onClick={dismiss}
+            className="rounded-full p-2.5 text-slate-400 transition-colors hover:bg-slate-100 touch-manipulation"
+            aria-label="Hide"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <Link
+          href="/add-to-home.html"
+          className="block border-t border-slate-200 bg-slate-50/80 px-3 py-2 text-center text-[11px] font-bold text-[#0077b6]"
         >
-          {deferred ? (
-            <Download className="w-4 h-4" />
-          ) : (
-            <Smartphone className="w-4 h-4" />
-          )}
-          {busy
-            ? '…'
-            : deferred
-              ? 'Install app'
-              : 'Add to Home Screen'}
-        </button>
-        <button
-          type="button"
-          onClick={dismiss}
-          className="rounded-full p-2.5 text-slate-400 hover:bg-slate-100 touch-manipulation"
-          aria-label="Hide"
-        >
-          <X className="w-4 h-4" />
-        </button>
+          Safari/iOS &amp; Android install steps →
+        </Link>
       </div>
-      <Link
-        href="/add-to-home.html"
-        className="pointer-events-auto text-[11px] font-bold text-[#0077b6] bg-white/95 border border-slate-200 rounded-full px-3 py-1 shadow-sm"
-      >
-        Safari/iOS &amp; Android install steps →
-      </Link>
     </div>
   );
 }
