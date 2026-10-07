@@ -29,7 +29,7 @@ export default function LandingPage() {
             </p>
             <Link
               href="/onboarding?lane=b2b"
-              className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#0096c7]"
+              className="sa-btn-brand inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold shadow-sm hover:bg-[#22d3ee]"
             >
               Start free trial
               <ArrowRight className="h-4 w-4" />

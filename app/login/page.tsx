@@ -37,7 +37,7 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
             <SaOfficialLogo title="SupplierAdvisor" className="h-12 w-auto" />
             <span className="sa-wordmark font-black text-2xl tracking-[-1px]">SupplierAdvisor®</span>
           </Link>
-          <h1 className="text-3xl sm:text-4xl font-black tracking-[-2px] text-[#00b4d8] mb-2">
+          <h1 className="sa-text-brand-on-light mb-2 text-3xl font-black tracking-[-2px] sm:text-4xl">
             {isMemberFlow ? 'SA Member' : 'Welcome back'}
           </h1>
           <p className="text-neutral-600 text-sm sm:text-base px-2">
@@ -89,13 +89,13 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
 
           <p className="text-center text-sm text-neutral-500">
             New customer or member?{' '}
-            <Link href="/me" className="text-[#00b4d8] font-medium hover:underline">
+            <Link href="/me" className="sa-text-brand-on-light font-medium hover:underline">
               Create a free SA Member account
             </Link>
           </p>
           <p className="text-center text-sm text-neutral-500">
             New business?{' '}
-            <Link href="/join" className="text-[#00b4d8] font-medium hover:underline">
+            <Link href="/join" className="sa-text-brand-on-light font-medium hover:underline">
               Choose company or government
             </Link>
           </p>

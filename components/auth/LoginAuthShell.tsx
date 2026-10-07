@@ -46,7 +46,7 @@ export function LoginAuthShell({ prefillEmail, nextFromQuery }: LoginAuthShellPr
         <div className="space-y-3" aria-live="polite">
           <button
             type="button"
-            className="flex w-full min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-[#00b4d8] py-4 text-lg font-semibold text-white hover:bg-[#0099b8]"
+            className="sa-btn-brand flex w-full min-h-[52px] items-center justify-center gap-2 rounded-2xl py-4 text-lg font-semibold hover:bg-[#22d3ee]"
             onClick={() => queueIntent('google')}
           >
             {queuedIntent === 'google' ? <Loader2 className="h-5 w-5 animate-spin" /> : null}

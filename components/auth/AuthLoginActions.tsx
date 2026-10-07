@@ -111,7 +111,7 @@ export function AuthLoginActions({
 
   const primaryBtn = onBrand
     ? 'flex w-full min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-white py-3.5 text-base font-black text-[#0077b6] shadow-xl disabled:opacity-60'
-    : 'flex w-full min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-[#00b4d8] py-4 text-lg font-semibold text-white hover:bg-[#0099b8] disabled:bg-neutral-400';
+    : 'sa-btn-brand flex w-full min-h-[52px] items-center justify-center gap-2 rounded-2xl py-4 text-lg font-semibold hover:bg-[#22d3ee] disabled:bg-neutral-400';
   const secondaryBtn = onBrand
     ? 'flex w-full min-h-[48px] items-center justify-center gap-2 rounded-2xl border border-white/40 bg-white/12 py-3 text-sm font-bold text-white disabled:opacity-60'
     : 'flex w-full min-h-[48px] items-center justify-center gap-2 rounded-2xl border border-neutral-200 bg-white py-3 text-sm font-semibold text-slate-800 hover:bg-neutral-50 disabled:opacity-60';

@@ -200,7 +200,7 @@ const MODULE_OPTIONS: Array<{
     eyebrow: 'How you make & move',
     body: 'Layer manufacturing, distribution, and container outlets for secondary and tertiary operations.',
     tone: 'border-slate-200 bg-white dark:border-neutral-800 dark:bg-black',
-    iconTone: 'bg-sky-50 text-[#00b4d8] dark:bg-sky-500/15 dark:text-sky-300',
+    iconTone: 'bg-sky-50 sa-text-brand-on-light dark:bg-sky-500/15 dark:text-sky-300',
     bullets: ['Manufacturing (Make)', 'Distribution (Ship)', 'Containers · last-mile outlets'],
     href: '#modules-sector',
     cta: 'Explore Sector modules',
@@ -793,7 +793,7 @@ const SYSTEMS = [
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#00b4d8]">
+    <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] sa-text-brand-on-light">
       {children}
     </p>
   );
@@ -841,7 +841,7 @@ function DeferredProductMock({
         ) : (
           <div className="flex h-full min-h-[420px] items-center justify-center bg-gradient-to-br from-slate-50 via-white to-sky-50/40 text-center dark:from-neutral-950 dark:via-black dark:to-neutral-950">
             <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-700">
                 Loading module preview
               </p>
               <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-neutral-200">
@@ -857,6 +857,7 @@ function DeferredProductMock({
 
 export default function HomeBelowFold() {
   const [activeModule, setActiveModule] = useState(0);
+  const currentYear = new Date().getFullYear();
 
   const heroModules = MODULES;
 
@@ -884,7 +885,7 @@ export default function HomeBelowFold() {
             <SectionLabel>Who the network serves</SectionLabel>
             <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
               B2B. B2G. B2C.
-              <span className="mt-2 block text-slate-400">One trusted fabric.</span>
+              <span className="mt-2 block text-slate-600">One trusted fabric.</span>
             </h2>
             <p className="mt-4 text-base leading-relaxed text-slate-600 sm:text-lg">
               Most platforms pick one market. SupplierAdvisor® is built so private trade,
@@ -939,10 +940,10 @@ export default function HomeBelowFold() {
                 className="group flex min-h-[22rem] flex-col rounded-[1.75rem] border border-slate-200 bg-gradient-to-b from-white to-sky-50/40 p-7 sm:p-8 shadow-sm transition-all hover:border-[#00b4d8]/45 hover:shadow-lg hover:shadow-sky-100/80 lg:min-h-[28rem]"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <span className="font-mono text-xs font-black tracking-[0.2em] text-[#00b4d8]">
+                  <span className="font-mono text-xs font-black tracking-[0.2em] sa-text-brand-on-light">
                     {m.code}
                   </span>
-                  <m.icon className="h-5 w-5 text-slate-400 transition-colors group-hover:text-[#00b4d8]" />
+                  <m.icon className="h-5 w-5 text-slate-500 transition-colors group-hover:text-[#00b4d8]" />
                 </div>
                 <h3 className="mt-4 text-2xl font-black tracking-tight text-slate-900">
                   {m.title}
@@ -958,7 +959,7 @@ export default function HomeBelowFold() {
                 </ul>
                 <Link
                   href={m.href}
-                  className="mt-7 inline-flex items-center gap-1.5 text-sm font-bold text-[#00b4d8] hover:text-[#0077b6]"
+                  className="mt-7 inline-flex items-center gap-1.5 text-sm font-bold sa-text-brand-on-light hover:text-[#0077b6]"
                 >
                   {m.cta} <ArrowRight className="h-4 w-4" />
                 </Link>
@@ -978,7 +979,7 @@ export default function HomeBelowFold() {
             <SectionLabel>SA Member</SectionLabel>
             <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
               Your personal wallet
-              <span className="mt-2 block text-[#00b4d8]">for every business on this platform.</span>
+              <span className="mt-2 block sa-text-brand-on-light">for every business on this platform.</span>
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">
               Create one free SA Member profile. Link it to any gym, clinic,
@@ -1065,7 +1066,7 @@ export default function HomeBelowFold() {
                 key={f.t}
                 className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
               >
-                <f.icon className="h-5 w-5 text-[#00b4d8]" />
+                <f.icon className="h-5 w-5 sa-text-brand-on-light" />
                 <h3 className="mt-3 text-base font-black text-slate-900">{f.t}</h3>
                 <p className="mt-1.5 text-[13px] leading-relaxed text-slate-600">{f.b}</p>
               </div>
@@ -1074,7 +1075,7 @@ export default function HomeBelowFold() {
           <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
             <Link
               href="/me"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-sm font-bold text-white shadow-lg shadow-cyan-500/20 hover:bg-[#0099b8]"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-sm font-bold text-slate-950 shadow-lg shadow-cyan-500/20 hover:bg-[#22d3ee]"
             >
               Create free SA Member account
               <ArrowRight className="h-4 w-4" />
@@ -1099,7 +1100,7 @@ export default function HomeBelowFold() {
             <SectionLabel>Why join</SectionLabel>
             <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
               Compelling reasons to run
-              <span className="mt-2 block text-[#00b4d8]">on SupplierAdvisor®</span>
+              <span className="mt-2 block sa-text-brand-on-light">on SupplierAdvisor®</span>
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">
               Not another dashboard. The operating system for people who measure trust —
@@ -1178,7 +1179,7 @@ export default function HomeBelowFold() {
                 key={r.t}
                 className="rounded-2xl border border-slate-200 bg-[#f8fafc] p-4 shadow-sm transition-all hover:border-[#00b4d8]/40 hover:shadow-md sm:p-5"
               >
-                <div className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 text-[#00b4d8]">
+                <div className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-sky-50 sa-text-brand-on-light">
                   <r.icon className="h-4 w-4" />
                 </div>
                 <h3 className="text-sm font-black text-slate-900 sm:text-base">{r.t}</h3>
@@ -1189,7 +1190,7 @@ export default function HomeBelowFold() {
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/onboarding?type=business"
-              className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-sm font-bold text-white shadow-md shadow-cyan-200/50 hover:bg-[#0099b8]"
+              className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-sm font-bold text-slate-950 shadow-md shadow-cyan-200/50 hover:bg-[#22d3ee]"
             >
               Join the trusted network <ArrowRight className="h-4 w-4" />
             </Link>
@@ -1231,9 +1232,9 @@ export default function HomeBelowFold() {
                 key={s.title}
                 className="group bg-white p-5 transition-colors hover:bg-sky-50/40 sm:p-6"
               >
-                <s.icon className="mb-4 h-5 w-5 text-[#00b4d8] transition-transform group-hover:scale-110" />
+                <s.icon className="mb-4 h-5 w-5 sa-text-brand-on-light transition-transform group-hover:scale-110" />
                 <h3 className="text-sm font-bold text-slate-900 sm:text-base">{s.title}</h3>
-                <p className="mt-1.5 text-xs leading-relaxed text-slate-500 sm:text-[13px]">
+                <p className="mt-1.5 text-xs leading-relaxed text-slate-600 sm:text-[13px]">
                   {s.body}
                 </p>
               </div>
@@ -1250,7 +1251,7 @@ export default function HomeBelowFold() {
               <SectionLabel>Mission control</SectionLabel>
               <h2 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl md:text-[2.75rem]">
                 Built like a mission.
-                <span className="mt-1 block text-[#00b4d8]">Run like a business.</span>
+                <span className="mt-1 block sa-text-brand-on-light">Run like a business.</span>
               </h2>
               <p className="mt-4 text-sm leading-relaxed text-slate-600 sm:text-base">
                 Every module shares the same command chrome — telemetry, workbenches,
@@ -1264,7 +1265,7 @@ export default function HomeBelowFold() {
                     onClick={() => setActiveModule(i)}
                     className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-all ${
                       i === activeModule
-                        ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
+                        ? 'border-[#00b4d8] bg-[#00b4d8] text-slate-950'
                         : 'border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-[#0077b6]'
                     }`}
                   >
@@ -1273,11 +1274,11 @@ export default function HomeBelowFold() {
                 ))}
               </div>
               <div className="mt-8 border-l-2 border-[#00b4d8]/50 pl-5">
-                <div className="font-mono text-[10px] tracking-widest text-slate-400">
+                <div className="font-mono text-[10px] tracking-widest text-slate-600">
                   {featured.code}
                 </div>
                 <h3 className="mt-1 text-xl font-black text-slate-900">{featured.title}</h3>
-                <p className="mt-1 text-sm font-semibold text-[#00b4d8]">{featured.tagline}</p>
+                <p className="mt-1 text-sm font-semibold sa-text-brand-on-light">{featured.tagline}</p>
                 <p className="mt-2 text-sm leading-relaxed text-slate-600">{featured.body}</p>
               </div>
             </div>
@@ -1301,7 +1302,7 @@ export default function HomeBelowFold() {
             <SectionLabel>Modules</SectionLabel>
             <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 dark:text-white sm:text-5xl">
               Core OS · Sector · Industry
-              <span className="mt-2 block text-[#00b4d8]">
+              <span className="mt-2 block sa-text-brand-on-light">
                 Government &amp; bespoke by design
               </span>
             </h2>
@@ -1322,7 +1323,7 @@ export default function HomeBelowFold() {
                     href={t.href}
                     className={`flex flex-col items-center px-2 py-5 text-center transition-colors sm:px-3 sm:py-6 ${
                       t.id === 'core'
-                        ? 'bg-[#00b4d8] text-white hover:bg-[#0099b8]'
+                        ? 'bg-[#00b4d8] text-slate-950 hover:bg-[#22d3ee]'
                         : t.id === 'government'
                           ? 'bg-violet-50 text-violet-950 hover:bg-violet-100/80 dark:bg-violet-500/15 dark:text-violet-100 dark:hover:bg-violet-500/20'
                           : t.id === 'bespoke'
@@ -1371,7 +1372,7 @@ export default function HomeBelowFold() {
                   ? 'text-violet-700 hover:text-violet-600 dark:text-violet-300'
                   : opt.id === 'bespoke'
                     ? 'text-amber-700 hover:text-amber-600 dark:text-amber-300'
-                    : 'text-[#00b4d8] hover:text-[#0077b6]';
+                    : 'sa-text-brand-on-light hover:text-[#0077b6]';
               return (
                 <div
                   key={opt.id}
@@ -1420,7 +1421,7 @@ export default function HomeBelowFold() {
                             href={`#module-${m.id}`}
                             className="flex items-center gap-2 rounded-xl border border-slate-100 bg-white/80 px-2.5 py-2 text-sm transition-colors hover:border-[#00b4d8]/40 dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-[#00b4d8]/40"
                           >
-                            <m.icon className="h-3.5 w-3.5 shrink-0 text-[#00b4d8]" />
+                            <m.icon className="h-3.5 w-3.5 shrink-0 sa-text-brand-on-light" />
                             <span className="min-w-0 flex-1 truncate font-semibold text-slate-800 dark:text-neutral-100">
                               {m.title}
                             </span>
@@ -1483,7 +1484,7 @@ export default function HomeBelowFold() {
                         {band.blurb}
                       </p>
                     </div>
-                    <span className="font-mono text-[11px] font-bold text-slate-400">
+                    <span className="font-mono text-[11px] font-bold text-slate-600">
                       {String(bandModules.length).padStart(2, '0')} modules
                     </span>
                   </div>
@@ -1497,16 +1498,16 @@ export default function HomeBelowFold() {
                       >
                         <div className="lg:col-span-4 lg:sticky lg:top-[calc(var(--sa-nav-offset)+1rem)]">
                           <div className="mb-4 flex items-center gap-3">
-                            <span className="font-mono text-[11px] font-bold tracking-[0.2em] text-slate-400">
+                            <span className="font-mono text-[11px] font-bold tracking-[0.2em] text-slate-600">
                               {mod.code}
                             </span>
                             <span className="h-px w-10 bg-slate-200 dark:bg-neutral-700" />
-                            <mod.icon className="h-4 w-4 text-[#00b4d8]" />
+                            <mod.icon className="h-4 w-4 sa-text-brand-on-light" />
                           </div>
                           <h3 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white sm:text-3xl xl:text-4xl">
                             {mod.title}
                           </h3>
-                          <p className="mt-2 text-base font-semibold text-[#00b4d8] sm:text-lg">
+                          <p className="mt-2 text-base font-semibold sa-text-brand-on-light sm:text-lg">
                             {mod.tagline}
                           </p>
                           <p className="mt-4 max-w-md text-sm leading-relaxed text-slate-600 dark:text-neutral-400 sm:text-base">
@@ -1531,7 +1532,7 @@ export default function HomeBelowFold() {
                                   : '/onboarding?type=government'
                                 : '/onboarding?type=business'
                             }
-                            className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-[#0077b6] transition-colors hover:text-[#00b4d8] dark:text-[#00b4d8]"
+                            className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-[#0077b6] transition-colors hover:text-[#005f8e] dark:text-[#00b4d8] dark:hover:text-cyan-300"
                           >
                             Join to use {mod.short}
                             <ChevronRight className="h-4 w-4" />
@@ -1543,7 +1544,7 @@ export default function HomeBelowFold() {
                             <DeferredProductMock Mock={mod.Mock} title={mod.title} />
                           </div>
                           <ModuleGallery moduleId={mod.id} />
-                          <p className="mt-3 text-center text-[11px] text-slate-400 sm:text-left">
+                          <p className="mt-3 text-center text-[11px] text-slate-600 sm:text-left">
                             Product frame + three live views · fixed height · not stock photos
                           </p>
                         </div>
@@ -1558,7 +1559,7 @@ export default function HomeBelowFold() {
           <div className="mt-16 flex flex-wrap items-center justify-center gap-3 sm:mt-20">
             <Link
               href="/onboarding?type=business"
-              className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-sm font-bold text-white shadow-md shadow-cyan-200/50 hover:bg-[#0099b8] dark:shadow-cyan-900/30"
+              className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-sm font-bold text-slate-950 shadow-md shadow-cyan-200/50 hover:bg-[#22d3ee] dark:shadow-cyan-900/30"
             >
               Start free trial — unlock all modules
               <ArrowRight className="h-4 w-4" />
@@ -1583,7 +1584,7 @@ export default function HomeBelowFold() {
             <SectionLabel>Setup SupplierAdvisor®</SectionLabel>
             <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl">
               Core OS · Sector · Industry
-              <span className="mt-2 block text-[#00b4d8]">
+              <span className="mt-2 block sa-text-brand-on-light">
                 Government &amp; bespoke by design
               </span>
             </h2>
@@ -1604,7 +1605,7 @@ export default function HomeBelowFold() {
                     step: '01',
                     title: 'Core OS',
                     price: `R${CORE_OS_MONTHLY_ZAR}/mo`,
-                    tone: 'bg-[#00b4d8] text-white',
+                    tone: 'bg-[#00b4d8] text-slate-950',
                   },
                   {
                     step: '02',
@@ -1675,14 +1676,14 @@ export default function HomeBelowFold() {
                   'Paystack billing · Apple Pay ready',
                 ].map((line) => (
                   <li key={line} className="flex gap-2">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#00b4d8]" />
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 sa-text-brand-on-light" />
                     <span>{line}</span>
                   </li>
                 ))}
               </ul>
               <Link
                 href="/onboarding?type=business"
-                className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-[#00b4d8] hover:text-[#0077b6]"
+                className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold sa-text-brand-on-light hover:text-[#0077b6]"
               >
                 Start with Core OS <ArrowRight className="h-4 w-4" />
               </Link>
@@ -1690,7 +1691,7 @@ export default function HomeBelowFold() {
 
             {/* Sector + Industry */}
             <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-black sm:p-7 lg:col-span-1">
-              <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 text-[#00b4d8] dark:bg-sky-500/15">
+              <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 sa-text-brand-on-light dark:bg-sky-500/15">
                 <Package className="h-5 w-5" />
               </div>
               <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6] dark:text-[#00b4d8]">
@@ -1729,14 +1730,14 @@ export default function HomeBelowFold() {
                   'SchoolAdvisor® only via Public Sector (government process)',
                 ].map((line) => (
                   <li key={line} className="flex gap-2">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#00b4d8]" />
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 sa-text-brand-on-light" />
                     <span>{line}</span>
                   </li>
                 ))}
               </ul>
               <Link
                 href="/industries"
-                className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-[#00b4d8] hover:text-[#0077b6]"
+                className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold sa-text-brand-on-light hover:text-[#0077b6]"
               >
                 Explore industries <ArrowRight className="h-4 w-4" />
               </Link>
@@ -1800,7 +1801,7 @@ export default function HomeBelowFold() {
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/onboarding?type=business"
-              className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-sm font-bold text-white shadow-md shadow-cyan-200/50 hover:bg-[#0099b8]"
+              className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-7 py-3.5 text-sm font-bold text-slate-950 shadow-md shadow-cyan-200/50 hover:bg-[#22d3ee]"
             >
               Self-serve Core OS &amp; packs <ArrowRight className="h-4 w-4" />
             </Link>
@@ -1867,7 +1868,7 @@ export default function HomeBelowFold() {
                 className="rounded-3xl border border-slate-200 bg-white p-6 transition-colors hover:border-slate-300 hover:bg-sky-50/50 sm:p-7"
               >
                 <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white">
-                  <p.icon className="h-5 w-5 text-[#00b4d8]" />
+                  <p.icon className="h-5 w-5 sa-text-brand-on-light" />
                 </div>
                 <h3 className="text-lg font-bold text-slate-900">{p.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-slate-600">{p.body}</p>
@@ -1940,7 +1941,7 @@ export default function HomeBelowFold() {
             <SectionLabel>Get started</SectionLabel>
             <h2 className="text-3xl font-black tracking-tight text-slate-900 sm:text-5xl">
               Why are you joining us?
-              <span className="mt-1 block text-[#00b4d8]">Member, business, or government.</span>
+              <span className="mt-1 block sa-text-brand-on-light">Member, business, or government.</span>
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-slate-600">
               Three paths only. B2C is a free personal wallet. B2B then picks
@@ -1975,12 +1976,12 @@ export default function HomeBelowFold() {
                 key={a.t}
                 className="flex flex-col rounded-3xl border border-slate-200 bg-white p-6 transition-all hover:border-slate-300"
               >
-                <a.icon className="mb-4 h-7 w-7 text-[#00b4d8]" />
+                <a.icon className="mb-4 h-7 w-7 sa-text-brand-on-light" />
                 <h3 className="text-lg font-bold text-slate-900">{a.t}</h3>
                 <p className="mb-5 mt-2 flex-1 text-sm leading-relaxed text-slate-600">{a.b}</p>
                 <Link
                   href={a.href}
-                  className="inline-flex items-center gap-1 text-sm font-bold text-[#00b4d8] hover:text-cyan-300"
+                  className="inline-flex items-center gap-1 text-sm font-bold sa-text-brand-on-light hover:text-[#0077b6] dark:hover:text-[#0077b6]"
                 >
                   {a.cta} <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
@@ -2010,7 +2011,7 @@ export default function HomeBelowFold() {
                 key={h.t}
                 className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8"
               >
-                <h.icon className="mb-4 h-6 w-6 text-[#00b4d8]" />
+                <h.icon className="mb-4 h-6 w-6 sa-text-brand-on-light" />
                 <h3 className="text-lg font-bold text-slate-900">{h.t}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-slate-600">{h.b}</p>
               </div>
@@ -2031,12 +2032,12 @@ export default function HomeBelowFold() {
         />
         <div className="relative mx-auto max-w-4xl text-center">
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-600">
-            <Sparkles className="h-3.5 w-3.5 text-[#00b4d8]" />
+            <Sparkles className="h-3.5 w-3.5 sa-text-brand-on-light" />
             The network is open
           </div>
           <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl md:text-6xl">
             The world&apos;s most trusted
-            <span className="mt-1 block text-[#00b4d8]">supplier advice starts here.</span>
+            <span className="mt-1 block sa-text-brand-on-light">supplier advice starts here.</span>
           </h2>
           <p className="mx-auto mt-5 max-w-2xl text-base text-slate-600 sm:text-lg">
             B2B · B2G · B2C on one verified OS. Join operators who treat verification,
@@ -2045,7 +2046,7 @@ export default function HomeBelowFold() {
           <div className="mt-10 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
             <Link
               href="/onboarding?type=business"
-              className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-8 py-4 text-base font-semibold text-white shadow-lg shadow-cyan-500/25 hover:bg-[#0099b8] sm:text-lg"
+              className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-8 py-4 text-base font-semibold text-slate-950 shadow-lg shadow-cyan-500/25 hover:bg-[#22d3ee] sm:text-lg"
             >
               Get started in under 5 minutes
               <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
@@ -2082,7 +2083,7 @@ export default function HomeBelowFold() {
           <div className="mb-10 flex flex-col justify-between gap-8 md:flex-row md:items-start">
             <div>
               <div className="text-lg font-black tracking-tight text-slate-900">
-                SupplierAdvisor<span className="text-[#00b4d8]">®</span>
+                SupplierAdvisor<span className="sa-text-brand-on-light">®</span>
               </div>
               <p className="mt-2 max-w-xs text-sm leading-relaxed text-slate-500">
                 The world&apos;s most trusted supplier advice and supply-chain OS —
@@ -2091,7 +2092,7 @@ export default function HomeBelowFold() {
             </div>
             <div className="grid grid-cols-2 gap-8 text-sm sm:grid-cols-3 sm:gap-12">
               <div className="space-y-2">
-                <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-600">
                   Product
                 </div>
                 <a href="#why-join" className="block text-slate-600 hover:text-slate-900">
@@ -2132,7 +2133,7 @@ export default function HomeBelowFold() {
                 </Link>
               </div>
               <div className="space-y-2">
-                <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-600">
                   Legal
                 </div>
                 <Link href="/privacy" className="block text-slate-600 hover:text-slate-900">
@@ -2149,7 +2150,7 @@ export default function HomeBelowFold() {
                 </Link>
               </div>
               <div className="col-span-2 space-y-2 sm:col-span-1">
-                <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <div className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-600">
                   Contact
                 </div>
                 <a
@@ -2165,8 +2166,8 @@ export default function HomeBelowFold() {
               </div>
             </div>
           </div>
-          <div className="flex flex-col justify-between gap-3 border-t border-slate-200 pt-6 text-xs text-slate-400 sm:flex-row sm:items-center">
-            <span>SupplierAdvisor® 2026 © All rights reserved.</span>
+          <div className="flex flex-col justify-between gap-3 border-t border-slate-200 pt-6 text-xs text-slate-600 sm:flex-row sm:items-center">
+            <span>© {currentYear} SupplierAdvisor®. All rights reserved.</span>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
               <a
                 href="https://x.com/supplieradvisa"

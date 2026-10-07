@@ -134,7 +134,7 @@ export default function InstallAppBanner() {
 
   return (
     <div
-      className="fixed z-[500] right-3 flex flex-col items-end gap-2 pointer-events-none"
+      className="fixed z-[500] right-3 flex flex-col items-end gap-2 pointer-events-none lg:hidden"
       style={{
         bottom: 'max(1rem, calc(5.5rem + env(safe-area-inset-bottom, 0px)))',
       }}
@@ -144,7 +144,7 @@ export default function InstallAppBanner() {
           type="button"
           onClick={() => void installNative()}
           disabled={busy}
-          className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-4 py-2.5 text-sm font-black text-white touch-manipulation active:scale-95 disabled:opacity-70"
+          className="sa-btn-brand inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-black touch-manipulation active:scale-95 disabled:opacity-70"
         >
           {deferred ? (
             <Download className="w-4 h-4" />

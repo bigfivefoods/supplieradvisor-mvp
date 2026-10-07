@@ -86,7 +86,7 @@ function IndustryCard({
       className="group rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:border-[#00b4d8]/40 hover:shadow-md"
     >
       {ind.pack ? (
-        <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-[#00b4d8]">
+        <p className="sa-text-brand-on-light mb-2 text-[10px] font-black uppercase tracking-[0.14em]">
           {ind.pack}
         </p>
       ) : null}
@@ -96,7 +96,7 @@ function IndustryCard({
       <p className="mt-2 text-sm leading-relaxed text-slate-600 line-clamp-3">
         {ind.cardBlurb || ind.subhead}
       </p>
-      <span className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-[#00b4d8]">
+      <span className="sa-text-brand-on-light mt-4 inline-flex items-center gap-1 text-sm font-bold">
         Explore <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
       </span>
     </Link>
@@ -133,7 +133,7 @@ export default function IndustriesIndexPage() {
     <div className="min-h-dvh bg-[#f8fafc] text-slate-900">
       <LandingNav />
       <main className="mx-auto max-w-screen-2xl px-4 py-16 sm:px-6 lg:px-10">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#00b4d8]">
+        <p className="sa-text-brand-on-light text-[11px] font-semibold uppercase tracking-[0.28em]">
           Industries
         </p>
         <h1 className="mt-3 max-w-3xl text-4xl font-black tracking-tight sm:text-5xl">
@@ -191,7 +191,7 @@ export default function IndustriesIndexPage() {
           <div className="mt-5 flex flex-wrap justify-center gap-3">
             <Link
               href="/onboarding?type=business"
-              className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-bold text-white hover:bg-[#0099b8]"
+              className="sa-btn-brand inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-bold hover:bg-[#22d3ee]"
             >
               Start free trial <ArrowRight className="h-4 w-4" />
             </Link>
