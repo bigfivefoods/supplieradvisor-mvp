@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 
 /**
  * Golden-path production smoke (unauthenticated).
@@ -8,8 +10,117 @@ const base =
   process.env.PLAYWRIGHT_BASE_URL ||
   process.env.NEXT_PUBLIC_APP_URL ||
   'http://localhost:3000';
+const hasPrivyAppId = Boolean(String(process.env.NEXT_PUBLIC_PRIVY_APP_ID || '').trim());
 
 test.describe('Golden path smoke (public)', () => {
+  test('public pages have no enforced CSP violations, login modal opens, embed renders in iframe', async ({
+    page,
+  }) => {
+    const paths = ['/', '/login', '/pricing', '/marketplace'];
+
+    await page.addInitScript(() => {
+      (
+        window as Window & {
+          __saCspViolations?: Array<{ directive: string; blocked: string }>;
+        }
+      ).__saCspViolations = [];
+      // Best-effort listener: captures runtime violations after document start.
+      window.addEventListener('securitypolicyviolation', (event) => {
+        (
+          window as Window & {
+            __saCspViolations?: Array<{ directive: string; blocked: string }>;
+          }
+        ).__saCspViolations?.push({
+          directive: event.effectiveDirective || '',
+          blocked: event.blockedURI || '',
+        });
+      });
+    });
+
+    for (const path of paths) {
+      await page.goto(`${base}${path}`, { waitUntil: 'networkidle' });
+      const violations = await page.evaluate(() => {
+        const records =
+          (
+            window as Window & {
+              __saCspViolations?: Array<{ directive: string; blocked: string }>;
+            }
+          ).__saCspViolations || [];
+        const isLocal =
+          window.location.hostname === 'localhost' ||
+          window.location.hostname === '127.0.0.1';
+        return records.filter(
+          (v) => !(isLocal && v.directive.startsWith('script-src') && v.blocked === 'eval')
+        );
+      });
+      const violationMessages = violations.map(
+        (v: { directive: string; blocked: string }) => `${v.directive}:${v.blocked}`
+      );
+      expect(
+        violationMessages,
+        `${path} should not trigger enforced CSP violations`
+      ).toEqual([]);
+      await page.evaluate(() => {
+        (
+          window as Window & {
+            __saCspViolations?: Array<{ directive: string; blocked: string }>;
+          }
+        ).__saCspViolations = [];
+      });
+    }
+
+    if (hasPrivyAppId) {
+      await page.goto(`${base}/login`, { waitUntil: 'domcontentloaded' });
+      const trigger = page.getByRole('button', { name: /continue with email/i }).first();
+      await expect(trigger).toBeVisible({ timeout: 20_000 });
+      await trigger.click();
+      const modalSignals = await Promise.all([
+        page
+          .waitForSelector('[role="dialog"]', { timeout: 12_000 })
+          .then(() => true)
+          .catch(() => false),
+        page
+          .waitForSelector('iframe[src*="privy"], iframe[src*="walletconnect"]', {
+            timeout: 12_000,
+          })
+          .then(() => true)
+          .catch(() => false),
+      ]);
+      expect(
+        modalSignals.some(Boolean),
+        'Privy login modal should open after clicking login'
+      ).toBeTruthy();
+    } else if (process.env.CI) {
+      test.info().annotations.push({
+        type: 'skip-check',
+        description: 'Privy modal assertion skipped in CI because NEXT_PUBLIC_PRIVY_APP_ID is not set',
+      });
+    }
+
+    const parentServer = createServer((_, res) => {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      res.end(
+        `<html><body><iframe id="embed" src="${base}/embed/containers/test" style="width:900px;height:700px"></iframe></body></html>`
+      );
+    });
+    await new Promise<void>((resolve) => parentServer.listen(0, '127.0.0.1', () => resolve()));
+    const parentPort = (parentServer.address() as AddressInfo).port;
+    try {
+      await page.goto(`http://127.0.0.1:${parentPort}`, { waitUntil: 'domcontentloaded' });
+      const iframe = page.locator('#embed');
+      await expect(iframe).toBeVisible();
+      const frameHandle = await iframe.elementHandle();
+      const frame = await frameHandle?.contentFrame();
+      expect(frame, 'embed iframe should load from parent page').toBeTruthy();
+      await frame!.waitForLoadState('domcontentloaded');
+      expect(frame!.url()).toContain('/embed/containers/');
+      const frameHtml = await frame!.content();
+      expect(frameHtml.length).toBeGreaterThan(200);
+    } finally {
+      await new Promise<void>((resolve) => parentServer.close(() => resolve()));
+    }
+  });
+
   test('system health liveness is public (no secret leak)', async ({ request }) => {
     const res = await request.get(`${base}/api/system/health`);
     expect([200, 503]).toContain(res.status());
