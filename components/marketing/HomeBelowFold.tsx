@@ -841,7 +841,7 @@ function DeferredProductMock({
         ) : (
           <div className="flex h-full min-h-[420px] items-center justify-center bg-gradient-to-br from-slate-50 via-white to-sky-50/40 text-center dark:from-neutral-950 dark:via-black dark:to-neutral-950">
             <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-600">
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-700">
                 Loading module preview
               </p>
               <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-neutral-200">
@@ -1233,7 +1233,7 @@ export default function HomeBelowFold() {
               >
                 <s.icon className="mb-4 h-5 w-5 sa-text-brand-on-light transition-transform group-hover:scale-110" />
                 <h3 className="text-sm font-bold text-slate-900 sm:text-base">{s.title}</h3>
-                <p className="mt-1.5 text-xs leading-relaxed text-slate-500 sm:text-[13px]">
+                <p className="mt-1.5 text-xs leading-relaxed text-slate-600 sm:text-[13px]">
                   {s.body}
                 </p>
               </div>
@@ -1980,7 +1980,7 @@ export default function HomeBelowFold() {
                 <p className="mb-5 mt-2 flex-1 text-sm leading-relaxed text-slate-600">{a.b}</p>
                 <Link
                   href={a.href}
-                  className="inline-flex items-center gap-1 text-sm font-bold sa-text-brand-on-light hover:text-cyan-300"
+                  className="inline-flex items-center gap-1 text-sm font-bold sa-text-brand-on-light hover:text-[#0077b6] dark:hover:text-[#0077b6]"
                 >
                   {a.cta} <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
