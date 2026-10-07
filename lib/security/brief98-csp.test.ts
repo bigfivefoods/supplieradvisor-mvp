@@ -94,11 +94,27 @@ function directiveValue(policy: string, name: string) {
       `${path} frame-src must not allow bare https: or *`
     );
     const fontSrc = directiveValue(csp, 'font-src');
+    const styleSrc = directiveValue(csp, 'style-src');
+    assert.match(
+      styleSrc,
+      /https:\/\/fonts\.googleapis\.com/,
+      `${path} style-src must allow googleapis fonts stylesheet`
+    );
     assert.match(fontSrc, /https:\/\/fonts\.gstatic\.com/, `${path} font-src must allow gstatic`);
     assert.match(
       fontSrc,
       /https:\/\/fonts\.walletconnect\.com/,
       `${path} font-src must allow walletconnect font host`
+    );
+    assert.match(
+      fontSrc,
+      /https:\/\/fonts\.reown\.com/,
+      `${path} font-src must allow reown font host`
+    );
+    assert.match(
+      fontSrc,
+      /https:\/\/applepay\.cdn-apple\.com/,
+      `${path} font-src must allow apple pay font host`
     );
 
     assert.doesNotMatch(
