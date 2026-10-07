@@ -22,19 +22,13 @@ export function shouldRevealInstallPrompt({
   dismissed,
   standalone,
   heroVisible = true,
-  elapsedMs = 0,
-  stashedInstallEvent = false,
 }: {
   dismissed: boolean;
   standalone: boolean;
   heroVisible?: boolean;
-  elapsedMs?: number;
-  stashedInstallEvent?: boolean;
 }): boolean {
   if (dismissed || standalone) return false;
   if (heroVisible) return false;
-  void elapsedMs;
-  void stashedInstallEvent;
   return true;
 }
 
@@ -96,35 +90,41 @@ export default function InstallAppBanner() {
 
     let observer: IntersectionObserver | null = null;
     const passiveListenerOptions: AddEventListenerOptions = { passive: true };
-    let heroVisible = true;
 
-    const reveal = (nextHeroVisible: boolean) => {
-      heroVisible = nextHeroVisible;
-      setReady(true);
+    const isHeroVisible = (): boolean => {
+      const hero = document.getElementById('platform');
+      if (!hero) {
+        return !heroPassedViewport(window.scrollY, window.innerHeight);
+      }
+      const rect = hero.getBoundingClientRect();
+      return rect.top < window.innerHeight && rect.bottom > 0;
     };
 
-    const hide = () => {
-      heroVisible = true;
-      setReady(false);
+    const revealIfEligible = () => {
+      if (isHeroVisible()) {
+        setReady(false);
+        return false;
+      }
+      if (
+        !shouldRevealInstallPrompt({
+          dismissed: dismissedState,
+          standalone: false,
+          heroVisible: false,
+        })
+      ) {
+        setReady(false);
+        return false;
+      }
+      setReady(true);
+      return true;
     };
 
     const onScroll = () => {
-      const nextHeroVisible = !heroPassedViewport(window.scrollY, window.innerHeight);
-      heroVisible = nextHeroVisible;
-      if (nextHeroVisible) {
-        hide();
+      if (isHeroVisible()) {
+        setReady(false);
         return;
       }
-      if (
-        shouldRevealInstallPrompt({
-          dismissed: dismissedState,
-          standalone: false,
-          heroVisible: nextHeroVisible,
-          elapsedMs: 0,
-        })
-      ) {
-        reveal(nextHeroVisible);
-      }
+      revealIfEligible();
     };
 
     const hero = document.getElementById('platform');
@@ -134,21 +134,10 @@ export default function InstallAppBanner() {
           const entry = entries[0];
           if (!entry) return;
           if (entry.isIntersecting) {
-            hide();
+            setReady(false);
             return;
           }
-          const nextHeroVisible = false;
-          heroVisible = nextHeroVisible;
-          if (
-            shouldRevealInstallPrompt({
-              dismissed: dismissedState,
-              standalone: false,
-              heroVisible: nextHeroVisible,
-              elapsedMs: 0,
-            })
-          ) {
-            reveal(nextHeroVisible);
-          }
+          revealIfEligible();
         },
         { threshold: 0.2 }
       );
@@ -166,8 +155,26 @@ export default function InstallAppBanner() {
   }, [syncPagePadding]);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || dismissed || isStandalone()) return;
+    if (!deferred) return;
+
+    const hero = document.getElementById('platform');
+    const heroRect = hero?.getBoundingClientRect();
+    const heroVisible = heroRect
+      ? heroRect.top < window.innerHeight && heroRect.bottom > 0
+      : !heroPassedViewport(window.scrollY, window.innerHeight);
+
+    if (heroVisible) {
+      setReady(false);
+      return;
+    }
+
+    setReady(true);
+  }, [deferred, dismissed]);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
-    syncPagePadding(ready && !dismissed && !isStandalone() && window.innerWidth < 1024);
+    syncPagePadding(ready && !dismissed && !isStandalone());
   }, [dismissed, ready, syncPagePadding]);
 
   useEffect(() => {

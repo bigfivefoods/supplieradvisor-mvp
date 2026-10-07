@@ -9,12 +9,12 @@ import {
 
 assert.equal(heroPassedViewport(0, 844), false);
 assert.equal(heroPassedViewport(900, 844), true);
+
 assert.equal(
   shouldRevealInstallPrompt({
     dismissed: false,
     standalone: false,
     heroVisible: true,
-    elapsedMs: 0,
   }),
   false
 );
@@ -23,29 +23,24 @@ assert.equal(
     dismissed: false,
     standalone: false,
     heroVisible: false,
-    elapsedMs: 0,
   }),
   true
 );
 assert.equal(
   shouldRevealInstallPrompt({
-    dismissed: false,
+    dismissed: true,
     standalone: false,
-    heroVisible: true,
-    elapsedMs: 15000,
-    stashedInstallEvent: true,
+    heroVisible: false,
   }),
   false
 );
 assert.equal(
   shouldRevealInstallPrompt({
     dismissed: false,
-    standalone: false,
+    standalone: true,
     heroVisible: false,
-    elapsedMs: 15000,
-    stashedInstallEvent: true,
   }),
-  true
+  false
 );
 assert.equal(
   shouldRevealInstallPrompt({
@@ -106,8 +101,6 @@ try {
       dismissed: savedDismissed,
       standalone: false,
       heroVisible: false,
-      elapsedMs: 0,
-      stashedInstallEvent: true,
     }),
     false
   );

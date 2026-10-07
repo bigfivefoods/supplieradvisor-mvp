@@ -121,6 +121,85 @@ test.describe('Golden path smoke (public)', () => {
     }
   });
 
+  test('install banner never covers hero CTAs on mobile while hero is visible', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+
+    await page.addInitScript(() => {
+      Object.defineProperty(window.navigator, 'userAgent', {
+        value:
+          'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+        configurable: true,
+      });
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${base}/`, { waitUntil: 'networkidle' });
+
+    const assertNoFixedStickyOverlap = async () => {
+      const overlaps = await page.evaluate(() => {
+        const ctas = [...document.querySelectorAll('#platform a, #platform button')].filter(
+          (node) => {
+            const rect = (node as HTMLElement).getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+          }
+        );
+
+        const blockers = [...document.querySelectorAll('body *')].filter((node) => {
+          const el = node as HTMLElement;
+          const style = window.getComputedStyle(el);
+          if (!['fixed', 'sticky'].includes(style.position)) return false;
+          const rect = el.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) return false;
+          if (rect.top <= 120 && rect.height <= 140) return false;
+          return true;
+        });
+
+        const hits: Array<{ cta: string; blocker: string }> = [];
+        for (const cta of ctas) {
+          const ctaBox = (cta as HTMLElement).getBoundingClientRect();
+          for (const blocker of blockers) {
+            const blockerBox = blocker.getBoundingClientRect();
+            const intersects =
+              ctaBox.left < blockerBox.right &&
+              ctaBox.right > blockerBox.left &&
+              ctaBox.top < blockerBox.bottom &&
+              ctaBox.bottom > blockerBox.top;
+            if (intersects) {
+              hits.push({
+                cta: (cta as HTMLElement).textContent?.trim() || 'cta',
+                blocker: blocker.tagName,
+              });
+            }
+          }
+        }
+        return hits;
+      });
+
+      expect(
+        overlaps,
+        'visible hero CTAs should not intersect any fixed/sticky element other than the top nav'
+      ).toEqual([]);
+    };
+
+    await assertNoFixedStickyOverlap();
+    await page.waitForTimeout(500);
+    await assertNoFixedStickyOverlap();
+
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event('beforeinstallprompt', { cancelable: true }));
+    });
+    await page.waitForTimeout(500);
+    await expect(page.getByText('Add to Home Screen')).not.toBeVisible();
+
+    await page.evaluate(() => {
+      window.scrollTo({ top: window.innerHeight * 1.8, behavior: 'instant' });
+    });
+    await expect(
+      page.getByRole('button', { name: /add to home screen|install app/i })
+    ).toBeVisible({ timeout: 20_000 });
+  });
+
   test('system health liveness is public (no secret leak)', async ({ request }) => {
     const res = await request.get(`${base}/api/system/health`);
     expect([200, 503]).toContain(res.status());
