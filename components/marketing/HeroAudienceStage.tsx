@@ -295,10 +295,10 @@ export default function HeroAudienceStage() {
   const { t } = useLocaleDictionary();
 
   useEffect(() => {
-    const t = setInterval(() => {
+    const intervalId = setInterval(() => {
       setI((n) => (n + 1) % SCENES.length);
     }, 8000);
-    return () => clearInterval(t);
+    return () => clearInterval(intervalId);
   }, []);
 
   const scene = SCENES[i];
