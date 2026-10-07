@@ -102,7 +102,12 @@ export default function SiteFooter() {
         <div className="rounded-[28px] border border-black/[0.06] bg-white px-5 py-8 sm:px-8 sm:py-10 lg:px-10 lg:py-12 shadow-[0_1px_2px_rgba(0,0,0,0.04)] dark:bg-neutral-900 dark:border-white/10">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14">
             <div className="lg:col-span-4 min-w-0">
-              <Link href="/" prefetch={false} className="inline-flex items-center gap-2.5 group">
+              <Link
+                href="/"
+                prefetch={false}
+                aria-label="SupplierAdvisor home"
+                className="inline-flex items-center gap-2.5 group"
+              >
                 <Image
                   src="/sa-logo.png"
                   alt=""
