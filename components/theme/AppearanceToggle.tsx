@@ -17,8 +17,10 @@ const APPEARANCE: Array<{ id: ThemeMode; key: 'theme.light' | 'theme.dark' | 'th
 
 export default function AppearanceToggle({
   className = '',
+  iconOnly = false,
 }: {
   className?: string;
+  iconOnly?: boolean;
 }) {
   const { mode, setMode } = useTheme();
   const { t } = useLocaleDictionary();
@@ -37,7 +39,9 @@ export default function AppearanceToggle({
             type="button"
             onClick={() => setMode(id)}
             title={label}
+            aria-label={label}
             aria-pressed={active}
+            aria-checked={active}
             className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-bold transition-all ${
               active
                 ? 'bg-white text-slate-900 shadow-sm dark:bg-neutral-800 dark:text-white'
@@ -45,7 +49,7 @@ export default function AppearanceToggle({
             }`}
           >
             <Icon className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{label}</span>
+            {iconOnly ? <span className="sr-only">{label}</span> : <span className="hidden sm:inline">{label}</span>}
           </button>
         );
       })}

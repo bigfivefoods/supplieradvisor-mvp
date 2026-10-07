@@ -2,6 +2,8 @@ import { test, expect } from '@playwright/test';
 
 const base = process.env.PLAYWRIGHT_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 const locales = ['fr', 'ar', 'pt', 'sw', 'zu'] as const;
+const navLocales = ['en', 'fr', 'sw', 'zu', 'ar'] as const;
+const navWidths = [1024, 1280, 1440] as const;
 const referralL1ByLocale: Record<(typeof locales)[number], string> = {
   fr: 'Invitation directe (L1)',
   ar: 'دعوة مباشرة (L1)',
@@ -78,6 +80,34 @@ for (const locale of locales) {
 }
 
 for (const locale of locales) {
+  test(`/${locale} twitter metadata matches localized OG metadata`, async ({ request }) => {
+    const [homeResponse, pricingResponse] = await Promise.all([
+      request.get(`${base}/${locale}`),
+      request.get(`${base}/${locale}/pricing`),
+    ]);
+    expect(homeResponse.status()).toBe(200);
+    expect(pricingResponse.status()).toBe(200);
+
+    const check = (html: string) => {
+      const ogTitle = html.match(/property="og:title" content="([^"]+)"/)?.[1];
+      const ogDescription = html.match(/property="og:description" content="([^"]+)"/)?.[1];
+      const twitterTitle = html.match(/name="twitter:title" content="([^"]+)"/)?.[1];
+      const twitterDescription = html.match(/name="twitter:description" content="([^"]+)"/)?.[1];
+
+      expect(ogTitle).toBeTruthy();
+      expect(ogDescription).toBeTruthy();
+      expect(twitterTitle).toBeTruthy();
+      expect(twitterDescription).toBeTruthy();
+      expect(twitterTitle).toBe(ogTitle);
+      expect(twitterDescription).toBe(ogDescription);
+    };
+
+    check(await homeResponse.text());
+    check(await pricingResponse.text());
+  });
+}
+
+for (const locale of locales) {
   test(`/${locale}/pricing localizes referral labels and footer group headings`, async ({ request }) => {
     const response = await request.get(`${base}/${locale}/pricing`);
     expect(response.status()).toBe(200);
@@ -117,6 +147,60 @@ test('switcher on / lists native names + esc + navigate to /fr', async ({ page }
   await page.getByRole('menuitem', { name: 'Français' }).click();
   await expect(page).toHaveURL(/\/fr$/);
 });
+
+for (const locale of navLocales) {
+  for (const width of navWidths) {
+    test(`${locale} top-nav geometry is clean at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(locale === 'en' ? '/' : `/${locale}`);
+      await page.waitForLoadState('networkidle');
+
+      const checks = await page.evaluate(() => {
+        const row = document.querySelector<HTMLElement>('[data-landing-nav] > div');
+        if (!row) return { missingRow: true, issues: ['missing top nav row'] as string[] };
+
+        const controls = Array.from(row.querySelectorAll<HTMLElement>('a,button')).filter((el) => {
+          const style = window.getComputedStyle(el);
+          if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+          const rect = el.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        });
+
+        const issues: string[] = [];
+        const rects = controls.map((el) => ({ el, rect: el.getBoundingClientRect() }));
+
+        for (const { el, rect } of rects) {
+          const label = el.textContent?.trim() || el.getAttribute('aria-label') || el.tagName;
+          if (rect.left < 0 || rect.right > window.innerWidth || rect.top < 0 || rect.bottom > window.innerHeight) {
+            issues.push(`out-of-viewport: ${label}`);
+          }
+          if (el.scrollWidth > el.clientWidth + 1) {
+            issues.push(`truncated: ${label}`);
+          }
+        }
+
+        for (let i = 0; i < rects.length; i += 1) {
+          for (let j = i + 1; j < rects.length; j += 1) {
+            const a = rects[i]!;
+            const b = rects[j]!;
+            const xOverlap = Math.max(0, Math.min(a.rect.right, b.rect.right) - Math.max(a.rect.left, b.rect.left));
+            const yOverlap = Math.max(0, Math.min(a.rect.bottom, b.rect.bottom) - Math.max(a.rect.top, b.rect.top));
+            if (xOverlap > 1 && yOverlap > 1) {
+              const aLabel = a.el.textContent?.trim() || a.el.getAttribute('aria-label') || a.el.tagName;
+              const bLabel = b.el.textContent?.trim() || b.el.getAttribute('aria-label') || b.el.tagName;
+              issues.push(`overlap: ${aLabel} <> ${bLabel}`);
+            }
+          }
+        }
+
+        return { missingRow: false, issues };
+      });
+
+      expect(checks.missingRow).toBeFalsy();
+      expect(checks.issues, checks.issues.join('\n')).toEqual([]);
+    });
+  }
+}
 
 for (const locale of ['fr', 'ar'] as const) {
   test(`/${locale} has no React #418 hydration mismatch`, async ({ page }) => {

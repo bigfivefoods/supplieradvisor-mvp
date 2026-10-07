@@ -49,7 +49,15 @@ function CheckIcon() {
   );
 }
 
-export default function LanguageSwitcher({ variant = 'menu', onNavigate }: { variant?: Variant; onNavigate?: () => void }) {
+export default function LanguageSwitcher({
+  variant = 'menu',
+  onNavigate,
+  compact = false,
+}: {
+  variant?: Variant;
+  onNavigate?: () => void;
+  compact?: boolean;
+}) {
   const { locale: activeLocale, t } = useLocaleDictionary();
   const pathname = usePathname() || '/';
   const [open, setOpen] = useState(false);
@@ -131,14 +139,18 @@ export default function LanguageSwitcher({ variant = 'menu', onNavigate }: { var
       <button
         ref={buttonRef}
         type="button"
-        className="inline-flex h-11 items-center gap-1.5 rounded-full border border-slate-200 px-3 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
+        title={t('switcher.chooseLanguage')}
+        aria-label={t('switcher.chooseLanguage')}
+        className={`inline-flex h-11 items-center gap-1.5 rounded-full border border-slate-200 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200 ${
+          compact ? 'px-2.5' : 'px-3'
+        }`}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
         <GlobeIcon />
         <span>{activeLocale.toUpperCase()}</span>
-        <ChevronIcon open={open} />
+        {compact ? null : <ChevronIcon open={open} />}
       </button>
 
       {open ? (

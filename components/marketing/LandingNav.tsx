@@ -3,6 +3,8 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
+  useRef,
   useState,
   type MouseEvent,
 } from 'react';
@@ -144,7 +146,7 @@ const GROUP_LABELS: Record<NavLink['group'], 'nav.groupProduct' | 'nav.groupPric
 
 function linkClass(active: boolean) {
   return [
-    'rounded-full px-2.5 py-2 text-xs xl:text-sm font-semibold transition-colors xl:px-3.5 whitespace-nowrap',
+    'rounded-full px-2.5 py-2 text-xs font-semibold transition-colors whitespace-nowrap',
     active
       ? 'bg-[#00b4d8]/12 text-[#0077b6] dark:bg-cyan-500/15 dark:text-cyan-300'
       : 'text-slate-600 hover:bg-slate-50 hover:text-[#0077b6] dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-cyan-300',
@@ -168,6 +170,10 @@ export default function LandingNav() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [desktopVisibleCount, setDesktopVisibleCount] = useState(3);
+  const [desktopMoreOpen, setDesktopMoreOpen] = useState(false);
+  const desktopMoreButtonRef = useRef<HTMLButtonElement | null>(null);
+  const desktopMorePanelRef = useRef<HTMLDivElement | null>(null);
 
   const onHome = stripLocale(pathname).pathname === '/';
 
@@ -270,6 +276,19 @@ export default function LandingNav() {
   }, []);
 
   useEffect(() => {
+    const updateDesktopCount = () => {
+      if (window.innerWidth >= 1536) {
+        setDesktopVisibleCount(LINKS.length);
+        return;
+      }
+      setDesktopVisibleCount(0);
+    };
+    updateDesktopCount();
+    window.addEventListener('resize', updateDesktopCount);
+    return () => window.removeEventListener('resize', updateDesktopCount);
+  }, []);
+
+  useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
@@ -277,6 +296,31 @@ export default function LandingNav() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
+
+  useEffect(() => {
+    if (!desktopMoreOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setDesktopMoreOpen(false);
+        desktopMoreButtonRef.current?.focus();
+      }
+    };
+    const onDown = (event: globalThis.MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        !desktopMorePanelRef.current?.contains(target) &&
+        !desktopMoreButtonRef.current?.contains(target)
+      ) {
+        setDesktopMoreOpen(false);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onDown);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onDown);
+    };
+  }, [desktopMoreOpen]);
 
   /**
    * Section nav: smooth-scroll on home; full assign off-home so hash always lands.
@@ -337,6 +381,7 @@ export default function LandingNav() {
         href={href}
         hrefLang={l.section ? locale : l.href.startsWith('/#') ? locale : 'en'}
         className={cls}
+        data-top-nav-item={!mobile ? l.id : undefined}
         aria-current={active ? 'true' : undefined}
         onClick={(e) => {
           if (isSection && l.section) {
@@ -350,6 +395,19 @@ export default function LandingNav() {
       </Link>
     );
   };
+
+  const desktopPrimaryLinks = useMemo(
+    () => LINKS.slice(0, Math.min(desktopVisibleCount, LINKS.length)),
+    [desktopVisibleCount]
+  );
+  const desktopOverflowLinks = useMemo(
+    () => LINKS.slice(Math.min(desktopVisibleCount, LINKS.length)),
+    [desktopVisibleCount]
+  );
+
+  useEffect(() => {
+    if (!desktopOverflowLinks.length) setDesktopMoreOpen(false);
+  }, [desktopOverflowLinks.length]);
 
   return (
     <>
@@ -396,32 +454,79 @@ export default function LandingNav() {
           </Link>
 
           <nav
-            className="hidden min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] lg:flex [&::-webkit-scrollbar]:hidden"
+            className="hidden min-w-0 items-center gap-0.5 lg:flex"
             aria-label={t('nav.ariaPrimary')}
           >
-            {LINKS.map((l) => renderLink(l, false))}
+            {desktopPrimaryLinks.map((l) => renderLink(l, false))}
+            {desktopOverflowLinks.length ? (
+              <div className="relative">
+                <button
+                  ref={desktopMoreButtonRef}
+                  type="button"
+                  className="rounded-full px-2.5 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-[#0077b6] dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-cyan-300"
+                  aria-haspopup="menu"
+                  aria-expanded={desktopMoreOpen}
+                  aria-label={desktopMoreOpen ? t('nav.ariaCloseMore') : t('nav.ariaOpenMore')}
+                  data-top-nav-item="more"
+                  onClick={() => setDesktopMoreOpen((v) => !v)}
+                >
+                  {t('nav.more')}
+                </button>
+                {desktopMoreOpen ? (
+                  <div
+                    ref={desktopMorePanelRef}
+                    className="absolute start-0 z-[360] mt-2 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
+                    role="menu"
+                    aria-label={t('nav.ariaMoreMenu')}
+                  >
+                    <div className="space-y-0.5">
+                      {desktopOverflowLinks.map((l) => (
+                        <Link
+                          key={`more-${l.id}`}
+                          href={l.section ? `${localizedPath(locale, '/')}#${l.section}` : l.href}
+                          hrefLang={l.section ? locale : l.href.startsWith('/#') ? locale : 'en'}
+                          role="menuitem"
+                          className="flex min-h-10 items-center rounded-xl px-2.5 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-neutral-800"
+                          onClick={(e) => {
+                            setDesktopMoreOpen(false);
+                            if (l.section) {
+                              handleSectionClick(e, l.section);
+                            }
+                          }}
+                        >
+                          {t(l.labelKey)}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </nav>
 
           <div className="hidden items-center gap-2 lg:flex shrink-0">
-            <AppearanceToggle />
-            <LanguageSwitcher />
+            <AppearanceToggle iconOnly />
+            <LanguageSwitcher compact />
             <button
               type="button"
               onClick={goMember}
-              className="rounded-full px-3 py-2 text-sm font-semibold text-slate-600 transition-all hover:text-[#0077b6] lg:px-3.5 lg:py-2.5 min-h-[40px] dark:text-slate-300 dark:hover:text-cyan-300"
+              className="hidden min-h-[40px] rounded-full px-3 py-2 text-sm font-semibold text-slate-600 transition-all hover:text-[#0077b6] xl:inline-flex xl:px-3.5 xl:py-2.5 dark:text-slate-300 dark:hover:text-cyan-300"
+              data-top-nav-item="member-cta"
             >
               {t('nav.member')}
             </button>
             <button
               type="button"
               onClick={goLogin}
-              className="rounded-full border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition-all hover:border-[#00b4d8] hover:text-[#0077b6] lg:px-5 lg:py-2.5 min-h-[40px] dark:border-slate-700 dark:text-slate-200"
+              className="hidden min-h-[40px] rounded-full border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition-all hover:border-[#00b4d8] hover:text-[#0077b6] xl:inline-flex xl:px-5 xl:py-2.5 dark:border-slate-700 dark:text-slate-200"
+              data-top-nav-item="login-cta"
             >
               {t('nav.logIn')}
             </button>
             <Link
               href="/join"
-              className="inline-flex items-center gap-1.5 rounded-full bg-[#00b4d8] px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0099b8] lg:px-5 lg:py-2.5 min-h-[40px]"
+              className="hidden min-h-[40px] items-center gap-1.5 rounded-full bg-[#00b4d8] px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0099b8] xl:inline-flex xl:px-5 xl:py-2.5"
+              data-top-nav-item="trial-cta"
             >
               {t('nav.startTrial')}
               <ArrowRight className="h-4 w-4" />

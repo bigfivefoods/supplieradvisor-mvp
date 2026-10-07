@@ -25,6 +25,10 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
       locale: OG_LOCALE[locale],
       url: canonical,
     },
+    twitter: {
+      title: t(dict, 'meta.home.title'),
+      description: t(dict, 'meta.home.description'),
+    },
   };
 }
 
