@@ -29,6 +29,15 @@ assert.equal(
 );
 assert.equal(
   shouldRevealInstallPrompt({
+    dismissed: false,
+    standalone: false,
+    heroVisible: true,
+    elapsedMs: 15000,
+  }),
+  true
+);
+assert.equal(
+  shouldRevealInstallPrompt({
     dismissed: true,
     standalone: false,
     heroVisible: false,
@@ -79,15 +88,16 @@ try {
   });
 
   globalThis.localStorage.setItem('sa_pwa_install_dismissed_at', String(Date.now()));
-  assert.equal(isDismissed(), true);
+  const savedDismissed = isDismissed();
+  assert.equal(savedDismissed, true);
   assert.equal(
     shouldRevealInstallPrompt({
-      dismissed: false,
+      dismissed: savedDismissed,
       standalone: false,
       heroVisible: false,
       elapsedMs: 0,
     }),
-    true
+    false
   );
 } finally {
   if (originalWindow === undefined) {

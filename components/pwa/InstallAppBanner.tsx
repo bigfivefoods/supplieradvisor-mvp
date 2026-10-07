@@ -61,25 +61,54 @@ export function isDismissed(): boolean {
 export default function InstallAppBanner() {
   const pathname = usePathname() || '';
   const [ready, setReady] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || isStandalone()) return;
-    if (isDismissed()) return;
+    if (typeof window === 'undefined') return;
+
+    const standalone = isStandalone();
+    if (standalone) return;
+
+    const dismissedState = isDismissed();
+    setDismissed(dismissedState);
+    if (dismissedState) return;
 
     let timer: number | undefined;
     let observer: IntersectionObserver | null = null;
+    const passiveListenerOptions: AddEventListenerOptions = { passive: true };
+    let heroVisible = true;
 
-    const reveal = () => {
+    const reveal = (nextHeroVisible: boolean) => {
+      heroVisible = nextHeroVisible;
       setReady(true);
-      if (timer) window.clearTimeout(timer);
-      if (observer) observer.disconnect();
+      if (timer) {
+        window.clearTimeout(timer);
+        timer = undefined;
+      }
+    };
+
+    const hide = () => {
+      setReady(false);
     };
 
     const onScroll = () => {
-      if (heroPassedViewport(window.scrollY, window.innerHeight)) {
-        reveal();
+      const nextHeroVisible = !heroPassedViewport(window.scrollY, window.innerHeight);
+      heroVisible = nextHeroVisible;
+      if (nextHeroVisible) {
+        hide();
+        return;
+      }
+      if (
+        shouldRevealInstallPrompt({
+          dismissed: dismissedState,
+          standalone: false,
+          heroVisible: nextHeroVisible,
+          elapsedMs: 0,
+        })
+      ) {
+        reveal(nextHeroVisible);
       }
     };
 
@@ -87,21 +116,48 @@ export default function InstallAppBanner() {
     if (hero) {
       observer = new IntersectionObserver(
         (entries) => {
-          const [entry] = entries;
-          if (!entry || entry.isIntersecting) return;
-          reveal();
+          const entry = entries[0];
+          if (!entry) return;
+          if (entry.isIntersecting) {
+            hide();
+            return;
+          }
+          const nextHeroVisible = false;
+          heroVisible = nextHeroVisible;
+          if (
+            shouldRevealInstallPrompt({
+              dismissed: dismissedState,
+              standalone: false,
+              heroVisible: nextHeroVisible,
+              elapsedMs: 0,
+            })
+          ) {
+            reveal(nextHeroVisible);
+          }
         },
         { threshold: 0.2 }
       );
       observer.observe(hero);
     }
 
-    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('scroll', onScroll, passiveListenerOptions);
     onScroll();
-    timer = window.setTimeout(reveal, REVEAL_DELAY_MS);
+    timer = window.setTimeout(() => {
+      const nextHeroVisible = heroVisible;
+      if (
+        shouldRevealInstallPrompt({
+          dismissed: dismissedState,
+          standalone: false,
+          heroVisible: nextHeroVisible,
+          elapsedMs: REVEAL_DELAY_MS,
+        })
+      ) {
+        reveal(nextHeroVisible);
+      }
+    }, REVEAL_DELAY_MS);
 
     return () => {
-      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('scroll', onScroll, passiveListenerOptions);
       if (observer) observer.disconnect();
       if (timer) window.clearTimeout(timer);
     };
@@ -113,6 +169,9 @@ export default function InstallAppBanner() {
     const onBip = (e: Event) => {
       e.preventDefault();
       setDeferred(e as BeforeInstallPromptEvent);
+      if (typeof window !== 'undefined' && !isStandalone() && !isDismissed()) {
+        setReady(true);
+      }
     };
     window.addEventListener('beforeinstallprompt', onBip);
 
@@ -154,6 +213,7 @@ export default function InstallAppBanner() {
     } catch {
       /* ignore */
     }
+    setDismissed(true);
     setReady(false);
   }, []);
 
@@ -191,8 +251,8 @@ export default function InstallAppBanner() {
   // Public business websites should not look like an SA app install
   if (pathname.startsWith('/embed')) return null;
   if (typeof window !== 'undefined' && isStandalone()) return null;
-  if (isDismissed()) return null;
   if (!ready) return null;
+  if (dismissed) return null;
 
   return (
     <div
@@ -224,7 +284,7 @@ export default function InstallAppBanner() {
             type="button"
             onClick={dismiss}
             className="rounded-full p-2.5 text-slate-400 transition-colors hover:bg-slate-100 touch-manipulation"
-            aria-label="Hide"
+            aria-label="Dismiss install banner"
           >
             <X className="h-4 w-4" />
           </button>
