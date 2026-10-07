@@ -505,7 +505,7 @@ export default function LandingNav() {
           </nav>
 
           <div className="hidden items-center gap-2 lg:flex shrink-0">
-            <AppearanceToggle iconOnly />
+            <AppearanceToggle />
             <LanguageSwitcher compact />
             <button
               type="button"

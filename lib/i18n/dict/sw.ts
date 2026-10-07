@@ -41,6 +41,7 @@ const sw: Dict = {
   'nav.freeTrial': 'Jaribio la bure',
   'nav.memberCreate': 'Fungua akaunti ya SA Member bure',
   'theme.ariaLabel': 'Mandhari ya rangi',
+  'theme.trigger': 'Mandhari',
   'theme.light': 'Nuru',
   'theme.dark': 'Giza',
   'theme.system': 'Mfumo',

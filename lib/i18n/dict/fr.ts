@@ -41,6 +41,7 @@ const fr: Dict = {
   'nav.freeTrial': 'Essai gratuit',
   'nav.memberCreate': 'Créer un compte SA Member gratuit',
   'theme.ariaLabel': 'Thème de couleur',
+  'theme.trigger': 'Thème',
   'theme.light': 'Clair',
   'theme.dark': 'Sombre',
   'theme.system': 'Système',

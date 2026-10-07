@@ -43,6 +43,7 @@ export const en = {
   'nav.freeTrial': 'Free trial',
   'nav.memberCreate': 'Create free SA Member account',
   'theme.ariaLabel': 'Colour theme',
+  'theme.trigger': 'Theme',
   'theme.light': 'Light',
   'theme.dark': 'Dark',
   'theme.system': 'System',

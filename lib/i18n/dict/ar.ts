@@ -44,6 +44,7 @@ const ar: Dict = {
   'nav.freeTrial': 'تجربة مجانية',
   'nav.memberCreate': 'أنشئ حساب SA Member مجانيًا',
   'theme.ariaLabel': 'نمط الألوان',
+  'theme.trigger': 'السمة',
   'theme.light': 'فاتح',
   'theme.dark': 'داكن',
   'theme.system': 'النظام',

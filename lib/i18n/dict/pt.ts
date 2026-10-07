@@ -41,6 +41,7 @@ const pt: Dict = {
   'nav.freeTrial': 'Teste gratuito',
   'nav.memberCreate': 'Criar conta SA Member grátis',
   'theme.ariaLabel': 'Tema de cor',
+  'theme.trigger': 'Tema',
   'theme.light': 'Claro',
   'theme.dark': 'Escuro',
   'theme.system': 'Sistema',

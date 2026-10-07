@@ -74,6 +74,7 @@ const usedKeys: DictKey[] = [
   'nav.freeTrial',
   'nav.memberCreate',
   'theme.ariaLabel',
+  'theme.trigger',
   'theme.light',
   'theme.dark',
   'theme.system',

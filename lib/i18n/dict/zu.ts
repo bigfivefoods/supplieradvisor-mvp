@@ -41,6 +41,7 @@ const zu: Dict = {
   'nav.freeTrial': 'Isivivinyo samahhala',
   'nav.memberCreate': 'Dala i-akhawunti yamahhala ye-SA Member',
   'theme.ariaLabel': 'Itimu yombala',
+  'theme.trigger': 'Itimu',
   'theme.light': 'Khanya',
   'theme.dark': 'Mnyama',
   'theme.system': 'Isistimu',

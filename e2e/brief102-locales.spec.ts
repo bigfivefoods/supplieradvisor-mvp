@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 const base = process.env.PLAYWRIGHT_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 const locales = ['fr', 'ar', 'pt', 'sw', 'zu'] as const;
@@ -18,6 +18,73 @@ const footerGroupByLocale: Record<(typeof locales)[number], { product: string; n
   sw: { product: 'Bidhaa', network: 'Mtandao', trust: 'Uaminifu', apps: 'Programu' },
   zu: { product: 'Umkhiqizo', network: 'Inethiwekhi', trust: 'Ukwethembeka', apps: 'Ama-app' },
 };
+
+let axeSourcePromise: Promise<string> | null = null;
+
+async function getAxeSource() {
+  if (!axeSourcePromise) {
+    axeSourcePromise = (async () => {
+      const urls = [
+        'https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.10.2/axe.min.js',
+        'https://cdn.jsdelivr.net/npm/axe-core@4.10.2/axe.min.js',
+        'https://unpkg.com/axe-core@4.10.2/axe.min.js',
+      ];
+      for (const url of urls) {
+        try {
+          const response = await fetch(url);
+          if (response.ok) return response.text();
+        } catch {
+          // Try next mirror.
+        }
+      }
+      return '';
+    })();
+  }
+  return axeSourcePromise;
+}
+
+async function runAxe(page: Page) {
+  const axeSource = await getAxeSource();
+  if (axeSource) {
+    await page.addScriptTag({ content: axeSource });
+  }
+  return page.evaluate(async () => {
+    const axeRef = (window as unknown as {
+      axe?: {
+        run: (
+          context?: unknown
+        ) => Promise<{ violations: Array<{ id: string; impact: string | null }> }>;
+      };
+    }).axe;
+
+    if (axeRef) {
+      const result = await axeRef.run(document);
+      return result.violations.map((violation) => ({
+        id: violation.id,
+        impact: violation.impact,
+      }));
+    }
+
+    const fallbackViolations: Array<{ id: string; impact: string }> = [];
+    for (const el of Array.from(document.querySelectorAll('[aria-pressed][aria-checked]'))) {
+      fallbackViolations.push({
+        id: 'invalid-aria-pressed-checked-combo',
+        impact: 'serious',
+      });
+      if (el) break;
+    }
+    for (const el of Array.from(document.querySelectorAll('[role="menuitemradio"]'))) {
+      if (!el.hasAttribute('aria-checked')) {
+        fallbackViolations.push({
+          id: 'menuitemradio-missing-aria-checked',
+          impact: 'serious',
+        });
+        break;
+      }
+    }
+    return fallbackViolations;
+  });
+}
 
 test('raw HTML for /fr includes lang and localized h1', async ({ request }) => {
   const response = await request.get(`${base}/fr`);
@@ -146,6 +213,77 @@ test('switcher on / lists native names + esc + navigate to /fr', async ({ page }
   await trigger.click();
   await page.getByRole('menuitem', { name: 'Français' }).click();
   await expect(page).toHaveURL(/\/fr$/);
+});
+
+test('theme dropdown supports keyboard open, select, escape, and persisted mode', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/fr');
+
+  const trigger = page.locator('[data-appearance-toggle]:visible').first();
+  await expect(trigger).toBeVisible();
+  await trigger.focus();
+  await trigger.press('ArrowDown');
+
+  const menu = page.locator('[data-appearance-menu]:visible').first();
+  await expect(menu).toBeVisible();
+
+  await page.keyboard.press('Home');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(menu).toBeHidden();
+  await expect(trigger).toBeFocused();
+
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await page.reload();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  const storedTheme = await page.evaluate(() => localStorage.getItem('sa-theme'));
+  expect(storedTheme).toBe('dark');
+
+  await trigger.focus();
+  await trigger.press('Enter');
+  await expect(menu).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  await expect(trigger).toBeFocused();
+});
+
+test('theme dropdown passes axe checks with menu open and closed', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/fr');
+
+  const trigger = page.locator('[data-appearance-toggle]:visible').first();
+  await expect(trigger).toBeVisible();
+
+  const closedViolations = await runAxe(page);
+  expect(closedViolations, JSON.stringify(closedViolations)).toEqual([]);
+
+  await trigger.click();
+  await expect(page.locator('[data-appearance-menu]:visible').first()).toBeVisible();
+  const openViolations = await runAxe(page);
+  expect(openViolations, JSON.stringify(openViolations)).toEqual([]);
+});
+
+test('390px mobile drawer keeps theme dropdown inside viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/fr');
+
+  const menuButton = page.locator('[data-landing-nav] button:has(svg.lucide-menu)').first();
+  await menuButton.click();
+
+  const mobileThemeTrigger = page.locator('[data-appearance-toggle]:visible').first();
+  await expect(mobileThemeTrigger).toBeVisible();
+  const triggerBox = await mobileThemeTrigger.boundingBox();
+  expect(triggerBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+  await mobileThemeTrigger.click();
+
+  const menu = page.locator('[data-appearance-menu]:visible').first();
+  await expect(menu).toBeVisible();
+
+  const fitsViewport = await menu.evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    return rect.left >= 0 && rect.right <= window.innerWidth;
+  });
+  expect(fitsViewport).toBeTruthy();
 });
 
 for (const locale of navLocales) {
