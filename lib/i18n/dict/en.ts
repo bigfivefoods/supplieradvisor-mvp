@@ -101,15 +101,58 @@ export const en = {
 
   'pricing.kicker': 'Pricing',
   'pricing.title': 'Transparent company pricing from R299/month',
+  'pricing.lede':
+    'SupplierAdvisor is built for companies that need one operating system across procurement, quality, supplier relationships, inventory, and finance.',
   'pricing.ctaTrial': 'Start free trial',
   'pricing.ctaDemo': 'Book a demo',
   'pricing.tiers': 'Billing tiers',
   'pricing.tiersBody': 'All tiers include unlimited users and the same full SupplierAdvisor product scope. Choose a billing term that fits your budgeting rhythm and maturity stage.',
+  'pricing.tier.monthly': 'Monthly',
+  'pricing.tier.1y': '1 year',
+  'pricing.tier.2y': '2 years',
+  'pricing.tier.3y': '3 years',
+  'pricing.tierCta.monthly': 'Start monthly',
+  'pricing.tierCta.1y': 'Choose 1 year',
+  'pricing.tierCta.2y': 'Choose 2 years',
+  'pricing.tierCta.3y': 'Lock in 3 years',
   'pricing.monthlyList': 'Monthly list rate',
   'pricing.prepaidTerm': '{months}-month prepaid term',
   'pricing.save': 'Save {discount}% ({savings}) · ~{effective}/mo effective',
   'pricing.referralTitle': 'Referral programme: 6% / 3% / 1%',
+  'pricing.referral.level1': 'Company you invited directly',
+  'pricing.referral.level2': 'Company invited by your referral',
+  'pricing.referral.level3': 'One more level deeper',
+  'pricing.referral.step1.title': 'Invite real trading partners',
+  'pricing.referral.step1.body':
+    'Share your referral link with suppliers, buyers, and partners you actually trade with. First-touch attribution applies, so the first valid invitation keeps the relationship.',
+  'pricing.referral.step2.title': 'They activate SupplierAdvisor',
+  'pricing.referral.step2.body':
+    'Each invited company gets 30 days to run the full platform and can then subscribe from R299/month or choose a prepaid tier.',
+  'pricing.referral.step3.title': 'Referral fees are shared by depth',
+  'pricing.referral.step3.body':
+    'When a qualifying subscription is paid, L1 earns 6%, L2 earns 3%, and L3 earns 1% (maximum 10% combined).',
   'pricing.faq': 'Pricing FAQ',
+  'pricing.faq.1.q': 'Is pricing per user or per company?',
+  'pricing.faq.1.a':
+    'SupplierAdvisor pricing is per company workspace, not per seat. Every paid tier includes unlimited team users so operations, finance, quality, and procurement can work in one system.',
+  'pricing.faq.2.q': 'What does “from R299/mo” mean?',
+  'pricing.faq.2.a':
+    'R299/mo is the current monthly list rate for one company subscription. Prepaid 1-year, 2-year, and 3-year tiers reduce the effective monthly cost while keeping the same full platform access.',
+  'pricing.faq.3.q': 'Do all billing tiers include the same product?',
+  'pricing.faq.3.a':
+    'Yes. Every tier includes the same core operating system modules and advisor tools. The difference is billing term length and discount, not feature access.',
+  'pricing.faq.4.q': 'How does the free trial work?',
+  'pricing.faq.4.a':
+    'New companies get a 30-day free trial with full platform access. No card is required to start, and you can select a paid tier later from billing settings.',
+  'pricing.faq.5.q': 'How are referral fees calculated?',
+  'pricing.faq.5.a':
+    'Referral fees are based on actual qualifying subscription payments only. The shared split is 6% at L1, 3% at L2, and 1% at L3, with a total cap of 10%.',
+  'pricing.faq.6.q': 'Are referral payouts based on product sales?',
+  'pricing.faq.6.a':
+    'No. Referral payouts apply to SupplierAdvisor platform subscription fees, not to traded goods or service sales between partners.',
+  'pricing.faq.7.q': 'Can I switch my billing tier later?',
+  'pricing.faq.7.a':
+    'Yes. Companies can move from monthly to prepaid terms in billing. Early renewals extend your subscription window and referral percentages continue to apply to amounts actually paid.',
   'pricing.step': 'Step {step}',
 } as const;
 

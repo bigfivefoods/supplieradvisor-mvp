@@ -18,6 +18,20 @@ test('raw HTML for /ar includes lang and rtl dir', async ({ request }) => {
   expect(html).toContain('<html lang="ar" dir="rtl"');
 });
 
+test('localized /pricing pages include translated body copy and tier labels', async ({ request }) => {
+  const frResponse = await request.get(`${base}/fr/pricing`);
+  expect(frResponse.status()).toBe(200);
+  const frHtml = await frResponse.text();
+  expect(frHtml).toContain('Tarification transparente');
+  expect(frHtml).toContain('Mensuel');
+
+  const ptResponse = await request.get(`${base}/pt/pricing`);
+  expect(ptResponse.status()).toBe(200);
+  const ptHtml = await ptResponse.text();
+  expect(ptHtml).toContain('utilizadores ilimitados');
+  expect(ptHtml).toContain('Teste gratuito');
+});
+
 for (const locale of locales) {
   test(`/${locale} locale metadata + hero`, async ({ page }) => {
     const res = await page.goto(`/${locale}`);

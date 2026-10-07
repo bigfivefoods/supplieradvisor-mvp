@@ -122,15 +122,47 @@ const usedKeys: DictKey[] = [
   'footer.form.error',
   'pricing.kicker',
   'pricing.title',
+  'pricing.lede',
   'pricing.ctaTrial',
   'pricing.ctaDemo',
   'pricing.tiers',
   'pricing.tiersBody',
+  'pricing.tier.monthly',
+  'pricing.tier.1y',
+  'pricing.tier.2y',
+  'pricing.tier.3y',
+  'pricing.tierCta.monthly',
+  'pricing.tierCta.1y',
+  'pricing.tierCta.2y',
+  'pricing.tierCta.3y',
   'pricing.monthlyList',
   'pricing.prepaidTerm',
   'pricing.save',
   'pricing.referralTitle',
+  'pricing.referral.level1',
+  'pricing.referral.level2',
+  'pricing.referral.level3',
+  'pricing.referral.step1.title',
+  'pricing.referral.step1.body',
+  'pricing.referral.step2.title',
+  'pricing.referral.step2.body',
+  'pricing.referral.step3.title',
+  'pricing.referral.step3.body',
   'pricing.faq',
+  'pricing.faq.1.q',
+  'pricing.faq.1.a',
+  'pricing.faq.2.q',
+  'pricing.faq.2.a',
+  'pricing.faq.3.q',
+  'pricing.faq.3.a',
+  'pricing.faq.4.q',
+  'pricing.faq.4.a',
+  'pricing.faq.5.q',
+  'pricing.faq.5.a',
+  'pricing.faq.6.q',
+  'pricing.faq.6.a',
+  'pricing.faq.7.q',
+  'pricing.faq.7.a',
   'pricing.step',
 ];
 
@@ -158,6 +190,13 @@ for (const [locale, dict] of Object.entries({ fr, ar, pt, sw, zu })) {
     assert.notEqual(dict[key], en[key], `${locale} should translate ${key}`);
   }
 }
+
+assert.match(pt['pricing.tiersBody'] || '', /utilizadores/i, 'pt should use European Portuguese "utilizadores"');
+assert.match(
+  `${pt['pricing.ctaTrial']} ${pt['hero.trialDays']}` || '',
+  /teste gratuito|período experimental gratuito/i,
+  'pt should use European Portuguese trial wording'
+);
 
 for (const dict of [fr, ar, pt, sw, zu]) {
   assert.match(dict['brand.supplierAdvisor'] || '', /SupplierAdvisor®/);

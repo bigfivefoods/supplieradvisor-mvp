@@ -92,15 +92,58 @@ const sw: Dict = {
   'footer.form.error': 'Haiwezekani kujiunga sasa. Tafadhali jaribu tena.',
   'pricing.kicker': 'Bei',
   'pricing.title': 'Bei wazi za kampuni kuanzia R299/mwezi',
+  'pricing.lede':
+    'SupplierAdvisor imejengwa kwa kampuni zinazohitaji mfumo mmoja wa uendeshaji katika ununuzi, ubora, mahusiano ya wasambazaji, hesabu na fedha.',
   'pricing.ctaTrial': 'Anza jaribio la bure',
   'pricing.ctaDemo': 'Weka onyesho',
   'pricing.tiers': 'Ngazi za malipo',
   'pricing.tiersBody': 'Ngazi zote zinajumuisha watumiaji wasio na kikomo na upeo ule ule wa bidhaa kamili ya SupplierAdvisor.',
+  'pricing.tier.monthly': 'Kila mwezi',
+  'pricing.tier.1y': 'Mwaka 1',
+  'pricing.tier.2y': 'Miaka 2',
+  'pricing.tier.3y': 'Miaka 3',
+  'pricing.tierCta.monthly': 'Anza kila mwezi',
+  'pricing.tierCta.1y': 'Chagua mwaka 1',
+  'pricing.tierCta.2y': 'Chagua miaka 2',
+  'pricing.tierCta.3y': 'Funga miaka 3',
   'pricing.monthlyList': 'Bei ya kila mwezi',
   'pricing.prepaidTerm': 'Muda wa kulipia mapema wa miezi {months}',
   'pricing.save': 'Okoa {discount}% ({savings}) · ~{effective}/mwezi halisi',
   'pricing.referralTitle': 'Mpango wa rufaa: 6% / 3% / 1%',
+  'pricing.referral.level1': 'Kampuni uliyoiita moja kwa moja',
+  'pricing.referral.level2': 'Kampuni iliyoalikwa na rufaa yako',
+  'pricing.referral.level3': 'Ngazi moja zaidi chini',
+  'pricing.referral.step1.title': 'Alika washirika halisi wa biashara',
+  'pricing.referral.step1.body':
+    'Shiriki kiungo chako cha rufaa na wasambazaji, wanunuzi, na washirika unaofanya nao biashara kwa kweli. Mwaliko wa kwanza halali huweka uhusiano.',
+  'pricing.referral.step2.title': 'Wanawezesha SupplierAdvisor',
+  'pricing.referral.step2.body':
+    'Kila kampuni iliyoalikwa hupata siku 30 kuendesha jukwaa lote kisha inaweza kujiunga kuanzia R299/mwezi au kuchagua ngazi ya kulipia mapema.',
+  'pricing.referral.step3.title': 'Ada za rufaa hugawiwa kwa kina',
+  'pricing.referral.step3.body':
+    'Malipo ya usajili unaostahili yakifanywa, L1 hupata 6%, L2 hupata 3%, na L3 hupata 1% (kiwango cha juu cha pamoja 10%).',
   'pricing.faq': 'Maswali ya bei',
+  'pricing.faq.1.q': 'Bei ni kwa mtumiaji au kwa kampuni?',
+  'pricing.faq.1.a':
+    'Bei ya SupplierAdvisor ni kwa workspace ya kampuni, si kwa kiti. Kila ngazi ya malipo inajumuisha watumiaji wa timu bila kikomo.',
+  'pricing.faq.2.q': '“Kuanzia R299/mwezi” inamaanisha nini?',
+  'pricing.faq.2.a':
+    'R299/mwezi ni kiwango cha sasa cha orodha ya kila mwezi kwa usajili mmoja wa kampuni. Ngazi za kulipia mapema za mwaka 1, 2, na 3 hupunguza gharama halisi ya kila mwezi.',
+  'pricing.faq.3.q': 'Je, ngazi zote za malipo zinajumuisha bidhaa ileile?',
+  'pricing.faq.3.a':
+    'Ndiyo. Kila ngazi inajumuisha moduli zilezile za mfumo msingi wa uendeshaji na zana zilezile za advisor. Tofauti ni muda wa malipo na punguzo.',
+  'pricing.faq.4.q': 'Jaribio la bure linafanyaje kazi?',
+  'pricing.faq.4.a':
+    'Kampuni mpya hupata jaribio la bure la siku 30 na ufikiaji kamili wa jukwaa. Hakuna kadi inayohitajika kuanza.',
+  'pricing.faq.5.q': 'Ada za rufaa zinahesabiwaje?',
+  'pricing.faq.5.a':
+    'Ada za rufaa zinatokana tu na malipo halisi ya usajili unaostahili. Mgawanyo ni 6% kwa L1, 3% kwa L2, na 1% kwa L3.',
+  'pricing.faq.6.q': 'Je, malipo ya rufaa yanatokana na mauzo ya bidhaa?',
+  'pricing.faq.6.a':
+    'Hapana. Malipo ya rufaa yanatumika kwa ada za usajili wa jukwaa la SupplierAdvisor, si kwa mauzo ya bidhaa au huduma kati ya washirika.',
+  'pricing.faq.7.q': 'Naweza kubadilisha ngazi ya malipo baadaye?',
+  'pricing.faq.7.a':
+    'Ndiyo. Kampuni zinaweza kuhamia kutoka kila mwezi hadi masharti ya kulipia mapema kwenye bili. Uboreshaji wa mapema huongeza muda wa usajili.',
   'pricing.step': 'Hatua ya {step}',
 };
 

@@ -92,15 +92,58 @@ const zu: Dict = {
   'footer.form.error': 'Ayikwazi ukujoyina manje. Sicela uzame futhi.',
   'pricing.kicker': 'Intengo',
   'pricing.title': 'Intengo ecacile yenkampani kusukela ku-R299/ngenyanga',
+  'pricing.lede':
+    'I-SupplierAdvisor yakhelwe izinkampani ezidinga uhlelo olulodwa lokusebenza ekuthengeni, ikhwalithi, ubudlelwano nabahlinzeki, isitoko kanye nezimali.',
   'pricing.ctaTrial': 'Qala isivivinyo samahhala',
   'pricing.ctaDemo': 'Bhukha idemo',
   'pricing.tiers': 'Amazinga okukhokha',
   'pricing.tiersBody': 'Wonke amazinga afaka abasebenzisi abangapheli kanye nobubanzi obufanayo bomkhiqizo ophelele we-SupplierAdvisor.',
+  'pricing.tier.monthly': 'Ngenyanga',
+  'pricing.tier.1y': 'Unyaka ongu-1',
+  'pricing.tier.2y': 'Iminyaka engu-2',
+  'pricing.tier.3y': 'Iminyaka engu-3',
+  'pricing.tierCta.monthly': 'Qala ngenyanga',
+  'pricing.tierCta.1y': 'Khetha unyaka ongu-1',
+  'pricing.tierCta.2y': 'Khetha iminyaka engu-2',
+  'pricing.tierCta.3y': 'Valela iminyaka engu-3',
   'pricing.monthlyList': 'Inani lanyanga zonke',
   'pricing.prepaidTerm': 'Isikhathi esikhokhelwe kusengaphambili sezinyanga ezingu-{months}',
   'pricing.save': 'Yonga u-{discount}% ({savings}) · ~{effective}/inyanga ngempela',
   'pricing.referralTitle': 'Uhlelo lokudlulisa: 6% / 3% / 1%',
+  'pricing.referral.level1': 'Inkampani oyimeme ngokuqondile',
+  'pricing.referral.level2': 'Inkampani emenywe ukudlulisa kwakho',
+  'pricing.referral.level3': 'Elinye izinga elijulile',
+  'pricing.referral.step1.title': 'Mema ozakwenu bokuhweba bangempela',
+  'pricing.referral.step1.body':
+    'Yabelana ngesixhumanisi sakho sokudlulisa nabahlinzeki, abathengi nozakwenu ohweba nabo ngempela. Isimemo sokuqala esivumelekile sigcina ubudlelwano.',
+  'pricing.referral.step2.title': 'Benza kusebenze i-SupplierAdvisor',
+  'pricing.referral.step2.body':
+    'Inkampani ngayinye emenywe ithola izinsuku ezingu-30 zokusebenzisa ipulatifomu ephelele bese ingabhalisela kusukela ku-R299/ngenyanga noma ikhethe izinga elikhokhelwe kusengaphambili.',
+  'pricing.referral.step3.title': 'Izimali zokudlulisa zabiwa ngobujula',
+  'pricing.referral.step3.body':
+    'Uma kukhokhwa ukubhalisa okufanelekile, i-L1 ithola u-6%, i-L2 ithola u-3%, kanti i-L3 ithola u-1% (ubuningi obuhlangene obungu-10%).',
   'pricing.faq': 'Imibuzo yentengo',
+  'pricing.faq.1.q': 'Intengo ingeyomsebenzisi noma yenkampani?',
+  'pricing.faq.1.a':
+    'Intengo ye-SupplierAdvisor ingeyendawo yokusebenza yenkampani, hhayi isihlalo ngasinye. Wonke amazinga akhokhelwayo afaka abasebenzisi beqembu abangapheli.',
+  'pricing.faq.2.q': 'Kusho ukuthini “kusukela ku-R299/ngenyanga”?',
+  'pricing.faq.2.a':
+    'I-R299/ngenyanga iyizinga lamanje lentengo yohlu yenyanga yokubhalisa inkampani eyodwa. Amazinga akhokhelwe kusengaphambili onyaka ongu-1, 2 no-3 anciphisa izindleko zenyanga ezisebenzayo.',
+  'pricing.faq.3.q': 'Ingabe wonke amazinga okukhokha afaka umkhiqizo ofanayo?',
+  'pricing.faq.3.a':
+    'Yebo. Izinga ngalinye lifaka amamojula afanayo e-core operating system namathuluzi afanayo e-advisor. Umehluko usenkathini yokukhokha nasesephulelweni.',
+  'pricing.faq.4.q': 'Isivivinyo samahhala sisebenza kanjani?',
+  'pricing.faq.4.a':
+    'Izinkampani ezintsha zithola isivivinyo samahhala sezinsuku ezingu-30 ngokufinyelela okuphelele kwepulatifomu. Ikhadi alidingeki ukuze uqale.',
+  'pricing.faq.5.q': 'Izimali zokudlulisa zibalwa kanjani?',
+  'pricing.faq.5.a':
+    'Izimali zokudlulisa zisuselwa kuphela ezinkokhelweni zangempela zokubhalisa okufanelekile. Ukwabiwa kungu-6% ku-L1, 3% ku-L2, no-1% ku-L3.',
+  'pricing.faq.6.q': 'Ingabe izinkokhelo zokudlulisa zisekelwe ekuthengisweni komkhiqizo?',
+  'pricing.faq.6.a':
+    'Cha. Izinkokhelo zokudlulisa zisebenza emalini yokubhalisa yeplatifomu ye-SupplierAdvisor, hhayi ekuthengisweni kwezimpahla noma izinsiza phakathi kozakwenu.',
+  'pricing.faq.7.q': 'Ngingashintsha izinga lami lokukhokha kamuva?',
+  'pricing.faq.7.a':
+    'Yebo. Izinkampani zingasuka enyangeni ziye kumigomo ekhokhelwe kusengaphambili ku-billing. Ukuvuselela kusenesikhathi kwandisa iwindi lokubhalisa.',
   'pricing.step': 'Isinyathelo {step}',
 };
 

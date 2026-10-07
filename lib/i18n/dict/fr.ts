@@ -89,15 +89,58 @@ const fr: Dict = {
   'footer.form.error': 'Impossible de rejoindre pour le moment. Veuillez réessayer.',
   'pricing.kicker': 'Tarifs',
   'pricing.title': 'Tarification transparente des entreprises à partir de R299/mois',
+  'pricing.lede':
+    'SupplierAdvisor est conçu pour les entreprises qui ont besoin d’un seul système d’exploitation pour les achats, la qualité, les relations fournisseurs, le stock et la finance.',
   'pricing.ctaTrial': 'Démarrer l\'essai gratuit',
   'pricing.ctaDemo': 'Réserver une démo',
   'pricing.tiers': 'Paliers de facturation',
   'pricing.tiersBody': 'Tous les paliers incluent des utilisateurs illimités et le même périmètre produit SupplierAdvisor complet.',
+  'pricing.tier.monthly': 'Mensuel',
+  'pricing.tier.1y': '1 an',
+  'pricing.tier.2y': '2 ans',
+  'pricing.tier.3y': '3 ans',
+  'pricing.tierCta.monthly': 'Commencer au mensuel',
+  'pricing.tierCta.1y': 'Choisir 1 an',
+  'pricing.tierCta.2y': 'Choisir 2 ans',
+  'pricing.tierCta.3y': 'Bloquer 3 ans',
   'pricing.monthlyList': 'Tarif mensuel',
   'pricing.prepaidTerm': 'Prépayé {months} mois',
   'pricing.save': 'Économisez {discount}% ({savings}) · ~{effective}/mo effectif',
   'pricing.referralTitle': 'Programme de parrainage : 6% / 3% / 1%',
+  'pricing.referral.level1': 'Entreprise invitée directement par vous',
+  'pricing.referral.level2': 'Entreprise invitée par votre filleul',
+  'pricing.referral.level3': 'Un niveau supplémentaire',
+  'pricing.referral.step1.title': 'Invitez de vrais partenaires commerciaux',
+  'pricing.referral.step1.body':
+    'Partagez votre lien de parrainage avec des fournisseurs, acheteurs et partenaires avec qui vous échangez réellement. La première invitation valide conserve la relation.',
+  'pricing.referral.step2.title': 'Ils activent SupplierAdvisor',
+  'pricing.referral.step2.body':
+    'Chaque entreprise invitée dispose de 30 jours pour utiliser toute la plateforme, puis peut s’abonner à partir de R299/mois ou choisir un palier prépayé.',
+  'pricing.referral.step3.title': 'Les commissions sont partagées par niveau',
+  'pricing.referral.step3.body':
+    'Lorsqu’un abonnement qualifié est payé, L1 reçoit 6%, L2 reçoit 3% et L3 reçoit 1% (maximum 10% combinés).',
   'pricing.faq': 'FAQ Tarifs',
+  'pricing.faq.1.q': 'Le prix est-il par utilisateur ou par entreprise ?',
+  'pricing.faq.1.a':
+    'La tarification SupplierAdvisor est par espace de travail entreprise, pas par siège. Tous les paliers payants incluent des utilisateurs d’équipe illimités.',
+  'pricing.faq.2.q': 'Que signifie « à partir de R299/mois » ?',
+  'pricing.faq.2.a':
+    'R299/mois est le tarif mensuel catalogue actuel pour un abonnement entreprise. Les paliers prépayés 1 an, 2 ans et 3 ans réduisent le coût mensuel effectif.',
+  'pricing.faq.3.q': 'Tous les paliers incluent-ils le même produit ?',
+  'pricing.faq.3.a':
+    'Oui. Chaque palier inclut les mêmes modules du système d’exploitation de base et les mêmes outils advisor. La différence porte sur la durée de facturation et la remise.',
+  'pricing.faq.4.q': 'Comment fonctionne l’essai gratuit ?',
+  'pricing.faq.4.a':
+    'Les nouvelles entreprises bénéficient d’un essai gratuit de 30 jours avec accès complet à la plateforme. Aucune carte n’est requise pour démarrer.',
+  'pricing.faq.5.q': 'Comment les commissions de parrainage sont-elles calculées ?',
+  'pricing.faq.5.a':
+    'Les commissions sont basées uniquement sur les paiements d’abonnement qualifiés effectivement encaissés. Le partage est de 6% en L1, 3% en L2 et 1% en L3.',
+  'pricing.faq.6.q': 'Les paiements de parrainage dépendent-ils des ventes de produits ?',
+  'pricing.faq.6.a':
+    'Non. Les paiements de parrainage s’appliquent aux frais d’abonnement de la plateforme SupplierAdvisor, pas aux ventes de biens ou services entre partenaires.',
+  'pricing.faq.7.q': 'Puis-je changer de palier de facturation plus tard ?',
+  'pricing.faq.7.a':
+    'Oui. Les entreprises peuvent passer du mensuel aux termes prépayés. Les renouvellements anticipés prolongent la période d’abonnement.',
   'pricing.step': 'Étape {step}',
 };
 

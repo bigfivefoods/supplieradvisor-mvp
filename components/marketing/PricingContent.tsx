@@ -13,6 +13,75 @@ import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/config';
 import { en, format, t, type Dict } from '@/lib/i18n/dict';
 
 export default function PricingContent({ locale = DEFAULT_LOCALE, dict = en }: { locale?: Locale; dict?: Dict }) {
+  const tierLabel = (id: string) =>
+    id === 'monthly'
+      ? t(dict, 'pricing.tier.monthly')
+      : id === '1y'
+        ? t(dict, 'pricing.tier.1y')
+        : id === '2y'
+          ? t(dict, 'pricing.tier.2y')
+          : t(dict, 'pricing.tier.3y');
+
+  const tierCta = (id: string) =>
+    id === 'monthly'
+      ? t(dict, 'pricing.tierCta.monthly')
+      : id === '1y'
+        ? t(dict, 'pricing.tierCta.1y')
+        : id === '2y'
+          ? t(dict, 'pricing.tierCta.2y')
+          : t(dict, 'pricing.tierCta.3y');
+
+  const referralLevelDescription = (index: number) =>
+    index === 0
+      ? t(dict, 'pricing.referral.level1')
+      : index === 1
+        ? t(dict, 'pricing.referral.level2')
+        : t(dict, 'pricing.referral.level3');
+
+  const stepTitle = (index: number) =>
+    index === 0
+      ? t(dict, 'pricing.referral.step1.title')
+      : index === 1
+        ? t(dict, 'pricing.referral.step2.title')
+        : t(dict, 'pricing.referral.step3.title');
+
+  const stepBody = (index: number) =>
+    index === 0
+      ? t(dict, 'pricing.referral.step1.body')
+      : index === 1
+        ? t(dict, 'pricing.referral.step2.body')
+        : t(dict, 'pricing.referral.step3.body');
+
+  const faqQ = (index: number) =>
+    index === 0
+      ? t(dict, 'pricing.faq.1.q')
+      : index === 1
+        ? t(dict, 'pricing.faq.2.q')
+        : index === 2
+          ? t(dict, 'pricing.faq.3.q')
+          : index === 3
+            ? t(dict, 'pricing.faq.4.q')
+            : index === 4
+              ? t(dict, 'pricing.faq.5.q')
+              : index === 5
+                ? t(dict, 'pricing.faq.6.q')
+                : t(dict, 'pricing.faq.7.q');
+
+  const faqA = (index: number) =>
+    index === 0
+      ? t(dict, 'pricing.faq.1.a')
+      : index === 1
+        ? t(dict, 'pricing.faq.2.a')
+        : index === 2
+          ? t(dict, 'pricing.faq.3.a')
+          : index === 3
+            ? t(dict, 'pricing.faq.4.a')
+            : index === 4
+              ? t(dict, 'pricing.faq.5.a')
+              : index === 5
+                ? t(dict, 'pricing.faq.6.a')
+                : t(dict, 'pricing.faq.7.a');
+
   return (
     <>
       {locale !== DEFAULT_LOCALE ? <LocaleDataScript dict={dict} /> : null}
@@ -22,8 +91,7 @@ export default function PricingContent({ locale = DEFAULT_LOCALE, dict = en }: {
             <p className="text-sm font-semibold uppercase tracking-wide text-sky-700">{t(dict, 'pricing.kicker')}</p>
             <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">{t(dict, 'pricing.title')}</h1>
             <p className="mt-6 text-lg leading-relaxed text-slate-700">
-              SupplierAdvisor is built for companies that need one operating system across procurement,
-              quality, supplier relationships, inventory, and finance.
+              {t(dict, 'pricing.lede')}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
@@ -51,7 +119,7 @@ export default function PricingContent({ locale = DEFAULT_LOCALE, dict = en }: {
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               {MARKETING_PRICING_TERMS.map((tier) => (
                 <article key={tier.id} className="rounded-2xl border border-slate-200 bg-white p-5">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{tier.label}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{tierLabel(tier.id)}</p>
                   <p className="mt-2 text-3xl font-black text-slate-900">{formatZar(tier.payZar)}</p>
                   <p className="text-sm text-slate-600">
                     {tier.months === 1
@@ -67,7 +135,7 @@ export default function PricingContent({ locale = DEFAULT_LOCALE, dict = en }: {
                       })}
                     </p>
                   ) : null}
-                  <p className="mt-3 text-sm text-slate-700">{tier.cta}</p>
+                  <p className="mt-3 text-sm text-slate-700">{tierCta(tier.id)}</p>
                 </article>
               ))}
             </div>
@@ -78,11 +146,11 @@ export default function PricingContent({ locale = DEFAULT_LOCALE, dict = en }: {
           <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
             <h2 className="text-2xl font-black tracking-tight sm:text-3xl">{t(dict, 'pricing.referralTitle')}</h2>
             <div className="mt-6 grid gap-4 sm:grid-cols-3">
-              {REFERRAL_LEVEL_DETAILS.map((level) => (
+              {REFERRAL_LEVEL_DETAILS.map((level, index) => (
                 <article key={level.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <h3 className="font-bold text-slate-900">{level.label}</h3>
                   <p className="mt-1 text-2xl font-black text-emerald-700">{level.rate}%</p>
-                  <p className="mt-1 text-sm text-slate-600">{level.description}</p>
+                  <p className="mt-1 text-sm text-slate-600">{referralLevelDescription(index)}</p>
                 </article>
               ))}
             </div>
@@ -92,8 +160,8 @@ export default function PricingContent({ locale = DEFAULT_LOCALE, dict = en }: {
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                     {format(t(dict, 'pricing.step'), { step: index + 1 })}
                   </p>
-                  <p className="mt-1 font-semibold text-slate-900">{step.title}</p>
-                  <p className="mt-1 text-sm leading-relaxed">{step.body}</p>
+                  <p className="mt-1 font-semibold text-slate-900">{stepTitle(index)}</p>
+                  <p className="mt-1 text-sm leading-relaxed">{stepBody(index)}</p>
                 </li>
               ))}
             </ol>
@@ -103,10 +171,10 @@ export default function PricingContent({ locale = DEFAULT_LOCALE, dict = en }: {
         <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
           <h2 className="text-2xl font-black tracking-tight sm:text-3xl">{t(dict, 'pricing.faq')}</h2>
           <div className="mt-6 space-y-4">
-            {PRICING_FAQ_ITEMS.map((item) => (
+            {PRICING_FAQ_ITEMS.map((item, index) => (
               <article key={item.question} className="rounded-2xl border border-slate-200 p-5">
-                <h3 className="text-lg font-bold text-slate-900">{item.question}</h3>
-                <p className="mt-2 leading-relaxed text-slate-700">{item.answer}</p>
+                <h3 className="text-lg font-bold text-slate-900">{faqQ(index)}</h3>
+                <p className="mt-2 leading-relaxed text-slate-700">{faqA(index)}</p>
               </article>
             ))}
           </div>
