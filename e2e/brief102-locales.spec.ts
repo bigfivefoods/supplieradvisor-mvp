@@ -4,6 +4,12 @@ const base = process.env.PLAYWRIGHT_BASE_URL || process.env.NEXT_PUBLIC_APP_URL 
 const locales = ['fr', 'ar', 'pt', 'sw', 'zu'] as const;
 const navLocales = ['en', 'fr', 'sw', 'zu', 'ar'] as const;
 const navWidths = [1024, 1280, 1440] as const;
+const minInlineByLocaleWidth: Partial<Record<(typeof navLocales)[number], Partial<Record<(typeof navWidths)[number], number>>>> = {
+  en: { 1280: 6, 1440: 9 },
+  fr: { 1280: 4, 1440: 6 },
+  sw: { 1280: 4, 1440: 6 },
+  zu: { 1280: 4, 1440: 6 },
+};
 const referralL1ByLocale: Record<(typeof locales)[number], string> = {
   fr: 'Invitation directe (L1)',
   ar: 'دعوة مباشرة (L1)',
@@ -336,6 +342,30 @@ for (const locale of navLocales) {
 
       expect(checks.missingRow).toBeFalsy();
       expect(checks.issues, checks.issues.join('\n')).toEqual([]);
+
+      const inlineLinks = page.locator('[data-landing-nav] nav a[data-top-nav-item]');
+      const inlineCount = await inlineLinks.count();
+      expect(inlineCount).toBeGreaterThan(0);
+
+      const expectedMin = minInlineByLocaleWidth[locale]?.[width];
+      if (typeof expectedMin === 'number') {
+        expect(inlineCount).toBeGreaterThanOrEqual(expectedMin);
+      }
+
+      const inlineLabels = (await inlineLinks.allTextContents()).map((text) => text.trim()).filter(Boolean);
+      const moreTrigger = page.locator('[data-landing-nav] button[data-top-nav-item="more"]');
+      if (await moreTrigger.isVisible()) {
+        await moreTrigger.click();
+        const menu = page.locator('[data-top-nav-more-menu]');
+        await expect(menu).toBeVisible();
+        const overflowLabels = (
+          await menu.locator('a[role="menuitem"]').allTextContents()
+        )
+          .map((text) => text.trim())
+          .filter(Boolean);
+        const duplicates = overflowLabels.filter((label) => inlineLabels.includes(label));
+        expect(duplicates).toEqual([]);
+      }
     });
   }
 }

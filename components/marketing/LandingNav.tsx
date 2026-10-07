@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -146,7 +147,7 @@ const GROUP_LABELS: Record<NavLink['group'], 'nav.groupProduct' | 'nav.groupPric
 
 function linkClass(active: boolean) {
   return [
-    'rounded-full px-2.5 py-2 text-xs font-semibold transition-colors whitespace-nowrap',
+    'inline-flex items-center rounded-full px-2.5 py-2 text-xs font-semibold transition-colors whitespace-nowrap',
     active
       ? 'bg-[#00b4d8]/12 text-[#0077b6] dark:bg-cyan-500/15 dark:text-cyan-300'
       : 'text-slate-600 hover:bg-slate-50 hover:text-[#0077b6] dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-cyan-300',
@@ -170,8 +171,11 @@ export default function LandingNav() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
-  const [desktopVisibleCount, setDesktopVisibleCount] = useState(3);
+  const [desktopVisibleCount, setDesktopVisibleCount] = useState(6);
   const [desktopMoreOpen, setDesktopMoreOpen] = useState(false);
+  const desktopNavRef = useRef<HTMLElement | null>(null);
+  const desktopMeasureMoreRef = useRef<HTMLSpanElement | null>(null);
+  const desktopMeasureLinkRefs = useRef<Record<string, HTMLSpanElement | null>>({});
   const desktopMoreButtonRef = useRef<HTMLButtonElement | null>(null);
   const desktopMorePanelRef = useRef<HTMLDivElement | null>(null);
 
@@ -275,18 +279,58 @@ export default function LandingNav() {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  useEffect(() => {
-    const updateDesktopCount = () => {
-      if (window.innerWidth >= 1536) {
-        setDesktopVisibleCount(LINKS.length);
-        return;
+  const updateDesktopVisibleCount = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    if (window.innerWidth < 1024) {
+      setDesktopVisibleCount(LINKS.length);
+      return;
+    }
+
+    const navNode = desktopNavRef.current;
+    if (!navNode) return;
+    const available = Math.floor(navNode.clientWidth);
+    if (available <= 0) return;
+
+    const moreWidth = Math.ceil(desktopMeasureMoreRef.current?.offsetWidth ?? 64);
+    let used = 0;
+    let count = 0;
+
+    for (const link of LINKS) {
+      const width = Math.ceil(desktopMeasureLinkRefs.current[link.id]?.offsetWidth ?? 0);
+      if (!width) continue;
+      const remaining = LINKS.length - (count + 1);
+      const reservedForMore = remaining > 0 ? moreWidth : 0;
+      if (used + width + reservedForMore <= available || count === 0) {
+        used += width;
+        count += 1;
+      } else {
+        break;
       }
-      setDesktopVisibleCount(0);
-    };
-    updateDesktopCount();
-    window.addEventListener('resize', updateDesktopCount);
-    return () => window.removeEventListener('resize', updateDesktopCount);
+    }
+
+    setDesktopVisibleCount(Math.max(1, Math.min(count, LINKS.length)));
   }, []);
+
+  useLayoutEffect(() => {
+    updateDesktopVisibleCount();
+    const navNode = desktopNavRef.current;
+    if (!navNode) return;
+    const observer = new ResizeObserver(() => updateDesktopVisibleCount());
+    observer.observe(navNode);
+    const rafId = window.requestAnimationFrame(updateDesktopVisibleCount);
+    const timeoutIds = [0, 80, 180, 360].map((delay) =>
+      window.setTimeout(updateDesktopVisibleCount, delay)
+    );
+    const fontsReady = document.fonts?.ready.then(updateDesktopVisibleCount);
+    window.addEventListener('resize', updateDesktopVisibleCount);
+    return () => {
+      observer.disconnect();
+      window.cancelAnimationFrame(rafId);
+      timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      void fontsReady;
+      window.removeEventListener('resize', updateDesktopVisibleCount);
+    };
+  }, [updateDesktopVisibleCount, locale]);
 
   useEffect(() => {
     if (!open) return;
@@ -454,9 +498,29 @@ export default function LandingNav() {
           </Link>
 
           <nav
-            className="hidden min-w-0 items-center gap-0.5 lg:flex"
+            ref={desktopNavRef}
+            className="hidden min-w-0 flex-1 items-center gap-0.5 overflow-hidden lg:flex"
             aria-label={t('nav.ariaPrimary')}
           >
+            <div className="pointer-events-none absolute -z-10 h-0 overflow-hidden whitespace-nowrap invisible" aria-hidden>
+              {LINKS.map((l) => (
+                <span
+                  key={`measure-${l.id}`}
+                  ref={(node) => {
+                    desktopMeasureLinkRefs.current[l.id] = node;
+                  }}
+                  className={linkClass(false)}
+                >
+                  {t(l.labelKey)}
+                </span>
+              ))}
+              <span
+                ref={desktopMeasureMoreRef}
+                className="rounded-full px-2.5 py-2 text-xs font-semibold"
+              >
+                {t('nav.more')}
+              </span>
+            </div>
             {desktopPrimaryLinks.map((l) => renderLink(l, false))}
             {desktopOverflowLinks.length ? (
               <div className="relative">
@@ -475,6 +539,7 @@ export default function LandingNav() {
                 {desktopMoreOpen ? (
                   <div
                     ref={desktopMorePanelRef}
+                    data-top-nav-more-menu
                     className="absolute start-0 z-[360] mt-2 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
                     role="menu"
                     aria-label={t('nav.ariaMoreMenu')}
@@ -504,28 +569,20 @@ export default function LandingNav() {
             ) : null}
           </nav>
 
-          <div className="hidden items-center gap-2 lg:flex shrink-0">
+          <div className="hidden shrink-0 items-center gap-2 lg:flex">
             <AppearanceToggle />
             <LanguageSwitcher compact />
             <button
               type="button"
-              onClick={goMember}
-              className="hidden min-h-[40px] rounded-full px-3 py-2 text-sm font-semibold text-slate-600 transition-all hover:text-[#0077b6] xl:inline-flex xl:px-3.5 xl:py-2.5 dark:text-slate-300 dark:hover:text-cyan-300"
-              data-top-nav-item="member-cta"
-            >
-              {t('nav.member')}
-            </button>
-            <button
-              type="button"
               onClick={goLogin}
-              className="hidden min-h-[40px] rounded-full border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition-all hover:border-[#00b4d8] hover:text-[#0077b6] xl:inline-flex xl:px-5 xl:py-2.5 dark:border-slate-700 dark:text-slate-200"
+              className="hidden min-h-[40px] rounded-full border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition-all hover:border-[#00b4d8] hover:text-[#0077b6] 2xl:inline-flex 2xl:px-5 2xl:py-2.5 dark:border-slate-700 dark:text-slate-200"
               data-top-nav-item="login-cta"
             >
               {t('nav.logIn')}
             </button>
             <Link
               href="/join"
-              className="hidden min-h-[40px] items-center gap-1.5 rounded-full bg-[#00b4d8] px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0099b8] xl:inline-flex xl:px-5 xl:py-2.5"
+              className="hidden min-h-[40px] items-center gap-1.5 rounded-full bg-[#00b4d8] px-3 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#0099b8] 2xl:inline-flex 2xl:px-5 2xl:py-2.5"
               data-top-nav-item="trial-cta"
             >
               {t('nav.startTrial')}
