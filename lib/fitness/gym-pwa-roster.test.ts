@@ -16,41 +16,41 @@ store.settings = {
   brand_name: 'VUKA Fitness',
 };
 store.coaches.push({
-  id: 'coh_jarryd',
+  id: 'coh_casey',
   code: 'C1',
-  name: 'Jarryd',
-  email: 'jlunn45@gmail.com',
+  name: 'Casey Example',
+  email: 'casey.coach@example.test',
   active: true,
   portal_token: 'coach_110_live',
 } as FitCoach);
 store.clients.push({
-  id: 'cli_aimee',
+  id: 'cli_riley',
   code: 'M1',
-  name: 'Aimee Le Roux',
-  email: 'aimeeleroux1@gmail.com',
+  name: 'Riley Fixture',
+  email: 'riley.fixture@example.test',
   active: true,
   created_at: '2026-01-01',
 } as FitClient);
 store.clients.push({
-  id: 'cli_jared',
+  id: 'cli_jordan',
   code: 'M2',
-  name: 'Jared-Wade Cawood',
-  email: 'jaredcawood77@gmail.com',
+  name: 'Jordan Example',
+  email: 'jordan.both@example.test',
   active: true,
   created_at: '2026-01-01',
 } as FitClient);
 store.coaches.push({
-  id: 'coh_jared',
+  id: 'coh_jordan',
   code: 'C2',
-  name: 'Jared',
-  email: 'jaredcawood77@gmail.com',
+  name: 'Jordan',
+  email: 'jordan.both@example.test',
   active: true,
 } as FitCoach);
 
 const coachOnly = linkGymPersonToPwa(store, {
   companyId: 110,
-  email: 'jlunn45@gmail.com',
-  displayName: 'jarryd',
+  email: 'casey.coach@example.test',
+  displayName: 'casey',
   createIfMissing: true,
 });
 assert.equal(coachOnly.createdMember, false);
@@ -59,26 +59,26 @@ assert.equal(coachOnly.links[0].role, 'coach');
 assert.equal(coachOnly.links[0].portal_token, 'coach_110_live');
 assert.ok(isGymCoachPortalPath(coachOnly.links[0].portal_path));
 assert.equal(
-  store.clients.filter((c) => c.email === 'jlunn45@gmail.com').length,
+  store.clients.filter((c) => c.email === 'casey.coach@example.test').length,
   0
 );
 
 const memberOnly = linkGymPersonToPwa(store, {
   companyId: 110,
-  email: 'aimeeleroux1@gmail.com',
-  displayName: 'Aimee Le Roux',
+  email: 'riley.fixture@example.test',
+  displayName: 'Riley Fixture',
   createIfMissing: true,
 });
 assert.equal(memberOnly.createdMember, false);
 assert.equal(memberOnly.links.length, 1);
 assert.equal(memberOnly.links[0].role, 'member');
 assert.ok(String(memberOnly.links[0].portal_token).startsWith('member_110_'));
-assert.equal(store.clients.find((c) => c.id === 'cli_aimee')?.portal_token, memberOnly.links[0].portal_token);
+assert.equal(store.clients.find((c) => c.id === 'cli_riley')?.portal_token, memberOnly.links[0].portal_token);
 
 const both = linkGymPersonToPwa(store, {
   companyId: 110,
-  email: 'jaredcawood77@gmail.com',
-  displayName: 'Jared',
+  email: 'jordan.both@example.test',
+  displayName: 'Jordan',
   createIfMissing: true,
 });
 assert.equal(both.createdMember, false);
@@ -87,7 +87,7 @@ assert.deepEqual(
   ['coach', 'member']
 );
 assert.equal(preferredGymPwaLink(both.links)?.role, 'coach');
-assert.ok(store.coaches.find((c) => c.id === 'coh_jared')?.portal_token);
+assert.ok(store.coaches.find((c) => c.id === 'coh_jordan')?.portal_token);
 
 const unknown = linkGymPersonToPwa(store, {
   companyId: 110,

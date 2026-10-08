@@ -176,8 +176,8 @@ desk.clients.push({
 const wallet = emptyFitgraphStore();
 wallet.clients.push({
   id: 'cli_join',
-  name: 'Jarryd',
-  email: 'jlunn45@gmail.com',
+  name: 'Casey Example',
+  email: 'casey.coach@example.test',
   portal_token: 'member_110_old',
   code: 'J1',
   created_at: '2026-08-27',
@@ -373,41 +373,41 @@ assert.ok(
 const liveClients = emptyFitgraphStore();
 liveClients.clients.push(
   {
-    id: 'cli_athaliah',
+    id: 'cli_morgan',
     code: 'A',
-    name: 'Athaliah Hembert',
+    name: 'Morgan Sample',
     created_at: '2026-08-01T00:00:00.000Z',
     updated_at: '2026-08-01T00:00:00.000Z',
   },
   {
-    id: 'vuka_cli_athalah_hembert',
+    id: 'vuka_cli_morgan_samples',
     code: 'B',
-    name: 'Athalah Hembert',
+    name: 'Morgan Samples',
     created_at: '2026-08-01T00:00:00.000Z',
     updated_at: '2026-08-01T00:00:00.000Z',
   }
 );
 const foldedClients = emptyFitgraphStore();
 foldedClients.clients.push({
-  id: 'cli_athaliah',
+  id: 'cli_morgan',
   code: 'A',
-  name: 'Athaliah Hembert',
+  name: 'Morgan Sample',
   created_at: '2026-08-01T00:00:00.000Z',
   updated_at: '2026-09-03T12:00:00.000Z',
 });
-foldedClients.removed_ids = { clients: ['vuka_cli_athalah_hembert'] };
+foldedClients.removed_ids = { clients: ['vuka_cli_morgan_samples'] };
 const afterClientFold = mergeFitgraphStores(liveClients, foldedClients);
-assert.equal(afterClientFold.clients.map((c) => c.id).join(','), 'cli_athaliah');
+assert.equal(afterClientFold.clients.map((c) => c.id).join(','), 'cli_morgan');
 assert.ok(
-  afterClientFold.removed_ids?.clients?.includes('vuka_cli_athalah_hembert')
+  afterClientFold.removed_ids?.clients?.includes('vuka_cli_morgan_samples')
 );
 
 const liveCoaches = emptyFitgraphStore();
 liveCoaches.coaches.push(
   {
-    id: 'jared',
-    code: 'JAR',
-    name: 'Jared-Wade Cawood',
+    id: 'jordan',
+    code: 'JOR',
+    name: 'Jordan Example',
     created_at: '2026-01-01T00:00:00.000Z',
   },
   {
@@ -419,14 +419,14 @@ liveCoaches.coaches.push(
 );
 const droppedCoaches = emptyFitgraphStore();
 droppedCoaches.coaches.push({
-  id: 'jared',
-  code: 'JAR',
-  name: 'Jared-Wade Cawood',
+  id: 'jordan',
+  code: 'JOR',
+  name: 'Jordan Example',
   created_at: '2026-01-01T00:00:00.000Z',
 });
 droppedCoaches.removed_ids = { coaches: ['coh_jyd'] };
 const afterCoachDrop = mergeFitgraphStores(liveCoaches, droppedCoaches);
-assert.equal(afterCoachDrop.coaches.map((c) => c.id).join(','), 'jared');
+assert.equal(afterCoachDrop.coaches.map((c) => c.id).join(','), 'jordan');
 assert.ok(afterCoachDrop.removed_ids?.coaches?.includes('coh_jyd'));
 
 console.log('fitgraph-merge.test.ts ok');
