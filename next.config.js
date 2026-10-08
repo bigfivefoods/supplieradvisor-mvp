@@ -132,6 +132,11 @@ const nextConfig = {
   ],
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion'],
+    // Next 16.4 typechecks with `tsc` by default, which includes *.test.ts.
+    // The previous checker skipped those files. Several unit tests (including
+    // lib/fitness) already fail that stricter pass, and CI typechecks app code
+    // separately via tsconfig.typecheck.json.
+    useTypeScriptCli: false,
   },
   images: {
     remotePatterns: [
