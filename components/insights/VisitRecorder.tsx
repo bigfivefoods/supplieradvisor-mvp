@@ -22,6 +22,7 @@ import {
   readUtm,
   screenBand,
   scrollBand,
+  validEventId,
   visitorCookieValue,
   type InsightEvent,
   type Utm,
@@ -96,7 +97,9 @@ function writeSession(session: VisitSession) {
   }
 }
 
-function context(session: VisitSession, path: string): Omit<InsightEvent, 'k' | 'p'> {
+type ClientEvent = Omit<InsightEvent, 'id'> & { id?: string };
+
+function context(session: VisitSession, path: string): Omit<ClientEvent, 'k' | 'p'> {
   const width = window.innerWidth || 0;
   const ua = navigator.userAgent || '';
   const standalone = (() => {
@@ -128,9 +131,13 @@ function context(session: VisitSession, path: string): Omit<InsightEvent, 'k' | 
   };
 }
 
-function send(events: InsightEvent[], beacon = false) {
+function send(events: ClientEvent[], beacon = false) {
   if (!events.length) return;
-  const body = JSON.stringify({ v: 1, site: INSIGHTS_SITE, project: INSIGHTS_SITE, e: events.slice(0, 10) });
+  const stamped = events.slice(0, 10).map((event) => ({
+    ...event,
+    id: validEventId(event.id) || crypto.randomUUID(),
+  }));
+  const body = JSON.stringify({ v: 1, site: INSIGHTS_SITE, e: stamped });
   try {
     if (beacon && navigator.sendBeacon) {
       navigator.sendBeacon(INSIGHTS_COLLECT_PATH, new Blob([body], { type: 'text/plain' }));
@@ -208,7 +215,7 @@ export default function VisitRecorder() {
     };
     measureScroll();
 
-    const view: InsightEvent = { k: 'pageview', p: path, ...context(session, path) };
+    const view: ClientEvent = { k: 'pageview', p: path, ...context(session, path) };
     if (maxScroll > 0) view.scroll = maxScroll;
     send([view]);
 

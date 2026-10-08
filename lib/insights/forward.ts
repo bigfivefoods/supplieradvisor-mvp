@@ -1,38 +1,41 @@
-import { DEFAULT_INGEST_URL, batchContainsRawIp, type InsightsBatch } from './visitor';
+import {
+  DEFAULT_INGEST_URL,
+  batchContainsEmail,
+  batchContainsRawIp,
+  type InsightsBatch,
+} from './visitor';
 
-/** Production forwards unless explicitly disabled. Tests and local dev do not. */
-export function shouldForwardInsights(): boolean {
-  const flag = String(process.env.WEBSITE_INSIGHTS_FORWARD || '').trim().toLowerCase();
-  if (flag === '0' || flag === 'false' || flag === 'off') return false;
-  if (flag === '1' || flag === 'true' || flag === 'on') return true;
-  return process.env.VERCEL_ENV === 'production';
-}
-
+/**
+ * The Big Five Group collector on main. Hardcoded so production does not need a URL env var.
+ */
 export function insightsIngestUrl(): string {
-  const configured = String(process.env.WEBSITE_INSIGHTS_INGEST_URL || '').trim();
-  if (configured) return configured;
   return DEFAULT_INGEST_URL;
 }
 
 /**
- * Send one batch to the existing Website Insights collector.
- * Throws if the batch still contains an address field, so a bug cannot store one.
+ * Send one batch to https://bigfivegroup.africa/api/insights/collect.
+ * The header is `x-insights-key` from `INSIGHTS_INGEST_KEY` (already on the
+ * supplieradvisor-mvp Vercel project). A missing key, an unsafe batch, or a
+ * network error drops the batch and never throws.
  */
 export async function forwardInsights(
   batch: InsightsBatch,
   fetchImpl: typeof fetch = fetch
 ): Promise<void> {
-  if (!shouldForwardInsights()) return;
-  if (batchContainsRawIp(batch)) {
-    throw new Error('Refusing to forward a Website Insights batch that contains an address');
+  const key = String(process.env.INSIGHTS_INGEST_KEY || '').trim();
+  if (!key) return;
+  if (batchContainsRawIp(batch) || batchContainsEmail(batch)) return;
+  try {
+    await fetchImpl(insightsIngestUrl(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain',
+        'x-insights-key': key,
+      },
+      body: JSON.stringify(batch),
+      cache: 'no-store',
+    });
+  } catch {
+    // Drop. Never log the key, the payload, or an address.
   }
-  const headers: Record<string, string> = { 'Content-Type': 'text/plain' };
-  const key = String(process.env.WEBSITE_INSIGHTS_INGEST_KEY || '').trim();
-  if (key) headers['x-insights-key'] = key;
-  await fetchImpl(insightsIngestUrl(), {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(batch),
-    cache: 'no-store',
-  });
 }

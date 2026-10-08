@@ -185,11 +185,9 @@ export default function PrivacyPage() {
               </li>
             </ul>
             <p className="mt-3">
-              If you are signed in, the insights record may include the email address on that
-              session. That email is sent only in the channel investor-portal administrators
-              already use. We do not show your name or email on any public page because of this
-              recording. Do Not Track and Global Privacy Control remain the opt-out: when either
-              signal is on, nothing is recorded.
+              We do not record email addresses, names, form contents, GPS, or a raw IP address in
+              these visit statistics. Do Not Track and Global Privacy Control remain the opt-out:
+              when either signal is on, nothing is recorded.
             </p>
           </section>
 

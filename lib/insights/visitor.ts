@@ -11,12 +11,16 @@
 export const VISITOR_COOKIE = 'sa_vid';
 /** About 180 days. The id is random; it is not derived from an IP address. */
 export const VISITOR_MAX_AGE_SEC = 180 * 24 * 60 * 60;
-export const INSIGHTS_SITE = 'supplieradvisor-mvp';
+/** Canonical site the Big Five Group collector stores. Aliases are rewritten to this. */
+export const INSIGHTS_SITE = 'supplieradvisor.com';
 export const INSIGHTS_COLLECT_PATH = '/api/insights/collect';
+/** Hardcoded so production does not need a second URL env var. */
 export const DEFAULT_INGEST_URL = 'https://bigfivegroup.africa/api/insights/collect';
 
 const VISITOR_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+/** 32 hex, or any UUID (8-4-4-4-12). The visitor cookie id is not reused as an event id. */
+const EVENT_ID = /^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 
 export const EVENT_KINDS = ['pageview', 'engage', 'pdf', 'outbound', 'click'] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
@@ -38,6 +42,8 @@ export type Utm = {
 export type InsightEvent = {
   k: EventKind;
   p: string;
+  /** 32 hex or UUID. Required on every event the collector stores. */
+  id: string;
   a?: boolean;
   r?: string;
   u?: Utm;
@@ -67,14 +73,11 @@ export type InsightEvent = {
   industry?: string;
   size?: string;
   network?: string;
-  /** Session email, attached only by the server from a verified session. */
-  email?: string;
 };
 
 export type InsightsBatch = {
   v: 1;
   site: typeof INSIGHTS_SITE;
-  project: typeof INSIGHTS_SITE;
   e: InsightEvent[];
 };
 
@@ -367,6 +370,11 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+export function validEventId(raw: unknown): string | null {
+  if (typeof raw !== 'string' || !EVENT_ID.test(raw)) return null;
+  return raw.toLowerCase();
+}
+
 /** Accept a client event and return only the fields we are willing to forward. */
 export function sanitizeClientEvent(input: unknown): InsightEvent | null {
   const row = asRecord(input);
@@ -376,7 +384,11 @@ export function sanitizeClientEvent(input: unknown): InsightEvent | null {
   const path = publicPath(typeof row.p === 'string' ? row.p : '');
   if (!path) return null;
 
-  const event: InsightEvent = { k: kind as EventKind, p: path };
+  const event: InsightEvent = {
+    k: kind as EventKind,
+    p: path,
+    id: validEventId(row.id) || crypto.randomUUID(),
+  };
   if (typeof row.a === 'boolean') event.a = row.a;
 
   const referrer = cleanReferrer(typeof row.r === 'string' ? row.r : '');
@@ -426,6 +438,11 @@ export function sanitizeClientEvent(input: unknown): InsightEvent | null {
   if (typeof row.scroll === 'number' && Number.isFinite(row.scroll)) {
     event.scroll = scrollBand(Math.min(100, Math.max(0, row.scroll)) / 100);
   }
+  if (kind === 'engage') {
+    const ms = event.ms ?? 0;
+    const scroll = event.scroll ?? 0;
+    if (ms < 500 && scroll <= 0) return null;
+  }
   if (typeof row.visitor === 'string' && VISITOR_ID.test(row.visitor)) {
     event.visitor = row.visitor.toLowerCase();
   }
@@ -448,7 +465,7 @@ export function sanitizeBatch(input: unknown): InsightsBatch | null {
     .map((event) => sanitizeClientEvent(event))
     .filter((event): event is InsightEvent => Boolean(event));
   if (!events.length) return null;
-  return { v: 1, site: INSIGHTS_SITE, project: INSIGHTS_SITE, e: events };
+  return { v: 1, site: INSIGHTS_SITE, e: events };
 }
 
 const STORED_IP_KEYS = [
@@ -469,14 +486,23 @@ const STORED_IP_KEYS = [
   'zip',
 ];
 
-/** Last-line check before anything is forwarded or logged. */
-export function batchContainsRawIp(batch: InsightsBatch): boolean {
+const EMAIL_KEYS = ['email', 'email_address', 'emailAddress', 'e_mail'];
+
+function looksLikeEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function batchHasForbidden(
+  batch: InsightsBatch,
+  keys: string[],
+  valueHit: (value: string) => boolean
+): boolean {
   const stack: unknown[] = [batch];
   const seen = new Set<unknown>();
   while (stack.length) {
     const cur = stack.pop();
     if (!cur || typeof cur !== 'object') {
-      if (typeof cur === 'string' && looksLikeIp(cur)) return true;
+      if (typeof cur === 'string' && valueHit(cur)) return true;
       continue;
     }
     if (seen.has(cur)) continue;
@@ -486,9 +512,19 @@ export function batchContainsRawIp(batch: InsightsBatch): boolean {
       continue;
     }
     for (const [key, value] of Object.entries(cur as Record<string, unknown>)) {
-      if (STORED_IP_KEYS.includes(key)) return true;
+      if (keys.includes(key)) return true;
       stack.push(value);
     }
   }
   return false;
+}
+
+/** Last-line check before anything is forwarded or logged. */
+export function batchContainsRawIp(batch: InsightsBatch): boolean {
+  return batchHasForbidden(batch, STORED_IP_KEYS, looksLikeIp);
+}
+
+/** Email addresses and form-style email fields never leave this server. */
+export function batchContainsEmail(batch: InsightsBatch): boolean {
+  return batchHasForbidden(batch, EMAIL_KEYS, looksLikeEmail);
 }
