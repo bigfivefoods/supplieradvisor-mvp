@@ -22,6 +22,7 @@ const PUBLIC_EXACT = new Set([
   '/api/health',
   '/api/system/health',
   '/api/csp-report',
+  '/api/insights/collect',
   '/api/system/apple-pay-domain-status',
   '/api/fx/rates',
   '/api/invites/validate',

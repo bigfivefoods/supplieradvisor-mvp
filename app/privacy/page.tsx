@@ -35,7 +35,7 @@ export default function PrivacyPage() {
         <h1 className="text-4xl md:text-5xl font-black tracking-[-2px] text-slate-900 mb-4">
           Privacy Policy
         </h1>
-        <p className="text-slate-500 mb-10">Last updated: 10 July 2026 · SupplierAdvisor® (South Africa)</p>
+        <p className="text-slate-500 mb-10">Last updated: 8 October 2026 · SupplierAdvisor® (South Africa)</p>
 
         <div className="prose prose-slate max-w-none space-y-8 text-[15px] leading-relaxed text-slate-700">
           <section>
@@ -66,8 +66,9 @@ export default function PrivacyPage() {
                 team membership, ratings, and related commercial records you enter on the platform.
               </li>
               <li>
-                <strong>Technical data</strong> — device, browser, IP, approximate location, cookies
-                and similar technologies for security and product improvement.
+                <strong>Technical data</strong> — device, browser and operating-system family, a
+                screen-width band, language, and the cookies described below, for security and to
+                understand how the public site is used.
               </li>
             </ul>
           </section>
@@ -135,9 +136,60 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-bold text-slate-900 mb-2">8. Cookies</h2>
             <p>
-              We use essential cookies for authentication and session security, and limited
-              analytics cookies to understand product usage. You can control non-essential cookies
-              via your browser settings.
+              We use essential cookies for authentication and session security. We also set one
+              first-party visitor cookie, <span className="font-semibold">sa_vid</span>, kept for
+              about 180 days. It holds a random identifier, how many visits that identifier has
+              made, and when the last visit was. It is not derived from your IP address. We use it
+              only to tell a new visit from a returning one, and to see return frequency and how
+              recently someone came back. The pages in the current visit are kept in the browser
+              tab until that tab closes. We do not show a cookie banner. If your browser sends Do
+              Not Track or Global Privacy Control, we do not set this cookie and we record nothing.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold text-slate-900 mb-2">8A. Website visit statistics</h2>
+            <p className="mb-2">
+              A visit to the public site can be recorded in the same Website Insights store that
+              Big Five Group uses for its investor portal. Vercel may still provide separate daily
+              totals. We do not sell these records, and this site does not email, Slack, or
+              otherwise alert anyone about a visit.
+            </p>
+            <p className="mb-2">When recording is on, a visit can include:</p>
+            <ul className="list-disc pl-5 space-y-2">
+              <li>
+                <strong>Organisation label, industry, size and network type</strong> — from a
+                server-side lookup of the connection. We do not store the raw IP address in our
+                database, cache, or logs.
+              </li>
+              <li>
+                <strong>Coarse network location</strong> — country, region, city and timezone. This
+                is the network’s location, not GPS, and not a precise position.
+              </li>
+              <li>
+                <strong>Device</strong> — device type, browser, operating system, a screen-width
+                band rather than exact pixels, and language.
+              </li>
+              <li>
+                <strong>How you arrived</strong> — referrer, and UTM source, medium, campaign,
+                content and term.
+              </li>
+              <li>
+                <strong>What you did</strong> — landing page, exit page, the first pages of a
+                multi-page visit, time on page, scroll depth, a PDF download’s file name, the site
+                name of an outbound link, and a button label.
+              </li>
+              <li>
+                <strong>New or returning</strong> — using the visitor cookie above, including return
+                frequency and recency.
+              </li>
+            </ul>
+            <p className="mt-3">
+              If you are signed in, the insights record may include the email address on that
+              session. That email is sent only in the channel investor-portal administrators
+              already use. We do not show your name or email on any public page because of this
+              recording. Do Not Track and Global Privacy Control remain the opt-out: when either
+              signal is on, nothing is recorded.
             </p>
           </section>
 

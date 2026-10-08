@@ -3,6 +3,7 @@
   { "route": "/api/health", "methods": ["GET"], "reason": "Platform liveness endpoint" },
   { "route": "/api/system/health", "methods": ["GET"], "reason": "System health endpoint" },
   { "route": "/api/csp-report", "methods": ["POST"], "reason": "Public CSP report ingestion endpoint" },
+  { "route": "/api/insights/collect", "methods": ["GET", "POST"], "reason": "Public Website Insights beacon. Do Not Track records nothing." },
   { "route": "/api/system/apple-pay-domain-status", "methods": ["GET"], "reason": "Apple Pay domain verification" },
   { "route": "/api/fx/rates", "methods": ["GET"], "reason": "Public FX pricing" },
   { "route": "/api/invites/validate", "methods": ["GET"], "reason": "Invite validation is token-based and intentionally public" },
