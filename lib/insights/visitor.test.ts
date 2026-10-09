@@ -30,6 +30,9 @@ import {
   clickLabelFor,
   geoFromHeaders,
   isBotUa,
+  visitAttribution,
+  withVitalDevice,
+  type Utm,
 } from './visitor';
 
 const EVENT_ID =
@@ -433,5 +436,21 @@ assert.equal(isBotUa('Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google
 assert.equal(isBotUa('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/120.0 Safari/537.36'), true);
 assert.equal(isBotUa(''), true);
 assert.equal(isBotUa('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'), false);
+
+// Campaign + referrer only on the first page view of a visit (counted once per visit).
+const utmSession = { referrer: 'linkedin.com', utm: { s: 'linkedin', c: 'q4' } as Utm };
+assert.deepEqual(visitAttribution(utmSession, 'pageview'), { r: 'linkedin.com', u: { s: 'linkedin', c: 'q4' } });
+assert.deepEqual(visitAttribution(utmSession, 'engage'), {});
+assert.deepEqual(visitAttribution({ ...utmSession, attributed: true }, 'pageview'), {});
+assert.deepEqual(visitAttribution({}, 'pageview'), {});
+
+// Page-speed rows keep the device: client value wins, otherwise from the user agent.
+const iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+const dv = withVitalDevice([{ k: 'vital', p: '/' }, { k: 'vital', p: '/', device: 'tablet' as const }, { k: 'pageview', p: '/' }], iphone);
+assert.equal(dv[0].device, 'mobile');
+assert.equal(dv[1].device, 'tablet');
+assert.equal(dv[2].device, undefined);
+const sv = sanitizeBatch({ v: 1, e: [{ k: 'vital', p: '/', l: 'lcp', v: 1200, device: 'mobile' }] });
+assert.equal(sv?.e[0].device, 'mobile');
 
 console.log('visitor.test.ts: ok');
