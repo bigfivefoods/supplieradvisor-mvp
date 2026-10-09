@@ -1,0 +1,72 @@
+{
+  "example": true,
+  "import_version": "2026-08-19",
+  "submissions": [
+    {
+      "kind": "group",
+      "submitted_at": "2026-01-01",
+      "heard_about": "OTHER",
+      "name": "Alex Example",
+      "id_number": "0001015009086",
+      "date_of_birth": "2000-01-01",
+      "phone": "0000000000",
+      "email": "alex.example@example.test",
+      "start_date": "2026-01-01",
+      "occupation": "Example",
+      "employer_student_number": null,
+      "medical_aid": "Example Aid",
+      "medical_aid_plan": "Example Plan",
+      "emergency_contact": "Example Contact 0000000000",
+      "address": "1 Example Street, Testville",
+      "gp": "Dr Example",
+      "parq": {
+        "heart_condition": false,
+        "chest_pain_activity": false,
+        "chest_pain_rest": false,
+        "dizziness_unconscious": false,
+        "taking_medication": false,
+        "other_reason": false,
+        "pain_injuries": false,
+        "surgeries_12m": false,
+        "chronic_disease": false
+      },
+      "parq_explanation": null,
+      "signature_urls": [],
+      "terms_accepted": true,
+      "parq_accepted": true,
+      "class_option": "5AM MWF",
+      "class_amount_zar": 908.5,
+      "debit_amount_zar": 908.5,
+      "account_holder": "Alex Example",
+      "account_type": "cheque",
+      "account_number": "0000000000",
+      "bank_name": "Example Bank",
+      "source": "jotform_import",
+      "source_id": "example-1",
+      "signature_name": "Alex Example"
+    }
+  ],
+  "roster": [
+    {
+      "name": "Alex Example",
+      "amount_zar": 908.5,
+      "class_hint": "5AM MWF",
+      "note": "Example only"
+    }
+  ],
+  "name_folds": [
+    {
+      "aliases": ["alex sampel", "alex example"],
+      "canonical": "Alex Example"
+    }
+  ],
+  "coaches": [
+    {
+      "name": "Jordan Example",
+      "email": "jordan.coach@example.test",
+      "code": "JOR",
+      "match_name": "example",
+      "avoid_name": "decoy"
+    }
+  ]
+}

@@ -108,9 +108,11 @@ import {
 } from '@/lib/services/member-invite';
 import { loadFitgraphMerged, saveFitgraphMerged, saveFitgraphPatch } from '@/lib/fitness/fitgraph-io';
 import {
+  isVukaFitnessCompany,
   persistVukaCatalogIfNeeded,
   storeUsesClassSubscribe,
 } from '@/lib/fitness/vuka-class-catalog';
+import { loadVukaMemberSeed } from '@/lib/fitness/vuka-member-seed-server';
 import { applyFloorTaskAction } from '@/lib/services/advisor-floor-tasks';
 import { GYM_DEFAULT_TZ, isoDateInZone } from '@/lib/fitness/gym-local-time';
 import { applyMemberDebitBank } from '@/lib/fitness/member-debit-bank';
@@ -156,6 +158,18 @@ type Entity =
 
 async function loadStore(companyId: number, opts?: { fresh?: boolean }) {
   return loadFitgraphMerged(companyId, opts);
+}
+
+async function vukaMemberSeedFor(companyId: number, store: FitgraphStore) {
+  if (
+    !isVukaFitnessCompany({
+      companyId,
+      tradingName: store.settings?.brand_name,
+    })
+  ) {
+    return undefined;
+  }
+  return loadVukaMemberSeed(companyId);
 }
 
 async function saveStore(
@@ -276,6 +290,7 @@ export async function GET(request: NextRequest) {
       {
         tradingName: loaded.store.settings?.brand_name,
         applyCatalog: false,
+        seed: await vukaMemberSeedFor(companyId, loaded.store),
       }
     );
 
@@ -388,7 +403,8 @@ export async function POST(request: NextRequest) {
       const withCatalog = await persistVukaCatalogIfNeeded(
         companyId,
         demo,
-        async () => undefined
+        async () => undefined,
+        { seed: await vukaMemberSeedFor(companyId, demo) }
       );
       await saveStore(companyId, meta, withCatalog);
       return NextResponse.json({

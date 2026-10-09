@@ -37,6 +37,7 @@ import {
   vukaDeskSettled,
 } from './vuka-roster';
 import { applyMemberDebitBank } from './member-debit-bank';
+import { FIXTURE_COACHES, FIXTURE_VUKA_SEED } from './vuka-member-seed.fixture';
 
 assert.equal(isVukaFitnessCompany({ companyId: VUKA_COMPANY_ID }), true);
 assert.equal(isVukaFitnessCompany({ tradingName: 'VUKA Fitness' }), true);
@@ -384,19 +385,19 @@ void (async () => {
   };
   leftover.clients = [
     {
-      id: 'vuka_cli_athalah_hembert',
+      id: 'vuka_cli_morgan_samples',
       code: 'VUKA-001',
-      name: 'Athalah Hembert',
-      email: 'athalah@old.test',
+      name: 'Morgan Samples',
+      email: 'typo@example.test',
       active: true,
       created_at: '2026-08-01T00:00:00.000Z',
       updated_at: '2026-08-01T00:00:00.000Z',
     },
     {
-      id: 'cli_athaliah',
+      id: 'cli_morgan',
       code: 'VUKA-002',
-      name: 'Athaliah Hembert',
-      email: 'athaliahhembert9@gmail.com',
+      name: 'Morgan Sample',
+      email: 'morgan.sample@example.test',
       active: true,
       created_at: '2026-07-28T00:00:00.000Z',
       updated_at: '2026-07-28T00:00:00.000Z',
@@ -414,20 +415,20 @@ void (async () => {
     async () => {
       leftoverSaved += 1;
     },
-    { applyCatalog: false }
+    { applyCatalog: false, seed: FIXTURE_VUKA_SEED }
   );
   assert.equal(leftoverSaved, 1);
   assert.equal(
-    leftover.clients.filter((c) => /hembert/i.test(c.name)).length,
+    leftover.clients.filter((c) => /morgan/i.test(c.name)).length,
     1
   );
   assert.equal(
-    leftover.clients.filter((c) => /athalah/i.test(c.name)).length,
+    leftover.clients.filter((c) => /morgan samples/i.test(c.name)).length,
     0
   );
   assert.equal(
-    leftover.clients.find((c) => /hembert/i.test(c.name))?.name,
-    'Athaliah Hembert'
+    leftover.clients.find((c) => /morgan/i.test(c.name))?.name,
+    'Morgan Sample'
   );
 
   const fitgraphRoute = readFileSync(
@@ -513,66 +514,82 @@ void (async () => {
 const coaches = emptyFitgraphStore();
 coaches.coaches = [
   {
-    id: 'sophie',
-    code: 'SP',
-    name: 'Sophie Pearce',
+    id: 'third',
+    code: 'T',
+    name: 'Third Example',
+    sort_order: 30,
     created_at: '2026-01-01T00:00:00.000Z',
   },
   {
-    id: 'bianca',
-    code: 'BW',
-    name: 'Bianca Westhorpe-Pottow',
+    id: 'first',
+    code: 'F',
+    name: 'First Example',
+    sort_order: 10,
     created_at: '2026-01-01T00:00:00.000Z',
   },
   {
-    id: 'jared',
-    code: 'JM',
-    name: 'Jared Martin',
+    id: 'second',
+    code: 'S',
+    name: 'Second Example',
+    sort_order: 20,
     created_at: '2026-01-01T00:00:00.000Z',
   },
 ];
 assert.equal(ensureVukaCoachOrder(coaches), true);
 assert.deepEqual(
   coaches.coaches.map((c) => c.id),
-  ['bianca', 'jared', 'sophie']
+  ['first', 'second', 'third']
 );
 
 const vukaCoaches = emptyFitgraphStore();
 vukaCoaches.coaches = [
   {
-    id: 'jared',
+    id: 'jordan_decoy',
+    code: 'JD',
+    name: 'Jordan Decoy',
+    created_at: '2026-01-01T00:00:00.000Z',
+  },
+  {
+    id: 'jordan',
     code: 'J',
-    name: 'Jared',
+    name: 'Jordan',
     created_at: '2026-01-01T00:00:00.000Z',
   },
 ];
-assert.equal(ensureVukaCoaches(vukaCoaches, '2026-08-25T00:00:00.000Z'), true);
-const jared = findCoachForPortalSignIn(vukaCoaches, {
-  name: 'Jared',
-  email: 'jaredcawood77@gmail.com',
+assert.equal(
+  ensureVukaCoaches(vukaCoaches, '2026-08-25T00:00:00.000Z', FIXTURE_COACHES),
+  true
+);
+const jordan = findCoachForPortalSignIn(vukaCoaches, {
+  name: 'Jordan',
+  email: 'jordan.coach@example.test',
 });
-assert.equal(jared?.id, 'jared');
-assert.equal(jared?.email, 'jaredcawood77@gmail.com');
-assert.equal(jared?.name, 'Jared-Wade Cawood');
-assert.equal(jared?.can_manage_classes, true);
-assert.equal(jared?.engagement, 'contractor');
+assert.equal(jordan?.id, 'jordan');
+assert.equal(jordan?.email, 'jordan.coach@example.test');
+assert.equal(jordan?.name, 'Jordan Example');
+assert.equal(jordan?.can_manage_classes, true);
+assert.equal(jordan?.engagement, 'contractor');
 assert.equal(
   findCoachForPortalSignIn(vukaCoaches, {
-    name: 'Jared Cawood',
-    email: 'jaredcawood77@gmail.com',
+    name: 'Jordan Example',
+    email: 'jordan.coach@example.test',
   })?.id,
-  'jared'
-);
-assert.equal(ensureVukaCoaches(vukaCoaches, '2026-08-25T00:00:00.000Z'), false);
-assert.ok(vukaCoaches.coaches.some((c) => c.name === 'Bianca Westhorpe-Pottow'));
-assert.equal(
-  vukaCoaches.coaches.find((c) => /^miri$/i.test(c.name))?.email,
-  'mirjam@roosgroup.co.za'
+  'jordan'
 );
 assert.equal(
-  vukaCoaches.coaches.filter((c) => /jared/i.test(c.name)).length,
+  ensureVukaCoaches(vukaCoaches, '2026-08-25T00:00:00.000Z', FIXTURE_COACHES),
+  false
+);
+assert.ok(vukaCoaches.coaches.some((c) => c.name === 'Blair Example'));
+assert.equal(
+  vukaCoaches.coaches.find((c) => /^casey example$/i.test(c.name))?.email,
+  'casey.coach@example.test'
+);
+assert.equal(
+  vukaCoaches.coaches.filter((c) => /jordan example/i.test(c.name)).length,
   1
 );
+assert.ok(vukaCoaches.coaches.some((c) => c.name === 'Jordan Decoy'));
 assert.equal(
   vukaCoaches.coaches.filter((c) => /jaryyd/i.test(c.name)).length,
   0
@@ -593,26 +610,29 @@ leftoverCoaches.coaches = [
     created_at: '2026-01-01T00:00:00.000Z',
   },
   {
-    id: 'jared',
-    code: 'JAR',
-    name: 'Jared-Wade Cawood',
-    email: 'jaredcawood77@gmail.com',
+    id: 'jordan',
+    code: 'JOR',
+    name: 'Jordan Example',
+    email: 'jordan.coach@example.test',
     created_at: '2026-01-01T00:00:00.000Z',
   },
 ];
 assert.equal(dropRetiredVukaCoaches(leftoverCoaches), true);
 assert.deepEqual(
   leftoverCoaches.coaches.map((c) => c.id),
-  ['jared']
+  ['jordan']
 );
 assert.ok(leftoverCoaches.removed_ids?.coaches?.includes('coh_j_jaryyd'));
 assert.ok(leftoverCoaches.removed_ids?.coaches?.includes('coh_jyd'));
-assert.equal(ensureVukaCoaches(leftoverCoaches), true);
+assert.equal(
+  ensureVukaCoaches(leftoverCoaches, '2026-08-25T00:00:00.000Z', FIXTURE_COACHES),
+  true
+);
 assert.equal(
   leftoverCoaches.coaches.filter((c) => /jaryyd/i.test(c.name)).length,
   0
 );
-assert.ok(leftoverCoaches.coaches.some((c) => /cawood/i.test(c.name)));
+assert.ok(leftoverCoaches.coaches.some((c) => /jordan example/i.test(c.name)));
 
 const msgStore = emptyFitgraphStore();
 msgStore.clients = [

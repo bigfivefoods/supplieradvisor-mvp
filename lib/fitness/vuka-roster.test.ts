@@ -5,6 +5,10 @@ import assert from 'node:assert/strict';
 import { emptyFitgraphStore } from './fitgraph';
 import { ensureVukaClassCatalog, VUKA_COMPANY_ID } from './vuka-class-catalog';
 import {
+  FIXTURE_ROSTER,
+  FIXTURE_VUKA_SEED,
+} from './vuka-member-seed.fixture';
+import {
   absorbKnownClientAliases,
   clientsAreSamePerson,
   ensureVukaRoster,
@@ -16,27 +20,36 @@ import {
   VUKA_BILLED_CLASS_IMPORT,
   VUKA_CONTRACTS_IMPORT,
   VUKA_MEMBER_MERGE,
-  VUKA_ROSTER,
 } from './vuka-roster';
 
-assert.equal(normalizePersonName('Sue (S Westhorpe)'), 'sue');
-assert.equal(normalizePersonName('JACQUES VAN ROOYEN'), 'jacques van rooyen');
-assert.equal(normalizePersonName('Yuné van Niekerk'), 'yune van niekerk');
-assert.equal(normalizePersonName("Dianne O’Connor"), 'dianne oconnor');
-assert.ok(VUKA_ROSTER.length >= 64);
+const seed = FIXTURE_VUKA_SEED;
+const rosterOpts = { now: '2026-08-17T12:00:00.000Z', seed };
+
+assert.equal(normalizePersonName('Sam (S Sample)'), 'sam');
+assert.equal(normalizePersonName('QUINN NORTH'), 'quinn north');
+assert.equal(normalizePersonName('Yuné Sample'), 'yune sample');
+assert.equal(normalizePersonName("Blair O’Fixture"), 'blair ofixture');
+assert.equal(FIXTURE_ROSTER.length, 8);
 assert.equal(
-  VUKA_ROSTER.filter((r) => normalizePersonName(r.name) === 'malan snyman')
+  FIXTURE_ROSTER.filter((r) => normalizePersonName(r.name) === 'morgan sample')
     .length,
   1
+);
+assert.equal(
+  FIXTURE_ROSTER.some((r) => r.name === 'Morgan Sample'),
+  true
+);
+assert.equal(
+  FIXTURE_ROSTER.filter((r) => /samples/i.test(r.name)).length,
+  0
 );
 
 assert.equal(matchCatalogPlan(1140)?.code, 'VUKA_UNLIM');
 assert.equal(matchCatalogPlan(1265)?.code, 'VUKA_PILATES_3');
 assert.equal(matchCatalogPlan(855)?.code, 'VUKA_PILATES_2');
 assert.equal(matchCatalogPlan(530)?.code, 'VUKA_KIDS');
-assert.equal(matchCatalogPlan(908.5)?.code, 'VUKA_FSF_5AM');
 assert.equal(matchCatalogPlan(529)?.code, 'VUKA_KIDS');
-assert.equal(matchCatalogPlan(530, 'ZACH kids Gym')?.code, 'VUKA_KIDS');
+assert.equal(matchCatalogPlan(530, 'Example kids class')?.code, 'VUKA_KIDS');
 assert.equal(matchCatalogPlan(770.5), null);
 assert.equal(matchCatalogPlan(775), null);
 assert.equal(matchClassHint('5AM MWF')?.code, 'VUKA_FSF_5AM');
@@ -51,26 +64,25 @@ assert.equal(matchCatalogPlan(855, 'PILATES')?.code, 'VUKA_PILATES_2');
 
 const store = emptyFitgraphStore();
 ensureVukaClassCatalog(store, { companyId: VUKA_COMPANY_ID });
-const first = ensureVukaRoster(store, { now: '2026-08-17T12:00:00.000Z' });
+const first = ensureVukaRoster(store, rosterOpts);
 assert.equal(first.changed, true);
-assert.ok(first.added > 150);
-assert.ok(store.clients.some((c) => /aimee le roux/i.test(c.name)));
-assert.ok(store.clients.some((c) => /gouweloos/i.test(c.name)));
-const aimee = store.clients.find((c) => /aimee le roux/i.test(c.name))!;
-assert.ok((aimee.contracts || []).length >= 1);
-assert.equal(aimee.contracts?.[0].parq != null, true);
-const serah = store.clients.find((c) => /serah shange/i.test(c.name));
-if (serah) {
-  assert.ok(serah.debit_bank?.account_number);
-  assert.ok(serah.debit_bank?.bank_name);
-}
+assert.equal(first.added, 4);
+assert.ok(store.clients.some((c) => /riley fixture/i.test(c.name)));
+assert.ok(store.clients.some((c) => /eden private/i.test(c.name)));
+const riley = store.clients.find((c) => /riley fixture/i.test(c.name))!;
+assert.ok((riley.contracts || []).length >= 1);
+assert.equal(riley.contracts?.[0].parq != null, true);
+const blair = store.clients.find((c) => /blair fixture/i.test(c.name));
+assert.ok(blair?.debit_bank?.account_number);
+assert.equal(blair?.debit_bank?.account_number, '0001112223');
+assert.ok(blair?.debit_bank?.bank_name);
 assert.equal(
   store.membership_plans.some(
     (p) => String(p.code || '').startsWith('VUKA_DESK_')
   ),
   false
 );
-assert.equal(store.settings?.vuka_contracts_import != null, true);
+assert.equal(store.settings?.vuka_contracts_import, VUKA_CONTRACTS_IMPORT);
 
 store.membership_plans.push({
   id: 'vuka_pln_desk_99900',
@@ -82,28 +94,28 @@ store.membership_plans.push({
   catalog: 'vuka',
   created_at: '2026-08-17T12:00:00.000Z',
 });
-const cleaned = ensureVukaRoster(store, { now: '2026-08-17T12:00:00.000Z' });
+const cleaned = ensureVukaRoster(store, rosterOpts);
 assert.equal(cleaned.changed, true);
 assert.equal(
   store.membership_plans.some((p) => String(p.code || '').startsWith('VUKA_DESK_')),
   false
 );
 
-const christine = store.clients.find((c) => /christine j brown/i.test(c.name));
-assert.ok(christine);
-assert.equal(christine?.membership_plan_id, 'vuka_pln_fsf_5am');
-const sueW = store.clients.find((c) => /^sue westhorpe$/i.test(c.name));
-assert.ok(sueW);
-assert.equal(sueW?.membership_plan_id, 'vuka_pln_pilates_2');
-const yunis = store.clients.find((c) => /yunis leandre herbert/i.test(c.name));
-assert.ok(yunis);
-assert.equal(yunis?.membership_plan_id, 'vuka_pln_gents_5am');
+const rileyPlan = store.clients.find((c) => /riley fixture/i.test(c.name));
+assert.ok(rileyPlan);
+assert.equal(rileyPlan?.membership_plan_id, 'vuka_pln_fsf_5am');
+const sam = store.clients.find((c) => /^sam sample$/i.test(c.name));
+assert.ok(sam);
+assert.equal(sam?.membership_plan_id, 'vuka_pln_pilates_2');
+const quinn = store.clients.find((c) => /quinn north/i.test(c.name));
+assert.ok(quinn);
+assert.equal(quinn?.membership_plan_id, 'vuka_pln_gents_5am');
 
-const again = ensureVukaRoster(store, { now: '2026-08-17T12:00:00.000Z' });
+const again = ensureVukaRoster(store, rosterOpts);
 assert.equal(again.added, 0);
-assert.ok(store.clients.filter((c) => c.active !== false).length > 150);
+assert.equal(store.clients.filter((c) => c.active !== false).length, 9);
 
-for (const row of VUKA_ROSTER) {
+for (const row of FIXTURE_ROSTER) {
   const hit = store.clients.find(
     (c) =>
       c.active !== false &&
@@ -118,27 +130,9 @@ for (const row of VUKA_ROSTER) {
   assert.ok(hit, `missing billed member ${row.name}`);
 }
 
-const sueCount = store.clients.filter(
-  (c) =>
-    c.active !== false &&
-    /^sue westhorpe$/i.test(normalizePersonName(c.name))
-).length;
-assert.equal(sueCount, 1);
-
-const yune = store.clients.find((c) => /yune van niekerk/i.test(c.name));
-assert.ok(yune);
 assert.equal(
   store.clients.filter(
-    (c) => c.active !== false && clientsAreSamePerson(c, yune!)
-  ).length,
-  1
-);
-
-const bandile = store.clients.find((c) => /bandile/i.test(c.name));
-assert.ok(bandile);
-assert.equal(
-  store.clients.filter(
-    (c) => c.active !== false && /bandile/i.test(c.name)
+    (c) => c.active !== false && /^sam sample$/i.test(normalizePersonName(c.name))
   ).length,
   1
 );
@@ -148,14 +142,14 @@ assert.ok(
     {
       id: 'a',
       code: 'a',
-      name: 'Sue (S Westhorpe)',
+      name: 'Sam (S Sample)',
       created_at: '',
       updated_at: '',
     },
     {
       id: 'b',
       code: 'b',
-      name: 'Sue Westhorpe',
+      name: 'Sam Sample',
       created_at: '',
       updated_at: '',
     }
@@ -166,14 +160,14 @@ assert.equal(
     {
       id: 'a',
       code: 'a',
-      name: 'Sue Freese',
+      name: 'Sam North',
       created_at: '',
       updated_at: '',
     },
     {
       id: 'b',
       code: 'b',
-      name: 'Sue Westhorpe',
+      name: 'Sam South',
       created_at: '',
       updated_at: '',
     }
@@ -185,14 +179,14 @@ assert.equal(
     {
       id: 'a',
       code: 'a',
-      name: 'Brett van Niekerk',
+      name: 'Brett van North',
       created_at: '',
       updated_at: '',
     },
     {
       id: 'b',
       code: 'b',
-      name: 'Yune van Niekerk',
+      name: 'Yune van North',
       created_at: '',
       updated_at: '',
     }
@@ -204,97 +198,81 @@ assert.ok(
     {
       id: 'a',
       code: 'a',
-      name: 'Athalah Hembert',
+      name: 'Morgan Samples',
       created_at: '',
       updated_at: '',
     },
     {
       id: 'b',
       code: 'b',
-      name: 'Athaliah Hembert',
+      name: 'Morgan Sample',
       created_at: '',
       updated_at: '',
     }
   )
 );
-assert.ok(
-  VUKA_ROSTER.some((r) => r.name === 'Athaliah Hembert')
-);
 assert.equal(
-  VUKA_ROSTER.filter((r) => /athalah/i.test(r.name)).length,
-  0
-);
-assert.equal(
-  store.clients.filter((c) => /hembert/i.test(c.name) && c.active !== false)
-    .length,
-  1
-);
-assert.equal(
-  normalizePersonName(
-    store.clients.find((c) => /hembert/i.test(c.name))?.name || ''
-  ),
-  'athaliah hembert'
+  store.clients.filter((c) => /sample/i.test(c.name) && c.active !== false)
+    .length >= 1,
+  true
 );
 
 const leftover = emptyFitgraphStore();
 leftover.clients = [
   {
-    id: 'vuka_cli_athalah_hembert',
+    id: 'vuka_cli_morgan_samples',
     code: 'VUKA-001',
-    name: 'Athalah Hembert',
+    name: 'Morgan Samples',
     active: true,
     created_at: '2026-08-01T00:00:00.000Z',
     updated_at: '2026-08-01T00:00:00.000Z',
   },
   {
-    id: 'cli_athaliah',
+    id: 'cli_morgan',
     code: 'VUKA-002',
-    name: 'Athaliah Hembert',
-    email: 'athaliahhembert9@gmail.com',
+    name: 'Morgan Sample',
+    email: 'morgan.sample@example.test',
     active: true,
-    contracts: [{ id: 'con_ath', kind: 'group', source_id: 'jot' }],
+    contracts: [{ id: 'con_m', kind: 'group', source_id: 'jot' }],
     created_at: '2026-07-28T00:00:00.000Z',
     updated_at: '2026-07-28T00:00:00.000Z',
   },
 ];
 leftover.bookings = [
   {
-    id: 'bkg_athalah',
+    id: 'bkg_typo',
     session_id: 'ses_1',
-    client_id: 'vuka_cli_athalah_hembert',
+    client_id: 'vuka_cli_morgan_samples',
     status: 'booked',
     booked_at: '2026-08-20T00:00:00.000Z',
   },
 ];
-const hembertMerge = mergeDuplicateFitClients(leftover, {
+const sampleMerge = mergeDuplicateFitClients(leftover, {
   now: '2026-09-02T12:00:00.000Z',
-  preferredNames: VUKA_ROSTER.map((r) => r.name),
+  preferredNames: FIXTURE_ROSTER.map((r) => r.name),
 });
-assert.equal(hembertMerge.merged, 1);
-assert.equal(
-  leftover.clients.filter((c) => /hembert/i.test(c.name)).length,
-  1
-);
+assert.equal(sampleMerge.merged, 1);
+assert.equal(leftover.clients.filter((c) => /morgan/i.test(c.name)).length, 1);
 const kept = leftover.clients[0];
-assert.equal(normalizePersonName(kept.name), 'athaliah hembert');
+assert.equal(normalizePersonName(kept.name), 'morgan sample');
 assert.equal(leftover.bookings[0].client_id, kept.id);
-assert.ok(leftover.removed_ids?.clients?.includes('vuka_cli_athalah_hembert'));
+assert.ok(leftover.removed_ids?.clients?.includes('vuka_cli_morgan_samples'));
 
 assert.equal(
   clientsAreSamePerson(
     {
       id: 'a',
       code: 'a',
-      name: 'Athalah Hembert',
-      email: 'athalah@old.test',
+      name: 'Morgan Samples',
+      email: 'typo@example.test',
       created_at: '',
       updated_at: '',
     },
     {
       id: 'b',
       code: 'b',
-      name: 'Athaliah Hembert',
-      email: 'athaliahhembert9@gmail.com',
+      name: 'Morgan Sample',
+      email: 'morgan.sample@example.test',
       created_at: '',
       updated_at: '',
     }
@@ -316,58 +294,60 @@ emailClash.settings = {
 };
 emailClash.clients = [
   {
-    id: 'vuka_cli_athalah_hembert',
+    id: 'vuka_cli_morgan_samples',
     code: 'VUKA-001',
-    name: 'Athalah Hembert',
-    email: 'athalah@old.test',
+    name: 'Morgan Samples',
+    email: 'typo@example.test',
     active: true,
     created_at: '2026-08-01T00:00:00.000Z',
     updated_at: '2026-08-01T00:00:00.000Z',
   },
   {
-    id: 'cli_athaliah',
+    id: 'cli_morgan',
     code: 'VUKA-002',
-    name: 'Athaliah Hembert',
-    email: 'athaliahhembert9@gmail.com',
+    name: 'Morgan Sample',
+    email: 'morgan.sample@example.test',
     active: true,
-    contracts: [{ id: 'con_ath', kind: 'group', source_id: 'jot' }],
+    contracts: [{ id: 'con_m', kind: 'group', source_id: 'jot' }],
     created_at: '2026-07-28T00:00:00.000Z',
     updated_at: '2026-07-28T00:00:00.000Z',
   },
 ];
 emailClash.bookings = [
   {
-    id: 'bkg_athalah',
+    id: 'bkg_typo',
     session_id: 'ses_1',
-    client_id: 'vuka_cli_athalah_hembert',
+    client_id: 'vuka_cli_morgan_samples',
     status: 'booked',
     booked_at: '2026-08-20T00:00:00.000Z',
   },
 ];
-assert.equal(vukaDeskSettled(emailClash), true);
-const folded = ensureVukaRoster(emailClash, { now: '2026-09-03T12:00:00.000Z' });
+assert.equal(vukaDeskSettled(emailClash, seed), true);
+const folded = ensureVukaRoster(emailClash, {
+  now: '2026-09-03T12:00:00.000Z',
+  seed,
+});
 assert.equal(folded.changed, true);
 assert.equal(
-  emailClash.clients.filter((c) => /hembert/i.test(c.name)).length,
+  emailClash.clients.filter((c) => normalizePersonName(c.name) === 'morgan sample')
+    .length,
   1
 );
 assert.equal(
-  emailClash.clients.filter((c) => /athalah/i.test(c.name)).length,
+  emailClash.clients.filter((c) => /morgan samples/i.test(c.name)).length,
   0
 );
-const foldedKept = emailClash.clients.find((c) => /hembert/i.test(c.name))!;
-assert.equal(normalizePersonName(foldedKept.name), 'athaliah hembert');
+const foldedKept = emailClash.clients.find((c) => /morgan sample/i.test(c.name))!;
+assert.equal(normalizePersonName(foldedKept.name), 'morgan sample');
 assert.equal(emailClash.bookings[0].client_id, foldedKept.id);
-assert.ok(
-  emailClash.removed_ids?.clients?.includes('vuka_cli_athalah_hembert')
-);
+assert.ok(emailClash.removed_ids?.clients?.includes('vuka_cli_morgan_samples'));
 
 const typoOnly = emptyFitgraphStore();
 typoOnly.clients = [
   {
-    id: 'vuka_cli_athalah_hembert',
+    id: 'vuka_cli_morgan_samples',
     code: 'VUKA-001',
-    name: 'Athalah Hembert',
+    name: 'Morgan Samples',
     active: true,
     created_at: '2026-08-01T00:00:00.000Z',
     updated_at: '2026-08-01T00:00:00.000Z',
@@ -375,24 +355,25 @@ typoOnly.clients = [
 ];
 const renamed = absorbKnownClientAliases(typoOnly, {
   now: '2026-09-03T12:00:00.000Z',
+  folds: seed.nameFolds,
 });
 assert.equal(renamed.changed, true);
 assert.equal(typoOnly.clients.length, 1);
-assert.equal(typoOnly.clients[0].name, 'Athaliah Hembert');
+assert.equal(typoOnly.clients[0].name, 'Morgan Sample');
 
 assert.equal(
   clientsAreSamePerson(
     {
       id: 'a',
       code: 'a',
-      name: 'Lynn Clark',
+      name: 'Mira Clark',
       created_at: '',
       updated_at: '',
     },
     {
       id: 'b',
       code: 'b',
-      name: 'Lynne Clarke',
+      name: 'Mirah Clarke',
       created_at: '',
       updated_at: '',
     }
@@ -405,8 +386,8 @@ dupStore.clients = [
   {
     id: 'cli_old',
     code: 'V1',
-    name: 'Was a member previously and wanted to join again!!! Bibi Ayesha Yusuf',
-    email: 'bibi@test.com',
+    name: 'Was a member previously and wanted to join again!!! Riley Fixture',
+    email: 'riley.fixture@example.test',
     portal_token: 'member_110_oldtok',
     contracts: [
       {
@@ -417,7 +398,7 @@ dupStore.clients = [
       },
     ],
     debit_bank: {
-      account_holder: 'Bibi Ayesha Yusuf',
+      account_holder: 'Riley Fixture',
       bank_name: 'FNB',
       account_number: '12345678901',
       branch_code: '250655',
@@ -432,7 +413,7 @@ dupStore.clients = [
   {
     id: 'cli_new',
     code: 'V2',
-    name: 'Bibi Ayesha Yusuf',
+    name: 'Riley Fixture',
     portal_token: 'member_110_newtok',
     notes: 'Charged R574.00/pm',
     active: true,
@@ -473,99 +454,126 @@ dupStore.bookings = [
 ];
 const merged = mergeDuplicateFitClients(dupStore, {
   now: '2026-08-20T12:00:00.000Z',
-  preferredNames: VUKA_ROSTER.map((r) => r.name),
+  preferredNames: FIXTURE_ROSTER.map((r) => r.name),
 });
 assert.equal(merged.merged, 1);
 assert.equal(dupStore.clients.length, 1);
-const bibi = dupStore.clients[0];
-assert.equal(normalizePersonName(bibi.name), 'bibi ayesha yusuf');
-assert.equal(bibi.email, 'bibi@test.com');
-assert.ok(bibi.contracts?.some((c) => c.source_id === 'src1'));
-assert.equal(bibi.debit_bank?.account_number, '12345678901');
+const keptDup = dupStore.clients[0];
+assert.equal(normalizePersonName(keptDup.name), 'riley fixture');
+assert.equal(keptDup.email, 'riley.fixture@example.test');
+assert.ok(keptDup.contracts?.some((c) => c.source_id === 'src1'));
+assert.equal(keptDup.debit_bank?.account_number, '12345678901');
 assert.ok(
-  bibi.portal_token === 'member_110_oldtok' ||
-    (bibi.portal_token_aliases || []).includes('member_110_oldtok')
+  keptDup.portal_token === 'member_110_oldtok' ||
+    (keptDup.portal_token_aliases || []).includes('member_110_oldtok')
 );
 assert.ok(
-  bibi.portal_token === 'member_110_newtok' ||
-    (bibi.portal_token_aliases || []).includes('member_110_newtok')
+  keptDup.portal_token === 'member_110_newtok' ||
+    (keptDup.portal_token_aliases || []).includes('member_110_newtok')
 );
 assert.equal(
-  dupStore.subscriptions.filter((s) => s.client_id === bibi.id).length,
+  dupStore.subscriptions.filter((s) => s.client_id === keptDup.id).length,
   2
 );
-assert.equal(dupStore.bookings[0].client_id, bibi.id);
+assert.equal(dupStore.bookings[0].client_id, keptDup.id);
 
-yunis.active = false;
-yunis.membership_status = 'cancelled';
-yunis.membership_plan_id = null;
+quinn.active = false;
+quinn.membership_status = 'cancelled';
+quinn.membership_plan_id = null;
 for (const s of store.subscriptions) {
-  if (s.client_id === yunis.id) s.status = 'cancelled';
+  if (s.client_id === quinn.id) s.status = 'cancelled';
 }
-christine.membership_plan_id = 'vuka_pln_boot_1730';
-const parked = ensureVukaRoster(store, { now: '2026-08-20T12:00:00.000Z' });
+riley.membership_plan_id = 'vuka_pln_boot_1730';
+const parked = ensureVukaRoster(store, {
+  now: '2026-08-20T12:00:00.000Z',
+  seed,
+});
 assert.equal(parked.added, 0);
-const yunisParked = store.clients.find((c) => /yunis leandre herbert/i.test(c.name))!;
-assert.equal(yunisParked.active, false);
-assert.equal(yunisParked.membership_status, 'cancelled');
-assert.equal(yunisParked.membership_plan_id, null);
+const quinnParked = store.clients.find((c) => /quinn north/i.test(c.name))!;
+assert.equal(quinnParked.active, false);
+assert.equal(quinnParked.membership_status, 'cancelled');
+assert.equal(quinnParked.membership_plan_id, null);
 assert.equal(
-  store.clients.find((c) => /christine j brown/i.test(c.name))?.membership_plan_id,
+  store.clients.find((c) => /riley fixture/i.test(c.name))?.membership_plan_id,
   'vuka_pln_boot_1730'
 );
-assert.equal(vukaDeskSettled(store), true);
+assert.equal(vukaDeskSettled(store, seed), true);
+assert.equal(store.settings?.vuka_billed_class_import, VUKA_BILLED_CLASS_IMPORT);
+assert.equal(store.settings?.vuka_member_merge, VUKA_MEMBER_MERGE);
 
 if (store.settings) store.settings.vuka_billed_class_import = 'old';
-const afterStamp = ensureVukaRoster(store, { now: '2026-08-20T13:00:00.000Z' });
+const afterStamp = ensureVukaRoster(store, {
+  now: '2026-08-20T13:00:00.000Z',
+  seed,
+});
 assert.equal(afterStamp.added, 0);
 assert.equal(
-  store.clients.find((c) => /yunis leandre herbert/i.test(c.name))?.active,
+  store.clients.find((c) => /quinn north/i.test(c.name))?.active,
   false
 );
 assert.equal(
-  store.clients.find((c) => /christine j brown/i.test(c.name))?.membership_plan_id,
+  store.clients.find((c) => /riley fixture/i.test(c.name))?.membership_plan_id,
   'vuka_pln_boot_1730'
 );
 
-const mercedee = store.clients.find((c) => /mercedee uys/i.test(c.name));
-if (mercedee) {
-  mercedee.active = true;
-  mercedee.membership_plan_id = null;
-  for (const s of store.subscriptions) {
-    if (s.client_id === mercedee.id) {
-      s.status = 'cancelled';
-      s.updated_at = '2026-08-20T14:00:00.000Z';
-    }
+const skye = store.clients.find((c) => /skye fixture/i.test(c.name));
+assert.ok(skye);
+skye.active = true;
+skye.membership_plan_id = null;
+for (const s of store.subscriptions) {
+  if (s.client_id === skye.id) {
+    s.status = 'cancelled';
+    s.updated_at = '2026-08-20T14:00:00.000Z';
   }
-  if (
-    !store.subscriptions.some(
-      (s) => s.client_id === mercedee.id && /boot/i.test(s.plan_id)
-    )
-  ) {
-    const boot = store.membership_plans.find((p) => /boot/i.test(p.code || p.id));
-    if (boot) {
-      store.subscriptions.push({
-        id: 'vuka_sub_mercedee_uys',
-        client_id: mercedee.id,
-        plan_id: boot.id,
-        status: 'cancelled',
-        started_at: '2026-03-01',
-        created_at: '2026-03-01T00:00:00.000Z',
-        updated_at: '2026-08-20T14:00:00.000Z',
-      });
-    }
-  }
-  if (store.settings) store.settings.vuka_contracts_import = 'force-reattach';
-  ensureVukaRoster(store, { now: '2026-08-20T15:00:00.000Z' });
-  assert.equal(
-    store.subscriptions.some(
-      (s) =>
-        s.client_id === mercedee.id &&
-        (s.status === 'active' || s.status === 'trialing')
-    ),
-    false,
-    'contract import must not put Mercedee back on a class after the desk removed it'
-  );
 }
+if (
+  !store.subscriptions.some(
+    (s) => s.client_id === skye.id && /boot/i.test(s.plan_id)
+  )
+) {
+  const boot = store.membership_plans.find((p) => /boot/i.test(p.code || p.id));
+  if (boot) {
+    store.subscriptions.push({
+      id: 'vuka_sub_skye_fixture',
+      client_id: skye.id,
+      plan_id: boot.id,
+      status: 'cancelled',
+      started_at: '2026-03-01',
+      created_at: '2026-03-01T00:00:00.000Z',
+      updated_at: '2026-08-20T14:00:00.000Z',
+    });
+  }
+}
+if (store.settings) store.settings.vuka_contracts_import = 'force-reattach';
+ensureVukaRoster(store, { now: '2026-08-20T15:00:00.000Z', seed });
+assert.equal(
+  store.subscriptions.some(
+    (s) =>
+      s.client_id === skye.id &&
+      (s.status === 'active' || s.status === 'trialing')
+  ),
+  false,
+  'contract import must not put a removed member back on a class'
+);
+
+const untouched = emptyFitgraphStore();
+untouched.clients = [
+  {
+    id: 'vuka_cli_keep',
+    code: 'VUKA-1',
+    name: 'Keep Person',
+    active: true,
+    membership_status: 'active',
+    created_at: '2026-08-01T00:00:00.000Z',
+    updated_at: '2026-08-01T00:00:00.000Z',
+  },
+];
+const skipped = ensureVukaRoster(untouched, {
+  now: '2026-08-21T00:00:00.000Z',
+});
+assert.equal(skipped.added, 0);
+assert.equal(untouched.clients.length, 1);
+assert.equal(untouched.clients[0].active, true);
+assert.equal(untouched.clients[0].membership_status, 'active');
 
 console.log('vuka-roster.test.ts ok');

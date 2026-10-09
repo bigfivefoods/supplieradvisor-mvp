@@ -28,7 +28,11 @@ import {
   SYS_PT_CODE,
 } from '@/lib/fitness/session-times';
 import { ensureDemoShopProgramme } from '@/lib/fitness/demo-shop-programme';
-import { shopCoachFirstName, vukaShopCoachRank } from '@/lib/fitness/gym-shop';
+import { shopCoachFirstName } from '@/lib/fitness/gym-shop';
+import type {
+  VukaCoachSeed,
+  VukaMemberSeed,
+} from '@/lib/fitness/vuka-member-seed';
 import { rememberRemovedFitgraphIds } from '@/lib/fitness/fitgraph-merge';
 
 export const VUKA_COMPANY_ID = 110;
@@ -1142,6 +1146,7 @@ export function ensureVukaClassCatalog(
     legalName?: string | null;
     now?: string;
     weeks?: number;
+    coaches?: VukaCoachSeed[];
   }
 ): { store: FitgraphStore; changed: boolean; applied: boolean } {
   if (!isVukaFitnessCompany(opts)) {
@@ -1318,7 +1323,7 @@ export function ensureVukaClassCatalog(
 
   if (ensureDemoShopProgramme(store, now)) changed = true;
   if (ensureVukaShopOffers(store, now)) changed = true;
-  if (ensureVukaCoaches(store, now)) changed = true;
+  if (ensureVukaCoaches(store, now, opts.coaches)) changed = true;
 
   return { store, changed, applied: true };
 }
@@ -1368,36 +1373,9 @@ export function ensureVukaShopOffers(
   return changed;
 }
 
-/**
- * Contracted VUKA coaches. Email on this list is the GymAdvisor coach
- * sign-in key. Jared is Jared-Wade Cawood (trainer), not member Jared Martin.
- */
-export const VUKA_COACH_ROSTER: Array<{
-  name: string;
-  email: string;
-  code: string;
-}> = [
-  {
-    name: 'Bianca Westhorpe-Pottow',
-    email: 'b.west.pot@gmail.com',
-    code: 'BIA',
-  },
-  { name: 'Miri', email: 'mirjam@roosgroup.co.za', code: 'MRI' },
-  {
-    name: 'Jared-Wade Cawood',
-    email: 'jaredcawood77@gmail.com',
-    code: 'JAR',
-  },
-  {
-    name: 'Sophie Pearce',
-    email: 'pearcesophie56@gmail.com',
-    code: 'SOP',
-  },
-];
-
 function findExistingVukaCoach(
   store: FitgraphStore,
-  row: { name: string; email: string }
+  row: VukaCoachSeed
 ): FitCoach | undefined {
   const email = String(row.email || '').trim().toLowerCase();
   if (email) {
@@ -1415,14 +1393,23 @@ function findExistingVukaCoach(
   const sameFirst = (store.coaches || []).filter(
     (c) => shopCoachFirstName(c.name) === first
   );
-  if (first === 'jared') {
-    const trainer = sameFirst.find((c) => /cawood/i.test(c.name));
-    if (trainer) return trainer;
-    const notMember = sameFirst.filter((c) => !/martin/i.test(c.name));
-    if (notMember.length === 1) return notMember[0];
-    const unnamed = sameFirst.filter(
-      (c) => shopCoachFirstName(c.name) === first && !String(c.name).includes(' ')
-    );
+  const avoid = String(row.avoid_name || '').trim().toLowerCase();
+  const match = String(row.match_name || '').trim().toLowerCase();
+  if (avoid || match) {
+    let pool = sameFirst;
+    if (avoid) {
+      pool = pool.filter(
+        (c) => !String(c.name || '').toLowerCase().includes(avoid)
+      );
+    }
+    if (match) {
+      const trainer = pool.find((c) =>
+        String(c.name || '').toLowerCase().includes(match)
+      );
+      if (trainer) return trainer;
+    }
+    if (pool.length === 1) return pool[0];
+    const unnamed = pool.filter((c) => !String(c.name || '').includes(' '));
     if (unnamed.length === 1) return unnamed[0];
     return undefined;
   }
@@ -1430,15 +1417,19 @@ function findExistingVukaCoach(
   return undefined;
 }
 
-/** Keep contracted VUKA coaches on the gym file with their emails. */
+/** Keep contracted coaches from the server seed on the gym file. */
 export function ensureVukaCoaches(
   store: FitgraphStore,
-  now = new Date().toISOString()
+  now = new Date().toISOString(),
+  roster: VukaCoachSeed[] = []
 ): boolean {
+  if (!roster.length) return false;
   if (!Array.isArray(store.coaches)) store.coaches = [];
   let changed = false;
-  for (const row of VUKA_COACH_ROSTER) {
+  for (let index = 0; index < roster.length; index += 1) {
+    const row = roster[index];
     const email = String(row.email || '').trim().toLowerCase();
+    const order = 10 * (index + 1);
     let coach = findExistingVukaCoach(store, row);
     if (!coach) {
       coach = {
@@ -1449,6 +1440,7 @@ export function ensureVukaCoaches(
         engagement: 'contractor',
         can_manage_classes: true,
         active: true,
+        sort_order: order,
         created_at: now,
       };
       store.coaches.push(coach);
@@ -1479,6 +1471,10 @@ export function ensureVukaCoaches(
       coach.name = row.name;
       changed = true;
     }
+    if (coach.sort_order !== order) {
+      coach.sort_order = order;
+      changed = true;
+    }
   }
   return changed;
 }
@@ -1503,13 +1499,14 @@ export function dropRetiredVukaCoaches(store: FitgraphStore): boolean {
   return true;
 }
 
-/** Bianca, Miri, Jared, Sophie — then everyone else. */
+/** Keep stored coach sort_order. Coaches without one sort after the rest. */
 export function ensureVukaCoachOrder(store: FitgraphStore): boolean {
   const list = store.coaches || [];
   if (!list.length) return false;
   const sorted = list.slice().sort((a, b) => {
-    const r = vukaShopCoachRank(a.name) - vukaShopCoachRank(b.name);
-    if (r !== 0) return r;
+    const ao = a.sort_order ?? Number.MAX_SAFE_INTEGER;
+    const bo = b.sort_order ?? Number.MAX_SAFE_INTEGER;
+    if (ao !== bo) return ao - bo;
     return String(a.name).localeCompare(String(b.name));
   });
   let changed = false;
@@ -1537,6 +1534,7 @@ export async function persistVukaCatalogIfNeeded(
     legalName?: string | null;
     /** Seed/demo only. Clients GET must not re-apply billed classes. */
     applyCatalog?: boolean;
+    seed?: VukaMemberSeed;
   }
 ): Promise<FitgraphStore> {
   if (
@@ -1549,23 +1547,25 @@ export async function persistVukaCatalogIfNeeded(
     return store;
   }
   const applyCatalog = identity?.applyCatalog !== false;
+  const seed = identity?.seed;
   const { absorbKnownClientAliases, ensureVukaRoster, vukaDeskSettled } =
     await import('@/lib/fitness/vuka-roster');
   let next = store;
   let dirty = false;
-  if (applyCatalog && !vukaDeskSettled(store)) {
+  if (applyCatalog && !vukaDeskSettled(store, seed)) {
     const result = ensureVukaClassCatalog(store, {
       companyId,
       tradingName: identity?.tradingName,
       legalName: identity?.legalName,
+      coaches: seed?.coaches,
     });
     next = result.store;
     dirty = result.changed;
-    const roster = ensureVukaRoster(next);
+    const roster = ensureVukaRoster(next, { seed });
     next = roster.store;
     dirty = dirty || roster.changed;
   }
-  const absorbed = absorbKnownClientAliases(next);
+  const absorbed = absorbKnownClientAliases(next, { folds: seed?.nameFolds });
   next = absorbed.store;
   dirty = dirty || absorbed.changed;
   const { healParkedGymMembership, ensureSubscribePlanClassTypes } =
@@ -1576,7 +1576,9 @@ export async function persistVukaCatalogIfNeeded(
   if (applyCatalog) {
     if (ensureDemoShopProgramme(next)) dirty = true;
     if (ensureVukaShopOffers(next)) dirty = true;
-    if (ensureVukaCoaches(next)) dirty = true;
+    if (ensureVukaCoaches(next, new Date().toISOString(), seed?.coaches)) {
+      dirty = true;
+    }
     if (ensureVukaCoachOrder(next)) dirty = true;
   }
   if (dirty) {

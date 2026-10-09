@@ -11,17 +11,20 @@ import {
 } from '@/lib/fitness/fitgraph';
 import { VUKA_MEMBERSHIP_PLANS } from '@/lib/fitness/vuka-class-catalog';
 import { allocateMemberToClass } from '@/lib/fitness/class-allocate';
-import generated from '@/lib/fitness/vuka-contracts.generated.json';
-import {
-  applyContractSubmissions,
-  type FitContractSubmission,
-} from '@/lib/fitness/member-contract';
+import { applyContractSubmissions } from '@/lib/fitness/member-contract';
 import {
   absorbKnownClientAliases,
   clientsAreSamePerson,
   mergeDuplicateFitClients,
   normalizePersonName,
 } from '@/lib/fitness/merge-fit-clients';
+import {
+  emptyVukaMemberSeed,
+  HISTORICAL_VUKA_CONTRACTS_IMPORT,
+  seedHasMembers,
+  type VukaMemberSeed,
+  type VukaRosterRow,
+} from '@/lib/fitness/vuka-member-seed';
 
 export {
   absorbKnownClientAliases,
@@ -30,86 +33,7 @@ export {
   normalizePersonName,
 } from '@/lib/fitness/merge-fit-clients';
 
-export type VukaRosterRow = {
-  name: string;
-  amount_zar: number;
-  /** Desk class code: 5AM MWF, BC, KAKB, PILATES, KIDS, 5AM T TH, 6:00 AM */
-  class_hint?: string;
-  note?: string;
-};
-
-/** Unique billed members (Malan Snyman listed once). */
-export const VUKA_ROSTER: VukaRosterRow[] = [
-  { name: 'Aimee Le Roux', amount_zar: 770.5 },
-  { name: 'Athaliah Hembert', amount_zar: 770.5 },
-  { name: 'Bandile Ntombola', amount_zar: 713 },
-  { name: 'Barbara Pretorius', amount_zar: 816.5 },
-  { name: 'Bibi Ayesha Yusuf', amount_zar: 574 },
-  { name: 'Brett van Niekerk', amount_zar: 354 },
-  { name: 'Buyi Makhoba-Dlamini', amount_zar: 828 },
-  { name: 'Chantel Ormsby', amount_zar: 736 },
-  { name: 'Charlene Lloyds-Ellis', amount_zar: 529 },
-  { name: 'Cherie Montile', amount_zar: 448.5 },
-  { name: 'Cherri Cannon-Payne', amount_zar: 460 },
-  { name: 'Cheryl Marwick', amount_zar: 851 },
-  { name: 'Chris Halford', amount_zar: 736 },
-  { name: 'Christine J Brown', amount_zar: 775, class_hint: '5AM MWF' },
-  { name: 'Dianne OConnor', amount_zar: 770.5 },
-  { name: 'Grant Underwood', amount_zar: 770.5 },
-  { name: 'Jacques van Rooyen', amount_zar: 471.5 },
-  { name: 'JenLyric Easthorpe', amount_zar: 530 },
-  { name: 'Jennifer Pike', amount_zar: 448.5 },
-  { name: 'Jill Brown', amount_zar: 851 },
-  { name: 'JM Van Deventer', amount_zar: 730, class_hint: 'BC' },
-  { name: 'Jordan Anastasis', amount_zar: 736 },
-  { name: 'Just Maskell', amount_zar: 775 },
-  { name: 'Karin Lindsay', amount_zar: 816.5 },
-  { name: 'Keriann Naidoo', amount_zar: 1265 },
-  { name: 'Kirstin Williams', amount_zar: 471.5 },
-  { name: 'Lorraine Naidoo', amount_zar: 1140 },
-  { name: 'Lynn Clark', amount_zar: 471.5 },
-  { name: 'Lynn Horan', amount_zar: 437 },
-  { name: 'Lynne Clarke', amount_zar: 471.5 },
-  { name: 'Malan Snyman', amount_zar: 471.5, class_hint: 'BC' },
-  { name: 'Mariam Mulla', amount_zar: 770.5 },
-  { name: 'Matt Ducass', amount_zar: 437, class_hint: 'BC' },
-  { name: 'Melanie Bothma', amount_zar: 770.5, class_hint: 'KAKB' },
-  { name: 'Mercedee Uys', amount_zar: 471.5 },
-  { name: 'Michelle Haripersadh', amount_zar: 713 },
-  { name: 'Michelle Bennett', amount_zar: 736 },
-  { name: 'Michelle Kieck', amount_zar: 471.5 },
-  { name: 'Nadia Isaac Marais', amount_zar: 530 },
-  { name: 'Naseeba Goolam', amount_zar: 460 },
-  { name: 'Nonku Masikane', amount_zar: 908.5 },
-  { name: 'Nqobile Mkhize', amount_zar: 471.5, class_hint: 'BC' },
-  { name: 'Nyasha Luvuno', amount_zar: 908.5, class_hint: '5AM MWF' },
-  { name: 'Phindile Dlamini', amount_zar: 828 },
-  { name: 'Razina Gangat', amount_zar: 908.5 },
-  { name: 'Rivash Rubychand', amount_zar: 770.5 },
-  { name: 'Rochelle Oosthuizen', amount_zar: 471.5 },
-  { name: 'Romaana Phillip', amount_zar: 713 },
-  { name: 'Ronel Veldsman', amount_zar: 1500 },
-  { name: 'Roscoe Sprong', amount_zar: 471.5 },
-  { name: 'Roxanne Meyer', amount_zar: 471.5 },
-  { name: 'Sue Freese', amount_zar: 855, class_hint: 'PILATES' },
-  { name: 'Sue Westhorpe', amount_zar: 855, class_hint: 'PILATES' },
-  { name: 'Saru Mahomva', amount_zar: 471.5, class_hint: 'BC' },
-  { name: 'Sashika Rubychand', amount_zar: 475 },
-  {
-    name: 'Shaun Roberts',
-    amount_zar: 530,
-    class_hint: 'KIDS',
-    note: 'ZACH kids Gym',
-  },
-  { name: 'Taki Anastasis', amount_zar: 736 },
-  { name: 'Tina Sewgolam', amount_zar: 713 },
-  { name: 'Tom Bloy', amount_zar: 713, class_hint: '5AM T TH' },
-  { name: 'Wendy K Couling', amount_zar: 574, class_hint: 'BC' },
-  { name: 'Wesleigh Myburgh', amount_zar: 1100 },
-  { name: 'Yenziwe Ndlovu', amount_zar: 236, class_hint: '6:00 AM' },
-  { name: 'Yune van Niekerk', amount_zar: 354 },
-  { name: 'Yunis Leandre Herbert', amount_zar: 1200, class_hint: '5AM T TH' },
-];
+export type { VukaRosterRow } from '@/lib/fitness/vuka-member-seed';
 
 export function rosterSlug(name: string): string {
   return normalizePersonName(name).replace(/\s+/g, '_').slice(0, 42);
@@ -220,14 +144,10 @@ function resolvePlan(
 }
 
 export const VUKA_BILLED_CLASS_IMPORT = '2026-08-20-classcodes-v2';
+/** Historical settings stamp. Do not rename; live gym files already use it. */
 export const VUKA_MEMBER_MERGE = '2026-09-03-athalah-fold';
 
-export const VUKA_CONTRACTS_IMPORT = `${String(
-  (generated as { import_version?: string }).import_version || '2026-08-19'
-)}-bank`;
-export const VUKA_CONTRACT_SUBMISSIONS = ((
-  generated as { submissions?: FitContractSubmission[] }
-).submissions || []) as FitContractSubmission[];
+export const VUKA_CONTRACTS_IMPORT = HISTORICAL_VUKA_CONTRACTS_IMPORT;
 
 function attachContractRates(
   store: FitgraphStore,
@@ -308,6 +228,7 @@ function findRosterClient(
 
 function upsertBilledRoster(
   store: FitgraphStore,
+  roster: VukaRosterRow[],
   now: string,
   opts?: { createOnly?: boolean }
 ): boolean {
@@ -315,7 +236,7 @@ function upsertBilledRoster(
   const createOnly = opts?.createOnly === true;
   let changed = false;
   const tombstoned = new Set(store.removed_ids?.clients || []);
-  for (const row of VUKA_ROSTER) {
+  for (const row of roster) {
     const billedId = `vuka_cli_${rosterSlug(row.name)}`;
     if (tombstoned.has(billedId)) continue;
     let client = findRosterClient(store, row);
@@ -377,13 +298,14 @@ function clientHasLiveClass(store: FitgraphStore, clientId: string): boolean {
 
 function applyBilledClassAllocations(
   store: FitgraphStore,
+  roster: VukaRosterRow[],
   now: string
 ): boolean {
   if (store.settings?.vuka_billed_class_import === VUKA_BILLED_CLASS_IMPORT) {
     return false;
   }
   let changed = false;
-  for (const row of VUKA_ROSTER) {
+  for (const row of roster) {
     const plan = resolvePlan(store, row.amount_zar, row.class_hint);
     if (!plan) continue;
     const client = findRosterClient(store, row);
@@ -412,12 +334,16 @@ function applyBilledClassAllocations(
   return true;
 }
 
-export function vukaDeskSettled(store: FitgraphStore): boolean {
+export function vukaDeskSettled(
+  store: FitgraphStore,
+  seed?: Pick<VukaMemberSeed, 'importVersion'> | null
+): boolean {
+  const importVersion = seed?.importVersion || VUKA_CONTRACTS_IMPORT;
   const s = store.settings;
   return Boolean(
     s &&
       s.vuka_calendar_manual === true &&
-      s.vuka_contracts_import === VUKA_CONTRACTS_IMPORT &&
+      s.vuka_contracts_import === importVersion &&
       s.vuka_member_merge === VUKA_MEMBER_MERGE &&
       s.vuka_billed_class_import === VUKA_BILLED_CLASS_IMPORT
   );
@@ -425,19 +351,32 @@ export function vukaDeskSettled(store: FitgraphStore): boolean {
 
 export function ensureVukaRoster(
   store: FitgraphStore,
-  opts?: { now?: string }
+  opts?: { now?: string; seed?: VukaMemberSeed }
 ): { store: FitgraphStore; changed: boolean; added: number } {
   const now = opts?.now || new Date().toISOString();
+  const seed = opts?.seed ?? emptyVukaMemberSeed();
+  const importVersion = seed.importVersion || VUKA_CONTRACTS_IMPORT;
   let changed = removeVukaDeskPlans(store);
-  const contractsLive =
-    store.settings?.vuka_contracts_import === VUKA_CONTRACTS_IMPORT;
+  // No server seed: do not expire or invent members from an empty list.
+  if (!seedHasMembers(seed)) {
+    const absorbed = absorbKnownClientAliases(store, {
+      now,
+      folds: seed.nameFolds,
+    });
+    return { store, changed: changed || absorbed.changed, added: 0 };
+  }
+  const roster = seed.roster;
+  const preferredNames = roster.map((row) => row.name);
+  const contractsLive = store.settings?.vuka_contracts_import === importVersion;
   let added = 0;
   if (contractsLive) {
-    if (upsertBilledRoster(store, now, { createOnly: true })) changed = true;
+    if (upsertBilledRoster(store, roster, now, { createOnly: true })) {
+      changed = true;
+    }
     if (store.settings?.vuka_member_merge !== VUKA_MEMBER_MERGE) {
       const merged = mergeDuplicateFitClients(store, {
         now,
-        preferredNames: VUKA_ROSTER.map((r) => r.name),
+        preferredNames,
       });
       if (merged.changed) changed = true;
       if (!store.settings) store.settings = defaultPublicSettings();
@@ -445,22 +384,21 @@ export function ensureVukaRoster(
       changed = true;
     }
     if (store.settings?.vuka_billed_class_import !== VUKA_BILLED_CLASS_IMPORT) {
-      if (applyBilledClassAllocations(store, now)) changed = true;
+      if (applyBilledClassAllocations(store, roster, now)) changed = true;
     }
   } else {
-    const replace =
-      store.settings?.vuka_contracts_import !== VUKA_CONTRACTS_IMPORT;
-    const applied = applyContractSubmissions(store, VUKA_CONTRACT_SUBMISSIONS, {
+    const replace = store.settings?.vuka_contracts_import !== importVersion;
+    const applied = applyContractSubmissions(store, seed.submissions, {
       now,
       replaceRoster: replace,
-      importVersion: VUKA_CONTRACTS_IMPORT,
+      importVersion,
     });
     changed = changed || applied.changed;
     added = applied.added;
-    if (upsertBilledRoster(store, now)) changed = true;
+    if (upsertBilledRoster(store, roster, now)) changed = true;
     const merged = mergeDuplicateFitClients(store, {
       now,
-      preferredNames: VUKA_ROSTER.map((r) => r.name),
+      preferredNames,
     });
     if (merged.changed) changed = true;
     if (!store.settings) store.settings = defaultPublicSettings();
@@ -469,8 +407,11 @@ export function ensureVukaRoster(
       changed = true;
     }
     if (attachContractRates(store, now)) changed = true;
-    if (applyBilledClassAllocations(store, now)) changed = true;
+    if (applyBilledClassAllocations(store, roster, now)) changed = true;
   }
-  const absorbed = absorbKnownClientAliases(store, { now });
+  const absorbed = absorbKnownClientAliases(store, {
+    now,
+    folds: seed.nameFolds,
+  });
   return { store, changed: changed || absorbed.changed, added };
 }

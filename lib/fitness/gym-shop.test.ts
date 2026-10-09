@@ -17,7 +17,6 @@ import {
   parseGymSaleKind,
   publicShopCoaches,
   resolveShopItem,
-  vukaShopCoachRank,
 } from './gym-shop';
 import {
   inventoryGroupOf,
@@ -272,56 +271,44 @@ assert.equal(
 );
 assert.equal(inventoryShelfOf({ name: 'Water bottle' }), 'other');
 
-assert.equal(vukaShopCoachRank('Bianca Westhorpe-Pottow'), 0);
-assert.equal(vukaShopCoachRank('Miri'), 1);
-assert.equal(vukaShopCoachRank('Jared Martin'), 2);
-assert.equal(vukaShopCoachRank('Jared-Wade Cawood'), 2);
-assert.equal(vukaShopCoachRank('Sophie Pearce'), 3);
-assert.ok(vukaShopCoachRank('Jaryyd') > 3);
-assert.ok(vukaShopCoachRank('Alex') > 3);
-
 const vukaShop = emptyFitgraphStore();
 vukaShop.settings = { ...vukaShop.settings!, brand_name: 'VUKA Fitness' };
 vukaShop.coaches = [
   {
     id: 'c_s',
     code: 'S',
-    name: 'Sophie Pearce',
+    name: 'Second Example',
+    sort_order: 20,
     active: true,
     created_at: '2026-01-01T00:00:00.000Z',
   },
   {
     id: 'c_j',
     code: 'J',
-    name: 'Jaryyd',
+    name: 'Unsorted Example',
     active: true,
     created_at: '2026-01-01T00:00:00.000Z',
   },
   {
     id: 'c_b',
     code: 'B',
-    name: 'Bianca Westhorpe-Pottow',
+    name: 'First Example',
+    sort_order: 10,
     active: true,
     created_at: '2026-01-01T00:00:00.000Z',
   },
   {
     id: 'c_m',
     code: 'M',
-    name: 'Miri',
-    active: true,
-    created_at: '2026-01-01T00:00:00.000Z',
-  },
-  {
-    id: 'c_jm',
-    code: 'JM',
-    name: 'Jared Martin',
+    name: 'Third Example',
+    sort_order: 30,
     active: true,
     created_at: '2026-01-01T00:00:00.000Z',
   },
 ];
 assert.deepEqual(
   publicShopCoaches(vukaShop).map((c) => c.id),
-  ['c_b', 'c_m', 'c_jm', 'c_s', 'c_j']
+  ['c_b', 'c_s', 'c_m', 'c_j']
 );
 
 console.log('gym-shop.test.ts ok');

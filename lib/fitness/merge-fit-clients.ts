@@ -655,28 +655,25 @@ export function mergeDuplicateFitClients(
   return { store, changed: merged > 0, merged };
 }
 
-/** Known desk typos that must fold even when emails differ. */
-const CLIENT_NAME_FOLDS: Array<{ aliases: string[]; canonical: string }> = [
-  {
-    aliases: ['athalah hembert', 'athaliah hembert'],
-    canonical: 'Athaliah Hembert',
-  },
-];
-
 /**
  * Fold known duplicate names into one person and retarget their rows.
+ * Folds come from the server-side member seed, not from source.
  * Runs even after the member-merge stamp so a leftover typo cannot stick.
  */
 export function absorbKnownClientAliases(
   store: FitgraphStore,
-  opts?: { now?: string }
+  opts?: {
+    now?: string;
+    folds?: Array<{ aliases: string[]; canonical: string }>;
+  }
 ): { store: FitgraphStore; changed: boolean } {
   const now = opts?.now || new Date().toISOString();
-  if (!Array.isArray(store.clients) || !store.clients.length) {
+  const folds = opts?.folds || [];
+  if (!Array.isArray(store.clients) || !store.clients.length || !folds.length) {
     return { store, changed: false };
   }
   let changed = false;
-  for (const fold of CLIENT_NAME_FOLDS) {
+  for (const fold of folds) {
     const aliasSet = new Set(fold.aliases);
     const canonicalNorm = normalizePersonName(fold.canonical);
     const preferred = new Set([canonicalNorm]);
