@@ -25,6 +25,11 @@ import {
   screenBand,
   scrollBand,
   visitorCookieValue,
+  insightsRoute,
+  isAppRoute,
+  clickLabelFor,
+  geoFromHeaders,
+  isBotUa,
 } from './visitor';
 
 const EVENT_ID =
@@ -54,7 +59,7 @@ assert.equal(publicPath('/api/insights/collect'), null);
 assert.equal(publicPath('/pricing?utm_source=x'), '/pricing');
 assert.equal(
   publicPath('/share/abcdefghijklmnopqrstuvwxyz012345'),
-  '/share/:token'
+  '/share/:id'
 );
 
 const utm = readUtm('?utm_source=newsletter&utm_medium=email&utm_campaign=spring&utm_content=hero&utm_term=supply');
@@ -365,3 +370,68 @@ main().catch((error) => {
   console.error(error);
   process.exit(1);
 });
+
+// —— Brief 103: grouped routes, in-app labels, visitor id, vitals, geo, bots ——
+assert.deepEqual(insightsRoute('/dashboard/suppliers/po/123?x=1'), { path: '/app/purchasing', app: true });
+assert.equal(publicPath('/dashboard'), '/app/home');
+assert.equal(publicPath('/dashboard/select-company'), '/app/account');
+assert.equal(publicPath('/dashboard/customers/invoices'), '/app/sales');
+assert.equal(publicPath('/dashboard/accounting/bank-reconciliation'), '/app/finance');
+assert.equal(publicPath('/dashboard/fitgraph/members/9'), '/app/industry');
+assert.equal(publicPath('/dashboard/something-new'), '/app/other');
+assert.equal(publicPath('/sales/pipeline'), '/app/sales');
+assert.equal(publicPath('/me'), '/app/account');
+assert.equal(publicPath('/onboarding'), '/app/onboarding');
+assert.equal(publicPath('/store/big-five-foods'), '/store/:company');
+assert.equal(publicPath('/store/big-five-foods/products/42'), '/store/:company');
+assert.equal(publicPath('/p/AbC123xyz'), '/p/:id');
+assert.equal(publicPath('/pay/abc'), '/pay/:id');
+assert.equal(publicPath('/join/fitgraph'), '/join/fitgraph');
+assert.equal(publicPath('/join/some-public-id'), '/join/:id');
+assert.equal(publicPath('/industries/dental'), '/industries/dental');
+assert.equal(publicPath('/industries'), '/industries');
+assert.equal(publicPath('/pricing'), '/pricing');
+assert.equal(publicPath('/'), '/');
+assert.equal(publicPath('/orders/12345'), '/orders/:id');
+assert.equal(publicPath('/x/me@example.com'), null);
+assert.equal(isAppRoute('/app/sales'), true);
+assert.equal(isAppRoute('/pricing'), false);
+
+// In-app button text is never kept; a data-insights slug is.
+assert.equal(clickLabelFor({ path: '/app/account', text: 'Company owner verified Big Five Foods (Pty) Ltd' }), 'app-button');
+assert.equal(clickLabelFor({ path: '/app/purchasing', dataLabel: 'receive-otifef', text: 'Receive' }), 'receive-otifef');
+assert.equal(clickLabelFor({ path: '/pricing', text: 'Start 30-day free trial' }), 'cta-start-free-trial');
+assert.equal(clickLabelFor({ path: '/', text: 'Log in' }), 'Log in');
+assert.equal(clickLabelFor({ path: '/', dataLabel: 'cta-start-free-trial', text: 'Go' }), 'cta-start-free-trial');
+const inApp = sanitizeBatch({ v: 1, e: [{ k: 'click', p: '/dashboard/select-company', l: 'Big Five Foods (Pty) Ltd' }] });
+assert.equal(inApp?.e[0].l, 'app-button');
+assert.equal(inApp?.e[0].p, '/app/account');
+
+// The cookie visitor id is the visitor; each event keeps its own event id.
+const vid = '0b9a4a54-1c2d-4e5f-8a9b-0c1d2e3f4a5b';
+const two = sanitizeBatch({ v: 1, e: [{ k: 'pageview', p: '/', visitor: vid, id: 'cd'.repeat(16) }, { k: 'engage', p: '/', ms: 900, visitor: vid }] });
+assert.ok(two);
+assert.equal(two.e[0].id, vid);
+assert.equal(two.e[1].id, vid);
+assert.equal(two.e[0].vid, vid);
+assert.equal(two.e[0].visitor, vid);
+assert.equal(two.e[0].eid, 'cd'.repeat(16));
+assert.notEqual(two.e[1].eid, two.e[0].eid);
+
+// Core Web Vitals readings.
+const vit = sanitizeBatch({ v: 1, e: [{ k: 'vital', p: '/pricing', l: 'LCP', v: 2345.6789 }, { k: 'vital', p: '/', l: 'cls', v: 11 }, { k: 'vital', p: '/', l: 'fid', v: 10 }] });
+assert.equal(vit?.e.length, 1);
+assert.equal(vit?.e[0].l, 'lcp');
+assert.equal(vit?.e[0].v, 2345.679);
+
+// Vercel edge headers give coarse place; nothing else.
+const geo = geoFromHeaders(new Headers({ 'x-vercel-ip-country': 'za', 'x-vercel-ip-country-region': 'GP', 'x-vercel-ip-city': 'Johannesburg%20North', 'x-vercel-ip-timezone': 'Africa/Johannesburg', 'x-forwarded-for': '8.8.8.8' }));
+assert.deepEqual(geo, { country: 'ZA', region: 'GP', city: 'Johannesburg North', timezone: 'Africa/Johannesburg' });
+assert.deepEqual(geoFromHeaders(new Headers({ 'x-vercel-ip-country': 'XX' })), {});
+
+assert.equal(isBotUa('Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'), true);
+assert.equal(isBotUa('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/120.0 Safari/537.36'), true);
+assert.equal(isBotUa(''), true);
+assert.equal(isBotUa('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'), false);
+
+console.log('visitor.test.ts: ok');

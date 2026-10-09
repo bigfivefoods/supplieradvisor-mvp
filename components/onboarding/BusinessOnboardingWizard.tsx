@@ -4,6 +4,7 @@
  * Onboarding: Account → Sector → Industry → Business type → Details → Review
  * Clear selection trail; packs follow industry; entity type from business type.
  */
+import { trackInsightsAction } from '@/lib/insights/action';
 import { useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -570,6 +571,7 @@ export default function BusinessOnboardingWizard() {
       }
 
       setDone(true);
+      trackInsightsAction('signup');
       toast.success(
         data.setupStatus === 'pending_approval' || requiresApproval
           ? 'Request sent — platform admin must approve government access'

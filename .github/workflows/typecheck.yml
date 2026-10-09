@@ -40,7 +40,8 @@ jobs:
             lib/security/brief84-storage.test.ts \
             lib/security/brief85-authz.test.ts \
             lib/storage/resolve-stored-doc.test.ts \
-            lib/auth/public-paths.test.ts
+            lib/auth/public-paths.test.ts \
+            lib/insights/visitor.test.ts
           do
             if [ -f "$file" ]; then
               npx --yes tsx "$file"

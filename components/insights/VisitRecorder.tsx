@@ -9,7 +9,7 @@ import {
   VISITOR_MAX_AGE_SEC,
   browserFromUa,
   cleanReferrer,
-  clipLabel,
+  clickLabelFor,
   deviceFromUa,
   insightsOptOut,
   languageTag,
@@ -22,11 +22,12 @@ import {
   readUtm,
   screenBand,
   scrollBand,
-  validEventId,
   visitorCookieValue,
   type InsightEvent,
   type Utm,
 } from '@/lib/insights/visitor';
+import { INSIGHTS_ACTION_EVENT } from '@/lib/insights/action';
+import { observeVitals } from '@/lib/insights/vitals';
 
 const SESSION_KEY = 'sa_visit';
 const TEST_KEY = 'sa-insights-test';
@@ -135,7 +136,7 @@ function send(events: ClientEvent[], beacon = false) {
   if (!events.length) return;
   const stamped = events.slice(0, 10).map((event) => ({
     ...event,
-    id: validEventId(event.id) || crypto.randomUUID(),
+    eid: crypto.randomUUID(),
   }));
   const body = JSON.stringify({ v: 1, site: INSIGHTS_SITE, e: stamped });
   try {
@@ -155,11 +156,15 @@ function send(events: ClientEvent[], beacon = false) {
   }
 }
 
-function buttonLabel(el: Element): string | undefined {
+/** In-app pages: only a data-insights slug or a generic label; never the visible text. */
+function buttonLabel(el: Element, path: string): string | undefined {
   const labelled = el.getAttribute('aria-label') || '';
-  if (el instanceof HTMLInputElement) return clipLabel(labelled || el.value);
-  return clipLabel(labelled || el.textContent || '');
+  const text = el instanceof HTMLInputElement ? labelled || el.value : labelled || el.textContent || '';
+  const data = el.closest('[data-insights]')?.getAttribute('data-insights');
+  return clickLabelFor({ path, dataLabel: data, text });
 }
+
+let vitalsStarted = false;
 
 function isButtonLike(el: Element): boolean {
   if (el instanceof HTMLButtonElement) return true;
@@ -265,11 +270,34 @@ export default function VisitRecorder() {
           return;
         }
       }
-      if (!isButtonLike(el)) return;
-      const label = buttonLabel(el);
+      const named = el.closest('[data-insights]')?.getAttribute('data-insights');
+      if (!isButtonLike(el) && !named) {
+        // A plain link styled as text can still be the "Start free trial" call to action.
+        const trial = el instanceof HTMLAnchorElement ? clickLabelFor({ path: sentPage, text: el.textContent || '' }) : undefined;
+        if (trial !== 'cta-start-free-trial') return;
+      }
+      const label = buttonLabel(el, sentPage);
       if (!label) return;
       send([{ k: 'click', p: sentPage, l: label, ...base }]);
     };
+    const onAction = (event: Event) => {
+      const name = (event as CustomEvent<unknown>).detail;
+      if (typeof name !== 'string' || !/^[a-z0-9-]{2,40}$/.test(name)) return;
+      send([{ k: 'click', p: sentPage, l: `cta-${name}`, ...context(session as VisitSession, sentPage) }]);
+    };
+    window.addEventListener(INSIGHTS_ACTION_EVENT, onAction);
+    if (!vitalsStarted) {
+      // Page speed for the page this load started on. One reading per metric, sent when hidden.
+      vitalsStarted = true;
+      const vitalsPage = path;
+      const pending: ClientEvent[] = [];
+      observeVitals((name, value) => {
+        pending.push({ k: 'vital', p: vitalsPage, l: name, v: value, visitor: (session as VisitSession).id });
+        queueMicrotask(() => {
+          if (pending.length) send(pending.splice(0, pending.length), true);
+        });
+      });
+    }
 
     window.addEventListener('scroll', onScroll, { passive: true });
     document.addEventListener('visibilitychange', onVisibility);
@@ -278,6 +306,7 @@ export default function VisitRecorder() {
 
     return () => {
       window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener(INSIGHTS_ACTION_EVENT, onAction);
       flush(false);
       window.removeEventListener('scroll', onScroll);
       document.removeEventListener('visibilitychange', onVisibility);
