@@ -25,6 +25,7 @@ import {
   visitorCookieValue,
   type InsightEvent,
   type Utm,
+  visitAttribution,
 } from '@/lib/insights/visitor';
 import { INSIGHTS_ACTION_EVENT } from '@/lib/insights/action';
 import { observeVitals } from '@/lib/insights/vitals';
@@ -41,6 +42,8 @@ type VisitSession = {
   pages: string[];
   referrer?: string;
   utm?: Utm;
+  /** True once the first page view (with referrer + campaign) has been sent. */
+  attributed?: boolean;
 };
 
 function optedOut(): boolean {
@@ -115,8 +118,6 @@ function context(session: VisitSession, path: string): Omit<ClientEvent, 'k' | '
   })();
   return {
     a: standalone,
-    r: session.referrer,
-    u: session.utm,
     device: deviceFromUa(ua, width),
     browser: browserFromUa(ua),
     os: osFromUa(ua),
@@ -133,26 +134,25 @@ function context(session: VisitSession, path: string): Omit<ClientEvent, 'k' | '
 }
 
 function send(events: ClientEvent[], beacon = false) {
-  if (!events.length) return;
-  const stamped = events.slice(0, 10).map((event) => ({
-    ...event,
-    eid: crypto.randomUUID(),
-  }));
-  const body = JSON.stringify({ v: 1, site: INSIGHTS_SITE, e: stamped });
-  try {
-    if (beacon && navigator.sendBeacon) {
-      navigator.sendBeacon(INSIGHTS_COLLECT_PATH, new Blob([body], { type: 'text/plain' }));
-      return;
+  for (let i = 0; i < events.length; i += 10) {
+    const stamped = events.slice(i, i + 10).map((event) => ({
+      ...event,
+      eid: crypto.randomUUID(),
+    }));
+    const body = JSON.stringify({ v: 1, site: INSIGHTS_SITE, e: stamped });
+    try {
+      // Leaving the page: sendBeacon survives the unload; if the browser refuses it, keepalive fetch.
+      if (beacon && navigator.sendBeacon && navigator.sendBeacon(INSIGHTS_COLLECT_PATH, new Blob([body], { type: 'text/plain' }))) continue;
+      void fetch(INSIGHTS_COLLECT_PATH, {
+        method: 'POST',
+        body,
+        keepalive: true,
+        credentials: 'include',
+        headers: { 'Content-Type': 'text/plain' },
+      }).catch(() => {});
+    } catch {
+      /* never surface a recording failure to the page */
     }
-    void fetch(INSIGHTS_COLLECT_PATH, {
-      method: 'POST',
-      body,
-      keepalive: true,
-      credentials: 'include',
-      headers: { 'Content-Type': 'text/plain' },
-    }).catch(() => {});
-  } catch {
-    /* never surface a recording failure to the page */
   }
 }
 
@@ -165,6 +165,9 @@ function buttonLabel(el: Element, path: string): string | undefined {
 }
 
 let vitalsStarted = false;
+let flushVitals: () => void = () => {};
+/** Page-speed readings waiting to ride with the next engagement batch. */
+const pendingVitals: ClientEvent[] = [];
 
 function isButtonLike(el: Element): boolean {
   if (el instanceof HTMLButtonElement) return true;
@@ -220,9 +223,13 @@ export default function VisitRecorder() {
     };
     measureScroll();
 
-    const view: ClientEvent = { k: 'pageview', p: path, ...context(session, path) };
+    const view: ClientEvent = { k: 'pageview', p: path, ...context(session, path), ...visitAttribution(session, 'pageview') };
     if (maxScroll > 0) view.scroll = maxScroll;
     send([view]);
+    if (!session.attributed) {
+      session = { ...session, attributed: true };
+      writeSession(session);
+    }
 
     const onScroll = () => measureScroll();
     const flush = (beacon: boolean) => {
@@ -232,20 +239,23 @@ export default function VisitRecorder() {
       const scroll = maxScroll;
       accumulated = 0;
       maxScroll = 0;
-      if (ms < 500 && scroll <= 0) return;
-      send(
-        [
-          {
-            k: 'engage',
-            p: sentPage,
-            ms: Math.min(ms, 36e5),
-            scroll,
-            ...context(session as VisitSession, sentPage),
-            exit: sentPage,
-          },
-        ],
-        beacon
-      );
+      const batch: ClientEvent[] = [];
+      if (ms >= 500 || scroll > 0) {
+        batch.push({
+          k: 'engage',
+          p: sentPage,
+          ms: Math.min(ms, 36e5),
+          scroll,
+          ...context(session as VisitSession, sentPage),
+          exit: sentPage,
+        });
+      }
+      if (beacon) {
+        // Leaving or hiding: page speed goes out in the same beacon as the engaged time.
+        flushVitals();
+        batch.push(...pendingVitals.splice(0, pendingVitals.length));
+      }
+      send(batch, beacon);
     };
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') flush(true);
@@ -290,12 +300,14 @@ export default function VisitRecorder() {
       // Page speed for the page this load started on. One reading per metric, sent when hidden.
       vitalsStarted = true;
       const vitalsPage = path;
-      const pending: ClientEvent[] = [];
-      observeVitals((name, value) => {
-        pending.push({ k: 'vital', p: vitalsPage, l: name, v: value, visitor: (session as VisitSession).id });
-        queueMicrotask(() => {
-          if (pending.length) send(pending.splice(0, pending.length), true);
-        });
+      const device = deviceFromUa(navigator.userAgent || '', window.innerWidth || 0);
+      flushVitals = observeVitals((name, value) => {
+        pendingVitals.push({ k: 'vital', p: vitalsPage, l: name, v: value, device, visitor: (session as VisitSession).id });
+        // Normally drained by flush() above in the same hide/pagehide; a task (not a microtask)
+        // so the engagement listener runs first and both travel together.
+        setTimeout(() => {
+          if (pendingVitals.length) send(pendingVitals.splice(0, pendingVitals.length), true);
+        }, 0);
       });
     }
 

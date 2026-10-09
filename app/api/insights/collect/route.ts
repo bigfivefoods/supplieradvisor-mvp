@@ -9,6 +9,7 @@ import {
   isBotUa,
   isPublicIp,
   sanitizeBatch,
+  withVitalDevice,
   type InsightEvent,
 } from '@/lib/insights/visitor';
 
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
   };
   const clean = (o: Partial<InsightEvent>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== ''));
 
-  const events: InsightEvent[] = batch.e.map((event) =>
+  const events: InsightEvent[] = withVitalDevice(batch.e, ua).map((event) =>
     event.k === 'vital' ? event : ({ ...event, ...clean(place), ...clean(org) } as InsightEvent)
   );
   try {

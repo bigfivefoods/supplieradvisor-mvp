@@ -10,8 +10,9 @@ export type VitalName = "lcp" | "inp" | "cls";
 type ShiftEntry = PerformanceEntry & { value: number; hadRecentInput: boolean };
 type EventTimingEntry = PerformanceEntry & { interactionId?: number };
 
-export function observeVitals(report: (name: VitalName, value: number) => void): void {
-  if (typeof PerformanceObserver === "undefined") return;
+/** Returns a flush function so the caller can send page speed in the same batch as engaged time. */
+export function observeVitals(report: (name: VitalName, value: number) => void): () => void {
+  if (typeof PerformanceObserver === "undefined") return () => {};
   const supported = PerformanceObserver.supportedEntryTypes || [];
   let lcp = -1;
   let cls = 0;
@@ -90,4 +91,5 @@ export function observeVitals(report: (name: VitalName, value: number) => void):
     if (document.visibilityState === "hidden") flush();
   });
   window.addEventListener("pagehide", flush);
+  return flush;
 }

@@ -135,6 +135,28 @@ export function deviceFromUa(ua: string, width?: number): DeviceKind {
   return 'desktop';
 }
 
+/**
+ * Referrer and campaign (UTM) ride only on the first page view of a visit, so a campaign is
+ * counted once per visit however many pages or engagement pings follow.
+ */
+export function visitAttribution(
+  session: { referrer?: string; utm?: Utm; attributed?: boolean },
+  kind: string
+): { r?: string; u?: Utm } {
+  if (kind !== 'pageview' || session.attributed) return {};
+  const out: { r?: string; u?: Utm } = {};
+  if (session.referrer) out.r = session.referrer;
+  if (session.utm) out.u = session.utm;
+  return out;
+}
+
+/** Page-speed readings keep the device type: the client sends it, the user agent fills a gap. */
+export function withVitalDevice<T extends { k: string; device?: DeviceKind }>(events: T[], ua: string): T[] {
+  return events.map((event) =>
+    event.k === 'vital' && !event.device ? { ...event, device: deviceFromUa(ua) } : event
+  );
+}
+
 export function browserFromUa(ua: string): string {
   if (/edg\//i.test(ua)) return 'Edge';
   if (/opr\/|opera/i.test(ua)) return 'Opera';
