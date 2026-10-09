@@ -20,7 +20,9 @@ export function insightsIngestUrl(): string {
  */
 export async function forwardInsights(
   batch: InsightsBatch,
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = fetch,
+  /** The visitor's user agent, for the collector's bot test only. It is not stored. */
+  userAgent?: string
 ): Promise<void> {
   const key = String(process.env.INSIGHTS_INGEST_KEY || '').trim();
   if (!key) return;
@@ -31,6 +33,7 @@ export async function forwardInsights(
       headers: {
         'Content-Type': 'text/plain',
         'x-insights-key': key,
+        ...(userAgent ? { 'x-insights-ua': userAgent.slice(0, 500) } : {}),
       },
       body: JSON.stringify(batch),
       cache: 'no-store',

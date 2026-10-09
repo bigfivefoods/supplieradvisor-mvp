@@ -22,7 +22,7 @@ const VISITOR_ID =
 /** 32 hex, or any UUID (8-4-4-4-12). The visitor cookie id is not reused as an event id. */
 const EVENT_ID = /^(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 
-export const EVENT_KINDS = ['pageview', 'engage', 'pdf', 'outbound', 'click'] as const;
+export const EVENT_KINDS = ['pageview', 'engage', 'pdf', 'outbound', 'click', 'vital'] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 
 export const SCREEN_BANDS = ['xs', 'sm', 'md', 'lg', 'xl'] as const;
@@ -42,8 +42,17 @@ export type Utm = {
 export type InsightEvent = {
   k: EventKind;
   p: string;
-  /** 32 hex or UUID. Required on every event the collector stores. */
+  /**
+   * Visitor id the collector reads (32 hex or UUID). Set to the 180-day cookie id so a visitor's
+   * events group together; older collectors read only this field.
+   */
   id: string;
+  /** Same cookie id, explicit. The collector prefers it over `id`. */
+  vid?: string;
+  /** Random id of this one event (not stored as a visitor). */
+  eid?: string;
+  /** Core Web Vitals reading (kind "vital"): `l` is lcp / inp / cls. */
+  v?: number;
   a?: boolean;
   r?: string;
   u?: Utm;
@@ -151,26 +160,182 @@ export function languageTag(raw: string | null | undefined): string | undefined 
   return s.slice(0, 16);
 }
 
-/** Drop query strings and token-like path segments. Returns null for paths we do not record. */
-export function publicPath(pathname: string | null | undefined): string | null {
+const DASHBOARD_GROUPS: Record<string, string> = {
+  suppliers: 'purchasing',
+  procurement: 'purchasing',
+  buyer: 'purchasing',
+  customers: 'sales',
+  loyalty: 'sales',
+  accounting: 'finance',
+  finance: 'finance',
+  escrow: 'finance',
+  settle: 'finance',
+  inventory: 'operations',
+  operations: 'operations',
+  manufacturing: 'operations',
+  distribution: 'operations',
+  supplychain: 'operations',
+  quality: 'operations',
+  sheq: 'operations',
+  projects: 'operations',
+  containers: 'operations',
+  people: 'people',
+  schools: 'people',
+  calendar: 'people',
+  connections: 'network',
+  network: 'network',
+  'network-invites': 'network',
+  'invite-business': 'network',
+  ecosystem: 'network',
+  messages: 'network',
+  'select-company': 'account',
+  'my-business': 'account',
+  settings: 'account',
+  platform: 'account',
+  governance: 'account',
+  guide: 'account',
+  intelligence: 'insights',
+  sustainability: 'insights',
+  health: 'insights',
+  'industry-tools': 'insights',
+};
+
+/** Signed-in app areas. Their pages are recorded as one grouped route each, never the real URL. */
+const APP_TOP: Record<string, string> = {
+  sales: '/app/sales',
+  me: '/app/account',
+  onboarding: '/app/onboarding',
+  supplier: '/app/onboarding',
+  member: '/app/member',
+  staff: '/app/staff',
+  coach: '/app/staff',
+  checkin: '/app/staff',
+};
+
+/** Links that carry an id or token in the second segment. */
+const ID_ROUTES = new Set(['c', 'i', 'p', 'r', 't', 'pay', 'hire', 'apparel', 'claim-review']);
+const MODULE_ROUTES = new Set(['f', 'clinician', 'pwa']);
+const KNOWN_SECOND: Record<string, Set<string>> = {
+  join: new Set(['fitgraph', 'member', 'work']),
+  embed: new Set(['advisor', 'containers', 'fitgraph', 'hire', 'retail', 'store']),
+  nsnp: new Set(['menu', 'transparency']),
+  s: new Set(['food', 'peu', 'serve']),
+  marketplace: new Set(['advisors']),
+};
+
+function idLike(seg: string): boolean {
+  if (/^\d+$/.test(seg)) return true;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(seg)) return true;
+  if (seg.length >= 24 && /^[a-z0-9_-]+$/.test(seg)) return true;
+  if (seg.length >= 8 && /\d/.test(seg) && /^[a-z0-9_-]+$/.test(seg) && /[a-z]/.test(seg) && /\d{3,}/.test(seg)) return true;
+  return false;
+}
+
+export type InsightsRoute = { path: string; app: boolean };
+
+/**
+ * The route pattern Website Insights stores for a pathname. Never a query string, an id, a
+ * token, a company slug or an email. Signed-in app pages collapse to one group each
+ * (for example `/dashboard/suppliers/po/123` → `/app/purchasing`), store pages to
+ * `/store/:company`. Returns null for paths that are not recorded (`/api`, `/portal`).
+ */
+export function insightsRoute(pathname: string | null | undefined): InsightsRoute | null {
   const raw = String(pathname || '').split('?')[0].split('#')[0];
-  if (!raw.startsWith('/')) return null;
-  const lower = raw.toLowerCase();
-  if (
-    lower === '/api' ||
-    lower.startsWith('/api/') ||
-    lower === '/portal' ||
-    lower.startsWith('/portal/')
-  ) {
-    return null;
-  }
+  if (!raw.startsWith('/') || raw.startsWith('//')) return null;
   if (raw.includes('@')) return null;
-  const parts = raw.split('/').map((seg) => {
-    if (seg.length >= 24 && /^[A-Za-z0-9_-]+$/.test(seg)) return ':token';
-    return seg.slice(0, 80);
-  });
-  const path = parts.join('/') || '/';
-  return path.slice(0, 180);
+  let decoded = raw;
+  try {
+    decoded = decodeURIComponent(raw);
+  } catch {
+    decoded = raw;
+  }
+  if (decoded.includes('@')) return null;
+  const segs = decoded.toLowerCase().split('/').filter(Boolean);
+  const first = segs[0] || '';
+  if (first === 'api' || first === 'portal') return null;
+  if (!first) return { path: '/', app: false };
+
+  if (first === 'dashboard') {
+    const second = segs[1] || '';
+    if (!second) return { path: '/app/home', app: true };
+    const group = DASHBOARD_GROUPS[second] || (second.endsWith('graph') ? 'industry' : 'other');
+    return { path: `/app/${group}`, app: true };
+  }
+  if (APP_TOP[first]) return { path: APP_TOP[first], app: true };
+  if (first === 'store') return { path: segs[1] ? '/store/:company' : '/store', app: false };
+  if (ID_ROUTES.has(first)) return { path: segs[1] ? `/${first}/:id` : `/${first}`, app: false };
+  if (MODULE_ROUTES.has(first)) return { path: segs[1] ? `/${first}/:module` : `/${first}`, app: false };
+  if (first === 'industries') {
+    const slug = segs[1];
+    return { path: slug && /^[a-z0-9-]{1,40}$/.test(slug) && !idLike(slug) ? `/industries/${slug}` : slug ? '/industries/:slug' : '/industries', app: false };
+  }
+  const known = KNOWN_SECOND[first];
+  if (known) {
+    const second = segs[1];
+    if (!second) return { path: `/${first}`, app: false };
+    const mid = known.has(second) ? second : first === 'join' ? ':id' : ':page';
+    return { path: segs[2] ? `/${first}/${mid}/:id` : `/${first}/${mid}`, app: false };
+  }
+  const parts = segs.slice(0, 3).map((seg) => (idLike(seg) ? ':id' : seg.replace(/[^a-z0-9._~:-]/g, '').slice(0, 60) || ':id'));
+  return { path: `/${parts.join('/')}`.slice(0, 180), app: false };
+}
+
+/** Route pattern to record, or null. Kept for callers that only need the path. */
+export function publicPath(pathname: string | null | undefined): string | null {
+  return insightsRoute(pathname)?.path ?? null;
+}
+
+/** True for a grouped signed-in app route (`/app/...`). In-app button text is never recorded. */
+export function isAppRoute(path: string | null | undefined): boolean {
+  return typeof path === 'string' && (path === '/app' || path.startsWith('/app/'));
+}
+
+/** Labels a page may set with `data-insights` (named actions). Anything else becomes generic. */
+const ACTION_LABEL = /^cta-[a-z0-9-]{2,40}$/;
+const DATA_LABEL = /^[a-z0-9][a-z0-9-]{1,40}$/;
+
+/**
+ * Click label to record. Inside the signed-in app only a developer-set `data-insights` label
+ * (lower-case slug) is kept, otherwise `app-button`; the visible text is never used there.
+ * On public pages a `data-insights` label wins, then the clipped visible text.
+ */
+export function clickLabelFor(opts: { path: string; dataLabel?: string | null; text?: string | null }): string | undefined {
+  const data = String(opts.dataLabel || '').trim().toLowerCase();
+  if (data && (ACTION_LABEL.test(data) || DATA_LABEL.test(data))) return data;
+  if (isAppRoute(opts.path)) return 'app-button';
+  const text = clipLabel(opts.text);
+  if (!text) return undefined;
+  if (/\bstart\b.{0,20}\bfree trial\b/i.test(text)) return 'cta-start-free-trial';
+  return text;
+}
+
+/** Coarse place from Vercel's edge headers (country, region code, city, timezone). The IP is never read here. */
+export function geoFromHeaders(headers: Headers): Pick<InsightEvent, 'country' | 'region' | 'city' | 'timezone'> {
+  const out: Pick<InsightEvent, 'country' | 'region' | 'city' | 'timezone'> = {};
+  const country = String(headers.get('x-vercel-ip-country') || '').trim().toUpperCase();
+  if (/^[A-Z]{2}$/.test(country) && country !== 'XX') out.country = country;
+  const region = String(headers.get('x-vercel-ip-country-region') || '').trim();
+  if (/^[A-Za-z0-9 -]{1,40}$/.test(region)) out.region = region;
+  let city = String(headers.get('x-vercel-ip-city') || '').trim();
+  try {
+    city = decodeURIComponent(city);
+  } catch {
+    /* keep raw */
+  }
+  city = city.replace(/[\u0000-\u001f]/g, '').slice(0, 80);
+  if (city.length >= 2 && !city.includes('@') && !looksLikeIp(city)) out.city = city;
+  const tz = String(headers.get('x-vercel-ip-timezone') || '').trim();
+  if (/^[A-Za-z0-9_+/-]{1,64}$/.test(tz)) out.timezone = tz;
+  return out;
+}
+
+const BOT_UA =
+  /bot\b|bot\/|crawl|spider|slurp|mediapartners|facebookexternalhit|embedly|quora link|preview|lighthouse|pagespeed|headlesschrome|phantomjs|puppeteer|playwright|selenium|wget|curl\/|python-requests|httpclient|axios|node-fetch|go-http|java\/|okhttp|vercel-screenshot|vercel-favicon|uptime|pingdom|monitor|statuscake|ahrefs|semrush|mj12|dotbot|petalbot|yandex|baiduspider|bytespider|gptbot|claudebot|perplexity|ccbot|applebot|bingpreview|whatsapp|telegrambot|discordbot|slackbot|linkedinbot|twitterbot|skypeuripreview/i;
+
+/** Same bot rule as the Big Five Group collector. A missing or very short user agent counts as a bot. */
+export function isBotUa(ua: string | null | undefined): boolean {
+  if (!ua || ua.length < 20) return true;
+  return BOT_UA.test(ua);
 }
 
 export function cleanReferrer(raw: string | null | undefined): string | undefined {
@@ -384,11 +549,27 @@ export function sanitizeClientEvent(input: unknown): InsightEvent | null {
   const path = publicPath(typeof row.p === 'string' ? row.p : '');
   if (!path) return null;
 
+  const visitor = typeof row.visitor === 'string' && VISITOR_ID.test(row.visitor) ? row.visitor.toLowerCase() : null;
+  const eventId = validEventId(row.eid) || validEventId(row.id) || crypto.randomUUID();
   const event: InsightEvent = {
     k: kind as EventKind,
     p: path,
-    id: validEventId(row.id) || crypto.randomUUID(),
+    // The visitor id goes in `id` too: collectors before the vid fix read only `id`.
+    id: visitor || eventId,
+    eid: eventId,
   };
+  if (visitor) event.vid = visitor;
+
+  if (kind === 'vital') {
+    const metric = typeof row.l === 'string' ? row.l.toLowerCase() : '';
+    const max = metric === 'cls' ? 10 : 120000;
+    if (metric !== 'lcp' && metric !== 'inp' && metric !== 'cls') return null;
+    if (typeof row.v !== 'number' || !Number.isFinite(row.v) || row.v < 0 || row.v > max) return null;
+    event.l = metric;
+    event.v = Math.round(row.v * 1000) / 1000;
+    if (typeof row.device === 'string' && DEVICES.includes(row.device as DeviceKind)) event.device = row.device as DeviceKind;
+    return event;
+  }
   if (typeof row.a === 'boolean') event.a = row.a;
 
   const referrer = cleanReferrer(typeof row.r === 'string' ? row.r : '');
@@ -409,7 +590,9 @@ export function sanitizeClientEvent(input: unknown): InsightEvent | null {
   if (typeof row.ms === 'number' && Number.isFinite(row.ms)) {
     event.ms = Math.max(0, Math.min(36e5, Math.round(row.ms)));
   }
-  const label = clipLabel(typeof row.l === 'string' ? row.l : '');
+  let label = clipLabel(typeof row.l === 'string' ? row.l : '');
+  // Server-side guard: inside the app only slug labels (data-insights / app-button) pass.
+  if (label && kind === 'click' && isAppRoute(path) && !/^[a-z0-9][a-z0-9-]{1,40}$/.test(label)) label = 'app-button';
   if (label) event.l = label;
   if ((kind === 'pdf' || kind === 'outbound' || kind === 'click') && !event.l) return null;
 
@@ -443,9 +626,7 @@ export function sanitizeClientEvent(input: unknown): InsightEvent | null {
     const scroll = event.scroll ?? 0;
     if (ms < 500 && scroll <= 0) return null;
   }
-  if (typeof row.visitor === 'string' && VISITOR_ID.test(row.visitor)) {
-    event.visitor = row.visitor.toLowerCase();
-  }
+  if (visitor) event.visitor = visitor;
   if (typeof row.new === 'boolean') event.new = row.new;
   if (typeof row.frequency === 'number' && Number.isInteger(row.frequency)) {
     if (row.frequency >= 1 && row.frequency <= 100000) event.frequency = row.frequency;

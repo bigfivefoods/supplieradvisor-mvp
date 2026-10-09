@@ -163,8 +163,9 @@ export default function PrivacyPage() {
                 database, cache, or logs.
               </li>
               <li>
-                <strong>Coarse network location</strong> — country, region, city and timezone. This
-                is the network’s location, not GPS, and not a precise position.
+                <strong>Coarse network location</strong> — country, region, city and timezone, from
+                our hosting provider’s location headers (Vercel). This is the network’s location,
+                not GPS, and not a precise position. City is the finest level we keep.
               </li>
               <li>
                 <strong>Device</strong> — device type, browser, operating system, a screen-width
@@ -177,7 +178,14 @@ export default function PrivacyPage() {
               <li>
                 <strong>What you did</strong> — landing page, exit page, the first pages of a
                 multi-page visit, time on page, scroll depth, a PDF download’s file name, the site
-                name of an outbound link, and a button label.
+                name of an outbound link, a button label on public pages, and named actions such as
+                “Start free trial” and completing sign-up. Inside the signed-in app we record only
+                the area you used (for example “purchasing” or “finance”), never the page address,
+                record ids, company names or button text.
+              </li>
+              <li>
+                <strong>Page speed</strong> — how quickly the page loaded and responded (Core Web
+                Vitals: LCP, INP and CLS), stored per page without a visitor id.
               </li>
               <li>
                 <strong>New or returning</strong> — using the visitor cookie above, including return
