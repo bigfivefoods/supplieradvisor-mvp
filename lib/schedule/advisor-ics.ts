@@ -14,6 +14,8 @@ export type IcsEvent = {
   end_time?: string | null;
   duration_min?: number | null;
   url?: string;
+  /** Set only when a subscriber should drop or keep a known event. */
+  status?: 'CONFIRMED' | 'CANCELLED';
 };
 
 function pad(n: number) {
@@ -95,6 +97,7 @@ export function buildIcsCalendar(
     lines.push(`DTSTAMP:${stamp}`);
     lines.push(`DTSTART:${dtStart}`);
     lines.push(`DTEND:${dtEnd}`);
+    if (ev.status) lines.push(`STATUS:${ev.status}`);
     lines.push(fold(`SUMMARY:${escapeText(ev.title)}`));
     if (ev.description) {
       lines.push(fold(`DESCRIPTION:${escapeText(ev.description)}`));

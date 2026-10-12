@@ -53,6 +53,33 @@ export type DiaryEvent = {
   status?: string;
   tone?: 'sky' | 'amber' | 'violet' | 'emerald' | 'rose';
   meta?: string;
+  customer_id?: number | null;
+  opportunity_id?: number | null;
+};
+
+/** Tabs on the sales diary. `all` is the open horizon; the others are one slice. */
+export type DiaryLens = 'all' | 'task' | 'next' | 'close' | 'overdue' | 'done';
+
+export const DIARY_LENSES: { id: DiaryLens; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'task', label: 'Task' },
+  { id: 'next', label: 'Next step' },
+  { id: 'close', label: 'Expected close' },
+  { id: 'overdue', label: 'Overdue' },
+  { id: 'done', label: 'Done' },
+];
+
+export type DiaryTableRow = {
+  key: string;
+  lens: Exclude<DiaryLens, 'all'>;
+  date: string;
+  time: string;
+  title: string;
+  detail: string;
+  customerId: number | null;
+  opportunityId: number | null;
+  taskId: number | null;
+  status: CrmTaskStatus;
 };
 
 const KIND_SET = new Set<string>(CRM_TASK_KINDS.map((k) => k.value));
@@ -124,6 +151,8 @@ export function horizonScheduleEvents(deals: DealHorizon[]): DiaryEvent[] {
         person_name: deal.owner_name || undefined,
         tone: 'violet',
         meta: 'close',
+        customer_id: deal.customer_id,
+        opportunity_id: deal.id,
       });
     }
     if (deal.next_step_date) {
@@ -138,6 +167,8 @@ export function horizonScheduleEvents(deals: DealHorizon[]): DiaryEvent[] {
         person_name: deal.owner_name || undefined,
         tone: 'amber',
         meta: 'next',
+        customer_id: deal.customer_id,
+        opportunity_id: deal.id,
       });
     }
   }
@@ -165,4 +196,77 @@ export function taskListBuckets(tasks: CrmTask[], today: string) {
   upcoming.sort(byDue);
   done.sort((a, b) => b.due_on.localeCompare(a.due_on));
   return { overdue, dueToday, upcoming, done };
+}
+
+export function lensForDiaryEvent(
+  event: { meta?: string; status?: string; date: string },
+  today: string
+): DiaryLens {
+  if (event.meta === 'next') return 'next';
+  if (event.meta === 'close') return 'close';
+  if (event.status === 'done') return 'done';
+  if (event.date < today) return 'overdue';
+  return 'task';
+}
+
+/** `all` is everything still open. The other lenses are one tab each. */
+export function eventsForLens(events: DiaryEvent[], lens: DiaryLens, today: string): DiaryEvent[] {
+  if (lens === 'all') {
+    return events.filter((event) => lensForDiaryEvent(event, today) !== 'done');
+  }
+  return events.filter((event) => lensForDiaryEvent(event, today) === lens);
+}
+
+function kindLabel(kind: string) {
+  return CRM_TASK_KINDS.find((k) => k.value === kind)?.label || 'Task';
+}
+
+export function diaryTableRows(tasks: CrmTask[], horizon: DiaryEvent[], today: string): DiaryTableRow[] {
+  const rows: DiaryTableRow[] = tasks.map((task) => {
+    const lens = lensForDiaryEvent(
+      { meta: 'task', status: task.status, date: task.due_on },
+      today
+    ) as DiaryTableRow['lens'];
+    return {
+      key: `task-${task.id}`,
+      lens,
+      date: task.due_on,
+      time: task.due_time || '',
+      title: task.title,
+      detail: [kindLabel(task.kind), task.assignee_name].filter(Boolean).join(' · '),
+      customerId: task.customer_id,
+      opportunityId: task.opportunity_id,
+      taskId: task.id,
+      status: task.status,
+    };
+  });
+  for (const event of horizon) {
+    if (event.meta !== 'next' && event.meta !== 'close') continue;
+    const dealId = event.opportunity_id ?? Number(event.id.split('-')[1]);
+    rows.push({
+      key: event.id,
+      lens: event.meta,
+      date: event.date,
+      time: event.start_time || '',
+      title: event.title,
+      detail: event.subtitle || '',
+      customerId: event.customer_id ?? null,
+      opportunityId: Number.isFinite(dealId) && dealId > 0 ? dealId : null,
+      taskId: null,
+      status: 'open',
+    });
+  }
+  return rows;
+}
+
+export function rowsForLens(rows: DiaryTableRow[], lens: DiaryLens): DiaryTableRow[] {
+  const list = lens === 'all' ? rows.filter((row) => row.lens !== 'done') : rows.filter((row) => row.lens === lens);
+  const byDate = (a: DiaryTableRow, b: DiaryTableRow) =>
+    a.date.localeCompare(b.date) || a.time.localeCompare(b.time) || a.title.localeCompare(b.title);
+  if (lens === 'done') {
+    return [...list].sort(
+      (a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time) || a.title.localeCompare(b.title)
+    );
+  }
+  return [...list].sort(byDate);
 }

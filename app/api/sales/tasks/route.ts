@@ -1,20 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
-import {
-  dateOrNull,
-  horizonScheduleEvents,
-  kindOrTask,
-  statusOrOpen,
-  timeOrNull,
-  type CrmTask,
-  type DealHorizon,
-} from '@/lib/sales/crm-tasks';
+import { dateOrNull, kindOrTask, statusOrOpen, timeOrNull, type CrmTask } from '@/lib/sales/crm-tasks';
+import { asCrmTask as asTask, CRM_TASK_COLUMNS as TASK_COLUMNS, loadCompanyDiary } from '@/lib/sales/diary-load';
+import { diaryFeedLinks } from '@/lib/sales/diary-feed';
 
 export const dynamic = 'force-dynamic';
-
-const TASK_COLUMNS =
-  'id, profile_id, customer_id, opportunity_id, title, notes, kind, status, due_on, due_time, assignee_user_id, assignee_name, created_by, completed_at';
 
 const HINT = 'Run RUN_THIS_FOR_CRM_TASKS.sql';
 
@@ -29,25 +20,6 @@ async function gate(request: NextRequest, companyId: number) {
   });
 }
 
-function asTask(row: Record<string, unknown>): CrmTask {
-  return {
-    id: Number(row.id),
-    profile_id: Number(row.profile_id),
-    customer_id: numId(row.customer_id),
-    opportunity_id: numId(row.opportunity_id),
-    title: String(row.title || ''),
-    notes: row.notes ? String(row.notes) : null,
-    kind: kindOrTask(row.kind),
-    status: statusOrOpen(row.status),
-    due_on: String(row.due_on || '').slice(0, 10),
-    due_time: timeOrNull(row.due_time),
-    assignee_user_id: row.assignee_user_id ? String(row.assignee_user_id) : null,
-    assignee_name: row.assignee_name ? String(row.assignee_name) : null,
-    created_by: row.created_by ? String(row.created_by) : null,
-    completed_at: row.completed_at ? String(row.completed_at) : null,
-  };
-}
-
 export async function GET(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
@@ -58,54 +30,23 @@ export async function GET(request: NextRequest) {
     if (!access.ok) return access.response;
 
     const status = request.nextUrl.searchParams.get('status') || 'all';
-    const supabase = getSupabaseServer();
-    let query = supabase
-      .from('crm_tasks')
-      .select(TASK_COLUMNS)
-      .eq('profile_id', companyId)
-      .order('due_on', { ascending: true })
-      .limit(500);
-    if (status === 'open' || status === 'done') query = query.eq('status', status);
-
-    const [tasksHit, dealsHit] = await Promise.all([
-      query,
-      supabase
-        .from('opportunities')
-        .select(
-          'id, name, customer_id, company_name, stage, expected_close_date, next_step, next_step_date, owner_name, sales_rep_user_id'
-        )
-        .eq('profile_id', companyId)
-        .order('updated_at', { ascending: false })
-        .limit(500),
-    ]);
-
-    if (tasksHit.error) {
-      const missing = /crm_tasks|does not exist|schema cache/i.test(tasksHit.error.message);
+    const loaded = await loadCompanyDiary(companyId);
+    if (!loaded.ok) {
       return NextResponse.json(
-        { error: tasksHit.error.message, hint: missing ? HINT : undefined },
-        { status: missing ? 503 : 500 }
+        { error: loaded.error, hint: loaded.hint },
+        { status: loaded.missingTable ? 503 : 500 }
       );
     }
 
-    const tasks = (tasksHit.data || []).map((row) => asTask(row as Record<string, unknown>));
-    const deals: DealHorizon[] = (dealsHit.data || []).map((row) => ({
-      id: Number(row.id),
-      name: String(row.name || 'Deal'),
-      customer_id: numId(row.customer_id),
-      company_name: row.company_name ? String(row.company_name) : null,
-      stage: row.stage ? String(row.stage) : null,
-      expected_close_date: row.expected_close_date
-        ? String(row.expected_close_date).slice(0, 10)
-        : null,
-      next_step: row.next_step ? String(row.next_step) : null,
-      next_step_date: row.next_step_date ? String(row.next_step_date).slice(0, 10) : null,
-      owner_name: row.owner_name ? String(row.owner_name) : null,
-      sales_rep_user_id: row.sales_rep_user_id ? String(row.sales_rep_user_id) : null,
-    }));
+    const tasks =
+      status === 'open' || status === 'done'
+        ? loaded.tasks.filter((task) => task.status === status)
+        : loaded.tasks;
 
     return NextResponse.json({
       tasks,
-      horizon: horizonScheduleEvents(deals),
+      horizon: loaded.horizon,
+      feed: diaryFeedLinks(companyId),
     });
   } catch (e: unknown) {
     return NextResponse.json(

@@ -3,23 +3,56 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { CalendarDays, Check, Loader2, Plus } from 'lucide-react';
+import { Check, Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import {
   CRM_TASK_KINDS,
-  taskListBuckets,
+  DIARY_LENSES,
+  diaryTableRows,
+  eventsForLens,
+  lensForDiaryEvent,
+  rowsForLens,
   taskScheduleEvent,
   type CrmTask,
   type CrmTaskKind,
   type DiaryEvent,
+  type DiaryLens,
+  type DiaryTableRow,
 } from '@/lib/sales/crm-tasks';
+import { salesDiaryIcs } from '@/lib/sales/diary-ics';
+import { downloadIcsBrowser } from '@/lib/schedule/advisor-ics';
 import {
   PracticeScheduleCalendar,
   type ScheduleEvent,
 } from '@/components/schedule/PracticeScheduleCalendar';
+
+type DiaryFeed = {
+  https: string;
+  webcal: string;
+  google: string;
+  outlook: string;
+};
+
+const LENS_ON: Record<DiaryLens, string> = {
+  all: 'border-slate-900 bg-slate-900 text-white',
+  task: 'border-sky-300 bg-sky-50 text-sky-900',
+  next: 'border-amber-300 bg-amber-50 text-amber-950',
+  close: 'border-violet-300 bg-violet-50 text-violet-950',
+  overdue: 'border-rose-300 bg-rose-50 text-rose-900',
+  done: 'border-emerald-300 bg-emerald-50 text-emerald-900',
+};
+
+const LENS_DOT: Record<DiaryLens, string> = {
+  all: 'bg-slate-400',
+  task: 'bg-sky-500',
+  next: 'bg-amber-500',
+  close: 'bg-violet-500',
+  overdue: 'bg-rose-500',
+  done: 'bg-emerald-500',
+};
 
 type CustomerOpt = { id: number; trading_name: string };
 type DealOpt = { id: number; name: string; customer_id: number | null; company_name: string | null };
@@ -28,12 +61,11 @@ type Member = { user_id: string; name: string };
 const inputCls =
   'input min-h-11 w-full !px-3 !py-2.5 !text-sm font-medium normal-case tracking-normal';
 
+const toolBtn =
+  'inline-flex min-h-11 items-center justify-center rounded-full border border-neutral-200 bg-white px-3 text-sm font-semibold text-slate-800 no-underline';
+
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function kindLabel(kind: string) {
-  return CRM_TASK_KINDS.find((k) => k.value === kind)?.label || 'Task';
 }
 
 export default function SalesTasksPage() {
@@ -62,9 +94,9 @@ function TasksInner() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [view, setView] = useState<'list' | 'calendar'>('list');
-  const [showDone, setShowDone] = useState(false);
-  const [focusId, setFocusId] = useState<number | null>(null);
+  const [lens, setLens] = useState<DiaryLens>('all');
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const [feed, setFeed] = useState<DiaryFeed | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState({
     title: '',
@@ -93,6 +125,7 @@ function TasksInner() {
       if (!taskRes.ok) throw new Error(taskData.error || 'Could not load the diary');
       setTasks(taskData.tasks || []);
       setHorizon(taskData.horizon || []);
+      setFeed(taskData.feed?.https ? (taskData.feed as DiaryFeed) : null);
       if (custRes.ok) {
         const custData = await custRes.json();
         setCustomers(
@@ -133,11 +166,27 @@ function TasksInner() {
   }, [search]);
 
   const today = todayIso();
-  const buckets = useMemo(() => taskListBuckets(tasks, today), [tasks, today]);
-  const events = useMemo<ScheduleEvent[]>(() => {
+  const events = useMemo<DiaryEvent[]>(() => {
     const mine = tasks.map((task) => taskScheduleEvent(task, today));
     return [...mine, ...horizon];
   }, [tasks, horizon, today]);
+  const visibleEvents = useMemo(() => eventsForLens(events, lens, today), [events, lens, today]);
+  const tableRows = useMemo(
+    () => rowsForLens(diaryTableRows(tasks, horizon, today), lens),
+    [tasks, horizon, today, lens]
+  );
+  const counts = useMemo(() => {
+    const rows = diaryTableRows(tasks, horizon, today);
+    return Object.fromEntries(DIARY_LENSES.map((item) => [item.id, rowsForLens(rows, item.id).length])) as Record<
+      DiaryLens,
+      number
+    >;
+  }, [tasks, horizon, today]);
+
+  useEffect(() => {
+    if (!focusKey) return;
+    document.getElementById(`diary-row-${focusKey}`)?.scrollIntoView({ block: 'nearest' });
+  }, [focusKey, lens, tableRows]);
 
   const dealChoices = form.customer_id
     ? deals.filter((d) => !d.customer_id || String(d.customer_id) === form.customer_id)
@@ -199,15 +248,30 @@ function TasksInner() {
   };
 
   const onSelectEvent = (event: ScheduleEvent) => {
-    if (event.meta === 'task' && event.id.startsWith('task-')) {
-      const id = Number(event.id.slice(5));
-      setFocusId(id);
-      setView('list');
-      return;
+    const next = lensForDiaryEvent(event, today);
+    if (lens === 'all' && next === 'done') setLens('done');
+    else if (lens !== 'all' && lens !== next) setLens(next);
+    setFocusKey(event.id);
+  };
+
+  const downloadDiary = () => {
+    downloadIcsBrowser(
+      'sales-diary.ics',
+      salesDiaryIcs(events, {
+        calName: 'Sales diary',
+        pageUrl: `${window.location.origin}/sales/tasks`,
+      })
+    );
+  };
+
+  const copyFeed = async () => {
+    if (!feed) return;
+    try {
+      await navigator.clipboard.writeText(feed.https);
+      toast.success('Feed link copied. Paste it into Google, Apple, or Outlook.');
+    } catch {
+      toast.error('Could not copy the feed link');
     }
-    toast.message(event.title, {
-      description: event.subtitle || 'This date comes from the pipeline deal.',
-    });
   };
 
   if (!companyId) {
@@ -232,13 +296,36 @@ function TasksInner() {
             Follow-ups save on the company. Close dates and next steps from the pipeline sit on the same calendar.
           </p>
         </div>
-        <button
-          type="button"
-          className="btn-primary min-h-11"
-          onClick={() => setFormOpen((v) => !v)}
-        >
-          <Plus className="h-4 w-4" /> New task
-        </button>
+        <div className="flex flex-col gap-2 sm:items-end">
+          <button
+            type="button"
+            className="btn-primary min-h-11"
+            onClick={() => setFormOpen((v) => !v)}
+          >
+            <Plus className="h-4 w-4" /> New task
+          </button>
+          <div className="flex flex-wrap gap-2">
+            {feed ? (
+              <>
+                <a className={toolBtn} href={feed.google} target="_blank" rel="noreferrer">
+                  Google Calendar
+                </a>
+                <a className={toolBtn} href={feed.webcal}>
+                  Apple Calendar
+                </a>
+                <a className={toolBtn} href={feed.outlook} target="_blank" rel="noreferrer">
+                  Outlook
+                </a>
+                <button type="button" className={toolBtn} onClick={() => void copyFeed()}>
+                  Copy feed link
+                </button>
+              </>
+            ) : null}
+            <button type="button" className={toolBtn} onClick={downloadDiary}>
+              Download .ics
+            </button>
+          </div>
+        </div>
       </header>
 
       {formOpen ? (
@@ -375,153 +462,169 @@ function TasksInner() {
         </form>
       ) : null}
 
-      <div className="flex gap-2 lg:hidden">
-        <button
-          type="button"
-          className={view === 'list' ? 'btn-primary min-h-11 flex-1' : 'btn-secondary min-h-11 flex-1'}
-          onClick={() => setView('list')}
-        >
-          List
-        </button>
-        <button
-          type="button"
-          className={view === 'calendar' ? 'btn-primary min-h-11 flex-1' : 'btn-secondary min-h-11 flex-1'}
-          onClick={() => setView('calendar')}
-        >
-          <CalendarDays className="h-4 w-4" /> Calendar
-        </button>
-      </div>
-
       {loading ? (
         <div className="flex justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-[#00b4d8]" />
         </div>
       ) : (
-        <div className="grid items-start gap-4 lg:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
-          <section className={view === 'calendar' ? 'hidden lg:block' : ''}>
-            <TaskGroup title="Overdue" tasks={buckets.overdue} tone="rose" focusId={focusId} onToggle={markDone} />
-            <TaskGroup title="Today" tasks={buckets.dueToday} tone="sky" focusId={focusId} onToggle={markDone} />
-            <TaskGroup title="Coming up" tasks={buckets.upcoming} tone="slate" focusId={focusId} onToggle={markDone} />
-            <button
-              type="button"
-              className="mb-2 min-h-11 text-sm font-semibold text-[#0077b6]"
-              onClick={() => setShowDone((v) => !v)}
-            >
-              {showDone ? 'Hide done' : `Done (${buckets.done.length})`}
-            </button>
-            {showDone ? (
-              <TaskGroup title="Done" tasks={buckets.done} tone="emerald" focusId={focusId} onToggle={markDone} />
-            ) : null}
-            {!tasks.length ? (
-              <p className="rounded-3xl border border-dashed border-neutral-200 bg-white p-6 text-sm text-neutral-600">
-                Nothing in the diary yet. Add a follow-up, or set a next step on a{' '}
-                <Link href="/sales/pipeline" className="font-semibold text-[#0077b6]">
-                  pipeline deal
-                </Link>
-                .
-              </p>
-            ) : null}
-          </section>
-          <section className={view === 'list' ? 'hidden min-w-0 lg:block' : 'min-w-0'}>
-            <div className="mb-2 flex flex-wrap gap-2 text-[11px] font-semibold">
-              <span className="rounded-full bg-sky-50 px-2 py-1 text-sky-800">Task</span>
-              <span className="rounded-full bg-amber-50 px-2 py-1 text-amber-900">Next step</span>
-              <span className="rounded-full bg-violet-50 px-2 py-1 text-violet-900">Expected close</span>
-              <span className="rounded-full bg-rose-50 px-2 py-1 text-rose-800">Overdue</span>
-            </div>
-            <PracticeScheduleCalendar
-              events={events}
-              accent="sky"
-              title="Sales diary"
-              printBrand="SupplierAdvisor"
-              emptyLabel="Nothing on this day"
-              defaultView="month"
-              onSelectDate={(date) => {
-                setForm((f) => ({ ...f, due_on: date }));
-                setFormOpen(true);
-                setView('list');
-              }}
-              onSelectEvent={(event) => onSelectEvent(event)}
-            />
-            <p className="mt-2 text-xs text-neutral-500">
-              Tap a day to add a task. Tap a task on the calendar to find it in the list, then mark it done. Close dates and next steps come from the same deals as Customers → Leads.
-            </p>
-          </section>
-        </div>
+        <section className="min-w-0 rounded-3xl border border-neutral-200 bg-white p-3 sm:p-5">
+          <div role="tablist" aria-label="Diary" className="mb-4 flex gap-2 overflow-x-auto pb-1">
+            {DIARY_LENSES.map((item) => {
+              const selected = lens === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-3 text-sm font-semibold ${
+                    selected ? LENS_ON[item.id] : 'border-neutral-200 bg-white text-slate-800'
+                  }`}
+                  onClick={() => setLens(item.id)}
+                >
+                  <span className={`h-2 w-2 rounded-full ${selected && item.id === 'all' ? 'bg-white' : LENS_DOT[item.id]}`} />
+                  {item.label}
+                  <span className="text-xs font-medium opacity-70">{counts[item.id]}</span>
+                </button>
+              );
+            })}
+          </div>
+          <PracticeScheduleCalendar
+            events={visibleEvents}
+            accent="sky"
+            title="Sales diary"
+            printBrand="SupplierAdvisor"
+            emptyLabel="Nothing on this day"
+            defaultView="month"
+            selectedEventId={focusKey}
+            onSelectDate={(date) => {
+              setForm((f) => ({ ...f, due_on: date }));
+              setFormOpen(true);
+            }}
+            onSelectEvent={(event) => onSelectEvent(event)}
+          />
+          <DiaryTable
+            rows={tableRows}
+            tasks={tasks}
+            focusKey={focusKey}
+            lens={lens}
+            onToggle={markDone}
+          />
+          <p className="mt-3 text-xs text-neutral-500">
+            Tap a day to add a task. The tabs filter the calendar and the table. Google, Apple, and Outlook
+            subscribe to the same open tasks, next steps, and expected closes. SupplierAdvisor stays the record:
+            marking a task done drops it from those calendars on their next refresh, and edits there do not write back.
+          </p>
+        </section>
       )}
     </div>
   );
 }
 
-function TaskGroup({
-  title,
+function lensLabel(id: DiaryTableRow['lens']) {
+  return DIARY_LENSES.find((item) => item.id === id)?.label || 'Task';
+}
+
+function DiaryTable({
+  rows,
   tasks,
-  tone,
-  focusId,
+  focusKey,
+  lens,
   onToggle,
 }: {
-  title: string;
+  rows: DiaryTableRow[];
   tasks: CrmTask[];
-  tone: 'rose' | 'sky' | 'slate' | 'emerald';
-  focusId: number | null;
+  focusKey: string | null;
+  lens: DiaryLens;
   onToggle: (task: CrmTask) => void;
 }) {
-  if (!tasks.length) return null;
-  const head =
-    tone === 'rose'
-      ? 'text-rose-800'
-      : tone === 'sky'
-        ? 'text-[#0077b6]'
-        : tone === 'emerald'
-          ? 'text-emerald-800'
-          : 'text-slate-700';
+  if (!rows.length) {
+    return (
+      <p className="mt-4 rounded-2xl border border-dashed border-neutral-200 p-6 text-sm text-neutral-600">
+        {lens === 'done' ? (
+          'Nothing marked done yet.'
+        ) : lens === 'all' ? (
+          <>
+            Nothing in the diary yet. Add a follow-up, or set a next step on a{' '}
+            <Link href="/sales/pipeline" className="font-semibold text-[#0077b6]">
+              pipeline deal
+            </Link>
+            .
+          </>
+        ) : (
+          `Nothing under ${DIARY_LENSES.find((item) => item.id === lens)?.label || 'this tab'}.`
+        )}
+      </p>
+    );
+  }
+
   return (
-    <div className="mb-4">
-      <h2 className={`mb-2 text-xs font-bold uppercase tracking-wide ${head}`}>{title}</h2>
-      <ul className="space-y-2">
-        {tasks.map((task) => (
-          <li
-            key={task.id}
-            className={`rounded-2xl border bg-white px-3 py-3 ${
-              focusId === task.id ? 'border-[#00b4d8] ring-2 ring-[#00b4d8]/30' : 'border-neutral-200'
-            }`}
-          >
-            <div className="flex items-start gap-2">
-              <button
-                type="button"
-                aria-label={task.status === 'done' ? 'Reopen task' : 'Mark done'}
-                onClick={() => onToggle(task)}
-                className="mt-0.5 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-neutral-200 text-neutral-500"
+    <div className="mt-4 overflow-x-auto">
+      <table className="w-full border-collapse text-left text-sm">
+        <thead>
+          <tr className="border-b border-neutral-200 text-xs uppercase tracking-wide text-neutral-500">
+            <th className="py-2 pr-3 font-semibold">When</th>
+            <th className="py-2 pr-3 font-semibold">Item</th>
+            <th className="hidden py-2 pr-3 font-semibold sm:table-cell">Kind</th>
+            <th className="py-2 font-semibold">
+              <span className="sr-only">Done</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const task = row.taskId != null ? tasks.find((item) => item.id === row.taskId) : undefined;
+            const focused = focusKey === row.key;
+            return (
+              <tr
+                key={row.key}
+                id={`diary-row-${row.key}`}
+                className={`border-b border-neutral-100 ${focused ? 'bg-sky-50' : ''}`}
               >
-                <Check className={`h-4 w-4 ${task.status === 'done' ? 'text-emerald-600' : ''}`} />
-              </button>
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-slate-900">{task.title}</p>
-                <p className="text-xs text-neutral-500">
-                  {kindLabel(task.kind)} · {task.due_on}
-                  {task.due_time ? ` · ${task.due_time}` : ''}
-                  {task.assignee_name ? ` · ${task.assignee_name}` : ''}
-                </p>
-                <div className="mt-1 flex flex-wrap gap-3">
-                  {task.customer_id ? (
-                    <Link
-                      href={`/dashboard/customers/profiles?id=${task.customer_id}`}
-                      className="text-xs font-semibold text-[#0077b6]"
+                <td className="whitespace-nowrap py-3 pr-3 align-top font-medium text-slate-800">
+                  {row.date}
+                  {row.time ? <span className="block text-xs font-normal text-neutral-500">{row.time}</span> : null}
+                </td>
+                <td className="py-3 pr-3 align-top">
+                  <p className="font-semibold text-slate-900">{row.title}</p>
+                  <p className="text-xs text-neutral-500 sm:hidden">{lensLabel(row.lens)}</p>
+                  {row.detail ? <p className="text-xs text-neutral-500">{row.detail}</p> : null}
+                  <div className="mt-1 flex flex-wrap gap-3">
+                    {row.customerId ? (
+                      <Link
+                        href={`/dashboard/customers/profiles?id=${row.customerId}`}
+                        className="text-xs font-semibold text-[#0077b6]"
+                      >
+                        Customer book
+                      </Link>
+                    ) : null}
+                    {row.opportunityId ? (
+                      <Link href="/sales/pipeline" className="text-xs font-semibold text-[#0077b6]">
+                        Pipeline deal
+                      </Link>
+                    ) : null}
+                  </div>
+                </td>
+                <td className="hidden whitespace-nowrap py-3 pr-3 align-top text-neutral-600 sm:table-cell">
+                  {lensLabel(row.lens)}
+                </td>
+                <td className="py-3 align-top">
+                  {task ? (
+                    <button
+                      type="button"
+                      aria-label={task.status === 'done' ? 'Reopen task' : 'Mark done'}
+                      onClick={() => onToggle(task)}
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-neutral-200 text-neutral-500"
                     >
-                      Customer book
-                    </Link>
+                      <Check className={`h-4 w-4 ${task.status === 'done' ? 'text-emerald-600' : ''}`} />
+                    </button>
                   ) : null}
-                  {task.opportunity_id ? (
-                    <Link href="/sales/pipeline" className="text-xs font-semibold text-[#0077b6]">
-                      Pipeline deal
-                    </Link>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

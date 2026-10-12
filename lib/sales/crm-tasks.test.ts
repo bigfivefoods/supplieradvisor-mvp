@@ -2,13 +2,17 @@ import assert from 'node:assert/strict';
 import {
   addMinutes,
   dateOrNull,
+  diaryTableRows,
+  eventsForLens,
   horizonScheduleEvents,
   kindOrTask,
+  rowsForLens,
   taskListBuckets,
   taskScheduleEvent,
   timeOrNull,
   type CrmTask,
 } from './crm-tasks';
+import { salesDiaryIcs } from './diary-ics';
 
 const task: CrmTask = {
   id: 4,
@@ -86,5 +90,50 @@ assert.deepEqual(buckets.overdue.map((t) => t.id), [4]);
 assert.deepEqual(buckets.dueToday.map((t) => t.id), [5]);
 assert.deepEqual(buckets.upcoming.map((t) => t.id), [6]);
 assert.deepEqual(buckets.done.map((t) => t.id), [7]);
+
+const diaryEvents = [
+  taskScheduleEvent(task, '2026-10-06'),
+  taskScheduleEvent({ ...task, id: 5, due_on: '2026-10-06', status: 'open' }, '2026-10-06'),
+  taskScheduleEvent({ ...task, id: 7, due_on: '2026-09-01', status: 'done' }, '2026-10-06'),
+  ...horizon,
+];
+assert.deepEqual(
+  eventsForLens(diaryEvents, 'overdue', '2026-10-06').map((event) => event.id),
+  ['task-4']
+);
+assert.deepEqual(
+  eventsForLens(diaryEvents, 'task', '2026-10-06').map((event) => event.id),
+  ['task-5']
+);
+assert.deepEqual(
+  eventsForLens(diaryEvents, 'done', '2026-10-06').map((event) => event.id),
+  ['task-7']
+);
+assert.deepEqual(
+  eventsForLens(diaryEvents, 'all', '2026-10-06').map((event) => event.id),
+  ['task-4', 'task-5', 'close-8', 'next-8']
+);
+assert.equal(eventsForLens(diaryEvents, 'close', '2026-10-06')[0].id, 'close-8');
+
+const rows = diaryTableRows(
+  [task, { ...task, id: 7, due_on: '2026-09-01', status: 'done' }],
+  horizon,
+  '2026-10-06'
+);
+assert.deepEqual(rowsForLens(rows, 'next').map((row) => row.key), ['next-8']);
+assert.equal(rowsForLens(rows, 'next')[0].customerId, 2);
+assert.equal(rowsForLens(rows, 'next')[0].opportunityId, 8);
+assert.deepEqual(rowsForLens(rows, 'done').map((row) => row.taskId), [7]);
+assert.ok(!rowsForLens(rows, 'all').some((row) => row.lens === 'done'));
+
+const ics = salesDiaryIcs(diaryEvents, { calName: 'Sales diary', pageUrl: 'https://www.supplieradvisor.com/sales/tasks' });
+assert.match(ics, /BEGIN:VCALENDAR/);
+assert.match(ics, /UID:task-4@supplieradvisor/);
+assert.match(ics, /UID:close-8@supplieradvisor/);
+assert.doesNotMatch(ics, /UID:task-7@supplieradvisor/);
+assert.match(ics, /X-WR-CALNAME:Sales diary/);
+const cancelled = salesDiaryIcs(diaryEvents, { calName: 'Sales diary', cancelDone: true });
+assert.match(cancelled, /UID:task-7@supplieradvisor/);
+assert.match(cancelled, /STATUS:CANCELLED/);
 
 console.log('sales/crm-tasks.test.ts ok');
