@@ -16,6 +16,10 @@ export type IcsEvent = {
   url?: string;
   /** Set only when a subscriber should drop or keep a known event. */
   status?: 'CONFIRMED' | 'CANCELLED';
+  /** Extra X- properties, for example X-SA-KEY. Keys must already be ICS-safe. */
+  xProps?: Record<string, string>;
+  /** IANA zone. Set for the Apple calendar so wall times stay in Johannesburg. */
+  tzid?: string;
 };
 
 function pad(n: number) {
@@ -83,6 +87,20 @@ export function buildIcsCalendar(
     .replace(/[-:]/g, '')
     .replace(/\.\d{3}/, '');
 
+  if (events.some((ev) => ev.tzid === 'Africa/Johannesburg')) {
+    lines.push(
+      'BEGIN:VTIMEZONE',
+      'TZID:Africa/Johannesburg',
+      'BEGIN:STANDARD',
+      'DTSTART:19700101T000000',
+      'TZOFFSETFROM:+0200',
+      'TZOFFSETTO:+0200',
+      'TZNAME:SAST',
+      'END:STANDARD',
+      'END:VTIMEZONE'
+    );
+  }
+
   for (const ev of events) {
     const uid = `${ev.id}@supplieradvisor`;
     const dtStart = toIcsLocal(ev.date, ev.start_time);
@@ -92,11 +110,12 @@ export function buildIcsCalendar(
       ev.end_time,
       ev.duration_min
     );
+    const tz = ev.tzid && /^[A-Za-z0-9_+\-/]+$/.test(ev.tzid) ? `;TZID=${ev.tzid}` : '';
     lines.push('BEGIN:VEVENT');
     lines.push(`UID:${uid}`);
     lines.push(`DTSTAMP:${stamp}`);
-    lines.push(`DTSTART:${dtStart}`);
-    lines.push(`DTEND:${dtEnd}`);
+    lines.push(`DTSTART${tz}:${dtStart}`);
+    lines.push(`DTEND${tz}:${dtEnd}`);
     if (ev.status) lines.push(`STATUS:${ev.status}`);
     lines.push(fold(`SUMMARY:${escapeText(ev.title)}`));
     if (ev.description) {
@@ -107,6 +126,12 @@ export function buildIcsCalendar(
     }
     if (ev.url) {
       lines.push(fold(`URL:${ev.url}`));
+    }
+    if (ev.xProps) {
+      for (const [key, value] of Object.entries(ev.xProps)) {
+        if (!/^X-[A-Z0-9-]+$/.test(key)) continue;
+        lines.push(fold(`${key}:${escapeText(value)}`));
+      }
     }
     lines.push('END:VEVENT');
   }

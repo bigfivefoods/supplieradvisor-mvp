@@ -24,6 +24,7 @@ import {
 } from '@/lib/sales/crm-tasks';
 import { salesDiaryIcs } from '@/lib/sales/diary-ics';
 import { downloadIcsBrowser } from '@/lib/schedule/advisor-ics';
+import { DiaryCalendarConnect, syncConnectedCalendars } from '@/components/sales/DiaryCalendarConnect';
 import {
   PracticeScheduleCalendar,
   type ScheduleEvent,
@@ -219,6 +220,7 @@ function TasksInner() {
       toast.success('Saved to the diary');
       setForm((f) => ({ ...f, title: '', notes: '', due_time: '' }));
       setFormOpen(false);
+      await syncConnectedCalendars(companyId, privyUserId);
       await load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Could not save the task');
@@ -245,6 +247,8 @@ function TasksInner() {
       return;
     }
     setTasks((prev) => prev.map((row) => (row.id === task.id ? data.task : row)));
+    const changed = await syncConnectedCalendars(companyId, privyUserId);
+    if (changed) await load();
   };
 
   const onSelectEvent = (event: ScheduleEvent) => {
@@ -308,13 +312,13 @@ function TasksInner() {
             {feed ? (
               <>
                 <a className={toolBtn} href={feed.google} target="_blank" rel="noreferrer">
-                  Google Calendar
+                  Subscribe Google
                 </a>
                 <a className={toolBtn} href={feed.webcal}>
-                  Apple Calendar
+                  Subscribe Apple
                 </a>
                 <a className={toolBtn} href={feed.outlook} target="_blank" rel="noreferrer">
-                  Outlook
+                  Subscribe Outlook
                 </a>
                 <button type="button" className={toolBtn} onClick={() => void copyFeed()}>
                   Copy feed link
@@ -462,6 +466,8 @@ function TasksInner() {
         </form>
       ) : null}
 
+      <DiaryCalendarConnect companyId={companyId} privyUserId={privyUserId} onChanged={() => void load()} />
+
       {loading ? (
         <div className="flex justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-[#00b4d8]" />
@@ -511,9 +517,9 @@ function TasksInner() {
             onToggle={markDone}
           />
           <p className="mt-3 text-xs text-neutral-500">
-            Tap a day to add a task. The tabs filter the calendar and the table. Google, Apple, and Outlook
-            subscribe to the same open tasks, next steps, and expected closes. SupplierAdvisor stays the record:
-            marking a task done drops it from those calendars on their next refresh, and edits there do not write back.
+            Tap a day to add a task. The tabs filter the calendar and the table. A connected SupplierAdvisor
+            calendar writes both ways. The subscribe buttons are a separate one-way mirror, so use one or the other
+            or the same task appears twice.
           </p>
         </section>
       )}

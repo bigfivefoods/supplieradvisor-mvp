@@ -88,6 +88,10 @@
     {
       "path": "/api/services/advisor/cron",
       "schedule": "30 * * * *"
+    },
+    {
+      "path": "/api/sales/calendar/cron",
+      "schedule": "15 * * * *"
     }
   ],
   "rewrites": [
