@@ -107,6 +107,8 @@ export default function SalesPipelinePage() {
     open_date: '',
     expected_close_date: '',
     actual_close_date: '',
+    next_step: '',
+    next_step_date: '',
     customer_id: '',
   });
 
@@ -434,6 +436,8 @@ export default function SalesPipelinePage() {
             open_date: form.open_date || null,
             expected_close_date: form.expected_close_date || null,
             actual_close_date: form.actual_close_date || null,
+            next_step: form.next_step.trim() || null,
+            next_step_date: form.next_step_date || null,
           }),
         });
         const data = await res.json();
@@ -518,6 +522,8 @@ export default function SalesPipelinePage() {
             form.open_date || new Date().toISOString().slice(0, 10),
           expected_close_date: form.expected_close_date || null,
           actual_close_date: form.actual_close_date || null,
+          next_step: form.next_step.trim() || null,
+          next_step_date: form.next_step_date || null,
         }),
       });
       const data = await res.json();
@@ -710,6 +716,8 @@ export default function SalesPipelinePage() {
       open_date: new Date().toISOString().slice(0, 10),
       expected_close_date: '',
       actual_close_date: '',
+      next_step: '',
+      next_step_date: '',
       customer_id: '',
     });
   };
@@ -754,6 +762,8 @@ export default function SalesPipelinePage() {
       open_date: o.open_date || '',
       expected_close_date: o.expected_close_date || '',
       actual_close_date: o.actual_close_date || '',
+      next_step: o.next_step || '',
+      next_step_date: o.next_step_date || '',
       customer_id: o.customer_id ? String(o.customer_id) : '',
     });
     setShowForm(true);
@@ -1248,8 +1258,36 @@ export default function SalesPipelinePage() {
                         }
                       />
                       <span className="mt-0.5 block font-normal text-[10px] text-neutral-400">
-                        Target date to win / close the deal
+                        Target date to win / close the deal. It shows on the sales diary.
                       </span>
+                    </label>
+                    <label className="block text-xs font-bold text-slate-600">
+                      Next step
+                      <input
+                        className="mt-1 w-full rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
+                        value={form.next_step}
+                        placeholder="Send the quote"
+                        onChange={(e) =>
+                          setForm((f) => ({ ...f, next_step: e.target.value }))
+                        }
+                      />
+                      <span className="mt-0.5 block font-normal text-[10px] text-neutral-400">
+                        Same field as Customers → Leads
+                      </span>
+                    </label>
+                    <label className="block text-xs font-bold text-slate-600">
+                      Next step date
+                      <input
+                        type="date"
+                        className="mt-1 w-full rounded-2xl bg-white border border-neutral-200 px-4 py-3 text-slate-800 text-sm"
+                        value={form.next_step_date}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            next_step_date: e.target.value,
+                          }))
+                        }
+                      />
                     </label>
                     <label className="block text-xs font-bold text-slate-600 sm:col-span-2">
                       Closed date

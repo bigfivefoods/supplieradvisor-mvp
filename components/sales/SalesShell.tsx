@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   LogOut,
   Loader2,
+  CalendarDays,
   Target,
   Users,
   FileText,
@@ -34,6 +35,7 @@ const NAV: {
 }[] = [
   { href: '/sales', label: 'Command centre', icon: LayoutDashboard, exact: true },
   { href: '/sales/pipeline', label: 'Pipeline', icon: Target },
+  { href: '/sales/tasks', label: 'Diary', icon: CalendarDays },
   { href: '/sales/customers', label: 'Customers', icon: Users },
   { href: '/sales/quotes', label: 'Quotes', icon: FileText },
   { href: '/sales/orders', label: 'Orders', icon: ShoppingCart },
@@ -54,9 +56,9 @@ const MOBILE_TABS: {
 }[] = [
   { href: '/sales', label: 'Home', icon: LayoutDashboard, exact: true },
   { href: '/sales/pipeline', label: 'Pipeline', icon: Target },
+  { href: '/sales/tasks', label: 'Diary', icon: CalendarDays },
   { href: '/sales/quotes', label: 'Quotes', icon: FileText },
   { href: '/sales/customers', label: 'Customers', icon: Users },
-  { href: '/sales/earnings', label: 'Earn', icon: Wallet },
 ];
 
 export default function SalesShell({ children }: { children: React.ReactNode }) {

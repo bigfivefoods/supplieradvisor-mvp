@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   Loader2,
@@ -611,6 +612,12 @@ function LeadsInner() {
       ) : tab === 'team' ? (
         <TeamDealsReport opportunities={visibleOpps} members={[]} />
       ) : (
+        <>
+        <div className="mb-3 flex justify-end">
+          <Link href="/sales/tasks" className="min-h-11 inline-flex items-center text-sm font-semibold text-[#0077b6]">
+            Open the sales diary
+          </Link>
+        </div>
         <OpportunityPipelineBoard
           opportunities={visibleOpps}
           onEdit={openOppEdit}
@@ -619,6 +626,7 @@ function LeadsInner() {
           onCreate={openOppCreate}
           showSourceCompany={groupView === 'all' && Boolean(group?.includesSubsidiaries)}
         />
+        </>
       )}
 
       {/* Lead modal */}

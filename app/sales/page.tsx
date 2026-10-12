@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Loader2,
+  CalendarDays,
   Target,
   Users,
   FileText,
@@ -265,8 +266,15 @@ export default function SalesCommandCentre() {
             href: '/sales/pipeline',
             icon: Target,
             title: 'Pipeline',
-            desc: 'Leads & opportunities',
+            desc: 'Same deals as the customer book',
             meta: `${k.openPipeline} open`,
+          },
+          {
+            href: '/sales/tasks',
+            icon: CalendarDays,
+            title: 'Diary',
+            desc: 'Tasks, next steps, and close dates',
+            meta: 'Calendar',
           },
           {
             href: '/sales/quotes',

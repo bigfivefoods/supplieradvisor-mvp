@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   Briefcase,
   Calendar,
@@ -498,12 +499,35 @@ export default function OpportunityPipelineBoard({
                           </div>
                         )}
 
-                        {o.next_step && (
+                        {(o.next_step || o.next_step_date) && (
                           <div className="text-[11px] text-neutral-600 mt-1.5 flex items-start gap-1">
                             <ChevronRight className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                            {o.next_step}
+                            <span>
+                              {o.next_step || 'Next step'}
+                              {o.next_step_date ? ` · ${o.next_step_date}` : ''}
+                            </span>
                           </div>
                         )}
+                        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+                          {o.customer_id ? (
+                            <Link
+                              href={`/dashboard/customers/profiles?id=${o.customer_id}`}
+                              className="text-[11px] font-semibold text-[#0077b6]"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Customer book
+                            </Link>
+                          ) : null}
+                          <Link
+                            href={`/sales/tasks?opportunity=${o.id}${
+                              o.customer_id ? `&customer=${o.customer_id}` : ''
+                            }`}
+                            className="text-[11px] font-semibold text-[#0077b6]"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Add to diary
+                          </Link>
+                        </div>
 
                         {onMove && (
                           <div className="flex flex-wrap gap-1 mt-2">

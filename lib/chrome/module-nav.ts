@@ -162,6 +162,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
     steps: [
       { name: 'Sell', href: '/sales', exact: true, desc: 'Command centre', section: 'Home' },
       { name: 'Pipeline', href: '/sales/pipeline', section: 'Pipeline' },
+      { name: 'Diary', href: '/sales/tasks', desc: 'Tasks and the horizon', section: 'Pipeline' },
       { name: 'Quote', href: '/sales/quotes', section: 'Pipeline' },
       { name: 'Order', href: '/sales/orders', section: 'Trade' },
       { name: 'Invoice', href: '/sales/invoices', section: 'Trade' },
