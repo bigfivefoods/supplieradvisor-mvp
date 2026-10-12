@@ -5,6 +5,7 @@ import {
   contentStamp,
   endAfter,
   firstXmlHref,
+  xmlPropHref,
   parseIcsEvents,
   partsInJohannesburg,
   reconcile,
@@ -216,6 +217,25 @@ const xml =
   '<d:response><d:href>/102/calendars/SupplierAdvisor/</d:href><d:propstat><d:prop><d:displayname>SupplierAdvisor</d:displayname></d:prop></d:propstat></d:response>' +
   '</d:multistatus>';
 assert.equal(firstXmlHref(xml), '/102/calendars/home/');
+const principalXml =
+  '<multistatus xmlns="DAV:"><response><href>/</href><propstat><prop>' +
+  '<current-user-principal xmlns="DAV:"><href xmlns="DAV:">/200385701/principal/</href></current-user-principal>' +
+  '</prop></propstat></response></multistatus>';
+const homeXml =
+  '<multistatus xmlns="DAV:"><response><href>/200385701/principal/</href><propstat><prop>' +
+  '<calendar-home-set xmlns="urn:ietf:params:xml:ns:caldav">' +
+  '<href xmlns="DAV:">https://p34-caldav.icloud.com:443/200385701/calendars/</href>' +
+  '</calendar-home-set></prop></propstat></response></multistatus>';
+const namedXml =
+  '<multistatus xmlns="DAV:"><response><href xmlns="DAV:">/200385701/calendars/abc/</href><propstat><prop>' +
+  '<displayname xmlns="DAV:">SupplierAdvisor</displayname></prop></propstat></response></multistatus>';
+assert.equal(calendarHrefs(namedXml)[0].name, 'SupplierAdvisor');
+assert.equal(xmlPropHref(principalXml, 'current-user-principal'), '/200385701/principal/');
+assert.equal(
+  xmlPropHref(homeXml, 'calendar-home-set'),
+  'https://p34-caldav.icloud.com:443/200385701/calendars/'
+);
+assert.equal(xmlPropHref(principalXml, 'calendar-home-set'), null);
 assert.deepEqual(calendarHrefs(xml), [
   { href: '/102/calendars/home/', name: 'Home' },
   { href: '/102/calendars/SupplierAdvisor/', name: 'SupplierAdvisor' },

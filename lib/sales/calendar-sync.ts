@@ -304,8 +304,17 @@ export function parseIcsEvents(ics: string): Array<Omit<RemoteEvent, 'remoteId' 
 }
 
 export function firstXmlHref(xml: string): string | null {
-  const match = /<(?:[A-Za-z0-9]+:)?href>([^<]+)<\/(?:[A-Za-z0-9]+:)?href>/i.exec(xml);
+  const match = /<(?:[A-Za-z0-9]+:)?href\b[^>]*>([^<]+)<\/(?:[A-Za-z0-9]+:)?href>/i.exec(xml);
   return match ? decodeXml(match[1].trim()) : null;
+}
+
+/** Href nested inside one property. The first href in a PROPFIND body is the resource itself. */
+export function xmlPropHref(xml: string, prop: string): string | null {
+  const match = new RegExp(
+    `<(?:[A-Za-z0-9]+:)?${prop}\\b[^>]*>([\\s\\S]*?)</(?:[A-Za-z0-9]+:)?${prop}>`,
+    'i'
+  ).exec(xml);
+  return match ? firstXmlHref(match[1]) : null;
 }
 
 export function calendarHrefs(xml: string): { href: string; name: string }[] {
@@ -313,7 +322,7 @@ export function calendarHrefs(xml: string): { href: string; name: string }[] {
   const out: { href: string; name: string }[] = [];
   for (const chunk of chunks) {
     const href = firstXmlHref(chunk);
-    const nameMatch = /<(?:[A-Za-z0-9]+:)?displayname>([^<]*)<\//i.exec(chunk);
+    const nameMatch = /<(?:[A-Za-z0-9]+:)?displayname\b[^>]*>([^<]*)<\//i.exec(chunk);
     if (!href) continue;
     out.push({ href, name: nameMatch ? decodeXml(nameMatch[1].trim()) : '' });
   }

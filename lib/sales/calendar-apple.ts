@@ -7,6 +7,7 @@ import {
   eventUid,
   firstXmlHref,
   parseIcsEvents,
+  xmlPropHref,
   type DiaryStamp,
 } from '@/lib/sales/calendar-sync';
 
@@ -95,7 +96,7 @@ export async function connectAppleCalendar(appleId: string, appPassword: string)
     throw new Error('Apple rejected that Apple ID or app-specific password');
   }
   if (principal.status >= 400) throw new Error('Apple calendar service did not answer');
-  const principalHref = firstXmlHref(principal.text);
+  const principalHref = xmlPropHref(principal.text, 'current-user-principal');
   if (!principalHref) throw new Error('Apple did not return a calendar principal');
   const principalUrl = resolveHref(principal.url, principalHref);
   const home = await caldav(
@@ -105,8 +106,11 @@ export async function connectAppleCalendar(appleId: string, appPassword: string)
     0,
     propfind('<c:calendar-home-set/>', true)
   );
-  const homeHref = firstXmlHref(home.text);
-  if (!homeHref) throw new Error('Apple did not return a calendar home');
+  if (home.status === 401 || home.status === 403) {
+    throw new Error('Apple rejected that Apple ID or app-specific password');
+  }
+  const homeHref = xmlPropHref(home.text, 'calendar-home-set');
+  if (home.status >= 400 || !homeHref) throw new Error('Apple did not return a calendar home');
   const homeUrl = ensureSlash(resolveHref(home.url, homeHref));
   const listed = await caldav(
     homeUrl,
@@ -115,18 +119,26 @@ export async function connectAppleCalendar(appleId: string, appPassword: string)
     1,
     propfind('<d:displayname/><d:resourcetype/>')
   );
-  const found = calendarHrefs(listed.text).find((row) => row.name === DIARY_CALENDAR_NAME);
+  if (listed.status === 401 || listed.status === 403) {
+    throw new Error('Apple rejected that Apple ID or app-specific password');
+  }
+  if (listed.status >= 400) throw new Error('Apple could not list calendars');
+  const wanted = DIARY_CALENDAR_NAME.toLowerCase();
+  const found = calendarHrefs(listed.text).find((row) => row.name.trim().toLowerCase() === wanted);
   if (found) return { calendarHref: ensureSlash(resolveHref(listed.url, found.href)) };
 
-  const created = new URL(`${encodeURIComponent(DIARY_CALENDAR_NAME)}/`, homeUrl).toString();
+  const created = new URL(`${crypto.randomUUID()}/`, homeUrl).toString();
   const mkBody =
     '<?xml version="1.0" encoding="UTF-8"?>' +
-    '<c:mkcalendar xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:set><d:prop>' +
+    '<c:mkcalendar xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:a="http://apple.com/ns/ical/">' +
+    '<d:set><d:prop>' +
     `<d:displayname>${DIARY_CALENDAR_NAME}</d:displayname>` +
+    '<c:supported-calendar-component-set><c:comp name="VEVENT"/></c:supported-calendar-component-set>' +
+    '<a:calendar-color>#0A84FF</a:calendar-color>' +
     '</d:prop></d:set></c:mkcalendar>';
   const made = await caldav(created, auth, 'MKCALENDAR', undefined, mkBody);
-  if (made.status !== 201 && made.status !== 204 && made.status !== 405) {
-    throw new Error('Apple could not create the SupplierAdvisor calendar');
+  if (made.status !== 201 && made.status !== 204) {
+    throw new Error(`Apple could not create the SupplierAdvisor calendar (HTTP ${made.status})`);
   }
   return { calendarHref: ensureSlash(created) };
 }
