@@ -106,13 +106,18 @@ export function DiaryCalendarConnect({
     }
   };
 
-  const connectApple = async () => {
+  const connectApple = async (id: string, password: string) => {
     setBusy(true);
     try {
       const res = await fetch('/api/sales/calendar/apple', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId, appleId, appPassword, privyUserId: privyUserId || undefined }),
+        body: JSON.stringify({
+          companyId,
+          appleId: id,
+          appPassword: password,
+          privyUserId: privyUserId || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Apple Calendar could not connect');
@@ -170,31 +175,51 @@ export function DiaryCalendarConnect({
           className="mt-3 grid gap-2 sm:grid-cols-2"
           onSubmit={(event) => {
             event.preventDefault();
-            void connectApple();
+            const data = new FormData(event.currentTarget);
+            const id = String(data.get('appleId') || appleId);
+            const password = String(data.get('appleAppPassword') || appPassword);
+            setAppleId(id);
+            setAppPassword(password);
+            void connectApple(id, password);
           }}
         >
           <label className="block text-xs font-semibold text-neutral-600">
-            Apple ID
+            Apple ID email
             <input
+              name="appleId"
+              type="email"
+              inputMode="email"
               className="input mt-1 min-h-11 w-full !px-3 !py-2.5 !text-sm"
               value={appleId}
               onChange={(event) => setAppleId(event.target.value)}
-              autoComplete="username"
+              autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder="name@icloud.com"
             />
           </label>
           <label className="block text-xs font-semibold text-neutral-600">
             App-specific password
             <input
-              type="password"
+              name="appleAppPassword"
+              type="text"
               className="input mt-1 min-h-11 w-full !px-3 !py-2.5 !text-sm"
               value={appPassword}
               onChange={(event) => setAppPassword(event.target.value)}
-              autoComplete="current-password"
+              autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder="abcd-efgh-ijkl-mnop"
             />
           </label>
           <p className="text-xs text-neutral-500 sm:col-span-2">
-            Create the password at appleid.apple.com under Sign-In and Security. It is stored sealed on the server
-            for this company login only.
+            This is not your Apple ID password. On appleid.apple.com open Sign-In and Security, then App-Specific
+            Passwords, and paste the 16-character code. It is stored sealed for this company login only.
+            {appPassword && appPassword.toLowerCase().replace(/[^a-z0-9]/g, '').length < 16
+              ? ` So far that is ${appPassword.toLowerCase().replace(/[^a-z0-9]/g, '').length} of 16 characters.`
+              : ''}
           </p>
           <button type="submit" className="btn-primary min-h-11 sm:col-span-2 sm:w-auto" disabled={busy}>
             Save Apple Calendar

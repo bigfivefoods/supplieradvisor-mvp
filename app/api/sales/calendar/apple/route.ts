@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { legacyPrivyFrom, requireCompanyAccess } from '@/lib/auth/api-auth';
-import { connectAppleCalendar, normalizeApplePassword } from '@/lib/sales/calendar-apple';
+import { appleConnectError, connectAppleCalendar, normalizeApplePassword } from '@/lib/sales/calendar-apple';
 import { syncUserCalendars } from '@/lib/sales/calendar-engine';
 import { sealSecret } from '@/lib/sales/calendar-secrets';
 import { DIARY_CALENDAR_NAME } from '@/lib/sales/calendar-sync';
@@ -20,11 +20,9 @@ export async function POST(request: NextRequest) {
     legacyPrivyUserId: legacyPrivyFrom(request, body),
   });
   if (!access.ok) return access.response;
-  if (!appleId.includes('@') || appPassword.length < 16) {
-    return NextResponse.json(
-      { error: 'Enter the Apple ID and an app-specific password from appleid.apple.com' },
-      { status: 400 }
-    );
+  const inputError = appleConnectError(appleId, appPassword);
+  if (inputError) {
+    return NextResponse.json({ error: inputError }, { status: 400 });
   }
   try {
     const connected = await connectAppleCalendar(appleId, appPassword);

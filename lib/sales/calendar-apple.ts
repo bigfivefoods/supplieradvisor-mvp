@@ -13,7 +13,7 @@ import {
 const ICLOUD = 'https://caldav.icloud.com/';
 
 function basicAuth(appleId: string, appPassword: string): string {
-  const password = appPassword.replace(/[\s-]/g, '');
+  const password = normalizeApplePassword(appPassword);
   return `Basic ${Buffer.from(`${appleId}:${password}`).toString('base64')}`;
 }
 
@@ -67,8 +67,25 @@ function propfind(inner: string, caldavNs = false): string {
   return `<?xml version="1.0" encoding="UTF-8"?><d:propfind xmlns:d="DAV:"${ns}><d:prop>${inner}</d:prop></d:propfind>`;
 }
 
+/** Apple app-specific passwords are 16 letters. Dashes, spaces, and the surrounding dialog text are ignored. */
 export function normalizeApplePassword(raw: string): string {
-  return raw.replace(/[\s-]/g, '');
+  const text = String(raw || '').toLowerCase();
+  const grouped = text.match(/[a-z0-9]{4}(?:[^a-z0-9]+[a-z0-9]{4}){3}/);
+  if (grouped) {
+    const code = grouped[0].replace(/[^a-z0-9]/g, '');
+    if (code.length === 16) return code;
+  }
+  return text.replace(/[^a-z0-9]/g, '');
+}
+
+export function appleConnectError(appleId: string, appPassword: string): string | null {
+  if (!appleId.includes('@')) {
+    return 'Use the email address for the Apple ID.';
+  }
+  if (appPassword.length < 16) {
+    return 'Paste the 16-character app-specific password from appleid.apple.com, under Sign-In and Security. It looks like abcd-efgh-ijkl-mnop. Your normal Apple ID password will not connect.';
+  }
+  return null;
 }
 
 export async function connectAppleCalendar(appleId: string, appPassword: string): Promise<{ calendarHref: string }> {
