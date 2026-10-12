@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { legacyPrivyFrom, requireCompanyAccess } from '@/lib/auth/api-auth';
 import { appleConnectError, connectAppleCalendar, normalizeApplePassword } from '@/lib/sales/calendar-apple';
-import { syncUserCalendars } from '@/lib/sales/calendar-engine';
 import { sealSecret } from '@/lib/sales/calendar-secrets';
 import { DIARY_CALENDAR_NAME } from '@/lib/sales/calendar-sync';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
@@ -49,8 +49,7 @@ export async function POST(request: NextRequest) {
         { status: missing ? 503 : 500 }
       );
     }
-    const sync = await syncUserCalendars(companyId, access.userId);
-    return NextResponse.json({ ok: true, sync });
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Apple Calendar could not connect' },

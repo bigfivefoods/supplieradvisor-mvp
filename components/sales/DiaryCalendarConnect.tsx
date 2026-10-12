@@ -21,17 +21,41 @@ type Status = {
 };
 
 const toolBtn =
-  'inline-flex min-h-11 items-center justify-center rounded-full border border-neutral-200 bg-white px-3 text-sm font-semibold text-slate-800 no-underline';
+  'inline-flex min-h-11 items-center justify-center rounded-full border border-neutral-200 bg-white px-3 text-sm font-semibold text-slate-800 no-underline disabled:opacity-60';
 
-export async function syncConnectedCalendars(companyId: number, privyUserId?: string | null): Promise<boolean> {
+/** Same rules as the server check. Kept here so a bad Apple ID never dies as a silent browser tooltip. */
+function appleFormError(appleId: string, appPassword: string): string | null {
+  if (!appleId.includes('@')) return 'Use the email address for the Apple ID.';
+  const code = appPassword.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (code.length < 16) {
+    return 'Paste the 16-character app-specific password from appleid.apple.com, under Sign-In and Security. It looks like abcd-efgh-ijkl-mnop. Your normal Apple ID password will not connect.';
+  }
+  return null;
+}
+
+async function messageFromResponse(res: Response, fallback: string): Promise<string> {
+  const text = await res.text();
+  try {
+    const data = JSON.parse(text) as { error?: string };
+    if (data.error) return data.error;
+  } catch {
+    /* a timed-out function returns an HTML page, not JSON */
+  }
+  return `${fallback} (HTTP ${res.status}).`;
+}
+
+export async function syncConnectedCalendars(
+  companyId: number,
+  privyUserId?: string | null
+): Promise<{ ok: boolean; changed: boolean }> {
   const res = await fetch('/api/sales/calendar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ companyId, privyUserId: privyUserId || undefined }),
   });
-  if (!res.ok) return false;
-  const data = await res.json();
-  return Boolean(data.changed);
+  if (!res.ok) return { ok: false, changed: false };
+  const data = await res.json().catch(() => ({}));
+  return { ok: true, changed: Boolean(data.changed) };
 }
 
 export function DiaryCalendarConnect({
@@ -48,17 +72,24 @@ export function DiaryCalendarConnect({
   const [appleOpen, setAppleOpen] = useState(false);
   const [appleId, setAppleId] = useState('');
   const [appPassword, setAppPassword] = useState('');
+  const [appleBusy, setAppleBusy] = useState(false);
+  const [appleBusyLabel, setAppleBusyLabel] = useState('Connecting to Apple…');
+  const [appleNote, setAppleNote] = useState<string | null>(null);
+  const [appleNoteError, setAppleNoteError] = useState(false);
   const [busy, setBusy] = useState(false);
+  const appleLock = useRef(false);
   const onChangedRef = useRef(onChanged);
   onChangedRef.current = onChanged;
   const toasted = useRef<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<Status | null> => {
     const qs = new URLSearchParams({ companyId: String(companyId) });
     if (privyUserId) qs.set('privyUserId', privyUserId);
     const res = await fetch(`/api/sales/calendar?${qs.toString()}`);
-    if (!res.ok) return;
-    setStatus(await res.json());
+    if (!res.ok) return null;
+    const data = (await res.json()) as Status;
+    setStatus(data);
+    return data;
   }, [companyId, privyUserId]);
 
   useEffect(() => {
@@ -71,8 +102,8 @@ export function DiaryCalendarConnect({
     toasted.current = flag;
     if (flag === 'google' || flag === 'outlook') {
       toast.success(`${flag === 'google' ? 'Google' : 'Outlook'} calendar connected`);
-      void syncConnectedCalendars(companyId, privyUserId).then((changed) => {
-        if (changed) onChangedRef.current();
+      void syncConnectedCalendars(companyId, privyUserId).then((result) => {
+        if (result.changed) onChangedRef.current();
         void load();
       });
     } else if (flag === 'error') {
@@ -83,8 +114,8 @@ export function DiaryCalendarConnect({
   const syncNow = async () => {
     setBusy(true);
     try {
-      const changed = await syncConnectedCalendars(companyId, privyUserId);
-      if (changed) onChanged();
+      const result = await syncConnectedCalendars(companyId, privyUserId);
+      if (result.changed) onChanged();
       toast.success('Calendar sync finished');
       await load();
     } finally {
@@ -106,8 +137,23 @@ export function DiaryCalendarConnect({
     }
   };
 
-  const connectApple = async (id: string, password: string) => {
-    setBusy(true);
+  const connectApple = async (idRaw: string, passwordRaw: string) => {
+    if (appleLock.current) return;
+    const id = idRaw.trim();
+    const password = passwordRaw;
+    setAppleId(id);
+    setAppPassword(password);
+    const localError = appleFormError(id, password);
+    if (localError) {
+      setAppleNote(localError);
+      setAppleNoteError(true);
+      return;
+    }
+    appleLock.current = true;
+    setAppleBusy(true);
+    setAppleBusyLabel('Connecting to Apple…');
+    setAppleNote('Connecting to Apple…');
+    setAppleNoteError(false);
     try {
       const res = await fetch('/api/sales/calendar/apple', {
         method: 'POST',
@@ -119,17 +165,46 @@ export function DiaryCalendarConnect({
           privyUserId: privyUserId || undefined,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Apple Calendar could not connect');
+      if (!res.ok) {
+        const message = await messageFromResponse(res, 'Apple Calendar could not connect');
+        setAppleNote(message);
+        setAppleNoteError(true);
+        toast.error(message);
+        return;
+      }
       setAppPassword('');
-      setAppleOpen(false);
+      setAppleBusyLabel('Copying diary…');
+      setAppleNote('Connected. Copying your diary onto Apple…');
+      setAppleNoteError(false);
       toast.success('Apple Calendar connected');
-      if (data.sync?.changed) onChanged();
-      await load();
+      let copied = { ok: false, changed: false };
+      try {
+        copied = await syncConnectedCalendars(companyId, privyUserId);
+      } catch {
+        copied = { ok: false, changed: false };
+      }
+      if (copied.changed) onChanged();
+      const next = await load();
+      const apple = next?.links?.find((link) => link.provider === 'apple');
+      if (apple?.last_error) {
+        setAppleNote(`Apple Calendar is connected, but the first copy stopped: ${apple.last_error}`);
+        setAppleNoteError(true);
+      } else if (!copied.ok) {
+        setAppleNote('Apple Calendar is connected. The first copy did not finish. Tap Sync now.');
+        setAppleNoteError(true);
+      } else {
+        setAppleNote('Apple Calendar is connected.');
+        setAppleNoteError(false);
+        setAppleOpen(false);
+      }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Apple Calendar could not connect');
+      const message = error instanceof Error ? error.message : 'Apple Calendar could not connect';
+      setAppleNote(message);
+      setAppleNoteError(true);
+      toast.error(message);
     } finally {
-      setBusy(false);
+      appleLock.current = false;
+      setAppleBusy(false);
     }
   };
 
@@ -144,7 +219,7 @@ export function DiaryCalendarConnect({
             on that calendar is saved here. Your other calendars stay private.
           </p>
         </div>
-        <button type="button" className={toolBtn} onClick={() => void syncNow()} disabled={busy}>
+        <button type="button" className={toolBtn} onClick={() => void syncNow()} disabled={busy || appleBusy}>
           Sync now
         </button>
       </div>
@@ -173,21 +248,18 @@ export function DiaryCalendarConnect({
       {appleOpen ? (
         <form
           className="mt-3 grid gap-2 sm:grid-cols-2"
+          noValidate
           onSubmit={(event) => {
             event.preventDefault();
             const data = new FormData(event.currentTarget);
-            const id = String(data.get('appleId') || appleId);
-            const password = String(data.get('appleAppPassword') || appPassword);
-            setAppleId(id);
-            setAppPassword(password);
-            void connectApple(id, password);
+            void connectApple(String(data.get('appleId') || ''), String(data.get('appleAppPassword') || ''));
           }}
         >
           <label className="block text-xs font-semibold text-neutral-600">
             Apple ID email
             <input
               name="appleId"
-              type="email"
+              type="text"
               inputMode="email"
               className="input mt-1 min-h-11 w-full !px-3 !py-2.5 !text-sm"
               value={appleId}
@@ -221,10 +293,29 @@ export function DiaryCalendarConnect({
               ? ` So far that is ${appPassword.toLowerCase().replace(/[^a-z0-9]/g, '').length} of 16 characters.`
               : ''}
           </p>
-          <button type="submit" className="btn-primary min-h-11 sm:col-span-2 sm:w-auto" disabled={busy}>
-            Save Apple Calendar
+          <button
+            type="submit"
+            className={`btn-primary min-h-11 sm:col-span-2 sm:w-auto ${appleBusy ? 'opacity-60' : ''}`}
+            disabled={appleBusy}
+            aria-busy={appleBusy}
+            onClick={(event) => {
+              event.preventDefault();
+              const form = event.currentTarget.form;
+              const data = form ? new FormData(form) : null;
+              void connectApple(
+                String(data?.get('appleId') || appleId),
+                String(data?.get('appleAppPassword') || appPassword)
+              );
+            }}
+          >
+            {appleBusy ? appleBusyLabel : 'Save Apple Calendar'}
           </button>
         </form>
+      ) : null}
+      {appleNote ? (
+        <p role="status" className={`mt-3 text-sm ${appleNoteError ? 'text-rose-700' : 'text-slate-800'}`}>
+          {appleNote}
+        </p>
       ) : null}
       {status?.links?.length ? (
         <ul className="mt-4 space-y-2">
@@ -236,7 +327,12 @@ export function DiaryCalendarConnect({
                 {link.status === 'error' ? ' · needs reconnecting' : ''}
                 {link.last_error ? ` · ${link.last_error}` : ''}
               </span>
-              <button type="button" className={toolBtn} onClick={() => void disconnect(link.provider)} disabled={busy}>
+              <button
+                type="button"
+                className={toolBtn}
+                onClick={() => void disconnect(link.provider)}
+                disabled={busy || appleBusy}
+              >
                 Disconnect
               </button>
             </li>

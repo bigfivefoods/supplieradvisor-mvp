@@ -247,8 +247,8 @@ function TasksInner() {
       return;
     }
     setTasks((prev) => prev.map((row) => (row.id === task.id ? data.task : row)));
-    const changed = await syncConnectedCalendars(companyId, privyUserId);
-    if (changed) await load();
+    const synced = await syncConnectedCalendars(companyId, privyUserId);
+    if (synced.changed) await load();
   };
 
   const onSelectEvent = (event: ScheduleEvent) => {
