@@ -4,11 +4,11 @@ import {
   requireReferralOps,
 } from '@/lib/billing/referral-controls';
 import { legacyPrivyFrom } from '@/lib/auth/api-auth';
+import { FOUNDING_FREE_COMPANY_LIMIT } from '@/lib/billing/lifetime';
 import {
-  FOUNDING_FREE_COMPANY_LIMIT,
   getFoundingSlotPulse,
   grantFoundingLifetimeAccess,
-} from '@/lib/billing/lifetime';
+} from '@/lib/billing/lifetime-server';
 
 /**
  * Platform ops: list / update founding waitlist.

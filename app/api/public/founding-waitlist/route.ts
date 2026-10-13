@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import {
-  FOUNDING_FREE_COMPANY_LIMIT,
-  getFoundingSlotPulse,
-} from '@/lib/billing/lifetime';
+import { FOUNDING_FREE_COMPANY_LIMIT } from '@/lib/billing/lifetime';
+import { getFoundingSlotPulse } from '@/lib/billing/lifetime-server';
 import { getResend, getResendFrom, getResendReplyTo } from '@/lib/resend';
 import { clientIp, rateLimit } from '@/lib/security/rate-limit';
 

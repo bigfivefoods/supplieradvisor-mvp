@@ -64,7 +64,7 @@ import {
   B2cWorkspaceSwitch,
   type B2cBusinessCard,
 } from '@/components/b2c/B2cWorkspaceSwitch';
-import type { B2cHireJourney } from '@/lib/b2c/hire-journeys';
+import type { B2cHireJourney } from '@/lib/b2c/hire-journey-view';
 import { toast } from 'sonner';
 import EnablePushButton from '@/components/pwa/EnablePushButton';
 import { B2cLinkBusiness } from '@/components/b2c/B2cLinkBusiness';
@@ -646,6 +646,7 @@ function MeAppInner() {
         <SaOfficialLogo
           title="SA Member"
           className="sa-logo-on-dark sa-logo-member-login h-16 w-auto"
+          priority
         />
         <p className="mt-4 text-sm font-black tracking-wide">SA Member</p>
         <Loader2 className="mt-4 h-6 w-6 animate-spin text-sky-200" />
@@ -688,6 +689,7 @@ function MeAppInner() {
               <SaOfficialLogo
                 title="SA Member"
                 className="sa-logo-on-dark sa-logo-member-login h-16 w-auto"
+                priority
               />
             </div>
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-sky-100 lg:hidden">

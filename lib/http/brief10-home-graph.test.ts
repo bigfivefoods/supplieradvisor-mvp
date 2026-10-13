@@ -3,7 +3,7 @@
  * Run: npx --yes tsx lib/http/brief10-home-graph.test.ts
  */
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 const ROOT = resolve('.');
@@ -41,7 +41,7 @@ function withExt(base: string): string | null {
     join(base, 'index.tsx'),
   ];
   for (const t of tries) {
-    if (existsSync(t)) return t;
+    if (existsSync(t) && statSync(t).isFile()) return t;
   }
   return null;
 }

@@ -10,6 +10,8 @@ import {
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
 
+export { gymJoinMemberPath } from '@/lib/fitness/gym-join-path';
+
 export type GrowShareClass = {
   id: string;
   share_code: string;
@@ -19,13 +21,6 @@ export type GrowShareClass = {
   coach_name?: string;
   location?: string;
 };
-
-export function gymJoinMemberPath(publicToken: string, kind?: 'group' | 'private' | 'both') {
-  const base = `/join/fitgraph/${encodeURIComponent(publicToken)}`;
-  if (kind === 'private') return `${base}?kind=private`;
-  if (kind === 'both') return `${base}?kind=both`;
-  return `${base}?kind=group`;
-}
 
 export function gymTrialClassPath(publicToken: string, shareCode: string) {
   return `${buildClassJoinPath(publicToken, shareCode)}?trial=1`;

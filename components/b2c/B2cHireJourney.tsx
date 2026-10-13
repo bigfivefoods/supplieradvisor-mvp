@@ -7,7 +7,7 @@ import {
   HIRE_PROCESS_STEPS,
   hireJourneyCalendarEvent,
   type B2cHireJourney,
-} from '@/lib/b2c/hire-journeys';
+} from '@/lib/b2c/hire-journey-view';
 import {
   downloadMemberEventIcs,
   googleCalendarUrl,

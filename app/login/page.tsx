@@ -34,7 +34,7 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
       <div className="w-full max-w-md">
         <div className="text-center mb-8 sm:mb-10">
           <Link href="/" className="inline-flex items-center gap-3 mb-6 sm:mb-8">
-            <SaOfficialLogo title="SupplierAdvisor" className="h-12 w-auto" />
+            <SaOfficialLogo title="SupplierAdvisor" className="h-12 w-auto" priority />
             <span className="sa-wordmark font-black text-2xl tracking-[-1px]">SupplierAdvisor®</span>
           </Link>
           <h1 className="sa-text-brand-on-light mb-2 text-3xl font-black tracking-[-2px] sm:text-4xl">
