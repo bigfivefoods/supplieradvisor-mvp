@@ -1825,3 +1825,81 @@ html.dark .b2c-app textarea {
 .srm-scroll {
   scrollbar-width: thin;
 }
+
+/* CRM — brand fill stays #00b4d8. Text on that fill is slate-950 so it meets WCAG AA. */
+.crm-module .btn-primary {
+  background-color: #00b4d8;
+  color: #0f172a;
+}
+.crm-module .btn-primary:hover,
+.crm-module .btn-primary:focus-visible {
+  background-color: #00b4d8;
+  color: #0f172a;
+  box-shadow: 0 10px 24px rgba(0, 180, 216, 0.28);
+}
+.crm-module :focus-visible {
+  outline: 2px solid #0077b6;
+  outline-offset: 2px;
+}
+.crm-kbd {
+  display: inline-flex;
+  min-width: 1.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.4rem;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  padding: 0 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+.crm-skeleton {
+  background: linear-gradient(90deg, #e7f6fa 0%, #ffffff 45%, #dff3f8 100%);
+  background-size: 200% 100%;
+  animation: crm-shimmer 1.15s ease-in-out infinite;
+}
+@keyframes crm-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+@keyframes crm-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.crm-rise {
+  animation: crm-rise 0.38s ease both;
+}
+.crm-path {
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.crm-path:hover {
+  transform: translateY(-2px);
+}
+.crm-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.85rem;
+}
+.crm-timeline-item {
+  padding-left: 0.9rem;
+  border-left: 2px solid #00b4d8;
+}
+.crm-timeline-item.is-warn { border-left-color: #b45309; }
+.crm-timeline-item.is-good { border-left-color: #047857; }
+.crm-table thead th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  z-index: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .crm-rise,
+  .crm-skeleton,
+  .crm-path {
+    animation: none;
+    transition: none;
+  }
+}

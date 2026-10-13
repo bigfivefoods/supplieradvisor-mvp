@@ -125,11 +125,14 @@ export default function OpportunityPipelineBoard({
 
   if (!opportunities.length) {
     return (
-      <div className="bg-white border rounded-3xl p-16 text-center text-neutral-500">
-        <Briefcase className="w-10 h-10 mx-auto mb-3 text-neutral-300" />
-        <p className="mb-4">No opportunities yet. Create a deal or convert a qualified lead.</p>
+      <div className="rounded-3xl border border-dashed border-[#00b4d8]/40 bg-white px-6 py-14 text-center">
+        <Briefcase className="mx-auto mb-3 h-10 w-10 text-[#0077b6]" aria-hidden />
+        <h2 className="text-lg font-black text-slate-900">No deals on the board</h2>
+        <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
+          Create a deal or convert a qualified lead. Drag a card, or use the arrow keys, to change its stage.
+        </p>
         {onCreate && (
-          <button type="button" onClick={onCreate} className="btn-primary !py-2.5 !px-5 text-sm">
+          <button type="button" onClick={onCreate} className="btn-primary mt-5 !px-5 !py-2.5 text-sm">
             New opportunity
           </button>
         )}
@@ -189,7 +192,7 @@ export default function OpportunityPipelineBoard({
             return (
               <div
                 key={stage.value}
-                className={`w-[280px] flex-shrink-0 border rounded-3xl overflow-hidden transition-all ${
+                className={`crm-rise w-[280px] flex-shrink-0 overflow-hidden rounded-3xl border transition-all ${
                   isDropTarget
                     ? 'bg-sky-50 border-[#00b4d8] ring-2 ring-[#00b4d8]/30'
                     : 'bg-neutral-50 border-neutral-200'
@@ -211,13 +214,13 @@ export default function OpportunityPipelineBoard({
                   );
                   setDraggingId(null);
                   setOverStage(null);
-                  if (!onMove || !Number.isFinite(id) || id <= 0) return;
+                  if (!onMove || !Number.isFinite(id) || id === 0) return;
                   const card = opportunities.find((o) => o.id === id);
                   if (!card || card.stage === stage.value) return;
                   onMove(id, stage.value);
                 }}
               >
-                <div className="px-3 py-3 border-b bg-white">
+                <div className="border-b border-t-4 border-t-[#00b4d8] bg-white px-3 py-3">
                   <div className="font-bold text-sm">{stage.label}</div>
                   <div className="text-[11px] text-neutral-500">
                     {cards.length} · {formatMoney(colValue)} · {stage.probability}%
@@ -229,6 +232,8 @@ export default function OpportunityPipelineBoard({
                   )}
                 </div>
                 <div
+                  role="list"
+                  aria-label={stage.label}
                   className={`p-2 space-y-2 overflow-y-auto min-h-[120px] ${
                     compact ? 'max-h-[60vh]' : 'max-h-[70vh]'
                   }`}
@@ -261,7 +266,22 @@ export default function OpportunityPipelineBoard({
                           setDraggingId(null);
                           setOverStage(null);
                         }}
-                        className={`bg-white border rounded-2xl p-3 shadow-sm transition-all ${
+                        role="listitem"
+                        tabIndex={0}
+                        aria-label={`${o.name}, ${stage.label}. Arrow keys move the stage.`}
+                        onKeyDown={(event) => {
+                          if (!onMove) return;
+                          const index = OPPORTUNITY_STAGES.findIndex((item) => item.value === o.stage);
+                          if (event.key === 'ArrowRight' && index >= 0 && index < OPPORTUNITY_STAGES.length - 1) {
+                            event.preventDefault();
+                            onMove(o.id, OPPORTUNITY_STAGES[index + 1].value);
+                          }
+                          if (event.key === 'ArrowLeft' && index > 0) {
+                            event.preventDefault();
+                            onMove(o.id, OPPORTUNITY_STAGES[index - 1].value);
+                          }
+                        }}
+                        className={`rounded-2xl border bg-white p-3 shadow-sm transition-all ${
                           onMove ? 'cursor-grab active:cursor-grabbing' : ''
                         } ${
                           isDragging
@@ -587,9 +607,9 @@ export default function OpportunityPipelineBoard({
                     );
                   })}
                   {cards.length === 0 && (
-                    <div className="text-center text-[11px] text-neutral-400 py-6">
-                      {isDropTarget ? 'Drop here' : 'Empty — drop cards here'}
-                    </div>
+                    <p className="px-2 py-6 text-center text-xs text-slate-600">
+                      {isDropTarget ? 'Drop here' : 'Drop a deal here'}
+                    </p>
                   )}
                 </div>
               </div>

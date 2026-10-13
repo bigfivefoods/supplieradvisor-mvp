@@ -65,5 +65,5 @@ export function CustomersHeader({
 }
 
 export function CustomersPage({ children }: { children: React.ReactNode }) {
-  return <RelationshipPage>{children}</RelationshipPage>;
+  return <RelationshipPage className="crm-module">{children}</RelationshipPage>;
 }
