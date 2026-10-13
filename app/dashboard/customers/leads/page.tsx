@@ -42,6 +42,8 @@ import {
   type GroupPipelineMeta,
   type GroupPipelineView,
 } from '@/lib/business/group-pipeline-view';
+import { crmDateOnly, crmToday } from '@/lib/customers/crm-desk';
+import type { TeamMemberLite } from '@/components/sales/TeamDealsReport';
 
 type Tab = 'leads' | 'pipeline' | 'team';
 
@@ -137,6 +139,7 @@ function LeadsInner() {
   const [leadForm, setLeadForm] = useState(emptyLead());
   const [oppForm, setOppForm] = useState(emptyOpp());
   const [saving, setSaving] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<TeamMemberLite[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -172,6 +175,41 @@ function LeadsInner() {
     const t = setTimeout(() => void load(), 200);
     return () => clearTimeout(t);
   }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const teamRes = await fetch(`/api/business/team?companyId=${companyId}`);
+        if (!teamRes.ok || cancelled) return;
+        const team = await teamRes.json();
+        const members = Array.isArray(team.members) ? team.members : [];
+        if (cancelled) return;
+        setTeamMembers(
+          members
+            .filter((member: { user_id?: string | null }) => member.user_id)
+            .map(
+              (member: {
+                user_id: string;
+                name?: string | null;
+                email?: string | null;
+                role?: string | null;
+              }) => ({
+                user_id: String(member.user_id),
+                name: member.name || member.email || 'Teammate',
+                email: member.email,
+                role: member.role,
+              })
+            )
+        );
+      } catch {
+        if (!cancelled) setTeamMembers([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId]);
 
   useEffect(() => {
     if (searchParams.get('tab') === 'pipeline') setTab('pipeline');
@@ -505,6 +543,9 @@ function LeadsInner() {
         }
         action={
           <div className="flex flex-wrap gap-2">
+            <Link href="/sales/tasks" className="btn-secondary !py-2.5 !px-4 text-sm">
+              Diary
+            </Link>
             <button type="button" onClick={exportCSV} className="btn-secondary !py-2.5 !px-4 text-sm">
               <Download className="w-4 h-4" /> Export
             </button>
@@ -610,7 +651,7 @@ function LeadsInner() {
           onCreate={openLeadCreate}
         />
       ) : tab === 'team' ? (
-        <TeamDealsReport opportunities={visibleOpps} members={[]} />
+        <TeamDealsReport opportunities={visibleOpps} members={teamMembers} />
       ) : (
         <>
         <div className="mb-3 flex justify-end">
@@ -818,9 +859,58 @@ function LeadsTable({
       </div>
     );
   }
+  const today = crmToday();
   return (
     <div className="bg-white border rounded-3xl overflow-hidden">
-      <div className="overflow-x-auto">
+      <ul className="divide-y divide-neutral-100 md:hidden">
+        {leads.map((l) => {
+          const when = crmDateOnly(l.next_action_date);
+          const overdue = Boolean(
+            when && when < today && !['converted', 'unqualified', 'recycled'].includes(String(l.status))
+          );
+          return (
+            <li key={l.id} className="px-4 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-semibold text-slate-900">{l.name}</div>
+                  <div className="text-xs text-neutral-500 truncate">
+                    {[l.company_name, l.email, l.phone].filter(Boolean).join(' · ') || '—'}
+                  </div>
+                </div>
+                <span className={`shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${leadStatusClass(l.status)}`}>
+                  {(l.status || 'new').replace(/_/g, ' ')}
+                </span>
+              </div>
+              <div className="mt-2 flex items-baseline justify-between gap-3 text-sm">
+                <span className="font-semibold">{formatMoney(l.value_estimate, l.currency || 'ZAR')}</span>
+                <span className={`text-xs font-semibold ${overdue ? 'text-rose-700' : 'text-neutral-500'}`}>
+                  {l.next_action || 'No next action'}
+                  {when ? ` · ${overdue ? 'Overdue ' : ''}${when}` : ''}
+                </span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {l.status !== 'converted' && (
+                  <button
+                    type="button"
+                    onClick={() => onConvert(l)}
+                    className="min-h-11 rounded-xl border border-sky-200 bg-sky-50 text-xs font-bold text-[#0077b6]"
+                  >
+                    Make a deal
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onEdit(l)}
+                  className="min-h-11 rounded-xl border border-neutral-200 text-xs font-bold text-slate-700"
+                >
+                  Edit
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full text-sm">
           <thead className="bg-neutral-50 border-b text-left text-xs text-neutral-500">
             <tr>
@@ -834,7 +924,14 @@ function LeadsTable({
             </tr>
           </thead>
           <tbody className="divide-y">
-            {leads.map((l) => (
+            {leads.map((l) => {
+              const when = crmDateOnly(l.next_action_date);
+              const overdue = Boolean(
+                when &&
+                  when < today &&
+                  !['converted', 'unqualified', 'recycled'].includes(String(l.status))
+              );
+              return (
               <tr key={l.id} className="hover:bg-neutral-50">
                 <td className="px-4 py-3">
                   <div className="font-semibold">{l.name}</div>
@@ -870,8 +967,10 @@ function LeadsTable({
                 </td>
                 <td className="px-3 py-3 text-xs">
                   <div>{l.next_action || '—'}</div>
-                  {l.next_action_date && (
-                    <div className="text-neutral-400">{l.next_action_date}</div>
+                  {when && (
+                    <div className={overdue ? 'font-semibold text-rose-700' : 'text-neutral-400'}>
+                      {when}
+                    </div>
                   )}
                 </td>
                 <td className="px-3 py-3 text-right whitespace-nowrap">
@@ -893,7 +992,8 @@ function LeadsTable({
                   </button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -9,6 +9,12 @@ import {
   Target,
   TrendingUp,
   RefreshCw,
+  CalendarDays,
+  BookOpen,
+  FileText,
+  Receipt,
+  Wallet,
+  ScanSearch,
 } from 'lucide-react';
 import { getSelectedCompanyId, getSelectedCompanyName } from '@/lib/containers/company';
 import { AdvisorMemberAppInvite } from '@/components/b2c/AdvisorMemberAppInvite';
@@ -44,6 +50,33 @@ type Summary = {
   inviteSuspended?: number;
 };
 
+type DeskItem = {
+  id: string;
+  kind: 'follow_up' | 'close' | 'task';
+  title: string;
+  detail: string;
+  when: string | null;
+  overdue: boolean;
+  href: string;
+};
+
+const CRM_PATH = [
+  { href: '/dashboard/customers/profiles', label: 'Book', hint: 'Accounts', icon: BookOpen },
+  { href: '/dashboard/customers/leads', label: 'Leads', hint: 'Source', icon: Target },
+  { href: '/dashboard/customers/leads?tab=pipeline', label: 'Pipeline', hint: 'Deals', icon: TrendingUp },
+  { href: '/sales/tasks', label: 'Diary', hint: 'Tasks', icon: CalendarDays },
+  { href: '/dashboard/customers/quotes', label: 'Quote', hint: 'Trade', icon: FileText },
+  { href: '/dashboard/customers/invoices', label: 'Invoice', hint: 'Bill', icon: Receipt },
+  { href: '/dashboard/customers/money', label: 'Collect', hint: 'AR', icon: Wallet },
+  { href: '/dashboard/customers/360', label: '360', hint: 'Account', icon: ScanSearch },
+] as const;
+
+const DESK_KIND: Record<DeskItem['kind'], string> = {
+  follow_up: 'Follow up',
+  close: 'Close',
+  task: 'Diary',
+};
+
 export default function CustomersHub() {
   return (
     <CompanyRequired>
@@ -55,6 +88,7 @@ export default function CustomersHub() {
 function HubInner() {
   const companyId = getSelectedCompanyId()!;
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [desk, setDesk] = useState<DeskItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -63,8 +97,10 @@ function HubInner() {
       const res = await fetch(`/api/customers/summary?companyId=${companyId}`);
       const data = await res.json();
       setSummary(data.summary || null);
+      setDesk(Array.isArray(data.desk) ? data.desk : []);
     } catch {
       setSummary(null);
+      setDesk([]);
     } finally {
       setLoading(false);
     }
@@ -83,7 +119,7 @@ function HubInner() {
         eyebrow="Customer relationship management"
         title="Customers"
         titleAccent="Selling"
-        description="The customer book, the pipeline, and the follow-ups that are late. Quote, invoice, and collect live on the rail."
+        description="One customer book for the company. Leads, the pipeline, the sales diary, quotes, and invoices all read and write those same records."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -96,6 +132,9 @@ function HubInner() {
             </button>
             <Link href="/dashboard/customers/onboard" className="btn-primary !py-2.5 !px-5 text-sm">
               <UserPlus className="w-4 h-4" /> Add customer
+            </Link>
+            <Link href="/sales/tasks" className="btn-secondary !py-2.5 !px-4 text-sm">
+              <CalendarDays className="w-4 h-4" /> Diary
             </Link>
             <Link href="/dashboard/customers/quotes" className="btn-secondary !py-2.5 !px-4 text-sm">
               New quote
@@ -118,6 +157,23 @@ function HubInner() {
           audience="customers"
         />
       </div>
+
+      <nav className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8" aria-label="Customer work">
+        {CRM_PATH.map((step) => {
+          const Icon = step.icon;
+          return (
+            <Link
+              key={step.href}
+              href={step.href}
+              className="min-h-11 rounded-2xl border border-neutral-200 bg-white px-3 py-3 shadow-sm hover:border-[#00b4d8] hover:text-[#0077b6]"
+            >
+              <Icon className="h-4 w-4 text-[#00b4d8]" />
+              <div className="mt-2 text-sm font-bold text-slate-900">{step.label}</div>
+              <div className="text-[11px] text-neutral-500">{step.hint}</div>
+            </Link>
+          );
+        })}
+      </nav>
 
       <HubTelemetryGrid className="mb-6">
         <TelemetryCard
@@ -153,6 +209,54 @@ function HubInner() {
           href="/dashboard/customers/leads?tab=pipeline"
         />
       </HubTelemetryGrid>
+
+      <section className="mb-6 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-black text-slate-800">On the desk</h3>
+            <p className="mt-0.5 text-xs text-neutral-500">
+              Follow-ups, closes in the next 14 days, and open diary tasks.
+            </p>
+          </div>
+          <Link href="/sales/tasks" className="text-xs font-bold text-[#0077b6] hover:underline">
+            Open the diary
+          </Link>
+        </div>
+        {loading ? (
+          <p className="mt-4 text-sm text-neutral-400">Loading the desk…</p>
+        ) : desk.length === 0 ? (
+          <p className="mt-4 rounded-2xl bg-slate-50 px-4 py-6 text-sm text-neutral-500">
+            Nothing is due in the next 14 days. Capture a lead or add a diary task when the next conversation is booked.
+          </p>
+        ) : (
+          <ul className="mt-3 divide-y divide-neutral-100">
+            {desk.map((item) => (
+              <li key={item.id}>
+                <Link
+                  href={item.href}
+                  className="flex min-h-11 items-center justify-between gap-3 py-3"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-slate-900">
+                      {item.title}
+                    </span>
+                    <span className="block truncate text-xs text-neutral-500">
+                      {DESK_KIND[item.kind]} · {item.detail}
+                    </span>
+                  </span>
+                  <span
+                    className={`shrink-0 text-xs font-bold tabular-nums ${
+                      item.overdue ? 'text-rose-700' : 'text-slate-500'
+                    }`}
+                  >
+                    {item.overdue ? 'Overdue' : item.when || 'Open'}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <div className="mb-8 grid items-start gap-4 lg:grid-cols-2">
         <section className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">

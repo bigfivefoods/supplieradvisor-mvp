@@ -3,6 +3,60 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { stageProbability } from '@/lib/customers/types';
 import { assertCustomersAccess } from '@/lib/customers/access';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import {
+  buildCrmDesk,
+  crmDeskCounts,
+  crmToday,
+  type CrmDeskItem,
+  type CrmDeskLead,
+  type CrmDeskOpportunity,
+  type CrmDeskTask,
+} from '@/lib/customers/crm-desk';
+
+async function loadCrmDesk(
+  supabase: ReturnType<typeof getSupabaseServer>,
+  companyId: number,
+  treeIds: number[]
+): Promise<{
+  overdueFollowups: number | null;
+  weightedPipeline: number | null;
+  wonCount: number | null;
+  desk: CrmDeskItem[];
+}> {
+  const today = crmToday();
+  const [leadsR, oppsR, tasksR] = await Promise.all([
+    supabase
+      .from('leads')
+      .select('id, name, company_name, status, next_action, next_action_date')
+      .eq('profile_id', companyId)
+      .limit(400),
+    supabase
+      .from('opportunities')
+      .select(
+        'id, name, company_name, stage, status, amount, opportunity_size, probability, expected_close_date, next_step'
+      )
+      .in('profile_id', treeIds)
+      .limit(800),
+    supabase
+      .from('crm_tasks')
+      .select('id, title, kind, status, due_on')
+      .eq('profile_id', companyId)
+      .eq('status', 'open')
+      .order('due_on', { ascending: true })
+      .limit(40),
+  ]);
+
+  const leads = (leadsR.error ? [] : leadsR.data || []) as CrmDeskLead[];
+  const opportunities = (oppsR.error ? [] : oppsR.data || []) as CrmDeskOpportunity[];
+  const tasks = (tasksR.error ? [] : tasksR.data || []) as CrmDeskTask[];
+  const counts = crmDeskCounts(leads, opportunities, today);
+  return {
+    overdueFollowups: leadsR.error ? null : counts.overdueFollowups,
+    weightedPipeline: oppsR.error ? null : counts.weightedPipeline,
+    wonCount: oppsR.error ? null : counts.wonCount,
+    desk: buildCrmDesk({ leads, opportunities, tasks, today }),
+  };
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,6 +87,7 @@ export async function GET(request: NextRequest) {
     if (!rollup.error && rollup.data && typeof rollup.data === 'object') {
       const o = rollup.data as Record<string, unknown>;
       const n = (k: string) => Number(o[k] || 0);
+      const desk = await loadCrmDesk(supabase, companyId, tree.ids);
       return NextResponse.json({
         success: true,
         summary: {
@@ -43,12 +98,12 @@ export async function GET(request: NextRequest) {
           opportunities: n('opportunities'),
           opportunitiesOpen: n('opportunities_open'),
           pipelineValue: n('pipeline_value'),
-          weightedPipeline: n('weighted_pipeline'),
+          weightedPipeline: desk.weightedPipeline ?? n('weighted_pipeline'),
           wonValue: n('won_value'),
-          wonCount: 0,
+          wonCount: desk.wonCount ?? 0,
           pipelineIncludesGroup: tree.descendantCount > 0,
           pipelineGroupCompanies: tree.descendantCount,
-          overdueFollowups: 0,
+          overdueFollowups: desk.overdueFollowups ?? 0,
           invitePending: n('invite_pending'),
           inviteAccepted: n('invite_accepted'),
           inviteSuspended: n('invite_suspended'),
@@ -60,6 +115,7 @@ export async function GET(request: NextRequest) {
           invitationsExpired: n('invitations_expired'),
           invitationsTotal: n('invitations_total'),
         },
+        desk: desk.desk,
       });
     }
 
@@ -159,8 +215,11 @@ export async function GET(request: NextRequest) {
       (i) => String(i.status || '').toLowerCase() === 'expired'
     ).length;
 
+    const desk = await loadCrmDesk(supabase, companyId, tree.ids);
+
     return NextResponse.json({
       success: true,
+      desk: desk.desk,
       summary: {
         customers: cust.length,
         customersActive: cust.filter((c) => c.status === 'active').length,
@@ -169,12 +228,12 @@ export async function GET(request: NextRequest) {
         opportunities: oppRows.length,
         opportunitiesOpen: openOpps.length,
         pipelineValue,
-        weightedPipeline: Math.round(weightedPipeline),
+        weightedPipeline: desk.weightedPipeline ?? Math.round(weightedPipeline),
         wonValue,
-        wonCount: won.length,
+        wonCount: desk.wonCount ?? won.length,
         pipelineIncludesGroup: tree.descendantCount > 0,
         pipelineGroupCompanies: tree.descendantCount,
-        overdueFollowups,
+        overdueFollowups: desk.overdueFollowups ?? overdueFollowups,
         // Platform invite relationship phase (CRM)
         invitePending,
         inviteAccepted,
