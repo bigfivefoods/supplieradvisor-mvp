@@ -149,19 +149,25 @@ export default function SalesSubscribePage() {
     return (
       <div className="max-w-lg mx-auto rounded-3xl border border-emerald-200 bg-emerald-50 p-8 text-center">
         <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto mb-4" />
-        <h1 className="text-2xl font-black text-slate-900">Subscription active</h1>
+        <h1 className="text-2xl font-black text-slate-900">
+          {subscription.lifetime ? 'Free access for life' : 'Subscription active'}
+        </h1>
         <p className="text-sm text-emerald-800 mt-2">
-          Access until{' '}
-          {subscription.endsAt
-            ? new Date(subscription.endsAt).toLocaleDateString('en-ZA', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-              })
-            : '—'}
-          {subscription.daysRemaining != null
-            ? ` · ${subscription.daysRemaining} days left`
-            : ''}
+          {subscription.lifetime
+            ? 'This sales portal has no subscription fee.'
+            : `Access until ${
+                subscription.endsAt
+                  ? new Date(subscription.endsAt).toLocaleDateString('en-ZA', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })
+                  : '—'
+              }${
+                subscription.daysRemaining != null
+                  ? ` · ${subscription.daysRemaining} days left`
+                  : ''
+              }`}
         </p>
         <button
           type="button"

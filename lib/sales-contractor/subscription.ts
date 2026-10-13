@@ -25,7 +25,20 @@ export type SalesSubscriptionInfo = {
   paystackReference: string | null;
   daysRemaining: number | null;
   isActive: boolean;
+  /** Company grant with no fee and no end date. */
+  lifetime: boolean;
 };
+
+/** Complimentary access that does not expire. A year-9999 end date is the stored form of that grant. */
+export function isLifetimeSalesAccess(row: {
+  subscription_status?: string | null;
+  subscription_ends_at?: string | null;
+}): boolean {
+  const raw = String(row.subscription_status || '').toLowerCase();
+  if (raw === 'lifetime' || raw === 'complimentary' || raw === 'comp') return true;
+  const ends = row.subscription_ends_at ? new Date(row.subscription_ends_at) : null;
+  return Boolean(ends && !Number.isNaN(ends.getTime()) && ends.getUTCFullYear() >= 9000);
+}
 
 export function addMonths(isoOrDate: string | Date, months: number): Date {
   const d = new Date(isoOrDate);
@@ -49,8 +62,11 @@ export function computeSubscriptionInfo(row: {
   const now = Date.now();
   let status: SubscriptionStatus = 'none';
   const raw = String(row.subscription_status || '').toLowerCase();
+  const lifetime = isLifetimeSalesAccess(row);
 
-  if (raw === 'cancelled') {
+  if (lifetime) {
+    status = 'active';
+  } else if (raw === 'cancelled') {
     status = 'cancelled';
   } else if (endsAt && endsAt.getTime() > now && (raw === 'active' || raw === 'paid')) {
     status = 'active';
@@ -63,7 +79,7 @@ export function computeSubscriptionInfo(row: {
 
   const isActive = status === 'active';
   const daysRemaining =
-    isActive && endsAt
+    isActive && endsAt && !lifetime
       ? Math.max(0, Math.ceil((endsAt.getTime() - now) / (24 * 60 * 60 * 1000)))
       : null;
 
@@ -79,5 +95,6 @@ export function computeSubscriptionInfo(row: {
       : null,
     daysRemaining,
     isActive,
+    lifetime,
   };
 }
