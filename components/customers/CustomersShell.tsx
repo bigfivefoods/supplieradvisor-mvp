@@ -7,6 +7,7 @@ import {
   RelationshipPage,
   type NavItem,
 } from '@/components/relationship/RelationshipChrome';
+import { fixtureHref } from '@/lib/preview/fixture-href';
 
 /** Secondary pill nav — mirrors process rail (no duplicate settle/AR/reviews paths) */
 export const CUSTOMERS_NAV: readonly NavItem[] = [
@@ -63,7 +64,7 @@ export function CustomersHeader({
   return (
     <RelationshipHeader
       band
-      backHref="/dashboard/customers"
+      backHref={fixtureHref('/dashboard/customers')}
       backLabel="Customers overview"
       eyebrow="Customer relationship management"
       title={title}

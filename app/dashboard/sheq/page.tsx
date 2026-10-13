@@ -25,6 +25,8 @@ import {
   type HubModule,
 } from '@/components/chrome/CommandHubChrome';
 import { getSelectedCompanyId } from '@/lib/containers/company';
+import { isFixturePath } from '@/lib/preview/fixture-href';
+import { osSheqSummary } from '@/lib/preview/os-fixtures';
 
 type Summary = {
   migration_required?: boolean;
@@ -95,15 +97,16 @@ const MODULES: HubModule[] = [
 
 export default function SheqHubPage() {
   const companyId = getSelectedCompanyId();
-  const [loading, setLoading] = useState(true);
-  const [summary, setSummary] = useState<Summary | null>(null);
+  const fixture = isFixturePath('/preview/sheq');
+  const [loading, setLoading] = useState(!fixture);
+  const [summary, setSummary] = useState<Summary | null>(() => (fixture ? osSheqSummary() : null));
 
   const load = useCallback(async () => {
     if (!companyId) {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!isFixturePath('/preview/sheq')) setLoading(true);
     try {
       const res = await fetch(`/api/sheq/summary?companyId=${companyId}`);
       const data = await res.json();

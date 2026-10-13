@@ -51,6 +51,9 @@ const one = crmPreviewJson('/api/customers?companyId=1&id=-1') as {
 assert.equal(one.book, true);
 assert.equal(one.customers[0]?.id, -1);
 assert.equal(crmPreviewJson('/pricing'), null);
+assert.equal(crmPreviewJson('/api/not-a-crm-route'), null);
+const calendar = crmPreviewJson('/api/sales/calendar?companyId=1') as { tableReady: boolean };
+assert.equal(calendar.tableReady, true);
 const docs = crmPreviewJson('/api/customers/docs?companyId=1&customerId=-1&type=quote') as {
   documents: { quote_number?: string }[];
 };

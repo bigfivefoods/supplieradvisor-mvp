@@ -39,8 +39,9 @@ const src = readFileSync(resolve('lib/suppliers/srm-preview.ts'), 'utf8');
 assert.doesNotMatch(src, /supabase/i);
 assert.doesNotMatch(src, /\.insert\(/);
 assert.doesNotMatch(src, /persist/);
-const page = readFileSync(resolve('app/preview/srm/preview-client.tsx'), 'utf8');
+const page = readFileSync(resolve('lib/preview/install-preview-fetch.ts'), 'utf8');
 assert.match(page, /nothing was saved on SupplierAdvisor®/);
 assert.match(page, /method !== 'GET'/);
+assert.match(readFileSync(resolve('app/preview/srm/preview-client.tsx'), 'utf8'), /FixtureStudio/);
 
 console.log('suppliers/srm-preview.test.ts ok');

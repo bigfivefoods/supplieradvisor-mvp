@@ -19,6 +19,8 @@ import {
   Store,
 } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
+import { isFixturePath } from '@/lib/preview/fixture-href';
+import { osInventorySummary } from '@/lib/preview/os-fixtures';
 import {
   RelationshipHeader,
   RelationshipPage,
@@ -56,15 +58,18 @@ export default function InventoryHub() {
 
 function HubInner() {
   const companyId = getSelectedCompanyId();
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [loading, setLoading] = useState(true);
+  const fixture = isFixturePath('/preview/inventory');
+  const [summary, setSummary] = useState<Summary | null>(() =>
+    fixture ? osInventorySummary() : null
+  );
+  const [loading, setLoading] = useState(!fixture);
 
   const load = useCallback(async () => {
     if (!companyId) {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!isFixturePath('/preview/inventory')) setLoading(true);
     try {
       const res = await fetch(`/api/inventory/summary?companyId=${companyId}`);
       const data = await res.json();

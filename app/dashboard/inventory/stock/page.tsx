@@ -224,6 +224,11 @@ function StockInner() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const low = new URLSearchParams(window.location.search).get('low');
+    if (low === '1') setLowOnly(true);
+  }, []);
+
   // Live poll every 30s
   useEffect(() => {
     if (!live) return;
@@ -421,36 +426,40 @@ function StockInner() {
       <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 mb-6">
         <Kpi
           label="Network units"
-          value={fmt(summary?.networkUnits ?? 0)}
+          value={loading || !summary ? '—' : fmt(summary.networkUnits)}
           sub="WH + containers + transit"
           tone="sky"
         />
         <Kpi
           label="On hand (WH)"
-          value={fmt(summary?.totalUnits ?? 0)}
-          sub={`${summary?.skusWithStock ?? 0} SKUs · ${summary?.stockLines ?? 0} lines`}
+          value={loading || !summary ? '—' : fmt(summary.totalUnits)}
+          sub={
+            summary
+              ? `${summary.skusWithStock ?? 0} SKUs · ${summary.stockLines ?? 0} lines`
+              : 'Loading stock'
+          }
         />
         <Kpi
           label="Locations"
-          value={String(summary?.locationsWithStock ?? 0)}
-          sub={`of ${summary?.locations ?? 0} configured`}
+          value={loading || !summary ? '—' : String(summary.locationsWithStock ?? 0)}
+          sub={summary ? `of ${summary.locations ?? 0} configured` : 'Loading stock'}
         />
         <Kpi
           label="Low stock"
-          value={String(summary?.lowStockLines ?? 0)}
+          value={loading || !summary ? '—' : String(summary.lowStockLines ?? 0)}
           sub="lines at/below reorder"
           tone={(summary?.lowStockLines || 0) > 0 ? 'amber' : 'neutral'}
         />
         <Kpi
           label="In transit"
-          value={fmt(summary?.inTransitUnits ?? 0)}
-          sub={`${summary?.inTransitLines ?? 0} open lines`}
+          value={loading || !summary ? '—' : fmt(summary.inTransitUnits)}
+          sub={summary ? `${summary.inTransitLines ?? 0} open lines` : 'Loading stock'}
           tone={(summary?.inTransitUnits || 0) > 0 ? 'violet' : 'neutral'}
         />
         <Kpi
           label="Containers"
-          value={fmt(summary?.containerUnits ?? 0)}
-          sub={`${summary?.containerLines ?? 0} outlet lines`}
+          value={loading || !summary ? '—' : fmt(summary.containerUnits)}
+          sub={summary ? `${summary.containerLines ?? 0} outlet lines` : 'Loading stock'}
         />
       </div>
 
@@ -585,7 +594,7 @@ function StockInner() {
         </div>
 
         <div className="flex-1 flex flex-wrap gap-2">
-          <div className="relative flex-1 min-w-[180px]">
+          <div className="relative min-w-0 w-full flex-1 sm:min-w-[180px] sm:w-auto">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
             <input
               className="input w-full !pl-9 !py-2.5 !text-sm"
@@ -595,7 +604,7 @@ function StockInner() {
             />
           </div>
           <select
-            className="input !py-2.5 !px-3 !text-sm min-w-[160px]"
+            className="input !py-2.5 !px-3 !text-sm w-full sm:w-auto sm:min-w-[160px]"
             value={locationFilter}
             onChange={(e) => setLocationFilter(e.target.value)}
           >

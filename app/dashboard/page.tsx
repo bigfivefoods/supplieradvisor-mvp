@@ -37,6 +37,8 @@ import {
   type TelemetryAccent,
 } from '@/components/chrome/CommandHubChrome';
 import { formatMoneyDisplay } from '@/lib/format/money';
+import { isFixturePath } from '@/lib/preview/fixture-href';
+import { osDashboardHome } from '@/lib/preview/os-fixtures';
 
 type CompanyData = {
   id: number;
@@ -225,7 +227,9 @@ export default function DashboardCommandCenter() {
     packIds: packaging?.packIds,
     sidebarOrder: sidebarModuleOrder,
   });
+  const fixtureStudio = isFixturePath('/preview');
   const sendToAdvisor =
+    !fixtureStudio &&
     Boolean(companyId) &&
     !membershipLoading &&
     role !== 'sales_contractor' &&
@@ -238,10 +242,13 @@ export default function DashboardCommandCenter() {
     router.replace(advisorHome);
   }, [sendToAdvisor, advisorHome, router]);
 
-  const [loading, setLoading] = useState(true);
+  const [fixtureHome] = useState(() =>
+    isFixturePath('/preview/dashboard') ? osDashboardHome() : null
+  );
+  const [loading, setLoading] = useState(!fixtureHome);
   const [error, setError] = useState<string | null>(null);
-  const [company, setCompany] = useState<CompanyData | null>(null);
-  const [kpis, setKpis] = useState<Kpis | null>(null);
+  const [company, setCompany] = useState<CompanyData | null>(fixtureHome?.company ?? null);
+  const [kpis, setKpis] = useState<Kpis | null>(fixtureHome?.kpis ?? null);
   const [crm, setCrm] = useState<{
     customers: number;
     pipelineValue: number;
@@ -283,7 +290,7 @@ export default function DashboardCommandCenter() {
       value: number;
       weighted: number;
     }>;
-  } | null>(null);
+  } | null>(fixtureHome?.crm ?? null);
   const [srm, setSrm] = useState<{
     book: number;
     openPos: number;
@@ -295,13 +302,13 @@ export default function DashboardCommandCenter() {
     connected?: number;
     preferred?: number;
     invitePending?: number;
-  } | null>(null);
+  } | null>(fixtureHome?.srm ?? null);
   const [network, setNetwork] = useState<{
     accepted: number;
     pendingIn: number;
     pendingOut: number;
     pricingActive: number;
-  } | null>(null);
+  } | null>(fixtureHome?.network ?? null);
   const [trade, setTrade] = useState<{
     quotesOpen: number;
     quotesValue: number;
@@ -320,21 +327,23 @@ export default function DashboardCommandCenter() {
     apOpenValue: number;
     openPos: number;
     onchainPos: number;
-  } | null>(null);
+  } | null>(fixtureHome?.trade ?? null);
   const [inventory, setInventory] = useState<{
     products: number;
     multiCurrencyProducts: number;
     warehouseLowStock: number;
     warehouses: number;
-  } | null>(null);
+  } | null>(fixtureHome?.inventory ?? null);
   const [business, setBusiness] = useState<{
     profileCompleteness: number;
     teamActive: number;
     teamInvited: number;
     verified: boolean;
-  } | null>(null);
-  const [alerts, setAlerts] = useState<AlertItem[]>([]);
-  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
+  } | null>(fixtureHome?.business ?? null);
+  const [alerts, setAlerts] = useState<AlertItem[]>(
+    (fixtureHome?.alerts as AlertItem[] | undefined) ?? []
+  );
+  const [generatedAt, setGeneratedAt] = useState<string | null>(fixtureHome?.generatedAt ?? null);
   const [ops, setOps] = useState<OpsSnap | null>(null);
   const [mfg, setMfg] = useState<MfgSnap | null>(null);
   const [fin, setFin] = useState<FinSnap | null>(null);
@@ -461,7 +470,7 @@ export default function DashboardCommandCenter() {
       const dashRes = await fetch(
         `/api/dashboard/home?companyId=${companyId}`
       );
-      const data = await dashRes.json();
+      const data = await dashRes.json().catch(() => ({}));
       if (!dashRes.ok) throw new Error(data.error || 'Failed to load dashboard');
 
       setCompany(data.company || null);
@@ -482,8 +491,10 @@ export default function DashboardCommandCenter() {
   }, [companyId]);
 
   useEffect(() => {
+    if (!fixtureStudio && membershipLoading) return;
+    if (sendToAdvisor) return;
     void load();
-  }, [load]);
+  }, [load, fixtureStudio, membershipLoading, sendToAdvisor]);
 
   const baseCcy = company?.primary_currency || 'ZAR';
   const pendingIn = network?.pendingIn ?? kpis?.networkPendingIn ?? 0;
@@ -644,6 +655,16 @@ export default function DashboardCommandCenter() {
     );
   }
 
+  if (membershipLoading && !fixtureStudio) {
+    return (
+      <RelationshipPage>
+        <div className="flex justify-center py-24">
+          <Loader2 className="h-8 w-8 animate-spin text-[#00b4d8]" />
+        </div>
+      </RelationshipPage>
+    );
+  }
+
   if (sendToAdvisor) {
     return (
       <RelationshipPage>
@@ -691,9 +712,11 @@ export default function DashboardCommandCenter() {
       />
 
       {loading && !kpis ? (
-        <div className="py-24 flex justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
-        </div>
+        <HubTelemetryGrid className="mb-8">
+          {['Network', 'Pipeline', 'Open POs', 'AR open', 'In motion', 'Attention'].map((label) => (
+            <TelemetryCard key={label} label={label} value="—" sub="Loading" accent="slate" icon={Loader2} />
+          ))}
+        </HubTelemetryGrid>
       ) : (
         <>
           <HubTelemetryGrid className="mb-8">
@@ -1254,9 +1277,13 @@ export default function DashboardCommandCenter() {
               title="Operations"
               summary={`${inMotion} in motion · ${ops?.exceptions ?? 0} exceptions`}
               badge={
-                (ops?.exceptions ?? 0) > 0
-                  ? { label: `${ops?.exceptions} exceptions`, tone: 'bad' }
-                  : { label: 'Tower green', tone: 'good' }
+                openSections.operations && !ops
+                  ? { label: 'Loading ops…', tone: 'warn' }
+                  : (ops?.exceptions ?? 0) > 0
+                    ? { label: `${ops?.exceptions} exceptions`, tone: 'bad' }
+                    : ops
+                      ? { label: 'Tower green', tone: 'good' }
+                      : { label: 'Open to check', tone: 'warn' }
               }
               href="/dashboard/operations"
               accent="from-cyan-50 to-white border-cyan-100"

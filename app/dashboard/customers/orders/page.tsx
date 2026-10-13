@@ -170,7 +170,7 @@ function OrdersInner() {
 }
 
 function InboundPosList() {
-  const { user } = usePrivy();
+  const { user, ready } = usePrivy();
   const companyId = getSelectedCompanyId()!;
   const privyUserId = getCanonicalUserId(user?.id);
   const searchParams = useSearchParams();
@@ -192,6 +192,7 @@ function InboundPosList() {
   const [expanded, setExpanded] = useState<number | null>(null);
 
   const load = useCallback(async () => {
+    if (!ready) return;
     if (!privyUserId) {
       setLoading(false);
       setPos([]);
@@ -215,7 +216,7 @@ function InboundPosList() {
     } finally {
       setLoading(false);
     }
-  }, [companyId, privyUserId]);
+  }, [companyId, privyUserId, ready]);
 
   useEffect(() => {
     void load();
