@@ -66,6 +66,16 @@ import {
 import FxRateStrip from '@/components/fx/FxRateStrip';
 import { COMMON_CURRENCIES } from '@/lib/inventory/types';
 import { COST_CATEGORIES } from '@/lib/manufacturing/cost-structure';
+import {
+  SrmBoard,
+  SrmEmpty,
+  SrmSearch,
+  SrmSkeleton,
+  SrmToolbar,
+  SrmViewSwitch,
+  srmFocus,
+} from '@/components/suppliers/srm/SrmDesk';
+import { matchesQuery, PO_BOARD_COLUMNS, poBoardColumn, type SrmView } from '@/lib/suppliers/srm-desk';
 
 const PoProcessGuide = dynamic(
   () => import('@/components/suppliers/PoProcessGuide'),
@@ -271,6 +281,8 @@ function PoInner() {
 
   const [tab, setTab] = useState<'create' | 'pipeline' | 'guide'>('create');
   const [filter, setFilter] = useState<'all' | 'open' | 'completed' | 'onchain'>('all');
+  const [pipelineView, setPipelineView] = useState<SrmView>('list');
+  const [pipelineQuery, setPipelineQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [linking, setLinking] = useState(false);
@@ -1810,6 +1822,18 @@ function PoInner() {
     return purchaseOrders;
   }, [purchaseOrders, filter]);
 
+  const pipelineRows = useMemo(() => {
+    return filtered.filter((p) =>
+      matchesQuery(pipelineQuery, [
+        p.id,
+        p.supplier_name,
+        p.status,
+        p.description,
+        p.po_number,
+      ])
+    );
+  }, [filtered, pipelineQuery]);
+
   const sepoliaTx = (hash: string) => escrowTxUrl(hash);
 
   return (
@@ -1871,8 +1895,8 @@ function PoInner() {
             key={k}
             type="button"
             onClick={() => setTab(k)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium ${
-              tab === k ? 'bg-white shadow text-slate-900' : 'text-neutral-600'
+            className={`${srmFocus} rounded-xl px-4 py-2 text-sm font-medium ${
+              tab === k ? 'bg-white text-slate-900 shadow' : 'text-slate-600'
             }`}
           >
             {label}
@@ -3321,42 +3345,102 @@ function PoInner() {
 
       {tab === 'pipeline' && (
         <>
-          <div className="flex flex-wrap gap-2 mb-4">
-            {(
-              [
-                ['all', 'All'],
-                ['open', 'Open'],
-                ['completed', 'Completed'],
-                ['onchain', 'On-chain'],
-              ] as const
-            ).map(([k, label]) => (
-              <button
-                key={k}
-                type="button"
-                onClick={() => setFilter(k)}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${
-                  filter === k
-                    ? 'bg-[#00b4d8] text-white border-[#00b4d8]'
-                    : 'bg-white border-neutral-200'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <SrmToolbar
+            meta={
+              loading
+                ? 'Loading purchase orders…'
+                : `${pipelineRows.length} purchase order${pipelineRows.length === 1 ? '' : 's'}`
+            }
+          >
+            <SrmSearch
+              value={pipelineQuery}
+              onChange={setPipelineQuery}
+              label="Search purchase orders"
+              placeholder="Search supplier, status, or PO number"
+            />
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  ['all', 'All'],
+                  ['open', 'Open'],
+                  ['completed', 'Completed'],
+                  ['onchain', 'On-chain'],
+                ] as const
+              ).map(([k, label]) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setFilter(k)}
+                  className={`${srmFocus} rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                    filter === k
+                      ? 'border-[#00b4d8] bg-[#00b4d8] text-slate-950'
+                      : 'border-neutral-200 bg-white text-slate-700'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <SrmViewSwitch
+              value={pipelineView === 'table' ? 'list' : pipelineView}
+              onChange={setPipelineView}
+              views={['list', 'board']}
+              label="Purchase order layout"
+            />
+          </SrmToolbar>
+
+          {pipelineView === 'board' && !loading && pipelineRows.length > 0 ? (
+            <div className="mb-4">
+              <SrmBoard
+                columns={[
+                  ...PO_BOARD_COLUMNS.map((id) => ({ id, label: id })),
+                  { id: 'other', label: 'Other' },
+                ]}
+                items={pipelineRows}
+                columnOf={(po) => poBoardColumn(po.status)}
+                renderItem={(po) => (
+                  <article key={po.id} className="rounded-2xl border border-slate-200 bg-white p-3">
+                    <button
+                      type="button"
+                      className={`${srmFocus} w-full text-left`}
+                      onClick={() => {
+                        setPipelineQuery(String(po.id));
+                        setPipelineView('list');
+                      }}
+                    >
+                      <div className="font-bold text-slate-900">PO #{po.id}</div>
+                      <div className="mt-1 truncate text-xs text-slate-600">
+                        {po.supplier_name || `Supplier #${po.supplier_id || ''}`}
+                      </div>
+                      <div className="mt-2 text-sm font-black tabular-nums text-slate-900">
+                        R{Number(po.total_amount || 0).toLocaleString()}
+                      </div>
+                    </button>
+                  </article>
+                )}
+              />
+            </div>
+          ) : null}
 
           <div className="bg-white border rounded-3xl overflow-hidden">
             {loading ? (
-              <div className="p-16 flex justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
+              <SrmSkeleton rows={4} />
+            ) : pipelineRows.length === 0 ? (
+              <div className="p-4">
+                <SrmEmpty
+                  title="No purchase orders in this view"
+                  description="Raise a standard purchase order, or clear the search and status filter."
+                  actionLabel="Raise a purchase order"
+                  onAction={() => setTab('create')}
+                />
               </div>
-            ) : filtered.length === 0 ? (
-              <div className="p-16 text-center text-sm text-neutral-500">
-                No purchase orders in this view.
-              </div>
+            ) : pipelineView === 'board' ? (
+              <p className="px-5 py-4 text-xs text-slate-600">
+                Open a card to jump to that purchase order in the list, where email, receive, and pay stay.
+              </p>
             ) : (
               <ul className="divide-y">
-                {filtered.map((po) => {
+                {pipelineRows.map((po) => {
                   const onchain = po.onchain_po_id != null && po.onchain_po_id !== '';
                   const busy = busyId === po.id;
                   return (

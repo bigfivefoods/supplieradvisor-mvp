@@ -46,6 +46,8 @@ import {
   SuppliersPage,
 } from '@/components/suppliers/SuppliersShell';
 import { CommandWorkbenchBand } from '@/components/relationship/RelationshipChrome';
+import { SrmEmpty, SrmSkeleton, SrmViewSwitch, srmFocus } from '@/components/suppliers/srm/SrmDesk';
+import type { SrmView } from '@/lib/suppliers/srm-desk';
 import CompanyLogo from '@/components/business/CompanyLogo';
 import TrustBadges from '@/components/business/TrustBadges';
 
@@ -139,6 +141,7 @@ function DiscoverInner() {
     note?: string;
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [resultView, setResultView] = useState<SrmView>('list');
   const [connecting, setConnecting] = useState<number | null>(null);
   /** Geo provinces for selected country (full cascade, not only network) */
   const [geoProvinces, setGeoProvinces] = useState<string[]>([]);
@@ -405,7 +408,7 @@ function DiscoverInner() {
           mode,
           message:
             mode === 'request'
-              ? `Connection request from company #${companyId} on SupplierAdvisor`
+              ? `Connection request from company #${companyId} on SupplierAdvisor®`
               : undefined,
         }),
       });
@@ -1050,6 +1053,51 @@ function DiscoverInner() {
         </div>
       </section>
 
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs font-semibold text-slate-600">
+          {loading ? 'Searching the network…' : `${others.length + connected.length} shown`}
+        </p>
+        <SrmViewSwitch
+          value={resultView === 'board' ? 'list' : resultView}
+          onChange={setResultView}
+          views={['list', 'table']}
+          label="Result layout"
+        />
+      </div>
+
+      {resultView === 'table' && !loading && (others.length > 0 || connected.length > 0) ? (
+        <div className="mb-8 overflow-x-auto rounded-3xl border border-slate-200 bg-white">
+          <table className="w-full min-w-[40rem] text-sm">
+            <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-600">
+              <tr>
+                <th className="px-4 py-3">Supplier</th>
+                <th className="px-4 py-3">Industry</th>
+                <th className="px-4 py-3">Place</th>
+                <th className="px-4 py-3">Trust</th>
+                <th className="px-4 py-3">OTIFEF</th>
+                <th className="px-4 py-3">Relationship</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {[...connected, ...others].map((s) => (
+                <tr key={s.id}>
+                  <td className="px-4 py-3 font-semibold text-slate-900">{s.trading_name}</td>
+                  <td className="px-4 py-3 text-slate-600">{s.industry || '—'}</td>
+                  <td className="px-4 py-3 text-slate-600">{[s.city, s.country].filter(Boolean).join(', ') || '—'}</td>
+                  <td className="px-4 py-3 tabular-nums">{Number(s.trust_score || 0).toFixed(0)}</td>
+                  <td className="px-4 py-3 font-bold tabular-nums text-[#0077b6]">{Number(s.otifef_average || 0).toFixed(0)}%</td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {s.already_connected ? 'Connected' : s.in_my_book ? 'In book' : 'Open'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      {resultView === 'table' ? null : (
+      <>
       {/* ═══ CONNECTED (below criteria) ═══ */}
       {!loading && connected.length > 0 && (
         <section className="mb-8">
@@ -1087,55 +1135,39 @@ function DiscoverInner() {
         </div>
 
         {loading ? (
-          <div className="flex justify-center rounded-[2rem] border border-dashed border-cyan-100 bg-white py-20">
-            <Loader2 className="h-9 w-9 animate-spin text-[#00b4d8]" />
-          </div>
+          <SrmSkeleton rows={4} />
         ) : others.length === 0 && connected.length === 0 ? (
-          <div className="rounded-[2rem] border border-dashed border-cyan-200 bg-gradient-to-br from-white to-sky-50/60 px-6 py-16 text-center">
-            <Search className="mx-auto mb-3 h-10 w-10 text-neutral-300" />
-            <p className="font-black text-slate-800">
-              {country
+          <>
+          <SrmEmpty
+            icon={Search}
+            title={
+              country
                 ? `No partners in ${country} yet`
                 : continent
                   ? `No partners match in ${continent}`
-                  : 'No companies match these criteria'}
-            </p>
-            <p className="mx-auto mt-2 max-w-md text-sm text-neutral-500">
-              {country ? (
-                <>
-                  Deep search is working — the network just doesn&apos;t have a discoverable company in{' '}
-                  <strong>{country}</strong> yet
-                  {continent ? ` (${continent})` : ''}. Invite a supplier there to grow the network,
-                  or broaden filters.
-                </>
-              ) : (
-                <>
-                  Broaden location, lower trust/OTIFEF thresholds, or clear certifications. You can
-                  also invite a supplier not yet on SupplierAdvisor.
-                </>
-              )}
-            </p>
-            <div className="mt-6 flex flex-wrap justify-center gap-3">
-              <button type="button" onClick={clearAll} className="btn-secondary !py-2.5 !px-5 text-sm">
-                Clear all filters
-              </button>
-              <Link
-                href={
-                  country || continent
-                    ? `/dashboard/suppliers/add?${new URLSearchParams({
-                        ...(country ? { country } : {}),
-                        ...(continent ? { continent } : {}),
-                      }).toString()}`
-                    : '/dashboard/suppliers/add'
-                }
-                className="btn-primary !py-2.5 !px-5 text-sm"
-              >
-                {country
-                  ? `Invite a supplier in ${country}`
-                  : 'Invite supplier'}
-              </Link>
-            </div>
+                  : 'No companies match these criteria'
+            }
+            description={
+              country
+                ? `The network does not have a discoverable company in ${country}${continent ? ` (${continent})` : ''} yet. Invite a supplier there, or broaden the filters.`
+                : 'Broaden location, lower trust or OTIFEF, or clear certifications. You can also invite a supplier not yet on SupplierAdvisor®.'
+            }
+            actionHref={
+              country || continent
+                ? `/dashboard/suppliers/add?${new URLSearchParams({
+                    ...(country ? { country } : {}),
+                    ...(continent ? { continent } : {}),
+                  }).toString()}`
+                : '/dashboard/suppliers/add'
+            }
+            actionLabel={country ? `Invite a supplier in ${country}` : 'Invite supplier'}
+          />
+          <div className="mt-3 flex justify-center">
+            <button type="button" onClick={clearAll} className={`${srmFocus} btn-secondary !px-5 !py-2.5 text-sm`}>
+              Clear all filters
+            </button>
           </div>
+          </>
         ) : others.length === 0 ? (
           <p className="rounded-2xl border border-neutral-100 bg-white px-4 py-8 text-center text-sm text-neutral-500">
             All matching companies are already in your connected list above.
@@ -1171,6 +1203,18 @@ function DiscoverInner() {
           </>
         )}
       </section>
+      </>
+      )}
+
+      {resultView === 'table' && !loading && others.length === 0 && connected.length === 0 ? (
+        <SrmEmpty
+          icon={Search}
+          title="No companies match these criteria"
+          description="Broaden location, lower trust or OTIFEF, or invite a supplier not yet on SupplierAdvisor®."
+          actionHref="/dashboard/suppliers/add"
+          actionLabel="Invite supplier"
+        />
+      ) : null}
 
     </SuppliersPage>
   );

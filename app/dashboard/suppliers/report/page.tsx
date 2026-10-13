@@ -385,10 +385,10 @@ function Inner() {
             type="button"
             onClick={() => setReport(r.id)}
             title={r.desc}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
+            className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00b4d8] focus-visible:ring-offset-2 ${
               report === r.id
-                ? 'border-[#00b4d8] bg-[#00b4d8] text-white'
-                : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/50'
+                ? 'border-[#00b4d8] bg-[#00b4d8] text-slate-950'
+                : 'border-neutral-200 bg-white text-slate-700 hover:border-[#00b4d8]/50'
             }`}
           >
             {r.label}

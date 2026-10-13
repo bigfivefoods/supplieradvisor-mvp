@@ -1804,6 +1804,28 @@ html.dark .b2c-app textarea {
   border-color: var(--sa-border);
 }
 
+/* SRM desk motion. Brand cyan stays #00b4d8. Reduced motion keeps the layout still. */
+@keyframes srm-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .srm-rise {
+    animation: srm-rise 220ms ease-out;
+  }
+}
+
+.srm-scroll {
+  scrollbar-width: thin;
+}
+
 /* CRM — brand fill stays #00b4d8. Text on that fill is slate-950 so it meets WCAG AA. */
 .crm-module .btn-primary {
   background-color: #00b4d8;

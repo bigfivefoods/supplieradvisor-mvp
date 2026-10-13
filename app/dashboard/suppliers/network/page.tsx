@@ -1,11 +1,10 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Loader2,
-  Search,
   ShieldCheck,
   Star,
   Mail,
@@ -31,6 +30,24 @@ import { SupplierBookProfile } from '@/components/suppliers/SupplierBookProfile'
 import type { PartyRoleRow } from '@/lib/accounting/party-roles';
 import { glCodeFromMeta } from '@/lib/accounting/party-roles';
 import { PartyBookRoleSelect } from '@/components/accounting/PartyBookRoleSelect';
+import {
+  SrmBoard,
+  SrmEmpty,
+  SrmSearch,
+  SrmSelect,
+  SrmSkeleton,
+  SrmSortButton,
+  SrmToolbar,
+  SrmViewSwitch,
+  srmFocus,
+} from '@/components/suppliers/srm/SrmDesk';
+import {
+  compareNum,
+  compareText,
+  supplierBoardColumn,
+  SUPPLIER_BOARD_COLUMNS,
+  type SrmView,
+} from '@/lib/suppliers/srm-desk';
 
 export default function SupplierNetworkPage() {
   return (
@@ -71,6 +88,8 @@ function NetworkInner() {
   const [partyBySupplier, setPartyBySupplier] = useState<
     Record<number, PartyRoleRow>
   >({});
+  const [view, setView] = useState<SrmView>('list');
+  const [sort, setSort] = useState<'name' | 'trust' | 'otifef'>('name');
 
   useEffect(() => {
     if (Number.isFinite(urlId) && urlId > 0) setSelectedId(urlId);
@@ -143,6 +162,20 @@ function NetworkInner() {
       cancelled = true;
     };
   }, [companyId, selectedId]);
+
+  const visible = useMemo(() => {
+    const copy = [...rows];
+    copy.sort((a, b) => {
+      if (sort === 'trust') {
+        return compareNum(Number(a.trust_score || 0), Number(b.trust_score || 0), 'desc');
+      }
+      if (sort === 'otifef') {
+        return compareNum(Number(a.otifef_pct || 0), Number(b.otifef_pct || 0), 'desc');
+      }
+      return compareText(a.trading_name || '', b.trading_name || '', 'asc');
+    });
+    return copy;
+  }, [rows, sort]);
 
   const listRow = rows.find((s) => s.id === selectedId);
   const selected =
@@ -263,51 +296,119 @@ function NetworkInner() {
           }
         />
 
-        <div className="flex flex-col sm:flex-row gap-3 mb-4">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-            <input
-              className="input w-full !py-2.5 !pl-10 !text-sm"
-              placeholder="Search name, industry, cert, city…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </div>
-          <select
-            className="input !py-2.5 !text-sm !w-auto"
+        <SrmToolbar
+          meta={
+            loading
+              ? 'Loading the supply book…'
+              : `${visible.length} supplier${visible.length === 1 ? '' : 's'}`
+          }
+        >
+          <SrmSearch
+            value={q}
+            onChange={setQ}
+            label="Search suppliers"
+            placeholder="Search name, industry, cert, city…"
+          />
+          <SrmSelect
+            label="Status"
             value={status}
-            onChange={(e) => setStatus(e.target.value)}
-          >
-            <option value="all">All statuses</option>
-            <option value="preferred">Preferred</option>
-            <option value="active">Active</option>
-            <option value="prospect">Prospect</option>
-            <option value="blocked">Blocked</option>
-            <option value="archived">Archived</option>
-          </select>
-        </div>
+            onChange={setStatus}
+            options={[
+              { value: 'all', label: 'All statuses' },
+              { value: 'preferred', label: 'Preferred' },
+              { value: 'active', label: 'Active' },
+              { value: 'prospect', label: 'Prospect' },
+              { value: 'blocked', label: 'Blocked' },
+              { value: 'archived', label: 'Archived' },
+            ]}
+          />
+          <div className="flex flex-wrap gap-2">
+            <SrmSortButton label="Name" active={sort === 'name'} onClick={() => setSort('name')} />
+            <SrmSortButton label="Trust" active={sort === 'trust'} onClick={() => setSort('trust')} />
+            <SrmSortButton label="OTIFEF" active={sort === 'otifef'} onClick={() => setSort('otifef')} />
+          </div>
+          <SrmViewSwitch value={view} onChange={setView} />
+        </SrmToolbar>
 
         <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] gap-4 items-start">
-        <div className="bg-white border border-neutral-200 rounded-3xl overflow-hidden lg:order-1">
+        <div className="min-w-0 lg:order-1">
           {loading ? (
-            <div className="p-16 flex justify-center">
-              <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
-            </div>
-          ) : rows.length === 0 ? (
-            <div className="p-16 text-center text-sm text-neutral-500">
-              No suppliers in your book yet.{' '}
-              <Link href="/dashboard/suppliers/discover" className="text-[#00b4d8] underline">
-                Discover
-              </Link>{' '}
-              or{' '}
-              <Link href="/dashboard/suppliers/add" className="text-[#00b4d8] underline">
-                invite
-              </Link>
-              .
+            <SrmSkeleton rows={5} variant={view === 'table' ? 'table' : 'list'} />
+          ) : visible.length === 0 ? (
+            <SrmEmpty
+              title="No suppliers in this view"
+              description="Discover a partner on the network, or add someone who is not on SupplierAdvisor® yet."
+              actionHref="/dashboard/suppliers/discover"
+              actionLabel="Discover suppliers"
+            />
+          ) : view === 'board' ? (
+            <SrmBoard
+              columns={SUPPLIER_BOARD_COLUMNS.map((id) => ({
+                id,
+                label: id,
+              }))}
+              items={visible}
+              columnOf={(s) => supplierBoardColumn(s.status)}
+              renderItem={(s) => (
+                <article key={s.id} className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <button
+                    type="button"
+                    onClick={() => selectSupplier(s)}
+                    className={`${srmFocus} w-full text-left`}
+                  >
+                    <div className="truncate font-bold text-slate-900">{s.trading_name}</div>
+                    <div className="mt-1 text-[11px] text-slate-600">
+                      Trust {Number(s.trust_score || 0).toFixed(0)} · OTIFEF{' '}
+                      {Number(s.otifef_pct || 0).toFixed(0)}%
+                    </div>
+                  </button>
+                </article>
+              )}
+            />
+          ) : view === 'table' ? (
+            <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white">
+              <table className="w-full min-w-[40rem] text-sm">
+                <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-600">
+                  <tr>
+                    <th className="px-4 py-3">Supplier</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Place</th>
+                    <th className="px-4 py-3">Trust</th>
+                    <th className="px-4 py-3">OTIFEF</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {visible.map((s) => (
+                    <tr key={s.id} className={selectedId === s.id ? 'bg-sky-50/80' : undefined}>
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => selectSupplier(selectedId === s.id ? null : s)}
+                          className={`${srmFocus} text-left font-semibold text-slate-900 hover:text-[#0077b6]`}
+                        >
+                          {s.trading_name}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${srmStatusClass(s.status)}`}>
+                          {s.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {[s.city, s.country].filter(Boolean).join(', ') || '—'}
+                      </td>
+                      <td className="px-4 py-3 tabular-nums">{Number(s.trust_score || 0).toFixed(0)}</td>
+                      <td className="px-4 py-3 font-bold tabular-nums text-[#0077b6]">
+                        {Number(s.otifef_pct || 0).toFixed(0)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
-            <ul className="divide-y divide-neutral-100">
-              {rows.map((s) => {
+            <ul className="divide-y divide-neutral-100 overflow-hidden rounded-3xl border border-neutral-200 bg-white">
+              {visible.map((s) => {
                 const trust = trustBand(Number(s.trust_score || 0));
                 const canInvite =
                   !s.linked_profile_id &&

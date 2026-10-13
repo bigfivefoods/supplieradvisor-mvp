@@ -27,6 +27,8 @@ import {
   HubTelemetryGrid,
   TelemetryCard,
 } from '@/components/chrome/CommandHubChrome';
+import ActivityFeed from '@/components/chrome/ActivityFeed';
+import { SrmEmpty, SrmPanel, SrmSkeleton, srmFocus } from '@/components/suppliers/srm/SrmDesk';
 import JourneyChecklist from '@/components/journey/JourneyChecklist';
 import TradeNextBanner from '@/components/journey/TradeNextBanner';
 import { computeHubNextAction } from '@/lib/connections/next-action';
@@ -148,29 +150,6 @@ function HubInner() {
         }
       />
 
-      <div className="mb-6">
-        <AdvisorMemberAppInvite
-          kind="supplier"
-          companyId={companyId}
-          brand={getSelectedCompanyName()}
-          audience="suppliers"
-        />
-      </div>
-
-      <JourneyChecklist role="supplier" />
-      <CatalogueEmptyBanner />
-
-      {!loading ? (
-        <TradeNextBanner
-          action={computeHubNextAction({
-            role: 'supplier',
-            openInboundPos,
-            catalogueEmpty: false,
-            pendingConnections,
-          })}
-        />
-      ) : null}
-
       {warning && (
         <AlertBanner>
           {warning}
@@ -182,116 +161,131 @@ function HubInner() {
         </AlertBanner>
       )}
 
-      <HubTelemetryGrid className="mb-6">
-        <TelemetryCard
-          label="In the book"
-          value={loading ? '—' : s?.total ?? 0}
-          sub={`${s?.active ?? 0} active · ${s?.preferred ?? 0} preferred`}
-          accent="violet"
-          icon={Users}
-          href="/dashboard/suppliers/network"
-        />
-        <TelemetryCard
-          label="Connected"
-          value={loading ? '—' : s?.connected ?? 0}
-          sub={`${s?.verified ?? 0} verified on the network`}
-          accent="emerald"
-          icon={Handshake}
-          href="/dashboard/suppliers/network"
-        />
-        <TelemetryCard
-          label="Awaiting claim"
-          value={loading ? '—' : s?.invitePending ?? 0}
-          sub="Invites not yet accepted"
-          accent={(s?.invitePending || 0) > 0 ? 'amber' : 'slate'}
-          icon={Globe}
-          href="/dashboard/suppliers/invites"
-        />
-        <TelemetryCard
-          label="OTIFEF"
-          value={loading ? '—' : `${(ot?.overall ?? 0).toFixed(0)}%`}
-          sub={`${band.label} · trust ${trust.label} · ${ot?.totalPOs ?? 0} POs`}
-          accent="cyan"
-          icon={Award}
-          href="/dashboard/suppliers/performance"
-        />
-      </HubTelemetryGrid>
+      {loading ? (
+        <div className="mb-6">
+          <SrmSkeleton variant="cards" rows={4} />
+        </div>
+      ) : (
+        <HubTelemetryGrid className="mb-6">
+          <TelemetryCard
+            label="In the book"
+            value={s?.total ?? 0}
+            sub={`${s?.active ?? 0} active · ${s?.preferred ?? 0} preferred`}
+            accent="violet"
+            icon={Users}
+            href="/dashboard/suppliers/network"
+          />
+          <TelemetryCard
+            label="Connected"
+            value={s?.connected ?? 0}
+            sub={`${s?.verified ?? 0} verified on the network`}
+            accent="emerald"
+            icon={Handshake}
+            href="/dashboard/suppliers/network"
+          />
+          <TelemetryCard
+            label="Awaiting claim"
+            value={s?.invitePending ?? 0}
+            sub="Invites not yet accepted"
+            accent={(s?.invitePending || 0) > 0 ? 'amber' : 'slate'}
+            icon={Globe}
+            href="/dashboard/suppliers/invites"
+          />
+          <TelemetryCard
+            label="OTIFEF"
+            value={`${(ot?.overall ?? 0).toFixed(0)}%`}
+            sub={`${band.label} · trust ${trust.label} · ${ot?.totalPOs ?? 0} POs`}
+            accent="cyan"
+            icon={Award}
+            href="/dashboard/suppliers/performance"
+          />
+        </HubTelemetryGrid>
+      )}
 
       <div className="mb-8 grid items-start gap-4 lg:grid-cols-2">
-        <section className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <h3 className="text-sm font-black text-slate-800">Needs a decision</h3>
-          <p className="mt-0.5 text-xs text-neutral-500">
-            Open work on this supply base. A zero means that queue is clear.
-          </p>
-          <ul className="mt-3 divide-y divide-neutral-100">
-            {[
-              {
-                label: 'Purchase orders still open',
-                value: openInboundPos,
-                href: '/dashboard/suppliers/po',
-              },
-              {
-                label: 'Connection requests',
-                value: pendingConnections,
-                href: '/dashboard/connections',
-              },
-              {
-                label: 'Invites awaiting claim',
-                value: s?.invitePending ?? 0,
-                href: '/dashboard/suppliers/invites',
-              },
-              {
-                label: 'Open supply risks',
-                value: s?.openRiads ?? 0,
-                href: '/dashboard/suppliers/riad-log',
-              },
-            ].map((row) => (
-              <li key={row.label}>
-                <Link
-                  href={row.href}
-                  className="flex items-center justify-between gap-3 py-3 text-sm hover:text-[#0077b6]"
-                >
-                  <span className="font-medium text-slate-700">{row.label}</span>
-                  <span
-                    className={`tabular-nums font-black ${
-                      row.value > 0 ? 'text-amber-700' : 'text-slate-400'
-                    }`}
+        <SrmPanel
+          title="Needs a decision"
+          description="Open work on this supply base. A zero means that queue is clear."
+        >
+          {loading ? (
+            <SrmSkeleton rows={4} />
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {[
+                {
+                  label: 'Purchase orders still open',
+                  value: openInboundPos,
+                  href: '/dashboard/suppliers/po',
+                },
+                {
+                  label: 'Connection requests',
+                  value: pendingConnections,
+                  href: '/dashboard/connections',
+                },
+                {
+                  label: 'Invites awaiting claim',
+                  value: s?.invitePending ?? 0,
+                  href: '/dashboard/suppliers/invites',
+                },
+                {
+                  label: 'Open supply risks',
+                  value: s?.openRiads ?? 0,
+                  href: '/dashboard/suppliers/riad-log',
+                },
+              ].map((row) => (
+                <li key={row.label}>
+                  <Link
+                    href={row.href}
+                    className={`${srmFocus} flex min-h-12 items-center justify-between gap-3 px-5 py-3 text-sm hover:bg-slate-50`}
                   >
-                    {loading ? '—' : row.value}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
+                    <span className="font-medium text-slate-800">{row.label}</span>
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-sm font-black tabular-nums ${
+                        row.value > 0
+                          ? 'bg-amber-100 text-amber-950'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {row.value}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SrmPanel>
 
-        <section className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-black text-slate-800">Who you rely on</h3>
+        <SrmPanel
+          title="Who you rely on"
+          description="Highest OTIFEF on the book. Open a name for the full profile."
+          action={
             <Link
               href="/dashboard/suppliers/performance"
-              className="text-xs font-bold text-[#0077b6] hover:underline"
+              className={`${srmFocus} text-xs font-bold text-[#0077b6] hover:underline`}
             >
               Scorecards
             </Link>
-          </div>
-          {!loading && s?.topSuppliers && s.topSuppliers.length > 0 ? (
-            <ul className="mt-3 divide-y divide-neutral-100">
+          }
+        >
+          {loading ? (
+            <SrmSkeleton rows={4} />
+          ) : s?.topSuppliers && s.topSuppliers.length > 0 ? (
+            <ul className="divide-y divide-slate-100">
               {s.topSuppliers.map((row, i) => (
                 <li key={row.supplier_id}>
                   <Link
                     href={`/dashboard/suppliers/network?id=${row.supplier_id}`}
-                    className="flex items-center justify-between gap-3 py-3 hover:text-[#0077b6]"
+                    className={`${srmFocus} flex min-h-12 items-center justify-between gap-3 px-5 py-3 hover:bg-slate-50`}
                   >
                     <span className="flex min-w-0 items-center gap-3">
-                      <span className="w-5 text-[10px] font-black text-neutral-300">
+                      <span className="w-5 text-[10px] font-black text-slate-400">
                         {String(i + 1).padStart(2, '0')}
                       </span>
                       <span className="min-w-0">
                         <span className="block truncate font-semibold text-slate-900">
                           {row.name}
                         </span>
-                        <span className="text-[11px] text-neutral-400">
+                        <span className="text-[11px] text-slate-600">
                           {row.total_pos} POs
                         </span>
                       </span>
@@ -304,26 +298,45 @@ function HubInner() {
               ))}
             </ul>
           ) : (
-            <div className="px-1 py-10 text-center text-sm text-neutral-500">
-              {loading ? (
-                'Loading the book…'
-              ) : (
-                <>
-                  No scored suppliers yet.{' '}
-                  <Link href="/dashboard/suppliers/discover" className="font-semibold text-[#0077b6] hover:underline">
-                    Discover
-                  </Link>{' '}
-                  or{' '}
-                  <Link href="/dashboard/suppliers/add" className="font-semibold text-[#0077b6] hover:underline">
-                    add one
-                  </Link>
-                  .
-                </>
-              )}
+            <div className="p-4">
+              <SrmEmpty
+                title="No scored suppliers yet"
+                description="Discover a partner or add one to the book. Scorecards appear after purchase orders are delivered."
+                actionHref="/dashboard/suppliers/discover"
+                actionLabel="Discover suppliers"
+              />
             </div>
           )}
-        </section>
+        </SrmPanel>
       </div>
+
+      {!loading ? (
+        <TradeNextBanner
+          action={computeHubNextAction({
+            role: 'supplier',
+            openInboundPos,
+            catalogueEmpty: false,
+            pendingConnections,
+          })}
+        />
+      ) : null}
+
+      <div className="mb-6">
+        <AdvisorMemberAppInvite
+          kind="supplier"
+          companyId={companyId}
+          brand={getSelectedCompanyName()}
+          audience="suppliers"
+        />
+      </div>
+
+      <JourneyChecklist role="supplier" />
+      <CatalogueEmptyBanner />
+
+      <ActivityFeed
+        title="Supply activity"
+        empty="Actions on this company — invites, purchase orders, documents — show here as they happen."
+      />
     </SuppliersPage>
   );
 }

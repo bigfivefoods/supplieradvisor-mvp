@@ -3,6 +3,7 @@
 import { Suspense, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, UserPlus } from 'lucide-react';
+import { srmFocus } from '@/components/suppliers/srm/SrmDesk';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -164,9 +165,10 @@ function AddInner() {
       />
 
       <div className="max-w-2xl bg-white border rounded-3xl p-6 space-y-4">
-        <label className="flex items-center gap-2 text-sm font-medium cursor-pointer p-3 rounded-2xl bg-sky-50 border border-sky-100">
+        <label className="flex cursor-pointer items-center gap-2 rounded-2xl border border-sky-100 bg-sky-50 p-3 text-sm font-medium">
           <input
             type="checkbox"
+            className={srmFocus}
             checked={sendInvite}
             onChange={(e) => setSendInvite(e.target.checked)}
           />
@@ -185,50 +187,55 @@ function AddInner() {
 
         <div className="grid sm:grid-cols-2 gap-3">
           <div className="sm:col-span-2">
-            <label className="text-xs font-medium">Trading name *</label>
+            <label className="text-xs font-semibold text-slate-700" htmlFor="srm-trading-name">Trading name</label>
             <input
-              className="input mt-1 w-full !p-3 !text-sm"
+              id="srm-trading-name"
+              required
+              className={`${srmFocus} input mt-1 w-full !p-3 !text-sm`}
               value={form.trading_name}
               onChange={(e) => setForm({ ...form, trading_name: e.target.value })}
             />
           </div>
           <div>
-            <label className="text-xs font-medium">Legal name</label>
+            <label className="text-xs font-semibold text-slate-700">Legal name</label>
             <input
-              className="input mt-1 w-full !p-3 !text-sm"
+              className={`${srmFocus} input mt-1 w-full !p-3 !text-sm`}
               value={form.legal_name}
               onChange={(e) => setForm({ ...form, legal_name: e.target.value })}
             />
           </div>
           <div>
-            <label className="text-xs font-medium">Contact name</label>
+            <label className="text-xs font-semibold text-slate-700">Contact name</label>
             <input
-              className="input mt-1 w-full !p-3 !text-sm"
+              className={`${srmFocus} input mt-1 w-full !p-3 !text-sm`}
               value={form.contact_name}
               onChange={(e) => setForm({ ...form, contact_name: e.target.value })}
             />
           </div>
           <div>
-            <label className="text-xs font-medium">Email {sendInvite ? '*' : ''}</label>
+            <label className="text-xs font-semibold text-slate-700">Email {sendInvite ? '(required to invite)' : ''}</label>
             <input
               type="email"
-              className="input mt-1 w-full !p-3 !text-sm"
+              autoComplete="email"
+              className={`${srmFocus} input mt-1 w-full !p-3 !text-sm`}
               value={form.contact_email}
               onChange={(e) => setForm({ ...form, contact_email: e.target.value })}
             />
           </div>
           <div>
-            <label className="text-xs font-medium">Phone</label>
+            <label className="text-xs font-semibold text-slate-700">Phone</label>
             <input
-              className="input mt-1 w-full !p-3 !text-sm"
+              type="tel"
+              autoComplete="tel"
+              className={`${srmFocus} input mt-1 w-full !p-3 !text-sm`}
               value={form.contact_phone}
               onChange={(e) => setForm({ ...form, contact_phone: e.target.value })}
             />
           </div>
           <div>
-            <label className="text-xs font-medium">Industry</label>
+            <label className="text-xs font-semibold text-slate-700">Industry</label>
             <select
-              className="input mt-1 w-full !p-3 !text-sm"
+              className={`${srmFocus} input mt-1 w-full !p-3 !text-sm`}
               value={form.industry}
               onChange={(e) => setForm({ ...form, industry: e.target.value })}
             >
@@ -241,9 +248,9 @@ function AddInner() {
             </select>
           </div>
           <div>
-            <label className="text-xs font-medium">Category</label>
+            <label className="text-xs font-semibold text-slate-700">Category</label>
             <input
-              className="input mt-1 w-full !p-3 !text-sm"
+              className={`${srmFocus} input mt-1 w-full !p-3 !text-sm`}
               value={form.category}
               onChange={(e) => setForm({ ...form, category: e.target.value })}
               placeholder="e.g. Dairy ingredients"
@@ -276,14 +283,24 @@ function AddInner() {
             />
           </div>
           <div className="sm:col-span-2">
-            <label className="text-xs font-medium">Website</label>
+            <label className="text-xs font-semibold text-slate-700">Website</label>
             <input
-              className="input mt-1 w-full !p-3 !text-sm"
+              className={`${srmFocus} input mt-1 w-full !p-3 !text-sm`}
               value={form.website}
               onChange={(e) => setForm({ ...form, website: e.target.value })}
             />
           </div>
         </div>
+
+        <label className="block text-xs font-semibold text-slate-700">
+          Notes
+          <textarea
+            className={`${srmFocus} input mt-1 min-h-[72px] w-full !p-3 !text-sm`}
+            value={form.notes}
+            onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            placeholder="Payment habits, capacity, or why they are on the book"
+          />
+        </label>
 
         {!sendInvite && (
           <div>
@@ -294,10 +311,11 @@ function AddInner() {
                   key={c}
                   type="button"
                   onClick={() => toggleCert(c)}
-                  className={`text-[10px] font-semibold px-2 py-1 rounded-full border ${
+                  aria-pressed={form.certifications.includes(c)}
+                  className={`${srmFocus} rounded-full border px-2 py-1 text-[10px] font-semibold ${
                     form.certifications.includes(c)
-                      ? 'border-[#00b4d8] bg-[#00b4d8]/10'
-                      : 'border-neutral-200'
+                      ? 'border-[#00b4d8] bg-[#00b4d8] text-slate-950'
+                      : 'border-neutral-200 text-slate-700'
                   }`}
                 >
                   {c}
@@ -311,7 +329,7 @@ function AddInner() {
           type="button"
           disabled={saving}
           onClick={() => void submit()}
-          className="btn-primary w-full !py-3"
+          className={`${srmFocus} btn-primary w-full !py-3`}
         >
           {saving ? (
             <Loader2 className="w-4 h-4 animate-spin mx-auto" />

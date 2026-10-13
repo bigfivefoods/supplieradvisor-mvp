@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { Loader2, TrendingUp, Truck, Package, Award } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { TrendingUp, Truck, Package, Award } from 'lucide-react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { otifefBand, type OtifefMetrics, type SupplierOtifefRow } from '@/lib/suppliers/types';
 import { OtifefKpiCard } from '@/components/portals/OtifefKpiCard';
@@ -10,6 +11,15 @@ import {
   SuppliersHeader,
   SuppliersPage
 } from '@/components/suppliers/SuppliersShell';
+import {
+  SrmEmpty,
+  SrmSearch,
+  SrmSkeleton,
+  SrmSortButton,
+  SrmToolbar,
+  srmFocus,
+} from '@/components/suppliers/srm/SrmDesk';
+import { compareNum, compareText, matchesQuery } from '@/lib/suppliers/srm-desk';
 
 export default function SupplierPerformancePage() {
   return (
@@ -27,6 +37,8 @@ function PerfInner() {
   const [summary, setSummary] = useState<OtifefMetrics | null>(null);
   const [rows, setRows] = useState<SupplierOtifefRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState('');
+  const [sort, setSort] = useState<'otifef' | 'name' | 'pos'>('otifef');
 
   const applyPreset = (p: typeof preset) => {
     const today = new Date();
@@ -70,6 +82,15 @@ function PerfInner() {
   }, [load]);
 
   const band = otifefBand(summary?.overall || 0);
+  const visible = useMemo(() => {
+    return rows
+      .filter((r) => matchesQuery(q, [r.name, r.supplier_id]))
+      .sort((a, b) => {
+        if (sort === 'name') return compareText(a.name || '', b.name || '', 'asc');
+        if (sort === 'pos') return compareNum(a.total_pos, b.total_pos, 'desc');
+        return compareNum(a.overall, b.overall, 'desc');
+      });
+  }, [rows, q, sort]);
 
   return (
     <SuppliersPage>
@@ -85,10 +106,10 @@ function PerfInner() {
             key={p}
             type="button"
             onClick={() => applyPreset(p)}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${
+            className={`${srmFocus} rounded-full border px-3 py-1.5 text-xs font-semibold ${
               preset === p
-                ? 'bg-[#00b4d8] text-white border-[#00b4d8]'
-                : 'bg-white border-neutral-200'
+                ? 'border-[#00b4d8] bg-[#00b4d8] text-slate-950'
+                : 'border-neutral-200 bg-white text-slate-700'
             }`}
           >
             {p}
@@ -112,9 +133,7 @@ function PerfInner() {
       </div>
 
       {loading ? (
-        <div className="p-16 flex justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
-        </div>
+        <SrmSkeleton variant="cards" rows={4} />
       ) : (
         <>
           <div className="mb-6">
@@ -140,18 +159,29 @@ function PerfInner() {
             <Stat icon={Award} label="Error free" value={summary?.errorFree ?? 0} />
           </div>
 
+          <SrmToolbar meta={`${visible.length} scored supplier${visible.length === 1 ? '' : 's'}`}>
+            <SrmSearch value={q} onChange={setQ} label="Search scorecards" placeholder="Search supplier" />
+            <SrmSortButton label="OTIFEF" active={sort === 'otifef'} onClick={() => setSort('otifef')} />
+            <SrmSortButton label="Name" active={sort === 'name'} onClick={() => setSort('name')} />
+            <SrmSortButton label="POs" active={sort === 'pos'} onClick={() => setSort('pos')} />
+          </SrmToolbar>
           <div className="bg-white border rounded-3xl overflow-hidden">
-            <div className="px-5 py-3 border-b text-xs font-semibold uppercase text-neutral-500">
+            <div className="px-5 py-3 border-b text-xs font-semibold uppercase text-slate-600">
               Ranked by OTIFEF
             </div>
-            {rows.length === 0 ? (
-              <div className="p-12 text-center text-sm text-neutral-500">
-                No delivered POs with complete OTIFEF fields in this range.
+            {visible.length === 0 ? (
+              <div className="p-4">
+                <SrmEmpty
+                  title="No scorecards in this range"
+                  description="Delivered purchase orders with on-time, in-full, and error-free fields will rank here."
+                  actionHref="/dashboard/suppliers/po"
+                  actionLabel="Open purchase orders"
+                />
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-neutral-50 text-left text-xs text-neutral-500">
+                  <thead className="bg-neutral-50 text-left text-xs text-slate-600">
                     <tr>
                       <th className="px-4 py-3">#</th>
                       <th className="px-4 py-3">Supplier</th>
@@ -164,10 +194,17 @@ function PerfInner() {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {rows.map((r, i) => (
+                    {visible.map((r, i) => (
                       <tr key={r.supplier_id} className="hover:bg-neutral-50">
                         <td className="px-4 py-3 text-neutral-400">{i + 1}</td>
-                        <td className="px-4 py-3 font-medium">{r.name}</td>
+                        <td className="px-4 py-3 font-medium">
+                          <Link
+                            href={`/dashboard/suppliers/network?id=${r.srm_supplier_id || r.supplier_id}`}
+                            className={`${srmFocus} font-semibold text-slate-900 hover:text-[#0077b6]`}
+                          >
+                            {r.name}
+                          </Link>
+                        </td>
                         <td className="px-4 py-3 font-black text-[#00b4d8]">
                           {r.overall.toFixed(1)}%
                         </td>

@@ -32,10 +32,13 @@ export default function ActivityFeed({
   limit = 25,
   title = 'Recent activity',
   className = '',
+  empty = 'No audited actions yet. Period locks, QA, bank allocate, and escrow will appear here.',
 }: {
   limit?: number;
   title?: string;
   className?: string;
+  /** Override the empty copy. Defaults stay the shared audit message. */
+  empty?: string;
 }) {
   const companyId = getSelectedCompanyId();
   const [loading, setLoading] = useState(true);
@@ -90,7 +93,7 @@ export default function ActivityFeed({
         </div>
       ) : events.length === 0 ? (
         <div className="px-5 py-10 text-center text-sm text-neutral-500">
-          No audited actions yet. Period locks, QA, bank allocate, and escrow will appear here.
+          {empty}
         </div>
       ) : (
         <ul className="divide-y max-h-[28rem] overflow-y-auto">
