@@ -46,6 +46,8 @@ assert.doesNotMatch(src, /\.insert\(/);
 assert.doesNotMatch(gate, /supabase/i);
 assert.match(gate, /nothing was saved on SupplierAdvisor®/);
 assert.match(gate, /method !== 'GET'/);
+assert.match(gate, /parsed\.origin === window\.location\.origin/);
+assert.match(gate, /auth\.privy\.io\/api\/v1\/apps/);
 assert.doesNotMatch(src + gate, /#0099b8/);
 
 console.log('preview/os-fixtures.test.ts ok');
