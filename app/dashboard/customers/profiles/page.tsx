@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -41,6 +41,36 @@ import { glCodeFromMeta } from '@/lib/accounting/party-roles';
 import { PartyBookRoleSelect } from '@/components/accounting/PartyBookRoleSelect';
 import { HostCommercial } from '@/components/commercial/CommercialPanel';
 import { CURRENCIES, DEFAULT_PAYMENT_TERMS_OPTIONS } from '@/lib/business/types';
+import {
+  CrmEmpty,
+  CrmKeysHint,
+  CrmSampleBanner,
+  CrmSearch,
+  CrmSkeleton,
+  CrmTimeline,
+  useCrmKeys,
+} from '@/components/customers/crm/kit';
+import {
+  CRM_SAMPLE_FLAG,
+  crmPreviewBook,
+  customerActivity,
+  isCrmPreviewId,
+  sortCrmRows,
+} from '@/lib/customers/crm-preview';
+
+function sampleBookOn() {
+  try {
+    return sessionStorage.getItem(CRM_SAMPLE_FLAG) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function blockSampleWrite(id: number) {
+  if (!isCrmPreviewId(id)) return false;
+  toast.message('Sample book — nothing is saved on SupplierAdvisor®');
+  return true;
+}
 
 export default function CustomerProfilesPage() {
   return (
@@ -68,7 +98,7 @@ function ProfilesInner() {
   const searchParams = useSearchParams();
   const urlId = Number(searchParams.get('id') || 0);
   const [selectedId, setSelectedId] = useState<number | null>(
-    Number.isFinite(urlId) && urlId > 0 ? urlId : null
+    Number.isFinite(urlId) && urlId !== 0 ? urlId : null
   );
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,9 +112,13 @@ function ProfilesInner() {
   const [commercialId, setCommercialId] = useState<number | null>(null);
   const [bookHold, setBookHold] = useState<CustomerRecord | null>(null);
   const [bookMiss, setBookMiss] = useState(false);
+  const [sort, setSort] = useState<'name' | 'city' | 'status'>('name');
+  const [layout, setLayout] = useState<'list' | 'table'>('list');
+  const [sample, setSample] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (Number.isFinite(urlId) && urlId > 0) setSelectedId(urlId);
+    if (Number.isFinite(urlId) && urlId !== 0) setSelectedId(urlId);
   }, [urlId]);
 
   const selectCustomer = (id: number | null) => {
@@ -92,8 +126,18 @@ function ProfilesInner() {
     setBookMiss(false);
     setSelectedId(id);
     if (id !== commercialId) setCommercialId(null);
+    const onWalkthrough =
+      typeof window !== 'undefined' && window.location.pathname.startsWith('/preview/crm');
+    if (onWalkthrough) {
+      const next = new URLSearchParams(window.location.search);
+      next.set('screen', 'profiles');
+      if (id) next.set('id', String(id));
+      else next.delete('id');
+      router.replace(`/preview/crm?${next.toString()}`, { scroll: false });
+      return;
+    }
     const next = new URLSearchParams(searchParams.toString());
-    if (id && id > 0) next.set('id', String(id));
+    if (id) next.set('id', String(id));
     else next.delete('id');
     const qs = next.toString();
     router.replace(`/dashboard/customers/profiles${qs ? `?${qs}` : ''}`, {
@@ -103,6 +147,14 @@ function ProfilesInner() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    if (sampleBookOn()) {
+      setSample(true);
+      setCustomers(crmPreviewBook().customers);
+      setPartyByCustomer({});
+      setLoading(false);
+      return;
+    }
+    setSample(false);
     try {
       const params = new URLSearchParams({ companyId: String(companyId) });
       if (q) params.set('q', q);
@@ -136,6 +188,12 @@ function ProfilesInner() {
 
   useEffect(() => {
     if (!selectedId) return;
+    if (isCrmPreviewId(selectedId)) {
+      const found = crmPreviewBook().customers.find((row) => row.id === selectedId) || null;
+      setBookHold(found);
+      setBookMiss(!found);
+      return;
+    }
     let cancelled = false;
     setBookMiss(false);
     void (async () => {
@@ -158,6 +216,7 @@ function ProfilesInner() {
   }, [companyId, selectedId]);
 
   const issuePortal = async (c: CustomerRecord) => {
+    if (blockSampleWrite(c.id)) return;
     if (!privyUserId) {
       toast.error('Sign in required');
       return;
@@ -200,6 +259,7 @@ function ProfilesInner() {
   };
 
   const remove = async (id: number) => {
+    if (blockSampleWrite(id)) return;
     if (!confirm('Delete this customer?')) return;
     const res = await fetch(`/api/customers?id=${id}`, { method: 'DELETE' });
     if (res.ok) {
@@ -212,6 +272,7 @@ function ProfilesInner() {
   };
 
   const clearCreditHold = async (c: CustomerRecord) => {
+    if (blockSampleWrite(c.id)) return;
     const reset = confirm(
       `Clear credit hold for ${c.trading_name}? OK = clear hold only. Cancel = abort.\n\nAfter OK you can choose to also reset override counter.`
     );
@@ -283,6 +344,7 @@ function ProfilesInner() {
   };
 
   const setSuspended = async (c: CustomerRecord, suspend: boolean) => {
+    if (blockSampleWrite(c.id)) return;
     if (!privyUserId) {
       toast.error('Sign in required');
       return;
@@ -327,6 +389,47 @@ function ProfilesInner() {
     bookHold && bookHold.id === selectedId
       ? { ...(listRow || {}), ...bookHold }
       : listRow;
+  const visible = useMemo(() => {
+    let rows = customers;
+    const localBook = sample || rows.some((c) => isCrmPreviewId(c.id));
+    if (localBook) {
+      const query = q.trim().toLowerCase();
+      if (query) {
+        rows = rows.filter((c) =>
+          [c.trading_name, c.legal_name, c.email, c.city, c.contact_name]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+            .includes(query)
+        );
+      }
+      if (status !== 'all') rows = rows.filter((c) => (c.status || 'active') === status);
+    }
+    const pick = (c: CustomerRecord) =>
+      sort === 'city' ? c.city || '' : sort === 'status' ? c.status || '' : c.trading_name || '';
+    return sortCrmRows(rows, pick);
+  }, [customers, sample, q, status, sort]);
+
+  useCrmKeys({
+    onSearch: () => searchRef.current?.focus(),
+    onCreate: () => {
+      window.location.assign('/dashboard/customers/onboard');
+    },
+    onEscape: () => selectCustomer(null),
+    onNext: () => {
+      if (!visible.length) return;
+      const index = visible.findIndex((c) => c.id === selectedId);
+      const next = visible[index < 0 ? 0 : Math.min(visible.length - 1, index + 1)];
+      if (next) selectCustomer(next.id);
+    },
+    onPrev: () => {
+      if (!visible.length) return;
+      const index = visible.findIndex((c) => c.id === selectedId);
+      const prev = visible[index <= 0 ? 0 : index - 1];
+      if (prev) selectCustomer(prev.id);
+    },
+  });
+
   const bookReady = Boolean(bookHold && selected && bookHold.id === selected.id);
 
   const mergeSaved = (saved: CustomerRecord) => {
@@ -340,7 +443,7 @@ function ProfilesInner() {
     <CustomersPage>
       <CustomersHeader
         title="Customer book"
-        description="One customer record. Save it here and quotes, orders, and invoices use that same row."
+        description="One customer record on SupplierAdvisor®. Save it here and quotes, orders, and invoices use that same row."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -370,18 +473,33 @@ function ProfilesInner() {
         }
       />
 
-      <div className="flex flex-wrap gap-2 mb-4">
-        <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-          <input
-            className="input min-h-11 w-full !pl-9 !py-2.5 !text-sm"
-            placeholder="Search name, email, city…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-        </div>
+      <CrmKeysHint />
+      {sample ? (
+        <CrmSampleBanner
+          onHide={() => {
+            try {
+              sessionStorage.removeItem(CRM_SAMPLE_FLAG);
+            } catch {
+              /* ignore */
+            }
+            void load();
+          }}
+        />
+      ) : null}
+      <div className="mb-4 flex flex-wrap gap-2">
+        <CrmSearch
+          inputRef={searchRef}
+          label="Search customers"
+          placeholder="Search name, email, city…"
+          value={q}
+          onChange={setQ}
+        />
+        <label className="sr-only" htmlFor="customer-status-filter">
+          Status
+        </label>
         <select
-          className="input min-h-11 !py-2.5 !px-3 !text-sm"
+          id="customer-status-filter"
+          className="input min-h-11 !px-3 !py-2.5 !text-sm"
           value={status}
           onChange={(e) => setStatus(e.target.value)}
         >
@@ -391,25 +509,106 @@ function ProfilesInner() {
           <option value="prospect">Prospect</option>
           <option value="on_hold">On hold</option>
         </select>
+        <label className="sr-only" htmlFor="customer-sort">
+          Sort
+        </label>
+        <select
+          id="customer-sort"
+          className="input min-h-11 !px-3 !py-2.5 !text-sm"
+          value={sort}
+          onChange={(e) => setSort(e.target.value as 'name' | 'city' | 'status')}
+        >
+          <option value="name">Sort by name</option>
+          <option value="city">Sort by city</option>
+          <option value="status">Sort by status</option>
+        </select>
+        <div className="inline-flex rounded-full border border-neutral-200 bg-white p-1">
+          <button
+            type="button"
+            aria-pressed={layout === 'list'}
+            className={`min-h-11 rounded-full px-3 text-sm font-semibold ${layout === 'list' ? 'bg-[#00b4d8] text-slate-950' : 'text-slate-700'}`}
+            onClick={() => setLayout('list')}
+          >
+            List
+          </button>
+          <button
+            type="button"
+            aria-pressed={layout === 'table'}
+            className={`min-h-11 rounded-full px-3 text-sm font-semibold ${layout === 'table' ? 'bg-[#00b4d8] text-slate-950' : 'text-slate-700'}`}
+            onClick={() => setLayout('table')}
+          >
+            Table
+          </button>
+        </div>
       </div>
 
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)]">
         <div className="overflow-hidden rounded-3xl border border-neutral-200 bg-white lg:order-1">
         {loading ? (
-          <div className="flex justify-center p-16">
-            <Loader2 className="h-8 w-8 animate-spin text-[#00b4d8]" />
+          <div className="p-4">
+            <CrmSkeleton />
           </div>
-        ) : customers.length === 0 ? (
-          <div className="p-16 text-center text-neutral-500">
-            <Users className="mx-auto mb-3 h-10 w-10 text-neutral-300" />
-            <p className="mb-4">No customers yet. Onboard your first account.</p>
-            <Link href="/dashboard/customers/onboard" className="btn-primary !py-2.5 !px-5 text-sm">
-              Add customer
-            </Link>
+        ) : visible.length === 0 ? (
+          <CrmEmpty
+            icon={Users}
+            title="No customers in this view"
+            body="Onboard the first account, or preview a sample book. The sample never writes to the SupplierAdvisor® database."
+            action={
+              <Link href="/dashboard/customers/onboard" className="btn-primary !px-5 !py-2.5 text-sm">
+                Add customer
+              </Link>
+            }
+            onSample={() => {
+              try {
+                sessionStorage.setItem(CRM_SAMPLE_FLAG, '1');
+              } catch {
+                /* ignore */
+              }
+              void load();
+            }}
+          />
+        ) : layout === 'table' ? (
+          <div className="overflow-x-auto">
+            <table className="crm-table w-full text-sm">
+              <thead className="border-b text-left text-xs text-slate-600">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Customer</th>
+                  <th className="px-3 py-3 font-semibold">City</th>
+                  <th className="px-3 py-3 font-semibold">Status</th>
+                  <th className="px-3 py-3 font-semibold">Terms</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {visible.map((c) => (
+                  <tr
+                    key={c.id}
+                    className={selectedId === c.id ? 'bg-sky-50/80' : 'hover:bg-neutral-50'}
+                  >
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        className="min-h-11 text-left font-semibold text-slate-900"
+                        onClick={() => selectCustomer(c.id)}
+                      >
+                        {c.trading_name}
+                      </button>
+                      <div className="text-xs text-slate-600">{c.contact_name || c.email || '—'}</div>
+                    </td>
+                    <td className="px-3 py-3 text-slate-700">{c.city || '—'}</td>
+                    <td className="px-3 py-3">
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold uppercase ${customerStatusClass(c.status)}`}>
+                        {(c.status || 'active').replace(/_/g, ' ')}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-slate-700">{c.payment_terms || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : (
           <ul className="divide-y divide-neutral-100">
-            {customers.map((c) => {
+            {visible.map((c) => {
               const isSelected = selectedId === c.id;
               const held =
                 String(c.notes || '').includes('[credit hold]') ||
@@ -547,6 +746,7 @@ type BookForm = {
   currency: string;
   payment_terms: string;
   credit_limit: string;
+  notes: string;
 };
 
 function bookFormFrom(c: CustomerRecord): BookForm {
@@ -569,6 +769,7 @@ function bookFormFrom(c: CustomerRecord): BookForm {
       c.credit_limit != null && Number(c.credit_limit) > 0
         ? String(c.credit_limit)
         : '',
+    notes: c.notes || '',
   };
 }
 
@@ -633,6 +834,7 @@ function CustomerAccountPanel({
     setForm((prev) => ({ ...prev, [key]: value }));
 
   const save = async () => {
+    if (blockSampleWrite(c.id)) return;
     if (!form.trading_name.trim()) {
       toast.error('Trading name required');
       return;
@@ -665,6 +867,7 @@ function CustomerAccountPanel({
           currency: form.currency,
           payment_terms: form.payment_terms,
           credit_limit: form.credit_limit.trim() === '' ? null : Number(form.credit_limit),
+          notes: form.notes,
         }),
       });
       const data = await res.json();
@@ -861,6 +1064,13 @@ function CustomerAccountPanel({
               onChange={(e) => set('industry', e.target.value)}
             />
           </BookField>
+          <BookField label="Notes" wide>
+            <textarea
+              className="input mt-0.5 min-h-[88px] w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
+              value={form.notes}
+              onChange={(e) => set('notes', e.target.value)}
+            />
+          </BookField>
           <BookField label="Billing address" wide>
             <textarea
               className="input mt-0.5 min-h-[64px] w-full !p-2.5 !text-sm font-medium normal-case tracking-normal"
@@ -907,6 +1117,23 @@ function CustomerAccountPanel({
           </button>
         </div>
       ) : null}
+
+      <div className="mt-4">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Activity</p>
+        <div className="mt-2">
+          <CrmTimeline
+            items={customerActivity({
+              name: c.trading_name,
+              created_at: c.created_at,
+              updated_at: c.updated_at,
+              notes: form.notes || c.notes,
+              invite_status: c.invite_status,
+              contact_name: form.contact_name || c.contact_name,
+              city: form.city || c.city,
+            })}
+          />
+        </div>
+      </div>
 
       <div className="mt-4">
         <PartyBookRoleSelect
@@ -965,7 +1192,7 @@ function CustomerAccountPanel({
           <button
             type="button"
             onClick={onInvite}
-            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-[#00b4d8] bg-[#00b4d8] px-3 text-sm font-semibold text-white"
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-[#00b4d8] bg-[#00b4d8] px-3 text-sm font-semibold text-slate-950"
           >
             {customerInviteActionLabel(c)}
           </button>

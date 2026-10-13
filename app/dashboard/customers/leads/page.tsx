@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -44,6 +44,22 @@ import {
 } from '@/lib/business/group-pipeline-view';
 import { crmDateOnly, crmToday } from '@/lib/customers/crm-desk';
 import type { TeamMemberLite } from '@/components/sales/TeamDealsReport';
+import {
+  CrmEmpty,
+  CrmKeysHint,
+  CrmSampleBanner,
+  CrmSkeleton,
+  useCrmKeys,
+} from '@/components/customers/crm/kit';
+import { CRM_SAMPLE_FLAG, crmPreviewBook, isCrmPreviewId, sortCrmRows } from '@/lib/customers/crm-preview';
+
+function sampleBookOn() {
+  try {
+    return sessionStorage.getItem(CRM_SAMPLE_FLAG) === '1';
+  } catch {
+    return false;
+  }
+}
 
 type Tab = 'leads' | 'pipeline' | 'team';
 
@@ -140,9 +156,23 @@ function LeadsInner() {
   const [oppForm, setOppForm] = useState(emptyOpp());
   const [saving, setSaving] = useState(false);
   const [teamMembers, setTeamMembers] = useState<TeamMemberLite[]>([]);
+  const [sort, setSort] = useState<'name' | 'value' | 'score' | 'next'>('name');
+  const [sample, setSample] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    if (sampleBookOn()) {
+      const book = crmPreviewBook();
+      setSample(true);
+      setLeads(book.leads);
+      setOpps(book.opportunities);
+      setCustomers(book.customers);
+      setGroup(null);
+      setLoading(false);
+      return;
+    }
+    setSample(false);
     try {
       const params = new URLSearchParams({ companyId: String(companyId) });
       if (q) params.set('q', q);
@@ -219,8 +249,19 @@ function LeadsInner() {
   const filteredLeads = useMemo(() => {
     let rows = leads;
     if (statusFilter !== 'all') rows = rows.filter((l) => l.status === statusFilter);
+    const localBook = sample || rows.some((l) => isCrmPreviewId(l.id));
+    const query = q.trim().toLowerCase();
+    if (localBook && query) {
+      rows = rows.filter((l) =>
+        [l.name, l.company_name, l.email, l.city, l.next_action]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+      );
+    }
     return rows;
-  }, [leads, statusFilter]);
+  }, [leads, statusFilter, sample, q]);
 
   const groupView: GroupPipelineView =
     userGroupView ?? group?.defaultView ?? 'all';
@@ -229,10 +270,19 @@ function LeadsInner() {
     setUserGroupView(null);
   }, [companyId]);
 
-  const visibleOpps = useMemo(
-    () => filterOpportunitiesByGroupView(opps, groupView),
-    [opps, groupView]
-  );
+  const visibleOpps = useMemo(() => {
+    const grouped = filterOpportunitiesByGroupView(opps, groupView);
+    const localBook = sample || grouped.some((o) => isCrmPreviewId(o.id));
+    const query = q.trim().toLowerCase();
+    if (!localBook || !query) return grouped;
+    return grouped.filter((o) =>
+      [o.name, o.company_name, o.contact_name, o.owner_name, o.next_step]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [opps, groupView, sample, q]);
 
   const pipelineStats = useMemo(() => {
     const open = visibleOpps.filter((o) => !['closed_won', 'closed_lost'].includes(String(o.stage)));
@@ -281,6 +331,10 @@ function LeadsInner() {
   };
 
   const saveLead = async () => {
+    if (sample || (editingLead && isCrmPreviewId(editingLead.id))) {
+      toast.message('Sample book — nothing is saved on SupplierAdvisor®');
+      return;
+    }
     if (!leadForm.name.trim()) {
       toast.error('Lead name required');
       return;
@@ -381,6 +435,10 @@ function LeadsInner() {
   };
 
   const saveOpp = async () => {
+    if (sample || (editingOpp && isCrmPreviewId(editingOpp.id))) {
+      toast.message('Sample book — nothing is saved on SupplierAdvisor®');
+      return;
+    }
     if (!oppForm.name.trim() && !oppForm.contact_name.trim()) {
       toast.error('Opportunity name or contact required');
       return;
@@ -447,6 +505,7 @@ function LeadsInner() {
           : o
       )
     );
+    if (isCrmPreviewId(id)) return;
     const res = await fetch('/api/customers/opportunities', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -530,8 +589,27 @@ function LeadsInner() {
     }
   };
 
+  const sortedLeads = useMemo(() => {
+    const pick = (lead: LeadRecord) => {
+      if (sort === 'value') return String(lead.value_estimate ?? 0).padStart(12, '0');
+      if (sort === 'score') return String(lead.score ?? 0).padStart(4, '0');
+      if (sort === 'next') return lead.next_action_date || '9999';
+      return lead.name || '';
+    };
+    return sortCrmRows(filteredLeads, pick, sort === 'name' ? 'asc' : 'desc');
+  }, [filteredLeads, sort]);
+
+  useCrmKeys({
+    onSearch: () => searchRef.current?.focus(),
+    onCreate: () => (tab === 'leads' ? openLeadCreate() : openOppCreate()),
+    onEscape: () => {
+      setLeadModal(false);
+      setOppModal(false);
+    },
+  });
+
   return (
-    <div className="px-2 md:px-4 max-w-screen-2xl mx-auto pb-12">
+    <div className="crm-module mx-auto max-w-screen-2xl px-2 pb-12 md:px-4">
       <CustomersHeader
         title="Leads & opportunities"
         description={
@@ -539,7 +617,7 @@ function LeadsInner() {
             ? group?.isSubsidiary
               ? 'Your company’s pipeline. Open All companies to include subsidiaries.'
               : 'Holding pipeline: start with a consolidated group view, then drill into a subsidiary.'
-            : 'Capture every prospect with full detail, qualify leads, and run a complete sales pipeline through to closed-won.'
+            : 'Capture every prospect in SupplierAdvisor®, qualify the lead, and move the deal through to won.'
         }
         action={
           <div className="flex flex-wrap gap-2">
@@ -574,12 +652,25 @@ function LeadsInner() {
       </div>
 
       {/* Tabs */}
-      <div className="flex rounded-2xl border bg-white p-1 gap-1 mb-4 w-fit">
+      <CrmKeysHint />
+      {sample ? (
+        <CrmSampleBanner
+          onHide={() => {
+            try {
+              sessionStorage.removeItem(CRM_SAMPLE_FLAG);
+            } catch {
+              /* ignore */
+            }
+            void load();
+          }}
+        />
+      ) : null}
+      <div className="mb-4 flex w-full flex-wrap gap-1 rounded-2xl border bg-white p-1 sm:w-fit">
         <button
           type="button"
           onClick={() => setTab('leads')}
-          className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold ${
-            tab === 'leads' ? 'bg-[#00b4d8] text-white' : 'text-neutral-600'
+          className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold ${
+            tab === 'leads' ? 'bg-[#00b4d8] text-slate-950' : 'text-slate-700'
           }`}
         >
           <UserPlus className="w-3.5 h-3.5" /> Leads
@@ -587,8 +678,8 @@ function LeadsInner() {
         <button
           type="button"
           onClick={() => setTab('pipeline')}
-          className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold ${
-            tab === 'pipeline' ? 'bg-[#00b4d8] text-white' : 'text-neutral-600'
+          className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold ${
+            tab === 'pipeline' ? 'bg-[#00b4d8] text-slate-950' : 'text-slate-700'
           }`}
         >
           <Briefcase className="w-3.5 h-3.5" /> Opportunity pipeline
@@ -596,8 +687,8 @@ function LeadsInner() {
         <button
           type="button"
           onClick={() => setTab('team')}
-          className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold ${
-            tab === 'team' ? 'bg-[#00b4d8] text-white' : 'text-neutral-600'
+          className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold ${
+            tab === 'team' ? 'bg-[#00b4d8] text-slate-950' : 'text-slate-700'
           }`}
         >
           <Target className="w-3.5 h-3.5" /> Team forecast
@@ -608,15 +699,31 @@ function LeadsInner() {
         <div className="relative flex-1 min-w-[180px] max-w-md">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
           <input
-            className="input w-full !pl-9 !py-2.5 !text-sm"
+            ref={searchRef}
+            className="input min-h-11 w-full !py-2.5 !pl-9 !text-sm"
             placeholder={tab === 'leads' ? 'Search leads…' : 'Search opportunities…'}
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            aria-label={tab === 'leads' ? 'Search leads' : 'Search opportunities'}
           />
         </div>
         {tab === 'leads' && (
           <select
-            className="input !py-2.5 !px-3 !text-sm"
+            aria-label="Sort leads"
+            className="input min-h-11 !px-3 !py-2.5 !text-sm"
+            value={sort}
+            onChange={(e) => setSort(e.target.value as 'name' | 'value' | 'score' | 'next')}
+          >
+            <option value="name">Sort by name</option>
+            <option value="value">Sort by value</option>
+            <option value="score">Sort by score</option>
+            <option value="next">Sort by next action</option>
+          </select>
+        )}
+        {tab === 'leads' && (
+          <select
+            aria-label="Filter by status"
+            className="input min-h-11 !px-3 !py-2.5 !text-sm"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
@@ -639,12 +746,10 @@ function LeadsInner() {
       )}
 
       {loading ? (
-        <div className="p-16 flex justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
-        </div>
+        tab === 'pipeline' ? <CrmSkeleton variant="kanban" /> : <CrmSkeleton />
       ) : tab === 'leads' ? (
         <LeadsTable
-          leads={filteredLeads}
+          leads={sortedLeads}
           onEdit={openLeadEdit}
           onDelete={deleteLead}
           onConvert={convertLeadToOpp}
@@ -850,13 +955,24 @@ function LeadsTable({
 }) {
   if (!leads.length) {
     return (
-      <div className="bg-white border rounded-3xl p-16 text-center text-neutral-500">
-        <Target className="w-10 h-10 mx-auto mb-3 text-neutral-300" />
-        <p className="mb-4">No leads yet. Capture your first prospect with full detail.</p>
-        <button type="button" onClick={onCreate} className="btn-primary !py-2.5 !px-5 text-sm">
-          New lead
-        </button>
-      </div>
+      <CrmEmpty
+        icon={Target}
+        title="No leads in this view"
+        body="Capture the first prospect with a name, a next action, and a date. Or preview a sample book — it is not saved on SupplierAdvisor®."
+        action={
+          <button type="button" onClick={onCreate} className="btn-primary !px-5 !py-2.5 text-sm">
+            New lead
+          </button>
+        }
+        onSample={() => {
+          try {
+            sessionStorage.setItem(CRM_SAMPLE_FLAG, '1');
+          } catch {
+            /* ignore */
+          }
+          window.location.reload();
+        }}
+      />
     );
   }
   const today = crmToday();
@@ -911,7 +1027,7 @@ function LeadsTable({
         })}
       </ul>
       <div className="hidden overflow-x-auto md:block">
-        <table className="w-full text-sm">
+        <table className="crm-table w-full text-sm">
           <thead className="bg-neutral-50 border-b text-left text-xs text-neutral-500">
             <tr>
               <th className="px-4 py-3 font-semibold">Lead</th>
