@@ -150,29 +150,6 @@ function HubInner() {
         }
       />
 
-      <div className="mb-6">
-        <AdvisorMemberAppInvite
-          kind="supplier"
-          companyId={companyId}
-          brand={getSelectedCompanyName()}
-          audience="suppliers"
-        />
-      </div>
-
-      <JourneyChecklist role="supplier" />
-      <CatalogueEmptyBanner />
-
-      {!loading ? (
-        <TradeNextBanner
-          action={computeHubNextAction({
-            role: 'supplier',
-            openInboundPos,
-            catalogueEmpty: false,
-            pendingConnections,
-          })}
-        />
-      ) : null}
-
       {warning && (
         <AlertBanner>
           {warning}
@@ -332,6 +309,29 @@ function HubInner() {
           )}
         </SrmPanel>
       </div>
+
+      {!loading ? (
+        <TradeNextBanner
+          action={computeHubNextAction({
+            role: 'supplier',
+            openInboundPos,
+            catalogueEmpty: false,
+            pendingConnections,
+          })}
+        />
+      ) : null}
+
+      <div className="mb-6">
+        <AdvisorMemberAppInvite
+          kind="supplier"
+          companyId={companyId}
+          brand={getSelectedCompanyName()}
+          audience="suppliers"
+        />
+      </div>
+
+      <JourneyChecklist role="supplier" />
+      <CatalogueEmptyBanner />
 
       <ActivityFeed
         title="Supply activity"
