@@ -1,15 +1,9 @@
 'use client';
 
 import { useEffect } from 'react';
-import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
-
-const InviteClaimFlow = dynamic(
-  () => import('@/components/onboarding/InviteClaimFlow')
-);
-const BusinessOnboardingWizard = dynamic(
-  () => import('@/components/onboarding/BusinessOnboardingWizard')
-);
+import InviteClaimFlow from '@/components/onboarding/InviteClaimFlow';
+import BusinessOnboardingWizard from '@/components/onboarding/BusinessOnboardingWizard';
 
 const PERSONAL_TYPES = new Set(['consumer', 'b2c', 'member', 'personal']);
 
