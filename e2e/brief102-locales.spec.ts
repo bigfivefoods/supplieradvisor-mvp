@@ -97,7 +97,7 @@ test('raw HTML for /fr includes lang and localized h1', async ({ request }) => {
   expect(response.status()).toBe(200);
   const html = await response.text();
   expect(html).toContain('<html lang="fr"');
-  expect(html).toContain('Le conseil fournisseur le plus fiable');
+  expect(html).toContain("L'OS supply chain");
 });
 
 test('raw HTML for /ar includes lang and rtl dir', async ({ request }) => {

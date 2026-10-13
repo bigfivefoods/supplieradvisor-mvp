@@ -9,7 +9,7 @@ export type FooterLinkGroup = {
 };
 
 export const FOOTER_TAGLINE =
-  "The world's most trusted supplier advice and supply-chain OS — B2B, B2G, and B2C on one verified network.";
+  'The supply-chain OS with a verified trade and trust layer — B2B, B2G, and B2C on one company workspace.';
 export const FOOTER_MOTTO = 'Built for operators who measure trust.';
 
 export const FOOTER_SOCIALS = [

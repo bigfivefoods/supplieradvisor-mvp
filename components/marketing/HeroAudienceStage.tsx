@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { COMPANY_TRIAL_DAYS } from '@/lib/billing/company-subscription';
 import { useLocaleDictionary } from '@/components/i18n/LocaleDictionaryProvider';
+import { localizedPath } from '@/lib/i18n/config';
 import { format } from '@/lib/i18n/dict';
 
 const SCENES = [
@@ -68,9 +69,11 @@ const SCENES = [
 
 function ShotWindow({
   path,
+  sample,
   children,
 }: {
   path: string;
+  sample: string;
   children: ReactNode;
 }) {
   return (
@@ -81,6 +84,9 @@ function ShotWindow({
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
         <span className="ml-1 min-w-0 truncate font-mono text-[8px] font-medium text-slate-500">
           {path}
+        </span>
+        <span className="ml-auto shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-slate-500">
+          {sample}
         </span>
       </div>
       <div className="min-h-0 flex-1 bg-gradient-to-br from-slate-50 via-white to-sky-50/50 p-3">
@@ -186,11 +192,14 @@ function MemberPhone() {
 }
 
 function HeroProductShots({ sceneId }: { sceneId: (typeof SCENES)[number]['id'] }) {
+  const { t } = useLocaleDictionary();
+  const sample = t('hero.sampleScreen');
+
   if (sceneId === 'b2c') {
     return (
       <div className="flex h-[248px] w-full items-stretch gap-3 xl:h-[272px] xl:gap-3.5">
         <div className="min-w-0 flex-1">
-          <ShotWindow path="app.supplieradvisor.com/me">
+          <ShotWindow path="app.supplieradvisor.com/me" sample={sample}>
             <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
               SA Member
             </div>
@@ -214,35 +223,37 @@ function HeroProductShots({ sceneId }: { sceneId: (typeof SCENES)[number]['id'] 
     <div className="grid h-[208px] w-full grid-cols-2 gap-3 xl:h-[228px] xl:gap-3.5">
       {sceneId === 'b2g' ? (
         <>
-          <ShotWindow path="app.supplieradvisor.com/network">
+          <ShotWindow path="app.supplieradvisor.com/network" sample={sample}>
             <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
               Network
             </div>
             <div className="mt-0.5 text-[13px] font-black text-slate-900">
               Public procurement
             </div>
-            <div className="mt-2.5 grid grid-cols-3 gap-1.5">
-              <Metric label="Open" value="14" />
-              <Metric label="Awarded" value="6" />
-              <Metric label="Audit" value="Ready" />
+            <div className="mt-2.5 space-y-1.5">
+              {['Supplier discovery', 'Documented trade', 'Audit pack'].map((row) => (
+                <div
+                  key={row}
+                  className="flex items-center justify-between rounded-md bg-white px-2 py-1.5 text-[11px] ring-1 ring-slate-100"
+                >
+                  <span className="font-semibold text-slate-700">{row}</span>
+                  <span className="font-semibold text-slate-500">In workspace</span>
+                </div>
+              ))}
             </div>
           </ShotWindow>
-          <ShotWindow path="app.supplieradvisor.com/sheq">
+          <ShotWindow path="app.supplieradvisor.com/sheq" sample={sample}>
             <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
               SHEQ · proof
             </div>
             <div className="mt-2.5 space-y-1.5">
-              {[
-                { n: 'NCR-041', s: 'Closed' },
-                { n: 'CAPA pack', s: 'Export' },
-                { n: 'Lot hold', s: 'Clear' },
-              ].map((r) => (
+              {['NCR / CAPA', 'Export pack', 'Lot hold'].map((row) => (
                 <div
-                  key={r.n}
+                  key={row}
                   className="flex items-center justify-between rounded-md bg-white px-2 py-1.5 text-[11px] ring-1 ring-slate-100"
                 >
-                  <span className="font-semibold text-slate-700">{r.n}</span>
-                  <span className="font-black text-emerald-600">{r.s}</span>
+                  <span className="font-semibold text-slate-700">{row}</span>
+                  <span className="font-semibold text-slate-500">On the record</span>
                 </div>
               ))}
             </div>
@@ -250,36 +261,35 @@ function HeroProductShots({ sceneId }: { sceneId: (typeof SCENES)[number]['id'] 
         </>
       ) : (
         <>
-          <ShotWindow path="app.supplieradvisor.com/operations">
+          <ShotWindow path="app.supplieradvisor.com/operations" sample={sample}>
             <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
               Operations
             </div>
             <div className="mt-0.5 text-[13px] font-black text-slate-900">
-              One chain. Live.
-            </div>
-            <div className="mt-2.5 grid grid-cols-4 gap-1.5">
-              <Metric label="POs" value="12" />
-              <Metric label="In" value="4" />
-              <Metric label="WIP" value="7" />
-              <Metric label="Ship" value="9" />
-            </div>
-          </ShotWindow>
-          <ShotWindow path="app.supplieradvisor.com/suppliers">
-            <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
-              Suppliers
+              One workspace
             </div>
             <div className="mt-2.5 space-y-1.5">
-              {[
-                { n: 'Cape Harvest', s: '99%' },
-                { n: 'Atlas Logistics', s: '97%' },
-                { n: 'Kalahari Inputs', s: '96%' },
-              ].map((r) => (
+              {['Purchase orders', 'Lot holds', 'Ship release'].map((row) => (
                 <div
-                  key={r.n}
-                  className="flex items-center justify-between rounded-md bg-white px-2 py-1.5 text-[11px] ring-1 ring-slate-100"
+                  key={row}
+                  className="rounded-md bg-white px-2 py-1.5 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-100"
                 >
-                  <span className="truncate font-semibold text-slate-700">{r.n}</span>
-                  <span className="font-black tabular-nums text-[#00b4d8]">{r.s}</span>
+                  {row}
+                </div>
+              ))}
+            </div>
+          </ShotWindow>
+          <ShotWindow path="app.supplieradvisor.com/suppliers" sample={sample}>
+            <div className="text-[8px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">
+              Trust layer
+            </div>
+            <div className="mt-2.5 space-y-1.5">
+              {['Company check', 'OTIFEF scorecard', 'RIAD on the relationship'].map((row) => (
+                <div
+                  key={row}
+                  className="rounded-md bg-white px-2 py-1.5 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-100"
+                >
+                  {row}
                 </div>
               ))}
             </div>
@@ -292,7 +302,8 @@ function HeroProductShots({ sceneId }: { sceneId: (typeof SCENES)[number]['id'] 
 
 export default function HeroAudienceStage() {
   const [i, setI] = useState(0);
-  const { t } = useLocaleDictionary();
+  const { locale, t } = useLocaleDictionary();
+  const bookDemoHref = `${localizedPath(locale, '/')}#book-demo`;
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -403,6 +414,13 @@ export default function HeroAudienceStage() {
 
             <div className="mt-5 flex flex-col gap-2 sm:mt-6 sm:flex-row sm:flex-wrap sm:items-center">
               <Link
+                href={bookDemoHref}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-white px-6 py-2.5 text-sm font-bold text-slate-950 shadow-lg shadow-slate-950/30 transition-all hover:bg-slate-100 active:scale-[0.99] sm:px-7 sm:text-[15px]"
+              >
+                {t('hero.bookDemo')}
+                <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 rtl:-scale-x-100" />
+              </Link>
+              <Link
                 href={scene.cta.href}
                 className="group inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-950/40 transition-all hover:bg-[#0099b8] active:scale-[0.99] sm:min-h-12 sm:px-6 sm:text-[15px]"
               >
@@ -416,14 +434,7 @@ export default function HeroAudienceStage() {
                 >
                   {t('hero.businessRun')}
                 </Link>
-              ) : (
-                <Link
-                  href="/demo"
-                  className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/30 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-[2px] hover:bg-white/18 sm:min-h-12 sm:px-6 sm:text-[15px]"
-                >
-                  {t('hero.bookDemo')}
-                </Link>
-              )}
+              ) : null}
             </div>
 
             <p className="mt-3 hidden text-xs leading-relaxed text-slate-300 sm:block sm:text-sm">

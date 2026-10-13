@@ -63,7 +63,7 @@ export const metadata: Metadata = {
     url: SITE_URL,
     siteName: SITE_NAME,
     title: DEFAULT_TITLE,
-    description: 'SupplierAdvisor® supply-chain OS for verified B2B trade, industry workflows, and SA Member accounts.',
+    description: DEFAULT_DESCRIPTION,
     images: [
       {
         url: SA_OG_IMAGE_URL,
@@ -77,7 +77,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: DEFAULT_TITLE,
-    description: 'Supply-chain OS for verified B2B trade and member journeys — 30-day free trial from R299/mo.',
+    description: DEFAULT_DESCRIPTION,
     images: [SA_OG_IMAGE_URL],
     creator: '@supplieradvisa',
     site: '@supplieradvisa',
