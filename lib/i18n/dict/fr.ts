@@ -2,9 +2,9 @@
 import type { Dict } from './en';
 
 const fr: Dict = {
-  'meta.home.title': 'SupplierAdvisor® — Le conseil fournisseur le plus fiable au monde — et OS',
+  'meta.home.title': "SupplierAdvisor® — L'OS supply chain avec une couche de commerce et de confiance vérifiée",
   'meta.home.description':
-    'SupplierAdvisor® est l’OS supply chain pour le commerce vérifié, les workflows sectoriels et les comptes SA Member, avec un essai gratuit de 30 jours.',
+    "SupplierAdvisor® est l'OS supply chain avec une couche de commerce et de confiance vérifiée, un essai entreprise et un compte SA Member gratuit.",
   'meta.pricing.title': 'Tarifs',
   'meta.pricing.description': 'Tarification entreprise dès R299/mois avec utilisateurs illimités et économies de parrainage claires.',
   'switcher.chooseLanguage': 'Choisir une langue',
@@ -47,12 +47,23 @@ const fr: Dict = {
   'theme.system': 'Système',
   'home.trialStrip': 'Essai gratuit de {days} jours. Enregistrez votre entreprise et lancez la première boucle commerciale.',
   'home.startTrial': 'Démarrer l\'essai gratuit',
-  'hero.headlineLead': 'Le conseil fournisseur le plus fiable',
-  'hero.headlineAccent': 'au monde — et l\'OS.',
+  'home.bookTitle': 'Réserver une démo',
+  'home.bookBody':
+    'En 20 minutes, nous cartographions votre chaîne d\'approvisionnement sur SupplierAdvisor® — commerce, stock, qualité et finance — et montrons ce qui est déjà dans le produit.',
+  'home.bookEmail': 'Écrire pour une démo',
+  'home.bookWhatsapp': 'WhatsApp',
+  'home.bookSample': 'Vous préférez regarder d\'abord ?',
+  'home.bookSampleLink': 'Ouvrir la démo interactive',
+  'home.bookSampleNote': 'Écrans d\'exemple seulement. Sans inscription.',
+  'home.proofCue':
+    'Cette page indique les conditions du produit. Elle ne publie ni effectifs clients ni scores de performance.',
+  'hero.headlineLead': "L'OS supply chain",
+  'hero.headlineAccent': 'avec une couche de commerce et de confiance vérifiée.',
   'hero.compare': 'Voir comment nous nous comparons',
   'hero.businessRun': 'Je dirige une entreprise',
   'hero.bookDemo': 'Réserver une démo',
-  'hero.notExcel': 'Pas Excel. Pas seulement la comptabilité. Pas un projet ERP de plusieurs années.',
+  'hero.notExcel': 'Commerce, stock, qualité et preuve partagent le même espace entreprise.',
+  'hero.sampleScreen': "Écran d'exemple",
   'hero.trialDays': 'Essai gratuit de {days} jours',
   'hero.membersNeverPay': 'Les membres ne nous paient jamais',
   'hero.scene.b2b.title': 'Entreprise à entreprise',
@@ -76,7 +87,7 @@ const fr: Dict = {
   'hero.scene.b2c.point2': 'Réserver, check-in, famille, liste d\'attente, .ics et notes médicales partagées',
   'hero.scene.b2c.point3': 'Payer ou envoyer une preuve — même connexion si vous lancez ensuite une entreprise',
   'hero.scene.b2c.cta': 'Créer un compte SA Member gratuit',
-  'footer.tagline': 'Le conseil fournisseur le plus fiable au monde et l\'OS supply chain — B2B, B2G et B2C sur un seul réseau vérifié.',
+  'footer.tagline': "L'OS supply chain avec une couche de commerce et de confiance vérifiée — B2B, B2G et B2C dans un même espace entreprise.",
   'footer.motto': 'Conçu pour les opérateurs qui mesurent la confiance.',
   'footer.explore': 'Explorer',
   'footer.industries': 'Secteurs',

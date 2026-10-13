@@ -2,6 +2,7 @@
 
 import { CRM_SAMPLE_FLAG } from '@/lib/customers/crm-preview';
 import { FixtureStudio } from '@/components/preview/FixtureStudio';
+import type { CardQuery } from '@/lib/relationship/card-filter';
 import CustomersHub from '@/app/dashboard/customers/page';
 import ProfilesPage from '@/app/dashboard/customers/profiles/page';
 import LeadsPage from '@/app/dashboard/customers/leads/page';
@@ -13,9 +14,13 @@ const COMPANY_ID = 91001;
 export default function CrmPreviewClient({
   screen,
   initialId,
+  query,
+  sort,
 }: {
   screen: string;
   initialId: number;
+  query: CardQuery;
+  sort: string;
 }) {
   const id = Number.isFinite(initialId) && initialId !== 0 ? initialId : null;
   const known = ['profiles', 'leads', 'pipeline', '360', 'tasks', 'hub'];
@@ -27,7 +32,9 @@ export default function CrmPreviewClient({
       label="sample book"
       sampleFlag={CRM_SAMPLE_FLAG}
     >
-      {active === 'profiles' ? <ProfilesPage preview={{ companyId: COMPANY_ID, id }} /> : null}
+      {active === 'profiles' ? (
+        <ProfilesPage preview={{ companyId: COMPANY_ID, id, query, sort }} />
+      ) : null}
       {active === 'leads' || active === 'pipeline' ? <LeadsPage /> : null}
       {active === '360' ? <Customers360Page /> : null}
       {active === 'tasks' ? <SalesTasksPage /> : null}

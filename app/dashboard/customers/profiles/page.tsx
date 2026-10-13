@@ -26,6 +26,7 @@ import {
   customerInviteActionLabel,
   customerInviteStatusClass,
   customerInviteStatusLabel,
+  formatMoney,
   resolveCustomerConnectionPhase,
   type CustomerRecord,
 } from '@/lib/customers/types';
@@ -45,7 +46,6 @@ import {
   CrmEmpty,
   CrmKeysHint,
   CrmSampleBanner,
-  CrmSearch,
   CrmSkeleton,
   CrmTimeline,
   useCrmKeys,
@@ -59,6 +59,25 @@ import {
   sortCrmRows,
 } from '@/lib/customers/crm-preview';
 import { ProfileCard } from '@/components/relationship/ProfileCard';
+import { CardFilterBar } from '@/components/relationship/CardFilterBar';
+import {
+  CUSTOMER_STATUS_ORDER,
+    cardQueryFromParams,
+    cardQueryKey,
+    customerMatches,
+    emptyCardQuery,
+    facetChoices,
+    industryLabel,
+    orderedStatuses,
+    placeLabel,
+    resultCount,
+    sortFromParams,
+    splitPrimary,
+    titleLabel,
+    writeListParams,
+  type CardQuery,
+} from '@/lib/relationship/card-filter';
+import { EMPTY_FIELD } from '@/lib/relationship/profile-dossier';
 import { ProfileSheet, type SheetAction } from '@/components/relationship/ProfileSheet';
 import {
   customerDossier,
@@ -83,12 +102,17 @@ function blockSampleWrite(id: number) {
 export default function CustomerProfilesPage({
   preview,
 }: {
-  preview?: { companyId: number; id: number | null };
+  preview?: { companyId: number; id: number | null; query?: CardQuery; sort?: string };
 } = {}) {
   if (preview) {
     return (
       <CompanyRequired assumedCompanyId={preview.companyId}>
-        <ProfilesInner urlId={preview.id ?? 0} assumedCompanyId={preview.companyId} />
+        <ProfilesInner
+          urlId={preview.id ?? 0}
+          assumedCompanyId={preview.companyId}
+          initialQuery={preview.query || emptyCardQuery()}
+          initialSort={preview.sort || 'name'}
+        />
       </CompanyRequired>
     );
   }
@@ -109,18 +133,30 @@ export default function CustomerProfilesPage({
   );
 }
 
+const CUSTOMER_SORTS = ['name', 'city', 'status'] as const;
+
 function ProfilesFromSearch() {
   const searchParams = useSearchParams();
   const urlId = Number(searchParams.get('id') || 0);
-  return <ProfilesInner urlId={Number.isFinite(urlId) ? urlId : 0} />;
+  return (
+    <ProfilesInner
+      urlId={Number.isFinite(urlId) ? urlId : 0}
+      initialQuery={cardQueryFromParams(searchParams)}
+      initialSort={sortFromParams(searchParams, CUSTOMER_SORTS)}
+    />
+  );
 }
 
 function ProfilesInner({
   urlId,
   assumedCompanyId,
+  initialQuery,
+  initialSort = 'name',
 }: {
   urlId: number;
   assumedCompanyId?: number;
+  initialQuery?: CardQuery;
+  initialSort?: string;
 }) {
   const companyId = assumedCompanyId ?? getSelectedCompanyId()!;
   const previewMode = assumedCompanyId != null;
@@ -136,8 +172,7 @@ function ProfilesInner({
   const [selectedId, setSelectedId] = useState<number | null>(seedId);
   const [customers, setCustomers] = useState<CustomerRecord[]>(seededCustomers);
   const [loading, setLoading] = useState(!previewMode);
-  const [q, setQ] = useState('');
-  const [status, setStatus] = useState('all');
+  const [query, setQuery] = useState<CardQuery>(initialQuery || emptyCardQuery());
   const [inviteOpenId, setInviteOpenId] = useState<number | null>(null);
   const [actionId, setActionId] = useState<number | null>(null);
   const [partyByCustomer, setPartyByCustomer] = useState<
@@ -146,7 +181,7 @@ function ProfilesInner({
   const [commercialId, setCommercialId] = useState<number | null>(null);
   const [bookHold, setBookHold] = useState<CustomerRecord | null>(seedCustomer);
   const [bookMiss, setBookMiss] = useState(false);
-  const [sort, setSort] = useState<'name' | 'city' | 'status'>('name');
+  const [sort, setSort] = useState(initialSort);
   const [layout, setLayout] = useState<'list' | 'table'>('list');
   const [sample, setSample] = useState(previewMode);
   const [lines, setLines] = useState<DossierLine[]>(
@@ -166,6 +201,14 @@ function ProfilesInner({
   useEffect(() => {
     if (Number.isFinite(urlId) && urlId !== 0) setSelectedId(urlId);
   }, [urlId]);
+
+  const queryRef = useRef(initialQuery);
+  queryRef.current = initialQuery;
+  const incomingKey = cardQueryKey(initialQuery || emptyCardQuery());
+  useEffect(() => {
+    if (queryRef.current) setQuery(queryRef.current);
+    setSort(initialSort);
+  }, [incomingKey, initialSort]);
 
   const selectCustomer = (id: number | null) => {
     setBookHold(null);
@@ -206,9 +249,7 @@ function ProfilesInner({
     setLoading(true);
     setSample(false);
     try {
-      const params = new URLSearchParams({ companyId: String(companyId) });
-      if (q) params.set('q', q);
-      if (status !== 'all') params.set('status', status);
+      const params = new URLSearchParams({ companyId: String(companyId), limit: '100' });
       const res = await fetch(`/api/customers?${params}`);
       const data = await res.json();
       setCustomers(data.customers || []);
@@ -229,7 +270,7 @@ function ProfilesInner({
     } finally {
       setLoading(false);
     }
-  }, [companyId, previewMode, q, status]);
+  }, [companyId, previewMode]);
 
   useEffect(() => {
     const t = setTimeout(() => void load(), 200);
@@ -440,25 +481,38 @@ function ProfilesInner({
       ? { ...(listRow || {}), ...bookHold }
       : listRow;
   const visible = useMemo(() => {
-    let rows = customers;
-    const localBook = sample || rows.some((c) => isCrmPreviewId(c.id));
-    if (localBook) {
-      const query = q.trim().toLowerCase();
-      if (query) {
-        rows = rows.filter((c) =>
-          [c.trading_name, c.legal_name, c.email, c.city, c.contact_name]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase()
-            .includes(query)
-        );
-      }
-      if (status !== 'all') rows = rows.filter((c) => (c.status || 'active') === status);
-    }
+    let rows = customers.filter((row) => customerMatches(row, query));
     const pick = (c: CustomerRecord) =>
       sort === 'city' ? c.city || '' : sort === 'status' ? c.status || '' : c.trading_name || '';
     return sortCrmRows(rows, pick);
-  }, [customers, sample, q, status, sort]);
+  }, [customers, query, sort]);
+
+  const publishList = (nextQuery: CardQuery, nextSort = sort) => {
+    setQuery(nextQuery);
+    setSort(nextSort);
+    if (typeof window === 'undefined') return;
+    const params = writeListParams(new URLSearchParams(window.location.search), nextQuery, nextSort);
+    const onWalkthrough =
+      previewMode || window.location.pathname.startsWith('/preview/crm');
+    if (onWalkthrough) params.set('screen', 'profiles');
+    const path = onWalkthrough ? '/preview/crm' : '/dashboard/customers/profiles';
+    const qs = params.toString();
+    router.replace(`${path}${qs ? `?${qs}` : ''}`, { scroll: false });
+  };
+  const statusSplit = splitPrimary(
+    orderedStatuses(
+      customers.map((row) => row.status),
+      CUSTOMER_STATUS_ORDER
+    )
+  );
+  const regionChoices = facetChoices(
+    customers.map((row) => placeLabel(row)),
+    query.region
+  );
+  const industryChoices = facetChoices(
+    customers.map((row) => industryLabel(row)),
+    query.industry
+  );
 
   useEffect(() => {
     if (!selectedId) {
@@ -712,68 +766,43 @@ function ProfilesInner({
           }}
         />
       ) : null}
-      <div className="mb-4 flex flex-wrap gap-2">
-        <CrmSearch
-          inputRef={searchRef}
-          label="Search customers"
-          placeholder="Search name, email, city…"
-          value={q}
-          onChange={setQ}
-        />
-        <label className="sr-only" htmlFor="customer-status-filter">
-          Status
-        </label>
-        <select
-          id="customer-status-filter"
-          className="input min-h-11 !px-3 !py-2.5 !text-sm"
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-        >
-          <option value="all">All statuses</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-          <option value="prospect">Prospect</option>
-          <option value="on_hold">On hold</option>
-        </select>
-        <label className="sr-only" htmlFor="customer-sort">
-          Sort
-        </label>
-        <select
-          id="customer-sort"
-          className="input min-h-11 !px-3 !py-2.5 !text-sm"
-          value={sort}
-          onChange={(e) => setSort(e.target.value as 'name' | 'city' | 'status')}
-        >
-          <option value="name">Sort by name</option>
-          <option value="city">Sort by city</option>
-          <option value="status">Sort by status</option>
-        </select>
-        <div className="inline-flex rounded-full border border-neutral-200 bg-white p-1">
-          <button
-            type="button"
-            aria-pressed={layout === 'list'}
-            className={`min-h-11 rounded-full px-3 text-sm font-semibold ${layout === 'list' ? 'bg-[#00b4d8] text-slate-950' : 'text-slate-700'}`}
-            onClick={() => setLayout('list')}
-          >
-            List
-          </button>
-          <button
-            type="button"
-            aria-pressed={layout === 'table'}
-            className={`min-h-11 rounded-full px-3 text-sm font-semibold ${layout === 'table' ? 'bg-[#00b4d8] text-slate-950' : 'text-slate-700'}`}
-            onClick={() => setLayout('table')}
-          >
-            Table
-          </button>
-        </div>
-      </div>
+      <CardFilterBar
+        query={query}
+        onQuery={(next) => publishList(next)}
+        count={resultCount(visible.length, customers.length, 'customer')}
+        noun="customer"
+        searchLabel="Search customers"
+        placeholder="Search name, email, city…"
+        inputRef={searchRef}
+        statuses={statusSplit.primary}
+        moreStatuses={statusSplit.more}
+        regions={regionChoices}
+        industries={industryChoices}
+        sort={{
+          value: sort,
+          onChange: (value) => publishList(query, value),
+          options: [
+            { value: 'name', label: 'Name' },
+            { value: 'city', label: 'City' },
+            { value: 'status', label: 'Status' },
+          ],
+        }}
+        view={{
+          value: layout,
+          onChange: (value) => setLayout(value as 'list' | 'table'),
+          options: [
+            { value: 'list', label: 'Cards' },
+            { value: 'table', label: 'Table' },
+          ],
+        }}
+      />
 
       <div>
         {loading ? (
           <div className="rounded-3xl border border-neutral-200 bg-white p-4">
             <CrmSkeleton />
           </div>
-        ) : visible.length === 0 ? (
+        ) : customers.length === 0 ? (
           <CrmEmpty
             icon={Users}
             title="No customers in this view"
@@ -792,6 +821,20 @@ function ProfilesInner({
               void load();
             }}
           />
+        ) : visible.length === 0 ? (
+          <div className="rounded-3xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center">
+            <p className="text-lg font-black text-slate-950">No customers match</p>
+            <p className="mx-auto mt-2 max-w-sm text-sm text-slate-600">
+              Nothing in the book fits these filters. Clear them to see every customer.
+            </p>
+            <button
+              type="button"
+              onClick={() => publishList(emptyCardQuery())}
+              className="mt-5 inline-flex min-h-11 items-center rounded-full bg-[#00b4d8] px-5 text-sm font-bold text-slate-950"
+            >
+              Clear filters
+            </button>
+          </div>
         ) : layout === 'table' ? (
           <div className="overflow-x-auto rounded-3xl border border-neutral-200 bg-white">
             <table className="crm-table w-full text-sm">
@@ -838,22 +881,36 @@ function ProfilesInner({
               const held =
                 String(c.notes || '').includes('[credit hold]') ||
                 String(c.status || '').toLowerCase() === 'credit_hold';
-              const card = customerDossier(c);
+              const cardStats = [
+                {
+                  label: 'Credit',
+                  value:
+                    c.credit_limit != null
+                      ? formatMoney(c.credit_limit, c.currency || 'ZAR')
+                      : EMPTY_FIELD,
+                },
+                { label: 'Terms', value: c.payment_terms || EMPTY_FIELD },
+                {
+                  label: 'Rating',
+                  value: c.rating != null ? Number(c.rating).toFixed(1) : EMPTY_FIELD,
+                },
+              ];
               return (
                 <li key={c.id}>
                   <ProfileCard
                     name={c.trading_name}
+                    kicker={c.industry}
                     detail={
                       c.legal_name && c.legal_name !== c.trading_name ? c.legal_name : c.contact_name
                     }
-                    meta={[c.city, c.country].filter(Boolean).join(', ') || c.industry}
+                    meta={[c.city, c.country].filter(Boolean).join(', ')}
                     logoUrl={c.logo_url}
                     selected={isSelected}
                     onSelect={() => selectCustomer(isSelected ? null : c.id)}
-                    stats={card.stats}
+                    stats={cardStats}
                     chips={[
                       {
-                        label: (c.status || 'active').replace(/_/g, ' '),
+                        label: titleLabel(c.status || 'active'),
                         className: customerStatusClass(c.status),
                       },
                       {
