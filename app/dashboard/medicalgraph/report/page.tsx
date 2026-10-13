@@ -1,10 +1,12 @@
 'use client';
 
+import { useMemo } from 'react';
 import {
   LoadingBlock,
   MedicalgraphWorkbench,
   useMedicalgraph,
 } from '@/components/clinic/MedicalgraphWorkbench';
+import { SpecialDatesReport } from '@/components/advisors/SpecialDatesReport';
 import { DataTable, StatRow } from '@/components/clinic/MedicalForm';
 import { healthSummaryLabel, isInjured } from '@/lib/health/body-map';
 import ManagementReportPanel from '@/components/advisors/ManagementReportPanel';
@@ -24,6 +26,20 @@ export default function ReportPage() {
     }>) || [];
   const injured =
     store?.patients.filter((p) => isInjured(p.clinical)).length || 0;
+  const people = useMemo(
+    () =>
+      (store?.patients || []).map((patient) => ({
+        id: patient.id,
+        name: patient.name,
+        start_date: patient.start_date,
+        created_at: patient.created_at,
+        active: patient.active,
+        coach_id: patient.practitioner_id || null,
+        medical: patient.medical,
+        family: patient.family,
+      })),
+    [store?.patients]
+  );
 
   return (
     <MedicalgraphWorkbench
@@ -62,6 +78,18 @@ export default function ReportPage() {
           CLINIC_REPORT_STATUS_DIM,
         ]}
       />
+
+          <SpecialDatesReport
+            people={people}
+            place="practice"
+            hrefFor={(row) =>
+              `/dashboard/medicalgraph/patients/${encodeURIComponent(row.client_id)}`
+            }
+            assigneeLabel="Clinician"
+            assignees={(store.practitioners || [])
+              .filter((person) => person.active !== false)
+              .map((person) => ({ id: person.id, name: person.name }))}
+          />
 
           <StatRow
             items={[

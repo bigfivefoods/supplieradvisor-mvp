@@ -8,6 +8,7 @@ import {
 } from '@/components/fitness/FitgraphWorkbench';
 import ManagementReportPanel from '@/components/advisors/ManagementReportPanel';
 import { ClassSubscriptionReport } from '@/components/fitness/ClassSubscriptionReport';
+import { SpecialDatesReport } from '@/components/advisors/SpecialDatesReport';
 import { buildClassSubscriptionReport } from '@/lib/fitness/vuka-class-catalog';
 import { SYS_COACH_TIME_CODE, SYS_PT_CODE } from '@/lib/fitness/session-times';
 import { getCoachSpecialtyOptions } from '@/lib/fitness/fitgraph';
@@ -73,6 +74,17 @@ export default function FitReportPage() {
             advisor="fitgraph"
             dimensions={dimensions}
             className="mb-2"
+          />
+          <SpecialDatesReport
+            people={store.clients}
+            place="gym"
+            hrefFor={(row) =>
+              `/dashboard/fitgraph/clients?open=${encodeURIComponent(row.client_id)}`
+            }
+            assigneeLabel="Coach"
+            assignees={(store.coaches || [])
+              .filter((coach) => coach.active !== false)
+              .map((coach) => ({ id: coach.id, name: coach.name }))}
           />
           <ClassSubscriptionReport
             report={subscriptions}
