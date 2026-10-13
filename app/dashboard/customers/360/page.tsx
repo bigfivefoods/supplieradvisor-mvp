@@ -100,6 +100,11 @@ function Inner() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const id = Number(new URLSearchParams(window.location.search).get('id') || 0);
+    if (id) setOpenId(id);
+  }, [rows]);
+
   async function raiseRecurring() {
     setRaising(true);
     try {

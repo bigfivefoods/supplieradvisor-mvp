@@ -122,20 +122,44 @@ export function crmPreviewBook(today = crmToday()): CrmPreviewBook {
       trading_name: 'Harbour & Co',
       legal_name: 'Harbour and Company (Pty) Ltd',
       contact_name: 'Thandi Nkosi',
+      job_title: 'Procurement lead',
       email: 'thandi@harbourandco.example',
       phone: '+27 21 555 0142',
+      website: 'https://harbourandco.example',
       status: 'active',
       customer_type: 'business',
       city: 'Cape Town',
+      province: 'Western Cape',
+      postal_code: '8001',
       country: 'South Africa',
+      continent: 'Africa',
       industry: 'Food service',
       currency: 'ZAR',
       payment_terms: 'Net 30',
       credit_limit: 250000,
       vat_number: '4900000000',
+      registration_number: '2014/184422/07',
       billing_address: '14 Jetty Street, V&A Waterfront',
+      shipping_address: 'Warehouse 3, Duncan Road, Cape Town',
+      source: 'Referral',
+      owner_name: 'Craig Muller',
+      rating: 4.6,
       invite_status: 'accepted',
       notes: 'Prefers Tuesday delivery. Ask about the Super-Cube® leadership offsite in November.',
+      metadata: {
+        bee_level: 'Level 2',
+        tags: ['Key account', 'Tuesday delivery'],
+        contacts: [
+          {
+            name: 'James Hart',
+            role: 'Accounts',
+            email: 'james@harbourandco.example',
+            phone: '+27 21 555 0148',
+          },
+        ],
+        vat_certificate_url: 'https://example.invalid/harbour-vat.pdf',
+        bee_certificate_url: 'https://example.invalid/harbour-bee.pdf',
+      },
       created_at: ago(40),
       updated_at: ago(1),
     },
@@ -511,6 +535,66 @@ export function crmPreviewBook(today = crmToday()): CrmPreviewBook {
   };
 }
 
+/** Sample quotes, orders, and invoices. Negative customer ids only. Never written. */
+export function crmPreviewCommerce(customerId: number): {
+  quotes: Array<Record<string, unknown>>;
+  orders: Array<Record<string, unknown>>;
+  invoices: Array<Record<string, unknown>>;
+  openAr: number;
+} {
+  const book = crmPreviewBook();
+  const row = book.rows360.find((item) => item.customer_id === customerId);
+  const invoices = (row?.invoices || []).map((inv) => ({
+    id: inv.id,
+    status: inv.status,
+    invoice_number: inv.number,
+    customer_id: customerId,
+    total_amount: inv.total,
+    amount_paid: inv.paid,
+    currency: 'ZAR',
+    due_date: inv.due,
+    created_at: inv.due,
+  }));
+  if (customerId === -1) {
+    return {
+      openAr: row?.open_ar ?? 86400,
+      quotes: [
+        {
+          id: 'qt-2041',
+          status: 'sent',
+          quote_number: 'QT-2041',
+          customer_id: -1,
+          total_amount: 124000,
+          currency: 'ZAR',
+          created_at: book.today,
+        },
+        {
+          id: 'qt-1988',
+          status: 'accepted',
+          quote_number: 'QT-1988',
+          customer_id: -1,
+          total_amount: 210000,
+          currency: 'ZAR',
+          created_at: book.today,
+        },
+      ],
+      orders: [
+        {
+          id: 'so-3301',
+          status: 'processing',
+          order_number: 'SO-3301',
+          customer_id: -1,
+          total_amount: 86400,
+          currency: 'ZAR',
+          created_at: book.today,
+        },
+      ],
+      invoices,
+    };
+  }
+  return { quotes: [], orders: [], invoices, openAr: row?.open_ar ?? 0 };
+}
+
 /** Answers CRM GETs with the sample book. Returns null for anything else. */
 export function crmPreviewJson(url: string): unknown | null {
   let path = url;
@@ -544,7 +628,23 @@ export function crmPreviewJson(url: string): unknown | null {
     return { members: [{ user_id: 'demo-craig', name: 'Craig Muller', email: 'craig@example.com' }] };
   }
   if (path.startsWith('/api/core/customer-360')) {
-    return { rows: book.rows360, counts: book.counts360 };
+    const customerId = Number(params.get('customerId') || params.get('id') || 0);
+    const rows = customerId
+      ? book.rows360.filter((row) => row.customer_id === customerId)
+      : book.rows360;
+    return { success: true, rows, counts: book.counts360 };
+  }
+  if (path.startsWith('/api/customers/docs')) {
+    const customerId = Number(params.get('customerId') || 0);
+    const type = String(params.get('type') || 'quote').toLowerCase();
+    const pack = crmPreviewCommerce(customerId);
+    const documents =
+      type === 'order' || type === 'orders'
+        ? pack.orders
+        : type === 'invoice' || type === 'invoices'
+          ? pack.invoices
+          : pack.quotes;
+    return { success: true, documents, type };
   }
   if (path.startsWith('/api/sales/tasks')) {
     return {

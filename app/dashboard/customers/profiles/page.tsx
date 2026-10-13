@@ -53,10 +53,18 @@ import {
 import {
   CRM_SAMPLE_FLAG,
   crmPreviewBook,
+  crmPreviewCommerce,
   customerActivity,
   isCrmPreviewId,
   sortCrmRows,
 } from '@/lib/customers/crm-preview';
+import { ProfileCard } from '@/components/relationship/ProfileCard';
+import { ProfileSheet, type SheetAction } from '@/components/relationship/ProfileSheet';
+import {
+  customerDossier,
+  customerLedgerLines,
+  type DossierLine,
+} from '@/lib/relationship/profile-dossier';
 
 function sampleBookOn() {
   try {
@@ -72,7 +80,18 @@ function blockSampleWrite(id: number) {
   return true;
 }
 
-export default function CustomerProfilesPage() {
+export default function CustomerProfilesPage({
+  preview,
+}: {
+  preview?: { companyId: number; id: number | null };
+} = {}) {
+  if (preview) {
+    return (
+      <CompanyRequired assumedCompanyId={preview.companyId}>
+        <ProfilesInner urlId={preview.id ?? 0} assumedCompanyId={preview.companyId} />
+      </CompanyRequired>
+    );
+  }
   return (
     <CompanyRequired>
       <Suspense
@@ -84,24 +103,39 @@ export default function CustomerProfilesPage() {
           </CustomersPage>
         }
       >
-        <ProfilesInner />
+        <ProfilesFromSearch />
       </Suspense>
     </CompanyRequired>
   );
 }
 
-function ProfilesInner() {
-  const companyId = getSelectedCompanyId()!;
+function ProfilesFromSearch() {
+  const searchParams = useSearchParams();
+  const urlId = Number(searchParams.get('id') || 0);
+  return <ProfilesInner urlId={Number.isFinite(urlId) ? urlId : 0} />;
+}
+
+function ProfilesInner({
+  urlId,
+  assumedCompanyId,
+}: {
+  urlId: number;
+  assumedCompanyId?: number;
+}) {
+  const companyId = assumedCompanyId ?? getSelectedCompanyId()!;
+  const previewMode = assumedCompanyId != null;
+  const seededCustomers = previewMode ? crmPreviewBook().customers : [];
+  const seedId = Number.isFinite(urlId) && urlId !== 0 ? urlId : null;
+  const seedCustomer =
+    previewMode && seedId ? seededCustomers.find((row) => row.id === seedId) || null : null;
+  const seedPack =
+    previewMode && seedId && isCrmPreviewId(seedId) ? crmPreviewCommerce(seedId) : null;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const urlId = Number(searchParams.get('id') || 0);
-  const [selectedId, setSelectedId] = useState<number | null>(
-    Number.isFinite(urlId) && urlId !== 0 ? urlId : null
-  );
-  const [customers, setCustomers] = useState<CustomerRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState<number | null>(seedId);
+  const [customers, setCustomers] = useState<CustomerRecord[]>(seededCustomers);
+  const [loading, setLoading] = useState(!previewMode);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('all');
   const [inviteOpenId, setInviteOpenId] = useState<number | null>(null);
@@ -110,11 +144,23 @@ function ProfilesInner() {
     Record<number, PartyRoleRow>
   >({});
   const [commercialId, setCommercialId] = useState<number | null>(null);
-  const [bookHold, setBookHold] = useState<CustomerRecord | null>(null);
+  const [bookHold, setBookHold] = useState<CustomerRecord | null>(seedCustomer);
   const [bookMiss, setBookMiss] = useState(false);
   const [sort, setSort] = useState<'name' | 'city' | 'status'>('name');
   const [layout, setLayout] = useState<'list' | 'table'>('list');
-  const [sample, setSample] = useState(false);
+  const [sample, setSample] = useState(previewMode);
+  const [lines, setLines] = useState<DossierLine[]>(
+    seedPack
+      ? customerLedgerLines({
+          quotes: seedPack.quotes,
+          orders: seedPack.orders,
+          invoices: seedPack.invoices,
+          customerId: seedId || 0,
+        })
+      : []
+  );
+  const [openAr, setOpenAr] = useState<number | null>(seedPack ? seedPack.openAr : null);
+  const [ledgerState, setLedgerState] = useState<'ready' | 'loading' | 'error'>('ready');
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -127,7 +173,8 @@ function ProfilesInner() {
     setSelectedId(id);
     if (id !== commercialId) setCommercialId(null);
     const onWalkthrough =
-      typeof window !== 'undefined' && window.location.pathname.startsWith('/preview/crm');
+      previewMode ||
+      (typeof window !== 'undefined' && window.location.pathname.startsWith('/preview/crm'));
     if (onWalkthrough) {
       const next = new URLSearchParams(window.location.search);
       next.set('screen', 'profiles');
@@ -136,7 +183,7 @@ function ProfilesInner() {
       router.replace(`/preview/crm?${next.toString()}`, { scroll: false });
       return;
     }
-    const next = new URLSearchParams(searchParams.toString());
+    const next = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
     if (id) next.set('id', String(id));
     else next.delete('id');
     const qs = next.toString();
@@ -146,14 +193,17 @@ function ProfilesInner() {
   };
 
   const load = useCallback(async () => {
-    setLoading(true);
-    if (sampleBookOn()) {
-      setSample(true);
+    const onPreview =
+      previewMode ||
+      (typeof window !== 'undefined' && window.location.pathname.startsWith('/preview/crm'));
+    if (sampleBookOn() || onPreview) {
+      setSample(sampleBookOn() || previewMode);
       setCustomers(crmPreviewBook().customers);
       setPartyByCustomer({});
       setLoading(false);
       return;
     }
+    setLoading(true);
     setSample(false);
     try {
       const params = new URLSearchParams({ companyId: String(companyId) });
@@ -179,7 +229,7 @@ function ProfilesInner() {
     } finally {
       setLoading(false);
     }
-  }, [companyId, q, status]);
+  }, [companyId, previewMode, q, status]);
 
   useEffect(() => {
     const t = setTimeout(() => void load(), 200);
@@ -410,6 +460,71 @@ function ProfilesInner() {
     return sortCrmRows(rows, pick);
   }, [customers, sample, q, status, sort]);
 
+  useEffect(() => {
+    if (!selectedId) {
+      setLines([]);
+      setOpenAr(null);
+      setLedgerState('ready');
+      return;
+    }
+    if (isCrmPreviewId(selectedId)) {
+      const pack = crmPreviewCommerce(selectedId);
+      setLines(
+        customerLedgerLines({
+          quotes: pack.quotes,
+          orders: pack.orders,
+          invoices: pack.invoices,
+          customerId: selectedId,
+        })
+      );
+      setOpenAr(pack.openAr);
+      setLedgerState('ready');
+      return;
+    }
+    let cancelled = false;
+    setLedgerState('loading');
+    void (async () => {
+      try {
+        const base = `/api/customers/docs?companyId=${companyId}&customerId=${selectedId}&limit=6`;
+        const [quotesRes, ordersRes, invoicesRes, balanceRes] = await Promise.all([
+          fetch(`${base}&type=quote`),
+          fetch(`${base}&type=order`),
+          fetch(`${base}&type=invoice`),
+          fetch(`/api/core/customer-360?companyId=${companyId}&customerId=${selectedId}`),
+        ]);
+        const [quotes, orders, invoices, balance] = await Promise.all([
+          quotesRes.json(),
+          ordersRes.json(),
+          invoicesRes.json(),
+          balanceRes.json(),
+        ]);
+        if (cancelled) return;
+        setLines(
+          customerLedgerLines({
+            quotes: quotes.documents,
+            orders: orders.documents,
+            invoices: invoices.documents,
+            customerId: selectedId,
+          })
+        );
+        const row = ((balance.rows || []) as Array<{ customer_id?: number; open_ar?: number }>).find(
+          (item) => Number(item.customer_id) === selectedId
+        );
+        setOpenAr(row && row.open_ar != null ? Number(row.open_ar) : null);
+        setLedgerState(quotesRes.ok || ordersRes.ok || invoicesRes.ok ? 'ready' : 'error');
+      } catch {
+        if (!cancelled) {
+          setLines([]);
+          setOpenAr(null);
+          setLedgerState('error');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, selectedId]);
+
   useCrmKeys({
     onSearch: () => searchRef.current?.focus(),
     onCreate: () => {
@@ -438,6 +553,117 @@ function ProfilesInner() {
       prev.map((row) => (row.id === saved.id ? { ...row, ...saved } : row))
     );
   };
+
+  const onWalkthrough = previewMode;
+  const party = selected ? partyByCustomer[selected.id] : undefined;
+  const dossier = selected
+    ? customerDossier(selected, {
+        lines,
+        openAr,
+        ledgerState,
+        activity: customerActivity({
+          name: selected.trading_name,
+          created_at: selected.created_at,
+          updated_at: selected.updated_at,
+          notes: selected.notes,
+          invite_status: selected.invite_status,
+          contact_name: selected.contact_name,
+          city: selected.city,
+        }).map((item) => ({
+          id: item.id,
+          at: item.at,
+          title: item.title,
+          detail: item.detail,
+        })),
+        books: party
+          ? {
+              role: party.role,
+              ar: party.ar_account_code,
+              ap: party.ap_account_code,
+            }
+          : undefined,
+      })
+    : null;
+  const connection = selected ? resolveCustomerConnectionPhase(selected) : null;
+  const profileActions: SheetAction[] = selected
+    ? [
+        {
+          id: '360',
+          label: 'Open Customer 360',
+          href: onWalkthrough
+            ? `/preview/crm?screen=360&id=${selected.id}`
+            : `/dashboard/customers/360?id=${selected.id}`,
+          tone: 'primary',
+        },
+        {
+          id: 'quote',
+          label: 'Quote',
+          href: `/dashboard/customers/quotes?customerId=${selected.id}`,
+        },
+        {
+          id: 'order',
+          label: 'Order',
+          href: `/dashboard/customers/orders?customerId=${selected.id}`,
+        },
+        {
+          id: 'invoice',
+          label: 'Invoice',
+          href: `/dashboard/customers/invoices?customerId=${selected.id}`,
+        },
+        {
+          id: 'record',
+          label: 'Full record',
+          href: `/dashboard/customers/onboard?id=${selected.id}`,
+        },
+        ...(canInviteCustomer(selected)
+          ? [
+              {
+                id: 'invite',
+                label: customerInviteActionLabel(selected),
+                onClick: () => setInviteOpenId(selected.id),
+              } satisfies SheetAction,
+            ]
+          : []),
+        {
+          id: 'portal',
+          label: 'Portal',
+          onClick: () => void issuePortal(selected),
+          disabled: actionId === selected.id || !privyUserId,
+        },
+        {
+          id: 'commercial',
+          label: commercialId === selected.id ? 'Hide commercial' : 'Commercial',
+          onClick: () =>
+            setCommercialId((cur) => (cur === selected.id ? null : selected.id)),
+        },
+        ...(connection === 'accepted'
+          ? [
+              {
+                id: 'suspend',
+                label: 'Suspend',
+                onClick: () => void setSuspended(selected, true),
+                disabled: actionId === selected.id || !privyUserId,
+              } satisfies SheetAction,
+            ]
+          : []),
+        ...(connection === 'suspended'
+          ? [
+              {
+                id: 'restore',
+                label: 'Restore',
+                onClick: () => void setSuspended(selected, false),
+                disabled: actionId === selected.id || !privyUserId,
+              } satisfies SheetAction,
+            ]
+          : []),
+        {
+          id: 'delete',
+          label: 'Delete',
+          tone: 'danger',
+          onClick: () => void remove(selected.id),
+        },
+      ]
+    : [];
 
   return (
     <CustomersPage>
@@ -542,10 +768,9 @@ function ProfilesInner() {
         </div>
       </div>
 
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)]">
-        <div className="overflow-hidden rounded-3xl border border-neutral-200 bg-white lg:order-1">
+      <div>
         {loading ? (
-          <div className="p-4">
+          <div className="rounded-3xl border border-neutral-200 bg-white p-4">
             <CrmSkeleton />
           </div>
         ) : visible.length === 0 ? (
@@ -568,7 +793,7 @@ function ProfilesInner() {
             }}
           />
         ) : layout === 'table' ? (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto rounded-3xl border border-neutral-200 bg-white">
             <table className="crm-table w-full text-sm">
               <thead className="border-b text-left text-xs text-slate-600">
                 <tr>
@@ -607,117 +832,109 @@ function ProfilesInner() {
             </table>
           </div>
         ) : (
-          <ul className="divide-y divide-neutral-100">
+          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {visible.map((c) => {
               const isSelected = selectedId === c.id;
               const held =
                 String(c.notes || '').includes('[credit hold]') ||
                 String(c.status || '').toLowerCase() === 'credit_hold';
+              const card = customerDossier(c);
               return (
-                <li
-                  key={c.id}
-                  className={`flex items-start gap-3 px-3 py-3 sm:px-4 sm:py-3.5 ${
-                    isSelected ? 'bg-sky-50/80' : ''
-                  }`}
-                >
-                    <AccountLogoField
-                      companyId={companyId}
-                      privyUserId={privyUserId}
-                      kind="customer"
-                      recordId={c.id}
-                      logoUrl={c.logo_url}
-                      name={c.trading_name}
-                      size="sm"
-                      compact
-                      onChange={(url) => {
-                        setCustomers((prev) =>
-                          prev.map((row) =>
-                            row.id === c.id ? { ...row, logo_url: url } : row
-                          )
-                        );
-                        setBookHold((prev) =>
-                          prev && prev.id === c.id ? { ...prev, logo_url: url } : prev
-                        );
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => selectCustomer(isSelected ? null : c.id)}
-                      className="min-h-11 min-w-0 flex-1 py-0.5 text-left"
-                    >
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold text-slate-900">{c.trading_name}</span>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${customerStatusClass(c.status)}`}
-                        >
-                          {(c.status || 'active').replace(/_/g, ' ')}
-                        </span>
-                        {held ? (
-                          <span className="rounded-full border border-rose-100 bg-rose-50 px-2 py-0.5 text-[10px] font-bold uppercase text-rose-800">
-                            Credit hold
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="mt-0.5 block truncate text-xs text-neutral-500">
-                        {[c.contact_name, c.city, c.country].filter(Boolean).join(' · ') ||
-                          c.legal_name ||
-                          c.industry ||
-                          '—'}
-                      </span>
-                      <span
-                        className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase sm:hidden ${customerInviteStatusClass(c.invite_status, c.linked_profile_id)}`}
-                      >
-                        {customerInviteStatusLabel(c.invite_status, c.linked_profile_id)}
-                      </span>
-                    </button>
-                    <span
-                      className={`mt-1 hidden shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase sm:inline-flex ${customerInviteStatusClass(c.invite_status, c.linked_profile_id)}`}
-                    >
-                      {customerInviteStatusLabel(c.invite_status, c.linked_profile_id)}
-                    </span>
+                <li key={c.id}>
+                  <ProfileCard
+                    name={c.trading_name}
+                    detail={
+                      c.legal_name && c.legal_name !== c.trading_name ? c.legal_name : c.contact_name
+                    }
+                    meta={[c.city, c.country].filter(Boolean).join(', ') || c.industry}
+                    logoUrl={c.logo_url}
+                    selected={isSelected}
+                    onSelect={() => selectCustomer(isSelected ? null : c.id)}
+                    stats={card.stats}
+                    chips={[
+                      {
+                        label: (c.status || 'active').replace(/_/g, ' '),
+                        className: customerStatusClass(c.status),
+                      },
+                      {
+                        label: customerInviteStatusLabel(c.invite_status, c.linked_profile_id),
+                        className: customerInviteStatusClass(c.invite_status, c.linked_profile_id),
+                      },
+                      ...(held
+                        ? [{ label: 'Credit hold', className: 'bg-rose-50 text-rose-800' }]
+                        : []),
+                    ]}
+                  />
                 </li>
               );
             })}
           </ul>
         )}
-        </div>
-
-        <div className="order-first lg:sticky lg:top-24 lg:order-2">
-          {selected ? (
-            <CustomerAccountPanel
-              customer={selected}
+      </div>
+      {selected && dossier ? (
+        <ProfileSheet
+          dossier={dossier}
+          actions={profileActions}
+          onClose={() => selectCustomer(null)}
+        >
+          {commercialId === selected.id ? (
+            <HostCommercial
               companyId={companyId}
-              privyUserId={privyUserId}
-              party={partyByCustomer[selected.id]}
-              busy={actionId === selected.id}
-              inviting={inviteOpenId === selected.id}
-              commercialOpen={commercialId === selected.id}
-              bookReady={bookReady}
-              bookMiss={bookMiss}
-              onClose={() => selectCustomer(null)}
-              onSaved={mergeSaved}
-              onChanged={() => void load()}
-              onToggleCommercial={() =>
-                setCommercialId((cur) => (cur === selected.id ? null : selected.id))
+              partyKind="customer"
+              customerId={selected.id}
+              partyName={selected.trading_name || 'Customer'}
+            />
+          ) : null}
+          {inviteOpenId === selected.id && canInviteCustomer(selected) ? (
+            <InviteCustomerButton
+              key={selected.id}
+              customerId={selected.id}
+              customerName={selected.trading_name}
+              defaultEmail={selected.email || selected.invited_email || ''}
+              defaultContactName={selected.contact_name || ''}
+              defaultOpen
+              resend={
+                selected.invite_status === 'invited' ||
+                selected.invite_status === 'declined' ||
+                selected.invite_status === 'expired'
               }
-              onInvite={() => setInviteOpenId(selected.id)}
-              onCancelInvite={() => setInviteOpenId(null)}
-              onInvited={() => {
+              onCancel={() => setInviteOpenId(null)}
+              onSent={() => {
                 setInviteOpenId(null);
                 void load();
               }}
-              onPortal={() => void issuePortal(selected)}
-              onSuspend={(suspend) => void setSuspended(selected, suspend)}
-              onClearHold={() => void clearCreditHold(selected)}
-              onDelete={() => void remove(selected.id)}
             />
-          ) : (
-            <div className="hidden rounded-[1.5rem] border border-dashed border-neutral-200 bg-white/70 px-5 py-10 text-center text-sm text-neutral-500 lg:block">
-              Select a customer to see the account, credit, and the next quote or invoice.
-            </div>
-          )}
-        </div>
-      </div>
+          ) : null}
+          <CustomerAccountPanel
+            embedded
+            customer={selected}
+            companyId={companyId}
+            privyUserId={privyUserId}
+            party={partyByCustomer[selected.id]}
+            busy={actionId === selected.id}
+            inviting={inviteOpenId === selected.id}
+            commercialOpen={commercialId === selected.id}
+            bookReady={bookReady}
+            bookMiss={bookMiss}
+            onClose={() => selectCustomer(null)}
+            onSaved={mergeSaved}
+            onChanged={() => void load()}
+            onToggleCommercial={() =>
+              setCommercialId((cur) => (cur === selected.id ? null : selected.id))
+            }
+            onInvite={() => setInviteOpenId(selected.id)}
+            onCancelInvite={() => setInviteOpenId(null)}
+            onInvited={() => {
+              setInviteOpenId(null);
+              void load();
+            }}
+            onPortal={() => void issuePortal(selected)}
+            onSuspend={(suspend) => void setSuspended(selected, suspend)}
+            onClearHold={() => void clearCreditHold(selected)}
+            onDelete={() => void remove(selected.id)}
+          />
+        </ProfileSheet>
+      ) : null}
     </CustomersPage>
   );
 }
@@ -796,6 +1013,7 @@ function CustomerAccountPanel({
   onSuspend,
   onClearHold,
   onDelete,
+  embedded = false,
 }: {
   customer: CustomerRecord;
   companyId: number;
@@ -817,6 +1035,7 @@ function CustomerAccountPanel({
   onSuspend: (suspend: boolean) => void;
   onClearHold: () => void;
   onDelete: () => void;
+  embedded?: boolean;
 }) {
   const phase = resolveCustomerConnectionPhase(c);
   const held =
@@ -893,8 +1112,24 @@ function CustomerAccountPanel({
     ? STATUS_OPTIONS
     : [form.status, ...STATUS_OPTIONS];
 
+  const Root = embedded ? 'details' : 'aside';
   return (
-    <aside className="rounded-[1.5rem] border border-neutral-200 bg-white p-4 shadow-sm lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
+    <Root
+      className={
+        embedded
+          ? 'rounded-3xl border border-slate-200 bg-white'
+          : 'rounded-[1.5rem] border border-neutral-200 bg-white p-4 shadow-sm lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto'
+      }
+    >
+      {embedded ? (
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-black text-slate-950">
+          Edit this record
+          <span className="text-xs font-semibold text-slate-500">Quotes copy these terms</span>
+        </summary>
+      ) : null}
+      <div className={embedded ? 'border-t border-slate-100 p-4' : ''}>
+      {!embedded ? (
+      <>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-widest text-[#0077b6]">
@@ -929,6 +1164,19 @@ function CustomerAccountPanel({
           {(c.customer_type || 'business').replace(/_/g, ' ')}
         </span>
       </div>
+      </>
+      ) : null}
+
+      <AccountLogoField
+        companyId={companyId}
+        privyUserId={privyUserId}
+        kind="customer"
+        recordId={c.id}
+        logoUrl={c.logo_url}
+        name={form.trading_name || c.trading_name}
+        size="lg"
+        onChange={(url) => onSaved({ ...c, logo_url: url })}
+      />
 
       {bookReady ? (
         <div className="mt-4 grid gap-3 sm:grid-cols-2 [&_input]:min-h-11 [&_select]:min-h-11">
@@ -1118,6 +1366,7 @@ function CustomerAccountPanel({
         </div>
       ) : null}
 
+      {!embedded ? (
       <div className="mt-4">
         <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Activity</p>
         <div className="mt-2">
@@ -1134,6 +1383,7 @@ function CustomerAccountPanel({
           />
         </div>
       </div>
+      ) : null}
 
       <div className="mt-4">
         <PartyBookRoleSelect
@@ -1156,6 +1406,7 @@ function CustomerAccountPanel({
         ) : null}
       </div>
 
+      {!embedded ? (
       <div className="mt-4 grid grid-cols-2 gap-2">
         <Link
           href={`/dashboard/customers/onboard?id=${c.id}`}
@@ -1234,8 +1485,9 @@ function CustomerAccountPanel({
           <Trash2 className="h-4 w-4" /> Delete
         </button>
       </div>
+      ) : null}
 
-      {inviting && canInviteCustomer(c) ? (
+      {!embedded && inviting && canInviteCustomer(c) ? (
         <div className="mt-3">
           <InviteCustomerButton
             key={c.id}
@@ -1255,7 +1507,7 @@ function CustomerAccountPanel({
         </div>
       ) : null}
 
-      {commercialOpen ? (
+      {!embedded && commercialOpen ? (
         <div className="mt-4">
           <HostCommercial
             companyId={companyId}
@@ -1265,7 +1517,8 @@ function CustomerAccountPanel({
           />
         </div>
       ) : null}
-    </aside>
+      </div>
+    </Root>
   );
 }
 

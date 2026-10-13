@@ -5,8 +5,6 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Loader2,
-  ShieldCheck,
-  Star,
   Mail,
   Trash2,
 } from 'lucide-react';
@@ -17,19 +15,17 @@ import { getCanonicalUserId } from '@/lib/auth/identity';
 import {
   inviteStatusClass,
   srmStatusClass,
-  trustBand,
   type SrmSupplierRecord,
+  type SupplierOtifefRow,
 } from '@/lib/suppliers/types';
 import {
   CompanyRequired,
   SuppliersHeader,
   SuppliersPage,
 } from '@/components/suppliers/SuppliersShell';
-import { AccountLogoField } from '@/components/relationship/AccountLogoField';
 import { SupplierBookProfile } from '@/components/suppliers/SupplierBookProfile';
 import type { PartyRoleRow } from '@/lib/accounting/party-roles';
 import { glCodeFromMeta } from '@/lib/accounting/party-roles';
-import { PartyBookRoleSelect } from '@/components/accounting/PartyBookRoleSelect';
 import {
   SrmBoard,
   SrmEmpty,
@@ -45,11 +41,32 @@ import {
   compareNum,
   compareText,
   supplierBoardColumn,
+  supplierTimeline,
   SUPPLIER_BOARD_COLUMNS,
   type SrmView,
 } from '@/lib/suppliers/srm-desk';
+import { ProfileCard } from '@/components/relationship/ProfileCard';
+import { ProfileSheet, type SheetAction } from '@/components/relationship/ProfileSheet';
+import {
+  supplierDossier,
+  supplierLedgerLines,
+  type DossierDoc,
+  type DossierLine,
+} from '@/lib/relationship/profile-dossier';
+import { isSrmPreviewId, srmPreviewBook } from '@/lib/suppliers/srm-preview';
 
-export default function SupplierNetworkPage() {
+export default function SupplierNetworkPage({
+  preview,
+}: {
+  preview?: { companyId: number; id: number | null };
+} = {}) {
+  if (preview) {
+    return (
+      <CompanyRequired assumedCompanyId={preview.companyId}>
+        <NetworkInner urlId={preview.id ?? 0} assumedCompanyId={preview.companyId} />
+      </CompanyRequired>
+    );
+  }
   return (
     <CompanyRequired>
       <Suspense
@@ -61,30 +78,62 @@ export default function SupplierNetworkPage() {
           </SuppliersPage>
         }
       >
-        <NetworkInner />
+        <NetworkFromSearch />
       </Suspense>
     </CompanyRequired>
   );
 }
 
-function NetworkInner() {
-  const companyId = getSelectedCompanyId()!;
+function NetworkFromSearch() {
+  const searchParams = useSearchParams();
+  const urlId = Number(searchParams.get('id') || 0);
+  return <NetworkInner urlId={Number.isFinite(urlId) ? urlId : 0} />;
+}
+
+function NetworkInner({
+  urlId,
+  assumedCompanyId,
+}: {
+  urlId: number;
+  assumedCompanyId?: number;
+}) {
+  const companyId = assumedCompanyId ?? getSelectedCompanyId()!;
+  const previewMode = assumedCompanyId != null;
+  const previewBook = previewMode ? srmPreviewBook() : null;
+  const seedId = Number.isFinite(urlId) && urlId !== 0 ? urlId : null;
+  const seedSupplier =
+    previewBook && seedId ? previewBook.suppliers.find((row) => row.id === seedId) || null : null;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const urlId = Number(searchParams.get('id') || 0);
-  const [rows, setRows] = useState<SrmSupplierRecord[]>([]);
+  const [rows, setRows] = useState<SrmSupplierRecord[]>(previewBook?.suppliers || []);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('all');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!previewMode);
   const [busyId, setBusyId] = useState<number | null>(null);
-  const [selectedId, setSelectedId] = useState<number | null>(
-    Number.isFinite(urlId) && urlId > 0 ? urlId : null
+  const [selectedId, setSelectedId] = useState<number | null>(seedId);
+  const [lines, setLines] = useState<DossierLine[]>(
+    previewBook && seedId ? supplierLedgerLines(previewBook.purchaseOrders, seedId) : []
   );
-  const [selectedHold, setSelectedHold] = useState<SrmSupplierRecord | null>(
-    null
+  const [vault, setVault] = useState<DossierDoc[]>(
+    previewBook && seedId
+      ? previewBook.documents
+          .filter((doc) => Number(doc.supplier_id) === seedId)
+          .map((doc) => ({
+            id: String(doc.id),
+            name: String(doc.title || 'Document'),
+            state: 'on_file' as const,
+            href: doc.file_url ? String(doc.file_url) : null,
+          }))
+      : []
   );
+  const [scorecard, setScorecard] = useState<Partial<SupplierOtifefRow> | null>(
+    previewBook && seedId
+      ? previewBook.scorecards.find((row) => row.srm_supplier_id === seedId) || null
+      : null
+  );
+  const [ledgerState, setLedgerState] = useState<'ready' | 'loading' | 'error'>('ready');
+  const [selectedHold, setSelectedHold] = useState<SrmSupplierRecord | null>(seedSupplier);
   const [partyBySupplier, setPartyBySupplier] = useState<
     Record<number, PartyRoleRow>
   >({});
@@ -92,17 +141,19 @@ function NetworkInner() {
   const [sort, setSort] = useState<'name' | 'trust' | 'otifef'>('name');
 
   useEffect(() => {
-    if (Number.isFinite(urlId) && urlId > 0) setSelectedId(urlId);
+    if (Number.isFinite(urlId) && urlId !== 0) setSelectedId(urlId);
   }, [urlId]);
 
   const setUrlId = (id: number | null) => {
-    const next = new URLSearchParams(searchParams.toString());
-    if (id && id > 0) next.set('id', String(id));
+    const onWalkthrough =
+      previewMode ||
+      (typeof window !== 'undefined' && window.location.pathname.startsWith('/preview/srm'));
+    const next = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+    if (id) next.set('id', String(id));
     else next.delete('id');
     const qs = next.toString();
-    router.replace(`/dashboard/suppliers/network${qs ? `?${qs}` : ''}`, {
-      scroll: false,
-    });
+    const path = onWalkthrough ? '/preview/srm' : '/dashboard/suppliers/network';
+    router.replace(`${path}${qs ? `?${qs}` : ''}`, { scroll: false });
   };
 
   const selectSupplier = (s: SrmSupplierRecord | null) => {
@@ -112,6 +163,15 @@ function NetworkInner() {
   };
 
   const load = useCallback(async () => {
+    if (
+      previewMode ||
+      (typeof window !== 'undefined' && window.location.pathname.startsWith('/preview/srm'))
+    ) {
+      setRows(srmPreviewBook().suppliers);
+      setPartyBySupplier({});
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const params = new URLSearchParams({ companyId: String(companyId) });
@@ -138,7 +198,7 @@ function NetworkInner() {
     } finally {
       setLoading(false);
     }
-  }, [companyId, status, q]);
+  }, [companyId, previewMode, status, q]);
 
   useEffect(() => {
     const t = setTimeout(() => void load(), 200);
@@ -147,6 +207,11 @@ function NetworkInner() {
 
   useEffect(() => {
     if (!selectedId) return;
+    if (isSrmPreviewId(selectedId)) {
+      const found = srmPreviewBook().suppliers.find((row) => row.id === selectedId) || null;
+      if (found) setSelectedHold(found);
+      return;
+    }
     let cancelled = false;
     void (async () => {
       const params = new URLSearchParams({
@@ -164,7 +229,20 @@ function NetworkInner() {
   }, [companyId, selectedId]);
 
   const visible = useMemo(() => {
-    const copy = [...rows];
+    let copy = [...rows];
+    if (copy.some((row) => isSrmPreviewId(row.id))) {
+      const query = q.trim().toLowerCase();
+      if (query) {
+        copy = copy.filter((s) =>
+          [s.trading_name, s.legal_name, s.email, s.city, s.industry, ...(s.certifications || [])]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+            .includes(query)
+        );
+      }
+      if (status !== 'all') copy = copy.filter((s) => (s.status || 'prospect') === status);
+    }
     copy.sort((a, b) => {
       if (sort === 'trust') {
         return compareNum(Number(a.trust_score || 0), Number(b.trust_score || 0), 'desc');
@@ -175,7 +253,7 @@ function NetworkInner() {
       return compareText(a.trading_name || '', b.trading_name || '', 'asc');
     });
     return copy;
-  }, [rows, sort]);
+  }, [rows, sort, q, status]);
 
   const listRow = rows.find((s) => s.id === selectedId);
   const selected =
@@ -183,7 +261,84 @@ function NetworkInner() {
       ? { ...(listRow || {}), ...selectedHold }
       : listRow || null;
 
+  useEffect(() => {
+    if (!selectedId) {
+      setLines([]);
+      setVault([]);
+      setScorecard(null);
+      setLedgerState('ready');
+      return;
+    }
+    if (isSrmPreviewId(selectedId)) {
+      const book = srmPreviewBook();
+      setLines(supplierLedgerLines(book.purchaseOrders, selectedId));
+      setVault(
+        book.documents
+          .filter((doc) => Number(doc.supplier_id) === selectedId)
+          .map((doc) => ({
+            id: String(doc.id),
+            name: String(doc.title || 'Document'),
+            state: 'on_file' as const,
+            href: doc.file_url ? String(doc.file_url) : null,
+          }))
+      );
+      setScorecard(book.scorecards.find((row) => row.srm_supplier_id === selectedId) || null);
+      setLedgerState('ready');
+      return;
+    }
+    let cancelled = false;
+    setLedgerState('loading');
+    void (async () => {
+      try {
+        const [poRes, docRes, scoreRes] = await Promise.all([
+          fetch(
+            `/api/suppliers/purchase-orders?companyId=${companyId}${
+              privyUserId ? `&privyUserId=${encodeURIComponent(privyUserId)}` : ''
+            }`
+          ),
+          fetch(`/api/suppliers/documents?companyId=${companyId}&supplierId=${selectedId}`),
+          fetch(`/api/suppliers/otifef?companyId=${companyId}`),
+        ]);
+        const [poData, docData, scoreData] = await Promise.all([
+          poRes.json(),
+          docRes.json(),
+          scoreRes.json(),
+        ]);
+        if (cancelled) return;
+        setLines(supplierLedgerLines(poData.purchaseOrders || [], selectedId));
+        setVault(
+          ((docData.documents || []) as Array<Record<string, unknown>>).map((doc, index) => ({
+            id: String(doc.id || `vault-${index}`),
+            name: String(doc.title || doc.doc_type || 'Document'),
+            state: 'on_file' as const,
+            href: doc.file_url ? String(doc.file_url) : null,
+          }))
+        );
+        const row = ((scoreData.rows || []) as SupplierOtifefRow[]).find(
+          (item) =>
+            Number(item.srm_supplier_id) === selectedId || Number(item.supplier_id) === selectedId
+        );
+        setScorecard(row || null);
+        setLedgerState(poRes.ok || docRes.ok ? 'ready' : 'error');
+      } catch {
+        if (!cancelled) {
+          setLines([]);
+          setVault([]);
+          setScorecard(null);
+          setLedgerState('error');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, privyUserId, selectedId]);
+
   const invite = async (s: SrmSupplierRecord) => {
+    if (isSrmPreviewId(s.id)) {
+      toast.message('Sample book — nothing is saved on SupplierAdvisor®');
+      return;
+    }
     if (!privyUserId) {
       toast.error('Sign in required');
       return;
@@ -240,6 +395,10 @@ function NetworkInner() {
   };
 
   const remove = async (s: SrmSupplierRecord) => {
+    if (isSrmPreviewId(s.id)) {
+      toast.message('Sample book — nothing is saved on SupplierAdvisor®');
+      return;
+    }
     if (!privyUserId) {
       toast.error('Sign in required');
       return;
@@ -275,12 +434,83 @@ function NetworkInner() {
     }
   };
 
+  const supplierParty = selected ? partyBySupplier[selected.id] : undefined;
+  const dossier = selected
+    ? supplierDossier(selected, {
+        lines,
+        vault,
+        scorecard,
+        ledgerState,
+        activity: supplierTimeline(selected).map((event) => ({
+          id: event.id,
+          at: event.at.slice(0, 10),
+          title: event.title,
+          detail: event.detail,
+        })),
+        books: supplierParty
+          ? {
+              role: supplierParty.role,
+              ar: supplierParty.ar_account_code,
+              ap: supplierParty.ap_account_code || glCodeFromMeta(selected.metadata),
+            }
+          : undefined,
+      })
+    : null;
+  const profileActions: SheetAction[] = selected
+    ? [
+        {
+          id: 'scorecard',
+          label: 'Open scorecard',
+          href: '/dashboard/suppliers/performance',
+          tone: 'primary',
+        },
+        {
+          id: 'po',
+          label: 'Raise PO',
+          href: `/dashboard/suppliers/po?supplierId=${selected.id}`,
+        },
+        {
+          id: 'docs',
+          label: 'Documents',
+          href: '/dashboard/suppliers/documents',
+        },
+        {
+          id: 'portal',
+          label: 'Portal',
+          href: '/dashboard/suppliers/portal',
+        },
+        ...(!selected.linked_profile_id &&
+        selected.invite_status !== 'accepted' &&
+        selected.email
+          ? [
+              {
+                id: 'invite',
+                label: 'Invite',
+                onClick: () => void invite(selected),
+                disabled: busyId === selected.id,
+              } satisfies SheetAction,
+            ]
+          : []),
+        ...(selected.status !== 'archived'
+          ? [
+              {
+                id: 'delete',
+                label: 'Delete',
+                tone: 'danger' as const,
+                onClick: () => void remove(selected),
+                disabled: busyId === selected.id,
+              } satisfies SheetAction,
+            ]
+          : []),
+      ]
+    : [];
+
   return (
     <SuppliersPage>
       <div className="pb-8">
         <SuppliersHeader
           title="My supplier network"
-          description="The supply book. Open a row for the profile, documents, and purchase order. Invite and delete stay on the row."
+          description="The supply book. Open a profile card for every field, the scorecard, and the purchase orders."
           action={
             <div className="flex flex-wrap gap-2">
               <Link
@@ -289,7 +519,10 @@ function NetworkInner() {
               >
                 Discover
               </Link>
-              <Link href="/dashboard/suppliers/add" className="btn-primary !py-2.5 !px-5 text-sm">
+              <Link
+                href="/dashboard/suppliers/add"
+                className="inline-flex min-h-11 items-center rounded-full bg-[#00b4d8] px-5 text-sm font-bold text-slate-950"
+              >
                 Add supplier
               </Link>
             </div>
@@ -330,8 +563,8 @@ function NetworkInner() {
           <SrmViewSwitch value={view} onChange={setView} />
         </SrmToolbar>
 
-        <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] gap-4 items-start">
-        <div className="min-w-0 lg:order-1">
+        <div>
+        <div className="min-w-0">
           {loading ? (
             <SrmSkeleton rows={5} variant={view === 'table' ? 'table' : 'list'} />
           ) : visible.length === 0 ? (
@@ -407,192 +640,122 @@ function NetworkInner() {
               </table>
             </div>
           ) : (
-            <ul className="divide-y divide-neutral-100 overflow-hidden rounded-3xl border border-neutral-200 bg-white">
+            <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {visible.map((s) => {
-                const trust = trustBand(Number(s.trust_score || 0));
                 const canInvite =
                   !s.linked_profile_id &&
                   s.invite_status !== 'accepted' &&
                   Boolean(s.email);
                 const isSelected = selectedId === s.id;
+                const card = supplierDossier(s);
                 return (
-                  <li
-                    key={s.id}
-                    className={`px-5 py-4 flex flex-wrap gap-3 justify-between items-start ${
-                      isSelected ? 'bg-sky-50/80' : ''
-                    }`}
-                  >
-                    <div className="min-w-0 flex-1 flex items-start gap-3">
-                      <AccountLogoField
-                        companyId={companyId}
-                        privyUserId={privyUserId}
-                        kind="supplier"
-                        recordId={s.id}
-                        logoUrl={
-                          s.logo_url ||
-                          (s as { linked_logo_url?: string | null }).linked_logo_url
-                        }
-                        name={s.trading_name}
-                        size="sm"
-                        compact
-                        onChange={(url) =>
-                          setRows((prev) =>
-                            prev.map((row) =>
-                              row.id === s.id ? { ...row, logo_url: url } : row
-                            )
-                          )
-                        }
-                      />
-                      <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            selectSupplier(isSelected ? null : s)
-                          }
-                          className="font-semibold text-slate-800 text-left hover:text-[#0077b6]"
-                        >
-                          {s.trading_name}
-                        </button>
-                        <span
-                          className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${srmStatusClass(s.status)}`}
-                        >
-                          {s.status}
-                        </span>
-                        <span
-                          className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${inviteStatusClass(s.invite_status)}`}
-                        >
-                          {(s.invite_status || 'not_invited').replace('_', ' ')}
-                        </span>
-                        {s.verified && (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-700">
-                            <ShieldCheck className="w-3 h-3" /> Verified
-                          </span>
-                        )}
-                        {s.connection_suspended && (
-                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-50 text-amber-900">
-                            Suspended
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-neutral-500">
-                        {[s.industry, s.city, s.country].filter(Boolean).join(' · ') || '—'}
-                        {s.email ? ` · ${s.email}` : ''}
-                      </div>
-                      <div className="mt-2">
-                        <PartyBookRoleSelect
-                          companyId={companyId}
-                          supplierId={s.id}
-                          customerId={partyBySupplier[s.id]?.customer_id}
-                          role={partyBySupplier[s.id]?.role || 'supplier'}
-                          arCode={partyBySupplier[s.id]?.ar_account_code}
-                          apCode={
-                            partyBySupplier[s.id]?.ap_account_code ||
-                            glCodeFromMeta(s.metadata)
-                          }
-                          compact
-                          onChanged={() => void load()}
-                        />
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {(s.certifications || []).slice(0, 6).map((c) => (
-                          <span
-                            key={c}
-                            className="text-[10px] px-2 py-0.5 rounded-full bg-violet-50 text-violet-800"
-                          >
-                            {c}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {canInvite ? (
-                          <button
-                            type="button"
-                            disabled={busyId === s.id}
-                            onClick={() => void invite(s)}
-                            className="inline-flex items-center gap-1.5 rounded-full border border-[#00b4d8] bg-[#00b4d8] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0096c7] disabled:opacity-50"
-                          >
-                            {busyId === s.id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Mail className="h-3.5 w-3.5" />
-                            )}
-                            Invite
-                          </button>
-                        ) : null}
-                        {s.status !== 'archived' ? (
-                          <button
-                            type="button"
-                            disabled={busyId === s.id}
-                            onClick={() => void remove(s)}
-                            className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" /> Delete
-                          </button>
-                        ) : null}
-                      </div>
-                      </div>
-                    </div>
-                    <div className="text-right text-xs space-y-1 shrink-0">
-                      <div
-                        className={`inline-flex px-2 py-0.5 rounded-full border font-semibold ${trust.className}`}
-                      >
-                        Trust {Number(s.trust_score || 0).toFixed(0)}
-                      </div>
-                      <div className="text-neutral-600">
-                        OTIFEF <strong>{Number(s.otifef_pct || 0).toFixed(0)}%</strong>
-                      </div>
-                      {Number(s.rating_count || 0) > 0 && (
-                        <div className="inline-flex items-center gap-1 text-amber-700 font-medium">
-                          <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
-                          {Number(s.rating_avg || 0).toFixed(1)} ({s.rating_count})
-                        </div>
-                      )}
-                    </div>
+                  <li key={s.id}>
+                    <ProfileCard
+                      name={s.trading_name}
+                      detail={
+                        s.legal_name && s.legal_name !== s.trading_name
+                          ? s.legal_name
+                          : s.contact_name
+                      }
+                      meta={[s.industry, s.city, s.country].filter(Boolean).join(' · ')}
+                      logoUrl={
+                        s.logo_url ||
+                        (s as { linked_logo_url?: string | null }).linked_logo_url
+                      }
+                      selected={isSelected}
+                      onSelect={() => selectSupplier(isSelected ? null : s)}
+                      stats={card.stats}
+                      chips={[
+                        {
+                          label: s.status || 'prospect',
+                          className: srmStatusClass(s.status),
+                        },
+                        {
+                          label: (s.invite_status || 'not invited').replace(/_/g, ' '),
+                          className: inviteStatusClass(s.invite_status),
+                        },
+                        ...(s.verified
+                          ? [{ label: 'Verified', className: 'bg-emerald-50 text-emerald-800' }]
+                          : []),
+                        ...(s.connection_suspended
+                          ? [{ label: 'Suspended', className: 'bg-amber-50 text-amber-900' }]
+                          : []),
+                      ]}
+                      footer={
+                        <>
+                          {canInvite ? (
+                            <button
+                              type="button"
+                              disabled={busyId === s.id}
+                              onClick={() => void invite(s)}
+                              className={`${srmFocus} inline-flex min-h-11 items-center gap-1.5 rounded-full border border-[#00b4d8] bg-[#00b4d8] px-3 text-xs font-bold text-slate-950 disabled:opacity-50`}
+                            >
+                              {busyId === s.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Mail className="h-3.5 w-3.5" />
+                              )}
+                              Invite
+                            </button>
+                          ) : null}
+                          {s.status !== 'archived' ? (
+                            <button
+                              type="button"
+                              disabled={busyId === s.id}
+                              onClick={() => void remove(s)}
+                              className={`${srmFocus} inline-flex min-h-11 items-center gap-1.5 rounded-full border border-rose-200 px-3 text-xs font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50`}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" /> Delete
+                            </button>
+                          ) : null}
+                        </>
+                      }
+                    />
                   </li>
                 );
               })}
             </ul>
           )}
         </div>
-        <div className="order-first lg:order-2 lg:sticky lg:top-24">
-        {selected ? (
-          <SupplierBookProfile
-            supplier={selected}
-            companyId={companyId}
-            privyUserId={privyUserId}
-            party={partyBySupplier[selected.id] || null}
+        {selected && dossier ? (
+          <ProfileSheet
+            dossier={dossier}
+            actions={profileActions}
             onClose={() => selectSupplier(null)}
-            onSaved={(next) => {
-              setSelectedHold(next);
-              setRows((prev) =>
-                prev.map((row) => (row.id === next.id ? { ...row, ...next } : row))
-              );
-              void (async () => {
-                const params = new URLSearchParams({
-                  companyId: String(companyId),
-                  id: String(next.id),
-                });
-                const res = await fetch(`/api/suppliers?${params}`);
-                const data = await res.json();
-                const found = ((data.suppliers || []) as SrmSupplierRecord[])[0];
-                if (found) {
-                  setSelectedHold(found);
-                  setRows((prev) =>
-                    prev.map((row) => (row.id === found.id ? { ...row, ...found } : row))
-                  );
-                }
-                void load();
-              })();
-            }}
-          />
-        ) : (
-          <div className="hidden lg:block rounded-[1.5rem] border border-dashed border-neutral-200 bg-white/70 px-5 py-10 text-center text-sm text-neutral-500">
-            Select a supplier to see the full SRM profile — the same details
-            that sync on their portal.
-          </div>
-        )}
-        </div>
+          >
+            <SupplierBookProfile
+              embedded
+              supplier={selected}
+              companyId={companyId}
+              privyUserId={privyUserId}
+              party={partyBySupplier[selected.id] || null}
+              onClose={() => selectSupplier(null)}
+              onSaved={(next) => {
+                setSelectedHold(next);
+                setRows((prev) =>
+                  prev.map((row) => (row.id === next.id ? { ...row, ...next } : row))
+                );
+                if (isSrmPreviewId(next.id)) return;
+                void (async () => {
+                  const params = new URLSearchParams({
+                    companyId: String(companyId),
+                    id: String(next.id),
+                  });
+                  const res = await fetch(`/api/suppliers?${params}`);
+                  const data = await res.json();
+                  const found = ((data.suppliers || []) as SrmSupplierRecord[])[0];
+                  if (found) {
+                    setSelectedHold(found);
+                    setRows((prev) =>
+                      prev.map((row) => (row.id === found.id ? { ...row, ...found } : row))
+                    );
+                  }
+                  void load();
+                })();
+              }}
+            />
+          </ProfileSheet>
+        ) : null}
         </div>
       </div>
     </SuppliersPage>
