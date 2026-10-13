@@ -2,9 +2,9 @@
 import type { Dict } from './en';
 
 const pt: Dict = {
-  'meta.home.title': 'SupplierAdvisor® — o aconselhamento de fornecedores mais fiável do mundo — e OS',
+  'meta.home.title': 'SupplierAdvisor® — o OS fiável da cadeia de abastecimento, com comércio verificado',
   'meta.home.description':
-    'SupplierAdvisor® é o OS da cadeia de abastecimento para comércio verificado, fluxos setoriais e contas SA Member com período experimental gratuito de 30 dias.',
+    'SupplierAdvisor® é o OS da cadeia de abastecimento com uma camada de comércio e confiança verificada, um teste empresarial e uma conta SA Member gratuita.',
   'meta.pricing.title': 'Preços',
   'meta.pricing.description': 'Preços empresariais desde R299/mês com utilizadores ilimitados e poupança clara com referências.',
   'switcher.chooseLanguage': 'Escolha um idioma',
@@ -47,12 +47,23 @@ const pt: Dict = {
   'theme.system': 'Sistema',
   'home.trialStrip': 'Teste gratuito de {days} dias. Registe a sua empresa e execute o primeiro ciclo comercial.',
   'home.startTrial': 'Iniciar teste gratuito',
-  'hero.headlineLead': 'O aconselhamento de fornecedores mais fiável',
-  'hero.headlineAccent': 'do mundo — e o OS.',
+  'home.bookTitle': 'Marcar uma demonstração',
+  'home.bookBody':
+    'Em 20 minutos mapeamos a sua cadeia de abastecimento no SupplierAdvisor® — comércio, stock, qualidade e finanças — e mostramos o que já está no produto.',
+  'home.bookEmail': 'E-mail para uma demonstração',
+  'home.bookWhatsapp': 'WhatsApp',
+  'home.bookSample': 'Prefere ver primeiro?',
+  'home.bookSampleLink': 'Abrir a demonstração interativa',
+  'home.bookSampleNote': 'Apenas ecrãs de exemplo. Sem registo.',
+  'home.proofCue':
+    'Esta página indica as condições do produto. Não publica números de clientes nem pontuações de desempenho.',
+  'hero.headlineLead': 'O OS fiável da cadeia de abastecimento',
+  'hero.headlineAccent': 'com uma camada de comércio e confiança verificada.',
   'hero.compare': 'Veja como comparamos',
   'hero.businessRun': 'Eu administro um negócio',
   'hero.bookDemo': 'Marcar demonstração',
-  'hero.notExcel': 'Não é Excel. Não é só contabilidade. Não é um projeto ERP de anos.',
+  'hero.notExcel': 'Comércio, stock, qualidade e prova partilham o mesmo espaço de trabalho.',
+  'hero.sampleScreen': 'Ecrã de exemplo',
   'hero.trialDays': 'Teste gratuito de {days} dias',
   'hero.membersNeverPay': 'Membros nunca nos pagam',
   'hero.scene.b2b.title': 'Empresa para empresa',
@@ -79,7 +90,7 @@ const pt: Dict = {
   'hero.scene.b2c.point2': 'Reservar, check-in, família, fila de espera, .ics e notas médicas compartilhadas',
   'hero.scene.b2c.point3': 'Pague ou envie comprovativo — o mesmo início de sessão se depois gerir uma empresa',
   'hero.scene.b2c.cta': 'Criar conta SA Member grátis',
-  'footer.tagline': 'O aconselhamento de fornecedores mais fiável do mundo e OS de cadeia de abastecimento — B2B, B2G e B2C numa rede verificada.',
+  'footer.tagline': 'O OS fiável da cadeia de abastecimento, com uma camada de comércio e confiança verificada — B2B, B2G e B2C num espaço de trabalho.',
   'footer.motto': 'Construído para operadores que medem confiança.',
   'footer.explore': 'Explorar',
   'footer.industries': 'Setores',

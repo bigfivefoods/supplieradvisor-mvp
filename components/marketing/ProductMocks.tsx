@@ -55,6 +55,9 @@ function Frame({
             app.supplieradvisor.com/{title}
           </div>
         </div>
+        <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-slate-600 dark:bg-white/10 dark:text-slate-200">
+          Sample
+        </span>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden bg-gradient-to-br from-[#f8fafc] via-white to-sky-50/40 p-2.5 sm:p-4 dark:from-[#141b24] dark:via-[#0c1016] dark:to-[#0a1218]">
         {children}

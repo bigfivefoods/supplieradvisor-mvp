@@ -2,9 +2,9 @@
 import type { Dict } from './en';
 
 const sw: Dict = {
-  'meta.home.title': 'SupplierAdvisor® — ushauri wa wasambazaji unaoaminika zaidi duniani — na OS',
+  'meta.home.title': 'SupplierAdvisor® — OS ya mnyororo wa ugavi yenye safu ya biashara na uaminifu uliothibitishwa',
   'meta.home.description':
-    'SupplierAdvisor® ni OS ya mnyororo wa ugavi kwa biashara iliyothibitishwa, mtiririko wa sekta na akaunti za SA Member yenye jaribio la bure la siku 30.',
+    'SupplierAdvisor® ni OS ya mnyororo wa ugavi yenye safu ya biashara na uaminifu uliothibitishwa, jaribio la kampuni, na akaunti ya SA Member ya bure.',
   'meta.pricing.title': 'Bei',
   'meta.pricing.description': 'Bei za kampuni kuanzia R299/mwezi na watumiaji wasio na kikomo pamoja na akiba wazi ya rufaa.',
   'switcher.chooseLanguage': 'Chagua lugha',
@@ -47,12 +47,23 @@ const sw: Dict = {
   'theme.system': 'Mfumo',
   'home.trialStrip': 'Jaribio la bure la siku {days}. Sajili kampuni yako na uendeshe mzunguko wa kwanza wa biashara.',
   'home.startTrial': 'Anza jaribio la bure',
-  'hero.headlineLead': 'Ushauri wa wasambazaji unaoaminika zaidi',
-  'hero.headlineAccent': 'duniani — na OS.',
+  'home.bookTitle': 'Weka onyesho',
+  'home.bookBody':
+    'Kwa dakika 20 tunaweka mnyororo wako wa ugavi kwenye SupplierAdvisor® — biashara, hesabu, ubora na fedha — na kuonyesha kilichopo tayari kwenye bidhaa.',
+  'home.bookEmail': 'Barua pepe kwa onyesho',
+  'home.bookWhatsapp': 'WhatsApp',
+  'home.bookSample': 'Unapendelea kuangalia kwanza?',
+  'home.bookSampleLink': 'Fungua onyesho shirikishi',
+  'home.bookSampleNote': 'Skrini za mfano pekee. Hakuna usajili.',
+  'home.proofCue':
+    'Ukurasa huu unaeleza masharti ya bidhaa. Hauweki idadi ya wateja wala alama za utendaji.',
+  'hero.headlineLead': 'OS ya mnyororo wa ugavi',
+  'hero.headlineAccent': 'yenye safu ya biashara na uaminifu uliothibitishwa.',
   'hero.compare': 'Ona jinsi tunavyolingana',
   'hero.businessRun': 'Ninaendesha biashara',
   'hero.bookDemo': 'Weka onyesho',
-  'hero.notExcel': 'Si Excel. Si uhasibu pekee. Si mradi wa ERP wa miaka mingi.',
+  'hero.notExcel': 'Biashara, hesabu, ubora na uthibitisho vinashiriki workspace moja ya kampuni.',
+  'hero.sampleScreen': 'Skrini ya mfano',
   'hero.trialDays': 'Jaribio la bure la siku {days}',
   'hero.membersNeverPay': 'Wanachama hawatulipi kamwe',
   'hero.scene.b2b.title': 'Biashara kwa biashara',
@@ -79,7 +90,7 @@ const sw: Dict = {
   'hero.scene.b2c.point2': 'Weka nafasi, ingia, familia, foleni, .ics na maelezo ya afya yaliyoshirikiwa',
   'hero.scene.b2c.point3': 'Lipa au tuma uthibitisho — kuingia kulekule ukiendesha biashara baadaye',
   'hero.scene.b2c.cta': 'Fungua akaunti ya SA Member bure',
-  'footer.tagline': 'Ushauri wa wasambazaji unaoaminika zaidi duniani na OS ya mnyororo wa ugavi — B2B, B2G, na B2C kwenye mtandao mmoja uliothibitishwa.',
+  'footer.tagline': 'OS ya mnyororo wa ugavi yenye safu ya biashara na uaminifu uliothibitishwa — B2B, B2G, na B2C kwenye workspace moja.',
   'footer.motto': 'Imejengwa kwa waendeshaji wanaopima uaminifu.',
   'footer.explore': 'Chunguza',
   'footer.industries': 'Sekta',

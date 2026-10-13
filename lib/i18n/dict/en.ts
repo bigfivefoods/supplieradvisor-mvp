@@ -1,9 +1,9 @@
 /** MACHINE-DRAFTED: Brief 102 i18n dictionary */
 
 export const en = {
-  'meta.home.title': "SupplierAdvisor® — The world's most trusted supplier advice — and OS",
+  'meta.home.title': 'SupplierAdvisor® — The supply-chain OS with a verified trade and trust layer',
   'meta.home.description':
-    'SupplierAdvisor® is the supply-chain OS for verified trade, industry workflows, and SA Member accounts with a 30-day free trial.',
+    'SupplierAdvisor® is the supply-chain OS with a verified trade and trust layer. A 30-day company trial and a free SA Member account.',
   'meta.pricing.title': 'Pricing',
   'meta.pricing.description': 'Company pricing from R299/mo with unlimited users and clear referral savings.',
 
@@ -50,13 +50,24 @@ export const en = {
 
   'home.trialStrip': '{days}-day free trial. Register your company and run the first trade loop.',
   'home.startTrial': 'Start free trial',
+  'home.bookTitle': 'Book a demo',
+  'home.bookBody':
+    'In 20 minutes we map your supply chain onto SupplierAdvisor® — trade, stock, quality, and finance — and show what is already in the product.',
+  'home.bookEmail': 'Email for a demo',
+  'home.bookWhatsapp': 'WhatsApp',
+  'home.bookSample': 'Prefer to look first?',
+  'home.bookSampleLink': 'Open the interactive demo',
+  'home.bookSampleNote': 'Sample screens only. No signup.',
+  'home.proofCue':
+    'This page states product terms. It does not publish customer counts or performance scores.',
 
-  'hero.headlineLead': 'The world\'s most trusted',
-  'hero.headlineAccent': 'supplier advice — and OS.',
+  'hero.headlineLead': 'The supply-chain OS',
+  'hero.headlineAccent': 'with a verified trade and trust layer.',
   'hero.compare': 'See how we compare',
   'hero.businessRun': 'I run a business',
   'hero.bookDemo': 'Book a demo',
-  'hero.notExcel': 'Not Excel. Not accounting-only. Not a multi-year ERP project.',
+  'hero.notExcel': 'Trade, stock, quality, and proof share one company workspace.',
+  'hero.sampleScreen': 'Sample screen',
   'hero.trialDays': '{days}-day free trial',
   'hero.membersNeverPay': 'Members never pay us',
 
@@ -84,7 +95,7 @@ export const en = {
   'hero.scene.b2c.point3': 'Pay or send proof — same login if you later run a business',
   'hero.scene.b2c.cta': 'Create free SA Member account',
 
-  'footer.tagline': 'The world\'s most trusted supplier advice and supply-chain OS — B2B, B2G, and B2C on one verified network.',
+  'footer.tagline': 'The supply-chain OS with a verified trade and trust layer — B2B, B2G, and B2C on one company workspace.',
   'footer.motto': 'Built for operators who measure trust.',
   'footer.explore': 'Explore',
   'footer.industries': 'Industries',

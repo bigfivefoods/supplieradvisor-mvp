@@ -5,9 +5,9 @@ const ISO_LTR_START = '\u2066';
 const ISO_LTR_END = '\u2069';
 
 const ar: Dict = {
-  'meta.home.title': 'SupplierAdvisor® — أكثر نصائح الموردين موثوقية في العالم — ونظام التشغيل',
+  'meta.home.title': 'SupplierAdvisor® — نظام تشغيل سلسلة التوريد مع طبقة تجارة وثقة موثّقة',
   'meta.home.description':
-    'SupplierAdvisor® هو نظام تشغيل سلسلة التوريد للتجارة الموثقة وتدفقات العمل القطاعية وحسابات SA Member مع تجربة مجانية لمدة 30 يومًا.',
+    'SupplierAdvisor® هو نظام تشغيل سلسلة التوريد مع طبقة تجارة وثقة موثّقة، وتجربة للشركة، وحساب SA Member مجاني.',
   'meta.pricing.title': 'الأسعار',
   'meta.pricing.description': 'تسعير الشركات يبدأ من R299/شهريًا مع مستخدمين غير محدودين وتوفير إحالة واضح.',
   'switcher.chooseLanguage': 'اختر لغة',
@@ -50,12 +50,23 @@ const ar: Dict = {
   'theme.system': 'النظام',
   'home.trialStrip': 'تجربة مجانية لمدة {days} يومًا. سجّل شركتك وشغّل أول دورة تجارة.',
   'home.startTrial': 'ابدأ التجربة المجانية',
-  'hero.headlineLead': 'أكثر نصائح الموردين موثوقية',
-  'hero.headlineAccent': 'في العالم — ونظام التشغيل.',
+  'home.bookTitle': 'احجز عرضًا',
+  'home.bookBody':
+    'خلال 20 دقيقة نرسم سلسلة التوريد الخاصة بك على SupplierAdvisor® — التجارة والمخزون والجودة والمالية — ونعرض ما هو موجود في المنتج اليوم.',
+  'home.bookEmail': 'راسلنا لحجز عرض',
+  'home.bookWhatsapp': 'WhatsApp',
+  'home.bookSample': 'تفضّل المشاهدة أولًا؟',
+  'home.bookSampleLink': 'افتح العرض التفاعلي',
+  'home.bookSampleNote': 'شاشات توضيحية فقط. بدون تسجيل.',
+  'home.proofCue':
+    'تعرض هذه الصفحة شروط المنتج. لا تنشر أعداد العملاء ولا درجات الأداء.',
+  'hero.headlineLead': 'نظام تشغيل سلسلة التوريد',
+  'hero.headlineAccent': 'مع طبقة تجارة وثقة موثّقة.',
   'hero.compare': 'اطلع على المقارنة',
   'hero.businessRun': 'أنا أدير شركة',
   'hero.bookDemo': 'احجز عرضًا',
-  'hero.notExcel': 'ليس Excel. وليس محاسبة فقط. وليس مشروع ERP لسنوات.',
+  'hero.notExcel': 'التجارة والمخزون والجودة والإثبات في مساحة عمل واحدة للشركة.',
+  'hero.sampleScreen': 'شاشة توضيحية',
   'hero.trialDays': 'تجربة مجانية لمدة {days} يومًا',
   'hero.membersNeverPay': 'الأعضاء لا يدفعون لنا مطلقًا',
   'hero.scene.b2b.title': 'من شركة إلى شركة',
@@ -82,7 +93,7 @@ const ar: Dict = {
   'hero.scene.b2c.point2': 'احجز، سجّل حضورك، العائلة، قائمة الانتظار، .ics وملاحظات طبية مشتركة',
   'hero.scene.b2c.point3': 'ادفع أو أرسل إثباتًا — نفس تسجيل الدخول إذا أدرت شركة لاحقًا',
   'hero.scene.b2c.cta': 'أنشئ حساب SA Member مجانيًا',
-  'footer.tagline': 'أكثر نصائح الموردين موثوقية في العالم ونظام تشغيل سلاسل التوريد — B2B وB2G وB2C على شبكة موثقة واحدة.',
+  'footer.tagline': 'نظام تشغيل سلسلة التوريد مع طبقة تجارة وثقة موثّقة — B2B وB2G وB2C في مساحة عمل واحدة.',
   'footer.motto': 'مصمم للمشغّلين الذين يقيسون الثقة.',
   'footer.explore': 'استكشف',
   'footer.industries': 'القطاعات',

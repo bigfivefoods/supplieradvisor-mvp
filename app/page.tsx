@@ -5,7 +5,7 @@ import { SITE_URL } from '@/lib/seo/site';
 
 export const metadata: Metadata = {
   description:
-    'SupplierAdvisor® is the supply-chain OS for verified trade, industry workflows, and SA Member accounts with a 30-day free trial.',
+    'SupplierAdvisor® is the supply-chain OS with a verified trade and trust layer. A 30-day company trial and a free SA Member account.',
   alternates: {
     canonical: SITE_URL,
     languages: hreflangAlternates('/', SITE_URL),

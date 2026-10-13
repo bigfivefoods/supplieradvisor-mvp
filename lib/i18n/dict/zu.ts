@@ -2,9 +2,9 @@
 import type { Dict } from './en';
 
 const zu: Dict = {
-  'meta.home.title': 'SupplierAdvisor® — iseluleko sabahlinzeki esethembeke kakhulu emhlabeni — ne-OS',
+  'meta.home.title': 'SupplierAdvisor® — i-OS yochungechunge lokuhlinzeka enensika yokuhweba nokwethembeka okuqinisekisiwe',
   'meta.home.description':
-    'SupplierAdvisor® iyinhlaka ye-OS yochungechunge lokuhlinzeka yokuhweba okuqinisekisiwe, ukugeleza komsebenzi wezimboni kanye nama-akhawunti e-SA Member enesivivinyo samahhala sezinsuku ezingu-30.',
+    'I-SupplierAdvisor® iyi-OS yochungechunge lokuhlinzeka enensika yokuhweba nokwethembeka okuqinisekisiwe, isivivinyo senkampani, ne-akhawunti yamahhala ye-SA Member.',
   'meta.pricing.title': 'Intengo',
   'meta.pricing.description': 'Intengo yenkampani iqala ku-R299/ngenyanga, abasebenzisi abangapheli kanye nokonga okusobala kohlelo lokudlulisa.',
   'switcher.chooseLanguage': 'Khetha ulimi',
@@ -47,12 +47,23 @@ const zu: Dict = {
   'theme.system': 'Isistimu',
   'home.trialStrip': 'Isivivinyo samahhala sezinsuku ezingu-{days}. Bhalisa inkampani yakho bese uqhuba umjikelezo wokuqala wokuhweba.',
   'home.startTrial': 'Qala isivivinyo samahhala',
-  'hero.headlineLead': 'Iseluleko sabahlinzeki esethembeke kakhulu',
-  'hero.headlineAccent': 'emhlabeni — ne-OS.',
+  'home.bookTitle': 'Bhukha idemo',
+  'home.bookBody':
+    'Emizuzwini engama-20 sibeka uchungechunge lwakho lokuhlinzeka ku-SupplierAdvisor® — ukuhweba, isitoko, ikhwalithi nezimali — sikhombise okusele sekukhona emkhiqizweni.',
+  'home.bookEmail': 'I-imeyili yedemo',
+  'home.bookWhatsapp': 'WhatsApp',
+  'home.bookSample': 'Ukhetha ukubuka kuqala?',
+  'home.bookSampleLink': 'Vula idemo esebenzisanayo',
+  'home.bookSampleNote': 'Izikrini zomfanekiso kuphela. Akukho ukubhalisa.',
+  'home.proofCue':
+    'Leli khasi lisho imigomo yomkhiqizo. Alishicileli izibalo zamakhasimende noma amaphuzu okusebenza.',
+  'hero.headlineLead': 'I-OS yochungechunge lokuhlinzeka',
+  'hero.headlineAccent': 'enensika yokuhweba nokwethembeka okuqinisekisiwe.',
   'hero.compare': 'Bona ukuthi siqhathaniseka kanjani',
   'hero.businessRun': 'Ngiphethe ibhizinisi',
   'hero.bookDemo': 'Bhukha idemo',
-  'hero.notExcel': 'Akuyona i-Excel. Akuyona i-accounting kuphela. Akuyona iphrojekthi ye-ERP yeminyaka.',
+  'hero.notExcel': 'Ukuhweba, isitoko, ikhwalithi nobufakazi kwabelana ngendawo eyodwa yokusebenza yenkampani.',
+  'hero.sampleScreen': 'Isikrini somfanekiso',
   'hero.trialDays': 'Isivivinyo samahhala sezinsuku ezingu-{days}',
   'hero.membersNeverPay': 'Amalungu awasikhokheli neze',
   'hero.scene.b2b.title': 'Ibhizinisi liye ebhizinisini',
@@ -79,7 +90,7 @@ const zu: Dict = {
   'hero.scene.b2c.point2': 'Bhuka, ngena, umndeni, uhlu lokulinda, .ics namanothi wezokwelapha okwabiwe',
   'hero.scene.b2c.point3': 'Khokha noma uthumele ubufakazi — ukungena okufanayo uma uqala ibhizinisi kamuva',
   'hero.scene.b2c.cta': 'Dala i-akhawunti yamahhala ye-SA Member',
-  'footer.tagline': 'Iseluleko sabahlinzeki esethembeke kakhulu emhlabeni ne-OS yochungechunge lokuhlinzeka — i-B2B, i-B2G, ne-B2C kunethiwekhi eyodwa eqinisekisiwe.',
+  'footer.tagline': 'I-OS yochungechunge lokuhlinzeka enensika yokuhweba nokwethembeka okuqinisekisiwe — i-B2B, i-B2G, ne-B2C endaweni eyodwa yokusebenza.',
   'footer.motto': 'Yakhelwe abasebenzisi abakala ukwethembana.',
   'footer.explore': 'Hlola',
   'footer.industries': 'Izimboni',

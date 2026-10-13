@@ -887,9 +887,9 @@ export default function HomeBelowFold() {
               <span className="mt-2 block text-slate-600">One trusted fabric.</span>
             </h2>
             <p className="mt-4 text-base leading-relaxed text-slate-600 sm:text-lg">
-              Most platforms pick one market. SupplierAdvisor® is built so private trade,
-              public procurement, and consumer trust share the same verification,
-              traceability, and operating discipline.
+              SupplierAdvisor® is the supply-chain OS. Private companies, public buyers,
+              and a free member account share one verified trade and trust layer — the
+              same company checks, traceability, and operating record.
             </p>
           </div>
           <div className="grid gap-5 lg:grid-cols-3">
@@ -1102,8 +1102,8 @@ export default function HomeBelowFold() {
               <span className="mt-2 block sa-text-brand-on-light">on SupplierAdvisor®</span>
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">
-              Not another dashboard. The operating system for people who measure trust —
-              and refuse to separate commerce from quality, safety, and proof.
+              One operating system for the trade loop. Verification, ratings, lots, and
+              safety sit with the order — not in a separate brochure.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -1220,8 +1220,8 @@ export default function HomeBelowFold() {
               <span className="mt-2 block text-slate-500">One company workspace.</span>
             </h2>
             <p className="mt-5 text-base leading-relaxed text-slate-600 sm:text-lg">
-              Not a pile of apps. A single operating system for how goods, money, and trust
-              move through African and global supply chains.
+              Not a pile of apps. One operating system for how goods and money move,
+              with the verified trade and trust layer on the same books as the order.
             </p>
           </div>
 
@@ -1255,6 +1255,7 @@ export default function HomeBelowFold() {
               <p className="mt-4 text-sm leading-relaxed text-slate-600 sm:text-base">
                 Every module shares the same command chrome — telemetry, workbenches,
                 and clear process steps. Switch systems without relearning the UI.
+                Pictures on this page are sample screens, not live network results.
               </p>
               <div className="mt-6 flex flex-wrap gap-2">
                 {heroModules.map((m, i) => (
@@ -1824,8 +1825,8 @@ export default function HomeBelowFold() {
               <span className="mt-1 block text-slate-500">the ship stops.</span>
             </h2>
             <p className="mt-4 text-base text-slate-600 sm:text-lg">
-              Verification, ratings, lots, HACCP, and SHEQ are live controls — not
-              after-the-fact PDFs.
+              Verification, ratings, lots, HACCP, and SHEQ are controls in the workspace.
+              This section describes those controls. It is not a performance report.
             </p>
           </div>
 
@@ -2035,19 +2036,27 @@ export default function HomeBelowFold() {
             The network is open
           </div>
           <h2 className="text-3xl font-black tracking-[-0.04em] text-slate-900 sm:text-5xl md:text-6xl">
-            The world&apos;s most trusted
-            <span className="mt-1 block sa-text-brand-on-light">supplier advice starts here.</span>
+            Run the supply-chain OS
+            <span className="mt-1 block sa-text-brand-on-light">with the trust layer on the same books.</span>
           </h2>
           <p className="mx-auto mt-5 max-w-2xl text-base text-slate-600 sm:text-lg">
-            B2B · B2G · B2C on one verified OS. Join operators who treat verification,
-            ratings, lots, and SHEQ as live controls. {COMPANY_TRIAL_DAYS} days free.
+            Book a walkthrough of your chain, or start the company trial. The trial is{' '}
+            {COMPANY_TRIAL_DAYS} days. Pricing is published in ZAR. This page does not
+            quote customer counts.
           </p>
           <div className="mt-10 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+            <a
+              href="#book-demo"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-950 px-8 py-4 text-base font-semibold text-white shadow-lg hover:bg-slate-800 sm:text-lg"
+            >
+              Book a demo
+              <ArrowRight className="h-5 w-5" />
+            </a>
             <Link
               href="/onboarding?type=business"
               className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-8 py-4 text-base font-semibold text-slate-950 shadow-lg shadow-cyan-500/25 hover:bg-[#22d3ee] sm:text-lg"
             >
-              Get started in under 5 minutes
+              Start free trial
               <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
             </Link>
             <Link
