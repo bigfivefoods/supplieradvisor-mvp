@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { buildIcsCalendar } from '../schedule/advisor-ics';
 import {
+  calendarCollections,
   calendarHrefs,
   contentStamp,
+  decodeCalendarData,
   endAfter,
   firstXmlHref,
   xmlPropHref,
@@ -240,5 +242,21 @@ assert.deepEqual(calendarHrefs(xml), [
   { href: '/102/calendars/home/', name: 'Home' },
   { href: '/102/calendars/SupplierAdvisor/', name: 'SupplierAdvisor' },
 ]);
+
+const homeListing =
+  '<multistatus xmlns="DAV:"><response><href>/2236/calendars/</href><propstat><prop>' +
+  '<resourcetype><collection/></resourcetype><displayname>calendars</displayname></prop></propstat></response>' +
+  '<response><href xmlns="DAV:">/2236/calendars/home/</href><propstat><prop>' +
+  '<displayname xmlns="DAV:">Home</displayname>' +
+  '<resourcetype><collection/><calendar xmlns="urn:ietf:params:xml:ns:caldav"/></resourcetype>' +
+  '</prop></propstat></response></multistatus>';
+assert.deepEqual(calendarCollections(homeListing), [{ href: '/2236/calendars/home/', name: 'Home' }]);
+
+const escaped = decodeCalendarData(
+  '<![CDATA[BEGIN:VCALENDAR&#13;BEGIN:VEVENT&#13;UID:abc&#13;DTSTART:20261020T090000&#13;SUMMARY:Site visit&#13;END:VEVENT&#13;END:VCALENDAR]]>'
+);
+assert.equal(parseIcsEvents(escaped)[0].title, 'Site visit');
+assert.equal(parseIcsEvents(escaped)[0].date, '2026-10-20');
+assert.equal(parseIcsEvents(escaped)[0].start, '09:00');
 
 console.log('calendar-sync tests ok');

@@ -1,7 +1,7 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { horizonScheduleEvents, taskScheduleEvent, type CrmTask, type DealHorizon } from '@/lib/sales/crm-tasks';
 import { asCrmTask } from '@/lib/sales/diary-load';
-import { appleClient } from '@/lib/sales/calendar-apple';
+import { appleClient, listAppleMirrorEvents } from '@/lib/sales/calendar-apple';
 import { ensureGoogleCalendar, googleClient, refreshGoogleAccess } from '@/lib/sales/calendar-google';
 import type { CalendarClient } from '@/lib/sales/calendar-google';
 import { ensureOutlookCalendar, outlookClient, refreshOutlookAccess } from '@/lib/sales/calendar-microsoft';
@@ -255,7 +255,7 @@ async function clientFor(link: LinkRow): Promise<CalendarClient> {
   return appleClient(apple.appleId, apple.appPassword, link.calendar_id, link.profile_id);
 }
 
-async function syncLink(link: LinkRow): Promise<{ pushed: number; pulled: number }> {
+async function syncLink(link: LinkRow): Promise<{ pushed: number; pulled: number; warning: string | null }> {
   const supabase = getSupabaseServer();
   const client = await clientFor(link);
   const today = partsInJohannesburg(new Date().toISOString())?.date || new Date().toISOString().slice(0, 10);
@@ -316,7 +316,69 @@ async function syncLink(link: LinkRow): Promise<{ pushed: number; pulled: number
     if (kind === 'push') pushed += 1;
     if (kind === 'pull') pulled += 1;
   }
-  return { pushed, pulled };
+  const mirror = await syncAppleMirror(link, from, to);
+  if (mirror.count > 0) pulled += 1;
+  return { pushed, pulled, warning: mirror.warning };
+}
+
+async function syncAppleMirror(
+  link: LinkRow,
+  from: string,
+  to: string
+): Promise<{ count: number; warning: string | null }> {
+  if (link.provider !== 'apple' || !link.calendar_id) return { count: 0, warning: null };
+  const secret = openSecret(String(link.secret_enc || ''));
+  if (!secret) return { count: 0, warning: 'Reconnect Apple Calendar' };
+  let apple: { appleId?: string; appPassword?: string };
+  try {
+    apple = JSON.parse(secret) as { appleId?: string; appPassword?: string };
+  } catch {
+    return { count: 0, warning: 'Reconnect Apple Calendar' };
+  }
+  if (!apple.appleId || !apple.appPassword) return { count: 0, warning: 'Reconnect Apple Calendar' };
+  try {
+    const events = await listAppleMirrorEvents(apple.appleId, apple.appPassword, link.calendar_id, from, to);
+    const supabase = getSupabaseServer();
+    const removed = await supabase.from('crm_calendar_mirror').delete().eq('link_id', link.id);
+    if (removed.error) {
+      if (/does not exist|schema cache/i.test(removed.error.message)) {
+        return { count: 0, warning: 'Apple appointments are not ready on this database yet.' };
+      }
+      return { count: 0, warning: removed.error.message.slice(0, 240) };
+    }
+    if (!events.length) return { count: 0, warning: null };
+    const now = new Date().toISOString();
+    const rows = events.map((event) => ({
+      link_id: link.id,
+      profile_id: link.profile_id,
+      user_id: link.user_id,
+      provider: 'apple',
+      remote_id: event.remoteId,
+      calendar_name: event.calendarName,
+      title: event.title,
+      notes: event.notes || null,
+      starts_on: event.date,
+      start_time: event.start || null,
+      end_time: event.end || null,
+      status: 'open',
+      updated_at: now,
+    }));
+    for (let i = 0; i < rows.length; i += 200) {
+      const saved = await supabase.from('crm_calendar_mirror').insert(rows.slice(i, i + 200));
+      if (saved.error) {
+        if (/does not exist|schema cache/i.test(saved.error.message)) {
+          return { count: 0, warning: 'Apple appointments are not ready on this database yet.' };
+        }
+        return { count: 0, warning: saved.error.message.slice(0, 240) };
+      }
+    }
+    return { count: events.length, warning: null };
+  } catch (error) {
+    return {
+      count: 0,
+      warning: error instanceof Error ? error.message.slice(0, 240) : 'Apple appointments could not be copied',
+    };
+  }
 }
 
 export async function syncUserCalendars(companyId: number, userId: string): Promise<SyncResult> {
@@ -337,9 +399,15 @@ export async function syncUserCalendars(companyId: number, userId: string): Prom
     try {
       const outcome = await syncLink(link);
       if (outcome.pulled > 0) changed = true;
+      const auth = outcome.warning ? /reconnect|rejected|invalid_grant|unauthorized|401/i.test(outcome.warning) : false;
       await supabase
         .from('crm_calendar_links')
-        .update({ last_synced_at: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString() })
+        .update({
+          last_synced_at: new Date().toISOString(),
+          last_error: outcome.warning ? outcome.warning.slice(0, 240) : null,
+          status: auth ? 'error' : 'active',
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', link.id);
       results.push({ provider: link.provider, ...outcome });
     } catch (error) {

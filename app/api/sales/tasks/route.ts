@@ -14,6 +14,27 @@ function numId(v: unknown): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+async function loadAppleMirror(companyId: number, userId: string) {
+  const hit = await getSupabaseServer()
+    .from('crm_calendar_mirror')
+    .select('id, title, notes, starts_on, start_time, end_time, status, calendar_name')
+    .eq('profile_id', companyId)
+    .eq('user_id', userId)
+    .order('starts_on', { ascending: true })
+    .limit(800);
+  if (hit.error) return [];
+  return (hit.data || []).map((row) => ({
+    id: Number(row.id),
+    title: String(row.title || ''),
+    date: String(row.starts_on || '').slice(0, 10),
+    start: row.start_time ? String(row.start_time).slice(0, 5) : '',
+    end: row.end_time ? String(row.end_time).slice(0, 5) : '',
+    calendarName: String(row.calendar_name || 'Calendar'),
+    status: String(row.status || '') === 'done' ? 'done' : 'open',
+    notes: row.notes ? String(row.notes) : '',
+  }));
+}
+
 async function gate(request: NextRequest, companyId: number) {
   return requireCompanyAccess(request, companyId, {
     legacyPrivyUserId: legacyPrivyFrom(request),
@@ -43,9 +64,12 @@ export async function GET(request: NextRequest) {
         ? loaded.tasks.filter((task) => task.status === status)
         : loaded.tasks;
 
+    const apple = await loadAppleMirror(companyId, access.userId);
+
     return NextResponse.json({
       tasks,
       horizon: loaded.horizon,
+      apple,
       feed: diaryFeedLinks(companyId),
     });
   } catch (e: unknown) {

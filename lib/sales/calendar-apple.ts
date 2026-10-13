@@ -2,10 +2,13 @@ import { buildIcsCalendar } from '@/lib/schedule/advisor-ics';
 import type { CalendarClient } from '@/lib/sales/calendar-google';
 import {
   DIARY_CALENDAR_NAME,
+  calendarCollections,
   calendarHrefs,
+  decodeCalendarData,
   endAfter,
   eventUid,
   firstXmlHref,
+  inWindow,
   parseIcsEvents,
   xmlPropHref,
   type DiaryStamp,
@@ -143,13 +146,17 @@ export async function connectAppleCalendar(appleId: string, appPassword: string)
   return { calendarHref: ensureSlash(created) };
 }
 
-function reportBody(from: string, to: string): string {
+function reportBody(from: string, to: string, expand = false): string {
   const start = from.replace(/-/g, '') + 'T000000Z';
   const end = to.replace(/-/g, '') + 'T235959Z';
+  const data = expand
+    ? `<c:calendar-data><c:expand start="${start}" end="${end}"/></c:calendar-data>`
+    : '<c:calendar-data/>';
   return (
     '<?xml version="1.0" encoding="UTF-8"?>' +
-    '<c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/><c:calendar-data/></d:prop>' +
-    '<c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT">' +
+    '<c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/>' +
+    data +
+    '</d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT">' +
     `<c:time-range start="${start}" end="${end}"/>` +
     '</c:comp-filter></c:comp-filter></c:filter></c:calendar-query>'
   );
@@ -178,7 +185,7 @@ export function appleClient(appleId: string, appPassword: string, calendarHref: 
       const events = [];
       for (const chunk of chunks) {
         const remoteId = firstXmlHref(chunk);
-        const ics = tagInner(chunk, 'calendar-data');
+        const ics = decodeCalendarData(tagInner(chunk, 'calendar-data'));
         const parsed = parseIcsEvents(ics)[0];
         if (!remoteId || !parsed) continue;
         const etag = tagInner(chunk, 'getetag') || null;
@@ -230,4 +237,102 @@ export function appleClient(appleId: string, appPassword: string, calendarHref: 
       if (saved.status >= 400) throw new Error('Apple could not remove the diary event');
     },
   };
+}
+
+export type AppleMirrorEvent = {
+  remoteId: string;
+  calendarName: string;
+  title: string;
+  date: string;
+  start: string;
+  end: string;
+  notes: string;
+  status: 'open' | 'done';
+};
+
+function sameHref(left: string, right: string): boolean {
+  try {
+    const a = new URL(left);
+    const b = new URL(right);
+    return a.origin === b.origin && a.pathname.replace(/\/+$/, '') === b.pathname.replace(/\/+$/, '');
+  } catch {
+    return left === right;
+  }
+}
+
+function parentCollection(href: string): string {
+  const url = new URL(href);
+  const path = url.pathname.replace(/\/+$/, '');
+  const slash = path.lastIndexOf('/');
+  url.pathname = `${path.slice(0, slash + 1)}`;
+  return url.toString();
+}
+
+function eventsInReport(
+  text: string,
+  calendarName: string,
+  from: string,
+  to: string
+): AppleMirrorEvent[] {
+  const chunks = text.split(/<(?:[A-Za-z0-9]+:)?response\b/i).slice(1);
+  const events: AppleMirrorEvent[] = [];
+  for (const chunk of chunks) {
+    const href = firstXmlHref(chunk) || calendarName;
+    const parsed = parseIcsEvents(decodeCalendarData(tagInner(chunk, 'calendar-data')));
+    parsed.forEach((item, index) => {
+      if (!item.title.trim() || item.status === 'done') return;
+      if (!inWindow(item.date, from, to)) return;
+      events.push({
+        remoteId: `${href}|${item.uid || index}|${item.date}|${item.start}`.slice(0, 500),
+        calendarName,
+        title: item.title.slice(0, 200),
+        date: item.date,
+        start: item.start,
+        end: item.end,
+        notes: item.notes.slice(0, 2000),
+        status: item.status,
+      });
+    });
+  }
+  return events;
+}
+
+/** Appointments on every iCloud calendar except the SupplierAdvisor one. Read only. */
+export async function listAppleMirrorEvents(
+  appleId: string,
+  appPassword: string,
+  supplierCalendarHref: string,
+  from: string,
+  to: string
+): Promise<AppleMirrorEvent[]> {
+  const auth = basicAuth(appleId, appPassword);
+  const homeUrl = parentCollection(supplierCalendarHref);
+  const listed = await caldav(homeUrl, auth, 'PROPFIND', 1, propfind('<d:displayname/><d:resourcetype/>'));
+  if (listed.status === 401 || listed.status === 403) {
+    throw new Error('Apple rejected that Apple ID or app-specific password');
+  }
+  if (listed.status >= 400) throw new Error('Apple could not list calendars');
+  const calendars = calendarCollections(listed.text)
+    .filter((row) => row.name.trim().toLowerCase() !== DIARY_CALENDAR_NAME.toLowerCase())
+    .filter((row) => !sameHref(resolveHref(listed.url, row.href), supplierCalendarHref))
+    .slice(0, 12);
+  const events: AppleMirrorEvent[] = [];
+  const seen = new Set<string>();
+  for (const calendar of calendars) {
+    if (events.length >= 400) break;
+    const href = ensureSlash(resolveHref(listed.url, calendar.href));
+    const name = calendar.name.trim() || 'Calendar';
+    let report = await caldav(href, auth, 'REPORT', 1, reportBody(from, to, true));
+    if (report.status >= 400) report = await caldav(href, auth, 'REPORT', 1, reportBody(from, to, false));
+    if (report.status === 401 || report.status === 403) {
+      throw new Error('Apple rejected that Apple ID or app-specific password');
+    }
+    if (report.status >= 400) continue;
+    for (const event of eventsInReport(report.text, name, from, to)) {
+      if (seen.has(event.remoteId) || events.length >= 400) continue;
+      seen.add(event.remoteId);
+      events.push(event);
+    }
+  }
+  return events;
 }

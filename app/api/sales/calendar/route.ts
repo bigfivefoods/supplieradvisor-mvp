@@ -5,7 +5,7 @@ import { syncUserCalendars } from '@/lib/sales/calendar-engine';
 import { googleConfigured, outlookConfigured } from '@/lib/sales/calendar-secrets';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 async function gate(request: NextRequest, companyId: number, body?: Record<string, unknown>) {
   return requireCompanyAccess(request, companyId, { legacyPrivyUserId: legacyPrivyFrom(request, body) });

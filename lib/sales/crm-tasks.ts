@@ -58,7 +58,7 @@ export type DiaryEvent = {
 };
 
 /** Tabs on the sales diary. `all` is the open horizon; the others are one slice. */
-export type DiaryLens = 'all' | 'task' | 'next' | 'close' | 'overdue' | 'done';
+export type DiaryLens = 'all' | 'task' | 'next' | 'close' | 'overdue' | 'done' | 'apple';
 
 export const DIARY_LENSES: { id: DiaryLens; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -66,8 +66,20 @@ export const DIARY_LENSES: { id: DiaryLens; label: string }[] = [
   { id: 'next', label: 'Next step' },
   { id: 'close', label: 'Expected close' },
   { id: 'overdue', label: 'Overdue' },
+  { id: 'apple', label: 'Apple' },
   { id: 'done', label: 'Done' },
 ];
+
+/** An appointment copied from one of the connected user's other Apple calendars. */
+export type AppleDiaryItem = {
+  id: number;
+  title: string;
+  date: string;
+  start: string;
+  end: string;
+  calendarName: string;
+  status: CrmTaskStatus;
+};
 
 export type DiaryTableRow = {
   key: string;
@@ -198,10 +210,26 @@ export function taskListBuckets(tasks: CrmTask[], today: string) {
   return { overdue, dueToday, upcoming, done };
 }
 
+export function appleScheduleEvent(item: AppleDiaryItem): DiaryEvent {
+  const start = item.start || '09:00';
+  return {
+    id: `apple-${item.id}`,
+    date: item.date,
+    start_time: start,
+    end_time: item.end && item.end > start ? item.end : addMinutes(start, 30),
+    title: item.title,
+    subtitle: item.calendarName ? `Apple · ${item.calendarName}` : 'Apple',
+    status: item.status,
+    tone: 'sky',
+    meta: 'apple',
+  };
+}
+
 export function lensForDiaryEvent(
   event: { meta?: string; status?: string; date: string },
   today: string
 ): DiaryLens {
+  if (event.meta === 'apple') return 'apple';
   if (event.meta === 'next') return 'next';
   if (event.meta === 'close') return 'close';
   if (event.status === 'done') return 'done';
@@ -221,7 +249,12 @@ function kindLabel(kind: string) {
   return CRM_TASK_KINDS.find((k) => k.value === kind)?.label || 'Task';
 }
 
-export function diaryTableRows(tasks: CrmTask[], horizon: DiaryEvent[], today: string): DiaryTableRow[] {
+export function diaryTableRows(
+  tasks: CrmTask[],
+  horizon: DiaryEvent[],
+  today: string,
+  apple: AppleDiaryItem[] = []
+): DiaryTableRow[] {
   const rows: DiaryTableRow[] = tasks.map((task) => {
     const lens = lensForDiaryEvent(
       { meta: 'task', status: task.status, date: task.due_on },
@@ -254,6 +287,21 @@ export function diaryTableRows(tasks: CrmTask[], horizon: DiaryEvent[], today: s
       opportunityId: Number.isFinite(dealId) && dealId > 0 ? dealId : null,
       taskId: null,
       status: 'open',
+    });
+  }
+  for (const item of apple) {
+    const event = appleScheduleEvent(item);
+    rows.push({
+      key: event.id,
+      lens: 'apple',
+      date: item.date,
+      time: item.start || '',
+      title: item.title,
+      detail: event.subtitle || 'Apple',
+      customerId: null,
+      opportunityId: null,
+      taskId: null,
+      status: item.status,
     });
   }
   return rows;

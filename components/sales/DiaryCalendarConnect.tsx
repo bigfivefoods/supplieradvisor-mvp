@@ -78,6 +78,7 @@ export function DiaryCalendarConnect({
   const [appleNoteError, setAppleNoteError] = useState(false);
   const [busy, setBusy] = useState(false);
   const appleLock = useRef(false);
+  const mirrored = useRef(false);
   const onChangedRef = useRef(onChanged);
   onChangedRef.current = onChanged;
   const toasted = useRef<string | null>(null);
@@ -95,6 +96,24 @@ export function DiaryCalendarConnect({
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const appleLink = status?.links?.find((link) => link.provider === 'apple' && link.status === 'active');
+    if (!appleLink || mirrored.current || appleBusy) return;
+    mirrored.current = true;
+    setAppleNote('Copying appointments from your other Apple calendars…');
+    setAppleNoteError(false);
+    void syncConnectedCalendars(companyId, privyUserId).then((result) => {
+      if (result.ok) {
+        setAppleNote('Apple appointments are on this diary. Open All or Apple to see them.');
+        setAppleNoteError(false);
+        onChangedRef.current();
+      } else {
+        setAppleNote('Apple is connected. Tap Sync now to copy appointments across.');
+        setAppleNoteError(true);
+      }
+    });
+  }, [status, appleBusy, companyId, privyUserId]);
 
   useEffect(() => {
     const flag = search.get('calendar');
@@ -173,6 +192,7 @@ export function DiaryCalendarConnect({
         return;
       }
       setAppPassword('');
+      mirrored.current = true;
       setAppleBusyLabel('Copying diary…');
       setAppleNote('Connected. Copying your diary onto Apple…');
       setAppleNoteError(false);
@@ -193,7 +213,7 @@ export function DiaryCalendarConnect({
         setAppleNote('Apple Calendar is connected. The first copy did not finish. Tap Sync now.');
         setAppleNoteError(true);
       } else {
-        setAppleNote('Apple Calendar is connected.');
+        setAppleNote('Apple Calendar is connected. Appointments from your other Apple calendars are on this diary.');
         setAppleNoteError(false);
         setAppleOpen(false);
       }
@@ -216,7 +236,8 @@ export function DiaryCalendarConnect({
           <p className="mt-1 max-w-2xl text-sm text-neutral-600">
             Connect Google, Outlook, or Apple. SupplierAdvisor creates a calendar named SupplierAdvisor in that
             account and keeps it in sync both ways. A task saved here is written there. An event you add or change
-            on that calendar is saved here. Your other calendars stay private.
+            on that calendar is saved here. Your other Apple calendars are copied onto this diary for you only.
+            They are not shared with the company, and SupplierAdvisor does not change them.
           </p>
         </div>
         <button type="button" className={toolBtn} onClick={() => void syncNow()} disabled={busy || appleBusy}>

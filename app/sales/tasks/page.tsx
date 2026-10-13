@@ -15,7 +15,9 @@ import {
   eventsForLens,
   lensForDiaryEvent,
   rowsForLens,
+  appleScheduleEvent,
   taskScheduleEvent,
+  type AppleDiaryItem,
   type CrmTask,
   type CrmTaskKind,
   type DiaryEvent,
@@ -44,6 +46,7 @@ const LENS_ON: Record<DiaryLens, string> = {
   close: 'border-violet-300 bg-violet-50 text-violet-950',
   overdue: 'border-rose-300 bg-rose-50 text-rose-900',
   done: 'border-emerald-300 bg-emerald-50 text-emerald-900',
+  apple: 'border-indigo-300 bg-indigo-50 text-indigo-950',
 };
 
 const LENS_DOT: Record<DiaryLens, string> = {
@@ -53,6 +56,7 @@ const LENS_DOT: Record<DiaryLens, string> = {
   close: 'bg-violet-500',
   overdue: 'bg-rose-500',
   done: 'bg-emerald-500',
+  apple: 'bg-indigo-500',
 };
 
 type CustomerOpt = { id: number; trading_name: string };
@@ -90,6 +94,7 @@ function TasksInner() {
   const search = useSearchParams();
   const [tasks, setTasks] = useState<CrmTask[]>([]);
   const [horizon, setHorizon] = useState<DiaryEvent[]>([]);
+  const [apple, setApple] = useState<AppleDiaryItem[]>([]);
   const [customers, setCustomers] = useState<CustomerOpt[]>([]);
   const [deals, setDeals] = useState<DealOpt[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
@@ -126,6 +131,7 @@ function TasksInner() {
       if (!taskRes.ok) throw new Error(taskData.error || 'Could not load the diary');
       setTasks(taskData.tasks || []);
       setHorizon(taskData.horizon || []);
+      setApple(Array.isArray(taskData.apple) ? taskData.apple : []);
       setFeed(taskData.feed?.https ? (taskData.feed as DiaryFeed) : null);
       if (custRes.ok) {
         const custData = await custRes.json();
@@ -169,20 +175,20 @@ function TasksInner() {
   const today = todayIso();
   const events = useMemo<DiaryEvent[]>(() => {
     const mine = tasks.map((task) => taskScheduleEvent(task, today));
-    return [...mine, ...horizon];
-  }, [tasks, horizon, today]);
+    return [...mine, ...horizon, ...apple.map((item) => appleScheduleEvent(item))];
+  }, [tasks, horizon, apple, today]);
   const visibleEvents = useMemo(() => eventsForLens(events, lens, today), [events, lens, today]);
   const tableRows = useMemo(
-    () => rowsForLens(diaryTableRows(tasks, horizon, today), lens),
-    [tasks, horizon, today, lens]
+    () => rowsForLens(diaryTableRows(tasks, horizon, today, apple), lens),
+    [tasks, horizon, apple, today, lens]
   );
   const counts = useMemo(() => {
-    const rows = diaryTableRows(tasks, horizon, today);
+    const rows = diaryTableRows(tasks, horizon, today, apple);
     return Object.fromEntries(DIARY_LENSES.map((item) => [item.id, rowsForLens(rows, item.id).length])) as Record<
       DiaryLens,
       number
     >;
-  }, [tasks, horizon, today]);
+  }, [tasks, horizon, apple, today]);
 
   useEffect(() => {
     if (!focusKey) return;
@@ -517,9 +523,10 @@ function TasksInner() {
             onToggle={markDone}
           />
           <p className="mt-3 text-xs text-neutral-500">
-            Tap a day to add a task. The tabs filter the calendar and the table. A connected SupplierAdvisor
-            calendar writes both ways. The subscribe buttons are a separate one-way mirror, so use one or the other
-            or the same task appears twice.
+            Tap a day to add a task. The tabs filter the calendar and the table. Appointments from your other
+            Apple calendars show on All and on Apple, for this login only. The SupplierAdvisor calendar writes
+            both ways. The subscribe buttons are a separate one-way mirror, so use one or the other or the same
+            task appears twice.
           </p>
         </section>
       )}

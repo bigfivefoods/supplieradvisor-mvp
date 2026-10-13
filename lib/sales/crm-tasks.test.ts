@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   addMinutes,
   dateOrNull,
+  appleScheduleEvent,
   diaryTableRows,
   eventsForLens,
   horizonScheduleEvents,
@@ -114,6 +115,19 @@ assert.deepEqual(
   ['task-4', 'task-5', 'close-8', 'next-8']
 );
 assert.equal(eventsForLens(diaryEvents, 'close', '2026-10-06')[0].id, 'close-8');
+const appleEvent = appleScheduleEvent({
+  id: 3,
+  title: 'Site visit',
+  date: '2026-10-21',
+  start: '11:00',
+  end: '12:00',
+  calendarName: 'Home',
+  status: 'open',
+});
+assert.equal(appleEvent.meta, 'apple');
+assert.equal(eventsForLens([...diaryEvents, appleEvent], 'apple', '2026-10-06')[0].id, 'apple-3');
+assert.ok(eventsForLens([...diaryEvents, appleEvent], 'all', '2026-10-06').some((event) => event.id === 'apple-3'));
+assert.ok(!eventsForLens([...diaryEvents, appleEvent], 'task', '2026-10-06').some((event) => event.id === 'apple-3'));
 
 const rows = diaryTableRows(
   [task, { ...task, id: 7, due_on: '2026-09-01', status: 'done' }],

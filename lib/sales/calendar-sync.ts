@@ -1,6 +1,7 @@
 /**
  * Pure two-way diary reconcile. Network providers live beside this file.
- * A connected account gets a calendar named SupplierAdvisor. Personal calendars are not read.
+ * A connected account gets a calendar named SupplierAdvisor. That calendar writes both ways.
+ * Other Apple calendars are copied onto the connected user's diary only.
  */
 
 export const DIARY_TIMEZONE = 'Africa/Johannesburg';
@@ -247,7 +248,7 @@ export function reconcile(opts: {
 }
 
 function unfoldIcs(ics: string): string {
-  return ics.replace(/\r\n/g, '\n').replace(/\n[ \t]/g, '');
+  return ics.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n[ \t]/g, '');
 }
 
 function icsValue(block: string, name: string): string {
@@ -315,6 +316,37 @@ export function xmlPropHref(xml: string, prop: string): string | null {
     'i'
   ).exec(xml);
   return match ? firstXmlHref(match[1]) : null;
+}
+
+/** Turn a CalDAV calendar-data body into ICS text. Apple often sends `&#13;` line breaks. */
+export function decodeCalendarData(raw: string): string {
+  let text = String(raw || '').trim();
+  const wrapped = /^<!\[CDATA\[([\s\S]*)\]\]>$/.exec(text);
+  if (wrapped) text = wrapped[1];
+  return text
+    .replace(/&#(\d+);/g, (_, digits) => String.fromCharCode(Number(digits)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"');
+}
+
+/** Calendars in a Depth-1 home listing. The home collection itself is not one of them. */
+export function calendarCollections(xml: string): { href: string; name: string }[] {
+  const chunks = xml.split(/<(?:[A-Za-z0-9]+:)?response\b/i).slice(1);
+  const out: { href: string; name: string }[] = [];
+  for (const chunk of chunks) {
+    const href = firstXmlHref(chunk);
+    const typeMatch = /<(?:[A-Za-z0-9]+:)?resourcetype\b[^>]*>([\s\S]*?)<\/(?:[A-Za-z0-9]+:)?resourcetype>/i.exec(
+      chunk
+    );
+    const isCalendar = typeMatch ? /<(?:[A-Za-z0-9]+:)?calendar\b/i.test(typeMatch[1]) : false;
+    if (!href || !isCalendar) continue;
+    const nameMatch = /<(?:[A-Za-z0-9]+:)?displayname\b[^>]*>([^<]*)<\//i.exec(chunk);
+    out.push({ href, name: nameMatch ? decodeXml(nameMatch[1].trim()) : '' });
+  }
+  return out;
 }
 
 export function calendarHrefs(xml: string): { href: string; name: string }[] {

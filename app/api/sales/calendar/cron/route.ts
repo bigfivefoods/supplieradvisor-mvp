@@ -3,6 +3,7 @@ import { assertCronSecret } from '@/lib/auth/api-auth';
 import { syncAllCalendars } from '@/lib/sales/calendar-engine';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 120;
 
 export async function GET(request: NextRequest) {
   const gate = assertCronSecret(request);
