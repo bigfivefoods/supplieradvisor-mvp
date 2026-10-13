@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Download, Search } from 'lucide-react';
+import { Download, FileText, Loader2, Search } from 'lucide-react';
+import { toast } from 'sonner';
+import { getSelectedCompanyId } from '@/lib/containers/company';
 import {
   downloadSpecialDatesCsv,
   formatSpecialDate,
@@ -70,6 +72,7 @@ export function SpecialDatesReport({
   const [kind, setKind] = useState<(typeof KINDS)[number]['id']>('all');
   const [assigneeId, setAssigneeId] = useState('');
   const [query, setQuery] = useState('');
+  const [pdfBusy, setPdfBusy] = useState(false);
   const from = useMemo(() => specialDateToday(), []);
 
   const scoped = useMemo(() => {
@@ -118,16 +121,67 @@ export function SpecialDatesReport({
   const anniversaryWord =
     place === 'practice' ? 'practice anniversaries' : 'gym anniversaries';
 
+  const fileSlug = place === 'practice' ? 'medicaladvisor' : 'gymadvisor';
+
   const download = () => {
-    const slug = place === 'practice' ? 'medicaladvisor' : 'gymadvisor';
     downloadSpecialDatesCsv(
-      `${slug}-birthdays-${from}-${windowId}.csv`,
+      `${fileSlug}-birthdays-${from}-${windowId}.csv`,
       specialDatesCsv(visible, {
         place,
         assigneeHeader: assigneeLabel,
         assigneeNames,
       })
     );
+  };
+
+  const downloadPdf = async () => {
+    const companyId = getSelectedCompanyId();
+    if (!companyId) {
+      toast.error('Choose a company first');
+      return;
+    }
+    setPdfBusy(true);
+    try {
+      const res = await fetch('/api/advisors/special-dates/pdf', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          place,
+          windowLabel,
+          windowId,
+          from,
+          assigneeHeader: assigneeLabel,
+          missingBirthdays: missing.people,
+          rows: visible.map((row) => ({
+            name: row.name,
+            kind: row.kind,
+            on: row.on,
+            years: row.years ?? null,
+            days_until: row.days_until,
+            assignee: row.coach_id ? assigneeNames[row.coach_id] || '' : '',
+          })),
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(data?.error || 'Could not build the PDF');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${fileSlug}-birthdays-${from}-${windowId}.pdf`;
+      a.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Could not build the PDF');
+    } finally {
+      setPdfBusy(false);
+    }
   };
 
   const groups: Array<{ key: string; label: string; rows: MemberSpecialDate[] }> =
@@ -163,15 +217,30 @@ export function SpecialDatesReport({
             {formatSpecialDate(from)}.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={download}
-          disabled={visible.length === 0}
-          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[#0077b6] px-4 text-xs font-black text-white disabled:opacity-50 dark:bg-cyan-400 dark:text-slate-950"
-        >
-          <Download className="h-3.5 w-3.5" />
-          Download CSV
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={download}
+            disabled={visible.length === 0 || pdfBusy}
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 text-xs font-black text-slate-700 disabled:opacity-50 dark:border-cyan-300/40 dark:bg-transparent dark:text-cyan-50"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Download CSV
+          </button>
+          <button
+            type="button"
+            onClick={() => void downloadPdf()}
+            disabled={visible.length === 0 || pdfBusy}
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[#0077b6] px-4 text-xs font-black text-white disabled:opacity-50 dark:bg-cyan-400 dark:text-slate-950"
+          >
+            {pdfBusy ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <FileText className="h-3.5 w-3.5" />
+            )}
+            {pdfBusy ? 'Preparing PDF…' : 'Download PDF'}
+          </button>
+        </div>
       </div>
 
       <div className="space-y-3 p-3 sm:p-4">
