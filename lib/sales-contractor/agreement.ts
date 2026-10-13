@@ -534,11 +534,12 @@ export function getSalesContractorAgreementHtml(params: {
   <p>8.3 On termination or suspension, the Company may revoke, redirect or archive the mailbox immediately. The Contractor must not use the address thereafter.</p>
 
   <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">9. PLATFORM SUBSCRIPTION</h3>
-  <p>9.1 Portal access requires an active subscription of <strong>R${SALES_SUBSCRIPTION_MONTHLY_ZAR} per month</strong> for a
+  <p>9.1 The first <strong>${SALES_SUBSCRIPTION_TERM_MONTHS} months</strong> of the Sales Contractor role include portal access at no charge. That free period starts when the membership is created.</p>
+  <p>9.2 After those ${SALES_SUBSCRIPTION_TERM_MONTHS} months, portal access requires an active subscription of <strong>R${SALES_SUBSCRIPTION_MONTHLY_ZAR} per month</strong> for a
   <strong>${SALES_SUBSCRIPTION_TERM_MONTHS}-month</strong> term (total
   <strong>R${SALES_SUBSCRIPTION_TOTAL_ZAR.toLocaleString('en-ZA')}</strong> prepaid via Paystack or the platform’s provider).</p>
-  <p>9.2 The subscription is payable by the Contractor to the platform provider and is <strong>separate from commission</strong> paid by the Company.</p>
-  <p>9.3 Fees already paid are non-refundable except where required by the Consumer Protection Act or other applicable law, or the platform’s published refund policy.</p>
+  <p>9.3 The subscription is payable by the Contractor to the platform provider and is <strong>separate from commission</strong> paid by the Company.</p>
+  <p>9.4 Fees already paid are non-refundable except where required by the Consumer Protection Act or other applicable law, or the platform’s published refund policy.</p>
 
   <h3 class="font-bold text-slate-900 text-base pt-1 border-b border-slate-200 pb-1">10. COMMISSION — PERSONAL SALES ONLY (NOT MULTI-LEVEL MARKETING)</h3>
   ${antiMlmBanner}
@@ -702,7 +703,7 @@ export function salesContractorInviteEmailHtml(params: {
         <ul style="margin:0;padding-left:18px;color:#475569;font-size:14px;">
           <li style="margin-bottom:6px;">Company sales agreement (SA law · ECTA e-signature)</li>
           <li style="margin-bottom:6px;">Company email: <strong>you@${escape(emailDomain)}</strong> after acceptance (where configured)</li>
-          <li style="margin-bottom:6px;">Platform access: <strong>R${SALES_SUBSCRIPTION_MONTHLY_ZAR}/month</strong> · ${SALES_SUBSCRIPTION_TERM_MONTHS}-month subscription (R${SALES_SUBSCRIPTION_TOTAL_ZAR} prepaid)</li>
+          <li style="margin-bottom:6px;">Platform access: <strong>first ${SALES_SUBSCRIPTION_TERM_MONTHS} months free</strong>, then R${SALES_SUBSCRIPTION_MONTHLY_ZAR}/month for a ${SALES_SUBSCRIPTION_TERM_MONTHS}-month term (R${SALES_SUBSCRIPTION_TOTAL_ZAR} prepaid)</li>
           <li style="margin-bottom:6px;">Commission <strong>${escape(ratesLabel)}</strong> — personal sales only (not MLM)</li>
           <li style="margin-bottom:6px;">Example: ${exampleUnits.toLocaleString('en-ZA')} units × ${formatZar(exampleUnitPrice)} = ${formatZar(linkDeal)} → commission about ${formatZarPrecise(linkComm.commissionAmount)}</li>
           <li>All customer data saved under ${escape(companyName)} (POPIA)</li>

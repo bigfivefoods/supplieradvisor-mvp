@@ -1,6 +1,6 @@
 /**
- * Sales contractor platform access subscription.
- * R199 / month · minimum commitment 6 months · prepaid for full term via Paystack.
+ * Sales contractor platform access.
+ * The role is free for the first 6 months, then R199 / month prepaid for a 6-month term.
  */
 
 export const SALES_SUBSCRIPTION_MONTHLY_ZAR = 199;
@@ -27,6 +27,8 @@ export type SalesSubscriptionInfo = {
   isActive: boolean;
   /** Company grant with no fee and no end date. */
   lifetime: boolean;
+  /** First 6 months of the sales contractor role, before payment is due. */
+  complimentaryTerm: boolean;
 };
 
 /** Complimentary access that does not expire. A year-9999 end date is the stored form of that grant. */
@@ -96,5 +98,49 @@ export function computeSubscriptionInfo(row: {
     daysRemaining,
     isActive,
     lifetime,
+    complimentaryTerm: false,
+  };
+}
+
+/**
+ * Free portal access for the first 6 months after the sales contractor membership starts.
+ * A lifetime grant and a paid or expired term are left as stored.
+ */
+export function applySalesContractorFreeTerm(
+  sub: SalesSubscriptionInfo,
+  roleStartedAt: string | null | undefined,
+  now = new Date()
+): SalesSubscriptionInfo {
+  if (
+    sub.lifetime ||
+    sub.isActive ||
+    sub.status === 'expired' ||
+    sub.status === 'cancelled'
+  ) {
+    return { ...sub, complimentaryTerm: false };
+  }
+
+  const started = roleStartedAt ? new Date(roleStartedAt) : null;
+  if (!started || Number.isNaN(started.getTime())) {
+    return { ...sub, complimentaryTerm: false };
+  }
+
+  const freeUntil = addMonths(started, SALES_SUBSCRIPTION_TERM_MONTHS);
+  if (now.getTime() >= freeUntil.getTime()) {
+    return { ...sub, complimentaryTerm: false };
+  }
+
+  return {
+    ...sub,
+    status: 'active',
+    isActive: true,
+    lifetime: false,
+    complimentaryTerm: true,
+    startsAt: started.toISOString(),
+    endsAt: freeUntil.toISOString(),
+    daysRemaining: Math.max(
+      0,
+      Math.ceil((freeUntil.getTime() - now.getTime()) / (24 * 60 * 60 * 1000))
+    ),
   };
 }

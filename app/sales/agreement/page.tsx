@@ -204,7 +204,7 @@ export default function SalesAgreementPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Sign failed');
-      toast.success('Agreement signed — next: activate your 6-month subscription');
+      toast.success('Agreement signed — your first 6 months are free');
       setSigned(true);
       setAgreement(data.agreement);
       router.push('/sales/subscribe');
@@ -271,7 +271,8 @@ export default function SalesAgreementPage() {
         <p className="mt-2 text-neutral-500 max-w-2xl">
           This is the <strong className="text-slate-700">only agreement</strong> governing your
           engagement — a sole Independent Sales Contractor Agreement and non-disclosure undertaking
-          under South African law. Sign it, then subscribe (R199/mo · 6 months). Commission is{' '}
+          under South African law. The first 6 months are free, then R199/mo for a 6-month term.
+          Commission is{' '}
           <strong>personal sales only</strong> — <strong>not multi-level marketing</strong> — on a
           stepped <strong>{rateBandLabel}</strong> scale (
           <strong className="text-amber-700">{ratesLabel || '4% · 5% · 6%'}</strong>) for deals{' '}
@@ -534,8 +535,9 @@ export default function SalesAgreementPage() {
               program. I accept that commission is{' '}
               <strong>personal sales only — not multi-level marketing</strong> (no downline or
               connection-of-connection pay) on the stepped schedule{' '}
-              <strong>{ratesLabel || '4% · 5% · 6%'}</strong> ({rateBandLabel}), R199/month 6-month
-              portal subscription, <strong>@{emailDomain}</strong> mailbox (where configured), POPIA
+              <strong>{ratesLabel || '4% · 5% · 6%'}</strong> ({rateBandLabel}), 6 months of free
+              portal access then R199/month for a 6-month term, <strong>@{emailDomain}</strong>{' '}
+              mailbox (where configured), POPIA
               duties, and that all CRM data and customers belong to{' '}
               <strong>{companyName || 'the Company'}</strong>. I am an independent contractor (not an
               employee) and am responsible for my own tax compliance unless the law provides

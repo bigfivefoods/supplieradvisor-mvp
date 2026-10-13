@@ -20,6 +20,11 @@ import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
 import { formatZar, formatZarPrecise } from '@/lib/sales-contractor/commission';
+import {
+  SALES_SUBSCRIPTION_MONTHLY_ZAR,
+  SALES_SUBSCRIPTION_TERM_MONTHS,
+  SALES_SUBSCRIPTION_TOTAL_ZAR,
+} from '@/lib/sales-contractor/subscription';
 import type { SalesPortalSummary } from '@/lib/sales-contractor/types';
 import { EarningsTrendChart } from '@/components/sales/SalesCharts';
 
@@ -151,13 +156,34 @@ export default function SalesCommandCentre() {
       )}
 
       {!summary.subscriptionExempt &&
+        summary.subscription?.complimentaryTerm && (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4">
+            <p className="text-sm text-emerald-950">
+              <strong>Free for {SALES_SUBSCRIPTION_TERM_MONTHS} months.</strong> Sales contractor
+              access runs until{' '}
+              {summary.subscription.endsAt
+                ? new Date(summary.subscription.endsAt).toLocaleDateString('en-ZA', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })
+                : 'the end of the free period'}
+              . After that it is R{SALES_SUBSCRIPTION_MONTHLY_ZAR}/month for a{' '}
+              {SALES_SUBSCRIPTION_TERM_MONTHS}-month term (R
+              {SALES_SUBSCRIPTION_TOTAL_ZAR.toLocaleString('en-ZA')} prepaid).
+            </p>
+          </div>
+        )}
+
+      {!summary.subscriptionExempt &&
         summary.agreementSigned &&
         !summary.subscriptionActive && (
           <div className="rounded-2xl border border-orange-200 bg-orange-50 px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <p className="text-sm text-orange-950">
-              <strong>Subscribe to access:</strong> R199/month · 6-month platform subscription
-              (R1,194 prepaid via Paystack) is required for independent sales contractors. Owners
-              and finance have free full access.
+              <strong>The {SALES_SUBSCRIPTION_TERM_MONTHS} free months have ended.</strong> Portal
+              access is now R{SALES_SUBSCRIPTION_MONTHLY_ZAR}/month for a{' '}
+              {SALES_SUBSCRIPTION_TERM_MONTHS}-month term (R
+              {SALES_SUBSCRIPTION_TOTAL_ZAR.toLocaleString('en-ZA')} prepaid).
             </p>
             <Link
               href="/sales/subscribe"

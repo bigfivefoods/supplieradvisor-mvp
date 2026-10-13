@@ -978,7 +978,8 @@ function TeamInner() {
               >
                 Sales program
               </a>{' '}
-              settings, plus R199×6 portal sub. <strong>Owners and finance</strong> get free full
+              settings. The sales contractor role is free for 6 months, then R199×6.{' '}
+              <strong>Owners and finance</strong> get free full
               sales portal access. All CRM data stays under your company. Owners and admins
               can open each signed agreement from the Sales contractor group — the record
               is the agreement row (number, signature, date, and version), and the PDF is

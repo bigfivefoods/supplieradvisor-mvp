@@ -14,7 +14,7 @@ import {
 import {
   SALES_CONTRACTOR_CONTRACT_VERSION,
 } from './agreement';
-import { computeSubscriptionInfo } from './subscription';
+import { applySalesContractorFreeTerm, computeSubscriptionInfo } from './subscription';
 import type { SalesContractorAgreement } from './types';
 import {
   programSnapshotForAgreement,
@@ -111,6 +111,41 @@ export function mapAgreementRow(row: Record<string, unknown>): SalesContractorAg
   };
 }
 
+async function salesContractorRoleStartedAt(
+  memberId: number | null
+): Promise<string | null> {
+  if (!memberId) return null;
+  try {
+    const supabase = getSupabaseServer();
+    const { data, error } = await supabase
+      .from('business_users')
+      .select('joined_at, created_at, invited_at')
+      .eq('id', memberId)
+      .maybeSingle();
+    if (error || !data) return null;
+    const row = data as {
+      joined_at?: string | null;
+      created_at?: string | null;
+      invited_at?: string | null;
+    };
+    return row.joined_at || row.created_at || row.invited_at || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Role benefit: first 6 months free. Does not write the agreement row. */
+async function presentSalesAgreement(
+  agreement: SalesContractorAgreement
+): Promise<SalesContractorAgreement> {
+  const started = await salesContractorRoleStartedAt(agreement.business_user_id);
+  const subscription = applySalesContractorFreeTerm(
+    agreement.subscription || computeSubscriptionInfo({}),
+    started || agreement.created_at || null
+  );
+  return { ...agreement, subscription };
+}
+
 /**
  * Get or create pending agreement for a sales contractor membership.
  */
@@ -167,7 +202,12 @@ export async function getOrCreateAgreement(opts: {
 
   const signed = rows.find((r) => r.status === 'signed');
   if (signed) {
-    return { ok: true, agreement: mapAgreementRow(signed as Record<string, unknown>) };
+    return {
+      ok: true,
+      agreement: await presentSalesAgreement(
+        mapAgreementRow(signed as Record<string, unknown>)
+      ),
+    };
   }
 
   const program = await resolveProgramSettings(opts.companyId);
@@ -209,24 +249,26 @@ export async function getOrCreateAgreement(opts: {
       if (!upErr && updated) {
         return {
           ok: true,
-          agreement: mapAgreementRow(updated as Record<string, unknown>),
+          agreement: await presentSalesAgreement(
+            mapAgreementRow(updated as Record<string, unknown>)
+          ),
         };
       }
       // If update fails, still return live program tiers overlaid for the client
       return {
         ok: true,
-        agreement: {
+        agreement: await presentSalesAgreement({
           ...pending,
           commission_tiers: programTiers,
           contract_version: program.contract_version || pending.contract_version,
           max_commission_pct: program.max_commission_pct,
           min_commission_pct: program.min_commission_pct,
           terms_summary: tiersSummaryText(programTiers),
-        },
+        }),
       };
     }
 
-    return { ok: true, agreement: pending };
+    return { ok: true, agreement: await presentSalesAgreement(pending) };
   }
 
   const now = new Date().toISOString();
@@ -261,7 +303,12 @@ export async function getOrCreateAgreement(opts: {
     return { ok: false, error: insErr.message, status: 500 };
   }
 
-  return { ok: true, agreement: mapAgreementRow(created as Record<string, unknown>) };
+  return {
+    ok: true,
+    agreement: await presentSalesAgreement(
+      mapAgreementRow(created as Record<string, unknown>)
+    ),
+  };
 }
 
 export function isAgreementSigned(a: SalesContractorAgreement | null | undefined): boolean {

@@ -14,7 +14,10 @@ import {
   COMPANY_TRIAL_DAYS,
   BILLING_TERMS,
 } from '@/lib/billing/company-subscription';
-import { SALES_SUBSCRIPTION_MONTHLY_ZAR } from '@/lib/sales-contractor/subscription';
+import {
+  SALES_SUBSCRIPTION_MONTHLY_ZAR,
+  SALES_SUBSCRIPTION_TERM_MONTHS,
+} from '@/lib/sales-contractor/subscription';
 import {
   REFERRAL_LEVEL_RATES_PCT,
   REFERRAL_TOTAL_CAP_PCT,
@@ -120,7 +123,7 @@ ${principles}
 - Modules & packs: /dashboard/my-business/modules
 - Billing UI: /dashboard/my-business/billing
 - Public pricing & referral: /#pricing and /#referral (same homepage)
-- Sales contractor portal access is a separate fee (about R${SALES_SUBSCRIPTION_MONTHLY_ZAR}/mo term product) after agreement.
+- Sales contractor portal access is free for the first ${SALES_SUBSCRIPTION_TERM_MONTHS} months of that role, then R${SALES_SUBSCRIPTION_MONTHLY_ZAR}/month for a ${SALES_SUBSCRIPTION_TERM_MONTHS}-month prepaid term. A lifetime grant stays free. Owners, admins, and finance are not charged.
 
 ## Product architecture (Core → Sector → Pack → Modules)
 - Navigation is **functional**. Enabled Advisor hubs (GymAdvisor, SchoolAdvisor, ContainerAdvisor, VetAdvisor, …) default to the top of the sidenav, then Control Tower, Company, and Core modules. Users can Arrange sidebar to move Advisors and save that order.

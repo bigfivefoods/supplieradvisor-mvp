@@ -51,6 +51,8 @@ export async function GET(request: NextRequest) {
           status: 'active' as const,
           isActive: true,
           daysRemaining: null,
+          complimentaryTerm: false,
+          endsAt: sub.lifetime ? sub.endsAt : null,
         }
       : sub;
 
@@ -69,7 +71,7 @@ export async function GET(request: NextRequest) {
         totalCents: SALES_SUBSCRIPTION_TOTAL_CENTS,
         currency: 'ZAR',
         product: SALES_SUBSCRIPTION_PRODUCT,
-        description: `Sales Contractor Portal — R${SALES_SUBSCRIPTION_MONTHLY_ZAR}/mo × ${SALES_SUBSCRIPTION_TERM_MONTHS} months`,
+        description: `Sales Contractor Portal — first ${SALES_SUBSCRIPTION_TERM_MONTHS} months free, then R${SALES_SUBSCRIPTION_MONTHLY_ZAR}/mo × ${SALES_SUBSCRIPTION_TERM_MONTHS} months`,
       },
       agreementId: agr.agreement.id,
     });

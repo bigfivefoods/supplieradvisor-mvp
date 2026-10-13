@@ -145,6 +145,40 @@ export default function SalesSubscribePage() {
     );
   }
 
+  if (subscription?.complimentaryTerm) {
+    const freeUntil = subscription.endsAt
+      ? new Date(subscription.endsAt).toLocaleDateString('en-ZA', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        })
+      : 'the end of the free period';
+    return (
+      <div className="max-w-lg mx-auto rounded-3xl border border-emerald-200 bg-emerald-50 p-8 text-center">
+        <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto mb-4" />
+        <h1 className="text-2xl font-black text-slate-900">
+          Free for {SALES_SUBSCRIPTION_TERM_MONTHS} months
+        </h1>
+        <p className="text-sm text-emerald-800 mt-2">
+          Sales contractor access is free until {freeUntil}
+          {subscription.daysRemaining != null
+            ? ` · ${subscription.daysRemaining} days left`
+            : ''}
+          . After that it is R{SALES_SUBSCRIPTION_MONTHLY_ZAR}/month for a{' '}
+          {SALES_SUBSCRIPTION_TERM_MONTHS}-month term (R
+          {SALES_SUBSCRIPTION_TOTAL_ZAR.toLocaleString('en-ZA')} prepaid).
+        </p>
+        <button
+          type="button"
+          onClick={() => router.push('/sales')}
+          className="mt-6 px-6 py-3 rounded-2xl bg-[#00b4d8] hover:bg-[#0096c7] text-white font-bold text-sm"
+        >
+          Open command centre
+        </button>
+      </div>
+    );
+  }
+
   if (subscription?.isActive) {
     return (
       <div className="max-w-lg mx-auto rounded-3xl border border-emerald-200 bg-emerald-50 p-8 text-center">
@@ -188,11 +222,11 @@ export default function SalesSubscribePage() {
           Platform subscription
         </div>
         <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
-          Unlock your sales portal
+          Your {SALES_SUBSCRIPTION_TERM_MONTHS} free months have ended
         </h1>
         <p className="mt-2 text-neutral-500 text-sm sm:text-base max-w-md mx-auto">
-          Sell for <strong className="text-slate-700">{companyName || 'your company'}</strong> with
-          full access — commission tools, pipeline, and forecasts.
+          Keep selling for <strong className="text-slate-700">{companyName || 'your company'}</strong>{' '}
+          with a {SALES_SUBSCRIPTION_TERM_MONTHS}-month portal subscription.
         </p>
       </div>
 
