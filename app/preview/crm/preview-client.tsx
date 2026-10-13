@@ -2,6 +2,7 @@
 
 import { crmPreviewJson } from '@/lib/customers/crm-preview';
 import { Providers } from '@/components/Providers';
+import type { CardQuery } from '@/lib/relationship/card-filter';
 import CustomersHub from '@/app/dashboard/customers/page';
 import ProfilesPage from '@/app/dashboard/customers/profiles/page';
 import LeadsPage from '@/app/dashboard/customers/leads/page';
@@ -52,9 +53,13 @@ installPreviewFetch();
 export default function CrmPreviewClient({
   screen,
   initialId,
+  query,
+  sort,
 }: {
   screen: string;
   initialId: number;
+  query: CardQuery;
+  sort: string;
 }) {
   const id = Number.isFinite(initialId) && initialId !== 0 ? initialId : null;
   return (
@@ -64,7 +69,7 @@ export default function CrmPreviewClient({
           SupplierAdvisor® · sample book · not saved
         </p>
         {screen === 'profiles' ? (
-          <ProfilesPage preview={{ companyId: 91001, id }} />
+          <ProfilesPage preview={{ companyId: 91001, id, query, sort }} />
         ) : null}
         {screen === 'leads' || screen === 'pipeline' ? <LeadsPage /> : null}
         {screen === '360' ? <Customers360Page /> : null}

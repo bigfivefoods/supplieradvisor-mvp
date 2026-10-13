@@ -1,4 +1,5 @@
 import SrmPreviewClient from './preview-client';
+import { cardQueryFromParams, sortFromParams } from '@/lib/relationship/card-filter';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,9 +10,20 @@ function one(value: string | string[] | undefined): string {
 export default async function SrmPreviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ id?: string | string[] }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const id = Number(one(params.id) || 0);
-  return <SrmPreviewClient initialId={Number.isFinite(id) ? id : 0} />;
+  const flat = new URLSearchParams();
+  for (const key of ['q', 'status', 'region', 'industry', 'band', 'compliance', 'sort', 'id']) {
+    const text = one(params[key]);
+    if (text) flat.set(key, text);
+  }
+  const id = Number(flat.get('id') || 0);
+  return (
+    <SrmPreviewClient
+      initialId={Number.isFinite(id) ? id : 0}
+      query={cardQueryFromParams(flat)}
+      sort={sortFromParams(flat, ['name', 'trust', 'otifef'])}
+    />
+  );
 }
