@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -29,12 +29,7 @@ import { glCodeFromMeta } from '@/lib/accounting/party-roles';
 import {
   SrmBoard,
   SrmEmpty,
-  SrmSearch,
-  SrmSelect,
   SrmSkeleton,
-  SrmSortButton,
-  SrmToolbar,
-  SrmViewSwitch,
   srmFocus,
 } from '@/components/suppliers/srm/SrmDesk';
 import {
@@ -46,24 +41,50 @@ import {
   type SrmView,
 } from '@/lib/suppliers/srm-desk';
 import { ProfileCard } from '@/components/relationship/ProfileCard';
-import { ProfileSheet, type SheetAction } from '@/components/relationship/ProfileSheet';
+import { CardFilterBar } from '@/components/relationship/CardFilterBar';
+import {
+  SUPPLIER_STATUS_ORDER,
+  cardQueryFromParams,
+  cardQueryKey,
+  emptyCardQuery,
+  facetChoices,
+  industryLabel,
+  orderedStatuses,
+  placeLabel,
+  resultCount,
+  sortFromParams,
+  splitPrimary,
+  supplierMatches,
+  titleLabel,
+  writeListParams,
+  type CardQuery,
+} from '@/lib/relationship/card-filter';
 import {
   supplierDossier,
   supplierLedgerLines,
+  EMPTY_FIELD,
   type DossierDoc,
   type DossierLine,
 } from '@/lib/relationship/profile-dossier';
+import { ProfileSheet, type SheetAction } from '@/components/relationship/ProfileSheet';
 import { isSrmPreviewId, srmPreviewBook } from '@/lib/suppliers/srm-preview';
+
+const SUPPLIER_SORTS = ['name', 'trust', 'otifef'] as const;
 
 export default function SupplierNetworkPage({
   preview,
 }: {
-  preview?: { companyId: number; id: number | null };
+  preview?: { companyId: number; id: number | null; query?: CardQuery; sort?: string };
 } = {}) {
   if (preview) {
     return (
       <CompanyRequired assumedCompanyId={preview.companyId}>
-        <NetworkInner urlId={preview.id ?? 0} assumedCompanyId={preview.companyId} />
+        <NetworkInner
+          urlId={preview.id ?? 0}
+          assumedCompanyId={preview.companyId}
+          initialQuery={preview.query || emptyCardQuery()}
+          initialSort={preview.sort || 'name'}
+        />
       </CompanyRequired>
     );
   }
@@ -87,15 +108,25 @@ export default function SupplierNetworkPage({
 function NetworkFromSearch() {
   const searchParams = useSearchParams();
   const urlId = Number(searchParams.get('id') || 0);
-  return <NetworkInner urlId={Number.isFinite(urlId) ? urlId : 0} />;
+  return (
+    <NetworkInner
+      urlId={Number.isFinite(urlId) ? urlId : 0}
+      initialQuery={cardQueryFromParams(searchParams)}
+      initialSort={sortFromParams(searchParams, SUPPLIER_SORTS)}
+    />
+  );
 }
 
 function NetworkInner({
   urlId,
   assumedCompanyId,
+  initialQuery,
+  initialSort = 'name',
 }: {
   urlId: number;
   assumedCompanyId?: number;
+  initialQuery?: CardQuery;
+  initialSort?: string;
 }) {
   const companyId = assumedCompanyId ?? getSelectedCompanyId()!;
   const previewMode = assumedCompanyId != null;
@@ -107,8 +138,7 @@ function NetworkInner({
   const privyUserId = getCanonicalUserId(user?.id);
   const router = useRouter();
   const [rows, setRows] = useState<SrmSupplierRecord[]>(previewBook?.suppliers || []);
-  const [q, setQ] = useState('');
-  const [status, setStatus] = useState('all');
+  const [query, setQuery] = useState<CardQuery>(initialQuery || emptyCardQuery());
   const [loading, setLoading] = useState(!previewMode);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(seedId);
@@ -138,11 +168,18 @@ function NetworkInner({
     Record<number, PartyRoleRow>
   >({});
   const [view, setView] = useState<SrmView>('list');
-  const [sort, setSort] = useState<'name' | 'trust' | 'otifef'>('name');
+  const [sort, setSort] = useState(initialSort);
 
+  const queryRef = useRef(initialQuery);
+  queryRef.current = initialQuery;
+  const incomingKey = cardQueryKey(initialQuery || emptyCardQuery());
   useEffect(() => {
     if (Number.isFinite(urlId) && urlId !== 0) setSelectedId(urlId);
   }, [urlId]);
+  useEffect(() => {
+    if (queryRef.current) setQuery(queryRef.current);
+    setSort(initialSort);
+  }, [incomingKey, initialSort]);
 
   const setUrlId = (id: number | null) => {
     const onWalkthrough =
@@ -174,9 +211,7 @@ function NetworkInner({
     }
     setLoading(true);
     try {
-      const params = new URLSearchParams({ companyId: String(companyId) });
-      if (status !== 'all') params.set('status', status);
-      if (q) params.set('q', q);
+      const params = new URLSearchParams({ companyId: String(companyId), limit: '100' });
       const res = await fetch(`/api/suppliers?${params}`);
       const data = await res.json();
       const list = (data.suppliers || []) as SrmSupplierRecord[];
@@ -198,7 +233,7 @@ function NetworkInner({
     } finally {
       setLoading(false);
     }
-  }, [companyId, previewMode, status, q]);
+  }, [companyId, previewMode]);
 
   useEffect(() => {
     const t = setTimeout(() => void load(), 200);
@@ -229,20 +264,7 @@ function NetworkInner({
   }, [companyId, selectedId]);
 
   const visible = useMemo(() => {
-    let copy = [...rows];
-    if (copy.some((row) => isSrmPreviewId(row.id))) {
-      const query = q.trim().toLowerCase();
-      if (query) {
-        copy = copy.filter((s) =>
-          [s.trading_name, s.legal_name, s.email, s.city, s.industry, ...(s.certifications || [])]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase()
-            .includes(query)
-        );
-      }
-      if (status !== 'all') copy = copy.filter((s) => (s.status || 'prospect') === status);
-    }
+    const copy = rows.filter((row) => supplierMatches(row, query));
     copy.sort((a, b) => {
       if (sort === 'trust') {
         return compareNum(Number(a.trust_score || 0), Number(b.trust_score || 0), 'desc');
@@ -253,7 +275,33 @@ function NetworkInner({
       return compareText(a.trading_name || '', b.trading_name || '', 'asc');
     });
     return copy;
-  }, [rows, sort, q, status]);
+  }, [rows, sort, query]);
+
+  const publishList = (nextQuery: CardQuery, nextSort = sort) => {
+    setQuery(nextQuery);
+    setSort(nextSort);
+    if (typeof window === 'undefined') return;
+    const params = writeListParams(new URLSearchParams(window.location.search), nextQuery, nextSort);
+    const onWalkthrough =
+      previewMode || window.location.pathname.startsWith('/preview/srm');
+    const path = onWalkthrough ? '/preview/srm' : '/dashboard/suppliers/network';
+    const qs = params.toString();
+    router.replace(`${path}${qs ? `?${qs}` : ''}`, { scroll: false });
+  };
+  const statusSplit = splitPrimary(
+    orderedStatuses(
+      rows.map((row) => row.status),
+      SUPPLIER_STATUS_ORDER
+    )
+  );
+  const regionChoices = facetChoices(
+    rows.map((row) => placeLabel(row)),
+    query.region
+  );
+  const industryChoices = facetChoices(
+    rows.map((row) => industryLabel(row)),
+    query.industry
+  );
 
   const listRow = rows.find((s) => s.id === selectedId);
   const selected =
@@ -529,51 +577,64 @@ function NetworkInner({
           }
         />
 
-        <SrmToolbar
-          meta={
-            loading
-              ? 'Loading the supply book…'
-              : `${visible.length} supplier${visible.length === 1 ? '' : 's'}`
-          }
-        >
-          <SrmSearch
-            value={q}
-            onChange={setQ}
-            label="Search suppliers"
-            placeholder="Search name, industry, cert, city…"
-          />
-          <SrmSelect
-            label="Status"
-            value={status}
-            onChange={setStatus}
-            options={[
-              { value: 'all', label: 'All statuses' },
-              { value: 'preferred', label: 'Preferred' },
-              { value: 'active', label: 'Active' },
-              { value: 'prospect', label: 'Prospect' },
-              { value: 'blocked', label: 'Blocked' },
-              { value: 'archived', label: 'Archived' },
-            ]}
-          />
-          <div className="flex flex-wrap gap-2">
-            <SrmSortButton label="Name" active={sort === 'name'} onClick={() => setSort('name')} />
-            <SrmSortButton label="Trust" active={sort === 'trust'} onClick={() => setSort('trust')} />
-            <SrmSortButton label="OTIFEF" active={sort === 'otifef'} onClick={() => setSort('otifef')} />
-          </div>
-          <SrmViewSwitch value={view} onChange={setView} />
-        </SrmToolbar>
+        <CardFilterBar
+          query={query}
+          onQuery={(next) => publishList(next)}
+          count={loading ? 'Loading the supply book…' : resultCount(visible.length, rows.length, 'supplier')}
+          noun="supplier"
+          searchLabel="Search suppliers"
+          placeholder="Search name, industry, cert, city…"
+          statuses={statusSplit.primary}
+          moreStatuses={statusSplit.more}
+          regions={regionChoices}
+          industries={industryChoices}
+          showScore
+          showCompliance
+          sort={{
+            value: sort,
+            onChange: (value) => publishList(query, value),
+            options: [
+              { value: 'name', label: 'Name' },
+              { value: 'trust', label: 'Trust' },
+              { value: 'otifef', label: 'OTIFEF' },
+            ],
+          }}
+          view={{
+            value: view,
+            onChange: (value) => setView(value as SrmView),
+            options: [
+              { value: 'list', label: 'Cards' },
+              { value: 'board', label: 'Board' },
+              { value: 'table', label: 'Table' },
+            ],
+          }}
+        />
 
         <div>
         <div className="min-w-0">
           {loading ? (
             <SrmSkeleton rows={5} variant={view === 'table' ? 'table' : 'list'} />
-          ) : visible.length === 0 ? (
+          ) : rows.length === 0 ? (
             <SrmEmpty
               title="No suppliers in this view"
               description="Discover a partner on the network, or add someone who is not on SupplierAdvisor® yet."
               actionHref="/dashboard/suppliers/discover"
               actionLabel="Discover suppliers"
             />
+          ) : visible.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center">
+              <p className="text-lg font-black text-slate-950">No suppliers match</p>
+              <p className="mx-auto mt-2 max-w-sm text-sm text-slate-600">
+                Nothing in the book fits these filters. Clear them to see every supplier.
+              </p>
+              <button
+                type="button"
+                onClick={() => publishList(emptyCardQuery())}
+                className="mt-5 inline-flex min-h-11 items-center rounded-full bg-[#00b4d8] px-5 text-sm font-bold text-slate-950"
+              >
+                Clear filters
+              </button>
+            </div>
           ) : view === 'board' ? (
             <SrmBoard
               columns={SUPPLIER_BOARD_COLUMNS.map((id) => ({
@@ -647,27 +708,38 @@ function NetworkInner({
                   s.invite_status !== 'accepted' &&
                   Boolean(s.email);
                 const isSelected = selectedId === s.id;
-                const card = supplierDossier(s);
+                const stats = [
+                  {
+                    label: 'OTIFEF',
+                    value: s.otifef_pct == null ? EMPTY_FIELD : `${Number(s.otifef_pct).toFixed(0)}%`,
+                  },
+                  {
+                    label: 'Trust',
+                    value: s.trust_score == null ? EMPTY_FIELD : Number(s.trust_score).toFixed(0),
+                  },
+                  { label: 'Terms', value: s.payment_terms || EMPTY_FIELD },
+                ];
                 return (
                   <li key={s.id}>
                     <ProfileCard
                       name={s.trading_name}
+                      kicker={s.industry}
                       detail={
                         s.legal_name && s.legal_name !== s.trading_name
                           ? s.legal_name
                           : s.contact_name
                       }
-                      meta={[s.industry, s.city, s.country].filter(Boolean).join(' · ')}
+                      meta={[s.city, s.country].filter(Boolean).join(', ')}
                       logoUrl={
                         s.logo_url ||
                         (s as { linked_logo_url?: string | null }).linked_logo_url
                       }
                       selected={isSelected}
                       onSelect={() => selectSupplier(isSelected ? null : s)}
-                      stats={card.stats}
+                      stats={stats}
                       chips={[
                         {
-                          label: s.status || 'prospect',
+                          label: titleLabel(s.status || 'prospect'),
                           className: srmStatusClass(s.status),
                         },
                         {

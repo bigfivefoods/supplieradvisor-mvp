@@ -2,6 +2,7 @@
 
 import { Providers } from '@/components/Providers';
 import { srmPreviewJson } from '@/lib/suppliers/srm-preview';
+import type { CardQuery } from '@/lib/relationship/card-filter';
 import NetworkPage from '@/app/dashboard/suppliers/network/page';
 
 const COMPANY_ID = '91002';
@@ -45,7 +46,15 @@ function installPreviewFetch() {
 
 installPreviewFetch();
 
-export default function SrmPreviewClient({ initialId }: { initialId: number }) {
+export default function SrmPreviewClient({
+  initialId,
+  query,
+  sort,
+}: {
+  initialId: number;
+  query: CardQuery;
+  sort: string;
+}) {
   const id = Number.isFinite(initialId) && initialId !== 0 ? initialId : null;
   return (
     <Providers>
@@ -53,7 +62,7 @@ export default function SrmPreviewClient({ initialId }: { initialId: number }) {
         <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-[#0077b6]">
           SupplierAdvisor® · sample supply book · not saved
         </p>
-        <NetworkPage preview={{ companyId: 91002, id }} />
+        <NetworkPage preview={{ companyId: 91002, id, query, sort }} />
       </div>
     </Providers>
   );

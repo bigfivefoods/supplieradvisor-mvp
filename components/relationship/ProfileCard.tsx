@@ -21,6 +21,7 @@ export function ProfileCard({
   name,
   detail,
   meta,
+  kicker,
   chips,
   stats,
   logoUrl,
@@ -31,6 +32,7 @@ export function ProfileCard({
   name: string;
   detail?: string | null;
   meta?: string | null;
+  kicker?: string | null;
   chips: ProfileCardChip[];
   stats: ProfileCardStat[];
   logoUrl?: string | null;
@@ -40,10 +42,10 @@ export function ProfileCard({
 }) {
   return (
     <article
-      className={`overflow-hidden rounded-3xl border bg-white shadow-sm transition-shadow ${
+      className={`overflow-hidden rounded-3xl border bg-white transition duration-200 motion-safe:hover:-translate-y-0.5 ${
         selected
-          ? 'border-[#00b4d8] shadow-[0_0_0_3px_rgba(0,180,216,0.28)]'
-          : 'border-slate-200 hover:border-[#00b4d8]/70'
+          ? 'border-[#00b4d8] shadow-[0_10px_30px_rgba(0,180,216,0.16)]'
+          : 'border-slate-200 shadow-[0_1px_2px_rgba(15,23,42,0.04)] motion-safe:hover:border-[#00b4d8]/60 motion-safe:hover:shadow-[0_14px_32px_rgba(15,23,42,0.08)]'
       }`}
     >
       <button
@@ -51,22 +53,22 @@ export function ProfileCard({
         onClick={onSelect}
         aria-expanded={selected}
         aria-controls="party-profile-sheet"
-        className={`${focus} flex w-full flex-col gap-3 p-4 text-left`}
+        aria-label={`${selected ? 'Close' : 'Open'} ${name}`}
+        className={`${focus} flex w-full flex-col gap-4 p-4 text-left sm:p-5`}
       >
-        <span className="flex items-start gap-3">
-          <CompanyLogo logoUrl={logoUrl} name={name} size="md" />
+        <span className="flex items-start gap-3.5">
+          <CompanyLogo logoUrl={logoUrl} name={name} size="lg" />
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-base font-black tracking-tight text-slate-950">
-              {name}
+            {kicker ? (
+              <span className="block truncate text-[11px] font-bold uppercase tracking-[0.14em] text-[#0077b6]">
+                {kicker}
+              </span>
+            ) : null}
+            <span className="block truncate text-lg font-black tracking-tight text-slate-950">{name}</span>
+            <span className={`mt-0.5 block truncate text-sm ${detail ? 'text-slate-600' : 'text-slate-400'}`}>
+              {detail || 'Legal name not on file'}
             </span>
-            {detail ? (
-              <span className="mt-0.5 block truncate text-sm text-slate-600">{detail}</span>
-            ) : (
-              <span className="mt-0.5 block text-sm text-slate-400">Legal name not on file</span>
-            )}
-            <span className="mt-0.5 block truncate text-xs text-slate-500">
-              {meta || 'Place not on file'}
-            </span>
+            <span className="mt-1 block truncate text-sm text-slate-500">{meta || 'Place not on file'}</span>
           </span>
         </span>
         {chips.length ? (
@@ -74,27 +76,33 @@ export function ProfileCard({
             {chips.map((chip) => (
               <span
                 key={chip.label}
-                className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${chip.className}`}
+                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${chip.className}`}
               >
                 {chip.label}
               </span>
             ))}
           </span>
         ) : null}
-        <span className="grid grid-cols-3 gap-2">
-          {stats.map((stat) => (
-            <span key={stat.label} className="min-w-0 rounded-2xl bg-slate-50 px-2.5 py-2">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+        <span className="grid grid-cols-3 gap-px overflow-hidden rounded-2xl bg-slate-200/80">
+          {stats.map((stat, index) => (
+            <span key={stat.label} className="min-w-0 bg-slate-50 px-2.5 py-2.5">
+              <span className="block truncate text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 {stat.label}
               </span>
-              <span className="mt-0.5 block truncate text-sm font-black text-slate-950">
+              <span
+                className={`mt-0.5 block truncate font-black text-slate-950 ${
+                  index === 0 ? 'text-base' : 'text-sm'
+                }`}
+              >
                 {stat.value}
               </span>
             </span>
           ))}
         </span>
       </button>
-      {footer ? <div className="flex flex-wrap gap-2 border-t border-slate-100 px-4 py-3">{footer}</div> : null}
+      {footer ? (
+        <div className="flex flex-wrap gap-2 border-t border-slate-100 px-4 py-3 sm:px-5">{footer}</div>
+      ) : null}
     </article>
   );
 }
