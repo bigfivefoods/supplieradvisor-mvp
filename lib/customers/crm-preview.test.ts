@@ -51,6 +51,14 @@ const one = crmPreviewJson('/api/customers?companyId=1&id=-1') as {
 assert.equal(one.book, true);
 assert.equal(one.customers[0]?.id, -1);
 assert.equal(crmPreviewJson('/pricing'), null);
+const docs = crmPreviewJson('/api/customers/docs?companyId=1&customerId=-1&type=quote') as {
+  documents: { quote_number?: string }[];
+};
+assert.equal(docs.documents[0]?.quote_number, 'QT-2041');
+const none = crmPreviewJson('/api/customers/docs?companyId=1&customerId=-2&type=order') as {
+  documents: unknown[];
+};
+assert.equal(none.documents.length, 0);
 
 const src = readFileSync(resolve('lib/customers/crm-preview.ts'), 'utf8');
 assert.doesNotMatch(src, /supabase/i);

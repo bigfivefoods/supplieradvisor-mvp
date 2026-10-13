@@ -30,8 +30,18 @@ export function SuppliersNav() {
   return <RelationshipNav items={SUPPLIERS_NAV} />;
 }
 
-export function CompanyRequired({ children }: { children: React.ReactNode }) {
-  return <CompanyGate noun="Suppliers SRM">{children}</CompanyGate>;
+export function CompanyRequired({
+  children,
+  assumedCompanyId,
+}: {
+  children: React.ReactNode;
+  assumedCompanyId?: number | null;
+}) {
+  return (
+    <CompanyGate noun="Suppliers SRM" assumedCompanyId={assumedCompanyId}>
+      {children}
+    </CompanyGate>
+  );
 }
 
 

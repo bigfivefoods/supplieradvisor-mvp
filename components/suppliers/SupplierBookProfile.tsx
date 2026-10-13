@@ -40,6 +40,7 @@ export function SupplierBookProfile({
   party,
   onClose,
   onSaved,
+  embedded = false,
 }: {
   supplier: SrmSupplierRecord;
   companyId: number;
@@ -47,6 +48,7 @@ export function SupplierBookProfile({
   party?: PartyRoleRow | null;
   onClose: () => void;
   onSaved: (next: SrmSupplierRecord) => void;
+  embedded?: boolean;
 }) {
   const [form, setForm] = useState<SrmBookProfile>(() =>
     srmRecordToBookProfile(supplier)
@@ -71,6 +73,10 @@ export function SupplierBookProfile({
   const filledDocs = docs.filter((d) => d.url).length;
 
   const save = async () => {
+    if (supplier.id < 0) {
+      toast.message('Sample book — nothing is saved on SupplierAdvisor®');
+      return;
+    }
     if (!form.trading_name.trim()) {
       toast.error('Trading name required');
       return;
@@ -125,11 +131,22 @@ export function SupplierBookProfile({
       ? [form.industry, ...SUPPLIER_INDUSTRIES]
       : SUPPLIER_INDUSTRIES;
 
+  const Root = embedded ? 'details' : 'aside';
   return (
-    <aside
+    <Root
       id="srm-supplier-profile"
-      className="rounded-[1.5rem] border border-white/70 bg-white shadow-sm overflow-hidden lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto"
+      className={
+        embedded
+          ? 'rounded-3xl border border-slate-200 bg-white'
+          : 'overflow-hidden rounded-[1.5rem] border border-white/70 bg-white shadow-sm lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto'
+      }
     >
+      {embedded ? (
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-black text-slate-950">
+          Edit this record
+          <span className="text-xs font-semibold text-slate-500">Same profile the portal saves</span>
+        </summary>
+      ) : (
       <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#0077b6]">
@@ -152,8 +169,9 @@ export function SupplierBookProfile({
           <X className="w-4 h-4" />
         </button>
       </div>
+      )}
 
-      <div className="p-5 space-y-4">
+      <div className={embedded ? 'space-y-4 border-t border-slate-100 p-4' : 'space-y-4 p-5'}>
         <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5">
           <p className="text-[10px] font-black uppercase tracking-wider text-neutral-500 mb-1">
             Books · CoA
@@ -297,7 +315,7 @@ export function SupplierBookProfile({
           type="button"
           disabled={saving}
           onClick={() => void save()}
-          className="btn-primary w-full !py-2.5 text-sm"
+          className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[#00b4d8] text-sm font-bold text-slate-950 disabled:opacity-50"
         >
           {saving ? (
             <Loader2 className="w-4 h-4 animate-spin mx-auto" />
@@ -306,6 +324,7 @@ export function SupplierBookProfile({
           )}
         </button>
 
+        {!embedded ? (
         <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3">
           <div className="flex items-center justify-between gap-2 mb-2">
             <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
@@ -341,6 +360,7 @@ export function SupplierBookProfile({
             ))}
           </ul>
         </div>
+        ) : null}
 
         <HostCommercial
           companyId={companyId}
@@ -349,12 +369,15 @@ export function SupplierBookProfile({
           partyName={form.trading_name || supplier.trading_name || 'Supplier'}
         />
 
+        {!embedded ? (
         <SrmTimeline
           events={supplierTimeline(supplier)}
           title="Activity"
           empty="Dates appear here when the supplier is added, invited, or updated."
         />
+        ) : null}
 
+        {!embedded ? (
         <div className="flex flex-wrap gap-2">
           <Link
             href={`/dashboard/suppliers/po?supplierId=${supplier.id}`}
@@ -375,7 +398,8 @@ export function SupplierBookProfile({
             <Globe className="w-3.5 h-3.5" /> Portal
           </Link>
         </div>
+        ) : null}
       </div>
-    </aside>
+    </Root>
   );
 }

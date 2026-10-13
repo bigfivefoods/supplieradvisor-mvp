@@ -30,8 +30,18 @@ export function CustomersNav() {
   return <RelationshipNav items={CUSTOMERS_NAV} />;
 }
 
-export function CompanyRequired({ children }: { children: React.ReactNode }) {
-  return <CompanyGate noun="Customers CRM">{children}</CompanyGate>;
+export function CompanyRequired({
+  children,
+  assumedCompanyId,
+}: {
+  children: React.ReactNode;
+  assumedCompanyId?: number | null;
+}) {
+  return (
+    <CompanyGate noun="Customers CRM" assumedCompanyId={assumedCompanyId}>
+      {children}
+    </CompanyGate>
+  );
 }
 
 

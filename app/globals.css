@@ -1903,3 +1903,18 @@ html.dark .b2c-app textarea {
     transition: none;
   }
 }
+
+@keyframes profile-sheet-in {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .profile-sheet-panel {
+    animation: profile-sheet-in 180ms ease-out;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-sheet-panel {
+    animation: none;
+  }
+}

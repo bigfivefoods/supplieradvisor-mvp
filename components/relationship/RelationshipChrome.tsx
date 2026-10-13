@@ -50,13 +50,16 @@ function isActive(pathname: string, href: string, exact?: boolean) {
 export function CompanyGate({
   children,
   noun = 'this module',
+  assumedCompanyId,
 }: {
   children: React.ReactNode;
   noun?: string;
+  /** Preview studios pass the sample company so the book renders before localStorage exists. */
+  assumedCompanyId?: number | null;
 }) {
   // Read company once per render — do not use focus listeners that remount trees
   // (remounts wipe form state and feel like "fields don't work").
-  const companyId = getSelectedCompanyId();
+  const companyId = assumedCompanyId || getSelectedCompanyId();
 
   if (!companyId) {
     return (
