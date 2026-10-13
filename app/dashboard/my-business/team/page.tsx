@@ -11,6 +11,8 @@ import {
   LayoutGrid,
   ChevronDown,
   Clock3,
+  Download,
+  FileText,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePrivy } from '@privy-io/react-auth';
@@ -32,6 +34,11 @@ import {
   type PermissionResource,
   type TeamRole,
 } from '@/lib/business/permissions';
+import { groupTeamMembersByRole } from '@/lib/business/team-groups';
+import {
+  agreementProofLabel,
+  type SalesContractorProof,
+} from '@/lib/sales-contractor/company-records';
 import {
   isModuleEnabled,
   type EnabledModulesMap,
@@ -86,6 +93,10 @@ function TeamInner() {
   const [inviting, setInviting] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
+  const [proofs, setProofs] = useState<SalesContractorProof[]>([]);
+  const [proofsLoaded, setProofsLoaded] = useState(false);
+  const [proofError, setProofError] = useState<string | null>(null);
+  const [proofBusy, setProofBusy] = useState<number | null>(null);
   const [form, setForm] = useState({ name: '', email: '', role: 'member' });
   const [inviteModules, setInviteModules] = useState<EnabledModulesMap>({});
 
@@ -136,6 +147,27 @@ function TeamInner() {
 
   const canManage = me?.canManageTeam === true;
   const myMemberId = me?.memberId != null ? Number(me.memberId) : null;
+
+  const loadProofs = useCallback(async () => {
+    if (!canManage) return;
+    setProofError(null);
+    try {
+      const data = await withAuthJson<{ records?: SalesContractorProof[] }>(
+        `/api/business/team/agreements?companyId=${companyId}`
+      );
+      setProofs(Array.isArray(data.records) ? data.records : []);
+    } catch (e: unknown) {
+      setProofs([]);
+      setProofError(e instanceof Error ? e.message : 'Could not load agreements');
+    } finally {
+      setProofsLoaded(true);
+    }
+  }, [canManage, companyId, withAuthJson]);
+
+  useEffect(() => {
+    if (!canManage || loading) return;
+    void loadProofs();
+  }, [canManage, loading, loadProofs]);
   const isAdmin = me?.role === 'admin';
   const isOwner = me?.role === 'owner';
   /** Admins may promote themselves to Owner; owners may assign Owner to anyone. */
@@ -435,6 +467,36 @@ function TeamInner() {
     }
   };
 
+  const downloadAgreement = async (member: TeamMember) => {
+    setProofBusy(member.id);
+    try {
+      const res = await withAuth(
+        `/api/business/team/agreements?companyId=${companyId}&memberId=${member.id}&format=pdf`
+      );
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || 'Could not download the agreement');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const match = /filename="([^"]+)"/.exec(
+        res.headers.get('Content-Disposition') || ''
+      );
+      const who = String(member.name || member.email || member.id)
+        .replace(/[^\w\-]+/g, '-')
+        .slice(0, 40);
+      a.href = url;
+      a.download = match?.[1] || `sales-contractor-agreement-${who}.pdf`;
+      a.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Could not download the agreement');
+    } finally {
+      setProofBusy(null);
+    }
+  };
+
   const roleHelp = TEAM_ROLE_OPTIONS.find((r) => r.value === form.role);
 
   return (
@@ -594,11 +656,43 @@ function TeamInner() {
           ) : members.filter((m) => isListedTeamMember(m.status)).length === 0 ? (
             <div className="p-12 text-center text-sm text-neutral-500">No team members yet.</div>
           ) : (
-            <ul className="divide-y divide-neutral-100">
-              {members.filter((m) => isListedTeamMember(m.status)).map((m) => {
-                  const roleMeta = TEAM_ROLE_OPTIONS.find(
-                    (r) => r.value === String(m.role || 'member').toLowerCase()
-                  );
+            <div>
+              {groupTeamMembersByRole(
+                members.filter((m) => isListedTeamMember(m.status))
+              ).map((group) => (
+              <section
+                key={group.role}
+                className="border-b border-neutral-200 last:border-b-0"
+              >
+                <div className="px-5 py-2.5 bg-slate-50 flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex items-center gap-2">
+                    <span
+                      className={`shrink-0 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${roleBadgeClass(group.role)}`}
+                    >
+                      {group.label}
+                    </span>
+                    <span className="text-[11px] text-neutral-500 truncate">
+                      {group.rights}
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-semibold tabular-nums text-neutral-500">
+                    {group.members.length}
+                  </span>
+                </div>
+                {group.role === 'sales_contractor' && (
+                  <p className="px-5 py-2 text-[11px] leading-relaxed text-neutral-600 bg-orange-50/50 border-b border-orange-100">
+                    Signed contracts are kept on this company as agreement
+                    records — signature, date, version, and agreement number.
+                    The PDF is rebuilt from that record.
+                  </p>
+                )}
+              <ul className="divide-y divide-neutral-100">
+                {group.members.map((m) => {
+                  const roleMeta = TEAM_ROLE_OPTIONS.find((r) => r.value === group.role);
+                  const proof =
+                    group.role === 'sales_contractor'
+                      ? proofs.find((row) => row.memberId === m.id) || null
+                      : null;
                   const showReinvite = canManage && canReinvite(m);
                   const isOwnerRow =
                     String(m.role || '').toLowerCase() === 'owner';
@@ -727,6 +821,57 @@ function TeamInner() {
                         </div>
                       </div>
 
+                      {group.role === 'sales_contractor' && canManage && (
+                        <div className="px-5 pb-4">
+                          <div className="rounded-xl border border-orange-200 bg-orange-50/70 px-3 py-2.5 text-[11px] text-orange-950">
+                            {!proofsLoaded ? (
+                              <p className="text-orange-900/80">Checking the agreement record…</p>
+                            ) : proofError && !proof ? (
+                              <p>{proofError}</p>
+                            ) : proof?.onFile ? (
+                              <>
+                                <p className="font-semibold inline-flex items-center gap-1.5">
+                                  <FileText className="w-3.5 h-3.5 shrink-0" />
+                                  Agreement #{proof.agreementId} · {agreementProofLabel(proof)}
+                                  {proof.contractVersion ? ` · ${proof.contractVersion}` : ''}
+                                  {proof.lifetime ? ' · Lifetime access' : ''}
+                                </p>
+                                <p className="mt-0.5 text-orange-900/85">
+                                  {proof.signatureName || proof.contractorName || 'Signature not on file'}
+                                  {proof.signatureEmail ? ` · ${proof.signatureEmail}` : ''}
+                                  {proof.signedAt
+                                    ? ` · Signed ${portalWhen(proof.signedAt) || ''}`
+                                    : ''}
+                                </p>
+                                <p className="mt-0.5 text-[10px] text-orange-900/70">
+                                  Stored on this company in sales contractor agreements
+                                  {proof.acceptedIp ? ` · accepted from ${proof.acceptedIp}` : ''}.
+                                </p>
+                                <button
+                                  type="button"
+                                  disabled={proofBusy === m.id}
+                                  onClick={() => void downloadAgreement(m)}
+                                  className="mt-2 inline-flex items-center gap-1 !py-1.5 !px-2.5 text-xs font-semibold rounded-xl border border-orange-300 bg-white text-orange-950 hover:bg-orange-100 disabled:opacity-50"
+                                >
+                                  {proofBusy === m.id ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Download className="w-3.5 h-3.5" />
+                                  )}
+                                  {proof.signedAt ? 'Download signed agreement' : 'Download agreement'}
+                                </button>
+                              </>
+                            ) : (
+                              <p>
+                                No agreement is stored for this sales contractor yet.
+                                They sign it in the sales portal, and that signed row
+                                is the company record.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {modulesOpen && (
                         <div className="px-5 pb-4 border-t border-violet-100 bg-violet-50/40">
                           <p className="text-[11px] text-violet-900/80 pt-3 mb-2 leading-relaxed">
@@ -810,7 +955,10 @@ function TeamInner() {
                     </li>
                   );
                 })}
-            </ul>
+              </ul>
+              </section>
+              ))}
+            </div>
           )}
         </Panel>
       </div>
@@ -831,7 +979,10 @@ function TeamInner() {
                 Sales program
               </a>{' '}
               settings, plus R199×6 portal sub. <strong>Owners and finance</strong> get free full
-              sales portal access. All CRM data stays under your company.
+              sales portal access. All CRM data stays under your company. Owners and admins
+              can open each signed agreement from the Sales contractor group — the record
+              is the agreement row (number, signature, date, and version), and the PDF is
+              rebuilt from it.
             </p>
           </div>
 
