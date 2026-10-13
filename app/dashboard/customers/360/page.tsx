@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Loader2, RefreshCw, FileText } from 'lucide-react';
 import { toast } from 'sonner';
@@ -17,6 +17,24 @@ import { formatMoney } from '@/lib/customers/types';
 import type { Customer360 } from '@/lib/core-os/customer-360';
 import CompanyLogo from '@/components/business/CompanyLogo';
 import { AccountLogoField } from '@/components/relationship/AccountLogoField';
+import {
+  CrmEmpty,
+  CrmSampleBanner,
+  CrmSearch,
+  CrmSkeleton,
+  CrmTimeline,
+  customerTimelineFrom360,
+} from '@/components/customers/crm/kit';
+import { CRM_SAMPLE_FLAG, crmPreviewBook } from '@/lib/customers/crm-preview';
+import { Users } from 'lucide-react';
+
+function sampleBookOn() {
+  try {
+    return sessionStorage.getItem(CRM_SAMPLE_FLAG) === '1';
+  } catch {
+    return false;
+  }
+}
 
 const FILTERS: Array<{ id: string; label: string }> = [
   { id: 'all', label: 'All' },
@@ -45,9 +63,20 @@ function Inner() {
   const [openId, setOpenId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [raising, setRaising] = useState(false);
+  const [q, setQ] = useState('');
+  const [sample, setSample] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    if (sampleBookOn()) {
+      const book = crmPreviewBook();
+      setSample(true);
+      setRows(book.rows360);
+      setCounts(book.counts360);
+      setLoading(false);
+      return;
+    }
+    setSample(false);
     try {
       const params = new URLSearchParams({ companyId: String(companyId) });
       if (kind !== 'all') params.set('kind', kind);
@@ -90,18 +119,27 @@ function Inner() {
     }
   }
 
+  const shown = useMemo(() => {
+    const query = q.trim().toLowerCase();
+    if (!query) return rows;
+    return rows.filter((row) =>
+      `${row.name} ${row.email || ''}`.toLowerCase().includes(query)
+    );
+  }, [rows, q]);
+
   return (
     <CustomersPage>
       <CustomersHeader
         title="Customer"
         titleAccent="360"
-        description="Trade buyers, gym members, clinic patients and hirers on one book — memberships, debit bank, invoices and last visit."
+        description="Trade buyers, gym members, clinic patients and hirers on one SupplierAdvisor® book — memberships, debit bank, invoices and the activity timeline."
         action={
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => void load()}
               className="btn-secondary !py-2 !px-3 text-sm"
+              aria-label="Refresh"
             >
               <RefreshCw className="h-4 w-4" />
             </button>
@@ -117,16 +155,29 @@ function Inner() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      {sample ? (
+        <CrmSampleBanner
+          onHide={() => {
+            try {
+              sessionStorage.removeItem(CRM_SAMPLE_FLAG);
+            } catch {
+              /* ignore */
+            }
+            void load();
+          }}
+        />
+      ) : null}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <CrmSearch label="Search the book" placeholder="Search name or email…" value={q} onChange={setQ} />
         {FILTERS.map((f) => (
           <button
             key={f.id}
             type="button"
             onClick={() => setKind(f.id)}
-            className={`rounded-full border px-3 py-1 text-[11px] font-bold ${
+            className={`min-h-11 rounded-full border px-3 text-sm font-bold ${
               kind === f.id
-                ? 'border-cyan-700 bg-cyan-700 text-white'
-                : 'border-slate-200 bg-white text-slate-600'
+                ? 'border-[#00b4d8] bg-[#00b4d8] text-slate-950'
+                : 'border-slate-200 bg-white text-slate-700'
             }`}
           >
             {f.label}
@@ -136,16 +187,24 @@ function Inner() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="h-7 w-7 animate-spin text-[#00b4d8]" />
-        </div>
-      ) : rows.length === 0 ? (
-        <p className="py-16 text-center text-sm text-slate-500">
-          No customers in this filter.
-        </p>
+        <CrmSkeleton />
+      ) : shown.length === 0 ? (
+        <CrmEmpty
+          icon={Users}
+          title="No customers in this filter"
+          body="Try another kind, or preview a sample book. Sample rows are not written to SupplierAdvisor®."
+          onSample={() => {
+            try {
+              sessionStorage.setItem(CRM_SAMPLE_FLAG, '1');
+            } catch {
+              /* ignore */
+            }
+            void load();
+          }}
+        />
       ) : (
         <div className="space-y-2">
-          {rows.map((r) => {
+          {shown.map((r) => {
             const open = openId === r.customer_id;
             return (
               <article
@@ -240,9 +299,10 @@ function Detail({
   onLogo: (url: string | null) => void;
 }) {
   return (
-    <div className="mt-3 grid gap-3 border-t border-slate-100 pt-3 md:grid-cols-2">
+    <div className="mt-3 border-t border-slate-100 pt-3">
+      <div className="grid gap-3 md:grid-cols-2">
       <div>
-        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-600">
           Identity
         </p>
         <div className="mt-2 mb-2">
@@ -281,12 +341,12 @@ function Detail({
         ) : null}
       </div>
       <div>
-        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-600">
           Money & visits
         </p>
-        <ul className="mt-1 space-y-1 text-[12px]">
+        <ul className="mt-1 space-y-1 text-sm">
           {row.invoices.slice(0, 6).map((inv) => (
-            <li key={String(inv.id)} className="flex justify-between">
+            <li key={String(inv.id)} className="flex justify-between gap-3">
               <span>
                 {inv.number} · {inv.status}
               </span>
@@ -294,28 +354,35 @@ function Detail({
             </li>
           ))}
         </ul>
-        <p className="mt-2 text-[12px] text-slate-600">
+        <p className="mt-2 text-sm text-slate-600">
           Last visit: {row.last_visit ? `${row.last_visit.date} ${row.last_visit.title}` : '—'}
         </p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <Link
-            href={`/dashboard/customers/onboard?id=${row.customer_id}`}
-            className="text-[11px] font-bold text-[#0077b6]"
-          >
-            Edit CRM
-          </Link>
-          <Link
-            href="/dashboard/customers/invoices"
-            className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0077b6]"
-          >
-            <FileText className="h-3 w-3" /> Invoices
-          </Link>
-          {row.advisor_hrefs.map((h) => (
-            <Link key={h} href={h} className="text-[11px] font-bold text-[#0077b6]">
-              Advisor book
-            </Link>
-          ))}
+      </div>
+      </div>
+      <div className="mt-4">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-600">Activity</p>
+        <div className="mt-2">
+          <CrmTimeline items={customerTimelineFrom360(row)} />
         </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Link
+          href={`/dashboard/customers/onboard?id=${row.customer_id}`}
+          className="inline-flex min-h-11 items-center text-sm font-bold text-[#0077b6]"
+        >
+          Edit CRM
+        </Link>
+        <Link
+          href="/dashboard/customers/invoices"
+          className="inline-flex min-h-11 items-center gap-1 text-sm font-bold text-[#0077b6]"
+        >
+          <FileText className="h-4 w-4" /> Invoices
+        </Link>
+        {row.advisor_hrefs.map((h) => (
+          <Link key={h} href={h} className="inline-flex min-h-11 items-center text-sm font-bold text-[#0077b6]">
+            Advisor book
+          </Link>
+        ))}
       </div>
     </div>
   );

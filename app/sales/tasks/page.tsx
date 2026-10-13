@@ -13,6 +13,7 @@ import {
   DIARY_LENSES,
   diaryTableRows,
   eventsForLens,
+  horizonScheduleEvents,
   lensForDiaryEvent,
   rowsForLens,
   appleScheduleEvent,
@@ -31,6 +32,9 @@ import {
   PracticeScheduleCalendar,
   type ScheduleEvent,
 } from '@/components/schedule/PracticeScheduleCalendar';
+import { CrmEmpty, CrmKeysHint, CrmSkeleton, useCrmKeys } from '@/components/customers/crm/kit';
+import { CRM_SAMPLE_FLAG, crmPreviewBook, isCrmPreviewId } from '@/lib/customers/crm-preview';
+import { CalendarDays } from 'lucide-react';
 
 type DiaryFeed = {
   https: string;
@@ -87,6 +91,14 @@ export default function SalesTasksPage() {
   );
 }
 
+function sampleBookOn() {
+  try {
+    return sessionStorage.getItem(CRM_SAMPLE_FLAG) === '1';
+  } catch {
+    return false;
+  }
+}
+
 function TasksInner() {
   const companyId = getSelectedCompanyId();
   const { user } = usePrivy();
@@ -119,6 +131,24 @@ function TasksInner() {
     if (!companyId) return;
     setLoading(true);
     try {
+      if (sampleBookOn()) {
+        const book = crmPreviewBook();
+        setTasks(book.tasks);
+        setHorizon(horizonScheduleEvents(book.horizon));
+        setApple([]);
+        setFeed(null);
+        setCustomers(book.customers.map((c) => ({ id: c.id, trading_name: c.trading_name })));
+        setDeals(
+          book.opportunities.map((o) => ({
+            id: o.id,
+            name: o.name,
+            customer_id: o.customer_id ?? null,
+            company_name: o.company_name ?? null,
+          }))
+        );
+        setMembers([{ user_id: 'demo-craig', name: 'Craig Muller' }]);
+        return;
+      }
       const qs = new URLSearchParams({ companyId: String(companyId) });
       if (privyUserId) qs.set('privyUserId', privyUserId);
       const [taskRes, custRes, oppRes, teamRes] = await Promise.all([
@@ -201,6 +231,10 @@ function TasksInner() {
 
   const save = async () => {
     if (!companyId) return;
+    if (sampleBookOn()) {
+      toast.message('Sample book — nothing is saved on SupplierAdvisor®');
+      return;
+    }
     setSaving(true);
     try {
       const member = members.find((m) => m.user_id === form.assignee_user_id);
@@ -237,6 +271,21 @@ function TasksInner() {
 
   const markDone = async (task: CrmTask) => {
     if (!companyId) return;
+    if (sampleBookOn() || isCrmPreviewId(task.id)) {
+      setTasks((prev) =>
+        prev.map((row) =>
+          row.id === task.id
+            ? {
+                ...row,
+                status: row.status === 'done' ? 'open' : 'done',
+                completed_at: row.status === 'done' ? null : new Date().toISOString(),
+              }
+            : row
+        )
+      );
+      toast.message('Sample book — nothing is saved on SupplierAdvisor®');
+      return;
+    }
     const res = await fetch('/api/sales/tasks', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -284,6 +333,10 @@ function TasksInner() {
     }
   };
 
+  useCrmKeys({
+    onCreate: () => setFormOpen(true),
+  });
+
   if (!companyId) {
     return (
       <p className="rounded-3xl border border-neutral-200 bg-white p-8 text-sm text-neutral-600">
@@ -293,18 +346,19 @@ function TasksInner() {
   }
 
   return (
-    <div className="min-w-0 space-y-5">
+    <div className="crm-module min-w-0 space-y-5">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-400">
             Sales diary
           </p>
           <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
-            Tasks <span className="text-[#00b4d8]">on the horizon</span>
+            Tasks <span className="text-[#0077b6]">on the horizon</span>
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-neutral-600">
-            Follow-ups save on the company. Close dates and next steps from the pipeline sit on the same calendar.
+            Follow-ups save on the company in SupplierAdvisor®. Close dates and next steps from the pipeline sit on the same calendar.
           </p>
+          <CrmKeysHint />
         </div>
         <div className="flex flex-col gap-2 sm:items-end">
           <button
@@ -475,9 +529,7 @@ function TasksInner() {
       <DiaryCalendarConnect companyId={companyId} privyUserId={privyUserId} onChanged={() => void load()} />
 
       {loading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-[#00b4d8]" />
-        </div>
+        <CrmSkeleton variant="metrics" />
       ) : (
         <section className="min-w-0 rounded-3xl border border-neutral-200 bg-white p-3 sm:p-5">
           <div role="tablist" aria-label="Diary" className="mb-4 flex gap-2 overflow-x-auto pb-1">
@@ -553,27 +605,28 @@ function DiaryTable({
 }) {
   if (!rows.length) {
     return (
-      <p className="mt-4 rounded-2xl border border-dashed border-neutral-200 p-6 text-sm text-neutral-600">
-        {lens === 'done' ? (
-          'Nothing marked done yet.'
-        ) : lens === 'all' ? (
-          <>
-            Nothing in the diary yet. Add a follow-up, or set a next step on a{' '}
-            <Link href="/sales/pipeline" className="font-semibold text-[#0077b6]">
-              pipeline deal
+      <div className="mt-4">
+        <CrmEmpty
+          icon={CalendarDays}
+          title={lens === 'done' ? 'Nothing marked done yet' : 'Nothing in this view'}
+          body={
+            lens === 'all'
+              ? 'Add a follow-up, or set a next step on a pipeline deal. Press n for a new task.'
+              : `Nothing under ${DIARY_LENSES.find((item) => item.id === lens)?.label || 'this tab'}.`
+          }
+          action={
+            <Link href="/sales/pipeline" className="btn-secondary !px-4 !py-2.5 text-sm">
+              Open the pipeline
             </Link>
-            .
-          </>
-        ) : (
-          `Nothing under ${DIARY_LENSES.find((item) => item.id === lens)?.label || 'this tab'}.`
-        )}
-      </p>
+          }
+        />
+      </div>
     );
   }
 
   return (
     <div className="mt-4 overflow-x-auto">
-      <table className="w-full border-collapse text-left text-sm">
+      <table className="crm-table w-full border-collapse text-left text-sm">
         <thead>
           <tr className="border-b border-neutral-200 text-xs uppercase tracking-wide text-neutral-500">
             <th className="py-2 pr-3 font-semibold">When</th>

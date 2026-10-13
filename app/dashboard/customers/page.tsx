@@ -30,6 +30,14 @@ import {
 } from '@/components/chrome/CommandHubChrome';
 import RatingPromptBanner from '@/components/ratings/RatingPromptBanner';
 import { AdvisorCoreBridge } from '@/components/advisors/AdvisorCoreBridge';
+import {
+  CrmEmpty,
+  CrmKeysHint,
+  CrmSampleBanner,
+  CrmSkeleton,
+  useCrmKeys,
+} from '@/components/customers/crm/kit';
+import { CRM_SAMPLE_FLAG, crmPreviewBook } from '@/lib/customers/crm-preview';
 
 type Summary = {
   customers: number;
@@ -85,14 +93,32 @@ export default function CustomersHub() {
   );
 }
 
+function sampleBookOn() {
+  try {
+    return sessionStorage.getItem(CRM_SAMPLE_FLAG) === '1';
+  } catch {
+    return false;
+  }
+}
+
 function HubInner() {
   const companyId = getSelectedCompanyId()!;
   const [summary, setSummary] = useState<Summary | null>(null);
   const [desk, setDesk] = useState<DeskItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sample, setSample] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    if (sampleBookOn()) {
+      const book = crmPreviewBook();
+      setSample(true);
+      setSummary(book.summary);
+      setDesk(book.desk);
+      setLoading(false);
+      return;
+    }
+    setSample(false);
     try {
       const res = await fetch(`/api/customers/summary?companyId=${companyId}`);
       const data = await res.json();
@@ -105,6 +131,12 @@ function HubInner() {
       setLoading(false);
     }
   }, [companyId]);
+
+  useCrmKeys({
+    onCreate: () => {
+      window.location.assign('/dashboard/customers/onboard');
+    },
+  });
 
   useEffect(() => {
     void load();
@@ -119,7 +151,7 @@ function HubInner() {
         eyebrow="Customer relationship management"
         title="Customers"
         titleAccent="Selling"
-        description="One customer book for the company. Leads, the pipeline, the sales diary, quotes, and invoices all read and write those same records."
+        description="The SupplierAdvisor® customer book. Leads, the pipeline, the sales diary, quotes, and invoices all read and write those same records."
         action={
           <div className="flex flex-wrap gap-2">
             <button
@@ -143,6 +175,20 @@ function HubInner() {
         }
       />
 
+      <CrmKeysHint />
+      {sample ? (
+        <CrmSampleBanner
+          onHide={() => {
+            try {
+              sessionStorage.removeItem(CRM_SAMPLE_FLAG);
+            } catch {
+              /* ignore */
+            }
+            void load();
+          }}
+        />
+      ) : null}
+
       <AdvisorCoreBridge surface="customers" />
 
       <Suspense fallback={null}>
@@ -165,7 +211,7 @@ function HubInner() {
             <Link
               key={step.href}
               href={step.href}
-              className="min-h-11 rounded-2xl border border-neutral-200 bg-white px-3 py-3 shadow-sm hover:border-[#00b4d8] hover:text-[#0077b6]"
+              className="crm-path min-h-11 rounded-2xl border border-neutral-200 bg-white px-3 py-3 shadow-sm hover:border-[#00b4d8] hover:text-[#0077b6]"
             >
               <Icon className="h-4 w-4 text-[#00b4d8]" />
               <div className="mt-2 text-sm font-bold text-slate-900">{step.label}</div>
@@ -175,7 +221,8 @@ function HubInner() {
         })}
       </nav>
 
-      <HubTelemetryGrid className="mb-6">
+      {loading ? <CrmSkeleton variant="metrics" /> : null}
+      <HubTelemetryGrid className={`mb-6 ${loading ? 'hidden' : ''}`}>
         <TelemetryCard
           label="In the book"
           value={loading ? '—' : s?.customers ?? 0}
@@ -223,11 +270,25 @@ function HubInner() {
           </Link>
         </div>
         {loading ? (
-          <p className="mt-4 text-sm text-neutral-400">Loading the desk…</p>
+          <div className="mt-4">
+            <CrmSkeleton />
+          </div>
         ) : desk.length === 0 ? (
-          <p className="mt-4 rounded-2xl bg-slate-50 px-4 py-6 text-sm text-neutral-500">
-            Nothing is due in the next 14 days. Capture a lead or add a diary task when the next conversation is booked.
-          </p>
+          <div className="mt-4">
+            <CrmEmpty
+              icon={CalendarDays}
+              title="The desk is clear"
+              body="Nothing is due in the next 14 days. Capture a lead, or preview a sample book. Sample rows stay in this browser and are never written to SupplierAdvisor®."
+              onSample={() => {
+                try {
+                  sessionStorage.setItem(CRM_SAMPLE_FLAG, '1');
+                } catch {
+                  /* ignore */
+                }
+                void load();
+              }}
+            />
+          </div>
         ) : (
           <ul className="mt-3 divide-y divide-neutral-100">
             {desk.map((item) => (
