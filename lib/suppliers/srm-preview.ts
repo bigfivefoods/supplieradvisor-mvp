@@ -177,5 +177,5 @@ export function srmPreviewJson(url: string): unknown | null {
     return { success: true, rows: book.scorecards, summary: null };
   }
   if (path.startsWith('/api/accounting/parties')) return { parties: [] };
-  return { success: true };
+  return null;
 }

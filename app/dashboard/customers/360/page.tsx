@@ -26,6 +26,7 @@ import {
   customerTimelineFrom360,
 } from '@/components/customers/crm/kit';
 import { CRM_SAMPLE_FLAG, crmPreviewBook } from '@/lib/customers/crm-preview';
+import { isFixturePath } from '@/lib/preview/fixture-href';
 import { Users } from 'lucide-react';
 
 function sampleBookOn() {
@@ -57,18 +58,22 @@ function Inner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
+  const fixtureBook = isFixturePath('/preview/crm') || sampleBookOn();
   const [kind, setKind] = useState('all');
-  const [rows, setRows] = useState<Customer360[]>([]);
-  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [rows, setRows] = useState<Customer360[]>(() =>
+    fixtureBook ? crmPreviewBook().rows360 : []
+  );
+  const [counts, setCounts] = useState<Record<string, number>>(() =>
+    fixtureBook ? crmPreviewBook().counts360 : {}
+  );
   const [openId, setOpenId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!fixtureBook);
   const [raising, setRaising] = useState(false);
   const [q, setQ] = useState('');
-  const [sample, setSample] = useState(false);
+  const [sample, setSample] = useState(fixtureBook);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    if (sampleBookOn()) {
+    if (sampleBookOn() || isFixturePath('/preview/crm')) {
       const book = crmPreviewBook();
       setSample(true);
       setRows(book.rows360);
@@ -76,6 +81,7 @@ function Inner() {
       setLoading(false);
       return;
     }
+    setLoading(true);
     setSample(false);
     try {
       const params = new URLSearchParams({ companyId: String(companyId) });
@@ -125,12 +131,18 @@ function Inner() {
   }
 
   const shown = useMemo(() => {
+    let list = rows;
+    if (kind !== 'all') {
+      list = list.filter(
+        (row) => Array.isArray(row.kinds) && row.kinds.some((item) => item === kind)
+      );
+    }
     const query = q.trim().toLowerCase();
-    if (!query) return rows;
-    return rows.filter((row) =>
+    if (!query) return list;
+    return list.filter((row) =>
       `${row.name} ${row.email || ''}`.toLowerCase().includes(query)
     );
-  }, [rows, q]);
+  }, [rows, q, kind]);
 
   return (
     <CustomersPage>
@@ -150,9 +162,10 @@ function Inner() {
             </button>
             <button
               type="button"
-              disabled={raising}
+              disabled={raising || sample}
               onClick={() => void raiseRecurring()}
               className="btn-primary !py-2 !px-4 text-sm"
+              title={sample ? 'Sample book only — nothing is saved on SupplierAdvisor®' : undefined}
             >
               {raising ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Raise period invoices'}
             </button>

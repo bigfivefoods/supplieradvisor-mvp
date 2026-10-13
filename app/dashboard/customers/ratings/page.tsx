@@ -16,6 +16,8 @@ import {
 import { StarRating, formatAvgRating } from '@/components/ratings';
 import { RateCompanyForm } from '@/components/ratings/RateCompanyForm';
 import { starGuide, type RatingAggregate } from '@/lib/ratings/company-rating';
+import { isFixturePath } from '@/lib/preview/fixture-href';
+import { previewJson } from '@/lib/preview/os-fixtures';
 
 type Summary = {
   givenCount: number;
@@ -48,18 +50,29 @@ function Inner() {
   const searchParams = useSearchParams();
   const rateeFromPrompt = searchParams.get('ratee');
 
-  const [loading, setLoading] = useState(true);
-  const [aggregates, setAggregates] = useState<RatingAggregate[]>([]);
-  const [summary, setSummary] = useState<Summary>({
-    givenCount: 0,
-    companiesRated: 0,
-    givenAvg: null,
-  });
+  const fixtureRatings = (() => {
+    if (!isFixturePath('/preview/ratings')) return null;
+    return previewJson('/api/business/ratings?companyId=1&role=customer') as {
+      aggregates?: RatingAggregate[];
+      summary?: Summary;
+    } | null;
+  })();
+  const [loading, setLoading] = useState(!fixtureRatings);
+  const [aggregates, setAggregates] = useState<RatingAggregate[]>(
+    fixtureRatings?.aggregates || []
+  );
+  const [summary, setSummary] = useState<Summary>(
+    fixtureRatings?.summary || {
+      givenCount: 0,
+      companiesRated: 0,
+      givenAvg: null,
+    }
+  );
   const [peers, setPeers] = useState<Peer[]>([]);
   const [migrationHint, setMigrationHint] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (!isFixturePath('/preview/ratings')) setLoading(true);
     try {
       const params = new URLSearchParams({
         companyId: String(companyId),
@@ -166,12 +179,12 @@ function Inner() {
 
       <div className="grid sm:grid-cols-3 gap-3 mb-8">
         <div className="rounded-2xl border bg-white p-4">
-          <div className="text-2xl font-black">{summary.companiesRated}</div>
+          <div className="text-2xl font-black">{loading ? '—' : summary.companiesRated}</div>
           <div className="text-xs text-slate-500">Customers rated</div>
         </div>
         <div className="rounded-2xl border bg-white p-4">
           <div className="text-2xl font-black">
-            {formatAvgRating(summary.givenAvg)}
+            {loading ? '—' : formatAvgRating(summary.givenAvg)}
           </div>
           <div className="text-xs text-slate-500">Average stars</div>
           {summary.givenAvg != null && (
@@ -181,7 +194,7 @@ function Inner() {
           )}
         </div>
         <div className="rounded-2xl border bg-white p-4">
-          <div className="text-2xl font-black">{summary.givenCount}</div>
+          <div className="text-2xl font-black">{loading ? '—' : summary.givenCount}</div>
           <div className="text-xs text-slate-500">Ratings published</div>
         </div>
       </div>
@@ -214,7 +227,7 @@ function Inner() {
                     <div className="text-right">
                       <div className="inline-flex items-center gap-1 font-black text-amber-700">
                         <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                        {s.rating_avg.toFixed(1)}
+                        {Number.isFinite(s.rating_avg) ? s.rating_avg.toFixed(1) : '—'}
                       </div>
                       <StarRating value={s.rating_avg} readOnly size="sm" />
                     </div>

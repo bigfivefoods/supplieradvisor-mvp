@@ -31,7 +31,10 @@ export default function SheqHazardsPage() {
   });
 
   const load = useCallback(async () => {
-    if (!companyId) return;
+    if (!companyId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch(`/api/sheq/hazards?companyId=${companyId}`);

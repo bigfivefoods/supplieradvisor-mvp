@@ -36,7 +36,10 @@ export default function SheqIncidentsPage() {
   });
 
   const load = useCallback(async () => {
-    if (!companyId) return;
+    if (!companyId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const params = new URLSearchParams({ companyId: String(companyId) });
@@ -205,7 +208,11 @@ export default function SheqIncidentsPage() {
         ))}
       </div>
 
-      {loading ? (
+      {!companyId && !loading ? (
+        <Panel className="p-8 text-center text-sm text-slate-500">
+          Select a company to open incidents.
+        </Panel>
+      ) : loading ? (
         <div className="py-16 flex justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
         </div>

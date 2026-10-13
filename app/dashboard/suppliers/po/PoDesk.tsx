@@ -65,6 +65,8 @@ import {
 } from '@/components/suppliers/SuppliersShell';
 import FxRateStrip from '@/components/fx/FxRateStrip';
 import { COMMON_CURRENCIES } from '@/lib/inventory/types';
+import { formatMoneyDisplay } from '@/lib/format/money';
+import { isFixturePath } from '@/lib/preview/fixture-href';
 import { COST_CATEGORIES } from '@/lib/manufacturing/cost-structure';
 import {
   SrmBoard,
@@ -243,8 +245,9 @@ export default function SupplierPurchaseOrdersPage() {
 }
 
 function PoInner() {
-  const { user } = usePrivy();
+  const { user, ready } = usePrivy();
   const searchParams = useSearchParams();
+  const fixturePo = isFixturePath('/preview/po');
   const companyId = getSelectedCompanyId()!;
   const privyUserId = getCanonicalUserId(user?.id);
   const { withAuth, withAuthJson } = useApiAuth();
@@ -254,6 +257,7 @@ function PoInner() {
     null;
   const fromListingId = Number(searchParams.get('fromListing') || 0) || null;
   const listingTitle = String(searchParams.get('q') || '').trim();
+  const focusPo = String(searchParams.get('po') || '').trim();
   const escrowEnabled = isSupplierPoEscrowEnabled();
 
   const { address: connectedWallet } = useAccount();
@@ -279,7 +283,9 @@ function PoInner() {
   const autoLinkDoneForHashRef = useRef<string | null>(null);
   const writeErrorToastedRef = useRef<string | null>(null);
 
-  const [tab, setTab] = useState<'create' | 'pipeline' | 'guide'>('create');
+  const [tab, setTab] = useState<'create' | 'pipeline' | 'guide'>(
+    isFixturePath('/preview/po') ? 'pipeline' : 'create'
+  );
   const [filter, setFilter] = useState<'all' | 'open' | 'completed' | 'onchain'>('all');
   const [pipelineView, setPipelineView] = useState<SrmView>('list');
   const [pipelineQuery, setPipelineQuery] = useState('');
@@ -712,8 +718,9 @@ function PoInner() {
   }, [companyId]);
 
   const load = useCallback(async () => {
-    if (!privyUserId) {
-      // Wait for Privy session — do not leave loading stuck forever
+    if (!fixturePo && !ready) return;
+    if (!privyUserId && !fixturePo) {
+      // Session settled with no user — do not leave the spinner up.
       setLoading(false);
       return;
     }
@@ -722,10 +729,10 @@ function PoInner() {
       const [bookRes, poRes, settingsRes] = await Promise.all([
         fetch(`/api/suppliers?companyId=${companyId}`),
         fetch(
-          `/api/suppliers/purchase-orders?companyId=${companyId}&privyUserId=${encodeURIComponent(privyUserId)}`
+          `/api/suppliers/purchase-orders?companyId=${companyId}&privyUserId=${encodeURIComponent(privyUserId || '')}`
         ),
         fetch(
-          `/api/business/settings?companyId=${companyId}&privyUserId=${encodeURIComponent(privyUserId)}`
+          `/api/business/settings?companyId=${companyId}&privyUserId=${encodeURIComponent(privyUserId || '')}`
         ).catch(() => null),
       ]);
       const book = await bookRes.json();
@@ -823,11 +830,17 @@ function PoInner() {
     } finally {
       setLoading(false);
     }
-  }, [companyId, privyUserId, preselectSupplierId, peerProfileId, fromListingId, listingTitle]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [companyId, privyUserId, preselectSupplierId, peerProfileId, fromListingId, listingTitle, ready, fixturePo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!focusPo) return;
+    setTab('pipeline');
+    setPipelineQuery(focusPo);
+  }, [focusPo]);
 
   useEffect(() => {
     if (selectedSupplier?.wallet_address) {
@@ -1876,7 +1889,7 @@ function PoInner() {
           { k: 'cancelled', label: 'Cancelled', n: counts.cancelled },
         ].map((c) => (
           <div key={c.k} className="bg-white border rounded-2xl px-3 py-3">
-            <div className="text-2xl font-black tracking-tight">{c.n}</div>
+            <div className="text-2xl font-black tracking-tight">{loading ? '—' : c.n}</div>
             <div className="text-[11px] text-neutral-500">{c.label}</div>
           </div>
         ))}
@@ -3408,12 +3421,14 @@ function PoInner() {
                         setPipelineView('list');
                       }}
                     >
-                      <div className="font-bold text-slate-900">PO #{po.id}</div>
+                      <div className="font-bold text-slate-900">{po.po_number || `PO #${po.id}`}</div>
                       <div className="mt-1 truncate text-xs text-slate-600">
                         {po.supplier_name || `Supplier #${po.supplier_id || ''}`}
                       </div>
                       <div className="mt-2 text-sm font-black tabular-nums text-slate-900">
-                        R{Number(po.total_amount || 0).toLocaleString()}
+                        {formatMoneyDisplay(Number(po.total_amount || 0), po.currency || 'ZAR', {
+                          compact: false,
+                        })}
                       </div>
                     </button>
                   </article>
@@ -3448,7 +3463,7 @@ function PoInner() {
                       <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2 mb-1">
-                            <span className="font-bold text-slate-900">PO #{po.id}</span>
+                            <span className="font-bold text-slate-900">{po.po_number || `PO #${po.id}`}</span>
                             <span
                               className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${poStatusBadgeClass(po.status)}`}
                             >
@@ -3510,7 +3525,9 @@ function PoInner() {
                             {po.supplier_name || `Supplier #${po.supplier_profile_id || po.supplier_id}`}
                             {' · '}
                             <span className="font-semibold text-slate-900">
-                              R{Number(po.total_amount || 0).toLocaleString()}
+                              {formatMoneyDisplay(Number(po.total_amount || 0), po.currency || 'ZAR', {
+                                compact: false,
+                              })}
                             </span>
                             {poDeliveryLabel(po)}
                             {String(po.order_kind || '').toLowerCase() === 'hub' &&

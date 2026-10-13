@@ -32,7 +32,10 @@ export default function SheqCapasPage() {
   });
 
   const load = useCallback(async () => {
-    if (!companyId) return;
+    if (!companyId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch(`/api/sheq/capas?companyId=${companyId}`);
