@@ -1803,3 +1803,25 @@ html.dark .b2c-app textarea {
   color: var(--sa-text);
   border-color: var(--sa-border);
 }
+
+/* SRM desk motion. Brand cyan stays #00b4d8. Reduced motion keeps the layout still. */
+@keyframes srm-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .srm-rise {
+    animation: srm-rise 220ms ease-out;
+  }
+}
+
+.srm-scroll {
+  scrollbar-width: thin;
+}

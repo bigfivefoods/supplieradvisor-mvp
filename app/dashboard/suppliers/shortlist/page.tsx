@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Loader2, ShieldCheck, Filter, Download } from 'lucide-react';
+import { ShieldCheck, Filter, Download } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
@@ -12,8 +12,17 @@ import {
   SuppliersPage,
 } from '@/components/suppliers/SuppliersShell';
 import SharedCompanyCard from '@/components/business/SharedCompanyCard';
-import EmptyState from '@/components/ui/EmptyState';
 import type { DiscoverSupplier } from '@/lib/suppliers/types';
+import {
+  SrmEmpty,
+  SrmSearch,
+  SrmSkeleton,
+  SrmSortButton,
+  SrmToolbar,
+  SrmViewSwitch,
+  srmFocus,
+} from '@/components/suppliers/srm/SrmDesk';
+import { compareNum, compareText, matchesQuery, type SrmView } from '@/lib/suppliers/srm-desk';
 
 /**
  * Buyer shortlist: CIPC-verified + high trust/OTIFEF suppliers.
@@ -37,6 +46,9 @@ function Inner() {
   const [minOtifef, setMinOtifef] = useState(0);
   const [industry, setIndustry] = useState('');
   const [country, setCountry] = useState('');
+  const [q, setQ] = useState('');
+  const [sort, setSort] = useState<'trust' | 'otifef' | 'name'>('trust');
+  const [view, setView] = useState<SrmView>('list');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,6 +102,20 @@ function Inner() {
     void load();
   }, [load]);
 
+  const visible = useMemo(() => {
+    return rows
+      .filter((s) =>
+        matchesQuery(q, [s.trading_name, s.legal_name, s.industry, s.city, s.country])
+      )
+      .sort((a, b) => {
+        if (sort === 'name') return compareText(a.trading_name || '', b.trading_name || '', 'asc');
+        if (sort === 'otifef') {
+          return compareNum(Number(a.otifef_average || 0), Number(b.otifef_average || 0), 'desc');
+        }
+        return compareNum(Number(a.trust_score || 0), Number(b.trust_score || 0), 'desc');
+      });
+  }, [rows, q, sort]);
+
   const industries = useMemo(() => {
     const set = new Set<string>();
     for (const r of rows) {
@@ -121,7 +147,7 @@ function Inner() {
       'directory_url',
     ];
     const lines = [header.join(',')];
-    for (const s of rows) {
+    for (const s of visible) {
       const cells = [
         s.id,
         s.trading_name || '',
@@ -166,7 +192,7 @@ function Inner() {
               type="button"
               onClick={exportCsv}
               disabled={!rows.length}
-              className="btn-secondary !py-2 !px-4 text-sm inline-flex items-center gap-1.5 disabled:opacity-40"
+              className={`${srmFocus} btn-secondary !py-2 !px-4 text-sm inline-flex items-center gap-1.5 disabled:opacity-40`}
             >
               <Download className="w-3.5 h-3.5" /> Export CSV
             </button>
@@ -237,7 +263,7 @@ function Inner() {
         <button
           type="button"
           onClick={() => void load()}
-          className="btn-primary !py-2 !px-4 text-sm"
+          className={`${srmFocus} btn-primary !py-2 !px-4 text-sm`}
         >
           Apply
         </button>
@@ -247,20 +273,51 @@ function Inner() {
         </p>
       </div>
 
+      <SrmToolbar meta={loading ? 'Searching verified suppliers…' : `${visible.length} on the shortlist`}>
+        <SrmSearch value={q} onChange={setQ} label="Search shortlist" placeholder="Search name, industry, city" />
+        <SrmSortButton label="Trust" active={sort === 'trust'} onClick={() => setSort('trust')} />
+        <SrmSortButton label="OTIFEF" active={sort === 'otifef'} onClick={() => setSort('otifef')} />
+        <SrmSortButton label="Name" active={sort === 'name'} onClick={() => setSort('name')} />
+        <SrmViewSwitch value={view} onChange={setView} views={['list', 'table']} />
+      </SrmToolbar>
+
       {loading ? (
-        <div className="py-20 flex justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-[#00b4d8]" />
-        </div>
-      ) : rows.length === 0 ? (
-        <EmptyState
+        <SrmSkeleton variant={view === 'table' ? 'table' : 'cards'} rows={6} />
+      ) : visible.length === 0 ? (
+        <SrmEmpty
           title="No verified suppliers match"
-          description="Relax trust/OTIFEF filters or clear industry/country, or open full discover to connect more partners."
+          description="Relax trust or OTIFEF, clear industry and country, or open Discover to connect more partners."
           actionHref="/dashboard/suppliers/discover"
           actionLabel="Open discover"
         />
+      ) : view === 'table' ? (
+        <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white">
+          <table className="w-full min-w-[36rem] text-sm">
+            <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-600">
+              <tr>
+                <th className="px-4 py-3">Supplier</th>
+                <th className="px-4 py-3">Industry</th>
+                <th className="px-4 py-3">Place</th>
+                <th className="px-4 py-3">Trust</th>
+                <th className="px-4 py-3">OTIFEF</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {visible.map((s) => (
+                <tr key={s.id}>
+                  <td className="px-4 py-3 font-semibold text-slate-900">{s.trading_name}</td>
+                  <td className="px-4 py-3 text-slate-600">{s.industry || '—'}</td>
+                  <td className="px-4 py-3 text-slate-600">{[s.city, s.country].filter(Boolean).join(', ') || '—'}</td>
+                  <td className="px-4 py-3 tabular-nums">{Number(s.trust_score || 0).toFixed(0)}</td>
+                  <td className="px-4 py-3 font-bold tabular-nums text-[#0077b6]">{Number(s.otifef_average || 0).toFixed(0)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {rows.map((s) => (
+          {visible.map((s) => (
             <SharedCompanyCard
               key={s.id}
               company={{

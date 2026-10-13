@@ -30,6 +30,8 @@ import type { PartyRoleRow } from '@/lib/accounting/party-roles';
 import { glCodeFromMeta } from '@/lib/accounting/party-roles';
 import { PartyBookRoleSelect } from '@/components/accounting/PartyBookRoleSelect';
 import { HostCommercial } from '@/components/commercial/CommercialPanel';
+import { SrmTimeline, srmFocus } from '@/components/suppliers/srm/SrmDesk';
+import { supplierTimeline } from '@/lib/suppliers/srm-desk';
 
 export function SupplierBookProfile({
   supplier,
@@ -144,7 +146,7 @@ export function SupplierBookProfile({
         <button
           type="button"
           onClick={onClose}
-          className="shrink-0 rounded-xl p-2 text-neutral-400 hover:bg-neutral-100 hover:text-slate-700"
+          className={`${srmFocus} shrink-0 rounded-xl p-2 text-neutral-400 hover:bg-neutral-100 hover:text-slate-700`}
           aria-label="Close profile"
         >
           <X className="w-4 h-4" />
@@ -347,22 +349,28 @@ export function SupplierBookProfile({
           partyName={form.trading_name || supplier.trading_name || 'Supplier'}
         />
 
+        <SrmTimeline
+          events={supplierTimeline(supplier)}
+          title="Activity"
+          empty="Dates appear here when the supplier is added, invited, or updated."
+        />
+
         <div className="flex flex-wrap gap-2">
           <Link
             href={`/dashboard/suppliers/po?supplierId=${supplier.id}`}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40 hover:text-[#0077b6]"
+            className={`${srmFocus} inline-flex min-h-9 items-center gap-1.5 rounded-full border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:border-[#00b4d8]/40 hover:text-[#0077b6]`}
           >
             <Truck className="w-3.5 h-3.5" /> Raise PO
           </Link>
           <Link
             href="/dashboard/suppliers/documents"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40 hover:text-[#0077b6]"
+            className={`${srmFocus} inline-flex min-h-9 items-center gap-1.5 rounded-full border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:border-[#00b4d8]/40 hover:text-[#0077b6]`}
           >
             <FileText className="w-3.5 h-3.5" /> Documents
           </Link>
           <Link
             href="/dashboard/suppliers/portal"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border border-neutral-200 text-neutral-600 hover:border-[#00b4d8]/40 hover:text-[#0077b6]"
+            className={`${srmFocus} inline-flex min-h-9 items-center gap-1.5 rounded-full border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:border-[#00b4d8]/40 hover:text-[#0077b6]`}
           >
             <Globe className="w-3.5 h-3.5" /> Portal
           </Link>

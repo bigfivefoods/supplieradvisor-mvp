@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Loader2, Star, Link2, BarChart3 } from 'lucide-react';
+import { Star, Link2, BarChart3 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
@@ -15,6 +15,7 @@ import {
   SuppliersPage,
 } from '@/components/suppliers/SuppliersShell';
 import { StarRating, formatAvgRating } from '@/components/ratings';
+import { SrmEmpty, SrmSkeleton, srmFocus } from '@/components/suppliers/srm/SrmDesk';
 import { RateCompanyForm } from '@/components/ratings/RateCompanyForm';
 import { starGuide, type RatingAggregate } from '@/lib/ratings/company-rating';
 
@@ -32,11 +33,7 @@ export default function SupplierRatingsPage() {
   return (
     <CompanyRequired>
       <Suspense
-        fallback={
-          <div className="flex justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-[#00b4d8]" />
-          </div>
-        }
+        fallback={<SrmSkeleton rows={3} />}
       >
         <RatingsInner />
       </Suspense>
@@ -203,12 +200,15 @@ function RatingsInner() {
             Your ratings by supplier
           </div>
           {loading ? (
-            <div className="p-12 flex justify-center">
-              <Loader2 className="w-6 h-6 animate-spin text-[#00b4d8]" />
-            </div>
+            <SrmSkeleton rows={3} />
           ) : aggregates.length === 0 ? (
-            <div className="p-10 text-center text-sm text-slate-500">
-              No star ratings yet. Use the form to rate a connected supplier.
+            <div className="p-4">
+              <SrmEmpty
+                title="No star ratings yet"
+                description="Rate a connected supplier for quality, delivery, communication, and value. OTIFEF stays on the scorecard."
+                actionHref="/dashboard/suppliers/discover"
+                actionLabel="Find a supplier to rate"
+              />
             </div>
           ) : (
             <ul className="divide-y divide-slate-50">
@@ -283,8 +283,8 @@ function Kpi({
 }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
-      <div className="text-2xl font-black text-slate-900">{value}</div>
-      <div className="text-xs text-slate-500">{label}</div>
+      <div className="text-2xl font-black tabular-nums text-slate-900">{value}</div>
+      <div className="text-xs font-medium text-slate-600">{label}</div>
       {sub && <div className="text-[11px] font-semibold text-amber-800 mt-0.5">{sub}</div>}
     </div>
   );

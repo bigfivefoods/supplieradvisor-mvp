@@ -5,7 +5,13 @@ import Link from 'next/link';
 
 import { useReadContract } from 'wagmi';
 import { SupplierRegistryABI } from '@/lib/contracts/SupplierRegistryABI';
-import { Search, Plus, Users, RefreshCw, ArrowRight } from 'lucide-react';
+import { Plus, RefreshCw, ArrowRight } from 'lucide-react';
+import {
+  CompanyRequired,
+  SuppliersHeader,
+  SuppliersPage,
+} from '@/components/suppliers/SuppliersShell';
+import { SrmEmpty, SrmSearch, SrmSkeleton, srmFocus } from '@/components/suppliers/srm/SrmDesk';
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_SUPPLIER_REGISTRY_ADDRESS as `0x${string}`;
 
@@ -69,57 +75,49 @@ export default function SupplierDirectory() {
   }, [searchTerm, statusFilter, suppliers]);
 
   return (
-    <div className="px-8 py-12 max-w-screen-2xl mx-auto">
-      
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-10">
-        <div>
-          <p className="text-sm text-neutral-500 mb-1">Supply Chain</p>
-          <h1 className="font-black text-6xl tracking-[-3px]">Supplier Directory</h1>
-          <p className="text-xl text-neutral-600 mt-2">All suppliers in your ecosystem</p>
-        </div>
+    <CompanyRequired>
+    <SuppliersPage>
+    <div className="pb-8">
+      <SuppliersHeader
+        title="Supplier"
+        titleAccent="directory"
+        description="Everyone already on your ecosystem, including invited companies that have not claimed yet."
+        action={
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={fetchSuppliers}
+              className={`${srmFocus} btn-secondary !px-4 !py-2.5 text-sm`}
+            >
+              <RefreshCw className="h-4 w-4" /> Refresh
+            </button>
+            <Link href="/dashboard/suppliers/add" className={`${srmFocus} btn-primary !px-5 !py-2.5 text-sm`}>
+              <Plus className="h-4 w-4" /> Add supplier
+            </Link>
+          </div>
+        }
+      />
 
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={fetchSuppliers}
-            className="flex items-center gap-2 px-6 py-3 border border-neutral-300 rounded-2xl hover:bg-white transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" /> Refresh
-          </button>
-          <Link 
-            href="/dashboard/suppliers/add" 
-            className="btn-primary px-8 py-3 flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" /> Add Supplier
-          </Link>
-        </div>
-      </div>
-
-      {/* Search + Filters */}
-      <div className="flex flex-col lg:flex-row gap-4 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-5 top-4 text-neutral-400 w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Search by name, contact, email or category..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-14 pr-6 py-4 bg-white border border-neutral-200 rounded-3xl text-lg focus:outline-none focus:border-[#00b4d8] transition-colors"
-          />
-        </div>
-
-        <div className="flex gap-2">
+      <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center">
+        <SrmSearch
+          value={searchTerm}
+          onChange={setSearchTerm}
+          label="Search directory"
+          placeholder="Search by name, contact, email or category"
+        />
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Directory status">
           {(['all', 'active', 'invited'] as const).map((status) => (
             <button
               key={status}
+              type="button"
               onClick={() => setStatusFilter(status)}
-              className={`px-8 py-4 rounded-3xl font-medium transition-all border text-sm ${
-                statusFilter === status 
-                  ? 'bg-[#00b4d8] text-white border-[#00b4d8]' 
-                  : 'bg-white border-neutral-200 hover:border-neutral-300'
+              className={`${srmFocus} rounded-full border px-3 py-2 text-sm font-semibold ${
+                statusFilter === status
+                  ? 'border-[#00b4d8] bg-[#00b4d8] text-slate-950'
+                  : 'border-neutral-200 bg-white text-slate-700'
               }`}
             >
-              {status === 'all' ? 'All Suppliers' : status.charAt(0).toUpperCase() + status.slice(1)}
+              {status === 'all' ? 'All' : status.charAt(0).toUpperCase() + status.slice(1)}
             </button>
           ))}
         </div>
@@ -133,18 +131,15 @@ export default function SupplierDirectory() {
       {/* Table */}
       <div className="bg-white rounded-3xl border border-neutral-200 overflow-hidden">
         {loading ? (
-          <div className="py-20 text-center">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#00b4d8] mx-auto mb-4"></div>
-            <p className="text-neutral-500">Loading suppliers...</p>
-          </div>
+          <SrmSkeleton variant="table" rows={5} />
         ) : filteredSuppliers.length === 0 ? (
-          <div className="py-20 text-center">
-            <Users className="w-14 h-14 mx-auto text-neutral-300 mb-4" />
-            <h3 className="text-2xl font-semibold tracking-tight mb-2">No suppliers found</h3>
-            <p className="text-neutral-600 mb-8">Try adjusting your search or filters.</p>
-            <Link href="/dashboard/suppliers/add" className="btn-primary px-8 py-3 inline-flex items-center gap-2">
-              <Plus className="w-4 h-4" /> Add your first supplier
-            </Link>
+          <div className="p-4">
+            <SrmEmpty
+              title="No suppliers found"
+              description="Try another search, or add a supplier who is not in the directory yet."
+              actionHref="/dashboard/suppliers/add"
+              actionLabel="Add a supplier"
+            />
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -169,6 +164,8 @@ export default function SupplierDirectory() {
         )}
       </div>
     </div>
+    </SuppliersPage>
+    </CompanyRequired>
   );
 }
 
