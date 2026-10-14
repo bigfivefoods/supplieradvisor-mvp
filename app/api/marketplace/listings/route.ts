@@ -4,6 +4,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { logActivity } from '@/lib/customers/access';
 import type { MarketplaceListing } from '@/lib/marketplace/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { redactExternalWallet } from '@/lib/business/company-wallet';
 
 /**
  * GET ?companyId=&mode=browse|mine&q=&category=&visibility=
@@ -134,7 +135,12 @@ export async function GET(request: NextRequest) {
         )
         .in('id', sellerIds);
       for (const p of profiles || []) {
-        sellerMap.set(Number(p.id), p as NonNullable<MarketplaceListing['seller']>);
+        sellerMap.set(
+          Number(p.id),
+          redactExternalWallet(p as Record<string, unknown>) as NonNullable<
+            MarketplaceListing['seller']
+          >
+        );
       }
     }
 

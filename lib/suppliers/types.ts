@@ -104,6 +104,7 @@ export type SrmSupplierRecord = {
   linked_profile_id?: number | null;
   connection_id?: number | null;
   wallet_address?: string | null;
+  wallet_ready?: boolean;
   certifications?: string[] | null;
   bee_level?: string | null;
   verified?: boolean | null;
@@ -148,6 +149,7 @@ export type DiscoverSupplier = {
   verification_status?: string | null;
   is_verified?: boolean | null;
   wallet_address?: string | null;
+  wallet_ready?: boolean;
   website?: string | null;
   public_id?: string | null;
   relationship_type?: string | null;

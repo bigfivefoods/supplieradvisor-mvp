@@ -13,6 +13,7 @@ import {
   type SrmSupplierRecord,
   type SupplierOtifefRow,
 } from '@/lib/suppliers/types';
+import { externalWalletLabel } from '@/lib/business/company-wallet';
 
 export const EMPTY_FIELD = 'Not on file';
 
@@ -575,7 +576,7 @@ export function supplierDossier(
         fact('Opened', day(supplier.created_at)),
         fact('Updated', day(supplier.updated_at)),
         fact('Invite', text(supplier.invite_status) ? labelize(supplier.invite_status, '') : null),
-        fact('Wallet', text(supplier.wallet_address)),
+        fact('Wallet', externalWalletLabel(supplier)),
         fact('On-chain', day(supplier.onchain_registered_at)),
       ],
     }),

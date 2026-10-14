@@ -1411,7 +1411,7 @@ function CompanyCard({
                 {Number(s.otifef_average || 0).toFixed(0)}%
               </strong>
             </span>
-            {s.wallet_address && (
+            {s.wallet_ready && (
               <span className="inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-800">
                 <Wallet className="h-3 w-3" /> On-chain
               </span>

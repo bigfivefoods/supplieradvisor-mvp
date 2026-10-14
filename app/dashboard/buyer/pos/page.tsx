@@ -11,6 +11,7 @@ import {
   usePublicClient,
 } from 'wagmi';
 import { parseEther, parseEventLogs } from 'viem';
+import { fetchOnchainPayeeWallet } from '@/lib/business/payee-wallet-client';
 import {
   Plus,
   Trash2,
@@ -72,7 +73,7 @@ interface ConnectedSupplier {
   supplierProfileId: number;
   trading_name: string | null;
   legal_name: string | null;
-  wallet_address: string | null;
+  wallet_ready?: boolean;
   suspended: boolean;
 }
 
@@ -187,7 +188,7 @@ export default function BuyerPurchaseOrdersPage() {
           id?: number;
           trading_name?: string | null;
           legal_name?: string | null;
-          wallet_address?: string | null;
+          wallet_ready?: boolean;
         };
         suspended?: boolean;
       }) => ({
@@ -195,7 +196,7 @@ export default function BuyerPurchaseOrdersPage() {
         supplierProfileId: Number(e.peer?.id || e.peerId || 0),
         trading_name: e.peer?.trading_name ?? null,
         legal_name: e.peer?.legal_name ?? null,
-        wallet_address: e.peer?.wallet_address ?? null,
+        wallet_ready: e.peer?.wallet_ready === true,
         suspended: e.suspended === true,
       })
     ).filter((s: ConnectedSupplier) => s.supplierProfileId > 0);
@@ -227,12 +228,7 @@ export default function BuyerPurchaseOrdersPage() {
     Promise.all([loadSuppliers(), loadPOs()]).finally(() => setLoading(false));
   }, [companyId, loadSuppliers, loadPOs]);
 
-  // Prefill supplier wallet when selecting a connected supplier
-  useEffect(() => {
-    if (selectedSupplier?.wallet_address) {
-      setSupplierWallet(selectedSupplier.wallet_address);
-    }
-  }, [selectedSupplier?.supplierProfileId, selectedSupplier?.wallet_address]);
+  // The payout address is loaded only when the buyer signs an on-chain payment.
 
   // Load supplier sellable catalogue + passport ids for picker
   useEffect(() => {
@@ -591,15 +587,9 @@ export default function BuyerPurchaseOrdersPage() {
     }
 
     const wantEscrow = escrowEnabled && useEscrow;
-    if (wantEscrow) {
-      if (!connectedWallet) {
-        toast.error('Connect your wallet to create on-chain escrow');
-        return;
-      }
-      if (!supplierWallet.trim() || !/^0x[a-fA-F0-9]{40}$/.test(supplierWallet.trim())) {
-        toast.error('Valid supplier wallet address (0x…) is required for escrow');
-        return;
-      }
+    if (wantEscrow && !connectedWallet) {
+      toast.error('Connect your wallet to create on-chain escrow');
+      return;
     }
 
     setSaving(true);
@@ -634,10 +624,20 @@ export default function BuyerPurchaseOrdersPage() {
       const amount = Number(newPo?.total_amount ?? totalAmount);
 
       if (wantEscrow && newId) {
+        const payee =
+          (newPo?.supplier_wallet && /^0x[a-fA-F0-9]{40}$/.test(newPo.supplier_wallet)
+            ? newPo.supplier_wallet
+            : null) ||
+          (await fetchOnchainPayeeWallet({
+            companyId,
+            poId: newId,
+            supplierProfileId: selectedSupplierId,
+            privyUserId,
+          }));
         toast.success(
           `Off-chain PO #${newId} created. Confirm wallet createPO (~${amountInEth(amount)} ETH demo rate), or use Create on-chain escrow later if the wallet is cancelled.`
         );
-        submitCreateOnchain(newId, supplierWallet.trim(), amount);
+        submitCreateOnchain(newId, payee, amount);
       } else {
         toast.success(`Purchase order #${newId ?? ''} created`);
       }
@@ -655,20 +655,24 @@ export default function BuyerPurchaseOrdersPage() {
     }
   };
 
-  const createOnchainEscrowForPo = (po: PurchaseOrder) => {
+  const createOnchainEscrowForPo = async (po: PurchaseOrder) => {
     if (!escrowEnabled) return;
     if (!connectedWallet) {
       toast.error('Connect your wallet to create on-chain escrow');
       return;
     }
-    let wallet = po.supplier_wallet || '';
-    if (!wallet || !/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
-      const prompted = window.prompt('Enter supplier wallet address (0x…):', supplierWallet || '');
-      if (!prompted || !/^0x[a-fA-F0-9]{40}$/.test(prompted.trim())) {
-        toast.error('Valid supplier wallet required');
-        return;
-      }
-      wallet = prompted.trim();
+    if (!companyId) return;
+    let wallet = '';
+    try {
+      wallet = await fetchOnchainPayeeWallet({
+        companyId,
+        poId: po.id,
+        supplierProfileId: po.supplier_profile_id,
+        privyUserId,
+      });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Valid supplier wallet required');
+      return;
     }
     const amount = Number(po.total_amount ?? po.subtotal ?? 0);
     const eth = amountInEth(amount);
@@ -851,7 +855,7 @@ export default function BuyerPurchaseOrdersPage() {
                             <div className="font-medium">{name}</div>
                             <div className="text-xs text-neutral-500">
                               ID {s.supplierProfileId}
-                              {s.wallet_address ? ' · has wallet' : ''}
+                              {s.wallet_ready ? ' · wallet ready' : ''}
                             </div>
                           </button>
                           <div className="flex items-center gap-2 shrink-0">
@@ -913,18 +917,13 @@ export default function BuyerPurchaseOrdersPage() {
                   </p>
                   {useEscrow && (
                     <div className="mt-3 ml-6 space-y-3">
-                      <div>
-                        <label className="text-xs text-neutral-500 mb-1 block">
-                          Supplier wallet address
-                        </label>
-                        <input
-                          type="text"
-                          value={supplierWallet}
-                          onChange={(e) => setSupplierWallet(e.target.value)}
-                          className="w-full px-4 py-3 border border-neutral-200 rounded-2xl font-mono text-sm focus:border-[#00b4d8]"
-                          placeholder="0x…"
-                        />
-                      </div>
+                      <p className="text-xs text-neutral-600">
+                        SupplierAdvisor® pays the supplier&apos;s stored wallet. The address is
+                        shown only when you sign the escrow.
+                        {selectedSupplier?.wallet_ready
+                          ? ' This supplier has a payout wallet ready.'
+                          : ' This supplier has not set a payout wallet yet.'}
+                      </p>
                       <div>
                         <label className="text-xs text-neutral-500 mb-1 block">
                           Escrow amount (ETH) — optional override

@@ -24,7 +24,6 @@ export const SUPPLIER_PATCH_FIELDS = [
   'payment_terms',
   'status',
   'invite_status',
-  'wallet_address',
   'certifications',
   'bee_level',
   'verified',
@@ -78,6 +77,8 @@ export function supplierPatchUpdates(
   for (const f of SUPPLIER_PATCH_FIELDS) {
     if (body[f] !== undefined) updates[f] = emptyToNull(body[f]);
   }
+  // Payout wallets are not editable from the supplier book.
+  delete updates.wallet_address;
   if (updates.province != null && updates.region === undefined) {
     updates.region = updates.province;
   }

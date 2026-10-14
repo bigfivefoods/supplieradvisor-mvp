@@ -424,7 +424,7 @@ function BrowseInner() {
                   .join(', ') || '—'}
                 {selected.is_connected ? ' · Connected' : ' · Open market'}
               </div>
-              {selected.seller?.wallet_address && (
+              {selected.seller?.wallet_ready && (
                 <div className="text-[10px] text-[#0077b6] mt-1 flex items-center gap-1">
                   <Wallet className="w-3 h-3" /> On-chain ready
                 </div>

@@ -3,6 +3,10 @@ import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 import { jsonKpi } from '@/lib/http/response-cache';
 import { withCompanyKpiCache } from '@/lib/dashboard/kpi-cache';
 import { assembleDashboardSummary } from '@/lib/dashboard/assemble-home';
+import {
+  applyCompanyWalletAudience,
+  walletAudienceForMember,
+} from '@/lib/business/company-wallet-server';
 
 /**
  * Brief 10/11 — one dashboard first-paint payload (rollup RPCs only).
@@ -22,7 +26,8 @@ export async function GET(request: NextRequest) {
     const payload = await withCompanyKpiCache(companyId, 'dashboard', () =>
       assembleDashboardSummary(companyId)
     );
-    return jsonKpi(payload);
+    const audience = await walletAudienceForMember(gate.userId, companyId);
+    return jsonKpi(applyCompanyWalletAudience(payload, audience));
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Error';
     if (message === 'Company not found') {

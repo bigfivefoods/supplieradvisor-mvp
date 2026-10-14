@@ -298,7 +298,6 @@ export const PROFILE_EDITABLE_FIELDS = [
   'certifications',
   'iso_certifications',
   'uploaded_certificates',
-  'wallet_address',
   'logo_url',
   'primary_currency',
   'timezone',

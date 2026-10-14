@@ -9,6 +9,8 @@ import {
   normalizePoItems,
 } from '@/lib/procurement/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { hidePoPayee } from '@/lib/business/company-wallet';
+import { loadStoredCompanyWallet } from '@/lib/business/company-wallet-server';
 
 /**
  * GET /api/buyer/purchase-orders?buyerCompanyId=&privyUserId=
@@ -59,7 +61,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, purchaseOrders: data || [] });
+    return NextResponse.json({
+      success: true,
+      purchaseOrders: (data || []).map((row) =>
+        hidePoPayee((row || {}) as Record<string, unknown>)
+      ),
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },
@@ -121,7 +128,10 @@ export async function POST(request: NextRequest) {
       if (existing) {
         return NextResponse.json({
           success: true,
-          purchaseOrder: existing,
+          purchaseOrder:
+            body.useEscrow === true
+              ? existing
+              : hidePoPayee(existing as Record<string, unknown>),
           idempotent: true,
         });
       }
@@ -166,6 +176,8 @@ export async function POST(request: NextRequest) {
       seller_customer_id: sellerCustomerId,
       source: 'customer_portal',
       idempotency_key: idempotencyKey || null,
+      supplier_wallet:
+        body.useEscrow === true ? await loadStoredCompanyWallet(supplierProfileId) : null,
       metadata: {
         invitation_connection: true,
         connection_id: conn.connection.id,
@@ -175,6 +187,16 @@ export async function POST(request: NextRequest) {
       created_at: now,
       updated_at: now,
     };
+
+    if (body.useEscrow === true && !payload.supplier_wallet) {
+      return NextResponse.json(
+        {
+          error:
+            'This supplier has not set a payout wallet on SupplierAdvisor®. Escrow cannot be opened.',
+        },
+        { status: 400 }
+      );
+    }
 
     let { data, error } = await supabase
       .from('purchase_orders')
@@ -191,7 +213,10 @@ export async function POST(request: NextRequest) {
       if (raced) {
         return NextResponse.json({
           success: true,
-          purchaseOrder: raced,
+          purchaseOrder:
+            body.useEscrow === true
+              ? raced
+              : hidePoPayee(raced as Record<string, unknown>),
           idempotent: true,
         });
       }
@@ -280,7 +305,16 @@ export async function POST(request: NextRequest) {
       })();
     }
 
-    return NextResponse.json({ success: true, purchaseOrder: data }, { status: 201 });
+    return NextResponse.json(
+      {
+        success: true,
+        purchaseOrder:
+          body.useEscrow === true
+            ? data
+            : hidePoPayee((data || {}) as Record<string, unknown>),
+      },
+      { status: 201 }
+    );
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },
@@ -392,7 +426,10 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, purchaseOrder: data });
+    return NextResponse.json({
+      success: true,
+      purchaseOrder: hidePoPayee((data || {}) as Record<string, unknown>),
+    });
   } catch (e: unknown) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Error' },

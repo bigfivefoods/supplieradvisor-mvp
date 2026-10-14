@@ -15,6 +15,8 @@ import {
 } from '@/lib/procurement/allocate-po-cost';
 import { docNumber } from '@/lib/customers/documents';
 import { isLegacyPoNumber, isRealPoNumber } from '@/lib/procurement/po-email';
+import { hidePoPayee, isCompanyWalletReady } from '@/lib/business/company-wallet';
+import { loadStoredCompanyWallet } from '@/lib/business/company-wallet-server';
 
 /**
  * GET ?companyId=&privyUserId=&status=
@@ -197,11 +199,13 @@ export async function GET(request: NextRequest) {
             ? false
             : null;
       const hub = extractHubMeta(p as Record<string, unknown>);
+      const hidden = hidePoPayee(p);
+      hidden.supplier_wallet_ready =
+        hidden.supplier_wallet_ready || isCompanyWalletReady(walletMap[profileId] || null);
       return {
-        ...p,
+        ...hidden,
         supplier_name:
           nameMap[profileId] || nameBySrm[srmId] || null,
-        supplier_wallet: p.supplier_wallet || walletMap[profileId] || null,
         supplier_phone:
           phoneBySrm[srmId] || phoneByLinkedProfile[profileId] || null,
         supplier_contact_name: contactBySrm[srmId] || null,
@@ -301,9 +305,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseServer();
     let srmId: number | null = null;
-    let supplierWallet: string | null = body.supplier_wallet
-      ? String(body.supplier_wallet).trim()
-      : null;
+    let supplierWallet: string | null = null;
 
     if (srmSupplierId && Number.isFinite(srmSupplierId)) {
       const { data: srm } = await supabase
@@ -327,7 +329,6 @@ export async function POST(request: NextRequest) {
       }
       srmId = Number(srm.id);
       if (srm.linked_profile_id) supplierProfileId = Number(srm.linked_profile_id);
-      if (!supplierWallet && srm.wallet_address) supplierWallet = srm.wallet_address;
     }
 
     // Book-only (not yet linked) allowed for draft/standard PO; escrow still needs a linked profile
@@ -410,11 +411,23 @@ export async function POST(request: NextRequest) {
     const initialStatus =
       body.status === 'draft' ? 'draft' : body.status === 'sent' ? 'sent' : 'sent';
 
-    if (supplierWallet && !/^0x[a-fA-F0-9]{40}$/.test(supplierWallet)) {
-      return NextResponse.json(
-        { error: 'supplier_wallet must be a valid 0x address' },
-        { status: 400 }
-      );
+    if (body.useEscrow === true) {
+      if (!supplierProfileId) {
+        return NextResponse.json(
+          { error: 'On-chain escrow requires a platform-linked supplier.' },
+          { status: 400 }
+        );
+      }
+      supplierWallet = await loadStoredCompanyWallet(supplierProfileId);
+      if (!supplierWallet) {
+        return NextResponse.json(
+          {
+            error:
+              'This supplier has not set a payout wallet on SupplierAdvisor®. Escrow cannot be opened.',
+          },
+          { status: 400 }
+        );
+      }
     }
 
     const costNorm = normalizePoCostFields(body as Record<string, unknown>);
@@ -774,7 +787,14 @@ export async function POST(request: NextRequest) {
     );
 
     return NextResponse.json(
-      { success: true, purchaseOrder: data, goldenPath },
+      {
+        success: true,
+        purchaseOrder:
+          body.useEscrow === true
+            ? data
+            : hidePoPayee((data || {}) as Record<string, unknown>),
+        goldenPath,
+      },
       { status: 201 }
     );
   } catch (e: unknown) {
@@ -863,7 +883,7 @@ export async function PATCH(request: NextRequest) {
             error: 'ALREADY_RECEIVED',
             warnings: result.warnings,
             receive: result,
-            purchaseOrder: po,
+            purchaseOrder: hidePoPayee((po || {}) as Record<string, unknown>),
           },
           { status: 409 }
         );
@@ -914,7 +934,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({
         success: true,
         receive: result,
-        purchaseOrder: refreshed || po,
+        purchaseOrder: hidePoPayee((refreshed || po || {}) as Record<string, unknown>),
         costAllocation: costAlloc,
         acceptBooks,
       });
@@ -943,7 +963,7 @@ export async function PATCH(request: NextRequest) {
         .maybeSingle();
       return NextResponse.json({
         success: true,
-        purchaseOrder: refreshed || po,
+        purchaseOrder: hidePoPayee((refreshed || po || {}) as Record<string, unknown>),
         acceptBooks,
       });
     }
@@ -1000,7 +1020,7 @@ export async function PATCH(request: NextRequest) {
         .maybeSingle();
       return NextResponse.json({
         success: true,
-        purchaseOrder: refreshed || po,
+        purchaseOrder: hidePoPayee((refreshed || po || {}) as Record<string, unknown>),
         costAllocation: costAlloc,
       });
     }
@@ -1094,7 +1114,6 @@ export async function PATCH(request: NextRequest) {
       'payment_terms',
       'incoterms',
       'description',
-      'supplier_wallet',
     ] as const) {
       if (body[f] !== undefined) updates[f] = body[f];
     }
@@ -1379,7 +1398,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      purchaseOrder: finalPo || data,
+      purchaseOrder: hidePoPayee((finalPo || data || {}) as Record<string, unknown>),
       inventoryReceive: inventoryReceive || undefined,
       costAllocation: costAllocation || undefined,
       acceptBooks: acceptBooks || undefined,

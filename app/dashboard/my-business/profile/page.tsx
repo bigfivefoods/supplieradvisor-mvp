@@ -19,7 +19,7 @@ import {
   Building2,
   CheckCircle2,
 } from 'lucide-react';
-import { usePrivy } from '@privy-io/react-auth';
+import { usePrivy, useSignMessage } from '@privy-io/react-auth';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
@@ -49,6 +49,7 @@ import {
 import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAssets';
 import SearchVisibilityCard from '@/components/business/SearchVisibilityCard';
 import SecureDocLink from '@/components/storage/SecureDocLink';
+import { CompanyWalletSection } from '@/components/business/CompanyWalletSection';
 
 const LocationMap = dynamic(() => import('@/components/LocationMap'), {
   ssr: false,
@@ -134,6 +135,7 @@ export default function BusinessProfilePage() {
 function ProfileInner() {
   const companyId = getSelectedCompanyId()!;
   const { user } = usePrivy();
+  const { signMessage } = useSignMessage();
   const privyUserId = getCanonicalUserId(user?.id);
   const loginWallet = extractWalletFromPrivy(user);
 
@@ -153,6 +155,9 @@ function ProfileInner() {
   const [warning, setWarning] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [walletSaving, setWalletSaving] = useState(false);
+  const [canChangeWallet, setCanChangeWallet] = useState(false);
+  const [walletReady, setWalletReady] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -263,6 +268,8 @@ function ProfileInner() {
               ? String(profile.category)
               : null,
       });
+      setCanChangeWallet(data.can_change_wallet === true);
+      setWalletReady(data.wallet_ready === true);
       setForm({
         ...profile,
         ...(orgHit?.id === 'npo'
@@ -393,11 +400,6 @@ function ProfileInner() {
         });
       }
 
-      // Auto-fill wallet from login if profile empty
-      if (!profile.wallet_address && loginWallet) {
-        setForm((prev) => ({ ...prev, wallet_address: loginWallet }));
-      }
-
       // Soft backfill continent from country when missing (server also derives on save)
       if (profile.country && !profile.continent) {
         void fetch('/api/business/location-backfill', {
@@ -427,7 +429,7 @@ function ProfileInner() {
     } finally {
       setLoading(false);
     }
-  }, [companyId, privyUserId, loginWallet]);
+  }, [companyId, privyUserId]);
 
   useEffect(() => {
     void load();
@@ -564,7 +566,6 @@ function ProfileInner() {
       .filter((e) => e.country);
 
     const firstExport = cleanExports[0];
-    const wallet = form.wallet_address || loginWallet || null;
     const businessType = String(form.business_type || form.category || '').trim() || null;
 
     return {
@@ -588,7 +589,6 @@ function ProfileInner() {
       email: form.email ?? null,
       contact_name: form.contact_name ?? null,
       website: form.website ?? null,
-      wallet_address: wallet,
       bee_level: form.bee_level ?? null,
       bee_certificate_url: form.bee_certificate_url ?? null,
       bank_name: form.bank_name ?? null,
@@ -656,6 +656,57 @@ function ProfileInner() {
     }
     if (Array.isArray(profile.sub_industries)) {
       setSelectedSubIndustries(profile.sub_industries.map(String));
+    }
+  };
+
+  const saveCompanyWallet = async (nextAddress: string) => {
+    setWalletSaving(true);
+    try {
+      const challengeRes = await fetch('/api/business/wallet/challenge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          newAddress: nextAddress,
+        }),
+      });
+      const challenge = await challengeRes.json();
+      if (!challengeRes.ok) {
+        throw new Error(challenge.error || 'Could not start the wallet change');
+      }
+      const signed = await signMessage(
+        { message: String(challenge.message) },
+        { address: nextAddress as `0x${string}` }
+      );
+      const signature =
+        typeof signed === 'string'
+          ? signed
+          : String((signed as { signature?: string }).signature || '');
+      const saveRes = await fetch('/api/business/wallet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyId,
+          privyUserId,
+          newAddress: nextAddress,
+          nonce: challenge.nonce,
+          signature,
+        }),
+      });
+      const saved = await saveRes.json();
+      if (!saveRes.ok) throw new Error(saved.error || 'Wallet was not changed');
+      setForm((prev) => ({ ...prev, wallet_address: saved.wallet_address }));
+      setWalletReady(true);
+      toast.success(
+        saved.emailWarning
+          ? `Payout wallet updated. ${saved.emailWarning}`
+          : 'Payout wallet updated. Owners and admins were emailed.'
+      );
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Wallet change failed');
+    } finally {
+      setWalletSaving(false);
     }
   };
 
@@ -1877,35 +1928,14 @@ function ProfileInner() {
                 }}
               />
             </div>
-            <Field label="Wallet (on-chain)">
-              <div className="relative">
-                <input
-                  className={`${inputCls} pr-10 font-mono`}
-                  value={form.wallet_address || loginWallet || ''}
-                  onChange={(e) => set('wallet_address', e.target.value)}
-                  placeholder="0x…"
-                />
-                <Wallet className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
-              </div>
-              {loginWallet ? (
-                <p className="mt-1.5 text-xs text-neutral-500">
-                  Login:{' '}
-                  <span className="font-mono">
-                    {loginWallet.slice(0, 6)}…{loginWallet.slice(-4)}
-                  </span>
-                  {(!form.wallet_address ||
-                    form.wallet_address.toLowerCase() !== loginWallet.toLowerCase()) && (
-                    <button
-                      type="button"
-                      className="ml-1.5 font-semibold text-[#00b4d8] hover:underline"
-                      onClick={() => set('wallet_address', loginWallet)}
-                    >
-                      Use login wallet
-                    </button>
-                  )}
-                </p>
-              ) : null}
-            </Field>
+            <CompanyWalletSection
+              mode={canChangeWallet ? 'owner' : 'member'}
+              storedAddress={form.wallet_address || null}
+              walletReady={walletReady}
+              connectedWallet={loginWallet}
+              busy={walletSaving}
+              onSave={saveCompanyWallet}
+            />
 
             <div className="rounded-2xl border border-[#00b4d8]/20 bg-gradient-to-br from-[#00b4d8]/[0.07] to-white p-4 sm:p-5">
               <CardSubhead

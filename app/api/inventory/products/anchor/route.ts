@@ -8,6 +8,9 @@ import {
 } from '@/lib/inventory/onchain';
 import { hashProductIdentity } from '@/lib/inventory/hash';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { assertCompanyPermission } from '@/lib/business/access';
+import { anchorCompanyWallet } from '@/lib/business/company-wallet';
+import { loadStoredCompanyWallet } from '@/lib/business/company-wallet-server';
 
 /**
  * POST { productId, companyId? } — mint/anchor product identity on InventoryPassport (or simulated).
@@ -41,6 +44,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Product not in your company' }, { status: 403 });
     }
 
+    const perm = await assertCompanyPermission(_gate.userId, companyId, 'inventory', 'write');
+    if (!perm.ok) {
+      return NextResponse.json({ error: perm.error }, { status: perm.status });
+    }
+    const anchored = anchorCompanyWallet({
+      role: perm.role,
+      stored: await loadStoredCompanyWallet(companyId),
+    });
+    if (!anchored.ok) {
+      return NextResponse.json({ error: anchored.error }, { status: anchored.status });
+    }
+
     let identityHash = product.onchain_hash as string | null;
     if (!identityHash || !product.public_id) {
       identityHash = hashProductIdentity({
@@ -55,7 +70,7 @@ export async function POST(request: NextRequest) {
     const result = await anchorProductOnChain({
       identityHashSha256: identityHash,
       publicId: product.public_id || String(product.id),
-      companyWallet: body.companyWallet,
+      companyWallet: anchored.companyWallet,
     });
 
     if (!result.ok) {
