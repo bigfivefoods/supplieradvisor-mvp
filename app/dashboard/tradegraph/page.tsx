@@ -1,7 +1,7 @@
 'use client';
 
-import { TradeDesk } from '@/components/trades/TradeDesk';
+import { TradeDeskApp } from '@/components/trades/TradeDeskApp';
 
 export default function TradegraphCommandPage() {
-  return <TradeDesk view="command" />;
+  return <TradeDeskApp live base="/dashboard/tradegraph" view="home" />;
 }

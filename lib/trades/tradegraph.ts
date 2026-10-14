@@ -39,10 +39,13 @@ export const QUOTE_STATUSES = [
 export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
 
 export const JOB_STATUSES = [
+  'enquiry',
+  'quoted',
   'scheduled',
   'in_progress',
   'done',
   'invoiced',
+  'paid',
   'cancelled',
 ] as const;
 export type JobStatus = (typeof JOB_STATUSES)[number];

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { Bell, Download, FileText, HardHat, Plus } from 'lucide-react';
+import { TradeBookProvider } from '@/components/trades/TradeBook';
+import { ClientPwa } from '@/components/trades/ClientPwa';
 import {
   customerPortalView,
   formatZar,
@@ -17,7 +19,18 @@ type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
 };
 
-export function CustomerTradeApp({ token }: { token: string }) {
+export function CustomerTradeApp({ token, customerId = 'tc_naledi' }: { token: string; customerId?: string }) {
+  if (token === 'demo') {
+    return (
+      <TradeBookProvider>
+        <ClientPwa customerId={customerId} />
+      </TradeBookProvider>
+    );
+  }
+  return <LiveCustomerTradeApp token={token} />;
+}
+
+function LiveCustomerTradeApp({ token }: { token: string }) {
   const demo = token === 'demo';
   const [tab, setTab] = useState<Tab>('jobs');
   const [brand, setBrand] = useState(demo ? 'Harbour Trades' : 'TradeAdvisor®');
@@ -297,7 +310,7 @@ export function CustomerTradeApp({ token }: { token: string }) {
               type="button"
               disabled={busy}
               onClick={() => void (phase === 'email' ? sendCode() : verifyCode())}
-              className="mt-4 w-full rounded-full bg-[#00b4d8] py-3 text-sm font-bold text-white"
+              className="mt-4 w-full rounded-full bg-[#00b4d8] py-3 text-sm font-bold text-[#0f172a]"
             >
               {phase === 'email' ? 'Email me a code' : 'Sign in'}
             </button>
@@ -347,7 +360,7 @@ export function CustomerTradeApp({ token }: { token: string }) {
         {phase === 'in' && tab === 'statement' ? (
           <section className="rounded-3xl border border-slate-200 bg-white p-4">
             <h2 className="text-lg font-black">Statement</h2>
-            <p className="mt-1 text-3xl font-black text-[#0077b6]">
+            <p className="mt-1 text-3xl font-black text-[#00b4d8]">
               {formatZar(portal?.balance_cents || 0)}
             </p>
             <p className="text-xs font-semibold text-slate-500">Balance including VAT</p>
@@ -389,7 +402,7 @@ export function CustomerTradeApp({ token }: { token: string }) {
             ) : (
               <a
                 href="/api/public/tradegraph/statement"
-                className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-white"
+                className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]"
               >
                 <FileText className="h-4 w-4" /> Download PDF
               </a>
@@ -454,7 +467,7 @@ export function CustomerTradeApp({ token }: { token: string }) {
               type="button"
               disabled={busy}
               onClick={() => void submitRequest()}
-              className="mt-4 w-full rounded-full bg-[#00b4d8] py-3 text-sm font-bold text-white"
+              className="mt-4 w-full rounded-full bg-[#00b4d8] py-3 text-sm font-bold text-[#0f172a]"
             >
               Send request
             </button>
@@ -469,7 +482,7 @@ export function CustomerTradeApp({ token }: { token: string }) {
             </p>
             <button
               type="button"
-              className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-4 py-3 text-sm font-bold text-white"
+              className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-4 py-3 text-sm font-bold text-[#0f172a]"
               onClick={() => void installEvent?.prompt()}
             >
               <Download className="h-4 w-4" /> Add to home screen
@@ -508,7 +521,7 @@ export function CustomerTradeApp({ token }: { token: string }) {
               type="button"
               onClick={() => setTab(id)}
               className={`flex flex-col items-center gap-1 py-3 text-[11px] font-bold ${
-                tab === id ? 'text-[#0077b6]' : 'text-slate-500'
+                tab === id ? 'text-[#00b4d8]' : 'text-slate-500'
               }`}
             >
               <Icon className="h-5 w-5" />

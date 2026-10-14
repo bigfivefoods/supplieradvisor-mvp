@@ -57,7 +57,15 @@ function markDismissed() {
  * iOS: in-app Share → Add to Home Screen steps.
  * Android Chrome: native install prompt when the browser offers it.
  */
-export function B2cInstallPrompt() {
+export function B2cInstallPrompt({
+  autoShow = true,
+  product = 'SA Member',
+  blurb = 'Install once — hire path, gym check-in, shop and your profile open like a real app. Free. Takes about 10 seconds.',
+}: {
+  autoShow?: boolean;
+  product?: string;
+  blurb?: string;
+} = {}) {
   const [open, setOpen] = useState(false);
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
     null
@@ -77,16 +85,18 @@ export function B2cInstallPrompt() {
     const onOpen = () => setOpen(true);
     window.addEventListener('sa-open-install', onOpen);
 
-    const t = window.setTimeout(() => {
-      if (!isStandalone() && !wasDismissed()) setOpen(true);
-    }, 450);
+    const t = autoShow
+      ? window.setTimeout(() => {
+          if (!isStandalone() && !wasDismissed()) setOpen(true);
+        }, 450)
+      : 0;
 
     return () => {
-      window.clearTimeout(t);
+      if (t) window.clearTimeout(t);
       window.removeEventListener('beforeinstallprompt', onBip);
       window.removeEventListener('sa-open-install', onOpen);
     };
-  }, []);
+  }, [autoShow]);
 
   const close = useCallback(() => {
     markDismissed();
@@ -145,7 +155,7 @@ export function B2cInstallPrompt() {
                   id="sa-member-install-title"
                   className="text-xl font-black tracking-tight"
                 >
-                  Add SA Member to your phone
+                  Add {product} to your phone
                 </h2>
               </div>
             </div>
@@ -158,10 +168,7 @@ export function B2cInstallPrompt() {
               <X className="h-4 w-4" />
             </button>
           </div>
-          <p className="mt-3 text-sm text-sky-50/95">
-            Install once — hire path, gym check-in, shop and your profile open
-            like a real app. Free. Takes about 10 seconds.
-          </p>
+          <p className="mt-3 text-sm text-sky-50/95">{blurb}</p>
         </div>
 
         <div className="space-y-3 px-5 py-4">
@@ -196,7 +203,7 @@ export function B2cInstallPrompt() {
                   <Smartphone className="h-4 w-4" />
                 </span>
                 <span>
-                  <span className="font-black text-slate-900 dark:text-white">3 · Open Member</span>
+                  <span className="font-black text-slate-900 dark:text-white">3 · Open {product}</span>
                   <span className="mt-0.5 block text-[12px] text-slate-500 dark:text-neutral-400">
                     Use the new icon on your home screen next time.
                   </span>
@@ -206,7 +213,7 @@ export function B2cInstallPrompt() {
           ) : (
             <p className="text-sm text-slate-600 dark:text-neutral-300">
               {deferred
-                ? 'Your browser can install SA Member now. You will get a home-screen icon.'
+                ? `Your browser can install ${product} now. You will get a home-screen icon.`
                 : 'In Chrome, open the menu (⋮) and tap Install app or Add to Home screen.'}
             </p>
           )}

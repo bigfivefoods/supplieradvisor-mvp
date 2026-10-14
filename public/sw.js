@@ -6,12 +6,14 @@
  *
  * v5 — network-only for app code; precache only offline page + icons.
  */
-const CACHE = 'sa-offline-v6';
+const CACHE = 'sa-offline-v7';
 const OFFLINE_URL = '/offline.html';
 const TRADE_OFFLINE_URL = '/trade-customer-offline.html';
+const TRADE_FIELD_OFFLINE_URL = '/trade-field-offline.html';
 const PRECACHE = [
   OFFLINE_URL,
   TRADE_OFFLINE_URL,
+  TRADE_FIELD_OFFLINE_URL,
   '/add-to-home.html',
   '/sa-icon-192.png',
   '/sa-icon-512.png',
@@ -106,7 +108,9 @@ self.addEventListener('fetch', (event) => {
         } catch (_) {
           const offlineUrl = url.pathname.startsWith('/customer/tradegraph')
             ? TRADE_OFFLINE_URL
-            : OFFLINE_URL;
+            : url.pathname.startsWith('/work/tradegraph') || url.pathname.startsWith('/crew/tradegraph')
+              ? TRADE_FIELD_OFFLINE_URL
+              : OFFLINE_URL;
           const offline = await caches.match(offlineUrl);
           return (
             offline ||

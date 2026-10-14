@@ -110,7 +110,7 @@ export function GymSectionTitle({
         {children}
       </h2>
       {hint ? (
-        <p className="mt-0.5 text-xs leading-snug text-slate-500 dark:text-slate-400">
+        <p className="mt-0.5 text-xs leading-snug text-slate-600 dark:text-slate-300">
           {hint}
         </p>
       ) : null}

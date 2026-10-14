@@ -1,9 +1,14 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import dynamic from 'next/dynamic';
 import { PortalHeaderTools } from '@/components/advisors/PortalOpenAppLink';
 import { advisorBrandInk } from '@/lib/advisors/brand-ink';
-import { B2cPresencePing } from '@/components/b2c/B2cPresencePing';
+
+const B2cPresencePing = dynamic(
+  () => import('@/components/b2c/B2cPresencePing').then((mod) => mod.B2cPresencePing),
+  { ssr: false }
+);
 
 export type MemberAdvisorTab<T extends string = string> = {
   id: T;
@@ -31,6 +36,7 @@ export function MemberAdvisorShell<T extends string = string>({
   mobileTabs,
   mobileNav = 'wrap',
   appHref = '/me',
+  presence = true,
 }: {
   color: string;
   header: ReactNode;
@@ -44,6 +50,8 @@ export function MemberAdvisorShell<T extends string = string>({
   mobileNav?: 'wrap' | 'bottom';
   /** SA Member / wallet home. Shown under the theme toggle. */
   appHref?: string;
+  /** Gym member heartbeats need Privy. Trade customer pages leave this off. */
+  presence?: boolean;
 }) {
   const ink = advisorBrandInk(color);
   const phoneTabs = mobileTabs || tabs;
@@ -154,7 +162,7 @@ export function MemberAdvisorShell<T extends string = string>({
     <div
       className={`advisor-portal min-h-[100dvh] bg-gradient-to-b ${fromClass} to-slate-50 dark:from-slate-950 dark:to-black md:flex md:h-[100dvh] md:flex-col md:overflow-hidden`}
     >
-      <B2cPresencePing />
+      {presence ? <B2cPresencePing /> : null}
       <header
         className="sticky top-0 z-40 shrink-0 text-white pt-[env(safe-area-inset-top)] shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
         style={{

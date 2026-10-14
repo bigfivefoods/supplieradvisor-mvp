@@ -10,10 +10,15 @@ import {
   sessionCookieOptions,
 } from '@/lib/trades/customer-session';
 import { notifyTradesperson, sendTradeEmail, tradeStatusEmail } from '@/lib/trades/notify';
-import { portalFromRows, seedDemoTradegraph } from '@/lib/trades/tradegraph';
+import { customerFromSession } from '@/lib/trades/customer-auth';
+import { applyTradeOp, customerPack, type TradeOp } from '@/lib/trades/desk';
+import { portalFromRows } from '@/lib/trades/tradegraph';
+import { seedHarbourBook } from '@/lib/trades/harbour-seed';
 import {
   TradeSchemaMissingError,
   isMissingTradeSchema,
+  loadTradeBook,
+  saveTradeStore,
   workspaceByToken,
 } from '@/lib/trades/tradegraph-db';
 
@@ -28,7 +33,7 @@ export async function GET(request: NextRequest) {
   try {
     const token = String(request.nextUrl.searchParams.get('token') || '');
     if (token === 'demo') {
-      const demo = seedDemoTradegraph(new Date().toISOString());
+      const demo = seedHarbourBook(new Date().toISOString()).store;
       return NextResponse.json({
         brand: demo.settings.brand_name,
         trade: demo.settings.trade,
@@ -97,6 +102,48 @@ export async function POST(request: NextRequest) {
     const session =
       request.cookies.get(TRADE_SESSION_COOKIE)?.value ||
       String(body.session || '');
+    if (action === 'portal' || action === 'client_op') {
+      const who = await customerFromSession(session);
+      const found = await workspaceByToken(publicToken);
+      if (!who || !found || who.companyId !== found.companyId) {
+        return NextResponse.json({ error: 'Sign in to open your jobs' }, { status: 401 });
+      }
+      const loaded = await loadTradeBook(found.companyId);
+      if (!loaded) return NextResponse.json({ error: 'This trade book was not found' }, { status: 404 });
+      if (action === 'portal') {
+        return NextResponse.json({ pack: customerPack(loaded, who.customerId) });
+      }
+      const op = body.op as TradeOp;
+      const allowed =
+        (op?.type === 'sign_quote' ||
+          op?.type === 'approve_vo' ||
+          op?.type === 'decline_vo' ||
+          op?.type === 'book_slot' ||
+          op?.type === 'message' ||
+          op?.type === 'add_review' ||
+          op?.type === 'request_job') &&
+        ('customer_id' in op ? op.customer_id === who.customerId : true);
+      if (!allowed) {
+        return NextResponse.json({ error: 'That action is not available here' }, { status: 400 });
+      }
+      if (op.type === 'sign_quote' || op.type === 'approve_vo' || op.type === 'decline_vo') {
+        const pack = customerPack(loaded, who.customerId);
+        const owns =
+          op.type === 'sign_quote'
+            ? pack.quotes.some((row) => row.id === op.quote_id)
+            : pack.variations.some((row) => row.id === op.vo_id);
+        if (!owns) return NextResponse.json({ error: 'That record is not on your account' }, { status: 403 });
+      }
+      const scoped =
+        op.type === 'message'
+          ? { ...op, from: 'customer' as const, customer_id: who.customerId }
+          : op.type === 'book_slot' || op.type === 'add_review' || op.type === 'request_job'
+            ? { ...op, customer_id: who.customerId }
+            : op;
+      const result = applyTradeOp(loaded, scoped, new Date().toISOString());
+      await saveTradeStore(found.companyId, result.book.store, result.book.desk);
+      return NextResponse.json({ ok: true, pack: customerPack(result.book, who.customerId), notices: result.notices });
+    }
     if (!session) {
       return NextResponse.json({ error: 'Sign in to open your jobs' }, { status: 401 });
     }

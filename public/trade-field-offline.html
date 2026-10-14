@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TradeAdvisor® offline</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 0; background: #f4f7fb; color: #0f172a; }
+      main { max-width: 32rem; margin: 0 auto; padding: 1.5rem; }
+      h1 { font-size: 1.4rem; }
+      article { background: #fff; border-radius: 1.25rem; padding: 1rem; margin-top: 0.75rem; }
+      p { color: #475569; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p style="color:#00b4d8;font-weight:800;letter-spacing:.12em;font-size:.7rem">TRADEADVISOR®</p>
+      <h1>You are offline</h1>
+      <p>Job details saved on this phone are listed below. Photos you take will wait until you are back online.</p>
+      <div id="jobs"></div>
+    </main>
+    <script>
+      var box = document.getElementById('jobs');
+      try {
+        var raw = localStorage.getItem('sa_trade_job_cache_v1');
+        var data = raw ? JSON.parse(raw) : null;
+        var jobs = data && data.jobs ? data.jobs : [];
+        if (!jobs.length) {
+          box.innerHTML = '<p>No jobs saved on this phone yet. Open a job while you are online.</p>';
+        } else {
+          box.innerHTML = jobs.map(function (job) {
+            return '<article><strong>' + job.number + ' · ' + job.title + '</strong><p>' + (job.address || '') + '</p><p>' + job.status + '</p></article>';
+          }).join('');
+        }
+      } catch (e) {
+        box.innerHTML = '<p>Reconnect and reload.</p>';
+      }
+    </script>
+  </body>
+</html>

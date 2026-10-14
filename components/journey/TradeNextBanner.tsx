@@ -13,7 +13,7 @@ export default function TradeNextBanner({
   return (
     <div className="mb-4 rounded-2xl border border-[#00b4d8]/30 bg-gradient-to-br from-[#e0f7fc] to-white p-4 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
       <div className="min-w-0 flex items-start gap-2">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#00b4d8]/15 text-[#0077b6]">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#00b4d8]/15 text-[#00b4d8]">
           <Rocket className="h-4 w-4" />
         </span>
         <div>
