@@ -165,7 +165,7 @@ function JoinSupplierInner() {
       <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-6">
         <div className="max-w-md text-center">
           <CheckCircle className="w-16 h-16 mx-auto text-emerald-500 mb-6" />
-          <h1 className="text-4xl font-black tracking-[-2px] mb-4">Welcome to SupplierAdvisor!</h1>
+          <h1 className="text-4xl font-black tracking-[-2px] mb-4">Welcome to SupplierAdvisor®!</h1>
           <p className="text-xl text-neutral-600 mb-8">
             Your account has been created successfully. You will be redirected to login.
           </p>
@@ -179,7 +179,7 @@ function JoinSupplierInner() {
     <div className="min-h-screen bg-[#f8fafc] py-12 px-6">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-10">
-          <h1 className="text-5xl font-black tracking-[-3px] mb-3">Join SupplierAdvisor</h1>
+          <h1 className="text-5xl font-black tracking-[-3px] mb-3">Join SupplierAdvisor®</h1>
           <p className="text-xl text-neutral-600">Complete your profile to get started</p>
         </div>
 
@@ -222,7 +222,7 @@ function JoinSupplierInner() {
             <div className="pt-4 border-t">
               <h3 className="font-semibold text-xl tracking-tight mb-6">Confirm &amp; continue</h3>
               <p className="text-sm text-neutral-500 mb-6">
-                Sign in with SupplierAdvisor (Privy) to claim this invited profile.
+                Sign in with SupplierAdvisor® (Privy) to claim this invited profile.
                 No password is stored here.
               </p>
               {!inviteToken ? (
@@ -250,12 +250,12 @@ function JoinSupplierInner() {
               ) : !authenticated ? (
                 'Sign in to claim'
               ) : (
-                'Join SupplierAdvisor'
+                'Join SupplierAdvisor®'
               )}
             </button>
 
             <p className="text-center text-xs text-neutral-500">
-              By joining, you agree to SupplierAdvisor’s Terms of Service and Privacy Policy.
+              By joining, you agree to SupplierAdvisor®’s Terms of Service and Privacy Policy.
             </p>
           </form>
         </div>

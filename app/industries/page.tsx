@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     'clinic practice software',
     'veterinary practice software',
     'public sector procurement',
-    'SupplierAdvisor industries',
+    'SupplierAdvisor® industries',
   ],
   openGraph: {
     title: 'Industries · SupplierAdvisor®',

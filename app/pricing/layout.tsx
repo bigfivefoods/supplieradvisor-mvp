@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   description:
     'SupplierAdvisor® pricing: companies from R299/month after a 30-day trial. Members, patients and hire customers use SA Member free — book, check-in, family, waitlist, pay & proof. Supply-chain referral 6% / 3% / 1% (max 10%).',
   keywords: [
-    'SupplierAdvisor pricing',
+    'SupplierAdvisor® pricing',
     'supply chain software cost',
     'B2B software South Africa',
     'SRM pricing',

@@ -33,11 +33,11 @@ export default function PricingPage() {
   const productJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Product',
-    name: 'SupplierAdvisor Company Subscription',
+    name: 'SupplierAdvisor® Company Subscription',
     description,
     brand: {
       '@type': 'Brand',
-      name: 'SupplierAdvisor',
+      name: 'SupplierAdvisor®',
     },
     offers: {
       '@type': 'AggregateOffer',

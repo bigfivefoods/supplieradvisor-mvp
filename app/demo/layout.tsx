@@ -4,9 +4,9 @@ import { SA_OG_IMAGE_URL } from '@/lib/brand/assets';
 
 export const metadata: Metadata = {
   title: 'Interactive demo — try it free',
-  description: 'Explore SupplierAdvisor product flows without signing up — operations, suppliers, finance, quality, and trade.',
+  description: 'Explore SupplierAdvisor® product flows without signing up — operations, suppliers, finance, quality, and trade.',
   keywords: [
-    'SupplierAdvisor demo',
+    'SupplierAdvisor® demo',
     'supply chain software demo',
     'SRM demo',
     'B2B platform tour',

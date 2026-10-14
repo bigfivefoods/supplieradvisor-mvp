@@ -45,7 +45,7 @@ export const REFERRAL_EXPLAINER_STEPS = [
     body: 'Share your referral link with suppliers, buyers, and partners you actually trade with. First-touch attribution applies, so the first valid invitation keeps the relationship.',
   },
   {
-    title: 'They activate SupplierAdvisor',
+    title: 'They activate SupplierAdvisor®',
     body: `Each invited company gets ${COMPANY_TRIAL_DAYS} days to run the full platform and can then subscribe from R${COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month or choose a prepaid tier.`,
   },
   {
@@ -58,7 +58,7 @@ export const PRICING_FAQ_ITEMS = [
   {
     question: 'Is pricing per user or per company?',
     answer:
-      'SupplierAdvisor pricing is per company workspace, not per seat. Every paid tier includes unlimited team users so operations, finance, quality, and procurement can work in one system.',
+      'SupplierAdvisor® pricing is per company workspace, not per seat. Every paid tier includes unlimited team users so operations, finance, quality, and procurement can work in one system.',
   },
   {
     question: 'What does “from R299/mo” mean?',
@@ -83,7 +83,7 @@ export const PRICING_FAQ_ITEMS = [
   {
     question: 'Are referral payouts based on product sales?',
     answer:
-      'No. Referral payouts apply to SupplierAdvisor platform subscription fees, not to traded goods or service sales between partners.',
+      'No. Referral payouts apply to SupplierAdvisor® platform subscription fees, not to traded goods or service sales between partners.',
   },
   {
     question: 'Can I switch my billing tier later?',

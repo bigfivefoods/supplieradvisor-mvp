@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Loader2, MapPin, Search, Sparkles } from 'lucide-react';
+import SiteFooter from '@/components/marketing/SiteFooter';
 
 type Listing = {
   company_id: number;
@@ -56,7 +57,7 @@ export default function AdvisorMarketplacePage() {
       <div className="max-w-3xl mx-auto px-4 py-10 space-y-6">
         <div>
           <p className="text-[11px] font-black uppercase tracking-widest text-violet-600">
-            SupplierAdvisor · Marketplace
+            SupplierAdvisor® · Marketplace
           </p>
           <h1 className="text-3xl font-black text-slate-900 dark:text-white mt-1">
             Find an Advisor
@@ -183,6 +184,7 @@ export default function AdvisorMarketplacePage() {
           </ul>
         )}
       </div>
+      <SiteFooter />
     </div>
   );
 }

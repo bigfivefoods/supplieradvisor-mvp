@@ -100,8 +100,8 @@ const columnHrefs = contentGroups.flatMap((group) => group.links.map((link) => l
 assert.equal(new Set(columnHrefs).size, columnHrefs.length, 'no duplicate hrefs allowed across columns');
 
 const footerUsageFiles = [
-  'components/marketing/HomeBelowFold.tsx',
-  'app/pricing/page.tsx',
+  'components/marketing/HomeLanding.tsx',
+  'components/marketing/PricingContent.tsx',
   'app/industries/page.tsx',
   'app/industries/[slug]/page.tsx',
   'app/demo/page.tsx',
@@ -109,6 +109,9 @@ const footerUsageFiles = [
   'app/terms/page.tsx',
   'app/cancellation-refund/page.tsx',
   'app/verification-sla/page.tsx',
+  'app/join/page.tsx',
+  'app/marketplace/page.tsx',
+  'app/marketplace/advisors/page.tsx',
 ] as const;
 
 for (const rel of footerUsageFiles) {
@@ -119,11 +122,22 @@ for (const rel of footerUsageFiles) {
 
 const homeBelowFold = readFileSync(resolve(root, 'components/marketing/HomeBelowFold.tsx'), 'utf8');
 assert.doesNotMatch(homeBelowFold, /<footer\b/, 'HomeBelowFold should not contain inline footer markup');
+assert.doesNotMatch(
+  homeBelowFold,
+  /SiteFooter/,
+  'HomeBelowFold must not own the footer — it loads with ssr:false and would omit the footer from server HTML'
+);
+
+const homeLanding = readFileSync(resolve(root, 'components/marketing/HomeLanding.tsx'), 'utf8');
+assert.match(homeLanding, /<SiteFooter\s*\/>/, 'home landing should render the footer in server HTML');
+const footerAfterLazy = homeLanding.indexOf('<SiteFooter');
+const lazyAt = homeLanding.indexOf('<HomeBelowFoldLazy');
+assert.ok(lazyAt >= 0 && footerAfterLazy > lazyAt, 'footer should sit outside the below-fold island');
 
 const pricingPage = readFileSync(resolve(root, 'app/pricing/page.tsx'), 'utf8');
 assert.ok(!pricingPage.includes("'use client'"), '/pricing page must remain a server component');
 
 const homePage = readFileSync(resolve(root, 'app/page.tsx'), 'utf8');
-assert.doesNotMatch(homePage, /SiteFooter/, 'app/page.tsx should keep footer lazy-loaded below fold');
+assert.doesNotMatch(homePage, /SiteFooter/, 'app/page.tsx stays a thin shell; HomeLanding renders the footer');
 
 console.log('site-footer-links.test.ts ok');

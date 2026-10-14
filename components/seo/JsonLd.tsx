@@ -13,8 +13,8 @@ export default function JsonLd() {
   const organization = {
     '@type': 'Organization',
     '@id': `${site}/#organization`,
-    name: 'SupplierAdvisor',
-    legalName: 'SupplierAdvisor',
+    name: 'SupplierAdvisor®',
+    legalName: 'SupplierAdvisor®',
     alternateName: ['SupplierAdvisor®', 'Supplier Advisor', 'SA'],
     url: site,
     logo: {
@@ -121,7 +121,7 @@ export default function JsonLd() {
     mainEntity: [
       {
         '@type': 'Question',
-        name: 'What is SupplierAdvisor?',
+        name: 'What is SupplierAdvisor®?',
         acceptedAnswer: {
           '@type': 'Answer',
           text: 'SupplierAdvisor® is a supply-chain operating system and verified trade network for B2B, B2G and B2C — SRM, CRM, inventory, manufacturing, finance, and SHEQ.',
@@ -140,7 +140,7 @@ export default function JsonLd() {
         name: 'What is the verification SLA?',
         acceptedAnswer: {
           '@type': 'Answer',
-          text: `Paid CIPC identity verification on SupplierAdvisor targets a 24-hour SLA. See ${site}/verification-sla.`,
+          text: `Paid CIPC identity verification on SupplierAdvisor® targets a 24-hour SLA. See ${site}/verification-sla.`,
         },
       },
     ],

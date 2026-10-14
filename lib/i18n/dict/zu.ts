@@ -13,7 +13,7 @@ const zu: Dict = {
   'brand.supplierAdvisor': 'SupplierAdvisor®',
   'brand.schoolAdvisor': 'SchoolAdvisor®',
   'brand.superCube': 'Super-Cube®',
-  'brand.bigFiveGroup': 'Big Five Group',
+  'brand.bigFiveGroup': 'Big Five Group™',
   'nav.groupProduct': 'Umkhiqizo',
   'nav.groupPricing': 'Intengo',
   'nav.groupTry': 'Zama',
@@ -100,6 +100,7 @@ const zu: Dict = {
   'footer.group.network': 'Inethiwekhi',
   'footer.group.trust': 'Ukwethembeka',
   'footer.group.apps': 'Ama-app',
+  'footer.group.group': 'Iqembu',
   'footer.social': 'Izinkundla zokuxhumana',
   'footer.industriesBySector': 'Izimboni ngokomkhakha',
   'footer.legalNav': 'Ezomthetho',
@@ -119,7 +120,9 @@ const zu: Dict = {
   'footer.foundingTitle': 'Uhlu lwabasunguli',
   'footer.foundingBlurb': 'Izibuyekezo zamalungu abasunguli nezaziso zezikhala ezintsha ezivela ku-SupplierAdvisor®.',
   'footer.rights': 'Wonke amalungelo agodliwe.',
-  'footer.bigFiveCompany': 'I-SupplierAdvisor® iyinkampani ye-Big Five Group',
+  'footer.bigFiveCompany': 'I-SupplierAdvisor® iyinkampani ye-Big Five Group™',
+  'footer.bigFiveLead': 'I-SupplierAdvisor® ',
+  'footer.bigFiveLink': 'iyinkampani ye-Big Five Group™',
   'footer.contact.country': 'iNingizimu Afrika',
   'footer.form.emailLabel': 'Ikheli le-imeyili',
   'footer.form.emailPlaceholder': 'wena@inkampani.com',
@@ -131,13 +134,13 @@ const zu: Dict = {
   'pricing.kicker': 'Intengo',
   'pricing.title': 'Intengo ecacile yenkampani kusukela ku-R299/ngenyanga',
   'pricing.lede':
-    'I-SupplierAdvisor yakhelwe izinkampani ezidinga uhlelo olulodwa lokusebenza ekuthengeni, ikhwalithi, ubudlelwano nabahlinzeki, isitoko kanye nezimali.',
+    'I-SupplierAdvisor® yakhelwe izinkampani ezidinga uhlelo olulodwa lokusebenza ekuthengeni, ikhwalithi, ubudlelwano nabahlinzeki, isitoko kanye nezimali.',
   'pricing.ctaTrial': 'Qala isivivinyo samahhala',
   'pricing.ctaDemo': 'Bhukha idemo',
   'pricing.companyProfile': 'Landa iphrofayela yenkampani (PDF)',
   'pricing.englishNote': 'EN',
   'pricing.tiers': 'Amazinga okukhokha',
-  'pricing.tiersBody': 'Wonke amazinga afaka abasebenzisi abangapheli kanye nobubanzi obufanayo bomkhiqizo ophelele we-SupplierAdvisor.',
+  'pricing.tiersBody': 'Wonke amazinga afaka abasebenzisi abangapheli kanye nobubanzi obufanayo bomkhiqizo ophelele we-SupplierAdvisor®.',
   'pricing.tier.monthly': 'Ngenyanga',
   'pricing.tier.1y': 'Unyaka ongu-1',
   'pricing.tier.2y': 'Iminyaka engu-2',
@@ -159,7 +162,7 @@ const zu: Dict = {
   'pricing.referral.step1.title': 'Mema ozakwenu bokuhweba bangempela',
   'pricing.referral.step1.body':
     'Yabelana ngesixhumanisi sakho sokudlulisa nabahlinzeki, abathengi nozakwenu ohweba nabo ngempela. Isimemo sokuqala esivumelekile sigcina ubudlelwano.',
-  'pricing.referral.step2.title': 'Benza kusebenze i-SupplierAdvisor',
+  'pricing.referral.step2.title': 'Benza kusebenze i-SupplierAdvisor®',
   'pricing.referral.step2.body':
     'Inkampani ngayinye emenywe ithola izinsuku ezingu-30 zokusebenzisa ipulatifomu ephelele bese ingabhalisela kusukela ku-R299/ngenyanga noma ikhethe izinga elikhokhelwe kusengaphambili.',
   'pricing.referral.step3.title': 'Izimali zokudlulisa zabiwa ngobujula',
@@ -168,7 +171,7 @@ const zu: Dict = {
   'pricing.faq': 'Imibuzo yentengo',
   'pricing.faq.1.q': 'Intengo ingeyomsebenzisi noma yenkampani?',
   'pricing.faq.1.a':
-    'Intengo ye-SupplierAdvisor ingeyendawo yokusebenza yenkampani, hhayi isihlalo ngasinye. Wonke amazinga akhokhelwayo afaka abasebenzisi beqembu abangapheli.',
+    'Intengo ye-SupplierAdvisor® ingeyendawo yokusebenza yenkampani, hhayi isihlalo ngasinye. Wonke amazinga akhokhelwayo afaka abasebenzisi beqembu abangapheli.',
   'pricing.faq.2.q': 'Kusho ukuthini “kusukela ku-R299/ngenyanga”?',
   'pricing.faq.2.a':
     'I-R299/ngenyanga iyizinga lamanje lentengo yohlu yenyanga yokubhalisa inkampani eyodwa. Amazinga akhokhelwe kusengaphambili onyaka ongu-1, 2 no-3 anciphisa izindleko zenyanga ezisebenzayo.',
@@ -183,7 +186,7 @@ const zu: Dict = {
     'Izimali zokudlulisa zisuselwa kuphela ezinkokhelweni zangempela zokubhalisa okufanelekile. Ukwabiwa kungu-6% ku-L1, 3% ku-L2, no-1% ku-L3.',
   'pricing.faq.6.q': 'Ingabe izinkokhelo zokudlulisa zisekelwe ekuthengisweni komkhiqizo?',
   'pricing.faq.6.a':
-    'Cha. Izinkokhelo zokudlulisa zisebenza emalini yokubhalisa yeplatifomu ye-SupplierAdvisor, hhayi ekuthengisweni kwezimpahla noma izinsiza phakathi kozakwenu.',
+    'Cha. Izinkokhelo zokudlulisa zisebenza emalini yokubhalisa yeplatifomu ye-SupplierAdvisor®, hhayi ekuthengisweni kwezimpahla noma izinsiza phakathi kozakwenu.',
   'pricing.faq.7.q': 'Ngingashintsha izinga lami lokukhokha kamuva?',
   'pricing.faq.7.a':
     'Yebo. Izinkampani zingasuka enyangeni ziye kumigomo ekhokhelwe kusengaphambili ku-billing. Ukuvuselela kusenesikhathi kwandisa iwindi lokubhalisa.',

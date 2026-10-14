@@ -61,7 +61,6 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState, type ComponentType } from 'react';
 import dynamic from 'next/dynamic';
-import SiteFooter from '@/components/marketing/SiteFooter';
 const HomePricing = dynamic(() => import('@/components/marketing/HomePricing'), { ssr: false });
 const ComparePlatforms = dynamic(() => import('@/components/marketing/ComparePlatforms'), { ssr: false });
 const SocialProofStrip = dynamic(() => import('@/components/marketing/SocialProofStrip'), { ssr: false });
@@ -982,7 +981,7 @@ export default function HomeBelowFold() {
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-slate-600 sm:text-base">
               Create one free SA Member profile. Link it to any gym, clinic,
-              hire desk or shop on SupplierAdvisor — then manage that account:
+              hire desk or shop on SupplierAdvisor® — then manage that account:
               book, buy, check in, family, waitlist, subscriptions, medical
               records, pay & proof, and push alerts. Desks can still print a QR
               or send WhatsApp. You never pay us.
@@ -1967,7 +1966,7 @@ export default function HomeBelowFold() {
               {
                 icon: Landmark,
                 t: 'B2G · Government',
-                b: 'National, provincial or municipal offices. Not self-serve — a SupplierAdvisor admin must approve before the workspace opens.',
+                b: 'National, provincial or municipal offices. Not self-serve — a SupplierAdvisor® admin must approve before the workspace opens.',
                 href: '/onboarding?lane=b2g',
                 cta: 'Request access',
               },
@@ -2084,8 +2083,6 @@ export default function HomeBelowFold() {
           </div>
         </div>
       </section>
-
-      <SiteFooter />
     </>
   );
 }
