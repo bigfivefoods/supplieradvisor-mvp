@@ -1,62 +1,162 @@
 name: E2E smoke
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  merge_group:
   workflow_dispatch:
+    inputs:
+      base_url:
+        description: Base URL for the unauth API smoke
+        required: false
+        default: https://www.supplieradvisor.com
+        type: string
+  deployment_status:
 
 permissions:
   contents: read
 
+# One group per deployment so a Preview run cannot cancel a Production run.
+# cancel-in-progress is false: a later status for the same deployment queues
+# instead of cancelling the smoke that is already in progress.
+# Manual dispatch uses the run id so it never shares a deployment group.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.event_name == 'deployment_status' && format('unauth-api-smoke-deployment-{0}', github.event.deployment.id) || format('unauth-api-smoke-run-{0}', github.run_id) }}
+  cancel-in-progress: false
 
 jobs:
   playwright-unauth:
     name: Unauth API smoke
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    concurrency:
+      group: ${{ github.event_name == 'deployment_status' && format('unauth-api-smoke-job-{0}', github.event.deployment.id) || format('unauth-api-smoke-job-{0}', github.run_id) }}
+      cancel-in-progress: false
     steps:
+      - name: Resolve unauth smoke target
+        id: smoke
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          ENVIRONMENT: ${{ github.event.deployment_status.environment }}
+          ENVIRONMENT_URL: ${{ github.event.deployment_status.environment_url }}
+          TARGET_URL: ${{ github.event.deployment_status.target_url }}
+          DEPLOY_SHA: ${{ github.event.deployment.sha }}
+          INPUT_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.base_url || '' }}
+          HAS_BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET != '' }}
+        run: |
+          set -euo pipefail
+
+          # Never print VERCEL_AUTOMATION_BYPASS_SECRET or the bypass headers.
+          # HAS_BYPASS is only the string true or false.
+
+          reject_base_url() {
+            case "$1" in
+              *$'\n'*|*$'\r'*)
+                echo "::error::Refusing a base URL that contains a newline"
+                exit 1
+                ;;
+              *x-vercel-protection-bypass*|*x-vercel-set-bypass-cookie*)
+                echo "::error::Refusing a base URL that includes a Vercel bypass parameter"
+                exit 1
+                ;;
+              https://*|http://*)
+                ;;
+              *)
+                echo "::error::Refusing a base URL that is not http(s)"
+                exit 1
+                ;;
+            esac
+          }
+
+          write_target() {
+            reject_base_url "$1"
+            {
+              echo "base_url<<__BASE_URL__"
+              printf '%s\n' "$1"
+              echo "__BASE_URL__"
+              echo "skip=false"
+            } >> "$GITHUB_OUTPUT"
+            echo "Unauth smoke base URL: $1"
+          }
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            BASE="${INPUT_BASE_URL:-https://www.supplieradvisor.com}"
+            write_target "$BASE"
+            exit 0
+          fi
+
+          BASE="${ENVIRONMENT_URL:-${TARGET_URL:-}}"
+
+          if [ "$HAS_BYPASS" != "true" ] && [ "$ENVIRONMENT" = "Preview" ]; then
+            if [ -n "$BASE" ]; then
+              reject_base_url "$BASE"
+              echo "Unauth smoke base URL: $BASE"
+            fi
+            echo "::warning::Set VERCEL_AUTOMATION_BYPASS_SECRET to smoke previews"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$HAS_BYPASS" != "true" ] && [ "$ENVIRONMENT" = "Production" ]; then
+            BASE="https://www.supplieradvisor.com"
+            SHORT="$(printf '%s' "$DEPLOY_SHA" | tr '[:upper:]' '[:lower:]' | cut -c1-7)"
+            if ! printf '%s' "$SHORT" | grep -Eq '^[0-9a-f]{7}$'; then
+              echo "::error::Production deployment sha is missing; cannot match /api/health commit"
+              exit 1
+            fi
+            echo "Unauth smoke base URL: $BASE"
+            echo "Waiting for $BASE/api/health commit to match $SHORT (every 10s, max 5 min)"
+            deadline=$((SECONDS + 300))
+            last=""
+            while true; do
+              body="$(curl -fsS --max-time 20 "$BASE/api/health" || true)"
+              last="$(printf '%s' "$body" | jq -r '.commit // empty' 2>/dev/null || true)"
+              last="$(printf '%s' "$last" | tr '[:upper:]' '[:lower:]')"
+              if [ "$last" = "$SHORT" ]; then
+                echo "Production /api/health commit matches $SHORT"
+                break
+              fi
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                echo "::error::Production /api/health commit did not match ${SHORT} within 5 minutes (last commit: ${last:-empty})"
+                exit 1
+              fi
+              sleep 10
+            done
+            write_target "$BASE"
+            exit 0
+          fi
+
+          if [ -z "$BASE" ]; then
+            echo "::error::deployment_status success had no environment_url or target_url"
+            exit 1
+          fi
+          write_target "$BASE"
+
       - uses: actions/checkout@v4
+        if: steps.smoke.outputs.skip != 'true'
+        with:
+          ref: ${{ github.event.deployment.sha || github.sha }}
+
       - uses: actions/setup-node@v4
+        if: steps.smoke.outputs.skip != 'true'
         with:
           node-version: '22'
           cache: npm
+
       - name: Install deps
+        if: steps.smoke.outputs.skip != 'true'
         run: npm ci
+
       - name: Install Playwright Chromium
+        if: steps.smoke.outputs.skip != 'true'
         run: npx playwright install chromium --with-deps
+
       - name: Run unauth e2e smoke
+        if: steps.smoke.outputs.skip != 'true'
         env:
-          PLAYWRIGHT_BASE_URL: ${{ vars.PLAYWRIGHT_BASE_URL || 'https://www.supplieradvisor.com' }}
+          PLAYWRIGHT_BASE_URL: ${{ steps.smoke.outputs.base_url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           npm run test:e2e:auth
           npx playwright test e2e/trade-loop-smoke.spec.ts e2e/happy-path-api.spec.ts e2e/golden-path-smoke.spec.ts e2e/major-bets-smoke.spec.ts e2e/paid-verification-smoke.spec.ts e2e/growth-settles.spec.ts
-
-  playwright-session:
-    name: Session e2e (optional secrets)
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    # Tests skip when E2E_ACCESS_TOKEN is unset
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-      - name: Install deps
-        run: npm ci
-      - name: Install Playwright Chromium
-        run: npx playwright install chromium --with-deps
-      - name: Authenticated / trade session tests
-        env:
-          PLAYWRIGHT_BASE_URL: ${{ vars.PLAYWRIGHT_BASE_URL || 'https://www.supplieradvisor.com' }}
-          E2E_ACCESS_TOKEN: ${{ secrets.E2E_ACCESS_TOKEN }}
-          E2E_COMPANY_ID: ${{ secrets.E2E_COMPANY_ID }}
-          E2E_SUPPLIER_PROFILE_ID: ${{ secrets.E2E_SUPPLIER_PROFILE_ID }}
-        run: |
-          npx playwright test e2e/authenticated-session.spec.ts e2e/trade-loop-smoke.spec.ts e2e/golden-path-auth.spec.ts e2e/major-bets-auth.spec.ts e2e/growth-settles.spec.ts e2e/settle-mutate.spec.ts

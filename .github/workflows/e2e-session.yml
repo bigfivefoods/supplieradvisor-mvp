@@ -1,0 +1,46 @@
+name: E2E session
+
+# Moved unchanged out of e2e-smoke.yml so a deployment status event cannot
+# start settle-mutate. Leaving this job in the smoke workflow would also
+# skip "Unauth API smoke" on pull requests, and a skipped required check
+# counts as success.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  playwright-session:
+    name: Session e2e (optional secrets)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # Tests skip when E2E_ACCESS_TOKEN is unset
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install deps
+        run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+      - name: Authenticated / trade session tests
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ vars.PLAYWRIGHT_BASE_URL || 'https://www.supplieradvisor.com' }}
+          E2E_ACCESS_TOKEN: ${{ secrets.E2E_ACCESS_TOKEN }}
+          E2E_COMPANY_ID: ${{ secrets.E2E_COMPANY_ID }}
+          E2E_SUPPLIER_PROFILE_ID: ${{ secrets.E2E_SUPPLIER_PROFILE_ID }}
+        run: |
+          npx playwright test e2e/authenticated-session.spec.ts e2e/trade-loop-smoke.spec.ts e2e/golden-path-auth.spec.ts e2e/major-bets-auth.spec.ts e2e/growth-settles.spec.ts e2e/settle-mutate.spec.ts

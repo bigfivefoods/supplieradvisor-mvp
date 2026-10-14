@@ -11,5 +11,6 @@
 - CI also runs on `merge_group` for merge queue readiness.
 - Keep CI files least-privilege (`permissions: contents: read`) unless a workflow truly needs more.
 - Never commit secrets, tokens, or credentials.
-- E2E smoke targets production via `PLAYWRIGHT_BASE_URL` (default `https://www.supplieradvisor.com`).
-- Do not add assertions that only pass after deploy; tests must pass against current production behavior.
+- Unauth API smoke keeps the check name `Unauth API smoke`. It runs from `.github/workflows/e2e-smoke.yml` when a Preview or Production deployment succeeds, against that deployment's URL. `deployment_status` reads the workflow on `main`, so this gates after merge. Manual dispatch takes a `base_url` input (default `https://www.supplieradvisor.com`).
+- Session e2e is unchanged (`E2E_ACCESS_TOKEN`, `settle-mutate`) and runs from `.github/workflows/e2e-session.yml` on push, pull request, merge queue, and manual dispatch. It does not run on deployment status.
+- Do not loosen smoke assertions to hide deploy lag. The unauth smoke must hit the deployment that contains the change.
