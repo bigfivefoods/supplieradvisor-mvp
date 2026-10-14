@@ -1,4 +1,5 @@
-import { SA_LOGO_SRC, SA_LOGO_TICK_SRC } from '@/lib/brand/assets';
+import Image from 'next/image';
+import { SA_LOGO_NATIVE, SA_LOGO_SRC, SA_LOGO_TICK_SRC } from '@/lib/brand/assets';
 
 /**
  * Official SA artwork. Letters stay the real monogram; the tick is a
@@ -7,14 +8,24 @@ import { SA_LOGO_SRC, SA_LOGO_TICK_SRC } from '@/lib/brand/assets';
 export function SaOfficialLogo({
   className = 'h-8 w-auto',
   title = 'SupplierAdvisor',
+  priority = false,
 }: {
   className?: string;
   title?: string;
+  priority?: boolean;
 }) {
   return (
     <span className={`sa-official-logo ${className}`} title={title}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={SA_LOGO_SRC} alt={title} className="sa-logo-base" />
+      <Image
+        src={SA_LOGO_SRC}
+        alt={title}
+        width={SA_LOGO_NATIVE.width}
+        height={SA_LOGO_NATIVE.height}
+        priority={priority}
+        sizes="180px"
+        className="sa-logo-base"
+        style={{ height: '100%', width: 'auto' }}
+      />
       <span
         className="sa-logo-tick"
         style={{

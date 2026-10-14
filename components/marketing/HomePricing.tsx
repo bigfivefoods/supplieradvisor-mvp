@@ -28,7 +28,7 @@ import {
   REFERRAL_TOTAL_CAP_PCT,
   referralChainScaleScenario,
   referralRatesSummary,
-} from '@/lib/billing/supply-chain-referral';
+} from '@/lib/billing/referral-rates';
 import {
   MARKETING_PRICING_TERMS,
   PRICING_SECTION_IDS,

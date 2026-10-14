@@ -24,13 +24,15 @@ import {
 } from '@/lib/billing/company-subscription';
 import {
   FOUNDING_FREE_COMPANY_LIMIT,
-  getFoundingSlotPulse,
   isFounderLifetimeCompany,
-  isInFoundingCohort,
   isLifetimeStatus,
   LIFETIME_PLAN_FOUNDER,
   LIFETIME_PLAN_FOUNDING,
 } from '@/lib/billing/lifetime';
+import {
+  getFoundingSlotPulse,
+  isInFoundingCohort,
+} from '@/lib/billing/lifetime-server';
 import { verifyPaystackTransaction } from '@/lib/billing/paystack';
 import {
   creditSubscriptionReferralFees,

@@ -8,7 +8,7 @@ import {
   memberCalendarIcs,
   outlookCalendarUrl,
 } from './calendar-links';
-import { hireJourneyCalendarEvent } from './hire-journeys';
+import { hireJourneyCalendarEvent } from './hire-journey-view';
 
 const ev = {
   id: 'hire-1',

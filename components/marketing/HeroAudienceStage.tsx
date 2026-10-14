@@ -302,6 +302,10 @@ function HeroProductShots({ sceneId }: { sceneId: (typeof SCENES)[number]['id'] 
 
 export default function HeroAudienceStage() {
   const [i, setI] = useState(0);
+  // First paint only mounts the visible scene. The other photos are full-bleed
+  // and were competing with LCP; they mount after load so the 8s crossfade
+  // still has them cached.
+  const [mountedScenes, setMountedScenes] = useState<number[]>([0]);
   const { locale, t } = useLocaleDictionary();
   const bookDemoHref = `${localizedPath(locale, '/')}#book-demo`;
 
@@ -310,6 +314,23 @@ export default function HeroAudienceStage() {
       setI((n) => (n + 1) % SCENES.length);
     }, 8000);
     return () => clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    setMountedScenes((prev) => (prev.includes(i) ? prev : [...prev, i]));
+  }, [i]);
+
+  useEffect(() => {
+    const arm = () => setMountedScenes(SCENES.map((_, idx) => idx));
+    if (document.readyState === 'complete') {
+      const id = window.setTimeout(arm, 1200);
+      return () => window.clearTimeout(id);
+    }
+    const onLoad = () => {
+      window.setTimeout(arm, 1200);
+    };
+    window.addEventListener('load', onLoad);
+    return () => window.removeEventListener('load', onLoad);
   }, []);
 
   const scene = SCENES[i];
@@ -329,24 +350,27 @@ export default function HeroAudienceStage() {
       id="platform"
       className="relative isolate min-h-[100svh] overflow-hidden bg-slate-950"
     >
-      {SCENES.map((s, idx) => (
-        <div
-          key={s.id}
-          className={`absolute inset-0 transition-opacity duration-700 ease-out ${
-            idx === i ? 'opacity-100' : 'opacity-0'
-          }`}
-          aria-hidden={idx !== i}
-        >
-          <Image
-            src={s.src}
-            alt={s.alt}
-            fill
-            priority={idx === 0}
-            sizes="100vw"
-            className={`object-cover ${s.imageClass}`}
-          />
-        </div>
-      ))}
+      {SCENES.map((s, idx) =>
+        mountedScenes.includes(idx) ? (
+          <div
+            key={s.id}
+            className={`absolute inset-0 transition-opacity duration-700 ease-out ${
+              idx === i ? 'opacity-100' : 'opacity-0'
+            }`}
+            aria-hidden={idx !== i}
+          >
+            <Image
+              src={s.src}
+              alt={s.alt}
+              fill
+              priority={idx === 0}
+              sizes="100vw"
+              quality={75}
+              className={`object-cover ${s.imageClass}`}
+            />
+          </div>
+        ) : null
+      )}
 
       {/* Mobile: fade up so type reads and the person stays in the top of the frame. */}
       <div
@@ -460,7 +484,12 @@ export default function HeroAudienceStage() {
                 <button
                   key={s.id}
                   type="button"
-                  onClick={() => setI(idx)}
+                  onClick={() => {
+                    setMountedScenes((prev) =>
+                      prev.includes(idx) ? prev : [...prev, idx]
+                    );
+                    setI(idx);
+                  }}
                   className={`min-h-9 rounded-full px-3.5 py-1.5 text-[11px] font-bold tracking-wide transition-all ${
                     idx === i
                       ? 'bg-white text-slate-900'

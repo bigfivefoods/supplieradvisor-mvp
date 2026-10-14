@@ -6,7 +6,7 @@
 import { logoUrlFromSettings, preferPngLogoUrl } from '@/lib/business/company-logo';
 import { growPreviewCopy } from '@/lib/advisors/grow-preview';
 import type { AdvisorPortalModule } from '@/lib/advisors/portal-sections';
-import { gymJoinMemberPath } from '@/lib/fitness/gym-grow-share';
+import { gymJoinMemberPath } from '@/lib/fitness/gym-join-path';
 
 export const ADVISOR_PWA_MODULES = [
   'fitgraph',

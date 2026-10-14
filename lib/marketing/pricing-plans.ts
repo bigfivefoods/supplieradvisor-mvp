@@ -8,7 +8,7 @@ import {
   REFERRAL_LEVEL_LABELS,
   REFERRAL_LEVEL_RATES_PCT,
   REFERRAL_TOTAL_CAP_PCT,
-} from '@/lib/billing/supply-chain-referral';
+} from '@/lib/billing/referral-rates';
 
 const TIER_CTA_BY_ID: Record<BillingTerm['id'], string> = {
   monthly: 'Start monthly',

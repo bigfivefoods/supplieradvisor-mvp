@@ -139,6 +139,11 @@ const nextConfig = {
     useTypeScriptCli: false,
   },
   images: {
+    // Hero sources are 1280px wide. Drop the 3840 slot so a 2x desktop
+    // does not ask the optimizer for an upscaled frame.
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048],
+    formats: ['image/webp'],
+    minimumCacheTTL: 60 * 60 * 24 * 30,
     remotePatterns: [
       {
         protocol: 'https',
@@ -147,7 +152,25 @@ const nextConfig = {
     ],
   },
   async headers() {
+    const longLived = [
+      { key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' },
+    ];
+    const brandAssets = [
+      '/marketing/:path*',
+      '/sa-logo.png',
+      '/sa-logo.jpg',
+      '/sa-logo-tick.png',
+      '/sa-updated-logo.jpg',
+      '/sa-icon-192.png',
+      '/sa-icon-512.png',
+      '/apple-icon.png',
+      '/og-image.png',
+      '/favicon.ico',
+      '/favicon-16x16.png',
+      '/favicon-32x32.png',
+    ];
     return [
+      ...brandAssets.map((source) => ({ source, headers: longLived })),
       {
         // Allow Payment Request API (Apple Pay) site-wide on HTTPS
         source: '/:path*',
