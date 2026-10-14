@@ -52,6 +52,7 @@ const MAKE_MOVE = INDUSTRIES.filter((i) =>
     'manufacturing',
     'apparel-clothing',
     'construction-building',
+    'trades',
     'distribution',
     'containers',
   ].includes(i.slug)
@@ -158,7 +159,7 @@ export default function IndustriesIndexPage() {
         />
         <Section
           title="Make & move"
-          blurb="Secondary manufacturing, ApparelAdvisor® (range, landed costing, wholesale ATS, buyer PWA), ConstructionAdvisor® (BOQ quotes, dated programme, progress payments), logistics, and ContainerAdvisor® last-mile outlets on the same fabric."
+          blurb="Secondary manufacturing, ApparelAdvisor® (range, landed costing, wholesale ATS, buyer PWA), ConstructionAdvisor® (BOQ quotes, dated programme, progress payments), TradeAdvisor® (quotes, jobs, invoices, customer app), logistics, and ContainerAdvisor® last-mile outlets on the same fabric."
           items={MAKE_MOVE}
         />
         <Section

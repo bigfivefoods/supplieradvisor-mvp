@@ -875,8 +875,9 @@ function BillingInner() {
                 Add Industry Packs (optional)
               </p>
               <p className="text-[11px] text-slate-600 mb-2">
-                Core OS R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo · each pack billed
-                with the same term discount. Full module features stay in the
+                Core OS R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/mo. Each industry
+                pack, including TradeAdvisor®, is +R199/mo on top of core and
+                uses the same term discount. Full module features stay in the
                 sidebar.
               </p>
               <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
@@ -899,7 +900,7 @@ function BillingInner() {
                           : 'bg-white text-slate-700 border-slate-200'
                       }`}
                     >
-                      {p.shortName}
+                      {p.shortName} +R{p.monthlyZar}
                     </button>
                   );
                 })}

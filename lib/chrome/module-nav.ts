@@ -42,6 +42,7 @@ import {
   Store,
   Shirt,
   Hammer,
+  Wrench,
 } from 'lucide-react';
 import type { ProcessStep } from '@/components/relationship/RelationshipChrome';
 import type { PermissionResource } from '@/lib/business/permissions';
@@ -87,7 +88,7 @@ export type ModuleNav = {
  * distribution Ship · accounting Landmark · quality ClipboardCheck
  * projects FolderKanban · sustainability Leaf · intelligence Brain · guide BookOpen
  * people IdCard · schools School
- * apparelgraph Shirt · constructiongraph Hammer
+ * apparelgraph Shirt · constructiongraph Hammer · tradegraph Wrench
  */
 export const MODULE_NAV: readonly ModuleNav[] = [
   {
@@ -934,6 +935,21 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Ops',
         rail: false,
       },
+    ],
+  },
+  {
+    id: 'tradegraph',
+    name: 'TradeAdvisor®',
+    icon: Wrench,
+    href: '/dashboard/tradegraph',
+    resource: 'operations',
+    steps: [
+      { name: 'Command', href: '/dashboard/tradegraph', exact: true, desc: 'Jobs · quotes · customer app', section: 'Home' },
+      { name: 'Customers', href: '/dashboard/tradegraph/customers', desc: 'Book · invites into the job app', section: 'People' },
+      { name: 'Jobs', href: '/dashboard/tradegraph/jobs', desc: 'Quote · job · invoice', section: 'Work' },
+      { name: 'Materials', href: '/dashboard/tradegraph/materials', desc: 'Supplier orders', section: 'Work' },
+      { name: 'Schedule', href: '/dashboard/tradegraph/schedule', desc: 'Site visits', section: 'Work' },
+      { name: 'Compliance', href: '/dashboard/tradegraph/compliance', desc: 'CoC · PIRB · expiry', section: 'Assure' },
     ],
   },
   {

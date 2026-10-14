@@ -141,7 +141,10 @@ const sw: Dict = {
   'pricing.companyProfile': 'Pakua wasifu wa kampuni (PDF)',
   'pricing.englishNote': 'EN',
   'pricing.tiers': 'Ngazi za malipo',
-  'pricing.tiersBody': 'Ngazi zote zinajumuisha watumiaji wasio na kikomo na upeo ule ule wa bidhaa kamili ya SupplierAdvisor®.',
+  'pricing.tiersBody': 'Ngazi zote zinajumuisha watumiaji wasio na kikomo na mfumo mkuu ule ule wa SupplierAdvisor®.',
+  'pricing.packsTitle': 'Mpango mkuu pamoja na vifurushi vya sekta',
+  'pricing.packsBody':
+    'Mpango wa kampuni ni mfumo mkuu, kuanzia R299/mwezi. TradeAdvisor® unauzwa kama vifurushi vingine vya sekta: nyongeza ya +R199/mwezi juu ya msingi. Muda uliolipwa mapema unapunguza kifurushi pia.',
   'pricing.tier.monthly': 'Kila mwezi',
   'pricing.tier.1y': 'Mwaka 1',
   'pricing.tier.2y': 'Miaka 2',

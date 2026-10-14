@@ -144,7 +144,10 @@ const ar: Dict = {
   'pricing.companyProfile': 'حمّل ملف تعريف الشركة (PDF)',
   'pricing.englishNote': 'EN',
   'pricing.tiers': 'باقات الفوترة',
-  'pricing.tiersBody': 'كل الباقات تشمل مستخدمين غير محدودين ونفس نطاق منتج SupplierAdvisor® الكامل.',
+  'pricing.tiersBody': 'كل الباقات تشمل مستخدمين غير محدودين ونفس نظام التشغيل الأساسي لـ SupplierAdvisor®.',
+  'pricing.packsTitle': 'الخطة الأساسية مع حزم القطاعات',
+  'pricing.packsBody':
+    'خطة الشركة هي النظام الأساسي، ابتداءً من R299/شهريًا. يُباع TradeAdvisor® مثل حزم القطاعات الأخرى: إضافة بسعر +R199/شهريًا فوق الأساس. الخصم المسبق يشمل الحزمة أيضًا.',
   'pricing.tier.monthly': 'شهري',
   'pricing.tier.1y': 'سنة واحدة',
   'pricing.tier.2y': 'سنتان',

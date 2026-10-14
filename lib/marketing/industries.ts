@@ -10,6 +10,7 @@ export type IndustrySlug =
   | 'manufacturing'
   | 'apparel-clothing'
   | 'construction-building'
+  | 'trades'
   | 'distribution'
   | 'fitness-gyms'
   | 'physio-allied-health'
@@ -291,6 +292,38 @@ export const INDUSTRIES: IndustryPage[] = [
       'Finance',
       'Impact',
       'Operations',
+    ],
+  },
+  {
+    slug: 'trades',
+    name: 'Trades & artisans',
+    headline: 'Quote, job, invoice — one van OS.',
+    subhead:
+      'TradeAdvisor® for electricians, plumbers, builders, painters, HVAC and handymen: quotes, jobs and invoices in rand, materials from SupplierAdvisor® suppliers, a site schedule, CoC and PIRB reminders, and a customer app for progress, statements and new requests.',
+    metaDescription:
+      'TradeAdvisor® for South African trades: quotes, jobs, invoices in rand, supplier orders, and a customer app.',
+    cardBlurb:
+      'TradeAdvisor® — quotes, jobs, CoC/PIRB, and a customer app.',
+    pack: 'TradeAdvisor®',
+    pains: [
+      'Quotes in WhatsApp, invoices in a spreadsheet',
+      'Customers asking “where is my job?” with no shared photos',
+      'CoC and PIRB expiry dates sitting in a folder',
+    ],
+    wins: [
+      'Quote → job → invoice, with VAT in rand',
+      'Materials ordered from suppliers on SupplierAdvisor®',
+      'Customer app: progress, statement PDF, and new requests',
+      'Compliance reminders before a certificate expires',
+    ],
+    modules: [
+      'TradeAdvisor®',
+      'Customers · invites',
+      'Quotes · jobs · invoices',
+      'Materials · suppliers',
+      'Schedule',
+      'CoC · PIRB',
+      'Customer app',
     ],
   },
   {
@@ -657,6 +690,7 @@ const INDUSTRY_GROUPS: IndustrySlug[][] = [
     'manufacturing',
     'apparel-clothing',
     'construction-building',
+    'trades',
     'distribution',
     'containers',
   ],

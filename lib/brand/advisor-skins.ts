@@ -16,6 +16,7 @@ export type AdvisorSkinId =
   | 'apparel'
   | 'construction'
   | 'gym'
+  | 'trade'
   | 'physio'
   | 'dental'
   | 'medical'
@@ -124,6 +125,19 @@ export const ADVISOR_SKINS: readonly AdvisorSkin[] = [
     // VUKA Fitness wordmark yellow (sampled from vukafitness.com logo)
     brand: '#E8E830',
     brandDeep: '#6B6B00',
+  },
+  {
+    id: 'trade',
+    name: 'TradeAdvisor',
+    registered: 'TradeAdvisor®',
+    shortName: 'Trade',
+    tagline: 'Trades & artisan OS',
+    homeHref: '/dashboard/tradegraph',
+    prefixes: ['/dashboard/tradegraph'],
+    moduleIds: ['tradegraph'],
+    packIds: ['trades'],
+    brand: '#00b4d8',
+    brandDeep: '#0077b6',
   },
   {
     id: 'physio',

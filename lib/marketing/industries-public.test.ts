@@ -77,6 +77,7 @@ const listed = new Set(
       'manufacturing',
       'apparel-clothing',
       'construction-building',
+      'trades',
       'distribution',
       'containers',
     ],

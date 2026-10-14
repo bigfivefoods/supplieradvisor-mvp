@@ -13,6 +13,7 @@ export const ADVISOR_OS_MODULE_IDS = [
   'retailgraph',
   'apparelgraph',
   'constructiongraph',
+  'tradegraph',
 ] as const;
 
 export type AdvisorOsModuleId = (typeof ADVISOR_OS_MODULE_IDS)[number];
@@ -144,6 +145,15 @@ export const ADVISOR_PACK_UNLOCKS: Record<string, readonly string[]> = {
     'sheq',
     'projects',
   ],
+  trades: [
+    'tradegraph',
+    'people',
+    'customers',
+    'accounting',
+    'suppliers',
+    'inventory',
+    'operations',
+  ],
 };
 
 export const ADVISOR_MODULE_CORE_HREF: Record<
@@ -209,6 +219,12 @@ export const ADVISOR_MODULE_CORE_HREF: Record<
     staff: '/dashboard/people/directory',
     book: '/dashboard/customers/profiles',
     money: '/dashboard/accounting',
+  },
+  tradegraph: {
+    label: 'TradeAdvisor®',
+    staff: '/dashboard/tradegraph/customers',
+    book: '/dashboard/tradegraph/jobs',
+    money: '/dashboard/tradegraph/jobs',
   },
 };
 

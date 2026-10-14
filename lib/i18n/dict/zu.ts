@@ -141,7 +141,10 @@ const zu: Dict = {
   'pricing.companyProfile': 'Landa iphrofayela yenkampani (PDF)',
   'pricing.englishNote': 'EN',
   'pricing.tiers': 'Amazinga okukhokha',
-  'pricing.tiersBody': 'Wonke amazinga afaka abasebenzisi abangapheli kanye nobubanzi obufanayo bomkhiqizo ophelele we-SupplierAdvisor®.',
+  'pricing.tiersBody': 'Wonke amazinga afaka abasebenzisi abangapheli kanye nohlelo oluyisisekelo olufanayo lwe-SupplierAdvisor®.',
+  'pricing.packsTitle': 'Uhlelo oluyisisekelo kanye namaphakethe ezimboni',
+  'pricing.packsBody':
+    'Uhlelo lwenkampani luyisisekelo, kusukela ku-R299/ngenyanga. I-TradeAdvisor® ithengiswa njengamanye amaphakethe ezimboni: isengezo esingu-+R199/ngenyanga ngaphezu kwesisekelo. Izikhathi ezikhokhelwe kusengaphambili zinciphisa nephakethe.',
   'pricing.tier.monthly': 'Ngenyanga',
   'pricing.tier.1y': 'Unyaka ongu-1',
   'pricing.tier.2y': 'Iminyaka engu-2',
