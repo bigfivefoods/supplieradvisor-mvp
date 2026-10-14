@@ -228,8 +228,16 @@ for (const table of tables) {
   assert.match(sql, new RegExp(`'${table}'`));
 }
 assert.match(sql, /NOBYPASSRLS/);
-assert.match(sql, /SET LOCAL ROLE trade_portal/);
-assert.match(sql, /trade\.customer_id/);
+assert.doesNotMatch(sql, /SET LOCAL ROLE/);
+assert.doesNotMatch(sql, /RESET ROLE/);
+assert.match(sql, /SET search_path = public, extensions/);
+assert.match(sql, /c\.id = v_customer AND c\.company_id = v_company/);
+assert.match(sql, /job\.customer_id = v_customer/);
+assert.match(sql, /job\.company_id = v_company/);
+assert.match(sql, /u\.shared = true/);
+assert.match(sql, /quote\.status <> 'draft'/);
+assert.match(sql, /job\.status <> 'cancelled'/);
+assert.match(sql, /i\.status <> 'void'/);
 assert.doesNotMatch(sql, /GRANT SELECT ON TABLE public\.trade_jobs TO anon/);
 assert.doesNotMatch(sql, /USING \(true\)/);
 

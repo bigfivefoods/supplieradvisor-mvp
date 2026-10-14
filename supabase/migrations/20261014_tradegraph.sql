@@ -1,11 +1,19 @@
 -- TradeAdvisor® (tradegraph) — jobs, quotes, invoices, materials, schedule,
 -- compliance, and the customer PWA. Safe to re-run. Do not apply from the app.
 --
--- Customer reads and job requests run as role trade_portal (NOBYPASSRLS) inside
--- public.trade_portal_call, so row security — not the service role — decides
--- which customer a session can see.
+-- public.trade_portal_call is SECURITY DEFINER. Postgres refuses SET ROLE inside
+-- a security-definer function, and the owner bypasses row security, so the
+-- function filters every read and write by the customer and company on the
+-- validated session. anon and authenticated stay deny-all under forced RLS.
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE SCHEMA IF NOT EXISTS extensions;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pgcrypto') THEN
+    CREATE EXTENSION pgcrypto WITH SCHEMA extensions;
+  END IF;
+END $$;
 
 DO $$
 BEGIN
@@ -277,7 +285,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_trade_customer_push_endpoint
   ON public.trade_customer_push (customer_id, endpoint);
 
 -- Row security. service_role bypasses it for the tradesperson API after
--- membership checks. Customers reach rows only as trade_portal.
+-- membership checks. anon and authenticated are deny-all. The customer
+-- function does not switch role; it filters by the session itself.
 DO $$
 DECLARE
   t text;
@@ -444,7 +453,13 @@ BEGIN
   WHERE token_hash = v_hash
     AND expires_at > now()
     AND revoked_at IS NULL;
-  IF v_customer IS NULL THEN
+  IF v_customer IS NULL OR v_company IS NULL THEN
+    RAISE EXCEPTION 'invalid_session' USING ERRCODE = '28000';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.trade_customers c
+    WHERE c.id = v_customer AND c.company_id = v_company
+  ) THEN
     RAISE EXCEPTION 'invalid_session' USING ERRCODE = '28000';
   END IF;
 
@@ -460,15 +475,13 @@ BEGIN
   FROM public.trade_workspaces w
   WHERE w.company_id = v_company;
 
-  PERFORM set_config('trade.customer_id', v_customer, true);
-  PERFORM set_config('trade.company_id', v_company::text, true);
-  SET LOCAL ROLE trade_portal;
-
   IF p_action = 'home' THEN
     SELECT jsonb_build_object(
       'brand', v_brand,
       'customer', (
-        SELECT to_jsonb(c) FROM public.trade_customers c WHERE c.id = v_customer
+        SELECT to_jsonb(c)
+        FROM public.trade_customers c
+        WHERE c.id = v_customer AND c.company_id = v_company
       ),
       'jobs', COALESCE((
         SELECT jsonb_agg(row_to_json(j) ORDER BY j.number)
@@ -479,13 +492,21 @@ BEGIN
               SELECT jsonb_agg(u ORDER BY u.at)
               FROM public.trade_job_updates u
               WHERE u.job_id = job.id
+                AND u.customer_id = v_customer
+                AND u.company_id = v_company
+                AND u.shared = true
             ), '[]'::jsonb) AS updates,
             COALESCE((
               SELECT jsonb_agg(l)
               FROM public.trade_job_lines l
               WHERE l.job_id = job.id
+                AND l.customer_id = v_customer
+                AND l.company_id = v_company
             ), '[]'::jsonb) AS lines
           FROM public.trade_jobs job
+          WHERE job.customer_id = v_customer
+            AND job.company_id = v_company
+            AND job.status <> 'cancelled'
         ) j
       ), '[]'::jsonb),
       'quotes', COALESCE((
@@ -497,18 +518,33 @@ BEGIN
               SELECT jsonb_agg(l)
               FROM public.trade_quote_lines l
               WHERE l.quote_id = quote.id
+                AND l.customer_id = v_customer
+                AND l.company_id = v_company
             ), '[]'::jsonb) AS lines
           FROM public.trade_quotes quote
+          WHERE quote.customer_id = v_customer
+            AND quote.company_id = v_company
+            AND quote.status <> 'draft'
         ) q
       ), '[]'::jsonb),
       'invoices', COALESCE((
-        SELECT jsonb_agg(i ORDER BY i.issued_at) FROM public.trade_invoices i
+        SELECT jsonb_agg(i ORDER BY i.issued_at)
+        FROM public.trade_invoices i
+        WHERE i.customer_id = v_customer
+          AND i.company_id = v_company
+          AND i.status <> 'void'
       ), '[]'::jsonb),
       'payments', COALESCE((
-        SELECT jsonb_agg(p ORDER BY p.paid_at) FROM public.trade_payments p
+        SELECT jsonb_agg(p ORDER BY p.paid_at)
+        FROM public.trade_payments p
+        WHERE p.customer_id = v_customer
+          AND p.company_id = v_company
       ), '[]'::jsonb),
       'requests', COALESCE((
-        SELECT jsonb_agg(r ORDER BY r.created_at DESC) FROM public.trade_job_requests r
+        SELECT jsonb_agg(r ORDER BY r.created_at DESC)
+        FROM public.trade_job_requests r
+        WHERE r.customer_id = v_customer
+          AND r.company_id = v_company
       ), '[]'::jsonb)
     ) INTO v_result;
   ELSIF p_action = 'request' THEN
@@ -530,8 +566,8 @@ BEGIN
       id, company_id, customer_id, description, address, preferred_dates, photo_urls, status
     ) VALUES (
       v_id,
-      current_setting('trade.company_id', true)::bigint,
-      current_setting('trade.customer_id', true),
+      v_company,
+      v_customer,
       v_description,
       left(COALESCE(p_payload->>'address', ''), 500),
       left(COALESCE(p_payload->>'preferred_dates', ''), 200),
@@ -548,8 +584,8 @@ BEGIN
       id, company_id, customer_id, endpoint, p256dh, auth
     ) VALUES (
       v_id,
-      current_setting('trade.company_id', true)::bigint,
-      current_setting('trade.customer_id', true),
+      v_company,
+      v_customer,
       left(p_payload->>'endpoint', 2000),
       left(COALESCE(p_payload->>'p256dh', ''), 400),
       left(COALESCE(p_payload->>'auth', ''), 400)
@@ -561,16 +597,7 @@ BEGIN
     RAISE EXCEPTION 'unknown_action';
   END IF;
 
-  RESET ROLE;
   RETURN v_result;
-EXCEPTION
-  WHEN OTHERS THEN
-    BEGIN
-      RESET ROLE;
-    EXCEPTION WHEN OTHERS THEN
-      NULL;
-    END;
-    RAISE;
 END;
 $$;
 
@@ -578,7 +605,7 @@ REVOKE ALL ON FUNCTION public.trade_portal_call(text, text, jsonb) FROM PUBLIC, 
 GRANT EXECUTE ON FUNCTION public.trade_portal_call(text, text, jsonb) TO service_role;
 
 COMMENT ON FUNCTION public.trade_portal_call(text, text, jsonb) IS
-  'Customer PWA read/write. Drops to trade_portal before touching customer rows so RLS applies.';
+  'Customer PWA read/write. Session token selects v_customer and v_company; every query filters on those. Does not SET ROLE.';
 
 DO $$
 BEGIN
