@@ -43,7 +43,8 @@ jobs:
             lib/auth/public-paths.test.ts \
             lib/insights/visitor.test.ts \
             lib/http/brief105-public-mailers.test.ts \
-            lib/trades/brief108-public-feeds.test.ts
+            lib/trades/brief108-public-feeds.test.ts \
+            lib/trades/brief109-otp.test.ts
           do
             if [ -f "$file" ]; then
               npx --yes tsx "$file"
