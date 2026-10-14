@@ -392,6 +392,8 @@ assert.equal(publicPath('/pay/abc'), '/pay/:id');
 assert.equal(publicPath('/join/fitgraph'), '/join/fitgraph');
 assert.equal(publicPath('/join/tradegraph'), '/join/tradegraph');
 assert.equal(publicPath('/customer/tradegraph/demo'), '/customer/tradegraph/:id');
+assert.equal(publicPath('/crew/tradegraph/crew_lerato'), '/crew/tradegraph/:id');
+assert.equal(publicPath('/embed/tradegraph/demo'), '/embed/tradegraph/:id');
 assert.equal(publicPath('/join/some-public-id'), '/join/:id');
 assert.equal(publicPath('/industries/dental'), '/industries/dental');
 assert.equal(publicPath('/industries'), '/industries');

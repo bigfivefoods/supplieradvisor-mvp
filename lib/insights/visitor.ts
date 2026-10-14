@@ -240,7 +240,8 @@ const MODULE_ROUTES = new Set(['f', 'clinician', 'pwa']);
 const KNOWN_SECOND: Record<string, Set<string>> = {
   join: new Set(['fitgraph', 'tradegraph', 'member', 'work']),
   customer: new Set(['tradegraph']),
-  embed: new Set(['advisor', 'containers', 'fitgraph', 'hire', 'retail', 'store']),
+  crew: new Set(['tradegraph']),
+  embed: new Set(['advisor', 'containers', 'fitgraph', 'hire', 'retail', 'store', 'tradegraph']),
   nsnp: new Set(['menu', 'transparency']),
   s: new Set(['food', 'peu', 'serve']),
   marketplace: new Set(['advisors']),
