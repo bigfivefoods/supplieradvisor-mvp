@@ -2,7 +2,8 @@
 
 import type { ReactNode } from 'react';
 import { TradeBookProvider, useTradeBook } from '@/components/trades/TradeBook';
-import { TradeHero, TradeLoading, tradeBtn, tradeCard, tradeKickerClass } from '@/components/trades/TradeUi';
+import { TradeHero, TradeLoading, tradeBtn, tradeCard } from '@/components/trades/TradeUi';
+import { TradeOfficeFrame } from '@/components/trades/TradeOffice';
 import {
   QuoteSheet,
   TradeBoard,
@@ -12,7 +13,6 @@ import {
   TradeGantt,
   TradeInvoices,
   TradeMaterials,
-  TradeNav,
   TradeQuoteBuilder,
   TradeReports,
   TradeTeam,
@@ -86,28 +86,21 @@ function DeskBody({
   heading?: ReactNode;
 }) {
   const { book, ready } = useTradeBook();
+  const bare = view === 'sheet' || view === 'pay';
   return (
-    <main className="min-h-dvh bg-gradient-to-b from-sky-50 to-slate-50 text-slate-900">
-      <header className="border-b border-slate-200/80 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4">
-          <div className="min-w-0">
-            <p className={tradeKickerClass}>TradeAdvisor®</p>
-            <h1 className="truncate text-2xl font-black tracking-tight text-slate-900">{book.store.settings.brand_name}</h1>
-            <p className="truncate text-sm text-slate-600">{book.store.settings.city} · {book.store.settings.phone}</p>
-          </div>
-          <div
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#00b4d8] text-lg font-black text-[#0f172a] shadow-sm"
-            aria-hidden
-          >
-            {(book.store.settings.brand_name || 'T').slice(0, 1).toUpperCase()}
-          </div>
-        </div>
-      </header>
-      <div className="mx-auto max-w-6xl px-4 py-5">
-        {view === 'sheet' || view === 'pay' ? null : <TradeNav base={base} />}
-        {!ready ? <TradeLoading /> : <View base={base} view={view} quoteId={quoteId} jobId={jobId} invoiceId={invoiceId} payRef={payRef} startNew={startNew} heading={heading} />}
-      </div>
-    </main>
+    <TradeOfficeFrame
+      base={base}
+      brand={book.store.settings.brand_name}
+      city={book.store.settings.city}
+      phone={book.store.settings.phone}
+      bare={bare}
+    >
+      {!ready ? (
+        <TradeLoading />
+      ) : (
+        <View base={base} view={view} quoteId={quoteId} jobId={jobId} invoiceId={invoiceId} payRef={payRef} startNew={startNew} heading={heading} />
+      )}
+    </TradeOfficeFrame>
   );
 }
 
