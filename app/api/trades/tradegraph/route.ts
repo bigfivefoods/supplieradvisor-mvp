@@ -9,8 +9,10 @@ import { initializePaystackTransaction } from '@/lib/billing/paystack-plans';
 import { loadInventoryPriceLines, raiseTradePurchaseOrder } from '@/lib/trades/core-bridge';
 import {
   TradeSchemaMissingError,
+  ensureIcsToken,
   loadTradeBook,
   loadTradeStore,
+  rotateIcsToken,
   saveTradeStore,
 } from '@/lib/trades/tradegraph-db';
 import {
@@ -123,11 +125,13 @@ export async function GET(request: NextRequest) {
     if (!gate.ok) return gate.response;
     const store = await loadBook(companyId);
     const loaded = await loadTradeBook(companyId);
+    const ics_token = await ensureIcsToken(companyId);
     return NextResponse.json({
       success: true,
       store,
       desk: loaded?.desk || emptyDesk(),
       summary: summariseTradegraph(store, todayIso()),
+      ics_token,
     });
   } catch (error) {
     return fail(error);
@@ -145,6 +149,21 @@ export async function POST(request: NextRequest) {
     const action = String(body.action || '');
     const now = new Date().toISOString();
     let store = await loadBook(companyId);
+
+    if (action === 'rotate_ics') {
+      const ics_token = await rotateIcsToken(companyId);
+      if (!ics_token) {
+        return NextResponse.json(
+          {
+            error:
+              'Apply supabase/migrations/20261016_tradegraph_ics_token.sql before using TradeAdvisor®.',
+            migration: '20261016_tradegraph_ics_token.sql',
+          },
+          { status: 503 }
+        );
+      }
+      return NextResponse.json({ success: true, ics_token });
+    }
 
     if (action === 'apply') {
       const loaded = await loadTradeBook(companyId);

@@ -728,11 +728,18 @@ export function TradeInvoices() {
 }
 
 export function TradeCalendar() {
-  const { book, dispatch } = useTradeBook();
+  const { book, dispatch, live, icsToken } = useTradeBook();
   const [mode, setMode] = useState<'day' | 'week' | 'month'>('week');
   const anchor = '2026-10-14';
   const days = mode === 'day' ? [anchor] : mode === 'week' ? Array.from({ length: 7 }, (_, i) => shift(anchor, i - 3)) : Array.from({ length: 14 }, (_, i) => shift(anchor, i));
   const lanes = book.desk.team;
+  const sample =
+    !live || book.store.settings.public_token === 'tg_harbour' || book.store.settings.public_token === 'demo';
+  const subscribeHref = sample
+    ? '/api/public/tradegraph/ics?token=demo'
+    : icsToken
+      ? `/api/public/tradegraph/ics?ics=${encodeURIComponent(icsToken)}`
+      : '';
   return (
     <div>
       <div className="mb-3 flex gap-2">
@@ -741,9 +748,11 @@ export function TradeCalendar() {
             {item}
           </button>
         ))}
-        <a className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold" href={`/api/public/tradegraph/ics?token=${encodeURIComponent(book.store.settings.public_token === 'tg_harbour' ? 'demo' : book.store.settings.public_token)}`}>
-          Download ICS
-        </a>
+        {subscribeHref ? (
+          <a className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold" href={subscribeHref}>
+            {sample ? 'Download ICS' : 'Subscribe to calendar'}
+          </a>
+        ) : null}
       </div>
       <div className="space-y-3">
         {lanes.map((member) => (
@@ -964,6 +973,11 @@ export function TradeTeam() {
   );
 }
 
+function quotePdfHref(publicToken: string, quoteId: string): string {
+  const token = publicToken === 'tg_harbour' || publicToken === 'demo' ? 'demo' : publicToken;
+  return `/api/public/tradegraph/quote-pdf?token=${encodeURIComponent(token)}&quote=${encodeURIComponent(quoteId)}`;
+}
+
 export function QuoteSheet({ quoteId }: { quoteId: string }) {
   const { book } = useTradeBook();
   const quote = book.store.quotes.find((row) => row.id === quoteId) || book.store.quotes[0];
@@ -996,7 +1010,7 @@ export function QuoteSheet({ quoteId }: { quoteId: string }) {
         <p className="text-lg font-black">{formatZar(totals.total_cents)} incl VAT</p>
         {meta?.deposit_pct ? <p className="text-sm">Deposit {meta.deposit_pct}% on acceptance.</p> : null}
         {meta?.signature ? <p className="mt-4 text-sm">Signed by {meta.signature.name} on {meta.signature.signed_at.slice(0, 10)}.</p> : null}
-        <a className="mt-4 inline-block text-sm font-bold text-[#00b4d8]" href={`/api/public/tradegraph/quote-pdf?token=demo&quote=${encodeURIComponent(quote.id)}`}>
+        <a className="mt-4 inline-block text-sm font-bold text-[#00b4d8]" href={quotePdfHref(book.store.settings.public_token, quote.id)}>
           Download PDF
         </a>
       </div>

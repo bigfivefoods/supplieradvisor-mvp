@@ -1,5 +1,6 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { emptyDesk, type DeskState } from './desk';
+import { newIcsToken } from './public-feeds';
 import {
   emptyTradeStore,
   newId,
@@ -38,6 +39,12 @@ export function isMissingTradeSchema(error: DbError): boolean {
     error.code === 'PGRST205' ||
     /trade_workspaces|trade_portal_call/i.test(message)
   );
+}
+
+function isMissingIcsColumn(error: DbError): boolean {
+  if (!error) return false;
+  const message = String(error.message || '');
+  return error.code === '42703' || error.code === 'PGRST204' || /ics_token/i.test(message);
 }
 
 function num(value: unknown): number {
@@ -540,6 +547,87 @@ export async function saveTradeStore(
     );
     if (inserted.error) throw new Error(inserted.error.message);
   }
+}
+
+type IcsRead = { missing: true } | { missing: false; token: string | null };
+
+async function readIcsToken(companyId: number): Promise<IcsRead> {
+  const supabase = getSupabaseServer();
+  const found = await supabase
+    .from('trade_workspaces')
+    .select('ics_token')
+    .eq('company_id', companyId)
+    .maybeSingle();
+  if (isMissingIcsColumn(found.error)) return { missing: true };
+  if (found.error) throw new Error(found.error.message);
+  const token = text((found.data as { ics_token?: unknown } | null)?.ics_token);
+  return { missing: false, token: token || null };
+}
+
+/** Mint a token only when the column exists and the row does not have one yet. */
+export async function ensureIcsToken(companyId: number): Promise<string | null> {
+  const existing = await readIcsToken(companyId);
+  if (existing.missing) return null;
+  if (existing.token) return existing.token;
+  const supabase = getSupabaseServer();
+  const minted = newIcsToken();
+  const updated = await supabase
+    .from('trade_workspaces')
+    .update({ ics_token: minted })
+    .eq('company_id', companyId)
+    .is('ics_token', null)
+    .select('ics_token')
+    .maybeSingle();
+  if (isMissingIcsColumn(updated.error)) return null;
+  if (updated.error) throw new Error(updated.error.message);
+  const saved = text((updated.data as { ics_token?: unknown } | null)?.ics_token);
+  if (saved) return saved;
+  const again = await readIcsToken(companyId);
+  return again.missing ? null : again.token;
+}
+
+export async function rotateIcsToken(companyId: number): Promise<string | null> {
+  const supabase = getSupabaseServer();
+  const minted = newIcsToken();
+  const updated = await supabase
+    .from('trade_workspaces')
+    .update({ ics_token: minted })
+    .eq('company_id', companyId)
+    .select('ics_token')
+    .maybeSingle();
+  if (isMissingIcsColumn(updated.error)) return null;
+  if (updated.error) throw new Error(updated.error.message);
+  const saved = text((updated.data as { ics_token?: unknown } | null)?.ics_token);
+  return saved || null;
+}
+
+export async function companyIdByPublicToken(publicToken: string): Promise<number | null> {
+  if (!publicToken) return null;
+  const supabase = getSupabaseServer();
+  const found = await supabase
+    .from('trade_workspaces')
+    .select('company_id')
+    .eq('public_token', publicToken)
+    .maybeSingle();
+  if (isMissingTradeSchema(found.error)) throw new TradeSchemaMissingError();
+  if (found.error) throw new Error(found.error.message);
+  if (!found.data?.company_id) return null;
+  return Number(found.data.company_id);
+}
+
+export async function workspaceByIcsToken(icsToken: string): Promise<{ companyId: number } | null> {
+  if (!/^[A-Za-z0-9_-]{32,80}$/.test(icsToken)) return null;
+  const supabase = getSupabaseServer();
+  const found = await supabase
+    .from('trade_workspaces')
+    .select('company_id')
+    .eq('ics_token', icsToken)
+    .maybeSingle();
+  if (isMissingIcsColumn(found.error)) return null;
+  if (isMissingTradeSchema(found.error)) throw new TradeSchemaMissingError();
+  if (found.error) throw new Error(found.error.message);
+  if (!found.data?.company_id) return null;
+  return { companyId: Number(found.data.company_id) };
 }
 
 export async function workspaceByToken(publicToken: string): Promise<{

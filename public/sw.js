@@ -88,6 +88,17 @@ self.addEventListener('fetch', (event) => {
   }
   if (url.origin !== self.location.origin) return;
 
+  // Real TradeAdvisor® quote PDFs and calendars are private. Never cache them.
+  // The sample Harbour feed (token=demo or token=tg_harbour) stays on the network path below.
+  if (url.pathname.startsWith('/api/public/tradegraph/')) {
+    const token = url.searchParams.get('token') || '';
+    const sample = token === 'demo' || token === 'tg_harbour';
+    if (!sample) {
+      event.respondWith(fetch(req, { cache: 'no-store' }));
+      return;
+    }
+  }
+
   // Never intercept APIs, Next data, or the SW itself
   if (
     url.pathname.startsWith('/api/') ||

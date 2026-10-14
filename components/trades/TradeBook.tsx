@@ -24,8 +24,10 @@ type TradeBookValue = {
   error: string;
   notice: string;
   live: boolean;
+  icsToken: string;
   dispatch: (op: TradeOp) => void;
   reload: () => void;
+  rotateIcs: () => void;
 };
 
 const Ctx = createContext<TradeBookValue | null>(null);
@@ -47,6 +49,7 @@ export function TradeBookProvider({
   const [ready, setReady] = useState(!live);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [icsToken, setIcsToken] = useState('');
 
   const reload = useCallback(() => {
     if (!live) return;
@@ -58,12 +61,13 @@ export function TradeBookProvider({
     }
     void fetch(`/api/trades/tradegraph?companyId=${companyId}`, { credentials: 'include' })
       .then((res) => res.json())
-      .then((data: { store?: Book['store']; desk?: Book['desk']; error?: string }) => {
+      .then((data: { store?: Book['store']; desk?: Book['desk']; error?: string; ics_token?: string | null }) => {
         if (!data.store || !data.desk) {
           setError(data.error || 'Could not open TradeAdvisor®');
           return;
         }
         setBook({ store: data.store, desk: data.desk });
+        setIcsToken(typeof data.ics_token === 'string' ? data.ics_token : '');
         setError('');
       })
       .catch(() => setError('Could not open TradeAdvisor®'))
@@ -153,9 +157,35 @@ export function TradeBookProvider({
     [live]
   );
 
+  const rotateIcs = useCallback(() => {
+    if (!live) return;
+    const companyId = getSelectedCompanyId();
+    if (!companyId) {
+      setError('Choose a company first.');
+      return;
+    }
+    void fetch('/api/trades/tradegraph', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ companyId, action: 'rotate_ics' }),
+    })
+      .then((res) => res.json())
+      .then((data: { ics_token?: string; error?: string }) => {
+        if (!data.ics_token) {
+          setError(data.error || 'Could not rotate the calendar link');
+          return;
+        }
+        setIcsToken(data.ics_token);
+        setError('');
+        setNotice('Calendar link rotated. Subscribe again with the new link.');
+      })
+      .catch(() => setError('Could not rotate the calendar link'));
+  }, [live]);
+
   const value = useMemo(
-    () => ({ book, ready, error, notice, live, dispatch, reload }),
-    [book, ready, error, notice, live, dispatch, reload]
+    () => ({ book, ready, error, notice, live, icsToken, dispatch, reload, rotateIcs }),
+    [book, ready, error, notice, live, icsToken, dispatch, reload, rotateIcs]
   );
 
   return (

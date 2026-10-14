@@ -261,7 +261,7 @@ export function TradeArrival() {
 }
 
 export function TradeWebsite({ base }: { base: string }) {
-  const { book, dispatch } = useTradeBook();
+  const { book, dispatch, live, icsToken, rotateIcs } = useTradeBook();
   const [brand, setBrand] = useState(book.store.settings.brand_name);
   const [phone, setPhone] = useState(book.store.settings.phone);
   const [city, setCity] = useState(book.store.settings.city);
@@ -299,6 +299,28 @@ export function TradeWebsite({ base }: { base: string }) {
         <Link className="font-bold text-[#00b4d8]" href={embed}>{embed}</Link>
         <p className="mt-4 font-black">Office</p>
         <Link className="font-bold text-[#00b4d8]" href={base}>{base}</Link>
+        {live && book.store.settings.public_token !== 'tg_harbour' ? (
+          <div className="mt-4">
+            <p className="font-black">Subscribe to calendar</p>
+            {icsToken ? (
+              <>
+                <a className="font-bold text-[#00b4d8]" href={`/api/public/tradegraph/ics?ics=${encodeURIComponent(icsToken)}`}>
+                  Subscribe to calendar
+                </a>
+                <button
+                  type="button"
+                  className="mt-2 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold"
+                  onClick={() => rotateIcs()}
+                >
+                  Rotate calendar link
+                </button>
+                <p className="mt-2 text-slate-600">Keep this link on the desk. Customers and the website embed use a different sign-in.</p>
+              </>
+            ) : (
+              <p className="text-slate-600">The private calendar link appears after the book has its calendar column.</p>
+            )}
+          </div>
+        ) : null}
         <p className="mt-4 text-slate-600">Quotes are in rand with VAT at 15% on top. The cyan bar on the quote sheet is the TradeAdvisor® mark.</p>
       </section>
     </div>
