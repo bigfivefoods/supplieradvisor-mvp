@@ -87,4 +87,13 @@ test('owner, technician, and client apps', async ({ page }) => {
   await expect(page.getByTestId('money-panel')).toHaveCount(0);
   await page.getByRole('button', { name: 'More' }).first().click();
   await expect(page.getByTestId('request-job')).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/customer/tradegraph/demo?as=tc_naledi');
+  await page.locator('nav.fixed').getByRole('button', { name: 'More', exact: true }).click();
+  await page.getByRole('button', { name: 'Quotes', exact: true }).click();
+  await expect(page.getByTestId('quote-card').first()).toBeVisible();
+  await page.getByRole('button', { name: 'More', exact: true }).click();
+  await page.getByRole('button', { name: 'Money', exact: true }).click();
+  await expect(page.getByTestId('client-money')).toBeVisible();
 });

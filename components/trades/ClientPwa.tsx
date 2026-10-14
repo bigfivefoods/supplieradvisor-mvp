@@ -83,6 +83,8 @@ export function ClientPwa({ customerId, balance }: { customerId: string; balance
         {tab === 'more' ? (
           <More
             pack={pack}
+            onQuotes={() => setTab('quotes')}
+            onMoney={() => setTab('money')}
             request={request}
             setRequest={setRequest}
             note={note}
@@ -214,6 +216,8 @@ function Money({ pack }: { pack: NonNullable<ReturnType<typeof customerPack>> })
 
 function More({
   pack,
+  onQuotes,
+  onMoney,
   request,
   setRequest,
   note,
@@ -225,6 +229,8 @@ function More({
   onMessage,
 }: {
   pack: NonNullable<ReturnType<typeof customerPack>>;
+  onQuotes: () => void;
+  onMoney: () => void;
   request: string;
   setRequest: (value: string) => void;
   note: string;
@@ -237,6 +243,14 @@ function More({
 }) {
   return (
     <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-2 md:hidden">
+        <button type="button" className="min-h-11 rounded-2xl border border-slate-200 bg-white text-sm font-black" onClick={onQuotes}>
+          Quotes
+        </button>
+        <button type="button" className="min-h-11 rounded-2xl border border-slate-200 bg-white text-sm font-black" onClick={onMoney}>
+          Money
+        </button>
+      </div>
       <form
         className="rounded-3xl border border-slate-200 bg-white p-4"
         data-testid="request-job"
