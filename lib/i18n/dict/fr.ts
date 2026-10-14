@@ -222,6 +222,53 @@ const fr: Dict = {
   'tour.close.body':
     'Vous avez parcouru l’OS supply chain SupplierAdvisor® et sa couche de commerce et de confiance vérifiée. Démarrez un essai gratuit sur votre entreprise, ou réservez une démo. Ces écrans restent des exemples.',
   'pricing.step': 'Étape {step}',
+  'home.new.kicker': 'Nouveau',
+  'home.new.title': 'Quoi de neuf sur SupplierAdvisor®',
+  'home.new.body':
+    'Les ajouts récents déjà sur la plateforme, avec les packs sectoriels et la vérification sur le même socle.',
+  'home.new.badge': 'Nouveau',
+  'home.new.onPlatform': 'Sur la plateforme',
+  'home.new.trade.title': 'TradeAdvisor®',
+  'home.new.trade.body':
+    'Devis, chantiers et factures pour les artisans, avec une application client installable : suivi du chantier, relevé et nouvelles demandes.',
+  'home.new.checklist.title': 'Liste de démarrage',
+  'home.new.checklist.body':
+    'La liste d’une nouvelle entreprise se coche à partir des enregistrements déjà là : profil, fournisseur, client, premier bon de commande, un coéquipier, et une vérification facultative.',
+  'home.new.tour.title': 'Écrans d’exemple, sans inscription',
+  'home.new.tour.body':
+    'Des écrans d’exemple peaufinés et une visite guidée du système. Rien n’est enregistré.',
+  'home.new.gym.title': 'GymAdvisor®',
+  'home.new.gym.body':
+    'Salles et fitness : cours, pointage, coachs et une application membre installable, sur le même forfait entreprise.',
+  'home.new.industries.title': 'Pages secteurs',
+  'home.new.industries.body':
+    'Des pages pour l’agriculture, le bâtiment, le fitness, les métiers et les autres secteurs, sur un seul système.',
+  'home.new.verify.title': 'VerifyNow pour les fournisseurs',
+  'home.new.verify.body':
+    'VerifyNow est déjà dans SupplierAdvisor® : contrôle société CIPC et vérification du compte bancaire pour les fournisseurs et les entreprises, plus le contrôle d’identité sud-africaine.',
+  'home.packs.kicker': 'Packs',
+  'home.packs.coreLabel': 'Socle',
+  'home.packs.corePrice': 'R{core} par mois',
+  'home.packs.coreNote': 'Toujours inclus',
+  'home.packs.addon': '+R{pack} par mois chacun',
+  'home.packs.specialist':
+    'Les programmes publics tels que SchoolAdvisor® restent accompagnés, ce n’est pas un pack en libre-service.',
+  'home.packs.pricing': 'Voir les tarifs',
+  'home.packs.industries': 'Tous les secteurs',
+  'home.trade.kicker': 'TradeAdvisor®',
+  'home.trade.title': 'Devis, chantier, facture — et une application client',
+  'home.trade.body':
+    'TradeAdvisor® est le système de la camionnette pour électriciens, plombiers, bâtisseurs, peintres, CVC et hommes à tout faire. Il tourne sur SupplierAdvisor® : les matériaux viennent de fournisseurs déjà sur la plateforme.',
+  'home.trade.point1': 'Devis, chantiers et factures en rand',
+  'home.trade.point2': 'Matériaux commandés aux fournisseurs SupplierAdvisor®',
+  'home.trade.point3': 'Un planning de chantier',
+  'home.trade.point4': 'Rappels CoC et PIRB avant l’expiration d’un certificat',
+  'home.trade.point5': 'Une application client installable : avancement, relevé et nouvelles demandes',
+  'home.trade.explore': 'Voir les métiers',
+  'home.trade.demo': 'Ouvrir l’application client d’exemple',
+  'home.trade.price': '+R{pack} par mois en plus du socle',
+  'home.trade.imageAlt':
+    'Application client d’exemple TradeAdvisor® avec un chantier en cours chez Harbour Trades',
 };
 
 export default fr;

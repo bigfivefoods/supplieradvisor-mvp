@@ -234,6 +234,54 @@ export const en = {
   'tour.close.body':
     'You have walked the SupplierAdvisor® supply-chain OS and its verified trade and trust layer. Start a free trial on your own company, or book a demo. These screens stay sample data.',
   'pricing.step': 'Step {step}',
+
+  'home.new.kicker': 'New',
+  'home.new.title': 'What is new on SupplierAdvisor®',
+  'home.new.body':
+    'Recent additions already on the platform, plus the industry packs and verification that sit on the same core.',
+  'home.new.badge': 'New',
+  'home.new.onPlatform': 'On the platform',
+  'home.new.trade.title': 'TradeAdvisor®',
+  'home.new.trade.body':
+    'Quotes, jobs and invoices for tradespeople, with an installable customer app for job status, statements and new requests.',
+  'home.new.checklist.title': 'First-run checklist',
+  'home.new.checklist.body':
+    'A new company checklist ticks itself from records you already keep: profile, supplier, customer, first purchase order, a teammate, and optional verification.',
+  'home.new.tour.title': 'Sample screens, no signup',
+  'home.new.tour.body':
+    'Polished sample screens and a guided tour of the supply-chain OS. Nothing is saved.',
+  'home.new.gym.title': 'GymAdvisor®',
+  'home.new.gym.body':
+    'Fitness and gyms: classes, check-in, coaches and an installable member app on the same company plan.',
+  'home.new.industries.title': 'Industry pages',
+  'home.new.industries.body':
+    'Sector pages for agriculture, construction, fitness, trades and the other industries on one operating system.',
+  'home.new.verify.title': 'VerifyNow for suppliers',
+  'home.new.verify.body':
+    'VerifyNow is already on SupplierAdvisor®: a CIPC company check and bank-account verification for suppliers and companies, plus SA ID checks.',
+  'home.packs.kicker': 'Packs',
+  'home.packs.coreLabel': 'Core OS',
+  'home.packs.corePrice': 'R{core}/month',
+  'home.packs.coreNote': 'Always included',
+  'home.packs.addon': '+R{pack}/month each',
+  'home.packs.specialist':
+    'Government programmes such as SchoolAdvisor® are specialist-led, not a self-serve pack.',
+  'home.packs.pricing': 'See pricing',
+  'home.packs.industries': 'All industries',
+  'home.trade.kicker': 'TradeAdvisor®',
+  'home.trade.title': 'Quote, job, invoice — and a customer app',
+  'home.trade.body':
+    'TradeAdvisor® is the van operating system for electricians, plumbers, builders, painters, HVAC and handymen. It runs on SupplierAdvisor®, so materials come from suppliers already on the platform.',
+  'home.trade.point1': 'Quotes, jobs and invoices in rand',
+  'home.trade.point2': 'Materials ordered from SupplierAdvisor® suppliers',
+  'home.trade.point3': 'A site schedule for the work',
+  'home.trade.point4': 'CoC and PIRB reminders before a certificate expires',
+  'home.trade.point5': 'An installable customer app: job status, statement and job requests',
+  'home.trade.explore': 'Explore trades',
+  'home.trade.demo': 'Open the sample customer app',
+  'home.trade.price': '+R{pack}/month on top of core',
+  'home.trade.imageAlt':
+    'Sample TradeAdvisor® customer app showing a job in progress for Harbour Trades',
 } as const;
 
 export type DictKey = keyof typeof en;

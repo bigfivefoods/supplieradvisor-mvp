@@ -225,6 +225,53 @@ const sw: Dict = {
   'tour.close.body':
     'Umetembea OS ya mnyororo wa ugavi ya SupplierAdvisor® na safu yake ya biashara na uaminifu uliothibitishwa. Anza jaribio la bure kwenye kampuni yako, au weka onyesho. Skrini hizi hubaki data ya mfano.',
   'pricing.step': 'Hatua ya {step}',
+  'home.new.kicker': 'Kipya',
+  'home.new.title': 'Nini kipya kwenye SupplierAdvisor®',
+  'home.new.body':
+    'Viongezo vya hivi karibuni vilivyopo tayari kwenye jukwaa, pamoja na vifurushi vya sekta na uthibitishaji kwenye msingi ule ule.',
+  'home.new.badge': 'Kipya',
+  'home.new.onPlatform': 'Kwenye jukwaa',
+  'home.new.trade.title': 'TradeAdvisor®',
+  'home.new.trade.body':
+    'Makadirio, kazi na ankara kwa mafundi, na programu ya mteja inayowekwa: hali ya kazi, taarifa na maombi mapya.',
+  'home.new.checklist.title': 'Orodha ya kuanza',
+  'home.new.checklist.body':
+    'Orodha ya kampuni mpya hujijaza kutoka kumbukumbu zilizopo: wasifu, msambazaji, mteja, agizo la kwanza la ununuzi, mwenzako, na uthibitishaji wa hiari.',
+  'home.new.tour.title': 'Skrini za mfano, bila kujiandikisha',
+  'home.new.tour.body':
+    'Skrini za mfano zilizoboreshwa na ziara elekezi ya mfumo. Hakuna kinachohifadhiwa.',
+  'home.new.gym.title': 'GymAdvisor®',
+  'home.new.gym.body':
+    'Ustawi na gym: madarasa, kuingia, wakufunzi na programu ya mwanachama inayowekwa, kwenye mpango ule ule wa kampuni.',
+  'home.new.industries.title': 'Kurasa za sekta',
+  'home.new.industries.body':
+    'Kurasa za kilimo, ujenzi, ustawi, mafundi na sekta nyingine kwenye mfumo mmoja.',
+  'home.new.verify.title': 'VerifyNow kwa wasambazaji',
+  'home.new.verify.body':
+    'VerifyNow tayari iko kwenye SupplierAdvisor®: ukaguzi wa kampuni wa CIPC na uthibitishaji wa akaunti ya benki kwa wasambazaji na kampuni, pamoja na ukaguzi wa kitambulisho cha Afrika Kusini.',
+  'home.packs.kicker': 'Vifurushi',
+  'home.packs.coreLabel': 'Msingi',
+  'home.packs.corePrice': 'R{core} kwa mwezi',
+  'home.packs.coreNote': 'Imejumuishwa daima',
+  'home.packs.addon': '+R{pack} kwa mwezi kila kimoja',
+  'home.packs.specialist':
+    'Mipango ya serikali kama SchoolAdvisor® inaongozwa na mtaalamu, si kifurushi cha kujihudumia.',
+  'home.packs.pricing': 'Angalia bei',
+  'home.packs.industries': 'Sekta zote',
+  'home.trade.kicker': 'TradeAdvisor®',
+  'home.trade.title': 'Makadirio, kazi, ankara — na programu ya mteja',
+  'home.trade.body':
+    'TradeAdvisor® ni mfumo wa gari kwa mafundi wa umeme, mabomba, wajenzi, wapakaji rangi, HVAC na mafundi wa kila kazi. Inaendeshwa kwenye SupplierAdvisor®, hivyo vifaa vinatoka kwa wasambazaji waliopo tayari kwenye jukwaa.',
+  'home.trade.point1': 'Makadirio, kazi na ankara kwa rand',
+  'home.trade.point2': 'Vifaa vinavyoagizwa kutoka kwa wasambazaji wa SupplierAdvisor®',
+  'home.trade.point3': 'Ratiba ya eneo la kazi',
+  'home.trade.point4': 'Vikumbusho vya CoC na PIRB kabla cheti hakijaisha',
+  'home.trade.point5': 'Programu ya mteja inayowekwa: hali ya kazi, taarifa na maombi mapya',
+  'home.trade.explore': 'Angalia mafundi',
+  'home.trade.demo': 'Fungua programu ya mteja ya mfano',
+  'home.trade.price': '+R{pack} kwa mwezi juu ya msingi',
+  'home.trade.imageAlt':
+    'Programu ya mteja ya mfano ya TradeAdvisor® ikionyesha kazi inayoendelea ya Harbour Trades',
 };
 
 export default sw;

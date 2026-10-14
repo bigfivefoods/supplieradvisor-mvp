@@ -8,6 +8,7 @@ import { AuthLoginActions } from '@/components/auth/AuthLoginActions';
 import { extractEmailFromPrivyUser, getCanonicalUserId } from '@/lib/auth/identity';
 import { peekOauthReturnParams } from '@/lib/auth/oauth-return';
 import { safeNextPath } from '@/lib/auth/safe-next';
+import { prefersDirectReturn, replaceAfterEmailCodeLogin } from '@/lib/auth/login-return';
 import { fetchLoginRole } from '@/lib/auth/login-role';
 
 type LoginIntent = 'google' | 'apple' | 'email';
@@ -30,19 +31,27 @@ export function LoginPrivyPanel({
   const router = useRouter();
   const { ready, authenticated, user } = usePrivy();
   const [navigating, setNavigating] = useState(false);
-  const [stashedNext, setStashedNext] = useState('');
+  const [stashedNext, setStashedNext] = useState(
+    () => (typeof window === 'undefined' ? '' : peekOauthReturnParams().next || '')
+  );
+  const [stashedEmail, setStashedEmail] = useState(
+    () => (typeof window === 'undefined' ? '' : peekOauthReturnParams().email || '')
+  );
 
   const next = useMemo(
     () => safeNextPath(nextFromQuery) || safeNextPath(stashedNext),
     [nextFromQuery, stashedNext]
   );
+  const emailForCode = prefillEmail || stashedEmail;
 
   useEffect(() => {
     onPrivyReadyChange(ready);
   }, [ready, onPrivyReadyChange]);
 
   useEffect(() => {
-    setStashedNext(peekOauthReturnParams().next || '');
+    const peeked = peekOauthReturnParams();
+    setStashedNext(peeked.next || '');
+    setStashedEmail(peeked.email || '');
   }, []);
 
   useEffect(() => {
@@ -51,13 +60,10 @@ export function LoginPrivyPanel({
 
     let cancelled = false;
     void (async () => {
-      if (
-        next.startsWith('/contractor/invite') ||
-        next.startsWith('/onboarding') ||
-        next.startsWith('/invite') ||
-        next.startsWith('/store')
-      ) {
-        router.replace(next);
+      // Email and SMS codes reach this effect once Privy is authenticated,
+      // and take the same safeNextPath return as Google and Apple.
+      if (prefersDirectReturn(next)) {
+        router.replace(safeNextPath(next));
         return;
       }
 
@@ -67,31 +73,10 @@ export function LoginPrivyPanel({
           email: extractEmailFromPrivyUser(user),
         });
         if (cancelled) return;
-
-        if (data.isContractor && !data.isBusinessUser) {
-          router.replace(next.startsWith('/contractor') ? next : '/contractor');
-          return;
-        }
-        if (next.startsWith('/contractor')) {
-          router.replace(next);
-          return;
-        }
-        if (next.startsWith('/me') || next.startsWith('/hire/') || next.startsWith('/member/')) {
-          router.replace(next || '/me');
-          return;
-        }
-        if (!data.isBusinessUser && !data.isContractor) {
-          router.replace(next || '/me');
-          return;
-        }
-        router.replace(next || '/dashboard/select-company');
+        replaceAfterEmailCodeLogin(router, next, data);
       } catch {
         if (cancelled) return;
-        if (next.startsWith('/me') || next.startsWith('/hire') || next.startsWith('/member')) {
-          router.replace(next);
-        } else {
-          router.replace(next || '/dashboard/select-company');
-        }
+        replaceAfterEmailCodeLogin(router, next, null);
       }
     })();
 
@@ -112,7 +97,7 @@ export function LoginPrivyPanel({
 
   return (
     <AuthLoginActions
-      prefillEmail={prefillEmail || undefined}
+      prefillEmail={emailForCode || undefined}
       queuedIntent={queuedIntent}
       onQueuedIntentConsumed={onQueuedIntentConsumed}
     />

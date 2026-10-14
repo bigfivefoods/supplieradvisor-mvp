@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page, type Request } from '@playwright/test';
 
 /**
  * Tier-1 auth smoke tests (no real Privy login required).
@@ -59,5 +59,54 @@ test.describe('Tier-1 API auth', () => {
       data: { emails: [] },
     });
     expect([404, 405]).toContain(res.status());
+  });
+});
+
+test.describe('Login return query', () => {
+  async function openLogin(page: Page, path: string) {
+    const privyRequests: string[] = [];
+    const onRequest = (req: Request) => {
+      if (/privy/i.test(req.url())) privyRequests.push(req.url());
+    };
+    page.on('request', onRequest);
+    await page.goto(path, { waitUntil: 'domcontentloaded' });
+    return {
+      privyRequests,
+      async settled() {
+        await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => undefined);
+      },
+      stop() {
+        page.off('request', onRequest);
+      },
+    };
+  }
+
+  test('/login?next=/me shows SA Member and does not load Privy before a click', async ({ page }) => {
+    const watch = await openLogin(page, '/login?next=/me');
+    await expect(page.locator('h1')).toHaveText('SA Member');
+    await watch.settled();
+    expect(watch.privyRequests).toEqual([]);
+    watch.stop();
+  });
+
+  test('/login?claimed=1 shows Account ready and does not load Privy before a click', async ({ page }) => {
+    const watch = await openLogin(page, '/login?claimed=1');
+    await expect(page.getByText('Account ready', { exact: false })).toBeVisible();
+    await watch.settled();
+    expect(watch.privyRequests).toEqual([]);
+    watch.stop();
+  });
+
+  test('contractor invite pre-fills the operator banner and does not load Privy before a click', async ({
+    page,
+  }) => {
+    const watch = await openLogin(
+      page,
+      '/login?next=/contractor/invite?token=t&email=a@b.co'
+    );
+    await expect(page.getByText('Operator invite — sign in with a@b.co')).toBeVisible();
+    await watch.settled();
+    expect(watch.privyRequests).toEqual([]);
+    watch.stop();
   });
 });

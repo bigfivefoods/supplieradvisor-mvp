@@ -4,7 +4,6 @@ import LandingNav from '@/components/marketing/LandingNav';
 import HeroAudienceStage from '@/components/marketing/HeroAudienceStage';
 import HomeBelowFoldLazy from '@/components/marketing/HomeBelowFoldLazy';
 import SiteFooter from '@/components/marketing/SiteFooter';
-import EnglishOnly from '@/components/i18n/EnglishOnly';
 import LocaleDataScript from '@/components/i18n/LocaleDataScript';
 import { COMPANY_TRIAL_DAYS } from '@/lib/billing/company-subscription';
 import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/config';
@@ -90,9 +89,7 @@ export default function HomeLanding({ locale = DEFAULT_LOCALE, dict = en }: { lo
           </div>
         </section>
       </main>
-      <EnglishOnly locale={locale} dict={dict}>
-        <HomeBelowFoldLazy />
-      </EnglishOnly>
+      <HomeBelowFoldLazy />
       {/* Footer stays outside the ssr:false below-fold island so it is in server HTML. */}
       <SiteFooter />
     </div>
