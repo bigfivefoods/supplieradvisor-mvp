@@ -7,7 +7,10 @@ const routeBlock = route.split("action === 'backfill_client_crm'")[1] || '';
 const routeActionBody = routeBlock.split("action === 'update_settings'")[0] || '';
 
 assert.match(routeActionBody, /Number\(body\.limit\)/);
-assert.match(routeActionBody, /Math\.min\(80,\s*Math\.max\(1,\s*Math\.trunc\(requestedLimit\)\)\)/);
+assert.match(
+  routeActionBody,
+  /const limit = Number\.isFinite\(requestedLimit\)\s*\?\s*Math\.min\(600,\s*Math\.max\(1,\s*Math\.trunc\(requestedLimit\)\)\)\s*:\s*300;/
+);
 assert.match(routeActionBody, /remaining/);
 assert.match(routeActionBody, /needsGymCrmStamp\(person\)/);
 assert.match(routeActionBody, /if \(processed >= limit\) break/);

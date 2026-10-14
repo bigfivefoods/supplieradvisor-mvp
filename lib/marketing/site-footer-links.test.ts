@@ -101,7 +101,7 @@ assert.equal(new Set(columnHrefs).size, columnHrefs.length, 'no duplicate hrefs 
 
 const footerUsageFiles = [
   'components/marketing/HomeBelowFold.tsx',
-  'app/pricing/page.tsx',
+  'components/marketing/PricingContent.tsx',
   'app/industries/page.tsx',
   'app/industries/[slug]/page.tsx',
   'app/demo/page.tsx',
@@ -122,6 +122,11 @@ assert.doesNotMatch(homeBelowFold, /<footer\b/, 'HomeBelowFold should not contai
 
 const pricingPage = readFileSync(resolve(root, 'app/pricing/page.tsx'), 'utf8');
 assert.ok(!pricingPage.includes("'use client'"), '/pricing page must remain a server component');
+assert.match(
+  pricingPage,
+  /<PricingContent\b/,
+  '/pricing stays a server page and renders PricingContent, which owns SiteFooter'
+);
 
 const homePage = readFileSync(resolve(root, 'app/page.tsx'), 'utf8');
 assert.doesNotMatch(homePage, /SiteFooter/, 'app/page.tsx should keep footer lazy-loaded below fold');

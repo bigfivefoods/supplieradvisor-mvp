@@ -248,11 +248,12 @@ import { mergeFitgraphStores, mergeRowsById } from './fitgraph-merge';
     path.join(root, 'app/api/fitness/fitgraph/route.ts'),
     'utf8'
   );
-  // Coach upsert preserves goals, personal_bests, result_logs, injuries, pin_hash
-  const coachSection = routeTs.slice(
-    routeTs.indexOf("if (entity === 'coaches')"),
-    routeTs.indexOf("} else if (entity === 'clients')")
-  );
+  // Coach upsert preserves goals, personal_bests, result_logs, injuries, pin_hash.
+  // Earlier coach branches (HR sync) sit above this upsert, so slice the last one.
+  const coachStart = routeTs.lastIndexOf("if (entity === 'coaches')");
+  const coachEnd = routeTs.indexOf("} else if (entity === 'clients')", coachStart);
+  assert.ok(coachStart >= 0 && coachEnd > coachStart, 'test 9: coach upsert block');
+  const coachSection = routeTs.slice(coachStart, coachEnd);
   assert.ok(
     coachSection.includes('prev?.goals') &&
       coachSection.includes('prev?.personal_bests') &&

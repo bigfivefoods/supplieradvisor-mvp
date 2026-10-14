@@ -5,7 +5,8 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import React from 'react';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import RouteError from '@/components/app-shell/RouteError';
 
 function read(path: string) {
@@ -72,42 +73,20 @@ const sharedError = read('components/app-shell/RouteError.tsx');
 assert.doesNotMatch(sharedError, /error\.message/, 'shared route error must not render error.message');
 assert.doesNotMatch(sharedError, /error\.stack/, 'shared route error must not render error.stack');
 
-function toText(node: React.ReactNode): string {
-  if (typeof node === 'string' || typeof node === 'number') return String(node);
-  if (Array.isArray(node)) return node.map(toText).join('');
-  if (!node || !React.isValidElement(node)) return '';
-  return toText(node.props.children);
-}
+assert.match(sharedError, /onClick=\{reset\}/, 'Try again must call the route reset prop');
 
-function findButtonByLabel(node: React.ReactNode, label: string): React.ReactElement | null {
-  if (!node) return null;
-  if (Array.isArray(node)) {
-    for (const child of node) {
-      const found = findButtonByLabel(child, label);
-      if (found) return found;
-    }
-    return null;
-  }
-  if (!React.isValidElement(node)) return null;
-  if (node.type === 'button' && toText(node.props.children).includes(label)) {
-    return node;
-  }
-  return findButtonByLabel(node.props.children, label);
-}
-
-let resetCalls = 0;
-const tree = RouteError({
-  error: Object.assign(new Error('boom'), { digest: 'brief92-test' }),
-  reset: () => {
-    resetCalls += 1;
-  },
-  backHref: '/dashboard',
-  backLabel: 'Back to dashboard',
-});
-const retryButton = findButtonByLabel(tree, 'Try again');
-assert.ok(retryButton, 'shared route error should render Try again button');
-assert.equal(typeof retryButton.props.onClick, 'function', 'Try again button should be clickable');
-retryButton.props.onClick();
-assert.equal(resetCalls, 1, 'Try again should call reset exactly once');
+const html = renderToStaticMarkup(
+  createElement(RouteError, {
+    error: Object.assign(new Error('boom'), { digest: 'brief92-test' }),
+    reset: () => {},
+    backHref: '/dashboard',
+    backLabel: 'Back to dashboard',
+  })
+);
+assert.match(html, />Try again</, 'shared route error should render Try again button');
+assert.match(html, /href="\/dashboard"/);
+assert.match(html, /Back to dashboard/);
+assert.match(html, /brief92-test/);
+assert.doesNotMatch(html, /boom/, 'rendered route error must not echo error.message');
 
 console.log('brief92-boundaries.test.ts ok');

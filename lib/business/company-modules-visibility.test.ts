@@ -125,13 +125,25 @@ const allOn = functionalSidebarModules({
   simplifiedSchool: false,
   moduleOrder: ['home', 'my-business', 'fitgraph', 'schools'],
 });
-const firstNonAdvisor = allOn.findIndex((m) => !advisorSet.has(m.id));
-const advisorCount = allOn.filter((m) => advisorSet.has(m.id)).length;
-assert.ok(advisorCount > 0, 'all-on workspace still shows Advisor hubs');
+const savedOrder = ['home', 'my-business', 'fitgraph', 'schools'];
+const ids = allOn.map((m) => m.id);
+const advisorCount = ids.filter((id) => advisorSet.has(id)).length;
 assert.equal(
-  firstNonAdvisor,
   advisorCount,
-  'every Advisor hub sits above Control Tower and Core'
+  ADVISOR_OS_MODULE_IDS.length,
+  'all-on workspace still lists every Advisor hub'
+);
+const unsavedAdvisors = ADVISOR_OS_MODULE_IDS.filter((id) => !savedOrder.includes(id));
+assert.equal(
+  ids.slice(0, unsavedAdvisors.length).filter((id) => !advisorSet.has(id)).length,
+  0,
+  'Advisor hubs omitted from Arrange stay above Control Tower and Core'
+);
+assert.equal(ids[unsavedAdvisors.length], 'home');
+const savedPositions = savedOrder.map((id) => ids.indexOf(id));
+assert.ok(
+  savedPositions.every((index, i) => index >= unsavedAdvisors.length && (i === 0 || index > savedPositions[i - 1])),
+  'saved Arrange order keeps Control Tower, Company, then the placed Advisor hubs'
 );
 assert.ok(
   !allOn.some((m) => m.id === 'industry_tools'),
