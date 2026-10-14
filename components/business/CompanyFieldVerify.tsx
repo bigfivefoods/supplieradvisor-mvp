@@ -33,7 +33,7 @@ type Product = {
   customerPriceLabel?: string;
 };
 
-type Snapshot = {
+export type FieldVerifySnapshot = {
   configured: boolean;
   canRun: boolean;
   mode: string;
@@ -55,7 +55,9 @@ type Snapshot = {
   asyncBank: boolean;
 };
 
-type Focus = 'registration' | 'name' | 'vat' | 'director' | 'bank';
+type Snapshot = FieldVerifySnapshot;
+
+type Focus = 'registration' | 'name' | 'vat' | 'director' | 'bank' | 'address' | 'contact';
 
 type Quote = { label: string; cents: number; zar: number };
 
@@ -101,10 +103,15 @@ async function loadSnapshot(companyId: number): Promise<Snapshot> {
   return pending;
 }
 
-function useSnapshot(companyId: number) {
-  const [row, setRow] = useState<Snapshot | null>(memory.get(companyId) || null);
+function useSnapshot(companyId: number, initial?: Snapshot) {
+  const [row, setRow] = useState<Snapshot | null>(initial || memory.get(companyId) || null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
+    if (initial) {
+      publish(companyId, initial);
+      setRow(initial);
+      return;
+    }
     let alive = true;
     const set = listeners.get(companyId) || new Set();
     const listener = (next: Snapshot) => {
@@ -121,7 +128,7 @@ function useSnapshot(companyId: number) {
       alive = false;
       set.delete(listener);
     };
-  }, [companyId]);
+  }, [companyId, initial]);
   return { row, error, reload: () => loadSnapshot(companyId) };
 }
 
@@ -199,12 +206,15 @@ export default function CompanyFieldVerify({
   companyId,
   focus,
   email,
+  initialSnapshot,
 }: {
   companyId: number;
   focus: Focus;
   email?: string;
+  /** Review-only fixture. The profile page never sets this. */
+  initialSnapshot?: Snapshot;
 }) {
-  const { row, error } = useSnapshot(companyId);
+  const { row, error } = useSnapshot(companyId, initialSnapshot);
   const [open, setOpen] = useState<string | null>(null);
   const [consent, setConsent] = useState(false);
   const [purpose, setPurpose] = useState(
@@ -352,13 +362,18 @@ export default function CompanyFieldVerify({
     }
   }
 
-  const action = (check: string, label: string) => {
+  const action = (check: string, label: string, hint?: string) => {
     const quote = quoteFor(row, check);
     const existing = row.checks[check];
     const failed =
       existing?.status === 'error' &&
       existing.payment_status !== 'refunded' &&
       Boolean(existing.paystack_reference);
+    const delivered =
+      Boolean(existing) &&
+      !failed &&
+      existing?.status !== 'error' &&
+      existing?.payment_status !== 'refunded';
     const priceLabel = quote?.label;
     return (
       <div className="mt-2">
@@ -372,7 +387,11 @@ export default function CompanyFieldVerify({
           className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[#00b4d8] px-3 text-xs font-bold text-[#0077b6] disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400"
         >
           {busy && open === check ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-          {failed ? `Paid ${priceLabel}` : `Pay ${priceLabel || ''} & verify ${label}`}
+          {failed
+            ? `Paid ${priceLabel}`
+            : delivered
+              ? `Pay ${priceLabel} & re-verify ${label}`
+              : `Pay ${priceLabel || ''} & verify ${label}`}
         </button>
         {blockedReason ? <p className="mt-1 text-[11px] text-neutral-500">{blockedReason}</p> : null}
         {!blockedReason && !paystackKey ? (
@@ -383,6 +402,7 @@ export default function CompanyFieldVerify({
         {receiptLine(existing) ? (
           <p className="mt-1 text-[11px] text-neutral-500">{receiptLine(existing)}</p>
         ) : null}
+        {hint ? <p className="mt-1 text-[11px] leading-relaxed text-neutral-500">{hint}</p> : null}
         {open === check && !blockedReason && quote ? (
           <div className="mt-2 rounded-xl border border-[#00b4d8]/30 bg-[#00b4d8]/5 p-3">
             <p className="text-xs leading-relaxed text-slate-700">
@@ -391,6 +411,7 @@ export default function CompanyFieldVerify({
               verified. One payment equals one check.
               {row.mode === 'sandbox' ? ' Sandbox mode uses no VerifyNow credits.' : ''}
             </p>
+            {hint ? <p className="mt-2 text-[11px] leading-relaxed text-neutral-600">{hint}</p> : null}
             <label className="mt-2 flex items-start gap-2 text-xs text-slate-700">
               <input
                 type="checkbox"
@@ -450,7 +471,14 @@ export default function CompanyFieldVerify({
   return (
     <div className="mt-2 space-y-1.5">
       {focus === 'name' ? (
-        <Badge label="Name" status={company?.matches?.name} at={company?.checked_at} />
+        <>
+          <Badge label="Name" status={company?.matches?.name} at={company?.checked_at} />
+          {action(
+            'cipc_company_match',
+            'company name',
+            'The legal name is matched on the CIPC company check. That same payment also covers registration, status, address and directors.'
+          )}
+        </>
       ) : null}
       {focus === 'registration' ? (
         <>
@@ -477,6 +505,34 @@ export default function CompanyFieldVerify({
             at={director?.checked_at || company?.checked_at}
           />
           <p className="text-[11px] leading-relaxed text-neutral-500">{row.vatNote}</p>
+          {action(
+            'cipc_director_search',
+            'VAT cross-check',
+            'VerifyNow has no direct VAT product. This payment runs a CIPC director search and cross-checks the profile VAT number against numbers the registry returns.'
+          )}
+        </>
+      ) : null}
+      {focus === 'address' ? (
+        <>
+          <Badge label="Address" status={company?.matches?.address} at={company?.checked_at} />
+          {action(
+            'cipc_company_match',
+            'address',
+            'The street address is matched on the CIPC company check, together with the registered name and status.'
+          )}
+        </>
+      ) : null}
+      {focus === 'contact' ? (
+        <>
+          <div className="flex flex-wrap gap-1">
+            <Badge label="Director" status={company?.matches?.directors} at={company?.checked_at} />
+            <Badge label="AML" status={aml?.status} at={aml?.checked_at} />
+          </div>
+          {action(
+            'aml_pep',
+            'contact name',
+            'AML, PEP and sanctions screening uses the primary contact name. Email, phone and website are not VerifyNow products, so they are not charged.'
+          )}
         </>
       ) : null}
       {focus === 'director' ? (

@@ -62,7 +62,19 @@ assert.ok(fieldChargeAt > 0 && cipcChargeAt > fieldChargeAt, 'field checks must 
 assert.match(paystackWebhook, /CUSTOMER_PRICES.cipc_company_match.cents/);
 
 assert.match(ui, /openPaystackCheckout\(/);
+assert.match(ui, /focus === 'address'/);
+assert.match(ui, /focus === 'contact'/);
+assert.match(ui, /VAT cross-check/);
+assert.match(ui, /Email, phone and website are not VerifyNow products/);
 assert.match(ui, /VAT inclusive/);
+const profile = read('app/dashboard/my-business/profile/page.tsx');
+assert.match(profile, /focus="address"/);
+assert.match(profile, /focus="contact"/);
+assert.match(profile, /focus="name"/);
+assert.match(profile, /focus="vat"/);
+assert.match(profile, /focus="director"/);
+assert.match(profile, /focus="bank"/);
+assert.match(profile, /focus="registration"/);
 assert.match(ui, /buildFieldCheckReference\(/);
 assert.equal(ui.includes('excl. VAT'), false);
 assert.equal(ui.includes('VERIFYNOW_API_KEY'), false);

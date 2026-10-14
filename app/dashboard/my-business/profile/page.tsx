@@ -2181,6 +2181,7 @@ function ProfileInner() {
                     value={form.contact_name || ''}
                     onChange={(e) => set('contact_name', e.target.value)}
                   />
+                  <CompanyFieldVerify companyId={companyId} email={payerEmail} focus="contact" />
                 </Field>
                 <Field label="Email">
                   <input
@@ -2224,6 +2225,7 @@ function ProfileInner() {
                     value={form.street || form.address || ''}
                     onChange={(e) => setAddress(e.target.value)}
                   />
+                  <CompanyFieldVerify companyId={companyId} email={payerEmail} focus="address" />
                 </Field>
                 <Field label="Postal">
                   <input
