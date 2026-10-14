@@ -20,6 +20,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { usePrivy } from '@privy-io/react-auth';
+import { CUSTOMER_PRICES } from '@/lib/verifynow/prices';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { getCanonicalUserId } from '@/lib/auth/identity';
@@ -91,11 +92,11 @@ const BEE = [
   'Non-compliant',
 ];
 
-const VERIFY_AMOUNT_ZAR = 69;
-const VERIFY_AMOUNT_CENTS = VERIFY_AMOUNT_ZAR * 100;
-/** Bank account AVS via VerifyNow — R50 Paystack */
-const BANK_VERIFY_AMOUNT_ZAR = 50;
-const BANK_VERIFY_AMOUNT_CENTS = BANK_VERIFY_AMOUNT_ZAR * 100;
+const VERIFY_AMOUNT_ZAR = CUSTOMER_PRICES.cipc_company_match.zar;
+const VERIFY_AMOUNT_CENTS = CUSTOMER_PRICES.cipc_company_match.cents;
+/** Bank account AVS via VerifyNow — same shelf as the shared price config. */
+const BANK_VERIFY_AMOUNT_ZAR = CUSTOMER_PRICES.bank_account.zar;
+const BANK_VERIFY_AMOUNT_CENTS = CUSTOMER_PRICES.bank_account.cents;
 
 const BANK_ACCOUNT_TYPES = ['Current', 'Savings', 'Cheque', 'Transmission', 'Bond', 'Credit'] as const;
 
@@ -1494,6 +1495,7 @@ function ProfileInner() {
   const inputCls = 'input min-h-11 w-full !py-2.5 !px-3 !text-sm';
   const recordTrade = String(form.trading_name || '').trim();
   const recordLegal = String(form.legal_name || '').trim();
+  const payerEmail = String(form.email || user?.email?.address || '').trim();
   const recordTitle = recordTrade || recordLegal || 'Your company';
   const recordSubtitle =
     recordTrade && recordLegal && recordTrade !== recordLegal ? recordLegal : '';
@@ -1751,7 +1753,7 @@ function ProfileInner() {
                     value={form.legal_name || ''}
                     onChange={(e) => set('legal_name', e.target.value)}
                   />
-                  <CompanyFieldVerify companyId={companyId} focus="name" />
+                  <CompanyFieldVerify companyId={companyId} email={payerEmail} focus="name" />
                 </Field>
                 <Field label="Organisation type" className="sm:col-span-2">
                   <select
@@ -1834,7 +1836,7 @@ function ProfileInner() {
                   onChange={(e) => set('registration_number', e.target.value)}
                   placeholder="2020/123456/07"
                 />
-                <CompanyFieldVerify companyId={companyId} focus="registration" />
+                <CompanyFieldVerify companyId={companyId} email={payerEmail} focus="registration" />
               </Field>
               <Field label="VAT number">
                 <input
@@ -1842,7 +1844,7 @@ function ProfileInner() {
                   value={form.vat_number || ''}
                   onChange={(e) => set('vat_number', e.target.value)}
                 />
-                <CompanyFieldVerify companyId={companyId} focus="vat" />
+                <CompanyFieldVerify companyId={companyId} email={payerEmail} focus="vat" />
               </Field>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -2653,7 +2655,7 @@ function ProfileInner() {
                     onChange={(e) => set('account_number', e.target.value)}
                     inputMode="numeric"
                   />
-                  <CompanyFieldVerify companyId={companyId} focus="bank" />
+                  <CompanyFieldVerify companyId={companyId} email={payerEmail} focus="bank" />
                 </Field>
                 <Field label="Branch code">
                   <input
@@ -2878,7 +2880,7 @@ function ProfileInner() {
                     onChange={(e) => set('director_id_number', e.target.value)}
                     placeholder="For bank AVS if no CIPC reg"
                   />
-                  <CompanyFieldVerify companyId={companyId} focus="director" />
+                  <CompanyFieldVerify companyId={companyId} email={payerEmail} focus="director" />
                 </Field>
                 <Field label="Import license no.">
                   <input

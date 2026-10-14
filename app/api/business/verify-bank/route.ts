@@ -10,10 +10,11 @@ import {
 } from '@/lib/verifynow/client';
 import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 import { verifyPaystackTransaction } from '@/lib/billing/paystack';
+import { CUSTOMER_PRICES } from '@/lib/verifynow/prices';
 
-/** R50 bank account verification fee (ZAR cents for Paystack). */
-export const BANK_VERIFY_AMOUNT_ZAR = 50;
-export const BANK_VERIFY_AMOUNT_CENTS = BANK_VERIFY_AMOUNT_ZAR * 100;
+/** Company bank verification fee, VAT inclusive (ZAR cents for Paystack). */
+export const BANK_VERIFY_AMOUNT_ZAR = CUSTOMER_PRICES.bank_account.zar;
+export const BANK_VERIFY_AMOUNT_CENTS = CUSTOMER_PRICES.bank_account.cents;
 
 /**
  * POST — Verify company bank account via VerifyNow AVS after R50 Paystack payment.

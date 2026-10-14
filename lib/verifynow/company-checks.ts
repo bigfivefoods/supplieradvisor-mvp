@@ -45,6 +45,15 @@ export type FieldCheckSummary = {
   purpose: string;
   consent_at: string;
   idempotency_key: string;
+  /** True once VerifyNow was called for this payment. A validation miss stays false so the same payment can retry. */
+  provider_attempted?: boolean;
+  paystack_reference?: string | null;
+  amount_cents?: number | null;
+  amount_zar?: number | null;
+  currency?: 'ZAR';
+  paid_at?: string | null;
+  payment_status?: 'paid' | 'refunded';
+  part_of?: 'supplier_bundle' | null;
   subject_masked: string | null;
   matches: Partial<
     Record<
