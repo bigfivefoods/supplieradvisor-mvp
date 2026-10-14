@@ -29,6 +29,7 @@ export function mapFixtureHref(href: string): string | null {
 
   if (path === '/dashboard') return '/preview/dashboard';
   if (path.startsWith('/dashboard/customers/profiles')) return withId('/preview/crm?screen=profiles');
+  if (path.startsWith('/dashboard/customers/onboard')) return '/preview/crm';
   if (path.startsWith('/dashboard/customers/leads')) {
     return q.get('tab') === 'pipeline' ? '/preview/crm?screen=pipeline' : '/preview/crm?screen=leads';
   }
@@ -40,6 +41,9 @@ export function mapFixtureHref(href: string): string | null {
     return '/preview/ratings';
   }
   if (path === '/dashboard/customers') return '/preview/crm';
+  if (path.startsWith('/dashboard/my-business/profile')) return '/preview/onboarding';
+  if (path.startsWith('/dashboard/my-business/team')) return '/preview/onboarding';
+  if (path.startsWith('/dashboard/my-business/verifications')) return '/preview/onboarding';
   if (path.startsWith('/dashboard/suppliers/po')) {
     const po = q.get('po');
     return po ? `/preview/po?po=${encodeURIComponent(po)}` : '/preview/po';
