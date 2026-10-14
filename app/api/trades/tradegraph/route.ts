@@ -4,8 +4,12 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { issueCustomerInvite, customerPushSubs } from '@/lib/trades/customer-auth';
 import { magicLink } from '@/lib/trades/customer-session';
 import { sendTradeEmail, sendTradePush, tradeStatusEmail } from '@/lib/trades/notify';
+import { applyTradeOp, emptyDesk, type TradeOp } from '@/lib/trades/desk';
+import { initializePaystackTransaction } from '@/lib/billing/paystack-plans';
+import { loadInventoryPriceLines, raiseTradePurchaseOrder } from '@/lib/trades/core-bridge';
 import {
   TradeSchemaMissingError,
+  loadTradeBook,
   loadTradeStore,
   saveTradeStore,
 } from '@/lib/trades/tradegraph-db';
@@ -118,7 +122,13 @@ export async function GET(request: NextRequest) {
     });
     if (!gate.ok) return gate.response;
     const store = await loadBook(companyId);
-    return jsonStore(store);
+    const loaded = await loadTradeBook(companyId);
+    return NextResponse.json({
+      success: true,
+      store,
+      desk: loaded?.desk || emptyDesk(),
+      summary: summariseTradegraph(store, todayIso()),
+    });
   } catch (error) {
     return fail(error);
   }
@@ -135,6 +145,80 @@ export async function POST(request: NextRequest) {
     const action = String(body.action || '');
     const now = new Date().toISOString();
     let store = await loadBook(companyId);
+
+    if (action === 'apply') {
+      const loaded = await loadTradeBook(companyId);
+      const result = applyTradeOp(
+        { store, desk: loaded?.desk || emptyDesk() },
+        body.op as TradeOp,
+        now
+      );
+      await saveTradeStore(companyId, result.book.store, result.book.desk);
+      const op = body.op as TradeOp;
+      if (op?.type === 'order_materials' && op.supplier_id) {
+        try {
+          await raiseTradePurchaseOrder({
+            companyId,
+            supplierId: op.supplier_id,
+            lines: op.lines,
+            note: `TradeAdvisor® order · ${op.supplier_name}`,
+          });
+        } catch {
+          /* The trade book is already saved. A purchase-order miss stays on the materials list. */
+        }
+      }
+      if (op?.type === 'pay_link' && process.env.PAYSTACK_SECRET_KEY) {
+        const invoice = result.book.store.invoices.find((row) => row.id === op.invoice_id);
+        const meta = result.book.desk.invoice_meta.find((row) => row.invoice_id === op.invoice_id);
+        const customer = invoice
+          ? result.book.store.customers.find((row) => row.id === invoice.customer_id)
+          : null;
+        if (invoice && meta?.pay_reference && customer?.email) {
+          const pay = await initializePaystackTransaction({
+            email: customer.email,
+            amountCents: invoice.total_cents,
+            currency: 'ZAR',
+            reference: meta.pay_reference,
+            callbackUrl: `${request.nextUrl.origin}/customer/tradegraph/${encodeURIComponent(result.book.store.settings.public_token)}`,
+            metadata: { invoice_id: invoice.id, source: 'tradegraph' },
+          });
+          if (pay.ok) {
+            result.book.desk.invoice_meta = result.book.desk.invoice_meta.map((row) =>
+              row.invoice_id === invoice.id ? { ...row, pay_url: pay.authorizationUrl } : row
+            );
+            await saveTradeStore(companyId, result.book.store, result.book.desk);
+          }
+        }
+      }
+      for (const note of result.notices) {
+        if (note.audience === 'customer' && note.customer_id) {
+          await notifyCustomer(request, result.book.store, note.customer_id, note.title, note.body);
+        }
+      }
+      return NextResponse.json({
+        success: true,
+        store: result.book.store,
+        desk: result.book.desk,
+        notices: result.notices,
+        summary: summariseTradegraph(result.book.store, todayIso()),
+      });
+    }
+
+    if (action === 'import_products') {
+      const loaded = await loadTradeBook(companyId);
+      const desk = loaded?.desk || emptyDesk();
+      const incoming = await loadInventoryPriceLines(companyId);
+      const known = new Set(desk.price_book.map((row) => row.sku));
+      const price_book = [...desk.price_book, ...incoming.filter((row) => row.sku && !known.has(row.sku))];
+      const next = { ...desk, price_book };
+      await saveTradeStore(companyId, store, next);
+      return NextResponse.json({
+        success: true,
+        store,
+        desk: next,
+        summary: summariseTradegraph(store, todayIso()),
+      });
+    }
 
     if (action === 'seed_demo') {
       store = seedDemoTradegraph(now, store.settings.public_token || `tg_demo_${companyId}`);

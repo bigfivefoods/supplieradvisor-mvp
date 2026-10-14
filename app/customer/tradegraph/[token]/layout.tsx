@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { isPublicTradeToken } from '@/lib/trades/tradegraph';
 
 type Props = { params: Promise<{ token: string }> };
@@ -10,7 +10,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: 'Your jobs',
     description: 'Job progress, your statement, and new requests from your tradesperson.',
     manifest: `/customer/tradegraph/${safe}/manifest.webmanifest`,
-    themeColor: '#00b4d8',
     appleWebApp: {
       capable: true,
       title: 'TradeAdvisor',
@@ -20,6 +19,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     robots: { index: false, follow: false },
   };
 }
+
+export const viewport: Viewport = {
+  themeColor: '#00b4d8',
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+};
 
 export default function CustomerTradeLayout({ children }: { children: React.ReactNode }) {
   return children;
