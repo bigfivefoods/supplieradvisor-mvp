@@ -90,6 +90,28 @@ export async function openCustomerSession(opts: {
   return { token, customerId: match.customer_id };
 }
 
+export async function customerFromSession(
+  token: string
+): Promise<{ companyId: number; customerId: string } | null> {
+  if (!token || token.length < 20) return null;
+  const supabase = getSupabaseServer();
+  const found = await supabase
+    .from('trade_customer_sessions')
+    .select('company_id, customer_id, expires_at, revoked_at')
+    .eq('token_hash', hashSecret(token))
+    .maybeSingle();
+  if (found.error || !found.data) return null;
+  const row = found.data as {
+    company_id: number;
+    customer_id: string;
+    expires_at: string;
+    revoked_at: string | null;
+  };
+  if (row.revoked_at) return null;
+  if (Date.parse(row.expires_at) < Date.now()) return null;
+  return { companyId: Number(row.company_id), customerId: String(row.customer_id) };
+}
+
 export async function recentInviteCount(companyId: number, email: string): Promise<number> {
   const supabase = getSupabaseServer();
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();

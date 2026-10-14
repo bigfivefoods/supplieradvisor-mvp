@@ -1,4 +1,5 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { emptyDesk, type DeskState } from './desk';
 import {
   emptyTradeStore,
   newId,
@@ -24,8 +25,8 @@ import {
 type DbError = { code?: string; message?: string } | null;
 
 export class TradeSchemaMissingError extends Error {
-  constructor() {
-    super('Apply supabase/migrations/20261014_tradegraph.sql before using TradeAdvisor®.');
+  constructor(migration = '20261014_tradegraph.sql') {
+    super(`Apply supabase/migrations/${migration} before using TradeAdvisor®.`);
   }
 }
 
@@ -135,6 +136,51 @@ export async function loadTradeStore(companyId: number): Promise<TradegraphStore
     requests: (requests.data || []).map(mapRequest),
   };
   return store;
+}
+
+export function parseDesk(value: unknown): DeskState {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return emptyDesk();
+  const raw = value as Partial<DeskState>;
+  const blank = emptyDesk();
+  return {
+    ...blank,
+    ...raw,
+    price_book: Array.isArray(raw.price_book) ? raw.price_book : [],
+    team: Array.isArray(raw.team) ? raw.team : [],
+    sites: Array.isArray(raw.sites) ? raw.sites : [],
+    templates: Array.isArray(raw.templates) ? raw.templates : [],
+    programmes: Array.isArray(raw.programmes) ? raw.programmes : [],
+    quote_meta: Array.isArray(raw.quote_meta) ? raw.quote_meta : [],
+    variations: Array.isArray(raw.variations) ? raw.variations : [],
+    invoice_meta: Array.isArray(raw.invoice_meta) ? raw.invoice_meta : [],
+    messages: Array.isArray(raw.messages) ? raw.messages : [],
+    documents: Array.isArray(raw.documents) ? raw.documents : [],
+    bookings: Array.isArray(raw.bookings) ? raw.bookings : [],
+    availability: Array.isArray(raw.availability) ? raw.availability : [],
+    tasks: Array.isArray(raw.tasks) ? raw.tasks : [],
+    reviews: Array.isArray(raw.reviews) ? raw.reviews : [],
+    notices: Array.isArray(raw.notices) ? raw.notices : [],
+    customer_links: Array.isArray(raw.customer_links) ? raw.customer_links : [],
+    logo_data_url: typeof raw.logo_data_url === 'string' ? raw.logo_data_url : '',
+  };
+}
+
+export async function loadTradeBook(companyId: number): Promise<{
+  store: TradegraphStore;
+  desk: DeskState;
+} | null> {
+  const supabase = getSupabaseServer();
+  const workspace = await supabase
+    .from('trade_workspaces')
+    .select('desk')
+    .eq('company_id', companyId)
+    .maybeSingle();
+  const store = await loadTradeStore(companyId);
+  if (!store) return null;
+  if (workspace.error && /desk/i.test(workspace.error.message || '')) {
+    return { store, desk: emptyDesk() };
+  }
+  return { store, desk: parseDesk(workspace.data?.desk) };
 }
 
 function group(rows: unknown[], key: string): Map<string, Record<string, unknown>[]> {
@@ -306,11 +352,12 @@ function mapRequest(raw: unknown): JobRequest {
 
 export async function saveTradeStore(
   companyId: number,
-  store: TradegraphStore
+  store: TradegraphStore,
+  desk?: DeskState
 ): Promise<void> {
   const supabase = getSupabaseServer();
   const token = store.settings.public_token || newId('tg');
-  const workspace = await supabase.from('trade_workspaces').upsert({
+  const workspaceRow: Record<string, unknown> = {
     company_id: companyId,
     brand_name: store.settings.brand_name,
     trade: store.settings.trade || 'handyman',
@@ -320,7 +367,20 @@ export async function saveTradeStore(
     city: store.settings.city || '',
     notify_email: store.settings.notify_email || '',
     updated_at: new Date().toISOString(),
-  });
+  };
+  if (desk) workspaceRow.desk = desk;
+  let workspace = await supabase.from('trade_workspaces').upsert(workspaceRow);
+  if (
+    desk &&
+    workspace.error &&
+    /desk|schema cache|column/i.test(workspace.error.message || '')
+  ) {
+    delete workspaceRow.desk;
+    workspace = await supabase.from('trade_workspaces').upsert(workspaceRow);
+    if (!workspace.error) {
+      throw new TradeSchemaMissingError('20261015_tradegraph_desk.sql');
+    }
+  }
   if (isMissingTradeSchema(workspace.error)) throw new TradeSchemaMissingError();
   if (workspace.error) throw new Error(workspace.error.message);
 
