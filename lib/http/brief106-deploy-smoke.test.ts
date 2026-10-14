@@ -127,14 +127,14 @@ assert.deepEqual(blankSecret.keys, []);
 
 const withSecret = loadPlaywrightConfig('brief106-bypass-token');
 assert.equal(withSecret.hasHeaders, true);
-assert.deepEqual(withSecret.keys, ['x-vercel-protection-bypass', 'x-vercel-set-bypass-cookie']);
-assert.equal(withSecret.cookie, 'true');
+assert.deepEqual(withSecret.keys, ['x-vercel-protection-bypass']);
+assert.equal(withSecret.cookie, null);
 assert.equal(withSecret.bypassMatches, true);
 
 const configSource = read('playwright.config.ts');
 assert.match(configSource, /VERCEL_AUTOMATION_BYPASS_SECRET/);
 assert.match(configSource, /x-vercel-protection-bypass/);
-assert.match(configSource, /x-vercel-set-bypass-cookie/);
+assert.doesNotMatch(configSource, /x-vercel-set-bypass-cookie/);
 assert.doesNotMatch(configSource, /console\.(log|info|debug|warn|error)/);
 
 const smoke = read('.github/workflows/e2e-smoke.yml');

@@ -7,7 +7,10 @@ const hasStorage = fs.existsSync(storageStatePath);
 
 /**
  * Vercel Protection Bypass for Automation.
- * Set only when the secret is non-empty. Callers must not log the value.
+ * The bypass header alone authorizes each request. Do not also ask Vercel to
+ * set a bypass cookie: that answers the first request with Vercel's own
+ * redirect and hides the app's Location (retired /directory → /).
+ * Callers must not log the secret.
  */
 export function vercelAutomationBypassHeaders(
   secret: string | undefined | null
@@ -16,7 +19,6 @@ export function vercelAutomationBypassHeaders(
   if (!value) return undefined;
   return {
     'x-vercel-protection-bypass': value,
-    'x-vercel-set-bypass-cookie': 'true',
   };
 }
 
