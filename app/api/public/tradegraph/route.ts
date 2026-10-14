@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { clientIp, rateLimit } from '@/lib/security/rate-limit';
 import {
+  customerAuthFailure,
+  customerFromSession,
   issueCustomerInvite,
   openCustomerSession,
-  recentInviteCount,
+  respondToOtpRequest,
+  TRADE_INVITE_GENERIC,
 } from '@/lib/trades/customer-auth';
 import {
   TRADE_SESSION_COOKIE,
   sessionCookieOptions,
 } from '@/lib/trades/customer-session';
 import { notifyTradesperson, sendTradeEmail, tradeStatusEmail } from '@/lib/trades/notify';
-import { customerFromSession } from '@/lib/trades/customer-auth';
 import { applyTradeOp, customerPack, type TradeOp } from '@/lib/trades/desk';
 import { portalFromRows } from '@/lib/trades/tradegraph';
 import { seedHarbourBook } from '@/lib/trades/harbour-seed';
@@ -24,10 +27,9 @@ import {
 
 export const runtime = 'nodejs';
 
-const GENERIC = {
-  ok: true,
-  message: 'If this email is on the book, a code is on its way.',
-};
+const GENERIC = TRADE_INVITE_GENERIC;
+const VERIFY_IP_LIMIT = 20;
+const VERIFY_IP_WINDOW_MS = 60_000;
 
 export async function GET(request: NextRequest) {
   try {
@@ -61,28 +63,46 @@ export async function POST(request: NextRequest) {
     const publicToken = String(body.token || '');
 
     if (action === 'request_otp' || action === 'verify_otp' || action === 'magic') {
+      if (action === 'verify_otp') {
+        const limited = rateLimit({
+          key: `trade-verify-otp:${clientIp(request)}:${publicToken}`,
+          limit: VERIFY_IP_LIMIT,
+          windowMs: VERIFY_IP_WINDOW_MS,
+        });
+        if (!limited.ok) {
+          return NextResponse.json(customerAuthFailure(429), { status: 429 });
+        }
+        if (!String(body.email || '').trim()) {
+          return NextResponse.json(customerAuthFailure(401), { status: 401 });
+        }
+      }
       const found = await workspaceByToken(publicToken);
       if (!found) return NextResponse.json(GENERIC);
       if (action === 'request_otp') {
         const email = String(body.email || '').trim().toLowerCase();
         const customer = found.store.customers.find((row) => row.email.toLowerCase() === email);
-        if (!customer || (await recentInviteCount(found.companyId, email)) >= 5) {
-          return NextResponse.json(GENERIC);
-        }
-        const issued = await issueCustomerInvite({
+        await respondToOtpRequest({
           companyId: found.companyId,
-          customerId: customer.id,
           email,
+          hasCustomer: Boolean(customer),
+          send: async () => {
+            if (!customer) return;
+            const issued = await issueCustomerInvite({
+              companyId: found.companyId,
+              customerId: customer.id,
+              email,
+            });
+            const url = `${request.nextUrl.origin}/customer/tradegraph/${encodeURIComponent(publicToken)}?magic=${encodeURIComponent(issued.magic)}`;
+            const mail = tradeStatusEmail({
+              brand: found.store.settings.brand_name || 'TradeAdvisor®',
+              customerName: customer.name,
+              title: 'Sign-in code',
+              body: `Your code is ${issued.otp}. It expires in 15 minutes. You can also open the link.`,
+              url,
+            });
+            await sendTradeEmail({ to: email, ...mail });
+          },
         });
-        const url = `${request.nextUrl.origin}/customer/tradegraph/${encodeURIComponent(publicToken)}?magic=${encodeURIComponent(issued.magic)}`;
-        const mail = tradeStatusEmail({
-          brand: found.store.settings.brand_name || 'TradeAdvisor®',
-          customerName: customer.name,
-          title: 'Sign-in code',
-          body: `Your code is ${issued.otp}. It expires in 15 minutes. You can also open the link.`,
-          url,
-        });
-        await sendTradeEmail({ to: email, ...mail });
         return NextResponse.json(GENERIC);
       }
       const opened = await openCustomerSession({
@@ -91,8 +111,8 @@ export async function POST(request: NextRequest) {
         otp: action === 'verify_otp' ? String(body.code || '') : undefined,
         magic: action === 'magic' ? String(body.magic || '') : undefined,
       });
-      if (!opened) {
-        return NextResponse.json({ error: 'That code has expired or does not match' }, { status: 401 });
+      if (!opened.ok) {
+        return NextResponse.json(customerAuthFailure(opened.status), { status: opened.status });
       }
       const response = NextResponse.json({ ok: true, customerId: opened.customerId });
       response.cookies.set(TRADE_SESSION_COOKIE, opened.token, sessionCookieOptions());

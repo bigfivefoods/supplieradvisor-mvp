@@ -16,6 +16,7 @@ import {
   fitgraphHasFrontDesk,
   type FitgraphStore,
 } from '@/lib/fitness/fitgraph';
+import { compareFitgraphSessions } from '@/lib/fitness/fitgraph-list-order';
 
 /** Build messageable class groups from calendar sessions + class types */
 function buildFitMessagingGroups(store: FitgraphStore): MessagingGroup[] {
@@ -45,11 +46,7 @@ function buildFitMessagingGroups(store: FitgraphStore): MessagingGroup[] {
             return d.toISOString().slice(0, 10);
           })()
     )
-    .sort((a, b) =>
-      a.date === b.date
-        ? a.start_time.localeCompare(b.start_time)
-        : a.date.localeCompare(b.date)
-    );
+    .sort(compareFitgraphSessions);
 
   for (const s of sessions) {
     const ct = store.class_types.find((t) => t.id === s.class_type_id);

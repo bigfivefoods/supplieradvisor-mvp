@@ -18,6 +18,7 @@ import {
   toneLinkClass,
 } from '@/components/fitness/FitForm';
 import { sessionBookingCount } from '@/lib/fitness/fitgraph';
+import { compareFitgraphSessions } from '@/lib/fitness/fitgraph-list-order';
 import { sessionRosterRows } from '@/lib/fitness/class-allocate';
 import { ClassBookedRoster } from '@/components/fitness/ClassBookedRoster';
 import { ProgrammeView } from '@/components/fitness/ProgrammeView';
@@ -267,7 +268,7 @@ export default function CalendarPage() {
     if (!store) return [];
     return store.sessions
       .filter((s) => s.date === day && s.status !== 'cancelled')
-      .sort((a, b) => a.start_time.localeCompare(b.start_time));
+      .sort(compareFitgraphSessions);
   }, [store, day]);
 
   const scheduleEvents: ScheduleEvent[] = useMemo(() => {
@@ -275,6 +276,8 @@ export default function CalendarPage() {
     return store.sessions
       .filter((s) => s.status !== 'cancelled')
       .filter((s) => !store.removed_ids?.sessions?.includes(s.id))
+      .slice()
+      .sort(compareFitgraphSessions)
       .map((s) => {
         const ct = store.class_types.find((c) => c.id === s.class_type_id);
         const coach = store.coaches.find((c) => c.id === s.coach_id);
@@ -1262,11 +1265,7 @@ export default function CalendarPage() {
               'Status',
             ]}
             rows={[...store.sessions]
-              .sort((a, b) =>
-                a.date === b.date
-                  ? a.start_time.localeCompare(b.start_time)
-                  : a.date.localeCompare(b.date)
-              )
+              .sort(compareFitgraphSessions)
               .slice(0, 50)
               .map((s) => {
                 const ct = store.class_types.find(
