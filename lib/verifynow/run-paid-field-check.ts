@@ -252,8 +252,11 @@ export async function fulfillPaidFieldCheck(opts: {
       existing: asStored(existing),
       freshIdempotencyKey: freshKey,
     });
-    if (decision.action !== 'refund') {
+    if (decision.action === 'reject') {
       return { httpStatus: decision.httpStatus, body: { error: decision.error } };
+    }
+    if (decision.action !== 'refund') {
+      return { httpStatus: 409, body: { error: 'This reference cannot be refunded.' } };
     }
     const refunded = await refundPaystackTransaction(reference);
     if (!refunded.ok) {
@@ -331,6 +334,9 @@ export async function fulfillPaidFieldCheck(opts: {
   }
   if (decision.action === 'reject') {
     return { httpStatus: decision.httpStatus, body: { error: decision.error, amount_zar: price.zar } };
+  }
+  if (decision.action !== 'run' && decision.action !== 'retry') {
+    return { httpStatus: 409, body: { error: 'This payment cannot start a check.' } };
   }
 
   const receipt: Receipt = {

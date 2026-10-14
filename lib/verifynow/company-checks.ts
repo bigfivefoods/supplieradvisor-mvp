@@ -718,7 +718,9 @@ export function mergeFieldMetadata(
   bankJobId?: string | null
 ): Record<string, unknown> {
   const prev = asRecord(metadata) ? { ...(metadata as Record<string, unknown>) } : {};
-  const fields = asRecord(prev[FIELD_META_KEY]) ? { ...(prev[FIELD_META_KEY] as object) } : {};
+  const fields: Partial<Record<FieldCheckId, FieldCheckSummary>> = {
+    ...readFieldChecks(prev),
+  };
   fields[summary.check] = summary;
   prev[FIELD_META_KEY] = fields;
   if (trust) prev[PUBLIC_META_KEY] = trust;
