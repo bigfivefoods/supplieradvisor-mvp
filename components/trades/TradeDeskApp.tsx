@@ -1,7 +1,6 @@
 'use client';
 
-import { Suspense, type ReactNode } from 'react';
-import { useSearchParams } from 'next/navigation';
+import type { ReactNode } from 'react';
 import { TradeBookProvider, useTradeBook } from '@/components/trades/TradeBook';
 import {
   QuoteSheet,
@@ -33,23 +32,59 @@ export function TradeDeskApp({
   live = false,
   base,
   view,
+  jobId = '',
+  quoteId = '',
+  invoiceId = '',
+  payRef = '',
+  startNew = false,
+  heading,
 }: {
   live?: boolean;
   base: string;
   view: string;
+  jobId?: string;
+  quoteId?: string;
+  invoiceId?: string;
+  payRef?: string;
+  startNew?: boolean;
+  heading?: ReactNode;
 }) {
   return (
     <TradeBookProvider live={live}>
-      <Suspense fallback={<p className="p-6 text-sm text-slate-600">Opening TradeAdvisor®…</p>}>
-        <DeskBody base={base} view={view} />
-      </Suspense>
+      <DeskBody
+        base={base}
+        view={view}
+        jobId={jobId}
+        quoteId={quoteId}
+        invoiceId={invoiceId}
+        payRef={payRef}
+        startNew={startNew}
+        heading={heading}
+      />
     </TradeBookProvider>
   );
 }
 
-function DeskBody({ base, view }: { base: string; view: string }) {
+function DeskBody({
+  base,
+  view,
+  jobId,
+  quoteId,
+  invoiceId,
+  payRef,
+  startNew,
+  heading,
+}: {
+  base: string;
+  view: string;
+  jobId: string;
+  quoteId: string;
+  invoiceId: string;
+  payRef: string;
+  startNew: boolean;
+  heading?: ReactNode;
+}) {
   const { book, ready } = useTradeBook();
-  const params = useSearchParams();
   return (
     <main className="min-h-dvh bg-[#f4f7fb] text-slate-900">
       <header className="border-b border-slate-200 bg-white">
@@ -64,7 +99,7 @@ function DeskBody({ base, view }: { base: string; view: string }) {
       </header>
       <div className="mx-auto max-w-6xl px-4 py-4">
         {view === 'sheet' || view === 'pay' ? null : <TradeNav base={base} />}
-        {!ready ? <p className="text-sm text-slate-600">Loading the book…</p> : <View base={base} view={view} quoteId={params.get('quote') || ''} jobId={params.get('job') || ''} invoiceId={params.get('invoice') || ''} payRef={params.get('ref') || ''} />}
+        {!ready ? <p className="text-sm text-slate-600">Loading the book…</p> : <View base={base} view={view} quoteId={quoteId} jobId={jobId} invoiceId={invoiceId} payRef={payRef} startNew={startNew} heading={heading} />}
       </div>
     </main>
   );
@@ -77,6 +112,8 @@ function View({
   jobId,
   invoiceId,
   payRef,
+  startNew,
+  heading,
 }: {
   base: string;
   view: string;
@@ -84,10 +121,12 @@ function View({
   jobId: string;
   invoiceId: string;
   payRef: string;
+  startNew: boolean;
+  heading?: ReactNode;
 }) {
-  if (view === 'board' || view === 'jobs') return <TradeBoard base={base} />;
+  if (view === 'board' || view === 'jobs') return <TradeBoard base={base} startNew={startNew} />;
   if (view === 'quote') return <TradeQuoteBuilder base={base} />;
-  if (view === 'gantt') return <TradeGantt jobId={jobId || undefined} />;
+  if (view === 'gantt') return <TradeGantt jobId={jobId || undefined} heading={heading} />;
   if (view === 'calendar' || view === 'schedule') return <TradeCalendar />;
   if (view === 'invoices') return <TradeInvoices />;
   if (view === 'customers') return <TradeCustomers />;

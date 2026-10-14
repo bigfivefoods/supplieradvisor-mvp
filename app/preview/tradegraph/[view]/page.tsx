@@ -1,31 +1,51 @@
-'use client';
-
-import { Suspense } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
-import { TradeBookProvider } from '@/components/trades/TradeBook';
 import { TradeDeskApp } from '@/components/trades/TradeDeskApp';
-import { WorkPwa } from '@/components/trades/WorkPwa';
+import { seedHarbourBook } from '@/lib/trades/harbour-seed';
 
-export default function PreviewTradeViewPage() {
-  const params = useParams<{ view: string }>();
-  const view = params.view || 'home';
-  if (view === 'work') {
-    return (
-      <Suspense fallback={<p className="p-6 text-sm">Opening the work app…</p>}>
-        <PreviewWork />
-      </Suspense>
-    );
-  }
-  return <TradeDeskApp base="/preview/tradegraph" view={view} />;
+type Query = Record<string, string | string[] | undefined>;
+
+function one(query: Query, key: string): string {
+  const value = query[key];
+  return Array.isArray(value) ? value[0] || '' : value || '';
 }
 
-function PreviewWork() {
-  const params = useSearchParams();
-  const role = params.get('role') === 'technician' ? 'technician' : 'owner';
-  const memberId = params.get('member') || (role === 'technician' ? 'tm_lerato' : 'tm_amina');
+export default async function PreviewTradeViewPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ view: string }>;
+  searchParams: Promise<Query>;
+}) {
+  const { view } = await params;
+  const query = await searchParams;
+  const jobId = one(query, 'job');
+  const heading = view === 'gantt' ? <GanttHeading jobId={jobId} /> : undefined;
   return (
-    <TradeBookProvider>
-      <WorkPwa role={role} memberId={memberId} />
-    </TradeBookProvider>
+    <TradeDeskApp
+      base="/preview/tradegraph"
+      view={view}
+      jobId={jobId}
+      heading={heading}
+      quoteId={one(query, 'quote')}
+      invoiceId={one(query, 'invoice')}
+      payRef={one(query, 'ref')}
+      startNew={one(query, 'new') === '1'}
+    />
+  );
+}
+
+function GanttHeading({ jobId }: { jobId: string }) {
+  const book = seedHarbourBook();
+  const job = book.store.jobs.find((row) => row.id === jobId) || book.store.jobs.find((row) => row.id === 'tj_waste') || book.store.jobs[0];
+  if (!job) return null;
+  const customer = book.store.customers.find((row) => row.id === job.customer_id);
+  return (
+    <header>
+      <p className="text-xs font-bold uppercase tracking-widest text-[#0077b6]">{job.number}</p>
+      <h2 className="text-2xl font-black">{job.title}</h2>
+      <p className="text-sm text-slate-600">{customer?.name} · {job.address}</p>
+      <a className="text-sm font-bold text-[#0077b6]" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`} target="_blank" rel="noreferrer">
+        Open the site in maps
+      </a>
+    </header>
   );
 }

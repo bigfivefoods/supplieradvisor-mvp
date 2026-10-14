@@ -41,6 +41,7 @@ export function AdvisorWorkPwaChrome({
   logoUrl,
   appHref = '/me',
   surface = 'dark',
+  showInstall = true,
 }: {
   brand: string;
   name: string;
@@ -55,6 +56,8 @@ export function AdvisorWorkPwaChrome({
   appHref?: string;
   /** `light` matches the member PWA. `dark` keeps the original clinician chrome. */
   surface?: 'dark' | 'light';
+  /** Trade apps bring their own install sheet. Gym coaches keep the default. */
+  showInstall?: boolean;
 }) {
   const light = surface === 'light';
   const paleHeader = isLightBrand(accent);
@@ -214,7 +217,7 @@ export function AdvisorWorkPwaChrome({
           })}
         </div>
       </nav>
-      <B2cInstallPrompt />
+      {showInstall ? <B2cInstallPrompt /> : null}
     </div>
   );
 }

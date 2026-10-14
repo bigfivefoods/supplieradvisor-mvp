@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { CalendarDays, HardHat, Inbox, Sun, Users, Wallet } from 'lucide-react';
 import { MemberAdvisorShell, type MemberAdvisorTab } from '@/components/advisors/MemberAdvisorShell';
 import { AdvisorWorkPwaChrome, type AdvisorWorkTab } from '@/components/services/AdvisorWorkPwaChrome';
-import { B2cInstallPrompt } from '@/components/b2c/B2cInstallPrompt';
+import { TradeInstallPrompt } from '@/components/trades/TradeInstall';
 import { GanttChart } from '@/components/trades/GanttChart';
 import { useTradeBook } from '@/components/trades/TradeBook';
 import { jobsForMember, tradeReport } from '@/lib/trades/desk';
@@ -53,7 +53,7 @@ function OwnerApp() {
         tab={tab}
         onTab={setTab}
       >
-        <B2cInstallPrompt />
+        <TradeInstallPrompt />
         {tab === 'today' ? <Today jobs={book.store.jobs} schedule={book.store.schedule} /> : null}
         {tab === 'jobs' ? (
           <ul className="space-y-2">
@@ -114,8 +114,9 @@ function TechnicianApp({ memberId }: { memberId: string }) {
         tab={tab}
         onTab={setTab}
         appHref="/preview/tradegraph"
+        showInstall={false}
       >
-        <B2cInstallPrompt />
+        <TradeInstallPrompt />
         {tab === 'today' ? <Today jobs={jobs} schedule={book.store.schedule.filter((slot) => jobs.some((job) => job.id === slot.job_id))} /> : null}
         {tab === 'diary' ? (
           <div className="space-y-3">

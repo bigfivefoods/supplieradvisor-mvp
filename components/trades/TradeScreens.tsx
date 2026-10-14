@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
   BOARD_COLUMNS,
   boardCards,
@@ -138,10 +138,9 @@ export function TradeCommand({ base }: { base: string }) {
   );
 }
 
-export function TradeBoard({ base }: { base: string }) {
+export function TradeBoard({ base, startNew = false }: { base: string; startNew?: boolean }) {
   const { book, dispatch } = useTradeBook();
-  const params = useSearchParams();
-  const [open, setOpen] = useState(params.get('new') === '1');
+  const [open, setOpen] = useState(startNew);
   const cards = boardCards(book);
   return (
     <div>
@@ -273,7 +272,8 @@ export function TradeQuoteBuilder({ presetCustomer = '', base = '/preview/tradeg
           });
         }}
       >
-        <GymSectionTitle hint="Lines come from the price book. VAT is 15% on top.">Quote builder</GymSectionTitle>
+        <h1 className="text-3xl font-black tracking-tight text-slate-900">Quote builder</h1>
+        <p className="mt-1 text-sm text-slate-600">Lines come from the price book. VAT is 15% on top.</p>
         <label className="mt-3 block text-sm font-semibold">
           Customer
           <select className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" data-testid="quote-customer" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
@@ -326,8 +326,8 @@ export function TradeQuoteBuilder({ presetCustomer = '', base = '/preview/tradeg
         </div>
         <ul className="mt-4 space-y-2">
           {lines.map((line) => (
-            <li key={line.id} className="flex items-center gap-2 text-sm">
-              <span className="flex-1 font-semibold">{line.description}{optional.includes(line.id) ? ' · option' : ''}</span>
+            <li key={line.id} className="flex flex-wrap items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2 text-sm">
+              <span className="min-w-40 flex-1 font-semibold">{line.description}{optional.includes(line.id) ? ' · option' : ''}</span>
               <input
                 className="w-16 rounded-lg border border-slate-200 px-2 py-1"
                 type="number"
@@ -340,7 +340,7 @@ export function TradeQuoteBuilder({ presetCustomer = '', base = '/preview/tradeg
               />
               <button
                 type="button"
-                className="rounded-full border border-slate-200 px-2 py-1 text-[11px] font-bold"
+                className="shrink-0 rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold"
                 onClick={() =>
                   setOptional((current) =>
                     current.includes(line.id) ? current.filter((id) => id !== line.id) : [...current, line.id]
@@ -349,10 +349,10 @@ export function TradeQuoteBuilder({ presetCustomer = '', base = '/preview/tradeg
               >
                 {optional.includes(line.id) ? 'Included' : 'Make optional'}
               </button>
-              <span className="w-24 text-right">{formatZar(Math.round(line.qty * line.unit_cents))}</span>
+              <span className="w-24 shrink-0 text-right font-semibold">{formatZar(Math.round(line.qty * line.unit_cents))}</span>
             </li>
           ))}
-          {!lines.length ? <li className="text-sm text-slate-500">Add a labour rate, a material, or a call-out.</li> : null}
+          {!lines.length ? <li className="text-sm text-slate-600">Add a labour rate, a material, or a call-out.</li> : null}
         </ul>
         <label className="mt-3 block text-sm font-semibold">
           Deposit %
@@ -398,7 +398,7 @@ export function TradeQuoteBuilder({ presetCustomer = '', base = '/preview/tradeg
   );
 }
 
-export function TradeGantt({ jobId }: { jobId?: string }) {
+export function TradeGantt({ jobId, heading }: { jobId?: string; heading?: ReactNode }) {
   const { book, dispatch } = useTradeBook();
   const job = book.store.jobs.find((row) => row.id === jobId) || book.store.jobs.find((row) => row.id === 'tj_waste') || book.store.jobs[0];
   const programme = job ? book.desk.programmes.find((row) => row.job_id === job.id) : null;
@@ -414,14 +414,16 @@ export function TradeGantt({ jobId }: { jobId?: string }) {
   const customer = book.store.customers.find((row) => row.id === job.customer_id);
   return (
     <div className="space-y-4">
-      <header>
-        <p className="text-xs font-bold uppercase tracking-widest text-[#0077b6]">{job.number}</p>
-        <h2 className="text-2xl font-black">{job.title}</h2>
-        <p className="text-sm text-slate-600">{customer?.name} · {job.address}</p>
-        <a className="text-sm font-bold text-[#0077b6]" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`} target="_blank" rel="noreferrer">
-          Open the site in maps
-        </a>
-      </header>
+      {heading ?? (
+        <header>
+          <p className="text-xs font-bold uppercase tracking-widest text-[#0077b6]">{job.number}</p>
+          <h2 className="text-2xl font-black">{job.title}</h2>
+          <p className="text-sm text-slate-600">{customer?.name} · {job.address}</p>
+          <a className="text-sm font-bold text-[#0077b6]" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`} target="_blank" rel="noreferrer">
+            Open the site in maps
+          </a>
+        </header>
+      )}
       <GanttChart
         tasks={programme.tasks}
         members={book.desk.team}
@@ -505,6 +507,7 @@ function JobFold({ jobId }: { jobId: string }) {
   const [note, setNote] = useState('');
   const [minutes, setMinutes] = useState(30);
   const [started, setStarted] = useState<number | null>(null);
+  const [photosOpen, setPhotosOpen] = useState(false);
   if (!job || !programme) return null;
   const gantt = readGantt(programme.tasks);
   return (
@@ -547,15 +550,21 @@ function JobFold({ jobId }: { jobId: string }) {
       </section>
       <section className="rounded-3xl border border-slate-200 bg-white p-4">
         <h3 className="font-black">Photos, time, materials</h3>
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          {programme.photos.map((photo) => (
-            <figure key={photo.id}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photo.url} alt={photo.caption} className="h-28 w-full rounded-2xl object-cover" />
-              <figcaption className="text-[11px] text-slate-600">{photo.phase} · {photo.caption}</figcaption>
-            </figure>
-          ))}
-        </div>
+        {photosOpen ? (
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {programme.photos.map((photo) => (
+              <figure key={photo.id}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={photo.url} alt={photo.caption} width={320} height={112} loading="lazy" decoding="async" className="h-28 w-full rounded-2xl object-cover" />
+                <figcaption className="text-[11px] text-slate-600">{photo.phase} · {photo.caption}</figcaption>
+              </figure>
+            ))}
+          </div>
+        ) : (
+          <button type="button" className="mt-2 text-sm font-bold text-[#0077b6]" onClick={() => setPhotosOpen(true)}>
+            Show {programme.photos.length} site photos
+          </button>
+        )}
         <label className="mt-2 block text-xs font-bold">
           Camera photo
           <input
@@ -734,7 +743,10 @@ export function TradeCalendar() {
       <div className="space-y-3">
         {lanes.map((member) => (
           <section key={member.id} className="rounded-3xl border border-slate-200 bg-white p-3">
-            <h3 className="text-sm font-black" style={{ color: member.colour }}>{member.name}</h3>
+            <h3 className="flex items-center gap-2 text-sm font-black text-slate-900">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: member.colour }} aria-hidden />
+              {member.name}
+            </h3>
             <div className="mt-2 flex gap-2 overflow-x-auto">
               {days.map((day) => {
                 const slots = book.store.schedule.filter((slot) => slot.starts_at.slice(0, 10) === day);
@@ -745,7 +757,7 @@ export function TradeCalendar() {
                 });
                 return (
                   <div key={day} className="w-36 shrink-0 rounded-2xl bg-slate-50 p-2">
-                    <p className="text-[10px] font-bold text-slate-500">{day.slice(5)}</p>
+                    <p className="text-[10px] font-bold text-slate-600">{day.slice(5)}</p>
                     {mine.map((slot) => (
                       <button
                         key={slot.id}
@@ -764,7 +776,7 @@ export function TradeCalendar() {
                         {slot.starts_at.slice(11, 16)} {slot.title}
                       </button>
                     ))}
-                    {!mine.length ? <p className="mt-2 text-[11px] text-slate-400">Free</p> : null}
+                    {!mine.length ? <p className="mt-2 text-[11px] text-slate-600">Free</p> : null}
                   </div>
                 );
               })}
@@ -785,7 +797,7 @@ export function TradeCalendar() {
               ) : null}
             </li>
           ))}
-          {!book.desk.bookings.length ? <li className="text-slate-500">No requests yet. Customers book from their app.</li> : null}
+          {!book.desk.bookings.length ? <li className="text-slate-600">No requests yet. Customers book from their app.</li> : null}
         </ul>
       </section>
     </div>

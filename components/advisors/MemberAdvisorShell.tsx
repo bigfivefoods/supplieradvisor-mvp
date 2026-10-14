@@ -1,9 +1,14 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import dynamic from 'next/dynamic';
 import { PortalHeaderTools } from '@/components/advisors/PortalOpenAppLink';
 import { advisorBrandInk } from '@/lib/advisors/brand-ink';
-import { B2cPresencePing } from '@/components/b2c/B2cPresencePing';
+
+const B2cPresencePing = dynamic(
+  () => import('@/components/b2c/B2cPresencePing').then((mod) => mod.B2cPresencePing),
+  { ssr: false }
+);
 
 export type MemberAdvisorTab<T extends string = string> = {
   id: T;

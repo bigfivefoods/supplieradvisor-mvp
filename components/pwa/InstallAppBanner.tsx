@@ -44,7 +44,9 @@ export function isInstallBannerSuppressedPath(path: string): boolean {
     path.startsWith('/coach') ||
     path.startsWith('/embed') ||
     path.startsWith('/customer') ||
-    path.startsWith('/preview/tradegraph')
+    path.startsWith('/preview/tradegraph') ||
+    path.startsWith('/work/tradegraph') ||
+    path.startsWith('/crew/tradegraph')
   );
 }
 

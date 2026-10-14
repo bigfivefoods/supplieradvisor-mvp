@@ -104,10 +104,10 @@ export function GanttChart({
                     </p>
                     {readOnly ? null : (
                       <div className="mt-1 flex gap-1">
-                        <button type="button" className="rounded-full border border-slate-200 px-2 py-0.5 text-[10px] font-bold whitespace-nowrap" onClick={() => onShift?.(task.id, -1)} aria-label={`Move ${task.name} earlier`}>
+                        <button type="button" className="rounded-full border border-slate-200 px-2 py-0.5 text-[10px] font-bold whitespace-nowrap" onClick={() => onShift?.(task.id, -1)} aria-label={`−1d, move ${task.name} earlier`}>
                           −1d
                         </button>
-                        <button type="button" className="rounded-full border border-slate-200 px-2 py-0.5 text-[10px] font-bold whitespace-nowrap" onClick={() => onShift?.(task.id, 1)} aria-label={`Move ${task.name} later`}>
+                        <button type="button" className="rounded-full border border-slate-200 px-2 py-0.5 text-[10px] font-bold whitespace-nowrap" onClick={() => onShift?.(task.id, 1)} aria-label={`+1d, move ${task.name} later`}>
                           +1d
                         </button>
                       </div>
@@ -152,7 +152,7 @@ export function GanttChart({
           </ul>
         </div>
       </div>
-      <p className="text-xs text-slate-500">Grey is the locked plan. Colour is actual or forecast. Amber means the finish is later than the plan.</p>
+      <p className="text-xs text-slate-600">Grey is the locked plan. Colour is actual or forecast. Amber means the finish is later than the plan.</p>
       {view.upcoming.length ? (
         <p className="text-sm text-slate-700">
           Upcoming: {view.upcoming.map((task) => `${task.name} (${task.plan_start})`).join(' · ')}

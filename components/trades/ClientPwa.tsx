@@ -1,17 +1,19 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
+import dynamic from 'next/dynamic';
 import { CalendarDays, FileText, HardHat, MessageSquare, Wallet } from 'lucide-react';
 import { MemberAdvisorShell, type MemberAdvisorTab } from '@/components/advisors/MemberAdvisorShell';
-import { B2cInstallPrompt } from '@/components/b2c/B2cInstallPrompt';
-import { GanttChart } from '@/components/trades/GanttChart';
+import { TradeInstallPrompt } from '@/components/trades/TradeInstall';
 import { useTradeBook } from '@/components/trades/TradeBook';
 import { customerPack, readGantt, voRegister } from '@/lib/trades/desk';
 import { formatZar, quoteTotals } from '@/lib/trades/tradegraph';
 
+const GanttChart = dynamic(() => import('@/components/trades/GanttChart').then((mod) => mod.GanttChart));
+
 type Tab = 'home' | 'quotes' | 'plan' | 'money' | 'more';
 
-export function ClientPwa({ customerId }: { customerId: string }) {
+export function ClientPwa({ customerId, balance }: { customerId: string; balance?: ReactNode }) {
   const { book, dispatch } = useTradeBook();
   const [tab, setTab] = useState<Tab>('home');
   const [name, setName] = useState('');
@@ -57,8 +59,8 @@ export function ClientPwa({ customerId }: { customerId: string }) {
         tab={tab}
         onTab={setTab}
       >
-        <B2cInstallPrompt />
-        {tab === 'home' ? <Home pack={pack} /> : null}
+        <TradeInstallPrompt />
+        {tab === 'home' ? <Home pack={pack} balance={balance} /> : null}
         {tab === 'quotes' ? (
           <Quotes
             pack={pack}
@@ -111,15 +113,15 @@ export function ClientPwa({ customerId }: { customerId: string }) {
   );
 }
 
-function Home({ pack }: { pack: NonNullable<ReturnType<typeof customerPack>> }) {
+function Home({ pack, balance }: { pack: NonNullable<ReturnType<typeof customerPack>>; balance?: ReactNode }) {
   const active = pack.jobs.find((row) => row.status === 'in_progress' || row.status === 'scheduled') || pack.jobs[0];
   const programme = active ? pack.programmes.find((row) => row.job_id === active.id) : null;
   const gantt = programme ? readGantt(programme.tasks) : null;
   return (
     <div className="space-y-3" data-testid="client-home">
       <section className="rounded-3xl border border-slate-200 bg-white p-4">
-        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Balance</p>
-        <p className="text-3xl font-black">{formatZar(pack.balance_cents)}</p>
+        <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Balance</p>
+        {balance ?? <p className="text-2xl font-black">{formatZar(pack.balance_cents)}</p>}
         <p className="text-sm text-slate-600">{pack.brand.city} · {pack.brand.phone}</p>
       </section>
       {active ? (
@@ -132,7 +134,6 @@ function Home({ pack }: { pack: NonNullable<ReturnType<typeof customerPack>> }) 
       ) : (
         <p className="rounded-3xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-600">No active job. Request one from More.</p>
       )}
-      <PhotoStrip pack={pack} />
     </div>
   );
 }
@@ -144,10 +145,19 @@ function PhotoStrip({ pack }: { pack: NonNullable<ReturnType<typeof customerPack
     <section>
       <h3 className="mb-2 text-sm font-black">Photo timeline</h3>
       <div className="flex gap-2 overflow-x-auto">
-        {photos.map((photo) => (
+        {photos.map((photo, index) => (
           <figure key={photo.id} className="w-40 shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photo.url} alt={photo.caption} className="h-28 w-full rounded-2xl object-cover" />
+            <img
+              src={photo.url}
+              alt={photo.caption}
+              width={320}
+              height={112}
+              loading={index === 0 ? 'eager' : 'lazy'}
+              fetchPriority={index === 0 ? 'high' : 'low'}
+              decoding="async"
+              className="h-28 w-full rounded-2xl object-cover"
+            />
             <figcaption className="mt-1 text-[11px] text-slate-600">{photo.phase} · {photo.caption}</figcaption>
           </figure>
         ))}
@@ -230,6 +240,7 @@ function Plan({ pack }: { pack: NonNullable<ReturnType<typeof customerPack>> }) 
     <div className="space-y-3" data-testid="client-gantt">
       <h2 className="text-lg font-black">{job.title}</h2>
       <GanttChart tasks={programme.tasks} readOnly />
+      <PhotoStrip pack={pack} />
       <p className="text-sm">Revised value {formatZar(register.revised_incl_cents)} incl VAT</p>
     </div>
   );

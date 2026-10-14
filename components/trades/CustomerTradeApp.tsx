@@ -1,7 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { Bell, Download, FileText, HardHat, Plus } from 'lucide-react';
 import { TradeBookProvider } from '@/components/trades/TradeBook';
 import { ClientPwa } from '@/components/trades/ClientPwa';
@@ -20,23 +19,15 @@ type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
 };
 
-export function CustomerTradeApp({ token }: { token: string }) {
+export function CustomerTradeApp({ token, customerId = 'tc_naledi' }: { token: string; customerId?: string }) {
   if (token === 'demo') {
     return (
       <TradeBookProvider>
-        <Suspense fallback={<p className="p-6 text-sm">Opening your jobs…</p>}>
-          <DemoClient />
-        </Suspense>
+        <ClientPwa customerId={customerId} />
       </TradeBookProvider>
     );
   }
   return <LiveCustomerTradeApp token={token} />;
-}
-
-function DemoClient() {
-  const params = useSearchParams();
-  const customerId = params.get('as') || 'tc_naledi';
-  return <ClientPwa customerId={customerId} />;
 }
 
 function LiveCustomerTradeApp({ token }: { token: string }) {
