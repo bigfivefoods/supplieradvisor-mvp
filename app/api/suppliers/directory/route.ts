@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { requireVerifiedUser, legacyPrivyFrom } from '@/lib/auth/api-auth';
+import { redactExternalWallet } from '@/lib/business/company-wallet';
 
 /**
  * GET /api/suppliers/directory
@@ -41,5 +42,8 @@ export async function GET(request: NextRequest) {
         String(s.category || '').toLowerCase().includes(term)
     );
   }
-  return NextResponse.json({ success: true, suppliers: rows });
+  return NextResponse.json({
+    success: true,
+    suppliers: rows.map((row) => redactExternalWallet(row as Record<string, unknown>)),
+  });
 }

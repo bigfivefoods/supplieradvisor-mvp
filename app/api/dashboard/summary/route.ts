@@ -3,6 +3,10 @@ import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
 import { jsonKpi } from '@/lib/http/response-cache';
 import { withCompanyKpiCache } from '@/lib/dashboard/kpi-cache';
 import { assembleDashboardSummary } from '@/lib/dashboard/assemble-home';
+import {
+  applyCompanyWalletAudience,
+  walletAudienceForMember,
+} from '@/lib/business/company-wallet-server';
 
 export type {
   DashboardActivity,
@@ -31,7 +35,8 @@ export async function POST(request: NextRequest) {
     const payload = await withCompanyKpiCache(companyId, 'dashboard', () =>
       assembleDashboardSummary(companyId)
     );
-    return jsonKpi(payload);
+    const audience = await walletAudienceForMember(_gate.userId, companyId);
+    return jsonKpi(applyCompanyWalletAudience(payload, audience));
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Error';
     if (message === 'Company not found') {

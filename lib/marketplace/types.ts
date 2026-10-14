@@ -55,6 +55,7 @@ export type MarketplaceListing = {
     verification_status?: string | null;
     is_verified?: boolean | null;
     wallet_address?: string | null;
+    wallet_ready?: boolean;
     logo_url?: string | null;
   } | null;
   is_connected?: boolean;

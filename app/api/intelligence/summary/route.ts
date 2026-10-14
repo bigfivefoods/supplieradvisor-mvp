@@ -16,6 +16,10 @@ import { daysUntil } from '@/lib/sustainability/types';
 import { jsonKpi } from '@/lib/http/response-cache';
 import { withCompanyKpiCache } from '@/lib/dashboard/kpi-cache';
 import { loadCompanyKpiSnapshot, snapOk } from '@/lib/dashboard/company-kpi-snapshot';
+import {
+  applyCompanyWalletAudience,
+  walletAudienceForMember,
+} from '@/lib/business/company-wallet-server';
 
 /**
  * Live BI snapshot from Supabase company data + rule-based insights engine.
@@ -30,7 +34,8 @@ async function buildSummary(request: NextRequest, companyId: number, legacyPrivy
   const payload = await withCompanyKpiCache(companyId, 'intelligence', () =>
     assembleIntelligenceSummary(companyId)
   );
-  return jsonKpi(payload);
+  const audience = await walletAudienceForMember(gate.userId, companyId);
+  return jsonKpi(applyCompanyWalletAudience(payload, audience));
 }
 
 async function assembleIntelligenceSummary(companyId: number) {

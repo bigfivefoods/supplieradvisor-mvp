@@ -3,8 +3,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-import { useReadContract } from 'wagmi';
-import { SupplierRegistryABI } from '@/lib/contracts/SupplierRegistryABI';
 import { Plus, RefreshCw, ArrowRight } from 'lucide-react';
 import {
   CompanyRequired,
@@ -12,8 +10,6 @@ import {
   SuppliersPage,
 } from '@/components/suppliers/SuppliersShell';
 import { SrmEmpty, SrmSearch, SrmSkeleton, srmFocus } from '@/components/suppliers/srm/SrmDesk';
-
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_SUPPLIER_REGISTRY_ADDRESS as `0x${string}`;
 
 interface Supplier {
   id: number;
@@ -26,7 +22,7 @@ interface Supplier {
   invited_at: string | null;
   claimed_at: string | null;
   created_at: string;
-  wallet_address?: string;
+  wallet_ready?: boolean;
 }
 
 export default function SupplierDirectory() {
@@ -171,14 +167,6 @@ export default function SupplierDirectory() {
 
 // Row component with onchain check
 function SupplierRow({ supplier }: { supplier: Supplier }) {
-  const { data: isVerified, isLoading: checkingOnchain } = useReadContract({
-    address: CONTRACT_ADDRESS,
-    abi: SupplierRegistryABI,
-    functionName: 'isVerified',
-    args: supplier.wallet_address ? [supplier.wallet_address as `0x${string}`] : undefined,
-    query: { enabled: !!supplier.wallet_address },
-  });
-
   // Safe date formatter
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return '—';
@@ -195,6 +183,9 @@ function SupplierRow({ supplier }: { supplier: Supplier }) {
         <div className="font-semibold text-xl tracking-tight group-hover:text-[#00b4d8] transition-colors">
           {supplier.trading_name}
         </div>
+        {supplier.wallet_ready ? (
+          <div className="mt-1 text-xs font-semibold text-[#0077b6]">Wallet ready</div>
+        ) : null}
       </td>
 
       <td className="px-6 py-6">

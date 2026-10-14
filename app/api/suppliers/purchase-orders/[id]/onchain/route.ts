@@ -10,6 +10,8 @@ import {
   legacyPrivyFrom,
 } from '@/lib/auth/api-auth';
 import { auditLog } from '@/lib/audit/log';
+import { hidePoPayee } from '@/lib/business/company-wallet';
+import { loadStoredCompanyWallet } from '@/lib/business/company-wallet-server';
 
 /**
  * POST /api/suppliers/purchase-orders/[id]/onchain
@@ -19,7 +21,6 @@ import { auditLog } from '@/lib/audit/log';
 type Ctx = { params: Promise<{ id: string }> };
 
 const TX_HASH_RE = /^0x[a-fA-F0-9]{64}$/;
-const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 const POSITIVE_INT_RE = /^[1-9]\d*$/;
 
 function parseKind(raw: unknown): Kind {
@@ -49,11 +50,6 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     const kind = parseKind(body.kind);
     const onchainTx = body.onchain_tx != null ? String(body.onchain_tx).trim() : '';
     const onchainPoIdRaw = body.onchain_po_id;
-    const supplierWalletRaw =
-      body.supplier_wallet != null && String(body.supplier_wallet).trim()
-        ? String(body.supplier_wallet).trim()
-        : null;
-
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return NextResponse.json({ error: 'companyId is required' }, { status: 400 });
     }
@@ -88,13 +84,6 @@ export async function POST(request: NextRequest, ctx: Ctx) {
         { status: 400 }
       );
     }
-    if (supplierWalletRaw && !ADDRESS_RE.test(supplierWalletRaw)) {
-      return NextResponse.json(
-        { error: 'supplier_wallet must be a 0x-prefixed 20-byte address' },
-        { status: 400 }
-      );
-    }
-
     const verify = await verifyEscrowOrWarn({
       txHash: onchainTx,
       kind,
@@ -126,7 +115,9 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     const supabase = getSupabaseServer();
     const { data: po, error: loadErr } = await supabase
       .from('purchase_orders')
-      .select('id, buyer_profile_id, status, onchain_tx, onchain_po_id, supplier_wallet, metadata')
+      .select(
+        'id, buyer_profile_id, supplier_profile_id, status, onchain_tx, onchain_po_id, supplier_wallet, metadata'
+      )
       .eq('id', poId)
       .maybeSingle();
 
@@ -164,10 +155,17 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     };
 
     const existingTx = po.onchain_tx != null ? String(po.onchain_tx).trim() : '';
+    const revealPayee = kind === 'create' || kind === 'fund';
+    const storedPayee = revealPayee
+      ? await loadStoredCompanyWallet(Number(po.supplier_profile_id))
+      : null;
     if (existingTx && existingTx.toLowerCase() === onchainTx.toLowerCase()) {
       return NextResponse.json({
         success: true,
-        purchaseOrder: po,
+        purchaseOrder: revealPayee
+          ? { ...po, supplier_wallet: storedPayee }
+          : hidePoPayee(po as Record<string, unknown>),
+        payee_wallet: revealPayee ? storedPayee : undefined,
         idempotent: true,
         kind,
       });
@@ -177,7 +175,16 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     if (kind === 'create' || !hasCreateTx) {
       updates.onchain_tx = onchainTx;
     }
-    if (supplierWalletRaw) updates.supplier_wallet = supplierWalletRaw;
+    if (revealPayee && !storedPayee) {
+      return NextResponse.json(
+        {
+          error:
+            'This supplier has not set a payout wallet on SupplierAdvisor®. Escrow cannot be opened.',
+        },
+        { status: 400 }
+      );
+    }
+    if (storedPayee) updates.supplier_wallet = storedPayee;
 
     const statusNow = String(po.status ?? '').toLowerCase();
     if (kind === 'fund' && ['sent', 'accepted', 'draft'].includes(statusNow)) {
@@ -336,9 +343,13 @@ export async function POST(request: NextRequest, ctx: Ctx) {
       }
     }
 
+    const purchaseOrder = revealPayee
+      ? { ...(data as Record<string, unknown>), supplier_wallet: storedPayee }
+      : hidePoPayee((data || {}) as Record<string, unknown>);
     return NextResponse.json({
       success: true,
-      purchaseOrder: data,
+      purchaseOrder,
+      payee_wallet: revealPayee ? storedPayee : undefined,
       inventoryReceive: inventoryReceive || undefined,
       verification: verify.mode,
       warning: verify.mode === 'unverified' ? verify.warning : undefined,

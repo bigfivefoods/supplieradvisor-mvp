@@ -18,6 +18,7 @@ import {
   userOwnsBothCompanies,
 } from '@/lib/connections/sync';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { redactExternalWallet } from '@/lib/business/company-wallet';
 import { promptAfterConnectionAccepted } from '@/lib/ratings/create-prompt';
 
 /** Production-safe profile columns (no is_verified — that column does not exist). */
@@ -177,13 +178,13 @@ export async function GET(request: NextRequest) {
         suspended,
         direction,
         role,
-        peer: {
+        peer: redactExternalWallet({
           ...peer,
           id: peerId,
           trading_name: displayName || peer.trading_name,
           is_verified:
             String(peer.verification_status || '').toLowerCase() === 'verified',
-        },
+        }),
         requester_profile_id: requesterId,
         requestee_profile_id: requesteeId,
         hrefs: edgeHrefs(role, peerId),

@@ -700,7 +700,7 @@ function EdgeRow({
               <ShieldCheck className="w-3 h-3" /> Verified
             </span>
           )}
-          {peer.wallet_address && (
+          {peer.wallet_ready && (
             <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-[#0077b6]">
               <Wallet className="w-3 h-3" /> On-chain ready
             </span>

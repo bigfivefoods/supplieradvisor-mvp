@@ -190,7 +190,7 @@ export async function ensureSrmBookEntry(opts: {
       continent: peer.continent,
       website: peer.website,
       certifications: peer.certifications || [],
-      wallet_address: peer.wallet_address,
+      wallet_address: null,
       bee_level: peer.bee_level,
       verified,
       trust_score: peer.trust_score || 0,

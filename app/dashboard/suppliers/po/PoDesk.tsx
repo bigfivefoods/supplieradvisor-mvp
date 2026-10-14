@@ -12,6 +12,7 @@ import {
   usePublicClient,
 } from 'wagmi';
 import { parseEther, parseEventLogs } from 'viem';
+import { fetchOnchainPayeeWallet } from '@/lib/business/payee-wallet-client';
 import {
   Plus,
   Trash2,
@@ -161,7 +162,7 @@ type BookSupplier = {
   id: number;
   trading_name: string;
   linked_profile_id?: number | null;
-  wallet_address?: string | null;
+  wallet_ready?: boolean;
   invite_status?: string | null;
   status?: string | null;
   verified?: boolean | null;
@@ -198,6 +199,7 @@ type PurchaseOrder = {
   onchain_tx?: string | null;
   onchain_po_id?: string | number | null;
   supplier_wallet?: string | null;
+  supplier_wallet_ready?: boolean;
   /** Set when seller creates invoice from this PO (column may be absent pre-migration) */
   invoice_id?: number | null;
   invoice_number?: string | null;
@@ -843,10 +845,8 @@ function PoInner() {
   }, [focusPo]);
 
   useEffect(() => {
-    if (selectedSupplier?.wallet_address) {
-      setSupplierWallet(selectedSupplier.wallet_address);
-    }
-  }, [selectedSupplier?.id, selectedSupplier?.wallet_address]);
+    setSupplierWallet('');
+  }, [selectedSupplier?.id]);
 
   // Surface writeContract errors
   useEffect(() => {
@@ -1231,15 +1231,9 @@ function PoInner() {
       toast.error('Add at least one line item');
       return;
     }
-    if (wantEscrow) {
-      if (!connectedWallet) {
-        toast.error('Connect wallet for on-chain escrow');
-        return;
-      }
-      if (!supplierWallet || !/^0x[a-fA-F0-9]{40}$/.test(supplierWallet)) {
-        toast.error('Valid supplier wallet (0x…) required for escrow');
-        return;
-      }
+    if (wantEscrow && !connectedWallet) {
+      toast.error('Connect wallet for on-chain escrow');
+      return;
     }
 
     setSaving(true);
@@ -1256,7 +1250,6 @@ function PoInner() {
           payment_terms: paymentTerms || null,
           currency: poCurrency || 'ZAR',
           useEscrow: wantEscrow,
-          supplier_wallet: supplierWallet || null,
           status: asDraft || opts?.email ? 'draft' : 'sent',
           business_unit_id: costBuId,
           work_center_id: costWcId,
@@ -1297,8 +1290,17 @@ function PoInner() {
       );
       toastGoldenPathFromResponse(data);
 
-      if (wantEscrow && supplierWallet) {
-        submitCreateOnchain(po.id, supplierWallet, Number(po.total_amount || totalAmount));
+      if (wantEscrow && po?.id && companyId) {
+        const payee =
+          po.supplier_wallet && /^0x[a-fA-F0-9]{40}$/.test(po.supplier_wallet)
+            ? po.supplier_wallet
+            : await fetchOnchainPayeeWallet({
+                companyId,
+                poId: po.id,
+                supplierProfileId: selectedSupplier.linked_profile_id,
+                privyUserId,
+              });
+        submitCreateOnchain(po.id, payee, Number(po.total_amount || totalAmount));
       }
 
       setDescription('');
@@ -3178,15 +3180,36 @@ function PoInner() {
                       <code>NEXT_PUBLIC_USDC_ESCROW_ADDRESS</code> for the recommended stablecoin path.
                     </p>
                   )}
-                  <div>
-                    <label className="text-xs font-medium">Supplier wallet (0x) *</label>
-                    <input
-                      className="input mt-1 w-full !p-3 !text-sm font-mono"
-                      placeholder="0x…"
-                      value={supplierWallet}
-                      onChange={(e) => setSupplierWallet(e.target.value)}
-                    />
-                  </div>
+                  <p className="text-xs text-neutral-600">
+                    SupplierAdvisor® pays the supplier&apos;s stored wallet. The address is loaded
+                    only when you sign the escrow.
+                    {selectedSupplier?.wallet_ready
+                      ? ' This supplier has a payout wallet ready.'
+                      : ' This supplier has not set a payout wallet yet.'}
+                  </p>
+                  {escrowAsset === 'usdc' && usdcEnabled ? (
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-[#00b4d8] hover:underline"
+                      onClick={() => {
+                        if (!companyId || !selectedSupplier?.linked_profile_id) {
+                          toast.error('Link this supplier on SupplierAdvisor® before escrow');
+                          return;
+                        }
+                        void fetchOnchainPayeeWallet({
+                          companyId,
+                          supplierProfileId: selectedSupplier.linked_profile_id,
+                          privyUserId,
+                        })
+                          .then((address) => setSupplierWallet(address))
+                          .catch((e: unknown) =>
+                            toast.error(e instanceof Error ? e.message : 'No payout wallet')
+                          );
+                      }}
+                    >
+                      Load payout wallet to sign USDC escrow
+                    </button>
+                  ) : null}
                   {escrowAsset === 'eth' && (
                     <div>
                       <label className="text-xs font-medium">
@@ -3794,21 +3817,33 @@ function PoInner() {
                             ['sent', 'accepted', 'draft'].includes(String(po.status)) && (
                               <button
                                 type="button"
-                                disabled={isContractPending || !po.supplier_wallet}
+                                disabled={isContractPending || !po.supplier_wallet_ready}
                                 onClick={() => {
-                                  if (!po.supplier_wallet) {
-                                    toast.error('Set supplier wallet first');
-                                    return;
-                                  }
+                                  if (!companyId) return;
                                   if (!connectedWallet) {
                                     toast.error('Connect wallet');
                                     return;
                                   }
-                                  submitCreateOnchain(
-                                    po.id,
-                                    String(po.supplier_wallet),
-                                    Number(po.total_amount || 0)
-                                  );
+                                  void fetchOnchainPayeeWallet({
+                                    companyId,
+                                    poId: po.id,
+                                    supplierProfileId: po.supplier_profile_id,
+                                    privyUserId,
+                                  })
+                                    .then((address) =>
+                                      submitCreateOnchain(
+                                        po.id,
+                                        address,
+                                        Number(po.total_amount || 0)
+                                      )
+                                    )
+                                    .catch((e: unknown) =>
+                                      toast.error(
+                                        e instanceof Error
+                                          ? e.message
+                                          : 'Set the supplier payout wallet first'
+                                      )
+                                    );
                                 }}
                                 className="btn-secondary !py-1.5 !px-3 text-xs"
                               >

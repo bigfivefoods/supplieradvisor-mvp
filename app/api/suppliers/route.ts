@@ -18,6 +18,7 @@ import {
   stripMissingUpdateColumn,
   supplierPatchUpdates,
 } from '@/lib/suppliers/book-persist';
+import { redactExternalWallet } from '@/lib/business/company-wallet';
 import { missingSelectColumn, stripSelectColumn } from '@/lib/portals/select-retry';
 
 function asRecord(raw: unknown): Record<string, unknown> {
@@ -269,7 +270,12 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json({ success: true, suppliers: enriched });
+    return NextResponse.json({
+      success: true,
+      suppliers: enriched.map((row) =>
+        redactExternalWallet(row as Record<string, unknown>)
+      ),
+    });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
   }
@@ -323,7 +329,7 @@ export async function POST(request: NextRequest) {
       status: body.status || 'prospect',
       invite_status: 'not_invited',
       linked_profile_id: body.linked_profile_id || null,
-      wallet_address: body.wallet_address || null,
+      wallet_address: null,
       certifications: certs,
       bee_level: body.bee_level || null,
       verified: !!body.verified,
@@ -369,7 +375,9 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json({
       success: true,
-      supplier: data,
+      supplier: data
+        ? redactExternalWallet(data as Record<string, unknown>)
+        : data,
       ap_account_code: leaf?.code || null,
     });
   } catch (e: unknown) {
@@ -431,7 +439,10 @@ export async function PATCH(request: NextRequest) {
         name: String(data.trading_name || data.legal_name || 'Supplier'),
       });
     }
-    return NextResponse.json({ success: true, supplier: data });
+    return NextResponse.json({
+      success: true,
+      supplier: data ? redactExternalWallet(data as Record<string, unknown>) : data,
+    });
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error' }, { status: 500 });
   }

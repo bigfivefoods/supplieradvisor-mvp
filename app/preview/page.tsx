@@ -10,6 +10,7 @@ const LINKS = [
   { href: '/preview/inventory', label: 'Inventory' },
   { href: '/preview/ratings', label: 'Ratings' },
   { href: '/preview/sheq', label: 'SHEQ' },
+  { href: '/preview/wallet', label: 'Payout wallet' },
 ];
 
 export default function PreviewIndexPage() {

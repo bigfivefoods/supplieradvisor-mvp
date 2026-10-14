@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { assertCompanyMember, logActivity } from '@/lib/customers/access';
 import { assertCompanyPermission } from '@/lib/business/access';
+import { profileWalletPatchDecision, presentCompanyWallet } from '@/lib/business/company-wallet';
+import { walletAudienceForMember } from '@/lib/business/company-wallet-server';
 import {
   PROFILE_EDITABLE_FIELDS,
   normalizeProfileRow,
@@ -60,6 +62,9 @@ export async function GET(request: NextRequest) {
     }
 
     const profile = normalizeProfileRow(data as Record<string, unknown>);
+    const audience = await walletAudienceForMember(_gate.userId, companyId);
+    const presented = presentCompanyWallet(profile.wallet_address, audience);
+    profile.wallet_address = presented.wallet_address ?? null;
     const completeness = computeDetailedCompleteness(profile as Record<string, unknown>);
 
     return NextResponse.json({
@@ -67,6 +72,8 @@ export async function GET(request: NextRequest) {
       profile,
       rawKeys: Object.keys(data),
       completeness,
+      wallet_ready: presented.wallet_ready,
+      can_change_wallet: audience === 'owner',
       warning: membershipWarning,
     });
   } catch (e: unknown) {
@@ -301,6 +308,21 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Company not found' }, { status: 404 });
     }
 
+    const walletDecision = profileWalletPatchDecision({
+      incoming: body.wallet_address,
+      current: existing.wallet_address ? String(existing.wallet_address) : null,
+    });
+    if (walletDecision === 'reject') {
+      return NextResponse.json(
+        {
+          error:
+            'Only the company owner can change the payout wallet, and only with a signed proof of control.',
+        },
+        { status: 403 }
+      );
+    }
+    delete expanded.wallet_address;
+
     const existingKeys = new Set(Object.keys(existing));
     const safe: Record<string, unknown> = {};
     const dropped: string[] = [];
@@ -515,6 +537,9 @@ export async function PATCH(request: NextRequest) {
     }
 
     const profile = normalizeProfileRow((data || {}) as Record<string, unknown>);
+    const audience = await walletAudienceForMember(mem.userId, companyId);
+    const presented = presentCompanyWallet(profile.wallet_address, audience);
+    profile.wallet_address = presented.wallet_address ?? null;
 
     if (safe.metadata && typeof safe.metadata === 'object') {
       try {
@@ -555,6 +580,8 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({
       success: true,
       profile,
+      wallet_ready: presented.wallet_ready,
+      can_change_wallet: audience === 'owner',
       completeness: computeDetailedCompleteness(profile as Record<string, unknown>),
       written: Object.keys(safe).filter((k) => k !== 'updated_at'),
       droppedAliases: dropped,

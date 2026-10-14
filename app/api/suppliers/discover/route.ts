@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import type { DiscoverSupplier } from '@/lib/suppliers/types';
 import { requireCompanyAccess, legacyPrivyFrom, requireVerifiedUser } from '@/lib/auth/api-auth';
+import { redactExternalWallet } from '@/lib/business/company-wallet';
 import { SEED_COUNTRIES, SEED_CONTINENTS } from '@/lib/geo/world-seed';
 
 /**
@@ -434,13 +435,17 @@ export async function GET(request: NextRequest) {
     );
     const hasMore = start + limit < enriched.length;
 
+    const redact = (rows: Array<Record<string, unknown>>) =>
+      rows.map((row) => redactExternalWallet(row));
     return NextResponse.json({
       success: true,
-      suppliers: paged,
-      connected: connectedMatches.slice(0, limit),
-      others: otherMatches.slice(
-        0,
-        Math.max(0, limit - Math.min(connectedMatches.length, limit))
+      suppliers: redact(paged as Array<Record<string, unknown>>),
+      connected: redact(connectedMatches.slice(0, limit) as Array<Record<string, unknown>>),
+      others: redact(
+        otherMatches.slice(
+          0,
+          Math.max(0, limit - Math.min(connectedMatches.length, limit))
+        ) as Array<Record<string, unknown>>
       ),
       total: enriched.length,
       connectedTotal: connectedMatches.length,
