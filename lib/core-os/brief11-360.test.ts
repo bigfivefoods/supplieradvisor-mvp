@@ -51,8 +51,10 @@ assert.doesNotMatch(suppliersGet, /select\('\*'\)/);
 const coaGet = src('app/api/accounting/chart-of-accounts/route.ts').split(
   'export async function POST'
 )[0];
-assert.match(coaGet, /1180\|2180\|4400/);
+assert.match(coaGet, /filterOperatingCoa/);
 assert.match(coaGet, /includePartyLeaves/);
+const coaList = src('lib/accounting/coa-list.ts');
+assert.match(coaList, /1180\|2180\|4400/);
 
 const acctSummary = src('app/api/accounting/summary/route.ts');
 assert.match(acctSummary, /sa_accounting_kpi_rollup/);

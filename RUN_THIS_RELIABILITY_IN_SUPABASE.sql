@@ -280,6 +280,7 @@ DECLARE
   existing_data jsonb;
   existing_updated_at timestamptz;
   existing_public_token text;
+  effective_updated_at timestamptz;
 BEGIN
   PERFORM public.sa_assert_advisor_module(p_module);
   IF p_company_id IS NULL OR p_company_id <= 0 THEN
@@ -312,14 +313,25 @@ BEGIN
       now()
     );
   ELSE
-    IF p_if_updated_at IS NOT NULL
-       AND existing_updated_at IS NOT NULL
-       AND existing_updated_at > p_if_updated_at THEN
-      RAISE EXCEPTION USING
-        ERRCODE = 'P0001',
-        MESSAGE = 'stale_module_store',
-        DETAIL = existing_updated_at::text,
-        HINT = 'Refresh and retry with the latest store snapshot';
+    IF p_if_updated_at IS NOT NULL THEN
+      -- Prefer the JSON-embedded updated_at when present: the JS client stamps
+      -- new Date().toISOString() inside the data *before* the SQL now() runs,
+      -- so the ROW clock is always a few ms ahead of the JSON stamp.
+      -- Comparing ROW clock > JSON-stamp was always true → spurious 409s.
+      effective_updated_at := CASE
+        WHEN existing_data ? 'updated_at'
+          AND NULLIF(trim(COALESCE(existing_data->>'updated_at', '')), '') IS NOT NULL
+        THEN (existing_data->>'updated_at')::timestamptz
+        ELSE existing_updated_at
+      END;
+      IF effective_updated_at IS NOT NULL
+         AND effective_updated_at > p_if_updated_at THEN
+        RAISE EXCEPTION USING
+          ERRCODE = 'P0001',
+          MESSAGE = 'stale_module_store',
+          DETAIL = effective_updated_at::text,
+          HINT = 'Refresh and retry with the latest store snapshot';
+      END IF;
     END IF;
 
     UPDATE public.company_module_stores

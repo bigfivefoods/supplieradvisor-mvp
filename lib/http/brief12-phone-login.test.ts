@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { en } from '@/lib/i18n/dict';
 
 function src(rel: string) {
   return readFileSync(resolve(rel), 'utf8');
@@ -24,9 +25,11 @@ assert.match(phoneLogin, /href="\/login"/);
 assert.match(phoneLogin, /md:hidden/);
 assert.doesNotMatch(phoneLogin, /hidden md:flex/);
 assert.doesNotMatch(phoneLogin, /lg:flex/);
-assert.match(phoneLogin, /Log in/);
+assert.equal(en['nav.logIn'], 'Log in');
+assert.match(phoneLogin, /t\('nav\.logIn'\)/);
 
-assert.match(nav, /Open menu/);
+assert.equal(en['nav.ariaOpenMenu'], 'Open menu');
+assert.match(nav, /t\('nav\.ariaOpenMenu'\)/);
 assert.match(nav, /aria-expanded=\{open\}/);
 assert.match(nav, /sa-wordmark hidden/);
 assert.match(nav, /sm:inline/);
@@ -38,7 +41,12 @@ assert.match(nav, /top-nav-offset/);
 const page = src('app/page.tsx');
 assert.doesNotMatch(page, /^['"]use client['"]/m);
 assert.doesNotMatch(page, /usePrivy/);
-assert.match(page, /LandingNav/);
-assert.match(page, /HomeBelowFoldLazy/);
+assert.match(page, /HomeLanding/);
+
+const landing = src('components/marketing/HomeLanding.tsx');
+assert.match(landing, /LandingNav/);
+assert.match(landing, /HomeBelowFoldLazy/);
+assert.doesNotMatch(landing, /usePrivy/);
+assert.doesNotMatch(landing, /@privy-io\/react-auth/);
 
 console.log('brief12-phone-login.test.ts ok');

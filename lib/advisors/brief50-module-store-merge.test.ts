@@ -181,8 +181,11 @@ const reliability = readFileSync(join(root, 'RUN_THIS_RELIABILITY_IN_SUPABASE.sq
 for (const sql of [migration, reliability]) {
   assert.equal(sql.includes('p_if_updated_at timestamptz DEFAULT NULL'), true);
   assert.equal(sql.includes("MESSAGE = 'stale_module_store'"), true);
-  assert.equal(sql.includes('existing_updated_at > p_if_updated_at'), true);
   assert.equal(sql.includes('sa_merge_module_store_data'), true);
+  assert.equal(sql.includes('effective_updated_at timestamptz'), true);
+  assert.match(sql, /existing_data \? 'updated_at'/);
+  assert.match(sql, /effective_updated_at > p_if_updated_at/);
+  assert.doesNotMatch(sql, /existing_updated_at > p_if_updated_at/);
 }
 
 console.log('brief50-module-store-merge.test.ts ok');
