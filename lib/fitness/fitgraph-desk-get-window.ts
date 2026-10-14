@@ -1,4 +1,5 @@
 import { type FitBooking, type FitgraphStore } from '@/lib/fitness/fitgraph';
+import { sortFitgraphDeskLists } from '@/lib/fitness/fitgraph-list-order';
 import { GYM_DEFAULT_TZ, isoDateInZone } from '@/lib/fitness/gym-local-time';
 import { addDaysIso } from '@/lib/schedule/recurrence';
 
@@ -8,6 +9,13 @@ export type FitgraphDeskGetWindowOptions = {
   checkIns?: string | null;
   now?: Date;
 };
+
+function presentDeskStore(
+  store: FitgraphStore,
+  overrides?: Partial<FitgraphStore>
+): FitgraphStore {
+  return sortFitgraphDeskLists({ ...store, ...overrides });
+}
 
 function bookingIsPendingFeedback(row: FitBooking): boolean {
   return Boolean(
@@ -23,7 +31,7 @@ export function fitgraphDeskGetWindow(
 ): FitgraphStore {
   const include = String(opts?.include || '').toLowerCase();
   const includeLibrary = include === 'library';
-  if (includeLibrary) return store;
+  if (includeLibrary) return presentDeskStore(store);
 
   const includeHistory = include === 'history';
   const includeAllHistory =
@@ -31,11 +39,10 @@ export function fitgraphDeskGetWindow(
     String(opts?.checkIns || '').toLowerCase() === 'all';
 
   if (includeHistory || includeAllHistory) {
-    return {
-      ...store,
+    return presentDeskStore(store, {
       movements: [],
       watch_sessions: [],
-    };
+    });
   }
 
   const tz = store.settings?.timezone || GYM_DEFAULT_TZ;
@@ -62,11 +69,10 @@ export function fitgraphDeskGetWindow(
     return date >= checkInsFrom && date <= today;
   });
 
-  return {
-    ...store,
+  return presentDeskStore(store, {
     bookings,
     check_ins,
     movements: [],
     watch_sessions: [],
-  };
+  });
 }

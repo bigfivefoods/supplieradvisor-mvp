@@ -34,6 +34,7 @@ import {
   SYS_PT_CODE,
 } from '@/lib/fitness/session-times';
 import { sessionBookingCount } from '@/lib/fitness/fitgraph';
+import { compareFitgraphSessions } from '@/lib/fitness/fitgraph-list-order';
 
 const HIDE_CLASS = new Set([
   SYS_PT_CODE,
@@ -109,11 +110,7 @@ export default function BookingsPage() {
         if (HIDE_CLASS.has(String(ct?.code || ''))) return false;
         return s.date >= today;
       })
-      .sort(
-        (a, b) =>
-          a.date.localeCompare(b.date) ||
-          String(a.start_time).localeCompare(String(b.start_time))
-      )
+      .sort(compareFitgraphSessions)
       .slice(0, 40)
       .map((s) => {
         const ct = store.class_types.find((c) => c.id === s.class_type_id);
