@@ -8,6 +8,22 @@ import { srmPreviewBook, srmPreviewJson } from '@/lib/suppliers/srm-preview';
 export const FIXTURE_COMPANY_ID = 91001;
 export const FIXTURE_COMPANY_NAME = 'Harbour & Co';
 
+/** Sample first-run company. Counts only — never written anywhere. */
+export const FIRST_RUN_FIXTURE_COMPANY_ID = 91002;
+export const FIRST_RUN_FIXTURE_COMPANY_NAME = 'Northwind Provisions';
+
+export function osFirstRunSignals() {
+  return {
+    profileCompleteness: 75,
+    suppliers: 1,
+    customers: 0,
+    purchaseOrders: 0,
+    teamActive: 1,
+    teamInvited: 0,
+    verified: false,
+  };
+}
+
 const ADVISOR_MODULES_OFF = {
   hiregraph: false,
   retailgraph: false,
@@ -64,6 +80,7 @@ export function osDashboardHome() {
       opportunitiesOpen: 5,
       srmOpenPos: 2,
       srmOnchainPos: 0,
+      purchaseOrders: 2,
       profileCompleteness: 86,
       arOpen: 3,
       arOpenValue: 186400,
@@ -105,6 +122,7 @@ export function osDashboardHome() {
       apOpenValue: 94200,
       openPos: 2,
       onchainPos: 0,
+      purchaseOrders: 2,
     },
     inventory: {
       products: 48,

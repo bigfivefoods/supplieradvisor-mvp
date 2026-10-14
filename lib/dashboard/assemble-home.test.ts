@@ -40,6 +40,11 @@ assert.doesNotMatch(summary, /from\('opportunities'\)/);
 const homeRoute = src('app/api/dashboard/home/route.ts');
 assert.match(homeRoute, /assembleDashboardSummary/);
 assert.match(homeRoute, /lib\/dashboard\/assemble-home/);
+assert.match(homeFn, /purchase_orders/);
+assert.match(homeFn, /head:\s*true/);
+assert.doesNotMatch(homeFn, /\.insert\(/);
+assert.doesNotMatch(homeFn, /\.update\(/);
+assert.doesNotMatch(homeFn, /\.upsert\(/);
 
 assert.ok(!HOME_PROFILE_COLUMNS.includes('phone'));
 assert.ok(HOME_PROFILE_COLUMNS.includes('contact_phone'));

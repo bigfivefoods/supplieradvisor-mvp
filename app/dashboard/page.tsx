@@ -39,6 +39,7 @@ import {
 import { formatMoneyDisplay } from '@/lib/format/money';
 import { isFixturePath } from '@/lib/preview/fixture-href';
 import { osDashboardHome } from '@/lib/preview/os-fixtures';
+import FirstRunChecklist from '@/components/onboarding/FirstRunChecklist';
 
 type CompanyData = {
   id: number;
@@ -80,6 +81,7 @@ type Kpis = {
   srmAvgOtifef?: number;
   srmOpenPos?: number;
   srmOnchainPos?: number;
+  purchaseOrders?: number;
   srmRiadOpen?: number;
   profileCompleteness?: number;
   pricingActive?: number;
@@ -327,6 +329,7 @@ export default function DashboardCommandCenter() {
     apOpenValue: number;
     openPos: number;
     onchainPos: number;
+    purchaseOrders?: number;
   } | null>(fixtureHome?.trade ?? null);
   const [inventory, setInventory] = useState<{
     products: number;
@@ -687,6 +690,26 @@ export default function DashboardCommandCenter() {
           </div>
         </AlertBanner>
       )}
+
+      {!loading && !error && (kpis || crm || srm) ? (
+        <FirstRunChecklist
+          companyId={companyId}
+          companyName={company?.trading_name}
+          signals={{
+            profileCompleteness: completeness,
+            suppliers: srm?.book ?? 0,
+            customers: crm?.customers ?? kpis?.customersTotal ?? 0,
+            purchaseOrders: trade?.purchaseOrders ?? kpis?.purchaseOrders,
+            openPurchaseOrders: trade?.openPos ?? srm?.openPos ?? kpis?.srmOpenPos ?? 0,
+            onchainPurchaseOrders: trade?.onchainPos ?? srm?.onchainPos ?? 0,
+            teamActive: business?.teamActive ?? kpis?.teamActive ?? 0,
+            teamInvited: business?.teamInvited ?? kpis?.teamInvited ?? 0,
+            verified:
+              Boolean(business?.verified) ||
+              String(company?.verification_status || '').toLowerCase() === 'verified',
+          }}
+        />
+      ) : null}
 
       <HubHero
         pill="Live command"

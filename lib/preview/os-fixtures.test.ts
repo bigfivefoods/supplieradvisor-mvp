@@ -37,6 +37,12 @@ assert.equal(previewJson('/api/not-a-sample'), null);
 assert.equal(mapFixtureHref('/dashboard/customers/leads?tab=pipeline'), '/preview/crm?screen=pipeline');
 assert.equal(mapFixtureHref('/dashboard/inventory/stock?low=1'), '/preview/inventory?screen=stock&low=1');
 assert.equal(mapFixtureHref('/dashboard/suppliers/po?po=12'), '/preview/po?po=12');
+assert.equal(mapFixtureHref('/dashboard/suppliers/po'), '/preview/po');
+assert.equal(mapFixtureHref('/dashboard/suppliers/add'), '/preview/srm');
+assert.equal(mapFixtureHref('/dashboard/customers/onboard'), '/preview/crm');
+assert.equal(mapFixtureHref('/dashboard/my-business/profile'), '/preview/onboarding');
+assert.equal(mapFixtureHref('/dashboard/my-business/team'), '/preview/onboarding');
+assert.equal(mapFixtureHref('/dashboard/my-business/verifications'), '/preview/onboarding');
 assert.equal(mapFixtureHref('/preview/crm'), null);
 
 const src = readFileSync(resolve('lib/preview/os-fixtures.ts'), 'utf8');
