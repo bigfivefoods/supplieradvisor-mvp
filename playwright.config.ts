@@ -5,12 +5,30 @@ import path from 'path';
 const storageStatePath = process.env.E2E_STORAGE_STATE || path.join(__dirname, 'e2e/.auth.json');
 const hasStorage = fs.existsSync(storageStatePath);
 
+/**
+ * Vercel Protection Bypass for Automation.
+ * Set only when the secret is non-empty. Callers must not log the value.
+ */
+export function vercelAutomationBypassHeaders(
+  secret: string | undefined | null
+): Record<string, string> | undefined {
+  const value = secret?.trim();
+  if (!value) return undefined;
+  return {
+    'x-vercel-protection-bypass': value,
+    'x-vercel-set-bypass-cookie': 'true',
+  };
+}
+
+const bypassHeaders = vercelAutomationBypassHeaders(process.env.VERCEL_AUTOMATION_BYPASS_SECRET);
+
 export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,
   retries: 0,
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
+    ...(bypassHeaders ? { extraHTTPHeaders: bypassHeaders } : {}),
     // Optional: set E2E_STORAGE_STATE or place e2e/.auth.json after manual login
     ...(hasStorage && process.env.E2E_USE_STORAGE === '1'
       ? { storageState: storageStatePath }
