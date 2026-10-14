@@ -77,6 +77,13 @@ test('owner, technician, and client apps', async ({ page }) => {
 
   await page.goto('/customer/tradegraph/demo?as=tc_naledi');
   await expect(page.getByTestId('role-client')).toBeVisible();
+  await expect(page.getByTestId('client-project')).toBeVisible();
+  await expect(page.getByTestId('plan-status')).toBeVisible();
+  await expect(page.getByTestId('latest-update')).toBeVisible();
+  await page.getByRole('button', { name: 'Photos' }).first().click();
+  await expect(page.getByTestId('client-photos')).toBeVisible();
+  await page.getByRole('button', { name: 'Feed' }).first().click();
+  await expect(page.getByTestId('client-feed')).toBeVisible();
   await expect(page.getByTestId('money-panel')).toHaveCount(0);
   await page.getByRole('button', { name: 'More' }).first().click();
   await expect(page.getByTestId('request-job')).toBeVisible();

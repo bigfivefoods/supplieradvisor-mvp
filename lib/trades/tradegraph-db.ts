@@ -162,6 +162,7 @@ export function parseDesk(value: unknown): DeskState {
     notices: Array.isArray(raw.notices) ? raw.notices : [],
     customer_links: Array.isArray(raw.customer_links) ? raw.customer_links : [],
     logo_data_url: typeof raw.logo_data_url === 'string' ? raw.logo_data_url : '',
+    feed_replies: Array.isArray(raw.feed_replies) ? raw.feed_replies : [],
   };
 }
 

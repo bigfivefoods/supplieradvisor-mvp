@@ -1,17 +1,15 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
-import dynamic from 'next/dynamic';
-import { CalendarDays, FileText, HardHat, MessageSquare, Wallet } from 'lucide-react';
+import { CalendarDays, Camera, FileText, HardHat, MessageSquare, Newspaper, Wallet } from 'lucide-react';
 import { MemberAdvisorShell, type MemberAdvisorTab } from '@/components/advisors/MemberAdvisorShell';
 import { TradeInstallPrompt } from '@/components/trades/TradeInstall';
 import { useTradeBook } from '@/components/trades/TradeBook';
-import { customerPack, readGantt, voRegister } from '@/lib/trades/desk';
+import { customerPack } from '@/lib/trades/desk';
 import { formatZar, quoteTotals } from '@/lib/trades/tradegraph';
+import { ProjectFeedView, ProjectHomeView, ProjectPhotosView, ProjectPlanView } from '@/components/trades/ClientProject';
 
-const GanttChart = dynamic(() => import('@/components/trades/GanttChart').then((mod) => mod.GanttChart));
-
-type Tab = 'home' | 'quotes' | 'plan' | 'money' | 'more';
+type Tab = 'home' | 'plan' | 'photos' | 'feed' | 'quotes' | 'money' | 'more';
 
 export function ClientPwa({ customerId, balance }: { customerId: string; balance?: ReactNode }) {
   const { book, dispatch } = useTradeBook();
@@ -20,6 +18,7 @@ export function ClientPwa({ customerId, balance }: { customerId: string; balance
   const [request, setRequest] = useState('');
   const [note, setNote] = useState('');
   const [message, setMessage] = useState('');
+  const [jobId, setJobId] = useState('');
   const pack = useMemo(() => {
     try {
       return customerPack(book, customerId);
@@ -32,10 +31,15 @@ export function ClientPwa({ customerId, balance }: { customerId: string; balance
     return <p className="p-6 text-sm">That customer is not on this sample book.</p>;
   }
 
+  const activeJob = pack.jobs.find((row) => row.id === jobId) || pack.jobs.find((row) => row.status === 'in_progress') || pack.jobs[0];
+  const activeId = activeJob?.id || '';
+
   const tabs: MemberAdvisorTab<Tab>[] = [
-    { id: 'home', label: 'Home', icon: <HardHat /> },
+    { id: 'home', label: 'Project', icon: <HardHat />, emphasis: true },
+    { id: 'plan', label: 'Plan', icon: <CalendarDays /> },
+    { id: 'photos', label: 'Photos', icon: <Camera /> },
+    { id: 'feed', label: 'Feed', icon: <Newspaper /> },
     { id: 'quotes', label: 'Quotes', icon: <FileText />, badge: pack.quotes.filter((row) => row.status === 'sent').length || undefined },
-    { id: 'plan', label: 'Plan', icon: <CalendarDays />, emphasis: true },
     { id: 'money', label: 'Money', icon: <Wallet /> },
     { id: 'more', label: 'More', icon: <MessageSquare /> },
   ];
@@ -43,7 +47,7 @@ export function ClientPwa({ customerId, balance }: { customerId: string; balance
   return (
     <div data-testid="role-client">
       <MemberAdvisorShell
-        color="#0077b6"
+        color="#00b4d8"
         presence={false}
         mobileNav="bottom"
         appHref="/preview/tradegraph"
@@ -56,11 +60,15 @@ export function ClientPwa({ customerId, balance }: { customerId: string; balance
           </div>
         }
         tabs={tabs}
+        mobileTabs={[tabs[0], tabs[1], tabs[2], tabs[3], tabs[6]]}
         tab={tab}
         onTab={setTab}
       >
         <TradeInstallPrompt />
-        {tab === 'home' ? <Home pack={pack} balance={balance} /> : null}
+        {tab === 'home' ? <ProjectHomeView pack={pack} jobId={activeId} onJob={setJobId} balance={balance} /> : null}
+        {tab === 'plan' ? <ProjectPlanView pack={pack} jobId={activeId} /> : null}
+        {tab === 'photos' ? <ProjectPhotosView pack={pack} jobId={activeId} /> : null}
+        {tab === 'feed' ? <ProjectFeedView pack={pack} jobId={activeId} /> : null}
         {tab === 'quotes' ? (
           <Quotes
             pack={pack}
@@ -71,7 +79,6 @@ export function ClientPwa({ customerId, balance }: { customerId: string; balance
             onDecline={(voId) => dispatch({ type: 'decline_vo', vo_id: voId })}
           />
         ) : null}
-        {tab === 'plan' ? <Plan pack={pack} /> : null}
         {tab === 'money' ? <Money pack={pack} /> : null}
         {tab === 'more' ? (
           <More
@@ -113,58 +120,6 @@ export function ClientPwa({ customerId, balance }: { customerId: string; balance
   );
 }
 
-function Home({ pack, balance }: { pack: NonNullable<ReturnType<typeof customerPack>>; balance?: ReactNode }) {
-  const active = pack.jobs.find((row) => row.status === 'in_progress' || row.status === 'scheduled') || pack.jobs[0];
-  const programme = active ? pack.programmes.find((row) => row.job_id === active.id) : null;
-  const gantt = programme ? readGantt(programme.tasks) : null;
-  return (
-    <div className="space-y-3" data-testid="client-home">
-      <section className="rounded-3xl border border-slate-200 bg-white p-4">
-        <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Balance</p>
-        {balance ?? <p className="text-2xl font-black">{formatZar(pack.balance_cents)}</p>}
-        <p className="text-sm text-slate-600">{pack.brand.city} · {pack.brand.phone}</p>
-      </section>
-      {active ? (
-        <section className="rounded-3xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-[#0077b6]">{active.number}</p>
-          <h2 className="text-lg font-black">{active.title}</h2>
-          <p className="text-sm text-slate-600">{active.address}</p>
-          {gantt?.current ? <p className="mt-2 text-sm font-semibold">Current phase: {gantt.current.name}</p> : null}
-        </section>
-      ) : (
-        <p className="rounded-3xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-600">No active job. Request one from More.</p>
-      )}
-    </div>
-  );
-}
-
-function PhotoStrip({ pack }: { pack: NonNullable<ReturnType<typeof customerPack>> }) {
-  const photos = pack.programmes.flatMap((row) => row.photos);
-  if (!photos.length) return null;
-  return (
-    <section>
-      <h3 className="mb-2 text-sm font-black">Photo timeline</h3>
-      <div className="flex gap-2 overflow-x-auto">
-        {photos.map((photo, index) => (
-          <figure key={photo.id} className="w-40 shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={photo.url}
-              alt={photo.caption}
-              width={320}
-              height={112}
-              loading={index === 0 ? 'eager' : 'lazy'}
-              fetchPriority={index === 0 ? 'high' : 'low'}
-              decoding="async"
-              className="h-28 w-full rounded-2xl object-cover"
-            />
-            <figcaption className="mt-1 text-[11px] text-slate-600">{photo.phase} · {photo.caption}</figcaption>
-          </figure>
-        ))}
-      </div>
-    </section>
-  );
-}
 
 function Quotes({
   pack,
@@ -199,7 +154,7 @@ function Quotes({
               ))}
             </ul>
             {quote.status === 'sent' ? (
-              <button type="button" className="mt-3 rounded-full bg-[#0077b6] px-4 py-2 text-sm font-bold text-white" data-testid="accept-quote" onClick={() => onAccept(quote.id)}>
+              <button type="button" className="mt-3 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" data-testid="accept-quote" onClick={() => onAccept(quote.id)}>
                 Accept and sign
               </button>
             ) : null}
@@ -215,7 +170,7 @@ function Quotes({
           <p>{formatZar(vo.cost_cents)} ex VAT · {vo.days} day{vo.days === 1 ? '' : 's'} · {vo.status}</p>
           {vo.status === 'sent' ? (
             <div className="mt-2 flex gap-2">
-              <button type="button" className="rounded-full bg-[#0077b6] px-3 py-1.5 text-xs font-bold text-white" data-testid="approve-vo" onClick={() => onApprove(vo.id)}>
+              <button type="button" className="rounded-full bg-[#00b4d8] px-3 py-1.5 text-xs font-bold text-[#0f172a]" data-testid="approve-vo" onClick={() => onApprove(vo.id)}>
                 Approve and sign
               </button>
               <button type="button" className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold" onClick={() => onDecline(vo.id)}>
@@ -230,21 +185,6 @@ function Quotes({
   );
 }
 
-function Plan({ pack }: { pack: NonNullable<ReturnType<typeof customerPack>> }) {
-  const { book } = useTradeBook();
-  const job = pack.jobs.find((row) => row.status === 'in_progress') || pack.jobs[0];
-  const programme = job ? pack.programmes.find((row) => row.job_id === job.id) : null;
-  if (!job || !programme) return <p className="text-sm text-slate-600">Your programme appears after a quote is accepted.</p>;
-  const register = voRegister(book, job.id, pack.brand.vat_rate);
-  return (
-    <div className="space-y-3" data-testid="client-gantt">
-      <h2 className="text-lg font-black">{job.title}</h2>
-      <GanttChart tasks={programme.tasks} readOnly />
-      <PhotoStrip pack={pack} />
-      <p className="text-sm">Revised value {formatZar(register.revised_incl_cents)} incl VAT</p>
-    </div>
-  );
-}
 
 function Money({ pack }: { pack: NonNullable<ReturnType<typeof customerPack>> }) {
   return (
@@ -257,7 +197,7 @@ function Money({ pack }: { pack: NonNullable<ReturnType<typeof customerPack>> })
             <p className="font-black">{invoice.number} · {invoice.status}</p>
             <p>{formatZar(invoice.total_cents)} incl VAT</p>
             {meta?.pay_url ? (
-              <a className="mt-2 inline-block font-bold text-[#0077b6]" href={meta.pay_url}>{meta.pay_reference || 'Pay with Paystack'}</a>
+              <a className="mt-2 inline-block font-bold text-[#00b4d8]" href={meta.pay_url}>{meta.pay_reference || 'Pay with Paystack'}</a>
             ) : (
               <p className="text-slate-500">Pay link appears when your tradesperson issues it.</p>
             )}
@@ -265,7 +205,7 @@ function Money({ pack }: { pack: NonNullable<ReturnType<typeof customerPack>> })
         );
       })}
       {!pack.invoices.length ? <p className="text-sm text-slate-600">No invoices yet.</p> : null}
-      <a className="inline-block text-sm font-bold text-[#0077b6]" href={`/api/public/tradegraph/statement?token=demo`}>
+      <a className="inline-block text-sm font-bold text-[#00b4d8]" href={`/api/public/tradegraph/statement?token=demo`}>
         Download statement
       </a>
     </div>
@@ -307,7 +247,7 @@ function More({
       >
         <h3 className="font-black">Request a job</h3>
         <textarea className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" value={request} onChange={(event) => setRequest(event.target.value)} placeholder="What needs doing?" required />
-        <button className="mt-2 rounded-full bg-[#0077b6] px-4 py-2 text-sm font-bold text-white" type="submit">Send request</button>
+        <button className="mt-2 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" type="submit">Send request</button>
       </form>
       <form
         className="rounded-3xl border border-slate-200 bg-white p-4"
@@ -319,7 +259,7 @@ function More({
         <h3 className="font-black">Book a slot</h3>
         <p className="text-sm text-slate-600">Friday 16 October, 09:00–11:00.</p>
         <input className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" value={note} onChange={(event) => setNote(event.target.value)} placeholder="What should we bring?" />
-        <button className="mt-2 rounded-full bg-[#0077b6] px-4 py-2 text-sm font-bold text-white" type="submit" data-testid="book-slot">Request the slot</button>
+        <button className="mt-2 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" type="submit" data-testid="book-slot">Request the slot</button>
       </form>
       <section className="rounded-3xl border border-slate-200 bg-white p-4">
         <h3 className="font-black">Messages</h3>
@@ -337,7 +277,7 @@ function More({
           }}
         >
           <input className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Message the team" required />
-          <button className="rounded-full bg-[#0077b6] px-3 py-2 text-xs font-bold text-white" type="submit">Send</button>
+          <button className="rounded-full bg-[#00b4d8] px-3 py-2 text-xs font-bold text-[#0f172a]" type="submit">Send</button>
         </form>
       </section>
       <section className="rounded-3xl border border-slate-200 bg-white p-4">

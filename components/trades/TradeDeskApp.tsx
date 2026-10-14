@@ -90,7 +90,7 @@ function DeskBody({
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#0077b6]">TradeAdvisor®</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">TradeAdvisor®</p>
             <h1 className="text-xl font-black">{book.store.settings.brand_name}</h1>
             <p className="text-sm text-slate-600">{book.store.settings.city} · {book.store.settings.phone}</p>
           </div>
@@ -154,7 +154,7 @@ function PayLink({ invoiceId, payRef }: { invoiceId: string; payRef: string }) {
   return (
     <article className="mx-auto max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-sm" data-testid="pay-page">
       <div className="h-2 rounded-full bg-[#00b4d8]" />
-      <p className="mt-4 text-xs font-black uppercase tracking-widest text-[#0077b6]">Paystack</p>
+      <p className="mt-4 text-xs font-black uppercase tracking-widest text-[#00b4d8]">Paystack</p>
       <h2 className="text-2xl font-black">{invoice ? invoice.number : 'Invoice'}</h2>
       <p className="mt-2 text-3xl font-black" data-testid="pay-amount">{invoice ? formatZar(invoice.total_cents) : 'Amount on the invoice'}</p>
       <p className="text-sm text-slate-600">South African rand, VAT included.</p>
@@ -162,7 +162,7 @@ function PayLink({ invoiceId, payRef }: { invoiceId: string; payRef: string }) {
       <p className="mt-4 text-sm text-slate-600">
         This page is the pay link. A live book with a Paystack secret opens Paystack checkout. The sample book shows the amount and reference and does not charge a card.
       </p>
-      <a className="mt-4 inline-block rounded-full bg-[#0077b6] px-4 py-2.5 text-sm font-bold text-white" href={meta?.pay_url || '#pay'}>
+      <a className="mt-4 inline-block rounded-full bg-[#00b4d8] px-4 py-2.5 text-sm font-bold text-[#0f172a]" href={meta?.pay_url || '#pay'}>
         Continue
       </a>
     </article>

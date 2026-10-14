@@ -179,7 +179,7 @@ export function seedHarbourBook(now = HARBOUR_NOW): Book {
       at: `${day(-1)}T15:00:00.000Z`,
       note: 'Old waste is out. The new run is clipped. We test tomorrow morning.',
       progress_pct: 55,
-      photo_url: '/share/industries/trades.png',
+      photo_url: '/trades/harbour/harbour-waste-after.jpg',
       shared: true,
     },
     {
@@ -305,16 +305,38 @@ export function seedHarbourBook(now = HARBOUR_NOW): Book {
       {
         id: 'ph_before',
         phase: 'before',
-        url: '/share/industries/trades.png',
+        url: '/trades/harbour/harbour-waste-before.jpg',
+        thumb_url: '/trades/harbour/harbour-waste-before-thumb.jpg',
         caption: 'Old waste sagging under the bath',
         at: `${day(-4)}T08:20:00.000Z`,
+        shared: true,
+      },
+      {
+        id: 'ph_during',
+        phase: 'during',
+        url: '/trades/harbour/harbour-waste-during.jpg',
+        thumb_url: '/trades/harbour/harbour-waste-during-thumb.jpg',
+        caption: 'New 50mm clipped while the floor is open',
+        at: `${day(-2)}T11:30:00.000Z`,
+        shared: true,
       },
       {
         id: 'ph_after',
         phase: 'after',
-        url: '/share/industries/construction-building.png',
+        url: '/trades/harbour/harbour-waste-after.jpg',
+        thumb_url: '/trades/harbour/harbour-waste-after-thumb.jpg',
         caption: 'New 50mm run clipped to the joist',
         at: `${day(-1)}T15:00:00.000Z`,
+        shared: true,
+      },
+      {
+        id: 'ph_private',
+        phase: 'during',
+        url: '/trades/harbour/harbour-waste-during.jpg',
+        thumb_url: '/trades/harbour/harbour-waste-during-thumb.jpg',
+        caption: 'Soft joist — internal until the variation is priced',
+        at: `${day(-2)}T11:40:00.000Z`,
+        shared: false,
       },
     ],
     time_entries: [
@@ -392,7 +414,7 @@ export function seedHarbourBook(now = HARBOUR_NOW): Book {
         trade: 'Master plumber',
         email: 'amina@harbourplumbing.co.za',
         phone: '082 555 0190',
-        colour: '#0077b6',
+        colour: '#00b4d8',
         portal_token: 'crew_amina',
         member_user_id: '',
       },
@@ -532,6 +554,18 @@ export function seedHarbourBook(now = HARBOUR_NOW): Book {
     ],
     customer_links: customers.map((row) => ({ customer_id: row.id, connection_id: null })),
     logo_data_url: '',
+    feed_replies: [
+      {
+        id: 'fr_naledi',
+        job_id: 'tj_waste',
+        target_id: 'tu_waste_shared',
+        from: 'customer',
+        author: 'Naledi Petersen',
+        reaction: '👍',
+        comment: 'Thanks — please knock before you come in tomorrow.',
+        at: `${day(-1)}T16:05:00.000Z`,
+      },
+    ],
   };
 
   const full: TradegraphStore = {

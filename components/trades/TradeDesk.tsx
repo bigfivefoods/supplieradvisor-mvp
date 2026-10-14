@@ -247,7 +247,7 @@ function AlertsEmail({
       </label>
       <button
         type="submit"
-        className="mt-3 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-white"
+        className="mt-3 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]"
       >
         Save alerts email
       </button>
@@ -292,7 +292,7 @@ function DeskBody({
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
             href={customerAppPath(preview ? 'demo' : store.settings.public_token)}
-            className="rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-white"
+            className="rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]"
           >
             Customer app
           </Link>
@@ -373,7 +373,7 @@ function Customers({
             />
           </label>
         ))}
-        <button type="submit" className="mt-4 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-white">
+        <button type="submit" className="mt-4 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]">
           Save customer
         </button>
       </form>
@@ -437,7 +437,7 @@ function Jobs({
               {row.status === 'new' ? (
                 <button
                   type="button"
-                  className="mt-2 rounded-full bg-[#00b4d8] px-3 py-1 text-xs font-bold text-white"
+                  className="mt-2 rounded-full bg-[#00b4d8] px-3 py-1 text-xs font-bold text-[#0f172a]"
                   onClick={() =>
                     preview
                       ? applyLocal(() => requestToQuote(store, row.id, now))
@@ -467,7 +467,7 @@ function Jobs({
                 {quote.status === 'sent' || quote.status === 'draft' ? (
                   <button
                     type="button"
-                    className="mt-2 rounded-full bg-[#00b4d8] px-3 py-1 text-xs font-bold text-white"
+                    className="mt-2 rounded-full bg-[#00b4d8] px-3 py-1 text-xs font-bold text-[#0f172a]"
                     onClick={() =>
                       preview
                         ? applyLocal(() => acceptQuote(store, quote.id, now))
@@ -566,7 +566,7 @@ function Jobs({
               {invoice.status !== 'paid' && invoice.status !== 'void' ? (
                 <button
                   type="button"
-                  className="mt-2 rounded-full bg-[#00b4d8] px-3 py-1 text-xs font-bold text-white"
+                  className="mt-2 rounded-full bg-[#00b4d8] px-3 py-1 text-xs font-bold text-[#0f172a]"
                   onClick={() =>
                     preview
                       ? applyLocal(() => recordPayment(store, invoice.id, 100_000, 'EFT', now))
@@ -669,10 +669,10 @@ function Materials({
             onChange={(event) => setDescription(event.target.value)}
           />
         </label>
-        <button type="submit" className="mt-4 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-white">
+        <button type="submit" className="mt-4 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]">
           Place order
         </button>
-        <Link href="/dashboard/suppliers" className="mt-3 block text-sm font-bold text-[#0077b6]">
+        <Link href="/dashboard/suppliers" className="mt-3 block text-sm font-bold text-[#00b4d8]">
           Open suppliers
         </Link>
       </form>
@@ -730,7 +730,7 @@ function Schedule({
           value={starts}
           onChange={(event) => setStarts(event.target.value)}
         />
-        <button type="submit" className="rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-white">
+        <button type="submit" className="rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]">
           Add to schedule
         </button>
       </form>
@@ -797,7 +797,7 @@ function Compliance({
             />
           </label>
         ))}
-        <button type="submit" className="mt-4 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-white">
+        <button type="submit" className="mt-4 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]">
           Save certificate
         </button>
       </form>

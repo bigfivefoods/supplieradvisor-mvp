@@ -65,7 +65,7 @@ export function TradeNav({ base }: { base: string }) {
         href={target}
         aria-current={on ? 'page' : undefined}
         className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${
-          on ? 'bg-[#0077b6] text-white' : 'border border-slate-200 bg-white text-slate-800'
+          on ? 'bg-[#00b4d8] text-[#0f172a]' : 'border border-slate-200 bg-white text-slate-800'
         }`}
       >
         {label}
@@ -97,7 +97,7 @@ export function TradeCommand({ base }: { base: string }) {
         <GymStat value={`${Math.round(report.win_rate * 100)}%`} label="Quote win rate" />
       </div>
       <div className="flex flex-wrap gap-2">
-        <Link href={`${base}/board?new=1`} className="rounded-full bg-[#0077b6] px-4 py-2.5 text-sm font-bold text-white" data-testid="new-job-link">
+        <Link href={`${base}/board?new=1`} className="rounded-full bg-[#00b4d8] px-4 py-2.5 text-sm font-bold text-[#0f172a]" data-testid="new-job-link">
           New job
         </Link>
         <Link href={`${base}/quote`} className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-900">
@@ -146,7 +146,7 @@ export function TradeBoard({ base, startNew = false }: { base: string; startNew?
     <div>
       <div className="mb-3 flex items-center justify-between gap-3">
         <GymSectionTitle hint="Drag is on the Gantt. Move a card by opening the job.">Job board</GymSectionTitle>
-        <button type="button" className="rounded-full bg-[#0077b6] px-4 py-2 text-sm font-bold text-white" data-testid="new-job" onClick={() => setOpen(true)}>
+        <button type="button" className="rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" data-testid="new-job" onClick={() => setOpen(true)}>
           New job
         </button>
       </div>
@@ -184,7 +184,7 @@ export function TradeBoard({ base, startNew = false }: { base: string; startNew?
                     >
                       <p className="font-bold">{card.title}</p>
                       <p className="text-slate-600">{card.subtitle}</p>
-                      <p className="mt-1 text-xs font-bold text-[#0077b6]">Make this a job</p>
+                      <p className="mt-1 text-xs font-bold text-[#00b4d8]">Make this a job</p>
                     </button>
                   ) : (
                     <Link href={`${base}/quote?quote=${card.ref_id}`} className="block rounded-2xl border border-slate-200 bg-white p-3 text-sm shadow-sm">
@@ -238,7 +238,7 @@ function NewJobForm({ onClose }: { onClose: () => void }) {
         <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={address} onChange={(event) => setAddress(event.target.value)} />
       </label>
       <div className="mt-4 flex gap-2">
-        <button type="submit" className="rounded-full bg-[#0077b6] px-4 py-2 text-sm font-bold text-white" data-testid="job-save">Save job</button>
+        <button type="submit" className="rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" data-testid="job-save">Save job</button>
         <button type="button" className="rounded-full border border-slate-200 px-4 py-2 text-sm font-bold" onClick={onClose}>Cancel</button>
       </div>
     </form>
@@ -361,7 +361,7 @@ export function TradeQuoteBuilder({ presetCustomer = '', base = '/preview/tradeg
         <p className="mt-3 text-sm">
           {formatZar(totals.subtotal_cents)} ex VAT · VAT {formatZar(totals.vat_cents)} · <strong>{formatZar(totals.total_cents)} incl VAT</strong>
         </p>
-        <button type="submit" className="mt-4 rounded-full bg-[#0077b6] px-4 py-2.5 text-sm font-bold text-white" data-testid="quote-save">
+        <button type="submit" className="mt-4 rounded-full bg-[#00b4d8] px-4 py-2.5 text-sm font-bold text-[#0f172a]" data-testid="quote-save">
           Save draft
         </button>
       </form>
@@ -373,7 +373,7 @@ export function TradeQuoteBuilder({ presetCustomer = '', base = '/preview/tradeg
               <p className="font-bold">{quote.number} · {quote.title}</p>
               <p className="text-slate-600">{quote.status} · {formatZar(money.total_cents)} incl VAT</p>
               {quote.status === 'draft' ? (
-                <button type="button" className="mt-2 rounded-full bg-[#0077b6] px-3 py-1 text-xs font-bold text-white" data-testid={`send-${quote.id}`} onClick={() => dispatch({ type: 'send_quote', quote_id: quote.id })}>
+                <button type="button" className="mt-2 rounded-full bg-[#00b4d8] px-3 py-1 text-xs font-bold text-[#0f172a]" data-testid={`send-${quote.id}`} onClick={() => dispatch({ type: 'send_quote', quote_id: quote.id })}>
                   Send to customer
                 </button>
               ) : null}
@@ -387,7 +387,7 @@ export function TradeQuoteBuilder({ presetCustomer = '', base = '/preview/tradeg
                   Accept and invoice
                 </button>
               ) : null}
-              <Link href={`${base}/quote-sheet?quote=${quote.id}`} className="mt-2 block text-xs font-bold text-[#0077b6]">
+              <Link href={`${base}/quote-sheet?quote=${quote.id}`} className="mt-2 block text-xs font-bold text-[#00b4d8]">
                 Quote sheet
               </Link>
             </article>
@@ -416,10 +416,10 @@ export function TradeGantt({ jobId, heading }: { jobId?: string; heading?: React
     <div className="space-y-4">
       {heading ?? (
         <header>
-          <p className="text-xs font-bold uppercase tracking-widest text-[#0077b6]">{job.number}</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-[#00b4d8]">{job.number}</p>
           <h2 className="text-2xl font-black">{job.title}</h2>
           <p className="text-sm text-slate-600">{customer?.name} · {job.address}</p>
-          <a className="text-sm font-bold text-[#0077b6]" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`} target="_blank" rel="noreferrer">
+          <a className="text-sm font-bold text-[#00b4d8]" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`} target="_blank" rel="noreferrer">
             Open the site in maps
           </a>
         </header>
@@ -455,7 +455,7 @@ export function TradeGantt({ jobId, heading }: { jobId?: string; heading?: React
               <p className="font-bold">{vo.number} · {vo.title} · {vo.status}</p>
               <p>{formatZar(vo.cost_cents)} ex VAT · {vo.days} day{vo.days === 1 ? '' : 's'}</p>
               {vo.status === 'draft' ? (
-                <button type="button" className="mt-1 rounded-full bg-[#0077b6] px-3 py-1 text-xs font-bold text-white" onClick={() => dispatch({ type: 'send_vo', vo_id: vo.id })}>
+                <button type="button" className="mt-1 rounded-full bg-[#00b4d8] px-3 py-1 text-xs font-bold text-[#0f172a]" onClick={() => dispatch({ type: 'send_vo', vo_id: vo.id })}>
                   Send for signature
                 </button>
               ) : null}
@@ -490,7 +490,7 @@ export function TradeGantt({ jobId, heading }: { jobId?: string; heading?: React
             Extra days
             <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="number" min={0} value={voDays} onChange={(event) => setVoDays(Number(event.target.value))} />
           </label>
-          <button type="submit" className="rounded-full bg-[#0077b6] px-4 py-2 text-sm font-bold text-white md:col-span-2" data-testid="vo-save">
+          <button type="submit" className="rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a] md:col-span-2" data-testid="vo-save">
             Save variation
           </button>
         </form>
@@ -505,6 +505,7 @@ function JobFold({ jobId }: { jobId: string }) {
   const job = book.store.jobs.find((row) => row.id === jobId);
   const programme = book.desk.programmes.find((row) => row.job_id === jobId);
   const [note, setNote] = useState('');
+  const [internal, setInternal] = useState(false);
   const [minutes, setMinutes] = useState(30);
   const [started, setStarted] = useState<number | null>(null);
   const [photosOpen, setPhotosOpen] = useState(false);
@@ -518,12 +519,16 @@ function JobFold({ jobId }: { jobId: string }) {
           className="mt-2 flex gap-2"
           onSubmit={(event) => {
             event.preventDefault();
-            dispatch({ type: 'add_note', job_id: job.id, note, shared: true });
+            dispatch({ type: 'add_note', job_id: job.id, note, shared: !internal });
             setNote('');
           }}
         >
-          <input className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Note for the customer" />
-          <button className="rounded-full bg-[#0077b6] px-3 py-2 text-xs font-bold text-white" type="submit">Share</button>
+          <input className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm" value={note} onChange={(event) => setNote(event.target.value)} placeholder={internal ? 'Internal note' : 'Note for the customer'} />
+          <label className="flex items-center gap-1 text-xs font-bold">
+            <input type="checkbox" checked={internal} onChange={(event) => setInternal(event.target.checked)} />
+            Internal only
+          </label>
+          <button className="rounded-full bg-[#00b4d8] px-3 py-2 text-xs font-bold text-[#0f172a]" type="submit">{internal ? 'Save' : 'Share'}</button>
         </form>
         <ul className="mt-3 space-y-1 text-sm">
           {programme.checklist.map((item) => (
@@ -561,7 +566,7 @@ function JobFold({ jobId }: { jobId: string }) {
             ))}
           </div>
         ) : (
-          <button type="button" className="mt-2 text-sm font-bold text-[#0077b6]" onClick={() => setPhotosOpen(true)}>
+          <button type="button" className="mt-2 text-sm font-bold text-[#00b4d8]" onClick={() => setPhotosOpen(true)}>
             Show {programme.photos.length} site photos
           </button>
         )}
@@ -578,7 +583,7 @@ function JobFold({ jobId }: { jobId: string }) {
               const reader = new FileReader();
               reader.onload = () => {
                 const url = String(reader.result || '');
-                dispatch({ type: 'add_photo', job_id: job.id, phase: 'after', url, caption: file.name });
+                dispatch({ type: 'add_photo', job_id: job.id, phase: 'during', url, caption: file.name, shared: !internal });
               };
               reader.readAsDataURL(file);
             }}
@@ -587,7 +592,7 @@ function JobFold({ jobId }: { jobId: string }) {
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             type="button"
-            className="rounded-full bg-[#0077b6] px-3 py-2 text-xs font-bold text-white"
+            className="rounded-full bg-[#00b4d8] px-3 py-2 text-xs font-bold text-[#0f172a]"
             data-testid="time-clock"
             onClick={() => {
               if (started) {
@@ -644,7 +649,7 @@ function JobFold({ jobId }: { jobId: string }) {
           ))}
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <button type="button" className="rounded-full bg-[#0077b6] px-3 py-2 text-xs font-bold text-white" data-testid="invoice-final" onClick={() => dispatch({ type: 'create_invoice', job_id: job.id, kind: 'final' })}>
+          <button type="button" className="rounded-full bg-[#00b4d8] px-3 py-2 text-xs font-bold text-[#0f172a]" data-testid="invoice-final" onClick={() => dispatch({ type: 'create_invoice', job_id: job.id, kind: 'final' })}>
             Invoice the balance
           </button>
           <button type="button" className="rounded-full border border-slate-200 px-3 py-2 text-xs font-bold" onClick={() => dispatch({ type: 'create_invoice', job_id: job.id, kind: 'progress', percent: 40 })}>
@@ -671,7 +676,7 @@ export function TradeInvoices() {
                 <span>{row.invoice.number} · {row.days} days · {formatZar(row.balance_cents)}</span>
                 <button
                   type="button"
-                  className="rounded-full bg-[#0077b6] px-3 py-1 text-xs font-bold text-white"
+                  className="rounded-full bg-[#00b4d8] px-3 py-1 text-xs font-bold text-[#0f172a]"
                   onClick={() => {
                     const customer = book.store.customers.find((item) => item.id === row.invoice.customer_id);
                     dispatch({
@@ -702,7 +707,7 @@ export function TradeInvoices() {
               {invoice.status !== 'paid' && invoice.status !== 'void' ? (
                 <button
                   type="button"
-                  className="mt-2 rounded-full bg-[#0077b6] px-3 py-1.5 text-xs font-bold text-white"
+                  className="mt-2 rounded-full bg-[#00b4d8] px-3 py-1.5 text-xs font-bold text-[#0f172a]"
                   data-testid={`pay-link-${invoice.id}`}
                   onClick={() => dispatch({ type: 'pay_link', invoice_id: invoice.id })}
                 >
@@ -710,7 +715,7 @@ export function TradeInvoices() {
                 </button>
               ) : null}
               {meta?.pay_url ? (
-                <a className="mt-2 block text-xs font-bold text-[#0077b6]" href={meta.pay_url} data-testid={`pay-url-${invoice.id}`}>
+                <a className="mt-2 block text-xs font-bold text-[#00b4d8]" href={meta.pay_url} data-testid={`pay-url-${invoice.id}`}>
                   {meta.pay_reference}
                 </a>
               ) : null}
@@ -732,7 +737,7 @@ export function TradeCalendar() {
     <div>
       <div className="mb-3 flex gap-2">
         {(['day', 'week', 'month'] as const).map((item) => (
-          <button key={item} type="button" className={`rounded-full px-3 py-1.5 text-xs font-bold ${mode === item ? 'bg-[#0077b6] text-white' : 'bg-white border border-slate-200'}`} onClick={() => setMode(item)}>
+          <button key={item} type="button" className={`rounded-full px-3 py-1.5 text-xs font-bold ${mode === item ? 'bg-[#00b4d8] text-[#0f172a]' : 'bg-white border border-slate-200'}`} onClick={() => setMode(item)}>
             {item}
           </button>
         ))}
@@ -762,7 +767,7 @@ export function TradeCalendar() {
                       <button
                         key={slot.id}
                         type="button"
-                        className="mt-1 w-full rounded-xl bg-[#0077b6] px-2 py-1 text-left text-[11px] font-bold text-white"
+                        className="mt-1 w-full rounded-xl bg-[#00b4d8] px-2 py-1 text-left text-[11px] font-bold text-[#0f172a]"
                         onClick={() => {
                           const next = shift(day, 1);
                           dispatch({
@@ -791,7 +796,7 @@ export function TradeCalendar() {
             <li key={row.id} className="flex flex-wrap items-center justify-between gap-2">
               <span>{row.note} · {row.status}</span>
               {row.status === 'requested' ? (
-                <button type="button" className="rounded-full bg-[#0077b6] px-3 py-1 text-xs font-bold text-white" onClick={() => dispatch({ type: 'confirm_booking', booking_id: row.id })}>
+                <button type="button" className="rounded-full bg-[#00b4d8] px-3 py-1 text-xs font-bold text-[#0f172a]" onClick={() => dispatch({ type: 'confirm_booking', booking_id: row.id })}>
                   Confirm
                 </button>
               ) : null}
@@ -849,7 +854,7 @@ export function TradeCustomers() {
       >
         <h2 className="font-black">Add a customer</h2>
         <input className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-2" value={name} onChange={(event) => setName(event.target.value)} placeholder="Name" required />
-        <button className="mt-3 rounded-full bg-[#0077b6] px-4 py-2 text-sm font-bold text-white" type="submit">Save</button>
+        <button className="mt-3 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" type="submit">Save</button>
       </form>
       <ul className="space-y-2">
         {book.store.customers.map((customer) => {
@@ -862,7 +867,7 @@ export function TradeCustomers() {
               {sites.map((site) => (
                 <p key={site.id} className="text-slate-600">{site.label}: {site.address}</p>
               ))}
-              <Link className="mt-1 inline-block font-bold text-[#0077b6]" href={link?.connection_id ? `/dashboard/customers/${link.connection_id}` : '/dashboard/customers'}>
+              <Link className="mt-1 inline-block font-bold text-[#00b4d8]" href={link?.connection_id ? `/dashboard/customers/${link.connection_id}` : '/dashboard/customers'}>
                 Open in Customers
               </Link>
             </li>
@@ -907,7 +912,7 @@ export function TradeMaterials() {
               Import from inventory
             </button>
           ) : null}
-          <Link href="/dashboard/inventory/products" className="self-center text-sm font-bold text-[#0077b6]">Open inventory</Link>
+          <Link href="/dashboard/inventory/products" className="self-center text-sm font-bold text-[#00b4d8]">Open inventory</Link>
         </div>
       </section>
       <section className="rounded-3xl border border-slate-200 bg-white p-4">
@@ -922,7 +927,7 @@ export function TradeMaterials() {
         </ul>
         <button
           type="button"
-          className="mt-3 rounded-full bg-[#0077b6] px-4 py-2 text-sm font-bold text-white"
+          className="mt-3 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]"
           onClick={() =>
             dispatch({
               type: 'order_materials',
@@ -934,7 +939,7 @@ export function TradeMaterials() {
         >
           Order from supplier
         </button>
-        <Link href="/dashboard/suppliers/po" className="ml-3 text-sm font-bold text-[#0077b6]">Purchase orders</Link>
+        <Link href="/dashboard/suppliers/po" className="ml-3 text-sm font-bold text-[#00b4d8]">Purchase orders</Link>
       </section>
     </div>
   );
@@ -949,11 +954,11 @@ export function TradeTeam() {
           <p className="font-black">{member.name}</p>
           <p className="text-sm text-slate-600">{member.role === 'owner' ? 'Owner' : 'Technician'} · {member.trade}</p>
           <p className="text-sm text-slate-600">{member.email}</p>
-          <Link href={`/crew/tradegraph/${member.portal_token}`} className="text-sm font-bold text-[#0077b6]">Open their work app</Link>
+          <Link href={`/crew/tradegraph/${member.portal_token}`} className="text-sm font-bold text-[#00b4d8]">Open their work app</Link>
         </li>
       ))}
       <li>
-        <Link href="/dashboard/my-business/team" className="text-sm font-bold text-[#0077b6]">Company members and permissions</Link>
+        <Link href="/dashboard/my-business/team" className="text-sm font-bold text-[#00b4d8]">Company members and permissions</Link>
       </li>
     </ul>
   );
@@ -970,7 +975,7 @@ export function QuoteSheet({ quoteId }: { quoteId: string }) {
     <article className="mx-auto max-w-xl rounded-3xl border border-slate-200 bg-white shadow-sm" data-testid="quote-sheet">
       <div className="h-3 rounded-t-3xl bg-[#00b4d8]" />
       <div className="p-6">
-        <p className="text-xs font-bold uppercase tracking-widest text-[#0077b6]">TradeAdvisor®</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-[#00b4d8]">TradeAdvisor®</p>
         <h1 className="text-2xl font-black">{book.store.settings.brand_name}</h1>
         <p className="text-sm text-slate-600">{book.store.settings.city} · {book.store.settings.phone}</p>
         <h2 className="mt-6 text-lg font-black">{quote.number} · {quote.title}</h2>
@@ -991,7 +996,7 @@ export function QuoteSheet({ quoteId }: { quoteId: string }) {
         <p className="text-lg font-black">{formatZar(totals.total_cents)} incl VAT</p>
         {meta?.deposit_pct ? <p className="text-sm">Deposit {meta.deposit_pct}% on acceptance.</p> : null}
         {meta?.signature ? <p className="mt-4 text-sm">Signed by {meta.signature.name} on {meta.signature.signed_at.slice(0, 10)}.</p> : null}
-        <a className="mt-4 inline-block text-sm font-bold text-[#0077b6]" href={`/api/public/tradegraph/quote-pdf?token=demo&quote=${encodeURIComponent(quote.id)}`}>
+        <a className="mt-4 inline-block text-sm font-bold text-[#00b4d8]" href={`/api/public/tradegraph/quote-pdf?token=demo&quote=${encodeURIComponent(quote.id)}`}>
           Download PDF
         </a>
       </div>

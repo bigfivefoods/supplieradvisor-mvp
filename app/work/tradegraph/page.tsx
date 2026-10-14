@@ -18,11 +18,11 @@ export default function WorkTradePage() {
       <main className="mx-auto max-w-md p-6">
         <h1 className="text-2xl font-black">TradeAdvisor®</h1>
         <p className="mt-2 text-sm text-slate-600">Sign in with SupplierAdvisor® to open the owner or technician app.</p>
-        <button type="button" className="mt-4 rounded-full bg-[#0077b6] px-4 py-2 text-sm font-bold text-white" onClick={() => login()}>
+        <button type="button" className="mt-4 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" onClick={() => login()}>
           Sign in
         </button>
         <p className="mt-4 text-sm">
-          <Link className="font-bold text-[#0077b6]" href="/preview/tradegraph/work?role=owner">Open the sample owner app</Link>
+          <Link className="font-bold text-[#00b4d8]" href="/preview/tradegraph/work?role=owner">Open the sample owner app</Link>
         </p>
       </main>
     );

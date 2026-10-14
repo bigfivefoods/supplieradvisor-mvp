@@ -89,6 +89,34 @@ export async function sendTradePush(
   }
 }
 
+/** Push a shared project update to the customer's saved browser subscription. */
+export async function pushTradeCustomer(
+  companyId: number,
+  customerId: string,
+  payload: PushPayload
+): Promise<number> {
+  try {
+    const { getSupabaseServer } = await import('@/lib/supabase/server-client');
+    const supabase = getSupabaseServer();
+    const rows = await supabase
+      .from('trade_customer_push')
+      .select('endpoint, p256dh, auth')
+      .eq('company_id', companyId)
+      .eq('customer_id', customerId);
+    if (rows.error || !rows.data?.length) return 0;
+    return sendTradePush(
+      rows.data.map((row) => ({
+        endpoint: String(row.endpoint || ''),
+        p256dh: String(row.p256dh || ''),
+        auth: String(row.auth || ''),
+      })),
+      payload
+    );
+  } catch {
+    return 0;
+  }
+}
+
 export function tradeStatusEmail(opts: {
   brand: string;
   customerName: string;
@@ -102,7 +130,7 @@ export function tradeStatusEmail(opts: {
     <div style="height:8px;background:#00b4d8"></div>
     <p style="font-size:18px;font-weight:700">${escapeHtml(opts.brand)}</p>
     <p>${escapeHtml(opts.body)}</p>
-    <p><a href="${escapeHtml(opts.url)}" style="color:#0077b6">${escapeHtml(opts.url)}</a></p>
+    <p><a href="${escapeHtml(opts.url)}" style="color:#00b4d8">${escapeHtml(opts.url)}</a></p>
     <p style="color:#64748b;font-size:12px">TradeAdvisor® on SupplierAdvisor®</p>
   </div>`;
   return { subject, html, text };

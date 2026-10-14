@@ -9,6 +9,7 @@ import { TradeInstallPrompt } from '@/components/trades/TradeInstall';
 import { GanttChart } from '@/components/trades/GanttChart';
 import { useTradeBook } from '@/components/trades/TradeBook';
 import { jobsForMember, tradeReport } from '@/lib/trades/desk';
+import { FeedComposer } from '@/components/trades/FeedComposer';
 import { formatZar } from '@/lib/trades/tradegraph';
 
 type OwnerTab = 'today' | 'jobs' | 'money' | 'team' | 'you';
@@ -38,7 +39,7 @@ function OwnerApp() {
   return (
     <div data-testid="role-owner">
       <MemberAdvisorShell
-        color="#0077b6"
+        color="#00b4d8"
         presence={false}
         mobileNav="bottom"
         appHref="/dashboard/tradegraph"
@@ -56,14 +57,17 @@ function OwnerApp() {
         <TradeInstallPrompt />
         {tab === 'today' ? <Today jobs={book.store.jobs} schedule={book.store.schedule} /> : null}
         {tab === 'jobs' ? (
-          <ul className="space-y-2">
-            {book.store.jobs.map((job) => (
-              <li key={job.id} className="rounded-3xl border border-slate-200 bg-white p-4 text-sm">
-                <p className="font-black">{job.number} · {job.title}</p>
-                <p className="text-slate-600">{job.status.replace(/_/g, ' ')} · {job.address}</p>
-              </li>
-            ))}
-          </ul>
+          <div className="space-y-3">
+            <ul className="space-y-2">
+              {book.store.jobs.map((job) => (
+                <li key={job.id} className="rounded-3xl border border-slate-200 bg-white p-4 text-sm">
+                  <p className="font-black">{job.number} · {job.title}</p>
+                  <p className="text-slate-600">{job.status.replace(/_/g, ' ')} · {job.address}</p>
+                </li>
+              ))}
+            </ul>
+            {book.store.jobs[0] ? <FeedComposer jobId={(book.store.jobs.find((row) => row.status === 'in_progress') || book.store.jobs[0]).id} author="Owner" /> : null}
+          </div>
         ) : null}
         {tab === 'money' ? (
           <section className="space-y-2" data-testid="money-panel">
@@ -80,7 +84,7 @@ function OwnerApp() {
               <li key={member.id} className="rounded-3xl border border-slate-200 bg-white p-4 text-sm">
                 <p className="font-black">{member.name}</p>
                 <p className="text-slate-600">{member.trade}</p>
-                <Link className="font-bold text-[#0077b6]" href={`/crew/tradegraph/${member.portal_token}`}>Their work app</Link>
+                <Link className="font-bold text-[#00b4d8]" href={`/crew/tradegraph/${member.portal_token}`}>Their work app</Link>
               </li>
             ))}
           </ul>
@@ -89,7 +93,7 @@ function OwnerApp() {
           <div className="space-y-2 text-sm">
             <p className="font-black">Business overview</p>
             <p>{report.won} quotes won of {report.decided} decided.</p>
-            <Link className="inline-block rounded-full bg-[#0077b6] px-4 py-2 font-bold text-white" href="/dashboard/tradegraph">Open SupplierAdvisor®</Link>
+            <Link className="inline-block rounded-full bg-[#00b4d8] px-4 py-2 font-bold text-[#0f172a]" href="/dashboard/tradegraph">Open SupplierAdvisor®</Link>
           </div>
         ) : null}
       </MemberAdvisorShell>
@@ -109,7 +113,7 @@ function TechnicianApp({ memberId }: { memberId: string }) {
         brand={book.store.settings.brand_name}
         name={member?.name || 'Technician'}
         eyebrow="Technician"
-        accent="#0077b6"
+        accent="#00b4d8"
         surface="light"
         tab={tab}
         onTab={setTab}
@@ -183,13 +187,14 @@ function TechnicianApp({ memberId }: { memberId: string }) {
                   Minutes on {jobs[0].number}
                   <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" type="number" min={1} value={minutes} onChange={(event) => setMinutes(Number(event.target.value))} />
                 </label>
-                <button className="mt-3 rounded-full bg-[#0077b6] px-4 py-2 text-sm font-bold text-white" type="submit" data-testid="crew-time">
+                <button className="mt-3 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" type="submit" data-testid="crew-time">
                   Log time
                 </button>
               </form>
             ) : (
               <p className="text-sm">No jobs are assigned to you.</p>
             )}
+            {jobs[0] ? <FeedComposer jobId={jobs[0].id} author={member?.name || 'Technician'} /> : null}
             <label className="block text-sm font-semibold">
               Site photo
               <input

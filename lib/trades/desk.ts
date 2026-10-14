@@ -98,11 +98,28 @@ export type Baseline = {
 
 export type CheckItem = { id: string; label: string; done: boolean };
 
+export type PhotoPhase = 'before' | 'during' | 'after';
+
 export type JobPhoto = {
   id: string;
-  phase: 'before' | 'after';
+  phase: PhotoPhase;
   url: string;
+  /** Smaller file for the gallery grid. The viewer uses `url`. */
+  thumb_url?: string;
   caption: string;
+  at: string;
+  /** False keeps the photo off the client app. Missing means shared. */
+  shared?: boolean;
+};
+
+export type FeedReply = {
+  id: string;
+  job_id: string;
+  target_id: string;
+  from: 'customer' | 'desk';
+  author: string;
+  reaction: string;
+  comment: string;
   at: string;
 };
 
@@ -270,6 +287,7 @@ export type DeskState = {
   notices: Notice[];
   customer_links: CustomerLink[];
   logo_data_url: string;
+  feed_replies: FeedReply[];
 };
 
 export type Book = {
@@ -305,6 +323,7 @@ export function emptyDesk(): DeskState {
     notices: [],
     customer_links: [],
     logo_data_url: '',
+    feed_replies: [],
   };
 }
 
@@ -1353,6 +1372,7 @@ export type CustomerPack = {
   invoice_meta: InvoiceMeta[];
   messages: TradeMessage[];
   documents: TradeDocument[];
+  feed_replies: FeedReply[];
   bookings: BookingRequest[];
   sites: CustomerSite[];
   schedule: Book['store']['schedule'];
@@ -1391,10 +1411,15 @@ export function customerPack(book: Book, customerId: string): CustomerPack {
     requests: book.store.requests.filter((row) => row.customer_id === customerId),
     programmes: book.desk.programmes
       .filter((row) => jobIds.has(row.job_id))
-      .map((row) => ({ ...row, notes: '' })),
+      .map((row) => ({
+        ...row,
+        notes: '',
+        photos: row.photos.filter((photo) => photo.shared !== false),
+      })),
     variations: book.desk.variations.filter((row) => jobIds.has(row.job_id) && row.status !== 'draft'),
     invoice_meta: book.desk.invoice_meta.filter((row) => invoiceIds.has(row.invoice_id)),
     messages: book.desk.messages.filter((row) => row.customer_id === customerId),
+    feed_replies: book.desk.feed_replies.filter((row) => jobIds.has(row.job_id)),
     documents: book.desk.documents.filter((row) => row.customer_id === customerId),
     bookings: book.desk.bookings.filter((row) => row.customer_id === customerId),
     sites: book.desk.sites.filter((row) => row.customer_id === customerId),
@@ -1415,7 +1440,8 @@ export type TradeOp =
   | { type: 'set_status'; job_id: string; status: JobStatus }
   | { type: 'add_checklist'; job_id: string; label: string }
   | { type: 'toggle_checklist'; job_id: string; item_id: string }
-  | { type: 'add_photo'; job_id: string; phase: 'before' | 'after'; url: string; caption: string }
+  | { type: 'add_photo'; job_id: string; phase: PhotoPhase; url: string; caption: string; shared?: boolean }
+  | { type: 'feed_reply'; job_id: string; target_id: string; from: 'customer' | 'desk'; author: string; reaction?: string; comment?: string }
   | { type: 'add_time'; job_id: string; member_id: string; minutes: number; note: string }
   | { type: 'add_material_used'; job_id: string; description: string; qty: number; unit_cents: number }
   | { type: 'assign'; job_id: string; member_id: string }
@@ -1519,16 +1545,66 @@ export function applyTradeOp(book: Book, op: TradeOp, now: string): OpResult {
     }
     case 'add_photo': {
       const programme = mustProgramme(book, op.job_id);
+      const job = mustJob(book, op.job_id);
       if (!op.url) throw new Error('Choose a photo');
+      const shared = op.shared !== false;
+      const caption = op.caption.trim() || 'Site photo';
       return {
         book: replaceProgramme(book, {
           ...programme,
           photos: [
             ...programme.photos,
-            { id: newId('ph'), phase: op.phase, url: op.url, caption: op.caption, at: now },
+            { id: newId('ph'), phase: op.phase, url: op.url, caption, at: now, shared },
           ],
         }),
-        notices: [],
+        notices: shared
+          ? [
+              {
+                audience: 'customer',
+                customer_id: job.customer_id,
+                title: 'New site photo',
+                body: caption,
+              },
+            ]
+          : [],
+      };
+    }
+    case 'feed_reply': {
+      mustJob(book, op.job_id);
+      const comment = (op.comment || '').trim();
+      const reaction = (op.reaction || '').trim();
+      if (!comment && !reaction) throw new Error('Add a comment or a reaction');
+      const job = mustJob(book, op.job_id);
+      const reply: FeedReply = {
+        id: newId('fr'),
+        job_id: op.job_id,
+        target_id: op.target_id,
+        from: op.from,
+        author: op.author.trim() || (op.from === 'customer' ? 'Customer' : 'Team'),
+        reaction,
+        comment,
+        at: now,
+      };
+      return {
+        book: { ...book, desk: { ...book.desk, feed_replies: [...book.desk.feed_replies, reply] } },
+        notices:
+          op.from === 'customer'
+            ? [
+                {
+                  audience: 'desk',
+                  customer_id: job.customer_id,
+                  title: 'Client replied',
+                  body: comment || reaction,
+                },
+              ]
+            : [
+                {
+                  audience: 'customer',
+                  customer_id: job.customer_id,
+                  title: 'Reply on your project',
+                  body: comment || reaction,
+                },
+              ],
       };
     }
     case 'add_time': {

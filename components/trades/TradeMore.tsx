@@ -28,7 +28,7 @@ export function TradeTasks() {
           Due
           <input className="mt-1 rounded-xl border border-slate-200 px-3 py-2" type="date" value={due} onChange={(event) => setDue(event.target.value)} />
         </label>
-        <button className="mt-3 rounded-full bg-[#0077b6] px-4 py-2 text-sm font-bold text-white" type="submit">
+        <button className="mt-3 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" type="submit">
           Add task
         </button>
       </form>
@@ -62,7 +62,7 @@ export function TradeMessages() {
           <li key={customer.id}>
             <button
               type="button"
-              className={`w-full rounded-2xl px-3 py-2 text-left text-sm font-bold ${customerId === customer.id ? 'bg-[#0077b6] text-white' : 'bg-white text-slate-800'}`}
+              className={`w-full rounded-2xl px-3 py-2 text-left text-sm font-bold ${customerId === customer.id ? 'bg-[#00b4d8] text-[#0f172a]' : 'bg-white text-slate-800'}`}
               onClick={() => setCustomerId(customer.id)}
             >
               {customer.name}
@@ -91,7 +91,7 @@ export function TradeMessages() {
         >
           <label className="sr-only" htmlFor="trade-message">Message</label>
           <input id="trade-message" className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm" value={body} onChange={(event) => setBody(event.target.value)} placeholder="Write to the customer" required />
-          <button className="rounded-full bg-[#0077b6] px-4 py-2 text-sm font-bold text-white" type="submit">Send</button>
+          <button className="rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" type="submit">Send</button>
         </form>
       </section>
     </div>
@@ -130,7 +130,7 @@ export function TradeSites() {
           Address
           <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={address} onChange={(event) => setAddress(event.target.value)} required />
         </label>
-        <button className="mt-3 rounded-full bg-[#0077b6] px-4 py-2 text-sm font-bold text-white" type="submit">Save site</button>
+        <button className="mt-3 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" type="submit">Save site</button>
       </form>
       <ul className="space-y-2">
         {book.desk.sites.map((site) => {
@@ -140,7 +140,7 @@ export function TradeSites() {
               <p className="font-black">{site.label}</p>
               <p>{customer?.name}</p>
               <p className="text-slate-600">{site.address}, {site.suburb} {site.city}</p>
-              <a className="font-bold text-[#0077b6]" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${site.address} ${site.suburb}`)}`}>Map</a>
+              <a className="font-bold text-[#00b4d8]" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${site.address} ${site.suburb}`)}`}>Map</a>
             </li>
           );
         })}
@@ -195,7 +195,7 @@ export function TradeNotices() {
           Body
           <textarea className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={body} onChange={(event) => setBody(event.target.value)} required />
         </label>
-        <button className="mt-3 rounded-full bg-[#0077b6] px-4 py-2 text-sm font-bold text-white" type="submit">Post notice</button>
+        <button className="mt-3 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" type="submit">Post notice</button>
       </form>
       <ul className="space-y-2">
         {book.desk.notices.map((notice) => (
@@ -227,7 +227,7 @@ export function TradeCompliance() {
         ))}
         {!rows.length ? <Empty>No certificates on this book yet.</Empty> : null}
       </ul>
-      <Link href="/dashboard/my-business/verify" className="inline-block text-sm font-bold text-[#0077b6]">Open VerifyNow</Link>
+      <Link href="/dashboard/my-business/verify" className="inline-block text-sm font-bold text-[#00b4d8]">Open VerifyNow</Link>
     </div>
   );
 }
@@ -247,7 +247,7 @@ export function TradeArrival() {
             </span>
             <button
               type="button"
-              className="rounded-full bg-[#0077b6] px-4 py-2 text-sm font-bold text-white"
+              className="rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]"
               onClick={() => dispatch({ type: 'arrive', job_id: job.id, member_id: book.desk.team[1]?.id || book.desk.team[0]?.id || '' })}
             >
               I have arrived
@@ -290,15 +290,15 @@ export function TradeWebsite({ base }: { base: string }) {
           City
           <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={city} onChange={(event) => setCity(event.target.value)} />
         </label>
-        <button className="mt-3 rounded-full bg-[#0077b6] px-4 py-2 text-sm font-bold text-white" type="submit">Save brand</button>
+        <button className="mt-3 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" type="submit">Save brand</button>
       </form>
       <section className="rounded-3xl border border-slate-200 bg-white p-4 text-sm">
         <p className="font-black">Customer app</p>
-        <Link className="font-bold text-[#0077b6]" href={app}>{app}</Link>
+        <Link className="font-bold text-[#00b4d8]" href={app}>{app}</Link>
         <p className="mt-4 font-black">Embed on your site</p>
-        <Link className="font-bold text-[#0077b6]" href={embed}>{embed}</Link>
+        <Link className="font-bold text-[#00b4d8]" href={embed}>{embed}</Link>
         <p className="mt-4 font-black">Office</p>
-        <Link className="font-bold text-[#0077b6]" href={base}>{base}</Link>
+        <Link className="font-bold text-[#00b4d8]" href={base}>{base}</Link>
         <p className="mt-4 text-slate-600">Quotes are in rand with VAT at 15% on top. The cyan bar on the quote sheet is the TradeAdvisor® mark.</p>
       </section>
     </div>

@@ -17,7 +17,7 @@ export default async function EmbedTradePage({ params }: Props) {
     <main className="min-h-dvh bg-[#f4f7fb] p-4 text-slate-900">
       <article className="mx-auto max-w-md rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="h-2 rounded-full bg-[#00b4d8]" />
-        <p className="mt-4 text-[11px] font-black uppercase tracking-[0.16em] text-[#0077b6]">Book a visit</p>
+        <p className="mt-4 text-[11px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">Book a visit</p>
         <h1 className="text-2xl font-black">{brand}</h1>
         <p className="text-sm text-slate-600">{city} · Plumbing</p>
         <ul className="mt-4 space-y-2 text-sm">
@@ -27,7 +27,7 @@ export default async function EmbedTradePage({ params }: Props) {
             </li>
           ))}
         </ul>
-        <Link className="mt-4 inline-block rounded-full bg-[#0077b6] px-4 py-2.5 text-sm font-bold text-white" href={`/customer/tradegraph/${encodeURIComponent(token)}`}>
+        <Link className="mt-4 inline-block rounded-full bg-[#00b4d8] px-4 py-2.5 text-sm font-bold text-[#0f172a]" href={`/customer/tradegraph/${encodeURIComponent(token)}`}>
           Open the customer app
         </Link>
       </article>

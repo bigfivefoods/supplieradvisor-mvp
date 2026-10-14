@@ -32,11 +32,11 @@ export function TradeHomeWidget() {
 
   return (
     <section className="mb-6 rounded-3xl border border-slate-200 bg-white p-4">
-      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#0077b6]">TradeAdvisor®</p>
+      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">TradeAdvisor®</p>
       <h2 className="mt-1 text-lg font-black">{label}</h2>
       <p className="text-sm text-slate-600">{detail}</p>
       <div className="mt-3 flex flex-wrap gap-2">
-        <Link href="/dashboard/tradegraph" className="rounded-full bg-[#0077b6] px-4 py-2 text-sm font-bold text-white">Open TradeAdvisor®</Link>
+        <Link href="/dashboard/tradegraph" className="rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]">Open TradeAdvisor®</Link>
         <Link href="/dashboard/tradegraph/board?new=1" className="rounded-full border border-slate-200 px-4 py-2 text-sm font-bold">New job</Link>
         <Link href="/preview/tradegraph" className="rounded-full border border-slate-200 px-4 py-2 text-sm font-bold">Sample book</Link>
       </div>
