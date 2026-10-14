@@ -136,6 +136,11 @@ assert.ok(lazyAt >= 0 && footerAfterLazy > lazyAt, 'footer should sit outside th
 
 const pricingPage = readFileSync(resolve(root, 'app/pricing/page.tsx'), 'utf8');
 assert.ok(!pricingPage.includes("'use client'"), '/pricing page must remain a server component');
+assert.match(
+  pricingPage,
+  /<PricingContent\b/,
+  '/pricing stays a server page and renders PricingContent, which owns SiteFooter'
+);
 
 const homePage = readFileSync(resolve(root, 'app/page.tsx'), 'utf8');
 assert.doesNotMatch(homePage, /SiteFooter/, 'app/page.tsx stays a thin shell; HomeLanding renders the footer');

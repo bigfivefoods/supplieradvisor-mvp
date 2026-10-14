@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 const LINKS = [
+  { href: '/preview/onboarding', label: 'First-run checklist' },
   { href: '/preview/dashboard', label: 'Command center' },
   { href: '/preview/crm', label: 'CRM' },
   { href: '/preview/srm', label: 'SRM' },

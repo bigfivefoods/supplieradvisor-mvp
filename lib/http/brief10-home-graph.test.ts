@@ -3,7 +3,7 @@
  * Run: npx --yes tsx lib/http/brief10-home-graph.test.ts
  */
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 const ROOT = resolve('.');
@@ -31,17 +31,27 @@ function resolveImport(fromFile: string, spec: string): string | null {
   return null;
 }
 
+function isFile(path: string): boolean {
+  try {
+    return existsSync(path) && statSync(path).isFile();
+  } catch {
+    return false;
+  }
+}
+
 function withExt(base: string): string | null {
   const tries = [
-    base,
     `${base}.ts`,
     `${base}.tsx`,
     `${base}.js`,
+    `${base}.mjs`,
     join(base, 'index.ts'),
     join(base, 'index.tsx'),
+    join(base, 'index.js'),
+    base,
   ];
   for (const t of tries) {
-    if (existsSync(t)) return t;
+    if (isFile(t)) return t;
   }
   return null;
 }

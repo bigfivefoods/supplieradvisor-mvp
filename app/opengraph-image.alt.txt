@@ -1,1 +1,1 @@
-SupplierAdvisor® — Supply Chain Operating System
+SupplierAdvisor® — supply-chain OS with a verified trade and trust layer

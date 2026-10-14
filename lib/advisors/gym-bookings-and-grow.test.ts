@@ -10,14 +10,15 @@ import { MODULE_NAV } from '../chrome/module-nav';
 const gym = MODULE_NAV.find((m) => m.id === 'fitgraph');
 assert.ok(gym);
 const names = gym!.steps.map((s) => s.name);
-assert.ok(names.includes('Bookings'));
+assert.ok(names.includes('Plan'), 'gym floor step is Plan and still opens the bookings desk');
 assert.ok(names.includes('Website & apps'));
 assert.equal(names.includes('View portal'), false);
 assert.equal(names.includes('Website'), false);
+assert.equal(names.includes('Bookings'), false);
 const site = gym!.steps.find((s) => s.name === 'Website & apps');
 assert.equal(site!.href, '/dashboard/fitgraph/website');
 assert.equal(site!.section, 'Grow');
-const bookingsNav = gym!.steps.find((s) => s.name === 'Bookings');
+const bookingsNav = gym!.steps.find((s) => s.name === 'Plan');
 assert.equal(bookingsNav!.href, '/dashboard/fitgraph/bookings');
 assert.equal(bookingsNav!.section, 'Floor');
 

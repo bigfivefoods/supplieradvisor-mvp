@@ -649,3 +649,36 @@ export function getIndustry(slug: string): IndustryPage | undefined {
 export function industrySlugs(): IndustrySlug[] {
   return INDUSTRIES.map((i) => i.slug);
 }
+
+/** Same groupings as the public industries index. Related links stay inside a real group. */
+const INDUSTRY_GROUPS: IndustrySlug[][] = [
+  ['agriculture', 'quarry-aggregates', 'food-beverage'],
+  [
+    'manufacturing',
+    'apparel-clothing',
+    'construction-building',
+    'distribution',
+    'containers',
+  ],
+  [
+    'fitness-gyms',
+    'physio-allied-health',
+    'dental',
+    'mental-health',
+    'medical-practices',
+    'veterinary-practices',
+  ],
+  ['hire-rental', 'retail-shop'],
+  ['public-sector', 'multi-entity'],
+];
+
+export function relatedIndustries(slug: string): IndustryPage[] {
+  const group = INDUSTRY_GROUPS.find((items) =>
+    (items as readonly string[]).includes(slug)
+  );
+  if (!group) return [];
+  return group
+    .filter((item) => item !== slug)
+    .map((item) => getIndustry(item))
+    .filter((item): item is IndustryPage => Boolean(item));
+}
