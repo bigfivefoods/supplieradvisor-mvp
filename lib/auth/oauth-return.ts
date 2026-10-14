@@ -10,6 +10,7 @@ const STASH_KEYS = [
   'link',
   'token',
   'next',
+  'email',
   'brand',
   'join',
   'company',

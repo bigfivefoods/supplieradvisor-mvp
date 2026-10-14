@@ -8,6 +8,7 @@ import {
   parseVerifyNowCipcResult,
 } from '@/lib/verifynow/client';
 import { requireCompanyAccess, legacyPrivyFrom } from '@/lib/auth/api-auth';
+import { CUSTOMER_PRICES } from '@/lib/verifynow/prices';
 
 /** Columns known to be missing on some production profiles tables. */
 const PROFILE_GHOST_COLS = new Set([
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
         {
           error: 'Payment is required before verification',
           hint: 'Complete the R69 Paystack checkout, then verification runs automatically. If you already paid, use Re-run CIPC (reuse payment).',
-          amount_zar: 69,
+          amount_zar: CUSTOMER_PRICES.cipc_company_match.zar,
           hasStoredPayment: Boolean(storedRef),
         },
         { status: 402 }
@@ -784,7 +785,7 @@ async function persistVerification(
     verified_at: isVerified ? opts.now : null,
     checked_at: opts.now,
     paystack_reference: opts.paystackReference || null,
-    amount_zar: opts.paystackReference ? 69 : null,
+    amount_zar: opts.paystackReference ? CUSTOMER_PRICES.cipc_company_match.zar : null,
     request_id: opts.parsed?.requestId || null,
     company_name: opts.parsed?.companyName || null,
     trade_name: opts.parsed?.tradeName || null,

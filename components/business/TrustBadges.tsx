@@ -16,6 +16,8 @@ export type TrustBadgeInput = {
   starAvg?: number | null;
   starCount?: number | null;
   otifefPct?: number | null;
+  /** Public VerifyNow trust line. Status and time only — no registry or bank payload. */
+  supplierTrust?: { status: 'verified' | 'review'; checkedAt?: string | null } | null;
   compact?: boolean;
 };
 
@@ -31,6 +33,7 @@ export default function TrustBadges({
   starAvg,
   starCount,
   otifefPct,
+  supplierTrust,
   compact = false,
 }: TrustBadgeInput) {
   const cipc =
@@ -58,6 +61,19 @@ export default function TrustBadges({
           Unverified
         </span>
       )}
+      {supplierTrust ? (
+        <span
+          className={`inline-flex items-center gap-0.5 rounded-full border border-[#00b4d8]/40 bg-[#00b4d8]/10 font-bold uppercase text-[#0077b6] ${chip}`}
+          title={
+            supplierTrust.checkedAt
+              ? `VerifyNow · ${supplierTrust.status} · ${supplierTrust.checkedAt}`
+              : `VerifyNow · ${supplierTrust.status}`
+          }
+        >
+          <ShieldCheck className="h-3 w-3" />
+          {supplierTrust.status === 'verified' ? 'VerifyNow' : 'VerifyNow review'}
+        </span>
+      ) : null}
       {bank && (
         <span
           className={`inline-flex items-center gap-0.5 rounded-full border border-sky-200 bg-sky-50 font-bold uppercase text-sky-800 ${chip}`}
