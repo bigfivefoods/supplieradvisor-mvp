@@ -14,6 +14,7 @@ import {
   evaluateMemberAccess,
   gymCheckinUrl,
 } from '@/lib/fitness/fitgraph';
+import { compareFitgraphSessions } from '@/lib/fitness/fitgraph-list-order';
 
 export default function CheckinsPage() {
   const { store, loading, saving, post, summary } = useFitgraph();
@@ -234,6 +235,8 @@ export default function CheckinsPage() {
               <option value="">Session (optional)…</option>
               {store.sessions
                 .filter((s) => s.date === form.date)
+                .slice()
+                .sort(compareFitgraphSessions)
                 .map((s) => {
                   const ct = store.class_types.find(
                     (c) => c.id === s.class_type_id

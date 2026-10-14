@@ -14,6 +14,7 @@ import {
   FitgraphRequired,
 } from '@/components/fitness/FitgraphShell';
 import type { FitgraphStore } from '@/lib/fitness/fitgraph';
+import { sortFitgraphDeskLists } from '@/lib/fitness/fitgraph-list-order';
 import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
 
 export type FitgraphPostResult = {
@@ -64,8 +65,9 @@ export function useFitgraph(opts?: { library?: boolean; history?: boolean }) {
   const applyData = useCallback(
     (data: FitgraphPostResult) => {
       if (data.store) {
-        setStore(data.store);
-        storeRef.current = data.store;
+        const next = sortFitgraphDeskLists(data.store);
+        setStore(next);
+        storeRef.current = next;
       } else if (typeof data.updated_at === 'string' && data.updated_at) {
         // Lite response: update CAS token without a full store reload.
         if (storeRef.current) {

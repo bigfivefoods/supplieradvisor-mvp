@@ -32,6 +32,20 @@ jobs:
         run: npm run typecheck
       - name: Route auth guard
         run: npm run check:route-auth
+      - name: GymAdvisor delta save tests
+        run: |
+          set -euo pipefail
+          for file in \
+            lib/fitness/brief110-gym-delta-saves.test.ts \
+            lib/fitness/brief52-calendar-patch-save.test.ts \
+            lib/fitness/brief55-public-patch-save.test.ts \
+            lib/b2c/brief57-care-gym-live-store.test.ts \
+            lib/fitness/brief54-desk-patch-save.test.ts \
+            lib/fitness/brief56-desk-get-window.test.ts \
+            lib/fitness/gym-booking-plan.test.ts
+          do
+            npx --yes tsx "$file"
+          done
       - name: Security string-scan smoke tests
         run: |
           set -euo pipefail

@@ -108,6 +108,16 @@ import {
 } from '@/lib/services/member-invite';
 import { loadFitgraphMerged, saveFitgraphMerged, saveFitgraphPatch } from '@/lib/fitness/fitgraph-io';
 import {
+  currentFitgraphBaseline,
+  fitgraphDeltaIsEmpty,
+  fitgraphServerTimingHeader,
+  noteFitgraphLoad,
+  noteFitgraphSave,
+  prepareFitgraphDeltaWrite,
+  rememberFitgraphBaseline,
+  runFitgraphDeskPost,
+} from '@/lib/fitness/fitgraph-delta';
+import {
   isVukaFitnessCompany,
   persistVukaCatalogIfNeeded,
   storeUsesClassSubscribe,
@@ -202,7 +212,24 @@ async function savePatch(
     typeof ifUpdatedAtRaw === 'string' && ifUpdatedAtRaw.trim()
       ? ifUpdatedAtRaw.trim()
       : null;
-  return saveFitgraphPatch(companyId, patch, { ifUpdatedAt });
+  const baseline = currentFitgraphBaseline();
+  const prepared = baseline
+    ? prepareFitgraphDeltaWrite(baseline, patch)
+    : {
+        patch,
+        write: !fitgraphDeltaIsEmpty(patch),
+        bytes: fitgraphDeltaIsEmpty(patch)
+          ? 0
+          : Buffer.byteLength(JSON.stringify(patch), 'utf8'),
+        updatedAt: '',
+      };
+  if (!prepared.write) return prepared.updatedAt;
+  const started = performance.now();
+  try {
+    return await saveFitgraphPatch(companyId, prepared.patch, { ifUpdatedAt });
+  } finally {
+    noteFitgraphSave(performance.now() - started, prepared.bytes);
+  }
 }
 
 function keyedStorePatch<K extends keyof FitgraphStore>(
@@ -348,6 +375,14 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  return runFitgraphDeskPost(async () => {
+    const response = await postFitgraph(request);
+    response.headers.set('Server-Timing', fitgraphServerTimingHeader());
+    return response;
+  });
+}
+
+async function postFitgraph(request: NextRequest) {
   try {
     const body = await request.json();
     const companyId = Number(body.companyId);
@@ -361,7 +396,9 @@ export async function POST(request: NextRequest) {
 
     const action = String(body.action || 'upsert');
     const entity = String(body.entity || '') as Entity;
+    const loadStarted = performance.now();
     const { meta, store } = await loadStore(companyId, { fresh: true });
+    noteFitgraphLoad(performance.now() - loadStarted);
     const payloadUpdatedAt =
       (body &&
       typeof body === 'object' &&
@@ -397,6 +434,7 @@ export async function POST(request: NextRequest) {
 
     // Stamp owner emails on every mutation load so coachIsGymOwner resolves correctly
     await stampOwnerEmails(companyId, store);
+    rememberFitgraphBaseline(store);
 
     if (action === 'seed_demo') {
       const demo = seedDemo(now, companyId);

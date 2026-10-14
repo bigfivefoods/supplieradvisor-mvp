@@ -18,6 +18,7 @@ import {
   type FitgraphStore,
   type FitSession,
 } from '@/lib/fitness/fitgraph';
+import { compareFitgraphSessions } from '@/lib/fitness/fitgraph-list-order';
 import {
   SYS_COACH_AWAY_CODE,
   SYS_COACH_TIME_CODE,
@@ -199,11 +200,7 @@ export function gymPlanClassesOnDate(
   const day = String(date || '').slice(0, 10);
   return (store.sessions || [])
     .filter((s) => s.date === day && isGymPlanSession(store, s))
-    .sort(
-      (a, b) =>
-        String(a.start_time || '').localeCompare(String(b.start_time || '')) ||
-        String(a.id).localeCompare(String(b.id))
-    )
+    .sort(compareFitgraphSessions)
     .map((s) => gymPlanClass(store, s))
     .filter((card) => matchesFilter(card, opts))
     .map((card) => ({ ...card, members: visibleMembers(card, opts) }));
