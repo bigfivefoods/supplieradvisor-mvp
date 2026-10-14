@@ -54,6 +54,7 @@ const GROUP_LABEL_KEY_BY_LABEL: Record<string, string> = {
   Network: 'footer.group.network',
   Trust: 'footer.group.trust',
   Apps: 'footer.group.apps',
+  Group: 'footer.group.group',
 };
 
 function FooterNav({
@@ -172,7 +173,7 @@ export default function SiteFooter() {
               <Link
                 href="/"
                 prefetch={false}
-                aria-label="SupplierAdvisor home"
+                aria-label="SupplierAdvisor® home"
                 className="inline-flex items-center gap-2.5 group"
               >
                 <Image
@@ -268,7 +269,15 @@ export default function SiteFooter() {
                 © <FooterYear /> SupplierAdvisor®. {t('footer.rights')}
               </p>
               <p>
-                {t('footer.bigFiveCompany')}
+                {t('footer.bigFiveLead')}
+                <a
+                  href="https://bigfivegroup.africa"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-2 hover:text-[#0077b6] dark:hover:text-white"
+                >
+                  {t('footer.bigFiveLink')}
+                </a>
               </p>
             </div>
             <nav className="flex flex-wrap items-center gap-x-5 gap-y-2" aria-label={t('footer.legalNav')}>

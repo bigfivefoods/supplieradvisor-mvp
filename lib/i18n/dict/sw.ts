@@ -13,7 +13,7 @@ const sw: Dict = {
   'brand.supplierAdvisor': 'SupplierAdvisor®',
   'brand.schoolAdvisor': 'SchoolAdvisor®',
   'brand.superCube': 'Super-Cube®',
-  'brand.bigFiveGroup': 'Big Five Group',
+  'brand.bigFiveGroup': 'Big Five Group™',
   'nav.groupProduct': 'Bidhaa',
   'nav.groupPricing': 'Bei',
   'nav.groupTry': 'Jaribu',
@@ -100,6 +100,7 @@ const sw: Dict = {
   'footer.group.network': 'Mtandao',
   'footer.group.trust': 'Uaminifu',
   'footer.group.apps': 'Programu',
+  'footer.group.group': 'Kikundi',
   'footer.social': 'Mitandao ya kijamii',
   'footer.industriesBySector': 'Sekta kulingana na tasnia',
   'footer.legalNav': 'Kisheria',
@@ -119,7 +120,9 @@ const sw: Dict = {
   'footer.foundingTitle': 'Orodha ya waanzilishi',
   'footer.foundingBlurb': 'Taarifa za wanachama waanzilishi na arifa za nafasi mpya kutoka SupplierAdvisor®.',
   'footer.rights': 'Haki zote zimehifadhiwa.',
-  'footer.bigFiveCompany': 'SupplierAdvisor® ni kampuni ya Big Five Group',
+  'footer.bigFiveCompany': 'SupplierAdvisor® ni kampuni ya Big Five Group™',
+  'footer.bigFiveLead': 'SupplierAdvisor® ni ',
+  'footer.bigFiveLink': 'kampuni ya Big Five Group™',
   'footer.contact.country': 'Afrika Kusini',
   'footer.form.emailLabel': 'Anwani ya barua pepe',
   'footer.form.emailPlaceholder': 'wewe@kampuni.com',
@@ -131,13 +134,13 @@ const sw: Dict = {
   'pricing.kicker': 'Bei',
   'pricing.title': 'Bei wazi za kampuni kuanzia R299/mwezi',
   'pricing.lede':
-    'SupplierAdvisor imejengwa kwa kampuni zinazohitaji mfumo mmoja wa uendeshaji katika ununuzi, ubora, mahusiano ya wasambazaji, hesabu na fedha.',
+    'SupplierAdvisor® imejengwa kwa kampuni zinazohitaji mfumo mmoja wa uendeshaji katika ununuzi, ubora, mahusiano ya wasambazaji, hesabu na fedha.',
   'pricing.ctaTrial': 'Anza jaribio la bure',
   'pricing.ctaDemo': 'Weka onyesho',
   'pricing.companyProfile': 'Pakua wasifu wa kampuni (PDF)',
   'pricing.englishNote': 'EN',
   'pricing.tiers': 'Ngazi za malipo',
-  'pricing.tiersBody': 'Ngazi zote zinajumuisha watumiaji wasio na kikomo na upeo ule ule wa bidhaa kamili ya SupplierAdvisor.',
+  'pricing.tiersBody': 'Ngazi zote zinajumuisha watumiaji wasio na kikomo na upeo ule ule wa bidhaa kamili ya SupplierAdvisor®.',
   'pricing.tier.monthly': 'Kila mwezi',
   'pricing.tier.1y': 'Mwaka 1',
   'pricing.tier.2y': 'Miaka 2',
@@ -159,7 +162,7 @@ const sw: Dict = {
   'pricing.referral.step1.title': 'Alika washirika halisi wa biashara',
   'pricing.referral.step1.body':
     'Shiriki kiungo chako cha rufaa na wasambazaji, wanunuzi, na washirika unaofanya nao biashara kwa kweli. Mwaliko wa kwanza halali huweka uhusiano.',
-  'pricing.referral.step2.title': 'Wanawezesha SupplierAdvisor',
+  'pricing.referral.step2.title': 'Wanawezesha SupplierAdvisor®',
   'pricing.referral.step2.body':
     'Kila kampuni iliyoalikwa hupata siku 30 kuendesha jukwaa lote kisha inaweza kujiunga kuanzia R299/mwezi au kuchagua ngazi ya kulipia mapema.',
   'pricing.referral.step3.title': 'Ada za rufaa hugawiwa kwa kina',
@@ -168,7 +171,7 @@ const sw: Dict = {
   'pricing.faq': 'Maswali ya bei',
   'pricing.faq.1.q': 'Bei ni kwa mtumiaji au kwa kampuni?',
   'pricing.faq.1.a':
-    'Bei ya SupplierAdvisor ni kwa workspace ya kampuni, si kwa kiti. Kila ngazi ya malipo inajumuisha watumiaji wa timu bila kikomo.',
+    'Bei ya SupplierAdvisor® ni kwa workspace ya kampuni, si kwa kiti. Kila ngazi ya malipo inajumuisha watumiaji wa timu bila kikomo.',
   'pricing.faq.2.q': '“Kuanzia R299/mwezi” inamaanisha nini?',
   'pricing.faq.2.a':
     'R299/mwezi ni kiwango cha sasa cha orodha ya kila mwezi kwa usajili mmoja wa kampuni. Ngazi za kulipia mapema za mwaka 1, 2, na 3 hupunguza gharama halisi ya kila mwezi.',
@@ -183,7 +186,7 @@ const sw: Dict = {
     'Ada za rufaa zinatokana tu na malipo halisi ya usajili unaostahili. Mgawanyo ni 6% kwa L1, 3% kwa L2, na 1% kwa L3.',
   'pricing.faq.6.q': 'Je, malipo ya rufaa yanatokana na mauzo ya bidhaa?',
   'pricing.faq.6.a':
-    'Hapana. Malipo ya rufaa yanatumika kwa ada za usajili wa jukwaa la SupplierAdvisor, si kwa mauzo ya bidhaa au huduma kati ya washirika.',
+    'Hapana. Malipo ya rufaa yanatumika kwa ada za usajili wa jukwaa la SupplierAdvisor®, si kwa mauzo ya bidhaa au huduma kati ya washirika.',
   'pricing.faq.7.q': 'Naweza kubadilisha ngazi ya malipo baadaye?',
   'pricing.faq.7.a':
     'Ndiyo. Kampuni zinaweza kuhamia kutoka kila mwezi hadi masharti ya kulipia mapema kwenye bili. Uboreshaji wa mapema huongeza muda wa usajili.',

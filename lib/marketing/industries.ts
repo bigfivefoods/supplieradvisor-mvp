@@ -579,7 +579,7 @@ export const INDUSTRIES: IndustryPage[] = [
     name: 'Public sector (B2G)',
     headline: 'Procurement and programmes that face scrutiny.',
     subhead:
-      'Transparent supplier discovery, documented trade, verification, export packs — plus SchoolAdvisor® (NSNP / DBE · public sector only) and HealthAdvisor® (DoH) programme pathways on the same platform. Government programmes are set up by SupplierAdvisor admin.',
+      'Transparent supplier discovery, documented trade, verification, export packs — plus SchoolAdvisor® (NSNP / DBE · public sector only) and HealthAdvisor® (DoH) programme pathways on the same platform. Government programmes are set up by SupplierAdvisor® admin.',
     metaDescription:
       'Public-sector procurement and programme tools for transparent supplier trade, reporting, and audit trails.',
     cardBlurb:

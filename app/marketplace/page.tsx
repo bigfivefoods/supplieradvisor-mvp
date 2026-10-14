@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Loader2, Store, Search, ArrowRight, ShieldCheck } from 'lucide-react';
+import SiteFooter from '@/components/marketing/SiteFooter';
 
 type Listing = {
   id: number;
@@ -65,7 +66,7 @@ export default function PublicMarketplacePage() {
       <header className="border-b border-neutral-200 bg-white/90 backdrop-blur">
         <div className="max-w-5xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-3">
           <Link href="/" className="font-black text-[#0077b6] tracking-tight">
-            SupplierAdvisor
+            SupplierAdvisor®
           </Link>
           <div className="flex gap-2">
             <Link
@@ -191,6 +192,7 @@ export default function PublicMarketplacePage() {
           </div>
         )}
       </main>
+      <SiteFooter />
     </div>
   );
 }

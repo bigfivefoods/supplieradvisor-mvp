@@ -13,7 +13,7 @@ export const metadata = {
   openGraph: {
     title: 'Cancellation & Refund Policy · SupplierAdvisor®',
     description:
-      'Cancel platform subscriptions and understand refund rules for SupplierAdvisor company plans.',
+      'Cancel platform subscriptions and understand refund rules for SupplierAdvisor® company plans.',
     url: 'https://www.supplieradvisor.com/cancellation-refund',
   },
 };
@@ -26,7 +26,7 @@ export default function CancellationRefundPage() {
           <Link href="/" className="flex items-center gap-3">
             <Image
               src="/sa-logo.png"
-              alt="SupplierAdvisor"
+              alt="SupplierAdvisor®"
               width={100}
               height={44}
               className="h-9 w-auto object-contain"
@@ -68,16 +68,16 @@ export default function CancellationRefundPage() {
             </p>
             <p className="mb-2">
               Advisor card and Apple Pay collections (memberships, till,
-              inventory) are processed on SupplierAdvisor’s Paystack merchant and
+              inventory) are processed on SupplierAdvisor®’s Paystack merchant and
               split at settlement: a <strong>1% admin fee</strong> to
-              SupplierAdvisor and the rest to the Advisor’s connected bank. The
+              SupplierAdvisor® and the rest to the Advisor’s connected bank. The
               Advisor also bears Paystack’s card fees. Members are not
               surcharged. A refund of a split charge reverses that same split
               through Paystack — it is not a SaaS subscription refund.
             </p>
             <p>
               This policy does <strong>not</strong> cover money that never
-              flows through SupplierAdvisor, including: proof-of-payment / EFT
+              flows through SupplierAdvisor®, including: proof-of-payment / EFT
               and cash taken by the Advisor; goods or services you buy or sell
               with trading partners; logistics or carrier charges; or the
               membership, session, and product prices you set inside
@@ -231,7 +231,7 @@ export default function CancellationRefundPage() {
               </li>
               <li>
                 Commercial payments between you and your buyers, suppliers,
-                members, patients, or other users — SupplierAdvisor is not the
+                members, patients, or other users — SupplierAdvisor® is not the
                 merchant of those trades.
               </li>
               <li>
@@ -277,7 +277,7 @@ export default function CancellationRefundPage() {
               10. South African law and consumer rights
             </h2>
             <p>
-              SupplierAdvisor is primarily a business-to-business platform. Where
+              SupplierAdvisor® is primarily a business-to-business platform. Where
               mandatory consumer or other protections under South African law
               apply to you, those rights are not excluded by this policy. This
               policy is intended to explain our commercial refund practice for

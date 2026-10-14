@@ -13,7 +13,7 @@ const fr: Dict = {
   'brand.supplierAdvisor': 'SupplierAdvisor®',
   'brand.schoolAdvisor': 'SchoolAdvisor®',
   'brand.superCube': 'Super-Cube®',
-  'brand.bigFiveGroup': 'Big Five Group',
+  'brand.bigFiveGroup': 'Big Five Group™',
   'nav.groupProduct': 'Produit',
   'nav.groupPricing': 'Tarifs',
   'nav.groupTry': 'Essayer',
@@ -97,6 +97,7 @@ const fr: Dict = {
   'footer.group.network': 'Réseau',
   'footer.group.trust': 'Confiance',
   'footer.group.apps': 'Applications',
+  'footer.group.group': 'Groupe',
   'footer.social': 'Réseaux sociaux',
   'footer.industriesBySector': 'Secteurs par industrie',
   'footer.legalNav': 'Mentions légales',
@@ -116,7 +117,9 @@ const fr: Dict = {
   'footer.foundingTitle': 'Liste fondatrice',
   'footer.foundingBlurb': 'Mises à jour des membres fondateurs et alertes nouvelles places de SupplierAdvisor®.',
   'footer.rights': 'Tous droits réservés.',
-  'footer.bigFiveCompany': 'SupplierAdvisor® est une société de Big Five Group',
+  'footer.bigFiveCompany': 'SupplierAdvisor® est une société de Big Five Group™',
+  'footer.bigFiveLead': 'SupplierAdvisor® est ',
+  'footer.bigFiveLink': 'une société de Big Five Group™',
   'footer.contact.country': 'Afrique du Sud',
   'footer.form.emailLabel': 'Adresse e-mail',
   'footer.form.emailPlaceholder': 'vous@entreprise.com',
@@ -128,13 +131,13 @@ const fr: Dict = {
   'pricing.kicker': 'Tarifs',
   'pricing.title': 'Tarification transparente des entreprises à partir de R299/mois',
   'pricing.lede':
-    'SupplierAdvisor est conçu pour les entreprises qui ont besoin d’un seul système d’exploitation pour les achats, la qualité, les relations fournisseurs, le stock et la finance.',
+    'SupplierAdvisor® est conçu pour les entreprises qui ont besoin d’un seul système d’exploitation pour les achats, la qualité, les relations fournisseurs, le stock et la finance.',
   'pricing.ctaTrial': 'Démarrer l\'essai gratuit',
   'pricing.ctaDemo': 'Réserver une démo',
   'pricing.companyProfile': 'Télécharger le profil entreprise (PDF)',
   'pricing.englishNote': 'EN',
   'pricing.tiers': 'Paliers de facturation',
-  'pricing.tiersBody': 'Tous les paliers incluent des utilisateurs illimités et le même périmètre produit SupplierAdvisor complet.',
+  'pricing.tiersBody': 'Tous les paliers incluent des utilisateurs illimités et le même périmètre produit SupplierAdvisor® complet.',
   'pricing.tier.monthly': 'Mensuel',
   'pricing.tier.1y': '1 an',
   'pricing.tier.2y': '2 ans',
@@ -156,7 +159,7 @@ const fr: Dict = {
   'pricing.referral.step1.title': 'Invitez de vrais partenaires commerciaux',
   'pricing.referral.step1.body':
     'Partagez votre lien de parrainage avec des fournisseurs, acheteurs et partenaires avec qui vous échangez réellement. La première invitation valide conserve la relation.',
-  'pricing.referral.step2.title': 'Ils activent SupplierAdvisor',
+  'pricing.referral.step2.title': 'Ils activent SupplierAdvisor®',
   'pricing.referral.step2.body':
     'Chaque entreprise invitée dispose de 30 jours pour utiliser toute la plateforme, puis peut s’abonner à partir de R299/mois ou choisir un palier prépayé.',
   'pricing.referral.step3.title': 'Les commissions sont partagées par niveau',
@@ -165,7 +168,7 @@ const fr: Dict = {
   'pricing.faq': 'FAQ Tarifs',
   'pricing.faq.1.q': 'Le prix est-il par utilisateur ou par entreprise ?',
   'pricing.faq.1.a':
-    'La tarification SupplierAdvisor est par espace de travail entreprise, pas par siège. Tous les paliers payants incluent des utilisateurs d’équipe illimités.',
+    'La tarification SupplierAdvisor® est par espace de travail entreprise, pas par siège. Tous les paliers payants incluent des utilisateurs d’équipe illimités.',
   'pricing.faq.2.q': 'Que signifie « à partir de R299/mois » ?',
   'pricing.faq.2.a':
     'R299/mois est le tarif mensuel catalogue actuel pour un abonnement entreprise. Les paliers prépayés 1 an, 2 ans et 3 ans réduisent le coût mensuel effectif.',
@@ -180,7 +183,7 @@ const fr: Dict = {
     'Les commissions sont basées uniquement sur les paiements d’abonnement qualifiés effectivement encaissés. Le partage est de 6% en L1, 3% en L2 et 1% en L3.',
   'pricing.faq.6.q': 'Les paiements de parrainage dépendent-ils des ventes de produits ?',
   'pricing.faq.6.a':
-    'Non. Les paiements de parrainage s’appliquent aux frais d’abonnement de la plateforme SupplierAdvisor, pas aux ventes de biens ou services entre partenaires.',
+    'Non. Les paiements de parrainage s’appliquent aux frais d’abonnement de la plateforme SupplierAdvisor®, pas aux ventes de biens ou services entre partenaires.',
   'pricing.faq.7.q': 'Puis-je changer de palier de facturation plus tard ?',
   'pricing.faq.7.a':
     'Oui. Les entreprises peuvent passer du mensuel aux termes prépayés. Les renouvellements anticipés prolongent la période d’abonnement.',

@@ -19,7 +19,7 @@ export default function VerifiedSlaBadge({
       <aside className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-600">
         <p className="font-semibold text-slate-800">Identity not CIPC-verified yet</p>
         <p className="text-xs mt-1 leading-relaxed">
-          On SupplierAdvisor, companies can pay R69 for a live CIPC company
+          On SupplierAdvisor®, companies can pay R69 for a live CIPC company
           match. Verified listings show a badge and aim for same-day resolution
           under a 24-hour paid verification SLA.
         </p>
@@ -62,7 +62,7 @@ export default function VerifiedSlaBadge({
           </p>
           <p className="text-xs text-emerald-900/85 mt-1 leading-relaxed">
             This company completed paid CIPC company verification on
-            SupplierAdvisor. Payment is confirmed via Paystack; verification
+            SupplierAdvisor®. Payment is confirmed via Paystack; verification
             targets a <strong>24-hour SLA</strong> from successful payment to
             badge (or clear mismatch/failure with self-serve re-run — no second
             charge).

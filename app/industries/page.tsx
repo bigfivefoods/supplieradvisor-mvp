@@ -40,7 +40,7 @@ export const metadata: Metadata = marketingMetadata({
     'clinic practice software',
     'veterinary practice software',
     'public sector procurement',
-    'SupplierAdvisor industries',
+    'SupplierAdvisor® industries',
   ],
 });
 

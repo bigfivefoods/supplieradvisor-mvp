@@ -10,12 +10,12 @@ export const metadata: Metadata = {
     'B2B marketplace',
     'supplier products',
     'verified suppliers',
-    'SupplierAdvisor marketplace',
+    'SupplierAdvisor® marketplace',
     'wholesale catalogue',
     'trade network',
   ],
   openGraph: {
-    title: 'SupplierAdvisor Marketplace',
+    title: 'SupplierAdvisor® Marketplace',
     description: 'Browse verified B2B product listings and connect with trusted suppliers.',
     url: `${SITE_URL}/marketplace`,
     type: 'website',
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'SupplierAdvisor Marketplace',
+    title: 'SupplierAdvisor® Marketplace',
     description: 'Browse verified B2B product listings and connect with trusted suppliers.',
     images: [SA_OG_IMAGE_URL],
   },
