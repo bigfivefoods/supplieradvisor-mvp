@@ -8,7 +8,7 @@ import { customerAppPath, isPublicTradeToken } from '@/lib/trades/tradegraph';
 export default function TradegraphJoinTokenPage() {
   const { token } = useParams() as { token: string };
   const safe = isPublicTradeToken(token) ? token : '';
-  const [brand, setBrand] = useState('TradeAdvisor');
+  const [brand, setBrand] = useState('TradeAdvisor®');
   const [city, setCity] = useState('');
   const [missing, setMissing] = useState(false);
 

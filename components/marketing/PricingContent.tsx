@@ -170,6 +170,13 @@ export default function PricingContent({
           </div>
         </section>
 
+        <section className="border-b border-slate-200">
+          <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
+            <h2 className="text-2xl font-black tracking-tight sm:text-3xl">{t(dict, 'pricing.packsTitle')}</h2>
+            <p className="mt-3 max-w-3xl text-slate-700">{t(dict, 'pricing.packsBody')}</p>
+          </div>
+        </section>
+
         <section id={PRICING_SECTION_IDS.referral} className="sa-anchor border-b border-slate-200">
           <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
             <h2 className="text-2xl font-black tracking-tight sm:text-3xl">{t(dict, 'pricing.referralTitle')}</h2>

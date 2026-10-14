@@ -150,7 +150,10 @@ export const en = {
   'pricing.companyProfile': 'Download company profile (PDF)',
   'pricing.englishNote': 'EN',
   'pricing.tiers': 'Billing tiers',
-  'pricing.tiersBody': 'All tiers include unlimited users and the same full SupplierAdvisor® product scope. Choose a billing term that fits your budgeting rhythm and maturity stage.',
+  'pricing.tiersBody': 'All tiers include unlimited users and the same core SupplierAdvisor® operating system. Choose a billing term that fits your budgeting rhythm and maturity stage.',
+  'pricing.packsTitle': 'Core plan plus industry packs',
+  'pricing.packsBody':
+    'The company plan is the core operating system, from R299/month. TradeAdvisor® is sold the same way as the other industry packs: an add-on at +R199/month on top of core. Prepaid terms discount the pack as well.',
   'pricing.tier.monthly': 'Monthly',
   'pricing.tier.1y': '1 year',
   'pricing.tier.2y': '2 years',
@@ -187,7 +190,7 @@ export const en = {
     'R299/mo is the current monthly list rate for one company subscription. Prepaid 1-year, 2-year, and 3-year tiers reduce the effective monthly cost while keeping the same full platform access.',
   'pricing.faq.3.q': 'Do all billing tiers include the same product?',
   'pricing.faq.3.a':
-    'Yes. Every tier includes the same core operating system modules and advisor tools. The difference is billing term length and discount, not feature access.',
+    'Yes. Every billing term includes the same core operating system. Industry packs such as TradeAdvisor® are optional add-ons at +R199/month each on top of core, on every term. Term length changes the discount, not which packs you can add.',
   'pricing.faq.4.q': 'How does the free trial work?',
   'pricing.faq.4.a':
     'New companies get a 30-day free trial with full platform access. No card is required to start, and you can select a paid tier later from billing settings.',

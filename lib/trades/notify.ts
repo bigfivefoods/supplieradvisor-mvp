@@ -1,5 +1,34 @@
 import type { PushPayload } from '@/lib/push/web-push';
 
+/**
+ * TradeAdvisor® alerts reuse the platform mailer and web push.
+ * Required for email: RESEND_API_KEY
+ * Optional for email: RESEND_FROM_EMAIL, RESEND_REPLY_TO (defaults exist)
+ * Required for push: NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY
+ * Optional for push: VAPID_SUBJECT (defaults to mailto:ops@supplieradvisor.com)
+ * Missing keys skip that channel. The job, invoice, or request is still saved.
+ */
+export const TRADE_EMAIL_ENV = ['RESEND_API_KEY'] as const;
+export const TRADE_EMAIL_OPTIONAL_ENV = ['RESEND_FROM_EMAIL', 'RESEND_REPLY_TO'] as const;
+export const TRADE_PUSH_ENV = ['NEXT_PUBLIC_VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY'] as const;
+export const TRADE_PUSH_OPTIONAL_ENV = ['VAPID_SUBJECT'] as const;
+
+export function tradeNotifyConfig(): {
+  email: boolean;
+  push: boolean;
+  missing: string[];
+} {
+  const missing = [
+    ...TRADE_EMAIL_ENV.filter((key) => !process.env[key]),
+    ...TRADE_PUSH_ENV.filter((key) => !process.env[key]),
+  ];
+  return {
+    email: Boolean(process.env.RESEND_API_KEY),
+    push: Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
+    missing,
+  };
+}
+
 export async function sendTradeEmail(opts: {
   to: string;
   subject: string;
@@ -77,6 +106,44 @@ export function tradeStatusEmail(opts: {
     <p style="color:#64748b;font-size:12px">TradeAdvisor® on SupplierAdvisor®</p>
   </div>`;
   return { subject, html, text };
+}
+
+/** Email the tradesperson and push to their company subscriptions. Either channel may be skipped. */
+export async function notifyTradesperson(opts: {
+  companyId: number;
+  email: string;
+  brand: string;
+  title: string;
+  body: string;
+  url: string;
+}): Promise<{ email: 'sent' | 'skipped' | 'failed'; push: number }> {
+  let email: 'sent' | 'skipped' | 'failed' = 'skipped';
+  try {
+    const mail = tradeStatusEmail({
+      brand: opts.brand,
+      customerName: 'Desk',
+      title: opts.title,
+      body: opts.body,
+      url: opts.url,
+    });
+    email = await sendTradeEmail({ to: opts.email, ...mail });
+  } catch {
+    email = 'failed';
+  }
+  let push = 0;
+  try {
+    const { pushToCompany } = await import('@/lib/push/web-push');
+    const result = await pushToCompany(opts.companyId, {
+      title: `${opts.brand}: ${opts.title}`,
+      body: opts.body,
+      url: opts.url,
+      tag: 'tradegraph',
+    });
+    push = result.sent;
+  } catch {
+    push = 0;
+  }
+  return { email, push };
 }
 
 function escapeHtml(value: string): string {

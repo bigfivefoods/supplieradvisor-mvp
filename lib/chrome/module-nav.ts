@@ -939,7 +939,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
   },
   {
     id: 'tradegraph',
-    name: 'TradeAdvisor',
+    name: 'TradeAdvisor®',
     icon: Wrench,
     href: '/dashboard/tradegraph',
     resource: 'operations',

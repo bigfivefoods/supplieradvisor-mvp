@@ -508,7 +508,7 @@ const MODULES = [
     band: 'industry' as ModuleBand,
     code: 'I2d',
     title: 'TradeAdvisor®',
-    short: 'TradeAdvisor',
+    short: 'TradeAdvisor®',
     tagline: 'Van OS for trades and artisans',
     body: 'Quote a job, run it, and invoice in rand. Order materials from suppliers already on SupplierAdvisor®, keep CoC and PIRB dates in view, and give the customer an installable app for progress, their statement, and new requests.',
     bullets: [

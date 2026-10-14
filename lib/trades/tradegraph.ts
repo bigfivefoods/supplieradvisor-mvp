@@ -6,6 +6,11 @@
  * Money is integer cents. VAT is exclusive (South Africa default 15%).
  */
 
+import {
+  TRADE_PHOTO_MAX_CHARS,
+  TRADE_PHOTO_MAX_COUNT,
+} from '@/lib/trades/photo-limits';
+
 export const TRADE_MODULE_ID = 'tradegraph';
 export const TRADE_PACK_ID = 'trades';
 export const SA_VAT_RATE = 0.15;
@@ -218,8 +223,8 @@ export type CustomerPortal = {
   balance_cents: number;
 };
 
-const PHOTO_MAX = 400_000;
-const MAX_PHOTOS = 3;
+const PHOTO_MAX = TRADE_PHOTO_MAX_CHARS;
+const MAX_PHOTOS = TRADE_PHOTO_MAX_COUNT;
 
 export function newId(prefix: string): string {
   const raw =

@@ -121,13 +121,13 @@ export function TradeDesk({
       });
       const data = (await res.json()) as { store?: TradegraphStore; error?: string };
       if (!res.ok || !data.store) {
-        setError(data.error || 'Could not open TradeAdvisor');
+        setError(data.error || 'Could not open TradeAdvisor®');
         return;
       }
       setStore(data.store);
       setError('');
     } catch {
-      setError('Could not open TradeAdvisor');
+      setError('Could not open TradeAdvisor®');
     } finally {
       setLoading(false);
     }
@@ -212,6 +212,49 @@ export function TradeDesk({
   return <TradegraphRequired>{body}</TradegraphRequired>;
 }
 
+function AlertsEmail({
+  store,
+  preview,
+  onPost,
+}: {
+  store: TradegraphStore;
+  preview: boolean;
+  onPost: (action: string, extra?: Record<string, unknown>) => Promise<void>;
+}) {
+  const [email, setEmail] = useState(store.settings.notify_email || '');
+  return (
+    <form
+      className="mt-4 rounded-3xl border border-slate-200 bg-white p-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (preview) return;
+        void onPost('save_settings', { settings: { notify_email: email.trim() } });
+      }}
+    >
+      <h2 className="font-black">Alerts</h2>
+      <p className="mt-1 text-sm text-slate-600">
+        Customers are emailed and, if they allow it, pushed when a job status changes, when an invoice is issued, and when their statement changes. New job requests come to this address and to this company&apos;s push alerts.
+      </p>
+      <label className="mt-3 block text-sm font-semibold">
+        Tradesperson email
+        <input
+          type="email"
+          className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-normal"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="you@workshop.co.za"
+        />
+      </label>
+      <button
+        type="submit"
+        className="mt-3 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-white"
+      >
+        Save alerts email
+      </button>
+    </form>
+  );
+}
+
 function titleFor(view: TradeView): string {
   if (view === 'customers') return 'Customers';
   if (view === 'jobs') return 'Jobs';
@@ -271,6 +314,7 @@ function DeskBody({
             Load sample book
           </button>
         </div>
+        <AlertsEmail store={store} preview={preview} onPost={onPost} />
         {alerts.length ? (
           <ul className="mt-4 space-y-2">
             {alerts.map((alert) => (

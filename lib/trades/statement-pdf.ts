@@ -16,7 +16,7 @@ export function buildStatementPdf(portal: CustomerPortal): Promise<Buffer> {
 
     doc.rect(0, 0, doc.page.width, 18).fill(CYAN);
     doc.fillColor('#0f172a').fontSize(20).text('Statement', 48, 40);
-    doc.fontSize(11).fillColor('#334155').text(portal.brand.brand_name || 'TradeAdvisor', 48, 68);
+    doc.fontSize(11).fillColor('#334155').text(portal.brand.brand_name || 'TradeAdvisor®', 48, 68);
     doc.text(portal.customer.name, 48, 84);
     doc.fontSize(9).fillColor('#64748b').text(
       [portal.customer.address, portal.customer.suburb, portal.customer.city]

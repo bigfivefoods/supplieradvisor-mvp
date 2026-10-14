@@ -21,6 +21,7 @@ import {
   COMPANY_TRIAL_DAYS,
   formatZar,
 } from '@/lib/billing/company-subscription';
+import { INDUSTRY_PACK_MONTHLY_ZAR } from '@/lib/product/packaging-constants';
 import { FOUNDING_FREE_COMPANY_LIMIT } from '@/lib/billing/lifetime';
 import {
   REFERRAL_LEVEL_RATES_PCT,
@@ -39,7 +40,7 @@ import {
 const INCLUDED = [
   'Unlimited team users per company',
   'Core OS: ops, SRM, CRM, inventory, manufacturing, distribution',
-  'SHEQ, quality, finance, plus Industry Advisors (ConstructionAdvisor®, ApparelAdvisor®, CropAdvisor®, GymAdvisor®…)',
+  `Industry packs on top of core, including TradeAdvisor®, at +R${INDUSTRY_PACK_MONTHLY_ZAR}/mo each`,
   'Projects, ESG/impact, intelligence & Super-Cube®',
   'Verified network, quotes, invoices & cost allocation to the balance sheet',
   'Secure Paystack billing in ZAR · 30-day free trial',

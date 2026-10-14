@@ -25,7 +25,7 @@ type DbError = { code?: string; message?: string } | null;
 
 export class TradeSchemaMissingError extends Error {
   constructor() {
-    super('Apply supabase/migrations/20261014_tradegraph.sql before using TradeAdvisor.');
+    super('Apply supabase/migrations/20261014_tradegraph.sql before using TradeAdvisor®.');
   }
 }
 

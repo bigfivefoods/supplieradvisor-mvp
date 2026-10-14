@@ -141,7 +141,10 @@ const pt: Dict = {
   'pricing.companyProfile': 'Descarregar perfil da empresa (PDF)',
   'pricing.englishNote': 'EN',
   'pricing.tiers': 'Níveis de cobrança',
-  'pricing.tiersBody': 'Todos os níveis incluem utilizadores ilimitados e o mesmo âmbito completo do produto SupplierAdvisor®.',
+  'pricing.tiersBody': 'Todos os níveis incluem utilizadores ilimitados e o mesmo sistema operativo base SupplierAdvisor®.',
+  'pricing.packsTitle': 'Plano base mais pacotes setoriais',
+  'pricing.packsBody':
+    'O plano da empresa é o sistema base, a partir de R299/mês. O TradeAdvisor® vende-se como os outros pacotes setoriais: um extra de +R199/mês sobre a base. Os prazos pré-pagos também descontam o pacote.',
   'pricing.tier.monthly': 'Mensal',
   'pricing.tier.1y': '1 ano',
   'pricing.tier.2y': '2 anos',

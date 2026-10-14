@@ -208,7 +208,7 @@ export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
   retailgraph: 'RetailAdvisor (Till)',
   apparelgraph: 'ApparelAdvisor (Apparel)',
   constructiongraph: 'ConstructionAdvisor',
-  tradegraph: 'TradeAdvisor',
+  tradegraph: 'TradeAdvisor®',
   containers: 'ContainerAdvisor',
   schools: 'SchoolAdvisor',
   health: 'HealthAdvisor',

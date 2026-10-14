@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Download, FileText, HardHat, Plus } from 'lucide-react';
+import { Bell, Download, FileText, HardHat, Plus } from 'lucide-react';
 import {
   customerPortalView,
   formatZar,
@@ -20,7 +20,7 @@ type BeforeInstallPromptEvent = Event & {
 export function CustomerTradeApp({ token }: { token: string }) {
   const demo = token === 'demo';
   const [tab, setTab] = useState<Tab>('jobs');
-  const [brand, setBrand] = useState(demo ? 'Harbour Trades' : 'TradeAdvisor');
+  const [brand, setBrand] = useState(demo ? 'Harbour Trades' : 'TradeAdvisor®');
   const [portal, setPortal] = useState<CustomerPortal | null>(
     demo
       ? customerPortalView(seedDemoTradegraph('2026-10-14T08:00:00.000Z'), 'tc_demo_thandi')
@@ -32,6 +32,7 @@ export function CustomerTradeApp({ token }: { token: string }) {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
+  const [alerts, setAlerts] = useState<'unknown' | 'on' | 'off' | 'unavailable'>('unknown');
   const [request, setRequest] = useState({
     description: '',
     address: '',
@@ -174,6 +175,70 @@ export function CustomerTradeApp({ token }: { token: string }) {
       setMessage('Request sent. It will show on your tradesperson’s quote list.');
       setRequest({ description: '', address: '', preferred_dates: '', photo_urls: [] });
       setTab('jobs');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function allowAlerts() {
+    if (demo) {
+      setMessage('This sample does not register a device. Your invite turns alerts on for real.');
+      return;
+    }
+    if (
+      typeof window === 'undefined' ||
+      !('serviceWorker' in navigator) ||
+      !('PushManager' in window) ||
+      !('Notification' in window)
+    ) {
+      setAlerts('unavailable');
+      setMessage('This browser cannot show alerts. Email updates still arrive if your tradesperson sends them.');
+      return;
+    }
+    setBusy(true);
+    setMessage('');
+    try {
+      const keyRes = await fetch('/api/push/vapid-public-key', { cache: 'no-store' });
+      const keyData = (await keyRes.json()) as { configured?: boolean; publicKey?: string };
+      if (!keyData.configured || !keyData.publicKey) {
+        setAlerts('unavailable');
+        setMessage('Alerts are not available on this book yet. You can still open jobs here.');
+        return;
+      }
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') {
+        setAlerts('off');
+        setMessage('Alerts stay off until this browser allows notifications.');
+        return;
+      }
+      let reg = await navigator.serviceWorker.getRegistration();
+      if (!reg) reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(keyData.publicKey) as BufferSource,
+      });
+      const json = sub.toJSON();
+      const res = await fetch('/api/public/tradegraph', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'push_subscribe',
+          token,
+          endpoint: sub.endpoint,
+          p256dh: json.keys?.p256dh,
+          auth: json.keys?.auth,
+        }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setMessage(data.error || 'Could not turn alerts on.');
+        return;
+      }
+      setAlerts('on');
+      setMessage('Alerts are on for job updates, invoices, and statement changes.');
+    } catch {
+      setMessage('Could not turn alerts on. The rest of the app still works.');
     } finally {
       setBusy(false);
     }
@@ -412,6 +477,19 @@ export function CustomerTradeApp({ token }: { token: string }) {
             <p className="mt-3 text-sm text-slate-600">
               On iPhone, tap Share, then Add to Home Screen.
             </p>
+            <h3 className="mt-6 text-base font-black">Job alerts</h3>
+            <p className="mt-1 text-sm text-slate-600">
+              Allow alerts for status changes, new invoices, and statement updates. If they are not set up yet, the app still works.
+            </p>
+            <button
+              type="button"
+              disabled={busy || alerts === 'on'}
+              onClick={() => void allowAlerts()}
+              className="mt-3 inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-3 text-sm font-bold"
+            >
+              <Bell className="h-4 w-4" />
+              {alerts === 'on' ? 'Alerts on' : alerts === 'unavailable' ? 'Alerts unavailable' : 'Allow alerts'}
+            </button>
           </section>
         ) : null}
       </main>
@@ -441,4 +519,13 @@ export function CustomerTradeApp({ token }: { token: string }) {
       </nav>
     </div>
   );
+}
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
 }

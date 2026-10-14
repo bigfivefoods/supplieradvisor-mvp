@@ -221,7 +221,7 @@ export const ADVISOR_MODULE_CORE_HREF: Record<
     money: '/dashboard/accounting',
   },
   tradegraph: {
-    label: 'TradeAdvisor',
+    label: 'TradeAdvisor®',
     staff: '/dashboard/tradegraph/customers',
     book: '/dashboard/tradegraph/jobs',
     money: '/dashboard/tradegraph/jobs',

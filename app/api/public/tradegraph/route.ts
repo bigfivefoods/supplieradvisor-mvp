@@ -9,7 +9,7 @@ import {
   TRADE_SESSION_COOKIE,
   sessionCookieOptions,
 } from '@/lib/trades/customer-session';
-import { sendTradeEmail, tradeStatusEmail } from '@/lib/trades/notify';
+import { notifyTradesperson, sendTradeEmail, tradeStatusEmail } from '@/lib/trades/notify';
 import { portalFromRows, seedDemoTradegraph } from '@/lib/trades/tradegraph';
 import {
   TradeSchemaMissingError,
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
         });
         const url = `${request.nextUrl.origin}/customer/tradegraph/${encodeURIComponent(publicToken)}?magic=${encodeURIComponent(issued.magic)}`;
         const mail = tradeStatusEmail({
-          brand: found.store.settings.brand_name || 'TradeAdvisor',
+          brand: found.store.settings.brand_name || 'TradeAdvisor®',
           customerName: customer.name,
           title: 'Sign-in code',
           body: `Your code is ${issued.otp}. It expires in 15 minutes. You can also open the link.`,
@@ -125,7 +125,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ portal });
     }
     if (action === 'request_job') {
-      await notifyDesk(publicToken, 'New job request', 'A customer sent a new job request.');
+      const description = String(body.description || '').replace(/\s+/g, ' ').trim().slice(0, 240);
+      await notifyDesk(
+        request,
+        publicToken,
+        'New job request',
+        description
+          ? `A customer asked for work: ${description}`
+          : 'A customer sent a new job request.'
+      );
     }
     return NextResponse.json({ ok: true, result: called.data });
   } catch (error) {
@@ -133,20 +141,20 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function notifyDesk(publicToken: string, title: string, body: string) {
+async function notifyDesk(request: NextRequest, publicToken: string, title: string, body: string) {
   try {
     const found = await workspaceByToken(publicToken);
-    if (!found?.store.settings.notify_email) return;
-    const mail = tradeStatusEmail({
-      brand: found.store.settings.brand_name || 'TradeAdvisor',
-      customerName: 'Desk',
+    if (!found) return;
+    await notifyTradesperson({
+      companyId: found.companyId,
+      email: found.store.settings.notify_email,
+      brand: found.store.settings.brand_name || 'TradeAdvisor®',
       title,
       body,
-      url: '/dashboard/tradegraph/jobs',
+      url: `${request.nextUrl.origin}/dashboard/tradegraph/jobs`,
     });
-    await sendTradeEmail({ to: found.store.settings.notify_email, ...mail });
   } catch {
-    /* desk mail is optional */
+    /* A missing mailer or push key must not fail the customer's request. */
   }
 }
 

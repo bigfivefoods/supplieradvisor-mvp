@@ -78,7 +78,7 @@ async function loadBook(companyId: number): Promise<TradegraphStore> {
     return demo;
   }
   const blank = emptyTradeStore(now, newId('tg'));
-  blank.settings.brand_name = 'TradeAdvisor';
+  blank.settings.brand_name = 'TradeAdvisor®';
   await saveTradeStore(companyId, blank);
   return blank;
 }
@@ -95,15 +95,19 @@ async function notifyCustomer(
   const origin = request.nextUrl.origin;
   const url = `${origin}${customerAppPath(store.settings.public_token)}`;
   const mail = tradeStatusEmail({
-    brand: store.settings.brand_name || 'TradeAdvisor',
+    brand: store.settings.brand_name || 'TradeAdvisor®',
     customerName: customer.name,
     title,
     body,
     url,
   });
-  await sendTradeEmail({ to: customer.email, ...mail });
-  const subs = await customerPushSubs(customerId);
-  await sendTradePush(subs, { title: mail.subject, body, url, tag: 'tradegraph' });
+  try {
+    await sendTradeEmail({ to: customer.email, ...mail });
+    const subs = await customerPushSubs(customerId);
+    await sendTradePush(subs, { title: mail.subject, body, url, tag: 'tradegraph' });
+  } catch {
+    /* A missing mailer or push key must not fail the saved job, invoice, or payment. */
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -221,8 +225,20 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'accept_quote') {
-      store = acceptQuote(store, String(body.quoteId || ''), now);
+      const quoteId = String(body.quoteId || '');
+      const jobsBefore = store.jobs.length;
+      store = acceptQuote(store, quoteId, now);
       await saveTradeStore(companyId, store);
+      const job = store.jobs.find((row) => row.quote_id === quoteId);
+      if (job && store.jobs.length > jobsBefore) {
+        await notifyCustomer(
+          request,
+          store,
+          job.customer_id,
+          `${job.number} is scheduled`,
+          `${job.title} is scheduled. You can follow it in your jobs.`
+        );
+      }
       return jsonStore(store);
     }
 
@@ -242,32 +258,35 @@ export async function POST(request: NextRequest) {
       );
       await saveTradeStore(companyId, store);
       const job = store.jobs.find((row) => row.id === jobId);
-      if (job && body.shared) {
+      const statusChanged = Boolean(before && job && before.status !== job.status);
+      if (job && (body.shared || statusChanged)) {
         await notifyCustomer(
           request,
           store,
           job.customer_id,
-          `${job.number} updated`,
-          String(body.note || `Progress is ${job.progress_pct}%.`)
+          statusChanged ? `${job.number} is ${jobStatusLabel(job.status)}` : `${job.number} updated`,
+          statusChanged
+            ? `${job.title} is ${jobStatusLabel(job.status)} (${job.progress_pct}% complete).`
+            : String(body.note || `Progress is ${job.progress_pct}%.`)
         );
       }
-      void before;
       return jsonStore(store);
     }
 
     if (action === 'invoice_job') {
       const jobId = String(body.jobId || '');
+      const invoicesBefore = store.invoices.length;
       store = invoiceJob(store, jobId, now);
       await saveTradeStore(companyId, store);
       const job = store.jobs.find((row) => row.id === jobId);
       const invoice = store.invoices.find((row) => row.job_id === jobId);
-      if (job && invoice) {
+      if (job && invoice && store.invoices.length > invoicesBefore) {
         await notifyCustomer(
           request,
           store,
           job.customer_id,
-          `${invoice.number} is ready`,
-          `Your invoice for ${job.title} is on your statement.`
+          `Invoice ${invoice.number}`,
+          `A new invoice for ${job.title} is on your statement.`
         );
       }
       return jsonStore(store);
@@ -289,8 +308,8 @@ export async function POST(request: NextRequest) {
           request,
           store,
           invoice.customer_id,
-          `Payment on ${invoice.number}`,
-          'A payment was recorded on your statement.'
+          `Statement updated`,
+          `A payment was recorded on ${invoice.number}. Your statement balance has changed.`
         );
       }
       return jsonStore(store);
@@ -432,7 +451,7 @@ export async function POST(request: NextRequest) {
         issued.magic
       );
       const mail = tradeStatusEmail({
-        brand: store.settings.brand_name || 'TradeAdvisor',
+        brand: store.settings.brand_name || 'TradeAdvisor®',
         customerName: customer.name,
         title: 'Your job app',
         body: `Open your jobs, statement and new requests. One-time code: ${issued.otp}. It expires in 15 minutes. Or use the link.`,
@@ -456,7 +475,16 @@ function fail(error: unknown) {
   if (error instanceof TradeSchemaMissingError) {
     return NextResponse.json({ error: error.message, migration: '20261014_tradegraph.sql' }, { status: 503 });
   }
-  const message = error instanceof Error ? error.message : 'TradeAdvisor request failed';
+  const message = error instanceof Error ? error.message : 'TradeAdvisor® request failed';
   const status = /not found|required|too large|balance|no longer/i.test(message) ? 400 : 500;
   return NextResponse.json({ error: message }, { status });
+}
+
+function jobStatusLabel(status: string): string {
+  if (status === 'in_progress') return 'in progress';
+  if (status === 'scheduled') return 'scheduled';
+  if (status === 'done') return 'done';
+  if (status === 'invoiced') return 'invoiced';
+  if (status === 'cancelled') return 'cancelled';
+  return status.replace(/_/g, ' ');
 }

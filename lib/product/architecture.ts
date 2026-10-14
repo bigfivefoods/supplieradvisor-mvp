@@ -799,8 +799,8 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
   },
   {
     id: 'trades',
-    name: 'Trades & artisans (Services)',
-    shortName: 'Trades',
+    name: 'TradeAdvisor®',
+    shortName: 'TradeAdvisor®',
     description:
       'Tertiary / services industry pack for electricians, plumbers, builders, painters, HVAC and handymen — TradeAdvisor®: quotes, jobs, invoices in rand, materials from SupplierAdvisor® suppliers, schedule, CoC/PIRB reminders, and a customer app.',
     monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
