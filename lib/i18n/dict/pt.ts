@@ -225,6 +225,53 @@ const pt: Dict = {
   'tour.close.body':
     'Percorreu o OS da cadeia de abastecimento SupplierAdvisor® e a sua camada de comércio e confiança verificada. Comece um teste gratuito na sua empresa, ou marque uma demonstração. Estes ecrãs continuam a ser dados de exemplo.',
   'pricing.step': 'Etapa {step}',
+  'home.new.kicker': 'Novo',
+  'home.new.title': 'Novidades no SupplierAdvisor®',
+  'home.new.body':
+    'As adições recentes já na plataforma, com os pacotes setoriais e a verificação no mesmo sistema base.',
+  'home.new.badge': 'Novo',
+  'home.new.onPlatform': 'Na plataforma',
+  'home.new.trade.title': 'TradeAdvisor®',
+  'home.new.trade.body':
+    'Orçamentos, trabalhos e faturas para ofícios, com uma aplicação de cliente instalável: estado do trabalho, extrato e novos pedidos.',
+  'home.new.checklist.title': 'Lista do primeiro arranque',
+  'home.new.checklist.body':
+    'A lista de uma empresa nova marca-se a partir dos registos que já existem: perfil, fornecedor, cliente, primeira ordem de compra, um colega e verificação opcional.',
+  'home.new.tour.title': 'Ecrãs de exemplo, sem registo',
+  'home.new.tour.body':
+    'Ecrãs de exemplo afinados e uma visita guiada ao sistema. Nada fica gravado.',
+  'home.new.gym.title': 'GymAdvisor®',
+  'home.new.gym.body':
+    'Ginásios e fitness: aulas, entrada, treinadores e uma aplicação de membro instalável, no mesmo plano da empresa.',
+  'home.new.industries.title': 'Páginas de setores',
+  'home.new.industries.body':
+    'Páginas para agricultura, construção, fitness, ofícios e os outros setores, num único sistema.',
+  'home.new.verify.title': 'VerifyNow para fornecedores',
+  'home.new.verify.body':
+    'O VerifyNow já está no SupplierAdvisor®: verificação de empresa CIPC e da conta bancária de fornecedores e empresas, e verificação do documento de identidade sul-africano.',
+  'home.packs.kicker': 'Pacotes',
+  'home.packs.coreLabel': 'Sistema base',
+  'home.packs.corePrice': 'R{core} por mês',
+  'home.packs.coreNote': 'Sempre incluído',
+  'home.packs.addon': '+R{pack} por mês cada',
+  'home.packs.specialist':
+    'Os programas públicos, como o SchoolAdvisor®, são acompanhados e não são um pacote de autoatendimento.',
+  'home.packs.pricing': 'Ver preços',
+  'home.packs.industries': 'Todos os setores',
+  'home.trade.kicker': 'TradeAdvisor®',
+  'home.trade.title': 'Orçamento, trabalho, fatura — e uma aplicação de cliente',
+  'home.trade.body':
+    'O TradeAdvisor® é o sistema da carrinha para eletricistas, canalizadores, construtores, pintores, AVAC e faz-tudo. Corre no SupplierAdvisor®, por isso os materiais vêm de fornecedores já na plataforma.',
+  'home.trade.point1': 'Orçamentos, trabalhos e faturas em rand',
+  'home.trade.point2': 'Materiais encomendados a fornecedores SupplierAdvisor®',
+  'home.trade.point3': 'Um calendário de obra',
+  'home.trade.point4': 'Lembretes CoC e PIRB antes de um certificado caducar',
+  'home.trade.point5': 'Uma aplicação de cliente instalável: estado, extrato e novos pedidos',
+  'home.trade.explore': 'Ver ofícios',
+  'home.trade.demo': 'Abrir a aplicação de cliente de exemplo',
+  'home.trade.price': '+R{pack} por mês acima da base',
+  'home.trade.imageAlt':
+    'Aplicação de cliente de exemplo TradeAdvisor® com um trabalho em curso na Harbour Trades',
 };
 
 export default pt;

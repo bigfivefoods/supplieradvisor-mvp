@@ -145,7 +145,7 @@ const MODULE_BAND_META: Record<
   industry: {
     title: 'Industry',
     blurb:
-      'Vertical OS modules for agri, extractives, and services — CropAdvisor®, QuarryAdvisor®, GymAdvisor®, HireAdvisor®, RetailAdvisor®, ContainerAdvisor® and clinic Advisors including VetAdvisor®, with diaries, waitlists, industry PWAs, rooms, marketplace, and in-app care.',
+      'Vertical OS modules for agri, extractives, trades and services — CropAdvisor®, QuarryAdvisor®, TradeAdvisor®, GymAdvisor®, HireAdvisor®, RetailAdvisor®, ContainerAdvisor® and clinic Advisors including VetAdvisor®, with diaries, waitlists, industry PWAs, rooms, marketplace, and in-app care.',
     accent:
       'text-emerald-800 border-emerald-200 bg-emerald-50/80 dark:text-emerald-300 dark:border-emerald-500/40 dark:bg-emerald-500/10',
     step: '03',
@@ -219,6 +219,7 @@ const MODULE_OPTIONS: Array<{
     bullets: [
       'CropAdvisor® agri · QuarryAdvisor® aggregates',
       'ApparelAdvisor® range · ATS · ConstructionAdvisor® contractor OS',
+      'TradeAdvisor® quotes · jobs · customer app',
       'GymAdvisor® · HireAdvisor® · RetailAdvisor® · clinic Advisors',
     ],
     href: '#modules-industry',
@@ -514,6 +515,7 @@ const MODULES = [
     bullets: [
       'Quote · job · invoice in rand',
       'Materials from SupplierAdvisor® suppliers',
+      'Schedule · CoC and PIRB reminders',
       'Customer app · statement PDF · new requests',
     ],
     Mock: TradegraphMock,
@@ -1148,7 +1150,7 @@ export default function HomeBelowFold() {
               {
                 icon: Stethoscope,
                 t: 'Industry & programme solutions that operate',
-                b: 'CropAdvisor®, QuarryAdvisor®, ApparelAdvisor® (range, landed costing, wholesale ATS, buyer line-sheet PWA), ConstructionAdvisor® (BOQ quotes, dated programme, progress payments, client/contractor PWA), GymAdvisor®, HireAdvisor® (hire marketplace · members free · 2.5% on the listing business), clinic Advisors, and SchoolAdvisor® (public-sector NSNP: DBE · school · SP). Most Advisors bill the operating company a subscription; members and patients never pay SupplierAdvisor®.',
+                b: 'CropAdvisor®, QuarryAdvisor®, ApparelAdvisor® (range, landed costing, wholesale ATS, buyer line-sheet PWA), ConstructionAdvisor® (BOQ quotes, dated programme, progress payments, client/contractor PWA), TradeAdvisor® (quotes, jobs, invoices, customer app), GymAdvisor®, HireAdvisor® (hire marketplace · members free · 2.5% on the listing business), clinic Advisors, and SchoolAdvisor® (public-sector NSNP: DBE · school · SP). Most Advisors bill the operating company a subscription; members and patients never pay SupplierAdvisor®.',
               },
               {
                 icon: Fingerprint,
@@ -1719,7 +1721,7 @@ export default function HomeBelowFold() {
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-neutral-400">
                 Pick your economic sector, then one or more industries. Industry
-                Packs unlock CropAdvisor®, QuarryAdvisor®, GymAdvisor®, HireAdvisor® and clinic
+                Packs unlock CropAdvisor®, QuarryAdvisor®, TradeAdvisor®, GymAdvisor®, HireAdvisor® and clinic
                 Advisors. Choose <strong>Public Sector</strong> for SchoolAdvisor®
                 (NSNP / DBE) and government programmes — at +R
                 {INDUSTRY_PACK_MONTHLY_ZAR}/mo each for industry packs.
@@ -1877,7 +1879,7 @@ export default function HomeBelowFold() {
               {
                 icon: ShieldCheck,
                 title: 'Verified companies',
-                body: 'Company verification and certificate metadata so counterparties know who they trade with.',
+                body: 'VerifyNow checks suppliers and companies: a CIPC company match and bank-account verification. SA ID checks use VerifyNow as well, so counterparties can see who they trade with.',
               },
             ].map((p) => (
               <div

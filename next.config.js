@@ -143,6 +143,8 @@ const nextConfig = {
     // does not ask the optimizer for an upscaled frame.
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048],
     formats: ['image/webp'],
+    // 75 keeps the hero. 60 is the below-fold customer-app frame.
+    qualities: [60, 75],
     minimumCacheTTL: 60 * 60 * 24 * 30,
     remotePatterns: [
       {
