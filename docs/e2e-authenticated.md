@@ -25,7 +25,7 @@ APP_URL=https://www.supplieradvisor.com npm run smoke:trade
 CRON_SECRET=… E2E_ACCESS_TOKEN=… E2E_COMPANY_ID=… npm run smoke:trade
 ```
 
-CI: `.github/workflows/e2e-smoke.yml` runs unauth smoke on every push to `main`.
+CI: `.github/workflows/e2e-smoke.yml` runs unauth smoke when a Preview or Production deployment succeeds (checkout is the deployed SHA). Session tests stay in `.github/workflows/e2e-session.yml`.
 
 ## With Privy access token
 
