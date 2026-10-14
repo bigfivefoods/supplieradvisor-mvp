@@ -18,6 +18,11 @@ import { useLocaleDictionary } from '@/components/i18n/LocaleDictionaryProvider'
 import { localizedPath, stripLocale } from '@/lib/i18n/config';
 import AppearanceToggle from '@/components/theme/AppearanceToggle';
 import { useTheme } from '@/components/theme/ThemeProvider';
+import {
+  navOffsetPx,
+  realSection,
+  revealAndScroll,
+} from '@/lib/marketing/home-section-scroll';
 
 /**
  * Links follow the landing story top-to-bottom so the bar never jumps back up.
@@ -133,23 +138,6 @@ function prefersReducedMotion() {
   );
 }
 
-function navOffsetPx() {
-  const header = document.querySelector<HTMLElement>('[data-landing-nav]');
-  if (header) return header.getBoundingClientRect().height;
-  return 68;
-}
-
-function scrollToSection(id: string, behavior?: ScrollBehavior) {
-  const motion = behavior ?? (prefersReducedMotion() ? 'auto' : 'smooth');
-  if (id === 'platform') {
-    window.scrollTo({ top: 0, behavior: motion });
-    return true;
-  }
-  const el = document.getElementById(id);
-  if (!el) return false;
-  el.scrollIntoView({ behavior: motion, block: 'start' });
-  return true;
-}
 
 const GROUP_LABELS: Record<NavLink['group'], 'nav.groupProduct' | 'nav.groupPricing' | 'nav.groupTry'> = {
   product: 'nav.groupProduct',
@@ -217,25 +205,18 @@ export default function LandingNav() {
   }, []);
 
   /** After navigation to /#section (from industries, demo, etc.) */
-  const scrollToHashIfPresent = useCallback((behavior: ScrollBehavior = 'auto') => {
+  const scrollToHashIfPresent = useCallback((behavior: 'smooth' | 'instant' = 'instant') => {
     if (typeof window === 'undefined') return;
     if (stripLocale(window.location.pathname).pathname !== '/') return;
     const hash = window.location.hash.replace(/^#/, '');
-    if (!hash) return;
-    let tries = 0;
-    const tick = () => {
-      tries += 1;
-      if (scrollToSection(hash, behavior)) {
-        setActiveSection(hash);
-        return;
-      }
-      if (tries < 20) window.setTimeout(tick, 50);
-    };
-    window.setTimeout(tick, 40);
+    if (!hash || !/^[A-Za-z][\w-]*$/.test(hash)) return;
+    setActiveSection(hash);
+    // Let the mobile drawer release body scroll-lock before we move.
+    window.setTimeout(() => revealAndScroll(hash, behavior), 0);
   }, []);
 
   useEffect(() => {
-    scrollToHashIfPresent('auto');
+    scrollToHashIfPresent('instant');
   }, [pathname, scrollToHashIfPresent]);
 
   useEffect(() => {
@@ -250,15 +231,12 @@ export default function LandingNav() {
       setActiveSection(null);
       return;
     }
-    const nodes = SPY_SECTIONS.map((id) => document.getElementById(id)).filter(
-      (el): el is HTMLElement => Boolean(el)
-    );
-    if (!nodes.length) return;
-
     const update = () => {
       const offset = navOffsetPx() + 2;
       let current: string | null = null;
-      for (const el of nodes) {
+      for (const id of SPY_SECTIONS) {
+        const el = realSection(id);
+        if (!el) continue;
         if (el.getBoundingClientRect().top - offset <= 0) {
           current = el.id;
         }
@@ -396,11 +374,15 @@ export default function LandingNav() {
    */
   const handleSectionClick = (e: MouseEvent, section: string) => {
     setOpen(false);
+    setDesktopMoreOpen(false);
     if (onHome) {
       e.preventDefault();
-      scrollToSection(section);
+      const homePath = localizedPath(locale, '/');
+      window.history.replaceState(null, '', `${homePath}#${section}`);
       setActiveSection(section);
-      window.history.replaceState(null, '', `/#${section}`);
+      const behavior =
+        prefersReducedMotion() || !realSection(section) ? 'instant' : 'smooth';
+      window.setTimeout(() => revealAndScroll(section, behavior), 0);
       return;
     }
     e.preventDefault();
@@ -450,6 +432,7 @@ export default function LandingNav() {
         hrefLang={l.section ? locale : l.href.startsWith('/#') ? locale : 'en'}
         className={cls}
         data-top-nav-item={!mobile ? l.id : undefined}
+        data-nav-section={l.section}
         aria-current={active ? 'true' : undefined}
         onClick={(e) => {
           if (isSection && l.section) {
@@ -575,6 +558,7 @@ export default function LandingNav() {
                           href={l.section ? `${localizedPath(locale, '/')}#${l.section}` : l.href}
                           hrefLang={l.section ? locale : l.href.startsWith('/#') ? locale : 'en'}
                           role="menuitem"
+                          data-nav-section={l.section}
                           className="flex min-h-10 items-center rounded-xl px-2.5 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-neutral-800"
                           onClick={(e) => {
                             setDesktopMoreOpen(false);
