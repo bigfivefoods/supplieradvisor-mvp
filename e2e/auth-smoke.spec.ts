@@ -78,6 +78,24 @@ test.describe('Tier-1 API auth', () => {
     expect(body).not.toContain('BEGIN:VCALENDAR');
     expect(body).not.toContain('%PDF');
   });
+
+  test('trade verify_otp with a blank email does not open a session', async ({ request }) => {
+    const res = await request.post(`${base}/api/public/tradegraph`, {
+      data: {
+        action: 'verify_otp',
+        token: 'tg_real_probe_109',
+        email: '',
+        code: '000000',
+      },
+    });
+    expect(res.status()).not.toBe(200);
+    const cookies = res
+      .headersArray()
+      .filter((header) => header.name.toLowerCase() === 'set-cookie')
+      .map((header) => header.value)
+      .join('\n');
+    expect(cookies).not.toContain('sa_trade_customer');
+  });
 });
 
 test.describe('Login return query', () => {
