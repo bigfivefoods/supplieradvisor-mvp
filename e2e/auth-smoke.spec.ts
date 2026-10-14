@@ -46,4 +46,18 @@ test.describe('Tier-1 API auth', () => {
     const res = await request.get(`${base}/api/fx/rates`);
     expect([200, 500, 502]).toContain(res.status());
   });
+
+  test('retired directory invite does not send mail', async ({ request }) => {
+    const res = await request.post(`${base}/api/public/directory-invite`, {
+      data: { email: 'x' },
+    });
+    expect([404, 405]).toContain(res.status());
+  });
+
+  test('retired bulk directory invite does not send mail', async ({ request }) => {
+    const res = await request.post(`${base}/api/public/directory-invite/bulk`, {
+      data: { emails: [] },
+    });
+    expect([404, 405]).toContain(res.status());
+  });
 });
