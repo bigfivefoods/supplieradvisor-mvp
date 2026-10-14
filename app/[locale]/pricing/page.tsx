@@ -9,6 +9,8 @@ import {
   MARKETING_PRICING_TERMS,
   PRICING_FAQ_ITEMS,
 } from '@/lib/marketing/pricing-plans';
+import { jsonLdString, pricingFaqJsonLd, pricingProductJsonLd } from '@/lib/seo/jsonld';
+import { PRICING_SHARE_CARD, shareImageSrc } from '@/lib/seo/share-cards';
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -28,10 +30,20 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
       description: t(dict, 'meta.pricing.description'),
       locale: OG_LOCALE[locale],
       url: canonical,
+      images: [
+        {
+          url: shareImageSrc(PRICING_SHARE_CARD.file),
+          width: 1200,
+          height: 630,
+          alt: PRICING_SHARE_CARD.alt,
+        },
+      ],
     },
     twitter: {
+      card: 'summary_large_image',
       title: t(dict, 'meta.pricing.title'),
       description: t(dict, 'meta.pricing.description'),
+      images: [shareImageSrc(PRICING_SHARE_CARD.file)],
     },
   };
 }
@@ -42,62 +54,24 @@ export default async function LocalizedPricingPage({ params }: { params: Promise
 
   const dict = await getLocaleDict(locale as Locale);
   const canonicalUrl = `${SITE_URL}/${locale}/pricing`;
-  const description = 'Company pricing from R299/mo with unlimited users and clear referral savings.';
-  const productJsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Product',
-    name: 'SupplierAdvisor Company Subscription',
+  const description = t(dict, 'meta.pricing.description');
+  const productJsonLd = pricingProductJsonLd(
+    canonicalUrl,
     description,
-    brand: {
-      '@type': 'Brand',
-      name: 'SupplierAdvisor',
-    },
-    offers: {
-      '@type': 'AggregateOffer',
-      priceCurrency: 'ZAR',
-      lowPrice: MARKETING_PRICING_TERMS[0]?.payZar,
-      highPrice: MARKETING_PRICING_TERMS[MARKETING_PRICING_TERMS.length - 1]?.payZar,
-      offerCount: MARKETING_PRICING_TERMS.length,
-      offers: MARKETING_PRICING_TERMS.map((tier) => ({
-        '@type': 'Offer',
-        name: tier.label,
-        priceCurrency: 'ZAR',
-        price: tier.payZar,
-        category: tier.months === 1 ? 'monthly' : 'prepaid',
-        eligibleDuration: {
-          '@type': 'QuantitativeValue',
-          value: tier.months,
-          unitText: 'month',
-        },
-        availability: 'https://schema.org/InStock',
-        url: canonicalUrl,
-      })),
-    },
-  };
-
-  const faqJsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'FAQPage',
-    mainEntity: PRICING_FAQ_ITEMS.map((item) => ({
-      '@type': 'Question',
-      name: item.question,
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: item.answer,
-      },
-    })),
-  };
+    MARKETING_PRICING_TERMS
+  );
+  const faqJsonLd = pricingFaqJsonLd(PRICING_FAQ_ITEMS);
 
   return (
     <>
       <PricingContent locale={locale as Locale} dict={dict} />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(productJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(faqJsonLd) }}
       />
     </>
   );

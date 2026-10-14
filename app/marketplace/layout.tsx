@@ -4,7 +4,8 @@ import { SA_OG_IMAGE_URL } from '@/lib/brand/assets';
 
 export const metadata: Metadata = {
   title: 'Marketplace',
-  description: 'Browse verified B2B product listings and connect with trusted suppliers on SupplierAdvisor.',
+  description:
+    'Browse verified B2B product listings and connect with trusted suppliers on SupplierAdvisor®.',
   keywords: [
     'B2B marketplace',
     'supplier products',
