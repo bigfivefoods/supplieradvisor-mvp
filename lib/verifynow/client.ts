@@ -4,7 +4,7 @@ export type VerifyNowMode = 'sandbox' | 'production';
 
 const VERIFY_BASE = 'https://www.verifynow.co.za/api/external';
 
-function resolveMode(explicit?: VerifyNowMode): VerifyNowMode {
+export function resolveMode(explicit?: VerifyNowMode): VerifyNowMode {
   if (explicit === 'sandbox' || explicit === 'production') return explicit;
   const env = (process.env.VERIFYNOW_MODE as VerifyNowMode) || 'production';
   return env === 'sandbox' ? 'sandbox' : 'production';
@@ -15,9 +15,22 @@ function getApiKey(): string | null {
   return key && key.trim() ? key.trim() : null;
 }
 
+/** True when the server can call VerifyNow. The key never leaves the server. */
+export function isVerifyNowConfigured(): boolean {
+  return Boolean(getApiKey());
+}
+
+export type VerifyNowPath =
+  | '/verify'
+  | '/cipc'
+  | '/bank-account-verification'
+  | '/business-bank-account-verification'
+  | '/aml-screening';
+
 async function postVerifyNow(
-  path: '/verify' | '/cipc' | '/bank-account-verification',
-  body: Record<string, unknown>
+  path: VerifyNowPath,
+  body: Record<string, unknown>,
+  idempotencyKey?: string
 ): Promise<{ ok: boolean; status: number; data: Record<string, unknown>; error?: string }> {
   const apiKey = getApiKey();
   if (!apiKey) {
@@ -29,13 +42,15 @@ async function postVerifyNow(
     };
   }
 
+  const key = String(idempotencyKey || '').trim() || crypto.randomUUID();
+
   try {
     const response = await fetch(`${VERIFY_BASE}${path}`, {
       method: 'POST',
       headers: {
         'x-api-key': apiKey,
         'Content-Type': 'application/json',
-        'Idempotency-Key': crypto.randomUUID(),
+        'Idempotency-Key': key,
       },
       body: JSON.stringify(body),
     });
@@ -181,7 +196,7 @@ function normalizeCompanyName(s: string): string {
     .trim();
 }
 
-function compareCompanyNames(
+export function compareCompanyNames(
   localNames: string[],
   remoteName: string,
   remoteTrade?: string
@@ -291,15 +306,20 @@ export async function callVerifyNowSaid(params: {
   idNumber: string;
   mode?: VerifyNowMode;
   reportType?: 'said_verification' | 'consumer_trace';
+  idempotencyKey?: string;
 }): Promise<{ ok: boolean; status: number; data: Record<string, unknown>; error?: string }> {
   const mode = resolveMode(params.mode);
   const reportType = params.reportType || 'said_verification';
 
-  return postVerifyNow('/verify', {
-    reportType,
-    idNumber: params.idNumber.replace(/\s/g, ''),
-    mode,
-  });
+  return postVerifyNow(
+    '/verify',
+    {
+      reportType,
+      idNumber: params.idNumber.replace(/\s/g, ''),
+      mode,
+    },
+    params.idempotencyKey
+  );
 }
 
 /**
@@ -312,6 +332,7 @@ export async function callVerifyNowCipcCompany(params: {
   vatNumber?: string;
   solePropIdNumber?: string;
   mode?: VerifyNowMode;
+  idempotencyKey?: string;
 }): Promise<{ ok: boolean; status: number; data: Record<string, unknown>; error?: string }> {
   const mode = resolveMode(params.mode);
   const registration_number = String(params.registrationNumber || '')
@@ -338,7 +359,58 @@ export async function callVerifyNowCipcCompany(params: {
   else if (vat_number) body.vat_number = vat_number;
   else body.sole_prop_id_number = sole_prop_id_number;
 
-  return postVerifyNow('/cipc', body);
+  return postVerifyNow('/cipc', body, params.idempotencyKey);
+}
+
+/**
+ * CIPC Director Search — directorships linked to an SA ID, including VAT
+ * numbers where the registry returns them.
+ * Same /api/external/cipc client as company match; reportType cipc_director_search.
+ */
+export async function callVerifyNowCipcDirectorSearch(params: {
+  idNumber: string;
+  mode?: VerifyNowMode;
+  idempotencyKey?: string;
+}): Promise<{ ok: boolean; status: number; data: Record<string, unknown>; error?: string }> {
+  const idNumber = String(params.idNumber || '').replace(/\s/g, '');
+  if (!/^\d{13}$/.test(idNumber)) {
+    return { ok: false, status: 400, data: {}, error: 'A 13-digit SA ID number is required' };
+  }
+  return postVerifyNow(
+    '/cipc',
+    {
+      reportType: 'cipc_director_search',
+      id_number: idNumber,
+      mode: resolveMode(params.mode),
+    },
+    params.idempotencyKey
+  );
+}
+
+/**
+ * One-shot AML, PEP and sanctions screen.
+ * Docs: POST /api/external/aml-screening
+ */
+export async function callVerifyNowAmlScreening(params: {
+  name: string;
+  mode?: VerifyNowMode;
+  idempotencyKey?: string;
+}): Promise<{ ok: boolean; status: number; data: Record<string, unknown>; error?: string }> {
+  const name = String(params.name || '').trim();
+  if (name.length < 2) {
+    return { ok: false, status: 400, data: {}, error: 'A director name is required for AML screening' };
+  }
+  return postVerifyNow(
+    '/aml-screening',
+    {
+      mode: resolveMode(params.mode),
+      name,
+      entity: 0,
+      country: 'za',
+      dataset: 'all',
+    },
+    params.idempotencyKey
+  );
 }
 
 export type BankAccountType =
@@ -480,6 +552,7 @@ export async function callVerifyNowBankAccount(params: {
   bankName?: string;
   bankAccountType: BankAccountType;
   mode?: VerifyNowMode;
+  idempotencyKey?: string;
 }): Promise<{ ok: boolean; status: number; data: Record<string, unknown>; error?: string }> {
   const mode = resolveMode(params.mode);
   const bankAccountNumber = String(params.bankAccountNumber || '').replace(/\s/g, '');
@@ -530,5 +603,95 @@ export async function callVerifyNowBankAccount(params: {
   const bankName = String(params.bankName || '').trim();
   if (bankName) body.bankName = bankName;
 
-  return postVerifyNow('/bank-account-verification', body);
+  return postVerifyNow('/bank-account-verification', body, params.idempotencyKey);
+}
+
+/**
+ * Capitec Business and Mercantile company accounts.
+ * Always HTTP 202 + jobId. Webhook signing matches the foreign-bank guide,
+ * which VerifyNow says also covers this route.
+ * POST /api/external/business-bank-account-verification
+ */
+export async function callVerifyNowBusinessBank(params: {
+  companyName: string;
+  registrationNumber: string;
+  bankName?: string;
+  bankAccountNumber: string;
+  bankBranchCode: string;
+  bankAccountType: BankAccountType;
+  purpose: string;
+  webhookUrl: string;
+  webhookSecret: string;
+  mode?: VerifyNowMode;
+  idempotencyKey?: string;
+}): Promise<{ ok: boolean; status: number; data: Record<string, unknown>; error?: string }> {
+  const companyName = String(params.companyName || '').trim();
+  const registrationNumber = String(params.registrationNumber || '').trim();
+  if (!companyName || !registrationNumber) {
+    return {
+      ok: false,
+      status: 400,
+      data: {},
+      error: 'Registered company name and CIPC registration number are required',
+    };
+  }
+  return postVerifyNow(
+    '/business-bank-account-verification',
+    {
+      type: 'Company',
+      surname: companyName,
+      identityNumber: registrationNumber,
+      identityType: 'CompanyRegNumber',
+      bankName: String(params.bankName || '').trim() || undefined,
+      bankAccountNumber: String(params.bankAccountNumber || '').replace(/\s/g, ''),
+      bankBranchCode: String(params.bankBranchCode || '').replace(/\s/g, ''),
+      bankAccountType: params.bankAccountType,
+      consentConfirmed: true,
+      purpose: params.purpose,
+      webhookUrl: params.webhookUrl,
+      webhookSecret: params.webhookSecret,
+      mode: resolveMode(params.mode),
+    },
+    params.idempotencyKey
+  );
+}
+
+/** Zero-credit status read for an async business-bank job. */
+export async function getVerifyNowBusinessBankJob(
+  jobId: string
+): Promise<{ ok: boolean; status: number; data: Record<string, unknown>; error?: string }> {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    return {
+      ok: false,
+      status: 503,
+      data: {},
+      error: 'VERIFYNOW_API_KEY is not configured on the server',
+    };
+  }
+  const id = String(jobId || '').trim();
+  if (!id) return { ok: false, status: 400, data: {}, error: 'jobId is required' };
+  try {
+    const response = await fetch(
+      `${VERIFY_BASE}/business-bank-account-verification/jobs/${encodeURIComponent(id)}`,
+      { headers: { 'x-api-key': apiKey } }
+    );
+    const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!response.ok) {
+      return {
+        ok: false,
+        status: response.status,
+        data,
+        error: String(data.error || data.message || `VerifyNow HTTP ${response.status}`),
+      };
+    }
+    return { ok: true, status: response.status, data };
+  } catch (e: unknown) {
+    return {
+      ok: false,
+      status: 500,
+      data: {},
+      error: e instanceof Error ? e.message : 'VerifyNow network error',
+    };
+  }
 }

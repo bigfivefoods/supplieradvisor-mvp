@@ -10,7 +10,8 @@
 | `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` | Checkout |
 | `PAYSTACK_SECRET_KEY` | Verify payments (R50 bank, R69 CIPC, subscriptions) |
 | `VERIFYNOW_API_KEY` | CIPC + bank AVS + people ID |
-| `VERIFYNOW_MODE` | `production` or `sandbox` |
+| `VERIFYNOW_MODE` | `production` or `sandbox` (code default remains `production`) |
+| `VERIFYNOW_WEBHOOK_SECRET` | HMAC for Capitec Business / Mercantile bank callbacks |
 | `NEXT_PUBLIC_PRIVY_APP_ID` | Auth |
 | `PRIVY_*` | Privy server secrets as configured |
 | `PLATFORM_OWNER_EMAILS` | Comma-separated control-plane owner inboxes (no git defaults) |

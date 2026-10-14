@@ -50,6 +50,11 @@ import { uploadCompanyAssetServerFirst } from '@/lib/business/uploadCompanyAsset
 import SearchVisibilityCard from '@/components/business/SearchVisibilityCard';
 import SecureDocLink from '@/components/storage/SecureDocLink';
 
+const CompanyFieldVerify = dynamic(() => import('@/components/business/CompanyFieldVerify'), {
+  ssr: false,
+  loading: () => null,
+});
+
 const LocationMap = dynamic(() => import('@/components/LocationMap'), {
   ssr: false,
   loading: () => (
@@ -1746,6 +1751,7 @@ function ProfileInner() {
                     value={form.legal_name || ''}
                     onChange={(e) => set('legal_name', e.target.value)}
                   />
+                  <CompanyFieldVerify companyId={companyId} focus="name" />
                 </Field>
                 <Field label="Organisation type" className="sm:col-span-2">
                   <select
@@ -1828,6 +1834,7 @@ function ProfileInner() {
                   onChange={(e) => set('registration_number', e.target.value)}
                   placeholder="2020/123456/07"
                 />
+                <CompanyFieldVerify companyId={companyId} focus="registration" />
               </Field>
               <Field label="VAT number">
                 <input
@@ -1835,6 +1842,7 @@ function ProfileInner() {
                   value={form.vat_number || ''}
                   onChange={(e) => set('vat_number', e.target.value)}
                 />
+                <CompanyFieldVerify companyId={companyId} focus="vat" />
               </Field>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -2645,6 +2653,7 @@ function ProfileInner() {
                     onChange={(e) => set('account_number', e.target.value)}
                     inputMode="numeric"
                   />
+                  <CompanyFieldVerify companyId={companyId} focus="bank" />
                 </Field>
                 <Field label="Branch code">
                   <input
@@ -2869,6 +2878,7 @@ function ProfileInner() {
                     onChange={(e) => set('director_id_number', e.target.value)}
                     placeholder="For bank AVS if no CIPC reg"
                   />
+                  <CompanyFieldVerify companyId={companyId} focus="director" />
                 </Field>
                 <Field label="Import license no.">
                   <input
