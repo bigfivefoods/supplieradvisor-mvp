@@ -9,6 +9,9 @@ import {
   isValidCipcRegistrationNumber,
   parseVerifyNowCipcResult,
 } from '@/lib/verifynow/client';
+import { CUSTOMER_PRICES } from '@/lib/verifynow/prices';
+
+const CIPC_AMOUNT_ZAR = CUSTOMER_PRICES.cipc_company_match.zar;
 
 const GHOST = new Set([
   'is_verified',
@@ -189,7 +192,7 @@ export async function runCipcAfterPayment(opts: {
           ...metaV(profile),
           status: 'pending',
           paystack_reference: paystackReference,
-          amount_zar: 69,
+          amount_zar: CIPC_AMOUNT_ZAR,
           paid_at: prevPaidAt || now,
           checked_at: now,
           error: 'Missing registration/VAT — complete profile then re-run CIPC',
@@ -232,7 +235,7 @@ export async function runCipcAfterPayment(opts: {
       verification: {
         ...metaV(profile),
         paystack_reference: paystackReference,
-        amount_zar: 69,
+        amount_zar: CIPC_AMOUNT_ZAR,
         paid_at: paidAt,
         status: 'pending',
         source: opts.source || 'paystack_webhook',
@@ -265,7 +268,7 @@ export async function runCipcAfterPayment(opts: {
           provider: 'verifynow',
           status: 'failed',
           paystack_reference: paystackReference,
-          amount_zar: 69,
+          amount_zar: CIPC_AMOUNT_ZAR,
           paid_at: paidAt,
           checked_at: now,
           error: vn.error,
@@ -322,7 +325,7 @@ export async function runCipcAfterPayment(opts: {
         checked_at: now,
         paid_at: paidAt,
         paystack_reference: paystackReference,
-        amount_zar: 69,
+        amount_zar: CIPC_AMOUNT_ZAR,
         request_id: parsed.requestId,
         company_name: parsed.companyName,
         trade_name: parsed.tradeName,

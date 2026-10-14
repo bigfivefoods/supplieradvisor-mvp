@@ -23,11 +23,12 @@ import {
   getPaystackPublicKey,
   openPaystackCheckout,
 } from '@/lib/billing/paystack-client';
+import { CUSTOMER_PRICES } from '@/lib/verifynow/prices';
 
-const CIPC_ZAR = 69;
-const CIPC_CENTS = CIPC_ZAR * 100;
-const BANK_ZAR = 50;
-const BANK_CENTS = BANK_ZAR * 100;
+const CIPC_ZAR = CUSTOMER_PRICES.cipc_company_match.zar;
+const CIPC_CENTS = CUSTOMER_PRICES.cipc_company_match.cents;
+const BANK_ZAR = CUSTOMER_PRICES.bank_account.zar;
+const BANK_CENTS = CUSTOMER_PRICES.bank_account.cents;
 const BANK_TYPES = [
   'Current',
   'Savings',

@@ -22,6 +22,7 @@ import {
   SITE_URL,
 } from '@/lib/seo/company-public';
 import VerifiedSlaBadge from '@/components/seo/VerifiedSlaBadge';
+import { readPublicTrust } from '@/lib/verifynow/company-checks';
 import { SA_OG_IMAGE_URL } from '@/lib/brand/assets';
 import { publicStorePath } from '@/lib/storefront/public-store';
 
@@ -396,6 +397,12 @@ export default async function PublicCompanyPage({
                   showBankBadge={showBankBadge}
                   trustScore={c.trust_score}
                   otifefPct={c.otifef_average}
+                  supplierTrust={(() => {
+                    const trust = readPublicTrust(c.metadata);
+                    return trust
+                      ? { status: trust.status, checkedAt: trust.checked_at }
+                      : null;
+                  })()}
                 />
                 {verified ? (
                   <VerifiedSlaBadge verified companyName={name} compact />

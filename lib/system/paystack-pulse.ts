@@ -12,6 +12,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-client';
 const REAL_PULSE_ACTIONS = [
   'billing.paystack_webhook_received',
   'billing.paystack_cipc_webhook',
+  'billing.paystack_field_check_webhook',
   'billing.paystack_refund_webhook',
 ] as const;
 

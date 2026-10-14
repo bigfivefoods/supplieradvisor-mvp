@@ -168,3 +168,68 @@ export async function verifyPaystackTransaction(
     };
   }
 }
+
+export type PaystackRefundResult =
+  | { ok: true; reference: string; status: string }
+  | { ok: false; error: string; status?: number };
+
+/**
+ * Full refund of a Paystack transaction by reference.
+ * Used when a VerifyNow check never delivered a result after the customer paid.
+ */
+export async function refundPaystackTransaction(
+  reference: string
+): Promise<PaystackRefundResult> {
+  const ref = String(reference || '').trim();
+  if (!ref) return { ok: false, error: 'Payment reference is required' };
+
+  const secret = getPaystackSecretKey();
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production') {
+      return {
+        ok: false,
+        error: 'PAYSTACK_SECRET_KEY is not configured. Set it before refunding a payment.',
+        status: 503,
+      };
+    }
+    return { ok: true, reference: ref, status: 'dev_skip' };
+  }
+
+  try {
+    const res = await fetch('https://api.paystack.co/refund', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+      body: JSON.stringify({ transaction: ref }),
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      status?: boolean;
+      message?: string;
+      data?: { status?: string };
+    };
+    const message = String(body.message || '');
+    if (!res.ok || body.status === false) {
+      if (/already|fully/i.test(message) && /refund/i.test(message)) {
+        return { ok: true, reference: ref, status: 'already_refunded' };
+      }
+      return {
+        ok: false,
+        error: message || `Paystack refund failed (${res.status})`,
+        status: res.status,
+      };
+    }
+    return {
+      ok: true,
+      reference: ref,
+      status: String(body.data?.status || 'processed'),
+    };
+  } catch (e: unknown) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Paystack refund request failed',
+    };
+  }
+}

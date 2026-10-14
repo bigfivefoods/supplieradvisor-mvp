@@ -221,6 +221,70 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      const { isFieldCheckCharge, parseFieldCheckReference, readChargeMeta } = await import(
+        '@/lib/verifynow/pay-then-check'
+      );
+      if (isFieldCheckCharge(data)) {
+        const parsed = parseFieldCheckReference(reference);
+        if (!parsed) {
+          await markPaystackWebhook(reference, eventName, 'field_check_bad_reference');
+          return jsonNoStore({
+            received: true,
+            handled: 'field_check_bad_reference',
+            reference,
+          });
+        }
+        const chargeMeta = readChargeMeta(data);
+        try {
+          const { fulfillPaidFieldCheck } = await import('@/lib/verifynow/run-paid-field-check');
+          const result = await fulfillPaidFieldCheck({
+            companyId: parsed.companyId,
+            check: parsed.check,
+            paystackReference: reference,
+            purpose: chargeMeta.check_purpose || '',
+            consent: chargeMeta.consent === 'true',
+            userId: 'paystack:webhook',
+            action: 'run',
+          });
+          const durable =
+            result.httpStatus < 500 && result.httpStatus !== 402 && result.httpStatus !== 429;
+          void recordPaystackWebhookPulse({
+            event: eventName,
+            reference,
+            companyId: parsed.companyId,
+            handled: durable ? 'field_check_after_payment' : 'field_check_retry',
+            action: 'billing.paystack_field_check_webhook',
+            summary: `Paystack charge.success → VerifyNow ${parsed.check} HTTP ${result.httpStatus}`,
+            metadata: { result: result.body },
+          });
+          if (!durable) {
+            return retry({
+              received: true,
+              handled: 'field_check_retry',
+              reference,
+              companyId: parsed.companyId,
+              check: parsed.check,
+              result: result.body,
+            });
+          }
+          await markPaystackWebhook(reference, eventName, 'field_check_after_payment');
+          return jsonNoStore({
+            received: true,
+            handled: 'field_check_after_payment',
+            reference,
+            companyId: parsed.companyId,
+            check: parsed.check,
+            result: result.body,
+          });
+        } catch (e) {
+          return retry({
+            error: e instanceof Error ? e.message : 'field check after payment failed',
+            reference,
+            companyId: parsed.companyId,
+          });
+        }
+      }
+
       const {
         isCipcVerificationCharge,
         companyIdFromPaystackCharge,
@@ -235,8 +299,9 @@ export async function POST(request: NextRequest) {
             const { verifyPaystackTransaction } = await import(
               '@/lib/billing/paystack'
             );
+            const { CUSTOMER_PRICES } = await import('@/lib/verifynow/prices');
             const v = await verifyPaystackTransaction(reference, {
-              expectedAmountCents: 6900,
+              expectedAmountCents: CUSTOMER_PRICES.cipc_company_match.cents,
               expectedCurrency: 'ZAR',
             });
             if (!v.ok && process.env.NODE_ENV === 'production') {
