@@ -54,15 +54,22 @@ export function MemberPortalBrandLockup({
   logoUrl,
   brand,
   eyebrow,
+  onLightFill = false,
 }: {
   logoUrl?: string | null;
   brand: string;
   eyebrow: string;
+  /** Navy type on a pale brand fill (TradeAdvisor® cyan). */
+  onLightFill?: boolean;
 }) {
   return (
     <div className="flex items-center gap-3">
       {logoUrl ? (
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/30 bg-white p-1">
+        <div
+          className={`flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-white p-1 ${
+            onLightFill ? 'border-slate-900/10' : 'border-white/30'
+          }`}
+        >
           <PortalBrandLogo
             logoUrl={logoUrl}
             name={brand}
@@ -71,10 +78,20 @@ export function MemberPortalBrandLockup({
         </div>
       ) : null}
       <div className="min-w-0">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-white/80">
+        <p
+          className={`text-[10px] font-bold uppercase tracking-widest ${
+            onLightFill ? 'text-[#0f172a]/70' : 'text-white/80'
+          }`}
+        >
           {eyebrow}
         </p>
-        <h1 className="mt-1 truncate text-xl font-black md:text-3xl">{brand}</h1>
+        <h1
+          className={`mt-1 truncate text-xl font-black md:text-3xl ${
+            onLightFill ? 'text-[#0f172a]' : ''
+          }`}
+        >
+          {brand}
+        </h1>
       </div>
     </div>
   );

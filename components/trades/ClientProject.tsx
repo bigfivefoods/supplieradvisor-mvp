@@ -7,6 +7,8 @@ import { useTradeBook } from '@/components/trades/TradeBook';
 import { voRegister, type CustomerPack, type FeedReply, type JobPhoto } from '@/lib/trades/desk';
 import { formatZar } from '@/lib/trades/tradegraph';
 import type { ReactNode } from 'react';
+import { Camera, CalendarDays, Newspaper } from 'lucide-react';
+import { TradeEmpty, tradeBtn, tradeCard, tradeCardPad, tradeField, tradeNested } from '@/components/trades/TradeUi';
 
 const GanttChart = dynamic(() => import('@/components/trades/GanttChart').then((mod) => mod.GanttChart));
 
@@ -35,7 +37,7 @@ export function ProjectHomeView({
   const { book } = useTradeBook();
   const job = pack.jobs.find((row) => row.id === jobId) || pack.jobs[0];
   if (!job) {
-    return <p className="rounded-3xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-600">No project yet. Ask for a visit from More.</p>;
+    return <TradeEmpty title="No project yet" hint="Ask for a visit from More." />;
   }
   const home = projectHome(book, job);
   return (
@@ -43,14 +45,14 @@ export function ProjectHomeView({
       {pack.jobs.length > 1 ? (
         <label className="block text-xs font-bold text-slate-600">
           Project
-          <select className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold" value={job.id} onChange={(event) => onJob(event.target.value)}>
+          <select className={`${tradeField} font-bold`} value={job.id} onChange={(event) => onJob(event.target.value)}>
             {pack.jobs.map((row) => (
               <option key={row.id} value={row.id}>{row.number} · {row.title}</option>
             ))}
           </select>
         </label>
       ) : null}
-      <section className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-sm">
+      <section className={tradeCard}>
         <div className="flex items-center gap-4 p-4">
           <ProgressRing pct={home.progress_pct} />
           <div className="min-w-0">
@@ -66,18 +68,18 @@ export function ProjectHomeView({
         </div>
       </section>
       <div className="grid grid-cols-2 gap-3">
-        <article className="rounded-3xl border border-slate-200 bg-white p-4">
+        <article className={tradeCardPad}>
           <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">Current phase</p>
           <p className="mt-1 text-base font-black">{home.current_phase || 'Not started'}</p>
         </article>
-        <article className="rounded-3xl border border-slate-200 bg-white p-4">
+        <article className={tradeCardPad}>
           <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">Next milestone</p>
           <p className="mt-1 text-base font-black">{home.next_milestone || 'None scheduled'}</p>
           {home.next_milestone_on ? <p className="text-sm text-slate-600">{prettyDay(home.next_milestone_on)}</p> : null}
         </article>
       </div>
       {home.latest ? (
-        <article className="rounded-3xl border border-slate-200 bg-white p-4" data-testid="latest-update">
+        <article className={tradeCardPad} data-testid="latest-update">
           <p className="text-[11px] font-black uppercase tracking-wide text-[#00b4d8]">Latest update</p>
           <p className="mt-1 font-black">{home.latest.title}</p>
           <p className="text-sm text-slate-700">{home.latest.body}</p>
@@ -118,7 +120,7 @@ export function ProjectPlanView({ pack, jobId }: { pack: CustomerPack; jobId: st
   const job = pack.jobs.find((row) => row.id === jobId) || pack.jobs[0];
   const programme = job ? pack.programmes.find((row) => row.job_id === job.id) : null;
   if (!job || !programme?.tasks.length) {
-    return <p className="text-sm text-slate-600">The plan appears after a quote is accepted.</p>;
+    return <TradeEmpty title="Plan not locked yet" hint="The plan appears after a quote is accepted." icon={<CalendarDays />} />;
   }
   const register = voRegister(book, job.id, pack.brand.vat_rate);
   return (
@@ -137,7 +139,7 @@ export function ProjectPhotosView({ pack, jobId }: { pack: CustomerPack; jobId: 
   const groups = useMemo(() => groupPhotos(photos), [photos]);
   const [open, setOpen] = useState<number | null>(null);
   if (!photos.length) {
-    return <p className="rounded-3xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-600" data-testid="client-photos">Photos appear as the team works.</p>;
+    return <TradeEmpty title="No site photos yet" hint="Photos appear as the team works." icon={<Camera />} testId="client-photos" />;
   }
   return (
     <div className="space-y-5" data-testid="client-photos">
@@ -154,7 +156,7 @@ export function ProjectPhotosView({ pack, jobId }: { pack: CustomerPack; jobId: 
                     <button key={photo.id} type="button" className="text-left" onClick={() => setOpen(index)}>
                       <figure>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={photo.thumb_url || photo.url} alt={photo.caption} width={320} height={180} loading="lazy" decoding="async" className="h-28 w-full rounded-2xl object-cover" />
+                        <img src={photo.thumb_url || photo.url} alt={photo.caption} width={320} height={180} loading="lazy" decoding="async" className="h-32 w-full rounded-2xl object-cover shadow-sm ring-1 ring-slate-200" />
                         <figcaption className="mt-1 line-clamp-2 text-xs text-slate-600">{photo.caption}</figcaption>
                       </figure>
                     </button>
@@ -242,7 +244,7 @@ function PhotoViewer({
           <button type="button" className="min-h-11 rounded-full border border-white/30 px-4 text-sm font-bold disabled:opacity-40" disabled={index === 0} onClick={() => { setScale(1); onIndex(index - 1); }}>
             Previous
           </button>
-          <button type="button" className="min-h-11 rounded-full bg-[#00b4d8] px-4 text-sm font-bold text-[#0f172a] disabled:opacity-40" disabled={index === photos.length - 1} onClick={() => { setScale(1); onIndex(index + 1); }}>
+          <button type="button" className={`${tradeBtn} disabled:opacity-40`} disabled={index === photos.length - 1} onClick={() => { setScale(1); onIndex(index + 1); }}>
             Next
           </button>
         </div>
@@ -289,7 +291,7 @@ export function ProjectFeedView({ pack, jobId }: { pack: CustomerPack; jobId: st
           }}
         />
       ))}
-      {!items.length ? <p className="text-sm text-slate-600">Updates from the team land here.</p> : null}
+      {!items.length ? <TradeEmpty title="No updates yet" hint="Updates from the team land here." icon={<Newspaper />} /> : null}
     </div>
   );
 }
@@ -310,7 +312,7 @@ function FeedCard({
   onSend: () => void;
 }) {
   return (
-    <article className="rounded-3xl border border-slate-200 bg-white p-4">
+    <article className={tradeCardPad}>
       <p className="text-[11px] font-black uppercase tracking-wide text-[#00b4d8]">{item.title}</p>
       <p className="mt-1 text-sm text-slate-800">{item.body}</p>
       {item.thumb_url ? (
@@ -321,7 +323,7 @@ function FeedCard({
       {replies.length ? (
         <ul className="mt-2 space-y-1 text-sm">
           {replies.map((reply) => (
-            <li key={reply.id} className="rounded-2xl bg-slate-50 px-3 py-2">
+            <li key={reply.id} className={tradeNested}>
               <span className="font-bold">{reply.author}</span> {reply.reaction} {reply.comment}
             </li>
           ))}
@@ -329,7 +331,7 @@ function FeedCard({
       ) : null}
       <div className="mt-2 flex gap-2">
         {['👍', '👀', '🙏'].map((mark) => (
-          <button key={mark} type="button" className="min-h-11 min-w-11 rounded-full border border-slate-200 text-lg" onClick={() => onReact(mark)} aria-label={`React ${mark}`}>
+          <button key={mark} type="button" className="min-h-11 min-w-11 rounded-2xl border border-slate-200 bg-white text-lg shadow-sm transition active:scale-95" onClick={() => onReact(mark)} aria-label={`React ${mark}`}>
             {mark}
           </button>
         ))}
@@ -341,8 +343,8 @@ function FeedCard({
           onSend();
         }}
       >
-        <input className="min-h-11 flex-1 rounded-xl border border-slate-200 px-3 text-sm" value={comment} onChange={(event) => onComment(event.target.value)} placeholder="Comment" />
-        <button className="min-h-11 rounded-full bg-[#00b4d8] px-4 text-sm font-bold text-[#0f172a]" type="submit">
+        <input className={`${tradeField} mt-0 flex-1`} value={comment} onChange={(event) => onComment(event.target.value)} placeholder="Comment" />
+        <button className={tradeBtn} type="submit">
           Send
         </button>
       </form>

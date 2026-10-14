@@ -27,7 +27,7 @@ export default async function EmbedTradePage({ params }: Props) {
             </li>
           ))}
         </ul>
-        <Link className="mt-4 inline-block rounded-full bg-[#00b4d8] px-4 py-2.5 text-sm font-bold text-[#0f172a]" href={`/customer/tradegraph/${encodeURIComponent(token)}`}>
+        <Link className="mt-4 inline-block inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]" href={`/customer/tradegraph/${encodeURIComponent(token)}`}>
           Open the customer app
         </Link>
       </article>

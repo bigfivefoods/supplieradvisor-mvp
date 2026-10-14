@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { TradeBookProvider, useTradeBook } from '@/components/trades/TradeBook';
+import { TradeHero, TradeLoading, tradeBtn, tradeCard, tradeKickerClass } from '@/components/trades/TradeUi';
 import {
   QuoteSheet,
   TradeBoard,
@@ -86,20 +87,25 @@ function DeskBody({
 }) {
   const { book, ready } = useTradeBook();
   return (
-    <main className="min-h-dvh bg-[#f4f7fb] text-slate-900">
-      <header className="border-b border-slate-200 bg-white">
+    <main className="min-h-dvh bg-gradient-to-b from-sky-50 to-slate-50 text-slate-900">
+      <header className="border-b border-slate-200/80 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">TradeAdvisor®</p>
-            <h1 className="text-xl font-black">{book.store.settings.brand_name}</h1>
-            <p className="text-sm text-slate-600">{book.store.settings.city} · {book.store.settings.phone}</p>
+          <div className="min-w-0">
+            <p className={tradeKickerClass}>TradeAdvisor®</p>
+            <h1 className="truncate text-2xl font-black tracking-tight text-slate-900">{book.store.settings.brand_name}</h1>
+            <p className="truncate text-sm text-slate-600">{book.store.settings.city} · {book.store.settings.phone}</p>
           </div>
-          <div className="h-10 w-10 rounded-2xl bg-[#00b4d8]" aria-hidden />
+          <div
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#00b4d8] text-lg font-black text-[#0f172a] shadow-sm"
+            aria-hidden
+          >
+            {(book.store.settings.brand_name || 'T').slice(0, 1).toUpperCase()}
+          </div>
         </div>
       </header>
-      <div className="mx-auto max-w-6xl px-4 py-4">
+      <div className="mx-auto max-w-6xl px-4 py-5">
         {view === 'sheet' || view === 'pay' ? null : <TradeNav base={base} />}
-        {!ready ? <p className="text-sm text-slate-600">Loading the book…</p> : <View base={base} view={view} quoteId={quoteId} jobId={jobId} invoiceId={invoiceId} payRef={payRef} startNew={startNew} heading={heading} />}
+        {!ready ? <TradeLoading /> : <View base={base} view={view} quoteId={quoteId} jobId={jobId} invoiceId={invoiceId} payRef={payRef} startNew={startNew} heading={heading} />}
       </div>
     </main>
   );
@@ -152,23 +158,31 @@ function PayLink({ invoiceId, payRef }: { invoiceId: string; payRef: string }) {
   const meta = invoice ? book.desk.invoice_meta.find((row) => row.invoice_id === invoice.id) : null;
   const reference = payRef || meta?.pay_reference || '';
   return (
-    <article className="mx-auto max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-sm" data-testid="pay-page">
-      <div className="h-2 rounded-full bg-[#00b4d8]" />
-      <p className="mt-4 text-xs font-black uppercase tracking-widest text-[#00b4d8]">Paystack</p>
-      <h2 className="text-2xl font-black">{invoice ? invoice.number : 'Invoice'}</h2>
-      <p className="mt-2 text-3xl font-black" data-testid="pay-amount">{invoice ? formatZar(invoice.total_cents) : 'Amount on the invoice'}</p>
-      <p className="text-sm text-slate-600">South African rand, VAT included.</p>
-      <p className="mt-4 text-sm">Reference <strong data-testid="pay-ref">{reference || 'pending'}</strong></p>
-      <p className="mt-4 text-sm text-slate-600">
-        This page is the pay link. A live book with a Paystack secret opens Paystack checkout. The sample book shows the amount and reference and does not charge a card.
-      </p>
-      <a className="mt-4 inline-block rounded-full bg-[#00b4d8] px-4 py-2.5 text-sm font-bold text-[#0f172a]" href={meta?.pay_url || '#pay'}>
-        Continue
-      </a>
+    <article className="mx-auto max-w-md space-y-3" data-testid="pay-page">
+      <TradeHero
+        kicker="Paystack"
+        title={invoice ? invoice.number : 'Invoice'}
+        detail="South African rand, VAT included."
+      >
+        <p className="text-3xl font-black tabular-nums" data-testid="pay-amount">{invoice ? formatZar(invoice.total_cents) : 'Amount on the invoice'}</p>
+      </TradeHero>
+      <div className={`${tradeCard} space-y-3 p-5`}>
+        <p className="text-sm text-slate-700">Reference <strong data-testid="pay-ref">{reference || 'pending'}</strong></p>
+        <p className="text-sm leading-relaxed text-slate-600">
+          This page is the pay link. A live book with a Paystack secret opens Paystack checkout. The sample book shows the amount and reference and does not charge a card.
+        </p>
+        <a className={tradeBtn} href={meta?.pay_url || '#pay'}>
+          Continue
+        </a>
+      </div>
     </article>
   );
 }
 
 export function TradePageFallback({ children }: { children?: ReactNode }) {
-  return <main className="p-8 text-sm text-slate-600">{children || 'Opening TradeAdvisor®…'}</main>;
+  return (
+    <main className="min-h-dvh bg-gradient-to-b from-sky-50 to-slate-50 p-8">
+      <TradeLoading label={typeof children === 'string' ? children : 'Opening TradeAdvisor®…'} />
+    </main>
+  );
 }

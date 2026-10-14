@@ -224,7 +224,7 @@ function AlertsEmail({
   const [email, setEmail] = useState(store.settings.notify_email || '');
   return (
     <form
-      className="mt-4 rounded-3xl border border-slate-200 bg-white p-4"
+      className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
       onSubmit={(event) => {
         event.preventDefault();
         if (preview) return;
@@ -239,7 +239,7 @@ function AlertsEmail({
         Tradesperson email
         <input
           type="email"
-          className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-normal"
+          className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30 font-normal"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="you@workshop.co.za"
@@ -247,7 +247,7 @@ function AlertsEmail({
       </label>
       <button
         type="submit"
-        className="mt-3 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]"
+        className="mt-3 inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]"
       >
         Save alerts email
       </button>
@@ -292,7 +292,7 @@ function DeskBody({
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
             href={customerAppPath(preview ? 'demo' : store.settings.public_token)}
-            className="rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]"
+            className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]"
           >
             Customer app
           </Link>
@@ -356,7 +356,7 @@ function Customers({
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <form
-        className="rounded-3xl border border-slate-200 bg-white p-4"
+        className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
         onSubmit={(event) => {
           event.preventDefault();
           void onPost('save_customer', { customer: form });
@@ -367,19 +367,19 @@ function Customers({
           <label key={key} className="mt-3 block text-sm font-semibold capitalize">
             {key}
             <input
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-normal"
+              className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30 font-normal"
               value={form[key]}
               onChange={(event) => setForm({ ...form, [key]: event.target.value })}
             />
           </label>
         ))}
-        <button type="submit" className="mt-4 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]">
+        <button type="submit" className="mt-4 inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]">
           Save customer
         </button>
       </form>
       <ul className="space-y-3">
         {store.customers.map((customer) => (
-          <li key={customer.id} className="rounded-3xl border border-slate-200 bg-white p-4">
+          <li key={customer.id} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <h3 className="font-black">{customer.name}</h3>
             <p className="text-sm text-slate-600">
               {customer.email} · {customer.phone}
@@ -437,7 +437,7 @@ function Jobs({
               {row.status === 'new' ? (
                 <button
                   type="button"
-                  className="mt-2 rounded-full bg-[#00b4d8] px-3 py-1 text-xs font-bold text-[#0f172a]"
+                  className="mt-2 inline-flex min-h-10 items-center justify-center rounded-2xl bg-[#00b4d8] px-3 text-xs font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]"
                   onClick={() =>
                     preview
                       ? applyLocal(() => requestToQuote(store, row.id, now))
@@ -467,7 +467,7 @@ function Jobs({
                 {quote.status === 'sent' || quote.status === 'draft' ? (
                   <button
                     type="button"
-                    className="mt-2 rounded-full bg-[#00b4d8] px-3 py-1 text-xs font-bold text-[#0f172a]"
+                    className="mt-2 inline-flex min-h-10 items-center justify-center rounded-2xl bg-[#00b4d8] px-3 text-xs font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]"
                     onClick={() =>
                       preview
                         ? applyLocal(() => acceptQuote(store, quote.id, now))
@@ -566,7 +566,7 @@ function Jobs({
               {invoice.status !== 'paid' && invoice.status !== 'void' ? (
                 <button
                   type="button"
-                  className="mt-2 rounded-full bg-[#00b4d8] px-3 py-1 text-xs font-bold text-[#0f172a]"
+                  className="mt-2 inline-flex min-h-10 items-center justify-center rounded-2xl bg-[#00b4d8] px-3 text-xs font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]"
                   onClick={() =>
                     preview
                       ? applyLocal(() => recordPayment(store, invoice.id, 100_000, 'EFT', now))
@@ -620,7 +620,7 @@ function Materials({
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <form
-        className="rounded-3xl border border-slate-200 bg-white p-4"
+        className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
         onSubmit={(event) => {
           event.preventDefault();
           const picked = suppliers.find((row) => row.id === supplierId);
@@ -641,7 +641,7 @@ function Materials({
         <label className="mt-3 block text-sm font-semibold">
           Supplier book
           <select
-            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+            className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30"
             value={supplierId ?? ''}
             onChange={(event) => setSupplierId(event.target.value ? Number(event.target.value) : null)}
           >
@@ -656,7 +656,7 @@ function Materials({
         <label className="mt-3 block text-sm font-semibold">
           Or supplier name
           <input
-            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+            className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30"
             value={supplierName}
             onChange={(event) => setSupplierName(event.target.value)}
           />
@@ -664,12 +664,12 @@ function Materials({
         <label className="mt-3 block text-sm font-semibold">
           Material
           <input
-            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+            className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
           />
         </label>
-        <button type="submit" className="mt-4 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]">
+        <button type="submit" className="mt-4 inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]">
           Place order
         </button>
         <Link href="/dashboard/suppliers" className="mt-3 block text-sm font-bold text-[#00b4d8]">
@@ -719,18 +719,18 @@ function Schedule({
         }}
       >
         <input
-          className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+          className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30 text-sm"
           placeholder="Visit"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
         />
         <input
           type="datetime-local"
-          className="rounded-xl border border-slate-200 px-3 py-2 text-sm"
+          className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30 text-sm"
           value={starts}
           onChange={(event) => setStarts(event.target.value)}
         />
-        <button type="submit" className="rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]">
+        <button type="submit" className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]">
           Add to schedule
         </button>
       </form>
@@ -766,7 +766,7 @@ function Compliance({
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <form
-        className="rounded-3xl border border-slate-200 bg-white p-4"
+        className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
         onSubmit={(event) => {
           event.preventDefault();
           void onPost('save_compliance', { cert: form });
@@ -776,7 +776,7 @@ function Compliance({
         <label className="mt-3 block text-sm font-semibold">
           Kind
           <select
-            className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+            className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30"
             value={form.kind}
             onChange={(event) => setForm({ ...form, kind: event.target.value })}
           >
@@ -791,13 +791,13 @@ function Compliance({
             {key === 'expires_on' ? 'Expires' : key}
             <input
               type={key === 'expires_on' ? 'date' : 'text'}
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+              className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30"
               value={form[key]}
               onChange={(event) => setForm({ ...form, [key]: event.target.value })}
             />
           </label>
         ))}
-        <button type="submit" className="mt-4 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]">
+        <button type="submit" className="mt-4 inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]">
           Save certificate
         </button>
       </form>

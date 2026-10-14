@@ -23,7 +23,7 @@ function CrewInner({ token }: { token: string }) {
       <main className="mx-auto max-w-md p-6">
         <h1 className="text-xl font-black">TradeAdvisor® work app</h1>
         <p className="mt-2 text-sm text-slate-600">This link is not on the sample book. Sign in to open your company.</p>
-        <Link className="mt-4 inline-block rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" href="/work/tradegraph">
+        <Link className="mt-4 inline-block inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]" href="/work/tradegraph">
           Sign in
         </Link>
       </main>

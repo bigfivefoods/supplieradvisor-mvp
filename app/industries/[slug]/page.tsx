@@ -46,6 +46,7 @@ export default async function IndustryDetailPage({ params }: Props) {
 
   const related = relatedIndustries(ind.slug);
   const showPackPrice = Boolean(ind.pack) && ind.slug !== 'public-sector';
+  const trades = ind.slug === 'trades';
 
   return (
     <div className="min-h-dvh bg-[#f8fafc] text-slate-900">
@@ -75,7 +76,11 @@ export default async function IndustryDetailPage({ params }: Props) {
         <div className="mt-8 flex flex-wrap gap-3">
           <Link
             href="/onboarding?type=business"
-            className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-bold text-white hover:bg-[#0099b8]"
+            className={
+              trades
+                ? 'inline-flex min-h-12 items-center gap-2 rounded-2xl bg-[#00b4d8] px-6 py-3 text-sm font-black text-[#0f172a] shadow-sm'
+                : 'inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-bold text-white hover:bg-[#0099b8]'
+            }
           >
             Start {COMPANY_TRIAL_DAYS}-day free trial{' '}
             <ArrowRight className="h-4 w-4" />
@@ -86,7 +91,41 @@ export default async function IndustryDetailPage({ params }: Props) {
           >
             Interactive demo
           </Link>
+          {trades ? (
+            <Link
+              href="/preview/tradegraph"
+              className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-3 text-sm font-black text-slate-800 shadow-sm"
+            >
+              Harbour Plumbing sample
+            </Link>
+          ) : null}
         </div>
+
+        {trades ? (
+          <section className="mt-10 overflow-hidden rounded-3xl bg-[#00b4d8] p-6 text-[#0f172a] shadow-sm sm:p-8">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0f172a]/70">
+              TradeAdvisor®
+            </p>
+            <h2 className="mt-2 max-w-2xl text-3xl font-black tracking-tight">
+              The van OS, with the same care as the gym desk.
+            </h2>
+            <p className="mt-2 max-w-xl text-sm font-semibold leading-relaxed text-[#0f172a]/80">
+              Owner office, technician app, and customer app share one book: quotes, the Gantt, invoices in rand, and site photos.
+            </p>
+            <div className="mt-5 grid grid-cols-3 gap-2">
+              {[
+                ['Quotes', 'VAT in rand'],
+                ['Jobs', 'Plan and photos'],
+                ['Wallet', 'Paystack links'],
+              ].map(([label, hint]) => (
+                <div key={label} className="rounded-2xl bg-white/85 px-3 py-3 text-center">
+                  <p className="text-sm font-black">{label}</p>
+                  <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-[#0f172a]/70">{hint}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <div className="mt-14 grid gap-6 lg:grid-cols-2">
           <div className="rounded-3xl border border-rose-100 bg-white p-6 sm:p-8">

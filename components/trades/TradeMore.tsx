@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useTradeBook } from '@/components/trades/TradeBook';
-import { GymSectionTitle } from '@/components/fitness/GymMemberPwaUi';
+import { TradeHeading } from '@/components/trades/TradeUi';
 
 export function TradeTasks() {
   const { book, dispatch } = useTradeBook();
@@ -12,29 +12,29 @@ export function TradeTasks() {
   return (
     <div className="space-y-4">
       <form
-        className="rounded-3xl border border-slate-200 bg-white p-4"
+        className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
         onSubmit={(event) => {
           event.preventDefault();
           dispatch({ type: 'save_task', title, due, assignee_id: book.desk.team[1]?.id || null });
           setTitle('');
         }}
       >
-        <GymSectionTitle hint="Follow-ups for the office and the van.">Tasks</GymSectionTitle>
+        <TradeHeading hint="Follow-ups for the office and the van.">Tasks</TradeHeading>
         <label className="mt-3 block text-sm font-semibold">
           Task
-          <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={title} onChange={(event) => setTitle(event.target.value)} required />
+          <input className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30" value={title} onChange={(event) => setTitle(event.target.value)} required />
         </label>
         <label className="mt-3 block text-sm font-semibold">
           Due
-          <input className="mt-1 rounded-xl border border-slate-200 px-3 py-2" type="date" value={due} onChange={(event) => setDue(event.target.value)} />
+          <input className="mt-1 min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30" type="date" value={due} onChange={(event) => setDue(event.target.value)} />
         </label>
-        <button className="mt-3 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" type="submit">
+        <button className="mt-3 inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]" type="submit">
           Add task
         </button>
       </form>
       <ul className="space-y-2">
         {book.desk.tasks.map((task) => (
-          <li key={task.id} className="rounded-3xl border border-slate-200 bg-white p-4 text-sm">
+          <li key={task.id} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm text-sm">
             <label className="flex items-start gap-3">
               <input type="checkbox" checked={task.done} onChange={() => dispatch({ type: 'toggle_task', task_id: task.id })} />
               <span>
@@ -70,8 +70,8 @@ export function TradeMessages() {
           </li>
         ))}
       </ul>
-      <section className="rounded-3xl border border-slate-200 bg-white p-4">
-        <GymSectionTitle>Messages</GymSectionTitle>
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <TradeHeading>Messages</TradeHeading>
         <ul className="mt-3 space-y-2">
           {thread.map((row) => (
             <li key={row.id} className={`rounded-2xl px-3 py-2 text-sm ${row.from === 'desk' ? 'bg-sky-50' : 'bg-slate-50'}`}>
@@ -90,8 +90,8 @@ export function TradeMessages() {
           }}
         >
           <label className="sr-only" htmlFor="trade-message">Message</label>
-          <input id="trade-message" className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm" value={body} onChange={(event) => setBody(event.target.value)} placeholder="Write to the customer" required />
-          <button className="rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" type="submit">Send</button>
+          <input id="trade-message" className="flex-1 min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30 text-sm" value={body} onChange={(event) => setBody(event.target.value)} placeholder="Write to the customer" required />
+          <button className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]" type="submit">Send</button>
         </form>
       </section>
     </div>
@@ -106,17 +106,17 @@ export function TradeSites() {
   return (
     <div className="space-y-4">
       <form
-        className="rounded-3xl border border-slate-200 bg-white p-4"
+        className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
         onSubmit={(event) => {
           event.preventDefault();
           dispatch({ type: 'add_site', customer_id: customerId, label, address, suburb: '', city: book.store.settings.city });
           setAddress('');
         }}
       >
-        <GymSectionTitle hint="A customer can have more than one property.">Sites</GymSectionTitle>
+        <TradeHeading hint="A customer can have more than one property.">Sites</TradeHeading>
         <label className="mt-3 block text-sm font-semibold">
           Customer
-          <select className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
+          <select className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
             {book.store.customers.map((row) => (
               <option key={row.id} value={row.id}>{row.name}</option>
             ))}
@@ -124,19 +124,19 @@ export function TradeSites() {
         </label>
         <label className="mt-3 block text-sm font-semibold">
           Label
-          <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={label} onChange={(event) => setLabel(event.target.value)} required />
+          <input className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30" value={label} onChange={(event) => setLabel(event.target.value)} required />
         </label>
         <label className="mt-3 block text-sm font-semibold">
           Address
-          <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={address} onChange={(event) => setAddress(event.target.value)} required />
+          <input className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30" value={address} onChange={(event) => setAddress(event.target.value)} required />
         </label>
-        <button className="mt-3 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" type="submit">Save site</button>
+        <button className="mt-3 inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]" type="submit">Save site</button>
       </form>
       <ul className="space-y-2">
         {book.desk.sites.map((site) => {
           const customer = book.store.customers.find((row) => row.id === site.customer_id);
           return (
-            <li key={site.id} className="rounded-3xl border border-slate-200 bg-white p-4 text-sm">
+            <li key={site.id} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm text-sm">
               <p className="font-black">{site.label}</p>
               <p>{customer?.name}</p>
               <p className="text-slate-600">{site.address}, {site.suburb} {site.city}</p>
@@ -154,12 +154,12 @@ export function TradeReviews() {
   const { book } = useTradeBook();
   return (
     <div className="space-y-3">
-      <GymSectionTitle hint="Customers leave these from their app.">Reviews</GymSectionTitle>
+      <TradeHeading hint="Customers leave these from their app.">Reviews</TradeHeading>
       <ul className="space-y-2">
         {book.desk.reviews.map((review) => {
           const customer = book.store.customers.find((row) => row.id === review.customer_id);
           return (
-            <li key={review.id} className="rounded-3xl border border-slate-200 bg-white p-4 text-sm">
+            <li key={review.id} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm text-sm">
               <p className="font-black">{review.score}/5 · {customer?.name || 'Customer'}</p>
               <p className="mt-1 text-slate-700">{review.comment}</p>
             </li>
@@ -178,7 +178,7 @@ export function TradeNotices() {
   return (
     <div className="space-y-4">
       <form
-        className="rounded-3xl border border-slate-200 bg-white p-4"
+        className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
         onSubmit={(event) => {
           event.preventDefault();
           dispatch({ type: 'add_notice', title, body });
@@ -186,20 +186,20 @@ export function TradeNotices() {
           setBody('');
         }}
       >
-        <GymSectionTitle hint="Shown to the team and, when you message them, to customers.">Notices</GymSectionTitle>
+        <TradeHeading hint="Shown to the team and, when you message them, to customers.">Notices</TradeHeading>
         <label className="mt-3 block text-sm font-semibold">
           Title
-          <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={title} onChange={(event) => setTitle(event.target.value)} required />
+          <input className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30" value={title} onChange={(event) => setTitle(event.target.value)} required />
         </label>
         <label className="mt-3 block text-sm font-semibold">
           Body
-          <textarea className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={body} onChange={(event) => setBody(event.target.value)} required />
+          <textarea className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30" value={body} onChange={(event) => setBody(event.target.value)} required />
         </label>
-        <button className="mt-3 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" type="submit">Post notice</button>
+        <button className="mt-3 inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]" type="submit">Post notice</button>
       </form>
       <ul className="space-y-2">
         {book.desk.notices.map((notice) => (
-          <li key={notice.id} className="rounded-3xl border border-slate-200 bg-white p-4 text-sm">
+          <li key={notice.id} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm text-sm">
             <p className="font-black">{notice.title}</p>
             <p className="text-slate-700">{notice.body}</p>
             <p className="text-xs text-slate-500">{notice.at.slice(0, 10)}</p>
@@ -216,10 +216,10 @@ export function TradeCompliance() {
   const rows = book.store.compliance;
   return (
     <div className="space-y-3">
-      <GymSectionTitle hint="Certificates of compliance, PIRB, and gas. VerifyNow holds the company badge.">Compliance</GymSectionTitle>
+      <TradeHeading hint="Certificates of compliance, PIRB, and gas. VerifyNow holds the company badge.">Compliance</TradeHeading>
       <ul className="space-y-2">
         {rows.map((row) => (
-          <li key={row.id} className="rounded-3xl border border-slate-200 bg-white p-4 text-sm">
+          <li key={row.id} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm text-sm">
             <p className="font-black">{row.kind.toUpperCase()} · {row.holder}</p>
             <p className="text-slate-600">{row.number}</p>
             <p>Expires {row.expires_on}</p>
@@ -237,17 +237,17 @@ export function TradeArrival() {
   const jobs = book.store.jobs.filter((row) => row.status === 'scheduled' || row.status === 'in_progress');
   return (
     <div className="space-y-3">
-      <GymSectionTitle hint="Clock the moment the van reaches the site.">Arrival</GymSectionTitle>
+      <TradeHeading hint="Clock the moment the van reaches the site.">Arrival</TradeHeading>
       <ul className="space-y-2">
         {jobs.map((job) => (
-          <li key={job.id} className="flex flex-wrap items-center justify-between gap-2 rounded-3xl border border-slate-200 bg-white p-4 text-sm">
+          <li key={job.id} className="flex flex-wrap items-center justify-between gap-2 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm text-sm">
             <span>
               <span className="font-black">{job.number} · {job.title}</span>
               <span className="mt-1 block text-slate-600">{job.address}</span>
             </span>
             <button
               type="button"
-              className="rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]"
+              className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]"
               onClick={() => dispatch({ type: 'arrive', job_id: job.id, member_id: book.desk.team[1]?.id || book.desk.team[0]?.id || '' })}
             >
               I have arrived
@@ -271,28 +271,28 @@ export function TradeWebsite({ base }: { base: string }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <form
-        className="rounded-3xl border border-slate-200 bg-white p-4"
+        className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
         onSubmit={(event) => {
           event.preventDefault();
           dispatch({ type: 'save_brand', brand_name: brand, phone, city });
         }}
       >
-        <GymSectionTitle hint="This is what customers see on quotes, the app, and the embed.">Website and apps</GymSectionTitle>
+        <TradeHeading hint="This is what customers see on quotes, the app, and the embed.">Website and apps</TradeHeading>
         <label className="mt-3 block text-sm font-semibold">
           Trading name
-          <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={brand} onChange={(event) => setBrand(event.target.value)} required />
+          <input className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30" value={brand} onChange={(event) => setBrand(event.target.value)} required />
         </label>
         <label className="mt-3 block text-sm font-semibold">
           Phone
-          <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={phone} onChange={(event) => setPhone(event.target.value)} />
+          <input className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30" value={phone} onChange={(event) => setPhone(event.target.value)} />
         </label>
         <label className="mt-3 block text-sm font-semibold">
           City
-          <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={city} onChange={(event) => setCity(event.target.value)} />
+          <input className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30" value={city} onChange={(event) => setCity(event.target.value)} />
         </label>
-        <button className="mt-3 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" type="submit">Save brand</button>
+        <button className="mt-3 inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]" type="submit">Save brand</button>
       </form>
-      <section className="rounded-3xl border border-slate-200 bg-white p-4 text-sm">
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm text-sm">
         <p className="font-black">Customer app</p>
         <Link className="font-bold text-[#00b4d8]" href={app}>{app}</Link>
         <p className="mt-4 font-black">Embed on your site</p>
@@ -328,5 +328,5 @@ export function TradeWebsite({ base }: { base: string }) {
 }
 
 function Empty({ children }: { children: string }) {
-  return <li className="rounded-3xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-600">{children}</li>;
+  return <li className="rounded-3xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm font-semibold text-slate-600 shadow-sm">{children}</li>;
 }

@@ -39,11 +39,11 @@ function GanttHeading({ jobId }: { jobId: string }) {
   if (!job) return null;
   const customer = book.store.customers.find((row) => row.id === job.customer_id);
   return (
-    <header>
-      <p className="text-xs font-bold uppercase tracking-widest text-[#00b4d8]">{job.number}</p>
-      <h2 className="text-2xl font-black">{job.title}</h2>
-      <p className="text-sm text-slate-600">{customer?.name} · {job.address}</p>
-      <a className="text-sm font-bold text-[#00b4d8]" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`} target="_blank" rel="noreferrer">
+    <header className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#00b4d8]">{job.number}</p>
+      <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">{job.title}</h2>
+      <p className="mt-1 text-sm text-slate-600">{customer?.name} · {job.address}</p>
+      <a className="mt-2 inline-flex text-sm font-bold text-[#00b4d8]" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`} target="_blank" rel="noreferrer">
         Open the site in maps
       </a>
     </header>

@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from 'react';
 import { CalendarDays, Camera, FileText, HardHat, MessageSquare, Newspaper, Wallet } from 'lucide-react';
+import { TradeEmpty, TradeHero, tradeBtn, tradeBtnSm, tradeCardPad, tradeField, tradeGhost, tradeLabel, tradeLink, tradeNested } from '@/components/trades/TradeUi';
 import { MemberAdvisorShell, type MemberAdvisorTab } from '@/components/advisors/MemberAdvisorShell';
 import { TradeInstallPrompt } from '@/components/trades/TradeInstall';
 import { useTradeBook } from '@/components/trades/TradeBook';
@@ -28,7 +29,11 @@ export function ClientPwa({ customerId, balance }: { customerId: string; balance
   }, [book, customerId]);
 
   if (!pack) {
-    return <p className="p-6 text-sm">That customer is not on this sample book.</p>;
+    return (
+      <main className="mx-auto max-w-md p-6">
+        <TradeEmpty title="Customer not on this book" hint="Open the Harbour Plumbing sample from the invite link." />
+      </main>
+    );
   }
 
   const activeJob = pack.jobs.find((row) => row.id === jobId) || pack.jobs.find((row) => row.status === 'in_progress') || pack.jobs[0];
@@ -48,15 +53,16 @@ export function ClientPwa({ customerId, balance }: { customerId: string; balance
     <div data-testid="role-client">
       <MemberAdvisorShell
         color="#00b4d8"
+        solidBrand
         presence={false}
         mobileNav="bottom"
         appHref="/preview/tradegraph"
         fromClass="from-sky-50"
         header={
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-white/80">TradeAdvisor®</p>
-            <h1 className="truncate text-xl font-black">{pack.brand.brand_name}</h1>
-            <p className="text-sm text-white/90">{pack.customer.name}</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#0f172a]/70">TradeAdvisor®</p>
+            <h1 className="truncate text-xl font-black text-[#0f172a]">{pack.brand.brand_name}</h1>
+            <p className="truncate text-sm font-semibold text-[#0f172a]/80">{pack.customer.name}</p>
           </div>
         }
         tabs={tabs}
@@ -140,30 +146,31 @@ function Quotes({
 }) {
   return (
     <div className="space-y-3">
-      <label className="block text-sm font-semibold">
+      <label className={tradeLabel}>
         Your name, for the signature
-        <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" data-testid="sign-name" value={name} onChange={(event) => setName(event.target.value)} />
+        <input className={tradeField} data-testid="sign-name" value={name} onChange={(event) => setName(event.target.value)} />
       </label>
       {pack.quotes.map((quote) => {
         const totals = quoteTotals(quote.lines, pack.brand.vat_rate);
         return (
-          <article key={quote.id} className="rounded-3xl border border-slate-200 bg-white p-4 text-sm" data-testid="quote-card">
-            <p className="font-black">{quote.number} · {quote.title}</p>
-            <p className="text-slate-600">{quote.status} · {formatZar(totals.total_cents)} incl VAT</p>
-            <ul className="mt-2 space-y-1">
+          <article key={quote.id} className={`${tradeCardPad} text-sm`} data-testid="quote-card">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">{quote.number}</p>
+            <p className="mt-1 font-black text-slate-900">{quote.title}</p>
+            <p className="text-slate-600 capitalize">{quote.status} · {formatZar(totals.total_cents)} incl VAT</p>
+            <ul className="mt-3 space-y-1">
               {quote.lines.map((line) => (
-                <li key={line.id}>{line.qty} × {line.description}</li>
+                <li key={line.id} className={tradeNested}>{line.qty} × {line.description}</li>
               ))}
             </ul>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <a
-                className="text-sm font-bold text-[#00b4d8]"
+                className={tradeLink}
                 href={`/api/public/tradegraph/quote-pdf?token=${encodeURIComponent(pack.brand.public_token === 'tg_harbour' || pack.brand.public_token === 'demo' ? 'demo' : pack.brand.public_token)}&quote=${encodeURIComponent(quote.id)}`}
               >
                 Download PDF
               </a>
               {quote.status === 'sent' ? (
-                <button type="button" className="rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" data-testid="accept-quote" onClick={() => onAccept(quote.id)}>
+                <button type="button" className={tradeBtn} data-testid="accept-quote" onClick={() => onAccept(quote.id)}>
                   Accept and sign
                 </button>
               ) : null}
@@ -171,26 +178,27 @@ function Quotes({
           </article>
         );
       })}
-      {!pack.quotes.length ? <p className="text-sm text-slate-600">No quotes waiting.</p> : null}
-      <h3 className="pt-2 font-black">Variation orders</h3>
+      {!pack.quotes.length ? <TradeEmpty title="No quotes waiting" hint="When your tradesperson sends a quote, it lands here to sign." icon={<FileText />} /> : null}
+      <h3 className="pt-2 text-base font-black text-slate-900">Variation orders</h3>
       {pack.variations.map((vo) => (
-        <article key={vo.id} className="rounded-3xl border border-slate-200 bg-white p-4 text-sm" data-testid="vo-card">
-          <p className="font-black">{vo.number} · {vo.title}</p>
-          <p>{vo.scope}</p>
-          <p>{formatZar(vo.cost_cents)} ex VAT · {vo.days} day{vo.days === 1 ? '' : 's'} · {vo.status}</p>
+        <article key={vo.id} className={`${tradeCardPad} text-sm`} data-testid="vo-card">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">{vo.number}</p>
+          <p className="mt-1 font-black text-slate-900">{vo.title}</p>
+          <p className="text-slate-700">{vo.scope}</p>
+          <p className="mt-1 text-slate-600">{formatZar(vo.cost_cents)} ex VAT · {vo.days} day{vo.days === 1 ? '' : 's'} · {vo.status}</p>
           {vo.status === 'sent' ? (
-            <div className="mt-2 flex gap-2">
-              <button type="button" className="rounded-full bg-[#00b4d8] px-3 py-1.5 text-xs font-bold text-[#0f172a]" data-testid="approve-vo" onClick={() => onApprove(vo.id)}>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" className={tradeBtnSm} data-testid="approve-vo" onClick={() => onApprove(vo.id)}>
                 Approve and sign
               </button>
-              <button type="button" className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold" onClick={() => onDecline(vo.id)}>
+              <button type="button" className={tradeGhost} onClick={() => onDecline(vo.id)}>
                 Decline
               </button>
             </div>
           ) : null}
         </article>
       ))}
-      {!pack.variations.length ? <p className="text-sm text-slate-600">No variations on your jobs.</p> : null}
+      {!pack.variations.length ? <TradeEmpty title="No variations on your jobs" hint="Extra work is listed here before it changes the price." /> : null}
     </div>
   );
 }
@@ -198,24 +206,24 @@ function Quotes({
 
 function Money({ pack }: { pack: NonNullable<ReturnType<typeof customerPack>> }) {
   return (
-    <div className="space-y-2" data-testid="client-money">
-      <p className="text-sm">Statement balance <strong>{formatZar(pack.balance_cents)}</strong></p>
+    <div className="space-y-3" data-testid="client-money">
+      <TradeHero kicker="Wallet" title={formatZar(pack.balance_cents)} detail="Statement balance, VAT included." />
       {pack.invoices.map((invoice) => {
         const meta = pack.invoice_meta.find((row) => row.invoice_id === invoice.id);
         return (
-          <article key={invoice.id} className="rounded-3xl border border-slate-200 bg-white p-4 text-sm">
-            <p className="font-black">{invoice.number} · {invoice.status}</p>
-            <p>{formatZar(invoice.total_cents)} incl VAT</p>
+          <article key={invoice.id} className={`${tradeCardPad} text-sm`}>
+            <p className="font-black text-slate-900">{invoice.number}</p>
+            <p className="capitalize text-slate-600">{invoice.status} · {formatZar(invoice.total_cents)} incl VAT</p>
             {meta?.pay_url ? (
-              <a className="mt-2 inline-block font-bold text-[#00b4d8]" href={meta.pay_url}>{meta.pay_reference || 'Pay with Paystack'}</a>
+              <a className={`mt-2 inline-block ${tradeLink}`} href={meta.pay_url}>{meta.pay_reference || 'Pay with Paystack'}</a>
             ) : (
-              <p className="text-slate-500">Pay link appears when your tradesperson issues it.</p>
+              <p className="mt-2 text-xs text-slate-500">Pay link appears when your tradesperson issues it.</p>
             )}
           </article>
         );
       })}
-      {!pack.invoices.length ? <p className="text-sm text-slate-600">No invoices yet.</p> : null}
-      <a className="inline-block text-sm font-bold text-[#00b4d8]" href={`/api/public/tradegraph/statement?token=demo`}>
+      {!pack.invoices.length ? <TradeEmpty title="No invoices yet" hint="Bills show here once the job is invoiced." icon={<Wallet />} /> : null}
+      <a className={`inline-block ${tradeLink}`} href={`/api/public/tradegraph/statement?token=demo`}>
         Download statement
       </a>
     </div>
@@ -252,66 +260,69 @@ function More({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2 md:hidden">
-        <button type="button" className="min-h-11 rounded-2xl border border-slate-200 bg-white text-sm font-black" onClick={onQuotes}>
+        <button type="button" className={tradeGhost} onClick={onQuotes}>
           Quotes
         </button>
-        <button type="button" className="min-h-11 rounded-2xl border border-slate-200 bg-white text-sm font-black" onClick={onMoney}>
+        <button type="button" className={tradeGhost} onClick={onMoney}>
           Money
         </button>
       </div>
       <form
-        className="rounded-3xl border border-slate-200 bg-white p-4"
+        className={tradeCardPad}
         data-testid="request-job"
         onSubmit={(event) => {
           event.preventDefault();
           onRequest();
         }}
       >
-        <h3 className="font-black">Request a job</h3>
-        <textarea className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" value={request} onChange={(event) => setRequest(event.target.value)} placeholder="What needs doing?" required />
-        <button className="mt-2 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" type="submit">Send request</button>
+        <h3 className="font-black text-slate-900">Request a job</h3>
+        <textarea className={`${tradeField} min-h-24 py-2`} value={request} onChange={(event) => setRequest(event.target.value)} placeholder="What needs doing?" required />
+        <button className={`mt-3 ${tradeBtn}`} type="submit">Send request</button>
       </form>
       <form
-        className="rounded-3xl border border-slate-200 bg-white p-4"
+        className={tradeCardPad}
         onSubmit={(event) => {
           event.preventDefault();
           onBook();
         }}
       >
-        <h3 className="font-black">Book a slot</h3>
-        <p className="text-sm text-slate-600">Friday 16 October, 09:00–11:00.</p>
-        <input className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" value={note} onChange={(event) => setNote(event.target.value)} placeholder="What should we bring?" />
-        <button className="mt-2 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" type="submit" data-testid="book-slot">Request the slot</button>
+        <h3 className="font-black text-slate-900">Book a slot</h3>
+        <p className="mt-1 text-sm text-slate-600">Friday 16 October, 09:00–11:00.</p>
+        <input className={tradeField} value={note} onChange={(event) => setNote(event.target.value)} placeholder="What should we bring?" />
+        <button className={`mt-3 ${tradeBtn}`} type="submit" data-testid="book-slot">Request the slot</button>
       </form>
-      <section className="rounded-3xl border border-slate-200 bg-white p-4">
-        <h3 className="font-black">Messages</h3>
-        <ul className="mt-2 space-y-2 text-sm">
+      <section className={tradeCardPad}>
+        <h3 className="font-black text-slate-900">Messages</h3>
+        <ul className="mt-3 space-y-2 text-sm">
           {pack.messages.map((row) => (
-            <li key={row.id} className="rounded-2xl bg-slate-50 px-3 py-2">{row.from === 'customer' ? 'You' : pack.brand.brand_name}: {row.body}</li>
+            <li key={row.id} className={tradeNested}>
+              <span className="font-black">{row.from === 'customer' ? 'You' : pack.brand.brand_name}</span>
+              <span className="text-slate-700"> · {row.body}</span>
+            </li>
           ))}
-          {!pack.messages.length ? <li className="text-slate-500">No messages yet.</li> : null}
+          {!pack.messages.length ? <li><TradeEmpty title="No messages yet" hint="Write the team and the reply stays on this job." /></li> : null}
         </ul>
         <form
-          className="mt-2 flex gap-2"
+          className="mt-3 flex gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             onMessage();
           }}
         >
-          <input className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Message the team" required />
-          <button className="rounded-full bg-[#00b4d8] px-3 py-2 text-xs font-bold text-[#0f172a]" type="submit">Send</button>
+          <input className={`${tradeField} mt-0 flex-1`} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Message the team" required />
+          <button className={tradeBtnSm} type="submit">Send</button>
         </form>
       </section>
-      <section className="rounded-3xl border border-slate-200 bg-white p-4">
-        <h3 className="font-black">Documents</h3>
-        <ul className="mt-2 space-y-2 text-sm">
+      <section className={tradeCardPad}>
+        <h3 className="font-black text-slate-900">Documents</h3>
+        <ul className="mt-3 space-y-2 text-sm">
           {pack.documents.map((doc) => (
-            <li key={doc.id}>
-              <p className="font-bold">{doc.title}</p>
+            <li key={doc.id} className={tradeNested}>
+              <p className="font-black text-slate-900">{doc.title}</p>
               <p className="text-slate-600">{doc.kind} · {doc.number}</p>
             </li>
           ))}
-          {!pack.documents.length ? <li className="text-slate-500">Certificates and warranties appear here.</li> : null}
+          {!pack.documents.length ? <li><TradeEmpty title="No documents yet" hint="Certificates and warranties appear here." /></li> : null}
         </ul>
       </section>
     </div>
