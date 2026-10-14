@@ -3,6 +3,7 @@
 import { Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { clientShouldLoadPrivyImmediately } from '@/lib/auth/login-privy-resume';
+import { stashOauthReturnParams } from '@/lib/auth/oauth-return';
 
 type LoginIntent = 'google' | 'apple' | 'email';
 
@@ -43,6 +44,9 @@ export function LoginAuthShell({ prefillEmail, nextFromQuery }: { prefillEmail?:
   }, [loadPrivy, privyModules]);
 
   const queueIntent = (intent: LoginIntent) => {
+    // Save next, email, and company before the Privy chunk loads so the
+    // email-code return and the Google/Apple return resolve to the same path.
+    stashOauthReturnParams();
     setQueuedIntent(intent);
     setLoadPrivy(true);
   };
