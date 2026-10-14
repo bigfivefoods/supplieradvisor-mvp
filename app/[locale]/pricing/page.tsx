@@ -17,16 +17,20 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   if (!isLocale(locale) || locale === DEFAULT_LOCALE) return {};
   const dict = await getLocaleDict(locale);
   const canonical = `${SITE_URL}/${locale}/pricing`;
+  const pricingTitle = t(dict, 'meta.pricing.title');
+  const socialTitle = pricingTitle.includes('SupplierAdvisor')
+    ? pricingTitle
+    : `${pricingTitle} · ${t(dict, 'brand.supplierAdvisor')}`;
 
   return {
-    title: t(dict, 'meta.pricing.title'),
+    title: pricingTitle,
     description: t(dict, 'meta.pricing.description'),
     alternates: {
       canonical,
       languages: hreflangAlternates('/pricing', SITE_URL),
     },
     openGraph: {
-      title: t(dict, 'meta.pricing.title'),
+      title: socialTitle,
       description: t(dict, 'meta.pricing.description'),
       locale: OG_LOCALE[locale],
       url: canonical,
@@ -41,7 +45,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     },
     twitter: {
       card: 'summary_large_image',
-      title: t(dict, 'meta.pricing.title'),
+      title: socialTitle,
       description: t(dict, 'meta.pricing.description'),
       images: [shareImageSrc(PRICING_SHARE_CARD.file)],
     },
