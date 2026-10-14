@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { enforcedCspViolations } from '../lib/e2e/preview-csp';
 
 /**
  * Golden-path production smoke (unauthenticated).
@@ -39,19 +40,18 @@ test.describe('Golden path smoke (public)', () => {
 
     for (const path of paths) {
       await page.goto(`${base}${path}`, { waitUntil: 'networkidle' });
-      const violations = await page.evaluate(() => {
+      const snapshot = await page.evaluate(() => {
         const records =
           (
             window as Window & {
               __saCspViolations?: Array<{ directive: string; blocked: string }>;
             }
           ).__saCspViolations || [];
-        const isLocal =
-          window.location.hostname === 'localhost' ||
-          window.location.hostname === '127.0.0.1';
-        return records.filter(
-          (v) => !(isLocal && v.directive.startsWith('script-src') && v.blocked === 'eval')
-        );
+        return { hostname: window.location.hostname, records };
+      });
+      const violations = enforcedCspViolations(snapshot.records, {
+        hostname: snapshot.hostname,
+        baseUrl: base,
       });
       const violationMessages = violations.map(
         (v: { directive: string; blocked: string }) => `${v.directive}:${v.blocked}`
