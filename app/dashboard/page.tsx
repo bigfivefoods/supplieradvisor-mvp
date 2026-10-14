@@ -40,6 +40,7 @@ import { formatMoneyDisplay } from '@/lib/format/money';
 import { isFixturePath } from '@/lib/preview/fixture-href';
 import { osDashboardHome } from '@/lib/preview/os-fixtures';
 import FirstRunChecklist from '@/components/onboarding/FirstRunChecklist';
+import { TradeHomeWidget } from '@/components/trades/TradeHomeWidget';
 
 type CompanyData = {
   id: number;
@@ -223,6 +224,7 @@ export default function DashboardCommandCenter() {
     packaging,
     sidebarModuleOrder,
     role,
+    isCompanyModuleEnabled,
   } = useCompanyRole();
   const advisorHome = advisorLandingPath({
     enabledModules,
@@ -710,6 +712,8 @@ export default function DashboardCommandCenter() {
           }}
         />
       ) : null}
+
+      {isCompanyModuleEnabled('tradegraph') ? <TradeHomeWidget /> : null}
 
       <HubHero
         pill="Live command"
