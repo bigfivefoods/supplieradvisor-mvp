@@ -31,6 +31,8 @@ assert.match(landing, /HeroAudienceStage/, 'home landing should include hero');
 assert.match(landing, /HomeBelowFoldLazy/, 'home landing should include lazy below-fold boundary');
 assert.match(landing, /COMPANY_TRIAL_DAYS/, 'home landing should include compact trial CTA strip');
 assert.match(landing, /onboarding\?lane=b2b/, 'trial CTA should route to /onboarding?lane=b2b');
+assert.match(landing, /id="book-demo"/, 'home landing should include a demo-booking target');
+assert.match(landing, /sa-btn-brand/, 'start free trial should keep the brand button');
 const landingMainCount = landing.match(/<main[\s>]/g)?.length ?? 0;
 assert.equal(landingMainCount, 1, 'home landing should render exactly one <main> landmark');
 
@@ -45,6 +47,13 @@ assert.doesNotMatch(nav, /@privy-io\/react-auth|\bviem\b|\bwagmi\b|\bundici\b/);
 const hero = src('components/marketing/HeroAudienceStage.tsx');
 assert.doesNotMatch(hero, /dict\/(fr|ar|pt|sw|zu)/);
 assert.doesNotMatch(hero, /@privy-io\/react-auth|\bviem\b|\bwagmi\b|\bundici\b/);
+assert.match(hero, /#book-demo/, 'hero demo action should book, not only open the sample');
+assert.doesNotMatch(hero, /99%/, 'hero should not show invented score percentages');
+
+const proof = src('components/marketing/SocialProofStrip.tsx');
+assert.match(proof, />Delivered</);
+assert.match(proof, />Planned</);
+assert.doesNotMatch(proof, /∞/);
 
 const footer = src('components/marketing/SiteFooter.tsx');
 assert.doesNotMatch(footer, /dict\/(fr|ar|pt|sw|zu)/);

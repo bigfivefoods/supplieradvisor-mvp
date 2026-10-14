@@ -1,9 +1,9 @@
 /** MACHINE-DRAFTED: Brief 102 i18n dictionary */
 
 export const en = {
-  'meta.home.title': "SupplierAdvisor® — The world's most trusted supplier advice — and OS",
+  'meta.home.title': 'SupplierAdvisor® — The supply-chain OS with a verified trade and trust layer',
   'meta.home.description':
-    'SupplierAdvisor® is the supply-chain OS for verified trade, industry workflows, and SA Member accounts with a 30-day free trial.',
+    'SupplierAdvisor® is the supply-chain OS with a verified trade and trust layer. A 30-day company trial and a free SA Member account.',
   'meta.pricing.title': 'Pricing',
   'meta.pricing.description': 'Company pricing from R299/mo with unlimited users and clear referral savings.',
 
@@ -14,7 +14,7 @@ export const en = {
   'brand.supplierAdvisor': 'SupplierAdvisor®',
   'brand.schoolAdvisor': 'SchoolAdvisor®',
   'brand.superCube': 'Super-Cube®',
-  'brand.bigFiveGroup': 'Big Five Group',
+  'brand.bigFiveGroup': 'Big Five Group™',
 
   'nav.ariaPrimary': 'Primary',
   'nav.ariaOpenMenu': 'Open menu',
@@ -50,13 +50,24 @@ export const en = {
 
   'home.trialStrip': '{days}-day free trial. Register your company and run the first trade loop.',
   'home.startTrial': 'Start free trial',
+  'home.bookTitle': 'Book a demo',
+  'home.bookBody':
+    'In 20 minutes we map your supply chain onto SupplierAdvisor® — trade, stock, quality, and finance — and show what is already in the product.',
+  'home.bookEmail': 'Email for a demo',
+  'home.bookWhatsapp': 'WhatsApp',
+  'home.bookSample': 'Prefer to look first?',
+  'home.bookSampleLink': 'Open the interactive demo',
+  'home.bookSampleNote': 'Sample screens only. No signup.',
+  'home.proofCue':
+    'This page states product terms. It does not publish customer counts or performance scores.',
 
-  'hero.headlineLead': 'The world\'s most trusted',
-  'hero.headlineAccent': 'supplier advice — and OS.',
+  'hero.headlineLead': 'The supply-chain OS',
+  'hero.headlineAccent': 'with a verified trade and trust layer.',
   'hero.compare': 'See how we compare',
   'hero.businessRun': 'I run a business',
   'hero.bookDemo': 'Book a demo',
-  'hero.notExcel': 'Not Excel. Not accounting-only. Not a multi-year ERP project.',
+  'hero.notExcel': 'Trade, stock, quality, and proof share one company workspace.',
+  'hero.sampleScreen': 'Sample screen',
   'hero.trialDays': '{days}-day free trial',
   'hero.membersNeverPay': 'Members never pay us',
 
@@ -84,7 +95,7 @@ export const en = {
   'hero.scene.b2c.point3': 'Pay or send proof — same login if you later run a business',
   'hero.scene.b2c.cta': 'Create free SA Member account',
 
-  'footer.tagline': 'The world\'s most trusted supplier advice and supply-chain OS — B2B, B2G, and B2C on one verified network.',
+  'footer.tagline': 'The supply-chain OS with a verified trade and trust layer — B2B, B2G, and B2C on one company workspace.',
   'footer.motto': 'Built for operators who measure trust.',
   'footer.explore': 'Explore',
   'footer.industries': 'Industries',
@@ -94,6 +105,7 @@ export const en = {
   'footer.group.network': 'Network',
   'footer.group.trust': 'Trust',
   'footer.group.apps': 'Apps',
+  'footer.group.group': 'Group',
   'footer.social': 'Social media',
   'footer.industriesBySector': 'Industries by sector',
   'footer.legalNav': 'Legal',
@@ -113,7 +125,9 @@ export const en = {
   'footer.foundingTitle': 'Founding list',
   'footer.foundingBlurb': 'Founding-member updates and new-slot alerts from SupplierAdvisor®.',
   'footer.rights': 'All rights reserved.',
-  'footer.bigFiveCompany': 'SupplierAdvisor® is a Big Five Group company',
+  'footer.bigFiveCompany': 'SupplierAdvisor® is a Big Five Group™ company',
+  'footer.bigFiveLead': 'SupplierAdvisor® is ',
+  'footer.bigFiveLink': 'a Big Five Group™ company',
 
   'footer.contact.whatsapp': 'WhatsApp',
   'footer.contact.country': 'South Africa',
@@ -129,13 +143,13 @@ export const en = {
   'pricing.kicker': 'Pricing',
   'pricing.title': 'Transparent company pricing from R299/month',
   'pricing.lede':
-    'SupplierAdvisor is built for companies that need one operating system across procurement, quality, supplier relationships, inventory, and finance.',
+    'SupplierAdvisor® is built for companies that need one operating system across procurement, quality, supplier relationships, inventory, and finance.',
   'pricing.ctaTrial': 'Start free trial',
   'pricing.ctaDemo': 'Book a demo',
   'pricing.companyProfile': 'Download company profile (PDF)',
   'pricing.englishNote': 'EN',
   'pricing.tiers': 'Billing tiers',
-  'pricing.tiersBody': 'All tiers include unlimited users and the same full SupplierAdvisor product scope. Choose a billing term that fits your budgeting rhythm and maturity stage.',
+  'pricing.tiersBody': 'All tiers include unlimited users and the same full SupplierAdvisor® product scope. Choose a billing term that fits your budgeting rhythm and maturity stage.',
   'pricing.tier.monthly': 'Monthly',
   'pricing.tier.1y': '1 year',
   'pricing.tier.2y': '2 years',
@@ -157,7 +171,7 @@ export const en = {
   'pricing.referral.step1.title': 'Invite real trading partners',
   'pricing.referral.step1.body':
     'Share your referral link with suppliers, buyers, and partners you actually trade with. First-touch attribution applies, so the first valid invitation keeps the relationship.',
-  'pricing.referral.step2.title': 'They activate SupplierAdvisor',
+  'pricing.referral.step2.title': 'They activate SupplierAdvisor®',
   'pricing.referral.step2.body':
     'Each invited company gets 30 days to run the full platform and can then subscribe from R299/month or choose a prepaid tier.',
   'pricing.referral.step3.title': 'Referral fees are shared by depth',
@@ -166,7 +180,7 @@ export const en = {
   'pricing.faq': 'Pricing FAQ',
   'pricing.faq.1.q': 'Is pricing per user or per company?',
   'pricing.faq.1.a':
-    'SupplierAdvisor pricing is per company workspace, not per seat. Every paid tier includes unlimited team users so operations, finance, quality, and procurement can work in one system.',
+    'SupplierAdvisor® pricing is per company workspace, not per seat. Every paid tier includes unlimited team users so operations, finance, quality, and procurement can work in one system.',
   'pricing.faq.2.q': 'What does “from R299/mo” mean?',
   'pricing.faq.2.a':
     'R299/mo is the current monthly list rate for one company subscription. Prepaid 1-year, 2-year, and 3-year tiers reduce the effective monthly cost while keeping the same full platform access.',
@@ -181,7 +195,7 @@ export const en = {
     'Referral fees are based on actual qualifying subscription payments only. The shared split is 6% at L1, 3% at L2, and 1% at L3, with a total cap of 10%.',
   'pricing.faq.6.q': 'Are referral payouts based on product sales?',
   'pricing.faq.6.a':
-    'No. Referral payouts apply to SupplierAdvisor platform subscription fees, not to traded goods or service sales between partners.',
+    'No. Referral payouts apply to SupplierAdvisor® platform subscription fees, not to traded goods or service sales between partners.',
   'pricing.faq.7.q': 'Can I switch my billing tier later?',
   'pricing.faq.7.a':
     'Yes. Companies can move from monthly to prepaid terms in billing. Early renewals extend your subscription window and referral percentages continue to apply to amounts actually paid.',

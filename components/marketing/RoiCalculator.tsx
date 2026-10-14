@@ -133,7 +133,7 @@ export default function RoiCalculator() {
                 value={formatZar(Math.max(0, result.monthlyGain))}
                 sub={
                   result.monthlyGain >= 0
-                    ? 'After SupplierAdvisor plan'
+                    ? 'After SupplierAdvisor® plan'
                     : 'Adjust inputs — still try the free trial'
                 }
                 tone="emerald"
@@ -162,7 +162,7 @@ export default function RoiCalculator() {
                   positive
                 />
                 <Row
-                  label="SupplierAdvisor company plan"
+                  label="SupplierAdvisor® company plan"
                   value={`− ${formatZar(result.saCost)}`}
                 />
                 <div className="border-t border-slate-100 pt-3 flex justify-between items-center">

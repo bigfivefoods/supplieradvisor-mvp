@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     'company verification South Africa',
     'B2B trust badge',
     'Paystack verification',
-    'SupplierAdvisor SLA',
+    'SupplierAdvisor® SLA',
     'verified suppliers',
   ],
   alternates: { canonical: `${SITE_URL}/verification-sla` },
@@ -60,17 +60,17 @@ export default function VerificationSlaPage() {
     '@type': 'WebPage',
     name: 'CIPC verification SLA',
     description:
-      'Paid CIPC company verification on SupplierAdvisor with a 24-hour money-to-trust SLA.',
+      'Paid CIPC company verification on SupplierAdvisor® with a 24-hour money-to-trust SLA.',
     url: `${SITE_URL}/verification-sla`,
     isPartOf: {
       '@type': 'WebSite',
-      name: 'SupplierAdvisor',
+      name: 'SupplierAdvisor®',
       url: SITE_URL,
     },
     about: {
       '@type': 'Service',
       name: 'CIPC company verification',
-      provider: { '@type': 'Organization', name: 'SupplierAdvisor' },
+      provider: { '@type': 'Organization', name: 'SupplierAdvisor®' },
       offers: {
         '@type': 'Offer',
         price: '69',
@@ -100,7 +100,7 @@ export default function VerificationSlaPage() {
             </h1>
             <p className="text-sm text-neutral-600 mt-1 max-w-xl leading-relaxed">
               Money → trust: paid identity verification for B2B companies on
-              SupplierAdvisor, with a clear 24-hour service target.
+              SupplierAdvisor®, with a clear 24-hour service target.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -184,7 +184,7 @@ export default function VerificationSlaPage() {
           <p>
             Verified companies on{' '}
             <Link href="/" className="font-bold text-[#0077b6] hover:underline">
-              SupplierAdvisor
+              SupplierAdvisor®
             </Link>{' '}
             completed this paid path. Look for the CIPC-verified badge and the
             “24h paid SLA” marker on public profiles. Unverified profiles may

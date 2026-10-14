@@ -23,12 +23,12 @@ export default function ProductVideo() {
             Product story
           </p>
           <h2 className="text-3xl font-black tracking-tight text-white sm:text-5xl">
-            See the OS in under a minute
+            See how the OS fits together
           </h2>
           <p className="mt-4 text-base leading-relaxed text-slate-300 sm:text-lg">
-            Watch modules rotate live on the home hero — or open the interactive
-            demo to click through operations, suppliers, finance, quality, and
-            people without signing up first.
+            Open the interactive demo to click through operations, suppliers,
+            finance, quality, and people. Those screens are samples. When you
+            want a guided look at your own chain, book a demo.
           </p>
         </div>
 
@@ -75,6 +75,12 @@ export default function ProductVideo() {
             <Play className="h-4 w-4 fill-current" />
             Open interactive demo
           </Link>
+          <a
+            href="#book-demo"
+            className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white px-6 py-3 text-sm font-bold text-slate-950"
+          >
+            Book a demo <ArrowRight className="h-4 w-4" />
+          </a>
           <a
             href="#modules"
             className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-6 py-3 text-sm font-bold text-white"

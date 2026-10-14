@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import ThemeToggle from '@/components/theme/ThemeToggle';
+import { ThemeToggleView } from '@/components/theme/ThemeToggleView';
+import { normalizeEnabledModules } from '@/lib/business/company-modules';
 import { LoginAuthShell } from '@/components/auth/LoginAuthShell';
 import { SaOfficialLogo } from '@/components/brand/SaOfficialLogo';
 import { ShieldCheck, Smartphone, Sparkles } from 'lucide-react';
@@ -20,6 +21,8 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
   const claimed = firstParam(searchParams?.claimed);
   const nextFromQuery = firstParam(searchParams?.next);
   const prefillEmail = firstParam(searchParams?.email);
+  // Signed-out module map. The client theme control must not import Privy.
+  const signedOutModules = normalizeEnabledModules(null);
 
   const isContractorFlow =
     nextFromQuery.startsWith('/contractor') || nextFromQuery.includes('contractor');
@@ -28,7 +31,7 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
   return (
     <div className="relative min-h-screen flex items-center justify-center bg-sa-bg px-4 sm:px-6 py-10">
       <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-10">
-        <ThemeToggle />
+        <ThemeToggleView enabledModules={signedOutModules} />
       </div>
 
       <div className="w-full max-w-md">
@@ -89,7 +92,12 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
 
           <p className="text-center text-sm text-neutral-500">
             New customer or member?{' '}
-            <Link href="/me" className="sa-text-brand-on-light font-medium hover:underline">
+            {/* /me's flight lists Privy chunks. Prefetch would download them with /login. */}
+            <Link
+              href="/me"
+              prefetch={false}
+              className="sa-text-brand-on-light font-medium hover:underline"
+            >
               Create a free SA Member account
             </Link>
           </p>

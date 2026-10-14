@@ -10,7 +10,7 @@ export const metadata = {
   alternates: { canonical: 'https://www.supplieradvisor.com/terms' },
   openGraph: {
     title: 'Terms of Service · SupplierAdvisor®',
-    description: 'Terms governing use of the SupplierAdvisor platform.',
+    description: 'Terms governing use of the SupplierAdvisor® platform.',
     url: 'https://www.supplieradvisor.com/terms',
   },
 };
@@ -21,7 +21,7 @@ export default function TermsPage() {
       <header className="border-b border-slate-100 bg-white">
         <div className="max-w-3xl mx-auto px-6 py-5 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
-            <Image src="/sa-logo.png" alt="SupplierAdvisor" width={100} height={44} className="h-9 w-auto object-contain" />
+            <Image src="/sa-logo.png" alt="SupplierAdvisor®" width={100} height={44} className="h-9 w-auto object-contain" />
             <span className="font-black tracking-[-1px] text-xl">SupplierAdvisor®</span>
           </Link>
           <Link href="/" className="text-sm font-semibold text-[#00b4d8] inline-flex items-center gap-1">
@@ -54,7 +54,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-bold text-slate-900 mb-2">2. The Platform</h2>
             <p>
-              SupplierAdvisor provides software tools for company onboarding, network connections,
+              SupplierAdvisor® provides software tools for company onboarding, network connections,
               procurement and sales workflows, inventory, manufacturing and distribution operations,
               finance visibility, intelligence, and related features. Features may be in beta and
               change over time.
@@ -78,7 +78,7 @@ export default function TermsPage() {
             <h2 className="text-xl font-bold text-slate-900 mb-2">4. Not a party to your trades</h2>
             <p>
               Unless expressly stated for a specific product (e.g. optional on-chain escrow),
-              SupplierAdvisor is a technology platform. We are not the buyer, seller, carrier, or
+              SupplierAdvisor® is a technology platform. We are not the buyer, seller, carrier, or
               guarantor of commercial contracts between users. Verification badges and trust scores
               support diligence; they are not a warranty of counterparty performance or legality of
               goods.
@@ -130,7 +130,7 @@ export default function TermsPage() {
             </h2>
             <p className="mb-3">
               Separate from any sales-contractor product commission (which is personal-sales only),
-              SupplierAdvisor may pay participating companies a share of qualifying{' '}
+              SupplierAdvisor® may pay participating companies a share of qualifying{' '}
               <strong>company platform subscription</strong> payments under a multi-level
               supply-chain referral programme (default split up to 6% / 3% / 1%, total cap 10%).
             </p>
@@ -146,7 +146,7 @@ export default function TermsPage() {
               </li>
               <li>
                 Companies may <strong>request payout</strong> only; approval and settlement are
-                performed by SupplierAdvisor platform operators. KYC / bank details may be required
+                performed by SupplierAdvisor® platform operators. KYC / bank details may be required
                 above thresholds we publish in-app.
               </li>
               <li>
@@ -171,7 +171,7 @@ export default function TermsPage() {
             <h2 className="text-xl font-bold text-slate-900 mb-2">8. Intellectual property</h2>
             <p>
               The Platform, branding, Super-Cube® leadership model presentation on the service, and
-              software are owned by SupplierAdvisor or its licensors. You may not copy or resell the
+              software are owned by SupplierAdvisor® or its licensors. You may not copy or resell the
               Platform except as permitted by these Terms.
             </p>
           </section>
@@ -189,7 +189,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-bold text-slate-900 mb-2">10. Liability</h2>
             <p>
-              To the maximum extent permitted by law, SupplierAdvisor and its officers are not
+              To the maximum extent permitted by law, SupplierAdvisor® and its officers are not
               liable for indirect, incidental, special, consequential, or punitive damages, or lost
               profits, arising from use of the Platform. Our aggregate liability for claims relating
               to the Platform is limited to fees you paid us for the service in the three months

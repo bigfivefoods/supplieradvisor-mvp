@@ -539,7 +539,7 @@ export function ComparisonTable() {
                 Generic ERP
               </th>
               <th className="px-3 py-3 text-[10px] font-black uppercase tracking-wider text-[#0077b6] text-center bg-sky-50/80">
-                SupplierAdvisor
+                SupplierAdvisor®
               </th>
             </tr>
           </thead>

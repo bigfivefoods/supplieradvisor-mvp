@@ -46,8 +46,11 @@ assert.doesNotMatch(upload, /hint: 'Create a public Storage bucket named company
 
 const storage = src('lib/portals/portal-storage.ts');
 assert.match(storage, /createSignedUrl/);
-assert.match(storage, /createBucket/);
+assert.match(storage, /uploadSensitiveDoc/);
+assert.match(storage, /sensitive-documents/);
 assert.match(storage, /PORTAL_SIGNED_URL_SECONDS/);
+assert.doesNotMatch(storage, /createBucket/);
+assert.doesNotMatch(storage, /company-documents/);
 
 const pdfRoute = src('app/api/public/portals/trade/po-pdf/route.ts');
 assert.match(pdfRoute, /assemblePurchaseOrderPdfInput/);

@@ -654,6 +654,14 @@ export function crmPreviewJson(url: string): unknown | null {
       feed: null,
     };
   }
+  if (path.startsWith('/api/sales/calendar')) {
+    return {
+      tableReady: true,
+      googleReady: false,
+      outlookReady: false,
+      links: [],
+    };
+  }
   if (path.startsWith('/api/audit/activity')) return { success: true, events: [] };
-  return { success: true };
+  return null;
 }

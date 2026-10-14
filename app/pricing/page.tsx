@@ -1,90 +1,53 @@
 import type { Metadata } from 'next';
 import PricingContent from '@/components/marketing/PricingContent';
-import { hreflangAlternates } from '@/lib/i18n/config';
-import { SITE_URL } from '@/lib/seo/site';
 import { COMPANY_PROFILE_PDF } from '@/lib/marketing/company-profile';
 import {
   MARKETING_PRICING_TERMS,
   PRICING_FAQ_ITEMS,
 } from '@/lib/marketing/pricing-plans';
+import { absoluteUrl, jsonLdString, pricingFaqJsonLd, pricingProductJsonLd } from '@/lib/seo/jsonld';
+import { marketingMetadata } from '@/lib/seo/metadata';
+import { PRICING_SHARE_CARD } from '@/lib/seo/share-cards';
 
-const title = 'Pricing';
-const description = 'Company pricing from R299/mo with unlimited users and clear referral savings.';
-const canonicalUrl = `${SITE_URL}/pricing`;
+const title = 'Pricing · SupplierAdvisor® — 30-day trial from R299/month';
+const description =
+  'SupplierAdvisor® pricing: 30-day trial, then from R299/month. Unlimited team users on the company plan.';
+const canonicalUrl = absoluteUrl('/pricing');
 
-export const metadata: Metadata = {
+export const metadata: Metadata = marketingMetadata({
+  path: '/pricing',
   title,
+  absoluteTitle: true,
   description,
-  alternates: {
-    canonical: canonicalUrl,
-    languages: hreflangAlternates('/pricing', SITE_URL),
-  },
-  openGraph: {
-    title,
-    description,
-    url: canonicalUrl,
-    type: 'website',
-    locale: 'en_ZA',
-  },
-};
+  image: PRICING_SHARE_CARD,
+  keywords: [
+    'SupplierAdvisor pricing',
+    'supply chain software cost',
+    'B2B software South Africa',
+    'SRM pricing',
+    'free trial ERP alternative',
+  ],
+});
 
 export default function PricingPage() {
   const companyProfileHref = COMPANY_PROFILE_PDF.href;
-  const productJsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Product',
-    name: 'SupplierAdvisor Company Subscription',
+  const productJsonLd = pricingProductJsonLd(
+    canonicalUrl,
     description,
-    brand: {
-      '@type': 'Brand',
-      name: 'SupplierAdvisor',
-    },
-    offers: {
-      '@type': 'AggregateOffer',
-      priceCurrency: 'ZAR',
-      lowPrice: MARKETING_PRICING_TERMS[0]?.payZar,
-      highPrice: MARKETING_PRICING_TERMS[MARKETING_PRICING_TERMS.length - 1]?.payZar,
-      offerCount: MARKETING_PRICING_TERMS.length,
-      offers: MARKETING_PRICING_TERMS.map((tier) => ({
-        '@type': 'Offer',
-        name: tier.label,
-        priceCurrency: 'ZAR',
-        price: tier.payZar,
-        category: tier.months === 1 ? 'monthly' : 'prepaid',
-        eligibleDuration: {
-          '@type': 'QuantitativeValue',
-          value: tier.months,
-          unitText: 'month',
-        },
-        availability: 'https://schema.org/InStock',
-        url: canonicalUrl,
-      })),
-    },
-  };
-
-  const faqJsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'FAQPage',
-    mainEntity: PRICING_FAQ_ITEMS.map((item) => ({
-      '@type': 'Question',
-      name: item.question,
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: item.answer,
-      },
-    })),
-  };
+    MARKETING_PRICING_TERMS
+  );
+  const faqJsonLd = pricingFaqJsonLd(PRICING_FAQ_ITEMS);
 
   return (
     <>
       <PricingContent companyProfileHref={companyProfileHref} />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(productJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdString(faqJsonLd) }}
       />
     </>
   );

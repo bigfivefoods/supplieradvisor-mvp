@@ -38,6 +38,7 @@ import {
   useCrmKeys,
 } from '@/components/customers/crm/kit';
 import { CRM_SAMPLE_FLAG, crmPreviewBook } from '@/lib/customers/crm-preview';
+import { fixtureHref, isFixturePath } from '@/lib/preview/fixture-href';
 
 type Summary = {
   customers: number;
@@ -103,14 +104,17 @@ function sampleBookOn() {
 
 function HubInner() {
   const companyId = getSelectedCompanyId()!;
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [desk, setDesk] = useState<DeskItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [sample, setSample] = useState(false);
+  const fixture = isFixturePath('/preview/crm');
+  const seeded = fixture || sampleBookOn();
+  const [summary, setSummary] = useState<Summary | null>(() =>
+    seeded ? crmPreviewBook().summary : null
+  );
+  const [desk, setDesk] = useState<DeskItem[]>(() => (seeded ? crmPreviewBook().desk : []));
+  const [loading, setLoading] = useState(!seeded);
+  const [sample, setSample] = useState(seeded);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    if (sampleBookOn()) {
+    if (sampleBookOn() || isFixturePath('/preview/crm')) {
       const book = crmPreviewBook();
       setSample(true);
       setSummary(book.summary);
@@ -118,6 +122,7 @@ function HubInner() {
       setLoading(false);
       return;
     }
+    setLoading(true);
     setSample(false);
     try {
       const res = await fetch(`/api/customers/summary?companyId=${companyId}`);
@@ -134,6 +139,7 @@ function HubInner() {
 
   useCrmKeys({
     onCreate: () => {
+      if (isFixturePath('/preview')) return;
       window.location.assign('/dashboard/customers/onboard');
     },
   });
@@ -162,13 +168,13 @@ function HubInner() {
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </button>
-            <Link href="/dashboard/customers/onboard" className="btn-primary !py-2.5 !px-5 text-sm">
+            <Link href={fixtureHref('/dashboard/customers/onboard')} className="btn-primary !py-2.5 !px-5 text-sm">
               <UserPlus className="w-4 h-4" /> Add customer
             </Link>
-            <Link href="/sales/tasks" className="btn-secondary !py-2.5 !px-4 text-sm">
+            <Link href={fixtureHref('/sales/tasks')} className="btn-secondary !py-2.5 !px-4 text-sm">
               <CalendarDays className="w-4 h-4" /> Diary
             </Link>
-            <Link href="/dashboard/customers/quotes" className="btn-secondary !py-2.5 !px-4 text-sm">
+            <Link href={fixtureHref('/dashboard/customers/quotes')} className="btn-secondary !py-2.5 !px-4 text-sm">
               New quote
             </Link>
           </div>
@@ -189,20 +195,24 @@ function HubInner() {
         />
       ) : null}
 
-      <AdvisorCoreBridge surface="customers" />
+      {fixture ? null : <AdvisorCoreBridge surface="customers" />}
 
-      <Suspense fallback={null}>
-        <RatingPromptBanner />
-      </Suspense>
+      {fixture ? null : (
+        <Suspense fallback={null}>
+          <RatingPromptBanner />
+        </Suspense>
+      )}
 
-      <div className="mb-6">
-        <AdvisorMemberAppInvite
-          kind="customer"
-          companyId={companyId}
-          brand={getSelectedCompanyName()}
-          audience="customers"
-        />
-      </div>
+      {fixture ? null : (
+        <div className="mb-6">
+          <AdvisorMemberAppInvite
+            kind="customer"
+            companyId={companyId}
+            brand={getSelectedCompanyName()}
+            audience="customers"
+          />
+        </div>
+      )}
 
       <nav className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8" aria-label="Customer work">
         {CRM_PATH.map((step) => {
@@ -210,7 +220,7 @@ function HubInner() {
           return (
             <Link
               key={step.href}
-              href={step.href}
+              href={fixtureHref(step.href)}
               className="crm-path min-h-11 rounded-2xl border border-neutral-200 bg-white px-3 py-3 shadow-sm hover:border-[#00b4d8] hover:text-[#0077b6]"
             >
               <Icon className="h-4 w-4 text-[#00b4d8]" />
@@ -229,7 +239,7 @@ function HubInner() {
           sub={`${s?.customersActive ?? 0} active`}
           accent="violet"
           icon={Users}
-          href="/dashboard/customers/profiles"
+          href={fixtureHref('/dashboard/customers/profiles')}
         />
         <TelemetryCard
           label="Open pipeline"
@@ -237,7 +247,7 @@ function HubInner() {
           sub={`${s?.opportunitiesOpen ?? 0} deals · weighted ${formatMoney(s?.weightedPipeline ?? 0)}`}
           accent="cyan"
           icon={TrendingUp}
-          href="/dashboard/customers/leads?tab=pipeline"
+          href={fixtureHref('/dashboard/customers/leads?tab=pipeline')}
         />
         <TelemetryCard
           label="Open leads"
@@ -245,7 +255,7 @@ function HubInner() {
           sub={`${s?.leads ?? 0} total · ${s?.overdueFollowups ?? 0} overdue`}
           accent={(s?.overdueFollowups || 0) > 0 ? 'amber' : 'sky'}
           icon={Target}
-          href="/dashboard/customers/leads"
+          href={fixtureHref('/dashboard/customers/leads')}
         />
         <TelemetryCard
           label="Won"
@@ -253,7 +263,7 @@ function HubInner() {
           sub={`${s?.wonCount ?? 0} closed won`}
           accent="emerald"
           icon={Award}
-          href="/dashboard/customers/leads?tab=pipeline"
+          href={fixtureHref('/dashboard/customers/leads?tab=pipeline')}
         />
       </HubTelemetryGrid>
 
@@ -265,7 +275,7 @@ function HubInner() {
               Follow-ups, closes in the next 14 days, and open diary tasks.
             </p>
           </div>
-          <Link href="/sales/tasks" className="text-xs font-bold text-[#0077b6] hover:underline">
+          <Link href={fixtureHref('/sales/tasks')} className="text-xs font-bold text-[#0077b6] hover:underline">
             Open the diary
           </Link>
         </div>
@@ -294,7 +304,7 @@ function HubInner() {
             {desk.map((item) => (
               <li key={item.id}>
                 <Link
-                  href={item.href}
+                  href={fixtureHref(item.href)}
                   className="flex min-h-11 items-center justify-between gap-3 py-3"
                 >
                   <span className="min-w-0">
@@ -350,7 +360,7 @@ function HubInner() {
             ].map((row) => (
               <li key={row.label}>
                 <Link
-                  href={row.href}
+                  href={fixtureHref(row.href)}
                   className="flex items-center justify-between gap-3 py-3 text-sm hover:text-[#0077b6]"
                 >
                   <span className="font-medium text-slate-700">{row.label}</span>
@@ -371,7 +381,7 @@ function HubInner() {
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-sm font-black text-slate-800">Pipeline</h3>
             <Link
-              href="/dashboard/customers/leads?tab=pipeline"
+              href={fixtureHref('/dashboard/customers/leads?tab=pipeline')}
               className="text-xs font-bold text-[#0077b6] hover:underline"
             >
               Open pipeline
@@ -410,7 +420,7 @@ function HubInner() {
             </p>
           ) : null}
           <Link
-            href="/dashboard/customers/profiles"
+            href={fixtureHref('/dashboard/customers/profiles')}
             className="mt-3 inline-flex text-xs font-bold text-[#0077b6] hover:underline"
           >
             Open the customer book

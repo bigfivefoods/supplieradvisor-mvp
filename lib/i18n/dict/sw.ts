@@ -2,9 +2,9 @@
 import type { Dict } from './en';
 
 const sw: Dict = {
-  'meta.home.title': 'SupplierAdvisor® — ushauri wa wasambazaji unaoaminika zaidi duniani — na OS',
+  'meta.home.title': 'SupplierAdvisor® — OS ya mnyororo wa ugavi yenye safu ya biashara na uaminifu uliothibitishwa',
   'meta.home.description':
-    'SupplierAdvisor® ni OS ya mnyororo wa ugavi kwa biashara iliyothibitishwa, mtiririko wa sekta na akaunti za SA Member yenye jaribio la bure la siku 30.',
+    'SupplierAdvisor® ni OS ya mnyororo wa ugavi yenye safu ya biashara na uaminifu uliothibitishwa, jaribio la kampuni, na akaunti ya SA Member ya bure.',
   'meta.pricing.title': 'Bei',
   'meta.pricing.description': 'Bei za kampuni kuanzia R299/mwezi na watumiaji wasio na kikomo pamoja na akiba wazi ya rufaa.',
   'switcher.chooseLanguage': 'Chagua lugha',
@@ -13,7 +13,7 @@ const sw: Dict = {
   'brand.supplierAdvisor': 'SupplierAdvisor®',
   'brand.schoolAdvisor': 'SchoolAdvisor®',
   'brand.superCube': 'Super-Cube®',
-  'brand.bigFiveGroup': 'Big Five Group',
+  'brand.bigFiveGroup': 'Big Five Group™',
   'nav.groupProduct': 'Bidhaa',
   'nav.groupPricing': 'Bei',
   'nav.groupTry': 'Jaribu',
@@ -47,12 +47,23 @@ const sw: Dict = {
   'theme.system': 'Mfumo',
   'home.trialStrip': 'Jaribio la bure la siku {days}. Sajili kampuni yako na uendeshe mzunguko wa kwanza wa biashara.',
   'home.startTrial': 'Anza jaribio la bure',
-  'hero.headlineLead': 'Ushauri wa wasambazaji unaoaminika zaidi',
-  'hero.headlineAccent': 'duniani — na OS.',
+  'home.bookTitle': 'Weka onyesho',
+  'home.bookBody':
+    'Kwa dakika 20 tunaweka mnyororo wako wa ugavi kwenye SupplierAdvisor® — biashara, hesabu, ubora na fedha — na kuonyesha kilichopo tayari kwenye bidhaa.',
+  'home.bookEmail': 'Barua pepe kwa onyesho',
+  'home.bookWhatsapp': 'WhatsApp',
+  'home.bookSample': 'Unapendelea kuangalia kwanza?',
+  'home.bookSampleLink': 'Fungua onyesho shirikishi',
+  'home.bookSampleNote': 'Skrini za mfano pekee. Hakuna usajili.',
+  'home.proofCue':
+    'Ukurasa huu unaeleza masharti ya bidhaa. Hauweki idadi ya wateja wala alama za utendaji.',
+  'hero.headlineLead': 'OS ya mnyororo wa ugavi',
+  'hero.headlineAccent': 'yenye safu ya biashara na uaminifu uliothibitishwa.',
   'hero.compare': 'Ona jinsi tunavyolingana',
   'hero.businessRun': 'Ninaendesha biashara',
   'hero.bookDemo': 'Weka onyesho',
-  'hero.notExcel': 'Si Excel. Si uhasibu pekee. Si mradi wa ERP wa miaka mingi.',
+  'hero.notExcel': 'Biashara, hesabu, ubora na uthibitisho vinashiriki workspace moja ya kampuni.',
+  'hero.sampleScreen': 'Skrini ya mfano',
   'hero.trialDays': 'Jaribio la bure la siku {days}',
   'hero.membersNeverPay': 'Wanachama hawatulipi kamwe',
   'hero.scene.b2b.title': 'Biashara kwa biashara',
@@ -79,7 +90,7 @@ const sw: Dict = {
   'hero.scene.b2c.point2': 'Weka nafasi, ingia, familia, foleni, .ics na maelezo ya afya yaliyoshirikiwa',
   'hero.scene.b2c.point3': 'Lipa au tuma uthibitisho — kuingia kulekule ukiendesha biashara baadaye',
   'hero.scene.b2c.cta': 'Fungua akaunti ya SA Member bure',
-  'footer.tagline': 'Ushauri wa wasambazaji unaoaminika zaidi duniani na OS ya mnyororo wa ugavi — B2B, B2G, na B2C kwenye mtandao mmoja uliothibitishwa.',
+  'footer.tagline': 'OS ya mnyororo wa ugavi yenye safu ya biashara na uaminifu uliothibitishwa — B2B, B2G, na B2C kwenye workspace moja.',
   'footer.motto': 'Imejengwa kwa waendeshaji wanaopima uaminifu.',
   'footer.explore': 'Chunguza',
   'footer.industries': 'Sekta',
@@ -89,6 +100,7 @@ const sw: Dict = {
   'footer.group.network': 'Mtandao',
   'footer.group.trust': 'Uaminifu',
   'footer.group.apps': 'Programu',
+  'footer.group.group': 'Kikundi',
   'footer.social': 'Mitandao ya kijamii',
   'footer.industriesBySector': 'Sekta kulingana na tasnia',
   'footer.legalNav': 'Kisheria',
@@ -108,7 +120,9 @@ const sw: Dict = {
   'footer.foundingTitle': 'Orodha ya waanzilishi',
   'footer.foundingBlurb': 'Taarifa za wanachama waanzilishi na arifa za nafasi mpya kutoka SupplierAdvisor®.',
   'footer.rights': 'Haki zote zimehifadhiwa.',
-  'footer.bigFiveCompany': 'SupplierAdvisor® ni kampuni ya Big Five Group',
+  'footer.bigFiveCompany': 'SupplierAdvisor® ni kampuni ya Big Five Group™',
+  'footer.bigFiveLead': 'SupplierAdvisor® ni ',
+  'footer.bigFiveLink': 'kampuni ya Big Five Group™',
   'footer.contact.country': 'Afrika Kusini',
   'footer.form.emailLabel': 'Anwani ya barua pepe',
   'footer.form.emailPlaceholder': 'wewe@kampuni.com',
@@ -120,13 +134,13 @@ const sw: Dict = {
   'pricing.kicker': 'Bei',
   'pricing.title': 'Bei wazi za kampuni kuanzia R299/mwezi',
   'pricing.lede':
-    'SupplierAdvisor imejengwa kwa kampuni zinazohitaji mfumo mmoja wa uendeshaji katika ununuzi, ubora, mahusiano ya wasambazaji, hesabu na fedha.',
+    'SupplierAdvisor® imejengwa kwa kampuni zinazohitaji mfumo mmoja wa uendeshaji katika ununuzi, ubora, mahusiano ya wasambazaji, hesabu na fedha.',
   'pricing.ctaTrial': 'Anza jaribio la bure',
   'pricing.ctaDemo': 'Weka onyesho',
   'pricing.companyProfile': 'Pakua wasifu wa kampuni (PDF)',
   'pricing.englishNote': 'EN',
   'pricing.tiers': 'Ngazi za malipo',
-  'pricing.tiersBody': 'Ngazi zote zinajumuisha watumiaji wasio na kikomo na upeo ule ule wa bidhaa kamili ya SupplierAdvisor.',
+  'pricing.tiersBody': 'Ngazi zote zinajumuisha watumiaji wasio na kikomo na upeo ule ule wa bidhaa kamili ya SupplierAdvisor®.',
   'pricing.tier.monthly': 'Kila mwezi',
   'pricing.tier.1y': 'Mwaka 1',
   'pricing.tier.2y': 'Miaka 2',
@@ -148,7 +162,7 @@ const sw: Dict = {
   'pricing.referral.step1.title': 'Alika washirika halisi wa biashara',
   'pricing.referral.step1.body':
     'Shiriki kiungo chako cha rufaa na wasambazaji, wanunuzi, na washirika unaofanya nao biashara kwa kweli. Mwaliko wa kwanza halali huweka uhusiano.',
-  'pricing.referral.step2.title': 'Wanawezesha SupplierAdvisor',
+  'pricing.referral.step2.title': 'Wanawezesha SupplierAdvisor®',
   'pricing.referral.step2.body':
     'Kila kampuni iliyoalikwa hupata siku 30 kuendesha jukwaa lote kisha inaweza kujiunga kuanzia R299/mwezi au kuchagua ngazi ya kulipia mapema.',
   'pricing.referral.step3.title': 'Ada za rufaa hugawiwa kwa kina',
@@ -157,7 +171,7 @@ const sw: Dict = {
   'pricing.faq': 'Maswali ya bei',
   'pricing.faq.1.q': 'Bei ni kwa mtumiaji au kwa kampuni?',
   'pricing.faq.1.a':
-    'Bei ya SupplierAdvisor ni kwa workspace ya kampuni, si kwa kiti. Kila ngazi ya malipo inajumuisha watumiaji wa timu bila kikomo.',
+    'Bei ya SupplierAdvisor® ni kwa workspace ya kampuni, si kwa kiti. Kila ngazi ya malipo inajumuisha watumiaji wa timu bila kikomo.',
   'pricing.faq.2.q': '“Kuanzia R299/mwezi” inamaanisha nini?',
   'pricing.faq.2.a':
     'R299/mwezi ni kiwango cha sasa cha orodha ya kila mwezi kwa usajili mmoja wa kampuni. Ngazi za kulipia mapema za mwaka 1, 2, na 3 hupunguza gharama halisi ya kila mwezi.',
@@ -172,7 +186,7 @@ const sw: Dict = {
     'Ada za rufaa zinatokana tu na malipo halisi ya usajili unaostahili. Mgawanyo ni 6% kwa L1, 3% kwa L2, na 1% kwa L3.',
   'pricing.faq.6.q': 'Je, malipo ya rufaa yanatokana na mauzo ya bidhaa?',
   'pricing.faq.6.a':
-    'Hapana. Malipo ya rufaa yanatumika kwa ada za usajili wa jukwaa la SupplierAdvisor, si kwa mauzo ya bidhaa au huduma kati ya washirika.',
+    'Hapana. Malipo ya rufaa yanatumika kwa ada za usajili wa jukwaa la SupplierAdvisor®, si kwa mauzo ya bidhaa au huduma kati ya washirika.',
   'pricing.faq.7.q': 'Naweza kubadilisha ngazi ya malipo baadaye?',
   'pricing.faq.7.a':
     'Ndiyo. Kampuni zinaweza kuhamia kutoka kila mwezi hadi masharti ya kulipia mapema kwenye bili. Uboreshaji wa mapema huongeza muda wa usajili.',

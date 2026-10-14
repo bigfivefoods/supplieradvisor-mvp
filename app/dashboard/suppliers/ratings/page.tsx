@@ -227,7 +227,7 @@ function RatingsInner() {
                       <div className="text-right">
                         <div className="inline-flex items-center gap-1.5 font-black text-amber-700">
                           <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                          {s.rating_avg.toFixed(1)}
+                          {Number.isFinite(s.rating_avg) ? s.rating_avg.toFixed(1) : '—'}
                         </div>
                         <div className="mt-1">
                           <StarRating value={s.rating_avg} readOnly size="sm" />

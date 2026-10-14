@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Smartphone,
 } from 'lucide-react';
+import SiteFooter from '@/components/marketing/SiteFooter';
 
 const LANES = [
   {
@@ -42,7 +43,7 @@ const LANES = [
     icon: Landmark,
     kicker: 'Platform approval required',
     title: 'Government',
-    body: 'National, provincial or municipal offices. Your request is held until a SupplierAdvisor admin activates the workspace.',
+    body: 'National, provincial or municipal offices. Your request is held until a SupplierAdvisor® admin activates the workspace.',
     cta: 'Request government access',
     tone: 'from-violet-50 to-white border-violet-200',
     iconTone: 'from-violet-700 to-violet-950',
@@ -61,7 +62,7 @@ export default function JoinPage() {
           <Link href="/" className="flex items-center gap-3">
             <Image
               src="/sa-logo.png"
-              alt="SupplierAdvisor"
+              alt="SupplierAdvisor®"
               width={100}
               height={44}
               className="h-9 w-auto object-contain"
@@ -80,7 +81,7 @@ export default function JoinPage() {
 
         <div className="mb-8">
           <p className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-[#0077b6]">
-            Join SupplierAdvisor
+            Join SupplierAdvisor®
           </p>
           <h1 className="mb-3 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
             Why are you joining us?
@@ -145,6 +146,7 @@ export default function JoinPage() {
           same login opens SA Member and any companies you operate.
         </p>
       </div>
+      <SiteFooter />
     </div>
   );
 }

@@ -45,7 +45,7 @@ assert.match(cal, /seriesScope/);
 assert.match(cal, /Entire series/);
 assert.match(cal, /This and future/);
 assert.match(cal, /clinicRoomNames/);
-assert.match(cal, /Member \/ private client/);
+assert.match(cal, /Add member…/);
 assert.match(cal, /Floor → Rooms/);
 assert.match(cal, /form\.session_kind === 'private_pt'/);
 assert.match(cal, /save_calendar_sessions/);

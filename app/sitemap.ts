@@ -1,7 +1,14 @@
 import type { MetadataRoute } from 'next';
-import { LOCALES, TRANSLATED_PATHS, localizedPath } from '@/lib/i18n/config';
+import {
+  LOCALES,
+  TRANSLATED_PATHS,
+  hreflangAlternates,
+  isTranslatedPath,
+  localizedPath,
+} from '@/lib/i18n/config';
 import { companyPublicPath } from '@/lib/seo/company-public';
 import { loadAllPublicCompanyRows } from '@/lib/seo/load-public-companies';
+import { shareCardById } from '@/lib/seo/share-cards';
 import { SITE_URL, STATIC_SEO_ROUTES } from '@/lib/seo/site';
 
 /** Prefer www canonical host for Google Search Console */
@@ -36,26 +43,63 @@ export default async function sitemap(props: {
   const now = new Date();
 
   if (!Number.isFinite(id) || id <= 0) {
-    const staticEntries = STATIC_SEO_ROUTES.map((r) => ({
-      url: `${BASE}${r.path === '/' ? '/' : r.path}`,
-      lastModified: now,
-      changeFrequency: r.changeFrequency,
-      priority: r.priority,
-    }));
+    const staticEntries = STATIC_SEO_ROUTES.map((r) =>
+      withLanguageAlternates(r.path, {
+        url: `${BASE}${r.path === '/' ? '/' : r.path}`,
+        lastModified: now,
+        changeFrequency: r.changeFrequency,
+        priority: r.priority,
+        ...shareImage(r.path),
+      })
+    );
 
     const localizedEntries = LOCALES.filter((locale) => locale !== 'en').flatMap((locale) =>
-      TRANSLATED_PATHS.map((path) => ({
-        url: `${BASE}${localizedPath(locale, path)}`,
-        lastModified: now,
-        changeFrequency: 'weekly' as const,
-        priority: path === '/' ? 0.9 : 0.8,
-      }))
+      TRANSLATED_PATHS.map((path) =>
+        withLanguageAlternates(path, {
+          url: `${BASE}${localizedPath(locale, path)}`,
+          lastModified: now,
+          changeFrequency: 'weekly' as const,
+          priority: path === '/' ? 0.9 : 0.8,
+          ...shareImage(path),
+        })
+      )
     );
 
     return [...staticEntries, ...localizedEntries];
   }
 
   return buildCompanyShard(id - 1, now);
+}
+
+function withLanguageAlternates(
+  path: string,
+  entry: MetadataRoute.Sitemap[number]
+): MetadataRoute.Sitemap[number] {
+  if (!isTranslatedPath(path)) return entry;
+  return {
+    ...entry,
+    alternates: {
+      languages: hreflangAlternates(path, BASE),
+    },
+  };
+}
+
+function shareImage(path: string): { images?: string[] } {
+  const id =
+    path === '/'
+      ? 'home'
+      : path === '/pricing'
+        ? 'pricing'
+        : path === '/demo'
+          ? 'demo'
+          : path === '/industries'
+            ? 'industries'
+            : path.startsWith('/industries/')
+              ? path.slice('/industries/'.length)
+              : '';
+  const card = id ? shareCardById(id) : undefined;
+  if (!card) return {};
+  return { images: [`${BASE}/${card.file}`] };
 }
 
 async function buildCompanyShard(

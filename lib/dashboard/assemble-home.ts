@@ -172,7 +172,7 @@ function pipelineStagesFromRollup(raw: Record<string, unknown> | null) {
 export async function assembleDashboardSummary(companyId: number) {
   const supabase = getSupabaseServer();
 
-  const [company, homeRollupRes, acctRollupRes, crmRollupRes] = await Promise.all([
+  const [company, homeRollupRes, acctRollupRes, crmRollupRes, poCountRes] = await Promise.all([
     loadHomeCompanyRow(companyId),
     supabase.rpc('sa_dashboard_home_rollup', { p_profile_id: companyId }),
     supabase.rpc('sa_accounting_kpi_rollup', { p_profile_id: companyId }),
@@ -180,6 +180,18 @@ export async function assembleDashboardSummary(companyId: number) {
       p_profile_id: companyId,
       p_tree_ids: [companyId],
     }),
+    // Head count only — any buyer PO, including received ones the open-status rollup drops.
+    // A failure here must not take down the command center.
+    (async () => {
+      try {
+        return await supabase
+          .from('purchase_orders')
+          .select('id', { count: 'exact', head: true })
+          .eq('buyer_profile_id', companyId);
+      } catch {
+        return { count: null as number | null, error: { message: 'count failed' } };
+      }
+    })(),
   ]);
 
   const home = homeRollupRes.error ? null : asObj(homeRollupRes.data);
@@ -241,6 +253,9 @@ export async function assembleDashboardSummary(companyId: number) {
   const srmAvgOtifef = n(home, 'srm_avg_otifef');
   const srmOpenPos = n(home, 'srm_open_pos');
   const srmOnchainPos = n(home, 'srm_onchain_pos');
+  const purchaseOrdersRaised = poCountRes.error
+    ? Math.max(srmOpenPos, srmOnchainPos)
+    : poCountRes.count ?? 0;
   const srmRiadOpen = n(home, 'srm_riad_open');
 
   const pricingAgreements = n(home, 'pricing_agreements');
@@ -524,6 +539,7 @@ export async function assembleDashboardSummary(companyId: number) {
       srmAvgOtifef,
       srmOpenPos,
       srmOnchainPos,
+      purchaseOrders: purchaseOrdersRaised,
       srmRiadOpen,
       pricingAgreements,
       pricingActive,
@@ -580,6 +596,7 @@ export async function assembleDashboardSummary(companyId: number) {
       invoicesCollectedValue,
       openPos: srmOpenPos,
       onchainPos: srmOnchainPos,
+      purchaseOrders: purchaseOrdersRaised,
       arOpen,
       arOpenValue,
       apOpen,

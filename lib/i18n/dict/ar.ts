@@ -5,9 +5,9 @@ const ISO_LTR_START = '\u2066';
 const ISO_LTR_END = '\u2069';
 
 const ar: Dict = {
-  'meta.home.title': 'SupplierAdvisor® — أكثر نصائح الموردين موثوقية في العالم — ونظام التشغيل',
+  'meta.home.title': 'SupplierAdvisor® — نظام تشغيل سلسلة التوريد مع طبقة تجارة وثقة موثّقة',
   'meta.home.description':
-    'SupplierAdvisor® هو نظام تشغيل سلسلة التوريد للتجارة الموثقة وتدفقات العمل القطاعية وحسابات SA Member مع تجربة مجانية لمدة 30 يومًا.',
+    'SupplierAdvisor® هو نظام تشغيل سلسلة التوريد مع طبقة تجارة وثقة موثّقة، وتجربة للشركة، وحساب SA Member مجاني.',
   'meta.pricing.title': 'الأسعار',
   'meta.pricing.description': 'تسعير الشركات يبدأ من R299/شهريًا مع مستخدمين غير محدودين وتوفير إحالة واضح.',
   'switcher.chooseLanguage': 'اختر لغة',
@@ -16,7 +16,7 @@ const ar: Dict = {
   'brand.supplierAdvisor': `${ISO_LTR_START}SupplierAdvisor®${ISO_LTR_END}`,
   'brand.schoolAdvisor': `${ISO_LTR_START}SchoolAdvisor®${ISO_LTR_END}`,
   'brand.superCube': `${ISO_LTR_START}Super-Cube®${ISO_LTR_END}`,
-  'brand.bigFiveGroup': `${ISO_LTR_START}Big Five Group${ISO_LTR_END}`,
+  'brand.bigFiveGroup': `${ISO_LTR_START}Big Five Group™${ISO_LTR_END}`,
   'nav.groupProduct': 'المنتج',
   'nav.groupPricing': 'الأسعار',
   'nav.groupTry': 'جرّبه',
@@ -50,12 +50,23 @@ const ar: Dict = {
   'theme.system': 'النظام',
   'home.trialStrip': 'تجربة مجانية لمدة {days} يومًا. سجّل شركتك وشغّل أول دورة تجارة.',
   'home.startTrial': 'ابدأ التجربة المجانية',
-  'hero.headlineLead': 'أكثر نصائح الموردين موثوقية',
-  'hero.headlineAccent': 'في العالم — ونظام التشغيل.',
+  'home.bookTitle': 'احجز عرضًا',
+  'home.bookBody':
+    'خلال 20 دقيقة نرسم سلسلة التوريد الخاصة بك على SupplierAdvisor® — التجارة والمخزون والجودة والمالية — ونعرض ما هو موجود في المنتج اليوم.',
+  'home.bookEmail': 'راسلنا لحجز عرض',
+  'home.bookWhatsapp': 'WhatsApp',
+  'home.bookSample': 'تفضّل المشاهدة أولًا؟',
+  'home.bookSampleLink': 'افتح العرض التفاعلي',
+  'home.bookSampleNote': 'شاشات توضيحية فقط. بدون تسجيل.',
+  'home.proofCue':
+    'تعرض هذه الصفحة شروط المنتج. لا تنشر أعداد العملاء ولا درجات الأداء.',
+  'hero.headlineLead': 'نظام تشغيل سلسلة التوريد',
+  'hero.headlineAccent': 'مع طبقة تجارة وثقة موثّقة.',
   'hero.compare': 'اطلع على المقارنة',
   'hero.businessRun': 'أنا أدير شركة',
   'hero.bookDemo': 'احجز عرضًا',
-  'hero.notExcel': 'ليس Excel. وليس محاسبة فقط. وليس مشروع ERP لسنوات.',
+  'hero.notExcel': 'التجارة والمخزون والجودة والإثبات في مساحة عمل واحدة للشركة.',
+  'hero.sampleScreen': 'شاشة توضيحية',
   'hero.trialDays': 'تجربة مجانية لمدة {days} يومًا',
   'hero.membersNeverPay': 'الأعضاء لا يدفعون لنا مطلقًا',
   'hero.scene.b2b.title': 'من شركة إلى شركة',
@@ -82,7 +93,7 @@ const ar: Dict = {
   'hero.scene.b2c.point2': 'احجز، سجّل حضورك، العائلة، قائمة الانتظار، .ics وملاحظات طبية مشتركة',
   'hero.scene.b2c.point3': 'ادفع أو أرسل إثباتًا — نفس تسجيل الدخول إذا أدرت شركة لاحقًا',
   'hero.scene.b2c.cta': 'أنشئ حساب SA Member مجانيًا',
-  'footer.tagline': 'أكثر نصائح الموردين موثوقية في العالم ونظام تشغيل سلاسل التوريد — B2B وB2G وB2C على شبكة موثقة واحدة.',
+  'footer.tagline': 'نظام تشغيل سلسلة التوريد مع طبقة تجارة وثقة موثّقة — B2B وB2G وB2C في مساحة عمل واحدة.',
   'footer.motto': 'مصمم للمشغّلين الذين يقيسون الثقة.',
   'footer.explore': 'استكشف',
   'footer.industries': 'القطاعات',
@@ -92,6 +103,7 @@ const ar: Dict = {
   'footer.group.network': 'الشبكة',
   'footer.group.trust': 'الثقة',
   'footer.group.apps': 'التطبيقات',
+  'footer.group.group': 'المجموعة',
   'footer.social': 'وسائل التواصل الاجتماعي',
   'footer.industriesBySector': 'القطاعات حسب المجال',
   'footer.legalNav': 'قانوني',
@@ -111,7 +123,9 @@ const ar: Dict = {
   'footer.foundingTitle': 'قائمة المؤسسين',
   'footer.foundingBlurb': 'تحديثات الأعضاء المؤسسين وتنبيهات المقاعد الجديدة من SupplierAdvisor®.',
   'footer.rights': 'جميع الحقوق محفوظة.',
-  'footer.bigFiveCompany': '‏SupplierAdvisor® شركة تابعة لـ Big Five Group',
+  'footer.bigFiveCompany': `‏SupplierAdvisor® شركة تابعة لـ ${ISO_LTR_START}Big Five Group™${ISO_LTR_END}`,
+  'footer.bigFiveLead': '‏SupplierAdvisor® ',
+  'footer.bigFiveLink': `شركة تابعة لـ ${ISO_LTR_START}Big Five Group™${ISO_LTR_END}`,
   'footer.contact.country': 'جنوب أفريقيا',
   'footer.form.emailLabel': 'البريد الإلكتروني',
   'footer.form.emailPlaceholder': 'you@company.com',
@@ -123,13 +137,13 @@ const ar: Dict = {
   'pricing.kicker': 'الأسعار',
   'pricing.title': 'تسعير شفاف للشركات بدءًا من R299/شهريًا',
   'pricing.lede':
-    'تم بناء SupplierAdvisor للشركات التي تحتاج إلى نظام تشغيل واحد عبر المشتريات والجودة وعلاقات الموردين والمخزون والمالية.',
+    'تم بناء SupplierAdvisor® للشركات التي تحتاج إلى نظام تشغيل واحد عبر المشتريات والجودة وعلاقات الموردين والمخزون والمالية.',
   'pricing.ctaTrial': 'ابدأ التجربة المجانية',
   'pricing.ctaDemo': 'احجز عرضًا',
   'pricing.companyProfile': 'حمّل ملف تعريف الشركة (PDF)',
   'pricing.englishNote': 'EN',
   'pricing.tiers': 'باقات الفوترة',
-  'pricing.tiersBody': 'كل الباقات تشمل مستخدمين غير محدودين ونفس نطاق منتج SupplierAdvisor الكامل.',
+  'pricing.tiersBody': 'كل الباقات تشمل مستخدمين غير محدودين ونفس نطاق منتج SupplierAdvisor® الكامل.',
   'pricing.tier.monthly': 'شهري',
   'pricing.tier.1y': 'سنة واحدة',
   'pricing.tier.2y': 'سنتان',
@@ -151,7 +165,7 @@ const ar: Dict = {
   'pricing.referral.step1.title': 'ادعُ شركاء تجارة حقيقيين',
   'pricing.referral.step1.body':
     'شارك رابط الإحالة مع الموردين والمشترين والشركاء الذين تتعامل معهم فعليًا. تُحتسب أول دعوة صالحة وتبقى العلاقة لصاحبها.',
-  'pricing.referral.step2.title': 'يقومون بتفعيل SupplierAdvisor',
+  'pricing.referral.step2.title': 'يقومون بتفعيل SupplierAdvisor®',
   'pricing.referral.step2.body':
     'تحصل كل شركة مدعوة على 30 يومًا لتشغيل المنصة كاملة، ثم يمكنها الاشتراك بدءًا من R299/شهريًا أو اختيار باقة مدفوعة مسبقًا.',
   'pricing.referral.step3.title': 'تُوزَّع عمولات الإحالة حسب العمق',
@@ -160,7 +174,7 @@ const ar: Dict = {
   'pricing.faq': 'الأسئلة الشائعة للأسعار',
   'pricing.faq.1.q': 'هل التسعير لكل مستخدم أم لكل شركة؟',
   'pricing.faq.1.a':
-    'تسعير SupplierAdvisor يكون لكل مساحة عمل شركة وليس لكل مقعد. كل باقة مدفوعة تشمل مستخدمي فريق غير محدودين.',
+    'تسعير SupplierAdvisor® يكون لكل مساحة عمل شركة وليس لكل مقعد. كل باقة مدفوعة تشمل مستخدمي فريق غير محدودين.',
   'pricing.faq.2.q': 'ما معنى «ابتداءً من R299/شهريًا»؟',
   'pricing.faq.2.a':
     'R299/شهريًا هو السعر الشهري الحالي لاشتراك شركة واحد. باقات 1 سنة و2 سنة و3 سنوات المدفوعة مسبقًا تخفض الكلفة الشهرية الفعلية.',
@@ -175,7 +189,7 @@ const ar: Dict = {
     'تُحتسب رسوم الإحالة فقط من مدفوعات الاشتراك المؤهلة الفعلية. التوزيع هو 6% في L1 و3% في L2 و1% في L3، بإجمالي حد أقصى 10%.',
   'pricing.faq.6.q': 'هل تعتمد مدفوعات الإحالة على مبيعات المنتجات؟',
   'pricing.faq.6.a':
-    'لا. مدفوعات الإحالة تُطبق على رسوم اشتراك منصة SupplierAdvisor، وليس على مبيعات السلع أو الخدمات بين الشركاء.',
+    'لا. مدفوعات الإحالة تُطبق على رسوم اشتراك منصة SupplierAdvisor®، وليس على مبيعات السلع أو الخدمات بين الشركاء.',
   'pricing.faq.7.q': 'هل يمكنني تغيير باقة الفوترة لاحقًا؟',
   'pricing.faq.7.a':
     'نعم. يمكن للشركات الانتقال من الشهري إلى الباقات المدفوعة مسبقًا من الفوترة. التجديد المبكر يمدد مدة الاشتراك.',

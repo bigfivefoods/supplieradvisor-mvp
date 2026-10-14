@@ -47,8 +47,9 @@ assert.ok(patchFn.includes('_gate.response'), 'PATCH must return _gate.response 
 assert.ok(deleteFn.includes('requireCompanyAccess'), 'DELETE must call requireCompanyAccess');
 assert.ok(deleteFn.includes('_gate.response'), 'DELETE must return _gate.response on !ok');
 
+const getPrivyBranch = getFn.indexOf('if (privyUserId)');
 assert.ok(
-  getFn.indexOf('requireCompanyAccess') < getFn.indexOf('if (privyUserId)'),
+  getPrivyBranch === -1 || getFn.indexOf('requireCompanyAccess') < getPrivyBranch,
   'GET must not hide requireCompanyAccess inside the privyUserId branch'
 );
 assert.ok(

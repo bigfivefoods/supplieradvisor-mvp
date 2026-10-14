@@ -55,7 +55,8 @@ assert.match(lookup, /lookupAcceptedMap/);
 assert.match(lookup, /partyKind: 'customer'/);
 
 const cat = src('app/api/suppliers/catalogue/route.ts');
-assert.match(cat, /lookupAcceptedMap/);
+assert.match(cat, /loadPartyLines/);
+assert.match(cat, /accepted_price/);
 
 const ws = src('lib/portals/trade-portal-workspace.ts');
 assert.match(ws, /commercial/);

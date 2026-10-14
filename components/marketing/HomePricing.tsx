@@ -28,7 +28,7 @@ import {
   REFERRAL_TOTAL_CAP_PCT,
   referralChainScaleScenario,
   referralRatesSummary,
-} from '@/lib/billing/supply-chain-referral';
+} from '@/lib/billing/referral-rates';
 import {
   MARKETING_PRICING_TERMS,
   PRICING_SECTION_IDS,
@@ -287,7 +287,7 @@ export default function HomePricing() {
                   Everything included
                 </h2>
                 <p className="mt-3 text-slate-600 leading-relaxed">
-                  Every tier is the same product — the full SupplierAdvisor supply-chain
+                  Every tier is the same product — the full SupplierAdvisor® supply-chain
                   operating system for your company workspace.
                 </p>
                 <ul className="mt-6 grid sm:grid-cols-2 gap-3">
@@ -334,7 +334,7 @@ export default function HomePricing() {
                 First {FOUNDING_FREE_COMPANY_LIMIT} companies — free for life
               </h2>
               <p className="mt-3 text-slate-700 leading-relaxed max-w-xl">
-                Early companies on SupplierAdvisor receive complimentary lifetime
+                Early companies on SupplierAdvisor® receive complimentary lifetime
                 access. After the founding cohort fills, standard trial + paid tiers
                 apply from R{COMPANY_SUBSCRIPTION_MONTHLY_ZAR}/month.
               </p>
@@ -404,7 +404,7 @@ export default function HomePricing() {
               </h2>
               <p className="mt-3 text-slate-600 text-sm sm:text-base leading-relaxed">
                 Invite real trading partners. Help them run clean ops. When they
-                pay for SupplierAdvisor, you earn a share of their{' '}
+                pay for SupplierAdvisor®, you earn a share of their{' '}
                 <strong className="text-slate-800">platform subscription</strong>{' '}
                 — not product sales. Up to{' '}
                 <strong className="text-slate-800">

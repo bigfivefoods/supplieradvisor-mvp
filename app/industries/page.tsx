@@ -3,14 +3,19 @@ import type { Metadata } from 'next';
 import LandingNav from '@/components/marketing/LandingNav';
 import { INDUSTRIES } from '@/lib/marketing/industries';
 import { ArrowRight } from 'lucide-react';
-import { SA_OG_IMAGE_URL } from '@/lib/brand/assets';
 import { INDUSTRY_PACK_MONTHLY_ZAR } from '@/lib/product/architecture';
 import SiteFooter from '@/components/marketing/SiteFooter';
 import { COMPANY_PROFILE_PDF } from '@/lib/marketing/company-profile';
+import { marketingMetadata } from '@/lib/seo/metadata';
+import { INDUSTRIES_SHARE_CARD } from '@/lib/seo/share-cards';
 
-export const metadata: Metadata = {
-  title: 'Industries',
-  description: 'Industry-specific supply-chain workflows for agri, manufacturing, retail, gyms, clinics, and public programmes.',
+export const metadata: Metadata = marketingMetadata({
+  path: '/industries',
+  title: 'Industries · SupplierAdvisor®',
+  absoluteTitle: true,
+  description:
+    'SupplierAdvisor® industries: agri, manufacturing, apparel, construction, gyms, clinics, hire, retail, and public programmes.',
+  image: INDUSTRIES_SHARE_CARD,
   keywords: [
     'supply chain by industry',
     'CropAdvisor',
@@ -35,18 +40,9 @@ export const metadata: Metadata = {
     'clinic practice software',
     'veterinary practice software',
     'public sector procurement',
-    'SupplierAdvisor industries',
+    'SupplierAdvisor® industries',
   ],
-  openGraph: {
-    title: 'Industries · SupplierAdvisor®',
-    description: 'Industry-specific supply-chain workflows for agri, construction, retail, clinics, gyms, and public programmes.',
-    url: 'https://www.supplieradvisor.com/industries',
-    type: 'website',
-    images: [{ url: SA_OG_IMAGE_URL, width: 1200, height: 630 }],
-  },
-  alternates: { canonical: 'https://www.supplieradvisor.com/industries' },
-  robots: { index: true, follow: true },
-};
+});
 
 const PRIMARY = INDUSTRIES.filter((i) =>
   ['agriculture', 'quarry-aggregates', 'food-beverage'].includes(i.slug)

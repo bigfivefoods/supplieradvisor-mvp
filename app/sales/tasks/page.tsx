@@ -28,6 +28,7 @@ import {
 import { salesDiaryIcs } from '@/lib/sales/diary-ics';
 import { downloadIcsBrowser } from '@/lib/schedule/advisor-ics';
 import { DiaryCalendarConnect, syncConnectedCalendars } from '@/components/sales/DiaryCalendarConnect';
+import { fixtureHref, isFixturePath } from '@/lib/preview/fixture-href';
 import {
   PracticeScheduleCalendar,
   type ScheduleEvent,
@@ -104,13 +105,18 @@ function TasksInner() {
   const { user } = usePrivy();
   const privyUserId = getCanonicalUserId(user?.id);
   const search = useSearchParams();
-  const [tasks, setTasks] = useState<CrmTask[]>([]);
-  const [horizon, setHorizon] = useState<DiaryEvent[]>([]);
+  const fixtureBook = isFixturePath('/preview/crm') || sampleBookOn();
+  const [tasks, setTasks] = useState<CrmTask[]>(() =>
+    fixtureBook ? crmPreviewBook().tasks : []
+  );
+  const [horizon, setHorizon] = useState<DiaryEvent[]>(() =>
+    fixtureBook ? horizonScheduleEvents(crmPreviewBook().horizon) : []
+  );
   const [apple, setApple] = useState<AppleDiaryItem[]>([]);
   const [customers, setCustomers] = useState<CustomerOpt[]>([]);
   const [deals, setDeals] = useState<DealOpt[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!fixtureBook);
   const [saving, setSaving] = useState(false);
   const [lens, setLens] = useState<DiaryLens>('all');
   const [focusKey, setFocusKey] = useState<string | null>(null);
@@ -128,10 +134,12 @@ function TasksInner() {
   });
 
   const load = useCallback(async () => {
-    if (!companyId) return;
-    setLoading(true);
+    if (!companyId) {
+      setLoading(false);
+      return;
+    }
     try {
-      if (sampleBookOn()) {
+      if (sampleBookOn() || isFixturePath('/preview/crm')) {
         const book = crmPreviewBook();
         setTasks(book.tasks);
         setHorizon(horizonScheduleEvents(book.horizon));
@@ -147,8 +155,10 @@ function TasksInner() {
           }))
         );
         setMembers([{ user_id: 'demo-craig', name: 'Craig Muller' }]);
+        setLoading(false);
         return;
       }
+      setLoading(true);
       const qs = new URLSearchParams({ companyId: String(companyId) });
       if (privyUserId) qs.set('privyUserId', privyUserId);
       const [taskRes, custRes, oppRes, teamRes] = await Promise.all([
@@ -526,7 +536,9 @@ function TasksInner() {
         </form>
       ) : null}
 
-      <DiaryCalendarConnect companyId={companyId} privyUserId={privyUserId} onChanged={() => void load()} />
+      {isFixturePath('/preview') ? null : (
+        <DiaryCalendarConnect companyId={companyId} privyUserId={privyUserId} onChanged={() => void load()} />
+      )}
 
       {loading ? (
         <CrmSkeleton variant="metrics" />
@@ -557,7 +569,7 @@ function TasksInner() {
             events={visibleEvents}
             accent="sky"
             title="Sales diary"
-            printBrand="SupplierAdvisor"
+            printBrand="SupplierAdvisor®"
             emptyLabel="Nothing on this day"
             defaultView="month"
             selectedEventId={focusKey}
@@ -615,7 +627,7 @@ function DiaryTable({
               : `Nothing under ${DIARY_LENSES.find((item) => item.id === lens)?.label || 'this tab'}.`
           }
           action={
-            <Link href="/sales/pipeline" className="btn-secondary !px-4 !py-2.5 text-sm">
+            <Link href={fixtureHref('/sales/pipeline')} className="btn-secondary !px-4 !py-2.5 text-sm">
               Open the pipeline
             </Link>
           }
@@ -658,14 +670,14 @@ function DiaryTable({
                   <div className="mt-1 flex flex-wrap gap-3">
                     {row.customerId ? (
                       <Link
-                        href={`/dashboard/customers/profiles?id=${row.customerId}`}
+                        href={fixtureHref(`/dashboard/customers/profiles?id=${row.customerId}`)}
                         className="text-xs font-semibold text-[#0077b6]"
                       >
                         Customer book
                       </Link>
                     ) : null}
                     {row.opportunityId ? (
-                      <Link href="/sales/pipeline" className="text-xs font-semibold text-[#0077b6]">
+                      <Link href={fixtureHref('/sales/pipeline')} className="text-xs font-semibold text-[#0077b6]">
                         Pipeline deal
                       </Link>
                     ) : null}

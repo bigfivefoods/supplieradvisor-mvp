@@ -31,17 +31,27 @@ function resolveImport(fromFile: string, spec: string): string | null {
   return null;
 }
 
+function isFile(path: string): boolean {
+  try {
+    return existsSync(path) && statSync(path).isFile();
+  } catch {
+    return false;
+  }
+}
+
 function withExt(base: string): string | null {
   const tries = [
-    base,
     `${base}.ts`,
     `${base}.tsx`,
     `${base}.js`,
+    `${base}.mjs`,
     join(base, 'index.ts'),
     join(base, 'index.tsx'),
+    join(base, 'index.js'),
+    base,
   ];
   for (const t of tries) {
-    if (existsSync(t) && statSync(t).isFile()) return t;
+    if (isFile(t)) return t;
   }
   return null;
 }

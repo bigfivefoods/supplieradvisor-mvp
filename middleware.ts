@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { canonicalRedirectForAppHost } from '@/lib/http/app-host';
 import { isPublicApiPath } from '@/lib/auth/public-paths';
 
 /**
- * Edge middleware — security headers + coarse API gate.
+ * Edge middleware — app-host redirect, security headers, coarse API gate.
  *
  * Full JWT verification runs in Node route handlers (lib/auth/verify-privy.ts)
  * because Privy JWKS verification is more reliable in the Node runtime.
@@ -11,9 +12,24 @@ import { isPublicApiPath } from '@/lib/auth/public-paths';
  * AUTH_STRICT is not disabled, so anonymous scanners get 401 early.
  *
  * Public prefixes (health, fx, webhooks, public listings) are allowed through.
+ *
+ * app.supplieradvisor.com is not a second app origin. A 308 sends that host
+ * to the same path on www before any login or API gate runs.
  */
+function isLegacyMiddlewarePath(pathname: string) {
+  return (
+    pathname === '/dashboard' ||
+    pathname.startsWith('/dashboard/') ||
+    pathname === '/api' ||
+    pathname.startsWith('/api/') ||
+    pathname === '/sales' ||
+    pathname.startsWith('/sales/') ||
+    pathname === '/contractor' ||
+    pathname.startsWith('/contractor/')
+  );
+}
+
 export function middleware(request: NextRequest) {
-  const response = NextResponse.next();
   const { pathname, search } = request.nextUrl;
 
   const applySecurityHeaders = (res: NextResponse) => {
@@ -27,6 +43,26 @@ export function middleware(request: NextRequest) {
     );
     res.headers.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   };
+
+  const appHostTarget = canonicalRedirectForAppHost(
+    request.headers.get('host') || request.nextUrl.host,
+    pathname,
+    search
+  );
+  if (appHostTarget) {
+    const redirect = NextResponse.redirect(appHostTarget, 308);
+    applySecurityHeaders(redirect);
+    redirect.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    return redirect;
+  }
+
+  // Host check above needs a broad matcher. www routes outside the original
+  // gate must keep the previous pass-through behaviour.
+  if (!isLegacyMiddlewarePath(pathname)) {
+    return NextResponse.next();
+  }
+
+  const response = NextResponse.next();
 
   const isDashboardPath = pathname === '/dashboard' || pathname.startsWith('/dashboard/');
   if (isDashboardPath) {
@@ -95,5 +131,11 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/api/:path*', '/sales/:path*', '/contractor/:path*'],
+  matcher: [
+    '/dashboard/:path*',
+    '/api/:path*',
+    '/sales/:path*',
+    '/contractor/:path*',
+    '/((?!_next/static|_next/image).*)',
+  ],
 };

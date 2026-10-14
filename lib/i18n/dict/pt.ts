@@ -2,9 +2,9 @@
 import type { Dict } from './en';
 
 const pt: Dict = {
-  'meta.home.title': 'SupplierAdvisor® — o aconselhamento de fornecedores mais fiável do mundo — e OS',
+  'meta.home.title': 'SupplierAdvisor® — o OS fiável da cadeia de abastecimento, com comércio verificado',
   'meta.home.description':
-    'SupplierAdvisor® é o OS da cadeia de abastecimento para comércio verificado, fluxos setoriais e contas SA Member com período experimental gratuito de 30 dias.',
+    'SupplierAdvisor® é o OS da cadeia de abastecimento com uma camada de comércio e confiança verificada, um teste empresarial e uma conta SA Member gratuita.',
   'meta.pricing.title': 'Preços',
   'meta.pricing.description': 'Preços empresariais desde R299/mês com utilizadores ilimitados e poupança clara com referências.',
   'switcher.chooseLanguage': 'Escolha um idioma',
@@ -13,7 +13,7 @@ const pt: Dict = {
   'brand.supplierAdvisor': 'SupplierAdvisor®',
   'brand.schoolAdvisor': 'SchoolAdvisor®',
   'brand.superCube': 'Super-Cube®',
-  'brand.bigFiveGroup': 'Big Five Group',
+  'brand.bigFiveGroup': 'Big Five Group™',
   'nav.groupProduct': 'Produto',
   'nav.groupPricing': 'Preços',
   'nav.groupTry': 'Experimentar',
@@ -47,12 +47,23 @@ const pt: Dict = {
   'theme.system': 'Sistema',
   'home.trialStrip': 'Teste gratuito de {days} dias. Registe a sua empresa e execute o primeiro ciclo comercial.',
   'home.startTrial': 'Iniciar teste gratuito',
-  'hero.headlineLead': 'O aconselhamento de fornecedores mais fiável',
-  'hero.headlineAccent': 'do mundo — e o OS.',
+  'home.bookTitle': 'Marcar uma demonstração',
+  'home.bookBody':
+    'Em 20 minutos mapeamos a sua cadeia de abastecimento no SupplierAdvisor® — comércio, stock, qualidade e finanças — e mostramos o que já está no produto.',
+  'home.bookEmail': 'E-mail para uma demonstração',
+  'home.bookWhatsapp': 'WhatsApp',
+  'home.bookSample': 'Prefere ver primeiro?',
+  'home.bookSampleLink': 'Abrir a demonstração interativa',
+  'home.bookSampleNote': 'Apenas ecrãs de exemplo. Sem registo.',
+  'home.proofCue':
+    'Esta página indica as condições do produto. Não publica números de clientes nem pontuações de desempenho.',
+  'hero.headlineLead': 'O OS fiável da cadeia de abastecimento',
+  'hero.headlineAccent': 'com uma camada de comércio e confiança verificada.',
   'hero.compare': 'Veja como comparamos',
   'hero.businessRun': 'Eu administro um negócio',
   'hero.bookDemo': 'Marcar demonstração',
-  'hero.notExcel': 'Não é Excel. Não é só contabilidade. Não é um projeto ERP de anos.',
+  'hero.notExcel': 'Comércio, stock, qualidade e prova partilham o mesmo espaço de trabalho.',
+  'hero.sampleScreen': 'Ecrã de exemplo',
   'hero.trialDays': 'Teste gratuito de {days} dias',
   'hero.membersNeverPay': 'Membros nunca nos pagam',
   'hero.scene.b2b.title': 'Empresa para empresa',
@@ -79,7 +90,7 @@ const pt: Dict = {
   'hero.scene.b2c.point2': 'Reservar, check-in, família, fila de espera, .ics e notas médicas compartilhadas',
   'hero.scene.b2c.point3': 'Pague ou envie comprovativo — o mesmo início de sessão se depois gerir uma empresa',
   'hero.scene.b2c.cta': 'Criar conta SA Member grátis',
-  'footer.tagline': 'O aconselhamento de fornecedores mais fiável do mundo e OS de cadeia de abastecimento — B2B, B2G e B2C numa rede verificada.',
+  'footer.tagline': 'O OS fiável da cadeia de abastecimento, com uma camada de comércio e confiança verificada — B2B, B2G e B2C num espaço de trabalho.',
   'footer.motto': 'Construído para operadores que medem confiança.',
   'footer.explore': 'Explorar',
   'footer.industries': 'Setores',
@@ -89,6 +100,7 @@ const pt: Dict = {
   'footer.group.network': 'Rede',
   'footer.group.trust': 'Confiança',
   'footer.group.apps': 'Aplicações',
+  'footer.group.group': 'Grupo',
   'footer.social': 'Redes sociais',
   'footer.industriesBySector': 'Setores por indústria',
   'footer.legalNav': 'Jurídico',
@@ -108,7 +120,9 @@ const pt: Dict = {
   'footer.foundingTitle': 'Lista fundadora',
   'footer.foundingBlurb': 'Atualizações de membros fundadores e alertas de novas vagas do SupplierAdvisor®.',
   'footer.rights': 'Todos os direitos reservados.',
-  'footer.bigFiveCompany': 'SupplierAdvisor® é uma empresa do Big Five Group',
+  'footer.bigFiveCompany': 'SupplierAdvisor® é uma empresa do Big Five Group™',
+  'footer.bigFiveLead': 'SupplierAdvisor® é ',
+  'footer.bigFiveLink': 'uma empresa do Big Five Group™',
   'footer.contact.country': 'África do Sul',
   'footer.form.emailLabel': 'Endereço de e-mail',
   'footer.form.emailPlaceholder': 'si@empresa.com',
@@ -120,13 +134,13 @@ const pt: Dict = {
   'pricing.kicker': 'Preços',
   'pricing.title': 'Preços transparentes para empresas a partir de R299/mês',
   'pricing.lede':
-    'O SupplierAdvisor foi criado para empresas que precisam de um único sistema operativo em compras, qualidade, relações com fornecedores, inventário e finanças.',
+    'O SupplierAdvisor® foi criado para empresas que precisam de um único sistema operativo em compras, qualidade, relações com fornecedores, inventário e finanças.',
   'pricing.ctaTrial': 'Iniciar teste gratuito',
   'pricing.ctaDemo': 'Marcar demonstração',
   'pricing.companyProfile': 'Descarregar perfil da empresa (PDF)',
   'pricing.englishNote': 'EN',
   'pricing.tiers': 'Níveis de cobrança',
-  'pricing.tiersBody': 'Todos os níveis incluem utilizadores ilimitados e o mesmo âmbito completo do produto SupplierAdvisor.',
+  'pricing.tiersBody': 'Todos os níveis incluem utilizadores ilimitados e o mesmo âmbito completo do produto SupplierAdvisor®.',
   'pricing.tier.monthly': 'Mensal',
   'pricing.tier.1y': '1 ano',
   'pricing.tier.2y': '2 anos',
@@ -148,7 +162,7 @@ const pt: Dict = {
   'pricing.referral.step1.title': 'Convide parceiros comerciais reais',
   'pricing.referral.step1.body':
     'Partilhe o seu link de indicação com fornecedores, compradores e parceiros com quem realmente transaciona. A primeira indicação válida mantém a relação.',
-  'pricing.referral.step2.title': 'Ativam o SupplierAdvisor',
+  'pricing.referral.step2.title': 'Ativam o SupplierAdvisor®',
   'pricing.referral.step2.body':
     'Cada empresa convidada tem 30 dias para usar toda a plataforma e depois pode subscrever desde R299/mês ou escolher um nível pré-pago.',
   'pricing.referral.step3.title': 'As comissões são partilhadas por nível',
@@ -157,7 +171,7 @@ const pt: Dict = {
   'pricing.faq': 'FAQ de preços',
   'pricing.faq.1.q': 'O preço é por utilizador ou por empresa?',
   'pricing.faq.1.a':
-    'O preço do SupplierAdvisor é por espaço de trabalho da empresa, não por lugar. Todos os níveis pagos incluem utilizadores de equipa ilimitados.',
+    'O preço do SupplierAdvisor® é por espaço de trabalho da empresa, não por lugar. Todos os níveis pagos incluem utilizadores de equipa ilimitados.',
   'pricing.faq.2.q': 'O que significa “desde R299/mês”?',
   'pricing.faq.2.a':
     'R299/mês é a taxa mensal de tabela atual para uma subscrição de empresa. Os níveis pré-pagos de 1, 2 e 3 anos reduzem o custo mensal efetivo.',
@@ -172,7 +186,7 @@ const pt: Dict = {
     'As comissões de indicação baseiam-se apenas em pagamentos de subscrição qualificados efetivamente pagos. A divisão é 6% em L1, 3% em L2 e 1% em L3.',
   'pricing.faq.6.q': 'Os pagamentos de indicação baseiam-se em vendas de produto?',
   'pricing.faq.6.a':
-    'Não. Os pagamentos de indicação aplicam-se às taxas de subscrição da plataforma SupplierAdvisor, não a vendas de bens ou serviços entre parceiros.',
+    'Não. Os pagamentos de indicação aplicam-se às taxas de subscrição da plataforma SupplierAdvisor®, não a vendas de bens ou serviços entre parceiros.',
   'pricing.faq.7.q': 'Posso mudar de nível de faturação mais tarde?',
   'pricing.faq.7.a':
     'Sim. As empresas podem passar de mensal para prazos pré-pagos na faturação. Renovações antecipadas prolongam a janela da subscrição.',

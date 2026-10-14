@@ -420,7 +420,7 @@ const SECTIONS: Section[] = [
       },
       {
         capability: 'In-app care messages (system user ID)',
-        hint: 'Once on SupplierAdvisor, care threads deliver in-app by platform user ID; email fan-out optional',
+        hint: 'Once on SupplierAdvisor®, care threads deliver in-app by platform user ID; email fan-out optional',
         excel: 'no',
         xero: 'no',
         erp: 'partial',
@@ -785,7 +785,7 @@ function MobileCompareCards() {
   return (
     <div className="space-y-6 lg:hidden">
       <p className="text-center text-[11px] font-semibold text-slate-500 dark:text-neutral-400">
-        Scroll the list · each card shows Excel · Xero · ERP · SupplierAdvisor
+        Scroll the list · each card shows Excel · Xero · ERP · SupplierAdvisor®
       </p>
       {SECTIONS.map((section) => (
         <div key={section.title} className="space-y-3">

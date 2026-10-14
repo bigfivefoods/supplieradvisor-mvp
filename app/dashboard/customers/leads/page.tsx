@@ -52,6 +52,7 @@ import {
   useCrmKeys,
 } from '@/components/customers/crm/kit';
 import { CRM_SAMPLE_FLAG, crmPreviewBook, isCrmPreviewId, sortCrmRows } from '@/lib/customers/crm-preview';
+import { isFixturePath } from '@/lib/preview/fixture-href';
 
 function sampleBookOn() {
   try {
@@ -134,17 +135,28 @@ export default function LeadsOpportunitiesPage() {
 function LeadsInner() {
   const companyId = getSelectedCompanyId()!;
   const searchParams = useSearchParams();
+  const fixtureBook = isFixturePath('/preview/crm') || sampleBookOn();
   const [tab, setTab] = useState<Tab>(
-    searchParams.get('tab') === 'pipeline' ? 'pipeline' : 'leads'
+    searchParams.get('tab') === 'pipeline' ||
+      (typeof window !== 'undefined' &&
+        new URLSearchParams(window.location.search).get('screen') === 'pipeline')
+      ? 'pipeline'
+      : 'leads'
   );
-  const [leads, setLeads] = useState<LeadRecord[]>([]);
-  const [opps, setOpps] = useState<OpportunityRecord[]>([]);
-  const [customers, setCustomers] = useState<CustomerRecord[]>([]);
+  const [leads, setLeads] = useState<LeadRecord[]>(() =>
+    fixtureBook ? crmPreviewBook().leads : []
+  );
+  const [opps, setOpps] = useState<OpportunityRecord[]>(() =>
+    fixtureBook ? crmPreviewBook().opportunities : []
+  );
+  const [customers, setCustomers] = useState<CustomerRecord[]>(() =>
+    fixtureBook ? crmPreviewBook().customers : []
+  );
   const [group, setGroup] = useState<GroupPipelineMeta | null>(null);
   const [userGroupView, setUserGroupView] = useState<GroupPipelineView | null>(
     null
   );
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!fixtureBook);
   const [q, setQ] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -157,12 +169,11 @@ function LeadsInner() {
   const [saving, setSaving] = useState(false);
   const [teamMembers, setTeamMembers] = useState<TeamMemberLite[]>([]);
   const [sort, setSort] = useState<'name' | 'value' | 'score' | 'next'>('name');
-  const [sample, setSample] = useState(false);
+  const [sample, setSample] = useState(fixtureBook);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    if (sampleBookOn()) {
+    if (sampleBookOn() || isFixturePath('/preview/crm')) {
       const book = crmPreviewBook();
       setSample(true);
       setLeads(book.leads);
@@ -172,6 +183,7 @@ function LeadsInner() {
       setLoading(false);
       return;
     }
+    setLoading(true);
     setSample(false);
     try {
       const params = new URLSearchParams({ companyId: String(companyId) });
@@ -242,8 +254,9 @@ function LeadsInner() {
   }, [companyId]);
 
   useEffect(() => {
-    if (searchParams.get('tab') === 'pipeline') setTab('pipeline');
-    else if (searchParams.get('tab') === 'leads') setTab('leads');
+    if (searchParams.get('tab') === 'pipeline' || searchParams.get('screen') === 'pipeline') {
+      setTab('pipeline');
+    } else if (searchParams.get('tab') === 'leads') setTab('leads');
   }, [searchParams]);
 
   const filteredLeads = useMemo(() => {
@@ -370,7 +383,12 @@ function LeadsInner() {
     if (res.ok) {
       toast.success('Deleted');
       void load();
+      return;
     }
+    const data = await res.json().catch(() => ({}));
+    toast.error(
+      typeof data.error === 'string' ? data.error : 'Could not delete this lead'
+    );
   };
 
   const convertLeadToOpp = (l: LeadRecord) => {

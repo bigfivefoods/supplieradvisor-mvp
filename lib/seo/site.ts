@@ -14,9 +14,10 @@ export const SITE_NAME = 'SupplierAdvisor®';
 export const SITE_NAME_PLAIN = 'SupplierAdvisor';
 
 export const DEFAULT_TITLE =
-  'SupplierAdvisor® — The world’s most trusted supplier advice — and OS';
+  'SupplierAdvisor® — The supply-chain OS with a verified trade and trust layer';
 
-export const DEFAULT_DESCRIPTION = 'SupplierAdvisor® supply-chain OS for verified trade, industry workflows, and SA Member accounts — 30-day free trial from R299/mo.';
+export const DEFAULT_DESCRIPTION =
+  'SupplierAdvisor® supply-chain OS with a verified trade and trust layer. 30-day trial, then from R299/month.';
 
 /** Core marketing + public indexable routes (no company/product dynamic pages). */
 export const STATIC_SEO_ROUTES: Array<{

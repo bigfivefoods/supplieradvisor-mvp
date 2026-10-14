@@ -1,5 +1,11 @@
 import type { MetadataRoute } from 'next';
+import { LOCALES } from '@/lib/i18n/config';
 import { SITE_URL } from '@/lib/seo/site';
+
+/** Existing translated locales. English stays on the unprefixed paths. */
+const LOCALE_ALLOWS = LOCALES.filter((locale) => locale !== 'en').map(
+  (locale) => `/${locale}`
+);
 
 /**
  * Crawl policy:
@@ -23,6 +29,7 @@ export default function robots(): MetadataRoute.Robots {
           '/terms',
           '/cancellation-refund',
           '/llms.txt',
+          ...LOCALE_ALLOWS,
         ],
         disallow: [
           '/api/',
@@ -57,6 +64,7 @@ export default function robots(): MetadataRoute.Robots {
           '/pricing',
           '/demo',
           '/verification-sla',
+          ...LOCALE_ALLOWS,
         ],
         disallow: [
           '/api/',
@@ -73,7 +81,7 @@ export default function robots(): MetadataRoute.Robots {
       },
       {
         userAgent: 'Bingbot',
-        allow: ['/', '/c/', '/marketplace', '/industries'],
+        allow: ['/', '/c/', '/marketplace', '/industries', ...LOCALE_ALLOWS],
         disallow: ['/api/', '/dashboard', '/dashboard/', '/login', '/directory', '/r/', '/p/'],
       },
       {

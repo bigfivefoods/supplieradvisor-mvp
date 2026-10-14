@@ -2,9 +2,9 @@
 import type { Dict } from './en';
 
 const fr: Dict = {
-  'meta.home.title': 'SupplierAdvisor® — Le conseil fournisseur le plus fiable au monde — et OS',
+  'meta.home.title': "SupplierAdvisor® — L'OS supply chain avec une couche de commerce et de confiance vérifiée",
   'meta.home.description':
-    'SupplierAdvisor® est l’OS supply chain pour le commerce vérifié, les workflows sectoriels et les comptes SA Member, avec un essai gratuit de 30 jours.',
+    "SupplierAdvisor® est l'OS supply chain avec une couche de commerce et de confiance vérifiée, un essai entreprise et un compte SA Member gratuit.",
   'meta.pricing.title': 'Tarifs',
   'meta.pricing.description': 'Tarification entreprise dès R299/mois avec utilisateurs illimités et économies de parrainage claires.',
   'switcher.chooseLanguage': 'Choisir une langue',
@@ -13,7 +13,7 @@ const fr: Dict = {
   'brand.supplierAdvisor': 'SupplierAdvisor®',
   'brand.schoolAdvisor': 'SchoolAdvisor®',
   'brand.superCube': 'Super-Cube®',
-  'brand.bigFiveGroup': 'Big Five Group',
+  'brand.bigFiveGroup': 'Big Five Group™',
   'nav.groupProduct': 'Produit',
   'nav.groupPricing': 'Tarifs',
   'nav.groupTry': 'Essayer',
@@ -47,12 +47,23 @@ const fr: Dict = {
   'theme.system': 'Système',
   'home.trialStrip': 'Essai gratuit de {days} jours. Enregistrez votre entreprise et lancez la première boucle commerciale.',
   'home.startTrial': 'Démarrer l\'essai gratuit',
-  'hero.headlineLead': 'Le conseil fournisseur le plus fiable',
-  'hero.headlineAccent': 'au monde — et l\'OS.',
+  'home.bookTitle': 'Réserver une démo',
+  'home.bookBody':
+    'En 20 minutes, nous cartographions votre chaîne d\'approvisionnement sur SupplierAdvisor® — commerce, stock, qualité et finance — et montrons ce qui est déjà dans le produit.',
+  'home.bookEmail': 'Écrire pour une démo',
+  'home.bookWhatsapp': 'WhatsApp',
+  'home.bookSample': 'Vous préférez regarder d\'abord ?',
+  'home.bookSampleLink': 'Ouvrir la démo interactive',
+  'home.bookSampleNote': 'Écrans d\'exemple seulement. Sans inscription.',
+  'home.proofCue':
+    'Cette page indique les conditions du produit. Elle ne publie ni effectifs clients ni scores de performance.',
+  'hero.headlineLead': "L'OS supply chain",
+  'hero.headlineAccent': 'avec une couche de commerce et de confiance vérifiée.',
   'hero.compare': 'Voir comment nous nous comparons',
   'hero.businessRun': 'Je dirige une entreprise',
   'hero.bookDemo': 'Réserver une démo',
-  'hero.notExcel': 'Pas Excel. Pas seulement la comptabilité. Pas un projet ERP de plusieurs années.',
+  'hero.notExcel': 'Commerce, stock, qualité et preuve partagent le même espace entreprise.',
+  'hero.sampleScreen': "Écran d'exemple",
   'hero.trialDays': 'Essai gratuit de {days} jours',
   'hero.membersNeverPay': 'Les membres ne nous paient jamais',
   'hero.scene.b2b.title': 'Entreprise à entreprise',
@@ -76,7 +87,7 @@ const fr: Dict = {
   'hero.scene.b2c.point2': 'Réserver, check-in, famille, liste d\'attente, .ics et notes médicales partagées',
   'hero.scene.b2c.point3': 'Payer ou envoyer une preuve — même connexion si vous lancez ensuite une entreprise',
   'hero.scene.b2c.cta': 'Créer un compte SA Member gratuit',
-  'footer.tagline': 'Le conseil fournisseur le plus fiable au monde et l\'OS supply chain — B2B, B2G et B2C sur un seul réseau vérifié.',
+  'footer.tagline': "L'OS supply chain avec une couche de commerce et de confiance vérifiée — B2B, B2G et B2C dans un même espace entreprise.",
   'footer.motto': 'Conçu pour les opérateurs qui mesurent la confiance.',
   'footer.explore': 'Explorer',
   'footer.industries': 'Secteurs',
@@ -86,6 +97,7 @@ const fr: Dict = {
   'footer.group.network': 'Réseau',
   'footer.group.trust': 'Confiance',
   'footer.group.apps': 'Applications',
+  'footer.group.group': 'Groupe',
   'footer.social': 'Réseaux sociaux',
   'footer.industriesBySector': 'Secteurs par industrie',
   'footer.legalNav': 'Mentions légales',
@@ -105,7 +117,9 @@ const fr: Dict = {
   'footer.foundingTitle': 'Liste fondatrice',
   'footer.foundingBlurb': 'Mises à jour des membres fondateurs et alertes nouvelles places de SupplierAdvisor®.',
   'footer.rights': 'Tous droits réservés.',
-  'footer.bigFiveCompany': 'SupplierAdvisor® est une société de Big Five Group',
+  'footer.bigFiveCompany': 'SupplierAdvisor® est une société de Big Five Group™',
+  'footer.bigFiveLead': 'SupplierAdvisor® est ',
+  'footer.bigFiveLink': 'une société de Big Five Group™',
   'footer.contact.country': 'Afrique du Sud',
   'footer.form.emailLabel': 'Adresse e-mail',
   'footer.form.emailPlaceholder': 'vous@entreprise.com',
@@ -117,13 +131,13 @@ const fr: Dict = {
   'pricing.kicker': 'Tarifs',
   'pricing.title': 'Tarification transparente des entreprises à partir de R299/mois',
   'pricing.lede':
-    'SupplierAdvisor est conçu pour les entreprises qui ont besoin d’un seul système d’exploitation pour les achats, la qualité, les relations fournisseurs, le stock et la finance.',
+    'SupplierAdvisor® est conçu pour les entreprises qui ont besoin d’un seul système d’exploitation pour les achats, la qualité, les relations fournisseurs, le stock et la finance.',
   'pricing.ctaTrial': 'Démarrer l\'essai gratuit',
   'pricing.ctaDemo': 'Réserver une démo',
   'pricing.companyProfile': 'Télécharger le profil entreprise (PDF)',
   'pricing.englishNote': 'EN',
   'pricing.tiers': 'Paliers de facturation',
-  'pricing.tiersBody': 'Tous les paliers incluent des utilisateurs illimités et le même périmètre produit SupplierAdvisor complet.',
+  'pricing.tiersBody': 'Tous les paliers incluent des utilisateurs illimités et le même périmètre produit SupplierAdvisor® complet.',
   'pricing.tier.monthly': 'Mensuel',
   'pricing.tier.1y': '1 an',
   'pricing.tier.2y': '2 ans',
@@ -145,7 +159,7 @@ const fr: Dict = {
   'pricing.referral.step1.title': 'Invitez de vrais partenaires commerciaux',
   'pricing.referral.step1.body':
     'Partagez votre lien de parrainage avec des fournisseurs, acheteurs et partenaires avec qui vous échangez réellement. La première invitation valide conserve la relation.',
-  'pricing.referral.step2.title': 'Ils activent SupplierAdvisor',
+  'pricing.referral.step2.title': 'Ils activent SupplierAdvisor®',
   'pricing.referral.step2.body':
     'Chaque entreprise invitée dispose de 30 jours pour utiliser toute la plateforme, puis peut s’abonner à partir de R299/mois ou choisir un palier prépayé.',
   'pricing.referral.step3.title': 'Les commissions sont partagées par niveau',
@@ -154,7 +168,7 @@ const fr: Dict = {
   'pricing.faq': 'FAQ Tarifs',
   'pricing.faq.1.q': 'Le prix est-il par utilisateur ou par entreprise ?',
   'pricing.faq.1.a':
-    'La tarification SupplierAdvisor est par espace de travail entreprise, pas par siège. Tous les paliers payants incluent des utilisateurs d’équipe illimités.',
+    'La tarification SupplierAdvisor® est par espace de travail entreprise, pas par siège. Tous les paliers payants incluent des utilisateurs d’équipe illimités.',
   'pricing.faq.2.q': 'Que signifie « à partir de R299/mois » ?',
   'pricing.faq.2.a':
     'R299/mois est le tarif mensuel catalogue actuel pour un abonnement entreprise. Les paliers prépayés 1 an, 2 ans et 3 ans réduisent le coût mensuel effectif.',
@@ -169,7 +183,7 @@ const fr: Dict = {
     'Les commissions sont basées uniquement sur les paiements d’abonnement qualifiés effectivement encaissés. Le partage est de 6% en L1, 3% en L2 et 1% en L3.',
   'pricing.faq.6.q': 'Les paiements de parrainage dépendent-ils des ventes de produits ?',
   'pricing.faq.6.a':
-    'Non. Les paiements de parrainage s’appliquent aux frais d’abonnement de la plateforme SupplierAdvisor, pas aux ventes de biens ou services entre partenaires.',
+    'Non. Les paiements de parrainage s’appliquent aux frais d’abonnement de la plateforme SupplierAdvisor®, pas aux ventes de biens ou services entre partenaires.',
   'pricing.faq.7.q': 'Puis-je changer de palier de facturation plus tard ?',
   'pricing.faq.7.a':
     'Oui. Les entreprises peuvent passer du mensuel aux termes prépayés. Les renouvellements anticipés prolongent la période d’abonnement.',
