@@ -55,6 +55,7 @@ const fr: Dict = {
   'home.bookSample': 'Vous préférez regarder d\'abord ?',
   'home.bookSampleLink': 'Ouvrir la démo interactive',
   'home.bookSampleNote': 'Écrans d\'exemple seulement. Sans inscription.',
+  'home.tourCta': 'Faire la visite guidée',
   'home.proofCue':
     'Cette page indique les conditions du produit. Elle ne publie ni effectifs clients ni scores de performance.',
   'hero.headlineLead': "L'OS supply chain",
@@ -187,6 +188,36 @@ const fr: Dict = {
   'pricing.faq.7.q': 'Puis-je changer de palier de facturation plus tard ?',
   'pricing.faq.7.a':
     'Oui. Les entreprises peuvent passer du mensuel aux termes prépayés. Les renouvellements anticipés prolongent la période d’abonnement.',
+  'tour.sample': 'Données d’exemple · non enregistrées',
+  'tour.progress': 'Étape {step} sur {total}',
+  'tour.next': 'Suivant',
+  'tour.back': 'Retour',
+  'tour.skip': 'Passer',
+  'tour.dismiss': 'Fermer la visite',
+  'tour.dashboard.title': 'L’OS supply chain',
+  'tour.dashboard.body':
+    'Ce centre de commande est l’espace SupplierAdvisor®. Le commerce, le stock, la qualité et les personnes partagent une seule vue d’entreprise. Tout cet écran est un exemple et n’est pas enregistré.',
+  'tour.crm.title': 'Les clients dans le même OS',
+  'tour.crm.body':
+    'Le CRM garde acheteurs et pistes dans SupplierAdvisor®, sur le même espace entreprise que les achats et le stock. Ces fiches clients sont des exemples.',
+  'tour.srm.title': 'Fournisseurs sur la couche de confiance',
+  'tour.srm.body':
+    'Le SRM est le versant fournisseurs de la couche de commerce et de confiance vérifiée. Vous voyez à qui vous achetez dans SupplierAdvisor®. Ces sociétés sont des exemples et ne sont pas écrites dans SupplierAdvisor®.',
+  'tour.po.title': 'Bons de commande sur les livres',
+  'tour.po.body':
+    'Les bons de commande restent avec les contreparties de la couche de commerce vérifiée de SupplierAdvisor®. Ce bureau est un exemple. Rien n’est enregistré.',
+  'tour.inventory.title': 'Stock lié au commerce',
+  'tour.inventory.body':
+    'L’inventaire garde produits, lots et état de stock dans l’OS supply chain SupplierAdvisor®, à côté des commandes qui les déplacent. Les quantités affichées sont des exemples.',
+  'tour.ratings.title': 'La couche de confiance vérifiée',
+  'tour.ratings.body':
+    'Les notes décrivent comment les contreparties tiennent leurs engagements. C’est la couche de confiance de SupplierAdvisor®. Les notes de cet écran sont des exemples, pas des résultats en direct.',
+  'tour.sheq.title': 'La qualité à côté du commerce',
+  'tour.sheq.body':
+    'SHEQ garde la sécurité, l’environnement et la qualité à côté des commandes qu’ils protègent, dans SupplierAdvisor®. Ce registre est un exemple et n’est pas enregistré.',
+  'tour.close.title': 'Lancez-le sur votre entreprise',
+  'tour.close.body':
+    'Vous avez parcouru l’OS supply chain SupplierAdvisor® et sa couche de commerce et de confiance vérifiée. Démarrez un essai gratuit sur votre entreprise, ou réservez une démo. Ces écrans restent des exemples.',
   'pricing.step': 'Étape {step}',
 };
 

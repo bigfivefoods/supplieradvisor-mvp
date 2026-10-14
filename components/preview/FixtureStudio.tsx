@@ -44,13 +44,17 @@ export function FixtureStudio({
   );
 
   if (!ready) {
-    return <div className="sa-page min-h-screen px-4 py-6">{banner}</div>;
+    return (
+      <div data-tour-stage className="sa-page min-h-screen px-4 py-6">
+        {banner}
+      </div>
+    );
   }
 
   const body = onchain ? <OnchainProviders>{children}</OnchainProviders> : children;
   return (
     <Providers>
-      <div className="sa-page min-h-screen px-4 py-6">
+      <div data-tour-stage className="sa-page min-h-screen px-4 py-6">
         {banner}
         {body}
       </div>

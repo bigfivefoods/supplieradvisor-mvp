@@ -55,6 +55,7 @@ const pt: Dict = {
   'home.bookSample': 'Prefere ver primeiro?',
   'home.bookSampleLink': 'Abrir a demonstração interativa',
   'home.bookSampleNote': 'Apenas ecrãs de exemplo. Sem registo.',
+  'home.tourCta': 'Fazer a visita guiada',
   'home.proofCue':
     'Esta página indica as condições do produto. Não publica números de clientes nem pontuações de desempenho.',
   'hero.headlineLead': 'O OS fiável da cadeia de abastecimento',
@@ -190,6 +191,36 @@ const pt: Dict = {
   'pricing.faq.7.q': 'Posso mudar de nível de faturação mais tarde?',
   'pricing.faq.7.a':
     'Sim. As empresas podem passar de mensal para prazos pré-pagos na faturação. Renovações antecipadas prolongam a janela da subscrição.',
+  'tour.sample': 'Dados de exemplo · não guardados',
+  'tour.progress': 'Etapa {step} de {total}',
+  'tour.next': 'Seguinte',
+  'tour.back': 'Voltar',
+  'tour.skip': 'Saltar',
+  'tour.dismiss': 'Fechar a visita',
+  'tour.dashboard.title': 'O OS da cadeia de abastecimento',
+  'tour.dashboard.body':
+    'Este centro de comando é o espaço SupplierAdvisor®. Comércio, stock, qualidade e pessoas partilham uma vista de empresa. Tudo neste ecrã são dados de exemplo e não fica guardado.',
+  'tour.crm.title': 'Clientes no mesmo OS',
+  'tour.crm.body':
+    'O CRM mantém compradores e leads dentro do SupplierAdvisor®, no mesmo espaço de empresa que as compras e o stock. Estas fichas de cliente são dados de exemplo.',
+  'tour.srm.title': 'Fornecedores na camada de confiança',
+  'tour.srm.body':
+    'O SRM é o lado dos fornecedores da camada de comércio e confiança verificada. Vê a quem compra dentro do SupplierAdvisor®. Estas empresas são exemplos e não são escritas no SupplierAdvisor®.',
+  'tour.po.title': 'Ordens de compra nos livros',
+  'tour.po.body':
+    'As ordens de compra ficam com as contrapartes da camada de comércio verificada do SupplierAdvisor®. Esta secretária é um exemplo. Nada fica guardado.',
+  'tour.inventory.title': 'Stock ligado ao comércio',
+  'tour.inventory.body':
+    'O inventário guarda produtos, lotes e estado de stock no OS da cadeia de abastecimento SupplierAdvisor®, junto das ordens que os movem. As quantidades mostradas são dados de exemplo.',
+  'tour.ratings.title': 'A camada de confiança verificada',
+  'tour.ratings.body':
+    'As classificações registam como as contrapartes cumprem o comércio que pode sustentar. Essa é a camada de confiança do SupplierAdvisor®. As classificações neste ecrã são exemplos, não resultados em direto.',
+  'tour.sheq.title': 'Qualidade ao lado do comércio',
+  'tour.sheq.body':
+    'SHEQ mantém segurança, ambiente e qualidade junto das ordens que protegem, dentro do SupplierAdvisor®. Este registo são dados de exemplo e não fica guardado.',
+  'tour.close.title': 'Use-o na sua empresa',
+  'tour.close.body':
+    'Percorreu o OS da cadeia de abastecimento SupplierAdvisor® e a sua camada de comércio e confiança verificada. Comece um teste gratuito na sua empresa, ou marque uma demonstração. Estes ecrãs continuam a ser dados de exemplo.',
   'pricing.step': 'Etapa {step}',
 };
 

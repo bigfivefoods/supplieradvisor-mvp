@@ -55,6 +55,7 @@ const zu: Dict = {
   'home.bookSample': 'Ukhetha ukubuka kuqala?',
   'home.bookSampleLink': 'Vula idemo esebenzisanayo',
   'home.bookSampleNote': 'Izikrini zomfanekiso kuphela. Akukho ukubhalisa.',
+  'home.tourCta': 'Thatha uhambo oluqondisiwe',
   'home.proofCue':
     'Leli khasi lisho imigomo yomkhiqizo. Alishicileli izibalo zamakhasimende noma amaphuzu okusebenza.',
   'hero.headlineLead': 'I-OS yochungechunge lokuhlinzeka',
@@ -190,6 +191,36 @@ const zu: Dict = {
   'pricing.faq.7.q': 'Ngingashintsha izinga lami lokukhokha kamuva?',
   'pricing.faq.7.a':
     'Yebo. Izinkampani zingasuka enyangeni ziye kumigomo ekhokhelwe kusengaphambili ku-billing. Ukuvuselela kusenesikhathi kwandisa iwindi lokubhalisa.',
+  'tour.sample': 'Idatha yesibonelo · ayigciniwe',
+  'tour.progress': 'Isinyathelo {step} kwesingu-{total}',
+  'tour.next': 'Okulandelayo',
+  'tour.back': 'Emuva',
+  'tour.skip': 'Yeqa',
+  'tour.dismiss': 'Vala uhambo',
+  'tour.dashboard.title': 'I-OS yochungechunge lokuhlinzeka',
+  'tour.dashboard.body':
+    'Le nhlangano yomyalo iyindawo yokusebenza ye-SupplierAdvisor®. Ukuhweba, isitoko, ikhwalithi, nabantu babelana ngombono owodwa wenkampani. Konke okulesi sikrini kuyidatha yesibonelo futhi akugciniwe.',
+  'tour.crm.title': 'Amakhasimende ku-OS efanayo',
+  'tour.crm.body':
+    'I-CRM igcina abathengi nezimpawu ngaphakathi kwe-SupplierAdvisor®, endaweni efanayo yenkampani nokuthenga nesitoko. Le mizila yamakhasimende iyidatha yesibonelo.',
+  'tour.srm.title': 'Abahlinzeki ensikeni yokwethembeka',
+  'tour.srm.body':
+    'I-SRM iwuhlangothi lwabahlinzeki lwensika yokuhweba nokwethembeka okuqinisekisiwe. Ubona ukuthi uthenga kubani ngaphakathi kwe-SupplierAdvisor®. Lezi zinkampani ziyizibonelo futhi azibhalwa ku-SupplierAdvisor®.',
+  'tour.po.title': 'Ama-oda okuthenga ezincwadini',
+  'tour.po.body':
+    'Ama-oda okuthenga ahlala nabantu ohwebelana nabo ensikeni yokuhweba eqinisekisiwe ye-SupplierAdvisor®. Leli deski liyisibonelo. Akukho okugciniwe.',
+  'tour.inventory.title': 'Isitoko esixhunywe ekuhwebeni',
+  'tour.inventory.body':
+    'Isitoko sigcina imikhiqizo, amalothi, nesimo sesitoko ngaphakathi kwe-OS yochungechunge lokuhlinzeka ye-SupplierAdvisor®, eduze kwama-oda awahambisayo. Izilinganiso ezibonisiwe ziyidatha yesibonelo.',
+  'tour.ratings.title': 'Insika yokwethembeka eqinisekisiwe',
+  'tour.ratings.body':
+    'Izilinganiso zirekhoda ukuthi abantu ohwebelana nabo benza kanjani ekuhwebeni ongazimela ngakho. Leyo yinsika yokwethembeka ye-SupplierAdvisor®. Izilinganiso kulesi sikrini ziyizibonelo, hhayi imiphumela ebukhoma.',
+  'tour.sheq.title': 'Ikhwalithi eceleni kokuhweba',
+  'tour.sheq.body':
+    'I-SHEQ igcina ukuphepha, imvelo, nekhwalithi eceleni kwama-oda ayiwavikelayo, ngaphakathi kwe-SupplierAdvisor®. Leli rejista liyidatha yesibonelo futhi aligciniwe.',
+  'tour.close.title': 'Yisebenzise enkampanini yakho',
+  'tour.close.body':
+    'Uhambe i-OS yochungechunge lokuhlinzeka ye-SupplierAdvisor® nensika yayo yokuhweba nokwethembeka okuqinisekisiwe. Qala isivivinyo samahhala enkampanini yakho, noma ubhukhe idemo. Lezi zikrini zihlala ziyidatha yesibonelo.',
   'pricing.step': 'Isinyathelo {step}',
 };
 

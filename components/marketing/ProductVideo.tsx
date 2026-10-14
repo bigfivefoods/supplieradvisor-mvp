@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Play, ArrowRight } from 'lucide-react';
+import { productTourHref } from '@/lib/preview/product-tour';
 
 /**
  * Product story block — animated “video” panel until a real host is added.
@@ -26,9 +27,9 @@ export default function ProductVideo() {
             See how the OS fits together
           </h2>
           <p className="mt-4 text-base leading-relaxed text-slate-300 sm:text-lg">
-            Open the interactive demo to click through operations, suppliers,
-            finance, quality, and people. Those screens are samples. When you
-            want a guided look at your own chain, book a demo.
+            Take the guided tour of the sample screens: the supply-chain OS
+            and the verified trade and trust layer. No signup. When you want
+            a look at your own chain, book a demo.
           </p>
         </div>
 
@@ -38,9 +39,9 @@ export default function ProductVideo() {
             <div className="absolute inset-0 opacity-30 bg-[linear-gradient(rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.06)_1px,transparent_1px)] bg-[size:32px_32px]" />
             <div className="relative flex h-full flex-col items-center justify-center p-8 text-center">
               <Link
-                href="/demo"
+                href={productTourHref('dashboard')}
                 className="group mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-white text-[#00b4d8] shadow-lg transition-transform hover:scale-105 sm:h-20 sm:w-20"
-                aria-label="Play interactive demo"
+                aria-label="Start the SupplierAdvisor® guided tour"
               >
                 <Play className="ml-0.5 h-7 w-7 fill-current sm:h-8 sm:w-8" />
               </Link>
@@ -48,8 +49,8 @@ export default function ProductVideo() {
                 Interactive product walkthrough
               </div>
               <p className="mt-2 max-w-md text-sm text-slate-300">
-                No video host required — click through live UI mocks for Ops,
-                SRM, Finance, SHEQ, and People.
+                Sample data only. Walk the command center, CRM, SRM, purchase
+                orders, inventory, ratings, and SHEQ.
               </p>
               <div className="mt-5 flex flex-wrap justify-center gap-2">
                 {['Ops', 'Suppliers', 'Finance', 'Quality', 'People'].map(
@@ -69,11 +70,11 @@ export default function ProductVideo() {
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Link
-            href="/demo"
-            className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-bold text-white hover:bg-[#0099b8]"
+            href={productTourHref('dashboard')}
+            className="inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-bold text-[#0f172a] hover:brightness-95"
           >
             <Play className="h-4 w-4 fill-current" />
-            Open interactive demo
+            Take the guided tour
           </Link>
           <a
             href="#book-demo"

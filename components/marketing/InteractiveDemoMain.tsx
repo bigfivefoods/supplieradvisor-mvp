@@ -18,6 +18,7 @@ import {
   ModuleGallery,
 } from '@/components/marketing/ProductMocks';
 import { COMPANY_TRIAL_DAYS } from '@/lib/billing/company-subscription';
+import { productTourHref } from '@/lib/preview/product-tour';
 
 const DEMOS = [
   { id: 'ops', label: 'Operations', Mock: OpsMock, gallery: 'ops' },
@@ -39,6 +40,25 @@ export default function InteractiveDemoMain() {
 
   return (
     <main className="mx-auto max-w-screen-2xl px-4 py-12 sm:px-6 lg:px-10">
+      <div className="mb-8 rounded-3xl border border-[#00b4d8] bg-white p-5 shadow-sm sm:p-6">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#0077b6]">
+          SupplierAdvisor® · sample data
+        </p>
+        <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">
+          Guided tour of the sample screens
+        </h2>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
+          Step through the supply-chain OS and the verified trade and trust
+          layer: command center, CRM, SRM, purchase orders, inventory, ratings,
+          and SHEQ. No signup. Nothing is saved on SupplierAdvisor®.
+        </p>
+        <Link
+          href={productTourHref('dashboard')}
+          className="mt-4 inline-flex min-h-12 items-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-bold text-[#0f172a]"
+        >
+          Take the guided tour <ArrowRight className="h-4 w-4" />
+        </Link>
+      </div>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#00b4d8]">

@@ -58,6 +58,7 @@ const ar: Dict = {
   'home.bookSample': 'تفضّل المشاهدة أولًا؟',
   'home.bookSampleLink': 'افتح العرض التفاعلي',
   'home.bookSampleNote': 'شاشات توضيحية فقط. بدون تسجيل.',
+  'home.tourCta': 'ابدأ الجولة الإرشادية',
   'home.proofCue':
     'تعرض هذه الصفحة شروط المنتج. لا تنشر أعداد العملاء ولا درجات الأداء.',
   'hero.headlineLead': 'نظام تشغيل سلسلة التوريد',
@@ -193,6 +194,36 @@ const ar: Dict = {
   'pricing.faq.7.q': 'هل يمكنني تغيير باقة الفوترة لاحقًا؟',
   'pricing.faq.7.a':
     'نعم. يمكن للشركات الانتقال من الشهري إلى الباقات المدفوعة مسبقًا من الفوترة. التجديد المبكر يمدد مدة الاشتراك.',
+  'tour.sample': 'بيانات توضيحية · غير محفوظة',
+  'tour.progress': 'الخطوة {step} من {total}',
+  'tour.next': 'التالي',
+  'tour.back': 'رجوع',
+  'tour.skip': 'تخطَّ',
+  'tour.dismiss': 'إغلاق الجولة',
+  'tour.dashboard.title': 'نظام تشغيل سلسلة التوريد',
+  'tour.dashboard.body':
+    `مركز القيادة هذا هو مساحة ${ISO_LTR_START}SupplierAdvisor®${ISO_LTR_END}. التجارة والمخزون والجودة والأشخاص في عرض شركة واحد. كل ما على هذه الشاشة بيانات توضيحية وغير محفوظ.`,
+  'tour.crm.title': 'العملاء في النظام نفسه',
+  'tour.crm.body':
+    `يبقي إدارة العملاء المشترين والفرص داخل ${ISO_LTR_START}SupplierAdvisor®${ISO_LTR_END}، في مساحة الشركة نفسها مع المشتريات والمخزون. صفوف العملاء هذه بيانات توضيحية.`,
+  'tour.srm.title': 'المورّدون على طبقة الثقة',
+  'tour.srm.body':
+    `إدارة المورّدين هي جانب المورّدين من طبقة التجارة والثقة الموثّقة. ترى ممن تشتري داخل ${ISO_LTR_START}SupplierAdvisor®${ISO_LTR_END}. هذه الشركات نماذج ولا تُكتب في ${ISO_LTR_START}SupplierAdvisor®${ISO_LTR_END}.`,
+  'tour.po.title': 'أوامر الشراء في الدفاتر',
+  'tour.po.body':
+    `تبقى أوامر الشراء مع الأطراف على طبقة التجارة الموثّقة في ${ISO_LTR_START}SupplierAdvisor®${ISO_LTR_END}. هذا المكتب نموذج. لا يُحفظ شيء هنا.`,
+  'tour.inventory.title': 'المخزون مرتبط بالتجارة',
+  'tour.inventory.body':
+    `يبقي المخزون المنتجات والدفعات وحالة المخزون داخل نظام سلسلة التوريد ${ISO_LTR_START}SupplierAdvisor®${ISO_LTR_END}، إلى جانب الأوامر التي تحرّكها. الكميات المعروضة بيانات توضيحية.`,
+  'tour.ratings.title': 'طبقة الثقة الموثّقة',
+  'tour.ratings.body':
+    `تسجّل التقييمات كيف يؤدي الأطراف في تجارة يمكنك الوقوف خلفها. تلك هي طبقة الثقة في ${ISO_LTR_START}SupplierAdvisor®${ISO_LTR_END}. التقييمات على هذه الشاشة نماذج وليست نتائج مباشرة.`,
+  'tour.sheq.title': 'الجودة إلى جانب التجارة',
+  'tour.sheq.body':
+    `يبقي ${ISO_LTR_START}SHEQ${ISO_LTR_END} السلامة والبيئة والجودة إلى جانب الأوامر التي تحميها، داخل ${ISO_LTR_START}SupplierAdvisor®${ISO_LTR_END}. هذا السجل بيانات توضيحية وغير محفوظ.`,
+  'tour.close.title': 'شغّله على شركتك',
+  'tour.close.body':
+    `لقد سرت في نظام سلسلة التوريد ${ISO_LTR_START}SupplierAdvisor®${ISO_LTR_END} وطبقة التجارة والثقة الموثّقة. ابدأ تجربة مجانية على شركتك، أو احجز عرضًا. تبقى هذه الشاشات بيانات توضيحية.`,
   'pricing.step': 'الخطوة {step}',
 };
 
