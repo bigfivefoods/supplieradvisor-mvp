@@ -228,6 +228,52 @@ const ar: Dict = {
   'tour.close.body':
     `لقد سرت في نظام سلسلة التوريد ${ISO_LTR_START}SupplierAdvisor®${ISO_LTR_END} وطبقة التجارة والثقة الموثّقة. ابدأ تجربة مجانية على شركتك، أو احجز عرضًا. تبقى هذه الشاشات بيانات توضيحية.`,
   'pricing.step': 'الخطوة {step}',
+  'home.new.kicker': 'جديد',
+  'home.new.title': `ما الجديد في ${ISO_LTR_START}SupplierAdvisor®${ISO_LTR_END}`,
+  'home.new.body':
+    'الإضافات الأخيرة الموجودة أصلًا على المنصة، مع حزم القطاعات والتحقق على الأساس نفسه.',
+  'home.new.badge': 'جديد',
+  'home.new.onPlatform': 'على المنصة',
+  'home.new.trade.title': `${ISO_LTR_START}TradeAdvisor®${ISO_LTR_END}`,
+  'home.new.trade.body':
+    'عروض أسعار وأعمال وفواتير للحرفيين، مع تطبيق عميل قابل للتثبيت: حالة العمل والكشف والطلبات الجديدة.',
+  'home.new.checklist.title': 'قائمة البدء',
+  'home.new.checklist.body':
+    'قائمة الشركة الجديدة تُعلَّم من السجلات الموجودة أصلًا: الملف، المورّد، العميل، أول أمر شراء، زميل، وتحقق اختياري.',
+  'home.new.tour.title': 'شاشات نموذجية بلا تسجيل',
+  'home.new.tour.body': 'شاشات نموذجية مصقولة وجولة إرشادية في النظام. لا يُحفظ شيء.',
+  'home.new.gym.title': `${ISO_LTR_START}GymAdvisor®${ISO_LTR_END}`,
+  'home.new.gym.body':
+    'اللياقة والصالات: حصص، تسجيل حضور، مدربون وتطبيق عضو قابل للتثبيت، على خطة الشركة نفسها.',
+  'home.new.industries.title': 'صفحات القطاعات',
+  'home.new.industries.body':
+    'صفحات للزراعة والبناء واللياقة والحرف وبقية القطاعات على نظام واحد.',
+  'home.new.verify.title': 'VerifyNow للمورّدين',
+  'home.new.verify.body':
+    `‏${ISO_LTR_START}VerifyNow${ISO_LTR_END} موجود أصلًا في ${ISO_LTR_START}SupplierAdvisor®${ISO_LTR_END}: فحص شركة ${ISO_LTR_START}CIPC${ISO_LTR_END} والتحقق من الحساب البنكي للمورّدين والشركات، إضافة إلى فحص الهوية الجنوب أفريقية.`,
+  'home.packs.kicker': 'الحزم',
+  'home.packs.coreLabel': 'الأساس',
+  'home.packs.corePrice': 'R{core} شهريًا',
+  'home.packs.coreNote': 'مشمول دائمًا',
+  'home.packs.addon': '+R{pack} شهريًا لكل حزمة',
+  'home.packs.specialist':
+    `برامج الحكومة مثل ${ISO_LTR_START}SchoolAdvisor®${ISO_LTR_END} تُجهَّز برفقة مختص، وليست حزمة خدمة ذاتية.`,
+  'home.packs.pricing': 'عرض الأسعار',
+  'home.packs.industries': 'كل القطاعات',
+  'home.trade.kicker': `${ISO_LTR_START}TradeAdvisor®${ISO_LTR_END}`,
+  'home.trade.title': 'عرض سعر، عمل، فاتورة — وتطبيق للعميل',
+  'home.trade.body':
+    `${ISO_LTR_START}TradeAdvisor®${ISO_LTR_END} هو نظام الشاحنة للكهربائيين والسباكين والبنائين والدهانين والتدفئة والصيانة. يعمل على ${ISO_LTR_START}SupplierAdvisor®${ISO_LTR_END}، لذلك تأتي المواد من مورّدين موجودين أصلًا على المنصة.`,
+  'home.trade.point1': 'عروض أسعار وأعمال وفواتير بالراند',
+  'home.trade.point2': `مواد تُطلب من مورّدي ${ISO_LTR_START}SupplierAdvisor®${ISO_LTR_END}`,
+  'home.trade.point3': 'جدول لموقع العمل',
+  'home.trade.point4': 'تذكيرات CoC وPIRB قبل انتهاء الشهادة',
+  'home.trade.point5': 'تطبيق عميل قابل للتثبيت: حالة العمل والكشف وطلبات جديدة',
+  'home.trade.explore': 'استكشف الحرف',
+  'home.trade.demo': 'افتح تطبيق العميل النموذجي',
+  'home.trade.price': '+R{pack} شهريًا فوق الأساس',
+  'home.trade.imageAlt':
+    `تطبيق العميل النموذجي ${ISO_LTR_START}TradeAdvisor®${ISO_LTR_END} يعرض عملًا جاريًا لدى ${ISO_LTR_START}Harbour Trades${ISO_LTR_END}`,
 };
 
 export default ar;

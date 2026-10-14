@@ -225,6 +225,53 @@ const zu: Dict = {
   'tour.close.body':
     'Uhambe i-OS yochungechunge lokuhlinzeka ye-SupplierAdvisor® nensika yayo yokuhweba nokwethembeka okuqinisekisiwe. Qala isivivinyo samahhala enkampanini yakho, noma ubhukhe idemo. Lezi zikrini zihlala ziyidatha yesibonelo.',
   'pricing.step': 'Isinyathelo {step}',
+  'home.new.kicker': 'Okusha',
+  'home.new.title': 'Yini entsha ku-SupplierAdvisor®',
+  'home.new.body':
+    'Okungeziwe muva sekukhona eqenjini, kanye namaphakethe ezimboni nokuqinisekiswa okuhlezi esisekelweni esifanayo.',
+  'home.new.badge': 'Okusha',
+  'home.new.onPlatform': 'Kuseqenjini',
+  'home.new.trade.title': 'TradeAdvisor®',
+  'home.new.trade.body':
+    'Izicelo zezintengo, imisebenzi nama-invoyisi kubasebenzi bezandla, nohlelo lomthengi olufakwa: isimo somsebenzi, isitatimende nezicelo ezintsha.',
+  'home.new.checklist.title': 'Uhlu lokuqala',
+  'home.new.checklist.body':
+    'Uhlu lwenkampani entsha luzalwa ngamarekhodi asekhona: iphrofayela, umhlinzeki, ikhasimende, i-oda lokuqala lokuthenga, ungenele, nokuqinisekiswa okukhethwayo.',
+  'home.new.tour.title': 'Izikrini zesibonelo, ngaphandle kokubhalisa',
+  'home.new.tour.body':
+    'Izikrini zesibonelo ezicolisiwe nohambo oluqondisiwe lwesistimu. Akukho okugciniwe.',
+  'home.new.gym.title': 'GymAdvisor®',
+  'home.new.gym.body':
+    'Ukwenza umzimba namajimu: amakilasi, ukungena, abaqeqeshi nohlelo lwamalungu olufakwa, ohlelweni olufanayo lwenkampani.',
+  'home.new.industries.title': 'Amakhasi ezimboni',
+  'home.new.industries.body':
+    'Amakhasi ezolimo, ukwakha, ukwenza umzimba, abasebenzi bezandla nezinye izimboni ohlelweni olulodwa.',
+  'home.new.verify.title': 'I-VerifyNow yabahlinzeki',
+  'home.new.verify.body':
+    'I-VerifyNow isivele iku-SupplierAdvisor®: ukuhlolwa kwenkampani kwe-CIPC nokuqinisekiswa kwe-akhawunti yasebhange kwabahlinzeki nezinkampani, kanye nokuhlolwa kwe-ID yaseNingizimu Afrika.',
+  'home.packs.kicker': 'Amaphakethe',
+  'home.packs.coreLabel': 'Isisekelo',
+  'home.packs.corePrice': 'R{core} ngenyanga',
+  'home.packs.coreNote': 'Kufakiwe njalo',
+  'home.packs.addon': '+R{pack} ngenyanga ngalinye',
+  'home.packs.specialist':
+    'Izinhlelo zikahulumeni ezifana ne-SchoolAdvisor® ziqondiswa ngochwepheshe, akulona iphakethe lokuzenzela.',
+  'home.packs.pricing': 'Bona amanani',
+  'home.packs.industries': 'Zonke izimboni',
+  'home.trade.kicker': 'TradeAdvisor®',
+  'home.trade.title': 'Isicelo sentengo, umsebenzi, i-invoyisi — nohlelo lomthengi',
+  'home.trade.body':
+    'I-TradeAdvisor® iyisistimu yeveni yabagesi, abapayipi, abakhi, abapendi, i-HVAC nabasebenzi bezandla. Isebenza ku-SupplierAdvisor®, ngakho impahla ivela kubahlinzeki asebekhona eqenjini.',
+  'home.trade.point1': 'Izicelo zezintengo, imisebenzi nama-invoyisi ngerandi',
+  'home.trade.point2': 'Impahla eyalelwe kubahlinzeki be-SupplierAdvisor®',
+  'home.trade.point3': 'Uhlelo lwesayithi lomsebenzi',
+  'home.trade.point4': 'Izikhumbuzi ze-CoC ne-PIRB ngaphambi kokuphelelwa kwesitifiketi',
+  'home.trade.point5': 'Uhlelo lomthengi olufakwa: isimo, isitatimende nezicelo ezintsha',
+  'home.trade.explore': 'Bona abasebenzi bezandla',
+  'home.trade.demo': 'Vula uhlelo lomthengi lwesibonelo',
+  'home.trade.price': '+R{pack} ngenyanga ngaphezu kwesisekelo',
+  'home.trade.imageAlt':
+    'Uhlelo lomthengi lwesibonelo lwe-TradeAdvisor® olubonisa umsebenzi oqhubekayo we-Harbour Trades',
 };
 
 export default zu;
