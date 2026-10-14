@@ -58,6 +58,7 @@ export const en = {
   'home.bookSample': 'Prefer to look first?',
   'home.bookSampleLink': 'Open the interactive demo',
   'home.bookSampleNote': 'Sample screens only. No signup.',
+  'home.tourCta': 'Take the guided tour',
   'home.proofCue':
     'This page states product terms. It does not publish customer counts or performance scores.',
 
@@ -196,6 +197,36 @@ export const en = {
   'pricing.faq.7.q': 'Can I switch my billing tier later?',
   'pricing.faq.7.a':
     'Yes. Companies can move from monthly to prepaid terms in billing. Early renewals extend your subscription window and referral percentages continue to apply to amounts actually paid.',
+  'tour.sample': 'Sample data · not saved',
+  'tour.progress': 'Step {step} of {total}',
+  'tour.next': 'Next',
+  'tour.back': 'Back',
+  'tour.skip': 'Skip',
+  'tour.dismiss': 'Close tour',
+  'tour.dashboard.title': 'The supply-chain OS',
+  'tour.dashboard.body':
+    'This command center is the SupplierAdvisor® workspace. Trade, stock, quality, and people share one company view. Everything on this screen is sample data and is not saved.',
+  'tour.crm.title': 'Customers in the same OS',
+  'tour.crm.body':
+    'CRM keeps buyers and leads inside SupplierAdvisor®, on the same company workspace as purchasing and stock. These customer rows are sample data.',
+  'tour.srm.title': 'Suppliers on the trust layer',
+  'tour.srm.body':
+    'SRM is the supplier side of the verified trade and trust layer. You see who you buy from inside SupplierAdvisor®. These companies are samples and are not written to SupplierAdvisor®.',
+  'tour.po.title': 'Purchase orders on the books',
+  'tour.po.body':
+    'Purchase orders stay with the counterparties on the verified trade layer of SupplierAdvisor®. This desk is a sample. Nothing here is saved.',
+  'tour.inventory.title': 'Stock tied to the trade',
+  'tour.inventory.body':
+    'Inventory keeps products, lots, and stock status inside the SupplierAdvisor® supply-chain OS, next to the orders that move them. The quantities shown are sample data.',
+  'tour.ratings.title': 'The verified trust layer',
+  'tour.ratings.body':
+    'Ratings record how counterparties perform on trade you can stand behind. That is the trust layer of SupplierAdvisor®. The ratings on this screen are samples, not live results.',
+  'tour.sheq.title': 'Quality beside the trade',
+  'tour.sheq.body':
+    'SHEQ keeps safety, environment, and quality next to the orders they protect, inside SupplierAdvisor®. This register is sample data and is not saved.',
+  'tour.close.title': 'Run it on your company',
+  'tour.close.body':
+    'You have walked the SupplierAdvisor® supply-chain OS and its verified trade and trust layer. Start a free trial on your own company, or book a demo. These screens stay sample data.',
   'pricing.step': 'Step {step}',
 } as const;
 

@@ -55,6 +55,7 @@ const sw: Dict = {
   'home.bookSample': 'Unapendelea kuangalia kwanza?',
   'home.bookSampleLink': 'Fungua onyesho shirikishi',
   'home.bookSampleNote': 'Skrini za mfano pekee. Hakuna usajili.',
+  'home.tourCta': 'Anza ziara elekezi',
   'home.proofCue':
     'Ukurasa huu unaeleza masharti ya bidhaa. Hauweki idadi ya wateja wala alama za utendaji.',
   'hero.headlineLead': 'OS ya mnyororo wa ugavi',
@@ -187,6 +188,36 @@ const sw: Dict = {
   'pricing.faq.7.q': 'Naweza kubadilisha ngazi ya malipo baadaye?',
   'pricing.faq.7.a':
     'Ndiyo. Kampuni zinaweza kuhamia kutoka kila mwezi hadi masharti ya kulipia mapema kwenye bili. Uboreshaji wa mapema huongeza muda wa usajili.',
+  'tour.sample': 'Data ya mfano · haijahifadhiwa',
+  'tour.progress': 'Hatua {step} kati ya {total}',
+  'tour.next': 'Ifuatayo',
+  'tour.back': 'Rudi',
+  'tour.skip': 'Ruka',
+  'tour.dismiss': 'Funga ziara',
+  'tour.dashboard.title': 'OS ya mnyororo wa ugavi',
+  'tour.dashboard.body':
+    'Kituo hiki cha amri ni nafasi ya kazi ya SupplierAdvisor®. Biashara, hisa, ubora, na watu hushiriki mwonekano mmoja wa kampuni. Kila kitu kwenye skrini hii ni data ya mfano na hakihifadhiwi.',
+  'tour.crm.title': 'Wateja katika OS ileile',
+  'tour.crm.body':
+    'CRM huweka wanunuzi na leads ndani ya SupplierAdvisor®, kwenye nafasi ileile ya kampuni na ununuzi na hisa. Safu hizi za wateja ni data ya mfano.',
+  'tour.srm.title': 'Wasambazaji kwenye safu ya uaminifu',
+  'tour.srm.body':
+    'SRM ni upande wa wasambazaji wa safu ya biashara na uaminifu uliothibitishwa. Unaona unanunua kutoka kwa nani ndani ya SupplierAdvisor®. Kampuni hizi ni mifano na haziandikwi kwenye SupplierAdvisor®.',
+  'tour.po.title': 'Maagizo ya ununuzi kwenye vitabu',
+  'tour.po.body':
+    'Maagizo ya ununuzi hubaki na washirika wa safu ya biashara iliyothibitishwa ya SupplierAdvisor®. Dawati hili ni mfano. Hakuna kinachohifadhiwa.',
+  'tour.inventory.title': 'Hisa iliyofungamanishwa na biashara',
+  'tour.inventory.body':
+    'Hesabu ya bidhaa huweka bidhaa, loti, na hali ya hisa ndani ya OS ya mnyororo wa ugavi ya SupplierAdvisor®, karibu na maagizo yanayozisogeza. Kiasi kinachoonyeshwa ni data ya mfano.',
+  'tour.ratings.title': 'Safu ya uaminifu iliyothibitishwa',
+  'tour.ratings.body':
+    'Ukadiriaji unaandika jinsi washirika wanavyotekeleza biashara unayoweza kusimamia. Hiyo ndiyo safu ya uaminifu ya SupplierAdvisor®. Ukadiriaji kwenye skrini hii ni mifano, si matokeo ya moja kwa moja.',
+  'tour.sheq.title': 'Ubora kando ya biashara',
+  'tour.sheq.body':
+    'SHEQ huweka usalama, mazingira, na ubora kando ya maagizo wanayolinda, ndani ya SupplierAdvisor®. Daftari hili ni data ya mfano na halijahifadhiwa.',
+  'tour.close.title': 'Iendeshe kwenye kampuni yako',
+  'tour.close.body':
+    'Umetembea OS ya mnyororo wa ugavi ya SupplierAdvisor® na safu yake ya biashara na uaminifu uliothibitishwa. Anza jaribio la bure kwenye kampuni yako, au weka onyesho. Skrini hizi hubaki data ya mfano.',
   'pricing.step': 'Hatua ya {step}',
 };
 

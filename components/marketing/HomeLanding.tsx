@@ -8,6 +8,7 @@ import LocaleDataScript from '@/components/i18n/LocaleDataScript';
 import { COMPANY_TRIAL_DAYS } from '@/lib/billing/company-subscription';
 import { DEFAULT_LOCALE, type Locale } from '@/lib/i18n/config';
 import { en, format, t, type Dict } from '@/lib/i18n/dict';
+import { productTourHref } from '@/lib/preview/product-tour';
 
 export default function HomeLanding({ locale = DEFAULT_LOCALE, dict = en }: { locale?: Locale; dict?: Dict }) {
   return (
@@ -35,6 +36,14 @@ export default function HomeLanding({ locale = DEFAULT_LOCALE, dict = en }: { lo
                 {t(dict, 'home.proofCue')}
               </p>
               <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                <Link
+                  id="guided-tour"
+                  href={productTourHref('dashboard', locale)}
+                  className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#00b4d8] px-6 py-3 text-sm font-bold text-[#0f172a] shadow-sm hover:brightness-95 sm:w-auto"
+                >
+                  {t(dict, 'home.tourCta')}
+                  <ArrowRight className="h-4 w-4 rtl:-scale-x-100" />
+                </Link>
                 <a
                   href="mailto:hello@supplieradvisor.com?subject=Demo%20request%20%E2%80%94%20SupplierAdvisor"
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-slate-950 px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-slate-800"
@@ -54,8 +63,7 @@ export default function HomeLanding({ locale = DEFAULT_LOCALE, dict = en }: { lo
               <p className="mt-4 text-sm leading-relaxed text-slate-600 dark:text-neutral-300">
                 {t(dict, 'home.bookSample')}{' '}
                 <Link
-                  href="/demo"
-                  hrefLang="en"
+                  href={productTourHref('dashboard', locale)}
                   className="font-semibold text-[#0077b6] underline decoration-[#0077b6]/40 underline-offset-4"
                 >
                   {t(dict, 'home.bookSampleLink')}
