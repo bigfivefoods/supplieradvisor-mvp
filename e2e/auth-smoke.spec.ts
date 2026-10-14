@@ -60,6 +60,24 @@ test.describe('Tier-1 API auth', () => {
     });
     expect([404, 405]).toContain(res.status());
   });
+
+  test('real trade quote PDF stays closed when signed out', async ({ request }) => {
+    const res = await request.get(
+      `${base}/api/public/tradegraph/quote-pdf?token=tg_real_probe_108&quote=tq_probe`
+    );
+    expect(res.status()).not.toBe(200);
+    const body = await res.text();
+    expect(body).not.toContain('%PDF');
+    expect(body).not.toContain('BEGIN:VCALENDAR');
+  });
+
+  test('real trade calendar stays closed when signed out', async ({ request }) => {
+    const res = await request.get(`${base}/api/public/tradegraph/ics?token=tg_real_probe_108`);
+    expect(res.status()).not.toBe(200);
+    const body = await res.text();
+    expect(body).not.toContain('BEGIN:VCALENDAR');
+    expect(body).not.toContain('%PDF');
+  });
 });
 
 test.describe('Login return query', () => {

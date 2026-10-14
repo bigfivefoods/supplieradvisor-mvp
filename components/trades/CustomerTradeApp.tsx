@@ -319,6 +319,14 @@ function LiveCustomerTradeApp({ token }: { token: string }) {
 
         {phase === 'in' && tab === 'jobs' ? (
           <section className="space-y-3">
+            {demo ? null : (
+              <a
+                className="inline-block text-sm font-bold text-[#00b4d8]"
+                href={`/api/public/tradegraph/ics?token=${encodeURIComponent(token)}`}
+              >
+                Add my visits to my calendar
+              </a>
+            )}
             {(portal?.jobs || []).map((job) => (
               <article key={job.id} className="rounded-3xl border border-slate-200 bg-white p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -370,6 +378,14 @@ function LiveCustomerTradeApp({ token }: { token: string }) {
                 <li key={quote.id} className="flex justify-between gap-3">
                   <span>
                     {quote.number} · {quote.title}
+                    {demo ? null : (
+                      <a
+                        className="mt-1 block font-bold text-[#00b4d8]"
+                        href={`/api/public/tradegraph/quote-pdf?token=${encodeURIComponent(token)}&quote=${encodeURIComponent(quote.id)}`}
+                      >
+                        Download quote PDF
+                      </a>
+                    )}
                   </span>
                   <span>{formatZar(quoteTotals(quote.lines, portal?.brand.vat_rate).total_cents)}</span>
                 </li>

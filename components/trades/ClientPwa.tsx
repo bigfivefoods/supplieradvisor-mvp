@@ -155,11 +155,19 @@ function Quotes({
                 <li key={line.id}>{line.qty} × {line.description}</li>
               ))}
             </ul>
-            {quote.status === 'sent' ? (
-              <button type="button" className="mt-3 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" data-testid="accept-quote" onClick={() => onAccept(quote.id)}>
-                Accept and sign
-              </button>
-            ) : null}
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <a
+                className="text-sm font-bold text-[#00b4d8]"
+                href={`/api/public/tradegraph/quote-pdf?token=${encodeURIComponent(pack.brand.public_token === 'tg_harbour' || pack.brand.public_token === 'demo' ? 'demo' : pack.brand.public_token)}&quote=${encodeURIComponent(quote.id)}`}
+              >
+                Download PDF
+              </a>
+              {quote.status === 'sent' ? (
+                <button type="button" className="rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" data-testid="accept-quote" onClick={() => onAccept(quote.id)}>
+                  Accept and sign
+                </button>
+              ) : null}
+            </div>
           </article>
         );
       })}
