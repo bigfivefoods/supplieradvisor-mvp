@@ -33,9 +33,18 @@ for (const blocked of ['wagmi', 'viem', '@walletconnect']) {
 }
 
 assert.ok(
-  loginAuthShell.includes("dynamic(\n  () => import('@/components/Providers').then((mod) => mod.Providers),") &&
-    loginAuthShell.includes('ssr: false'),
-  'Login auth shell must lazy-load Providers with ssr:false'
+  !loginAuthShell.includes("from '@/components/Providers'"),
+  'login shell must not statically import Providers'
+);
+assert.ok(
+  !loginAuthShell.includes('next/dynamic'),
+  'next/dynamic preloads Privy from the /login RSC payload'
+);
+assert.ok(
+  loginAuthShell.includes("import('@/components/Providers')") &&
+    loginAuthShell.includes("import('@/components/auth/LoginPrivyPanel')") &&
+    loginAuthShell.includes('if (!loadPrivy'),
+  'Providers and the Privy panel load only after loadPrivy is set'
 );
 
 assert.ok(
