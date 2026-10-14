@@ -286,9 +286,9 @@ export type StockMovementRecord = {
   created_at?: string;
 };
 
-/** Build QR payload URL for a product (scan → public product card). */
+/** Build QR payload URL for a product (scan → public product card on the canonical host). */
 export function productQrPayload(publicId: string, appUrl?: string) {
-  const base = (appUrl || process.env.NEXT_PUBLIC_APP_URL || 'https://app.supplieradvisor.com').replace(
+  const base = (appUrl || process.env.NEXT_PUBLIC_APP_URL || 'https://www.supplieradvisor.com').replace(
     /\/$/,
     ''
   );
