@@ -221,6 +221,22 @@ export const INDUSTRIES: readonly IndustryOption[] = [
     ]),
   },
   {
+    id: 'artisan_trades',
+    label: 'Trades & artisans',
+    description:
+      'Electricians, plumbers, builders, painters, HVAC and handymen — TradeAdvisor® quotes, jobs, invoices and a customer app.',
+    sectorId: 'tertiary',
+    packIds: ['trades'],
+    businessTypes: privateTypes([
+      { id: 'electrician', label: 'Electrician', description: 'Electrical installation and CoC work.' },
+      { id: 'plumber', label: 'Plumber', description: 'Plumbing and PIRB work.' },
+      { id: 'builder', label: 'Builder', description: 'Small building and alterations.' },
+      { id: 'painter', label: 'Painter', description: 'Painting and decorating.' },
+      { id: 'hvac', label: 'HVAC', description: 'Heating, ventilation and air-conditioning.' },
+      { id: 'handyman', label: 'Handyman', description: 'General repairs and maintenance.' },
+    ]),
+  },
+  {
     id: 'dental_clinical',
     label: 'Dental practices',
     description:

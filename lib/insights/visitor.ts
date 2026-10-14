@@ -238,7 +238,8 @@ const APP_TOP: Record<string, string> = {
 const ID_ROUTES = new Set(['c', 'i', 'p', 'r', 't', 'pay', 'hire', 'apparel', 'claim-review']);
 const MODULE_ROUTES = new Set(['f', 'clinician', 'pwa']);
 const KNOWN_SECOND: Record<string, Set<string>> = {
-  join: new Set(['fitgraph', 'member', 'work']),
+  join: new Set(['fitgraph', 'tradegraph', 'member', 'work']),
+  customer: new Set(['tradegraph']),
   embed: new Set(['advisor', 'containers', 'fitgraph', 'hire', 'retail', 'store']),
   nsnp: new Set(['menu', 'transparency']),
   s: new Set(['food', 'peu', 'serve']),

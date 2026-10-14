@@ -73,6 +73,7 @@ export const FOOTER_INDUSTRY_GROUPS: FooterLinkGroup[] = [
       { label: 'Manufacturing', href: '/industries/manufacturing' },
       { label: 'Apparel & clothing', href: '/industries/apparel-clothing' },
       { label: 'Building & construction', href: '/industries/construction-building' },
+      { label: 'Trades & artisans', href: '/industries/trades' },
       { label: 'Distribution & logistics', href: '/industries/distribution' },
       { label: 'Container last-mile', href: '/industries/containers' },
     ],

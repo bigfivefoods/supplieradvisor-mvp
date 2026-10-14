@@ -42,7 +42,9 @@ export function isInstallBannerSuppressedPath(path: string): boolean {
     path.startsWith('/hire/') ||
     path.startsWith('/join/') ||
     path.startsWith('/coach') ||
-    path.startsWith('/embed')
+    path.startsWith('/embed') ||
+    path.startsWith('/customer') ||
+    path.startsWith('/preview/tradegraph')
   );
 }
 

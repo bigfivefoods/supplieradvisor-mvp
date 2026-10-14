@@ -87,7 +87,10 @@ async function renderCard(card: ShareCardSpec, logo: Buffer): Promise<Buffer> {
 
 async function main() {
   const logo = await sharp(join(ROOT, 'public/sa-logo.png')).png().toBuffer();
-  const cards = allShareCards();
+  const only = process.argv.slice(2);
+  const cards = allShareCards().filter(
+    (card) => only.length === 0 || only.includes(card.id) || only.includes(card.file)
+  );
   for (const card of cards) {
     const png = await renderCard(card, logo);
     const info = await sharp(png).metadata();

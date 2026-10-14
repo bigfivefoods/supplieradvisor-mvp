@@ -798,6 +798,46 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     ],
   },
   {
+    id: 'trades',
+    name: 'Trades & artisans (Services)',
+    shortName: 'Trades',
+    description:
+      'Tertiary / services industry pack for electricians, plumbers, builders, painters, HVAC and handymen — TradeAdvisor®: quotes, jobs, invoices in rand, materials from SupplierAdvisor® suppliers, schedule, CoC/PIRB reminders, and a customer app.',
+    monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
+    priority: 1,
+    recommendSectors: ['tertiary'],
+    recommendEntities: ['private_company'],
+    modules: [
+      {
+        id: 'trade_os',
+        name: 'TradeAdvisor® van OS',
+        description: 'Quotes, jobs, invoices, schedule and the customer app.',
+        unlocks: ['tradegraph', 'customers', 'people'],
+      },
+      {
+        id: 'trade_suppliers',
+        name: 'Materials suppliers',
+        description: 'Order materials from suppliers already on SupplierAdvisor®.',
+        unlocks: ['suppliers', 'network', 'tradegraph'],
+      },
+      {
+        id: 'trade_ops',
+        name: 'Job ops & stock',
+        description: 'Site schedule and consumables.',
+        unlocks: ['operations', 'inventory', 'tradegraph'],
+      },
+    ],
+    industryToolsHrefs: [
+      { name: 'TradeAdvisor®', href: '/dashboard/tradegraph', desc: 'Van OS' },
+      { name: 'Customers', href: '/dashboard/tradegraph/customers', desc: 'Book · invites' },
+      { name: 'Jobs', href: '/dashboard/tradegraph/jobs', desc: 'Quote · job · invoice' },
+      { name: 'Materials', href: '/dashboard/tradegraph/materials', desc: 'Supplier orders' },
+      { name: 'Schedule', href: '/dashboard/tradegraph/schedule', desc: 'Site visits' },
+      { name: 'Compliance', href: '/dashboard/tradegraph/compliance', desc: 'CoC · PIRB' },
+      { name: 'Suppliers', href: '/dashboard/suppliers', desc: 'Materials suppliers' },
+    ],
+  },
+  {
     id: 'allied_health_clinic',
     name: 'Physio & Allied Health (Services)',
     shortName: 'Clinic',
@@ -1591,6 +1631,15 @@ export function enabledModulesMapFromPacks(
     unlocked.add('operations');
     unlocked.add('inventory');
   }
+  // Trades & artisans → TradeAdvisor
+  if (packIds.includes('trades')) {
+    unlocked.add('tradegraph');
+    unlocked.add('suppliers');
+    unlocked.add('customers');
+    unlocked.add('operations');
+    unlocked.add('inventory');
+    unlocked.add('people');
+  }
   // Physio / allied health clinic → PhysioAdvisor
   if (
     packIds.includes('allied_health_clinic') ||
@@ -1980,6 +2029,14 @@ export function appModulesUnlockedByPack(pack: IndustryPackDef): string[] {
     ids.add('customers');
     ids.add('operations');
     ids.add('inventory');
+  }
+  if (pack.id === 'trades') {
+    ids.add('tradegraph');
+    ids.add('suppliers');
+    ids.add('customers');
+    ids.add('operations');
+    ids.add('inventory');
+    ids.add('people');
   }
   if (
     pack.id === 'allied_health_clinic' ||

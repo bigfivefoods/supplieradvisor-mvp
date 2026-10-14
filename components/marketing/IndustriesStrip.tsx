@@ -21,6 +21,7 @@ import {
   PawPrint,
   Shirt,
   Hammer,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -35,6 +36,7 @@ const ICONS: Record<IndustrySlug, LucideIcon> = {
   manufacturing: Factory,
   'apparel-clothing': Shirt,
   'construction-building': Hammer,
+  trades: Wrench,
   distribution: Truck,
   containers: Container,
   'fitness-gyms': Dumbbell,
@@ -72,7 +74,7 @@ export default function IndustriesStrip() {
           </h2>
           <p className="mt-4 text-base text-slate-600 sm:text-lg">
             Same platform fabric — Core OS, Industry Advisors (CropAdvisor®,
-            QuarryAdvisor®, ConstructionAdvisor®, GymAdvisor®, PhysioAdvisor®, DentalAdvisor®,
+            QuarryAdvisor®, ConstructionAdvisor®, TradeAdvisor®, GymAdvisor®, PhysioAdvisor®, DentalAdvisor®,
             PsychiatryAdvisor®, MedicalAdvisor®, VetAdvisor®, HireAdvisor®,
             RetailAdvisor®, ApparelAdvisor®, ContainerAdvisor®), and government programmes
             (SchoolAdvisor® · HealthAdvisor®). Exclusive diaries &amp; rooms,

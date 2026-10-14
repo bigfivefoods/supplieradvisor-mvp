@@ -817,6 +817,42 @@ export function QuarrygraphMock() {
   );
 }
 
+/** Industry — trades & artisan OS */
+export function TradegraphMock() {
+  return (
+    <Frame title="dashboard/tradegraph">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[9px] font-bold uppercase tracking-widest text-[#0077b6]">
+            TradeAdvisor® · Van
+          </div>
+          <div className="text-sm font-black tracking-tight text-slate-900 sm:text-base dark:text-white">
+            Quote · job · invoice.
+          </div>
+        </div>
+        <span className="rounded-full bg-[#00b4d8] px-2 py-0.5 text-[9px] font-black uppercase text-white">
+          R6 382
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-1.5">
+        {[
+          ['Job', '60%'],
+          ['Balance', 'R4 382'],
+          ['CoC', '18d'],
+        ].map(([label, value]) => (
+          <div
+            key={label}
+            className="rounded-xl border border-slate-200 bg-white p-2 text-center dark:border-white/10 dark:bg-[#151c26]"
+          >
+            <div className="text-[10px] font-bold text-slate-500">{label}</div>
+            <div className="text-xs font-black text-slate-900 dark:text-white">{value}</div>
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
 /** Industry — fitness / tertiary services OS */
 export function FitgraphMock() {
   return (

@@ -81,6 +81,7 @@ export const SITE_KEYWORDS = [
   'CropAdvisor',
   'QuarryAdvisor',
   'GymAdvisor',
+  'TradeAdvisor',
   'MPS MRP BOM',
   'distribution software',
   'operations control tower',
