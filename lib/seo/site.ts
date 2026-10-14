@@ -17,7 +17,7 @@ export const DEFAULT_TITLE =
   'SupplierAdvisor® — The supply-chain OS with a verified trade and trust layer';
 
 export const DEFAULT_DESCRIPTION =
-  'SupplierAdvisor® is the supply-chain OS with a verified trade and trust layer. 30-day company trial from R299/mo, plus a free SA Member account.';
+  'SupplierAdvisor® supply-chain OS with a verified trade and trust layer. 30-day trial, then from R299/month.';
 
 /** Core marketing + public indexable routes (no company/product dynamic pages). */
 export const STATIC_SEO_ROUTES: Array<{

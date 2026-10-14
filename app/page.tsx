@@ -1,19 +1,17 @@
 import type { Metadata } from 'next';
 import HomeLanding from '@/components/marketing/HomeLanding';
-import { hreflangAlternates } from '@/lib/i18n/config';
-import { SITE_URL } from '@/lib/seo/site';
+import { marketingMetadata } from '@/lib/seo/metadata';
+import { HOME_SHARE_CARD } from '@/lib/seo/share-cards';
+import { DEFAULT_TITLE } from '@/lib/seo/site';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = marketingMetadata({
+  path: '/',
+  title: DEFAULT_TITLE,
+  absoluteTitle: true,
   description:
-    'SupplierAdvisor® is the supply-chain OS with a verified trade and trust layer. A 30-day company trial and a free SA Member account.',
-  alternates: {
-    canonical: SITE_URL,
-    languages: hreflangAlternates('/', SITE_URL),
-  },
-  openGraph: {
-    locale: 'en_ZA',
-  },
-};
+    'SupplierAdvisor® supply-chain OS with a verified trade and trust layer. 30-day trial, then from R299/month.',
+  image: HOME_SHARE_CARD,
+});
 
 /**
  * Brief 10 — first HTML is hero + compact CTA + nav only.
