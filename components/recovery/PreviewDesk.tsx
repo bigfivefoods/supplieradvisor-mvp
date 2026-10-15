@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
+import { RECOVER_DEMO_BANNER } from '@/lib/recovery/brand';
 import { recovergraphNavSteps } from '@/lib/recovery/nav';
 import { SAMPLE_ILLUSTRATION, sampleDesk } from '@/lib/recovery/sample-desk';
 import { RecoverCreditors, RecoverMandates } from './RecoverBooks';
@@ -25,6 +26,13 @@ function readRole(value: string | null): PreviewRole {
 function ClientSample() {
   return (
     <div className="grid gap-4" data-testid="recover-preview-client">
+      <div
+        data-testid="recover-banner-demo"
+        role="status"
+        className="rounded-2xl border border-cyan-100 bg-gradient-to-r from-cyan-50 to-white px-4 py-3 text-sm font-medium leading-relaxed text-slate-900 shadow-sm"
+      >
+        {RECOVER_DEMO_BANNER}
+      </div>
       <p className="text-sm font-black text-[#0f172a]">Illustration · sample data</p>
       <SamplePortalBoard kind="creditor" />
       <SamplePortalBoard kind="debtor" />
