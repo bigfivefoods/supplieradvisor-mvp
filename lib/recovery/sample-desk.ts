@@ -1,3 +1,4 @@
+import { formatRecoverMoney } from './money';
 import type { RecoverCreditor, RecoverDeskPayload, RecoverMandate, RecoverStaff } from './types';
 
 export type SampleAccount = {
@@ -23,11 +24,14 @@ export type SamplePromise = {
   note: string;
 };
 
+export type IllustrationScope = 'book' | 'queue' | 'account';
+
 export type RecoverIllustration = {
   placed: string;
   recovered: string;
   trust: string;
   clocks: string;
+  scope: IllustrationScope;
   accounts: SampleAccount[];
   attention: SampleAttention[];
   promises: SamplePromise[];
@@ -120,15 +124,16 @@ const STAFF: RecoverStaff[] = [
   },
 ];
 
-export const SAMPLE_ACCOUNTS: SampleAccount[] = [
+const ACCOUNT_CENTS = [
   {
     ref: 'RA-20418',
     holder: 'Cedar Retail',
     creditor: 'Northline Credit',
     action: 'Call the account holder',
     stage: 'Arrangement',
-    amount: 'R 18 450.00',
+    cents: 1845000,
     clock: '2 days',
+    assignee: 'agent' as const,
   },
   {
     ref: 'RA-20441',
@@ -136,8 +141,9 @@ export const SAMPLE_ACCOUNTS: SampleAccount[] = [
     creditor: 'Meridian Finance',
     action: 'Confirm the promise',
     stage: 'Promise',
-    amount: 'R 6 280.50',
+    cents: 628050,
     clock: '5 days',
+    assignee: 'agent' as const,
   },
   {
     ref: 'RA-19802',
@@ -145,28 +151,81 @@ export const SAMPLE_ACCOUNTS: SampleAccount[] = [
     creditor: 'Northline Credit',
     action: 'Send the statement',
     stage: 'New',
-    amount: 'R 42 910.00',
+    cents: 4291000,
     clock: '12 days',
+    assignee: 'owner' as const,
   },
 ];
 
-export const SAMPLE_ILLUSTRATION: RecoverIllustration = {
-  placed: 'R 1 240 600.00',
-  recovered: 'R 186 400.00',
-  trust: 'R 94 250.00',
-  clocks: '6',
-  accounts: SAMPLE_ACCOUNTS,
-  attention: [
-    { title: 'Cedar Retail', detail: 'Promise due in 2 days · RA-20418', stage: 'Arrangement' },
-    { title: 'Pebble Stores', detail: 'Waiting on a confirmation · RA-20441', stage: 'Promise' },
-    { title: 'Oak Lane Grocer', detail: 'Statement not sent · RA-19802', stage: 'New' },
-  ],
-  promises: [
-    { when: '2 Apr', who: 'Cedar Retail', amount: 'R 1 500.00', note: 'Arrangement started' },
-    { when: '2 May', who: 'Cedar Retail', amount: 'R 1 500.00', note: 'Next illustrated receipt' },
-    { when: '9 May', who: 'Pebble Stores', amount: 'R 800.00', note: 'Promise to pay' },
-  ],
-};
+function accountFromCents(row: (typeof ACCOUNT_CENTS)[number]): SampleAccount {
+  return {
+    ref: row.ref,
+    holder: row.holder,
+    creditor: row.creditor,
+    action: row.action,
+    stage: row.stage,
+    amount: formatRecoverMoney(row.cents),
+    clock: row.clock,
+  };
+}
+
+export const SAMPLE_ACCOUNTS: SampleAccount[] = ACCOUNT_CENTS.map(accountFromCents);
+
+const ATTENTION: SampleAttention[] = [
+  { title: 'Cedar Retail', detail: 'Promise due in 2 days · RA-20418', stage: 'Arrangement' },
+  { title: 'Pebble Stores', detail: 'Waiting on a confirmation · RA-20441', stage: 'Promise' },
+  { title: 'Oak Lane Grocer', detail: 'Statement not sent · RA-19802', stage: 'New' },
+];
+
+const PROMISES: SamplePromise[] = [
+  { when: '2 Apr', who: 'Cedar Retail', amount: formatRecoverMoney(150000), note: 'Arrangement started' },
+  { when: '2 May', who: 'Cedar Retail', amount: formatRecoverMoney(150000), note: 'Next illustrated receipt' },
+  { when: '9 May', who: 'Pebble Stores', amount: formatRecoverMoney(80000), note: 'Promise to pay' },
+];
+
+export function illustrationFor(role: 'owner' | 'agent' | 'client'): RecoverIllustration {
+  const placed = formatRecoverMoney(124060000);
+  const recovered = formatRecoverMoney(18640000);
+  const trust = formatRecoverMoney(9425000);
+  if (role === 'client') {
+    const accounts = ACCOUNT_CENTS.filter((row) => row.holder === 'Cedar Retail').map(accountFromCents);
+    return {
+      placed,
+      recovered,
+      trust,
+      clocks: '1',
+      scope: 'account',
+      accounts,
+      attention: ATTENTION.filter((row) => row.title === 'Cedar Retail'),
+      promises: PROMISES.filter((row) => row.who === 'Cedar Retail'),
+    };
+  }
+  if (role === 'agent') {
+    const accounts = ACCOUNT_CENTS.filter((row) => row.assignee === 'agent').map(accountFromCents);
+    return {
+      placed,
+      recovered,
+      trust,
+      clocks: '2',
+      scope: 'queue',
+      accounts,
+      attention: ATTENTION.filter((row) => row.title !== 'Oak Lane Grocer'),
+      promises: PROMISES.filter((row) => row.who !== 'Oak Lane Grocer'),
+    };
+  }
+  return {
+    placed,
+    recovered,
+    trust,
+    clocks: '6',
+    scope: 'book',
+    accounts: SAMPLE_ACCOUNTS,
+    attention: ATTENTION,
+    promises: PROMISES,
+  };
+}
+
+export const SAMPLE_ILLUSTRATION: RecoverIllustration = illustrationFor('owner');
 
 const OWNER_CAPS = {
   canSeeAllQueues: true,

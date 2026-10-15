@@ -1,7 +1,7 @@
 'use client';
 
-import { RecoverSampleApp } from '@/components/recovery/PreviewDesk';
+import { RecoverLaunching } from '@/components/recovery/PreviewDesk';
 
 export default function CrewRecoverPage() {
-  return <RecoverSampleApp role="agent" hrefBase="/preview/recovergraph?role=agent" />;
+  return <RecoverLaunching role="agent" />;
 }

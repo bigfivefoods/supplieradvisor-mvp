@@ -2,9 +2,15 @@
 
 import { Gavel, Landmark, UserRound } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { RECOVER_PENDING_BANNER } from '@/lib/recovery/brand';
 import { PortalArt } from './RecoverArt';
-import { RecoverBanner, RecoverDemoGate, RecoverRoleChip, RecoverSample, RecoverScreen } from './RecoverChrome';
+import {
+  RecoverBanner,
+  RecoverDemoGate,
+  RecoverPendingBanner,
+  RecoverRoleChip,
+  RecoverSample,
+  RecoverScreen,
+} from './RecoverChrome';
 import { SamplePortalBoard } from './RecoverPreviews';
 import { useRecoverDesk, useRecoverIllustration } from './useRecoverDesk';
 
@@ -54,9 +60,7 @@ export function RecoverPortals() {
       {error ? <RecoverBanner testId="recover-banner-error" tone="error">{error}</RecoverBanner> : null}
       <RecoverDemoGate desk={desk} />
       {desk && !desk.ready ? (
-        <RecoverBanner testId="recover-banner-pending" tone="pending">
-          {RECOVER_PENDING_BANNER}
-        </RecoverBanner>
+        <RecoverPendingBanner role={desk.role} />
       ) : null}
       {loading ? (
         <div className="grid gap-4 md:grid-cols-3">
@@ -116,7 +120,7 @@ export function RecoverPortals() {
           </div>
         </section>
       ) : null}
-      {!loading ? (
+      {illustration && !loading ? (
         <div className="mt-4 overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-[0_20px_50px_-28px_rgba(15,23,42,0.45)]">
           <div className="grid items-center gap-2 bg-gradient-to-br from-cyan-50 via-white to-sky-50 lg:grid-cols-[18rem_minmax(0,1fr)]">
             <div className="flex justify-center px-6 py-4">

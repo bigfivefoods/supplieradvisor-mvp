@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 type LayoutProps = { children: ReactNode; params: Promise<{ token: string }> };
@@ -26,6 +27,8 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-export default function CustomerRecoverLayout({ children }: LayoutProps) {
+export default async function CustomerRecoverLayout({ children, params }: LayoutProps) {
+  const { token } = await params;
+  if (!token || token.length < 8 || token.includes('/') || token.includes('..')) notFound();
   return children;
 }

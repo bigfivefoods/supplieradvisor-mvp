@@ -67,5 +67,25 @@ assert.doesNotMatch(
   readFileSync(resolve('app/customer/recovergraph/[token]/page.tsx'), 'utf8'),
   /token/
 );
+for (const page of [
+  'app/work/recovergraph/page.tsx',
+  'app/crew/recovergraph/[token]/page.tsx',
+  'app/customer/recovergraph/[token]/page.tsx',
+]) {
+  const body = readFileSync(resolve(page), 'utf8');
+  assert.doesNotMatch(body, /\/preview\/recovergraph|\/dashboard\/recovergraph/, page);
+  assert.match(body, /RecoverLaunching/, page);
+}
+for (const layout of [
+  'app/crew/recovergraph/[token]/layout.tsx',
+  'app/customer/recovergraph/[token]/layout.tsx',
+]) {
+  const body = readFileSync(resolve(layout), 'utf8');
+  assert.match(body, /token\.length < 8/, layout);
+  assert.match(body, /notFound\(\)/, layout);
+}
+const debtor = readFileSync(resolve('app/(recover-portal)/debtor/recovergraph/[token]/page.tsx'), 'utf8');
+assert.match(debtor, /notFound\(\)/);
+assert.doesNotMatch(debtor, /params\.token/);
 
 console.log('brief111-preview.test.ts ok');

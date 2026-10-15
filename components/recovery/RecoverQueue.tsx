@@ -1,7 +1,6 @@
 'use client';
 
 import { ListChecks } from 'lucide-react';
-import { RECOVER_PENDING_BANNER } from '@/lib/recovery/brand';
 import { queueNavLabel } from '@/lib/recovery/roles';
 import { PendingArt, QueueArt } from './RecoverArt';
 import {
@@ -9,11 +8,11 @@ import {
   RecoverButton,
   RecoverDemoGate,
   RecoverEmpty,
+  RecoverPendingBanner,
   RecoverRoleChip,
-  RecoverSample,
   RecoverScreen,
 } from './RecoverChrome';
-import { QueueBoard, SampleQueueTable, queueRowsFromAccounts } from './RecoverPreviews';
+import { QueueBoard, queueRowsFromAccounts } from './RecoverPreviews';
 import { useRecoverDesk, useRecoverIllustration } from './useRecoverDesk';
 
 export function RecoverQueue() {
@@ -40,20 +39,13 @@ export function RecoverQueue() {
         </div>
       ) : desk && !desk.ready ? (
         <div className="space-y-4">
-          <RecoverBanner testId="recover-banner-pending" tone="pending">
-            {RECOVER_PENDING_BANNER}
-          </RecoverBanner>
+          <RecoverPendingBanner role={desk.role} />
           <RecoverEmpty
             testId="recover-pending-stage"
             icon={ListChecks}
-            title="The queue is waiting"
+            title="No accounts yet"
             body="Assigned accounts stay hidden until the database setup is approved."
             art={<PendingArt />}
-            preview={
-              <RecoverSample title="Sample layout of the queue">
-                <SampleQueueTable />
-              </RecoverSample>
-            }
           />
         </div>
       ) : illustration ? (
@@ -71,11 +63,6 @@ export function RecoverQueue() {
             ) : (
               <RecoverButton href="/dashboard/recovergraph">Back to the desk</RecoverButton>
             )
-          }
-          preview={
-            <RecoverSample title="Sample layout of the queue">
-              <SampleQueueTable />
-            </RecoverSample>
           }
         />
       )}

@@ -10,16 +10,25 @@ const REGISTER = `(function(){
   });
 })();`;
 
-/** Install tags for the main site. Portal routes render none of this. */
+function hidesSiteInstallTags(path: string) {
+  return (
+    isRecoverPortalPath(path) ||
+    path === '/work/recovergraph' ||
+    path.startsWith('/work/recovergraph/') ||
+    path.startsWith('/crew/recovergraph') ||
+    path.startsWith('/customer/recovergraph')
+  );
+}
+
+/** Install tags for the main site. Portal and RecoverAdvisor® app shells render none of this. */
 export default function SiteInstallTags() {
   const path = usePathname() || '/';
-  if (isRecoverPortalPath(path)) return null;
+  if (hidesSiteInstallTags(path)) return null;
   return (
     <>
       <meta name="apple-mobile-web-app-capable" content="yes" />
       <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       <meta name="mobile-web-app-capable" content="yes" />
-      <link rel="icon" href="/sa-favicon.ico" sizes="any" />
       <script dangerouslySetInnerHTML={{ __html: REGISTER }} />
     </>
   );

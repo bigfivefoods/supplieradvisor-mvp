@@ -48,13 +48,6 @@ function psqlAsync(statement: string): Promise<string> {
   });
 }
 
-function psqlFile(path: string) {
-  execFileSync('psql', [url!, '-X', '-v', 'ON_ERROR_STOP=1', '-f', path], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-}
-
 function fails(statement: string, pattern: RegExp) {
   try {
     psql(statement);
@@ -103,19 +96,47 @@ async function main() {
       IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
         CREATE ROLE service_role NOLOGIN BYPASSRLS;
       END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'recover_definer') THEN
+        CREATE ROLE recover_definer NOLOGIN NOBYPASSRLS CREATEROLE;
+      END IF;
     END $$;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public
-      GRANT EXECUTE ON FUNCTIONS TO anon, authenticated;
+    ALTER ROLE recover_definer NOBYPASSRLS CREATEROLE;
+    GRANT USAGE, CREATE ON SCHEMA public TO recover_definer;
+    DO $$ BEGIN
+      EXECUTE format('GRANT CREATE ON DATABASE %I TO recover_definer', current_database());
+    END $$;
+    GRANT USAGE ON SCHEMA extensions TO recover_definer;
     CREATE TABLE IF NOT EXISTS public.profiles (
       id bigint PRIMARY KEY
     );
     CREATE TABLE IF NOT EXISTS public.customers (
       id bigint PRIMARY KEY
     );
+    GRANT ALL ON TABLE public.profiles, public.customers TO recover_definer;
   `);
 
-  psqlFile(migration);
-  psqlFile(migration);
+  function applyMigration() {
+    execFileSync('psql', [url!, '-X', '-v', 'ON_ERROR_STOP=1'], {
+      encoding: 'utf8',
+      input: `
+        SET ROLE recover_definer;
+        ALTER DEFAULT PRIVILEGES IN SCHEMA public
+          GRANT EXECUTE ON FUNCTIONS TO anon, authenticated;
+        ALTER DEFAULT PRIVILEGES IN SCHEMA public
+          GRANT ALL ON TABLES TO anon, authenticated, service_role;
+        \\i ${migration}
+        RESET ROLE;
+      `,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  }
+  applyMigration();
+  applyMigration();
+  assert.equal(psql(`SELECT rolbypassrls FROM pg_roles WHERE rolname = 'recover_definer';`), 'f');
+  assert.equal(
+    psql(`SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE proname = 'recover_desk_commit';`),
+    'recover_definer'
+  );
 
   const tables = [
     'recover_workspaces',
@@ -149,6 +170,35 @@ async function main() {
       AND column_name ILIKE '%public_token%';
   `);
   assert.equal(Number(tokenColumn), 0);
+
+  for (const table of tables) {
+    for (const role of ['anon', 'authenticated', 'service_role', 'recover_portal']) {
+      for (const privilege of ['TRUNCATE', 'REFERENCES', 'TRIGGER']) {
+        assert.equal(
+          psql(`SELECT has_table_privilege('${role}', 'public.${table}', '${privilege}');`),
+          'f',
+          `${role} ${privilege} ${table}`
+        );
+      }
+      fails(
+        `BEGIN; SET LOCAL ROLE ${role}; TRUNCATE public.${table}; ROLLBACK;`,
+        /permission denied/i
+      );
+    }
+  }
+  fails(`TRUNCATE public.recover_audit_log;`, /append-only/);
+  assert.equal(
+    psql(`
+      SELECT count(*)
+      FROM pg_policy pol
+      JOIN pg_class c ON c.oid = pol.polrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public'
+        AND c.relname LIKE 'recover_%'
+        AND pol.polname = 'recover_table_owner';
+    `),
+    String(tables.length)
+  );
 
   for (const table of tables) {
     for (const role of ['anon', 'authenticated', 'recover_portal']) {
@@ -297,31 +347,57 @@ async function main() {
     psql(`SELECT count(*) FROM public.recover_audit_log WHERE company_id = 103 AND action = 'init_workspace';`),
     '1'
   );
+  const otherTeam = psql(`
+    INSERT INTO public.recover_teams (company_id, name)
+    VALUES (102, 'Other book')
+    RETURNING id;
+  `);
+  fails(
+    `SELECT public.recover_desk_commit(
+      101, 'user-1', 'upsert_staff', 'agent@example.com',
+      '{"email":"agent@example.com","role":"collector","team_id":"${otherTeam}"}'::jsonb
+    );`,
+    /team_company_mismatch|foreign key|23503/i
+  );
+  const ownTeam = psql(`
+    INSERT INTO public.recover_teams (company_id, name)
+    VALUES (101, 'Own book')
+    RETURNING id;
+  `);
   psql(`
     SELECT public.recover_desk_commit(
       101, 'user-1', 'upsert_staff', 'agent@example.com',
-      '{"email":"agent@example.com","role":"collector","monthly_target_cents":null}'::jsonb
+      '{"email":"agent@example.com","role":"collector","team_id":"${ownTeam}","monthly_target_cents":null}'::jsonb
     );
   `);
   assert.equal(
-    psql(`SELECT role || ' ' || status FROM public.recover_staff WHERE company_id = 101 AND lower(email) = 'agent@example.com';`),
-    'collector active'
+    psql(`SELECT role || ' ' || status || ' ' || team_id FROM public.recover_staff WHERE company_id = 101 AND lower(email) = 'agent@example.com';`),
+    `collector active ${ownTeam}`
   );
   const staffId = psql(`SELECT id FROM public.recover_staff WHERE company_id = 101 AND lower(email) = 'agent@example.com';`);
+  const upsertPayload = psql(
+    `SELECT payload::text FROM public.recover_audit_log WHERE company_id = 101 AND action = 'upsert_staff';`
+  );
+  assert.match(upsertPayload, new RegExp(staffId));
+  assert.doesNotMatch(upsertPayload, /agent@example.com/);
+  assert.doesNotMatch(upsertPayload, /@/);
   psql(`
     SELECT public.recover_desk_commit(
       101, 'user-1', 'deactivate_staff', '${staffId}',
-      '{"id":"${staffId}","status":"inactive"}'::jsonb
+      '{"id":"${staffId}","status":"inactive","email":"agent@example.com"}'::jsonb
     );
   `);
   assert.equal(
     psql(`SELECT status FROM public.recover_staff WHERE id = '${staffId}';`),
     'inactive'
   );
-  assert.match(
-    psql(`SELECT payload::text FROM public.recover_audit_log WHERE company_id = 101 AND action = 'deactivate_staff';`),
-    /inactive/
+  const deactivatePayload = psql(
+    `SELECT payload::text FROM public.recover_audit_log WHERE company_id = 101 AND action = 'deactivate_staff';`
   );
+  assert.match(deactivatePayload, new RegExp(staffId));
+  assert.doesNotMatch(deactivatePayload, /inactive/);
+  assert.doesNotMatch(deactivatePayload, /agent@example.com/);
+  assert.doesNotMatch(deactivatePayload, /@/);
   assert.equal(
     psql(`SELECT count(*) FROM public.recover_audit_log WHERE company_id = 103 AND action = 'update_workspace';`),
     '0'
@@ -482,6 +558,20 @@ async function main() {
   assert.equal(
     psql(`SELECT count(*) FROM public.recover_portal_attempts WHERE key_hash = 'old';`),
     '0'
+  );
+
+  psql(`
+    BEGIN;
+    SET LOCAL ROLE service_role;
+    SELECT public.recover_desk_commit(
+      101, 'user-1', 'update_workspace', 'recover_workspaces',
+      '{"display_name":"Owned without bypass"}'::jsonb
+    );
+    COMMIT;
+  `);
+  assert.equal(
+    psql(`SELECT display_name FROM public.recover_workspaces WHERE company_id = 101;`),
+    'Owned without bypass'
   );
 
   const rollback = readFileSync(migration, 'utf8')

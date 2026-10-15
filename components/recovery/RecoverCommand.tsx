@@ -11,7 +11,7 @@ import {
   ShieldCheck,
   Users,
 } from 'lucide-react';
-import { RECOVER_PENDING_BANNER, RECOVER_PRODUCT_NAME } from '@/lib/recovery/brand';
+import { RECOVER_PRODUCT_NAME } from '@/lib/recovery/brand';
 import { queueNavLabel } from '@/lib/recovery/roles';
 import type { RecoverDeskPayload, RecoverWorkspace } from '@/lib/recovery/types';
 import { AgentArt, DeskArt, PendingArt } from './RecoverArt';
@@ -24,8 +24,8 @@ import {
   RecoverKpi,
   RecoverModuleCard,
   RecoverPanel,
+  RecoverPendingBanner,
   RecoverRoleChip,
-  RecoverSample,
   RecoverScreen,
   dash,
   formatRand,
@@ -37,11 +37,10 @@ import {
   QueueBoard,
   RecoveryFunnel,
   SampleKpiStrip,
-  SampleQueueTable,
   WorkloadStrip,
   queueRowsFromAccounts,
 } from './RecoverPreviews';
-import { useRecoverDesk, useRecoverIllustration } from './useRecoverDesk';
+import { useRecoverDesk, useRecoverHref, useRecoverIllustration, useRecoverLinks } from './useRecoverDesk';
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -100,24 +99,13 @@ function CommandBody({ desk }: { desk: RecoverDeskPayload }) {
   if (!desk.ready) {
     return (
       <div className="space-y-4">
-        <RecoverBanner testId="recover-banner-pending" tone="pending">
-          {RECOVER_PENDING_BANNER}
-        </RecoverBanner>
+        <RecoverPendingBanner role={desk.role} />
         <RecoverEmpty
           testId="recover-pending-stage"
           icon={Landmark}
-          title="The desk is waiting"
-          body="Command centre, queues, creditors, and mandates stay closed until the database setup is approved."
+          title="No accounts yet"
+          body="Set up the workspace after approval. Add the operator, the team, and the first creditor book. Accounts appear here once that book is imported."
           art={<PendingArt />}
-          preview={
-            <RecoverSample title="Sample layout of the desk">
-              <div className="grid gap-3">
-                <SampleKpiStrip />
-                <RecoveryFunnel />
-                <WorkloadStrip />
-              </div>
-            </RecoverSample>
-          }
         />
       </div>
     );
@@ -251,23 +239,36 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
             />
       </div>
 
-      <div className="mb-8 grid gap-4">
-        {picture ? null : <SampleKpiStrip />}
-        <NeedsAttention items={picture?.attention} />
-        <div className="grid gap-4 lg:grid-cols-2">
-          <RecoveryFunnel />
-          <AgeingBuckets />
+      {picture ? (
+        <div className="mb-8 grid gap-4">
+          {picture.scope === 'book' ? <SampleKpiStrip /> : null}
+          <NeedsAttention items={picture.attention} />
+          {picture.scope === 'book' ? (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <RecoveryFunnel />
+              <AgeingBuckets />
+            </div>
+          ) : null}
+          <PromiseTimeline items={picture.promises} />
+          {picture.scope === 'book' ? <WorkloadStrip /> : null}
         </div>
-        <PromiseTimeline items={picture?.promises} />
-        <WorkloadStrip />
-      </div>
+      ) : (
+        <div className="mb-8">
+          <RecoverEmpty
+            testId="recover-accounts-empty"
+            icon={ListChecks}
+            title="No accounts yet"
+            body="Create the workspace, add the team, then place the first creditor book. Accounts appear here once that book is imported."
+          />
+        </div>
+      )}
 
       <div className="mb-8 grid gap-4 lg:grid-cols-2">
         <RecoverPanel title="Setup" testId="recover-setup-checklist">
           <ol className="space-y-2">
             {checklist.map((item) => (
               <li key={item.label}>
-                <a
+                <SetupLink
                   href={item.href}
                   className="recover-focus flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2"
                 >
@@ -284,7 +285,7 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
                   >
                     {item.done ? 'Done' : 'Open'}
                   </span>
-                </a>
+                </SetupLink>
               </li>
             ))}
           </ol>
@@ -426,11 +427,32 @@ function AgentHome({ desk }: { desk: RecoverDeskPayload }) {
           ) : null}
         </RecoverPanel>
       </div>
-      {picture ? null : (
-        <RecoverSample title="Sample layout of my queue">
-          <SampleQueueTable />
-        </RecoverSample>
-      )}
     </div>
+  );
+}
+
+function SetupLink({
+  href,
+  className,
+  children,
+}: {
+  href: string;
+  className: string;
+  children: React.ReactNode;
+}) {
+  const mapped = useRecoverHref(href);
+  const links = useRecoverLinks();
+  if (links === 'soon') {
+    return (
+      <span className={className}>
+        {children}
+        <span className="sr-only">Launching soon</span>
+      </span>
+    );
+  }
+  return (
+    <a href={mapped} className={className}>
+      {children}
+    </a>
   );
 }

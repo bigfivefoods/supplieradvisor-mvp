@@ -1,7 +1,7 @@
 'use client';
 
-import { RecoverSampleApp } from '@/components/recovery/PreviewDesk';
+import { RecoverLaunching } from '@/components/recovery/PreviewDesk';
 
 export default function CustomerRecoverPage() {
-  return <RecoverSampleApp role="client" hrefBase="/preview/recovergraph?role=client" />;
+  return <RecoverLaunching role="client" />;
 }

@@ -9,8 +9,8 @@ export const RECOVER_BRAND = {
   ink: '#0f172a',
   surface: '#f8fafc',
   line: '#e2e8f0',
-  /** Hover fill. Still paired with ink, never white. */
-  accentHover: '#0096c7',
+  /** Hover keeps the same cyan. Darken with brightness, not a second hex. */
+  accentHover: '#00b4d8',
 } as const;
 
 export const RECOVER_PRODUCT_NAME = 'RecoverAdvisor®';
@@ -20,3 +20,5 @@ export const RECOVER_DEMO_BANNER =
 
 export const RECOVER_PENDING_BANNER =
   'Database setup is pending. The RecoverAdvisor® migration is awaiting approval.';
+
+export const RECOVER_UNAVAILABLE_BANNER = 'RecoverAdvisor® is not available yet.';

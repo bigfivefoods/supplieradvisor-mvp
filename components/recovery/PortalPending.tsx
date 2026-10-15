@@ -1,7 +1,6 @@
 import { Gavel, Landmark, UserRound } from 'lucide-react';
 import { RECOVER_BRAND, RECOVER_PRODUCT_NAME } from '@/lib/recovery/brand';
 import { PortalArt } from './RecoverArt';
-import { SamplePortalBoard } from './RecoverPreviews';
 
 const COPY = {
   creditor: {
@@ -81,7 +80,6 @@ export function PortalPending({ kind }: { kind: keyof typeof COPY }) {
             </div>
           </div>
         </section>
-        <SamplePortalBoard kind={kind} />
       </div>
       <footer className="relative border-t border-[#e2e8f0] bg-white">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-4 sm:px-6">

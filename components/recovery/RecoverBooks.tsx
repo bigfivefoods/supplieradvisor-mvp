@@ -1,7 +1,7 @@
 'use client';
 
 import { Building2, ShieldCheck } from 'lucide-react';
-import { RECOVER_PENDING_BANNER } from '@/lib/recovery/brand';
+import { useRecoverDesk, useRecoverIllustration } from './useRecoverDesk';
 import type { RecoverCreditor, RecoverMandate } from '@/lib/recovery/types';
 import { CreditorArt, MandateArt } from './RecoverArt';
 import {
@@ -9,12 +9,12 @@ import {
   RecoverButton,
   RecoverDemoGate,
   RecoverEmpty,
+  RecoverPendingBanner,
   RecoverRoleChip,
   RecoverSample,
   RecoverScreen,
 } from './RecoverChrome';
 import { SampleCreditorCards, SampleMandateTimeline } from './RecoverPreviews';
-import { useRecoverDesk } from './useRecoverDesk';
 
 const TERMS: Record<string, string> = {
   monthly: 'Monthly',
@@ -34,6 +34,7 @@ const PRODUCTS: Record<string, string> = {
 
 export function RecoverCreditors() {
   const { desk, error, loading } = useRecoverDesk();
+  const illustration = useRecoverIllustration();
   const rows = desk?.creditors ?? [];
   return (
     <RecoverScreen
@@ -44,9 +45,7 @@ export function RecoverCreditors() {
       {error ? <RecoverBanner testId="recover-banner-error" tone="error">{error}</RecoverBanner> : null}
       <RecoverDemoGate desk={desk} />
       {desk && !desk.ready ? (
-        <RecoverBanner testId="recover-banner-pending" tone="pending">
-          {RECOVER_PENDING_BANNER}
-        </RecoverBanner>
+        <RecoverPendingBanner role={desk.role} />
       ) : null}
       {loading ? (
         <div className="h-40 animate-pulse rounded-3xl bg-slate-100 motion-reduce:animate-none" aria-busy="true" />
@@ -59,9 +58,11 @@ export function RecoverCreditors() {
           art={<CreditorArt />}
           action={<RecoverButton href="/dashboard/customers">Open customers</RecoverButton>}
           preview={
-            <RecoverSample title="Sample layout of a creditor book">
-              <SampleCreditorCards />
-            </RecoverSample>
+            illustration ? (
+              <RecoverSample title="Sample layout of a creditor book">
+                <SampleCreditorCards />
+              </RecoverSample>
+            ) : null
           }
         />
       ) : (
@@ -106,6 +107,7 @@ function CreditorTable({ rows }: { rows: RecoverCreditor[] }) {
 
 export function RecoverMandates() {
   const { desk, error, loading } = useRecoverDesk();
+  const illustration = useRecoverIllustration();
   const rows = desk?.mandates ?? [];
   return (
     <RecoverScreen
@@ -116,9 +118,7 @@ export function RecoverMandates() {
       {error ? <RecoverBanner testId="recover-banner-error" tone="error">{error}</RecoverBanner> : null}
       <RecoverDemoGate desk={desk} />
       {desk && !desk.ready ? (
-        <RecoverBanner testId="recover-banner-pending" tone="pending">
-          {RECOVER_PENDING_BANNER}
-        </RecoverBanner>
+        <RecoverPendingBanner role={desk.role} />
       ) : null}
       {loading ? (
         <div className="h-40 animate-pulse rounded-3xl bg-slate-100 motion-reduce:animate-none" aria-busy="true" />
@@ -131,9 +131,11 @@ export function RecoverMandates() {
           art={<MandateArt />}
           action={<RecoverButton href="/dashboard/recovergraph/creditors">Open creditors</RecoverButton>}
           preview={
-            <RecoverSample title="Sample layout of a mandate">
-              <SampleMandateTimeline />
-            </RecoverSample>
+            illustration ? (
+              <RecoverSample title="Sample layout of a mandate">
+                <SampleMandateTimeline />
+              </RecoverSample>
+            ) : null
           }
         />
       ) : (

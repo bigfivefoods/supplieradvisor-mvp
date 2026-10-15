@@ -1,12 +1,9 @@
 /** Labelled sample layouts. Figures here are illustrations, never a live book. */
-import { SAMPLE_ILLUSTRATION, type SampleAccount, type SampleAttention, type SamplePromise } from '@/lib/recovery/sample-desk';
+import { formatRecoverMoney } from '@/lib/recovery/money';
+import type { SampleAccount, type SampleAttention, type SamplePromise } from '@/lib/recovery/sample-desk';
 
-function zar(amount: number) {
-  return new Intl.NumberFormat('en-ZA', {
-    style: 'currency',
-    currency: 'ZAR',
-    minimumFractionDigits: 2,
-  }).format(amount);
+function zar(rands: number) {
+  return formatRecoverMoney(Math.round(rands * 100));
 }
 
 function SampleMark() {
@@ -105,8 +102,8 @@ export function QueueBoard({ rows }: { rows: readonly QueueBoardRow[] }) {
         </div>
         <SampleMark />
       </div>
-      <div className="hidden md:block">
-        <table className="w-full text-left text-sm">
+      <div className="hidden overflow-x-auto md:block">
+        <table className="w-full min-w-[44rem] text-left text-sm">
           <thead className="bg-[#f8fafc] text-[11px] font-bold uppercase tracking-wider text-slate-600">
             <tr>
               <th className="px-4 py-3">Account</th>
@@ -124,12 +121,12 @@ export function QueueBoard({ rows }: { rows: readonly QueueBoardRow[] }) {
                   <div className="font-semibold text-slate-900">{row.holder}</div>
                   <div className="text-xs text-slate-600">{row.account}</div>
                 </td>
-                <td className="px-4 py-3 text-slate-700">{row.creditor}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-slate-700">{row.creditor}</td>
                 <td className="px-4 py-3 font-medium text-slate-900">{row.action}</td>
                 <td className="px-4 py-3">
                   <StageChip label={row.stage} />
                 </td>
-                <td className="px-4 py-3 text-right text-sm font-black tabular-nums text-slate-900">{row.amount}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-black tabular-nums text-slate-900">{row.amount}</td>
                 <td className="px-4 py-3 text-right text-sm font-bold tabular-nums text-[#0077b6]">{row.clock}</td>
               </tr>
             ))}
@@ -147,9 +144,9 @@ export function QueueBoard({ rows }: { rows: readonly QueueBoardRow[] }) {
               <StageChip label={row.stage} />
             </div>
             <p className="mt-2 text-sm font-medium text-slate-900">{row.action}</p>
-            <p className="mt-1 text-xs text-slate-600">{row.creditor}</p>
+            <p className="mt-1 whitespace-nowrap text-xs text-slate-600">{row.creditor}</p>
             <div className="mt-3 flex items-end justify-between gap-3">
-              <p className="text-sm font-black tabular-nums text-slate-900">{row.amount}</p>
+              <p className="whitespace-nowrap text-sm font-black tabular-nums text-slate-900">{row.amount}</p>
               <p className="text-sm font-bold tabular-nums text-[#0077b6]">{row.clock}</p>
             </div>
           </li>
@@ -175,7 +172,7 @@ export function SampleQueueTable() {
   );
 }
 
-export function NeedsAttention({ items = SAMPLE_ILLUSTRATION.attention }: { items?: readonly SampleAttention[] }) {
+export function NeedsAttention({ items }: { items: readonly SampleAttention[] }) {
   return (
     <div className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] px-4 py-3 sm:px-5">
@@ -200,7 +197,7 @@ export function NeedsAttention({ items = SAMPLE_ILLUSTRATION.attention }: { item
   );
 }
 
-export function PromiseTimeline({ items = SAMPLE_ILLUSTRATION.promises }: { items?: readonly SamplePromise[] }) {
+export function PromiseTimeline({ items }: { items: readonly SamplePromise[] }) {
   return (
     <div className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] px-4 py-3 sm:px-5">
@@ -406,7 +403,7 @@ export function AgeingBuckets() {
             <span className="h-2 overflow-hidden rounded-full bg-[#f8fafc] ring-1 ring-[#e2e8f0]">
               <span className="block h-full bg-[#0077b6]" style={{ width: bucket.width }} />
             </span>
-            <span className="text-right text-xs font-black tabular-nums text-slate-900 sm:text-sm">
+            <span className="whitespace-nowrap text-right text-xs font-black tabular-nums text-slate-900 sm:text-sm">
               {zar(bucket.amount)}
             </span>
           </li>

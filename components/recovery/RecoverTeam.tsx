@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Shield, Users } from 'lucide-react';
-import { RECOVER_PENDING_BANNER } from '@/lib/recovery/brand';
+import { RecoverPendingBanner } from './RecoverChrome';
 import { ENABLE_REAL_DATA_PHRASE } from '@/lib/recovery/validate';
 import { staffRoleLabel } from '@/lib/recovery/roles';
 import type {
@@ -97,9 +97,7 @@ export function RecoverTeam() {
       {error ? <RecoverBanner testId="recover-banner-error" tone="error">{error}</RecoverBanner> : null}
       <RecoverDemoGate desk={desk} />
       {desk && !desk.ready ? (
-        <RecoverBanner testId="recover-banner-pending" tone="pending">
-          {RECOVER_PENDING_BANNER}
-        </RecoverBanner>
+        <RecoverPendingBanner role={desk.role} />
       ) : null}
       {loading || !desk ? (
         <div className="h-64 animate-pulse rounded-3xl bg-slate-100 motion-reduce:animate-none" aria-busy="true" />
@@ -269,7 +267,7 @@ export function RecoverTeam() {
             {canReal ? (
               <RecoverPanel title="Real debtor data" testId="recover-real-data">
                 <p className="mb-4 text-sm leading-relaxed text-slate-600">
-                  Debtor records for RecoverAdvisor® stay in London, United Kingdom (the eu-west-2 region). Turn this on only after the data-location review and the operator agreement are signed. Until then the workspace stays in demo-data mode.
+                  Debtor records for RecoverAdvisor® stay off until the data-location review and the operator agreement are signed. Until then the workspace stays in demo-data mode.
                 </p>
                 <p className="mb-4 text-sm font-semibold text-slate-900">
                   {workspace?.real_data_enabled ? 'Real data is on.' : 'Demo-data mode is on.'}
@@ -311,7 +309,7 @@ export function RecoverTeam() {
               Enable real debtor data
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              This confirms the workspace may hold real debtor records in London (eu-west-2). Type {ENABLE_REAL_DATA_PHRASE} to continue.
+              This confirms the workspace may hold real debtor records. Type {ENABLE_REAL_DATA_PHRASE} to continue.
             </p>
             <input
               value={phrase}

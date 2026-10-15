@@ -4,10 +4,17 @@ import Link from 'next/link';
 import type { LucideIcon } from 'lucide-react';
 import { ArrowRight, Shield } from 'lucide-react';
 import { ModuleCrumbs } from '@/components/chrome/ModuleCrumbs';
-import { RECOVER_BRAND, RECOVER_DEMO_BANNER, RECOVER_PRODUCT_NAME } from '@/lib/recovery/brand';
+import {
+  RECOVER_BRAND,
+  RECOVER_DEMO_BANNER,
+  RECOVER_PENDING_BANNER,
+  RECOVER_PRODUCT_NAME,
+  RECOVER_UNAVAILABLE_BANNER,
+} from '@/lib/recovery/brand';
+import { formatRecoverMoney } from '@/lib/recovery/money';
 import { recoverRoleLabel, type RecoverRole } from '@/lib/recovery/roles';
 import type { RecoverDeskPayload } from '@/lib/recovery/types';
-import { useRecoverHref } from './useRecoverDesk';
+import { useRecoverHref, useRecoverLinks } from './useRecoverDesk';
 
 export function RecoverFrame({ children }: { children: React.ReactNode }) {
   return (
@@ -18,8 +25,9 @@ export function RecoverFrame({ children }: { children: React.ReactNode }) {
           color: ${RECOVER_BRAND.ink};
         }
         .recover-fill:hover {
-          background-color: ${RECOVER_BRAND.accentHover};
+          background-color: ${RECOVER_BRAND.accent};
           color: ${RECOVER_BRAND.ink};
+          box-shadow: 0 0 0 2px ${RECOVER_BRAND.ink};
         }
         .recover-link { color: ${RECOVER_BRAND.accentDeep}; }
         .recover-focus:focus-visible {
@@ -37,11 +45,7 @@ export function RecoverFrame({ children }: { children: React.ReactNode }) {
         .recover-page-header {
           position: relative;
           z-index: 0;
-          background-color: var(--sa-page-fill);
-          background-image:
-            radial-gradient(ellipse 90% 140% at 8% 0%, var(--sa-page-glow-1), transparent 70%),
-            radial-gradient(ellipse 70% 120% at 100% 0%, var(--sa-page-glow-2), transparent 68%);
-          background-repeat: no-repeat;
+          background: transparent;
           margin: -0.95rem -0.85rem 0;
           padding: 0.95rem 0.85rem 0.35rem;
           border-top-left-radius: var(--sa-page-radius);
@@ -87,8 +91,16 @@ export function RecoverButton({
   disabled?: boolean;
 }) {
   const mapped = useRecoverHref(href || '/dashboard/recovergraph');
+  const links = useRecoverLinks();
   const className =
-    'recover-fill recover-focus inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-semibold shadow-sm transition-colors motion-safe:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60';
+    'recover-fill recover-focus inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-semibold shadow-sm motion-safe:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60';
+  if (href && links === 'soon') {
+    return (
+      <span className={className} aria-disabled="true">
+        Launching soon
+      </span>
+    );
+  }
   if (href) {
     return (
       <Link href={mapped} className={className}>
@@ -213,10 +225,19 @@ export function RecoverBanner({
 }
 
 export function RecoverDemoGate({ desk }: { desk: RecoverDeskPayload | null }) {
-  if (!desk?.ready || !desk.workspace || desk.workspace.real_data_enabled) return null;
+  if (!desk?.ready || desk.workspace?.real_data_enabled) return null;
   return (
     <RecoverBanner testId="recover-banner-demo" tone="demo">
       {RECOVER_DEMO_BANNER}
+    </RecoverBanner>
+  );
+}
+
+export function RecoverPendingBanner({ role }: { role: RecoverRole | null | undefined }) {
+  const ownerish = role === 'owner' || role === 'manager';
+  return (
+    <RecoverBanner testId="recover-banner-pending" tone="pending">
+      {ownerish ? RECOVER_PENDING_BANNER : RECOVER_UNAVAILABLE_BANNER}
     </RecoverBanner>
   );
 }
@@ -272,6 +293,24 @@ export function RecoverModuleCard({
   accent?: string;
 }) {
   const mapped = useRecoverHref(href);
+  const links = useRecoverLinks();
+  if (links === 'soon') {
+    return (
+      <div
+        className={`sa-metric-card flex h-full min-w-0 flex-col rounded-3xl border bg-gradient-to-br p-4 shadow-sm sm:p-6 ${accent}`}
+      >
+        <div className="mb-4 flex min-w-0 items-start justify-between gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-50 bg-white text-[#0077b6] shadow-sm">
+            <Icon className="h-5 w-5" aria-hidden />
+          </div>
+          <div className="font-mono text-xs font-bold tracking-widest text-slate-600">{code}</div>
+        </div>
+        <h3 className="mb-1.5 text-base font-black text-slate-800 sm:text-lg">{title}</h3>
+        <p className="mb-3 line-clamp-3 text-sm leading-relaxed text-neutral-500">{desc}</p>
+        <span className="text-xs font-bold text-slate-700">Launching soon</span>
+      </div>
+    );
+  }
   return (
     <Link
       href={mapped}
@@ -440,10 +479,5 @@ export function dash(value: number | null | undefined): string {
 }
 
 export function formatRand(cents: number | null | undefined): string {
-  if (cents == null) return '—';
-  return new Intl.NumberFormat('en-ZA', {
-    style: 'currency',
-    currency: 'ZAR',
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
+  return formatRecoverMoney(cents);
 }

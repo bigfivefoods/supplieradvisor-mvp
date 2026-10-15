@@ -31,7 +31,7 @@ function Statement({ x, y }: { x: number; y: number }) {
       <rect x={x + 12} y={y + 66} width="48" height="4" rx="2" fill="#e2e8f0" />
       <rect x={x + 12} y={y + 84} width="68" height="22" rx="8" fill="#e0f7fb" />
       <text x={x + 18} y={y + 99} fill="#0f172a" fontSize="10" fontWeight="700">
-        R 18 450
+        Amount
       </text>
     </g>
   );
@@ -70,7 +70,7 @@ function Receipt({ x, y }: { x: number; y: number }) {
       <rect x={x + 10} y={y + 34} width="32" height="4" rx="2" fill="#e2e8f0" />
       <rect x={x + 8} y={y + 48} width="54" height="18" rx="6" fill="#00b4d8" />
       <text x={x + 14} y={y + 61} fill="#0f172a" fontSize="9" fontWeight="700">
-        R 1 500
+        Paid
       </text>
     </g>
   );

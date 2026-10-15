@@ -1,5 +1,5 @@
-import { PortalPending } from '@/components/recovery/PortalPending';
+import { notFound } from 'next/navigation';
 
 export default function DebtorRecoverPortalPage() {
-  return <PortalPending kind="debtor" />;
+  notFound();
 }

@@ -11,6 +11,17 @@
 -- owner). A function owned by recover_portal could not read a session: that role
 -- has no grants and row security is forced. service_role is the only execute grantee.
 -- search_path is empty and every reference is schema-qualified.
+-- Forced row security applies to the table owner too. SET row_security = off does
+-- not bypass that: it raises if a policy would apply. recover_table_owner is a
+-- permissive policy for the migration role only, so that role can run the
+-- definer functions without BYPASSRLS. Every other role has no policy.
+--
+-- TRUNCATE, REFERENCES, and TRIGGER are revoked from anon, authenticated,
+-- service_role, and recover_portal on every recover_ table. Default privileges
+-- that GRANT ALL ON TABLES would otherwise leave TRUNCATE in place.
+-- recover_audit_log is the only append-only table. A BEFORE TRUNCATE statement
+-- trigger refuses a wipe even for the table owner. Portal attempts are pruned,
+-- so they are not append-only.
 --
 -- ROLLBACK (run manually, in this order, only after review).
 -- Functions that the audit trigger depends on are dropped after the tables.
@@ -24,6 +35,8 @@
 -- DROP FUNCTION IF EXISTS public.recover_verify_code_ct(text, text);
 -- ALTER TABLE IF EXISTS public.recover_teams DROP CONSTRAINT IF EXISTS recover_teams_lead_staff_id_fkey;
 -- ALTER TABLE IF EXISTS public.recover_staff DROP CONSTRAINT IF EXISTS recover_staff_team_id_fkey;
+-- ALTER TABLE IF EXISTS public.recover_staff DROP CONSTRAINT IF EXISTS recover_staff_company_team_fkey;
+-- ALTER TABLE IF EXISTS public.recover_teams DROP CONSTRAINT IF EXISTS uq_recover_teams_company_id;
 -- DROP TABLE IF EXISTS public.recover_portal_attempts;
 -- DROP TABLE IF EXISTS public.recover_portal_otps;
 -- DROP TABLE IF EXISTS public.recover_portal_sessions;
@@ -35,6 +48,7 @@
 -- DROP TABLE IF EXISTS public.recover_teams;
 -- DROP TABLE IF EXISTS public.recover_workspaces;
 -- DROP FUNCTION IF EXISTS public.recover_forbid_mutation();
+-- DROP FUNCTION IF EXISTS public.recover_forbid_truncate();
 -- DROP ROLE IF EXISTS recover_portal;
 -- ROLLBACK_END
 
@@ -99,6 +113,16 @@ CREATE TABLE IF NOT EXISTS public.recover_teams (
 CREATE INDEX IF NOT EXISTS idx_recover_teams_company
   ON public.recover_teams (company_id, name);
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'uq_recover_teams_company_id'
+  ) THEN
+    ALTER TABLE public.recover_teams
+      ADD CONSTRAINT uq_recover_teams_company_id UNIQUE (company_id, id);
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS public.recover_staff (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -117,6 +141,21 @@ CREATE TABLE IF NOT EXISTS public.recover_staff (
   ),
   CONSTRAINT recover_staff_status_check CHECK (status IN ('active', 'inactive'))
 );
+
+ALTER TABLE public.recover_staff DROP CONSTRAINT IF EXISTS recover_staff_team_id_fkey;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'recover_staff_company_team_fkey'
+  ) THEN
+    ALTER TABLE public.recover_staff
+      ADD CONSTRAINT recover_staff_company_team_fkey
+      FOREIGN KEY (company_id, team_id)
+      REFERENCES public.recover_teams (company_id, id)
+      ON DELETE SET NULL (team_id);
+  END IF;
+END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_recover_staff_email
   ON public.recover_staff (company_id, lower(email));
@@ -318,9 +357,26 @@ CREATE TRIGGER recover_audit_log_append_only
   FOR EACH ROW
   EXECUTE FUNCTION public.recover_forbid_mutation();
 
+CREATE OR REPLACE FUNCTION public.recover_forbid_truncate()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  RAISE EXCEPTION 'append-only' USING ERRCODE = '55000';
+END;
+$$;
+
+DROP TRIGGER IF EXISTS recover_audit_log_no_truncate ON public.recover_audit_log;
+CREATE TRIGGER recover_audit_log_no_truncate
+  BEFORE TRUNCATE ON public.recover_audit_log
+  FOR EACH STATEMENT
+  EXECUTE FUNCTION public.recover_forbid_truncate();
+
 DO $$
 DECLARE
   t text;
+  grantee text;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
     'recover_workspaces',
@@ -348,11 +404,29 @@ BEGIN
       EXECUTE format('REVOKE ALL ON TABLE public.%I FROM recover_portal', t);
     END IF;
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+      EXECUTE format('REVOKE ALL ON TABLE public.%I FROM service_role', t);
       EXECUTE format(
         'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.%I TO service_role',
         t
       );
     END IF;
+    -- GRANT ALL from default privileges includes TRUNCATE. Take it back explicitly.
+    FOREACH grantee IN ARRAY ARRAY['anon', 'authenticated', 'service_role', 'recover_portal']
+    LOOP
+      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = grantee) THEN
+        EXECUTE format(
+          'REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLE public.%I FROM %I',
+          t,
+          grantee
+        );
+      END IF;
+    END LOOP;
+    EXECUTE format('DROP POLICY IF EXISTS recover_table_owner ON public.%I', t);
+    EXECUTE format(
+      'CREATE POLICY recover_table_owner ON public.%I FOR ALL TO %I USING (true) WITH CHECK (true)',
+      t,
+      current_user
+    );
   END LOOP;
 END $$;
 
@@ -610,6 +684,8 @@ SET search_path = ''
 AS $$
 DECLARE
   v_found integer;
+  v_staff_id uuid;
+  v_team_id uuid;
 BEGIN
   IF p_patch IS NULL THEN
     p_patch := '{}'::jsonb;
@@ -697,6 +773,19 @@ BEGIN
       RETURN;
     END IF;
   ELSIF p_action = 'upsert_staff' THEN
+    v_team_id := CASE
+      WHEN p_patch ? 'team_id' THEN NULLIF(p_patch->>'team_id', '')::uuid
+      ELSE NULL
+    END;
+    IF p_patch ? 'team_id' AND v_team_id IS NOT NULL THEN
+      PERFORM 1
+      FROM public.recover_teams
+      WHERE id = v_team_id
+        AND company_id = p_company_id;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'team_company_mismatch' USING ERRCODE = '23503';
+      END IF;
+    END IF;
     IF NULLIF(p_patch->>'id', '') IS NOT NULL THEN
       UPDATE public.recover_staff
       SET
@@ -722,7 +811,8 @@ BEGIN
         status = 'active',
         updated_at = pg_catalog.now()
       WHERE company_id = p_company_id
-        AND id = (p_patch->>'id')::uuid;
+        AND id = (p_patch->>'id')::uuid
+      RETURNING id INTO v_staff_id;
       GET DIAGNOSTICS v_found = ROW_COUNT;
       IF v_found = 0 THEN
         RAISE EXCEPTION 'missing_staff' USING ERRCODE = 'P0002';
@@ -751,7 +841,8 @@ BEGIN
         status = 'active',
         updated_at = pg_catalog.now()
       WHERE company_id = p_company_id
-        AND lower(email) = lower(COALESCE(p_patch->>'email', ''));
+        AND lower(email) = lower(COALESCE(p_patch->>'email', ''))
+      RETURNING id INTO v_staff_id;
       GET DIAGNOSTICS v_found = ROW_COUNT;
       IF v_found = 0 THEN
         INSERT INTO public.recover_staff (
@@ -780,14 +871,16 @@ BEGIN
             ELSE (p_patch->>'monthly_target_cents')::bigint
           END,
           pg_catalog.now()
-        );
+        )
+        RETURNING id INTO v_staff_id;
       END IF;
     END IF;
   ELSIF p_action = 'deactivate_staff' THEN
     UPDATE public.recover_staff
     SET status = 'inactive', updated_at = pg_catalog.now()
     WHERE company_id = p_company_id
-      AND id = NULLIF(p_patch->>'id', '')::uuid;
+      AND id = NULLIF(p_patch->>'id', '')::uuid
+    RETURNING id INTO v_staff_id;
     GET DIAGNOSTICS v_found = ROW_COUNT;
     IF v_found = 0 THEN
       RAISE EXCEPTION 'missing_staff' USING ERRCODE = 'P0002';
@@ -797,7 +890,18 @@ BEGIN
   END IF;
 
   INSERT INTO public.recover_audit_log (company_id, actor_kind, actor_id, action, target, payload)
-  VALUES (p_company_id, 'staff', p_actor_id, p_action, p_target, p_patch);
+  VALUES (
+    p_company_id,
+    'staff',
+    p_actor_id,
+    p_action,
+    p_target,
+    CASE
+      WHEN p_action IN ('upsert_staff', 'deactivate_staff')
+        THEN pg_catalog.jsonb_build_object('staff_id', v_staff_id)
+      ELSE p_patch
+    END
+  );
 END;
 $$;
 

@@ -9,16 +9,19 @@ import type { RecoverDeskPayload, RecoverOp } from '@/lib/recovery/types';
 const PreviewContext = createContext<RecoverDeskPayload | null>(null);
 const IllustrationContext = createContext<RecoverIllustration | null>(null);
 const HrefBaseContext = createContext<string | null>(null);
+const LinksContext = createContext<'live' | 'soon'>('live');
 
 export function RecoverPreviewProvider({
   desk,
   illustration,
   hrefBase = null,
+  links = 'live',
   children,
 }: {
   desk: RecoverDeskPayload;
   illustration: RecoverIllustration | null;
   hrefBase?: string | null;
+  links?: 'live' | 'soon';
   children: React.ReactNode;
 }) {
   return createElement(
@@ -27,13 +30,21 @@ export function RecoverPreviewProvider({
     createElement(
       IllustrationContext.Provider,
       { value: illustration },
-      createElement(HrefBaseContext.Provider, { value: hrefBase }, children)
+      createElement(
+        HrefBaseContext.Provider,
+        { value: hrefBase },
+        createElement(LinksContext.Provider, { value: links }, children)
+      )
     )
   );
 }
 
 export function useRecoverIllustration() {
   return useContext(IllustrationContext);
+}
+
+export function useRecoverLinks() {
+  return useContext(LinksContext);
 }
 
 export function useRecoverHref(path: string) {
