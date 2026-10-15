@@ -22,11 +22,11 @@ export async function commitProfileMetadata<T>(opts: {
     row: ConstructionMetaRow
   ) =>
     | { metadata: Record<string, unknown>; value: T }
-    | { error: string; status: number };
+    | { error: string; status: number; needsConfirm?: boolean };
   now?: () => string;
 }): Promise<
   | { ok: true; value: T; metadata: Record<string, unknown> }
-  | { ok: false; status: number; error: string }
+  | { ok: false; status: number; error: string; needsConfirm?: boolean }
 > {
   const now = opts.now || (() => new Date().toISOString());
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -34,7 +34,12 @@ export async function commitProfileMetadata<T>(opts: {
     if (!row) return { ok: false, status: 404, error: 'Company not found' };
     const changed = opts.change(row);
     if ('error' in changed) {
-      return { ok: false, status: changed.status, error: changed.error };
+      return {
+        ok: false,
+        status: changed.status,
+        error: changed.error,
+        ...(changed.needsConfirm ? { needsConfirm: true } : {}),
+      };
     }
     const wrote = await opts.write({
       metadata: changed.metadata,

@@ -826,7 +826,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
   },
   {
     id: 'constructiongraph',
-    name: 'ConstructionAdvisor',
+    name: 'ConstructionAdvisor®',
     icon: Hammer,
     href: '/dashboard/constructiongraph',
     resource: 'operations',
@@ -835,7 +835,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         name: 'Command',
         href: '/dashboard/constructiongraph',
         exact: true,
-        desc: 'Clients · BOQ quotes · programme',
+        desc: 'Today · attention · projects',
         section: 'Home',
       },
       {
@@ -857,10 +857,16 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Core',
       },
       {
-        name: 'Drawings',
-        href: '/dashboard/constructiongraph/drawings',
-        desc: 'IFC drawings · BOQ actuals',
-        section: 'Core',
+        name: 'Programme',
+        href: '/dashboard/constructiongraph/programme',
+        desc: 'Plan · baseline · actual',
+        section: 'Ops',
+      },
+      {
+        name: 'Diary',
+        href: '/dashboard/constructiongraph/diary',
+        desc: 'Today on site · sign-off',
+        section: 'Ops',
       },
       {
         name: 'Subcontractors',
@@ -875,15 +881,28 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Ops',
       },
       {
-        name: 'Programme',
-        href: '/dashboard/constructiongraph/programme',
-        desc: 'Plan vs actuals · dates',
+        name: 'Messages',
+        href: '/dashboard/messages?from=constructiongraph&channel=connection',
+        desc: 'Site · office · trade threads',
         section: 'Ops',
+        rail: false,
       },
       {
         name: 'Payments',
         href: '/dashboard/constructiongraph/payments',
         desc: 'Progress claims · client pay',
+        section: 'Money',
+      },
+      {
+        name: 'Variations',
+        href: '/dashboard/constructiongraph/variations',
+        desc: 'VOs · extension of time',
+        section: 'Money',
+      },
+      {
+        name: 'Certificates',
+        href: '/dashboard/constructiongraph/certificates',
+        desc: 'IPCs from the payment plan',
         section: 'Money',
       },
       {
@@ -899,16 +918,10 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Assure',
       },
       {
-        name: 'Variations',
-        href: '/dashboard/constructiongraph/variations',
-        desc: 'VOs · claims',
-        section: 'Money',
-      },
-      {
-        name: 'Certificates',
-        href: '/dashboard/constructiongraph/certificates',
-        desc: 'IPCs from the payment plan',
-        section: 'Money',
+        name: 'Documents',
+        href: '/dashboard/constructiongraph/drawings',
+        desc: 'Issued drawings · revisions',
+        section: 'Assure',
       },
       {
         name: 'Handover',
@@ -925,15 +938,8 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Portal',
         href: '/dashboard/constructiongraph/portal',
-        desc: 'Client · contractor PWA',
+        desc: 'Client and workers links',
         section: 'Grow',
-      },
-      {
-        name: 'Messages',
-        href: '/dashboard/messages?from=constructiongraph&channel=connection',
-        desc: 'Site · office · trade threads',
-        section: 'Ops',
-        rail: false,
       },
     ],
   },
