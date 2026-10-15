@@ -15,6 +15,7 @@ export type AdvisorSkinId =
   | 'retail'
   | 'apparel'
   | 'construction'
+  | 'fleet'
   | 'gym'
   | 'trade'
   | 'recover'
@@ -116,6 +117,19 @@ export const ADVISOR_SKINS: readonly AdvisorSkin[] = [
     packIds: ['construction_building'],
     brand: '#57534e',
     brandDeep: '#292524',
+  },
+  {
+    id: 'fleet',
+    name: 'FleetAdvisor',
+    registered: 'FleetAdvisor®',
+    shortName: 'Fleet',
+    tagline: 'Fleet and transport OS',
+    homeHref: '/dashboard/fleetgraph',
+    prefixes: ['/dashboard/fleetgraph'],
+    moduleIds: ['fleetgraph'],
+    packIds: ['logistics_fleet'],
+    brand: '#00b4d8',
+    brandDeep: '#0077b6',
   },
   {
     id: 'gym',
@@ -477,7 +491,7 @@ export function applyAdvisorSkinToDocument(skin: AdvisorSkin) {
     const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
     root.style.setProperty(
       '--sa-brand-ink',
-      skin.ink || (skin.id === 'trade' ? '#0f172a' : lum > 0.55 ? '#111827' : '#ffffff')
+      skin.ink || (skin.id === 'trade' ? '#0f172a' : skin.id === 'fleet' ? '#0f172a' : lum > 0.55 ? '#111827' : '#ffffff')
     );
     if (skin.id === 'supplier') {
       root.style.removeProperty('--sa-page-glow-1');

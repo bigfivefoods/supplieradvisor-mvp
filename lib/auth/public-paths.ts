@@ -54,6 +54,7 @@ export function isRecoverPortalPath(pathname: string): boolean {
  */
 export const PUBLIC_PAGE_PREFIXES = [
   '/preview/constructiongraph',
+  '/preview/fleetgraph',
   '/preview/recovergraph',
 ] as const;
 

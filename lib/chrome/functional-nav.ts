@@ -31,6 +31,7 @@ export const ADVISOR_OS_MODULE_IDS = [
   'retailgraph',
   'apparelgraph',
   'constructiongraph',
+  'fleetgraph',
   'tradegraph',
   'recovergraph',
   'quarrygraph',
@@ -41,7 +42,7 @@ export const ADVISOR_OS_MODULE_IDS = [
 ] as const;
 export type AdvisorOsModuleId = (typeof ADVISOR_OS_MODULE_IDS)[number];
 
-const PACK_TO_ADVISOR_MODULE: Record<string, AdvisorOsModuleId> = {
+export const PACK_TO_ADVISOR_MODULE: Record<string, AdvisorOsModuleId> = {
   fitness_gym: 'fitgraph',
   allied_health_clinic: 'physiograph',
   allied_health: 'physiograph',
@@ -53,6 +54,7 @@ const PACK_TO_ADVISOR_MODULE: Record<string, AdvisorOsModuleId> = {
   retail_shop: 'retailgraph',
   apparel: 'apparelgraph',
   construction_building: 'constructiongraph',
+  logistics_fleet: 'fleetgraph',
   trades: 'tradegraph',
   recovery: 'recovergraph',
   quarry_aggregates: 'quarrygraph',
@@ -150,6 +152,7 @@ export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
   'retailgraph', // RetailAdvisor® B2C till OS
   'apparelgraph', // ApparelAdvisor® apparel manufacturing OS
   'constructiongraph', // ConstructionAdvisor® building OS
+  'fleetgraph', // FleetAdvisor® fleet and transport OS
   'tradegraph', // TradeAdvisor® trades & artisan OS
   'recovergraph', // RecoverAdvisor® collections OS
   'quarrygraph', // QuarryAdvisor® aggregates OS
@@ -211,6 +214,7 @@ export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
   retailgraph: 'RetailAdvisor (Till)',
   apparelgraph: 'ApparelAdvisor (Apparel)',
   constructiongraph: 'ConstructionAdvisor®',
+  fleetgraph: 'FleetAdvisor®',
   tradegraph: 'TradeAdvisor®',
   recovergraph: 'RecoverAdvisor®',
   containers: 'ContainerAdvisor',

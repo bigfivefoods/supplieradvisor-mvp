@@ -39,6 +39,7 @@ assert.equal(
 const empty = normalizeEnabledModules({});
 assert.equal(empty.apparelgraph, false, 'ApparelAdvisor is opt-in');
 assert.equal(empty.constructiongraph, false, 'ConstructionAdvisor is opt-in');
+assert.equal(empty.fleetgraph, false, 'FleetAdvisor is opt-in');
 assert.equal(empty.fitgraph, false);
 assert.equal(empty.customers, true, 'core trade hubs still default on');
 assert.equal(isModuleEnabled(empty, 'apparelgraph'), false);

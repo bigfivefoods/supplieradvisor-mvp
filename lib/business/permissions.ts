@@ -411,6 +411,7 @@ export const SIDEBAR_MODULE_RESOURCE: Record<string, PermissionResource> = {
   quarrygraph: 'operations',
   apparelgraph: 'operations',
   constructiongraph: 'operations',
+  fleetgraph: 'operations',
   tradegraph: 'operations',
   fitgraph: 'gym_owner',
   recovergraph: 'recovery',
@@ -470,6 +471,7 @@ export function resourceForPath(pathname: string | null | undefined): Permission
   if (pathname.startsWith('/dashboard/quarrygraph')) return 'operations';
   if (pathname.startsWith('/dashboard/apparelgraph')) return 'operations';
   if (pathname.startsWith('/dashboard/constructiongraph')) return 'operations';
+  if (pathname.startsWith('/dashboard/fleetgraph')) return 'operations';
   if (pathname.startsWith('/dashboard/tradegraph')) return 'operations';
   if (pathname.startsWith('/dashboard/recovergraph/trust')) return 'recovery_trust';
   if (pathname.startsWith('/dashboard/fitgraph')) return 'gym_owner';

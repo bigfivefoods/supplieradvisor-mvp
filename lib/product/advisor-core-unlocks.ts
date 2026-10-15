@@ -13,6 +13,7 @@ export const ADVISOR_OS_MODULE_IDS = [
   'retailgraph',
   'apparelgraph',
   'constructiongraph',
+  'fleetgraph',
   'tradegraph',
   'recovergraph',
 ] as const;
@@ -146,6 +147,16 @@ export const ADVISOR_PACK_UNLOCKS: Record<string, readonly string[]> = {
     'sheq',
     'projects',
   ],
+  logistics_fleet: [
+    'fleetgraph',
+    'customers',
+    'accounting',
+    'people',
+    'operations',
+    'sheq',
+    'suppliers',
+    'distribution',
+  ],
   trades: [
     'tradegraph',
     'people',
@@ -228,6 +239,12 @@ export const ADVISOR_MODULE_CORE_HREF: Record<
     label: 'ConstructionAdvisor®',
     staff: '/dashboard/people/directory',
     book: '/dashboard/customers/profiles',
+    money: '/dashboard/accounting',
+  },
+  fleetgraph: {
+    label: 'FleetAdvisor®',
+    staff: '/dashboard/people/directory',
+    book: '/dashboard/fleetgraph/jobs',
     money: '/dashboard/accounting',
   },
   tradegraph: {

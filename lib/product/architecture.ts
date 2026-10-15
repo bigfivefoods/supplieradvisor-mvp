@@ -754,6 +754,57 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
     ],
   },
   {
+    id: 'logistics_fleet',
+    name: 'Fleet & Transport',
+    shortName: 'Fleet',
+    description:
+      'FleetAdvisor® for hauliers, couriers, bulk operators and in-house transport. Vehicles, drivers, jobs and cost per kilometre from the company’s own entries. Separate from ContainerAdvisor® and Ship.',
+    monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
+    priority: 1,
+    recommendSectors: ['tertiary', 'secondary'],
+    recommendEntities: ['private_company'],
+    modules: [
+      {
+        id: 'fleet_os',
+        name: 'FleetAdvisor® fleet OS',
+        description:
+          'Vehicles, drivers, jobs, odometer readings and cost per kilometre.',
+        unlocks: ['fleetgraph', 'customers', 'people', 'operations'],
+      },
+      {
+        id: 'fleet_core',
+        name: 'Core hubs for a fleet desk',
+        description:
+          'Customers, books, people, operations, SHEQ, suppliers and Ship stay available beside the fleet register.',
+        unlocks: [
+          'fleetgraph',
+          'customers',
+          'accounting',
+          'people',
+          'operations',
+          'sheq',
+          'suppliers',
+          'distribution',
+        ],
+      },
+    ],
+    industryToolsHrefs: [
+      { name: 'FleetAdvisor®', href: '/dashboard/fleetgraph', desc: 'Fleet desk' },
+      { name: 'Fleet map', href: '/dashboard/fleetgraph/map', desc: 'Odometer and position sources' },
+      { name: 'Vehicles', href: '/dashboard/fleetgraph/vehicles', desc: 'Register' },
+      { name: 'Drivers', href: '/dashboard/fleetgraph/drivers', desc: 'Licence code and dates' },
+      { name: 'Jobs', href: '/dashboard/fleetgraph/jobs', desc: 'Loads and stops' },
+      { name: 'CPK', href: '/dashboard/fleetgraph/cpk', desc: 'Cost per kilometre' },
+      { name: 'Settings', href: '/dashboard/fleetgraph/settings', desc: 'Workspace' },
+      { name: 'Customers', href: '/dashboard/customers', desc: 'Trade book' },
+      { name: 'People', href: '/dashboard/people/directory', desc: 'Directory' },
+      { name: 'Finance', href: '/dashboard/accounting', desc: 'Books' },
+      { name: 'SHEQ', href: '/dashboard/sheq', desc: 'Incidents' },
+      { name: 'Suppliers', href: '/dashboard/suppliers', desc: 'Suppliers' },
+      { name: 'Ship', href: '/dashboard/distribution', desc: 'Distribution' },
+    ],
+  },
+  {
     id: 'fitness_gym',
     name: 'Fitness & Gym (Services)',
     shortName: 'Fitness',
@@ -1615,6 +1666,16 @@ export function enabledModulesMapFromPacks(
     unlocked.add('distribution');
     unlocked.add('operations');
   }
+  if (packIds.includes('logistics_fleet')) {
+    unlocked.add('fleetgraph');
+    unlocked.add('customers');
+    unlocked.add('accounting');
+    unlocked.add('people');
+    unlocked.add('operations');
+    unlocked.add('sheq');
+    unlocked.add('suppliers');
+    unlocked.add('distribution');
+  }
   // Food mfg → full make + quality
   if (packIds.includes('food_bev_mfg')) {
     unlocked.add('manufacturing');
@@ -2017,6 +2078,16 @@ export function appModulesUnlockedByPack(pack: IndustryPackDef): string[] {
     ids.add('containers');
     ids.add('distribution');
     ids.add('operations');
+  }
+  if (pack.id === 'logistics_fleet') {
+    ids.add('fleetgraph');
+    ids.add('customers');
+    ids.add('accounting');
+    ids.add('people');
+    ids.add('operations');
+    ids.add('sheq');
+    ids.add('suppliers');
+    ids.add('distribution');
   }
   if (pack.id === 'food_bev_mfg') {
     ids.add('manufacturing');

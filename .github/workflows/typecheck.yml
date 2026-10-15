@@ -63,7 +63,19 @@ jobs:
             lib/construction/brief113-brand.test.ts \
             lib/construction/brief113-ui-parity.test.ts \
             lib/construction/brief113-preview.test.ts \
-            lib/chrome/construction-sidebar.test.ts
+            lib/chrome/construction-sidebar.test.ts \
+            lib/chrome/fleet-sidebar.test.ts \
+            lib/fleet/brief114-registration.test.ts \
+            lib/fleet/brief114-roles.test.ts \
+            lib/fleet/brief114-cpk.test.ts \
+            lib/fleet/brief114-compliance.test.ts \
+            lib/fleet/brief114-validation.test.ts \
+            lib/fleet/brief114-tokens.test.ts \
+            lib/fleet/brief114-api-security.test.ts \
+            lib/fleet/brief114-brand.test.ts \
+            lib/fleet/brief114-ui-parity.test.ts \
+            lib/fleet/brief114-preview.test.ts \
+            lib/fleet/brief114-ops.test.ts
           do
             npx --yes tsx "$file"
           done
@@ -200,3 +212,33 @@ jobs:
         env:
           CONSTRUCTION_PORTAL_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/constructiongraph
         run: npx --yes tsx lib/construction/brief112-portal-db.test.ts
+
+  fleet-db:
+    name: fleet Postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fleetgraph
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fleetgraph"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install psql
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Run FleetAdvisor database contract
+        env:
+          FLEET_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fleetgraph
+        run: npx --yes tsx lib/fleet/brief114-db.test.ts
