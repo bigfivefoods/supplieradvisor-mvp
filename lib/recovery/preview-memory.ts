@@ -33,6 +33,7 @@ export type MemoryAccount = {
   placed_at: string;
   batch_id: string;
   creditor_account_ref: string;
+  debtor_id: string;
   contacts: MemoryContact[];
   notes: { at: string; text: string }[];
   events: { type: string; at: string; label: string }[];
@@ -53,7 +54,7 @@ export type MemoryBatch = {
   account_ids: string[];
 };
 
-export type MemoryExtraCreditor = { id: string; name: string; reg_no: string };
+export type MemoryExtraCreditor = { id: string; name: string; reg_no: string; customer_id?: string };
 export type MemoryExtraMandate = {
   id: string;
   creditor_id: string;
@@ -69,6 +70,7 @@ export type MemoryBook = {
   next: number;
   extraCreditors?: MemoryExtraCreditor[];
   extraMandates?: MemoryExtraMandate[];
+  blockUnregistered?: boolean;
 };
 
 const TEAM_NAME: Record<string, string> = Object.fromEntries(HARBOUR_TEAM.map((row) => [row.key, row.name]));
@@ -107,6 +109,7 @@ export function harbourMemory(): MemoryBook {
         placed_at: `${batch.placed_on}T08:00:00.000Z`,
         batch_id: batchId,
         creditor_account_ref: row.creditor_account_ref,
+        debtor_id: `debtor-${row.display_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`,
         contacts: row.contacts.map((contact) => ({
           kind: contact.kind,
           value: contact.value,
@@ -138,12 +141,34 @@ export function harbourMemory(): MemoryBook {
   return { accounts, batches, next };
 }
 
-export function rememberPreviewCreditor(book: MemoryBook, name: string, regNo: string): MemoryBook {
+export function assignPreviewAccount(book: MemoryBook, accountId: string, staffId: string, staffName: string): MemoryBook {
+  return {
+    ...book,
+    accounts: book.accounts.map((row) =>
+      row.id === accountId ? { ...row, assignee: staffId, assignee_name: staffName } : row
+    ),
+  };
+}
+
+export function mergePreviewDebtors(book: MemoryBook, sourceId: string, targetId: string): MemoryBook {
+  const target = book.accounts.find((row) => row.debtor_id === targetId);
+  if (!target || sourceId === targetId) return book;
+  return {
+    ...book,
+    accounts: book.accounts.map((row) =>
+      row.debtor_id === sourceId
+        ? { ...row, debtor_id: targetId, debtor_name: target.debtor_name }
+        : row
+    ),
+  };
+}
+
+export function rememberPreviewCreditor(book: MemoryBook, name: string, regNo: string, customerId?: string): MemoryBook {
   const id = `extra-creditor-${book.next}`;
   return {
     ...book,
     next: book.next + 1,
-    extraCreditors: [...(book.extraCreditors || []), { id, name, reg_no: regNo }],
+    extraCreditors: [...(book.extraCreditors || []), { id, name, reg_no: regNo, customer_id: customerId || '' }],
   };
 }
 
@@ -231,7 +256,7 @@ export function harbourDesk(role: RecoverRole, book: MemoryBook): RecoverDeskPay
       real_data_enabled: false,
       real_data_confirmed_by: null,
       real_data_confirmed_at: null,
-      block_unregistered_assignment: true,
+      block_unregistered_assignment: book.blockUnregistered !== false,
     },
     role,
     capabilities: caps,
@@ -261,7 +286,7 @@ export function harbourDesk(role: RecoverRole, book: MemoryBook): RecoverDeskPay
             remittance_terms: 'monthly' as const,
             portal_enabled: false,
             status: 'active',
-            customer_id: null,
+            customer_id: row.customer_id ? Number(row.customer_id) : null,
             mandate_count: (book.extraMandates || []).filter((item) => item.creditor_id === row.id).length,
             account_count: 0,
           })),
@@ -369,6 +394,7 @@ export async function commitPreviewCsv(
       placed_at: `${HARBOUR_TODAY}T08:00:00.000Z`,
       batch_id: batchId,
       creditor_account_ref: row.creditor_account_ref,
+      debtor_id: `debtor-${row.display_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`,
       contacts: row.contacts,
       notes: [],
       events: [{ type: 'import', at: HARBOUR_TODAY, label: 'Imported' }],

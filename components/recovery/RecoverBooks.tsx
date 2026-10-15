@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Building2, ShieldCheck } from 'lucide-react';
-import { useRecoverDesk, useRecoverIllustration } from './useRecoverDesk';
+import { HARBOUR_CUSTOMERS } from '@/lib/recovery/harbour-seed';
+import { useIsRecoverPreview, useRecoverDesk, useRecoverIllustration } from './useRecoverDesk';
 import type { RecoverCreditor, RecoverMandate } from '@/lib/recovery/types';
 import { CreditorArt, MandateArt } from './RecoverArt';
 import {
@@ -36,8 +37,28 @@ const PRODUCTS: Record<string, string> = {
 
 export function RecoverCreditors() {
   const { desk, error, loading, save } = useRecoverDesk();
+  const preview = useIsRecoverPreview();
   const [open, setOpen] = useState(false);
+  const [customers, setCustomers] = useState<{ id: number; trading_name: string }[]>([]);
   const illustration = useRecoverIllustration();
+  useEffect(() => {
+    if (preview) {
+      setCustomers(HARBOUR_CUSTOMERS.map((row) => ({ id: row.id, trading_name: row.trading_name })));
+      return;
+    }
+    let stop = false;
+    fetch('/api/recovery/recovergraph/creditors', { cache: 'no-store' })
+      .then(async (response) => {
+        if (stop || !response.ok) return;
+        const body = (await response.json()) as { customers?: { id: number; trading_name: string }[]; reason?: string };
+        if (body.reason === 'migration_pending') return;
+        setCustomers(Array.isArray(body.customers) ? body.customers : []);
+      })
+      .catch(() => undefined);
+    return () => {
+      stop = true;
+    };
+  }, [preview]);
   const rows = desk?.creditors ?? [];
   return (
     <RecoverScreen
@@ -86,6 +107,7 @@ export function RecoverCreditors() {
                 name: String(data.get('name') || ''),
                 reg_no: String(data.get('reg_no') || ''),
                 contact_email: String(data.get('contact_email') || ''),
+                customer_id: String(data.get('customer_id') || ''),
               }).then((ok) => {
                 if (ok) setOpen(false);
               });
@@ -94,6 +116,14 @@ export function RecoverCreditors() {
             <h2 className="text-xl font-black">Creditor</h2>
             <RecoverField label="Name">
               <input name="name" required className="min-h-11 w-full rounded-xl border border-slate-200 px-3" />
+            </RecoverField>
+            <RecoverField label="Customer">
+              <select name="customer_id" data-testid="recover-customer-picker" className="min-h-11 w-full rounded-xl border border-slate-200 px-3">
+                <option value="">No customer link</option>
+                {customers.map((row) => (
+                  <option key={row.id} value={row.id}>{row.trading_name}</option>
+                ))}
+              </select>
             </RecoverField>
             <RecoverField label="Registration">
               <input name="reg_no" className="min-h-11 w-full rounded-xl border border-slate-200 px-3" />

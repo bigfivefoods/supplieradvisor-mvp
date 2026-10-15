@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCompanyPermission } from '@/lib/auth/api-auth';
 import { loadAccountsForAgent } from '@/lib/recovery/agent-read';
-import { listBookAccounts, revealAccountId } from '@/lib/recovery/book-db';
+import { listBookAccounts, loadDebtorContacts, revealAccountId } from '@/lib/recovery/book-db';
 import { resolveMemberCompany } from '@/lib/recovery/member-company';
 import { companyRecovergraphEnabled, loadRecoverDesk, MigrationPendingError } from '@/lib/recovery/recovergraph-db';
 import { allowedBookOps, capabilitiesFor, resolveRecoverRole } from '@/lib/recovery/roles';
@@ -47,14 +47,22 @@ export async function GET(request: NextRequest) {
         state: params.get('state'),
       });
       if (!scoped.ready) return json(scoped);
-      const rows = (scoped.rows as Record<string, unknown>[]).map((row) =>
+      const scopedRows = scoped.rows as Record<string, unknown>[];
+      const contacts = await loadDebtorContacts(
+        member.member.companyId,
+        [...new Set(scopedRows.map((row) => String(row.debtor_id || '')).filter(Boolean))]
+      );
+      if (contacts === 'pending') return json({ ready: false, reason: 'migration_pending', feature: 'accounts' });
+      const rows = scopedRows.map((row) =>
         serialiseAccount(
           {
             id: String(row.id),
             ref: String(row.ref || ''),
             creditor_name: String(row.creditor_name || ''),
             display_name: String(row.display_name || ''),
+            debtor_id: row.debtor_id ? String(row.debtor_id) : undefined,
             id_last4: row.id_last4 ? String(row.id_last4) : null,
+            contacts: contacts.get(String(row.debtor_id || '')) || [],
             balance_cents: Number(row.balance_cents || 0),
             state: String(row.state || 'active'),
             assigned_to: row.assigned_to ? String(row.assigned_to) : null,
@@ -89,6 +97,10 @@ export async function GET(request: NextRequest) {
             id: String(row.id),
             ref: String(row.ref || ''),
             creditor_id: String(row.creditor_id || ''),
+            debtor_id: row.debtor_id ? String(row.debtor_id) : undefined,
+            display_name: String(row.display_name || ''),
+            id_last4: row.id_last4 ? String(row.id_last4) : null,
+            contacts: row.contacts,
             balance_cents: Number(row.balance_cents || 0),
             state: String(row.state || ''),
             assigned_to: row.assigned_to ? String(row.assigned_to) : null,

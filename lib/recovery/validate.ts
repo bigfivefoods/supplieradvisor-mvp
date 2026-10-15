@@ -241,6 +241,7 @@ const FLAGS: readonly StopFlag[] = ['debt_review', 'deceased', 'insolvency', 're
 const COMMISSION: readonly CommissionKind[] = ['pct_of_recovered', 'tiered', 'flat_per_account', 'flat_plus_pct'];
 const ALLOCATION: readonly AllocationLabel[] = ['costs', 'interest', 'fees', 'principal'];
 const PRODUCTS: readonly ProductType[] = ['nca_credit', 'trade', 'levy', 'rent', 'medical', 'utility', 'other'];
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function rejectPlainId(patch: Record<string, unknown>): ValidationFail | null {
   if ('id_number' in patch || 'passport' in patch) {
@@ -281,6 +282,27 @@ export function validateBookOp(raw: unknown): ValidationOk<RecoverBookOp> | Vali
     if (!note) return { ok: false, error: 'Write a note first.' };
     clean.note_text = note;
   }
+  if (op === 'account.assign') {
+    const id = text(clean.id, 80);
+    if (!UUID.test(id)) return { ok: false, error: 'Choose an account.' };
+    const staffId = text(clean.staff_id, 80);
+    const teamId = text(clean.team_id, 80);
+    if (staffId && !UUID.test(staffId)) return { ok: false, error: 'Choose a staff record.' };
+    if (teamId && !UUID.test(teamId)) return { ok: false, error: 'Choose a team.' };
+    if (!staffId && !teamId) return { ok: false, error: 'Choose who receives this account.' };
+    clean.id = id;
+    clean.staff_id = staffId || null;
+    clean.team_id = teamId || null;
+  }
+  if (op === 'debtor.merge') {
+    const source = text(clean.source_id, 80);
+    const target = text(clean.target_id, 80);
+    if (!UUID.test(source) || !UUID.test(target) || source === target) {
+      return { ok: false, error: 'Choose two different debtors.' };
+    }
+    clean.source_id = source;
+    clean.target_id = target;
+  }
   if (op === 'account.adjust') {
     const cents = Number(clean.adjustment_cents);
     if (!Number.isInteger(cents) || Math.abs(cents) > 1_000_000_000_000) {
@@ -289,6 +311,15 @@ export function validateBookOp(raw: unknown): ValidationOk<RecoverBookOp> | Vali
   }
   if (op === 'creditor.upsert') {
     if (!text(clean.name, 200)) return { ok: false, error: 'Enter a creditor name.' };
+    if (clean.customer_id != null && clean.customer_id !== '') {
+      const customerId = Number(clean.customer_id);
+      if (!Number.isInteger(customerId) || customerId <= 0) {
+        return { ok: false, error: 'Choose a customer from this company.' };
+      }
+      clean.customer_id = customerId;
+    } else {
+      delete clean.customer_id;
+    }
     if (clean.contact_email) {
       const email = emailOf(clean.contact_email);
       if (typeof email !== 'string') return email;
@@ -331,12 +362,11 @@ export function validateBookOp(raw: unknown): ValidationOk<RecoverBookOp> | Vali
   return { ok: true, value: { op, patch: clean } as RecoverBookOp };
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
 export type DeskExtra =
-  | Extract<RecoverBookOp, { op: 'creditor.upsert' | 'mandate.upsert' }>
+  | Extract<RecoverBookOp, { op: 'creditor.upsert' | 'mandate.upsert' | 'account.assign' | 'debtor.merge' }>
   | { op: 'staff.set_expiry'; staff_id: string; email: string; expires_on: string | null }
-  | { op: 'account.bulk_assign'; ids: string[]; staff_id: string | null; team_id: string | null };
+  | { op: 'account.bulk_assign'; ids: string[]; staff_id: string | null; team_id: string | null }
+  | { op: 'workspace.set_assignment_block'; enabled: boolean };
 
 export function validateDeskExtra(
   raw: unknown
@@ -345,7 +375,10 @@ export function validateDeskExtra(
     return { ok: false, attempted: false, error: 'Request could not be read.' };
   }
   const op = String((raw as { op?: unknown }).op || '');
-  if (op === 'creditor.upsert' || op === 'mandate.upsert') {
+  if (op === 'workspace.set_assignment_block') {
+    return { ok: true, value: { op, enabled: Boolean((raw as { enabled?: unknown }).enabled) } };
+  }
+  if (op === 'creditor.upsert' || op === 'mandate.upsert' || op === 'account.assign' || op === 'debtor.merge') {
     const book = validateBookOp(raw);
     if (!book.ok) return { ...book, attempted: true };
     return { ok: true, value: book.value as DeskExtra };

@@ -24,7 +24,7 @@ import {
   formatRand,
   recoverInputClass,
 } from './RecoverChrome';
-import { useRecoverDesk } from './useRecoverDesk';
+import { usePreviewBook, useRecoverDesk } from './useRecoverDesk';
 
 function percentFromBps(bps: number | null | undefined): string {
   if (bps == null || Number.isNaN(bps)) return '';
@@ -49,6 +49,7 @@ const STAFF_ROLES: Array<{ value: StaffRole; label: string }> = [
 
 export function RecoverTeam() {
   const { desk, error, loading, saving, save } = useRecoverDesk();
+  const previewBook = usePreviewBook();
   const [phrase, setPhrase] = useState('');
   const [dialog, setDialog] = useState(false);
   const [staffEmail, setStaffEmail] = useState('');
@@ -70,6 +71,15 @@ export function RecoverTeam() {
       vat_registered: form.get('vat_registered') === 'on',
       vat_rate_bps: percentToBps(form.get('vat_rate_percent')),
     };
+    await save(op);
+  }
+
+  async function onBlock(enabled: boolean) {
+    const op = { op: 'workspace.set_assignment_block' as const, enabled };
+    if (previewBook) {
+      previewBook(op);
+      return;
+    }
     await save(op);
   }
 
@@ -154,6 +164,17 @@ export function RecoverTeam() {
               <p className="sm:col-span-2 text-sm leading-relaxed text-slate-600">
                 Trust mode means money collected for a creditor is held and remitted. Direct means the creditor is paid without a trust ledger. The ledger itself is not open yet.
               </p>
+              <label className="sm:col-span-2 flex min-h-11 items-start gap-2 text-sm font-semibold text-slate-900">
+                <input
+                  data-testid="recover-assignment-block"
+                  type="checkbox"
+                  className="mt-1"
+                  checked={workspace?.block_unregistered_assignment !== false}
+                  disabled={!canEdit || !desk.ready}
+                  onChange={(event) => void onBlock(event.target.checked)}
+                />
+                <span>Block assignment when a collector&apos;s Council registration is missing or recorded as expired. ⚖ VERIFY who must register. RecoverAdvisor® gives no legal advice.</span>
+              </label>
               <RecoverField label="CFDC number">
                 <input
                   name="cfdc_registration_no"

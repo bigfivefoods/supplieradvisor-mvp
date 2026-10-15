@@ -10,7 +10,7 @@ import {
   MigrationPendingError,
 } from '@/lib/recovery/recovergraph-db';
 import { deskResponseBody, projectDesk } from '@/lib/recovery/project';
-import { bulkAssignAccounts, commitBook, findStaffId, setStaffExpiry } from '@/lib/recovery/book-db';
+import { bulkAssignAccounts, commitBook, customerInCompany, findStaffId, setAssignmentBlock, setStaffExpiry } from '@/lib/recovery/book-db';
 import { validateDeskExtra, validateRecoverOp, validateSetRealData } from '@/lib/recovery/validate';
 
 export const runtime = 'nodejs';
@@ -99,9 +99,23 @@ export async function POST(request: NextRequest) {
     const role = resolveRecoverRole(gate.role, load.self);
     const caps = capabilitiesFor(role);
     if (extra?.ok) {
-      if (extra.value.op === 'creditor.upsert' || extra.value.op === 'mandate.upsert') {
+      if (extra.value.op === 'creditor.upsert' || extra.value.op === 'mandate.upsert' || extra.value.op === 'account.assign' || extra.value.op === 'debtor.merge') {
         if (!allowedBookOps(role).has(extra.value.op)) return denied();
+        if (extra.value.op === 'creditor.upsert') {
+          const customerId = Number(extra.value.patch.customer_id);
+          if (Number.isInteger(customerId) && customerId > 0) {
+            const same = await customerInCompany(member.member.companyId, customerId);
+            if (!same) return json({ error: 'Choose a customer from this company.' }, 400);
+          }
+        }
         await commitBook(member.member.companyId, gate.userId, extra.value);
+      } else if (extra.value.op === 'workspace.set_assignment_block') {
+        if (!caps.canEditSettings) return denied();
+        await setAssignmentBlock({
+          companyId: member.member.companyId,
+          actorId: gate.userId,
+          enabled: extra.value.enabled,
+        });
       } else if (extra.value.op === 'staff.set_expiry') {
         if (!caps.canManageStaff) return denied();
         const staffId = await findStaffId(member.member.companyId, extra.value.staff_id, extra.value.email);

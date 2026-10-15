@@ -64,44 +64,41 @@ export function useLiveAccounts() {
   const [phase, setPhase] = useState<BookPhase>('loading');
   const [book, setBook] = useState<MemoryBook>(emptyMemory());
   const [placedCount, setPlacedCount] = useState<number | undefined>(undefined);
-
-  useEffect(() => {
-    let stop = false;
-    fetch('/api/recovery/recovergraph/accounts', { headers: { accept: 'application/json' } })
-      .then(async (response) => {
-        if (stop) return;
-        if (!response.ok) {
-          setPhase('error');
-          return;
-        }
-        const body = (await response.json()) as {
-          ready?: boolean;
-          reason?: string;
-          rows?: Record<string, unknown>[];
-          counts?: { placed?: number };
-        };
-        if (body.reason === 'migration_pending') {
-          setPhase('pending');
-          return;
-        }
-        if (!body.ready) {
-          setPhase('error');
-          return;
-        }
-        const rows = Array.isArray(body.rows) ? body.rows : [];
-        setBook(rowsToBook(rows));
-        if (typeof body.counts?.placed === 'number') setPlacedCount(body.counts.placed);
-        setPhase('ready');
-      })
-      .catch(() => {
-        if (!stop) setPhase('error');
-      });
-    return () => {
-      stop = true;
-    };
+  const load = useCallback(async () => {
+    try {
+      const response = await fetch('/api/recovery/recovergraph/accounts', { headers: { accept: 'application/json' }, cache: 'no-store' });
+      if (!response.ok) {
+        setPhase('error');
+        return;
+      }
+      const body = (await response.json()) as {
+        ready?: boolean;
+        reason?: string;
+        rows?: Record<string, unknown>[];
+        counts?: { placed?: number };
+      };
+      if (body.reason === 'migration_pending') {
+        setPhase('pending');
+        return;
+      }
+      if (!body.ready) {
+        setPhase('error');
+        return;
+      }
+      const rows = Array.isArray(body.rows) ? body.rows : [];
+      setBook(rowsToBook(rows));
+      if (typeof body.counts?.placed === 'number') setPlacedCount(body.counts.placed);
+      setPhase('ready');
+    } catch {
+      setPhase('error');
+    }
   }, []);
 
-  return { phase, book, placedCount };
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return { phase, book, placedCount, reload: load };
 }
 
 function rowsToBook(rows: Record<string, unknown>[]): MemoryBook {
@@ -126,7 +123,17 @@ function rowsToBook(rows: Record<string, unknown>[]): MemoryBook {
     placed_at: String(row.placed_at || ''),
     batch_id: String(row.batch_id || ''),
     creditor_account_ref: String(row.creditor_account_ref || ''),
-    contacts: [],
+    debtor_id: String(row.debtor_id || ''),
+    contacts: Array.isArray(row.contacts)
+      ? (row.contacts as { kind?: string; value?: string }[]).map((contact) => ({
+          kind: String(contact.kind || ''),
+          value: String(contact.value || ''),
+          source: 'import',
+          quality: 'unknown',
+          do_not_contact: false,
+          s129_delivery_method: null,
+        }))
+      : [],
     notes: [],
     events: [{ type: 'import', at: String(row.placed_at || ''), label: 'Imported' }],
     nca_regulated: false,

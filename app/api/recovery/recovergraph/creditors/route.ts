@@ -3,6 +3,7 @@ import { requireCompanyPermission } from '@/lib/auth/api-auth';
 import { resolveMemberCompany } from '@/lib/recovery/member-company';
 import { companyRecovergraphEnabled, loadRecoverDesk, MigrationPendingError } from '@/lib/recovery/recovergraph-db';
 import { capabilitiesFor, resolveRecoverRole } from '@/lib/recovery/roles';
+import { listCompanyCustomers } from '@/lib/recovery/book-db';
 import { serialiseCreditor, serialiseMandate } from '@/lib/recovery/scope';
 
 export const runtime = 'nodejs';
@@ -30,6 +31,7 @@ export async function GET(request: NextRequest) {
     const caps = capabilitiesFor(role);
     return json({
       ready: true,
+      customers: caps.canEditBooks ? await listCompanyCustomers(member.member.companyId) : [],
       creditors: load.creditors
         .map((row) => serialiseCreditor(row as unknown as Record<string, unknown>, role, caps))
         .filter(Boolean),

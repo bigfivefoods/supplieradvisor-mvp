@@ -7,13 +7,24 @@ test.describe('RecoverAdvisor preview', () => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
     const alien: string[] = [];
-    // The root layout already mounts Vercel Analytics. This spec does not edit that layout.
+    // The root layout already mounts Vercel Analytics, and a preview deployment
+    // injects the toolbar from vercel.live. This spec does not edit that layout.
+    // Compare with the smoke base URL: the document request is recorded before
+    // page.url() leaves about:blank, so the deployment host is still this app.
+    const base = new URL(process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000');
+    const loopback = (host: string) => host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
     await page.route('https://va.vercel-scripts.com/**', (route) => route.abort());
+    await page.route('https://vercel.live/**', (route) => route.abort());
     page.on('request', (request) => {
       const url = new URL(request.url());
-      const here = new URL(page.url() || 'http://localhost:3000').origin;
-      if (url.origin === here || url.origin === 'http://localhost:3000' || url.origin === 'http://127.0.0.1:3000') return;
-      if (url.origin === 'https://va.vercel-scripts.com') return;
+      const current = page.url();
+      const here = current && current !== 'about:blank' ? new URL(current).origin : '';
+      const sameApp =
+        url.origin === base.origin ||
+        url.origin === here ||
+        (loopback(url.hostname) && loopback(base.hostname) && url.port === (base.port || '80'));
+      if (sameApp) return;
+      if (url.origin === 'https://va.vercel-scripts.com' || url.origin === 'https://vercel.live') return;
       alien.push(url.origin);
     });
     for (const view of views) {
@@ -38,13 +49,14 @@ test.describe('RecoverAdvisor preview', () => {
     await page.getByTestId('recover-commit').click();
     await expect(page.getByTestId('recover-commit-result')).toBeVisible();
     await page.goto('/preview/recovergraph/accounts?book=harbour&role=owner');
-    await expect(page.getByText('Sample Debtor')).toBeVisible();
-    await expect(page.getByText('RC-').first()).toBeVisible();
+    const accountRows = page.locator('[data-testid^="recover-account-"]');
+    await expect(accountRows.getByText('Sample Debtor')).toBeVisible();
+    await expect(accountRows.getByText(/RC-/).first()).toBeVisible();
     await page.goto('/preview/recovergraph/imports?book=harbour&role=owner');
     await page.getByTestId('recover-rollback-upload').click();
     await page.goto('/preview/recovergraph/accounts?book=harbour&role=owner');
     await expect(page.getByText('Sample Debtor')).toHaveCount(0);
-    await expect(page.getByText('RC-').first()).toBeVisible();
+    await expect(page.locator('[data-testid^="recover-account-"]').getByText(/RC-/).first()).toBeVisible();
   });
 
   test('viewer sees counts and the phone layout stays inside the screen', async ({ page }) => {

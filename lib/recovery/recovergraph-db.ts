@@ -129,6 +129,15 @@ export async function loadRecoverDesk(
     .maybeSingle();
   if (isMigrationPending(workspace.error)) return pending();
   if (workspace.error) throw new Error('workspace');
+  let blockUnregistered: boolean | undefined;
+  const block = await supabase
+    .from('recover_workspaces')
+    .select('block_unregistered_assignment')
+    .eq('company_id', companyId)
+    .maybeSingle();
+  if (!block.error && block.data) {
+    blockUnregistered = Boolean((block.data as { block_unregistered_assignment?: boolean }).block_unregistered_assignment);
+  }
 
   const creditors = await supabase
     .from('recover_creditors')
@@ -199,7 +208,9 @@ export async function loadRecoverDesk(
 
   return {
     ready: true,
-    workspace: workspace.data ? asWorkspace(workspace.data as Record<string, unknown>) : null,
+    workspace: workspace.data
+      ? { ...asWorkspace(workspace.data as Record<string, unknown>), block_unregistered_assignment: blockUnregistered }
+      : null,
     creditors: creditorRows,
     mandates: mandateRows,
     staff: staffRows,

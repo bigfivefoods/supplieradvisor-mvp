@@ -17,6 +17,7 @@ type CreditorSave = {
   name: string;
   reg_no?: string;
   contact_email?: string;
+  customer_id?: string;
 };
 type MandateSave = {
   op: 'mandate.upsert';
@@ -55,6 +56,8 @@ export function AccountsView({
   placedCount,
   assignees = [],
   onBulkAssign,
+  onAssign,
+  onMerge,
 }: {
   phase: BookPhase;
   book: MemoryBook;
@@ -65,9 +68,15 @@ export function AccountsView({
   placedCount?: number;
   assignees?: { id: string; label: string }[];
   onBulkAssign?: (ids: string[], staffId: string) => Promise<boolean>;
+  onAssign?: (accountId: string, staffId: string) => Promise<boolean>;
+  onMerge?: (sourceId: string, targetId: string) => Promise<boolean>;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [staffId, setStaffId] = useState('');
+  const [oneAccount, setOneAccount] = useState('');
+  const [oneStaff, setOneStaff] = useState('');
+  const [mergeSource, setMergeSource] = useState('');
+  const [mergeTarget, setMergeTarget] = useState('');
   const rows = visibleAccounts(book, role);
   return (
     <RecoverScreen title="Accounts" description="Placed accounts and their history." testId="recover-accounts">
@@ -92,6 +101,56 @@ export function AccountsView({
       ) : null}
       {phase === 'ready' && role !== 'viewer' && rows.length > 0 ? (
         <div data-testid="recover-accounts-list" className="grid gap-3">
+          {onAssign ? (
+            <form
+              className="flex flex-col gap-2 sm:flex-row"
+              data-testid="recover-assign-one"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!oneAccount || !oneStaff) return;
+                void onAssign(oneAccount, oneStaff);
+              }}
+            >
+              <select aria-label="Account" className={recoverField} value={oneAccount} onChange={(event) => setOneAccount(event.target.value)}>
+                <option value="">Choose an account</option>
+                {rows.map((row) => (
+                  <option key={row.id} value={row.id}>{row.ref}</option>
+                ))}
+              </select>
+              <select aria-label="Assign one account to" className={recoverField} value={oneStaff} onChange={(event) => setOneStaff(event.target.value)}>
+                <option value="">Choose a person</option>
+                {assignees.map((person) => (
+                  <option key={person.id} value={person.id}>{person.label}</option>
+                ))}
+              </select>
+              <button className={recoverBtn} type="submit">Assign account</button>
+            </form>
+          ) : null}
+          {onMerge ? (
+            <form
+              className="flex flex-col gap-2 sm:flex-row"
+              data-testid="recover-merge"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!mergeSource || !mergeTarget || mergeSource === mergeTarget) return;
+                void onMerge(mergeSource, mergeTarget);
+              }}
+            >
+              <select aria-label="Debtor to merge" className={recoverField} value={mergeSource} onChange={(event) => setMergeSource(event.target.value)}>
+                <option value="">Debtor to merge</option>
+                {rows.filter((row, index, list) => list.findIndex((item) => item.debtor_id === row.debtor_id) === index).map((row) => (
+                  <option key={row.debtor_id} value={row.debtor_id}>{row.debtor_name}</option>
+                ))}
+              </select>
+              <select aria-label="Debtor to keep" className={recoverField} value={mergeTarget} onChange={(event) => setMergeTarget(event.target.value)}>
+                <option value="">Debtor to keep</option>
+                {rows.filter((row, index, list) => list.findIndex((item) => item.debtor_id === row.debtor_id) === index).map((row) => (
+                  <option key={`keep-${row.debtor_id}`} value={row.debtor_id}>{row.debtor_name}</option>
+                ))}
+              </select>
+              <button className={recoverBtn} type="submit">Merge debtors</button>
+            </form>
+          ) : null}
           {onBulkAssign ? (
             <form
               className="flex flex-col gap-2 sm:flex-row"
@@ -137,6 +196,11 @@ export function AccountsView({
               <span>
                 <span className="block text-sm font-semibold">{row.debtor_name}</span>
                 <span className="block text-xs text-slate-600">{row.creditor_name} · {row.id_masked}</span>
+                {row.contacts.length ? (
+                  <span data-testid="recover-account-contacts" className="mt-1 block text-xs text-slate-700">
+                    {row.contacts.map((contact) => `${contact.kind} ${contact.value}`).join(' · ')}
+                  </span>
+                ) : null}
               </span>
               <span className="text-right text-sm font-black tabular-nums">{formatRecoverMoney(row.balance_cents)}</span>
               <span className="text-xs font-bold uppercase">{row.state}{row.flags.length ? ' · flag' : ''}</span>
@@ -372,12 +436,14 @@ export function CreditorBookView({
   mandates,
   showDemo = false,
   onSave,
+  customers = [],
 }: {
   phase: BookPhase;
   creditors: RecoverCreditor[];
   mandates: RecoverMandate[];
   showDemo?: boolean;
   onSave?: (op: CreditorSave) => boolean | Promise<boolean>;
+  customers?: { id: number | string; trading_name: string }[];
 }) {
   const live = useRecoverDesk();
   const [open, setOpen] = useState(false);
@@ -425,6 +491,7 @@ export function CreditorBookView({
                 name: String(data.get('name') || ''),
                 reg_no: String(data.get('reg_no') || ''),
                 contact_email: String(data.get('contact_email') || ''),
+                customer_id: String(data.get('customer_id') || ''),
               };
               const send = onSave ? onSave(op) : live.save(op);
               void Promise.resolve(send).then((ok) => {
@@ -434,6 +501,15 @@ export function CreditorBookView({
           >
             <h2 className="text-xl font-black">Creditor</h2>
             <label className="mt-3 block text-xs font-bold">Name<input className={recoverField} name="name" required /></label>
+            <label className="mt-3 block text-xs font-bold">
+              Customer
+              <select className={recoverField} name="customer_id" data-testid="recover-customer-picker">
+                <option value="">No customer link</option>
+                {customers.map((row) => (
+                  <option key={row.id} value={String(row.id)}>{row.trading_name}</option>
+                ))}
+              </select>
+            </label>
             <label className="mt-3 block text-xs font-bold">Registration<input className={recoverField} name="reg_no" /></label>
             <label className="mt-3 block text-xs font-bold">Email<input className={recoverField} name="contact_email" type="email" /></label>
             <div className="mt-4 flex gap-2">

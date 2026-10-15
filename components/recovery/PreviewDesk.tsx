@@ -14,11 +14,13 @@ import { RecoverQueue } from './RecoverQueue';
 import { RecoverTeam } from './RecoverTeam';
 import { ClientAccount } from './RecoverPreviews';
 import {
+  assignPreviewAccount,
   clearHarbourSession,
   commitPreviewCsv,
   emptyMemory,
   harbourDesk,
   harbourMemory,
+  mergePreviewDebtors,
   readHarbourSession,
   rememberPreviewCreditor,
   rememberPreviewMandate,
@@ -27,8 +29,8 @@ import {
   type MemoryBook,
 } from '@/lib/recovery/preview-memory';
 import { capabilitiesFor } from '@/lib/recovery/roles';
-import { HARBOUR_CREDITORS } from '@/lib/recovery/harbour-seed';
-import { RecoverPreviewProvider, useRecoverIllustration } from './useRecoverDesk';
+import { HARBOUR_CREDITORS, HARBOUR_CUSTOMERS, HARBOUR_TEAM } from '@/lib/recovery/harbour-seed';
+import { PreviewBookProvider, RecoverPreviewProvider, useRecoverIllustration, type DeskSave } from './useRecoverDesk';
 
 const PreviewRoleContext = createContext<PreviewRole>('owner');
 
@@ -200,7 +202,11 @@ export function PreviewShell({ children }: { children: ReactNode }) {
         </div>
         <div className="mx-auto max-w-6xl px-3 py-4">
           {ready ? (
-            book === 'nav' ? <NavSheet /> : <div className="sa-page">{children}</div>
+            book === 'nav' ? <NavSheet /> : book === 'harbour' ? (
+              <PreviewBookProvider onOp={(op) => { remember(applyHarbourOp(memory, op)); return true; }}>
+                <div className="sa-page">{children}</div>
+              </PreviewBookProvider>
+            ) : <div className="sa-page">{children}</div>
           ) : (
             <div className="h-40 animate-pulse rounded-3xl bg-slate-100 motion-reduce:animate-none" />
           )}
@@ -228,7 +234,34 @@ export function PreviewDesk({ view }: { view: string }) {
     return <RecoverInstalled role={role === 'agent' ? 'agent' : 'owner'} book={memory?.mode === 'harbour' ? memory.memory : null} />;
   }
   if (memory?.mode === 'harbour' && view === 'accounts') {
-    return <AccountsView phase="ready" book={memory.memory} role={deskRole} caps={capabilitiesFor(deskRole)} showDemo />;
+    const caps = capabilitiesFor(deskRole);
+    const people = harbourDesk(deskRole, memory.memory).staff
+      .filter((row) => row.status === 'active')
+      .map((row) => ({ id: row.id, label: row.email }));
+    return (
+      <AccountsView
+        phase="ready"
+        book={memory.memory}
+        role={deskRole}
+        caps={caps}
+        showDemo
+        assignees={people}
+        onAssign={caps.canMutateAccounts ? async (accountId, staffId) => {
+          const person = HARBOUR_TEAM.find((row) => row.key === staffId);
+          memory.setMemory(assignPreviewAccount(memory.memory, accountId, staffId, person?.name || staffId));
+          return true;
+        } : undefined}
+        onBulkAssign={caps.canMutateAccounts ? async (ids, staffId) => {
+          const person = HARBOUR_TEAM.find((row) => row.key === staffId);
+          memory.setMemory(ids.reduce((book, id) => assignPreviewAccount(book, id, staffId, person?.name || staffId), memory.memory));
+          return true;
+        } : undefined}
+        onMerge={caps.canMutateAccounts ? async (sourceId, targetId) => {
+          memory.setMemory(mergePreviewDebtors(memory.memory, sourceId, targetId));
+          return true;
+        } : undefined}
+      />
+    );
   }
   if (memory?.mode === 'harbour' && view === 'account') {
     const rows = visibleRows(memory.memory, deskRole);
@@ -264,10 +297,11 @@ export function PreviewDesk({ view }: { view: string }) {
         creditors={desk.creditors}
         mandates={desk.mandates}
         showDemo
+        customers={HARBOUR_CUSTOMERS.map((row) => ({ id: row.id, trading_name: row.trading_name }))}
         onSave={(op) => {
           const name = String(op.name || '').trim();
           if (!name) return false;
-          memory.setMemory(rememberPreviewCreditor(memory.memory, name, String(op.reg_no || '')));
+          memory.setMemory(rememberPreviewCreditor(memory.memory, name, String(op.reg_no || ''), String(op.customer_id || '')));
           return true;
         }}
       />
@@ -302,6 +336,20 @@ export function PreviewDesk({ view }: { view: string }) {
   if (view === 'team') return <RecoverTeam />;
   if (view === 'portals') return <RecoverPortals />;
   return <RecoverCommand />;
+}
+
+function applyHarbourOp(book: MemoryBook, op: DeskSave): MemoryBook {
+  if (op.op === 'workspace.set_assignment_block') return { ...book, blockUnregistered: op.enabled !== false };
+  if (op.op === 'account.assign' && op.id && op.staff_id) {
+    const person = HARBOUR_TEAM.find((row) => row.key === op.staff_id);
+    return assignPreviewAccount(book, op.id, op.staff_id, person?.name || op.staff_id);
+  }
+  if (op.op === 'account.bulk_assign' && op.ids && op.staff_id) {
+    const person = HARBOUR_TEAM.find((row) => row.key === op.staff_id);
+    return op.ids.reduce((current, id) => assignPreviewAccount(current, id, String(op.staff_id), person?.name || String(op.staff_id)), book);
+  }
+  if (op.op === 'debtor.merge' && op.source_id && op.target_id) return mergePreviewDebtors(book, op.source_id, op.target_id);
+  return book;
 }
 
 function visibleRows(book: MemoryBook, role: PreviewRole) {

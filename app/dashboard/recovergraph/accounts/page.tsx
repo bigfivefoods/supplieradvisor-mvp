@@ -21,7 +21,29 @@ export default function RecoverAccountsPage() {
       assignees={(desk?.staff || []).filter((row) => row.status === 'active').map((row) => ({ id: row.id, label: row.email }))}
       onBulkAssign={
         canAssign
-          ? (ids, staffId) => save({ op: 'account.bulk_assign', ids, staff_id: staffId, team_id: null })
+          ? async (ids, staffId) => {
+              const ok = await save({ op: 'account.bulk_assign', ids, staff_id: staffId, team_id: null });
+              if (ok) await live.reload();
+              return ok;
+            }
+          : undefined
+      }
+      onAssign={
+        canAssign
+          ? async (accountId, staffId) => {
+              const ok = await save({ op: 'account.assign', id: accountId, staff_id: staffId, team_id: null });
+              if (ok) await live.reload();
+              return ok;
+            }
+          : undefined
+      }
+      onMerge={
+        canAssign
+          ? async (sourceId, targetId) => {
+              const ok = await save({ op: 'debtor.merge', source_id: sourceId, target_id: targetId });
+              if (ok) await live.reload();
+              return ok;
+            }
           : undefined
       }
     />

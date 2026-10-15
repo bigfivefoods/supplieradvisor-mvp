@@ -218,6 +218,18 @@ async function main() {
     psql(`SELECT name FROM public.recover_creditors WHERE id = '${creditor.id}';`),
     'North Creditor'
   );
+  assert.equal(psql(`SELECT customer_id FROM public.recover_creditors WHERE id = '${creditor.id}';`), '10');
+  fails(
+    `SELECT public.recover_book_commit(1, 'owner', 'creditor.upsert', 't', '{"name":"Other Co","customer_id":"11"}'::jsonb);`,
+    /customer_company|23503/
+  );
+  psql(`SELECT public.recover_set_assignment_block(1, 'owner', false);`);
+  assert.equal(psql(`SELECT block_unregistered_assignment FROM public.recover_workspaces WHERE company_id = 1;`), 'f');
+  assert.equal(
+    psql(`SELECT count(*) FROM public.recover_audit_log WHERE action = 'workspace.assignment_block' AND company_id = 1;`),
+    '1'
+  );
+  psql(`SELECT public.recover_set_assignment_block(1, 'owner', true);`);
 
   fails(
     `SELECT public.recover_book_commit(1, 'owner', 'mandate.upsert', 't', jsonb_build_object(
@@ -422,6 +434,40 @@ async function main() {
     [1, 2, 3, 4, 5, 6].map(() => psqlAsync(`SELECT public.recover_next_number(1, 'account');`))
   );
   assert.equal(new Set(numbers).size, numbers.length);
+
+  const ada = psql(`SELECT id FROM public.recover_debtors WHERE company_id = 1 AND display_name = 'Ada';`);
+  const bea = psql(`SELECT id FROM public.recover_debtors WHERE company_id = 1 AND display_name = 'Bea';`);
+  psql(`
+    INSERT INTO public.recover_contact_points (company_id, debtor_id, kind, value, source)
+    VALUES (1, '${ada}', 'phone', '0100000001', 'import');
+  `);
+  assert.equal(
+    psql(`SELECT value FROM public.recover_contact_points WHERE company_id = 1 AND debtor_id = '${ada}';`),
+    '0100000001'
+  );
+  assert.equal(psql(`SELECT count(*) FROM public.recover_contact_points WHERE company_id = 2;`), '0');
+  const merged = JSON.parse(psql(`
+    SELECT public.recover_book_commit(1, 'owner', 'debtor.merge', 't', jsonb_build_object('source_id','${ada}','target_id','${bea}'));
+  `)) as { ok: boolean; id: string };
+  assert.equal(merged.ok, true);
+  assert.equal(merged.id, bea);
+  assert.equal(psql(`SELECT status FROM public.recover_debtors WHERE id = '${ada}';`), 'merged');
+  assert.equal(psql(`SELECT debtor_id FROM public.recover_accounts WHERE creditor_account_ref = 'ACC-1';`), bea);
+  assert.equal(psql(`SELECT debtor_id FROM public.recover_contact_points WHERE value = '0100000001';`), bea);
+  assert.equal(
+    psql(`SELECT count(*) FROM public.recover_audit_log WHERE action = 'debtor.merge' AND target = '${bea}';`),
+    '1'
+  );
+  fails(
+    `SELECT public.recover_book_commit(1, 'owner', 'debtor.merge', 't', jsonb_build_object('source_id','${bea}','target_id','${bea}'));`,
+    /merge|22023/
+  );
+  const acc1 = psql(`SELECT id FROM public.recover_accounts WHERE creditor_account_ref = 'ACC-1';`);
+  const assigned = JSON.parse(psql(`
+    SELECT public.recover_book_commit(1, 'owner', 'account.assign', 't', jsonb_build_object('id','${acc1}','staff_id','${staffA}'));
+  `)) as { ok: boolean };
+  assert.equal(assigned.ok, true);
+  assert.equal(psql(`SELECT assigned_to FROM public.recover_accounts WHERE id = '${acc1}';`), staffA);
 
   // demo lifecycle on company 2, which has no real accounts
   psql(`SELECT public.recover_desk_commit(2, 'owner', 'set_real_data_enabled', 'w', '{"enabled":true}'::jsonb);`);

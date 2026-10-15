@@ -126,17 +126,74 @@ export async function listBookAccounts(input: {
       names.set(String(debtor.id), { display_name: debtor.display_name, id_last4: debtor.id_last4 });
     }
   }
+  const contacts = await loadDebtorContacts(input.companyId, debtorIds);
+  if (contacts === 'pending') return { ready: false as const, reason: 'migration_pending' as const, feature: 'accounts' as const };
   return {
     ready: true as const,
     rows: rows.map((row) => {
       const debtor = names.get(String(row.debtor_id || ''));
+      const debtorId = String(row.debtor_id || '');
       return {
         ...row,
         display_name: debtor?.display_name || '',
         id_last4: debtor?.id_last4 || null,
+        contacts: contacts.get(debtorId) || [],
       };
     }),
   };
+}
+
+export async function loadDebtorContacts(companyId: number, debtorIds: string[]) {
+  const grouped = new Map<string, { kind: string; value: string; quality: string; do_not_contact: boolean; s129_delivery_method: string | null }[]>();
+  if (!debtorIds.length) return grouped;
+  const supabase = getSupabaseServer();
+  const result = await supabase
+    .from('recover_contact_points')
+    .select('debtor_id, kind, value, quality, do_not_contact, s129_delivery_method')
+    .eq('company_id', companyId)
+    .in('debtor_id', debtorIds)
+    .limit(500);
+  const pending = readFeatureResult(result.error, 'accounts');
+  if (!pending.ready) return 'pending' as const;
+  if (result.error) return grouped;
+  for (const row of result.data || []) {
+    const id = String(row.debtor_id || '');
+    const list = grouped.get(id) || [];
+    list.push({
+      kind: String(row.kind || ''),
+      value: String(row.value || ''),
+      quality: String(row.quality || 'unknown'),
+      do_not_contact: Boolean(row.do_not_contact),
+      s129_delivery_method: row.s129_delivery_method ? String(row.s129_delivery_method) : null,
+    });
+    grouped.set(id, list);
+  }
+  return grouped;
+}
+
+export async function listCompanyCustomers(companyId: number) {
+  const supabase = getSupabaseServer();
+  const result = await supabase
+    .from('customers')
+    .select('id, trading_name')
+    .eq('profile_id', companyId)
+    .order('trading_name', { ascending: true })
+    .limit(100);
+  if (result.error) return [];
+  return ((result.data || []) as { id?: number; trading_name?: string }[])
+    .map((row) => ({ id: Number(row.id), trading_name: String(row.trading_name || '').slice(0, 120) }))
+    .filter((row) => Number.isInteger(row.id) && row.id > 0 && row.trading_name);
+}
+
+export async function customerInCompany(companyId: number, customerId: number): Promise<boolean> {
+  const supabase = getSupabaseServer();
+  const result = await supabase
+    .from('customers')
+    .select('id')
+    .eq('profile_id', companyId)
+    .eq('id', customerId)
+    .maybeSingle();
+  return Boolean(result.data?.id);
 }
 
 export async function loadBookStats(companyId: number): Promise<RecoverBookStats | null> {
@@ -164,6 +221,21 @@ export async function demoRowsExist(companyId: number): Promise<boolean | 'pendi
   if (isMigrationPending(result.error)) return 'pending';
   if (result.error) throw new Error('workspace');
   return Boolean(result.data);
+}
+
+export async function setAssignmentBlock(input: {
+  companyId: number;
+  actorId: string;
+  enabled: boolean;
+}): Promise<void> {
+  const supabase = getSupabaseServer();
+  const result = await supabase.rpc('recover_set_assignment_block', {
+    p_company_id: input.companyId,
+    p_actor_id: input.actorId,
+    p_enabled: input.enabled,
+  });
+  if (isMigrationPending(result.error)) throw new MigrationPendingError();
+  if (result.error) throw new Error(calmSql(result.error.message));
 }
 
 export async function setStaffExpiry(input: {

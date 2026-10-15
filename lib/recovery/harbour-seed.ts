@@ -34,6 +34,12 @@ type CreditorSeed = {
   signed_on: string;
 };
 
+export const HARBOUR_CUSTOMERS = [
+  { id: 1, trading_name: 'Lighthouse Retail Finance' },
+  { id: 2, trading_name: 'Signal Hill Fitness Club' },
+  { id: 3, trading_name: 'Bayside Body Corporate' },
+] as const;
+
 export const HARBOUR_CREDITORS: readonly CreditorSeed[] = [
   {
     key: 'lighthouse',
