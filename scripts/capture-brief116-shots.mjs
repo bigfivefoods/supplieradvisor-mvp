@@ -149,7 +149,7 @@ for (const [width, height, tag] of [
       await page.getByTestId('recover-staff-table').scrollIntoViewIfNeeded();
     }
     if (name === 'account') {
-      await page.getByTestId('recover-stop-flag').scrollIntoViewIfNeeded();
+      await page.getByTestId('recover-account').scrollIntoViewIfNeeded();
     }
     const wide = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
     if (wide) throw new Error(`${tag}-${name} overflows horizontally`);

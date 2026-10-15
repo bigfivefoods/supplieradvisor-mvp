@@ -76,6 +76,7 @@ export type RecoverMandate = {
   commission_model?: CommissionModel;
   allocation_order?: AllocationLabel[];
   agreement_reference?: string;
+  account_count?: number;
   signed_on?: string | null;
   authority_to_litigate?: boolean;
   bureau_authority?: boolean;

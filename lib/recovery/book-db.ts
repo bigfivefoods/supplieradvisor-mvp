@@ -1,5 +1,4 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { pairsFromDebtors } from './duplicates';
 import { decryptId, encryptId } from './pii-crypto';
 import { isMigrationPending, MigrationPendingError, readFeatureResult } from './recovergraph-db';
 import type { RecoverBookOp, RecoverBookStats } from './types';
@@ -181,44 +180,36 @@ export async function listBookAccounts(input: {
 
 export async function listDuplicateDebtors(companyId: number) {
   const supabase = getSupabaseServer();
-  const result = await supabase
-    .from('recover_debtors')
-    .select('id, display_name, id_last4, id_hash')
-    .eq('company_id', companyId)
-    .eq('status', 'active')
-    .limit(400);
+  const result = await supabase.rpc('recover_list_duplicate_debtors', { p_company_id: companyId });
   const pending = readFeatureResult(result.error, 'accounts');
   if (!pending.ready) return pending;
-  if (result.error) return [];
-  const people = ((result.data || []) as { id?: string; display_name?: string; id_last4?: string | null; id_hash?: string | null }[])
+  if (result.error) throw new Error('duplicates');
+  return ((result.data || []) as {
+    match?: string;
+    left_id?: string;
+    left_name?: string;
+    left_last4?: string | null;
+    right_id?: string;
+    right_name?: string;
+    right_last4?: string | null;
+  }[])
     .map((row) => ({
-      id: String(row.id || ''),
-      display_name: String(row.display_name || ''),
-      id_last4: row.id_last4 ? String(row.id_last4) : null,
-      id_hash: row.id_hash ? String(row.id_hash) : null,
-      phones: [] as string[],
-      emails: [] as string[],
+      name: String(row.right_name || ''),
+      match: row.match === 'identity' ? 'identity' : 'contact',
+      debtors: [
+        {
+          id: String(row.left_id || ''),
+          display_name: String(row.left_name || ''),
+          id_last4: row.left_last4 ? String(row.left_last4) : null,
+        },
+        {
+          id: String(row.right_id || ''),
+          display_name: String(row.right_name || ''),
+          id_last4: row.right_last4 ? String(row.right_last4) : null,
+        },
+      ],
     }))
-    .filter((row) => row.id);
-  const contacts = await loadDebtorContacts(companyId, people.map((row) => row.id));
-  if (contacts === 'pending') return { ready: false as const, reason: 'migration_pending' as const, feature: 'accounts' as const };
-  for (const person of people) {
-    for (const contact of contacts.get(person.id) || []) {
-      if (contact.kind === 'email') person.emails.push(contact.value);
-      if (contact.kind === 'phone' || contact.kind === 'whatsapp') person.phones.push(contact.value);
-    }
-  }
-  return pairsFromDebtors(people)
-    .slice(0, 20)
-    .map((pair) => ({
-      name: pair.right.display_name,
-      match: pair.match,
-      debtors: [pair.left, pair.right].map((row) => ({
-        id: row.id,
-        display_name: row.display_name,
-        id_last4: row.id_last4,
-      })),
-    }));
+    .filter((row) => row.debtors[0].id && row.debtors[1].id);
 }
 
 const EVENT_LABEL: Record<string, string> = {
@@ -253,30 +244,45 @@ export async function loadAccountEvents(companyId: number, accountId: string, in
   }));
 }
 
+const CONTACT_CHUNK = 50;
+const CONTACT_PAGE = 500;
+
 export async function loadDebtorContacts(companyId: number, debtorIds: string[]) {
   const grouped = new Map<string, { kind: string; value: string; quality: string; do_not_contact: boolean; s129_delivery_method: string | null }[]>();
-  if (!debtorIds.length) return grouped;
+  const ids = [...new Set(debtorIds.map((id) => String(id || '')).filter(Boolean))];
+  if (!ids.length) return grouped;
   const supabase = getSupabaseServer();
-  const result = await supabase
-    .from('recover_contact_points')
-    .select('debtor_id, kind, value, quality, do_not_contact, s129_delivery_method')
-    .eq('company_id', companyId)
-    .in('debtor_id', debtorIds)
-    .limit(500);
-  const pending = readFeatureResult(result.error, 'accounts');
-  if (!pending.ready) return 'pending' as const;
-  if (result.error) return grouped;
-  for (const row of result.data || []) {
-    const id = String(row.debtor_id || '');
-    const list = grouped.get(id) || [];
-    list.push({
-      kind: String(row.kind || ''),
-      value: String(row.value || ''),
-      quality: String(row.quality || 'unknown'),
-      do_not_contact: Boolean(row.do_not_contact),
-      s129_delivery_method: row.s129_delivery_method ? String(row.s129_delivery_method) : null,
-    });
-    grouped.set(id, list);
+  for (let offset = 0; offset < ids.length; offset += CONTACT_CHUNK) {
+    const slice = ids.slice(offset, offset + CONTACT_CHUNK);
+    let from = 0;
+    for (let page = 0; page < 40; page += 1) {
+      const result = await supabase
+        .from('recover_contact_points')
+        .select('id, debtor_id, kind, value, quality, do_not_contact, s129_delivery_method')
+        .eq('company_id', companyId)
+        .in('debtor_id', slice)
+        .order('id', { ascending: true })
+        .range(from, from + CONTACT_PAGE - 1);
+      const pending = readFeatureResult(result.error, 'accounts');
+      if (!pending.ready) return 'pending' as const;
+      if (result.error) throw new Error('contacts');
+      const rows = result.data || [];
+      for (const row of rows) {
+        const id = String(row.debtor_id || '');
+        const list = grouped.get(id) || [];
+        list.push({
+          kind: String(row.kind || ''),
+          value: String(row.value || ''),
+          quality: String(row.quality || 'unknown'),
+          do_not_contact: Boolean(row.do_not_contact),
+          s129_delivery_method: row.s129_delivery_method ? String(row.s129_delivery_method) : null,
+        });
+        grouped.set(id, list);
+      }
+      if (rows.length < CONTACT_PAGE) break;
+      if (page === 39) throw new Error('contacts');
+      from += CONTACT_PAGE;
+    }
   }
   return grouped;
 }

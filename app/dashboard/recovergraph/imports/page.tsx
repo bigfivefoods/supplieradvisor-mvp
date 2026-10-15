@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ImportView, type ImportActionResult, type ImportCommitInput } from '@/components/recovery/book-views';
+import { ImportView, ROLLBACK_REFUSAL, type ImportActionResult, type ImportCommitInput } from '@/components/recovery/book-views';
 import { useLiveBatches } from '@/components/recovery/live-book';
 import { useRecoverDesk } from '@/components/recovery/useRecoverDesk';
 import { capabilitiesFor } from '@/lib/recovery/roles';
@@ -26,7 +26,7 @@ async function postImport(body: Record<string, unknown>): Promise<ImportActionRe
   } | null;
   if (!response.ok || !payload || payload.error || payload.ok === false) {
     const message = payload?.error
-      || (payload?.code === 'rollback_refused' ? 'That batch can no longer be rolled back.' : '')
+      || (payload?.code === 'rollback_refused' ? ROLLBACK_REFUSAL : '')
       || (payload?.reason === 'migration_pending' ? 'Database setup is still pending.' : '')
       || 'RecoverAdvisor® could not finish that import.';
     return { ok: false, message, errors: payload?.errors, summary: payload?.summary, sha: payload?.sha };

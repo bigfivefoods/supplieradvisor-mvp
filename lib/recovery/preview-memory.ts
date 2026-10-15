@@ -309,6 +309,7 @@ export function harbourDesk(role: RecoverRole, book: MemoryBook): RecoverDeskPay
           allocation_order: ['costs', 'interest', 'fees', 'principal'],
           agreement_reference: row.agreement_reference,
           signed_on: row.signed_on,
+          account_count: book.accounts.filter((account) => account.creditor_id === row.key).length,
         })),
           ...(book.extraMandates || []).map((row) => ({
             id: row.id,
@@ -321,6 +322,7 @@ export function harbourDesk(role: RecoverRole, book: MemoryBook): RecoverDeskPay
             status: row.status,
             commission_model: { kind: 'flat_per_account' as const },
             allocation_order: ['costs', 'interest', 'fees', 'principal'] as AllocationLabel[],
+            account_count: book.accounts.filter((account) => account.creditor_id === row.creditor_id).length,
           })),
         ] as RecoverDeskPayload['mandates']),
     staff: agent

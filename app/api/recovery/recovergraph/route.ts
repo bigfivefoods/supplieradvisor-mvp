@@ -134,7 +134,15 @@ export async function POST(request: NextRequest) {
           if (!visible.ready) return json({ ready: false, reason: 'migration_pending' }, 409);
           if (!(visible.rows as unknown[]).length) return json({ error: 'That account is not on your book.' }, 403);
         }
-        await commitBook(member.member.companyId, gate.userId, extra.value);
+        const noteActor =
+          extra.value.op === 'account.add_note' &&
+          role === 'agent' &&
+          load.self &&
+          !load.self.user_id &&
+          load.self.email.trim()
+            ? load.self.email.trim()
+            : gate.userId;
+        await commitBook(member.member.companyId, noteActor, extra.value);
       } else if (extra.value.op === 'workspace.set_assignment_block') {
         if (!caps.canEditSettings) return denied();
         await setAssignmentBlock({

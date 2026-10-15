@@ -56,6 +56,9 @@ export type ImportActionResult = {
   sha?: string;
 };
 
+export const ROLLBACK_REFUSAL =
+  'This batch can only be rolled back while no account from the batch has been worked (noted, assigned, flagged, adjusted, merged).';
+
 const MAP_FIELDS: { key: string; label: string }[] = [
   { key: 'creditor_account_ref', label: 'Account reference' },
   { key: 'display_name', label: 'Debtor name' },
@@ -143,6 +146,26 @@ function mandateText(account: MemoryAccount) {
   if (!account.product_type) return 'Not recorded';
   if (account.product_type.includes('·')) return account.product_type;
   return PRODUCT_LABEL[account.product_type] || account.product_type;
+}
+
+function statusLabel(status: string) {
+  const known: Record<string, string> = {
+    active: 'Active',
+    draft: 'Draft',
+    ended: 'Ended',
+    suspended: 'Suspended',
+    archived: 'Archived',
+  };
+  return known[status] || status.replaceAll('_', ' ');
+}
+
+function StatusChip({ status }: { status: string }) {
+  const live = status === 'active';
+  return (
+    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${live ? 'bg-[#00b4d8] text-[#0f172a]' : 'bg-white text-[#0f172a] ring-1 ring-[#00b4d8]'}`}>
+      {statusLabel(status)}
+    </span>
+  );
 }
 
 function StateChip({ state }: { state: string }) {
@@ -566,17 +589,55 @@ export function AccountView({
         <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]" data-role={role}>
           <div className="min-w-0 space-y-4">
             <section className="rounded-3xl bg-[#00b4d8] p-5 text-[#0f172a]">
-              <p className="text-xs font-bold uppercase tracking-[0.16em]">RecoverAdvisor®</p>
-              <h2 className="mt-1 text-2xl font-black tracking-tight">{account.ref}</h2>
-              <p className="mt-2 text-3xl font-black tabular-nums">{formatRecoverMoney(account.balance_cents)}</p>
-              <p className="mt-1 text-sm">Placed balance. Payments are not recorded yet.</p>
+              <p className="text-xs font-bold uppercase tracking-[0.16em]">Placed balance</p>
+              <p className="mt-1 text-3xl font-black tabular-nums">{formatRecoverMoney(account.balance_cents)}</p>
+              <p className="mt-1 text-sm">Payments are not recorded yet.</p>
               <div className="mt-3"><StateChip state={account.state} /></div>
-              <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
-                <div><dt className="text-xs font-bold uppercase tracking-wide">Creditor</dt><dd className="font-semibold">{account.creditor_name || 'Not recorded'}</dd></div>
-                <div><dt className="text-xs font-bold uppercase tracking-wide">Mandate</dt><dd className="font-semibold">{mandateText(account)}</dd></div>
-                <div><dt className="text-xs font-bold uppercase tracking-wide">Assigned</dt><dd className="font-semibold">{account.assignee_name || 'Unassigned'}</dd></div>
-                <div><dt className="text-xs font-bold uppercase tracking-wide">Debtor</dt><dd className="font-semibold">{account.debtor_name}</dd></div>
-              </dl>
+            </section>
+            <section className={`${recoverCard} p-4`}>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Debtor</p>
+              <p className="font-black">{account.debtor_name}</p>
+              <p className="text-sm text-slate-700" data-testid={idText ? 'recover-revealed-id' : undefined}>{idText || account.id_masked}</p>
+              {caps.canRevealId ? (
+                <button type="button" className={`${recoverBtn} mt-3`} data-testid="recover-reveal" onClick={() => setReveal(true)}>
+                  Reveal ID
+                </button>
+              ) : null}
+              {reveal ? (
+                <form
+                  data-testid="recover-reveal-prompt"
+                  className="mt-3 space-y-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const reason = String(new FormData(event.currentTarget).get('reason') || '').trim();
+                    void Promise.resolve(onReveal?.(reason)).then((result) => {
+                      if (result && result.id_number) setShown(result.id_number);
+                    });
+                    setReveal(false);
+                  }}
+                >
+                  <p className="text-xs text-slate-600">This view is logged. Do not put a phone number, email, identity number, or other personal information in this reason.</p>
+                  <input aria-label="Reason" name="reason" className={recoverField} required maxLength={200} />
+                  <button className={recoverBtn} type="submit">Show the ID</button>
+                </form>
+              ) : null}
+              {caps.canSeeContacts ? (
+                <ul className="mt-3 space-y-2">
+                  {account.contacts.length === 0 ? <li className="text-sm text-slate-600">No contact points recorded.</li> : null}
+                  {account.contacts.map((contact) => (
+                    <li key={`${contact.kind}-${contact.value}`} className="rounded-2xl border border-[#e2e8f0] bg-slate-50 px-3 py-2 text-sm">
+                      <span className="font-bold">{contact.kind}</span> {contact.value}
+                      {contact.s129_delivery_method ? <span className="mt-1 block text-xs text-slate-600">Delivery method recorded: {contact.s129_delivery_method.replace('_', ' ')}</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </section>
+            <section className={`${recoverCard} p-4`}>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Mandate</p>
+              <p className="font-black">{account.creditor_name || 'Creditor not recorded'}</p>
+              <p className="text-sm text-slate-700">{mandateText(account)}</p>
+              <p className="mt-1 text-sm text-slate-600">Assigned to {account.assignee_name || 'nobody yet'}</p>
             </section>
             {account.flags.length ? (
               <div data-testid="recover-stop-banner" className="flex gap-3 rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3 text-sm text-[#0f172a]">
@@ -615,44 +676,6 @@ export function AccountView({
                 <Row k="Adjustment" v={account.adjustment_cents} />
               </dl>
             </section>
-            <section className={`${recoverCard} p-4`}>
-              <p className="font-black">{account.debtor_name}</p>
-              <p className="text-sm text-slate-700" data-testid={idText ? 'recover-revealed-id' : undefined}>{idText || account.id_masked}</p>
-              <p className="mt-1 inline-flex rounded-full bg-cyan-50 px-2 py-1 text-xs font-bold text-[#0077b6]">{account.state}</p>
-              {caps.canRevealId ? (
-                <button type="button" className={`${recoverBtn} mt-3 w-full`} data-testid="recover-reveal" onClick={() => setReveal(true)}>
-                  Reveal ID
-                </button>
-              ) : null}
-              {reveal ? (
-                <form
-                  data-testid="recover-reveal-prompt"
-                  className="mt-3 space-y-2"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    const reason = String(new FormData(event.currentTarget).get('reason') || '').trim();
-                    void Promise.resolve(onReveal?.(reason)).then((result) => {
-                      if (result && result.id_number) setShown(result.id_number);
-                    });
-                    setReveal(false);
-                  }}
-                >
-                  <p className="text-xs text-slate-600">This view is logged. Do not put a phone number, email, identity number, or other personal information in this reason.</p>
-                  <input aria-label="Reason" name="reason" className={recoverField} required maxLength={200} />
-                  <button className={recoverBtn} type="submit">Show the ID</button>
-                </form>
-              ) : null}
-            </section>
-            {caps.canSeeContacts ? (
-              <ul className="space-y-2">
-                {account.contacts.map((contact) => (
-                  <li key={`${contact.kind}-${contact.value}`} className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-2 text-sm">
-                    <span className="font-bold">{contact.kind}</span> {contact.value}
-                    {contact.s129_delivery_method ? <span className="mt-1 block text-xs text-slate-600">Delivery method recorded: {contact.s129_delivery_method.replace('_', ' ')}</span> : null}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
             {confirm ? (
               <div data-testid="recover-confirm" className="rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3 text-sm text-[#0f172a]">
                 <p>{confirm}</p>
@@ -736,7 +759,9 @@ export function AccountView({
                   onSubmit={(event) => {
                     event.preventDefault();
                     if (randsToCents(rands) == null || !adjustReason.trim()) return;
-                    setConfirm('This replaces the current adjustment. It is not added on top. RecoverAdvisor® refuses the change if the balance would go below zero.');
+                    const cents = randsToCents(rands);
+                    if (cents == null) return;
+                    setConfirm(`Set the adjustment to ${formatRecoverMoney(cents)}. This replaces the current adjustment. It is not added on top. RecoverAdvisor® refuses the change if the balance would go below zero.`);
                   }}
                 >
                   <label className="block text-xs font-bold">Replacement amount in rands
@@ -822,12 +847,33 @@ export function ImportView({
   const [creditorId, setCreditorId] = useState(demoPick ? creditorChoices[0]?.id || '' : '');
   const [mandateId, setMandateId] = useState(demoPick ? mandateChoices[0]?.id || '' : '');
   const [headers, setHeaders] = useState<string[]>([]);
+  const [sampleByHeader, setSampleByHeader] = useState<Record<string, string>>({});
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [drySha, setDrySha] = useState('');
   const [actionMessage, setActionMessage] = useState('');
   const [commitMessage, setCommitMessage] = useState('');
   const mandatesForCreditor = mandateChoices.filter((row) => row.creditor_id === creditorId);
   const message = actionMessage || notice;
+
+  function readCsvFile(file: File | undefined) {
+    if (!file) return;
+    if (/\.xlsx?$/i.test(file.name)) {
+      setActionMessage('Excel (.xlsx) is launching soon. Paste a CSV for now.');
+      return;
+    }
+    void file.text().then((value) => {
+      setText(value);
+      setDry(false);
+      setDrySha('');
+    });
+  }
+
+  function chooseCreditor(next: string) {
+    setCreditorId(next);
+    const match = mandateChoices.find((row) => row.creditor_id === next);
+    setMandateId(match?.id || '');
+    setDry(false);
+  }
 
   async function remember(result: ImportActionResult | void) {
     if (result?.message) setActionMessage(result.message);
@@ -841,52 +887,89 @@ export function ImportView({
       {phase === 'pending' ? <PendingFeature /> : null}
       {phase === 'error' ? <RecoverBanner testId="recover-banner-error" tone="error">Imports could not be opened.</RecoverBanner> : null}
       {phase === 'ready' ? (
-        <div data-testid="recover-import-wizard" className="space-y-4">
-          <ol className="flex flex-wrap gap-2 text-xs font-bold">
-            {['Creditor and mandate', 'File', 'Map columns', 'Dry run', 'Commit'].map((label, index) => (
-              <li key={label} className={`rounded-full px-3 py-2 ${step === index + 1 ? 'bg-[#00b4d8] text-[#0f172a]' : 'bg-white text-slate-700 ring-1 ring-slate-200'}`}>{index + 1} {label}</li>
-            ))}
+        <div data-testid="recover-import-wizard" className="min-w-0 space-y-4">
+          <ol className="grid grid-cols-2 gap-2 sm:grid-cols-5" aria-label="Import steps">
+            {['Creditor and mandate', 'File', 'Map columns', 'Dry run', 'Commit'].map((label, index) => {
+              const current = step === index + 1;
+              const done = step > index + 1;
+              return (
+                <li key={label} className={`min-w-0 rounded-2xl border px-3 py-2 ${current ? 'border-[#00b4d8] bg-cyan-50' : 'border-[#e2e8f0] bg-white'}`}>
+                  <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-black ${current || done ? 'bg-[#00b4d8] text-[#0f172a]' : 'bg-slate-100 text-slate-600'}`}>{index + 1}</span>
+                  <span className="mt-1 block text-xs font-bold text-[#0f172a]">{label}</span>
+                </li>
+              );
+            })}
           </ol>
           {step === 1 ? (
-            <div className="space-y-2">
+            <div className="space-y-4">
               {creditorChoices.length === 0 ? (
                 <p className="text-sm">Add a creditor and an active mandate before placing a book.</p>
               ) : null}
-              <label className="block text-xs font-bold">Creditor
-                <select
-                  aria-label="Creditor"
-                  className={recoverField}
-                  value={creditorId}
-                  onChange={(event) => {
-                    const next = event.target.value;
-                    setCreditorId(next);
-                    const match = mandateChoices.find((row) => row.creditor_id === next);
-                    setMandateId(match?.id || '');
-                    setDry(false);
-                  }}
-                >
-                  <option value="">Choose a creditor</option>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Creditor</p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   {creditorChoices.map((row) => (
-                    <option key={row.id} value={row.id}>{row.name}</option>
+                    <button
+                      key={row.id}
+                      type="button"
+                      aria-pressed={creditorId === row.id}
+                      className={`${recoverCard} p-4 text-left ${creditorId === row.id ? 'ring-2 ring-[#00b4d8]' : ''}`}
+                      onClick={() => chooseCreditor(row.id)}
+                    >
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Creditor</span>
+                      <span className="mt-1 block font-black text-[#0f172a]">{row.name}</span>
+                    </button>
                   ))}
-                </select>
-              </label>
-              <label className="block text-xs font-bold">Active mandate
-                <select aria-label="Mandate" className={recoverField} value={mandateId} onChange={(event) => { setMandateId(event.target.value); setDry(false); }}>
-                  <option value="">Choose a mandate</option>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Active mandate</p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   {mandatesForCreditor.map((row) => (
-                    <option key={row.id} value={row.id}>{mandateOptionLabel(row)}</option>
+                    <button
+                      key={row.id}
+                      type="button"
+                      aria-pressed={mandateId === row.id}
+                      className={`${recoverCard} p-4 text-left ${mandateId === row.id ? 'ring-2 ring-[#00b4d8]' : ''}`}
+                      onClick={() => { setMandateId(row.id); setDry(false); }}
+                    >
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Mandate</span>
+                      <span className="mt-1 block font-black text-[#0f172a]">{mandateOptionLabel(row)}</span>
+                    </button>
                   ))}
-                </select>
-              </label>
+                </div>
+              </div>
               <button type="button" className={recoverBtn} disabled={!creditorId || !mandateId} onClick={() => setStep(2)}>Continue</button>
             </div>
           ) : null}
           {step === 2 ? (
-            <div className="space-y-2">
-              <p className="rounded-full bg-cyan-50 px-3 py-2 text-xs font-bold text-[#0f172a]" data-testid="recover-xlsx-chip">Excel (.xlsx): launching soon</p>
-              <textarea data-testid="recover-csv" className={recoverField} rows={5} value={text} onChange={(event) => { setText(event.target.value); setDry(false); setDrySha(''); }} placeholder="Paste a CSV" />
-              <p className="text-xs text-slate-600">UTF-8 CSV up to 2 MiB and 2,000 rows.</p>
+            <div className="space-y-3">
+              <label
+                className="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-[#00b4d8] bg-cyan-50/60 px-4 py-6 text-center"
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  readCsvFile(event.dataTransfer.files?.[0]);
+                }}
+              >
+                <Upload className="h-6 w-6 text-[#0f172a]" aria-hidden />
+                <span className="mt-2 text-sm font-black text-[#0f172a]">Drop a CSV here, or choose a file</span>
+                <span className="mt-1 text-xs text-slate-600">UTF-8 CSV up to 2 MiB and 2,000 rows.</span>
+                <span className="mt-3 inline-flex rounded-full bg-white px-3 py-1 text-xs font-bold text-[#0f172a] ring-1 ring-[#00b4d8]" data-testid="recover-xlsx-chip">Excel (.xlsx): launching soon</span>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="sr-only"
+                  aria-label="CSV file"
+                  onChange={(event) => {
+                    readCsvFile(event.target.files?.[0]);
+                    event.target.value = '';
+                  }}
+                />
+              </label>
+              <label className="block text-xs font-bold">Or paste the CSV
+                <textarea data-testid="recover-csv" className={recoverField} rows={5} value={text} onChange={(event) => { setText(event.target.value); setDry(false); setDrySha(''); }} placeholder="account number, debtor name, principal" />
+              </label>
               <button
                 type="button"
                 className={recoverBtn}
@@ -898,6 +981,12 @@ export function ImportView({
                     setActionMessage('That file could not be read.');
                     return;
                   }
+                  const first = parsed.rows[0] || [];
+                  const sample: Record<string, string> = {};
+                  parsed.headers.forEach((header, index) => {
+                    sample[header] = String(first[index] || '').slice(0, 80);
+                  });
+                  setSampleByHeader(sample);
                   setHeaders(parsed.headers);
                   setMapping(suggestMapping(parsed.headers));
                   setIssues([]);
@@ -911,31 +1000,51 @@ export function ImportView({
             </div>
           ) : null}
           {step === 3 ? (
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-3">
               <p className="text-sm">Match each column. Required: account reference, debtor name, principal.</p>
-              {MAP_FIELDS.map((field) => (
-                <label key={field.key} className="block text-xs font-bold">{field.label}
-                  <select
-                    aria-label={field.label}
-                    className={recoverField}
-                    value={mapping[field.key] || ''}
-                    onChange={(event) => {
-                      setMapping((current) => ({ ...current, [field.key]: event.target.value }));
-                      setDry(false);
-                    }}
-                  >
-                    <option value="">Not mapped</option>
-                    {headers.map((header) => (
-                      <option key={`${field.key}-${header}`} value={header}>{header}</option>
-                    ))}
-                  </select>
-                </label>
-              ))}
+              <div className="max-w-full overflow-x-auto rounded-2xl border border-[#e2e8f0] bg-white">
+                <table className="w-full table-fixed text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2 font-bold">Field</th>
+                      <th className="px-3 py-2 font-bold">Column</th>
+                      <th className="px-3 py-2 font-bold">Sample</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {MAP_FIELDS.map((field) => {
+                      const header = mapping[field.key] || '';
+                      return (
+                        <tr key={field.key} className="border-t border-[#e2e8f0]">
+                          <td className="px-3 py-2 font-bold text-[#0f172a]">{field.label}</td>
+                          <td className="px-3 py-2">
+                            <select
+                              aria-label={field.label}
+                              className={recoverField}
+                              value={header}
+                              onChange={(event) => {
+                                setMapping((current) => ({ ...current, [field.key]: event.target.value }));
+                                setDry(false);
+                              }}
+                            >
+                              <option value="">Not mapped</option>
+                              {headers.map((column) => (
+                                <option key={`${field.key}-${column}`} value={column}>{column}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-3 py-2 text-slate-700">{header ? sampleByHeader[header] || '—' : '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
               <button type="button" className={recoverBtn} onClick={() => setStep(4)}>Continue</button>
             </div>
           ) : null}
           {step === 4 ? (
-            <div className="space-y-2" data-testid="recover-dry-run">
+            <div className="space-y-3" data-testid="recover-dry-run">
               <p className="text-sm">Dry run checks this file and shows what would be placed. Commit sends the same file again. RecoverAdvisor® checks the hash and validates the rows again. It does not keep a separate dry-run session.</p>
               <p className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-2 text-sm text-[#0f172a]" data-testid="recover-import-summary">
                 {creditorChoices.find((row) => row.id === creditorId)?.name || 'Creditor'} · {mandateOptionLabel(mandatesForCreditor.find((row) => row.id === mandateId) || {})}
@@ -972,18 +1081,32 @@ export function ImportView({
                 Run dry run
               </button>
               {summary ? (
-                <div data-testid="recover-dry-errors" className="rounded-2xl border border-[#e2e8f0] bg-white p-3 text-sm">
-                  <p>{summary.will_create} to place. {summary.errors} errors. {summary.warnings} warnings. {summary.already_placed} already placed.</p>
-                  <ul className="mt-2 space-y-1">
+                <div data-testid="recover-dry-errors" className="space-y-3">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Ok</p>
+                      <p className="mt-1 text-2xl font-black tabular-nums text-[#0f172a]">{summary.will_create}</p>
+                    </div>
+                    <div className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Errors</p>
+                      <p className="mt-1 text-2xl font-black tabular-nums text-[#0f172a]">{summary.errors}</p>
+                    </div>
+                    <div className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Duplicates</p>
+                      <p className="mt-1 text-2xl font-black tabular-nums text-[#0f172a]">{summary.already_placed}</p>
+                    </div>
+                  </div>
+                  {summary.warnings ? <p className="text-sm text-slate-600">{summary.warnings} warnings.</p> : null}
+                  <ul className="space-y-1 text-sm">
                     {issues.map((issue) => (
-                      <li key={`${issue.row}-${issue.field}-${issue.code}`}>Row {issue.row} · {issue.field} · {issueLabel(issue.code)}</li>
+                      <li key={`${issue.row}-${issue.field}-${issue.code}`} className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-2">Row {issue.row} · {issue.field} · {issueLabel(issue.code)}</li>
                     ))}
                   </ul>
                 </div>
               ) : null}
               <button
                 type="button"
-                className={recoverBtn}
+                className={`${recoverBtn} w-full sm:w-auto`}
                 disabled={!dry || !drySha || !creditorId || !mandateId}
                 data-testid="recover-commit"
                 onClick={() => {
@@ -1002,12 +1125,12 @@ export function ImportView({
                       setActionMessage(result.message);
                       return;
                     }
-                    setCommitMessage(result?.message || 'Placed from this dry run.');
+                    setCommitMessage(result?.message || 'The book was placed.');
                     setStep(5);
                   });
                 }}
               >
-                Commit
+                Commit the book
               </button>
             </div>
           ) : null}
@@ -1179,16 +1302,41 @@ export function MandateBookView({
         <RecoverEmpty testId="recover-mandates-empty" icon={ShieldCheck} title="No mandates yet" body="A mandate records the authority to collect." action={<button type="button" className={recoverBtn} onClick={() => setOpen(true)}>Add a mandate</button>} />
       ) : null}
       {phase === 'ready' && mandates.length > 0 ? (
-        <div className="grid gap-3">
-          {mandates.map((row) => (
-            <article key={row.id} className={`${recoverCard} p-4`}>
-              <h2 className="font-black">{row.creditor_name}</h2>
-              <p className="text-sm">{PRODUCT_LABEL[row.product_type] || 'Other'} · {row.status}</p>
-              {row.nca_regulated ? <p className="mt-2 text-sm text-slate-700">Accounts under this mandate will follow the credit-agreement notice steps when the workflow arrives; RecoverAdvisor® does not apply them yet.</p> : null}
-              <p className="mt-2 text-sm text-slate-700">Commission is recorded for later; no fee is calculated or charged by RecoverAdvisor® yet.</p>
-              <p className="mt-2 text-xs text-slate-600">Allocation order ⚖ VERIFY. The agreement document itself is not stored yet.</p>
-            </article>
-          ))}
+        <div className="grid gap-3 sm:grid-cols-2">
+          {mandates.map((row) => {
+            const accounts = row.account_count ?? 0;
+            return (
+              <article key={row.id} className={`${recoverCard} p-4`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Creditor</p>
+                    <h2 className="truncate font-black text-[#0f172a]">{row.creditor_name}</h2>
+                  </div>
+                  <StatusChip status={row.status} />
+                </div>
+                <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Product</dt>
+                    <dd className="font-semibold text-[#0f172a]">{PRODUCT_LABEL[row.product_type] || 'Other'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Agreement</dt>
+                    <dd className="truncate font-semibold text-[#0f172a]">{row.agreement_reference?.trim() || 'Not recorded'}</dd>
+                  </div>
+                  <div className="col-span-2">
+                    <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Accounts</dt>
+                    <dd className="font-semibold text-[#0f172a]">{counted(accounts, 'account', 'accounts')}</dd>
+                  </div>
+                </dl>
+                {accounts > 0 ? (
+                  <p className="mt-3 text-xs text-slate-600">This mandate has accounts, so the creditor, product, and credit-agreement setting stay as they are.</p>
+                ) : null}
+                {row.nca_regulated ? <p className="mt-2 text-sm text-slate-700">Accounts under this mandate will follow the credit-agreement notice steps when the workflow arrives; RecoverAdvisor® does not apply them yet.</p> : null}
+                <p className="mt-2 text-sm text-slate-700">Commission is recorded for later; no fee is calculated or charged by RecoverAdvisor® yet.</p>
+                <p className="mt-2 text-xs text-slate-600">Allocation order ⚖ VERIFY. The agreement document itself is not stored yet.</p>
+              </article>
+            );
+          })}
           <button type="button" className={recoverBtn} data-testid="recover-mandate-add" onClick={() => setOpen(true)}>Add a mandate</button>
         </div>
       ) : null}
@@ -1273,7 +1421,7 @@ function BatchList({ batches, onRollback }: { batches: MemoryBatch[]; onRollback
           <button type="button" className={`${recoverGhost} mt-2 whitespace-nowrap`} data-testid={batch.file_name === 'upload.csv' ? 'recover-rollback-upload' : `recover-rollback-${batch.id}`} onClick={() => setPending(batch.id)}>Rollback</button>
           {pending === batch.id ? (
             <div data-testid="recover-confirm" className="mt-3 rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3 text-sm text-[#0f172a]">
-              <p>Rollback removes only the untouched accounts from this batch. Accounts that were noted, assigned, flagged, or merged stay on the book.</p>
+              <p>{ROLLBACK_REFUSAL}</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <button type="button" className={`${recoverBtn} whitespace-nowrap`} onClick={() => { setPending(null); onRollback?.(batch.id); }}>Confirm</button>
                 <button type="button" className={recoverGhost} onClick={() => setPending(null)}>Cancel</button>

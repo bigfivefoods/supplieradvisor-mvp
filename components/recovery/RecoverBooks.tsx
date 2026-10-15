@@ -269,32 +269,43 @@ export function RecoverMandates() {
 function MandateTable({ rows }: { rows: RecoverMandate[] }) {
   return (
     <div data-testid="recover-mandates-list" className="grid gap-3 sm:grid-cols-2">
-      {rows.map((row) => (
-        <article key={row.id} className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm">
-          <div className="border-b border-[#e2e8f0] bg-gradient-to-r from-cyan-50 to-white px-4 py-3">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Mandate</p>
-            <h2 className="mt-0.5 text-base font-black text-slate-900">{row.creditor_name || 'Creditor'}</h2>
-          </div>
-          <dl className="grid grid-cols-2">
-            <div className="border-t border-[#e2e8f0] px-4 py-3">
-              <dt className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Product</dt>
-              <dd className="mt-1 text-sm font-semibold text-slate-900">
-                {PRODUCTS[row.product_type] || row.product_type}
-              </dd>
+      {rows.map((row) => {
+        const accounts = row.account_count ?? 0;
+        const live = row.status === 'active';
+        const label = row.status === 'active' ? 'Active' : row.status === 'draft' ? 'Draft' : row.status.replaceAll('_', ' ');
+        return (
+          <article key={row.id} className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm">
+            <div className="flex items-start justify-between gap-3 border-b border-[#e2e8f0] bg-gradient-to-r from-cyan-50 to-white px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Creditor</p>
+                <h2 className="mt-0.5 truncate text-base font-black text-slate-900">{row.creditor_name || 'Creditor'}</h2>
+              </div>
+              <span className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-xs font-bold text-[#0f172a] ${live ? 'bg-[#00b4d8]' : 'bg-white ring-1 ring-[#00b4d8]'}`}>
+                {label}
+              </span>
             </div>
-            <div className="border-t border-[#e2e8f0] px-4 py-3">
-              <dt className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Programme</dt>
-              <dd className="mt-1 text-sm font-semibold text-slate-900">Collections</dd>
-            </div>
-          </dl>
-          <div className="flex items-center justify-between border-t border-[#e2e8f0] px-4 py-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-600">Status</span>
-            <span className="inline-flex rounded-full bg-[#00b4d8] px-2.5 py-1 text-xs font-bold text-[#0f172a]">
-              {row.status}
-            </span>
-          </div>
-        </article>
-      ))}
+            <dl className="grid grid-cols-2">
+              <div className="border-t border-[#e2e8f0] px-4 py-3">
+                <dt className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Product</dt>
+                <dd className="mt-1 text-sm font-semibold text-slate-900">
+                  {PRODUCTS[row.product_type] || row.product_type}
+                </dd>
+              </div>
+              <div className="border-t border-[#e2e8f0] px-4 py-3">
+                <dt className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Agreement</dt>
+                <dd className="mt-1 truncate text-sm font-semibold text-slate-900">{row.agreement_reference?.trim() || 'Not recorded'}</dd>
+              </div>
+              <div className="col-span-2 border-t border-[#e2e8f0] px-4 py-3">
+                <dt className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Accounts</dt>
+                <dd className="mt-1 text-sm font-semibold text-slate-900">{accounts} {accounts === 1 ? 'account' : 'accounts'}</dd>
+              </div>
+            </dl>
+            {accounts > 0 ? (
+              <p className="border-t border-[#e2e8f0] px-4 py-3 text-xs text-slate-600">This mandate has accounts, so the creditor, product, and credit-agreement setting stay as they are.</p>
+            ) : null}
+          </article>
+        );
+      })}
     </div>
   );
 }

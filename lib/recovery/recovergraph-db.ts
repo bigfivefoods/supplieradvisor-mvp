@@ -115,6 +115,19 @@ function asCreditor(row: Record<string, unknown>): RecoverCreditor {
   };
 }
 
+async function countAccountsByMandate(companyId: number): Promise<Map<string, number> | null> {
+  const supabase = getSupabaseServer();
+  const placed = await supabase.from('recover_accounts').select('mandate_id').eq('company_id', companyId).limit(2000);
+  if (placed.error) return null;
+  const counts = new Map<string, number>();
+  for (const row of (placed.data || []) as { mandate_id?: string | null }[]) {
+    const id = String(row.mandate_id || '');
+    if (!id) continue;
+    counts.set(id, (counts.get(id) || 0) + 1);
+  }
+  return counts;
+}
+
 export async function loadRecoverDesk(
   companyId: number,
   actor: { userId: string; email: string | null }
@@ -193,6 +206,7 @@ export async function loadRecoverDesk(
 
   const creditorRows = ((creditors.data || []) as Record<string, unknown>[]).map(asCreditor);
   const names = new Map(creditorRows.map((row) => [row.id, row.name]));
+  const mandateCounts = await countAccountsByMandate(companyId);
   const mandateRows: RecoverMandate[] = ((mandates.data || []) as Record<string, unknown>[]).map(
     (row) => ({
       id: String(row.id),
@@ -204,6 +218,7 @@ export async function loadRecoverDesk(
       processing_role: (row.processing_role || 'operator') as ProcessingRole,
       status: String(row.status || 'draft'),
       agreement_reference: row.agreement_reference ? String(row.agreement_reference) : '',
+      account_count: mandateCounts ? mandateCounts.get(String(row.id)) || 0 : undefined,
     })
   );
 

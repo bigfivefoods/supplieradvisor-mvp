@@ -52,20 +52,27 @@ function cfdcDue(workspace: RecoverWorkspace | null) {
   return workspace.cfdc_expiry < todayIso();
 }
 
-function deskDescription(role: RecoverRole): string {
+function deskDescription(role: RecoverRole, placed: number): string {
   if (role === 'agent') {
     return 'Your queue is the only work on this desk. Accounts show up here after a creditor book is placed.';
   }
   if (role === 'finance') {
-    return 'Finance sees trust and remittance. The books themselves are not loaded in this version.';
+    return placed > 0
+      ? 'Finance sees trust and remittance. Recovered and trust figures stay blank until those books exist.'
+      : 'Finance sees trust and remittance. Recovered and trust figures stay blank until a book is placed.';
   }
   if (role === 'compliance') {
     return 'Compliance watches the operator profile and the Council registration. Collection work is not open yet.';
   }
   if (role === 'viewer') {
-    return 'This is a read-only look at the collections desk. Nothing has been placed yet.';
+    return placed > 0
+      ? 'This is a read-only look at the collections desk.'
+      : 'This is a read-only look at the collections desk. Nothing has been placed yet.';
   }
-  return 'Collections workspace. Set the operator, the team, and the first creditor book. Accounts are not loaded in this version.';
+  if (placed > 0) {
+    return `${placed} accounts are on the book. Open accounts, the team, or a new import.`;
+  }
+  return 'Collections workspace. Set the operator, the team, and the first creditor book.';
 }
 
 export function RecoverCommand() {
@@ -74,7 +81,7 @@ export function RecoverCommand() {
     <RecoverScreen
       testId="recover-command"
       title={RECOVER_PRODUCT_NAME}
-      description={desk ? deskDescription(desk.role) : 'Opening the collections desk.'}
+      description={desk ? deskDescription(desk.role, desk.book?.placedCount ?? 0) : 'Opening the collections desk.'}
       action={desk ? <RecoverRoleChip role={desk.role} /> : null}
     >
       {error ? <RecoverBanner testId="recover-banner-error" tone="error">{error}</RecoverBanner> : null}

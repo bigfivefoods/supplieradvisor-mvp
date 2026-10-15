@@ -1224,7 +1224,10 @@ BEGIN
     SELECT s.id, s.team_id INTO v_staff, v_team
     FROM public.recover_staff s
     WHERE s.company_id = p_company_id
-      AND s.user_id = p_actor_id
+      AND (
+        s.user_id = p_actor_id
+        OR lower(s.email) = lower(pg_catalog.btrim(p_actor_id))
+      )
       AND s.status = 'active'
       AND s.role = 'collector'
     ORDER BY s.created_at
@@ -2116,6 +2119,171 @@ BEGIN
     pg_catalog.jsonb_build_object('company_id', p_company_id)
   );
 END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Duplicate debtors. Scans every active debtor and every contact for the
+-- company. The result list is capped; the scan is not.
+-- ---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.recover_fold_phone(p_value text)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+SET search_path = ''
+AS $$
+  SELECT CASE
+    WHEN digits ~ '^27[0-9]{9}$' THEN '+27' || pg_catalog.substr(digits, 3)
+    WHEN digits ~ '^0[0-9]{9}$' THEN '+27' || pg_catalog.substr(digits, 2)
+    ELSE NULL
+  END
+  FROM (
+    SELECT CASE
+      WHEN compact LIKE '+%' THEN pg_catalog.substr(compact, 2)
+      ELSE compact
+    END AS digits
+    FROM (
+      SELECT pg_catalog.regexp_replace(
+        pg_catalog.btrim(COALESCE(p_value, '')),
+        '[[:space:]().-]',
+        '',
+        'g'
+      ) AS compact
+    ) raw
+  ) folded
+  WHERE digits ~ '^[0-9]+$';
+$$;
+
+CREATE OR REPLACE FUNCTION public.recover_fold_email(p_value text)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+SET search_path = ''
+AS $$
+  SELECT CASE
+    WHEN email ~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$'
+      AND pg_catalog.char_length(email) <= 320 THEN email
+    ELSE NULL
+  END
+  FROM (SELECT lower(pg_catalog.btrim(COALESCE(p_value, ''))) AS email) s;
+$$;
+
+CREATE OR REPLACE FUNCTION public.recover_fold_name(p_value text)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+SET search_path = ''
+AS $$
+  SELECT pg_catalog.btrim(
+    pg_catalog.regexp_replace(
+      pg_catalog.regexp_replace(lower(pg_catalog.btrim(COALESCE(p_value, ''))), '[^a-z0-9]+', ' ', 'g'),
+      '[[:space:]]+',
+      ' ',
+      'g'
+    )
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.recover_list_duplicate_debtors(p_company_id bigint)
+RETURNS TABLE (
+  match text,
+  left_id uuid,
+  left_name text,
+  left_last4 text,
+  right_id uuid,
+  right_name text,
+  right_last4 text
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  WITH active AS (
+    SELECT
+      d.id,
+      d.display_name,
+      d.id_last4,
+      NULLIF(pg_catalog.btrim(d.id_hash), '') AS id_hash,
+      public.recover_fold_name(d.display_name) AS name_key
+    FROM public.recover_debtors d
+    WHERE p_company_id IS NOT NULL
+      AND p_company_id > 0
+      AND d.company_id = p_company_id
+      AND d.status = 'active'
+  ),
+  phones AS (
+    SELECT raw.debtor_id, raw.folded
+    FROM (
+      SELECT c.debtor_id, public.recover_fold_phone(c.value) AS folded
+      FROM public.recover_contact_points c
+      WHERE c.company_id = p_company_id
+        AND c.kind IN ('phone', 'whatsapp')
+    ) raw
+    JOIN active a ON a.id = raw.debtor_id
+    WHERE raw.folded IS NOT NULL
+  ),
+  emails AS (
+    SELECT raw.debtor_id, raw.folded
+    FROM (
+      SELECT c.debtor_id, public.recover_fold_email(c.value) AS folded
+      FROM public.recover_contact_points c
+      WHERE c.company_id = p_company_id
+        AND c.kind = 'email'
+    ) raw
+    JOIN active a ON a.id = raw.debtor_id
+    WHERE raw.folded IS NOT NULL
+  ),
+  identity_pairs AS (
+    SELECT
+      'identity'::text AS match,
+      a.id AS left_id,
+      a.display_name AS left_name,
+      a.id_last4 AS left_last4,
+      b.id AS right_id,
+      b.display_name AS right_name,
+      b.id_last4 AS right_last4
+    FROM active a
+    JOIN active b
+      ON a.id < b.id
+     AND a.id_hash IS NOT NULL
+     AND a.id_hash = b.id_hash
+  ),
+  contact_pairs AS (
+    SELECT
+      'contact'::text AS match,
+      a.id AS left_id,
+      a.display_name AS left_name,
+      a.id_last4 AS left_last4,
+      b.id AS right_id,
+      b.display_name AS right_name,
+      b.id_last4 AS right_last4
+    FROM active a
+    JOIN active b
+      ON a.id < b.id
+     AND a.name_key <> ''
+     AND a.name_key = b.name_key
+     AND NOT (a.id_hash IS NOT NULL AND a.id_hash = b.id_hash)
+    WHERE EXISTS (
+      SELECT 1
+      FROM phones pa
+      JOIN phones pb ON pa.folded = pb.folded
+      WHERE pa.debtor_id = a.id AND pb.debtor_id = b.id
+    ) OR EXISTS (
+      SELECT 1
+      FROM emails ea
+      JOIN emails eb ON ea.folded = eb.folded
+      WHERE ea.debtor_id = a.id AND eb.debtor_id = b.id
+    )
+  )
+  SELECT pairs.match, pairs.left_id, pairs.left_name, pairs.left_last4, pairs.right_id, pairs.right_name, pairs.right_last4
+  FROM (
+    SELECT * FROM identity_pairs
+    UNION
+    SELECT * FROM contact_pairs
+  ) pairs
+  ORDER BY CASE WHEN pairs.match = 'identity' THEN 0 ELSE 1 END, pairs.left_id, pairs.right_id
+  LIMIT 20;
 $$;
 
 -- ---------------------------------------------------------------------------

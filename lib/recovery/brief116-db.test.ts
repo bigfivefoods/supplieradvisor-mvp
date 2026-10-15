@@ -745,6 +745,96 @@ async function main() {
     '0'
   );
 
+  psql(`SELECT public.recover_desk_commit(1, 'owner', 'upsert_staff', 's', '{"email":"mailonly@book.example","role":"collector","cfdc_registration_no":"DEMO-9"}'::jsonb);`);
+  psql(`UPDATE public.recover_staff SET user_id = NULL WHERE company_id = 1 AND email = 'mailonly@book.example';`);
+  const mailOnly = psql(`SELECT id FROM public.recover_staff WHERE company_id = 1 AND email = 'mailonly@book.example' AND user_id IS NULL;`);
+  assert.ok(mailOnly);
+  const solo = JSON.parse(psql(`
+    SELECT public.recover_import_commit(1, 'owner', jsonb_build_object(
+      'creditor_id','${creditor.id}','mandate_id','${mandate.id}','source','csv','file_name','solo.csv',
+      'file_sha256','${sha('6')}','is_demo', false
+    ), jsonb_build_array(
+      jsonb_build_object('creditor_account_ref','SOLO-1','display_name','Solo Person','principal_cents',4,'original_cents',4)
+    ));
+  `)) as { code: string };
+  assert.equal(solo.code, 'imported');
+  const soloId = psql(`SELECT id FROM public.recover_accounts WHERE creditor_account_ref = 'SOLO-1';`);
+  psql(`SELECT public.recover_book_commit(1, 'owner', 'account.assign', 't', jsonb_build_object('id','${soloId}','staff_id','${mailOnly}'));`);
+  psql(`SELECT public.recover_book_commit(1, 'MailOnly@book.example', 'account.add_note', 't', jsonb_build_object('id','${soloId}','note_text','Email only'));`);
+  assert.equal(
+    psql(`SELECT count(*) FROM public.recover_account_events WHERE account_id = '${soloId}' AND type = 'note' AND note_text = 'Email only';`),
+    '1'
+  );
+  fails(
+    `SELECT public.recover_book_commit(1, 'mailonly@book.example', 'account.add_note', 't', jsonb_build_object('id','${acc1}','note_text','Not my book'));`,
+    /note_scope|22023/
+  );
+  psql(`SELECT public.recover_book_commit(1, 'owner', 'account.add_note', 't', jsonb_build_object('id','${soloId}','note_text','Owner still can'));`);
+
+  psql(`
+    INSERT INTO public.recover_debtors (company_id, kind, display_name, status, created_at)
+    SELECT 1, 'person', 'Filler ' || g, 'active', timestamptz '2020-01-01' + (g || ' seconds')::interval
+    FROM generate_series(1, 420) AS g;
+    INSERT INTO public.recover_contact_points (company_id, debtor_id, kind, value, source, created_at)
+    SELECT 1, d.id, 'phone', '011' || lpad(d.n::text, 7, '0'), 'import', timestamptz '2020-01-01'
+    FROM (
+      SELECT id, row_number() OVER (ORDER BY created_at, id) AS n
+      FROM public.recover_debtors
+      WHERE company_id = 1 AND display_name LIKE 'Filler %'
+    ) d;
+    INSERT INTO public.recover_contact_points (company_id, debtor_id, kind, value, source, created_at)
+    SELECT 1, d.id, 'email', 'filler' || d.n || '@book.example', 'import', timestamptz '2020-01-02'
+    FROM (
+      SELECT id, row_number() OVER (ORDER BY created_at, id) AS n
+      FROM public.recover_debtors
+      WHERE company_id = 1 AND display_name LIKE 'Filler %'
+      ORDER BY created_at, id
+      LIMIT 100
+    ) d;
+    INSERT INTO public.recover_debtors (company_id, kind, display_name, status)
+    VALUES
+      (1, 'person', 'Name Only Twin', 'active'),
+      (1, 'person', 'Name Only Twin', 'active'),
+      (1, 'person', 'Late Match', 'active'),
+      (1, 'person', 'Late Match', 'active'),
+      (1, 'person', 'Hash Left', 'active'),
+      (1, 'person', 'Hash Right', 'active');
+    UPDATE public.recover_debtors
+    SET id_hash = 'lateidentityhash'
+    WHERE company_id = 1 AND display_name IN ('Hash Left', 'Hash Right');
+    INSERT INTO public.recover_contact_points (company_id, debtor_id, kind, value, source)
+    SELECT 1, id, 'phone', CASE WHEN id = (
+      SELECT id FROM public.recover_debtors
+      WHERE company_id = 1 AND display_name = 'Late Match'
+      ORDER BY created_at, id
+      LIMIT 1
+    ) THEN '0820000099' ELSE '+27820000099' END, 'import'
+    FROM public.recover_debtors
+    WHERE company_id = 1 AND display_name = 'Late Match';
+  `);
+  assert.ok(Number(psql(`SELECT count(*) FROM public.recover_debtors WHERE company_id = 1 AND status = 'active' AND display_name LIKE 'Filler %';`)) > 400);
+  assert.ok(Number(psql(`SELECT count(*) FROM public.recover_contact_points WHERE company_id = 1;`)) > 500);
+  assert.equal(psql(`SELECT public.recover_fold_phone('0820000099');`), '+27820000099');
+  assert.equal(psql(`SELECT public.recover_fold_phone('+27820000099');`), '+27820000099');
+  const late = psql(`
+    SELECT match FROM public.recover_list_duplicate_debtors(1)
+    WHERE left_name = 'Late Match' AND right_name = 'Late Match';
+  `);
+  assert.equal(late, 'contact');
+  assert.equal(
+    psql(`SELECT count(*) FROM public.recover_list_duplicate_debtors(1) WHERE left_name = 'Name Only Twin' OR right_name = 'Name Only Twin';`),
+    '0'
+  );
+  assert.equal(
+    psql(`
+      SELECT match FROM public.recover_list_duplicate_debtors(1)
+      WHERE (left_name = 'Hash Left' AND right_name = 'Hash Right')
+         OR (left_name = 'Hash Right' AND right_name = 'Hash Left');
+    `),
+    'identity'
+  );
+  assert.ok(Number(psql(`SELECT count(*) FROM public.recover_list_duplicate_debtors(1);`)) <= 20);
+
   psql(`SELECT public.recover_desk_commit(1, 'owner', 'set_real_data_enabled', 'w', '{"enabled":false}'::jsonb);`);
   psql(`SELECT public.recover_erase_company(1);`);
   const leftover = psql(`

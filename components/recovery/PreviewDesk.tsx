@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { RECOVER_DEMO_BANNER } from '@/lib/recovery/brand';
 import { recovergraphNavSteps, recoverSidebarSteps } from '@/lib/recovery/nav';
 import { blankDesk, illustrationFor, sampleDesk } from '@/lib/recovery/sample-desk';
-import { AccountView, AccountsView, CreditorBookView, ImportView, MandateBookView } from './book-views';
+import { AccountView, AccountsView, CreditorBookView, ImportView, MandateBookView, ROLLBACK_REFUSAL } from './book-views';
 import { RecoverCreditors, RecoverMandates } from './RecoverBooks';
 import { RecoverCommand } from './RecoverCommand';
 import { RecoverInstalled } from './RecoverInstalled';
@@ -349,7 +349,7 @@ export function PreviewDesk({ view }: { view: string }) {
           memory.setMemory(result.book);
           return result.code === 'rolled_back'
             ? { ok: true, message: 'That batch was rolled back.' }
-            : { ok: false, message: 'That batch can no longer be rolled back.' };
+            : { ok: false, message: ROLLBACK_REFUSAL };
         }}
         onLoadDemo={() => {
           memory.setMemory(harbourMemory());
