@@ -1,6 +1,6 @@
 /** Labelled sample layouts. Figures here are illustrations, never a live book. */
 import { formatRecoverMoney } from '@/lib/recovery/money';
-import type { SampleAccount, type SampleAttention, type SamplePromise } from '@/lib/recovery/sample-desk';
+import type { SampleAccount, SampleAttention, SamplePromise } from '@/lib/recovery/sample-desk';
 
 function zar(rands: number) {
   return formatRecoverMoney(Math.round(rands * 100));
