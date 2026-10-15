@@ -3,11 +3,13 @@
 import { ListChecks } from 'lucide-react';
 import { RECOVER_PENDING_BANNER } from '@/lib/recovery/brand';
 import { queueNavLabel } from '@/lib/recovery/roles';
+import { PendingArt, QueueArt } from './RecoverArt';
 import {
   RecoverBanner,
   RecoverButton,
   RecoverEmpty,
   RecoverRoleChip,
+  RecoverSample,
   RecoverScreen,
 } from './RecoverChrome';
 import { useRecoverDesk } from './useRecoverDesk';
@@ -33,9 +35,33 @@ export function RecoverQueue() {
           ))}
         </div>
       ) : desk && !desk.ready ? (
-        <RecoverBanner testId="recover-banner-pending" tone="pending">
-          {RECOVER_PENDING_BANNER}
-        </RecoverBanner>
+        <div className="space-y-4">
+          <RecoverBanner testId="recover-banner-pending" tone="pending">
+            {RECOVER_PENDING_BANNER}
+          </RecoverBanner>
+          <RecoverEmpty
+            testId="recover-pending-stage"
+            icon={ListChecks}
+            title="The queue is waiting"
+            body="Assigned accounts stay hidden until the database setup is approved."
+            art={<PendingArt />}
+            preview={
+              <RecoverSample title="How a queue row will look">
+                <div className="grid gap-2">
+                  {['Sample account', 'Sample creditor', 'Sample next step'].map((label) => (
+                    <div
+                      key={label}
+                      className="flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-[#e2e8f0] bg-white px-3"
+                    >
+                      <span className="text-sm font-semibold text-slate-900">{label}</span>
+                      <span className="text-sm font-black tabular-nums text-slate-600">—</span>
+                    </div>
+                  ))}
+                </div>
+              </RecoverSample>
+            }
+          />
+        </div>
       ) : (
         <RecoverEmpty
           testId="recover-queue-empty"
@@ -43,10 +69,28 @@ export function RecoverQueue() {
           title={title}
           body="No accounts assigned yet. Accounts appear here once a creditor book is imported."
           legend={['Account', 'Creditor', 'Next action', 'Clock']}
+          art={<QueueArt />}
           action={
             manager ? (
               <RecoverButton href="/dashboard/recovergraph/creditors">Open creditors</RecoverButton>
-            ) : undefined
+            ) : (
+              <RecoverButton href="/dashboard/recovergraph">Back to the desk</RecoverButton>
+            )
+          }
+          preview={
+            <RecoverSample title="How a queue row will look">
+              <div className="grid gap-2">
+                {['Sample account', 'Sample creditor', 'Sample next step'].map((label) => (
+                  <div
+                    key={label}
+                    className="flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-[#e2e8f0] bg-white px-3"
+                  >
+                    <span className="text-sm font-semibold text-slate-900">{label}</span>
+                    <span className="text-sm font-black tabular-nums text-slate-600">—</span>
+                  </div>
+                ))}
+              </div>
+            </RecoverSample>
           }
         />
       )}

@@ -21,6 +21,8 @@ function activeStaffRole(staffRow: StaffRoleInput): StaffRole | null {
  * Company owner is always owner.
  * A sales role has no recovery permission, so it stays none.
  * An active module role on the staff row decides the desk.
+ * A manager staff row only opens the manager desk when the company role can write recovery.
+ * Member, viewer, and finance stay in the desk their company permission can actually use.
  * Company admin with no staff row is a manager.
  * Company finance is finance. Member, viewer, and unassigned operations are viewers.
  */
@@ -36,7 +38,11 @@ export function resolveRecoverRole(
   if (staff === 'collector') return 'agent';
   if (staff === 'finance_view') return 'finance';
   if (staff === 'compliance') return 'compliance';
-  if (staff === 'manager') return 'manager';
+  if (staff === 'manager') {
+    if (company === 'admin' || company === 'operations') return 'manager';
+    if (company === 'finance') return 'finance';
+    return 'viewer';
+  }
 
   if (company === 'admin') return 'manager';
   if (company === 'finance') return 'finance';

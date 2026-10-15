@@ -8,6 +8,7 @@
  */
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const url = process.env.RECOVER_PORTAL_DATABASE_URL;
@@ -103,6 +104,8 @@ async function main() {
         CREATE ROLE service_role NOLOGIN BYPASSRLS;
       END IF;
     END $$;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public
+      GRANT EXECUTE ON FUNCTIONS TO anon, authenticated;
     CREATE TABLE IF NOT EXISTS public.profiles (
       id bigint PRIMARY KEY
     );
@@ -167,6 +170,25 @@ async function main() {
     `BEGIN; SET LOCAL ROLE anon; SELECT public.recover_portal_call('creditor','${HASH_A}','ping','{}'::jsonb); ROLLBACK;`,
     /permission denied/i
   );
+  for (const role of ['anon', 'authenticated']) {
+    for (const fn of [
+      `public.recover_portal_call('creditor','${HASH_A}','ping','{}'::jsonb)`,
+      `public.recover_portal_register_failure(NULL, NULL, NULL, NULL)`,
+      `public.recover_portal_is_throttled(NULL, NULL, NULL)`,
+    ]) {
+      const signature = fn.startsWith('public.recover_portal_call')
+        ? 'public.recover_portal_call(text, text, text, jsonb)'
+        : fn.startsWith('public.recover_portal_register_failure')
+          ? 'public.recover_portal_register_failure(uuid, bigint, text, text)'
+          : 'public.recover_portal_is_throttled(bigint, text, text)';
+      assert.equal(
+        psql(`SELECT has_function_privilege('${role}', '${signature}', 'EXECUTE');`),
+        'f',
+        `${role} ${signature}`
+      );
+      fails(`BEGIN; SET LOCAL ROLE ${role}; SELECT ${fn}; ROLLBACK;`, /permission denied/i);
+    }
+  }
 
   psql(`
     INSERT INTO public.profiles (id) VALUES (101), (102), (103);
@@ -201,6 +223,52 @@ async function main() {
     /append-only/
   );
   fails(`DELETE FROM public.recover_audit_log WHERE company_id = 101;`, /append-only/);
+
+  psql(`
+    INSERT INTO public.profiles (id) VALUES (104);
+    INSERT INTO public.recover_audit_log (company_id, actor_kind, action, payload)
+    VALUES (104, 'system', 'kept', '{"kept":true}'::jsonb);
+  `);
+  psql(`DELETE FROM public.profiles WHERE id = 104;`);
+  assert.equal(
+    psql(`SELECT company_id IS NULL FROM public.recover_audit_log WHERE action = 'kept';`),
+    't'
+  );
+  fails(
+    `UPDATE public.recover_audit_log SET action = 'changed' WHERE action = 'kept';`,
+    /append-only/
+  );
+  fails(`DELETE FROM public.recover_audit_log WHERE action = 'kept';`, /append-only/);
+
+  psql(`
+    SELECT public.recover_desk_commit(
+      101,
+      'user-1',
+      'update_workspace',
+      'recover_workspaces',
+      '{"display_name":"Renamed","trust_mode":"direct"}'::jsonb
+    );
+  `);
+  assert.equal(
+    psql(`SELECT display_name || ' ' || trust_mode FROM public.recover_workspaces WHERE company_id = 101;`),
+    'Renamed direct'
+  );
+  assert.match(
+    psql(`SELECT payload::text FROM public.recover_audit_log WHERE company_id = 101 AND action = 'update_workspace';`),
+    /display_name/
+  );
+  assert.match(
+    psql(`SELECT payload::text FROM public.recover_audit_log WHERE company_id = 101 AND action = 'update_workspace';`),
+    /trust_mode/
+  );
+  fails(
+    `SELECT public.recover_desk_commit(103, 'user-1', 'update_workspace', 'recover_workspaces', '{"display_name":"Nope"}'::jsonb);`,
+    /missing_workspace/
+  );
+  assert.equal(
+    psql(`SELECT count(*) FROM public.recover_audit_log WHERE company_id = 103 AND action = 'update_workspace';`),
+    '0'
+  );
 
   fails(
     `INSERT INTO public.recover_workspaces (company_id, programme_types)
@@ -345,6 +413,32 @@ async function main() {
     SELECT failed_attempts FROM public.recover_portal_otps WHERE invite_id = '${raceInvite}';
   `);
   assert.equal(Number(raced), 4);
+  assert.equal(
+    psql(`SELECT count(*) FROM public.recover_portal_attempts WHERE scope = 'ip';`),
+    '0'
+  );
+  psql(`
+    INSERT INTO public.recover_portal_attempts (company_id, portal, scope, key_hash, at)
+    VALUES (101, 'debtor', 'email', 'old', now() - interval '2 days');
+  `);
+  assert.equal(psql(`SELECT public.recover_portal_prune_attempts();`) !== '', true);
+  assert.equal(
+    psql(`SELECT count(*) FROM public.recover_portal_attempts WHERE key_hash = 'old';`),
+    '0'
+  );
+
+  const rollback = readFileSync(migration, 'utf8')
+    .split('-- ROLLBACK_START')[1]
+    .split('-- ROLLBACK_END')[0]
+    .split('\n')
+    .map((line) => line.replace(/^\s*--\s?/, '').trim())
+    .filter((line) => line.length > 0)
+    .join('\n');
+  psql(rollback);
+  assert.equal(
+    psql(`SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname LIKE 'recover_%' AND c.relkind = 'r';`),
+    '0'
+  );
 
   console.log('recover-portal-call.test.ts ok');
 }

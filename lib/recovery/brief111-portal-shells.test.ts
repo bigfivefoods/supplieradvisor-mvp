@@ -26,6 +26,12 @@ for (const file of pages) {
 const layout = readFileSync(resolve('app/(recover-portal)/layout.tsx'), 'utf8');
 assert.match(layout, /noindex/);
 assert.match(layout, /nofollow/);
+assert.match(layout, /absolute: 'RecoverAdvisor®'/);
+assert.match(layout, /manifest: null/);
+assert.match(layout, /description: null/);
+assert.match(layout, /keywords: null/);
+assert.doesNotMatch(layout, /manifest\.webmanifest/);
+assert.doesNotMatch(layout, /SupplierAdvisor/);
 
 assert.deepEqual([...RECOVER_PORTAL_PAGE_PREFIXES], [
   '/creditor/recovergraph',

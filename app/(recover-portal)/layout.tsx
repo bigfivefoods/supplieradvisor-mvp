@@ -1,7 +1,19 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'RecoverAdvisor®',
+  title: { absolute: 'RecoverAdvisor®' },
+  description: null,
+  keywords: null,
+  manifest: null,
+  applicationName: 'RecoverAdvisor®',
+  authors: null,
+  creator: null,
+  publisher: null,
+  category: null,
+  classification: null,
+  openGraph: null,
+  twitter: null,
+  alternates: null,
   robots: 'noindex, nofollow',
 };
 

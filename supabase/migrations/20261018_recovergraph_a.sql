@@ -12,23 +12,31 @@
 -- has no grants and row security is forced. service_role is the only execute grantee.
 -- search_path is empty and every reference is schema-qualified.
 --
--- ROLLBACK (run manually, in this order, only after review):
---   DROP FUNCTION IF EXISTS public.recover_portal_call(text, text, text, jsonb);
---   DROP FUNCTION IF EXISTS public.recover_portal_register_failure(uuid, bigint, text, text);
---   DROP FUNCTION IF EXISTS public.recover_portal_is_throttled(bigint, text, text);
---   DROP FUNCTION IF EXISTS public.recover_verify_code_ct(text, text);
---   DROP FUNCTION IF EXISTS public.recover_forbid_mutation();
---   DROP TABLE IF EXISTS public.recover_portal_attempts;
---   DROP TABLE IF EXISTS public.recover_portal_otps;
---   DROP TABLE IF EXISTS public.recover_portal_sessions;
---   DROP TABLE IF EXISTS public.recover_portal_invites;
---   DROP TABLE IF EXISTS public.recover_audit_log;
---   DROP TABLE IF EXISTS public.recover_mandates;
---   DROP TABLE IF EXISTS public.recover_creditors;
---   DROP TABLE IF EXISTS public.recover_staff;
---   DROP TABLE IF EXISTS public.recover_teams;
---   DROP TABLE IF EXISTS public.recover_workspaces;
---   DROP ROLE IF EXISTS recover_portal;
+-- ROLLBACK (run manually, in this order, only after review).
+-- Functions that the audit trigger depends on are dropped after the tables.
+-- The staff and team foreign keys are a cycle, so those constraints go first.
+-- ROLLBACK_START
+-- DROP FUNCTION IF EXISTS public.recover_desk_commit(bigint, text, text, text, jsonb);
+-- DROP FUNCTION IF EXISTS public.recover_portal_call(text, text, text, jsonb);
+-- DROP FUNCTION IF EXISTS public.recover_portal_register_failure(uuid, bigint, text, text);
+-- DROP FUNCTION IF EXISTS public.recover_portal_is_throttled(bigint, text, text);
+-- DROP FUNCTION IF EXISTS public.recover_portal_prune_attempts();
+-- DROP FUNCTION IF EXISTS public.recover_verify_code_ct(text, text);
+-- ALTER TABLE IF EXISTS public.recover_teams DROP CONSTRAINT IF EXISTS recover_teams_lead_staff_id_fkey;
+-- ALTER TABLE IF EXISTS public.recover_staff DROP CONSTRAINT IF EXISTS recover_staff_team_id_fkey;
+-- DROP TABLE IF EXISTS public.recover_portal_attempts;
+-- DROP TABLE IF EXISTS public.recover_portal_otps;
+-- DROP TABLE IF EXISTS public.recover_portal_sessions;
+-- DROP TABLE IF EXISTS public.recover_portal_invites;
+-- DROP TABLE IF EXISTS public.recover_audit_log;
+-- DROP TABLE IF EXISTS public.recover_mandates;
+-- DROP TABLE IF EXISTS public.recover_creditors;
+-- DROP TABLE IF EXISTS public.recover_staff;
+-- DROP TABLE IF EXISTS public.recover_teams;
+-- DROP TABLE IF EXISTS public.recover_workspaces;
+-- DROP FUNCTION IF EXISTS public.recover_forbid_mutation();
+-- DROP ROLE IF EXISTS recover_portal;
+-- ROLLBACK_END
 
 CREATE SCHEMA IF NOT EXISTS extensions;
 
@@ -180,7 +188,7 @@ CREATE INDEX IF NOT EXISTS idx_recover_mandates_company
 
 CREATE TABLE IF NOT EXISTS public.recover_audit_log (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  company_id bigint REFERENCES public.profiles(id) ON DELETE SET NULL,
   actor_kind text NOT NULL,
   actor_id text,
   action text NOT NULL,
@@ -259,8 +267,22 @@ CREATE TABLE IF NOT EXISTS public.recover_portal_attempts (
   CONSTRAINT recover_portal_attempts_portal_check CHECK (
     portal IN ('creditor', 'debtor', 'attorney')
   ),
-  CONSTRAINT recover_portal_attempts_scope_check CHECK (scope IN ('email', 'book', 'ip'))
+  CONSTRAINT recover_portal_attempts_scope_check CHECK (scope IN ('email', 'book'))
 );
+
+-- A shared address is not a throttle key. scope is email or book only.
+ALTER TABLE public.recover_portal_attempts
+  DROP CONSTRAINT IF EXISTS recover_portal_attempts_scope_check;
+ALTER TABLE public.recover_portal_attempts
+  ADD CONSTRAINT recover_portal_attempts_scope_check CHECK (scope IN ('email', 'book'));
+
+-- Profile removal must not delete the audit row. SET NULL is an UPDATE, so the
+-- append-only trigger allows only that one change and still blocks every other write.
+ALTER TABLE public.recover_audit_log ALTER COLUMN company_id DROP NOT NULL;
+ALTER TABLE public.recover_audit_log DROP CONSTRAINT IF EXISTS recover_audit_log_company_id_fkey;
+ALTER TABLE public.recover_audit_log
+  ADD CONSTRAINT recover_audit_log_company_id_fkey
+  FOREIGN KEY (company_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_recover_portal_attempts_recent
   ON public.recover_portal_attempts (company_id, scope, at DESC);
@@ -271,6 +293,18 @@ LANGUAGE plpgsql
 SET search_path = ''
 AS $$
 BEGIN
+  IF TG_OP = 'UPDATE'
+     AND OLD.company_id IS NOT NULL
+     AND NEW.company_id IS NULL
+     AND NEW.id = OLD.id
+     AND NEW.actor_kind = OLD.actor_kind
+     AND NEW.actor_id IS NOT DISTINCT FROM OLD.actor_id
+     AND NEW.action = OLD.action
+     AND NEW.target IS NOT DISTINCT FROM OLD.target
+     AND NEW.payload = OLD.payload
+     AND NEW.at = OLD.at THEN
+    RETURN NEW;
+  END IF;
   RAISE EXCEPTION 'append-only' USING ERRCODE = '55000';
 END;
 $$;
@@ -319,8 +353,9 @@ BEGIN
   END LOOP;
 END $$;
 
--- Constant-time compare of two hex digests. Length and decode failures are false.
--- The two inputs are never compared with plain equality.
+-- Compare two SHA-256 hex digests. Every call walks the same 32 bytes.
+-- A short value, a null, or a bad hex digit is folded into the accumulator.
+-- The function does not return before that walk, and it does not use text equality.
 CREATE OR REPLACE FUNCTION public.recover_verify_code_ct(a text, b text)
 RETURNS boolean
 LANGUAGE plpgsql
@@ -328,36 +363,37 @@ IMMUTABLE
 SET search_path = ''
 AS $$
 DECLARE
-  left_bytes bytea;
-  right_bytes bytea;
+  zeros bytea := pg_catalog.decode(repeat('00', 32), 'hex');
+  left_bytes bytea := zeros;
+  right_bytes bytea := zeros;
   diff integer := 0;
   i integer;
-  n integer;
 BEGIN
-  IF a IS NULL OR b IS NULL THEN
-    RETURN false;
+  IF a IS NULL OR b IS NULL OR pg_catalog.length(a) <> 64 OR pg_catalog.length(b) <> 64 THEN
+    diff := 1;
+  ELSE
+    BEGIN
+      left_bytes := pg_catalog.decode(a, 'hex');
+      right_bytes := pg_catalog.decode(b, 'hex');
+    EXCEPTION WHEN others THEN
+      diff := 1;
+      left_bytes := zeros;
+      right_bytes := zeros;
+    END;
   END IF;
-  IF pg_catalog.length(a) <> pg_catalog.length(b) OR pg_catalog.length(a) = 0 THEN
-    RETURN false;
+  IF pg_catalog.octet_length(left_bytes) <> 32 OR pg_catalog.octet_length(right_bytes) <> 32 THEN
+    diff := 1;
+    left_bytes := zeros;
+    right_bytes := zeros;
   END IF;
-  BEGIN
-    left_bytes := pg_catalog.decode(a, 'hex');
-    right_bytes := pg_catalog.decode(b, 'hex');
-  EXCEPTION WHEN others THEN
-    RETURN false;
-  END;
-  n := pg_catalog.octet_length(left_bytes);
-  IF n <> pg_catalog.octet_length(right_bytes) OR n = 0 THEN
-    RETURN false;
-  END IF;
-  FOR i IN 0 .. n - 1 LOOP
+  FOR i IN 0 .. 31 LOOP
     diff := diff | (pg_catalog.get_byte(left_bytes, i) # pg_catalog.get_byte(right_bytes, i));
   END LOOP;
   RETURN diff = 0;
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.recover_verify_code_ct(text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.recover_verify_code_ct(text, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.recover_verify_code_ct(text, text) TO service_role;
 
 -- Call before any code comparison. Blank input and unexpected errors are locked.
@@ -399,11 +435,34 @@ EXCEPTION WHEN others THEN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.recover_portal_is_throttled(bigint, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.recover_portal_is_throttled(bigint, text, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.recover_portal_is_throttled(bigint, text, text) TO service_role;
+
+-- Drop sign-in attempts older than a day. Email and book counters only look back 15 minutes.
+CREATE OR REPLACE FUNCTION public.recover_portal_prune_attempts()
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  removed integer;
+BEGIN
+  DELETE FROM public.recover_portal_attempts
+  WHERE at < pg_catalog.now() - interval '24 hours';
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  RETURN removed;
+EXCEPTION WHEN others THEN
+  RETURN 0;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.recover_portal_prune_attempts() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.recover_portal_prune_attempts() TO service_role;
 
 -- One statement increments the live code. At 5 failures the code is burned.
 -- Returns false on bad input or any error so the caller treats the attempt as locked.
+-- The fourth argument is ignored. IP scope is not stored.
 CREATE OR REPLACE FUNCTION public.recover_portal_register_failure(
   p_invite_id uuid,
   p_company_id bigint,
@@ -432,6 +491,10 @@ BEGIN
     v_portal := 'debtor';
   END IF;
 
+  -- p_ip_hash is accepted and ignored. A shared address must not lock the book.
+  PERFORM p_ip_hash;
+  PERFORM public.recover_portal_prune_attempts();
+
   INSERT INTO public.recover_portal_attempts (company_id, portal, scope, key_hash)
   VALUES (p_company_id, v_portal, 'email', p_email_hash);
 
@@ -442,11 +505,6 @@ BEGIN
     'book',
     encode(extensions.digest(convert_to(p_company_id::text, 'UTF8'), 'sha256'), 'hex')
   );
-
-  IF p_ip_hash IS NOT NULL AND pg_catalog.btrim(p_ip_hash) <> '' THEN
-    INSERT INTO public.recover_portal_attempts (company_id, portal, scope, key_hash)
-    VALUES (p_company_id, v_portal, 'ip', p_ip_hash);
-  END IF;
 
   UPDATE public.recover_portal_otps
   SET
@@ -472,7 +530,7 @@ EXCEPTION WHEN others THEN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.recover_portal_register_failure(uuid, bigint, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.recover_portal_register_failure(uuid, bigint, text, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.recover_portal_register_failure(uuid, bigint, text, text) TO service_role;
 
 -- Skeleton portal entry. The only whitelisted op is ping, and it returns no
@@ -520,7 +578,7 @@ EXCEPTION WHEN others THEN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.recover_portal_call(text, text, text, jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.recover_portal_call(text, text, text, jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.recover_portal_call(text, text, text, jsonb) TO service_role;
 
 COMMENT ON FUNCTION public.recover_portal_call(text, text, text, jsonb) IS
@@ -530,4 +588,83 @@ COMMENT ON FUNCTION public.recover_portal_is_throttled(bigint, text, text) IS
   'Call before comparing a sign-in code. More than 10 email failures or 50 workspace failures in 15 minutes locks. Errors lock.';
 
 COMMENT ON FUNCTION public.recover_portal_register_failure(uuid, bigint, text, text) IS
-  'Atomic wrong-code counter. The fifth failure burns the code. Errors lock.';
+  'Atomic wrong-code counter. The fifth failure burns the code. Errors lock. The IP argument is ignored.';
+
+REVOKE ALL ON FUNCTION public.recover_forbid_mutation() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.recover_forbid_mutation() TO service_role;
+
+-- Workspace write and its audit row share one transaction.
+CREATE OR REPLACE FUNCTION public.recover_desk_commit(
+  p_company_id bigint,
+  p_actor_id text,
+  p_action text,
+  p_target text,
+  p_patch jsonb
+) RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_found integer;
+BEGIN
+  IF p_patch IS NULL THEN
+    p_patch := '{}'::jsonb;
+  END IF;
+
+  IF p_action = 'update_workspace' THEN
+    UPDATE public.recover_workspaces
+    SET
+      display_name = CASE WHEN p_patch ? 'display_name' THEN p_patch->>'display_name' ELSE display_name END,
+      operator_type = CASE WHEN p_patch ? 'operator_type' THEN p_patch->>'operator_type' ELSE operator_type END,
+      trust_mode = CASE WHEN p_patch ? 'trust_mode' THEN p_patch->>'trust_mode' ELSE trust_mode END,
+      cfdc_registration_no = CASE WHEN p_patch ? 'cfdc_registration_no' THEN p_patch->>'cfdc_registration_no' ELSE cfdc_registration_no END,
+      cfdc_expiry = CASE
+        WHEN p_patch ? 'cfdc_expiry' THEN NULLIF(p_patch->>'cfdc_expiry', '')::date
+        ELSE cfdc_expiry
+      END,
+      vat_registered = CASE
+        WHEN p_patch ? 'vat_registered' THEN (p_patch->>'vat_registered')::boolean
+        ELSE vat_registered
+      END,
+      vat_rate_bps = CASE
+        WHEN p_patch ? 'vat_rate_bps' AND NULLIF(p_patch->>'vat_rate_bps', '') IS NULL THEN NULL
+        WHEN p_patch ? 'vat_rate_bps' THEN (p_patch->>'vat_rate_bps')::integer
+        ELSE vat_rate_bps
+      END,
+      programme_types = ARRAY['recovery']::text[],
+      updated_at = pg_catalog.now()
+    WHERE company_id = p_company_id;
+    GET DIAGNOSTICS v_found = ROW_COUNT;
+    IF v_found = 0 THEN
+      RAISE EXCEPTION 'missing_workspace' USING ERRCODE = 'P0002';
+    END IF;
+  ELSIF p_action = 'set_real_data_enabled' THEN
+    UPDATE public.recover_workspaces
+    SET
+      real_data_enabled = COALESCE((p_patch->>'enabled')::boolean, false),
+      real_data_confirmed_by = CASE
+        WHEN COALESCE((p_patch->>'enabled')::boolean, false) THEN NULLIF(p_patch->>'real_data_confirmed_by', '')
+        ELSE NULL
+      END,
+      real_data_confirmed_at = CASE
+        WHEN COALESCE((p_patch->>'enabled')::boolean, false) THEN pg_catalog.now()
+        ELSE NULL
+      END,
+      updated_at = pg_catalog.now()
+    WHERE company_id = p_company_id;
+    GET DIAGNOSTICS v_found = ROW_COUNT;
+    IF v_found = 0 THEN
+      RAISE EXCEPTION 'missing_workspace' USING ERRCODE = 'P0002';
+    END IF;
+  ELSE
+    RAISE EXCEPTION 'unsupported' USING ERRCODE = '22023';
+  END IF;
+
+  INSERT INTO public.recover_audit_log (company_id, actor_kind, actor_id, action, target, payload)
+  VALUES (p_company_id, 'staff', p_actor_id, p_action, p_target, p_patch);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.recover_desk_commit(bigint, text, text, text, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.recover_desk_commit(bigint, text, text, text, jsonb) TO service_role;

@@ -2,7 +2,7 @@
  * Run: npx --yes tsx lib/recovery/brief111-roles.test.ts
  */
 import assert from 'node:assert/strict';
-import { projectDesk } from './project';
+import { deskResponseBody, projectDesk } from './project';
 import {
   capabilitiesFor,
   queueNavLabel,
@@ -21,6 +21,10 @@ assert.equal(resolveRecoverRole('finance', null), 'finance');
 assert.equal(resolveRecoverRole('finance', staff('compliance')), 'compliance');
 assert.equal(resolveRecoverRole('operations', null), 'viewer');
 assert.equal(resolveRecoverRole('operations', staff('manager')), 'manager');
+assert.equal(resolveRecoverRole('admin', staff('manager')), 'manager');
+assert.equal(resolveRecoverRole('member', staff('manager')), 'viewer');
+assert.equal(resolveRecoverRole('viewer', staff('manager')), 'viewer');
+assert.equal(resolveRecoverRole('finance', staff('manager')), 'finance');
 assert.equal(resolveRecoverRole('member', null), 'viewer');
 assert.equal(resolveRecoverRole('member', staff('collector')), 'agent');
 assert.equal(resolveRecoverRole('member', staff('finance_view')), 'finance');
@@ -155,5 +159,12 @@ assert.equal(projected.workspace?.trust_mode, 'direct');
 const managerView = projectDesk('manager', load);
 assert.equal(managerView.counts.creditors, 1);
 assert.equal(managerView.staff.length, 2);
+
+const hiddenTrust = deskResponseBody(projectDesk('manager', load), false);
+assert.equal(hiddenTrust.workspace && 'trust_mode' in hiddenTrust.workspace, false);
+const shownTrust = deskResponseBody(projectDesk('finance', load), true);
+assert.equal(shownTrust.workspace?.trust_mode, 'direct');
+const agentBody = deskResponseBody(projectDesk('agent', load), false);
+assert.equal(agentBody.workspace && 'trust_mode' in agentBody.workspace, false);
 
 console.log('brief111-roles.test.ts ok');

@@ -1,3 +1,4 @@
+import { isModuleEnabled } from '@/lib/business/company-modules';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import type {
   OperatorType,
@@ -23,6 +24,7 @@ export function isMigrationPending(error: DbError): boolean {
   const message = String(error.message || '').toLowerCase();
   return (
     code === '42P01' ||
+    code === 'PGRST202' ||
     code === 'PGRST205' ||
     code === 'PGRST204' ||
     message.includes('does not exist') ||
@@ -197,6 +199,35 @@ async function writeAudit(
   if (inserted.error) throw new Error('audit');
 }
 
+export async function companyRecovergraphEnabled(companyId: number): Promise<boolean> {
+  const supabase = getSupabaseServer();
+  const row = await supabase.from('profiles').select('metadata').eq('id', companyId).maybeSingle();
+  if (isMigrationPending(row.error)) return false;
+  if (row.error) throw new Error('company');
+  const meta = (row.data?.metadata || null) as { enabled_modules?: Record<string, boolean> } | null;
+  return isModuleEnabled(meta?.enabled_modules ?? null, 'recovergraph');
+}
+
+async function commitWorkspace(
+  companyId: number,
+  actorId: string,
+  action: 'update_workspace' | 'set_real_data_enabled',
+  patch: Record<string, unknown>
+): Promise<void> {
+  const supabase = getSupabaseServer();
+  const result = await supabase.rpc('recover_desk_commit', {
+    p_company_id: companyId,
+    p_actor_id: actorId,
+    p_action: action,
+    p_target: 'recover_workspaces',
+    p_patch: patch,
+  });
+  if (isMigrationPending(result.error)) throw new MigrationPendingError();
+  const message = String(result.error?.message || '');
+  if (message.includes('missing_workspace')) throw new Error('missing_workspace');
+  if (result.error) throw new Error('workspace');
+}
+
 export class MigrationPendingError extends Error {
   constructor() {
     super('migration_pending');
@@ -223,21 +254,20 @@ export async function applyRecoverOp(
       .maybeSingle();
     if (isMigrationPending(existing.error)) throw new MigrationPendingError();
     if (existing.error) throw new Error('workspace');
-    const patch: Record<string, unknown> = {
-      programme_types: ['recovery'],
-      updated_at: now,
-    };
-    if (op.display_name !== undefined) patch.display_name = op.display_name;
-    if (op.operator_type !== undefined) patch.operator_type = op.operator_type;
-    if (op.trust_mode !== undefined) patch.trust_mode = op.trust_mode;
+    const changed: Record<string, unknown> = {};
+    if (op.display_name !== undefined) changed.display_name = op.display_name;
+    if (op.operator_type !== undefined) changed.operator_type = op.operator_type;
+    if (op.trust_mode !== undefined) changed.trust_mode = op.trust_mode;
     if (op.cfdc_registration_no !== undefined) {
-      patch.cfdc_registration_no = op.cfdc_registration_no;
+      changed.cfdc_registration_no = op.cfdc_registration_no;
     }
-    if (op.cfdc_expiry !== undefined) patch.cfdc_expiry = op.cfdc_expiry;
-    if (op.vat_registered !== undefined) patch.vat_registered = op.vat_registered;
-    if (op.vat_rate_bps !== undefined) patch.vat_rate_bps = op.vat_rate_bps;
-    if (!existing.data && op.op === 'update_workspace') {
-      throw new Error('missing_workspace');
+    if (op.cfdc_expiry !== undefined) changed.cfdc_expiry = op.cfdc_expiry;
+    if (op.vat_registered !== undefined) changed.vat_registered = op.vat_registered;
+    if (op.vat_rate_bps !== undefined) changed.vat_rate_bps = op.vat_rate_bps;
+    if (op.op === 'update_workspace') {
+      if (!existing.data) throw new Error('missing_workspace');
+      await commitWorkspace(companyId, actor.userId, 'update_workspace', changed);
+      return;
     }
     if (!existing.data) {
       const inserted = await supabase.from('recover_workspaces').insert({
@@ -254,19 +284,8 @@ export async function applyRecoverOp(
       });
       if (isMigrationPending(inserted.error)) throw new MigrationPendingError();
       if (inserted.error) throw new Error('workspace');
-    } else if (op.op === 'init_workspace') {
-      /* Workspace already exists. Init does not overwrite it. */
-    } else {
-      const updated = await supabase
-        .from('recover_workspaces')
-        .update(patch)
-        .eq('company_id', companyId);
-      if (updated.error) throw new Error('workspace');
     }
-    await writeAudit(companyId, actor.userId, op.op, 'recover_workspaces', {
-      operator_type: op.operator_type ?? null,
-      trust_mode: op.trust_mode ?? null,
-    });
+    await writeAudit(companyId, actor.userId, op.op, 'recover_workspaces', changed);
     return;
   }
 
@@ -333,19 +352,8 @@ export async function applyRecoverOp(
     return;
   }
 
-  const updated = await supabase
-    .from('recover_workspaces')
-    .update({
-      real_data_enabled: op.enabled,
-      real_data_confirmed_by: op.enabled ? actor.userId : null,
-      real_data_confirmed_at: op.enabled ? now : null,
-      updated_at: now,
-    })
-    .eq('company_id', companyId);
-  if (isMigrationPending(updated.error)) throw new MigrationPendingError();
-  if (updated.error) throw new Error('workspace');
-  await writeAudit(companyId, actor.userId, op.op, 'recover_workspaces', {
+  await commitWorkspace(companyId, actor.userId, 'set_real_data_enabled', {
     enabled: op.enabled,
-    at: now,
+    real_data_confirmed_by: op.enabled ? actor.userId : null,
   });
 }

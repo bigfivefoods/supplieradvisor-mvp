@@ -3,7 +3,8 @@
 import { Gavel, Landmark, UserRound } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { RECOVER_PENDING_BANNER } from '@/lib/recovery/brand';
-import { RecoverBanner, RecoverRoleChip, RecoverScreen } from './RecoverChrome';
+import { PortalArt } from './RecoverArt';
+import { RecoverBanner, RecoverRoleChip, RecoverSample, RecoverScreen } from './RecoverChrome';
 import { useRecoverDesk } from './useRecoverDesk';
 
 const CARDS: Array<{
@@ -74,10 +75,10 @@ export function RecoverPortals() {
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-50 bg-white text-[#0077b6] shadow-sm">
                     <Icon className="h-5 w-5" aria-hidden />
                   </div>
-                  <div className="font-mono text-[10px] font-black tracking-widest text-neutral-400">{card.code}</div>
+                  <div className="font-mono text-xs font-bold tracking-widest text-slate-600">{card.code}</div>
                 </div>
                 <h2 className="text-base font-black text-slate-800 sm:text-lg">{card.title}</h2>
-                <p className="mt-1.5 text-sm leading-relaxed text-neutral-500">{card.body}</p>
+                <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{card.body}</p>
                 <p className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-bold text-slate-900">
                   <span className="h-2 w-2 rounded-full bg-[#0077b6]" aria-hidden />
                   Not open yet
@@ -87,6 +88,32 @@ export function RecoverPortals() {
           })}
         </div>
       )}
+      {!loading ? (
+        <div className="mt-4 overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-[0_20px_50px_-28px_rgba(15,23,42,0.45)]">
+          <div className="grid items-center gap-2 bg-gradient-to-br from-cyan-50 via-white to-sky-50 lg:grid-cols-[18rem_minmax(0,1fr)]">
+            <div className="flex justify-center px-6 py-4">
+              <PortalArt />
+            </div>
+            <div className="px-6 pb-6 lg:py-8 lg:pl-0">
+              <h2 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl">Three doors, none of them open</h2>
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-600">
+                Creditors, people with accounts, and attorneys will each get their own signed-out page. This version does not issue a link or a code.
+              </p>
+            </div>
+          </div>
+          <RecoverSample title="What a portal page will show">
+            <div className="grid gap-3 sm:grid-cols-3">
+              {['Their own book', 'The next step', 'Shared documents'].map((label) => (
+                <div key={label} className="rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-sm">
+                  <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Sample</div>
+                  <div className="mt-1 text-sm font-black text-slate-900">{label}</div>
+                  <div className="mt-2 text-lg font-black tabular-nums text-slate-900">—</div>
+                </div>
+              ))}
+            </div>
+          </RecoverSample>
+        </div>
+      ) : null}
     </RecoverScreen>
   );
 }

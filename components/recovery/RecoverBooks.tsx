@@ -3,11 +3,13 @@
 import { Building2, ShieldCheck } from 'lucide-react';
 import { RECOVER_PENDING_BANNER } from '@/lib/recovery/brand';
 import type { RecoverCreditor, RecoverMandate } from '@/lib/recovery/types';
+import { CreditorArt, MandateArt } from './RecoverArt';
 import {
   RecoverBanner,
   RecoverButton,
   RecoverEmpty,
   RecoverRoleChip,
+  RecoverSample,
   RecoverScreen,
 } from './RecoverChrome';
 import { useRecoverDesk } from './useRecoverDesk';
@@ -52,7 +54,20 @@ export function RecoverCreditors() {
           title="No accounts placed yet"
           body="No creditors yet. Creditor records appear here once a book is placed."
           legend={['Creditor', 'Registration', 'Remittance', 'Status']}
+          art={<CreditorArt />}
           action={<RecoverButton href="/dashboard/customers">Open customers</RecoverButton>}
+          preview={
+            <RecoverSample title="How a creditor row will look">
+              <div className="grid gap-2 sm:grid-cols-2">
+                {['Sample creditor', 'Sample registration', 'Monthly remittance', 'Not active yet'].map((label) => (
+                  <div key={label} className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
+                    <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Sample</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-900">{label}</div>
+                  </div>
+                ))}
+              </div>
+            </RecoverSample>
+          }
         />
       ) : (
         <CreditorTable rows={rows} />
@@ -68,7 +83,7 @@ function CreditorTable({ rows }: { rows: RecoverCreditor[] }) {
       className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm"
     >
       <table className="w-full min-w-[36rem] text-left text-sm">
-        <thead className="bg-[#f8fafc] text-[10px] font-black uppercase tracking-wider text-neutral-400">
+        <thead className="bg-[#f8fafc] text-xs font-bold uppercase tracking-wider text-slate-600">
           <tr>
             <th className="px-4 py-3">Creditor</th>
             <th className="px-4 py-3">Registration</th>
@@ -115,7 +130,20 @@ export function RecoverMandates() {
           title="No mandates yet"
           body="A mandate records the authority to collect for a creditor. Add the creditor first."
           legend={['Creditor', 'Product', 'Programme', 'Status']}
+          art={<MandateArt />}
           action={<RecoverButton href="/dashboard/recovergraph/creditors">Open creditors</RecoverButton>}
+          preview={
+            <RecoverSample title="How a mandate row will look">
+              <div className="grid gap-2 sm:grid-cols-2">
+                {['Sample creditor', 'Sample product', 'Collections', 'Draft'].map((label) => (
+                  <div key={label} className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
+                    <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Sample</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-900">{label}</div>
+                  </div>
+                ))}
+              </div>
+            </RecoverSample>
+          }
         />
       ) : (
         <MandateTable rows={rows} />
@@ -131,7 +159,7 @@ function MandateTable({ rows }: { rows: RecoverMandate[] }) {
       className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm"
     >
       <table className="w-full min-w-[40rem] text-left text-sm">
-        <thead className="bg-[#f8fafc] text-[10px] font-black uppercase tracking-wider text-neutral-400">
+        <thead className="bg-[#f8fafc] text-xs font-bold uppercase tracking-wider text-slate-600">
           <tr>
             <th className="px-4 py-3">Creditor</th>
             <th className="px-4 py-3">Product</th>

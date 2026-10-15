@@ -25,6 +25,20 @@ import {
 } from './RecoverChrome';
 import { useRecoverDesk } from './useRecoverDesk';
 
+function percentFromBps(bps: number | null | undefined): string {
+  if (bps == null || Number.isNaN(bps)) return '';
+  const percent = bps / 100;
+  return Number.isInteger(percent) ? String(percent) : String(Math.round(percent * 100) / 100);
+}
+
+function percentToBps(raw: FormDataEntryValue | null): number | null {
+  const text = String(raw || '').trim();
+  if (text === '') return null;
+  const percent = Number(text);
+  if (!Number.isFinite(percent)) return null;
+  return Math.round(percent * 100);
+}
+
 const STAFF_ROLES: Array<{ value: StaffRole; label: string }> = [
   { value: 'manager', label: 'Manager' },
   { value: 'collector', label: 'Agent' },
@@ -53,7 +67,7 @@ export function RecoverTeam() {
       cfdc_registration_no: String(form.get('cfdc_registration_no') || ''),
       cfdc_expiry: String(form.get('cfdc_expiry') || '') || null,
       vat_registered: form.get('vat_registered') === 'on',
-      vat_rate_bps: String(form.get('vat_rate_bps') || '') === '' ? null : Number(form.get('vat_rate_bps')),
+      vat_rate_bps: percentToBps(form.get('vat_rate_percent')),
     };
     await save(op);
   }
@@ -148,7 +162,7 @@ export function RecoverTeam() {
                   name="cfdc_expiry"
                   type="date"
                   defaultValue={workspace?.cfdc_expiry || ''}
-                  className={recoverInputClass}
+                  className={`${recoverInputClass} recover-date`}
                   disabled={!canEdit || !desk.ready}
                 />
               </RecoverField>
@@ -163,15 +177,18 @@ export function RecoverTeam() {
                   Registered for VAT
                 </label>
               </RecoverField>
-              <RecoverField label="VAT basis points">
+              <RecoverField label="VAT rate %">
                 <input
-                  name="vat_rate_bps"
-                  inputMode="numeric"
-                  defaultValue={workspace?.vat_rate_bps ?? ''}
-                  placeholder="Leave blank"
+                  name="vat_rate_percent"
+                  inputMode="decimal"
+                  defaultValue={percentFromBps(workspace?.vat_rate_bps)}
+                  placeholder="15"
                   className={`${recoverInputClass} tabular-nums`}
                   disabled={!canEdit || !desk.ready}
                 />
+                <span className="mt-1.5 block text-xs font-medium normal-case tracking-normal text-slate-600">
+                  Percent. 15 means a 15% rate.
+                </span>
               </RecoverField>
               {canEdit ? (
                 <div className="sm:col-span-2">
@@ -359,7 +376,7 @@ function StaffTable({
   return (
     <div data-testid="recover-staff-table" className="overflow-hidden rounded-2xl border border-[#e2e8f0]">
       <table className="w-full text-left text-sm">
-        <thead className="bg-[#f8fafc] text-[10px] font-black uppercase tracking-wider text-neutral-400">
+        <thead className="bg-[#f8fafc] text-xs font-bold uppercase tracking-wider text-slate-600">
           <tr>
             <th className="px-3 py-3">Email</th>
             <th className="px-3 py-3">Role</th>

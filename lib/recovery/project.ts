@@ -65,9 +65,16 @@ export function projectDesk(role: RecoverRole, load: RecoverLoad): RecoverDeskPa
   };
 }
 
-/** Drops trust configuration for an agent response. */
-export function deskResponseBody(payload: RecoverDeskPayload): RecoverDeskPayload {
-  if (payload.role !== 'agent' || !payload.workspace) return payload;
+/**
+ * Drops trust configuration unless the caller may see recovery_trust.
+ * Pass the company-role check. Desk capabilities alone are not enough:
+ * an operations user with a manager staff row must still not receive trust_mode.
+ */
+export function deskResponseBody(
+  payload: RecoverDeskPayload,
+  canSeeTrust = payload.capabilities.canSeeTrust
+): RecoverDeskPayload {
+  if (canSeeTrust || !payload.workspace) return payload;
   const workspace = { ...payload.workspace };
   delete (workspace as Partial<typeof workspace>).trust_mode;
   return { ...payload, workspace };

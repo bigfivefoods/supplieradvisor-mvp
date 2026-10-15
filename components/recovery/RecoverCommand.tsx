@@ -17,6 +17,8 @@ import {
 } from '@/lib/recovery/brand';
 import { queueNavLabel } from '@/lib/recovery/roles';
 import type { RecoverDeskPayload, RecoverWorkspace } from '@/lib/recovery/types';
+import { AgentArt, PendingArt, QueueArt } from './RecoverArt';
+import type { RecoverRole } from '@/lib/recovery/roles';
 import {
   RecoverBanner,
   RecoverButton,
@@ -25,6 +27,7 @@ import {
   RecoverModuleCard,
   RecoverPanel,
   RecoverRoleChip,
+  RecoverSample,
   RecoverScreen,
   dash,
   formatRand,
@@ -42,13 +45,29 @@ function cfdcDue(workspace: RecoverWorkspace | null) {
   return workspace.cfdc_expiry < todayIso();
 }
 
+function deskDescription(role: RecoverRole): string {
+  if (role === 'agent') {
+    return 'Your queue is the only work on this desk. Accounts show up here after a creditor book is placed.';
+  }
+  if (role === 'finance') {
+    return 'Finance sees trust and remittance. The books themselves are not loaded in this version.';
+  }
+  if (role === 'compliance') {
+    return 'Compliance watches the operator profile and the Council registration. Collection work is not open yet.';
+  }
+  if (role === 'viewer') {
+    return 'This is a read-only look at the collections desk. Nothing has been placed yet.';
+  }
+  return 'Collections workspace. Set the operator, the team, and the first creditor book. Accounts are not loaded in this version.';
+}
+
 export function RecoverCommand() {
   const { desk, error, loading } = useRecoverDesk();
   return (
     <RecoverScreen
       testId="recover-command"
       title={RECOVER_PRODUCT_NAME}
-      description="Collections workspace. Set the operator, the team, and the first creditor book. Accounts are not loaded in this version."
+      description={desk ? deskDescription(desk.role) : 'Opening the collections desk.'}
       action={desk ? <RecoverRoleChip role={desk.role} /> : null}
     >
       {error ? <RecoverBanner testId="recover-banner-error" tone="error">{error}</RecoverBanner> : null}
@@ -71,9 +90,30 @@ export function RecoverCommand() {
 function CommandBody({ desk }: { desk: RecoverDeskPayload }) {
   if (!desk.ready) {
     return (
-      <RecoverBanner testId="recover-banner-pending" tone="pending">
-        {RECOVER_PENDING_BANNER}
-      </RecoverBanner>
+      <div className="space-y-4">
+        <RecoverBanner testId="recover-banner-pending" tone="pending">
+          {RECOVER_PENDING_BANNER}
+        </RecoverBanner>
+        <RecoverEmpty
+          testId="recover-pending-stage"
+          icon={Landmark}
+          title="The desk is waiting"
+          body="Command centre, queues, creditors, and mandates stay closed until the database setup is approved."
+          art={<PendingArt />}
+          preview={
+            <RecoverSample title="What opens after approval">
+              <div className="grid gap-2 sm:grid-cols-3">
+                {['Command centre', 'Creditor book', 'Team'].map((label) => (
+                  <div key={label} className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-4">
+                    <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Sample</div>
+                    <div className="mt-1 text-sm font-black text-slate-900">{label}</div>
+                  </div>
+                ))}
+              </div>
+            </RecoverSample>
+          }
+        />
+      </div>
     );
   }
   if (desk.role === 'agent') return <AgentHome desk={desk} />;
@@ -147,7 +187,7 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
           aria-hidden
         />
         <div className="relative max-w-xl">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-200/80 bg-white/90 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#0077b6] shadow-sm">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-200/80 bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-widest text-[#0077b6] shadow-sm">
             <span className="relative flex h-1.5 w-1.5" aria-hidden>
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75 motion-reduce:animate-none" />
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -213,7 +253,7 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
                     {item.label}
                   </span>
                   <span
-                    className={`inline-flex min-h-7 items-center rounded-full px-2.5 text-[10px] font-black uppercase tracking-wide ${
+                    className={`inline-flex min-h-7 items-center rounded-full px-2.5 text-xs font-bold uppercase tracking-wide ${
                       item.done
                         ? 'bg-emerald-50 text-emerald-800'
                         : 'bg-white text-[#0077b6]'
@@ -305,36 +345,40 @@ function AgentHome({ desk }: { desk: RecoverDeskPayload }) {
   const name = desk.workspace?.display_name || RECOVER_PRODUCT_NAME;
   const target = desk.self?.monthly_target_cents;
   return (
-    <div data-testid="recover-agent-home">
+    <div data-testid="recover-agent-home" className="space-y-6">
       {!desk.workspace?.real_data_enabled ? (
         <RecoverBanner testId="recover-banner-demo" tone="demo">
           {RECOVER_DEMO_BANNER}
         </RecoverBanner>
       ) : null}
-      <section className="sa-hero mb-6 sm:mb-8">
+      <section className="sa-hero mb-2">
         <div
           className="pointer-events-none absolute -right-10 -top-10 h-56 w-56 rounded-full blur-3xl"
           style={{ background: 'var(--sa-page-glow-1)' }}
           aria-hidden
         />
-        <div className="relative max-w-xl">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-200/80 bg-white/90 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-[#0077b6] shadow-sm">
-            My work
+        <div className="relative grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
+          <div className="max-w-xl">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-200/80 bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-widest text-[#0077b6] shadow-sm">
+              My work
+            </div>
+            <h2 className="mb-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+              Good day
+            </h2>
+            <p className="text-sm leading-relaxed text-slate-600 sm:text-[15px]">
+              {name}. Your queue is the only work surface on this desk. Trust, settings, and other people’s books stay off this page.
+            </p>
           </div>
-          <h2 className="mb-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
-            Good day
-          </h2>
-          <p className="text-sm leading-relaxed text-slate-600">
-            {name}. Your queue is the only work surface on this desk.
-          </p>
+          <AgentArt />
         </div>
       </section>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(16rem,0.8fr)]">
         <RecoverEmpty
           testId="recover-queue-empty"
           icon={ListChecks}
           title="My queue"
           body="No accounts assigned yet. Accounts appear here once a creditor book is imported."
+          art={<QueueArt />}
           action={<RecoverButton href="/dashboard/recovergraph/queue">Open my queue</RecoverButton>}
         />
         <RecoverPanel title="Monthly target" testId="recover-target-empty">
@@ -342,8 +386,26 @@ function AgentHome({ desk }: { desk: RecoverDeskPayload }) {
           {target == null ? (
             <p className="mt-2 text-sm leading-relaxed text-slate-600">No monthly target set.</p>
           ) : null}
+          <p className="mt-4 text-sm leading-relaxed text-slate-600">
+            A target appears here when a manager sets one on your staff row. Until then the figure stays blank.
+          </p>
         </RecoverPanel>
       </div>
+      <RecoverSample title="A day on this desk">
+        <div className="grid gap-3 md:grid-cols-3">
+          {[
+            ['Open the queue', 'Assigned accounts will list here, one row each.'],
+            ['Work the next step', 'Each row will name the account and the next action.'],
+            ['Leave the rest', 'Creditors, mandates, and trust stay with the manager.'],
+          ].map(([title, body]) => (
+            <div key={title} className="rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-sm">
+              <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Sample</div>
+              <h3 className="mt-1 text-sm font-black text-slate-900">{title}</h3>
+              <p className="mt-1 text-sm leading-relaxed text-slate-600">{body}</p>
+            </div>
+          ))}
+        </div>
+      </RecoverSample>
     </div>
   );
 }

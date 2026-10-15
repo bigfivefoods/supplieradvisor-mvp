@@ -24,6 +24,14 @@ export function RecoverFrame({ children }: { children: React.ReactNode }) {
           outline: 2px solid ${RECOVER_BRAND.accentDeep};
           outline-offset: 2px;
         }
+        input[type='date'].recover-date {
+          color-scheme: light;
+          font-variant-numeric: tabular-nums;
+        }
+        input[type='date'].recover-date::-webkit-calendar-picker-indicator {
+          cursor: pointer;
+          opacity: 0.72;
+        }
       `}</style>
       {children}
     </div>
@@ -107,7 +115,7 @@ export function RecoverScreen({
           <ModuleCrumbs />
           <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0 max-w-3xl">
-              <p className="mb-1 text-[10px] font-black uppercase tracking-[0.16em] text-neutral-400 sm:text-xs">
+              <p className="mb-1 text-xs font-bold uppercase tracking-[0.16em] text-slate-600">
                 {eyebrow}
               </p>
               <h1 className="text-pretty text-2xl font-black leading-[1.15] tracking-tight text-slate-900 sm:text-3xl sm:tracking-[-1.5px] md:text-4xl">
@@ -193,7 +201,7 @@ export function RecoverKpi({
         </div>
       </div>
       <div className="sa-metric-value tabular-nums text-slate-900">{value}</div>
-      <div className="mt-0.5 line-clamp-2 text-[10px] font-medium leading-snug text-neutral-500 sm:text-[11px]">
+      <div className="mt-0.5 line-clamp-2 text-xs font-medium leading-snug text-slate-600">
         {sub}
       </div>
     </div>
@@ -229,12 +237,12 @@ export function RecoverModuleCard({
           <Icon className="h-5 w-5" aria-hidden />
         </div>
         <div className="min-w-0 max-w-[55%] text-right">
-          <div className="font-mono text-[10px] font-black tracking-widest text-neutral-400">{code}</div>
+          <div className="font-mono text-xs font-bold tracking-widest text-slate-600">{code}</div>
           {metric !== undefined ? (
             <>
               <div className="sa-metric-value-sm mt-0.5 tabular-nums text-slate-800">{metric}</div>
               {metricLabel ? (
-                <div className="text-[9px] font-bold uppercase text-neutral-400">{metricLabel}</div>
+                <div className="text-xs font-bold uppercase text-slate-600">{metricLabel}</div>
               ) : null}
             </>
           ) : null}
@@ -259,6 +267,8 @@ export function RecoverEmpty({
   body,
   action,
   legend,
+  art,
+  preview,
 }: {
   testId: string;
   icon: LucideIcon;
@@ -266,27 +276,36 @@ export function RecoverEmpty({
   body: string;
   action?: React.ReactNode;
   legend?: string[];
+  art?: React.ReactNode;
+  preview?: React.ReactNode;
 }) {
   return (
     <div
       data-testid={testId}
-      className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm"
+      className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-[0_20px_50px_-28px_rgba(15,23,42,0.45)]"
     >
-      <div className="relative bg-gradient-to-br from-cyan-50 via-white to-white p-6 sm:p-8">
+      <div className="relative bg-gradient-to-br from-cyan-50 via-white to-sky-50">
         <div
-          className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full blur-3xl"
-          style={{ background: 'var(--sa-page-glow-1, rgba(0,180,216,0.14))' }}
+          className="pointer-events-none absolute -right-10 -top-12 h-56 w-56 rounded-full blur-3xl"
+          style={{ background: 'rgba(0, 180, 216, 0.18)' }}
           aria-hidden
         />
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0 max-w-2xl">
+        <div className="relative grid gap-2 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
+          <div className="flex items-center justify-center px-6 pb-2 pt-6 sm:px-8 lg:py-8">
+            {art ?? (
+              <div className="flex h-28 w-28 items-center justify-center rounded-[2rem] border border-cyan-100 bg-white text-[#0077b6] shadow-sm">
+                <Icon className="h-10 w-10" aria-hidden />
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col justify-center px-6 pb-8 pt-2 sm:px-8 lg:py-10 lg:pl-0">
             <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-50 bg-white text-[#0077b6] shadow-sm">
               <Icon className="h-5 w-5" aria-hidden />
             </div>
-            <h2 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl">{title}</h2>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-600 sm:text-[15px]">{body}</p>
+            <h2 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">{title}</h2>
+            <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-600 sm:text-[15px]">{body}</p>
+            {action ? <div className="mt-6">{action}</div> : null}
           </div>
-          {action ? <div className="shrink-0">{action}</div> : null}
         </div>
       </div>
       {legend && legend.length > 0 ? (
@@ -297,12 +316,30 @@ export function RecoverEmpty({
         >
           {legend.map((label) => (
             <div key={label} className="min-w-0 px-4 py-3.5">
-              <div className="text-[10px] font-black uppercase tracking-wider text-neutral-400">{label}</div>
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-600">{label}</div>
               <div className="mt-1 text-lg font-black tabular-nums text-slate-900">—</div>
             </div>
           ))}
         </div>
       ) : null}
+      {preview}
+    </div>
+  );
+}
+
+export function RecoverSample({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="border-t border-[#e2e8f0] bg-[#f8fafc] px-5 py-5 sm:px-6">
+      <p className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-slate-600">
+        Illustration · not live data · {title}
+      </p>
+      {children}
     </div>
   );
 }
@@ -341,7 +378,7 @@ export function RecoverField({
 }) {
   return (
     <label className="block min-w-0">
-      <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-neutral-400">
+      <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-600">
         {label}
       </span>
       {children}

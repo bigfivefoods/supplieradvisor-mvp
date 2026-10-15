@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCompanyPermission } from '@/lib/auth/api-auth';
+import { canRecoveryTrust } from '@/lib/recovery/permissions';
 import { resolveRecoverRole, capabilitiesFor } from '@/lib/recovery/roles';
 import { resolveMemberCompany } from '@/lib/recovery/member-company';
 import {
   applyRecoverOp,
+  companyRecovergraphEnabled,
   loadRecoverDesk,
   MigrationPendingError,
 } from '@/lib/recovery/recovergraph-db';
@@ -36,13 +38,14 @@ export async function GET(request: NextRequest) {
       gate.response.headers.set('Cache-Control', 'private, no-store');
       return gate.response;
     }
+    if (!(await companyRecovergraphEnabled(member.member.companyId))) return denied();
 
     const load = await loadRecoverDesk(member.member.companyId, {
       userId: gate.userId,
       email: member.member.email,
     });
     const role = resolveRecoverRole(gate.role, load.self);
-    return json(deskResponseBody(projectDesk(role, load)));
+    return json(deskResponseBody(projectDesk(role, load), canRecoveryTrust(gate.role, 'view')));
   } catch {
     return json({ error: 'RecoverAdvisor® could not be opened.' }, 500);
   }
@@ -62,6 +65,7 @@ export async function POST(request: NextRequest) {
       gate.response.headers.set('Cache-Control', 'private, no-store');
       return gate.response;
     }
+    if (!(await companyRecovergraphEnabled(member.member.companyId))) return denied();
 
     const rawText = await request.text();
     if (rawText.length > 16_000) return json({ error: 'Request could not be read.' }, 400);
@@ -106,7 +110,7 @@ export async function POST(request: NextRequest) {
       userId: gate.userId,
       email: member.member.email,
     });
-    return json(deskResponseBody(projectDesk(role, next)));
+    return json(deskResponseBody(projectDesk(role, next), canRecoveryTrust(gate.role, 'view')));
   } catch (error) {
     if (error instanceof MigrationPendingError || (error instanceof Error && error.message === 'migration_pending')) {
       return json({ ready: false, reason: 'migration_pending' }, 409);
