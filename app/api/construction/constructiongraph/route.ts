@@ -1,33 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { legacyPrivyFrom, requireCompanyAccess } from '@/lib/auth/api-auth';
 import {
-  constructiongraphSeedStore,
-  emptyConstructiongraphStore,
-  mergeConstructiongraphStore,
-  mintConstructionToken,
+  legacyPrivyFrom,
+  requireCompanyAccess,
+  requireCompanyPermission,
+  requireCompanyRoles,
+  ROLES_OPS_CRITICAL,
+} from '@/lib/auth/api-auth';
+import {
   programmeReport,
   readConstructiongraphFromMetadata,
+  sanitiseConstructiongraphStore,
   summariseConstructiongraph,
-  upsertPortal,
-  writeConstructiongraphToMetadata,
   type ConstructiongraphStore,
 } from '@/lib/construction/constructiongraph';
+import { commitProfileMetadata } from '@/lib/construction/metadata-commit';
+import { applyStaffConstructionAction } from '@/lib/construction/staff-book';
 
 export const runtime = 'nodejs';
 
+const NO_STORE = { 'Cache-Control': 'private, no-store' };
+const GENERIC = 'Something went wrong';
+
 type Payload = {
   companyId?: number;
-  action?:
-    | 'seed_demo'
-    | 'merge'
-    | 'replace'
-    | 'ensure_portal'
-    | 'ensure_client_portal'
-    | 'ensure_contractor_portal';
+  action?: string;
   store?: Partial<ConstructiongraphStore>;
   clientId?: string;
   siteId?: string;
+  portalId?: string;
+  confirm?: string;
 };
 
 function asObject(value: unknown): Record<string, unknown> {
@@ -37,11 +39,78 @@ function asObject(value: unknown): Record<string, unknown> {
   return {};
 }
 
+function json(body: Record<string, unknown>, status = 200) {
+  return NextResponse.json(body, { status, headers: NO_STORE });
+}
+
+type LooseDb = {
+  from(table: string): {
+    select(columns: string): {
+      eq(column: string, value: unknown): {
+        maybeSingle(): PromiseLike<{
+          data: { metadata?: unknown; updated_at?: string | null } | null;
+          error: { message?: string } | null;
+        }>;
+      };
+    };
+    update(payload: Record<string, unknown>): {
+      eq(column: string, value: unknown): {
+        eq(column: string, value: unknown): {
+          select(columns: string): PromiseLike<{
+            data: Array<{ id?: number }> | null;
+            error: { message?: string } | null;
+          }>;
+        };
+        is(column: string, value: null): {
+          select(columns: string): PromiseLike<{
+            data: Array<{ id?: number }> | null;
+            error: { message?: string } | null;
+          }>;
+        };
+      };
+    };
+  };
+};
+
+function companyIo(supabase: LooseDb, companyId: number) {
+  return {
+    async read() {
+      const res = await supabase
+        .from('profiles')
+        .select('metadata, updated_at')
+        .eq('id', companyId)
+        .maybeSingle();
+      if (res.error) throw new Error('cg_staff_read_failed');
+      if (!res.data) return null;
+      return {
+        metadata: asObject(res.data.metadata),
+        updated_at: res.data.updated_at ?? null,
+      };
+    },
+    async write(args: {
+      metadata: Record<string, unknown>;
+      prevUpdatedAt: string | null;
+      nextUpdatedAt: string;
+    }) {
+      const update = supabase
+        .from('profiles')
+        .update({ metadata: args.metadata, updated_at: args.nextUpdatedAt })
+        .eq('id', companyId);
+      const res =
+        args.prevUpdatedAt == null
+          ? await update.is('updated_at', null).select('id')
+          : await update.eq('updated_at', args.prevUpdatedAt).select('id');
+      if (res.error) throw new Error('cg_staff_write_failed');
+      return res.data && res.data.length > 0 ? ('ok' as const) : ('lost' as const);
+    },
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     if (!Number.isFinite(companyId) || companyId <= 0) {
-      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+      return json({ error: 'companyId required' }, 400);
     }
 
     const gate = await requireCompanyAccess(request, companyId, {
@@ -49,37 +118,43 @@ export async function GET(request: NextRequest) {
     });
     if (!gate.ok) return gate.response;
 
+    const perm = await requireCompanyPermission(request, companyId, 'operations', 'view', {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!perm.ok) return perm.response;
+
     const supabase = getSupabaseServer();
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('metadata')
-      .eq('id', companyId)
-      .maybeSingle();
+    const io = companyIo(supabase as unknown as LooseDb, companyId);
+    const row = await io.read();
+    if (!row) return json({ error: 'Company not found' }, 404);
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-    const metadata = asObject(profile?.metadata);
+    // View-only roles may GET. Legacy upgrade is a write, so it stays on the
+    // public read and on staff writes, not on this GET.
+    const metadata = row.metadata;
     const store = readConstructiongraphFromMetadata(metadata);
-    return NextResponse.json({
+    return json({
       success: true,
-      store,
+      store: sanitiseConstructiongraphStore(store),
       summary: summariseConstructiongraph(store),
       programme: programmeReport(store),
     });
-  } catch (e: unknown) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Error' },
-      { status: 500 }
-    );
+  } catch {
+    console.error('cg_staff_read_failed');
+    return json({ error: GENERIC }, 500);
   }
 }
 
 export async function POST(request: NextRequest) {
+  let body: Payload;
   try {
-    const body = (await request.json()) as Payload;
+    body = (await request.json()) as Payload;
+  } catch {
+    return json({ error: 'Invalid JSON' }, 400);
+  }
+  try {
     const companyId = Number(body.companyId);
     if (!Number.isFinite(companyId) || companyId <= 0) {
-      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+      return json({ error: 'companyId required' }, 400);
     }
 
     const gate = await requireCompanyAccess(request, companyId, {
@@ -87,87 +162,56 @@ export async function POST(request: NextRequest) {
     });
     if (!gate.ok) return gate.response;
 
-    const supabase = getSupabaseServer();
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('metadata')
-      .eq('id', companyId)
-      .maybeSingle();
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-    const prevMeta = asObject(profile?.metadata);
-    const prevStore = readConstructiongraphFromMetadata(prevMeta);
-
-    let nextStore: ConstructiongraphStore;
     const action = String(body.action || 'merge');
-
-    if (action === 'seed_demo') {
-      nextStore = constructiongraphSeedStore();
-    } else if (action === 'ensure_portal') {
-      const existing = prevStore.portals.find((p) => p.kind === 'public');
-      const token =
-        prevStore.settings.public_token || existing?.token || mintConstructionToken();
-      nextStore = upsertPortal(prevStore, {
-        token,
-        kind: 'public',
-        label: 'Client & contractor PWA',
-      });
-    } else if (action === 'ensure_client_portal') {
-      const clientId = String(body.clientId || '').trim();
-      const client = prevStore.clients.find((c) => c.id === clientId);
-      if (!client) {
-        return NextResponse.json({ error: 'clientId required' }, { status: 400 });
-      }
-      nextStore = upsertPortal(prevStore, {
-        token: mintConstructionToken(),
-        kind: 'client',
-        client_id: clientId,
-        label: client.name,
-      });
-    } else if (action === 'ensure_contractor_portal') {
-      const siteId = String(body.siteId || '').trim();
-      const site = prevStore.sites.find((s) => s.id === siteId);
-      if (!site) {
-        return NextResponse.json({ error: 'siteId required' }, { status: 400 });
-      }
-      nextStore = upsertPortal(prevStore, {
-        token: mintConstructionToken(),
-        kind: 'contractor',
-        site_id: siteId,
-        client_id: site.client_id,
-        label: `${site.code} site team`,
-      });
-    } else if (action === 'replace') {
-      nextStore = mergeConstructiongraphStore(
-        emptyConstructiongraphStore(),
-        asObject(body.store) as Partial<ConstructiongraphStore>
-      );
+    const legacy = { legacyPrivyUserId: legacyPrivyFrom(request) };
+    if (action === 'replace') {
+      const role = await requireCompanyRoles(request, companyId, ['owner', 'admin'], legacy);
+      if (!role.ok) return role.response;
+    } else if (
+      action === 'ensure_portal' ||
+      action === 'ensure_client_portal' ||
+      action === 'ensure_contractor_portal' ||
+      action === 'revoke_portal' ||
+      action === 'reissue_portal' ||
+      action === 'seed_demo'
+    ) {
+      const role = await requireCompanyRoles(request, companyId, ROLES_OPS_CRITICAL, legacy);
+      if (!role.ok) return role.response;
     } else {
-      nextStore = mergeConstructiongraphStore(
-        prevStore,
-        asObject(body.store) as Partial<ConstructiongraphStore>
+      const perm = await requireCompanyPermission(
+        request,
+        companyId,
+        'operations',
+        'write',
+        legacy
       );
+      if (!perm.ok) return perm.response;
     }
 
-    const nextMeta = writeConstructiongraphToMetadata(prevMeta, nextStore);
-
-    const { error: upErr } = await supabase
-      .from('profiles')
-      .update({ metadata: nextMeta, updated_at: new Date().toISOString() })
-      .eq('id', companyId);
-    if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
-
-    return NextResponse.json({
-      success: true,
-      store: nextStore,
-      summary: summariseConstructiongraph(nextStore),
-      programme: programmeReport(nextStore),
+    const supabase = getSupabaseServer();
+    const io = companyIo(supabase as unknown as LooseDb, companyId);
+    const saved = await commitProfileMetadata({
+      read: () => io.read(),
+      write: (args) => io.write(args),
+      change: (row) => {
+        const applied = applyStaffConstructionAction({
+          meta: row.metadata,
+          action,
+          patch: body.store,
+          clientId: body.clientId,
+          siteId: body.siteId,
+          portalId: body.portalId,
+          confirm: body.confirm,
+          actorId: gate.userId,
+        });
+        if ('error' in applied) return applied;
+        return { metadata: applied.metadata, value: applied.value };
+      },
     });
-  } catch (e: unknown) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Error' },
-      { status: 500 }
-    );
+    if (!saved.ok) return json({ error: saved.error }, saved.status);
+    return json({ success: true, ...saved.value });
+  } catch {
+    console.error('cg_staff_write_failed');
+    return json({ error: GENERIC }, 500);
   }
 }
