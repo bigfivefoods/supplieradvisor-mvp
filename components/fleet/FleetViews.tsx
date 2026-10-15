@@ -22,7 +22,8 @@ import {
 } from '@/lib/fleet/labels';
 import { nextMonth, periodFor, type PeriodId } from '@/lib/fleet/periods';
 import type { FleetCapabilities } from '@/lib/fleet/roles';
-import type { FleetBook, FleetOp, FleetRole } from '@/lib/fleet/types';
+import type { FleetBook, FleetOp, FleetReadiness, FleetRole } from '@/lib/fleet/types';
+import { ComplianceView, DriverDetailView, ImportView, RemindersPanel, VehicleDetailView } from './ComplianceViews';
 import { CpkWaterfallArt, DispatchArt, ExpiryStripArt, FleetRegisterArt, MapSketchArt, PodArt } from './Illustrations';
 import {
   FleetAvatar,
@@ -50,7 +51,7 @@ import {
   fleetLink,
 } from './FleetUi';
 
-export type FleetScreen = 'command' | 'map' | 'vehicles' | 'drivers' | 'jobs' | 'cpk' | 'settings';
+export type FleetScreen = 'command' | 'map' | 'vehicles' | 'drivers' | 'jobs' | 'cpk' | 'settings' | 'compliance' | 'import' | 'vehicle' | 'driver';
 
 export type FleetDeskProps = {
   screen: FleetScreen;
@@ -64,6 +65,9 @@ export type FleetDeskProps = {
   notice?: string | null;
   migrationPending?: boolean;
   illustrate?: boolean;
+  webPush?: 'ready' | 'not_configured';
+  subjectId?: string;
+  readiness?: FleetReadiness;
   onPeriod?: (id: PeriodId) => void;
   onOp?: (op: FleetOp, expected?: string | null) => void | boolean | Promise<boolean | void>;
   onRetry?: () => void;
@@ -110,6 +114,10 @@ export function FleetDesk(props: FleetDeskProps) {
   if (props.screen === 'drivers') return <DriversView {...props} />;
   if (props.screen === 'jobs') return <JobsView {...props} />;
   if (props.screen === 'cpk') return <CpkView {...props} />;
+  if (props.screen === 'compliance') return <ComplianceView {...props} />;
+  if (props.screen === 'import') return <ImportView {...props} />;
+  if (props.screen === 'vehicle') return <VehicleDetailView {...props} />;
+  if (props.screen === 'driver') return <DriverDetailView {...props} />;
   return <SettingsView {...props} />;
 }
 
@@ -689,9 +697,14 @@ function VehiclesView(props: FleetDeskProps) {
             return {
               id: vehicle.id,
               cells: [
-                <button key="o" type="button" className={`${fleetLink} ${fleetFocus} min-h-11`} data-testid={`fleet-open-${vehicle.reg_no.replace(/\s+/g, '-')}`} onClick={() => setOpen(vehicle.id)}>
-                  {vehicle.reg_no}
-                </button>,
+                <span key="o" className="inline-flex flex-col">
+                  <button type="button" className={`${fleetLink} ${fleetFocus} min-h-11`} data-testid={`fleet-open-${vehicle.reg_no.replace(/\s+/g, '-')}`} onClick={() => setOpen(vehicle.id)}>
+                    {vehicle.reg_no}
+                  </button>
+                  <Link className={`${fleetLink} ${fleetFocus} inline-flex min-h-11 items-center whitespace-nowrap`} href={`${props.hrefBase}/vehicles/${vehicle.id}`} data-testid={`fleet-vehicle-${vehicle.id}`}>
+                    Open record
+                  </Link>
+                </span>,
                 vehicleKindLabel(vehicle.kind),
                 <FleetStatusPill key="s" tone={vehicle.status === 'active' ? 'ok' : vehicle.status === 'sold' ? 'muted' : 'warn'}>
                   {vehicleStatusLabel(vehicle.status)}
@@ -1027,7 +1040,12 @@ function DriversView(props: FleetDeskProps) {
           rows={rows.map((driver) => ({
             id: driver.id,
             cells: [
-              <button key="n" type="button" className={`${fleetLink} ${fleetFocus} inline-flex min-h-11 items-center gap-2`} onClick={() => setOpen(driver.id)}><FleetAvatar name={driver.full_name} />{driver.full_name}</button>,
+              <span key="n" className="inline-flex flex-col">
+                <button type="button" className={`${fleetLink} ${fleetFocus} inline-flex min-h-11 items-center gap-2`} onClick={() => setOpen(driver.id)}><FleetAvatar name={driver.full_name} />{driver.full_name}</button>
+                <Link className={`${fleetLink} ${fleetFocus} inline-flex min-h-11 items-center`} href={`${props.hrefBase}/drivers/${driver.id}`} data-testid={`fleet-driver-${driver.id}`}>
+                  Open record
+                </Link>
+              </span>,
               employmentLabel(driver.employment),
               driver.licence_code || '—',
               <FleetStatusPill key="s" tone={driver.status === 'active' ? 'ok' : 'muted'}>{driverStatusLabel(driver.status)}</FleetStatusPill>,
@@ -1698,6 +1716,7 @@ function SettingsView(props: FleetDeskProps) {
       ) : (
         <p className="text-sm text-slate-600">Retention, price visibility and the real-data switch are owner-only.</p>
       )}
+      <RemindersPanel {...props} />
     </main>
   );
 }

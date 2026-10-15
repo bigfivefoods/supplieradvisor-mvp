@@ -371,8 +371,12 @@ export function FleetTable({
 }) {
   return (
     <div data-testid={testId}>
-      <div className="hidden overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm sm:block">
-        <table className="w-full border-collapse text-left text-sm">
+      <div className="hidden sm:block">
+        <p className="mb-2 text-xs font-bold text-[#0077b6] lg:hidden" data-testid="fleet-table-scroll-hint">
+          Scroll sideways to see every column.
+        </p>
+        <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <table className="w-full min-w-[840px] border-collapse text-left text-sm">
           <thead className="sticky top-0 bg-slate-50">
             <tr>
               {columns.map((column) => (
@@ -394,6 +398,7 @@ export function FleetTable({
             ))}
           </tbody>
         </table>
+        </div>
       </div>
       <div className="space-y-3 sm:hidden">
         {rows.map((row) => (

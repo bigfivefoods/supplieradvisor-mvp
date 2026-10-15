@@ -16,6 +16,11 @@ export type FleetCapabilities = {
   canEditSettings: boolean;
   canOwnerSwitches: boolean;
   canConfirmRealData: boolean;
+  canManageReminders: boolean;
+  canImportShip: boolean;
+  canImportCsv: boolean;
+  canExportCompliance: boolean;
+  canManageTrailers: boolean;
   readOnly: boolean;
 };
 
@@ -24,6 +29,10 @@ const WRITE_OPS: FleetOpName[] = [
   'vehicle.set_status',
   'driver.upsert',
   'compliance.upsert',
+  'compliance.renew',
+  'compliance.bulk_upsert',
+  'trailer.link',
+  'trailer.unlink',
   'job.upsert',
   'odometer.add',
 ];
@@ -72,6 +81,11 @@ export function capabilitiesFor(
     canEditSettings: role === 'owner' || role === 'manager',
     canOwnerSwitches: role === 'owner',
     canConfirmRealData: role === 'owner',
+    canManageReminders: role === 'owner' || role === 'manager',
+    canImportShip: role === 'owner',
+    canImportCsv: role === 'owner' || role === 'manager',
+    canExportCompliance: role === 'owner' || role === 'manager' || role === 'office',
+    canManageTrailers: role === 'owner' || role === 'manager' || role === 'dispatcher',
     readOnly: role === 'office' || role === 'viewer' || role === 'none',
   };
 }
@@ -131,5 +145,16 @@ export function viewForRole<T extends FleetBook & { cpk?: unknown }>(
     for (const key of COST_KEYS) delete view[key];
   }
   if (!caps.seesDriverPay) view = stripDriverPay(view) as Record<string, unknown>;
+  if (!caps.canManageReminders) {
+    view = stripKeys(view, new Set(['recipient_member_ids', 'reminder_log'])) as Record<string, unknown>;
+    delete view.members;
+    if (Array.isArray(view.import_runs)) {
+      view.import_runs = (view.import_runs as Array<Record<string, unknown>>).map((run) => {
+        const copy = { ...run };
+        delete copy.created_by;
+        return copy;
+      });
+    }
+  }
   return view;
 }

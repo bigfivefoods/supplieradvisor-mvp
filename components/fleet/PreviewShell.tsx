@@ -23,9 +23,11 @@ const SCREENS: Record<string, FleetScreen> = {
   jobs: 'jobs',
   cpk: 'cpk',
   settings: 'settings',
+  compliance: 'compliance',
+  import: 'import',
 };
 
-export function PreviewShell({ screen }: { screen: FleetScreen }) {
+export function PreviewShell({ screen, subjectId }: { screen: FleetScreen; subjectId?: string }) {
   const [book, setBook] = useState<FleetBook | null>(null);
   const [role, setRole] = useState<FleetRole>('owner');
   const [periodId, setPeriodId] = useState<PeriodId>('last');
@@ -117,6 +119,7 @@ export function PreviewShell({ screen }: { screen: FleetScreen }) {
               hrefBase="/preview/fleetgraph"
               today="2024-07-02"
               notice={notice}
+              subjectId={subjectId}
               illustrate
               onPeriod={setPeriodId}
               onRetry={() => {

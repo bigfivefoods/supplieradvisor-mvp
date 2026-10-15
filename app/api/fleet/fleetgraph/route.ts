@@ -3,10 +3,12 @@ import { requireCompanyPermission } from '@/lib/auth/api-auth';
 import { cpkForBook } from '@/lib/fleet/book-cpk';
 import { applyFleetOp } from '@/lib/fleet/ops';
 import { commitFleetOp, customerBelongsToCompany, foreignStops, insertCustomer, loadFleetBook, nextJobNumber } from '@/lib/fleet/fleetgraph-db';
+import { materialiseImport } from '@/lib/fleet/import-materialise';
+import { isWebPushConfigured } from '@/lib/push/web-push';
 import { sastDate } from '@/lib/fleet/format';
 import { periodFor } from '@/lib/fleet/periods';
-import { capabilitiesFor, resolveFleetRole, viewForRole } from '@/lib/fleet/roles';
-import type { FleetBook, FleetOp, FleetOpName } from '@/lib/fleet/types';
+import { allowedOpsForRole, capabilitiesFor, resolveFleetRole, viewForRole } from '@/lib/fleet/roles';
+import type { FleetBook, FleetOp, FleetOpName, FleetReadiness } from '@/lib/fleet/types';
 import { FLEET_OPS } from '@/lib/fleet/types';
 
 export const dynamic = 'force-dynamic';
@@ -37,7 +39,7 @@ function todaySast(): string {
   return sastDate(new Date()) || new Date().toISOString().slice(0, 10);
 }
 
-function present(book: FleetBook, companyRole: string) {
+function present(book: FleetBook, companyRole: string, readiness?: FleetReadiness) {
   const role = resolveFleetRole(companyRole);
   const caps = capabilitiesFor(role, { dispatcherSeesRates: book.workspace.dispatcher_sees_rates });
   const today = todaySast();
@@ -46,7 +48,7 @@ function present(book: FleetBook, companyRole: string) {
   const view = viewForRole({ ...book, ...(cpk ? { cpk } : {}) }, role, {
     dispatcherSeesRates: book.workspace.dispatcher_sees_rates,
   });
-  return { ready: true, role, caps, period, book: view };
+  return { ready: true, role, caps, period, book: view, readiness, web_push: isWebPushConfigured() ? 'ready' : 'not_configured' };
 }
 
 function pendingOrFailure(reason: 'migration_pending' | 'error') {
@@ -60,7 +62,7 @@ async function serveBook(companyId: number, companyRole: string, book?: FleetBoo
   try {
     const loaded = await loadFleetBook(companyId);
     if (!loaded.ready) return pendingOrFailure(loaded.reason);
-    return json(200, present(loaded.book, companyRole));
+    return json(200, present(loaded.book, companyRole, loaded.readiness));
   } catch {
     console.error('fleetgraph load failed');
     return json(500, { error: 'The desk could not load.' });
@@ -91,6 +93,7 @@ export async function POST(request: NextRequest) {
   }
   if (!loaded.ready) return pendingOrFailure(loaded.reason);
   const fleetRole = resolveFleetRole(gated.companyRole);
+  if (!allowedOpsForRole(fleetRole).includes(opName as FleetOpName)) return json(403, { error: 'You cannot do that.' });
   const customerId = Number(payload.customer_id);
   if (payload.customer_id != null && payload.customer_id !== '' && Number.isFinite(customerId) && customerId > 0) {
     let same = false;
@@ -101,7 +104,7 @@ export async function POST(request: NextRequest) {
     }
     if (!same) return json(400, { error: 'Choose a customer from this company.' });
   }
-  const op = { op: opName as FleetOpName, payload } satisfies FleetOp;
+  let op = { op: opName as FleetOpName, payload } satisfies FleetOp;
   const ctx = {
     role: fleetRole,
     actorId: gated.userId,
@@ -153,6 +156,12 @@ export async function POST(request: NextRequest) {
       payload.reference = `${prefix}-${number.value}`;
     }
   }
+  if (op.op === 'import.dry_run' || op.op === 'import.commit') {
+    const materialised = await materialiseImport(loaded.book, op, ctx.now);
+    if (!materialised.ok && materialised.pending) return json(200, { ready: false, reason: 'migration_pending' });
+    if (!materialised.ok) return json(materialised.status, { error: materialised.error });
+    op = materialised.op;
+  }
   try {
     const outcome = await commitFleetOp(loaded.book, op, ctx, expected);
     if (!outcome.ok && outcome.pending) return json(200, { ready: false, reason: 'migration_pending' });
@@ -161,7 +170,8 @@ export async function POST(request: NextRequest) {
       return json(500, { error: 'The desk could not save that.' });
     }
     if (!outcome.ok) return json(outcome.status, { error: outcome.error });
-    return json(200, present(outcome.book, gated.companyRole));
+    const already = outcome.audit.payload.already_imported === true;
+    return json(200, { ...present(outcome.book, gated.companyRole, loaded.readiness), ...(already ? { already_imported: true } : {}) });
   } catch {
     console.error('fleetgraph save failed');
     return json(500, { error: 'The desk could not save that.' });
@@ -170,7 +180,9 @@ export async function POST(request: NextRequest) {
 
 async function readBody(request: NextRequest): Promise<{ op?: unknown; payload?: unknown; expected_updated_at?: unknown } | null> {
   try {
-    return (await request.json()) as { op?: unknown; payload?: unknown; expected_updated_at?: unknown };
+    const raw = await request.text();
+    if (raw.length > 1_048_576) return null;
+    return JSON.parse(raw) as { op?: unknown; payload?: unknown; expected_updated_at?: unknown };
   } catch {
     return null;
   }

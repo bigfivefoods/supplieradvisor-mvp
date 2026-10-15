@@ -980,6 +980,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         section: 'Fleet',
       },
       {
+        name: 'Compliance',
+        href: '/dashboard/fleetgraph/compliance',
+        desc: 'Expiries, permits and what has no date',
+        section: 'Fleet',
+      },
+      {
         name: 'Jobs',
         href: '/dashboard/fleetgraph/jobs',
         desc: 'Loads, stops and customers',
@@ -990,6 +996,12 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         href: '/dashboard/fleetgraph/cpk',
         desc: 'Cost per kilometre from your own entries',
         section: 'Insights',
+      },
+      {
+        name: 'Import',
+        href: '/dashboard/fleetgraph/import',
+        desc: 'Bring in your register from Ship or a CSV',
+        section: 'Setup',
       },
       {
         name: 'Settings',

@@ -52,6 +52,11 @@ export type FleetWorkspace = {
   overhead_include_subcontractors: boolean;
   /** Basis points. 1000 is a 10% margin on the required rate. */
   required_margin_bps: number;
+  /** Editable starting set. Not a statement of any rule. */
+  expected_vehicle_kinds: ComplianceKind[];
+  expected_driver_kinds: ComplianceKind[];
+  /** Null turns the PrDP warning off. The company sets this figure. */
+  prdp_gvm_threshold_kg: number | null;
   updated_at: string;
 };
 
@@ -78,6 +83,8 @@ export type FleetVehicle = {
   tracker_provider: string;
   notes: string;
   archived_at: string | null;
+  source_system?: 'ship' | null;
+  source_id?: string | null;
   updated_at: string;
 };
 
@@ -93,6 +100,8 @@ export type FleetDriver = {
   person_id: number | null;
   notes: string;
   archived_at: string | null;
+  source_system?: 'ship' | null;
+  source_id?: string | null;
   updated_at: string;
 };
 
@@ -108,8 +117,87 @@ export type FleetCompliance = {
   detail: Record<string, unknown>;
   status_note: string;
   archived_at: string | null;
+  renewed_from_id?: string | null;
   updated_at: string;
 };
+
+export type ReminderScope = 'all' | 'vehicle' | 'driver';
+export type ReminderChannel = 'email' | 'push';
+export type ReminderLogStatus = 'claimed' | 'sent' | 'failed' | 'skipped_superseded';
+export type ImportKind =
+  | 'gps_csv'
+  | 'gpx'
+  | 'ship_vehicles'
+  | 'ship_drivers'
+  | 'fuel_csv'
+  | 'toll_csv'
+  | 'vehicles_csv'
+  | 'drivers_csv'
+  | 'compliance_csv';
+export type ImportStatus = 'draft' | 'dry_run' | 'committed' | 'failed';
+
+export type FleetReminder = {
+  id: string;
+  company_id: number;
+  scope_kind: ReminderScope;
+  kind: ComplianceKind | null;
+  thresholds_days: number[];
+  channels: ReminderChannel[];
+  recipient_member_ids: string[];
+  enabled: boolean;
+  archived_at: string | null;
+  updated_at: string;
+};
+
+export type FleetReminderLog = {
+  id: string;
+  company_id: number;
+  rule_id: string;
+  item_id: string;
+  subject_kind: 'vehicle' | 'driver';
+  subject_id: string;
+  expires_on: string;
+  threshold_days: number;
+  channel: ReminderChannel;
+  recipient_key: string;
+  status: ReminderLogStatus;
+  error_code: string | null;
+  at: string;
+};
+
+export type FleetTrailerLink = {
+  id: string;
+  company_id: number;
+  truck_id: string;
+  trailer_id: string;
+  from_on: string;
+  to_on: string | null;
+  created_by: string;
+  archived_at: string | null;
+  updated_at: string;
+};
+
+export type FleetImportRun = {
+  id: string;
+  company_id: number;
+  kind: ImportKind;
+  status: ImportStatus;
+  row_counts: Record<string, number>;
+  source_hash: string;
+  source_label: string;
+  created_by: string;
+  dry_run: boolean;
+  committed_at: string | null;
+  created_at: string;
+};
+
+export type FleetMember = {
+  id: string;
+  label: string;
+};
+
+export type FleetFeature = 'compliance_b' | 'reminders' | 'imports' | 'trailers';
+export type FleetReadiness = Record<FleetFeature, { ready: boolean; reason?: 'migration_pending' | 'error' }>;
 
 export type FleetJob = {
   id: string;
@@ -289,10 +377,15 @@ export type FleetBook = {
   overhead_pools: FleetOverhead[];
   cpk_targets: FleetTarget[];
   audit: FleetAudit[];
+  reminders: FleetReminder[];
+  reminder_log: FleetReminderLog[];
+  trailer_links: FleetTrailerLink[];
+  import_runs: FleetImportRun[];
+  members: FleetMember[];
 };
 
 export type FleetLoad =
-  | { ready: true; book: FleetBook }
+  | { ready: true; book: FleetBook; readiness: FleetReadiness }
   | { ready: false; reason: 'migration_pending' | 'error' };
 
 export const FLEET_OPS = [
@@ -309,6 +402,14 @@ export const FLEET_OPS = [
   'cpk_target.set',
   'settings.update',
   'real_data.confirm',
+  'compliance.renew',
+  'compliance.bulk_upsert',
+  'trailer.link',
+  'trailer.unlink',
+  'reminder.upsert',
+  'reminder.archive',
+  'import.dry_run',
+  'import.commit',
 ] as const;
 
 export type FleetOpName = (typeof FLEET_OPS)[number];
