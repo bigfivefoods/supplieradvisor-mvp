@@ -703,6 +703,8 @@ function updateSettings(book: FleetBook, op: FleetOp, ctx: OpContext, expected?:
   const vehicleKinds = kindsOf(op.payload, 'expected_vehicle_kinds', book.workspace.expected_vehicle_kinds);
   const driverKinds = kindsOf(op.payload, 'expected_driver_kinds', book.workspace.expected_driver_kinds);
   if (!vehicleKinds.ok || !driverKinds.ok) return deny(400, 'Check the expected date kinds.');
+  const prdp = prdpThreshold(op.payload, book.workspace.prdp_gvm_threshold_kg);
+  if (!prdp.ok) return deny(400, 'Check the PrDP figure.');
   const workspace = {
     ...book.workspace,
     id: book.workspace.id || id(),
@@ -726,7 +728,7 @@ function updateSettings(book: FleetBook, op: FleetOp, ctx: OpContext, expected?:
     retention_days: ctx.role === 'owner' && 'retention_days' in op.payload ? retention : book.workspace.retention_days,
     expected_vehicle_kinds: vehicleKinds.kinds,
     expected_driver_kinds: driverKinds.kinds,
-    prdp_gvm_threshold_kg: prdpThreshold(op.payload, book.workspace.prdp_gvm_threshold_kg),
+    prdp_gvm_threshold_kg: prdp.value,
     updated_at: ctx.now,
   };
   if (!['haulier', 'courier', 'bulk', 'in_house', 'mixed'].includes(workspace.operator_type)) return deny(400, 'Choose an operator type.');
@@ -939,6 +941,17 @@ function profileMoney(payload: Record<string, unknown>):
   return { ok: true, values: values as Record<(typeof OPTIONAL_MONEY)[number], number | null> & Record<(typeof REQUIRED_MONEY)[number], number> };
 }
 
+const VEHICLE_DATE_KINDS = new Set([
+  'licence_disc',
+  'roadworthy',
+  'operator_card',
+  'insurance',
+  'cross_border_permit',
+  'abnormal_permit',
+  'other_permit',
+]);
+const DRIVER_DATE_KINDS = new Set(['driver_licence', 'prdp', 'medical', 'induction', 'other']);
+
 function kindsOf(
   payload: Record<string, unknown>,
   key: 'expected_vehicle_kinds' | 'expected_driver_kinds',
@@ -947,21 +960,28 @@ function kindsOf(
   if (!(key in payload)) return { ok: true, kinds: current };
   const value = payload[key];
   if (!Array.isArray(value)) return { ok: false };
-  const allowed = new Set([
-    'licence_disc', 'roadworthy', 'operator_card', 'insurance', 'cross_border_permit', 'abnormal_permit', 'other_permit',
-    'driver_licence', 'prdp', 'medical', 'induction', 'other',
-  ]);
-  const next = value.map((item) => String(item));
-  if (next.some((item) => !allowed.has(item))) return { ok: false };
+  const allowed = key === 'expected_vehicle_kinds' ? VEHICLE_DATE_KINDS : DRIVER_DATE_KINDS;
+  const next: string[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    const kind = String(item);
+    if (!allowed.has(kind)) return { ok: false };
+    if (seen.has(kind)) continue;
+    seen.add(kind);
+    next.push(kind);
+  }
   return { ok: true, kinds: next as FleetBook['workspace']['expected_vehicle_kinds'] };
 }
 
-function prdpThreshold(payload: Record<string, unknown>, current: number | null): number | null {
-  if (!('prdp_gvm_threshold_kg' in payload)) return current;
-  if (payload.prdp_gvm_threshold_kg == null || payload.prdp_gvm_threshold_kg === '') return null;
+function prdpThreshold(
+  payload: Record<string, unknown>,
+  current: number | null
+): { ok: true; value: number | null } | { ok: false } {
+  if (!('prdp_gvm_threshold_kg' in payload)) return { ok: true, value: current };
+  if (payload.prdp_gvm_threshold_kg == null || payload.prdp_gvm_threshold_kg === '') return { ok: true, value: null };
   const value = Number(payload.prdp_gvm_threshold_kg);
-  if (!Number.isFinite(value) || value < 0 || value > 100000) return current;
-  return Math.trunc(value);
+  if (!Number.isFinite(value) || value < 0 || value > 100000) return { ok: false };
+  return { ok: true, value: Math.trunc(value) };
 }
 
 function renewCompliance(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
@@ -1045,6 +1065,7 @@ function unlinkTrailer(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome 
   if (op.payload.expected_updated_at && clash) return clash;
   const to = plannedDay(op.payload.to_on || todayOf(ctx), ctx);
   if (to === false) return deny(400, 'Check the end date.');
+  if (to < link.from_on) return deny(400, 'The end date must be on or after the start date.');
   const next = { ...link, to_on: to, updated_at: ctx.now };
   return done(
     { ...book, trailer_links: book.trailer_links.map((row) => (row.id === link.id ? next : row)) },

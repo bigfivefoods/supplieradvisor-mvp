@@ -1,17 +1,17 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { centreRows, centreSummary, exportRows, monthAgenda, type CentreRow } from '@/lib/fleet/compliance-centre';
+import { centreRows, centreSummary, exportRows, monthAgenda, monthTitle, type CentreRow } from '@/lib/fleet/compliance-centre';
 import { complianceKindLabel } from '@/lib/fleet/labels';
 import { isAssignable } from '@/lib/fleet/isAssignable';
 import { cpkForBook } from '@/lib/fleet/book-cpk';
 import { formatPerKm, formatSastDate } from '@/lib/fleet/format';
 import { periodFor } from '@/lib/fleet/periods';
-import { planReminders, visibleReminderLog } from '@/lib/fleet/reminders';
+import { deskReminderRows, planReminders } from '@/lib/fleet/reminders';
 import { parseThresholds, prdpUnchanged, reminderDraft, type ReminderDraft } from '@/lib/fleet/reminder-form';
 import { templateCsv, validateComplianceCsv, validateDriverCsv, validateVehicleCsv, redactDryRun, type CsvImportResult } from '@/lib/fleet/import-csv';
-import { planShipDrivers, planShipVehicles, PREVIEW_SHIP_DRIVER_ID, PREVIEW_SHIP_VEHICLE_ID, shipSourceHash } from '@/lib/fleet/import-ship';
+import { planShipDrivers, planShipVehicles, PREVIEW_SHIP_DRIVER_ID, PREVIEW_SHIP_VEHICLE_ID, shipRowsForDesk, shipSourceHash } from '@/lib/fleet/import-ship';
 import { writeCsv } from '@/lib/fleet/csv';
 import { timelineFor } from '@/lib/fleet/renewal';
 import type { ComplianceKind, FleetBook, FleetFeature, FleetReadiness } from '@/lib/fleet/types';
@@ -258,7 +258,11 @@ export function ComplianceView(props: FleetDeskProps) {
       {props.book.vehicles.length === 0 && props.book.drivers.length === 0 ? (
         <FleetEmpty
           title="No dates yet"
-          hint="Illustration · sample data appears on the preview. Add a vehicle, then record its licence disc date."
+          hint={
+            preview
+              ? 'Illustration · sample data appears on the preview. Add a vehicle, then record its licence disc date.'
+              : 'Add a vehicle, then record its licence disc date.'
+          }
           testId="fleet-compliance-empty"
           action={
             <Link className={`${fleetBtn} ${fleetFocus}`} href={`${props.hrefBase}/vehicles`} data-testid="fleet-add-first-date">
@@ -270,7 +274,7 @@ export function ComplianceView(props: FleetDeskProps) {
         <div data-testid="fleet-calendar" className="space-y-3">
           {agenda.length === 0 ? <p className="text-sm text-slate-600">No dated rows in this filter.</p> : null}
           {agenda.map((month) => (
-            <FleetSection key={month.month} title={month.month}>
+            <FleetSection key={month.month} title={monthTitle(month.month)}>
               {month.dates.map((day) => (
                 <div key={day.date} className="border-t border-slate-200 py-2">
                   <p className="text-sm font-black">{formatSastDate(day.date)}</p>
@@ -304,15 +308,13 @@ export function ComplianceView(props: FleetDeskProps) {
               <FleetStatusPill key="s" tone={row.status === 'valid' ? 'ok' : row.status === 'expired' ? 'bad' : 'warn'}>
                 {row.statusLabel}
               </FleetStatusPill>,
-              nextReminder(props.book, row.subjectId, props.today),
+              nextReminder(props.book, row, props.today),
             ],
             card: (
               <button type="button" className="min-h-11 w-full text-left" data-testid={`fleet-card-${row.id}`} onClick={() => setOpen(row)}>
                 <p className="font-black">{row.subjectLabel}</p>
-                <p className="text-sm text-slate-600">
-                  {row.kindLabel} · {row.expiresOn ? formatSastDate(row.expiresOn) : 'Not recorded'} · {row.statusLabel}
-                </p>
-                <p className="text-sm text-slate-600">{nextReminder(props.book, row.subjectId, props.today)}</p>
+                <p className="text-sm text-slate-600">{cardLine(row)}</p>
+                <p className="text-sm text-slate-600">{nextReminder(props.book, row, props.today)}</p>
               </button>
             ),
           }))}
@@ -573,14 +575,43 @@ export function ImportView(props: FleetDeskProps) {
   const [text, setText] = useState(templateCsv('vehicles_csv'));
   const [result, setResult] = useState<CsvImportResult | null>(null);
   const [fresh, setFresh] = useState(false);
+  const [awaitShip, setAwaitShip] = useState(false);
+  const previewDesk = props.hrefBase.startsWith('/preview');
   const demo = !props.book.workspace.real_data_enabled;
   const driverKind = mode === 'drivers_csv' || mode === 'ship_drivers';
   const ship = mode === 'ship_vehicles' || mode === 'ship_drivers';
   const canShip = props.caps.canImportShip;
   const canCsv = props.caps.canImportCsv;
 
-  function runDry() {
+  useEffect(() => {
+    if (previewDesk || !awaitShip || !ship) return;
+    const run = props.book.import_runs.find((row) => row.dry_run && row.kind === mode);
+    if (!run) return;
+    setResult({
+      rows: shipRowsForDesk(false, []),
+      errors: [],
+      warnings: [],
+      summary: {
+        create: run.row_counts.create,
+        link: run.row_counts.link,
+        fill: run.row_counts.fill,
+        errors: run.row_counts.errors,
+      },
+      source_hash: run.source_hash,
+    });
+    setFresh(true);
+  }, [awaitShip, previewDesk, ship, mode, props.book.import_runs]);
+
+  async function runDry() {
     if (ship) {
+      if (!previewDesk) {
+        setResult(null);
+        setFresh(false);
+        const outcome = await props.onOp?.({ op: 'import.dry_run', payload: { kind: mode, source_label: 'Ship' } });
+        if (outcome === false) return;
+        setAwaitShip(true);
+        return;
+      }
       const vehicleRow = { id: 'ship-9', plate_number: 'SAMPLE 99', make_model: 'Sample Rigid', vehicle_type: 'truck', capacity_kg: 8000, status: 'available' };
       const driverRow = { id: 'ship-d', full_name: 'Sample Driver C', phone: '', email: 'sample.driver.c@example.com', license_class: 'EC', status: 'available' };
       const planned =
@@ -589,8 +620,9 @@ export function ImportView(props: FleetDeskProps) {
           : planShipDrivers([driverRow], props.book, props.today, () => PREVIEW_SHIP_DRIVER_ID);
       const hash = shipSourceHash(mode === 'ship_drivers' ? 'ship_drivers' : 'ship_vehicles', mode === 'ship_drivers' ? [driverRow] : [vehicleRow]);
       const shown = planned.summary;
+      const rows = shipRowsForDesk(true, demo && mode === 'ship_drivers' ? [] : planned.rows);
       setResult({
-        rows: demo && mode === 'ship_drivers' ? [] : planned.rows,
+        rows,
         errors: [],
         warnings: planned.warnings,
         summary: shown,
@@ -615,15 +647,15 @@ export function ImportView(props: FleetDeskProps) {
     });
   }
 
-  function commit() {
+  async function commit() {
     if (!result || (!fresh && !already)) return;
-    const outcome = props.onOp?.({
+    const outcome = await props.onOp?.({
       op: 'import.commit',
       payload: {
         kind: mode,
         source_hash: result.source_hash,
         source_label: mode.startsWith('ship') ? 'Ship' : 'Pasted CSV',
-        plans: result.rows,
+        plans: ship && !previewDesk ? [] : result.rows,
         ...(ship ? {} : { csv: text }),
       },
     });
@@ -646,6 +678,7 @@ export function ImportView(props: FleetDeskProps) {
           setMode(id);
           setResult(null);
           setFresh(false);
+          setAwaitShip(false);
           if (id === 'vehicles_csv' || id === 'drivers_csv' || id === 'compliance_csv') setText(templateCsv(id));
         }}
         options={[
@@ -690,6 +723,7 @@ export function ImportView(props: FleetDeskProps) {
           <p className="text-sm font-bold">
             Create {result.summary.create} · Link {result.summary.link} · Fill {result.summary.fill} · Errors {result.summary.errors}
           </p>
+          {ship && !previewDesk ? null : (
           <div className="mt-3 overflow-x-auto rounded-3xl border border-slate-200">
             <table className="w-full min-w-[32rem] border-collapse text-left text-sm" data-testid="fleet-import-table">
               <thead className="bg-slate-50">
@@ -711,14 +745,13 @@ export function ImportView(props: FleetDeskProps) {
                   <tr key={`${error.row}-${error.field}`} className="border-t border-slate-100">
                     <td className="px-3 py-2 tabular-nums">{error.row}</td>
                     <td className="px-3 py-2">Error</td>
-                    <td className="px-3 py-2">
-                      {error.field} · {error.code}
-                    </td>
+                    <td className="px-3 py-2">{error.message || `${error.field} · ${error.code}`}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          )}
         </div>
       ) : null}
       <FleetSection title="Run history">
@@ -894,6 +927,23 @@ export function RemindersPanel(props: FleetDeskProps) {
   const [form, setForm] = useState<ReminderDraft>(() => reminderDraft(rules[0] || null));
   const [thresholds, setThresholds] = useState(() => (rules[0]?.thresholds_days || [30, 14, 7, 0]).join(', '));
   const [logPage, setLogPage] = useState(1);
+  const [pendingNew, setPendingNew] = useState<{ ids: string[]; scope: ReminderDraft['scope_kind']; kind: string | null } | null>(null);
+  useEffect(() => {
+    if (!pendingNew) return;
+    const created = props.book.reminders.find(
+      (row) =>
+        !row.archived_at &&
+        !pendingNew.ids.includes(row.id) &&
+        row.scope_kind === pendingNew.scope &&
+        (row.kind || null) === (pendingNew.kind || null)
+    );
+    if (!created) return;
+    const draft = reminderDraft(created);
+    setPick(created.id);
+    setForm(draft);
+    setThresholds(draft.thresholds_days.join(', '));
+    setPendingNew(null);
+  }, [pendingNew, props.book.reminders]);
   if (!props.caps.canManageReminders) {
     return <p className="text-sm text-slate-600">Reminder settings are for an owner or manager.</p>;
   }
@@ -907,14 +957,37 @@ export function RemindersPanel(props: FleetDeskProps) {
     now: `${props.today}T12:00:00.000Z`,
     workspace: props.book.workspace,
   });
-  const log = visibleReminderLog(props.book.reminder_log);
+  const log = deskReminderRows(props.book.reminder_log);
   const shownLog = log.slice(0, logPage * 50);
   function choose(ruleId: string) {
     const rule = rules.find((row) => row.id === ruleId) || null;
     const draft = reminderDraft(rule);
+    setPendingNew(null);
     setPick(rule?.id || '');
     setForm(draft);
     setThresholds(draft.thresholds_days.join(', '));
+  }
+  async function saveReminder() {
+    const days = parseThresholds(thresholds);
+    const creating = !form.id;
+    const ids = rules.map((rule) => rule.id);
+    const outcome = await props.onOp?.(
+      {
+        op: 'reminder.upsert',
+        payload: {
+          ...(form.id ? { id: form.id } : {}),
+          scope_kind: form.scope_kind,
+          kind: form.kind,
+          thresholds_days: days,
+          channels: form.channels,
+          recipient_member_ids: form.recipient_member_ids,
+          enabled: form.enabled,
+        },
+      },
+      form.id ? selected?.updated_at : undefined
+    );
+    if (outcome === false) return;
+    if (creating) setPendingNew({ ids, scope: form.scope_kind, kind: form.kind });
   }
   function toggleChannel(channel: 'email' | 'push') {
     setForm((current) => ({
@@ -1033,22 +1106,7 @@ export function RemindersPanel(props: FleetDeskProps) {
           className={`${fleetBtn} ${fleetFocus}`}
           data-testid="fleet-save-reminder"
           onClick={() => {
-            const days = parseThresholds(thresholds);
-            props.onOp?.(
-              {
-                op: 'reminder.upsert',
-                payload: {
-                  ...(form.id ? { id: form.id } : {}),
-                  scope_kind: form.scope_kind,
-                  kind: form.kind,
-                  thresholds_days: days,
-                  channels: form.channels,
-                  recipient_member_ids: form.recipient_member_ids,
-                  enabled: form.enabled,
-                },
-              },
-              form.id ? selected?.updated_at : undefined
-            );
+            void saveReminder();
           }}
         >
           Save reminder
@@ -1106,7 +1164,7 @@ export function RemindersPanel(props: FleetDeskProps) {
         {shownLog.length === 0 ? <li>No reminder log rows yet.</li> : null}
         {shownLog.map((row) => (
           <li key={row.id}>
-            {formatSastDate(row.at)} · {row.threshold_days} days · {row.channel} · {row.status}
+            {formatSastDate(row.at)} · {row.threshold_days} days · {row.channel} · {row.label}
           </li>
         ))}
       </ul>
@@ -1151,9 +1209,21 @@ function planLabel(row: CsvImportResult['rows'][number]): string {
   return `${row.item.subject_kind} · ${complianceKindLabel(row.item.kind)}`;
 }
 
-function nextReminder(book: FleetBook, subjectId: string, today: string): string {
+function cardLine(row: CentreRow): string {
+  if (!row.expiresOn && row.status === 'no_date') return `${row.kindLabel} · ${row.statusLabel}`;
+  const when = row.expiresOn ? formatSastDate(row.expiresOn) : 'Not recorded';
+  return `${row.kindLabel} · ${when} · ${row.statusLabel}`;
+}
+
+function nextReminder(book: FleetBook, target: string | CentreRow, today: string): string {
+  const subjectId = typeof target === 'string' ? target : target.subjectId;
+  const itemId = typeof target === 'string' ? null : target.itemId;
+  if (typeof target !== 'string' && !itemId) return 'No reminder rule covers this';
   const plan = planReminders({
-    items: book.compliance.filter((row) => row.subject_id === subjectId),
+    items: book.compliance.filter((row) => {
+      if (row.archived_at || row.subject_id !== subjectId) return false;
+      return itemId ? row.id === itemId : true;
+    }),
     rules: book.reminders,
     vehicles: book.vehicles,
     drivers: book.drivers,
@@ -1164,5 +1234,9 @@ function nextReminder(book: FleetBook, subjectId: string, today: string): string
   });
   const first = plan.due[0];
   if (!first) return 'No reminder rule covers this';
+  if (first.daysLeft < 0) {
+    const days = Math.abs(first.daysLeft);
+    return days === 1 ? 'Next reminder: expired 1 day ago' : `Next reminder: expired ${days} days ago`;
+  }
   return `Next reminder: ${first.thresholdDays} days before ${formatSastDate(first.expiresOn)}`;
 }

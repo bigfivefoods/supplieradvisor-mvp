@@ -5,6 +5,28 @@ import { COMPLIANCE_LABELS, complianceStatus, type ComplianceState } from './com
 import { formatSastDate, sastDate } from './format';
 import type { ComplianceKind, FleetBook, FleetCompliance, SubjectKind } from './types';
 
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+export function monthTitle(month: string): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(month);
+  if (!match) return month;
+  const name = MONTH_NAMES[Number(match[2]) - 1];
+  return name ? `${name} ${match[1]}` : month;
+}
+
 export type CentreFilter = {
   subject?: 'vehicle' | 'driver' | 'all';
   kind?: ComplianceKind | 'all';

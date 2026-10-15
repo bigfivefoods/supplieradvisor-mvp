@@ -3,7 +3,7 @@
  * Run: npx --yes tsx lib/fleet/brief115-reminders.test.ts
  */
 import assert from 'node:assert/strict';
-import { logKey, planReminders, visibleReminderLog } from './reminders';
+import { deskReminderRows, logKey, planReminders, reminderStatusLabel, visibleReminderLog } from './reminders';
 import { reminderMessage } from './reminders-email';
 import type { FleetCompliance, FleetReminder, FleetVehicle } from './types';
 
@@ -154,5 +154,15 @@ assert.equal(duplicateLog[0].id, 'a');
 assert.equal(duplicateLog[1].id, 'c');
 const page = duplicateLog.slice(0, 50);
 assert.equal(page.length, 2);
+
+const collapsed = deskReminderRows([
+  { id: 'claim', status: 'claimed', item_id: 'item', expires_on: '2026-07-01', threshold_days: 30, channel: 'email', recipient_key: 'm', at: '1' },
+  { id: 'send', status: 'sent', item_id: 'item', expires_on: '2026-07-01', threshold_days: 30, channel: 'email', recipient_key: 'm', at: '2' },
+  { id: 'skip', status: 'skipped_superseded', item_id: 'item', expires_on: '2026-07-01', threshold_days: 14, channel: 'email', recipient_key: 'm', at: '3' },
+]);
+assert.equal(collapsed.length, 2);
+assert.equal(collapsed[0].label, 'Sent');
+assert.equal(collapsed[0].id, 'claim');
+assert.equal(reminderStatusLabel('skipped_superseded'), 'Skipped, a closer reminder covers it');
 
 console.log('brief115-reminders.test.ts ok');

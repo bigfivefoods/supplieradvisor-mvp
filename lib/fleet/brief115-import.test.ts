@@ -16,8 +16,10 @@ import {
   mapShipDriver,
   mapShipVehicle,
   planShipVehicles,
+  shipRowsForDesk,
   shipSourceHash,
 } from './import-ship';
+import { sastDate } from './format';
 import { applyFleetOp } from './ops';
 import { reminderDraft } from './reminder-form';
 import { planReminders } from './reminders';
@@ -256,6 +258,128 @@ const junk = applyFleetOp(
 );
 assert.equal(junk.ok, false);
 if (!junk.ok) assert.match(junk.error, /expected date kinds/);
+
+const lowPrdp = applyFleetOp(emptyFleetBook(1, ctx.now), { op: 'settings.update', payload: { prdp_gvm_threshold_kg: -5 } }, ctx);
+assert.equal(lowPrdp.ok, false);
+if (!lowPrdp.ok) assert.equal(lowPrdp.status, 400);
+const highPrdp = applyFleetOp(emptyFleetBook(1, ctx.now), { op: 'settings.update', payload: { prdp_gvm_threshold_kg: 100001 } }, ctx);
+assert.equal(highPrdp.ok, false);
+if (!highPrdp.ok) {
+  assert.equal(highPrdp.status, 400);
+  assert.match(highPrdp.error, /PrDP/);
+}
+const keptBook = emptyFleetBook(1, ctx.now);
+applyFleetOp(keptBook, { op: 'settings.update', payload: { prdp_gvm_threshold_kg: -5 } }, ctx);
+assert.equal(keptBook.workspace.prdp_gvm_threshold_kg, 3500);
+
+const deduped = applyFleetOp(
+  emptyFleetBook(1, ctx.now),
+  { op: 'settings.update', payload: { expected_vehicle_kinds: ['licence_disc', 'licence_disc', 'roadworthy'] } },
+  ctx
+);
+assert.equal(deduped.ok, true);
+if (deduped.ok) assert.deepEqual(deduped.book.workspace.expected_vehicle_kinds, ['licence_disc', 'roadworthy']);
+const driverOnVehicle = applyFleetOp(
+  emptyFleetBook(1, ctx.now),
+  { op: 'settings.update', payload: { expected_vehicle_kinds: ['driver_licence'] } },
+  ctx
+);
+assert.equal(driverOnVehicle.ok, false);
+if (!driverOnVehicle.ok) assert.equal(driverOnVehicle.status, 400);
+const vehicleOnDriver = applyFleetOp(
+  emptyFleetBook(1, ctx.now),
+  { op: 'settings.update', payload: { expected_driver_kinds: ['licence_disc'] } },
+  ctx
+);
+assert.equal(vehicleOnDriver.ok, false);
+if (!vehicleOnDriver.ok) assert.equal(vehicleOnDriver.status, 400);
+
+assert.equal(sastDate('2024-02-29'), '2024-02-29');
+assert.equal(sastDate('2024-02-29T22:30:00.000Z'), '2024-03-01');
+assert.equal(sastDate('2026-02-30'), null);
+assert.equal(sastDate('2025-02-29'), null);
+
+const truckMade = applyFleetOp(
+  emptyFleetBook(1, ctx.now),
+  { op: 'vehicle.upsert', payload: { reg_no: 'TRUCK 1', kind: 'rigid', ownership: 'owned' } },
+  ctx
+);
+assert.equal(truckMade.ok, true);
+if (!truckMade.ok) throw new Error('truck');
+const trailerMade = applyFleetOp(
+  truckMade.book,
+  { op: 'vehicle.upsert', payload: { reg_no: 'TRAILER 1', kind: 'trailer', ownership: 'owned' } },
+  ctx
+);
+assert.equal(trailerMade.ok, true);
+if (!trailerMade.ok) throw new Error('trailer');
+const truckId = truckMade.book.vehicles[0].id;
+const trailerId = trailerMade.book.vehicles.find((row) => row.kind === 'trailer')?.id || '';
+const hitched = applyFleetOp(
+  trailerMade.book,
+  { op: 'trailer.link', payload: { truck_id: truckId, trailer_id: trailerId, from_on: '2024-06-01' } },
+  ctx
+);
+assert.equal(hitched.ok, true);
+if (!hitched.ok) throw new Error('link');
+const hitch = hitched.book.trailer_links[0];
+const earlyEnd = applyFleetOp(hitched.book, { op: 'trailer.unlink', payload: { id: hitch.id, to_on: '2024-05-01' } }, ctx);
+assert.equal(earlyEnd.ok, false);
+if (!earlyEnd.ok) assert.equal(earlyEnd.status, 400);
+const badDay = applyFleetOp(hitched.book, { op: 'trailer.unlink', payload: { id: hitch.id, to_on: '2026-02-30' } }, ctx);
+assert.equal(badDay.ok, false);
+if (!badDay.ok) assert.equal(badDay.status, 400);
+const badExpiry = applyFleetOp(
+  hitched.book,
+  { op: 'compliance.upsert', payload: { subject_kind: 'vehicle', subject_id: truckId, kind: 'licence_disc', expires_on: '2026-02-30' } },
+  ctx
+);
+assert.equal(badExpiry.ok, false);
+if (!badExpiry.ok) assert.equal(badExpiry.status, 400);
+
+const invented = [{ reg_no: 'SAMPLE 99' }, { full_name: 'Sample Driver C' }];
+assert.deepEqual(shipRowsForDesk(false, invented), []);
+assert.equal(JSON.stringify(shipRowsForDesk(false, invented)).includes('SAMPLE 99'), false);
+assert.equal(JSON.stringify(shipRowsForDesk(false, invented)).includes('Sample Driver C'), false);
+assert.equal(shipRowsForDesk(true, invented).length, 2);
+const importView = readFileSync('components/fleet/ComplianceViews.tsx', 'utf8');
+const sampleAt = importView.indexOf("plate_number: 'SAMPLE 99'");
+const guardAt = importView.lastIndexOf('if (!previewDesk)', sampleAt);
+assert.ok(sampleAt > guardAt);
+assert.ok(importView.slice(guardAt, sampleAt).includes('return;'));
+
+const createdRule = applyFleetOp(
+  emptyFleetBook(1, ctx.now),
+  {
+    op: 'reminder.upsert',
+    payload: { scope_kind: 'vehicle', kind: 'roadworthy', thresholds_days: [14, 0], channels: [], recipient_member_ids: [], enabled: false },
+  },
+  ctx
+);
+assert.equal(createdRule.ok, true);
+if (createdRule.ok) {
+  const created = createdRule.book.reminders.find((row) => row.kind === 'roadworthy');
+  assert.ok(created);
+  const edited = applyFleetOp(
+    createdRule.book,
+    {
+      op: 'reminder.upsert',
+      payload: {
+        id: created?.id,
+        scope_kind: 'vehicle',
+        kind: 'roadworthy',
+        thresholds_days: [14, 0],
+        channels: [],
+        recipient_member_ids: [],
+        enabled: true,
+      },
+    },
+    ctx,
+    created?.updated_at
+  );
+  assert.equal(edited.ok, true);
+  if (edited.ok) assert.equal(edited.book.reminders.filter((row) => !row.archived_at && row.kind === 'roadworthy').length, 1);
+}
 
 const committed = applyFleetOp(book, { op: 'import.commit', payload: { kind: 'vehicles_csv', source_hash: parsed.source_hash, plans: parsed.rows } }, ctx);
 assert.equal(committed.ok, true);

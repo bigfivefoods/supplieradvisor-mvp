@@ -46,7 +46,7 @@ const COMPLIANCE = new Set<ComplianceKind>([
   'driver_licence', 'prdp', 'medical', 'induction', 'other',
 ]);
 
-export type ImportIssue = { row: number; code: string; field: string };
+export type ImportIssue = { row: number; code: string; field: string; message?: string };
 export type ImportSummary = { create: number; link: number; fill: number; errors: number };
 
 export type VehiclePlan = { action: 'create' | 'link'; fill: string[]; vehicle: FleetVehicle; previousId?: string };

@@ -253,3 +253,8 @@ function numberOrNull(value: unknown): number | null {
   if (!Number.isFinite(number) || number < 0) return null;
   return Math.round(number);
 }
+
+/** Sample Ship rows belong on the signed-out preview. A real desk shows the server counts only. */
+export function shipRowsForDesk<T>(preview: boolean, planned: T[]): T[] {
+  return preview ? planned : [];
+}

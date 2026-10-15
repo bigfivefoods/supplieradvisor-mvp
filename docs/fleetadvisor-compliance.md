@@ -56,7 +56,7 @@ SELECT conname FROM pg_constraint
 WHERE contype = 'x' AND conname IN ('fg_cost_profiles_no_overlap', 'fg_trailer_links_no_overlap');
 ```
 
-The extension schema must be `extensions`. If the first query shows a different owner and the migration printed a notice that it skipped the move, stop and move the extension manually as that owner: `ALTER EXTENSION btree_gist SET SCHEMA extensions;`
+The extension schema must be `extensions`. If the first query shows a different owner and the migration printed a notice that it skipped the move, stop. `ALTER EXTENSION btree_gist SET SCHEMA extensions` needs a superuser or the Supabase dashboard.
 
 ## btree_gist
 
@@ -64,7 +64,7 @@ The extension schema must be `extensions`. If the first query shows a different 
 
 Brief 114's file starts with `CREATE EXTENSION IF NOT EXISTS btree_gist`. Once the extension exists in any schema, that statement is a no-op, so re-running Brief 114 does not put it back in `public`.
 
-The migration creates schema `extensions` if needed, then: absent → create in `extensions`; present in `public` → move; already in `extensions` → do nothing. The move is `ALTER EXTENSION btree_gist SET SCHEMA extensions` inside a block that catches `insufficient_privilege`. A non-superuser who owns the extension can still move it. A session that is not allowed to alter the extension, including a Supabase `postgres` role that is not the owner, skips the move with a notice and the rest of the file still runs. Membership of the owner role is not treated as permission to move it. Any other error aborts the file. Move it manually as the owner when the notice appears: `ALTER EXTENSION btree_gist SET SCHEMA extensions;`
+The migration creates schema `extensions` if needed, then: absent → create in `extensions`; present in `public` → move; already in `extensions` → do nothing. The move is `ALTER EXTENSION btree_gist SET SCHEMA extensions` inside a block that catches `insufficient_privilege`. A non-superuser who owns the extension can still move it. A session that is not allowed to alter the extension, including a Supabase `postgres` role that is not the owner, skips the move with a notice and the rest of the file still runs. Membership of the owner role is not treated as permission to move it. Any other error aborts the file. When the notice appears, `ALTER EXTENSION btree_gist SET SCHEMA extensions` needs a superuser or the Supabase dashboard.
 
 `lib/fleet/brief115-db.test.ts` proves the move on Postgres 16: the extension is in `extensions`, no `pg_depend` deptype `e` object remains in `public`, the cost-profile exclusion still rejects an overlap with `23P01` and still accepts an adjacent range, the trailer exclusion does the same, the file applies twice, A→B→A→B stays in `extensions`, and a database that created the extension in `extensions` first is a no-op.
 

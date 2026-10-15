@@ -56,7 +56,18 @@ export function formatSastDate(value: string | null | undefined): string {
   return `${Number(match[3])} ${month} ${match[1]}`;
 }
 
-/** Africa/Johannesburg calendar date. SAST is UTC+2 all year. */
+function calendarDay(text: string): string | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  if (utc.getUTCFullYear() !== year || utc.getUTCMonth() !== month - 1 || utc.getUTCDate() !== day) return null;
+  return text;
+}
+
+/** Africa/Johannesburg calendar date. SAST is UTC+2 all year. Impossible days such as 2026-02-30 are null. */
 export function sastDate(value: string | Date | null | undefined): string | null {
   if (value == null || value === '') return null;
   if (value instanceof Date) {
@@ -64,7 +75,11 @@ export function sastDate(value: string | Date | null | undefined): string | null
     return shiftSast(value.toISOString());
   }
   const text = String(value).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const leading = /^(\d{4}-\d{2}-\d{2})(T.*)?$/.exec(text);
+  if (leading) {
+    if (!calendarDay(leading[1])) return null;
+    if (!leading[2]) return leading[1];
+  }
   const parsed = new Date(text);
   if (Number.isNaN(parsed.getTime())) return null;
   return shiftSast(parsed.toISOString());

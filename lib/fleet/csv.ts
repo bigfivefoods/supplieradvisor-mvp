@@ -37,7 +37,12 @@ export type CsvTable = {
   records: CsvRecord[];
 };
 
-export type CsvError = { row: number; code: string; field: string };
+export type CsvError = { row: number; code: string; field: string; message?: string };
+
+/** Lower case, trimmed, with spaces and hyphens folded to underscores. */
+export function headerKey(header: string): string {
+  return header.trim().toLowerCase().replace(/[\s-]+/g, '_');
+}
 
 export function decodeUtf8(bytes: Uint8Array): { ok: true; text: string } | { ok: false; code: 'utf8' } {
   if (bytes.byteLength > MAX_CSV_BYTES) return { ok: false, code: 'utf8' };
@@ -74,9 +79,16 @@ export function parseCsv(text: string): { ok: true; table: CsvTable } | { ok: fa
   const header = readRecord(source, 0, delimiter);
   if (!header) return { ok: false, errors: [{ row: 0, code: 'empty', field: '' }] };
   const headers = header.cells.map((cell) => cell.trim());
-  const blocked = headers.find((headerName) => HEADER_BLOCK.has(headerName.toLowerCase()) || findIdentityKey({ [headerName]: 1 }));
+  const blocked = headers.find((headerName) => {
+    const key = headerKey(headerName);
+    return HEADER_BLOCK.has(key) || Boolean(findIdentityKey({ [key]: 1 }));
+  });
   if (blocked) {
-    return { ok: false, errors: [{ row: 1, code: 'forbidden_header', field: blocked.trim().toLowerCase() }] };
+    const label = blocked.trim();
+    return {
+      ok: false,
+      errors: [{ row: 1, code: 'forbidden_header', field: headerKey(label), message: `${label} was ignored.` }],
+    };
   }
   const records: CsvRecord[] = [];
   let cursor = header.next;

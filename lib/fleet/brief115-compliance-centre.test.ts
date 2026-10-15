@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ComplianceView, DriverDetailView, ImportView, RemindersPanel, VehicleDetailView } from '../../components/fleet/ComplianceViews';
-import { centreRows, centreSummary, monthAgenda } from './compliance-centre';
+import { centreRows, centreSummary, monthAgenda, monthTitle } from './compliance-centre';
 import { emptyFleetBook } from './empty-book';
 import { capabilitiesFor } from './roles';
 import { renewItem, timelineFor } from './renewal';
@@ -79,6 +79,7 @@ assert.equal(summary.expired + summary.expiring + summary.not_recorded + summary
 const filtered = centreRows(book, '2024-07-02', { kind: 'licence_disc', depot: 'Sample Depot', search: 'sample' });
 assert.ok(filtered.every((row) => row.kind === 'licence_disc'));
 
+assert.equal(monthTitle('2024-06'), 'June 2024');
 const agenda = monthAgenda(rows);
 const feb = agenda.find((month) => month.month === '2024-03');
 assert.ok(feb);
@@ -130,5 +131,12 @@ render(createElement(DriverDetailView, { ...base, book: sample, screen: 'driver'
 render(createElement(RemindersPanel, { ...base, book: sample, screen: 'settings' }));
 const emptyHtml = render(createElement(ComplianceView, { ...base, screen: 'compliance' }));
 assert.match(emptyHtml, /Add your first licence disc date/);
+const deskHtml = render(createElement(ComplianceView, { ...base, hrefBase: '/dashboard/fleetgraph', screen: 'compliance' }));
+assert.equal(deskHtml.includes('the preview'), false);
+assert.match(deskHtml, /Add a vehicle, then record its licence disc date/);
+const listed = render(createElement(ComplianceView, { ...base, book: sample, screen: 'compliance', illustrate: true }));
+assert.match(listed, /expired 12 days ago/);
+assert.equal(listed.includes('Not recorded · Not recorded'), false);
+assert.match(listed, /Roadworthy · Not recorded/);
 
 console.log('brief115-compliance-centre.test.ts ok');

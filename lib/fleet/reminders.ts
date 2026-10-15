@@ -137,6 +137,40 @@ export function visibleReminderLog<T extends { status: string; item_id: string; 
   return out;
 }
 
+const REMINDER_STATUS_LABEL: Record<string, string> = {
+  claimed: 'Sending',
+  sent: 'Sent',
+  failed: 'Could not send',
+  skipped_superseded: 'Skipped, a closer reminder covers it',
+};
+
+export function reminderStatusLabel(status: string): string {
+  return REMINDER_STATUS_LABEL[status] || status;
+}
+
+/** One row per send. A claim followed by a send is the same send. */
+export function deskReminderRows<
+  T extends { id: string; status: string; item_id: string; expires_on: string; threshold_days: number; channel: string; recipient_key: string; at: string },
+>(rows: T[]): Array<T & { label: string }> {
+  const visible = visibleReminderLog(rows);
+  const indexByKey = new Map<string, number>();
+  const out: Array<T & { label: string }> = [];
+  for (const row of visible) {
+    const label = reminderStatusLabel(row.status);
+    if (row.status === 'claimed' || row.status === 'sent') {
+      const key = logKey(row.item_id, row.expires_on, row.threshold_days, row.channel, row.recipient_key);
+      const existing = indexByKey.get(key);
+      if (existing != null && (out[existing].status === 'claimed' || out[existing].status === 'sent')) {
+        if (row.status === 'sent') out[existing] = { ...out[existing], status: 'sent', label: reminderStatusLabel('sent'), at: row.at };
+        continue;
+      }
+      indexByKey.set(key, out.length);
+    }
+    out.push({ ...row, label });
+  }
+  return out;
+}
+
 function ruleMatches(rule: FleetReminder, item: FleetCompliance): boolean {
   if (rule.scope_kind === 'vehicle' && item.subject_kind !== 'vehicle') return false;
   if (rule.scope_kind === 'driver' && item.subject_kind !== 'driver') return false;

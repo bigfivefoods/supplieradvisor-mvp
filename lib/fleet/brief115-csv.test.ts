@@ -41,7 +41,18 @@ const blocked = parseCsv('full_name,licence_number\nSample,123\n');
 assert.equal(blocked.ok, false);
 if (!blocked.ok) {
   assert.equal(blocked.errors[0].code, 'forbidden_header');
+  assert.match(blocked.errors[0].message || '', /ignored/);
   assert.equal(JSON.stringify(blocked.errors).includes('123'), false);
+}
+
+for (const header of ['ID Number', 'Licence Number', 'Identity Number', 'id number', 'LICENCE NUMBER']) {
+  const parsed = parseCsv(`${header},full_name\n123,Sample\n`);
+  assert.equal(parsed.ok, false, header);
+  if (!parsed.ok) {
+    assert.equal(parsed.errors[0].code, 'forbidden_header');
+    assert.match(parsed.errors[0].message || '', /was ignored/);
+    assert.equal(JSON.stringify(parsed.errors).includes('123'), false);
+  }
 }
 
 const passport = parseCsv('passport,name\nA,Sample\n');

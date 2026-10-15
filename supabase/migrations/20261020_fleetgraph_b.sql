@@ -49,7 +49,7 @@ BEGIN
       ALTER EXTENSION btree_gist SET SCHEMA extensions;
     EXCEPTION
       WHEN insufficient_privilege THEN
-        RAISE NOTICE 'btree_gist is owned by % and this session cannot move it. Move it manually: ALTER EXTENSION btree_gist SET SCHEMA extensions;', COALESCE(owner_name, 'unknown');
+        RAISE NOTICE 'btree_gist is owned by % and this session cannot move it. ALTER EXTENSION btree_gist SET SCHEMA extensions needs a superuser or the Supabase dashboard.', COALESCE(owner_name, 'unknown');
     END;
   ELSE
     RAISE EXCEPTION 'btree_gist is in unexpected schema %', ext_schema;
