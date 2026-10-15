@@ -64,6 +64,9 @@ psql(`
       CREATE ROLE service_role NOLOGIN BYPASSRLS;
     END IF;
   END $$;
+  ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+  ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
+  ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
 `);
 
 psqlFile(migration);
@@ -97,6 +100,7 @@ for (const fn of [
 ]) {
   assert.equal(psql(`SELECT has_function_privilege('service_role', '${fn}', 'EXECUTE');`), 't', fn);
   assert.equal(psql(`SELECT has_function_privilege('anon', '${fn}', 'EXECUTE');`), 'f', fn);
+  assert.equal(psql(`SELECT has_function_privilege('authenticated', '${fn}', 'EXECUTE');`), 'f', fn);
   assert.equal(
     psql(`
       SELECT COUNT(*)
@@ -151,5 +155,19 @@ fails(
 );
 assert.equal(psql(`SELECT public.construction_portal_is_throttled(NULL);`), 't');
 assert.equal(psql(`SELECT public.construction_portal_is_throttled('');`), 't');
+
+const sequence = 'public.construction_portal_attempts_id_seq';
+for (const role of ['anon', 'authenticated']) {
+  for (const privilege of ['USAGE', 'SELECT', 'UPDATE']) {
+    assert.equal(
+      psql(`SELECT has_sequence_privilege('${role}', '${sequence}', '${privilege}');`),
+      'f',
+      `${role} ${privilege}`
+    );
+  }
+}
+assert.equal(psql(`SELECT has_sequence_privilege('service_role', '${sequence}', 'USAGE');`), 't');
+fails(`SET ROLE anon; SELECT nextval('${sequence}');`, /permission denied/i);
+fails(`SET ROLE authenticated; SELECT setval('${sequence}', 1, false);`, /permission denied/i);
 
 console.log('brief112-portal-db.test.ts ok');

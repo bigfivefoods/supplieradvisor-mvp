@@ -15,10 +15,7 @@ import {
   type ConstructiongraphStore,
 } from '@/lib/construction/constructiongraph';
 import { commitProfileMetadata } from '@/lib/construction/metadata-commit';
-import {
-  applyStaffConstructionAction,
-  upgradePlaintextPortals,
-} from '@/lib/construction/staff-book';
+import { applyStaffConstructionAction } from '@/lib/construction/staff-book';
 
 export const runtime = 'nodejs';
 
@@ -131,28 +128,9 @@ export async function GET(request: NextRequest) {
     const row = await io.read();
     if (!row) return json({ error: 'Company not found' }, 404);
 
-    let metadata = row.metadata;
-    if (upgradePlaintextPortals(metadata, gate.userId, new Date().toISOString()).changed) {
-      try {
-        const saved = await commitProfileMetadata({
-          read: () => io.read(),
-          write: (args) => io.write(args),
-          change: (current) => {
-            const next = upgradePlaintextPortals(
-              current.metadata,
-              gate.userId,
-              new Date().toISOString()
-            );
-            if (!next.changed) return { metadata: current.metadata, value: false };
-            return { metadata: next.metadata, value: true };
-          },
-        });
-        if (saved.ok) metadata = saved.metadata;
-      } catch {
-        console.error('cg_staff_legacy_upgrade_failed');
-      }
-    }
-
+    // View-only roles may GET. Legacy upgrade is a write, so it stays on the
+    // public read and on staff writes, not on this GET.
+    const metadata = row.metadata;
     const store = readConstructiongraphFromMetadata(metadata);
     return json({
       success: true,
@@ -167,8 +145,13 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  let body: Payload;
   try {
-    const body = (await request.json()) as Payload;
+    body = (await request.json()) as Payload;
+  } catch {
+    return json({ error: 'Invalid JSON' }, 400);
+  }
+  try {
     const companyId = Number(body.companyId);
     if (!Number.isFinite(companyId) || companyId <= 0) {
       return json({ error: 'companyId required' }, 400);

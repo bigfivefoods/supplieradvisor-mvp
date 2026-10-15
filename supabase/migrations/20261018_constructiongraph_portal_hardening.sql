@@ -22,6 +22,7 @@ ALTER TABLE public.construction_portal_attempts FORCE ROW LEVEL SECURITY;
 
 REVOKE ALL ON TABLE public.construction_portal_attempts FROM PUBLIC, anon, authenticated;
 GRANT ALL ON TABLE public.construction_portal_attempts TO service_role;
+REVOKE ALL ON SEQUENCE public.construction_portal_attempts_id_seq FROM PUBLIC, anon, authenticated;
 GRANT USAGE, SELECT ON SEQUENCE public.construction_portal_attempts_id_seq TO service_role;
 
 DROP POLICY IF EXISTS sa_deny_anon ON public.construction_portal_attempts;

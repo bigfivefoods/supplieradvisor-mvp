@@ -3,7 +3,6 @@ import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { publicReadLimit, rateLimit, clientIp } from '@/lib/security/rate-limit';
 import { isPortalTokenShape } from '@/lib/construction/portal-tokens';
 import {
-  applyPaymentAction,
   CONSTRUCTIONGRAPH_HASH_KEY,
   CONSTRUCTIONGRAPH_TOKEN_KEY,
   CONSTRUCTIONGRAPH_TOKENS_KEY,
@@ -136,8 +135,6 @@ function portalDb(): ConstructionPortalDb {
   return supabasePortalDb(getSupabaseAdmin() as unknown as LooseDb);
 }
 
-void applyPaymentAction;
-
 export async function GET(request: NextRequest) {
   try {
     const token = String(request.nextUrl.searchParams.get('token') || '').trim();
@@ -162,13 +159,23 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  let body: {
+    token?: string;
+    action?: string;
+    paymentId?: string;
+    amount?: unknown;
+  };
   try {
-    const body = (await request.json()) as {
+    body = (await request.json()) as {
       token?: string;
       action?: string;
       paymentId?: string;
       amount?: unknown;
     };
+  } catch {
+    return portalNotFound();
+  }
+  try {
     const token = String(body.token || '').trim();
     if (!isPortalTokenShape(token)) return portalNotFound();
 

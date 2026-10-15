@@ -8,7 +8,7 @@ import { resolve } from 'node:path';
 import { NextRequest } from 'next/server';
 import { ROLES_OPS_CRITICAL } from '../auth/api-auth';
 import { ROLE_PERMISSIONS, canAccess, type TeamRole } from '../business/permissions';
-import { GET } from '../../app/api/construction/constructiongraph/route';
+import { GET, POST } from '../../app/api/construction/constructiongraph/route';
 import {
   CONSTRUCTIONGRAPH_HASH_KEY,
   CONSTRUCTIONGRAPH_TOKEN_KEY,
@@ -55,6 +55,8 @@ const postFn = extractFn('POST');
 assert.ok(getFn.indexOf('requireCompanyAccess') < getFn.indexOf('if (!gate.ok) return gate.response'));
 assert.ok(getFn.indexOf('if (!gate.ok) return gate.response') < getFn.indexOf('requireCompanyPermission'));
 assert.ok(getFn.indexOf('requireCompanyPermission') < getFn.indexOf('getSupabaseServer'));
+assert.equal(getFn.includes('upgradePlaintextPortals'), false);
+assert.equal(getFn.includes('commitProfileMetadata'), false);
 assert.ok(postFn.indexOf('if (!gate.ok) return gate.response') < postFn.indexOf('requireCompanyRoles'));
 assert.ok(postFn.indexOf('requireCompanyRoles') < postFn.indexOf('getSupabaseServer'));
 assert.match(postFn, /REPLACE ALL DATA|confirm/);
@@ -181,13 +183,34 @@ const replaced = applyStaffConstructionAction({
   actorId: 'user_1',
   now: '2026-09-10T09:00:00.000Z',
   confirm: REPLACE_CONFIRM,
-  patch: { clients: [{ id: 'cli_new', name: 'Apex Developments' }] },
+  patch: {
+    clients: [{ id: 'cli_new', name: 'Apex Developments' }],
+    portals: [{ id: 'forged', kind: 'public', token_hash: 'ab'.repeat(32), label: 'forged' }],
+    settings: { public_token: 'should-not-stick' },
+  },
 });
 assert.equal('error' in replaced, false);
 if ('error' in replaced) throw new Error('replace');
 assert.equal(replaced.value.store.clients.length, 1);
 assert.equal(replaced.value.store.sites.length, 0);
-assert.equal(replaced.value.store.portals.length, 0);
+const replacedBook = readConstructiongraphFromMetadata(replaced.metadata);
+assert.deepEqual(
+  replacedBook.portals.map((portal) => portal.token_hash).sort(),
+  seed.portals.map((portal) => portal.token_hash).sort()
+);
+assert.deepEqual(
+  replacedBook.portals.map((portal) => portal.id).sort(),
+  seed.portals.map((portal) => portal.id).sort()
+);
+assert.equal(replaced.value.store.portals.some((portal) => portal.id === 'forged'), false);
+assert.equal(replacedBook.settings.public_token, undefined);
+assert.equal(JSON.stringify(replaced.metadata).includes('should-not-stick'), false);
+assert.equal(
+  (replaced.metadata[CONSTRUCTIONGRAPH_HASH_KEY] as Record<string, string>)[
+    seed.portals.find((portal) => portal.kind === 'public')?.token_hash || ''
+  ],
+  'public'
+);
 const audit = replaced.metadata.constructiongraph_audit as Array<{ action: string }>;
 assert.equal(audit[audit.length - 1]?.action, 'replace');
 
@@ -322,6 +345,19 @@ const keys = [
 for (const key of keys) {
   assert.deepEqual(right[key], left[key], key);
 }
+
+const badJson = await POST(
+  new NextRequest('http://localhost/api/construction/constructiongraph', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: '{',
+  })
+);
+assert.equal(badJson.status, 400);
+const badJsonBody = await badJson.text();
+assert.equal(badJsonBody.includes('Unexpected'), false);
+assert.equal(badJsonBody.includes('SyntaxError'), false);
+assert.match(badJsonBody, /Invalid JSON/);
 
 const signedOut = await GET(
   new NextRequest('http://localhost/api/construction/constructiongraph?companyId=1')

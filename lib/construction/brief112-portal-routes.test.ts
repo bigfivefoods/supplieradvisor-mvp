@@ -175,6 +175,17 @@ async function main() {
     throw new Error('db should not be opened');
   };
   useDb(thrown);
+  const badJson = await POST(
+    new NextRequest('http://localhost/api/public/constructiongraph', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{',
+    })
+  );
+  assert.equal(constructionPublicDeps.opened, 0);
+  assert.equal(badJson.status, 404);
+  assert.deepEqual(await badJson.json(), { error: 'Portal not found' });
+  assert.match(badJson.headers.get('cache-control') || '', /private, no-store/);
   const bad = await getToken('a');
   const badPost = await postToken({ token: 'short', action: 'claim', paymentId: 'pay_2' });
   assert.equal(constructionPublicDeps.opened, 0);

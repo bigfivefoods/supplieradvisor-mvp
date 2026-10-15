@@ -8,6 +8,7 @@ import {
   appendConstructionAudit,
   constructionBookHasRows,
   emptyConstructiongraphStore,
+  keepConstructionExtras,
   markPresentedTokenLegacy,
   mergeConstructiongraphStore,
   programmeReport,
@@ -133,6 +134,8 @@ export function applyStaffConstructionAction(opts: {
   }
 
   if (action === 'replace') {
+    // Owner or admin, and the exact phrase REPLACE ALL DATA. The route checks the role.
+    // Issued portals and settings stay; a replace must not delete links or their hashes.
     if (opts.confirm !== REPLACE_CONFIRM) {
       return { error: 'confirm must be REPLACE ALL DATA', status: 400 };
     }
@@ -140,7 +143,15 @@ export function applyStaffConstructionAction(opts: {
       emptyConstructiongraphStore(),
       stripPortalOwnedFields(opts.patch || {})
     );
-    return audit(opts.meta, next, {
+    const replaced = keepConstructionExtras(
+      {
+        ...next,
+        portals: current.portals,
+        settings: { ...(current.settings || {}) },
+      },
+      current
+    );
+    return audit(opts.meta, replaced, {
       at: now,
       actorId: opts.actorId,
       action: 'replace',
