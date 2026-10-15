@@ -24,6 +24,9 @@ export function emptyWorkspace(companyId: number, now = ''): FleetWorkspace {
     tyre_mode_default: 'accrual',
     overhead_include_subcontractors: false,
     required_margin_bps: 1000,
+    expected_vehicle_kinds: ['licence_disc', 'roadworthy', 'insurance'],
+    expected_driver_kinds: ['driver_licence', 'prdp', 'medical'],
+    prdp_gvm_threshold_kg: 3500,
     updated_at: now,
   };
 }
@@ -45,5 +48,10 @@ export function emptyFleetBook(companyId = 0, now = ''): FleetBook {
     overhead_pools: [],
     cpk_targets: [],
     audit: [],
+    reminders: [],
+    reminder_log: [],
+    trailer_links: [],
+    import_runs: [],
+    members: [],
   };
 }

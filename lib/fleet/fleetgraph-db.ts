@@ -4,6 +4,7 @@
  */
 import { getSupabaseAdmin } from '../supabase/admin';
 import { emptyFleetBook } from './empty-book';
+import { logKey } from './reminders';
 import { applyFleetOp, type OpContext, type OpOutcome } from './ops';
 import type {
   FleetBook,
@@ -16,9 +17,14 @@ import type {
   FleetOdometer,
   FleetOp,
   FleetOverhead,
+  FleetReadiness,
+  FleetReminder,
+  FleetReminderLog,
+  FleetImportRun,
   FleetStatusEvent,
   FleetStop,
   FleetTarget,
+  FleetTrailerLink,
   FleetVehicle,
   FleetWorkspace,
 } from './types';
@@ -73,6 +79,21 @@ function text(value: unknown, fallback = ''): string {
   return value == null ? fallback : String(value);
 }
 
+function kindList(value: unknown, fallback: FleetWorkspace['expected_vehicle_kinds']): FleetWorkspace['expected_vehicle_kinds'] {
+  if (!Array.isArray(value)) return fallback;
+  return value.map((item) => String(item)) as FleetWorkspace['expected_vehicle_kinds'];
+}
+
+export function featureState(error: DbError): { ready: true } | { ready: false; reason: 'migration_pending' | 'error' } {
+  if (!error) return { ready: true };
+  if (isFleetSchemaMissing(error)) return { ready: false, reason: 'migration_pending' };
+  const message = `${error.code || ''} ${error.message || ''}`;
+  if ((error.code === '42703' || error.code === 'PGRST204') && /fg_|source_label|renewed_from|expected_|prdp_gvm|column/i.test(message)) {
+    return { ready: false, reason: 'migration_pending' };
+  }
+  return { ready: false, reason: 'error' };
+}
+
 export async function loadFleetBook(companyId: number): Promise<FleetLoad> {
   const admin = getSupabaseAdmin();
   const tables = [
@@ -120,12 +141,86 @@ export async function loadFleetBook(companyId: number): Promise<FleetLoad> {
   book.overhead_pools = (rows.fg_overhead_pools as Record<string, unknown>[]).map(mapPool);
   book.cpk_targets = (rows.fg_cpk_targets as Record<string, unknown>[]).map(mapTarget);
   book.audit = [];
+  const extra = await loadBriefB(admin, companyId);
+  book.reminders = extra.reminders;
+  book.reminder_log = extra.reminderLog;
+  book.trailer_links = extra.trailerLinks;
+  book.import_runs = extra.importRuns;
+  book.members = await loadMembers(admin, companyId);
   book.customers = await loadCustomers(
     admin,
     companyId,
     book.jobs.map((job) => job.customer_id).filter((id): id is number => typeof id === 'number' && id > 0)
   );
-  return { ready: true, book };
+  return { ready: true, book, readiness: extra.readiness };
+}
+
+async function loadMembers(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  companyId: number
+): Promise<FleetBook['members']> {
+  const { data, error } = await admin.from('business_users').select('id, name').eq('profile_id', companyId).eq('status', 'active').limit(50);
+  if (error || !data) return [];
+  return (data as Record<string, unknown>[]).map((row) => ({
+    id: text(row.id),
+    label: text(row.name) || 'Team member',
+  }));
+}
+
+async function loadBriefB(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  companyId: number
+): Promise<{ reminders: FleetReminder[]; reminderLog: FleetReminderLog[]; trailerLinks: FleetTrailerLink[]; importRuns: FleetImportRun[]; readiness: FleetReadiness }> {
+  const readiness: FleetReadiness = {
+    compliance_b: { ready: true },
+    reminders: { ready: true },
+    imports: { ready: true },
+    trailers: { ready: true },
+  };
+  const reminders = await admin.from('fg_reminders').select('*').eq('company_id', companyId).order('id').limit(200);
+  const reminderLog = await admin.from('fg_reminder_log').select('*').eq('company_id', companyId).order('at', { ascending: false }).limit(400);
+  const links = await admin.from('fg_trailer_links').select('*').eq('company_id', companyId).order('from_on').limit(500);
+  const imports = await admin.from('fg_import_runs').select('id, company_id, kind, status, row_counts, source_hash, source_label, created_by, dry_run, committed_at, created_at').eq('company_id', companyId).order('created_at', { ascending: false }).limit(50);
+  const renewed = await admin.from('fg_compliance_items').select('renewed_from_id').eq('company_id', companyId).limit(1);
+  readiness.reminders = featureState(reminders.error || reminderLog.error);
+  readiness.trailers = featureState(links.error);
+  readiness.imports = featureState(imports.error);
+  readiness.compliance_b = featureState(renewed.error);
+  return {
+    reminders: reminders.error ? [] : ((reminders.data || []) as Record<string, unknown>[]).map(mapReminder),
+    reminderLog: reminderLog.error ? [] : ((reminderLog.data || []) as Record<string, unknown>[]).map(mapReminderLog),
+    trailerLinks: links.error ? [] : ((links.data || []) as Record<string, unknown>[]).map(mapTrailerLink),
+    importRuns: imports.error ? [] : ((imports.data || []) as Record<string, unknown>[]).map(mapImportRun),
+    readiness,
+  };
+}
+
+export async function loadReminderKeys(companyId: number): Promise<{ ok: true; keys: string[] } | { ok: false; missing: boolean }> {
+  const admin = getSupabaseAdmin();
+  const keys: string[] = [];
+  for (let from = 0; from < 5000; from += 1000) {
+    const page = await admin
+      .from('fg_reminder_log')
+      .select('item_id, expires_on, threshold_days, channel, recipient_key')
+      .eq('company_id', companyId)
+      .order('at', { ascending: false })
+      .range(from, from + 999);
+    if (page.error) return { ok: false, missing: isFleetSchemaMissing(page.error) };
+    for (const row of page.data || []) {
+      const record = row as { item_id?: unknown; expires_on?: unknown; threshold_days?: unknown; channel?: unknown; recipient_key?: unknown };
+      keys.push(
+        logKey(
+          String(record.item_id || ''),
+          record.expires_on == null ? '' : String(record.expires_on).slice(0, 10),
+          Number(record.threshold_days),
+          String(record.channel || ''),
+          String(record.recipient_key || '')
+        )
+      );
+    }
+    if ((page.data || []).length < 1000) break;
+  }
+  return { ok: true, keys };
 }
 
 async function loadCustomers(
@@ -202,6 +297,13 @@ export async function commitFleetOp(
   if (!outcome.ok) return outcome;
   const saved = await persistDiff(before, outcome.book);
   if (!saved.ok) return { ok: false, status: saved.status, error: saved.error, pending: saved.pending };
+  if (saved.alreadyImported) {
+    return {
+      ok: true,
+      book: before,
+      audit: { action: 'import.commit', target_kind: 'import', target_id: '', payload: { already_imported: true } },
+    };
+  }
   return outcome;
 }
 
@@ -240,19 +342,107 @@ export function fleetPersistStatus(error: DbError): { ok: true } | { ok: false; 
   if (error.code === '23505' || error.code === '23P01' || /fg_reverse_closed|duplicate key|exclusion|overlaps/i.test(text)) {
     return { ok: false, status: 409, error: 'That record already exists. Reload and try again.' };
   }
+  if ((error.code === '42703' || error.code === 'PGRST204') && /fg_|source_label|renewed_from|column/i.test(text)) {
+    return { ok: false, status: 500, error: 'The desk could not save that.', pending: true };
+  }
   return { ok: false, status: 500, error: 'The desk could not save that.' };
 }
 
 async function persistDiff(
   before: FleetBook,
   after: FleetBook
-): Promise<{ ok: true } | { ok: false; status: 409 | 400 | 500; error: string; pending?: boolean }> {
+): Promise<{ ok: true; alreadyImported?: boolean } | { ok: false; status: 409 | 400 | 500; error: string; pending?: boolean }> {
   const admin = getSupabaseAdmin();
   const diff = fleetDiff(before, after);
-  const { error } = await admin.rpc('fg_commit_diff', { p_company_id: diff.company_id, p_diff: diff });
-  const status = fleetPersistStatus(error);
-  if (!status.ok && status.status === 500 && !status.pending) console.error('fleetgraph save failed');
-  return status;
+  const audits = diff.inserts.fg_audit_log;
+  const bAudits = audits.filter((row) => /^(reminder\.|trailer\.|import\.dry_run)/.test(text(row.action)));
+  const aAudits = audits.filter((row) => !/^(reminder\.|trailer\.|import\.dry_run|import\.commit)/.test(text(row.action)));
+  const committed = after.import_runs.filter(
+    (run) => !run.dry_run && run.status === 'committed' && !before.import_runs.some((prior) => prior.id === run.id)
+  );
+  if (committed[0]) {
+    const run = committed[0];
+    const { data, error } = await admin.rpc('fg_import_commit', {
+      p_company_id: diff.company_id,
+      p_run: {
+        id: run.id,
+        kind: run.kind,
+        source_hash: run.source_hash,
+        source_label: run.source_label,
+        created_by: run.created_by,
+        row_counts: run.row_counts,
+      },
+      p_diff: {
+        company_id: diff.company_id,
+        upserts: {
+          fg_vehicles: diff.upserts.fg_vehicles,
+          fg_drivers: diff.upserts.fg_drivers,
+          fg_compliance_items: diff.upserts.fg_compliance_items,
+        },
+        inserts: {},
+        delete_stop_ids: [],
+      },
+    });
+    const status = fleetPersistStatus(error);
+    if (!status.ok) {
+      if (status.status === 500 && !status.pending) console.error('fleetgraph save failed');
+      return status;
+    }
+    const body = data && typeof data === 'object' ? (data as { already_imported?: boolean }) : null;
+    if (body?.already_imported) return { ok: true, alreadyImported: true };
+    return { ok: true };
+  }
+  const aDiff = { ...diff, inserts: { ...diff.inserts, fg_audit_log: aAudits } };
+  const aChanged =
+    Object.values(aDiff.upserts).some((rows) => rows.length > 0) ||
+    Object.values(aDiff.inserts).some((rows) => rows.length > 0) ||
+    aDiff.delete_stop_ids.length > 0;
+  if (aChanged) {
+    const { error } = await admin.rpc('fg_commit_diff', { p_company_id: aDiff.company_id, p_diff: aDiff });
+    const status = fleetPersistStatus(error);
+    if (!status.ok) {
+      if (status.status === 500 && !status.pending) console.error('fleetgraph save failed');
+      return status;
+    }
+  }
+  const reminders = changedRows(before.reminders, after.reminders, reminderRow);
+  const trailers = changedRows(before.trailer_links, after.trailer_links, trailerRow);
+  const logs = newRows(before.reminder_log, after.reminder_log, reminderLogRow);
+  if (reminders.length || trailers.length || logs.length || bAudits.length) {
+    const { error } = await admin.rpc('fg_commit_b', {
+      p_company_id: diff.company_id,
+      p_diff: {
+        company_id: diff.company_id,
+        upserts: { fg_reminders: reminders, fg_trailer_links: trailers },
+        inserts: { fg_reminder_log: logs, fg_audit_log: bAudits },
+      },
+    });
+    const status = fleetPersistStatus(error);
+    if (!status.ok) {
+      if (status.status === 500 && !status.pending) console.error('fleetgraph save failed');
+      return status;
+    }
+  }
+  for (const run of after.import_runs.filter((row) => row.dry_run && !before.import_runs.some((prior) => prior.id === row.id))) {
+    const { error } = await admin.from('fg_import_runs').insert({
+      id: run.id,
+      company_id: run.company_id,
+      kind: run.kind,
+      status: 'dry_run',
+      row_counts: run.row_counts,
+      source_hash: run.source_hash,
+      source_label: run.source_label || null,
+      created_by: run.created_by,
+      dry_run: true,
+      committed_at: null,
+    });
+    const status = fleetPersistStatus(error);
+    if (!status.ok) {
+      if (status.status === 500 && !status.pending) console.error('fleetgraph save failed');
+      return status;
+    }
+  }
+  return { ok: true };
 }
 
 export async function insertCustomer(companyId: number, tradingName: string): Promise<{ ok: true; id: number } | { ok: false }> {
@@ -311,6 +501,9 @@ function mapWorkspace(row: Record<string, unknown>): FleetWorkspace {
     tyre_mode_default: text(row.tyre_mode_default, 'accrual') as FleetWorkspace['tyre_mode_default'],
     overhead_include_subcontractors: bool(row.overhead_include_subcontractors),
     required_margin_bps: Number(row.required_margin_bps ?? 1000),
+    expected_vehicle_kinds: kindList(row.expected_vehicle_kinds, ['licence_disc', 'roadworthy', 'insurance']),
+    expected_driver_kinds: kindList(row.expected_driver_kinds, ['driver_licence', 'prdp', 'medical']),
+    prdp_gvm_threshold_kg: !('prdp_gvm_threshold_kg' in row) ? 3500 : num(row.prdp_gvm_threshold_kg),
     updated_at: text(row.updated_at),
   };
 }
@@ -339,6 +532,8 @@ function mapVehicle(row: Record<string, unknown>): FleetVehicle {
     tracker_provider: text(row.tracker_provider),
     notes: text(row.notes),
     archived_at: row.archived_at ? text(row.archived_at) : null,
+    source_system: row.source_system === 'ship' ? 'ship' : null,
+    source_id: row.source_id ? text(row.source_id) : null,
     updated_at: text(row.updated_at),
   };
 }
@@ -356,6 +551,8 @@ function mapDriver(row: Record<string, unknown>): FleetDriver {
     person_id: num(row.person_id),
     notes: text(row.notes),
     archived_at: row.archived_at ? text(row.archived_at) : null,
+    source_system: row.source_system === 'ship' ? 'ship' : null,
+    source_id: row.source_id ? text(row.source_id) : null,
     updated_at: text(row.updated_at),
   };
 }
@@ -373,7 +570,77 @@ function mapCompliance(row: Record<string, unknown>): FleetCompliance {
     detail: (row.detail && typeof row.detail === 'object' ? row.detail : {}) as Record<string, unknown>,
     status_note: text(row.status_note),
     archived_at: row.archived_at ? text(row.archived_at) : null,
+    renewed_from_id: 'renewed_from_id' in row ? (row.renewed_from_id ? text(row.renewed_from_id) : null) : undefined,
     updated_at: text(row.updated_at),
+  };
+}
+
+function mapReminder(row: Record<string, unknown>): FleetReminder {
+  return {
+    id: text(row.id),
+    company_id: Number(row.company_id),
+    scope_kind: text(row.scope_kind, 'all') as FleetReminder['scope_kind'],
+    kind: row.kind ? (text(row.kind) as FleetReminder['kind']) : null,
+    thresholds_days: Array.isArray(row.thresholds_days) ? row.thresholds_days.map((item) => Number(item)).filter((item) => Number.isFinite(item)) : [30, 14, 7, 0],
+    channels: Array.isArray(row.channels) ? (row.channels.map((item) => String(item)).filter((item) => item === 'email' || item === 'push') as FleetReminder['channels']) : [],
+    recipient_member_ids: Array.isArray(row.recipient_member_ids) ? row.recipient_member_ids.map((item) => String(item)) : [],
+    enabled: bool(row.enabled),
+    archived_at: row.archived_at ? text(row.archived_at) : null,
+    updated_at: text(row.updated_at),
+  };
+}
+
+function mapReminderLog(row: Record<string, unknown>): FleetReminderLog {
+  return {
+    id: text(row.id),
+    company_id: Number(row.company_id),
+    rule_id: text(row.rule_id),
+    item_id: text(row.item_id),
+    subject_kind: text(row.subject_kind, 'vehicle') as FleetReminderLog['subject_kind'],
+    subject_id: text(row.subject_id),
+    expires_on: text(row.expires_on).slice(0, 10),
+    threshold_days: Number(row.threshold_days || 0),
+    channel: text(row.channel, 'email') as FleetReminderLog['channel'],
+    recipient_key: text(row.recipient_key),
+    status: text(row.status, 'claimed') as FleetReminderLog['status'],
+    error_code: row.error_code ? text(row.error_code) : null,
+    at: text(row.at),
+  };
+}
+
+function mapTrailerLink(row: Record<string, unknown>): FleetTrailerLink {
+  return {
+    id: text(row.id),
+    company_id: Number(row.company_id),
+    truck_id: text(row.truck_id),
+    trailer_id: text(row.trailer_id),
+    from_on: text(row.from_on).slice(0, 10),
+    to_on: row.to_on ? text(row.to_on).slice(0, 10) : null,
+    created_by: text(row.created_by),
+    archived_at: row.archived_at ? text(row.archived_at) : null,
+    updated_at: text(row.updated_at),
+  };
+}
+
+function mapImportRun(row: Record<string, unknown>): FleetImportRun {
+  const counts = row.row_counts && typeof row.row_counts === 'object' ? (row.row_counts as Record<string, unknown>) : {};
+  const rowCounts: Record<string, number> = {};
+  for (const [key, value] of Object.entries(counts)) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) rowCounts[key] = parsed;
+  }
+  return {
+    id: text(row.id),
+    company_id: Number(row.company_id),
+    kind: text(row.kind) as FleetImportRun['kind'],
+    status: text(row.status, 'draft') as FleetImportRun['status'],
+    row_counts: rowCounts,
+    source_hash: text(row.source_hash),
+    source_label: text(row.source_label),
+    created_by: text(row.created_by),
+    dry_run: bool(row.dry_run),
+    committed_at: row.committed_at ? text(row.committed_at) : null,
+    created_at: text(row.created_at),
   };
 }
 
@@ -568,4 +835,13 @@ function statusRow(row: FleetStatusEvent): Record<string, unknown> {
 }
 function auditRow(row: FleetBook['audit'][number]): Record<string, unknown> {
   return { ...row, created_at: row.at };
+}
+function reminderRow(row: FleetReminder): Record<string, unknown> {
+  return { ...row };
+}
+function trailerRow(row: FleetTrailerLink): Record<string, unknown> {
+  return { ...row };
+}
+function reminderLogRow(row: FleetReminderLog): Record<string, unknown> {
+  return { ...row, updated_at: row.at };
 }

@@ -22,4 +22,25 @@ test.describe('FleetAdvisor staff route', () => {
     const postBody = await postRes.text();
     expect(postBody).not.toContain('"vehicles"');
   });
+
+  test('compliance export stays closed when signed out', async ({ request }) => {
+    const response = await request.get(`${base}/api/fleet/fleetgraph/compliance/export`);
+    expect([401, 403]).toContain(response.status());
+    const body = await response.text();
+    expect(body).not.toContain('subject_ref');
+    expect(body).not.toContain('price_cents');
+  });
+
+  test('reminder cron stays closed when signed out', async ({ request }) => {
+    const missing = await request.get(`${base}/api/fleet/fleetgraph/cron/reminders`);
+    const wrong = await request.get(`${base}/api/fleet/fleetgraph/cron/reminders`, {
+      headers: { authorization: 'Bearer wrong-secret' },
+    });
+    expect([401, 503]).toContain(missing.status());
+    expect(wrong.status()).toBe(missing.status());
+    expect(await wrong.text()).toBe(await missing.text());
+    const body = await missing.text();
+    expect(body).not.toContain('@');
+    expect(body).not.toContain('company_id');
+  });
 });
