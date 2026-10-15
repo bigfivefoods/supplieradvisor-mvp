@@ -1,5 +1,5 @@
 /**
- * In-repo QR Code Model 2 encoder (byte mode, ECC M, versions 1–6).
+ * In-repo QR Code Model 2 encoder (byte mode, ECC M, versions 1–7).
  * No package dependency. Mask is chosen for a stable, lower-penalty pattern.
  */
 
@@ -11,9 +11,19 @@ const ECC_BLOCKS: Array<[number, number, number]> = [
   [2, 32, 18],
   [2, 43, 22],
   [4, 27, 16],
+  [4, 31, 18],
 ];
 
-const ALIGNMENT: number[][] = [[], [], [6, 18], [6, 22], [6, 26, 46], [6, 30, 54], [6, 34, 58]];
+const ALIGNMENT: number[][] = [
+  [],
+  [],
+  [6, 18],
+  [6, 22],
+  [6, 26, 46],
+  [6, 30, 54],
+  [6, 34, 58],
+  [6, 22, 38],
+];
 
 function sizeFor(version: number) {
   return 17 + 4 * version;
@@ -153,6 +163,18 @@ function functionModules(version: number): { modules: Uint8Array; reserved: Uint
     }
   }
   set(8, 4 * version + 9, true);
+  if (version >= 7) {
+    let rem = version;
+    for (let i = 0; i < 12; i++) rem = (rem << 1) ^ (((rem >>> 11) & 1) * 0x1F25);
+    const bits = ((version << 12) | (rem & 0xfff)) >>> 0;
+    for (let i = 0; i < 18; i++) {
+      const dark = ((bits >>> i) & 1) === 1;
+      const a = n - 11 + (i % 3);
+      const b = Math.floor(i / 3);
+      set(a, b, dark);
+      set(b, a, dark);
+    }
+  }
   for (let i = 0; i < 8; i++) {
     set(8, i, false);
     set(i, 8, false);

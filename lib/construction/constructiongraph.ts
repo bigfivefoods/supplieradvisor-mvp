@@ -1,18 +1,22 @@
 /**
  * ConstructionAdvisor® (constructiongraph) — building / construction OS.
- * Stored under profiles.metadata.constructiongraph (no new SQL tables).
+ * The book stays in profiles.metadata.constructiongraph. Portal guess
+ * counters live in construction_portal_attempts (separate migration).
  * Distinct from Core Projects — this hub is the industry site OS.
  *
  * Client → many projects (sites) → BOQ quotes → programme plan vs actuals
  * → progress-payment dates (claim / certify / client pay) → cost allocation
  * → certificates → programme roll-up reports.
  */
+import { sha256Hex } from './sha256';
 
 export const CONSTRUCTIONGRAPH_MODULE_ID = 'constructiongraph' as const;
 export const CONSTRUCTIONGRAPH_META_KEY = 'constructiongraph' as const;
 export const CONSTRUCTIONGRAPH_PACK_ID = 'construction_building' as const;
 export const CONSTRUCTIONGRAPH_TOKEN_KEY = 'constructiongraph_public_token' as const;
 export const CONSTRUCTIONGRAPH_TOKENS_KEY = 'constructiongraph_tokens' as const;
+export const CONSTRUCTIONGRAPH_HASH_KEY = 'constructiongraph_token_hashes' as const;
+export const CONSTRUCTIONGRAPH_AUDIT_KEY = 'constructiongraph_audit' as const;
 
 export const SITE_STATUSES = [
   'tender',
@@ -258,7 +262,7 @@ export type ConstructionVariation = {
   status?: 'draft' | 'submitted' | 'approved' | 'rejected' | 'claimed' | 'queried' | string;
   title?: string;
   reference?: string;
-  direction?: 'client_instruction' | 'contractor_proposal' | 'subcontractor' | string;
+  direction?: 'client_instruction' | 'contractor_proposal' | string;
   days?: number;
   lines?: ConstructionVariationLine[];
   submitted_on?: string | null;
@@ -303,6 +307,10 @@ export type ConstructionProgressPayment = {
   paid_amount?: number | null;
   status?: ConstructionPaymentStatus | string;
   notes?: string;
+  /** Set when a portal link records the figure. */
+  reported_via?: 'portal' | string;
+  reported_portal_id?: string;
+  reported_at?: string;
   sample?: boolean;
 };
 
@@ -317,48 +325,6 @@ export type ConstructionSnag = {
   assigned_to?: string;
   closed_on?: string | null;
   sample?: boolean;
-};
-
-export type ConstructionPortal = {
-  id?: string;
-  token: string;
-  kind: 'public' | 'client' | 'contractor' | 'subcontractor';
-  client_id?: string | null;
-  site_id?: string | null;
-  subcontractor_id?: string | null;
-  label?: string;
-  created_at?: string;
-  expires_at?: string | null;
-  revoked_at?: string | null;
-  token_hint?: string;
-  legacy?: boolean;
-  sample?: boolean;
-};
-
-export type ConstructionSettings = {
-  public_token?: string;
-};
-
-export type ConstructiongraphStore = {
-  clients: ConstructionClient[];
-  sites: ConstructionSite[];
-  quotes: ConstructionQuote[];
-  drawings: ConstructionDrawing[];
-  boq: ConstructionBoqItem[];
-  costs: ConstructionCost[];
-  subcontractors: ConstructionSubcontractor[];
-  materials: ConstructionMaterial[];
-  plant: ConstructionPlant[];
-  programme: ConstructionProgrammeRow[];
-  safety: ConstructionSafetyRow[];
-  variations: ConstructionVariation[];
-  certificates: ConstructionCertificate[];
-  payments: ConstructionProgressPayment[];
-  snags: ConstructionSnag[];
-  diary: DiaryEntry[];
-  portals: ConstructionPortal[];
-  settings: ConstructionSettings;
-  updated_at?: string;
 };
 
 export type DiaryLabour = { trade: string; count: number };
@@ -386,6 +352,85 @@ export type DiaryEntry = {
   signed_off_by?: string | null;
   addenda?: DiaryAddendum[];
   sample?: boolean;
+};
+
+/** Caption only. ConstructionAdvisor® does not store image files. */
+export type ConstructionPhotoNote = {
+  id: string;
+  site_id?: string | null;
+  caption: string;
+  taken_on?: string | null;
+  author_name?: string;
+  sample?: boolean;
+};
+
+export type ConstructionTimeEntry = {
+  id: string;
+  site_id?: string | null;
+  minutes: number;
+  note?: string;
+  at?: string;
+  author_name?: string;
+  sample?: boolean;
+};
+
+export type ConstructionPortal = {
+  id?: string;
+  /**
+   * Deprecated plaintext secret. Read from old stored rows only.
+   * Never written back to metadata.
+   */
+  token?: string;
+  token_hash?: string;
+  token_hint?: string;
+  kind: 'public' | 'client' | 'contractor';
+  client_id?: string | null;
+  site_id?: string | null;
+  label?: string;
+  created_at?: string;
+  created_by?: string;
+  expires_at?: string | null;
+  revoked_at?: string | null;
+  legacy?: boolean;
+  sample?: boolean;
+};
+
+export type ConstructionAuditEntry = {
+  at: string;
+  actor_kind: 'staff' | 'portal';
+  actor_id: string;
+  action: string;
+  target: string;
+};
+
+export type ConstructionSettings = {
+  public_token?: string;
+  /** Owner opt-in. Workers then see certified and paid on their app. */
+  workers_see_money?: boolean;
+};
+
+export type ConstructiongraphStore = {
+  clients: ConstructionClient[];
+  sites: ConstructionSite[];
+  quotes: ConstructionQuote[];
+  drawings: ConstructionDrawing[];
+  boq: ConstructionBoqItem[];
+  costs: ConstructionCost[];
+  subcontractors: ConstructionSubcontractor[];
+  materials: ConstructionMaterial[];
+  plant: ConstructionPlant[];
+  programme: ConstructionProgrammeRow[];
+  safety: ConstructionSafetyRow[];
+  variations: ConstructionVariation[];
+  certificates: ConstructionCertificate[];
+  payments: ConstructionProgressPayment[];
+  snags: ConstructionSnag[];
+  diary: DiaryEntry[];
+  photos: ConstructionPhotoNote[];
+  time_entries: ConstructionTimeEntry[];
+  portals: ConstructionPortal[];
+  settings: ConstructionSettings;
+  updated_at?: string;
 };
 
 function asObject(v: unknown): Record<string, unknown> {
@@ -428,8 +473,29 @@ export function newConstructionId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
+function randomHex(byteLength: number): string {
+  const bytes = new Uint8Array(byteLength);
+  const webCrypto = globalThis.crypto;
+  if (!webCrypto?.getRandomValues) {
+    throw new Error('CSPRNG unavailable');
+  }
+  webCrypto.getRandomValues(bytes);
+  let hex = '';
+  for (const byte of bytes) hex += byte.toString(16).padStart(2, '0');
+  return hex;
+}
+
+/**
+ * CSPRNG portal token (cgp_ + 256 bits). Server routes issue through
+ * newPortalToken in portal-tokens.ts; this export stays for callers that
+ * already import the name. Web Crypto, not Math.random.
+ */
 export function mintConstructionToken(): string {
-  return `cg_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+  return `cgp_${randomHex(32)}`;
+}
+
+function newPortalRowIdLocal(): string {
+  return `cgpr_${randomHex(16)}`;
 }
 
 export function addDaysIso(isoDate: string, days: number): string {
@@ -501,6 +567,8 @@ export function emptyConstructiongraphStore(): ConstructiongraphStore {
     payments: [],
     snags: [],
     diary: [],
+    photos: [],
+    time_entries: [],
     portals: [],
     settings: {},
   };
@@ -515,22 +583,187 @@ function slugClientId(name: string): string {
   return slug ? `cli_${slug}` : `cli_${Date.now()}`;
 }
 
+const PRESERVED = Symbol.for('constructiongraph.preserved');
+
+const KNOWN_STORE_KEYS = new Set([
+  'clients',
+  'sites',
+  'quotes',
+  'drawings',
+  'boq',
+  'costs',
+  'subcontractors',
+  'materials',
+  'plant',
+  'programme',
+  'safety',
+  'variations',
+  'certificates',
+  'payments',
+  'snags',
+  'diary',
+  'photos',
+  'time_entries',
+  'portals',
+  'settings',
+  'updated_at',
+]);
+
+const BOOK_COLLECTIONS = [
+  'clients',
+  'sites',
+  'quotes',
+  'drawings',
+  'boq',
+  'costs',
+  'subcontractors',
+  'materials',
+  'plant',
+  'programme',
+  'safety',
+  'variations',
+  'certificates',
+  'payments',
+  'snags',
+  'diary',
+  'photos',
+  'time_entries',
+] as const;
+
+function preservedOf(store: object | null | undefined): Record<string, unknown> {
+  if (!store) return {};
+  const value = (store as { [PRESERVED]?: unknown })[PRESERVED];
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return { ...(value as Record<string, unknown>) };
+}
+
+function unknownOwnProperties(store: object | null | undefined): Record<string, unknown> {
+  if (!store) return {};
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(store)) {
+    if (KNOWN_STORE_KEYS.has(key)) continue;
+    out[key] = (store as Record<string, unknown>)[key];
+  }
+  return out;
+}
+
+function preservedBag(store: object | null | undefined): Record<string, unknown> {
+  return { ...preservedOf(store), ...unknownOwnProperties(store) };
+}
+
+function withPreserved<T extends object>(
+  store: T,
+  preserved: Record<string, unknown>
+): T {
+  Object.defineProperty(store, PRESERVED, {
+    value: preserved,
+    enumerable: false,
+    writable: true,
+    configurable: true,
+  });
+  // Unknown keys stay on the non-enumerable bag for the hashed-token writer,
+  // and are also own properties so a loaded book still exposes them in memory.
+  for (const [key, value] of Object.entries(preserved)) {
+    if (KNOWN_STORE_KEYS.has(key)) continue;
+    if (Object.prototype.hasOwnProperty.call(store, key)) continue;
+    Object.defineProperty(store, key, {
+      value,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
+  return store;
+}
+
+function hexEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+export function constructionBookHasRows(store: ConstructiongraphStore): boolean {
+  for (const key of BOOK_COLLECTIONS) {
+    if (Array.isArray(store[key]) && store[key].length > 0) return true;
+  }
+  for (const value of Object.values(preservedOf(store))) {
+    if (Array.isArray(value) && value.length > 0) return true;
+  }
+  return false;
+}
+
+export function keepConstructionExtras(
+  next: ConstructiongraphStore,
+  previous: ConstructiongraphStore
+): ConstructiongraphStore {
+  return withPreserved(next, {
+    ...preservedOf(previous),
+    ...preservedOf(next),
+  });
+}
+
+export function stripPortalOwnedFields(
+  partial: Partial<ConstructiongraphStore>
+): Partial<ConstructiongraphStore> {
+  const copy: Partial<ConstructiongraphStore> = { ...partial };
+  delete copy.portals;
+  delete copy.settings;
+  return copy;
+}
+
+export function appendConstructionAudit(
+  meta: Record<string, unknown>,
+  entry: ConstructionAuditEntry
+): Record<string, unknown> {
+  const prev = Array.isArray(meta[CONSTRUCTIONGRAPH_AUDIT_KEY])
+    ? (meta[CONSTRUCTIONGRAPH_AUDIT_KEY] as ConstructionAuditEntry[])
+    : [];
+  const next = [
+    ...prev,
+    {
+      at: entry.at,
+      actor_kind: entry.actor_kind,
+      actor_id: String(entry.actor_id || ''),
+      action: entry.action,
+      target: String(entry.target || ''),
+    },
+  ].slice(-200);
+  return { ...meta, [CONSTRUCTIONGRAPH_AUDIT_KEY]: next };
+}
+
 export function hydrateConstructiongraphStore(
   store: ConstructiongraphStore
 ): ConstructiongraphStore {
+  const preserved = preservedBag(store);
   const next: ConstructiongraphStore = {
     ...emptyConstructiongraphStore(),
-    ...store,
-    clients: [...store.clients],
-    sites: store.sites.map((s) => ({ ...s })),
+    clients: [...(store.clients || [])],
+    sites: (store.sites || []).map((s) => ({ ...s })),
+    quotes: [...(store.quotes || [])],
+    drawings: [...(store.drawings || [])],
+    boq: [...(store.boq || [])],
+    costs: [...(store.costs || [])],
+    subcontractors: [...(store.subcontractors || [])],
+    materials: [...(store.materials || [])],
+    plant: [...(store.plant || [])],
     programme: [...(store.programme || [])],
+    safety: [...(store.safety || [])],
+    variations: [...(store.variations || [])],
+    certificates: [...(store.certificates || [])],
     payments: [...(store.payments || [])],
+    snags: [...(store.snags || [])],
     diary: [...(store.diary || [])],
+    photos: [...(store.photos || [])],
+    time_entries: [...(store.time_entries || [])],
     settings: { ...(store.settings || {}) },
     portals: (store.portals || []).map((p) => ({
       ...p,
       id: p.id || p.token,
     })),
+    updated_at: store.updated_at,
   };
 
   for (const site of next.sites) {
@@ -567,18 +800,26 @@ export function hydrateConstructiongraphStore(
     if (row.eot_days == null) row.eot_days = 0;
   });
 
-  if (
-    next.settings.public_token &&
-    !next.portals.some((p) => p.kind === 'public')
-  ) {
-    next.portals.push({
-      token: next.settings.public_token,
-      kind: 'public',
-      label: 'Client & contractor PWA',
-    });
+  if (next.settings.public_token) {
+    const master = next.settings.public_token;
+    const masterHash = sha256Hex(master);
+    const already = next.portals.some(
+      (portal) =>
+        portal.kind === 'public' &&
+        (portal.token === master ||
+          (portal.token_hash && hexEqual(portal.token_hash, masterHash)))
+    );
+    if (!already) {
+      next.portals.push({
+        token: master,
+        kind: 'public',
+        label: 'Client & contractor PWA',
+        legacy: true,
+      });
+    }
   }
 
-  return next;
+  return withPreserved(next, preserved);
 }
 
 export function readConstructiongraphFromMetadata(
@@ -587,33 +828,11 @@ export function readConstructiongraphFromMetadata(
   const src = asObject(meta);
   const raw = asObject(src[CONSTRUCTIONGRAPH_META_KEY]);
   const settings = asObject(raw.settings);
-  const known = new Set([
-    'clients',
-    'sites',
-    'quotes',
-    'drawings',
-    'boq',
-    'costs',
-    'subcontractors',
-    'materials',
-    'plant',
-    'programme',
-    'safety',
-    'variations',
-    'certificates',
-    'payments',
-    'snags',
-    'diary',
-    'portals',
-    'settings',
-    'updated_at',
-  ]);
-  const unknown: Record<string, unknown> = {};
+  const preserved: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(raw)) {
-    if (!known.has(key)) unknown[key] = value;
+    if (!KNOWN_STORE_KEYS.has(key)) preserved[key] = value;
   }
-  const store = {
-    ...unknown,
+  const store: ConstructiongraphStore = {
     clients: asArray<ConstructionClient>(raw.clients),
     sites: asArray<ConstructionSite>(raw.sites),
     quotes: asArray<ConstructionQuote>(raw.quotes),
@@ -630,9 +849,11 @@ export function readConstructiongraphFromMetadata(
     payments: asArray<ConstructionProgressPayment>(raw.payments),
     snags: asArray<ConstructionSnag>(raw.snags),
     diary: asArray<DiaryEntry>(raw.diary),
+    photos: asArray<ConstructionPhotoNote>(raw.photos),
+    time_entries: asArray<ConstructionTimeEntry>(raw.time_entries),
     portals: asArray<ConstructionPortal>(raw.portals),
     settings: {
-      ...settings,
+      ...(settings as ConstructionSettings),
       public_token:
         typeof settings.public_token === 'string'
           ? settings.public_token
@@ -642,8 +863,8 @@ export function readConstructiongraphFromMetadata(
     },
     updated_at:
       typeof raw.updated_at === 'string' ? raw.updated_at : undefined,
-  } as ConstructiongraphStore;
-  return hydrateConstructiongraphStore(store);
+  };
+  return hydrateConstructiongraphStore(withPreserved(store, preserved));
 }
 
 function rowIdentity(row: unknown): string {
@@ -712,9 +933,45 @@ export function mergeConstructiongraphStore(
   existing: ConstructiongraphStore,
   incoming: Partial<ConstructiongraphStore>
 ): ConstructiongraphStore {
-  return hydrateConstructiongraphStore(
-    deepMergeValue(existing, incoming) as ConstructiongraphStore
-  );
+  const preserved = {
+    ...preservedOf(existing),
+    ...preservedOf(incoming),
+  };
+  for (const [key, value] of Object.entries(incoming)) {
+    if (!KNOWN_STORE_KEYS.has(key)) preserved[key] = value;
+  }
+  const merged = deepMergeValue(existing, incoming) as ConstructiongraphStore;
+  return withPreserved(hydrateConstructiongraphStore(merged), preserved);
+}
+
+function serialisePortal(portal: ConstructionPortal, now: string): ConstructionPortal {
+  const plaintext = String(portal.token || '').trim();
+  let id = String(portal.id || '').trim();
+  let tokenHash = String(portal.token_hash || '').trim();
+  let tokenHint = String(portal.token_hint || '').trim();
+  let legacy = Boolean(portal.legacy);
+  if (plaintext) {
+    tokenHash = sha256Hex(plaintext);
+    tokenHint = tokenHint || plaintext.slice(-4);
+    legacy = true;
+    if (!id || id === plaintext) id = newPortalRowIdLocal();
+  }
+  if (!id) id = newPortalRowIdLocal();
+  const row: ConstructionPortal = {
+    id,
+    token_hash: tokenHash || undefined,
+    token_hint: tokenHint || undefined,
+    kind: portal.kind,
+    client_id: portal.client_id ?? null,
+    site_id: portal.site_id ?? null,
+    label: portal.label,
+    created_at: portal.created_at || now,
+    created_by: portal.created_by,
+    expires_at: portal.expires_at ?? null,
+    revoked_at: portal.revoked_at ?? null,
+  };
+  if (legacy) row.legacy = true;
+  return row;
 }
 
 export function writeConstructiongraphToMetadata(
@@ -722,21 +979,45 @@ export function writeConstructiongraphToMetadata(
   store: ConstructiongraphStore
 ): Record<string, unknown> {
   const hydrated = hydrateConstructiongraphStore(store);
-  const tokens: Record<string, string> = {};
-  for (const p of hydrated.portals) {
-    if (p.token) tokens[p.token] = p.kind;
+  const now = new Date().toISOString();
+  const portals = hydrated.portals.map((portal) => serialisePortal(portal, now));
+  const hashes: Record<string, string> = {};
+  for (const portal of portals) {
+    if (portal.revoked_at || !portal.token_hash) continue;
+    hashes[portal.token_hash] = portal.kind;
   }
-  if (hydrated.settings.public_token) {
-    tokens[hydrated.settings.public_token] = tokens[hydrated.settings.public_token] || 'public';
-  }
+  const settings = { ...(hydrated.settings || {}) };
+  delete settings.public_token;
+  const body: Record<string, unknown> = {
+    ...preservedBag(hydrated),
+    clients: hydrated.clients,
+    sites: hydrated.sites,
+    quotes: hydrated.quotes,
+    drawings: hydrated.drawings,
+    boq: hydrated.boq,
+    costs: hydrated.costs,
+    subcontractors: hydrated.subcontractors,
+    materials: hydrated.materials,
+    plant: hydrated.plant,
+    programme: hydrated.programme,
+    safety: hydrated.safety,
+    variations: hydrated.variations,
+    certificates: hydrated.certificates,
+    payments: hydrated.payments,
+    snags: hydrated.snags,
+    diary: hydrated.diary,
+    photos: hydrated.photos,
+    time_entries: hydrated.time_entries,
+    portals,
+    settings,
+    updated_at: now,
+  };
   return {
     ...meta,
-    [CONSTRUCTIONGRAPH_META_KEY]: {
-      ...hydrated,
-      updated_at: new Date().toISOString(),
-    },
-    [CONSTRUCTIONGRAPH_TOKEN_KEY]: hydrated.settings.public_token || null,
-    [CONSTRUCTIONGRAPH_TOKENS_KEY]: tokens,
+    [CONSTRUCTIONGRAPH_META_KEY]: body,
+    [CONSTRUCTIONGRAPH_TOKEN_KEY]: null,
+    [CONSTRUCTIONGRAPH_TOKENS_KEY]: null,
+    [CONSTRUCTIONGRAPH_HASH_KEY]: hashes,
   };
 }
 
@@ -831,13 +1112,13 @@ export function projectReport(
   const certified = (store.certificates || [])
     .filter((c) => c.site_id === siteId)
     .reduce((s, c) => s + money(c.certified_amount), 0);
-  const variations = store.variations
+  const variations = (store.variations || [])
     .filter((c) => c.site_id === siteId)
     .reduce((s, c) => s + money(c.amount), 0);
-  const openSnags = store.snags.filter(
+  const openSnags = (store.snags || []).filter(
     (c) => c.site_id === siteId && c.status !== 'closed'
   ).length;
-  const prog = store.programme.filter((p) => p.site_id === siteId);
+  const prog = (store.programme || []).filter((p) => p.site_id === siteId);
   const plannedPct = avg(prog.map((p) => money(p.planned_pct ?? p.pct_complete)));
   const actualPct = avg(prog.map((p) => money(p.actual_pct ?? p.pct_complete)));
   const contractValue = money(site.contract_value) || boqPlanned;
@@ -950,11 +1231,22 @@ export function upsertPortal(
   store: ConstructiongraphStore,
   portal: ConstructionPortal
 ): ConstructiongraphStore {
+  const plaintext = String(portal.token || '').trim();
   const row: ConstructionPortal = {
     ...portal,
-    id: portal.id || portal.token,
+    id:
+      portal.id && portal.id !== plaintext
+        ? portal.id
+        : newPortalRowIdLocal(),
+    token: undefined,
+    token_hash: portal.token_hash || (plaintext ? sha256Hex(plaintext) : undefined),
+    token_hint: portal.token_hint || (plaintext ? plaintext.slice(-4) : undefined),
+    legacy: plaintext ? true : portal.legacy,
+    created_at: portal.created_at || new Date().toISOString(),
   };
+  const active = (p: ConstructionPortal) => !p.revoked_at;
   const match = (p: ConstructionPortal) => {
+    if (!active(p)) return false;
     if (row.kind === 'public') return p.kind === 'public';
     if (row.kind === 'client') {
       return p.kind === 'client' && p.client_id === row.client_id;
@@ -962,19 +1254,14 @@ export function upsertPortal(
     if (row.kind === 'contractor') {
       return p.kind === 'contractor' && p.site_id === row.site_id;
     }
-    if (row.kind === 'subcontractor') {
-      return p.kind === 'subcontractor' && p.subcontractor_id === row.subcontractor_id;
-    }
-    return p.token === row.token;
+    return p.token_hash === row.token_hash;
   };
   const portals = store.portals.some(match)
     ? store.portals.map((p) => (match(p) ? row : p))
     : [...store.portals, row];
-  const settings =
-    row.kind === 'public'
-      ? { ...store.settings, public_token: row.token }
-      : { ...store.settings };
-  return hydrateConstructiongraphStore({ ...store, portals, settings });
+  const settings = { ...store.settings };
+  delete settings.public_token;
+  return hydrateConstructiongraphStore(withPreserved({ ...store, portals, settings }, preservedOf(store)));
 }
 
 export function allocateCostPatch(
@@ -1142,7 +1429,7 @@ export function applyPaymentAction(
     if (opts.action !== 'claim') {
       return { ok: false, error: 'Contractor can only issue claims' };
     }
-    if (opts.portal?.site_id && row.site_id !== opts.portal.site_id) {
+    if (!opts.portal?.site_id || row.site_id !== opts.portal.site_id) {
       return { ok: false, error: 'Payment is not on this project' };
     }
   }
@@ -1150,11 +1437,7 @@ export function applyPaymentAction(
     if (opts.action !== 'pay') {
       return { ok: false, error: 'Client can only record payments' };
     }
-    if (
-      opts.portal?.client_id &&
-      site?.client_id &&
-      site.client_id !== opts.portal.client_id
-    ) {
+    if (!opts.portal?.client_id || !site?.client_id || site.client_id !== opts.portal.client_id) {
       return { ok: false, error: 'Payment is not for this client' };
     }
     if (!row.claimed_at && !row.certified_at) {
@@ -1211,7 +1494,6 @@ export function summariseConstructiongraph(store: ConstructiongraphStore) {
     paidBillings: roll.paidBillings,
     outstandingBillings: roll.outstandingBillings,
     overduePayments: roll.overduePayments,
-    publicToken: store.settings.public_token || '',
   };
 }
 
@@ -1239,8 +1521,8 @@ export type ConstructionPortalPayment = {
   plannedPayDate?: string | null;
   plannedAmount: number;
   claimedAmount: number;
-  certifiedAmount: number;
-  paidAmount: number;
+  certifiedAmount?: number;
+  paidAmount?: number;
   claimedAt?: string | null;
   certifiedAt?: string | null;
   paidAt?: string | null;
@@ -1255,150 +1537,473 @@ export type ConstructionPortalQuote = {
   projectCode: string;
 };
 
-export type ConstructionPortalView = {
+export type ClientPortalProject = {
+  siteId: string;
+  code: string;
+  name: string;
+  clientName: string;
+  status: string;
+  plannedPct: number;
+  actualPct: number;
+  openSnags: number;
+  variationsTotal: number;
+  contractValue: number;
+  certified: number;
+  paid: number;
+  outstanding: number;
+  overdueCount: number;
+};
+
+export type ClientPortalView = {
+  kind: 'client';
   companyName: string;
-  kind: ConstructionPortal['kind'];
-  clientName?: string;
-  projectName?: string;
-  summary: ReturnType<typeof summariseConstructiongraph>;
-  programme: ReturnType<typeof programmeReport>;
-  projects: ConstructionProjectReport[];
-  activities: ConstructionPortalActivity[];
+  clientName: string;
+  projects: ClientPortalProject[];
   quotes: ConstructionPortalQuote[];
   payments: ConstructionPortalPayment[];
+  activities: ConstructionPortalActivity[];
+  variations: Array<{ id: string; number: string; title: string; status: string; days: number; siteCode: string }>;
+  documents: Array<{ id: string; number: string; title: string; revision: string; status: string; siteCode: string }>;
+  photos: Array<{ id: string; caption: string; takenOn: string | null; siteCode: string }>;
 };
+
+export type ContractorPortalView = {
+  kind: 'contractor';
+  companyName: string;
+  projectName: string;
+  projectCode: string;
+  status: string;
+  projects: Array<{
+    siteId: string;
+    code: string;
+    name: string;
+    status: string;
+    plannedPct: number;
+    actualPct: number;
+    openSnags: number;
+  }>;
+  activities: ConstructionPortalActivity[];
+  openSnags: Array<{ item: string; location: string; status: string }>;
+  payments: ConstructionPortalPayment[];
+  diary: Array<{ id: string; date: string; weather: string; progress: string; signedOff: boolean }>;
+  materials: Array<{ id: string; item: string; uom: string; ordered: number; delivered: number }>;
+  photos: Array<{ id: string; caption: string; takenOn: string | null }>;
+  timeEntries: Array<{ id: string; minutes: number; note: string; at: string | null }>;
+  seeMoney: boolean;
+};
+
+export type PublicPortalView = {
+  kind: 'public';
+  companyName: string;
+  projects: Array<{
+    code: string;
+    name: string;
+    status: string;
+    plannedPct: number;
+    actualPct: number;
+  }>;
+};
+
+export type ConstructionPortalView =
+  | ClientPortalView
+  | ContractorPortalView
+  | PublicPortalView;
+
+export type PortalDenial = 'missing' | 'revoked' | 'expired' | 'unscoped';
+
+export function portalDenial(
+  portal: ConstructionPortal | null | undefined,
+  now = Date.now()
+): PortalDenial | null {
+  if (!portal) return 'missing';
+  if (portal.revoked_at) return 'revoked';
+  if (portal.expires_at && Date.parse(portal.expires_at) <= now) return 'expired';
+  if (portal.kind === 'client' && !portal.client_id) return 'unscoped';
+  if (portal.kind === 'contractor' && !portal.site_id) return 'unscoped';
+  return null;
+}
+
+export function resolvePresentedPortal(
+  store: ConstructiongraphStore,
+  token: string
+): { portal: ConstructionPortal; via: 'hash' | 'legacy' } | null {
+  const presented = String(token || '');
+  const hash = sha256Hex(presented);
+  const byHash = store.portals.find(
+    (portal) => portal.token_hash && hexEqual(portal.token_hash, hash)
+  );
+  if (byHash) return { portal: byHash, via: 'hash' };
+  const byPlain = store.portals.find((portal) => portal.token && portal.token === presented);
+  if (byPlain) return { portal: byPlain, via: 'legacy' };
+  if (store.settings.public_token && store.settings.public_token === presented) {
+    const master = store.portals.find((portal) => portal.kind === 'public' && !portal.revoked_at);
+    if (master) return { portal: master, via: 'legacy' };
+  }
+  return null;
+}
+
+function activityView(
+  store: ConstructiongraphStore,
+  row: ConstructionProgrammeRow
+): ConstructionPortalActivity {
+  const site = store.sites.find((item) => item.id === row.site_id);
+  return {
+    id: row.id,
+    siteCode: site?.code || '—',
+    siteName: site?.name || '—',
+    activity: row.activity,
+    plannedPct: money(row.planned_pct ?? row.pct_complete),
+    actualPct: money(row.actual_pct ?? row.pct_complete),
+    plannedStart: row.planned_start || row.start_date || null,
+    plannedEnd: row.planned_end || row.end_date || null,
+    actualStart: row.actual_start || null,
+    actualEnd: row.actual_end || null,
+    status: String(row.status || '—'),
+  };
+}
+
+function clientPaymentView(
+  store: ConstructiongraphStore,
+  row: ConstructionProgressPayment
+): ConstructionPortalPayment {
+  const site = store.sites.find((item) => item.id === row.site_id);
+  return {
+    id: row.id,
+    siteCode: site?.code || '—',
+    number: row.number,
+    title: row.title,
+    status: resolvePaymentStatus(row),
+    plannedClaimDate: row.planned_claim_date || null,
+    plannedPayDate: row.planned_pay_date || null,
+    plannedAmount: money(row.planned_amount),
+    claimedAmount: money(row.claimed_amount),
+    certifiedAmount: money(row.certified_amount),
+    paidAmount: money(row.paid_amount),
+    claimedAt: row.claimed_at || null,
+    certifiedAt: row.certified_at || null,
+    paidAt: row.paid_at || null,
+  };
+}
+
+function contractorPaymentView(
+  store: ConstructiongraphStore,
+  row: ConstructionProgressPayment
+): ConstructionPortalPayment {
+  const site = store.sites.find((item) => item.id === row.site_id);
+  return {
+    id: row.id,
+    siteCode: site?.code || '—',
+    number: row.number,
+    title: row.title,
+    status: resolvePaymentStatus(row),
+    plannedClaimDate: row.planned_claim_date || null,
+    plannedPayDate: row.planned_pay_date || null,
+    plannedAmount: money(row.planned_amount),
+    claimedAmount: money(row.claimed_amount),
+    claimedAt: row.claimed_at || null,
+    ...(store.settings.workers_see_money
+      ? {
+          certifiedAmount: money(row.certified_amount),
+          paidAmount: money(row.paid_amount),
+        }
+      : {}),
+  };
+}
+
+function buildPortalView(
+  store: ConstructiongraphStore,
+  portal: ConstructionPortal,
+  companyName: string
+): ConstructionPortalView | null {
+  if (portal.kind === 'public') {
+    return {
+      kind: 'public',
+      companyName,
+      projects: store.sites.map((site) => {
+        const report = projectReport(store, site.id);
+        return {
+          code: site.code,
+          name: site.name,
+          status: String(site.status || ''),
+          plannedPct: report?.plannedPct || 0,
+          actualPct: report?.actualPct || 0,
+        };
+      }),
+    };
+  }
+
+  if (portal.kind === 'client') {
+    if (!portal.client_id) return null;
+    const client = clientById(store, portal.client_id);
+    const sites = store.sites.filter((site) => site.client_id === portal.client_id);
+    const siteIds = new Set(sites.map((site) => site.id));
+    const projects: ClientPortalProject[] = [];
+    for (const site of sites) {
+      const report = projectReport(store, site.id);
+      if (!report) continue;
+      projects.push({
+        siteId: site.id,
+        code: site.code,
+        name: site.name,
+        clientName: client?.name || site.client || '',
+        status: String(site.status || ''),
+        plannedPct: report.plannedPct,
+        actualPct: report.actualPct,
+        openSnags: report.openSnags,
+        variationsTotal: report.variations,
+        contractValue: report.contractValue,
+        certified: report.certified,
+        paid: report.paidBillings,
+        outstanding: report.outstandingBillings,
+        overdueCount: report.overduePayments,
+      });
+    }
+    return {
+      kind: 'client',
+      companyName,
+      clientName: client?.name || '',
+      projects,
+      quotes: store.quotes
+        .filter((quote) => quote.client_id === portal.client_id)
+        .map((quote) => ({
+          id: quote.id,
+          number: quote.number,
+          title: quote.title,
+          status: String(quote.status || 'draft'),
+          total: quoteBoqTotal(store, quote.id),
+          projectCode: store.sites.find((site) => site.id === quote.site_id)?.code || '—',
+        })),
+      payments: store.payments
+        .filter((row) => Boolean(row.site_id) && siteIds.has(String(row.site_id)))
+        .map((row) => clientPaymentView(store, row)),
+      activities: store.programme
+        .filter((row) => Boolean(row.site_id) && siteIds.has(String(row.site_id)))
+        .map((row) => activityView(store, row)),
+      variations: (store.variations || [])
+        .filter((row) => Boolean(row.site_id) && siteIds.has(String(row.site_id)))
+        .map((row) => ({
+          id: row.id,
+          number: row.number,
+          title: row.title || row.description,
+          status: String(row.status || 'draft'),
+          days: money(row.days),
+          siteCode: store.sites.find((site) => site.id === row.site_id)?.code || '—',
+        })),
+      documents: (store.drawings || [])
+        .filter((row) => Boolean(row.site_id) && siteIds.has(String(row.site_id)))
+        .map((row) => ({
+          id: row.id,
+          number: row.drawing_no,
+          title: row.title,
+          revision: row.revision || '',
+          status: String(row.status || ''),
+          siteCode: store.sites.find((site) => site.id === row.site_id)?.code || '—',
+        })),
+      photos: (store.photos || [])
+        .filter((row) => Boolean(row.site_id) && siteIds.has(String(row.site_id)))
+        .map((row) => ({
+          id: row.id,
+          caption: row.caption,
+          takenOn: row.taken_on || null,
+          siteCode: store.sites.find((site) => site.id === row.site_id)?.code || '—',
+        })),
+    };
+  }
+
+  if (!portal.site_id) return null;
+  const site = store.sites.find((item) => item.id === portal.site_id);
+  const report = site ? projectReport(store, site.id) : null;
+  return {
+    kind: 'contractor',
+    companyName,
+    projectName: site?.name || '',
+    projectCode: site?.code || '',
+    status: String(site?.status || ''),
+    projects: site
+      ? [
+          {
+            siteId: site.id,
+            code: site.code,
+            name: site.name,
+            status: String(site.status || ''),
+            plannedPct: report?.plannedPct || 0,
+            actualPct: report?.actualPct || 0,
+            openSnags: report?.openSnags || 0,
+          },
+        ]
+      : [],
+    activities: store.programme
+      .filter((row) => row.site_id === portal.site_id)
+      .map((row) => activityView(store, row)),
+    openSnags: store.snags
+      .filter((row) => row.site_id === portal.site_id && row.status !== 'closed')
+      .map((row) => ({
+        item: row.item,
+        location: row.location || '',
+        status: String(row.status || 'open'),
+      })),
+    payments: (store.payments || [])
+      .filter((row) => row.site_id === portal.site_id)
+      .map((row) => contractorPaymentView(store, row)),
+    diary: (store.diary || [])
+      .filter((row) => row.site_id === portal.site_id)
+      .map((row) => ({
+        id: row.id,
+        date: row.date,
+        weather: row.weather || '',
+        progress: row.progress_note || '',
+        signedOff: Boolean(row.signed_off_at),
+      })),
+    materials: (store.materials || [])
+      .filter((row) => row.site_id === portal.site_id)
+      .map((row) => ({
+        id: row.id,
+        item: row.item,
+        uom: row.uom,
+        ordered: money(row.ordered_qty),
+        delivered: money(row.delivered_qty),
+      })),
+    photos: (store.photos || [])
+      .filter((row) => row.site_id === portal.site_id)
+      .map((row) => ({
+        id: row.id,
+        caption: row.caption,
+        takenOn: row.taken_on || null,
+      })),
+    timeEntries: (store.time_entries || [])
+      .filter((row) => row.site_id === portal.site_id)
+      .map((row) => ({
+        id: row.id,
+        minutes: money(row.minutes),
+        note: row.note || '',
+        at: row.at || null,
+      })),
+    seeMoney: Boolean(store.settings.workers_see_money),
+  };
+}
 
 export function portalViewForToken(
   store: ConstructiongraphStore,
   token: string,
   companyName: string
 ): ConstructionPortalView | null {
-  const portal =
-    store.portals.find((p) => p.token === token) ||
-    (store.settings.public_token === token
-      ? { token, kind: 'public' as const }
-      : null);
-  if (!portal) return null;
-  if (portal.kind === 'subcontractor') return null;
-  if (portal.revoked_at) return null;
-  if (portal.expires_at && String(portal.expires_at).slice(0, 10) < new Date().toISOString().slice(0, 10)) {
-    return null;
+  const found = resolvePresentedPortal(store, token);
+  if (!found) return null;
+  if (portalDenial(found.portal)) return null;
+  return buildPortalView(store, found.portal, companyName);
+}
+
+export function markPresentedTokenLegacy(
+  store: ConstructiongraphStore,
+  token: string
+): ConstructiongraphStore {
+  const hash = sha256Hex(token);
+  const portals = store.portals.map((portal) => {
+    const matchesPlain = portal.token === token;
+    const matchesHash = Boolean(portal.token_hash && hexEqual(portal.token_hash, hash));
+    if (!matchesPlain && !matchesHash) return portal;
+    const id = portal.id && portal.id !== token ? portal.id : newPortalRowIdLocal();
+    return {
+      ...portal,
+      id,
+      token: undefined,
+      token_hash: hash,
+      token_hint: portal.token_hint || token.slice(-4),
+      legacy: true,
+    };
+  });
+  const settings = { ...store.settings };
+  delete settings.public_token;
+  return hydrateConstructiongraphStore(
+    withPreserved({ ...store, portals, settings }, preservedOf(store))
+  );
+}
+
+export function sanitiseConstructiongraphStore(
+  store: ConstructiongraphStore
+): ConstructiongraphStore {
+  const settings = { ...(store.settings || {}) };
+  delete settings.public_token;
+  const portals = store.portals.map((portal) => {
+    const plaintext = String(portal.token || '');
+    const id = portal.id && portal.id !== plaintext ? portal.id : undefined;
+    const row: ConstructionPortal = {
+      id,
+      kind: portal.kind,
+      label: portal.label,
+      client_id: portal.client_id ?? null,
+      site_id: portal.site_id ?? null,
+      token_hint: portal.token_hint,
+      created_at: portal.created_at,
+      expires_at: portal.expires_at ?? null,
+      revoked_at: portal.revoked_at ?? null,
+      legacy: Boolean(portal.legacy || plaintext),
+    };
+    return row;
+  });
+  return withPreserved(
+    { ...store, settings, portals },
+    preservedOf(store)
+  );
+}
+
+/** Finite, greater than 0, at most 2 decimal places. Strings are rejected. */
+export function parsePortalAmount(
+  amount: unknown
+): { ok: true; value: number } | { ok: false } {
+  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
+    return { ok: false };
   }
-  const roll = programmeReport(store);
-  let projects = roll.projects;
-  if (portal.kind === 'client' && portal.client_id) {
-    projects = projects.filter(
-      (p) =>
-        store.sites.find((s) => s.id === p.siteId)?.client_id === portal.client_id
-    );
-  }
-  if (portal.kind === 'contractor' && portal.site_id) {
-    projects = projects.filter((p) => p.siteId === portal.site_id);
-  }
-  const siteIds = new Set(projects.map((p) => p.siteId));
-  const activities = store.programme
-    .filter((row) => !row.site_id || siteIds.has(row.site_id))
-    .map((row) => {
-      const site = store.sites.find((s) => s.id === row.site_id);
-      return {
-        id: row.id,
-        siteCode: site?.code || '—',
-        siteName: site?.name || '—',
-        activity: row.activity,
-        plannedPct: money(row.planned_pct ?? row.pct_complete),
-        actualPct: money(row.actual_pct ?? row.pct_complete),
-        plannedStart: row.planned_start || row.start_date || null,
-        plannedEnd: row.planned_end || row.end_date || null,
-        actualStart: row.actual_start || null,
-        actualEnd: row.actual_end || null,
-        status: String(row.status || '—'),
-      };
-    });
-  const payments = store.payments
-    .filter((row) => !row.site_id || siteIds.has(row.site_id))
-    .map((row) => {
-      const site = store.sites.find((s) => s.id === row.site_id);
-      return {
-        id: row.id,
-        siteCode: site?.code || '—',
-        number: row.number,
-        title: row.title,
-        status: resolvePaymentStatus(row),
-        plannedClaimDate: row.planned_claim_date || null,
-        plannedPayDate: row.planned_pay_date || null,
-        plannedAmount: money(row.planned_amount),
-        claimedAmount: money(row.claimed_amount),
-        certifiedAmount: money(row.certified_amount),
-        paidAmount: money(row.paid_amount),
-        claimedAt: row.claimed_at || null,
-        certifiedAt: row.certified_at || null,
-        paidAt: row.paid_at || null,
-      };
-    });
-  const quotes = store.quotes
-    .filter((q) => {
-      if (portal.kind === 'client' && portal.client_id) {
-        return q.client_id === portal.client_id;
-      }
-      if (portal.kind === 'contractor' && portal.site_id) {
-        return q.site_id === portal.site_id;
-      }
-      return true;
-    })
-    .map((q) => {
-      const site = store.sites.find((s) => s.id === q.site_id);
-      return {
-        id: q.id,
-        number: q.number,
-        title: q.title,
-        status: String(q.status || 'draft'),
-        total: quoteBoqTotal(store, q.id),
-        projectCode: site?.code || '—',
-      };
-    });
-  const client = clientById(store, portal.client_id);
-  const project = store.sites.find((s) => s.id === portal.site_id);
+  const cents = Math.round(amount * 100);
+  if (Math.abs(amount * 100 - cents) > 1e-6) return { ok: false };
+  return { ok: true, value: cents / 100 };
+}
+
+export function portalAmountWithinRow(
+  action: 'claim' | 'pay',
+  row: ConstructionProgressPayment,
+  amount: number
+): boolean {
+  if (action === 'claim') return amount <= money(row.planned_amount) + 1e-9;
+  const certified = money(row.certified_amount);
+  const cap = certified > 0 ? certified : money(row.claimed_amount);
+  return amount <= cap + 1e-9;
+}
+
+function hashedPortal(
+  spec: Omit<ConstructionPortal, 'token' | 'token_hash' | 'token_hint' | 'id'>,
+  nowIso: string
+): ConstructionPortal {
+  const token = mintConstructionToken();
   return {
-    companyName,
-    kind: portal.kind,
-    clientName: client?.name,
-    projectName: project?.name,
-    summary: summariseConstructiongraph(store),
-    programme: {
-      ...roll,
-      projectCount: projects.length,
-      contractValue: projects.reduce((n, p) => n + p.contractValue, 0),
-      boqPlanned: projects.reduce((n, p) => n + p.boqPlanned, 0),
-      costs: projects.reduce((n, p) => n + p.costs, 0),
-      certified: projects.reduce((n, p) => n + p.certified, 0),
-      variations: projects.reduce((n, p) => n + p.variations, 0),
-      variance: projects.reduce((n, p) => n + p.variance, 0),
-      openSnags: projects.reduce((n, p) => n + p.openSnags, 0),
-      budget: projects.reduce((n, p) => n + p.budget, 0),
-      plannedBillings: projects.reduce((n, p) => n + p.plannedBillings, 0),
-      claimedBillings: projects.reduce((n, p) => n + p.claimedBillings, 0),
-      paidBillings: projects.reduce((n, p) => n + p.paidBillings, 0),
-      outstandingBillings: projects.reduce((n, p) => n + p.outstandingBillings, 0),
-      overduePayments: projects.reduce((n, p) => n + p.overduePayments, 0),
-      plannedPct: avg(projects.map((p) => p.plannedPct)),
-      actualPct: avg(projects.map((p) => p.actualPct)),
-      projects,
-    },
-    projects,
-    activities,
-    quotes,
-    payments,
+    ...spec,
+    id: newPortalRowIdLocal(),
+    token_hash: sha256Hex(token),
+    token_hint: token.slice(-4),
+    created_at: nowIso,
   };
 }
 
 export function constructiongraphSeedStore(
-  nowIso = new Date().toISOString()
+  nowIso = new Date().toISOString(),
+  portals?: ConstructionPortal[]
 ): ConstructiongraphStore {
   const today = nowIso.slice(0, 10);
-  const publicToken = mintConstructionToken();
-  const clientToken = mintConstructionToken();
-  const contractorToken = mintConstructionToken();
-  return markSampleRows(hydrateConstructiongraphStore({
+  const seededPortals = portals || [
+    hashedPortal(
+      { kind: 'public', label: 'Client & contractor PWA' },
+      nowIso
+    ),
+    hashedPortal(
+      { kind: 'client', client_id: 'cli_apex', label: 'Apex Developments' },
+      nowIso
+    ),
+    hashedPortal(
+      { kind: 'contractor', site_id: 'site_1', label: 'Podium site team' },
+      nowIso
+    ),
+  ];
+  const seeded = hydrateConstructiongraphStore({
     clients: [
       {
         id: 'cli_apex',
@@ -1697,54 +2302,35 @@ export function constructiongraphSeedStore(
       },
     ],
     diary: [],
-    portals: [
-      {
-        id: publicToken,
-        token: publicToken,
-        kind: 'public',
-        label: 'Client & contractor PWA',
-      },
-      {
-        id: clientToken,
-        token: clientToken,
-        kind: 'client',
-        client_id: 'cli_apex',
-        label: 'Apex Developments',
-      },
-      {
-        id: contractorToken,
-        token: contractorToken,
-        kind: 'contractor',
-        site_id: 'site_1',
-        label: 'Podium site team',
-      },
-    ],
-    settings: { public_token: publicToken },
+    photos: [],
+    time_entries: [],
+    portals: seededPortals,
+    settings: {},
     updated_at: nowIso,
-  }));
-}
-
-function markSampleRows(store: ConstructiongraphStore): ConstructiongraphStore {
-  const mark = <T extends { sample?: boolean }>(rows: T[]): T[] =>
-    rows.map((row) => (row.sample ? row : { ...row, sample: true }));
+  });
+  const mark = <T extends { sample?: boolean }>(rows: T[]) =>
+    rows.map((row) => ({ ...row, sample: true }));
   return hydrateConstructiongraphStore({
-    ...store,
-    clients: mark(store.clients),
-    sites: mark(store.sites),
-    quotes: mark(store.quotes),
-    drawings: mark(store.drawings),
-    boq: mark(store.boq),
-    costs: mark(store.costs),
-    subcontractors: mark(store.subcontractors),
-    materials: mark(store.materials),
-    plant: mark(store.plant),
-    programme: mark(store.programme),
-    safety: mark(store.safety),
-    variations: mark(store.variations),
-    certificates: mark(store.certificates),
-    payments: mark(store.payments),
-    snags: mark(store.snags),
-    diary: mark(store.diary || []),
-    portals: mark(store.portals),
+    ...seeded,
+    clients: mark(seeded.clients),
+    sites: mark(seeded.sites),
+    quotes: mark(seeded.quotes),
+    drawings: mark(seeded.drawings),
+    boq: mark(seeded.boq),
+    costs: mark(seeded.costs),
+    subcontractors: mark(seeded.subcontractors),
+    materials: mark(seeded.materials),
+    plant: mark(seeded.plant),
+    programme: mark(seeded.programme),
+    safety: mark(seeded.safety),
+    variations: mark(seeded.variations),
+    certificates: mark(seeded.certificates),
+    payments: mark(seeded.payments),
+    snags: mark(seeded.snags),
+    diary: seeded.diary,
+    photos: seeded.photos,
+    time_entries: seeded.time_entries,
+    portals: seeded.portals,
+    settings: seeded.settings,
   });
 }

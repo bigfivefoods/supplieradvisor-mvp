@@ -401,7 +401,7 @@ export function sampleConstructionStore(today = sastToday()): ConstructiongraphS
       },
     ],
     portals: [
-      { id: 'sample_portal_public', token: 'sample_public_link', kind: 'public', label: 'Open programme', legacy: true, sample: true },
+      { id: 'sample_portal_public', token: 'sample_public_link', kind: 'public', label: 'Open programme', legacy: true },
       {
         id: 'sample_portal_client',
         token: 'sample_client_link',
@@ -409,29 +409,38 @@ export function sampleConstructionStore(today = sastToday()): ConstructiongraphS
         client_id: 'sample_client_ridge',
         label: 'Sample Ridge Trust',
         token_hint: 'link',
-        sample: true,
       },
       {
         id: 'sample_portal_site',
         token: 'sample_site_link',
         kind: 'contractor',
         site_id: 'sample_site_ridge',
-        label: 'Ridge House site team',
+        label: 'Ridge House workers',
         token_hint: 'link',
-        sample: true,
       },
+    ],
+    photos: [
       {
-        id: 'sample_portal_sub',
-        token: 'sample_sub_link',
-        kind: 'subcontractor',
-        subcontractor_id: 'sample_sub_timber',
+        id: 'sample_photo_1',
         site_id: 'sample_site_ridge',
-        label: 'Sample Timber Crew',
-        token_hint: 'link',
+        caption: 'Sample footing check',
+        taken_on: yesterday,
+        author_name: 'Sample Manager',
         sample: true,
       },
     ],
-    settings: {},
+    time_entries: [
+      {
+        id: 'sample_time_1',
+        site_id: 'sample_site_ridge',
+        minutes: 90,
+        note: 'Sample footing set-out',
+        at: `${today}T07:30:00+02:00`,
+        author_name: 'Sample Manager',
+        sample: true,
+      },
+    ],
+    settings: { workers_see_money: false },
     updated_at: `${today}T08:00:00+02:00`,
   });
 }

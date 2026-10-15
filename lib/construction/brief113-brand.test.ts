@@ -19,6 +19,8 @@ const roots = [
   'app/dashboard/constructiongraph',
   'app/construction',
   'app/work/constructiongraph',
+  'app/crew/constructiongraph',
+  'app/customer/constructiongraph',
   'app/preview/constructiongraph',
   'public/construction-offline.html',
 ];

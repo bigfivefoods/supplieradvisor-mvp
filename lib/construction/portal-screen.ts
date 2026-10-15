@@ -8,9 +8,8 @@ import {
   type ConstructiongraphStore,
 } from './constructiongraph';
 import { formatRand } from './format';
-import { buildSubcontractorView } from './subcontractor-view';
 
-export type PortalKind = 'public' | 'client' | 'contractor' | 'subcontractor';
+export type PortalKind = 'public' | 'client' | 'contractor';
 
 export type PortalScreen = {
   kind: PortalKind;
@@ -88,50 +87,26 @@ export function publicConstructionView(
   if ('expires_at' in portal && portal.expires_at && String(portal.expires_at).slice(0, 10) < new Date().toISOString().slice(0, 10)) {
     return null;
   }
-  if (portal.kind === 'subcontractor') {
-    const view = buildSubcontractorView(store, portal, companyName);
-    if (!view) return null;
+  if (portal.kind === 'public') {
+    const wide = portalViewForToken(store, token, companyName);
+    if (!wide || wide.kind !== 'public') return null;
     return {
       ...EMPTY,
-      kind: 'subcontractor',
-      companyName: view.companyName,
-      headline: view.subcontractorName,
-      site: view.site
-        ? {
-            name: view.site.name,
-            code: view.site.code,
-            address: view.site.address,
-            manager: view.site.siteManagerName,
-            phone: view.site.siteManagerPhone,
-          }
-        : null,
-      activities: view.programme.map((row) => ({
-        id: row.id,
-        activity: row.activity,
+      kind: 'public',
+      companyName,
+      headline: companyName,
+      projects: wide.projects.map((row) => ({
+        id: row.code,
+        name: row.name,
+        code: row.code,
         status: row.status,
         plannedPct: row.plannedPct,
         actualPct: row.actualPct,
-        plannedEnd: row.plannedEnd,
-      })),
-      required: view.required.map((row) => ({
-        id: row.id,
-        title: row.title,
-        kind: row.kind,
-        status: row.status,
-        expiresOn: row.expiresOn || row.validTo,
-      })),
-      documents: view.documents.map((row) => ({
-        id: row.id,
-        number: row.number,
-        title: row.title,
-        revision: row.revision,
-        status: row.status,
       })),
     };
   }
-
   const wide = portalViewForToken(store, token, companyName);
-  if (!wide) return null;
+  if (!wide || wide.kind === 'public') return null;
   const siteIds = new Set(wide.projects.map((row) => row.siteId));
   const projects = wide.projects.map((row) => ({
     id: row.siteId,
@@ -149,17 +124,7 @@ export function publicConstructionView(
     actualPct: row.actualPct,
     plannedEnd: row.plannedEnd ?? null,
   }));
-  if (wide.kind === 'public') {
-    return {
-      ...EMPTY,
-      kind: 'public',
-      companyName,
-      headline: 'Open programme',
-      projects,
-      activities,
-    };
-  }
-  const payments = (wide.kind === 'client' || wide.kind === 'contractor' ? wide.payments : []).map((row) => ({
+  const payments = wide.payments.map((row) => ({
     id: row.id,
     number: row.number,
     title: row.title,
@@ -193,7 +158,7 @@ export function publicConstructionView(
     ...EMPTY,
     kind: wide.kind === 'contractor' ? 'contractor' : 'client',
     companyName,
-    headline: wide.projectName || wide.clientName || companyName,
+    headline: wide.kind === 'contractor' ? wide.projectName : wide.clientName || companyName,
     projects,
     activities,
     payments,
@@ -207,7 +172,7 @@ export function screenFromPayload(payload: unknown): PortalScreen | null {
   if (!payload || typeof payload !== 'object') return null;
   const body = payload as Record<string, unknown>;
   const kind = text(body.kind);
-  if (kind !== 'public' && kind !== 'client' && kind !== 'contractor' && kind !== 'subcontractor') return null;
+  if (kind !== 'public' && kind !== 'client' && kind !== 'contractor') return null;
   const list = (value: unknown) => (Array.isArray(value) ? value : []);
   const projects = list(body.projects).map((row) => {
     const item = (row || {}) as Record<string, unknown>;
@@ -232,7 +197,7 @@ export function screenFromPayload(payload: unknown): PortalScreen | null {
     };
   });
   const payments =
-    kind === 'public' || kind === 'subcontractor'
+    kind === 'public'
       ? []
       : list(body.payments).map((row) => {
           const item = (row || {}) as Record<string, unknown>;
@@ -248,7 +213,7 @@ export function screenFromPayload(payload: unknown): PortalScreen | null {
   return {
     kind,
     companyName: text(body.companyName, 'ConstructionAdvisor®'),
-    headline: text(body.headline || body.subcontractorName || body.projectName || body.clientName, 'Project'),
+    headline: text(body.headline || body.projectName || body.clientName, 'Project'),
     projects,
     activities,
     payments,

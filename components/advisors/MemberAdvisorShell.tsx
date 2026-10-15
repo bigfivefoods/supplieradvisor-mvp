@@ -38,6 +38,7 @@ export function MemberAdvisorShell<T extends string = string>({
   appHref = '/me',
   presence = true,
   solidBrand = false,
+  navTestId,
 }: {
   color: string;
   header: ReactNode;
@@ -58,6 +59,8 @@ export function MemberAdvisorShell<T extends string = string>({
    * TradeAdvisor® uses this so cyan stays #00b4d8. Other Advisors leave it off.
    */
   solidBrand?: boolean;
+  /** Optional hook for the mobile bottom bar. */
+  navTestId?: string;
 }) {
   const ink = solidBrand ? '#0f172a' : advisorBrandInk(color);
   const phoneTabs = mobileTabs || tabs;
@@ -210,6 +213,7 @@ export function MemberAdvisorShell<T extends string = string>({
 
       {bottom ? (
         <nav
+          data-testid={navTestId}
           className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/80 bg-white/95 px-2 pt-1 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur-md dark:border-white/10 dark:bg-neutral-950/95 md:hidden"
           style={{ paddingBottom: 'max(0.4rem, env(safe-area-inset-bottom))' }}
         >

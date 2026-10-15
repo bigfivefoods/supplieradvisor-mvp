@@ -231,7 +231,7 @@ export function SubcontractorsView(props: DeskProps) {
   return (
     <div className="space-y-4" data-testid="subcontractors-view">
       <ConstructionPageHead title="Subcontractors" badge={props.badge} detail="Trade, package, and the documents recorded against each company." actions={props.caps.canEditProjects ? <ConstructionButton data-testid="sub-add" onClick={() => setOpen(true)}>Add subcontractor</ConstructionButton> : null} />
-      {empty ? <ConstructionEmpty testId="subcontractors-empty" icon={<Package />} title="No subcontractors yet" hint="Add a trade package and, when you are ready, issue their link." action={props.caps.canEditProjects ? <ConstructionButton onClick={() => setOpen(true)}>Add subcontractor</ConstructionButton> : null} /> : (
+      {empty ? <ConstructionEmpty testId="subcontractors-empty" icon={<Package />} title="No subcontractors yet" hint="This list is a record of the trades on a site. They use TradeAdvisor®." action={props.caps.canEditProjects ? <ConstructionButton onClick={() => setOpen(true)}>Add subcontractor</ConstructionButton> : null} /> : (
         <ConstructionTable testId="subcontractors-table" rows={rows} rowKey={(row) => row.id} onRow={setSelected} columns={[
           { key: 'trade', header: 'Trade', render: (row) => row.trade },
           { key: 'package', header: 'Package', render: (row) => row.package_label || '—' },
@@ -262,7 +262,11 @@ export function SubcontractorsView(props: DeskProps) {
             <ul>{props.store.programme.filter((row) => row.subcontractor_id === selected.id || row.package_label === selected.package_label).map((row) => <li key={row.id} data-row-id={row.id}>{row.activity}</li>)}</ul>
             <p>Snags</p>
             <ul>{props.store.snags.filter((row) => row.assigned_to === selected.name).map((row) => <li key={row.id}>{row.item}</li>)}</ul>
-            {props.caps.canManagePortals ? <ConstructionButton data-testid="portal-issue-sub" onClick={() => void props.handlers.run({ action: 'ensure_subcontractor_portal', subcontractorId: selected.id })}>Issue subcontractor link</ConstructionButton> : null}
+            <div data-testid="site-link-slot">
+              <p className="font-black">Invite to TradeAdvisor®</p>
+              <p className="text-sm font-black text-[#0077b6]" data-testid="site-link-coming">Site Link coming next</p>
+              <button type="button" disabled className="mt-2 inline-flex min-h-11 items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-black text-slate-500">Invite to TradeAdvisor®</button>
+            </div>
           </div>
         ) : null}
       </ConstructionDrawer>

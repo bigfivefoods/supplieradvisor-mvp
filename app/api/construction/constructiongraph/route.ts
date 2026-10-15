@@ -1,34 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
-import { legacyPrivyFrom, requireCompanyAccess } from '@/lib/auth/api-auth';
-import { getCompanyMembership } from '@/lib/business/access';
-import { applyConstructionAction } from '@/lib/construction/actions';
-import { appendConstructionAudit } from '@/lib/construction/audit';
 import {
-  addDaysIso,
-  applyPaymentAction,
-  constructiongraphSeedStore,
-  emptyConstructiongraphStore,
-  mergeConstructiongraphStore,
-  mintConstructionToken,
+  legacyPrivyFrom,
+  requireCompanyAccess,
+  requireCompanyPermission,
+  requireCompanyRoles,
+  ROLES_OPS_CRITICAL,
+} from '@/lib/auth/api-auth';
+import {
   programmeReport,
   readConstructiongraphFromMetadata,
+  sanitiseConstructiongraphStore,
   summariseConstructiongraph,
-  upsertPortal,
-  writeConstructiongraphToMetadata,
-  type ConstructionPortal,
   type ConstructiongraphStore,
 } from '@/lib/construction/constructiongraph';
-import { sastToday } from '@/lib/construction/format';
-import { constructionPortalPath } from '@/lib/construction/pwa-roles';
-import {
-  redactRolePayload,
-  resolveConstructionRole,
-  storeForRole,
-  type ConstructionRole,
-} from '@/lib/construction/roles';
+import { getCompanyMembership } from '@/lib/business/access';
+import { commitProfileMetadata } from '@/lib/construction/metadata-commit';
+import { redactRolePayload, resolveConstructionRole, storeForRole } from '@/lib/construction/roles';
+import { applyStaffConstructionAction } from '@/lib/construction/staff-book';
 
 export const runtime = 'nodejs';
+
+const NO_STORE = { 'Cache-Control': 'private, no-store' };
+const GENERIC = 'Something went wrong';
 
 type Payload = {
   companyId?: number;
@@ -36,15 +30,31 @@ type Payload = {
   store?: Partial<ConstructiongraphStore>;
   clientId?: string;
   siteId?: string;
-  subcontractorId?: string;
-  expiresIn?: number | null;
+  portalId?: string;
+  confirm?: string;
   id?: string;
-  paymentId?: string;
-  verb?: string;
-  collection?: string;
-  decision?: string;
-  confirmRebaseline?: boolean;
+  workersSeeMoney?: boolean;
 };
+
+function presentForRole(
+  value: Record<string, unknown>,
+  role: ReturnType<typeof resolveConstructionRole>,
+  full: ConstructiongraphStore
+) {
+  const redacted = redactRolePayload(value, role) as Record<string, unknown>;
+  const book = redacted.store;
+  if (
+    role === 'site_manager' &&
+    full.settings?.workers_see_money &&
+    book &&
+    typeof book === 'object'
+  ) {
+    const next = book as ConstructiongraphStore;
+    next.payments = full.payments;
+    next.certificates = full.certificates;
+  }
+  return redacted;
+}
 
 function asObject(value: unknown): Record<string, unknown> {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -53,24 +63,78 @@ function asObject(value: unknown): Record<string, unknown> {
   return {};
 }
 
-function respond(role: ConstructionRole, store: ConstructiongraphStore, extra: Record<string, unknown> = {}) {
-  const visible = storeForRole(store, role);
-  const body = {
-    success: true,
-    role,
-    store: visible,
-    summary: summariseConstructiongraph(store),
-    programme: programmeReport(store),
-    ...extra,
+function json(body: Record<string, unknown>, status = 200) {
+  return NextResponse.json(body, { status, headers: NO_STORE });
+}
+
+type LooseDb = {
+  from(table: string): {
+    select(columns: string): {
+      eq(column: string, value: unknown): {
+        maybeSingle(): PromiseLike<{
+          data: { metadata?: unknown; updated_at?: string | null } | null;
+          error: { message?: string } | null;
+        }>;
+      };
+    };
+    update(payload: Record<string, unknown>): {
+      eq(column: string, value: unknown): {
+        eq(column: string, value: unknown): {
+          select(columns: string): PromiseLike<{
+            data: Array<{ id?: number }> | null;
+            error: { message?: string } | null;
+          }>;
+        };
+        is(column: string, value: null): {
+          select(columns: string): PromiseLike<{
+            data: Array<{ id?: number }> | null;
+            error: { message?: string } | null;
+          }>;
+        };
+      };
+    };
   };
-  return NextResponse.json(redactRolePayload(body, role));
+};
+
+function companyIo(supabase: LooseDb, companyId: number) {
+  return {
+    async read() {
+      const res = await supabase
+        .from('profiles')
+        .select('metadata, updated_at')
+        .eq('id', companyId)
+        .maybeSingle();
+      if (res.error) throw new Error('cg_staff_read_failed');
+      if (!res.data) return null;
+      return {
+        metadata: asObject(res.data.metadata),
+        updated_at: res.data.updated_at ?? null,
+      };
+    },
+    async write(args: {
+      metadata: Record<string, unknown>;
+      prevUpdatedAt: string | null;
+      nextUpdatedAt: string;
+    }) {
+      const update = supabase
+        .from('profiles')
+        .update({ metadata: args.metadata, updated_at: args.nextUpdatedAt })
+        .eq('id', companyId);
+      const res =
+        args.prevUpdatedAt == null
+          ? await update.is('updated_at', null).select('id')
+          : await update.eq('updated_at', args.prevUpdatedAt).select('id');
+      if (res.error) throw new Error('cg_staff_write_failed');
+      return res.data && res.data.length > 0 ? ('ok' as const) : ('lost' as const);
+    },
+  };
 }
 
 export async function GET(request: NextRequest) {
   try {
     const companyId = Number(request.nextUrl.searchParams.get('companyId'));
     if (!Number.isFinite(companyId) || companyId <= 0) {
-      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+      return json({ error: 'companyId required' }, 400);
     }
 
     const gate = await requireCompanyAccess(request, companyId, {
@@ -78,41 +142,55 @@ export async function GET(request: NextRequest) {
     });
     if (!gate.ok) return gate.response;
 
+    const perm = await requireCompanyPermission(request, companyId, 'operations', 'view', {
+      legacyPrivyUserId: legacyPrivyFrom(request),
+    });
+    if (!perm.ok) return perm.response;
+
     const supabase = getSupabaseServer();
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('metadata')
-      .eq('id', companyId)
-      .maybeSingle();
+    const io = companyIo(supabase as unknown as LooseDb, companyId);
+    const row = await io.read();
+    if (!row) return json({ error: 'Company not found' }, 404);
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
+    // View-only roles may GET. Legacy upgrade is a write, so it stays on the
+    // public read and on staff writes, not on this GET.
     const membership = await getCompanyMembership(gate.userId, companyId);
-    if (!membership.ok) {
-      return NextResponse.json({ error: membership.error }, { status: membership.status });
-    }
-    const role = resolveConstructionRole(membership.role);
-    if (role === 'none') {
-      return NextResponse.json({ error: 'Not available for your role' }, { status: 403 });
-    }
+    if (!membership.ok) return json({ error: membership.error }, membership.status);
+    const moduleRole = resolveConstructionRole(membership.role);
+    if (moduleRole === 'none') return json({ error: 'Not available for your role' }, 403);
 
-    const metadata = asObject(profile?.metadata);
+    const metadata = row.metadata;
     const store = readConstructiongraphFromMetadata(metadata);
-    return respond(role, store);
-  } catch (e: unknown) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Error' },
-      { status: 500 }
+    const safe = sanitiseConstructiongraphStore(store);
+    const body = presentForRole(
+      {
+        success: true,
+        role: moduleRole,
+        store: storeForRole(safe, moduleRole),
+        summary: summariseConstructiongraph(store),
+        programme: programmeReport(store),
+      },
+      moduleRole,
+      safe
     );
+    return json(body);
+  } catch {
+    console.error('cg_staff_read_failed');
+    return json({ error: GENERIC }, 500);
   }
 }
 
 export async function POST(request: NextRequest) {
+  let body: Payload;
   try {
-    const body = (await request.json()) as Payload;
+    body = (await request.json()) as Payload;
+  } catch {
+    return json({ error: 'Invalid JSON' }, 400);
+  }
+  try {
     const companyId = Number(body.companyId);
     if (!Number.isFinite(companyId) || companyId <= 0) {
-      return NextResponse.json({ error: 'companyId required' }, { status: 400 });
+      return json({ error: 'companyId required' }, 400);
     }
 
     const gate = await requireCompanyAccess(request, companyId, {
@@ -120,135 +198,74 @@ export async function POST(request: NextRequest) {
     });
     if (!gate.ok) return gate.response;
 
-    const supabase = getSupabaseServer();
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('metadata')
-      .eq('id', companyId)
-      .maybeSingle();
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const action = String(body.action || 'merge');
+    const legacy = { legacyPrivyUserId: legacyPrivyFrom(request) };
+    if (action === 'replace' || action === 'set_workers_money') {
+      const role = await requireCompanyRoles(request, companyId, ['owner', 'admin'], legacy);
+      if (!role.ok) return role.response;
+    } else if (
+      action === 'ensure_portal' ||
+      action === 'ensure_client_portal' ||
+      action === 'ensure_contractor_portal' ||
+      action === 'revoke_portal' ||
+      action === 'reissue_portal' ||
+      action === 'seed_demo'
+    ) {
+      const role = await requireCompanyRoles(request, companyId, ROLES_OPS_CRITICAL, legacy);
+      if (!role.ok) return role.response;
+    } else {
+      const perm = await requireCompanyPermission(
+        request,
+        companyId,
+        'operations',
+        'write',
+        legacy
+      );
+      if (!perm.ok) return perm.response;
+    }
 
     const membership = await getCompanyMembership(gate.userId, companyId);
-    if (!membership.ok) {
-      return NextResponse.json({ error: membership.error }, { status: membership.status });
-    }
-    const role = resolveConstructionRole(membership.role);
-    if (role === 'none') {
-      return NextResponse.json({ error: 'Not available for your role' }, { status: 403 });
-    }
+    if (!membership.ok) return json({ error: membership.error }, membership.status);
+    const moduleRole = resolveConstructionRole(membership.role);
+    if (moduleRole === 'none') return json({ error: 'Not available for your role' }, 403);
 
-    const prevMeta = asObject(profile?.metadata);
-    const prevStore = readConstructiongraphFromMetadata(prevMeta);
-    const action = String(body.action || 'merge');
-    let nextStore = prevStore;
-    let events: Array<{ action: string; target: string }> = [];
-    let issued: Record<string, string> | null = null;
-
-    const ownerOnly = role === 'owner';
-    if (
-      (action === 'seed_demo' || action === 'replace' || action === 'remove_sample' || action.startsWith('ensure_') || action === 'revoke_portal') &&
-      !ownerOnly
-    ) {
-      return NextResponse.json({ error: 'Not available for your role' }, { status: 403 });
-    }
-
-    if (action === 'seed_demo') {
-      nextStore = constructiongraphSeedStore();
-    } else if (action === 'replace') {
-      nextStore = mergeConstructiongraphStore(
-        emptyConstructiongraphStore(),
-        asObject(body.store) as Partial<ConstructiongraphStore>
-      );
-    } else if (action === 'payment') {
-      if (role !== 'owner' && role !== 'office') {
-        return NextResponse.json({ error: 'Not available for your role' }, { status: 403 });
-      }
-      const verb = body.verb === 'pay' || body.verb === 'claim' ? body.verb : 'certify';
-      const paid = applyPaymentAction(prevStore, {
-        paymentId: String(body.paymentId || ''),
-        action: verb,
-        actor: 'staff',
-        date: sastToday(),
-      });
-      if (!paid.ok) return NextResponse.json({ error: paid.error }, { status: 400 });
-      nextStore = paid.store;
-      events = [{ action: `payment_${verb}`, target: String(body.paymentId || '') }];
-    } else if (action === 'revoke_portal') {
-      const id = String(body.id || '');
-      const row = prevStore.portals.find((portal) => portal.id === id || portal.token === id);
-      if (!row) return NextResponse.json({ error: 'Portal not found' }, { status: 404 });
-      nextStore = {
-        ...prevStore,
-        portals: prevStore.portals.map((portal) =>
-          portal === row ? { ...portal, revoked_at: new Date().toISOString() } : portal
-        ),
-      };
-      events = [{ action: 'revoke_portal', target: id }];
-    } else if (action.startsWith('ensure_')) {
-      const token = mintConstructionToken();
-      const days = body.expiresIn == null ? null : Number(body.expiresIn);
-      const expires_at = days ? addDaysIso(sastToday(), days) : null;
-      let portal: ConstructionPortal | null = null;
-      if (action === 'ensure_portal') {
-        portal = { token, kind: 'public', label: 'Open programme', created_at: new Date().toISOString(), expires_at, token_hint: token.slice(-4), legacy: false };
-      } else if (action === 'ensure_client_portal') {
-        const clientId = String(body.clientId || '').trim();
-        const client = prevStore.clients.find((row) => row.id === clientId);
-        if (!client) return NextResponse.json({ error: 'clientId required' }, { status: 400 });
-        portal = { token, kind: 'client', client_id: clientId, label: client.name, created_at: new Date().toISOString(), expires_at, token_hint: token.slice(-4), legacy: false };
-      } else if (action === 'ensure_contractor_portal') {
-        const siteId = String(body.siteId || '').trim();
-        const site = prevStore.sites.find((row) => row.id === siteId);
-        if (!site) return NextResponse.json({ error: 'siteId required' }, { status: 400 });
-        portal = { token, kind: 'contractor', site_id: siteId, client_id: site.client_id, label: `${site.code} site team`, created_at: new Date().toISOString(), expires_at, token_hint: token.slice(-4), legacy: false };
-      } else if (action === 'ensure_subcontractor_portal') {
-        const subcontractorId = String(body.subcontractorId || '').trim();
-        const sub = prevStore.subcontractors.find((row) => row.id === subcontractorId);
-        if (!sub) return NextResponse.json({ error: 'subcontractorId required' }, { status: 400 });
-        portal = { token, kind: 'subcontractor', subcontractor_id: subcontractorId, site_id: sub.site_id, label: sub.name, created_at: new Date().toISOString(), expires_at, token_hint: token.slice(-4), legacy: false };
-      }
-      if (!portal) return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
-      nextStore = upsertPortal(prevStore, portal);
-      issued = { id: token, kind: portal.kind, token, path: constructionPortalPath(token), hint: token.slice(-4) };
-      events = [{ action: 'issue_portal', target: portal.kind }];
-    } else {
-      const result = applyConstructionAction(prevStore, asObject(body), role);
-      if (!result.ok) {
-        return NextResponse.json(
-          { error: result.error, needsConfirm: result.needsConfirm || false },
-          { status: result.status }
-        );
-      }
-      nextStore = result.store;
-      events = result.events;
-    }
-
-    let nextMeta = writeConstructiongraphToMetadata(prevMeta, nextStore);
-    if (events.length) {
-      nextMeta = appendConstructionAudit(
-        nextMeta,
-        events.map((event) => ({
-          at: new Date().toISOString(),
-          actor_kind: 'staff' as const,
-          actor_id: gate.userId,
-          action: event.action,
-          target: event.target,
-        }))
+    const supabase = getSupabaseServer();
+    const io = companyIo(supabase as unknown as LooseDb, companyId);
+    const saved = await commitProfileMetadata({
+      read: () => io.read(),
+      write: (args) => io.write(args),
+      change: (row) => {
+        const applied = applyStaffConstructionAction({
+          meta: row.metadata,
+          action,
+          patch: body.store,
+          clientId: body.clientId,
+          siteId: body.siteId,
+          portalId: body.portalId || body.id,
+          confirm: body.confirm,
+          actorId: gate.userId,
+          moduleRole,
+          extra: body as unknown as Record<string, unknown>,
+        });
+        if ('error' in applied) return applied;
+        return { metadata: applied.metadata, value: { ...applied.value, role: moduleRole } };
+      },
+    });
+    if (!saved.ok) {
+      return json(
+        { error: saved.error, ...(saved.needsConfirm ? { needsConfirm: true } : {}) },
+        saved.status
       );
     }
-
-    const { error: upErr } = await supabase
-      .from('profiles')
-      .update({ metadata: nextMeta, updated_at: new Date().toISOString() })
-      .eq('id', companyId);
-    if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
-
-    return respond(role, nextStore, issued ? { issued } : {});
-  } catch (e: unknown) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Error' },
-      { status: 500 }
+    const savedStore = (saved.value as { store?: ConstructiongraphStore }).store;
+    const visible = presentForRole(
+      saved.value as Record<string, unknown>,
+      moduleRole,
+      savedStore || ({ settings: {} } as ConstructiongraphStore)
     );
+    return json({ success: true, ...visible });
+  } catch {
+    console.error('cg_staff_write_failed');
+    return json({ error: GENERIC }, 500);
   }
 }

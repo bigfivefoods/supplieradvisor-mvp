@@ -1,8 +1,8 @@
 export function GET() {
   return Response.json(
     {
-      name: 'ConstructionAdvisor®',
-      short_name: 'Construction',
+      name: 'ConstructionAdvisor® owner',
+      short_name: 'Owner',
       description: 'ConstructionAdvisor® site diary, snags, and programme.',
       start_url: '/work/constructiongraph?source=pwa',
       scope: '/work/constructiongraph',

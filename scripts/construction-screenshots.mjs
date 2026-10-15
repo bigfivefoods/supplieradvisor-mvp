@@ -23,14 +23,16 @@ const desk = [
   ['handover', '/preview/constructiongraph/handover'],
   ['reports', '/preview/constructiongraph/reports'],
   ['portal', '/preview/constructiongraph/portal'],
-  ['work', '/preview/constructiongraph/work'],
+  ['work', '/preview/constructiongraph/work?role=owner&reset=1'],
+  ['owner-app', '/preview/constructiongraph/work?role=owner&reset=1'],
+  ['workers-app', '/preview/constructiongraph/work?role=workers&reset=1'],
   ['empty', '/preview/constructiongraph?empty=1&reset=1'],
   ['site-manager', '/preview/constructiongraph?role=site_manager&reset=1'],
   ['office', '/preview/constructiongraph?role=office&reset=1'],
   ['portal-client', '/preview/constructiongraph/portal?kind=client&reset=1'],
-  ['portal-contractor', '/preview/constructiongraph/portal?kind=contractor'],
-  ['portal-subcontractor', '/preview/constructiongraph/portal?kind=subcontractor'],
-  ['portal-public', '/preview/constructiongraph/portal?kind=public'],
+  ['client-app', '/preview/constructiongraph/portal?kind=client&reset=1'],
+  ['portal-contractor', '/preview/constructiongraph/portal?kind=contractor&reset=1'],
+  ['portal-public', '/preview/constructiongraph/portal?kind=public&reset=1'],
   ['offline', '/construction-offline.html'],
 ];
 
@@ -67,6 +69,40 @@ for (const viewport of [
       console.error('FAIL', name, error.message);
     }
   }
+  const tag = `${viewport.width}x${viewport.height}`;
+  try {
+    await page.goto(base + '/preview/constructiongraph/work?role=owner&reset=1', { waitUntil: 'networkidle' });
+    await page.getByTestId('role-owner').waitFor();
+    await page.getByRole('button', { name: 'Team' }).click();
+    await page.getByTestId('site-link-coming').waitFor();
+    await page.screenshot({ path: `${out}/${tag}-owner-team.png`, fullPage: true });
+    await page.getByRole('button', { name: 'Money' }).click();
+    await page.getByTestId('money-panel').waitFor();
+    await page.screenshot({ path: `${out}/${tag}-owner-money.png`, fullPage: true });
+    console.log('owner tabs', tag);
+  } catch (error) {
+    console.error('FAIL owner tabs', error.message);
+  }
+  try {
+    await page.goto(base + '/preview/constructiongraph/work?role=workers&reset=1', { waitUntil: 'networkidle' });
+    await page.getByTestId('role-workers').waitFor();
+    await page.getByRole('button', { name: 'You' }).click();
+    await page.getByTestId('workers-money-hidden').waitFor();
+    await page.screenshot({ path: `${out}/${tag}-workers-money.png`, fullPage: true });
+    console.log('workers money', tag);
+  } catch (error) {
+    console.error('FAIL workers money', error.message);
+  }
+  try {
+    await page.goto(base + '/preview/constructiongraph/portal?kind=client&reset=1', { waitUntil: 'networkidle' });
+    await page.getByTestId('role-client').waitFor();
+    await page.getByRole('button', { name: 'Money' }).click();
+    await page.getByTestId('client-money').waitFor();
+    await page.screenshot({ path: `${out}/${tag}-client-money.png`, fullPage: true });
+    console.log('client money', tag);
+  } catch (error) {
+    console.error('FAIL client money', error.message);
+  }
   if (viewport.width === 1280) {
     try {
       await page.goto(base + '/preview/constructiongraph/portal?reset=1', { waitUntil: 'networkidle' });
@@ -76,6 +112,15 @@ for (const viewport of [
       console.log('reveal');
     } catch (error) {
       console.error('FAIL reveal', error.message);
+    }
+    try {
+      await page.goto(base + '/preview/constructiongraph/subcontractors?reset=1', { waitUntil: 'networkidle' });
+      await page.getByTestId('subcontractors-table').locator('tbody tr').first().click();
+      await page.getByTestId('site-link-coming').waitFor();
+      await page.screenshot({ path: `${out}/1280x800-site-link.png`, fullPage: true });
+      console.log('site link');
+    } catch (error) {
+      console.error('FAIL site link', error.message);
     }
   }
   await context.close();

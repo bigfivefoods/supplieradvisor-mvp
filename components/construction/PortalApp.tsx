@@ -7,8 +7,7 @@ import type { PortalScreen } from '@/lib/construction/portal-screen';
 
 const TABS: Record<PortalScreen['kind'], string[]> = {
   client: ['Overview', 'Programme', 'Money', 'Variations', 'Snags'],
-  contractor: ['Today', 'Programme', 'Claims'],
-  subcontractor: ['Package', 'Programme', 'Required', 'Documents'],
+  contractor: ['Today', 'Programme', 'Claims', 'Snags'],
   public: ['Projects', 'Programme'],
 };
 
@@ -53,7 +52,7 @@ export function PortalApp({
                 <div className="mt-2"><ConstructionProgress planned={project.plannedPct} actual={project.actualPct} /></div>
               </article>
             ))}
-            {screen.projects.length === 0 && screen.kind !== 'subcontractor' ? <p className="text-sm text-slate-600">No projects on this link.</p> : null}
+            {screen.projects.length === 0 ? <p className="text-sm text-slate-600">No projects on this link.</p> : null}
           </section>
         ) : null}
         {tab === 'Programme' ? (

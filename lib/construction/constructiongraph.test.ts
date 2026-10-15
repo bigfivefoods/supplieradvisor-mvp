@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import {
   CONSTRUCTIONGRAPH_MODULE_ID,
   CONSTRUCTIONGRAPH_PACK_ID,
+  CONSTRUCTIONGRAPH_HASH_KEY,
   CONSTRUCTIONGRAPH_TOKEN_KEY,
   CONSTRUCTIONGRAPH_TOKENS_KEY,
   acceptQuotePatch,
@@ -27,6 +28,9 @@ import {
   upsertPortal,
   writeConstructiongraphToMetadata,
 } from './constructiongraph';
+import { reissueConstructionPortal } from './portal-issue';
+import { hashPortalToken } from './portal-tokens';
+import { sha256Hex } from './sha256';
 
 assert.equal(CONSTRUCTIONGRAPH_MODULE_ID, 'constructiongraph');
 assert.equal(CONSTRUCTIONGRAPH_PACK_ID, 'construction_building');
@@ -98,8 +102,8 @@ assert.equal(projectsForClient(seed, 'cli_schools').length, 1);
 assert.equal(seed.quotes.length, 3);
 assert.equal(seed.costs.length, 2);
 assert.equal(seed.sites[0]?.contract_type, 'JBCC');
-assert.ok(seed.settings.public_token);
-assert.ok(seed.portals.some((p) => p.kind === 'public'));
+assert.equal(seed.settings.public_token, undefined);
+assert.ok(seed.portals.some((p) => p.kind === 'public' && p.token_hash && p.token_hash.length === 64));
 assert.ok(seed.portals.some((p) => p.kind === 'client' && p.client_id === 'cli_apex'));
 assert.ok(seed.portals.some((p) => p.kind === 'contractor' && p.site_id === 'site_1'));
 
@@ -134,30 +138,57 @@ assert.equal(roll.clientCount, 2);
 assert.equal(roll.quoteCount, 3);
 assert.ok(roll.projects.some((p) => p.siteId === 'site_2'));
 
-const clientToken = seed.portals.find((p) => p.kind === 'client')!.token;
-const clientView = portalViewForToken(seed, clientToken, 'SiteCo');
+const clientPortal = seed.portals.find((p) => p.kind === 'client')!;
+const clientIssued = reissueConstructionPortal(seed, clientPortal.id!, 'desk', '2026-09-10T08:00:00.000Z');
+assert.equal(clientIssued.ok, true);
+if (!clientIssued.ok) throw new Error('client reissue');
+const clientView = portalViewForToken(clientIssued.store, clientIssued.issued.token, 'SiteCo');
 assert.ok(clientView);
 assert.equal(clientView.kind, 'client');
 assert.equal(clientView.projects.length, 2);
 assert.ok(clientView.projects.every((p) => p.clientName === 'Apex Developments'));
 assert.ok(clientView.quotes.every((q) => q.id !== 'qt_3'));
 
-const contractorToken = seed.portals.find((p) => p.kind === 'contractor')!.token;
-const contractorView = portalViewForToken(seed, contractorToken, 'SiteCo');
+const contractorPortal = clientIssued.store.portals.find((p) => p.kind === 'contractor' && !p.revoked_at)!;
+const contractorIssued = reissueConstructionPortal(
+  clientIssued.store,
+  contractorPortal.id!,
+  'desk',
+  '2026-09-10T08:00:00.000Z'
+);
+assert.equal(contractorIssued.ok, true);
+if (!contractorIssued.ok) throw new Error('contractor reissue');
+const contractorView = portalViewForToken(
+  contractorIssued.store,
+  contractorIssued.issued.token,
+  'SiteCo'
+);
 assert.ok(contractorView);
 assert.equal(contractorView.projects.length, 1);
 assert.equal(contractorView.projects[0]?.siteId, 'site_1');
 assert.ok(contractorView.activities.length >= 1);
 
-const publicView = portalViewForToken(seed, seed.settings.public_token!, 'SiteCo');
+const publicPortal = contractorIssued.store.portals.find((p) => p.kind === 'public' && !p.revoked_at)!;
+const publicIssued = reissueConstructionPortal(
+  contractorIssued.store,
+  publicPortal.id!,
+  'desk',
+  '2026-09-10T08:00:00.000Z'
+);
+assert.equal(publicIssued.ok, true);
+if (!publicIssued.ok) throw new Error('public reissue');
+const publicView = portalViewForToken(publicIssued.store, publicIssued.issued.token, 'SiteCo');
 assert.ok(publicView);
 assert.equal(publicView.projects.length, 3);
 
-const written = writeConstructiongraphToMetadata({}, seed);
-assert.equal(written[CONSTRUCTIONGRAPH_TOKEN_KEY], seed.settings.public_token);
-const tokens = written[CONSTRUCTIONGRAPH_TOKENS_KEY] as Record<string, string>;
-assert.equal(tokens[seed.settings.public_token!], 'public');
-assert.equal(tokens[clientToken], 'client');
+const written = writeConstructiongraphToMetadata({}, publicIssued.store);
+assert.equal(written[CONSTRUCTIONGRAPH_TOKEN_KEY], null);
+assert.equal(written[CONSTRUCTIONGRAPH_TOKENS_KEY], null);
+const hashes = written[CONSTRUCTIONGRAPH_HASH_KEY] as Record<string, string>;
+assert.equal(hashes[hashPortalToken(publicIssued.issued.token)], 'public');
+assert.equal(hashes[hashPortalToken(clientIssued.issued.token)], 'client');
+assert.equal(JSON.stringify(written).includes(clientIssued.issued.token), false);
+assert.equal(JSON.stringify(written).includes(publicIssued.issued.token), false);
 
 const noMint = readConstructiongraphFromMetadata({});
 assert.equal(noMint.settings.public_token, undefined);
@@ -201,10 +232,26 @@ const reissued = upsertPortal(seed, {
   label: 'Apex Developments',
 });
 const apexClientPortals = reissued.portals.filter(
-  (p) => p.kind === 'client' && p.client_id === 'cli_apex'
+  (p) => p.kind === 'client' && p.client_id === 'cli_apex' && !p.revoked_at
 );
 assert.equal(apexClientPortals.length, 1);
-assert.equal(apexClientPortals[0]?.token, 'cg_newclienttoken99');
+assert.equal(apexClientPortals[0]?.token, undefined);
+assert.equal(apexClientPortals[0]?.token_hash, sha256Hex('cg_newclienttoken99'));
+const apexId = seed.portals.find((p) => p.kind === 'client' && p.client_id === 'cli_apex')?.id;
+assert.ok(apexId);
+const reissuedLink = reissueConstructionPortal(seed, apexId, 'desk', '2026-09-10T08:00:00.000Z');
+assert.equal(reissuedLink.ok, true);
+if (!reissuedLink.ok) throw new Error('apex reissue');
+assert.equal(
+  reissuedLink.store.portals.filter(
+    (p) => p.kind === 'client' && p.client_id === 'cli_apex' && !p.revoked_at
+  ).length,
+  1
+);
+assert.equal(
+  portalViewForToken(reissuedLink.store, reissuedLink.issued.token, 'SiteCo')?.kind,
+  'client'
+);
 
 const portalMerge = mergeConstructiongraphStore(emptyConstructiongraphStore(), {
   portals: [{ id: 'tok1', token: 'tok1', kind: 'public', label: 'first' }],
@@ -292,6 +339,11 @@ const ipc = certified.store.certificates.find(
 );
 assert.ok(ipc);
 assert.equal(ipc.status, 'issued');
+
+const seededAgain = constructiongraphSeedStore('2026-09-10T08:00:00.000Z');
+const firstHashes = seed.portals.map((portal) => portal.token_hash);
+const secondHashes = seededAgain.portals.map((portal) => portal.token_hash);
+assert.equal(firstHashes.some((hash) => secondHashes.includes(hash)), false);
 
 assert.ok((clientView?.payments.length || 0) >= 2);
 assert.ok(contractorView?.payments.every((p) => p.siteCode === 'PRJ-01'));

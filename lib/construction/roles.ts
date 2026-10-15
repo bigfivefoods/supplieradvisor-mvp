@@ -43,6 +43,8 @@ export const CONSTRUCTION_COLLECTIONS = [
   'portals',
   'settings',
   'diary',
+  'photos',
+  'time_entries',
 ] as const;
 
 export type ConstructionCollection = (typeof CONSTRUCTION_COLLECTIONS)[number];
@@ -176,6 +178,8 @@ const SITE_MANAGER_COLLECTIONS = new Set<ConstructionCollection>([
   'materials',
   'plant',
   'sites',
+  'photos',
+  'time_entries',
 ]);
 
 const OFFICE_COLLECTIONS = new Set<ConstructionCollection>([

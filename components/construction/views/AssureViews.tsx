@@ -228,12 +228,18 @@ export function PortalDeskView(props: DeskProps) {
   const cards = [
     { kind: 'public' as const, title: 'Open programme', action: 'ensure_portal' },
     { kind: 'client' as const, title: 'Client', action: 'ensure_client_portal', id: props.store.clients[0]?.id, keyName: 'clientId' },
-    { kind: 'contractor' as const, title: 'Site team', action: 'ensure_contractor_portal', id: props.store.sites[0]?.id, keyName: 'siteId' },
-    { kind: 'subcontractor' as const, title: 'Subcontractor', action: 'ensure_subcontractor_portal', id: props.store.subcontractors[0]?.id, keyName: 'subcontractorId' },
+    { kind: 'contractor' as const, title: 'Workers', action: 'ensure_contractor_portal', id: props.store.sites[0]?.id, keyName: 'siteId' },
   ];
   return (
     <div className="space-y-4" data-testid="portal-view">
-      <ConstructionPageHead title="Portal" badge={props.badge} detail="Issue a link, copy it once, and open the same screen the other party sees." />
+      <ConstructionPageHead title="Portal" badge={props.badge} detail="Issue a client link or a workers link. Copy it once. Subcontractors use TradeAdvisor®." />
+      <article className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="workers-money-card">
+        <p className="font-black text-slate-900">Workers and money</p>
+        <p className="mt-1 text-sm text-slate-600">Certified and paid stay off the workers app until you allow them. The API enforces this.</p>
+        <ConstructionButton className="mt-3" data-testid="workers-money-toggle" onClick={() => void props.handlers.run({ action: 'set_workers_money', workersSeeMoney: !props.store.settings.workers_see_money })}>
+          {props.store.settings.workers_see_money ? 'Workers can see certified and paid' : 'Workers cannot see certified and paid'}
+        </ConstructionButton>
+      </article>
       <label className="block text-xs font-bold text-slate-700">
         Expiry
         <select data-testid="portal-expiry" className={constructionField} value={expiry} onChange={(event) => setExpiry(event.target.value as 'none' | '90' | '365')}>
@@ -261,8 +267,11 @@ export function PortalDeskView(props: DeskProps) {
                 <ConstructionButton
                   data-testid={`portal-issue-${card.kind}`}
                   onClick={() => {
-                    const body: Record<string, unknown> = { action: card.action, expiresIn: expiry === 'none' ? null : Number(expiry) };
-                    if (card.keyName && card.id) body[card.keyName] = card.id;
+                    const live = rows.find((row) => !row.revoked_at);
+                    const body: Record<string, unknown> = live
+                      ? { action: 'reissue_portal', id: live.id }
+                      : { action: card.action, expiresIn: expiry === 'none' ? null : Number(expiry) };
+                    if (!live && card.keyName && card.id) body[card.keyName] = card.id;
                     void props.handlers.run(body).then((result) => {
                       const issued = result && typeof result === 'object' && 'issued' in result ? (result.issued as { token?: string; path?: string; hint?: string }) : null;
                       if (issued?.token && issued.path) setReveal({ token: issued.token, path: issued.path, hint: issued.hint || issued.token.slice(-4) });
@@ -274,7 +283,7 @@ export function PortalDeskView(props: DeskProps) {
                 {rows[0]?.id ? (
                   <button type="button" data-testid={`portal-revoke-${card.kind}`} className="inline-flex min-h-11 items-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800" onClick={() => void props.handlers.run({ action: 'revoke_portal', id: rows[0]?.id })}>Revoke</button>
                 ) : null}
-                <a className="inline-flex min-h-11 items-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800" data-testid={`portal-preview-${card.kind}`} href={base ? `${base}/portal?kind=${card.kind}` : `/construction/${rows[0]?.token || ''}`}>Preview</a>
+                {base ? <a className="inline-flex min-h-11 items-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800" data-testid={`portal-preview-${card.kind}`} href={`${base}/portal?kind=${card.kind}`}>Preview</a> : null}
               </div>
             </article>
           );

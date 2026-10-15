@@ -90,6 +90,12 @@ self.addEventListener('fetch', (event) => {
   }
   if (url.origin !== self.location.origin) return;
 
+  // ConstructionAdvisor® portal JSON is private. Never cache it.
+  if (url.pathname.startsWith('/api/public/constructiongraph')) {
+    event.respondWith(fetch(req, { cache: 'no-store' }));
+    return;
+  }
+
   // Real TradeAdvisor® quote PDFs and calendars are private. Never cache them.
   // The sample Harbour feed (token=demo or token=tg_harbour) stays on the network path below.
   if (url.pathname.startsWith('/api/public/tradegraph/')) {
@@ -129,7 +135,10 @@ self.addEventListener('fetch', (event) => {
             ? TRADE_OFFLINE_URL
             : url.pathname.startsWith('/work/tradegraph') || url.pathname.startsWith('/crew/tradegraph')
               ? TRADE_FIELD_OFFLINE_URL
-              : url.pathname.startsWith('/construction/') || url.pathname.startsWith('/work/constructiongraph')
+              : url.pathname.startsWith('/construction/') ||
+                url.pathname.startsWith('/work/constructiongraph') ||
+                url.pathname.startsWith('/crew/constructiongraph') ||
+                url.pathname.startsWith('/customer/constructiongraph')
                 ? CONSTRUCTION_OFFLINE_URL
                 : OFFLINE_URL;
           const offline = await caches.match(offlineUrl);

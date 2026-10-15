@@ -159,4 +159,4 @@ jobs:
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           npm run test:e2e:auth
-          npx playwright test e2e/trade-loop-smoke.spec.ts e2e/happy-path-api.spec.ts e2e/golden-path-smoke.spec.ts e2e/major-bets-smoke.spec.ts e2e/paid-verification-smoke.spec.ts e2e/growth-settles.spec.ts e2e/constructionadvisor-preview.spec.ts
+          npx playwright test e2e/trade-loop-smoke.spec.ts e2e/happy-path-api.spec.ts e2e/golden-path-smoke.spec.ts e2e/major-bets-smoke.spec.ts e2e/paid-verification-smoke.spec.ts e2e/growth-settles.spec.ts e2e/constructionadvisor-preview.spec.ts e2e/constructiongraph-portal-smoke.spec.ts

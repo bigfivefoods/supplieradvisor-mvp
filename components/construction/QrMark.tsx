@@ -3,7 +3,16 @@
 import { qrMatrix } from '@/lib/construction/qr';
 
 export function QrMark({ value }: { value: string }) {
-  const matrix = qrMatrix(value);
+  let matrix;
+  try {
+    matrix = qrMatrix(value);
+  } catch {
+    return (
+      <p className="text-sm font-bold text-slate-600" data-testid="portal-qr">
+        Copy the link. This one is too long for the QR.
+      </p>
+    );
+  }
   const quiet = 2;
   const dim = matrix.size + quiet * 2;
   return (

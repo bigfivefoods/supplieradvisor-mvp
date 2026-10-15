@@ -20,11 +20,11 @@ import {
   type ConstructiongraphStore,
 } from '@/lib/construction/constructiongraph';
 import { sastToday } from '@/lib/construction/format';
-import { publicConstructionView, type PortalKind } from '@/lib/construction/portal-screen';
+import { portalViewForToken, type ConstructionPortal } from '@/lib/construction/constructiongraph';
+import { ClientApp, OwnerApp, PublicProgramme, WorkersApp, newPhotoNote, newTimeEntry } from '@/components/construction/RoleApps';
 import { capabilitiesFor, type ConstructionRole } from '@/lib/construction/roles';
 import { sampleConstructionStore } from '@/lib/construction/sample-book';
 import type { DeskProps } from '@/components/construction/desk';
-import { PortalApp } from '@/components/construction/PortalApp';
 import { CommandView } from '@/components/construction/views/CommandView';
 import { ClientsView, QuotesView, ProjectsView, SubcontractorsView } from '@/components/construction/views/RegisterViews';
 import { ProgrammeView, VariationsView, DiaryView, SafetyView } from '@/components/construction/views/OpsViews';
@@ -41,6 +41,7 @@ type PreviewApi = DeskProps & {
 const PreviewContext = createContext<PreviewApi | null>(null);
 
 function readRole(value: string | null): ConstructionRole {
+  if (value === 'workers') return 'site_manager';
   if (value === 'site_manager' || value === 'office' || value === 'viewer' || value === 'owner') return value;
   return 'owner';
 }
@@ -105,33 +106,45 @@ export function PreviewShell({ children }: { children: ReactNode }) {
           setStore(result.store);
           return { success: true };
         }
-        if (action.startsWith('ensure_')) {
+        if (action === 'set_workers_money') {
+          if (role !== 'owner') throw new Error('Not available for your role');
+          const next = {
+            ...store,
+            settings: { ...store.settings, workers_see_money: Boolean(body.workersSeeMoney) },
+          };
+          setStore(next);
+          return { success: true, store: next };
+        }
+        if (action.startsWith('ensure_') || action === 'reissue_portal') {
           if (role !== 'owner') throw new Error('Not available for your role');
           const token = mintConstructionToken();
           const days = body.expiresIn == null ? null : Number(body.expiresIn);
           const expires_at = days ? addDaysIso(sastToday(), days) : null;
-          const kind: PortalKind =
+          const kind: ConstructionPortal['kind'] =
             action === 'ensure_client_portal'
               ? 'client'
               : action === 'ensure_contractor_portal'
                 ? 'contractor'
-                : action === 'ensure_subcontractor_portal'
-                  ? 'subcontractor'
+                : action === 'reissue_portal'
+                  ? store.portals.find((row) => row.id === body.id)?.kind || 'public'
                   : 'public';
-          const next = upsertPortal(store, {
+          const prior = action === 'reissue_portal' ? store.portals.find((row) => row.id === body.id) : null;
+          const revoked = prior
+            ? store.portals.map((row) => (row.id === prior.id ? { ...row, revoked_at: new Date().toISOString() } : row))
+            : store.portals;
+          const next = upsertPortal({ ...store, portals: revoked }, {
             token,
             kind,
-            client_id: body.clientId ? String(body.clientId) : null,
-            site_id: body.siteId ? String(body.siteId) : null,
-            subcontractor_id: body.subcontractorId ? String(body.subcontractorId) : null,
-            label: kind,
+            client_id: prior?.client_id || (body.clientId ? String(body.clientId) : null),
+            site_id: prior?.site_id || (body.siteId ? String(body.siteId) : null),
+            label: kind === 'contractor' ? 'Workers' : kind === 'client' ? 'Client' : 'Open programme',
             created_at: new Date().toISOString(),
             expires_at,
             token_hint: token.slice(-4),
             legacy: false,
           });
           setStore(next);
-          const path = `/preview/constructiongraph/portal?kind=${kind}&token=${encodeURIComponent(token)}`;
+          const path = `/preview/constructiongraph/portal?token=${encodeURIComponent(token)}`;
           return { issued: { id: token, kind, token, path, hint: token.slice(-4) } };
         }
         if (action === 'revoke_portal') {
@@ -228,32 +241,31 @@ const VIEWS: Record<string, (props: DeskProps) => ReactNode> = {
 export function PreviewDesk({ view }: { view: string }) {
   const desk = usePreviewDesk();
   const params = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search);
-  const kind = params?.get('kind') as PortalKind | null;
-  if (view === 'portal' && kind && desk.ready) {
-    const token = params?.get('token') || desk.store.portals.find((row) => row.kind === kind)?.token || '';
-    const screen = token ? publicConstructionView(desk.store, token, 'ConstructionAdvisor®') : null;
+  const kind = params?.get('kind');
+  const tokenParam = params?.get('token') || '';
+  if (view === 'portal' && desk.ready && (kind || tokenParam)) {
+    const token = tokenParam || desk.store.portals.find((row) => row.kind === kind && row.token)?.token || '';
+    const screen = token ? portalViewForToken(desk.store, token, 'ConstructionAdvisor®') : null;
     if (!screen) return <p className="text-sm font-bold">This sample link is not available.</p>;
-    return (
-      <PortalApp
-        screen={screen}
-        onPay={
-          screen.kind === 'client'
-            ? (paymentId) => {
-                const result = applyPaymentAction(desk.store, { paymentId, action: 'pay', actor: 'client', date: sastToday(), portal: desk.store.portals.find((row) => row.token === token) });
-                if (result.ok) desk.setStore(result.store);
-              }
-            : undefined
-        }
-        onClaim={
-          screen.kind === 'contractor'
-            ? (paymentId) => {
-                const result = applyPaymentAction(desk.store, { paymentId, action: 'claim', actor: 'contractor', date: sastToday(), portal: desk.store.portals.find((row) => row.token === token) });
-                if (result.ok) desk.setStore(result.store);
-              }
-            : undefined
-        }
-      />
-    );
+    if (screen.kind === 'client') return <ClientApp view={screen} />;
+    if (screen.kind === 'contractor') {
+      return (
+        <WorkersApp
+          store={desk.store}
+          siteId={screen.projects[0]?.siteId}
+          seeMoney={screen.seeMoney}
+          onLogTime={(minutes, note) => {
+            const siteId = screen.projects[0]?.siteId || '';
+            desk.setStore({ ...desk.store, time_entries: [...(desk.store.time_entries || []), newTimeEntry(siteId, minutes, note)] });
+          }}
+          onPhotoNote={(caption) => {
+            const siteId = screen.projects[0]?.siteId || '';
+            desk.setStore({ ...desk.store, photos: [...(desk.store.photos || []), newPhotoNote(siteId, caption)] });
+          }}
+        />
+      );
+    }
+    return <PublicProgramme view={screen} />;
   }
   const render = VIEWS[view] || VIEWS[''];
   return <>{render(desk)}</>;
@@ -261,16 +273,33 @@ export function PreviewDesk({ view }: { view: string }) {
 
 export function PreviewWork() {
   const desk = usePreviewDesk();
+  const siteId = desk.store.sites.find((row) => row.status === 'on_site')?.id || desk.store.sites[0]?.id;
+  if (desk.role === 'site_manager') {
+    return (
+      <div data-testid="work-app">
+        <WorkersApp
+          store={desk.store}
+          siteId={siteId}
+          seeMoney={Boolean(desk.store.settings.workers_see_money)}
+          onLogTime={(minutes, note) => {
+            desk.setStore({ ...desk.store, time_entries: [...(desk.store.time_entries || []), newTimeEntry(siteId || '', minutes, note)] });
+          }}
+          onPhotoNote={(caption) => {
+            desk.setStore({ ...desk.store, photos: [...(desk.store.photos || []), newPhotoNote(siteId || '', caption)] });
+          }}
+        />
+      </div>
+    );
+  }
   return (
     <div data-testid="work-app">
-      <DiaryView {...desk} />
-      <nav data-testid="work-nav" className="fixed inset-x-0 bottom-0 z-30 flex border-t border-slate-200 bg-white">
-        <a className="inline-flex min-h-11 flex-1 items-center justify-center text-xs font-black" href="/preview/constructiongraph/work">Today</a>
-        <a className="inline-flex min-h-11 flex-1 items-center justify-center text-xs font-black" href="/preview/constructiongraph/diary">Diary</a>
-        <a className="inline-flex min-h-11 flex-1 items-center justify-center text-xs font-black" href="/preview/constructiongraph/handover">Snags</a>
-        <a className="inline-flex min-h-11 flex-1 items-center justify-center text-xs font-black" href="/preview/constructiongraph/safety">Safety</a>
-        <a className="inline-flex min-h-11 flex-1 items-center justify-center text-xs font-black" href="/preview/constructiongraph/programme">Programme</a>
-      </nav>
+      <OwnerApp
+        store={desk.store}
+        officeHref="/preview/constructiongraph"
+        onToggleWorkersMoney={(next) => {
+          desk.setStore({ ...desk.store, settings: { ...desk.store.settings, workers_see_money: next } });
+        }}
+      />
     </div>
   );
 }

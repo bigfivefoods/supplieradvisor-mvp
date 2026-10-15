@@ -60,7 +60,9 @@ assert.ok(
 );
 assert.ok(publicSrc.includes('publicReadLimit'), 'public GET must rate-limit');
 assert.ok(publicSrc.includes('export async function POST'), 'public POST records claim/pay');
-assert.ok(publicSrc.includes('applyPaymentAction'), 'public POST must use payment actions');
+assert.ok(publicSrc.includes('servePublicPortal'), 'public POST records claim/pay');
+const bookSrc = readFileSync(resolve('lib/construction/public-book.ts'), 'utf8');
+assert.ok(bookSrc.includes('applyPaymentAction'), 'public POST must use payment actions');
 assert.ok(publicSrc.includes('rateLimit'), 'public POST must rate-limit');
 assert.ok(!publicSrc.includes('profiles.phone'), 'public GET must not select profiles.phone');
 

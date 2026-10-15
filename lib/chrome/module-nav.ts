@@ -938,7 +938,7 @@ export const MODULE_NAV: readonly ModuleNav[] = [
       {
         name: 'Portal',
         href: '/dashboard/constructiongraph/portal',
-        desc: 'Client · site · subcontractor links',
+        desc: 'Client and workers links',
         section: 'Grow',
       },
     ],
