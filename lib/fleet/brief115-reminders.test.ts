@@ -3,7 +3,7 @@
  * Run: npx --yes tsx lib/fleet/brief115-reminders.test.ts
  */
 import assert from 'node:assert/strict';
-import { logKey, planReminders } from './reminders';
+import { logKey, planReminders, visibleReminderLog } from './reminders';
 import { reminderMessage } from './reminders-email';
 import type { FleetCompliance, FleetReminder, FleetVehicle } from './types';
 
@@ -143,5 +143,16 @@ assert.equal(/\b\d{13}\b/.test(message.text), false);
 assert.equal(banned.test(message.subject + message.text + message.html), false);
 assert.match(message.text, /\/dashboard\/fleetgraph\/compliance/);
 assert.match(message.text, /\/dashboard\/fleetgraph\/settings/);
+
+const duplicateLog = visibleReminderLog([
+  { id: 'a', status: 'skipped_superseded', item_id: 'item', expires_on: '2026-07-01', threshold_days: 30, channel: 'email', recipient_key: 'm', at: '1' },
+  { id: 'b', status: 'skipped_superseded', item_id: 'item', expires_on: '2026-07-01', threshold_days: 30, channel: 'email', recipient_key: 'm', at: '2' },
+  { id: 'c', status: 'sent', item_id: 'item', expires_on: '2026-07-01', threshold_days: 14, channel: 'email', recipient_key: 'm', at: '3' },
+]);
+assert.equal(duplicateLog.length, 2);
+assert.equal(duplicateLog[0].id, 'a');
+assert.equal(duplicateLog[1].id, 'c');
+const page = duplicateLog.slice(0, 50);
+assert.equal(page.length, 2);
 
 console.log('brief115-reminders.test.ts ok');

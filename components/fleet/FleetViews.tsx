@@ -65,6 +65,7 @@ export type FleetDeskProps = {
   notice?: string | null;
   migrationPending?: boolean;
   illustrate?: boolean;
+  webPush?: 'ready' | 'not_configured';
   subjectId?: string;
   readiness?: FleetReadiness;
   onPeriod?: (id: PeriodId) => void;
@@ -700,7 +701,7 @@ function VehiclesView(props: FleetDeskProps) {
                   <button type="button" className={`${fleetLink} ${fleetFocus} min-h-11`} data-testid={`fleet-open-${vehicle.reg_no.replace(/\s+/g, '-')}`} onClick={() => setOpen(vehicle.id)}>
                     {vehicle.reg_no}
                   </button>
-                  <Link className={`${fleetLink} ${fleetFocus} inline-flex min-h-11 items-center`} href={`${props.hrefBase}/vehicles/${vehicle.id}`} data-testid={`fleet-vehicle-${vehicle.id}`}>
+                  <Link className={`${fleetLink} ${fleetFocus} inline-flex min-h-11 items-center whitespace-nowrap`} href={`${props.hrefBase}/vehicles/${vehicle.id}`} data-testid={`fleet-vehicle-${vehicle.id}`}>
                     Open record
                   </Link>
                 </span>,

@@ -3,6 +3,7 @@
  * Preview and the staff route both call this. No network.
  */
 import { emptyFleetBook } from './empty-book';
+import { isFleetUuid } from './import-ship';
 import { prdpCategoryMissing } from './compliance';
 import { validatePermitDetail } from './permits';
 import { sastDate } from './format';
@@ -699,6 +700,9 @@ function updateSettings(book: FleetBook, op: FleetOp, ctx: OpContext, expected?:
   if ('tyre_mode_default' in op.payload && !['accrual', 'ledger'].includes(cleanText(op.payload.tyre_mode_default, 20))) {
     return deny(400, 'Choose a tyre setting.');
   }
+  const vehicleKinds = kindsOf(op.payload, 'expected_vehicle_kinds', book.workspace.expected_vehicle_kinds);
+  const driverKinds = kindsOf(op.payload, 'expected_driver_kinds', book.workspace.expected_driver_kinds);
+  if (!vehicleKinds.ok || !driverKinds.ok) return deny(400, 'Check the expected date kinds.');
   const workspace = {
     ...book.workspace,
     id: book.workspace.id || id(),
@@ -720,8 +724,8 @@ function updateSettings(book: FleetBook, op: FleetOp, ctx: OpContext, expected?:
         ? Boolean(op.payload.dispatcher_sees_rates)
         : book.workspace.dispatcher_sees_rates,
     retention_days: ctx.role === 'owner' && 'retention_days' in op.payload ? retention : book.workspace.retention_days,
-    expected_vehicle_kinds: kindsOf(op.payload.expected_vehicle_kinds, book.workspace.expected_vehicle_kinds),
-    expected_driver_kinds: kindsOf(op.payload.expected_driver_kinds, book.workspace.expected_driver_kinds),
+    expected_vehicle_kinds: vehicleKinds.kinds,
+    expected_driver_kinds: driverKinds.kinds,
     prdp_gvm_threshold_kg: prdpThreshold(op.payload, book.workspace.prdp_gvm_threshold_kg),
     updated_at: ctx.now,
   };
@@ -935,14 +939,21 @@ function profileMoney(payload: Record<string, unknown>):
   return { ok: true, values: values as Record<(typeof OPTIONAL_MONEY)[number], number | null> & Record<(typeof REQUIRED_MONEY)[number], number> };
 }
 
-function kindsOf(value: unknown, current: FleetBook['workspace']['expected_vehicle_kinds']) {
-  if (!Array.isArray(value)) return current;
+function kindsOf(
+  payload: Record<string, unknown>,
+  key: 'expected_vehicle_kinds' | 'expected_driver_kinds',
+  current: FleetBook['workspace']['expected_vehicle_kinds']
+): { ok: true; kinds: FleetBook['workspace']['expected_vehicle_kinds'] } | { ok: false } {
+  if (!(key in payload)) return { ok: true, kinds: current };
+  const value = payload[key];
+  if (!Array.isArray(value)) return { ok: false };
   const allowed = new Set([
     'licence_disc', 'roadworthy', 'operator_card', 'insurance', 'cross_border_permit', 'abnormal_permit', 'other_permit',
     'driver_licence', 'prdp', 'medical', 'induction', 'other',
   ]);
-  const next = value.map((item) => String(item)).filter((item) => allowed.has(item));
-  return next as FleetBook['workspace']['expected_vehicle_kinds'];
+  const next = value.map((item) => String(item));
+  if (next.some((item) => !allowed.has(item))) return { ok: false };
+  return { ok: true, kinds: next as FleetBook['workspace']['expected_vehicle_kinds'] };
 }
 
 function prdpThreshold(payload: Record<string, unknown>, current: number | null): number | null {
@@ -1135,6 +1146,9 @@ function commitImport(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
   for (const plan of plans) {
     if (!plan || typeof plan !== 'object') return deny(400, 'Check the rows.');
     const row = plan as { action?: string; vehicle?: FleetVehicle; driver?: FleetDriver; item?: FleetCompliance };
+    if (!planMatchesKind(kind, row)) return deny(400, 'Check the rows.');
+    const entity = row.vehicle || row.driver || row.item;
+    if (!entity || !importIdAllowed(next, kind, entity.id)) return deny(400, 'Check the rows.');
     if (row.vehicle) {
       const vehicles = next.vehicles.some((item) => item.id === row.vehicle!.id)
         ? next.vehicles.map((item) => (item.id === row.vehicle!.id ? { ...item, ...row.vehicle, company_id: ctx.companyId } : item))
@@ -1166,6 +1180,27 @@ function commitImport(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
     created_at: ctx.now,
   };
   return done({ ...next, import_runs: [run, ...next.import_runs] }, ctx, 'import.commit', 'import', run.id, { kind, rows: plans.length });
+}
+
+function planMatchesKind(kind: string, row: { vehicle?: unknown; driver?: unknown; item?: unknown }): boolean {
+  const vehicle = Boolean(row.vehicle);
+  const driver = Boolean(row.driver);
+  const item = Boolean(row.item);
+  if (kind === 'vehicles_csv' || kind === 'ship_vehicles') return vehicle && !driver && !item;
+  if (kind === 'drivers_csv' || kind === 'ship_drivers') return driver && !vehicle && !item;
+  if (kind === 'compliance_csv') return item && !vehicle && !driver;
+  return false;
+}
+
+function importIdAllowed(book: FleetBook, kind: string, entityId: string): boolean {
+  if (!entityId) return false;
+  const known =
+    kind === 'drivers_csv' || kind === 'ship_drivers'
+      ? book.drivers.some((row) => row.id === entityId)
+      : kind === 'compliance_csv'
+        ? book.compliance.some((row) => row.id === entityId)
+        : book.vehicles.some((row) => row.id === entityId);
+  return known || isFleetUuid(entityId);
 }
 
 function importAllowed(kind: string, role: FleetRole): boolean {

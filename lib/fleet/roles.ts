@@ -147,6 +147,14 @@ export function viewForRole<T extends FleetBook & { cpk?: unknown }>(
   if (!caps.seesDriverPay) view = stripDriverPay(view) as Record<string, unknown>;
   if (!caps.canManageReminders) {
     view = stripKeys(view, new Set(['recipient_member_ids', 'reminder_log'])) as Record<string, unknown>;
+    delete view.members;
+    if (Array.isArray(view.import_runs)) {
+      view.import_runs = (view.import_runs as Array<Record<string, unknown>>).map((run) => {
+        const copy = { ...run };
+        delete copy.created_by;
+        return copy;
+      });
+    }
   }
   return view;
 }

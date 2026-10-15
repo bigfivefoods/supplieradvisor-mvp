@@ -7,8 +7,21 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { emptyFleetBook } from './empty-book';
 import { redactDryRun, sourceHash, validateDriverCsv, validateVehicleCsv } from './import-csv';
-import { LICENCE_CODES, SHIP_DRIVER_COLUMNS, SHIP_VEHICLE_COLUMNS, mapShipDriver, mapShipVehicle } from './import-ship';
+import { materialiseImport } from './import-materialise';
+import {
+  LICENCE_CODES,
+  PREVIEW_SHIP_VEHICLE_ID,
+  SHIP_DRIVER_COLUMNS,
+  SHIP_VEHICLE_COLUMNS,
+  mapShipDriver,
+  mapShipVehicle,
+  planShipVehicles,
+  shipSourceHash,
+} from './import-ship';
 import { applyFleetOp } from './ops';
+import { reminderDraft } from './reminder-form';
+import { planReminders } from './reminders';
+import { sampleFleetBook } from './sample-book';
 import { sha256Hex } from './sha256';
 
 assert.equal(sha256Hex(''), 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
@@ -129,6 +142,121 @@ book.import_runs = [
     created_at: '2026-06-01T00:00:00.000Z',
   },
 ];
+const demoSneaky = applyFleetOp(
+  book,
+  {
+    op: 'import.commit',
+    payload: {
+      kind: 'vehicles_csv',
+      source_hash: parsed.source_hash,
+      plans: [{ action: 'create', driver: { id: PREVIEW_SHIP_VEHICLE_ID, full_name: 'Real Person', company_id: 1 } }],
+    },
+  },
+  ctx
+);
+assert.equal(demoSneaky.ok, false);
+if (!demoSneaky.ok) assert.match(demoSneaky.error, /Demo-data mode/);
+assert.equal(book.drivers.length, 0);
+
+const badId = structuredClone(book);
+badId.workspace.real_data_enabled = true;
+const vehiclePlan = parsed.rows[0];
+assert.ok('vehicle' in vehiclePlan);
+const rejectedId = applyFleetOp(
+  badId,
+  {
+    op: 'import.commit',
+    payload: {
+      kind: 'vehicles_csv',
+      source_hash: parsed.source_hash,
+      plans: [{ ...vehiclePlan, vehicle: { ...vehiclePlan.vehicle, id: 'ship-vehicle' } }],
+    },
+  },
+  ctx
+);
+assert.equal(rejectedId.ok, false);
+assert.equal(badId.vehicles.length, book.vehicles.length);
+
+const realBook = structuredClone(book);
+realBook.workspace.real_data_enabled = true;
+const shape = applyFleetOp(
+  realBook,
+  {
+    op: 'import.commit',
+    payload: {
+      kind: 'vehicles_csv',
+      source_hash: parsed.source_hash,
+      plans: [{ action: 'create', driver: { id: PREVIEW_SHIP_VEHICLE_ID, full_name: 'Real Person', company_id: 1 } }],
+    },
+  },
+  ctx
+);
+assert.equal(shape.ok, false);
+assert.equal(realBook.drivers.length, 0);
+
+const aliased = validateVehicleCsv('plate,vehicle_type,gvm\nSAMPLE 77,rigid,9000\n', book, '2026-06-01T00:00:00.000Z');
+assert.equal(aliased.summary.create, 1);
+assert.ok('vehicle' in aliased.rows[0] && aliased.rows[0].vehicle.gvm_kg === 9000);
+const duplicated = validateVehicleCsv('reg_no,kind\nSAMPLE 8,rigid\nSAMPLE 8,van\n', book, '2026-06-01T00:00:00.000Z');
+assert.ok(duplicated.errors.some((error) => error.code === 'duplicate'));
+const driverDup = validateDriverCsv('name,email,license_class\nSample A,a@example.com,EC\nSample B,a@example.com,C\n', book, '2026-06-01T00:00:00.000Z');
+assert.equal(driverDup.summary.create, 1);
+assert.ok(driverDup.errors.some((error) => error.code === 'duplicate'));
+
+const shipRow = { id: 'ship-9', plate_number: 'SAMPLE 99', vehicle_type: 'truck', status: 'available' };
+const shipPlans = planShipVehicles([shipRow], book, '2026-06-01T00:00:00.000Z', () => PREVIEW_SHIP_VEHICLE_ID);
+assert.equal(shipPlans.rows[0].vehicle.id, PREVIEW_SHIP_VEHICLE_ID);
+assert.equal(shipSourceHash('ship_vehicles', [shipRow]), shipSourceHash('ship_vehicles', [shipRow]));
+const linkedShip = planShipVehicles([shipRow], { ...book, vehicles: [...book.vehicles, shipPlans.rows[0].vehicle] }, '2026-06-01T00:00:00.000Z', () => 'nope');
+assert.equal(linkedShip.rows[0].action, 'link');
+assert.equal(linkedShip.rows[0].vehicle.id, PREVIEW_SHIP_VEHICLE_ID);
+
+const sample = sampleFleetBook();
+const draft = reminderDraft(sample.reminders[0]);
+const saved = applyFleetOp(
+  sample,
+  {
+    op: 'reminder.upsert',
+    payload: {
+      id: draft.id,
+      scope_kind: draft.scope_kind,
+      kind: draft.kind,
+      thresholds_days: draft.thresholds_days,
+      channels: draft.channels,
+      recipient_member_ids: draft.recipient_member_ids,
+      enabled: draft.enabled,
+    },
+  },
+  { role: 'owner', actorId: 'owner', now: '2024-07-02T12:00:00.000Z', companyId: sample.workspace.company_id, enforceRealData: false },
+  sample.reminders[0].updated_at
+);
+assert.equal(saved.ok, true);
+if (saved.ok) {
+  const planned = planReminders({
+    items: saved.book.compliance,
+    rules: saved.book.reminders,
+    vehicles: saved.book.vehicles,
+    drivers: saved.book.drivers,
+    members: saved.book.members,
+    logKeys: [],
+    now: '2024-07-02T12:00:00.000Z',
+    workspace: saved.book.workspace,
+  });
+  assert.equal(planned.due.length, 1);
+}
+const freshDraft = reminderDraft(null);
+assert.equal(freshDraft.enabled, false);
+assert.deepEqual(freshDraft.recipient_member_ids, []);
+assert.deepEqual(freshDraft.channels, []);
+
+const junk = applyFleetOp(
+  emptyFleetBook(1, '2026-06-01T00:00:00.000Z'),
+  { op: 'settings.update', payload: { expected_vehicle_kinds: ['not-a-kind'] } },
+  ctx
+);
+assert.equal(junk.ok, false);
+if (!junk.ok) assert.match(junk.error, /expected date kinds/);
+
 const committed = applyFleetOp(book, { op: 'import.commit', payload: { kind: 'vehicles_csv', source_hash: parsed.source_hash, plans: parsed.rows } }, ctx);
 assert.equal(committed.ok, true);
 if (committed.ok) {
@@ -159,4 +287,33 @@ for (const file of [...walk('lib/fleet'), ...walk('app/api/fleet')]) {
   }
 }
 
-console.log('brief115-import.test.ts ok');
+async function proveServerPlans() {
+  const derived = await materialiseImport(
+    book,
+    {
+      op: 'import.commit',
+      payload: {
+        kind: 'vehicles_csv',
+        csv,
+        source_label: 'Pasted CSV',
+        plans: [{ action: 'create', driver: { full_name: 'Real Person', id: PREVIEW_SHIP_VEHICLE_ID } }],
+      },
+    },
+    '2026-06-01T00:00:00.000Z'
+  );
+  assert.equal(derived.ok, true);
+  if (derived.ok) {
+    const plans = derived.op.payload.plans as Array<{ driver?: unknown; vehicle?: { reg_no?: string } }>;
+    assert.equal(plans.some((row) => row.driver), false);
+    assert.equal(plans[0]?.vehicle?.reg_no, 'SAMPLE 9');
+    assert.equal(derived.op.payload.source_hash, parsed.source_hash);
+  }
+  const staff = readFileSync('app/api/fleet/fleetgraph/route.ts', 'utf8');
+  assert.ok(staff.includes('materialiseImport'));
+  console.log('brief115-import.test.ts ok');
+}
+
+proveServerPlans().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

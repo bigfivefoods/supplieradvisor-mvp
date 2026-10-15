@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assertCronSecret } from '@/lib/auth/api-auth';
-import { isFleetSchemaMissing, loadFleetBook } from '@/lib/fleet/fleetgraph-db';
-import { logKey, planReminders } from '@/lib/fleet/reminders';
+import { isFleetSchemaMissing, loadFleetBook, loadReminderKeys } from '@/lib/fleet/fleetgraph-db';
+import { planReminders } from '@/lib/fleet/reminders';
 import { reminderMessage } from '@/lib/fleet/reminders-email';
 import { getAppUrl, getResend, getResendFrom } from '@/lib/resend';
 import { isWebPushConfigured, pushToUser } from '@/lib/push/web-push';
@@ -35,23 +35,54 @@ export async function POST(request: NextRequest) {
   return runReminders();
 }
 
+async function workspaceIds(admin: ReturnType<typeof getSupabaseAdmin>): Promise<{ ok: true; ids: number[] } | { ok: false; missing: boolean }> {
+  const ids: number[] = [];
+  let from = 0;
+  for (;;) {
+    const listed = await admin.from('fg_workspaces').select('company_id').order('company_id', { ascending: true }).range(from, from + 99);
+    if (listed.error) return { ok: false, missing: isFleetSchemaMissing(listed.error) };
+    const batch = listed.data || [];
+    for (const row of batch) {
+      const companyId = Number((row as { company_id?: unknown }).company_id);
+      if (Number.isFinite(companyId) && companyId > 0) ids.push(companyId);
+    }
+    if (batch.length < 100) break;
+    from += 100;
+  }
+  return { ok: true, ids };
+}
+
 async function runReminders() {
   const totals = countsBody();
   const admin = getSupabaseAdmin();
-  const listed = await admin.from('fg_workspaces').select('company_id').limit(100);
-  if (listed.error) {
-    if (isFleetSchemaMissing(listed.error)) return NextResponse.json(countsBody(), { headers: NO_STORE });
+  const listed = await workspaceIds(admin);
+  if (!listed.ok) {
+    if (listed.missing) return NextResponse.json(countsBody(), { headers: NO_STORE });
     console.error('fleetgraph reminders failed');
     return NextResponse.json(countsBody({ companies_failed: 1 }), { headers: NO_STORE });
   }
-  for (const row of listed.data || []) {
-    const companyId = Number((row as { company_id?: unknown }).company_id);
-    if (!Number.isFinite(companyId) || companyId <= 0) continue;
+  for (const companyId of listed.ids) {
     try {
       const loaded = await loadFleetBook(companyId);
       if (!loaded.ready || !loaded.readiness.reminders.ready) continue;
       const book = loaded.book;
+      const keys = await loadReminderKeys(companyId);
+      if (!keys.ok) {
+        if (!keys.missing) totals.companies_failed += 1;
+        continue;
+      }
+      const plan = planReminders({
+        items: book.compliance,
+        rules: book.reminders,
+        vehicles: book.vehicles,
+        drivers: book.drivers,
+        members: book.members,
+        logKeys: keys.keys,
+        now: new Date(),
+        workspace: book.workspace,
+      });
       if (!book.workspace.real_data_enabled) {
+        if (plan.due.length === 0) continue;
         totals.skipped_demo += 1;
         await admin.rpc('fg_commit_b', {
           p_company_id: companyId,
@@ -66,7 +97,7 @@ async function runReminders() {
                   action: 'reminders.skipped_demo',
                   target_kind: 'reminder',
                   target_id: '',
-                  payload: { count: book.reminders.filter((rule) => rule.enabled && !rule.archived_at).length },
+                  payload: { count: plan.due.length },
                 },
               ],
             },
@@ -74,16 +105,6 @@ async function runReminders() {
         });
         continue;
       }
-      const plan = planReminders({
-        items: book.compliance,
-        rules: book.reminders,
-        vehicles: book.vehicles,
-        drivers: book.drivers,
-        members: book.members,
-        logKeys: book.reminder_log.map((entry) => logKey(entry.item_id, entry.expires_on, entry.threshold_days, entry.channel, entry.recipient_key)),
-        now: new Date(),
-        workspace: book.workspace,
-      });
       for (const item of plan.superseded) {
         await admin.rpc('fg_commit_b', {
           p_company_id: companyId,

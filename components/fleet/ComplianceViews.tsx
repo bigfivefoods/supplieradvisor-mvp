@@ -8,9 +8,10 @@ import { isAssignable } from '@/lib/fleet/isAssignable';
 import { cpkForBook } from '@/lib/fleet/book-cpk';
 import { formatPerKm, formatSastDate } from '@/lib/fleet/format';
 import { periodFor } from '@/lib/fleet/periods';
-import { planReminders } from '@/lib/fleet/reminders';
+import { planReminders, visibleReminderLog } from '@/lib/fleet/reminders';
+import { parseThresholds, prdpUnchanged, reminderDraft, type ReminderDraft } from '@/lib/fleet/reminder-form';
 import { templateCsv, validateComplianceCsv, validateDriverCsv, validateVehicleCsv, redactDryRun, type CsvImportResult } from '@/lib/fleet/import-csv';
-import { mapShipDriver, mapShipVehicle } from '@/lib/fleet/import-ship';
+import { planShipDrivers, planShipVehicles, PREVIEW_SHIP_DRIVER_ID, PREVIEW_SHIP_VEHICLE_ID, shipSourceHash } from '@/lib/fleet/import-ship';
 import { writeCsv } from '@/lib/fleet/csv';
 import { timelineFor } from '@/lib/fleet/renewal';
 import type { ComplianceKind, FleetBook, FleetFeature, FleetReadiness } from '@/lib/fleet/types';
@@ -48,6 +49,9 @@ const KINDS: ComplianceKind[] = [
   'induction',
   'other',
 ];
+
+const VEHICLE_EXPECTED: ComplianceKind[] = ['licence_disc', 'roadworthy', 'operator_card', 'insurance', 'cross_border_permit', 'abnormal_permit', 'other_permit'];
+const DRIVER_EXPECTED: ComplianceKind[] = ['driver_licence', 'prdp', 'medical', 'induction', 'other'];
 
 const READY: FleetReadiness = {
   compliance_b: { ready: true },
@@ -287,7 +291,7 @@ export function ComplianceView(props: FleetDeskProps) {
       ) : (
         <FleetTable
           testId="fleet-compliance-table"
-          columns={['Subject', 'Kind', 'Reference', 'Expires', 'Status']}
+          columns={['Subject', 'Kind', 'Reference', 'Expires', 'Status', 'Next reminder']}
           rows={rows.map((row) => ({
             id: row.id,
             cells: [
@@ -300,6 +304,7 @@ export function ComplianceView(props: FleetDeskProps) {
               <FleetStatusPill key="s" tone={row.status === 'valid' ? 'ok' : row.status === 'expired' ? 'bad' : 'warn'}>
                 {row.statusLabel}
               </FleetStatusPill>,
+              nextReminder(props.book, row.subjectId, props.today),
             ],
             card: (
               <button type="button" className="min-h-11 w-full text-left" data-testid={`fleet-card-${row.id}`} onClick={() => setOpen(row)}>
@@ -307,6 +312,7 @@ export function ComplianceView(props: FleetDeskProps) {
                 <p className="text-sm text-slate-600">
                   {row.kindLabel} · {row.expiresOn ? formatSastDate(row.expiresOn) : 'Not recorded'} · {row.statusLabel}
                 </p>
+                <p className="text-sm text-slate-600">{nextReminder(props.book, row.subjectId, props.today)}</p>
               </button>
             ),
           }))}
@@ -575,31 +581,23 @@ export function ImportView(props: FleetDeskProps) {
 
   function runDry() {
     if (ship) {
-      const sampleVehicle = mapShipVehicle(
-        { id: 'ship-9', plate_number: 'SAMPLE 99', make_model: 'Sample Rigid', vehicle_type: 'truck', capacity_kg: 8000, status: 'available' },
-        props.book.workspace.company_id,
-        props.today,
-        2
-      );
-      const sampleDriver = mapShipDriver(
-        { id: 'ship-d', full_name: 'Sample Driver C', phone: '', email: 'sample.driver.c@example.com', license_class: 'EC', status: 'available' },
-        props.book.workspace.company_id,
-        props.today,
-        2
-      );
-      const plans = mode === 'ship_vehicles' && sampleVehicle.vehicle ? [{ action: 'create' as const, fill: [], vehicle: { ...sampleVehicle.vehicle, id: 'ship-vehicle' } }] : [];
-      const driverPlans = mode === 'ship_drivers' && sampleDriver.driver ? [{ action: 'create' as const, fill: [], driver: { ...sampleDriver.driver, id: 'ship-driver' } }] : [];
-      const summary = { create: plans.length + driverPlans.length, link: 0, fill: 0, errors: 0 };
-      const shown = demo && mode === 'ship_drivers' ? { ...summary, create: summary.create } : summary;
+      const vehicleRow = { id: 'ship-9', plate_number: 'SAMPLE 99', make_model: 'Sample Rigid', vehicle_type: 'truck', capacity_kg: 8000, status: 'available' };
+      const driverRow = { id: 'ship-d', full_name: 'Sample Driver C', phone: '', email: 'sample.driver.c@example.com', license_class: 'EC', status: 'available' };
+      const planned =
+        mode === 'ship_vehicles'
+          ? planShipVehicles([vehicleRow], props.book, props.today, () => PREVIEW_SHIP_VEHICLE_ID)
+          : planShipDrivers([driverRow], props.book, props.today, () => PREVIEW_SHIP_DRIVER_ID);
+      const hash = shipSourceHash(mode === 'ship_drivers' ? 'ship_drivers' : 'ship_vehicles', mode === 'ship_drivers' ? [driverRow] : [vehicleRow]);
+      const shown = planned.summary;
       setResult({
-        rows: demo && mode === 'ship_drivers' ? [] : [...plans, ...driverPlans],
+        rows: demo && mode === 'ship_drivers' ? [] : planned.rows,
         errors: [],
-        warnings: [],
+        warnings: planned.warnings,
         summary: shown,
-        source_hash: `ship-${mode}`,
+        source_hash: hash,
       });
       setFresh(true);
-      props.onOp?.({ op: 'import.dry_run', payload: { kind: mode, source_hash: `ship-${mode}`, source_label: 'Ship', summary: shown } });
+      props.onOp?.({ op: 'import.dry_run', payload: { kind: mode, source_hash: hash, source_label: 'Ship', summary: shown } });
       return;
     }
     const parsed =
@@ -621,7 +619,13 @@ export function ImportView(props: FleetDeskProps) {
     if (!result || (!fresh && !already)) return;
     const outcome = props.onOp?.({
       op: 'import.commit',
-      payload: { kind: mode, source_hash: result.source_hash, source_label: mode.startsWith('ship') ? 'Ship' : 'Pasted CSV', plans: result.rows },
+      payload: {
+        kind: mode,
+        source_hash: result.source_hash,
+        source_label: mode.startsWith('ship') ? 'Ship' : 'Pasted CSV',
+        plans: result.rows,
+        ...(ship ? {} : { csv: text }),
+      },
     });
     if (outcome === false) return;
     setFresh(false);
@@ -645,7 +649,8 @@ export function ImportView(props: FleetDeskProps) {
           if (id === 'vehicles_csv' || id === 'drivers_csv' || id === 'compliance_csv') setText(templateCsv(id));
         }}
         options={[
-          { id: 'ship_vehicles', label: 'Ship' },
+          { id: 'ship_vehicles', label: 'Ship vehicles' },
+          { id: 'ship_drivers', label: 'Ship drivers' },
           { id: 'vehicles_csv', label: 'Vehicles CSV' },
           { id: 'drivers_csv', label: 'Drivers CSV' },
           { id: 'compliance_csv', label: 'Compliance CSV' },
@@ -685,13 +690,35 @@ export function ImportView(props: FleetDeskProps) {
           <p className="text-sm font-bold">
             Create {result.summary.create} · Link {result.summary.link} · Fill {result.summary.fill} · Errors {result.summary.errors}
           </p>
-          <ul className="mt-2 space-y-1 text-sm">
-            {result.errors.map((error) => (
-              <li key={`${error.row}-${error.field}`}>
-                Row {error.row} · {error.field} · {error.code}
-              </li>
-            ))}
-          </ul>
+          <div className="mt-3 overflow-x-auto rounded-3xl border border-slate-200">
+            <table className="w-full min-w-[32rem] border-collapse text-left text-sm" data-testid="fleet-import-table">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">Row</th>
+                  <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">Result</th>
+                  <th className="px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">Detail</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.rows.map((row, index) => (
+                  <tr key={`plan-${index}`} className="border-t border-slate-100">
+                    <td className="px-3 py-2 tabular-nums">{index + 2}</td>
+                    <td className="px-3 py-2">{row.action === 'create' ? 'Create' : 'Link'}</td>
+                    <td className="px-3 py-2">{planLabel(row)}</td>
+                  </tr>
+                ))}
+                {result.errors.map((error) => (
+                  <tr key={`${error.row}-${error.field}`} className="border-t border-slate-100">
+                    <td className="px-3 py-2 tabular-nums">{error.row}</td>
+                    <td className="px-3 py-2">Error</td>
+                    <td className="px-3 py-2">
+                      {error.field} · {error.code}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : null}
       <FleetSection title="Run history">
@@ -754,9 +781,10 @@ export function VehicleDetailView(props: FleetDeskProps) {
         ))}
       </ul>
       <FleetSection title="Compliance timeline">
-        <ul data-testid="fleet-timeline" className="space-y-2">
+        <ul data-testid="fleet-timeline" className="relative space-y-3 border-l-2 border-[#00b4d8] pl-4">
           {chain.map(({ item, current }) => (
-            <li key={item.id} className="rounded-2xl border border-slate-200 p-3 text-sm">
+            <li key={item.id} className="relative rounded-2xl border border-slate-200 p-3 text-sm">
+              <span className="absolute -left-[1.4rem] top-4 h-3 w-3 rounded-full border-2 border-white bg-[#00b4d8]" />
               {complianceKindLabel(item.kind)} · {item.expires_on ? formatSastDate(item.expires_on) : 'Not recorded'}
               {current ? ' · current' : ' · earlier'}
               {Array.isArray(item.detail.countries) ? ` · ${(item.detail.countries as string[]).join(', ')}` : ''}
@@ -844,9 +872,10 @@ export function DriverDetailView(props: FleetDeskProps) {
         ))}
       </ul>
       <FleetSection title="Compliance timeline">
-        <ul data-testid="fleet-timeline">
+        <ul data-testid="fleet-timeline" className="relative space-y-3 border-l-2 border-[#00b4d8] pl-4">
           {chain.map(({ item, current }) => (
-            <li key={item.id}>
+            <li key={item.id} className="relative text-sm">
+              <span className="absolute -left-[1.4rem] top-1 h-3 w-3 rounded-full border-2 border-white bg-[#00b4d8]" />
               {complianceKindLabel(item.kind)} · {item.expires_on ? formatSastDate(item.expires_on) : 'Not recorded'}
               {current ? ' · current' : ' · earlier'}
             </li>
@@ -859,9 +888,12 @@ export function DriverDetailView(props: FleetDeskProps) {
 }
 
 export function RemindersPanel(props: FleetDeskProps) {
-  const [thresholds, setThresholds] = useState('30, 14, 7, 0');
-  const [enabled, setEnabled] = useState(true);
-  const rule = props.book.reminders.find((row) => !row.archived_at);
+  const rules = props.book.reminders.filter((row) => !row.archived_at);
+  const [pick, setPick] = useState(rules[0]?.id || '');
+  const selected = rules.find((row) => row.id === pick) || null;
+  const [form, setForm] = useState<ReminderDraft>(() => reminderDraft(rules[0] || null));
+  const [thresholds, setThresholds] = useState(() => (rules[0]?.thresholds_days || [30, 14, 7, 0]).join(', '));
+  const [logPage, setLogPage] = useState(1);
   if (!props.caps.canManageReminders) {
     return <p className="text-sm text-slate-600">Reminder settings are for an owner or manager.</p>;
   }
@@ -875,6 +907,34 @@ export function RemindersPanel(props: FleetDeskProps) {
     now: `${props.today}T12:00:00.000Z`,
     workspace: props.book.workspace,
   });
+  const log = visibleReminderLog(props.book.reminder_log);
+  const shownLog = log.slice(0, logPage * 50);
+  function choose(ruleId: string) {
+    const rule = rules.find((row) => row.id === ruleId) || null;
+    const draft = reminderDraft(rule);
+    setPick(rule?.id || '');
+    setForm(draft);
+    setThresholds(draft.thresholds_days.join(', '));
+  }
+  function toggleChannel(channel: 'email' | 'push') {
+    setForm((current) => ({
+      ...current,
+      channels: current.channels.includes(channel) ? current.channels.filter((item) => item !== channel) : [...current.channels, channel],
+    }));
+  }
+  function toggleRecipient(id: string) {
+    setForm((current) => ({
+      ...current,
+      recipient_member_ids: current.recipient_member_ids.includes(id)
+        ? current.recipient_member_ids.filter((item) => item !== id)
+        : [...current.recipient_member_ids, id],
+    }));
+  }
+  function toggleExpected(key: 'expected_vehicle_kinds' | 'expected_driver_kinds', kind: ComplianceKind) {
+    const current = props.book.workspace[key];
+    const next = current.includes(kind) ? current.filter((item) => item !== kind) : [...current, kind];
+    props.onOp?.({ op: 'settings.update', payload: { [key]: next } }, props.book.workspace.updated_at);
+  }
   return (
     <FleetSection title="Reminders">
       <FeatureBanner show={pending(props, 'reminders')} />
@@ -882,14 +942,146 @@ export function RemindersPanel(props: FleetDeskProps) {
         Reminders send nothing while demo-data mode is on. Thresholds are a starting point you can edit, from 0 to 365. Check the PrDP figure with your licensing authority.
       </p>
       <p className="mt-2 text-sm">Email is {props.book.workspace.comms_flags.email ? 'on' : 'off'}. A rule cannot send email while the flag is off.</p>
-      <p className="text-sm">Web push: not configured on this desk until the company turns it on.</p>
+      <p className="text-sm" data-testid="fleet-web-push">
+        {props.webPush === 'ready' ? 'Web push is ready on this desk.' : 'Web push is not configured on this desk.'}
+      </p>
       <p className="text-sm" data-testid="fleet-would-send">
         What would be sent on {formatSastDate(props.today)}: {preview.due.length} reminder{preview.due.length === 1 ? '' : 's'}. Nothing is sent from this screen.
       </p>
+      {preview.due.length === 0 ? (
+        <p className="text-sm" data-testid="fleet-reminder-zero">
+          No reminder matches this date. Adjust the thresholds, the scope, or the dates on the register.
+        </p>
+      ) : null}
+      <div className="mt-3 flex flex-wrap gap-2" data-testid="fleet-reminder-rules">
+        {rules.map((rule) => (
+          <button key={rule.id} type="button" className={`${pick === rule.id ? fleetBtn : fleetGhost} ${fleetFocus}`} data-testid={`fleet-rule-${rule.id}`} onClick={() => choose(rule.id)}>
+            {rule.scope_kind} · {rule.kind ? complianceKindLabel(rule.kind) : 'Any date'} · {rule.enabled ? 'On' : 'Off'}
+          </button>
+        ))}
+        <button type="button" className={`${fleetGhost} ${fleetFocus}`} data-testid="fleet-reminder-new" onClick={() => choose('')}>
+          New rule
+        </button>
+      </div>
+      <p className="mt-2 text-sm text-slate-600">A new rule stays off, with no recipients, until you turn it on and choose who should receive it.</p>
+      <label className={fleetLabel}>
+        Scope
+        <select
+          className={`${fleetField} ${fleetFocus}`}
+          data-testid="fleet-reminder-scope"
+          value={form.scope_kind}
+          onChange={(event) => setForm((current) => ({ ...current, scope_kind: event.target.value as ReminderDraft['scope_kind'] }))}
+        >
+          <option value="all">All dates</option>
+          <option value="vehicle">Vehicles</option>
+          <option value="driver">Drivers</option>
+        </select>
+      </label>
+      <label className={fleetLabel}>
+        Date kind
+        <select
+          className={`${fleetField} ${fleetFocus}`}
+          data-testid="fleet-reminder-kind"
+          value={form.kind || ''}
+          onChange={(event) => setForm((current) => ({ ...current, kind: event.target.value || null }))}
+        >
+          <option value="">Any date</option>
+          {KINDS.map((kind) => (
+            <option key={kind} value={kind}>
+              {complianceKindLabel(kind)}
+            </option>
+          ))}
+        </select>
+      </label>
       <label className={fleetLabel}>
         Thresholds
         <input className={`${fleetField} ${fleetFocus}`} value={thresholds} onChange={(event) => setThresholds(event.target.value)} data-testid="fleet-thresholds" />
       </label>
+      <fieldset className="space-y-2" data-testid="fleet-reminder-channels">
+        <legend className="text-sm font-bold">Channels</legend>
+        <label className="flex min-h-11 items-center gap-2 text-sm font-bold">
+          <input type="checkbox" checked={form.channels.includes('email')} disabled={!props.book.workspace.comms_flags.email} onChange={() => toggleChannel('email')} />
+          Email
+        </label>
+        <label className="flex min-h-11 items-center gap-2 text-sm font-bold">
+          <input type="checkbox" checked={form.channels.includes('push')} onChange={() => toggleChannel('push')} />
+          Web push
+        </label>
+      </fieldset>
+      <fieldset className="space-y-2" data-testid="fleet-reminder-recipients">
+        <legend className="text-sm font-bold">Recipients</legend>
+        {props.book.members.length === 0 ? <p className="text-sm text-slate-600">No team members are on this desk yet.</p> : null}
+        {props.book.members.map((member) => (
+          <label key={member.id} className="flex min-h-11 items-center gap-2 text-sm font-bold">
+            <input
+              type="checkbox"
+              data-testid={`fleet-recipient-${member.id}`}
+              checked={form.recipient_member_ids.includes(member.id)}
+              onChange={() => toggleRecipient(member.id)}
+            />
+            {member.label}
+          </label>
+        ))}
+      </fieldset>
+      <label className="flex min-h-11 items-center gap-2 text-sm font-bold">
+        <input type="checkbox" checked={form.enabled} data-testid="fleet-reminder-enabled" onChange={(event) => setForm((current) => ({ ...current, enabled: event.target.checked }))} />
+        Enabled
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          className={`${fleetBtn} ${fleetFocus}`}
+          data-testid="fleet-save-reminder"
+          onClick={() => {
+            const days = parseThresholds(thresholds);
+            props.onOp?.(
+              {
+                op: 'reminder.upsert',
+                payload: {
+                  ...(form.id ? { id: form.id } : {}),
+                  scope_kind: form.scope_kind,
+                  kind: form.kind,
+                  thresholds_days: days,
+                  channels: form.channels,
+                  recipient_member_ids: form.recipient_member_ids,
+                  enabled: form.enabled,
+                },
+              },
+              form.id ? selected?.updated_at : undefined
+            );
+          }}
+        >
+          Save reminder
+        </button>
+        {form.id ? (
+          <button
+            type="button"
+            className={`${fleetGhost} ${fleetFocus}`}
+            data-testid="fleet-archive-reminder"
+            onClick={() => props.onOp?.({ op: 'reminder.archive', payload: { id: form.id } }, selected?.updated_at)}
+          >
+            Archive rule
+          </button>
+        ) : null}
+      </div>
+      <fieldset className="mt-4 space-y-2" data-testid="fleet-expected-vehicle">
+        <legend className="text-sm font-bold">Expected vehicle dates</legend>
+        {VEHICLE_EXPECTED.map((kind) => (
+          <label key={kind} className="flex min-h-11 items-center gap-2 text-sm">
+            <input type="checkbox" checked={props.book.workspace.expected_vehicle_kinds.includes(kind)} onChange={() => toggleExpected('expected_vehicle_kinds', kind)} />
+            {complianceKindLabel(kind)}
+          </label>
+        ))}
+      </fieldset>
+      <fieldset className="space-y-2" data-testid="fleet-expected-driver">
+        <legend className="text-sm font-bold">Expected driver dates</legend>
+        {DRIVER_EXPECTED.map((kind) => (
+          <label key={kind} className="flex min-h-11 items-center gap-2 text-sm">
+            <input type="checkbox" checked={props.book.workspace.expected_driver_kinds.includes(kind)} onChange={() => toggleExpected('expected_driver_kinds', kind)} />
+            {complianceKindLabel(kind)}
+          </label>
+        ))}
+      </fieldset>
       <label className={fleetLabel}>
         Your threshold, check with your licensing authority (kg)
         <input
@@ -897,57 +1089,32 @@ export function RemindersPanel(props: FleetDeskProps) {
           inputMode="numeric"
           defaultValue={props.book.workspace.prdp_gvm_threshold_kg ?? ''}
           data-testid="fleet-prdp-threshold"
-          onBlur={(event) =>
+          onBlur={(event) => {
+            if (prdpUnchanged(props.book.workspace.prdp_gvm_threshold_kg, event.target.value)) return;
             props.onOp?.(
               {
                 op: 'settings.update',
-                payload: { prdp_gvm_threshold_kg: event.target.value === '' ? null : Number(event.target.value) },
+                payload: { prdp_gvm_threshold_kg: event.target.value.trim() === '' ? null : Number(event.target.value) },
               },
               props.book.workspace.updated_at
-            )
-          }
+            );
+          }}
         />
       </label>
-      <label className="flex min-h-11 items-center gap-2 text-sm font-bold">
-        <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
-        Enabled
-      </label>
-      <button
-        type="button"
-        className={`${fleetBtn} ${fleetFocus}`}
-        data-testid="fleet-save-reminder"
-        onClick={() => {
-          const days = thresholds
-            .split(/[,\s]+/)
-            .map((item) => Number(item))
-            .filter((item) => Number.isFinite(item));
-          props.onOp?.(
-            {
-              op: 'reminder.upsert',
-              payload: {
-                id: rule?.id,
-                scope_kind: 'all',
-                kind: null,
-                thresholds_days: days,
-                channels: props.book.workspace.comms_flags.email ? ['email'] : [],
-                recipient_member_ids: props.book.members.map((member) => member.id),
-                enabled,
-              },
-            },
-            rule?.updated_at
-          );
-        }}
-      >
-        Save reminder
-      </button>
       <h3 className="mt-4 text-sm font-black">Reminder log</h3>
       <ul data-testid="fleet-reminder-log" className="space-y-1 text-sm">
-        {props.book.reminder_log.slice(0, 50).map((row) => (
+        {shownLog.length === 0 ? <li>No reminder log rows yet.</li> : null}
+        {shownLog.map((row) => (
           <li key={row.id}>
             {formatSastDate(row.at)} · {row.threshold_days} days · {row.channel} · {row.status}
           </li>
         ))}
       </ul>
+      {shownLog.length < log.length ? (
+        <button type="button" className={`${fleetGhost} ${fleetFocus} mt-2`} data-testid="fleet-reminder-more" onClick={() => setLogPage((page) => page + 1)}>
+          Show more
+        </button>
+      ) : null}
     </FleetSection>
   );
 }
@@ -976,6 +1143,12 @@ function HitchForm({ props, truckId, trailers }: { props: FleetDeskProps; truckI
       </button>
     </div>
   );
+}
+
+function planLabel(row: CsvImportResult['rows'][number]): string {
+  if ('vehicle' in row) return row.vehicle.reg_no;
+  if ('driver' in row) return row.driver.full_name || row.driver.email || 'Driver';
+  return `${row.item.subject_kind} · ${complianceKindLabel(row.item.kind)}`;
 }
 
 function nextReminder(book: FleetBook, subjectId: string, today: string): string {

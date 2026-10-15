@@ -33,13 +33,7 @@ function carriesPersonal(op: FleetOp): boolean {
     const kind = text(payload.kind);
     if (kind === 'drivers_csv' || kind === 'ship_drivers') return true;
     const plans = Array.isArray(payload.plans) ? payload.plans : Array.isArray(payload.rows) ? payload.rows : [];
-    if (kind === 'compliance_csv') {
-      return plans.some((row) => {
-        if (!row || typeof row !== 'object') return false;
-        const item = (row as { item?: { subject_kind?: unknown }; subject_kind?: unknown }).item;
-        return text(item?.subject_kind || (row as { subject_kind?: unknown }).subject_kind) === 'driver';
-      });
-    }
+    return plans.some((row) => planCarriesDriver(row));
   }
   if (op.op === 'job.upsert' && Array.isArray(payload.stops)) {
     return payload.stops.some((stop) => {
@@ -49,6 +43,13 @@ function carriesPersonal(op: FleetOp): boolean {
     });
   }
   return false;
+}
+
+function planCarriesDriver(row: unknown): boolean {
+  if (!row || typeof row !== 'object') return false;
+  const record = row as { driver?: unknown; item?: { subject_kind?: unknown }; subject_kind?: unknown };
+  if (record.driver) return true;
+  return text(record.item?.subject_kind || record.subject_kind) === 'driver';
 }
 
 function text(value: unknown): string {

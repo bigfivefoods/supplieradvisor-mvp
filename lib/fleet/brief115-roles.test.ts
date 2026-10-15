@@ -43,6 +43,22 @@ book.reminders = [
     updated_at: '2026-06-01T00:00:00.000Z',
   },
 ];
+book.members = [{ id: 'sentinel-member', label: 'Sentinel Member' }];
+book.import_runs = [
+  {
+    id: 'run',
+    company_id: 1,
+    kind: 'vehicles_csv',
+    status: 'committed',
+    row_counts: {},
+    source_hash: 'hash',
+    source_label: 'file',
+    created_by: 'sentinel-author',
+    dry_run: false,
+    committed_at: '2026-06-01T00:00:00.000Z',
+    created_at: '2026-06-01T00:00:00.000Z',
+  },
+];
 book.reminder_log = [
   {
     id: 'log',
@@ -66,6 +82,13 @@ for (const role of ['dispatcher', 'office', 'viewer', 'none'] as const) {
   assert.equal(view.includes('sentinel-recipient'), false, role);
   assert.equal(view.includes('sentinel-log'), false, role);
   assert.equal(view.includes('reminder_log'), false, role);
+  assert.equal(view.includes('sentinel-member'), false, role);
+  assert.equal(view.includes('sentinel-author'), false, role);
+}
+for (const role of ['owner', 'manager'] as const) {
+  const view = JSON.stringify(viewForRole(book, role));
+  assert.equal(view.includes('sentinel-member'), true, role);
+  assert.equal(view.includes('sentinel-author'), true, role);
 }
 const ownerView = JSON.stringify(viewForRole(book, 'owner'));
 assert.equal(ownerView.includes('sentinel-recipient'), true);

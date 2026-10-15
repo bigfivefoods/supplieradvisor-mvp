@@ -64,7 +64,7 @@ The extension schema must be `extensions`. If the first query shows a different 
 
 Brief 114's file starts with `CREATE EXTENSION IF NOT EXISTS btree_gist`. Once the extension exists in any schema, that statement is a no-op, so re-running Brief 114 does not put it back in `public`.
 
-The migration creates schema `extensions` if needed, then: absent → create in `extensions`; present in `public` → move; already in `extensions` → do nothing. If the current role does not own the extension, it raises a notice and skips only that step. Any other error aborts the file.
+The migration creates schema `extensions` if needed, then: absent → create in `extensions`; present in `public` → move; already in `extensions` → do nothing. The move is `ALTER EXTENSION btree_gist SET SCHEMA extensions` inside a block that catches `insufficient_privilege`. A non-superuser who owns the extension can still move it. A session that is not allowed to alter the extension, including a Supabase `postgres` role that is not the owner, skips the move with a notice and the rest of the file still runs. Membership of the owner role is not treated as permission to move it. Any other error aborts the file. Move it manually as the owner when the notice appears: `ALTER EXTENSION btree_gist SET SCHEMA extensions;`
 
 `lib/fleet/brief115-db.test.ts` proves the move on Postgres 16: the extension is in `extensions`, no `pg_depend` deptype `e` object remains in `public`, the cost-profile exclusion still rejects an overlap with `23P01` and still accepts an adjacent range, the trailer exclusion does the same, the file applies twice, A→B→A→B stays in `extensions`, and a database that created the extension in `extensions` first is a no-op.
 
@@ -76,7 +76,7 @@ Only the nearest threshold that has already been reached is sent. Higher thresho
 
 Threshold `0` fires on the expiry day and after it, once. A renewal changes `expires_on`, which changes the key, so the next cycle can send again.
 
-While demo-data mode is on, the cron writes one skip audit and sends nothing. It writes no per-item log row. Email is also skipped while the workspace email flag is off. Web push is skipped while it is not configured.
+The cron pages through every workspace, 100 at a time. While demo-data mode is on, it writes one skip audit only when a rule would have sent a reminder (`plan.due` is not empty). A workspace with nothing due writes no audit row. It writes no per-item log row in demo mode. Email is also skipped while the workspace email flag is off. Web push is skipped while it is not configured. Superseded rows are recorded from the reminder log itself, paged up to 5,000 keys, so a capped desk view cannot cause the same skip to be inserted again the next day.
 
 A failed send is not retried for that same threshold. The failure is visible in the reminder log. The next threshold can still fire.
 
@@ -101,7 +101,7 @@ Expected date kinds and the PrDP GVM figure are company settings. The PrDP field
 | sales, viewer | viewer | no | no | no | no | no |
 | other | none | no | no | no | no | no |
 
-Roles without reminder access do not receive recipient ids or the reminder log.
+Roles without reminder access do not receive the member list, the import author, recipient ids, or the reminder log. Owner and manager do.
 
 ## Labels and ⚖ VERIFY
 

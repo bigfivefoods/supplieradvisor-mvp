@@ -190,6 +190,31 @@ const dangerous = isAssignable(
 assert.ok(dangerous.reasons.some((reason) => reason.code === 'prdp_d' && reason.severity === 'block'));
 assert.equal(dangerous.assignable, false);
 
+const vehicleDangerous = isAssignable(
+  { kind: 'vehicle', row: vehicle() },
+  planned,
+  ctx([item({ id: 'disc-dg', expires_on: '2027-01-01' })], {
+    needs: { dangerousGoods: true },
+    workspace: { expiring_window_days: 30, prdp_gvm_threshold_kg: null, expected_vehicle_kinds: [] },
+  })
+);
+assert.equal(vehicleDangerous.reasons.some((reason) => reason.code === 'prdp_d'), false);
+assert.equal(vehicleDangerous.assignable, true);
+
+const driverCovered = isAssignable(
+  { kind: 'driver', row: driver() },
+  planned,
+  ctx(
+    [...driverItems, item({ id: 'prd', subject_kind: 'driver', subject_id: 'd1', kind: 'prdp', detail: { category: 'D' }, expires_on: '2027-01-01' })],
+    {
+      needs: { dangerousGoods: true },
+      workspace: { expiring_window_days: 30, prdp_gvm_threshold_kg: null, expected_driver_kinds: [] },
+    }
+  )
+);
+assert.equal(driverCovered.reasons.some((reason) => reason.code === 'prdp_d'), false);
+assert.equal(driverCovered.assignable, true);
+
 const notRecorded = isAssignable(
   { kind: 'vehicle', row: vehicle() },
   planned,
@@ -198,7 +223,7 @@ const notRecorded = isAssignable(
 assert.ok(notRecorded.reasons.some((reason) => reason.code === 'not_recorded' && reason.message.includes('Not recorded')));
 assert.equal(notRecorded.assignable, true);
 
-for (const result of [clear, early, card, medical, gvm, dangerous, notRecorded]) {
+for (const result of [clear, early, card, medical, gvm, dangerous, vehicleDangerous, driverCovered, notRecorded]) {
   for (const reason of result.reasons) assert.equal(banned.test(reason.message), false, reason.message);
 }
 

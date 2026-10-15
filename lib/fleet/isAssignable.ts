@@ -120,7 +120,7 @@ export function isAssignable(subject: AssignSubject, date: string, ctx: AssignCo
   if (needs.abnormal && !permitItems.some((item) => item.kind === 'abnormal_permit' && covers(item, planned))) {
     reasons.push({ code: 'abnormal', severity: 'block', kind: 'abnormal_permit', message: 'No abnormal permit covers this date.' });
   }
-  if (needs.dangerousGoods && !hasCategory(own, 'D', planned)) {
+  if (subject.kind === 'driver' && needs.dangerousGoods && !hasCategory(own, 'D', planned)) {
     reasons.push({ code: 'prdp_d', severity: 'block', kind: 'prdp', message: 'No PrDP category D covers this date.' });
   }
 
@@ -134,10 +134,6 @@ export function isAssignable(subject: AssignSubject, date: string, ctx: AssignCo
       message: 'PrDP is not recorded for a vehicle above your threshold. Check with your licensing authority.',
     });
   }
-  if (subject.kind === 'driver' && needs.dangerousGoods && !hasCategory(own, 'D', planned)) {
-    /* block already recorded */
-  }
-
   return { assignable: reasons.every((reason) => reason.severity !== 'block'), reasons };
 }
 

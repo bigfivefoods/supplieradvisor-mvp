@@ -4,6 +4,7 @@
  */
 import { getSupabaseAdmin } from '../supabase/admin';
 import { emptyFleetBook } from './empty-book';
+import { logKey } from './reminders';
 import { applyFleetOp, type OpContext, type OpOutcome } from './ops';
 import type {
   FleetBook,
@@ -177,7 +178,7 @@ async function loadBriefB(
     trailers: { ready: true },
   };
   const reminders = await admin.from('fg_reminders').select('*').eq('company_id', companyId).order('id').limit(200);
-  const reminderLog = await admin.from('fg_reminder_log').select('*').eq('company_id', companyId).order('at', { ascending: false }).limit(50);
+  const reminderLog = await admin.from('fg_reminder_log').select('*').eq('company_id', companyId).order('at', { ascending: false }).limit(400);
   const links = await admin.from('fg_trailer_links').select('*').eq('company_id', companyId).order('from_on').limit(500);
   const imports = await admin.from('fg_import_runs').select('id, company_id, kind, status, row_counts, source_hash, source_label, created_by, dry_run, committed_at, created_at').eq('company_id', companyId).order('created_at', { ascending: false }).limit(50);
   const renewed = await admin.from('fg_compliance_items').select('renewed_from_id').eq('company_id', companyId).limit(1);
@@ -192,6 +193,34 @@ async function loadBriefB(
     importRuns: imports.error ? [] : ((imports.data || []) as Record<string, unknown>[]).map(mapImportRun),
     readiness,
   };
+}
+
+export async function loadReminderKeys(companyId: number): Promise<{ ok: true; keys: string[] } | { ok: false; missing: boolean }> {
+  const admin = getSupabaseAdmin();
+  const keys: string[] = [];
+  for (let from = 0; from < 5000; from += 1000) {
+    const page = await admin
+      .from('fg_reminder_log')
+      .select('item_id, expires_on, threshold_days, channel, recipient_key')
+      .eq('company_id', companyId)
+      .order('at', { ascending: false })
+      .range(from, from + 999);
+    if (page.error) return { ok: false, missing: isFleetSchemaMissing(page.error) };
+    for (const row of page.data || []) {
+      const record = row as { item_id?: unknown; expires_on?: unknown; threshold_days?: unknown; channel?: unknown; recipient_key?: unknown };
+      keys.push(
+        logKey(
+          String(record.item_id || ''),
+          record.expires_on == null ? '' : String(record.expires_on).slice(0, 10),
+          Number(record.threshold_days),
+          String(record.channel || ''),
+          String(record.recipient_key || '')
+        )
+      );
+    }
+    if ((page.data || []).length < 1000) break;
+  }
+  return { ok: true, keys };
 }
 
 async function loadCustomers(

@@ -121,6 +121,22 @@ export function logKey(itemId: string, expiresOn: string, threshold: number, cha
   return `${itemId}|${expiresOn}|${threshold}|${channel}|${recipient}`;
 }
 
+export function visibleReminderLog<T extends { status: string; item_id: string; expires_on: string; threshold_days: number; channel: string; recipient_key: string }>(
+  rows: T[]
+): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const row of rows) {
+    if (row.status === 'skipped_superseded') {
+      const key = logKey(row.item_id, row.expires_on, row.threshold_days, row.channel, row.recipient_key);
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+    out.push(row);
+  }
+  return out;
+}
+
 function ruleMatches(rule: FleetReminder, item: FleetCompliance): boolean {
   if (rule.scope_kind === 'vehicle' && item.subject_kind !== 'vehicle') return false;
   if (rule.scope_kind === 'driver' && item.subject_kind !== 'driver') return false;

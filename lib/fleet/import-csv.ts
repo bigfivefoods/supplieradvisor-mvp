@@ -11,6 +11,33 @@ const VEHICLE_HEADERS = ['reg_no', 'kind', 'ownership', 'make', 'model', 'year',
 const DRIVER_HEADERS = ['full_name', 'phone', 'email', 'employment', 'licence_code'];
 const COMPLIANCE_HEADERS = ['subject_kind', 'subject_ref', 'kind', 'expires_on', 'issued_on', 'reference', 'category', 'countries', 'notes'];
 
+const VEHICLE_ALIASES: Record<string, string> = {
+  registration: 'reg_no',
+  reg: 'reg_no',
+  plate: 'reg_no',
+  plate_number: 'reg_no',
+  vehicle_type: 'kind',
+  type: 'kind',
+  gvm: 'gvm_kg',
+};
+const DRIVER_ALIASES: Record<string, string> = {
+  name: 'full_name',
+  license_class: 'licence_code',
+  licence_class: 'licence_code',
+};
+const COMPLIANCE_ALIASES: Record<string, string> = {
+  subject: 'subject_kind',
+  subject_type: 'subject_kind',
+  registration: 'subject_ref',
+  reg_no: 'subject_ref',
+  plate: 'subject_ref',
+  expiry: 'expires_on',
+  expiry_date: 'expires_on',
+  expires: 'expires_on',
+  date_kind: 'kind',
+  compliance_kind: 'kind',
+};
+
 const KINDS = new Set(['rigid', 'tractor', 'trailer', 'tipper', 'van', 'other']);
 const OWNERSHIP = new Set(['owned', 'leased', 'subcontractor']);
 const EMPLOYMENT = new Set(['employee', 'contractor', 'owner_operator']);
@@ -42,18 +69,24 @@ export function templateCsv(kind: 'vehicles_csv' | 'drivers_csv' | 'compliance_c
 
 export function validateVehicleCsv(text: string, book: FleetBook, now: string): CsvImportResult {
   return finish(text, 'vehicles_csv', (table) => {
-    const index = headerIndex(table.headers);
+    const index = aliasedIndex(table.headers, VEHICLE_ALIASES);
     const missing = VEHICLE_HEADERS.filter((name) => name === 'reg_no' && !index.has(name));
     if (missing.length) return { plans: [], errors: [{ row: 1, code: 'missing_header', field: 'reg_no' }], warnings: [] };
     const plans: VehiclePlan[] = [];
     const errors: ImportIssue[] = [];
     const warnings: ImportIssue[] = [];
+    const seen = new Set<string>();
     table.records.forEach((record) => {
       const reg = cell(record, index.get('reg_no')).toUpperCase();
       if (!reg) {
         errors.push({ row: record.row, code: 'missing', field: 'reg_no' });
         return;
       }
+      if (seen.has(reg.toLowerCase())) {
+        errors.push({ row: record.row, code: 'duplicate', field: 'reg_no' });
+        return;
+      }
+      seen.add(reg.toLowerCase());
       const kind = cell(record, index.get('kind')).toLowerCase() || 'rigid';
       const ownership = cell(record, index.get('ownership')).toLowerCase() || 'owned';
       if (!KINDS.has(kind) || !OWNERSHIP.has(ownership)) {
@@ -111,17 +144,26 @@ export function validateVehicleCsv(text: string, book: FleetBook, now: string): 
 
 export function validateDriverCsv(text: string, book: FleetBook, now: string): CsvImportResult {
   return finish(text, 'drivers_csv', (table) => {
-    const index = headerIndex(table.headers);
+    const index = aliasedIndex(table.headers, DRIVER_ALIASES);
     if (!index.has('full_name')) return { plans: [], errors: [{ row: 1, code: 'missing_header', field: 'full_name' }], warnings: [] };
     const plans: DriverPlan[] = [];
     const errors: ImportIssue[] = [];
     const warnings: ImportIssue[] = [];
+    const seen = new Set<string>();
     table.records.forEach((record) => {
       const name = cell(record, index.get('full_name'));
       if (!name) {
         errors.push({ row: record.row, code: 'missing', field: 'full_name' });
         return;
       }
+      const email = cell(record, index.get('email')).toLowerCase();
+      const phone = cell(record, index.get('phone'));
+      const duplicateKey = email || phone || name.toLowerCase();
+      if (seen.has(duplicateKey)) {
+        errors.push({ row: record.row, code: 'duplicate', field: email ? 'email' : phone ? 'phone' : 'full_name' });
+        return;
+      }
+      seen.add(duplicateKey);
       const employment = cell(record, index.get('employment')).toLowerCase() || 'employee';
       if (!EMPLOYMENT.has(employment)) {
         errors.push({ row: record.row, code: 'enum', field: 'employment' });
@@ -136,7 +178,7 @@ export function validateDriverCsv(text: string, book: FleetBook, now: string): C
         company_id: book.workspace.company_id,
         full_name: name,
         phone: cell(record, index.get('phone')),
-        email: cell(record, index.get('email')).toLowerCase(),
+        email,
         employment: employment as FleetDriver['employment'],
         licence_code: (LICENCE_CODES as readonly string[]).includes(licence) ? licence : '',
         status: 'active',
@@ -163,14 +205,21 @@ export function validateDriverCsv(text: string, book: FleetBook, now: string): C
 
 export function validateComplianceCsv(text: string, book: FleetBook, now: string): CsvImportResult {
   return finish(text, 'compliance_csv', (table) => {
-    const index = headerIndex(table.headers);
+    const index = aliasedIndex(table.headers, COMPLIANCE_ALIASES);
     const plans: CompliancePlan[] = [];
     const errors: ImportIssue[] = [];
     const warnings: ImportIssue[] = [];
+    const seen = new Set<string>();
     table.records.forEach((record) => {
       const subjectKind = cell(record, index.get('subject_kind')).toLowerCase();
       const subjectRef = cell(record, index.get('subject_ref'));
       const kind = cell(record, index.get('kind')).toLowerCase();
+      const duplicateKey = `${subjectKind}|${subjectRef.toLowerCase()}|${kind}`;
+      if (subjectKind && subjectRef && kind && seen.has(duplicateKey)) {
+        errors.push({ row: record.row, code: 'duplicate', field: 'kind' });
+        return;
+      }
+      if (subjectKind && subjectRef && kind) seen.add(duplicateKey);
       if (subjectKind !== 'vehicle' && subjectKind !== 'driver') {
         errors.push({ row: record.row, code: 'enum', field: 'subject_kind' });
         return;
@@ -246,6 +295,14 @@ export function redactDryRun(result: CsvImportResult, demoDrivers: boolean): Csv
       return { ...row, driver: { ...row.driver, full_name: '', phone: '', email: '' } };
     }),
   };
+}
+
+function aliasedIndex(headers: string[], aliases: Record<string, string>): Map<string, number> {
+  const index = headerIndex(headers);
+  for (const [alias, canonical] of Object.entries(aliases)) {
+    if (!index.has(canonical) && index.has(alias)) index.set(canonical, index.get(alias)!);
+  }
+  return index;
 }
 
 function finish(

@@ -14,6 +14,11 @@ assert.match(postBody.slice(0, 280), /const gate = assertCronSecret\(request\);/
 assert.ok(route.indexOf('fg_claim_reminder') < route.indexOf('emails.send'));
 assert.ok(route.includes('real_data_enabled'));
 assert.ok(route.includes('reminders.skipped_demo'));
+assert.match(route, /\.range\(from, from \+ 99\)/);
+assert.match(route, /plan\.due\.length === 0/);
+assert.ok(route.indexOf('plan.due.length === 0') < route.indexOf('reminders.skipped_demo'));
+assert.equal(route.includes('.limit(100)'), false);
+assert.ok(route.includes('loadReminderKeys'));
 assert.match(route, /try \{[\s\S]*catch/);
 assert.match(route, /Cache-Control': 'no-store'/);
 assert.equal(route.includes('company_id:'), true);

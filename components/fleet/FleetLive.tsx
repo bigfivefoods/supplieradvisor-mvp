@@ -17,6 +17,7 @@ type Payload = {
   book?: FleetBook & { cpk?: unknown };
   readiness?: FleetReadiness;
   error?: string;
+  web_push?: 'ready' | 'not_configured';
 };
 
 export function FleetLive({ screen, subjectId }: { screen: FleetScreen; subjectId?: string }) {
@@ -26,6 +27,7 @@ export function FleetLive({ screen, subjectId }: { screen: FleetScreen; subjectI
   const [pending, setPending] = useState(false);
   const [readiness, setReadiness] = useState<FleetReadiness | undefined>(undefined);
   const [notice, setNotice] = useState<string | null>(null);
+  const [webPush, setWebPush] = useState<'ready' | 'not_configured'>('not_configured');
   const [periodId, setPeriodId] = useState<PeriodId>('last');
   const today = sastDate(new Date()) || '2024-07-02';
 
@@ -53,6 +55,7 @@ export function FleetLive({ screen, subjectId }: { screen: FleetScreen; subjectI
       setBook(next);
       setRole(body.role || 'viewer');
       setReadiness(body.readiness);
+      setWebPush(body.web_push === 'ready' ? 'ready' : 'not_configured');
       setPending(false);
       setPhase('ready');
     }
@@ -84,6 +87,7 @@ export function FleetLive({ screen, subjectId }: { screen: FleetScreen; subjectI
       delete (next as FleetBook & { cpk?: unknown }).cpk;
       setBook(next);
       setRole(body.role || role);
+      if (body.web_push) setWebPush(body.web_push === 'ready' ? 'ready' : 'not_configured');
       if (body.readiness) setReadiness(body.readiness);
       setNotice(null);
     }
@@ -114,6 +118,7 @@ export function FleetLive({ screen, subjectId }: { screen: FleetScreen; subjectI
         migrationPending={pending}
         subjectId={subjectId}
         readiness={readiness}
+        webPush={webPush}
         onPeriod={setPeriodId}
         onRetry={() => {
           setNotice(null);

@@ -3,6 +3,8 @@ import { requireCompanyPermission } from '@/lib/auth/api-auth';
 import { cpkForBook } from '@/lib/fleet/book-cpk';
 import { applyFleetOp } from '@/lib/fleet/ops';
 import { commitFleetOp, customerBelongsToCompany, foreignStops, insertCustomer, loadFleetBook, nextJobNumber } from '@/lib/fleet/fleetgraph-db';
+import { materialiseImport } from '@/lib/fleet/import-materialise';
+import { isWebPushConfigured } from '@/lib/push/web-push';
 import { sastDate } from '@/lib/fleet/format';
 import { periodFor } from '@/lib/fleet/periods';
 import { allowedOpsForRole, capabilitiesFor, resolveFleetRole, viewForRole } from '@/lib/fleet/roles';
@@ -46,7 +48,7 @@ function present(book: FleetBook, companyRole: string, readiness?: FleetReadines
   const view = viewForRole({ ...book, ...(cpk ? { cpk } : {}) }, role, {
     dispatcherSeesRates: book.workspace.dispatcher_sees_rates,
   });
-  return { ready: true, role, caps, period, book: view, readiness };
+  return { ready: true, role, caps, period, book: view, readiness, web_push: isWebPushConfigured() ? 'ready' : 'not_configured' };
 }
 
 function pendingOrFailure(reason: 'migration_pending' | 'error') {
@@ -102,7 +104,7 @@ export async function POST(request: NextRequest) {
     }
     if (!same) return json(400, { error: 'Choose a customer from this company.' });
   }
-  const op = { op: opName as FleetOpName, payload } satisfies FleetOp;
+  let op = { op: opName as FleetOpName, payload } satisfies FleetOp;
   const ctx = {
     role: fleetRole,
     actorId: gated.userId,
@@ -153,6 +155,12 @@ export async function POST(request: NextRequest) {
       const prefix = loaded.book.workspace.waybill_prefix || 'JOB';
       payload.reference = `${prefix}-${number.value}`;
     }
+  }
+  if (op.op === 'import.dry_run' || op.op === 'import.commit') {
+    const materialised = await materialiseImport(loaded.book, op, ctx.now);
+    if (!materialised.ok && materialised.pending) return json(200, { ready: false, reason: 'migration_pending' });
+    if (!materialised.ok) return json(materialised.status, { error: materialised.error });
+    op = materialised.op;
   }
   try {
     const outcome = await commitFleetOp(loaded.book, op, ctx, expected);

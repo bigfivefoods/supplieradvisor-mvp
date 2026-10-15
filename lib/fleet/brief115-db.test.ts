@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import { execFile, execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { SHIP_DRIVER_COLUMNS, SHIP_VEHICLE_COLUMNS } from './import-ship';
 
 const url = process.env.FLEET_DATABASE_URL;
 if (!url) throw new Error('FLEET_DATABASE_URL is required');
@@ -551,6 +552,132 @@ async function main() {
     const message = error instanceof Error ? error.message : String(error);
     assert.match(message, /23P01|exclusion|conflicting/i);
   }
+
+  const vehicleColumns = SHIP_VEHICLE_COLUMNS.join(', ');
+  const driverColumns = SHIP_DRIVER_COLUMNS.join(', ');
+  assert.equal(vehicleColumns.includes('license_number'), false);
+  assert.equal(driverColumns.includes('license_number'), false);
+  psql(`
+    DROP TABLE IF EXISTS public.distribution_drivers;
+    DROP TABLE IF EXISTS public.distribution_vehicles;
+    CREATE TABLE public.distribution_vehicles (
+      id text PRIMARY KEY,
+      profile_id bigint,
+      code text,
+      plate_number text,
+      make_model text,
+      vehicle_type text,
+      capacity_kg integer,
+      status text,
+      license_number text
+    );
+    CREATE TABLE public.distribution_drivers (
+      id text PRIMARY KEY,
+      profile_id bigint,
+      code text,
+      full_name text,
+      phone text,
+      email text,
+      license_class text,
+      status text,
+      license_number text
+    );
+    INSERT INTO public.distribution_vehicles (id, profile_id, code, plate_number, make_model, vehicle_type, capacity_kg, status, license_number)
+    VALUES ('ship-1', 1, 'S1', 'CA 100', 'Sample Rigid', 'truck', 8000, 'available', 'SECRET-SHOULD-NOT-READ');
+    INSERT INTO public.distribution_drivers (id, profile_id, code, full_name, phone, email, license_class, status, license_number)
+    VALUES ('ship-d', 1, 'D1', 'Sample Driver', '010', 'sample.driver@example.com', 'EC', 'available', 'SECRET-SHOULD-NOT-READ');
+  `);
+  const vehicleRead = psql(`SELECT ${vehicleColumns} FROM public.distribution_vehicles WHERE profile_id = 1;`);
+  const driverRead = psql(`SELECT ${driverColumns} FROM public.distribution_drivers WHERE profile_id = 1;`);
+  assert.match(vehicleRead, /CA 100/);
+  assert.match(driverRead, /sample.driver@example.com/);
+  assert.equal(vehicleRead.includes('SECRET'), false);
+  assert.equal(driverRead.includes('SECRET'), false);
+  const shipVehicleId = '6f1e2d3c-4b5a-4690-8a7b-6c5d4e3f2a10';
+  const shipHash = 'brief115-ship-hash';
+  const firstCommit = psql(`
+    SELECT public.fg_import_commit(
+      1,
+      jsonb_build_object('kind', 'ship_vehicles', 'source_hash', '${shipHash}', 'source_label', 'Ship', 'created_by', 'owner', 'row_counts', jsonb_build_object('create', 1)),
+      jsonb_build_object(
+        'company_id', 1,
+        'upserts', jsonb_build_object(
+          'fg_vehicles', jsonb_build_array(jsonb_build_object(
+            'id', '${shipVehicleId}',
+            'company_id', 1,
+            'reg_no', 'SHIP CA 100',
+            'kind', 'rigid',
+            'source_system', 'ship',
+            'source_id', 'ship-1'
+          ))
+        )
+      )
+    )::text;
+  `);
+  assert.match(firstCommit, /"ok": true/);
+  assert.equal(psql(`SELECT count(*) FROM public.fg_vehicles WHERE id = '${shipVehicleId}';`), '1');
+  const secondCommit = psql(`
+    SELECT public.fg_import_commit(
+      1,
+      jsonb_build_object('kind', 'ship_vehicles', 'source_hash', '${shipHash}', 'source_label', 'Ship', 'created_by', 'owner'),
+      jsonb_build_object('company_id', 1, 'upserts', jsonb_build_object('fg_vehicles', '[]'::jsonb))
+    )->>'already_imported';
+  `);
+  assert.equal(secondCommit, 'true');
+  assert.equal(psql(`SELECT count(*) FROM public.fg_vehicles WHERE id = '${shipVehicleId}';`), '1');
+  fails(
+    `
+    SELECT public.fg_import_commit(
+      1,
+      jsonb_build_object('kind', 'ship_vehicles', 'source_hash', 'brief115-bad-id', 'source_label', 'Ship'),
+      jsonb_build_object(
+        'company_id', 1,
+        'upserts', jsonb_build_object(
+          'fg_vehicles', jsonb_build_array(jsonb_build_object(
+            'id', 'ship-vehicle',
+            'company_id', 1,
+            'reg_no', 'SHIP BAD',
+            'kind', 'rigid'
+          ))
+        )
+      )
+    );
+    `,
+    /22P02|invalid input syntax for type uuid/i
+  );
+
+  const plainName = 'fleetgraph_btree_plain';
+  const plainUrl = dbUrl(plainName);
+  psql(`SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${plainName}' AND pid <> pg_backend_pid();`, dbUrl('postgres'));
+  psql(`DROP DATABASE IF EXISTS ${plainName};`, dbUrl('postgres'));
+  psql(`CREATE DATABASE ${plainName};`, dbUrl('postgres'));
+  psql(`CREATE EXTENSION btree_gist; CREATE SCHEMA IF NOT EXISTS extensions;`, plainUrl);
+  assert.equal(extensionSchema(plainUrl), 'public');
+  psql(`
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fleet_ext_plain') THEN
+        CREATE ROLE fleet_ext_plain NOSUPERUSER NOINHERIT;
+      END IF;
+    END $$;
+  `);
+  const migrationText = readFileSync(migrationB, 'utf8');
+  const blockStart = migrationText.indexOf('DO $btree$');
+  const blockEnd = migrationText.indexOf('$btree$;', blockStart);
+  const block = migrationText.slice(blockStart, blockEnd + '$btree$;'.length);
+  const stayed = psql(
+    `
+    SET ROLE fleet_ext_plain;
+    ${block}
+    RESET ROLE;
+    SELECT n.nspname FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace WHERE e.extname = 'btree_gist';
+    `,
+    plainUrl
+  );
+  assert.equal(stayed, 'public');
+  psql(`ALTER EXTENSION btree_gist SET SCHEMA extensions;`, plainUrl);
+  assert.equal(extensionSchema(plainUrl), 'extensions');
+  psql(`SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${plainName}' AND pid <> pg_backend_pid();`, dbUrl('postgres'));
+  psql(`DROP DATABASE IF EXISTS ${plainName};`, dbUrl('postgres'));
 
   console.log('brief115-db.test.ts ok');
 }

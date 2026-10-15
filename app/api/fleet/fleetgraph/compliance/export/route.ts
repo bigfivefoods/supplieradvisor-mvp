@@ -42,7 +42,6 @@ export async function GET(request: NextRequest) {
   const includeDrivers = loaded.book.workspace.real_data_enabled;
   const table = exportRows(rows, includeDrivers);
   const body = writeCsv(table.headers, table.rows);
-  const note = includeDrivers ? '' : 'Note: driver rows stay off while demo-data mode is on.\r\n';
   const admin = getSupabaseAdmin();
   await admin.rpc('fg_commit_b', {
     p_company_id: companyId,
@@ -64,7 +63,7 @@ export async function GET(request: NextRequest) {
       },
     },
   });
-  return new NextResponse(note + body, {
+  return new NextResponse(body, {
     status: 200,
     headers: {
       ...PRIVATE,

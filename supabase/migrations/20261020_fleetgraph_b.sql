@@ -12,8 +12,10 @@
 -- a later EXCLUDE USING gist still resolves. CREATE EXTENSION IF NOT EXISTS
 -- in the Brief 114 file is a no-op once the extension exists in any schema,
 -- so re-running that file does not put btree_gist back into public.
--- If the executing role does not own the extension, this file raises a notice
--- and skips only the move. Every other failure aborts the migration.
+-- If this session cannot move the extension (a non-superuser who is not the
+-- owner, including some Supabase postgres roles that are members of the owner
+-- but cannot ALTER EXTENSION), the move is skipped with a notice and the rest
+-- of the file still runs. Every other failure aborts the migration.
 -- Do not change grants on the extensions schema. Do not create other objects there.
 --
 -- ROLLBACK (manual, after review): move the extension back only if a review
@@ -43,11 +45,12 @@ BEGIN
     NULL;
   ELSIF ext_schema = 'public' THEN
     SELECT r.rolname INTO owner_name FROM pg_catalog.pg_roles r WHERE r.oid = ext_owner;
-    IF owner_name IS NULL OR NOT pg_catalog.pg_has_role(CURRENT_USER, owner_name, 'USAGE') THEN
-      RAISE NOTICE 'btree_gist is owned by %. Move it manually: ALTER EXTENSION btree_gist SET SCHEMA extensions;', COALESCE(owner_name, 'unknown');
-    ELSE
+    BEGIN
       ALTER EXTENSION btree_gist SET SCHEMA extensions;
-    END IF;
+    EXCEPTION
+      WHEN insufficient_privilege THEN
+        RAISE NOTICE 'btree_gist is owned by % and this session cannot move it. Move it manually: ALTER EXTENSION btree_gist SET SCHEMA extensions;', COALESCE(owner_name, 'unknown');
+    END;
   ELSE
     RAISE EXCEPTION 'btree_gist is in unexpected schema %', ext_schema;
   END IF;

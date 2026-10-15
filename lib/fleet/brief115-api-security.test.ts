@@ -28,6 +28,8 @@ const exportRoute = readFileSync('app/api/fleet/fleetgraph/compliance/export/rou
 assert.ok(exportRoute.indexOf('requireCompanyPermission') < exportRoute.indexOf('loadFleetBook'));
 assert.match(exportRoute, /text\/csv/);
 assert.match(exportRoute, /attachment/);
+assert.equal(exportRoute.includes('Note:'), false);
+assert.ok(staff.includes('materialiseImport'));
 
 assert.equal(existsSync('app/api/public/fleetgraph'), false);
 
