@@ -6,6 +6,7 @@
 import { sha256Hex } from './sha256';
 import {
   appendConstructionAudit,
+  applyPaymentAction,
   constructionBookHasRows,
   emptyConstructiongraphStore,
   keepConstructionExtras,
@@ -19,6 +20,8 @@ import {
   writeConstructiongraphToMetadata,
   type ConstructiongraphStore,
 } from './constructiongraph';
+import { applyConstructionAction } from './actions';
+import { sastToday } from './format';
 import {
   issueConstructionPortal,
   reissueConstructionPortal,
@@ -26,6 +29,7 @@ import {
   seedConstructionBook,
   type IssuedPortal,
 } from './portal-issue';
+import { guardRoleMerge, type ConstructionRole } from './roles';
 
 export const REPLACE_CONFIRM = 'REPLACE ALL DATA';
 
@@ -115,7 +119,9 @@ export function applyStaffConstructionAction(opts: {
   confirm?: string;
   actorId: string;
   now?: string;
-}): { metadata: Record<string, unknown>; value: StaffBookValue } | { error: string; status: number } {
+  moduleRole?: ConstructionRole;
+  extra?: Record<string, unknown>;
+}): { metadata: Record<string, unknown>; value: StaffBookValue } | { error: string; status: number; needsConfirm?: boolean } {
   const now = opts.now || new Date().toISOString();
   const current = readConstructiongraphFromMetadata(opts.meta);
   const action = String(opts.action || 'merge');
@@ -238,6 +244,69 @@ export function applyStaffConstructionAction(opts: {
       action: 'portal_reissued',
       target: reissued.issued.id,
     }, reissued.issued);
+  }
+
+  const role = opts.moduleRole || 'owner';
+  if (action === 'set_workers_money') {
+    const settings = {
+      ...(current.settings || {}),
+      workers_see_money: Boolean(opts.extra?.workersSeeMoney),
+    };
+    const next = keepConstructionExtras({ ...current, settings }, current);
+    return audit(opts.meta, next, {
+      at: now,
+      actorId: opts.actorId,
+      action: 'workers_money',
+      target: settings.workers_see_money ? 'on' : 'off',
+    });
+  }
+
+  if (action === 'payment') {
+    if (role !== 'owner' && role !== 'office') {
+      return { error: 'Not available for your role', status: 403 };
+    }
+    const verb = opts.extra?.verb === 'pay' || opts.extra?.verb === 'claim' ? opts.extra.verb : 'certify';
+    const paid = applyPaymentAction(current, {
+      paymentId: String(opts.extra?.paymentId || ''),
+      action: verb,
+      actor: 'staff',
+      date: sastToday(),
+    });
+    if (!paid.ok) return { error: paid.error, status: 400 };
+    return audit(opts.meta, paid.store, {
+      at: now,
+      actorId: opts.actorId,
+      action: `payment_${verb}`,
+      target: String(opts.extra?.paymentId || ''),
+    });
+  }
+
+  if (
+    action === 'remove_sample' ||
+    action === 'delete_row' ||
+    action === 'decide_variation' ||
+    action === 'baseline_programme'
+  ) {
+    const result = applyConstructionAction(current, { action, ...(opts.extra || {}) }, role);
+    if (!result.ok) {
+      return {
+        error: result.error,
+        status: result.status,
+        ...(result.needsConfirm ? { needsConfirm: true } : {}),
+      };
+    }
+    const event = result.events[0];
+    return audit(opts.meta, result.store, {
+      at: now,
+      actorId: opts.actorId,
+      action: event?.action || action,
+      target: event?.target || action,
+    });
+  }
+
+  if (action === 'merge' && opts.moduleRole) {
+    const guarded = guardRoleMerge(opts.moduleRole, opts.patch || {});
+    if (!guarded.ok) return { error: guarded.error, status: guarded.status };
   }
 
   const next = mergeConstructiongraphStore(

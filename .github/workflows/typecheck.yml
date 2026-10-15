@@ -46,6 +46,27 @@ jobs:
           do
             npx --yes tsx "$file"
           done
+      - name: ConstructionAdvisor tests
+        run: |
+          set -euo pipefail
+          for file in \
+            lib/construction/constructiongraph.test.ts \
+            lib/construction/constructiongraph-authz.test.ts \
+            lib/construction/constructiongraph-naming.test.ts \
+            lib/construction/brief113-backward.test.ts \
+            lib/construction/brief113-roles.test.ts \
+            lib/construction/brief113-programme.test.ts \
+            lib/construction/brief113-variations.test.ts \
+            lib/construction/brief113-diary.test.ts \
+            lib/construction/brief113-safety.test.ts \
+            lib/construction/brief113-portal.test.ts \
+            lib/construction/brief113-brand.test.ts \
+            lib/construction/brief113-ui-parity.test.ts \
+            lib/construction/brief113-preview.test.ts \
+            lib/chrome/construction-sidebar.test.ts
+          do
+            npx --yes tsx "$file"
+          done
       - name: Security string-scan smoke tests
         run: |
           set -euo pipefail

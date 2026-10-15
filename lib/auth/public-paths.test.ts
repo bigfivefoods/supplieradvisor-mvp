@@ -5,7 +5,12 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { isPublicApiPath, isRecoverPortalPath, PUBLIC_API_PREFIXES } from './public-paths';
+import {
+  isPublicApiPath,
+  isPublicPagePath,
+  isRecoverPortalPath,
+  PUBLIC_API_PREFIXES,
+} from './public-paths';
 
 assert.equal(isPublicApiPath('/api/health'), true);
 assert.equal(isPublicApiPath('/api/health/agency'), false);
@@ -45,6 +50,16 @@ assert.doesNotMatch(paths, /@privy-io/);
 assert.doesNotMatch(paths, /from 'viem'/);
 assert.doesNotMatch(paths, /undici/);
 assert.doesNotMatch(paths, /getSupabaseServer/);
+
+assert.equal(isPublicPagePath('/preview/constructiongraph'), true);
+assert.equal(isPublicPagePath('/preview/constructiongraph/diary'), true);
+assert.equal(isPublicPagePath('/api/public/constructiongraph'), false);
+assert.equal(isPublicPagePath('/api/preview/constructiongraph'), false);
+assert.equal(isPublicApiPath('/preview/constructiongraph'), false);
+assert.equal(isPublicPagePath('/preview/recovergraph'), true);
+assert.equal(isPublicPagePath('/preview/recovergraph/queue'), true);
+assert.equal(isPublicPagePath('/api/preview/recovergraph'), false);
+assert.equal(isPublicApiPath('/preview/recovergraph'), false);
 
 const agency = src('app/api/health/agency/route.ts');
 assert.match(agency, /requireCompanyAccess/);

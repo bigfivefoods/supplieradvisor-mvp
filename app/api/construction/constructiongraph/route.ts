@@ -14,7 +14,9 @@ import {
   summariseConstructiongraph,
   type ConstructiongraphStore,
 } from '@/lib/construction/constructiongraph';
+import { getCompanyMembership } from '@/lib/business/access';
 import { commitProfileMetadata } from '@/lib/construction/metadata-commit';
+import { redactRolePayload, resolveConstructionRole, storeForRole } from '@/lib/construction/roles';
 import { applyStaffConstructionAction } from '@/lib/construction/staff-book';
 
 export const runtime = 'nodejs';
@@ -30,7 +32,29 @@ type Payload = {
   siteId?: string;
   portalId?: string;
   confirm?: string;
+  id?: string;
+  workersSeeMoney?: boolean;
 };
+
+function presentForRole(
+  value: Record<string, unknown>,
+  role: ReturnType<typeof resolveConstructionRole>,
+  full: ConstructiongraphStore
+) {
+  const redacted = redactRolePayload(value, role) as Record<string, unknown>;
+  const book = redacted.store;
+  if (
+    role === 'site_manager' &&
+    full.settings?.workers_see_money &&
+    book &&
+    typeof book === 'object'
+  ) {
+    const next = book as ConstructiongraphStore;
+    next.payments = full.payments;
+    next.certificates = full.certificates;
+  }
+  return redacted;
+}
 
 function asObject(value: unknown): Record<string, unknown> {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -130,14 +154,26 @@ export async function GET(request: NextRequest) {
 
     // View-only roles may GET. Legacy upgrade is a write, so it stays on the
     // public read and on staff writes, not on this GET.
+    const membership = await getCompanyMembership(gate.userId, companyId);
+    if (!membership.ok) return json({ error: membership.error }, membership.status);
+    const moduleRole = resolveConstructionRole(membership.role);
+    if (moduleRole === 'none') return json({ error: 'Not available for your role' }, 403);
+
     const metadata = row.metadata;
     const store = readConstructiongraphFromMetadata(metadata);
-    return json({
-      success: true,
-      store: sanitiseConstructiongraphStore(store),
-      summary: summariseConstructiongraph(store),
-      programme: programmeReport(store),
-    });
+    const safe = sanitiseConstructiongraphStore(store);
+    const body = presentForRole(
+      {
+        success: true,
+        role: moduleRole,
+        store: storeForRole(safe, moduleRole),
+        summary: summariseConstructiongraph(store),
+        programme: programmeReport(store),
+      },
+      moduleRole,
+      safe
+    );
+    return json(body);
   } catch {
     console.error('cg_staff_read_failed');
     return json({ error: GENERIC }, 500);
@@ -164,7 +200,7 @@ export async function POST(request: NextRequest) {
 
     const action = String(body.action || 'merge');
     const legacy = { legacyPrivyUserId: legacyPrivyFrom(request) };
-    if (action === 'replace') {
+    if (action === 'replace' || action === 'set_workers_money') {
       const role = await requireCompanyRoles(request, companyId, ['owner', 'admin'], legacy);
       if (!role.ok) return role.response;
     } else if (
@@ -188,6 +224,11 @@ export async function POST(request: NextRequest) {
       if (!perm.ok) return perm.response;
     }
 
+    const membership = await getCompanyMembership(gate.userId, companyId);
+    if (!membership.ok) return json({ error: membership.error }, membership.status);
+    const moduleRole = resolveConstructionRole(membership.role);
+    if (moduleRole === 'none') return json({ error: 'Not available for your role' }, 403);
+
     const supabase = getSupabaseServer();
     const io = companyIo(supabase as unknown as LooseDb, companyId);
     const saved = await commitProfileMetadata({
@@ -200,16 +241,29 @@ export async function POST(request: NextRequest) {
           patch: body.store,
           clientId: body.clientId,
           siteId: body.siteId,
-          portalId: body.portalId,
+          portalId: body.portalId || body.id,
           confirm: body.confirm,
           actorId: gate.userId,
+          moduleRole,
+          extra: body as unknown as Record<string, unknown>,
         });
         if ('error' in applied) return applied;
-        return { metadata: applied.metadata, value: applied.value };
+        return { metadata: applied.metadata, value: { ...applied.value, role: moduleRole } };
       },
     });
-    if (!saved.ok) return json({ error: saved.error }, saved.status);
-    return json({ success: true, ...saved.value });
+    if (!saved.ok) {
+      return json(
+        { error: saved.error, ...(saved.needsConfirm ? { needsConfirm: true } : {}) },
+        saved.status
+      );
+    }
+    const savedStore = (saved.value as { store?: ConstructiongraphStore }).store;
+    const visible = presentForRole(
+      saved.value as Record<string, unknown>,
+      moduleRole,
+      savedStore || ({ settings: {} } as ConstructiongraphStore)
+    );
+    return json({ success: true, ...visible });
   } catch {
     console.error('cg_staff_write_failed');
     return json({ error: GENERIC }, 500);

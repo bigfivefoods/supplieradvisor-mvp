@@ -38,6 +38,8 @@ export function MemberAdvisorShell<T extends string = string>({
   appHref = '/me',
   presence = true,
   solidBrand = false,
+  navTestId,
+  stackHeader = false,
 }: {
   color: string;
   header: ReactNode;
@@ -58,6 +60,10 @@ export function MemberAdvisorShell<T extends string = string>({
    * TradeAdvisor® uses this so cyan stays #00b4d8. Other Advisors leave it off.
    */
   solidBrand?: boolean;
+  /** Optional hook for the mobile bottom bar. */
+  navTestId?: string;
+  /** Put the title on its own row on a phone so a long name is not clipped. */
+  stackHeader?: boolean;
 }) {
   const ink = solidBrand ? '#0f172a' : advisorBrandInk(color);
   const phoneTabs = mobileTabs || tabs;
@@ -180,8 +186,8 @@ export function MemberAdvisorShell<T extends string = string>({
         }}
       >
         <div className="mx-auto max-w-6xl px-4 py-3 md:px-8 md:py-3.5">
-          <div className="flex items-stretch justify-between gap-3">
-            <div className="min-w-0 flex-1">{header}</div>
+          <div className={stackHeader ? 'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between' : 'flex items-stretch justify-between gap-3'}>
+            <div className={stackHeader ? 'w-full sm:min-w-0 sm:flex-1' : 'min-w-0 flex-1'}>{header}</div>
             <PortalHeaderTools appHref={appHref} spread onLightBrand={solidBrand} />
           </div>
         </div>
@@ -210,6 +216,7 @@ export function MemberAdvisorShell<T extends string = string>({
 
       {bottom ? (
         <nav
+          data-testid={navTestId}
           className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/80 bg-white/95 px-2 pt-1 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur-md dark:border-white/10 dark:bg-neutral-950/95 md:hidden"
           style={{ paddingBottom: 'max(0.4rem, env(safe-area-inset-bottom))' }}
         >

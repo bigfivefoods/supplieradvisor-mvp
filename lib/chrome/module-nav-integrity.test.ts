@@ -43,11 +43,11 @@ assert.ok(
 
 const construction = MODULE_NAV.find((m) => m.id === 'constructiongraph');
 assert.ok(construction, 'MODULE_NAV should register constructiongraph');
-assert.equal(construction!.name, 'ConstructionAdvisor');
+assert.equal(construction!.name, 'ConstructionAdvisor®');
 assert.equal(
   construction!.steps.length,
-  17,
-  'constructiongraph should expose 17 nav steps'
+  18,
+  'constructiongraph should expose 18 nav steps'
 );
 assert.deepEqual(
   construction!.steps.map((s) => s.name),
@@ -56,19 +56,20 @@ assert.deepEqual(
     'Clients',
     'Quotes',
     'Projects',
-    'Drawings',
+    'Programme',
+    'Diary',
     'Subcontractors',
     'Materials',
-    'Programme',
+    'Messages',
     'Payments',
-    'Costs',
-    'Safety',
     'Variations',
     'Certificates',
+    'Costs',
+    'Safety',
+    'Documents',
     'Handover',
     'Reports',
     'Portal',
-    'Messages',
   ]
 );
 assert.ok(
@@ -77,8 +78,8 @@ assert.ok(
 );
 assert.equal(
   FUNCTIONAL_DISPLAY_NAME.constructiongraph,
-  'ConstructionAdvisor',
-  'sidenav label is ConstructionAdvisor only'
+  'ConstructionAdvisor®',
+  'sidenav label is ConstructionAdvisor®'
 );
 const constructionSidebar = functionalSidebarModules({
   isModuleEnabled: () => true,
@@ -86,11 +87,11 @@ const constructionSidebar = functionalSidebarModules({
   simplifiedSchool: false,
 }).find((m) => m.id === 'constructiongraph');
 assert.ok(constructionSidebar, 'sidenav includes ConstructionAdvisor');
-assert.equal(constructionSidebar!.name, 'ConstructionAdvisor');
+assert.equal(constructionSidebar!.name, 'ConstructionAdvisor®');
 assert.equal(
   constructionSidebar!.sub.length,
-  17,
-  'sidenav ConstructionAdvisor is expandable with the full desk tree'
+  18,
+  'sidenav ConstructionAdvisor® is expandable with the full desk tree'
 );
 assert.deepEqual(
   constructionSidebar!.sub.map((s) => s.name),

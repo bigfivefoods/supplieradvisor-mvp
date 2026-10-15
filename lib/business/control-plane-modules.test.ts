@@ -190,7 +190,7 @@ assert.equal(
 );
 assert.equal(
   MODULE_NAV.find((m) => m.id === 'constructiongraph')?.name,
-  'ConstructionAdvisor'
+  'ConstructionAdvisor®'
 );
 
 const pack = getIndustryPack('apparel');
