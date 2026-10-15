@@ -29,9 +29,8 @@ type DbError = { code?: string; message?: string } | null;
 export function isFleetSchemaMissing(error: DbError): boolean {
   if (!error) return false;
   const code = error.code || '';
-  if (code === '42P01' || code === '42883' || code === 'PGRST205' || code === 'PGRST202') return true;
-  const text = `${code} ${error.message || ''}`;
-  return /does not exist|schema cache|could not find the (table|function)|undefined function/i.test(text);
+  if (code !== '42P01' && code !== '42883') return false;
+  return /fg_/i.test(error.message || '');
 }
 
 export async function collectPages<T>(
@@ -81,9 +80,11 @@ export async function loadFleetBook(companyId: number): Promise<FleetLoad> {
   ] as const;
   const rows: Record<string, unknown[]> = {};
   for (const table of tables) {
-    const loaded = await collectPages((from, to) =>
-      admin.from(table).select('*').eq('company_id', companyId).order('id', { ascending: true }).range(from, to)
-    );
+    const loaded = await collectPages((from, to) => {
+      const query = admin.from(table).select('*').eq('company_id', companyId);
+      const ordered = table === 'fg_job_stops' ? query.order('seq', { ascending: true }).order('id', { ascending: true }) : query.order('id', { ascending: true });
+      return ordered.range(from, to);
+    });
     if (isFleetSchemaMissing(loaded.error)) return { ready: false, reason: 'migration_pending' };
     if (loaded.error) return { ready: false, reason: 'error' };
     rows[table] = loaded.rows;
@@ -103,6 +104,13 @@ export async function loadFleetBook(companyId: number): Promise<FleetLoad> {
   book.overhead_pools = (rows.fg_overhead_pools as Record<string, unknown>[]).map(mapPool);
   book.cpk_targets = (rows.fg_cpk_targets as Record<string, unknown>[]).map(mapTarget);
   book.audit = [];
+  const customers = await admin.from('customers').select('id, trading_name').eq('profile_id', companyId).limit(500);
+  book.customers = customers.error
+    ? []
+    : ((customers.data || []) as Record<string, unknown>[]).map((row) => ({
+        id: Number(row.id),
+        trading_name: text(row.trading_name),
+      }));
   return { ready: true, book };
 }
 
@@ -137,13 +145,9 @@ export async function commitFleetOp(
   return outcome;
 }
 
-async function persistDiff(
-  before: FleetBook,
-  after: FleetBook
-): Promise<{ ok: true } | { ok: false; status: 409 | 400 | 500; error: string; pending?: boolean }> {
-  const admin = getSupabaseAdmin();
+export function fleetDiff(before: FleetBook, after: FleetBook) {
   const companyId = after.workspace.company_id;
-  const diff = {
+  return {
     company_id: companyId,
     upserts: {
       fg_workspaces: workspaceChanged(before, after) ? [{ ...workspaceRow(after.workspace), previous_updated_at: before.workspace.id ? before.workspace.updated_at : null }] : [],
@@ -164,15 +168,40 @@ async function persistDiff(
     },
     delete_stop_ids: before.stops.filter((stop) => !after.stops.some((row) => row.id === stop.id)).map((stop) => stop.id),
   };
-  const { error } = await admin.rpc('fg_commit_diff', { p_company_id: companyId, p_diff: diff });
+}
+
+export function fleetPersistStatus(error: DbError): { ok: true } | { ok: false; status: 409 | 500; error: string; pending?: boolean } {
   if (!error) return { ok: true };
   if (isFleetSchemaMissing(error)) return { ok: false, status: 500, error: 'The desk could not save that.', pending: true };
   const text = `${error.code || ''} ${error.message || ''}`;
   if (error.code === '40001' || /fg_conflict/i.test(text)) {
     return { ok: false, status: 409, error: 'This record changed. Reload and try again.' };
   }
-  console.error('fleetgraph save failed');
+  if (error.code === '23505' || error.code === '23P01' || /fg_reverse_closed|duplicate key|exclusion|overlaps/i.test(text)) {
+    return { ok: false, status: 409, error: 'That record already exists. Reload and try again.' };
+  }
   return { ok: false, status: 500, error: 'The desk could not save that.' };
+}
+
+async function persistDiff(
+  before: FleetBook,
+  after: FleetBook
+): Promise<{ ok: true } | { ok: false; status: 409 | 400 | 500; error: string; pending?: boolean }> {
+  const admin = getSupabaseAdmin();
+  const diff = fleetDiff(before, after);
+  const { error } = await admin.rpc('fg_commit_diff', { p_company_id: diff.company_id, p_diff: diff });
+  const status = fleetPersistStatus(error);
+  if (!status.ok && status.status === 500 && !status.pending) console.error('fleetgraph save failed');
+  return status;
+}
+
+export async function insertCustomer(companyId: number, tradingName: string): Promise<{ ok: true; id: number } | { ok: false }> {
+  const admin = getSupabaseAdmin();
+  const { data, error } = await admin.from('customers').insert({ profile_id: companyId, trading_name: tradingName, status: 'active' }).select('id').single();
+  if (error || !data) return { ok: false };
+  const id = Number((data as { id?: unknown }).id);
+  if (!Number.isFinite(id) || id <= 0) return { ok: false };
+  return { ok: true, id };
 }
 
 function workspaceChanged(before: FleetBook, after: FleetBook): boolean {
@@ -187,7 +216,7 @@ function changedRows<T extends { id: string; updated_at?: string }>(
 ): Record<string, unknown>[] {
   return after.flatMap((row) => {
     const prior = before.find((item) => item.id === row.id);
-    if (prior && prior.updated_at === row.updated_at) return [];
+    if (prior && JSON.stringify(toRow(prior)) === JSON.stringify(toRow(row))) return [];
     return [{ ...toRow(row), previous_updated_at: prior?.updated_at || null }];
   });
 }
@@ -221,6 +250,7 @@ function mapWorkspace(row: Record<string, unknown>): FleetWorkspace {
     fines_in_cpk: bool(row.fines_in_cpk),
     tyre_mode_default: text(row.tyre_mode_default, 'accrual') as FleetWorkspace['tyre_mode_default'],
     overhead_include_subcontractors: bool(row.overhead_include_subcontractors),
+    required_margin_bps: Number(row.required_margin_bps ?? 1000),
     updated_at: text(row.updated_at),
   };
 }

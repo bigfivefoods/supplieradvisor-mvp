@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCompanyPermission } from '@/lib/auth/api-auth';
 import { cpkForBook } from '@/lib/fleet/book-cpk';
-import { commitFleetOp, customerBelongsToCompany, loadFleetBook, nextJobNumber } from '@/lib/fleet/fleetgraph-db';
+import { applyFleetOp } from '@/lib/fleet/ops';
+import { commitFleetOp, customerBelongsToCompany, insertCustomer, loadFleetBook, nextJobNumber } from '@/lib/fleet/fleetgraph-db';
 import { sastDate } from '@/lib/fleet/format';
 import { periodFor } from '@/lib/fleet/periods';
 import { capabilitiesFor, resolveFleetRole, viewForRole } from '@/lib/fleet/roles';
@@ -100,30 +101,47 @@ export async function POST(request: NextRequest) {
     }
     if (!same) return json(400, { error: 'Choose a customer from this company.' });
   }
-  if (opName === 'job.upsert' && !payload.reference && !payload.id) {
-    const number = await nextJobNumber(gated.companyId);
-    if (!number.ok && number.missing) return json(200, { ready: false, reason: 'migration_pending' });
-    if (!number.ok) {
-      console.error('fleetgraph number failed');
-      return json(500, { error: 'The desk could not save that.' });
-    }
-    const prefix = loaded.book.workspace.waybill_prefix || 'JOB';
-    payload.reference = `${prefix}-${number.value}`;
-  }
   const op = { op: opName as FleetOpName, payload } satisfies FleetOp;
+  const ctx = {
+    role: fleetRole,
+    actorId: gated.userId,
+    now: new Date().toISOString(),
+    companyId: gated.companyId,
+    enforceRealData: true,
+  };
+  const expected = typeof body.expected_updated_at === 'string' ? body.expected_updated_at : null;
+  if (opName === 'job.upsert') {
+    const needsNumber = !payload.reference && !payload.id;
+    const customerName = typeof payload.new_customer_name === 'string' ? payload.new_customer_name.trim() : '';
+    const needsCustomer = !payload.customer_id && customerName.length > 0;
+    if (needsNumber || needsCustomer) {
+      const preview = applyFleetOp(loaded.book, op, ctx, expected);
+      if (!preview.ok) return json(preview.status, { error: preview.error });
+    }
+    if (needsCustomer) {
+      let created: { ok: true; id: number } | { ok: false };
+      try {
+        created = await insertCustomer(gated.companyId, customerName.slice(0, 160));
+      } catch {
+        return json(400, { error: 'Choose a customer from this company.' });
+      }
+      if (!created.ok) return json(400, { error: 'Choose a customer from this company.' });
+      payload.customer_id = created.id;
+      payload.customer_name = customerName.slice(0, 160);
+    }
+    if (needsNumber) {
+      const number = await nextJobNumber(gated.companyId);
+      if (!number.ok && number.missing) return json(200, { ready: false, reason: 'migration_pending' });
+      if (!number.ok) {
+        console.error('fleetgraph number failed');
+        return json(500, { error: 'The desk could not save that.' });
+      }
+      const prefix = loaded.book.workspace.waybill_prefix || 'JOB';
+      payload.reference = `${prefix}-${number.value}`;
+    }
+  }
   try {
-    const outcome = await commitFleetOp(
-      loaded.book,
-      op,
-      {
-        role: fleetRole,
-        actorId: gated.userId,
-        now: new Date().toISOString(),
-        companyId: gated.companyId,
-        enforceRealData: true,
-      },
-      typeof body.expected_updated_at === 'string' ? body.expected_updated_at : null
-    );
+    const outcome = await commitFleetOp(loaded.book, op, ctx, expected);
     if (!outcome.ok && outcome.pending) return json(200, { ready: false, reason: 'migration_pending' });
     if (!outcome.ok && outcome.status === 500) {
       console.error('fleetgraph save failed');

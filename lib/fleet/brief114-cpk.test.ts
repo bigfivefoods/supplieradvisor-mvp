@@ -9,6 +9,7 @@ import {
   computeFleetCpk,
   driverVariance,
   estimateTripCost,
+  fuelEfficiency,
   laneCpk,
   ledgerCategoryAllowed,
   requiredRate,
@@ -652,6 +653,43 @@ assert.equal(zeroCost.status, 'not_enough_data');
 assert.equal(zeroCost.message, 'Not enough data');
 assert.equal(zeroCost.fully_loaded_per_km, null);
 assert.equal(zeroCost.completeness, 'none');
+
+const fills = fuelEfficiency([
+  { id: 'a', vehicle_id: 'v', category: 'fuel', occurred_on: '2024-06-01', amount_cents: 1, litres: 10, odometer_km: 1000, full_tank: true },
+  { id: 'b', vehicle_id: 'v', category: 'fuel', occurred_on: '2024-06-10', amount_cents: 1, litres: 35, odometer_km: 1100, full_tank: true },
+  { id: 'r', vehicle_id: 'v', category: 'fuel', occurred_on: '2024-06-01', amount_cents: -1, litres: -10, odometer_km: 1000, full_tank: true, reverses_id: 'a' },
+]);
+assert.equal(fills.litresPer100, null);
+const keptFill = fuelEfficiency([
+  { id: 'a', vehicle_id: 'v', category: 'fuel', occurred_on: '2024-06-01', amount_cents: 1, litres: 10, odometer_km: 1000, full_tank: true },
+  { id: 'b', vehicle_id: 'v', category: 'fuel', occurred_on: '2024-06-10', amount_cents: 1, litres: 35, odometer_km: 1100, full_tank: true },
+]);
+assert.equal(keptFill.litresPer100, 35);
+
+const sameDay = computeFleetCpk({
+  period: { from: '2024-06-01', to: '2024-07-01' },
+  minKm: 1,
+  vehicles: [
+    {
+      id: 'v',
+      kind: 'rigid',
+      ownership: 'owned',
+      readings: [
+        { reading_km: 0, read_at: '2024-06-01' },
+        { reading_km: 1000, read_at: '2024-06-20' },
+      ],
+    },
+  ],
+  entries: [{ vehicle_id: 'v', category: 'toll', occurred_on: '2024-06-10', amount_cents: 100000 }],
+  profiles: [],
+  pools: [],
+  targets: [
+    { scope_kind: 'fleet', scope_ref: '', layer: 'fully_loaded', target_cents_per_km: 1000, effective_from: '2024-06-01' },
+    { scope_kind: 'fleet', scope_ref: '', layer: 'fully_loaded', target_cents_per_km: 2000, effective_from: '2024-06-01' },
+  ],
+  statusEvents: [],
+})[0];
+assert.equal(sameDay.target_per_km, 20);
 
 console.log('brief114-cpk.test.ts ok');
 console.log(

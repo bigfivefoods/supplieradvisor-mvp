@@ -75,9 +75,29 @@ export function assertNoIdentity(value: unknown): FieldError {
   return { ok: true };
 }
 
-/** Refuse SA ID-shaped numbers and licence or passport phrases in free text. Ordinary phone numbers stay. */
+/** Luhn check used by a South African identity number. */
+export function isSaIdNumber(digits: string): boolean {
+  if (!/^\d{13}$/.test(digits)) return false;
+  const month = Number(digits.slice(2, 4));
+  const day = Number(digits.slice(4, 6));
+  if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+  if (digits[10] !== '0' && digits[10] !== '1') return false;
+  let sum = 0;
+  for (let index = 0; index < digits.length; index += 1) {
+    let digit = Number(digits[index]);
+    if ((digits.length - index) % 2 === 0) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+  }
+  return sum % 10 === 0;
+}
+
+/** Refuse a real SA ID and licence or passport phrases. A long reference is not an ID. */
 export function assertNoIdentityText(value: string): FieldError {
-  if (/\d{13}/.test(value)) return fail('Remove the identity number. This desk does not store it.');
+  const tokens = value.match(/(?<!\d)\d{13}(?!\d)/g) || [];
+  if (tokens.some((token) => isSaIdNumber(token))) return fail('Remove the identity number. This desk does not store it.');
   if (/\b(passport|licence|license)\s*(number|no\.?|#)/i.test(value)) {
     return fail('Remove the licence or passport number. This desk does not store it.');
   }

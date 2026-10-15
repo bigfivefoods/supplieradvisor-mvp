@@ -68,10 +68,11 @@ export function PreviewShell({ screen }: { screen: FleetScreen }) {
     );
     if (!outcome.ok) {
       setNotice(outcome.error);
-      return;
+      return false;
     }
     setNotice(null);
     setBook(outcome.book);
+    return true;
   }
 
   const caps = capabilitiesFor(role, { dispatcherSeesRates: book?.workspace.dispatcher_sees_rates });

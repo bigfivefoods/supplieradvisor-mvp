@@ -1,10 +1,8 @@
 /**
  * FleetAdvisor® illustration book. Fictional rows for the signed-out preview only.
  */
-import { cpkInputFromBook } from './book-cpk';
 import { sample01Input } from './cpk-fixtures';
 import { emptyFleetBook } from './empty-book';
-import type { FleetCpkInput } from './cpk';
 import type { FleetBook } from './types';
 
 const NOW = '2024-07-01T08:00:00.000Z';
@@ -141,7 +139,7 @@ export function sampleFleetBook(): FleetBook {
       id: 'job-1',
       company_id: 1,
       reference: 'SMP-1',
-      customer_id: null,
+      customer_id: 1,
       customer_name: 'Sample Retailer',
       service_type: 'full load',
       cargo_description: 'Sample pallets',
@@ -175,8 +173,8 @@ export function sampleFleetBook(): FleetBook {
       city: 'Sample City',
       province: '',
       country: 'ZA',
-      window_start: null,
-      window_end: null,
+      window_start: '2024-06-01',
+      window_end: '2024-06-24',
       contact_name: '',
       contact_phone: '',
       instructions: '',
@@ -194,8 +192,8 @@ export function sampleFleetBook(): FleetBook {
       city: 'Sample City',
       province: '',
       country: 'ZA',
-      window_start: null,
-      window_end: null,
+      window_start: '2024-06-01',
+      window_end: '2024-06-24',
       contact_name: '',
       contact_phone: '',
       instructions: '',
@@ -278,6 +276,14 @@ export function sampleFleetBook(): FleetBook {
     basis: pool.basis,
     updated_at: NOW,
   }));
+  book.customers = [{ id: 1, trading_name: 'Sample Retailer' }];
+  book.trips = (vehicle.trip_days || []).map((onDate, index) => ({
+    id: `trip-${index + 1}`,
+    vehicle_id: vehicle.id,
+    job_id: 'job-1',
+    on_date: onDate,
+    loaded_km: index === 0 ? 6000 : 0,
+  }));
   book.cpk_targets = fixture.targets.map((target, index) => ({
     id: `target-${index + 1}`,
     company_id: 1,
@@ -289,23 +295,4 @@ export function sampleFleetBook(): FleetBook {
     updated_at: NOW,
   }));
   return book;
-}
-
-/** Illustration-only distance and revenue so SAMPLE 01 matches the worked example. */
-export function sampleCpkInput(book: FleetBook, period: FleetCpkInput['period']): FleetCpkInput {
-  const input = cpkInputFromBook(book, period);
-  const fixture = sample01Input();
-  input.vehicles = input.vehicles.map((vehicle) => {
-    const reg = book.vehicles.find((row) => row.id === vehicle.id)?.reg_no;
-    if (reg !== 'SAMPLE 01') return vehicle;
-    const sample = fixture.vehicles[0];
-    return {
-      ...vehicle,
-      revenue_cents: sample.revenue_cents,
-      loaded_km: sample.loaded_km,
-      trip_days: sample.trip_days,
-      planned_km: null,
-    };
-  });
-  return input;
 }

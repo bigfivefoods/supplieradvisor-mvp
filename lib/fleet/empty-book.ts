@@ -23,6 +23,7 @@ export function emptyWorkspace(companyId: number, now = ''): FleetWorkspace {
     fines_in_cpk: false,
     tyre_mode_default: 'accrual',
     overhead_include_subcontractors: false,
+    required_margin_bps: 1000,
     updated_at: now,
   };
 }
@@ -32,6 +33,8 @@ export function emptyFleetBook(companyId = 0, now = ''): FleetBook {
     workspace: emptyWorkspace(companyId, now),
     vehicles: [],
     drivers: [],
+    customers: [],
+    trips: [],
     compliance: [],
     jobs: [],
     stops: [],

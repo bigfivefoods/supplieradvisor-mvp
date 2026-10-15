@@ -229,9 +229,12 @@ const eraseVehicle = psql(`INSERT INTO public.fg_vehicles (company_id, reg_no) V
 psql(`INSERT INTO public.fg_cost_entries (company_id, vehicle_id, category, occurred_on, amount_cents) VALUES (88002, '${eraseVehicle}', 'toll', '2024-06-01', 5);`);
 psql(`INSERT INTO public.fg_audit_log (company_id, actor_kind, actor_id, action, target_kind, target_id) VALUES (88002, 'staff', 'u', 'keep', 'vehicle', '${eraseVehicle}');`);
 psql(`SELECT public.fg_erase_company(88002);`);
-assert.equal(psql(`SELECT count(*) FROM public.profiles WHERE id = 88002;`), '0');
+assert.equal(psql(`SELECT count(*) FROM public.profiles WHERE id = 88002;`), '1');
+assert.equal(psql(`SELECT count(*) FROM public.fg_vehicles WHERE company_id = 88002;`), '0');
 assert.equal(psql(`SELECT count(*) FROM public.fg_cost_entries WHERE company_id = 88002;`), '0');
 assert.equal(psql(`SELECT count(*) FROM public.fg_audit_log WHERE company_id = 88002;`), '0');
+fails(`BEGIN; SELECT set_config('fg.erasing', 'on', true); DELETE FROM public.fg_audit_log WHERE company_id = 1; COMMIT;`, /fg_append_only/);
+fails(`SET ROLE service_role; ALTER TABLE public.fg_audit_log DISABLE TRIGGER USER;`, /permission denied|must be owner/i);
 fails(`SELECT public.fg_erase_company(NULL);`, /fg_erase_closed/);
 
 psql(`INSERT INTO public.profiles (id) VALUES (88003);`);
@@ -320,6 +323,50 @@ psql(`SELECT public.fg_commit_diff(1, jsonb_build_object(
 ));`);
 assert.equal(psql(`SELECT count(*) FROM public.fg_vehicles WHERE id = '${goodId}';`), '1');
 assert.equal(psql(`SELECT count(*) FROM public.fg_audit_log WHERE id = '${auditId}';`), '1');
+
+psql(`UPDATE public.fg_vehicles SET archived_at = pg_catalog.now() WHERE id = '${goodId}';`);
+psql(`INSERT INTO public.fg_vehicles (company_id, reg_no) VALUES (1, 'ATOMIC OK');`);
+assert.equal(psql(`SELECT count(*) FROM public.fg_vehicles WHERE company_id = 1 AND lower(reg_no) = 'atomic ok' AND archived_at IS NULL;`), '1');
+fails(`INSERT INTO public.fg_vehicles (company_id, reg_no) VALUES (1, 'atomic ok');`, /fg_vehicles_reg_unique|duplicate key/i);
+
+const jobId = psql(`SELECT gen_random_uuid();`);
+const stopA = psql(`SELECT gen_random_uuid();`);
+const stopB = psql(`SELECT gen_random_uuid();`);
+const stopC = psql(`SELECT gen_random_uuid();`);
+psql(`INSERT INTO public.fg_jobs (id, company_id, reference, status, updated_at) VALUES ('${jobId}', 1, 'JOB-STOP', 'draft', '2024-07-02T00:00:00Z');`);
+psql(`INSERT INTO public.fg_job_stops (id, company_id, job_id, seq, kind, place_name, updated_at) VALUES
+  ('${stopA}', 1, '${jobId}', 1, 'pickup', 'A', '2024-07-02T00:00:00Z'),
+  ('${stopB}', 1, '${jobId}', 2, 'delivery', 'B', '2024-07-02T00:00:00Z');`);
+psql(`SELECT public.fg_commit_diff(1, jsonb_build_object(
+  'company_id', 1,
+  'delete_stop_ids', jsonb_build_array('${stopB}'),
+  'upserts', jsonb_build_object('fg_job_stops', jsonb_build_array(
+    jsonb_build_object('id', '${stopA}', 'company_id', 1, 'job_id', '${jobId}', 'seq', 2, 'kind', 'delivery', 'place_name', 'A', 'updated_at', '2024-07-03T00:00:00Z', 'previous_updated_at', '2024-07-02T00:00:00Z'),
+    jsonb_build_object('id', '${stopC}', 'company_id', 1, 'job_id', '${jobId}', 'seq', 1, 'kind', 'pickup', 'place_name', 'C', 'updated_at', '2024-07-03T00:00:00Z')
+  ))
+));`);
+assert.equal(psql(`SELECT seq::text || ':' || place_name FROM public.fg_job_stops WHERE job_id = '${jobId}' ORDER BY seq;`), '1:C\n2:A');
+psql(`SELECT public.fg_commit_diff(1, jsonb_build_object(
+  'company_id', 1,
+  'upserts', jsonb_build_object('fg_job_stops', jsonb_build_array(
+    jsonb_build_object('id', '${stopC}', 'company_id', 1, 'job_id', '${jobId}', 'seq', 2, 'kind', 'delivery', 'place_name', 'C', 'updated_at', '2024-07-04T00:00:00Z', 'previous_updated_at', '2024-07-03T00:00:00Z'),
+    jsonb_build_object('id', '${stopA}', 'company_id', 1, 'job_id', '${jobId}', 'seq', 1, 'kind', 'pickup', 'place_name', 'A', 'updated_at', '2024-07-04T00:00:00Z', 'previous_updated_at', '2024-07-03T00:00:00Z')
+  ))
+));`);
+assert.equal(psql(`SELECT place_name FROM public.fg_job_stops WHERE job_id = '${jobId}' ORDER BY seq;`), 'A\nC');
+
+fails(
+  `INSERT INTO public.fg_jobs (company_id, reference, customer_id) VALUES (1, 'CROSS', 2);`,
+  /fg_jobs_company_customer|foreign key/i
+);
+fails(
+  `INSERT INTO public.fg_job_stops (company_id, job_id, seq, kind) VALUES (88002, '${jobId}', 1, 'via');`,
+  /fg_job_stops_company_job|foreign key/i
+);
+fails(
+  `INSERT INTO public.fg_cost_entries (company_id, vehicle_id, category, occurred_on, amount_cents, reverses_id) VALUES (1, '${vehicleId}', 'toll', '2024-06-05', -1, gen_random_uuid());`,
+  /fg_cost_entries_reverses|foreign key/i
+);
 
 console.log('brief114-db.test.ts ok');
 }

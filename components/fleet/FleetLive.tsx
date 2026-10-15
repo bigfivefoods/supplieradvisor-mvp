@@ -70,11 +70,11 @@ export function FleetLive({ screen }: { screen: FleetScreen }) {
     if (body.ready === false) {
       setPending(true);
       setNotice('Database setup is still pending.');
-      return;
+      return false;
     }
     if (!response.ok || body.error) {
       setNotice(body.error || 'The desk could not save that.');
-      return;
+      return false;
     }
     if (body.book) {
       const next = { ...emptyFleetBook(), ...body.book } as FleetBook;
@@ -83,6 +83,7 @@ export function FleetLive({ screen }: { screen: FleetScreen }) {
       setRole(body.role || role);
       setNotice(null);
     }
+    return true;
   }
 
   const caps = capabilitiesFor(role, { dispatcherSeesRates: book.workspace.dispatcher_sees_rates });
@@ -108,8 +109,13 @@ export function FleetLive({ screen }: { screen: FleetScreen }) {
         notice={notice}
         migrationPending={pending}
         onPeriod={setPeriodId}
-        onOp={(op, expected) => {
-          onOp(op, expected).catch(() => setNotice('The desk could not save that.'));
+        onOp={async (op, expected) => {
+          try {
+            return await onOp(op, expected);
+          } catch {
+            setNotice('The desk could not save that.');
+            return false;
+          }
         }}
       />
     </div>

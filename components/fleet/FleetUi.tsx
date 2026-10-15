@@ -105,7 +105,7 @@ export function FleetStat({
   className?: string;
 }) {
   return (
-    <div className={`rounded-2xl border border-slate-200 bg-white px-3 py-3 text-center shadow-sm ${className}`} data-testid={testId}>
+    <div className={`rounded-2xl border border-[#00b4d8]/40 bg-[#00b4d8]/10 px-3 py-3 text-center shadow-sm ${className}`} data-testid={testId}>
       {icon ? <div className="mb-1 flex justify-center text-[#0077b6]">{icon}</div> : null}
       <p className="truncate text-xl font-black tabular-nums text-slate-900">{value}</p>
       <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
@@ -313,7 +313,7 @@ export function FleetSegmented({
 }) {
   return (
     <div className="min-w-0" role="tablist" aria-label={label}>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex gap-2 overflow-x-auto">
         {options.map((option) => {
           const on = option.id === value;
           return (

@@ -90,5 +90,13 @@ const RUNNING: Record<string, string> = {
   other: 'Other',
 };
 
+const DISTANCE: Record<string, string> = {
+  trips: 'Trips',
+  odometer: 'Odometer',
+  gps: 'GPS',
+  none: 'No distance yet',
+};
+
 export const runningCategoryLabel = (value: string) => named(RUNNING, value);
+export const distanceSourceLabel = (value: string) => named(DISTANCE, value);
 export const fleetRoleLabel = (value: string) => named(ROLE, value);

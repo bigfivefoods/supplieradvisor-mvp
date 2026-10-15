@@ -127,7 +127,7 @@ export function applyFleetOp(book: FleetBook, op: FleetOp, ctx: OpContext, expec
   if (op.op === 'cost_entry.add') return addCost(book, op, ctx, false);
   if (op.op === 'cost_entry.reverse') return addCost(book, op, ctx, true);
   if (op.op === 'cost_profile.set') return setProfile(book, op, ctx);
-  if (op.op === 'overhead_pool.set') return setPool(book, op, ctx);
+  if (op.op === 'overhead_pool.set') return setPool(book, op, ctx, expectedUpdatedAt);
   if (op.op === 'cpk_target.set') return setTarget(book, op, ctx);
   if (op.op === 'settings.update') return updateSettings(book, op, ctx, expectedUpdatedAt);
   if (op.op === 'real_data.confirm') return confirmRealData(book, op, ctx);
@@ -150,28 +150,29 @@ function upsertVehicle(book: FleetBook, op: FleetOp, ctx: OpContext, expected?: 
     const clash = cas(existing.updated_at, expected);
     if (clash) return clash;
   }
+  const kept = <T,>(key: string, next: T, prior: T): T => (key in payload ? next : prior);
   const row: FleetVehicle = {
     id: existing?.id || id(),
     company_id: ctx.companyId,
     reg_no: reg,
     kind: kind as FleetVehicle['kind'],
     ownership: ownership as FleetVehicle['ownership'],
-    make: cleanText(payload.make, 80),
-    model: cleanText(payload.model, 80),
-    year: yearOf(payload.year),
-    vin: cleanText(payload.vin, 32),
-    gvm_kg: intOf(payload.gvm_kg),
-    tare_kg: intOf(payload.tare_kg),
-    payload_kg: intOf(payload.payload_kg),
-    fuel_type: cleanText(payload.fuel_type, 40),
-    tank_litres: numOf(payload.tank_litres),
+    make: kept('make', cleanText(payload.make, 80), existing?.make || ''),
+    model: kept('model', cleanText(payload.model, 80), existing?.model || ''),
+    year: kept('year', yearOf(payload.year), existing?.year ?? null),
+    vin: kept('vin', cleanText(payload.vin, 32), existing?.vin || ''),
+    gvm_kg: kept('gvm_kg', intOf(payload.gvm_kg), existing?.gvm_kg ?? null),
+    tare_kg: kept('tare_kg', intOf(payload.tare_kg), existing?.tare_kg ?? null),
+    payload_kg: kept('payload_kg', intOf(payload.payload_kg), existing?.payload_kg ?? null),
+    fuel_type: kept('fuel_type', cleanText(payload.fuel_type, 40), existing?.fuel_type || ''),
+    tank_litres: kept('tank_litres', numOf(payload.tank_litres), existing?.tank_litres ?? null),
     odometer_km: existing?.odometer_km ?? null,
     odometer_at: existing?.odometer_at ?? null,
     status: status as VehicleStatus,
-    depot_label: cleanText(payload.depot_label, 80),
-    tracker_fitted: Boolean(payload.tracker_fitted),
-    tracker_provider: cleanText(payload.tracker_provider, 80),
-    notes: cleanText(payload.notes, 2000),
+    depot_label: kept('depot_label', cleanText(payload.depot_label, 80), existing?.depot_label || ''),
+    tracker_fitted: kept('tracker_fitted', Boolean(payload.tracker_fitted), existing?.tracker_fitted ?? false),
+    tracker_provider: kept('tracker_provider', cleanText(payload.tracker_provider, 80), existing?.tracker_provider || ''),
+    notes: kept('notes', cleanText(payload.notes, 2000), existing?.notes || ''),
     archived_at: payload.archived_at ? ctx.now : existing?.archived_at || null,
     updated_at: ctx.now,
   };
@@ -272,6 +273,9 @@ function upsertCompliance(book: FleetBook, op: FleetOp, ctx: OpContext, expected
         row.subject_id === subjectId &&
         row.kind === kind
     );
+  const expires = dateOrNull(op.payload.expires_on);
+  if (!expires) return deny(400, 'Add an expiry date.');
+  if (existing && !expected) return deny(409, 'This date is already on file. Reload it and save again.');
   if (existing) {
     const clash = cas(existing.updated_at, expected);
     if (clash) return clash;
@@ -284,7 +288,7 @@ function upsertCompliance(book: FleetBook, op: FleetOp, ctx: OpContext, expected
     kind: kind as FleetCompliance['kind'],
     reference: cleanText(op.payload.reference, 64),
     issued_on: dateOrNull(op.payload.issued_on),
-    expires_on: dateOrNull(op.payload.expires_on),
+    expires_on: expires,
     detail,
     status_note: cleanText(op.payload.status_note, 400),
     archived_at: null,
@@ -305,16 +309,31 @@ function upsertJob(book: FleetBook, op: FleetOp, ctx: OpContext, expected?: stri
   const seesPrice = ctx.role === 'owner' || ctx.role === 'manager' || ctx.role === 'office' || ctx.role === 'viewer' || (ctx.role === 'dispatcher' && book.workspace.dispatcher_sees_rates);
   let price: number | null = existing?.price_cents ?? null;
   if (seesPrice && 'price_cents' in op.payload) {
-    price = op.payload.price_cents == null || op.payload.price_cents === '' ? null : cleanMoney(op.payload.price_cents);
-    if (op.payload.price_cents != null && op.payload.price_cents !== '' && price == null) return deny(400, 'Check the price.');
+    if (op.payload.price_cents == null || op.payload.price_cents === '') price = null;
+    else {
+      price = cleanMoney(op.payload.price_cents);
+      if (price == null || price <= 0) return deny(400, 'Check the price.');
+    }
+  }
+  let customers = book.customers;
+  let customerId = intOf(op.payload.customer_id);
+  let customerName = cleanText(op.payload.customer_name, 160);
+  const named = cleanText(op.payload.new_customer_name, 160);
+  if (!customerId && named && !ctx.enforceRealData) {
+    customerId = customers.reduce((max, row) => Math.max(max, row.id), 0) + 1;
+    customerName = named;
+    customers = [...customers, { id: customerId, trading_name: named }];
+  } else if (customerId) {
+    const known = customers.find((row) => row.id === customerId);
+    if (known && !customerName) customerName = known.trading_name;
   }
   const reference = existing?.reference || cleanText(op.payload.reference, 40) || nextJobReference(book);
   const row: FleetJob = {
     id: existing?.id || id(),
     company_id: ctx.companyId,
     reference,
-    customer_id: intOf(op.payload.customer_id),
-    customer_name: cleanText(op.payload.customer_name, 160),
+    customer_id: customerId,
+    customer_name: customerName,
     service_type: cleanText(op.payload.service_type, 80),
     cargo_description: cleanText(op.payload.cargo_description, 400),
     cargo_kg: numOf(op.payload.cargo_kg),
@@ -336,8 +355,8 @@ function upsertJob(book: FleetBook, op: FleetOp, ctx: OpContext, expected?: stri
   const stops = readStops(op.payload.stops, row.id, ctx);
   if (!stops.ok) return { ok: false, status: stops.status, error: stops.error };
   const jobs = existing ? book.jobs.map((item) => (item.id === row.id ? row : item)) : [...book.jobs, row];
-  const kept = book.stops.filter((stop) => stop.job_id !== row.id);
-  return done({ ...book, jobs, stops: [...kept, ...stops.rows] }, ctx, 'job.upsert', 'job', row.id, { reference: row.reference });
+  const keptStops = book.stops.filter((stop) => stop.job_id !== row.id);
+  return done({ ...book, customers, jobs, stops: [...keptStops, ...stops.rows] }, ctx, 'job.upsert', 'job', row.id, { reference: row.reference });
 }
 
 function readStops(
@@ -380,7 +399,7 @@ function addOdometer(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
   const vehicle = book.vehicles.find((row) => row.id === op.payload.vehicle_id);
   if (!vehicle) return deny(400, 'Choose a vehicle.');
   const reading = numOf(op.payload.reading_km);
-  if (reading == null || reading < 0 || reading > 10_000_000) return deny(400, 'Check the odometer reading.');
+  if (reading == null || reading <= 0 || reading > 10_000_000) return deny(400, 'Check the odometer reading.');
   const readAt = dateOrNull(op.payload.read_at) || todayOf(ctx);
   const entryId = id();
   const priorAt = vehicle.odometer_at ? vehicle.odometer_at.slice(0, 10) : '';
@@ -418,7 +437,12 @@ function addCost(book: FleetBook, op: FleetOp, ctx: OpContext, reverse: boolean)
   if (!vehicle) return deny(400, 'Choose a vehicle.');
   let category = cleanText(op.payload.category, 40);
   let amount = cleanMoney(op.payload.amount_cents);
-  let vat = cleanMoney(op.payload.vat_cents) ?? 0;
+  let vat = 0;
+  let litres = numOf(op.payload.litres);
+  let odometer = numOf(op.payload.odometer_km);
+  let fullTank = Boolean(op.payload.full_tank);
+  let claimable = Boolean(op.payload.vat_claimable);
+  let occurred = dateOrNull(op.payload.occurred_on) || todayOf(ctx);
   let reverses: string | null = null;
   if (reverse) {
     const prior = book.cost_entries.find((row) => row.id === op.payload.reverses_id && row.vehicle_id === vehicle.id);
@@ -428,7 +452,24 @@ function addCost(book: FleetBook, op: FleetOp, ctx: OpContext, reverse: boolean)
     category = prior.category;
     amount = -prior.amount_cents;
     vat = -prior.vat_cents;
+    litres = prior.litres == null ? null : -prior.litres;
+    odometer = prior.odometer_km;
+    fullTank = prior.full_tank;
+    claimable = prior.vat_claimable;
+    occurred = prior.occurred_on;
     reverses = prior.id;
+  } else {
+    if (amount == null || amount <= 0) return deny(400, 'Check the amount.');
+    if (presentNumber(op.payload.litres) && (litres == null || litres < 0)) return deny(400, 'Check the litres.');
+    if (presentNumber(op.payload.odometer_km) && (odometer == null || odometer < 0)) return deny(400, 'Check the odometer.');
+    if (presentNumber(op.payload.vat_cents)) {
+      const parsed = cleanMoney(op.payload.vat_cents);
+      if (parsed == null || parsed < 0) return deny(400, 'Check the VAT.');
+      vat = parsed;
+    } else if (claimable) {
+      const bps = book.workspace.vat_rate_bps ?? 1500;
+      vat = Math.round((amount * bps) / 10000);
+    }
   }
   const categoryCheck = assertLedgerCategory(category);
   if (!categoryCheck.ok) return deny(400, categoryCheck.error);
@@ -440,13 +481,13 @@ function addCost(book: FleetBook, op: FleetOp, ctx: OpContext, reverse: boolean)
     trip_id: null,
     driver_id: null,
     category: category as RunningCategory,
-    occurred_on: dateOrNull(op.payload.occurred_on) || todayOf(ctx),
+    occurred_on: occurred,
     amount_cents: amount,
     vat_cents: vat,
-    vat_claimable: Boolean(op.payload.vat_claimable),
-    litres: numOf(op.payload.litres),
-    odometer_km: numOf(op.payload.odometer_km),
-    full_tank: Boolean(op.payload.full_tank),
+    vat_claimable: claimable,
+    litres,
+    odometer_km: odometer,
+    full_tank: fullTank,
     source: 'manual',
     reference: cleanText(op.payload.reference, 64),
     note: cleanText(op.payload.note, 400),
@@ -472,36 +513,39 @@ function setProfile(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
   if ((method !== 'time' && method !== 'distance') || (tyre !== 'accrual' && tyre !== 'ledger')) {
     return deny(400, 'Check depreciation and tyre settings.');
   }
+  const money = profileMoney(op.payload);
+  if (!money.ok) return money.outcome;
   const profiles = book.cost_profiles.map((row) => {
     if (row.vehicle_id !== vehicle.id || row.effective_to) return row;
     if (row.effective_from >= from) return row;
     return { ...row, effective_to: from, updated_at: ctx.now };
   });
-  const overlap = profiles.some((row) => {
-    if (row.vehicle_id !== vehicle.id) return false;
-    const end = row.effective_to || '9999-12-31';
-    return row.effective_from < '9999-12-31' && from < end && from >= row.effective_from && row.effective_to !== from;
-  });
-  if (overlap) return deny(400, 'That cost profile overlaps an existing one.');
+  const later = profiles
+    .filter((row) => row.vehicle_id === vehicle.id && row.effective_from > from)
+    .map((row) => row.effective_from)
+    .sort();
+  const effectiveTo = later[0] || null;
+  const overlap = profiles.some((row) => row.vehicle_id === vehicle.id && rangesOverlap(from, effectiveTo, row.effective_from, row.effective_to));
+  if (overlap) return deny(409, 'That cost profile overlaps an existing one.');
   const row: FleetCostProfile = {
     id: id(),
     company_id: ctx.companyId,
     vehicle_id: vehicle.id,
     effective_from: from,
-    effective_to: null,
-    purchase_price_cents: cleanMoney(op.payload.purchase_price_cents),
-    residual_cents: cleanMoney(op.payload.residual_cents),
+    effective_to: effectiveTo,
+    purchase_price_cents: money.values.purchase_price_cents,
+    residual_cents: money.values.residual_cents,
     depreciation_method: method,
     life_months: intOf(op.payload.life_months),
     life_km: intOf(op.payload.life_km),
     in_service_on: dateOrNull(op.payload.in_service_on) || from,
     disposed_on: dateOrNull(op.payload.disposed_on),
-    finance_monthly_cents: cleanMoney(op.payload.finance_monthly_cents) ?? 0,
-    insurance_annual_cents: cleanMoney(op.payload.insurance_annual_cents) ?? 0,
-    licences_annual_cents: cleanMoney(op.payload.licences_annual_cents) ?? 0,
-    tracker_monthly_cents: cleanMoney(op.payload.tracker_monthly_cents) ?? 0,
-    other_standing_monthly_cents: cleanMoney(op.payload.other_standing_monthly_cents) ?? 0,
-    driver_cost_monthly_cents: cleanMoney(op.payload.driver_cost_monthly_cents) ?? 0,
+    finance_monthly_cents: money.values.finance_monthly_cents,
+    insurance_annual_cents: money.values.insurance_annual_cents,
+    licences_annual_cents: money.values.licences_annual_cents,
+    tracker_monthly_cents: money.values.tracker_monthly_cents,
+    other_standing_monthly_cents: money.values.other_standing_monthly_cents,
+    driver_cost_monthly_cents: money.values.driver_cost_monthly_cents,
     tyre_mode: tyre as TyreMode,
     tyre_set_cost_cents: cleanMoney(op.payload.tyre_set_cost_cents),
     tyre_life_km: intOf(op.payload.tyre_life_km),
@@ -510,15 +554,19 @@ function setProfile(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
   return done({ ...book, cost_profiles: [...profiles, row] }, ctx, 'cost_profile.set', 'cost_profile', row.id, { vehicle_id: vehicle.id });
 }
 
-function setPool(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
+function setPool(book: FleetBook, op: FleetOp, ctx: OpContext, expected?: string | null): OpOutcome {
   const month = dateOrNull(op.payload.period_month);
   if (!month) return deny(400, 'Choose a month.');
   const period = `${month.slice(0, 7)}-01`;
   const amount = cleanMoney(op.payload.amount_cents);
-  if (amount == null) return deny(400, 'Check the overhead amount.');
+  if (amount == null || amount <= 0) return deny(400, 'Check the overhead amount.');
   const basis = cleanText(op.payload.basis || book.workspace.overhead_basis, 32) as OverheadBasis;
   if (!['equal_vehicle_days', 'km', 'revenue'].includes(basis)) return deny(400, 'Choose how overhead is shared.');
   const existing = book.overhead_pools.find((row) => row.period_month.slice(0, 7) === period.slice(0, 7));
+  if (existing) {
+    const clash = cas(existing.updated_at, expected);
+    if (clash) return clash;
+  }
   const row = {
     id: existing?.id || id(),
     company_id: ctx.companyId,
@@ -539,7 +587,7 @@ function setTarget(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
   if (!['fleet', 'vehicle_class', 'vehicle', 'lane'].includes(scope)) return deny(400, 'Choose a target scope.');
   if (layer !== 'fully_loaded' && layer !== 'operating') return deny(400, 'Choose a target layer.');
   const target = cleanMoney(op.payload.target_cents_per_km);
-  if (target == null || target < 0) return deny(400, 'Check the target.');
+  if (target == null || target <= 0) return deny(400, 'Check the target.');
   const row = {
     id: id(),
     company_id: ctx.companyId,
@@ -566,6 +614,20 @@ function updateSettings(book: FleetBook, op: FleetOp, ctx: OpContext, expected?:
   if (windowDays != null && (windowDays < 1 || windowDays > 365)) return deny(400, 'The expiry window must be between 1 and 365 days.');
   if (cpkWindow != null && (cpkWindow < 1 || cpkWindow > 3660)) return deny(400, 'Check the cost window.');
   if (minKm != null && minKm < 0) return deny(400, 'Check the minimum distance.');
+  if ('overhead_basis' in op.payload && !['equal_vehicle_days', 'km', 'revenue'].includes(cleanText(op.payload.overhead_basis, 32))) {
+    return deny(400, 'Choose how overhead is shared.');
+  }
+  const laneTrips = intOf(op.payload.cpk_min_trips_per_lane);
+  if ('cpk_min_trips_per_lane' in op.payload && (laneTrips == null || laneTrips < 1)) return deny(400, 'Check the minimum trips per lane.');
+  const retention = intOf(op.payload.retention_days);
+  if ('retention_days' in op.payload && ctx.role === 'owner' && (retention == null || retention < 1 || retention > 3650)) {
+    return deny(400, 'Retention must be between 1 and 3650 days.');
+  }
+  const margin = intOf(op.payload.required_margin_bps);
+  if ('required_margin_bps' in op.payload && (margin == null || margin < 0 || margin > 9999)) return deny(400, 'Check the required margin.');
+  if ('tyre_mode_default' in op.payload && !['accrual', 'ledger'].includes(cleanText(op.payload.tyre_mode_default, 20))) {
+    return deny(400, 'Choose a tyre setting.');
+  }
   const workspace = {
     ...book.workspace,
     id: book.workspace.id || id(),
@@ -577,16 +639,16 @@ function updateSettings(book: FleetBook, op: FleetOp, ctx: OpContext, expected?:
     waybill_prefix: 'waybill_prefix' in op.payload ? cleanText(op.payload.waybill_prefix, 12) : book.workspace.waybill_prefix,
     cpk_window_days: cpkWindow ?? book.workspace.cpk_window_days,
     cpk_min_km: minKm ?? book.workspace.cpk_min_km,
-    cpk_min_trips_per_lane: intOf(op.payload.cpk_min_trips_per_lane) ?? book.workspace.cpk_min_trips_per_lane,
-    overhead_basis: (cleanText(op.payload.overhead_basis || book.workspace.overhead_basis, 32) || book.workspace.overhead_basis) as OverheadBasis,
+    cpk_min_trips_per_lane: laneTrips ?? book.workspace.cpk_min_trips_per_lane,
+    overhead_basis: ('overhead_basis' in op.payload ? cleanText(op.payload.overhead_basis, 32) : book.workspace.overhead_basis) as OverheadBasis,
+    required_margin_bps: margin ?? book.workspace.required_margin_bps,
     fines_in_cpk: 'fines_in_cpk' in op.payload ? Boolean(op.payload.fines_in_cpk) : book.workspace.fines_in_cpk,
     tyre_mode_default: (cleanText(op.payload.tyre_mode_default || book.workspace.tyre_mode_default, 20) || book.workspace.tyre_mode_default) as TyreMode,
     dispatcher_sees_rates:
       ctx.role === 'owner' && 'dispatcher_sees_rates' in op.payload
         ? Boolean(op.payload.dispatcher_sees_rates)
         : book.workspace.dispatcher_sees_rates,
-    retention_days:
-      ctx.role === 'owner' && 'retention_days' in op.payload ? intOf(op.payload.retention_days) : book.workspace.retention_days,
+    retention_days: ctx.role === 'owner' && 'retention_days' in op.payload ? retention : book.workspace.retention_days,
     updated_at: ctx.now,
   };
   if (!['haulier', 'courier', 'bulk', 'in_house', 'mixed'].includes(workspace.operator_type)) return deny(400, 'Choose an operator type.');
@@ -643,25 +705,96 @@ function dateOrNull(value: unknown): string | null {
   return sastDate(value);
 }
 
-const FREE_TEXT_KEYS = new Set(['reference', 'notes', 'note', 'status_note', 'cargo_description']);
+const FREE_TEXT_KEYS = new Set([
+  'reference',
+  'notes',
+  'note',
+  'status_note',
+  'cargo_description',
+  'customer_name',
+  'place_name',
+  'detail',
+  'new_customer_name',
+  'instructions',
+]);
 
 function screenPayloadText(payload: Record<string, unknown>): OpOutcome | null {
-  for (const [key, value] of Object.entries(payload)) {
-    if (!FREE_TEXT_KEYS.has(key) || typeof value !== 'string') continue;
-    const hit = assertNoIdentityText(value);
-    if (!hit.ok) return deny(400, hit.error);
-  }
+  const hit = screenValue(payload);
+  if (hit) return hit;
   if (Array.isArray(payload.stops)) {
     for (const stop of payload.stops) {
-      if (!stop || typeof stop !== 'object') continue;
-      const instructions = (stop as { instructions?: unknown }).instructions;
-      if (typeof instructions === 'string') {
-        const hit = assertNoIdentityText(instructions);
-        if (!hit.ok) return deny(400, hit.error);
-      }
+      const nested = screenValue(stop);
+      if (nested) return nested;
     }
   }
   return null;
+}
+
+function screenValue(value: unknown): OpOutcome | null {
+  if (typeof value === 'string') {
+    const hit = assertNoIdentityText(value);
+    if (!hit.ok) return deny(400, hit.error);
+    return null;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const hit = screenValue(item);
+      if (hit) return hit;
+    }
+    return null;
+  }
+  if (!value || typeof value !== 'object') return null;
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (!FREE_TEXT_KEYS.has(key)) continue;
+    const hit = screenValue(child);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function presentNumber(value: unknown): boolean {
+  return value != null && value !== '';
+}
+
+function rangesOverlap(from: string, to: string | null, otherFrom: string, otherTo: string | null): boolean {
+  const end = to || '9999-12-31';
+  const otherEnd = otherTo || '9999-12-31';
+  return from < otherEnd && otherFrom < end;
+}
+
+const OPTIONAL_MONEY = ['purchase_price_cents', 'residual_cents', 'tyre_set_cost_cents'] as const;
+const REQUIRED_MONEY = [
+  'finance_monthly_cents',
+  'insurance_annual_cents',
+  'licences_annual_cents',
+  'tracker_monthly_cents',
+  'other_standing_monthly_cents',
+  'driver_cost_monthly_cents',
+] as const;
+
+function profileMoney(payload: Record<string, unknown>):
+  | { ok: true; values: Record<(typeof OPTIONAL_MONEY)[number], number | null> & Record<(typeof REQUIRED_MONEY)[number], number> }
+  | { ok: false; outcome: OpOutcome } {
+  const values = {} as Record<string, number | null>;
+  for (const key of OPTIONAL_MONEY) {
+    if (!(key in payload) || payload[key] == null || payload[key] === '') {
+      values[key] = null;
+      continue;
+    }
+    const amount = cleanMoney(payload[key]);
+    if (amount == null || amount < 0) return { ok: false, outcome: deny(400, 'Check the amount.') };
+    values[key] = amount;
+  }
+  for (const key of REQUIRED_MONEY) {
+    if (!(key in payload) || payload[key] == null || payload[key] === '') {
+      values[key] = 0;
+      continue;
+    }
+    const amount = cleanMoney(payload[key]);
+    if (amount == null || amount < 0) return { ok: false, outcome: deny(400, 'Check the amount.') };
+    values[key] = amount;
+  }
+  return { ok: true, values: values as Record<(typeof OPTIONAL_MONEY)[number], number | null> & Record<(typeof REQUIRED_MONEY)[number], number> };
 }
 
 export function cloneBook(book: FleetBook = emptyFleetBook()): FleetBook {

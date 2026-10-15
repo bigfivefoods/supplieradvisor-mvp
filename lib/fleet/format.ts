@@ -75,9 +75,22 @@ function shiftSast(iso: string): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
-export function centsFromRand(rand: number): number {
-  if (!Number.isFinite(rand)) return 0;
-  return roundHalfAway(rand * 100, 0);
+/**
+ * Rand to cents. Parses the decimal text so 1.005 is 101 and 8.325 is 833.
+ * Empty, non-numeric, and non-finite values are null, never zero.
+ */
+export function centsFromRand(value: number | string): number | null {
+  if (typeof value === 'number' && !Number.isFinite(value)) return null;
+  const raw = (typeof value === 'number' ? value.toFixed(8) : String(value)).trim();
+  if (!raw) return null;
+  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(raw);
+  if (!match) return null;
+  const sign = match[1] === '-' ? -1 : 1;
+  const frac = (match[3] || '').padEnd(3, '0');
+  let cents = Number(match[2]) * 100 + Number(frac.slice(0, 2));
+  if (Number(frac[2] || '0') >= 5) cents += 1;
+  if (!Number.isSafeInteger(cents)) return null;
+  return sign * cents;
 }
 
 export function randFromCents(cents: number | null | undefined): number | null {

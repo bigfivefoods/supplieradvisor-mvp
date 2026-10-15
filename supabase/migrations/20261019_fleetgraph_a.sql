@@ -80,7 +80,8 @@ CREATE TABLE IF NOT EXISTS public.fg_vehicles (
   CONSTRAINT fg_vehicles_odometer CHECK (odometer_km IS NULL OR odometer_km >= 0)
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS fg_vehicles_reg_unique ON public.fg_vehicles (company_id, lower(reg_no));
+DROP INDEX IF EXISTS public.fg_vehicles_reg_unique;
+CREATE UNIQUE INDEX fg_vehicles_reg_unique ON public.fg_vehicles (company_id, lower(reg_no)) WHERE archived_at IS NULL;
 CREATE INDEX IF NOT EXISTS fg_vehicles_company ON public.fg_vehicles (company_id, status);
 
 CREATE TABLE IF NOT EXISTS public.fg_drivers (
@@ -186,8 +187,7 @@ CREATE TABLE IF NOT EXISTS public.fg_job_stops (
   instructions text NOT NULL DEFAULT '',
   created_at timestamptz NOT NULL DEFAULT pg_catalog.now(),
   updated_at timestamptz NOT NULL DEFAULT pg_catalog.now(),
-  CONSTRAINT fg_job_stops_kind CHECK (kind IN ('pickup', 'delivery', 'via')),
-  CONSTRAINT fg_job_stops_seq UNIQUE (job_id, seq)
+  CONSTRAINT fg_job_stops_kind CHECK (kind IN ('pickup', 'delivery', 'via'))
 );
 
 CREATE INDEX IF NOT EXISTS fg_job_stops_company ON public.fg_job_stops (company_id, job_id);
@@ -457,9 +457,6 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-  IF TG_OP = 'DELETE' AND pg_catalog.current_setting('fg.erasing', true) = 'on' THEN
-    RETURN OLD;
-  END IF;
   RAISE EXCEPTION 'fg_append_only' USING ERRCODE = '42501';
 END;
 $$;
@@ -665,8 +662,50 @@ BEGIN
       ADD CONSTRAINT fg_cost_entries_company_driver
       FOREIGN KEY (company_id, driver_id) REFERENCES public.fg_drivers (company_id, id) ON DELETE SET NULL;
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fg_job_stops_company_job') THEN
+    ALTER TABLE public.fg_job_stops
+      ADD CONSTRAINT fg_job_stops_company_job
+      FOREIGN KEY (company_id, job_id) REFERENCES public.fg_jobs (company_id, id) ON DELETE CASCADE;
+  END IF;
 END
 $fk$;
+
+ALTER TABLE public.fg_job_stops DROP CONSTRAINT IF EXISTS fg_job_stops_seq;
+ALTER TABLE public.fg_job_stops
+  ADD CONSTRAINT fg_job_stops_seq UNIQUE (job_id, seq) DEFERRABLE INITIALLY DEFERRED;
+
+CREATE UNIQUE INDEX IF NOT EXISTS fg_cost_entries_company_id ON public.fg_cost_entries (company_id, id);
+CREATE UNIQUE INDEX IF NOT EXISTS customers_profile_id_id ON public.customers (profile_id, id);
+
+DO $reverses_fk$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fg_cost_entries_reverses') THEN
+    ALTER TABLE public.fg_cost_entries
+      ADD CONSTRAINT fg_cost_entries_reverses
+      FOREIGN KEY (company_id, reverses_id) REFERENCES public.fg_cost_entries (company_id, id);
+  END IF;
+END
+$reverses_fk$;
+
+DO $customer_fk$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fg_jobs_company_customer') THEN
+    ALTER TABLE public.fg_jobs
+      ADD CONSTRAINT fg_jobs_company_customer
+      FOREIGN KEY (company_id, customer_id) REFERENCES public.customers (profile_id, id);
+  END IF;
+END
+$customer_fk$;
+
+ALTER TABLE public.fg_workspaces ADD COLUMN IF NOT EXISTS required_margin_bps integer NOT NULL DEFAULT 1000;
+DO $margin$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fg_workspaces_margin') THEN
+    ALTER TABLE public.fg_workspaces
+      ADD CONSTRAINT fg_workspaces_margin CHECK (required_margin_bps BETWEEN 0 AND 9999);
+  END IF;
+END
+$margin$;
 
 CREATE OR REPLACE FUNCTION public.fg_forbid_truncate()
 RETURNS trigger
@@ -675,9 +714,6 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-  IF pg_catalog.current_setting('fg.erasing', true) = 'on' THEN
-    RETURN NULL;
-  END IF;
   RAISE EXCEPTION 'fg_append_only' USING ERRCODE = '42501';
 END;
 $$;
@@ -708,8 +744,47 @@ BEGIN
   IF p_company_id IS NULL OR p_company_id <= 0 THEN
     RAISE EXCEPTION 'fg_erase_closed' USING ERRCODE = '22023';
   END IF;
-  PERFORM pg_catalog.set_config('fg.erasing', 'on', true);
-  DELETE FROM public.profiles WHERE id = p_company_id;
+  ALTER TABLE public.fg_audit_log DISABLE TRIGGER USER;
+  ALTER TABLE public.fg_cost_entries DISABLE TRIGGER USER;
+  ALTER TABLE public.fg_odometer_readings DISABLE TRIGGER USER;
+  ALTER TABLE public.fg_vehicle_status_events DISABLE TRIGGER USER;
+  ALTER TABLE public.fg_position_events DISABLE TRIGGER USER;
+  BEGIN
+    DELETE FROM public.fg_job_stops WHERE company_id = p_company_id;
+    DELETE FROM public.fg_cost_entries WHERE company_id = p_company_id AND reverses_id IS NOT NULL;
+    DELETE FROM public.fg_cost_entries WHERE company_id = p_company_id;
+    DELETE FROM public.fg_odometer_readings WHERE company_id = p_company_id;
+    DELETE FROM public.fg_vehicle_status_events WHERE company_id = p_company_id;
+    DELETE FROM public.fg_position_events WHERE company_id = p_company_id;
+    DELETE FROM public.fg_audit_log WHERE company_id = p_company_id;
+    DELETE FROM public.fg_cost_profiles WHERE company_id = p_company_id;
+    DELETE FROM public.fg_compliance_items WHERE company_id = p_company_id;
+    DELETE FROM public.fg_overhead_pools WHERE company_id = p_company_id;
+    DELETE FROM public.fg_cpk_targets WHERE company_id = p_company_id;
+    DELETE FROM public.fg_telematics_links WHERE company_id = p_company_id;
+    DELETE FROM public.fg_import_runs WHERE company_id = p_company_id;
+    DELETE FROM public.fg_portal_attempts WHERE company_id = p_company_id;
+    DELETE FROM public.fg_portal_sessions WHERE company_id = p_company_id;
+    DELETE FROM public.fg_portal_otps WHERE company_id = p_company_id;
+    DELETE FROM public.fg_portal_invites WHERE company_id = p_company_id;
+    DELETE FROM public.fg_jobs WHERE company_id = p_company_id;
+    DELETE FROM public.fg_drivers WHERE company_id = p_company_id;
+    DELETE FROM public.fg_vehicles WHERE company_id = p_company_id;
+    DELETE FROM public.fg_counters WHERE company_id = p_company_id;
+    DELETE FROM public.fg_workspaces WHERE company_id = p_company_id;
+    ALTER TABLE public.fg_audit_log ENABLE TRIGGER USER;
+    ALTER TABLE public.fg_cost_entries ENABLE TRIGGER USER;
+    ALTER TABLE public.fg_odometer_readings ENABLE TRIGGER USER;
+    ALTER TABLE public.fg_vehicle_status_events ENABLE TRIGGER USER;
+    ALTER TABLE public.fg_position_events ENABLE TRIGGER USER;
+  EXCEPTION WHEN OTHERS THEN
+    ALTER TABLE public.fg_audit_log ENABLE TRIGGER USER;
+    ALTER TABLE public.fg_cost_entries ENABLE TRIGGER USER;
+    ALTER TABLE public.fg_odometer_readings ENABLE TRIGGER USER;
+    ALTER TABLE public.fg_vehicle_status_events ENABLE TRIGGER USER;
+    ALTER TABLE public.fg_position_events ENABLE TRIGGER USER;
+    RAISE;
+  END;
 END;
 $$;
 
@@ -733,6 +808,15 @@ BEGIN
   END IF;
   IF (p_diff->>'company_id')::bigint IS DISTINCT FROM p_company_id THEN
     RAISE EXCEPTION 'fg_commit_closed' USING ERRCODE = '22023';
+  END IF;
+
+  IF pg_catalog.jsonb_typeof(p_diff->'delete_stop_ids') = 'array' THEN
+    DELETE FROM public.fg_job_stops
+    WHERE company_id = p_company_id
+      AND id IN (
+        SELECT (value #>> '{}')::uuid
+        FROM pg_catalog.jsonb_array_elements(p_diff->'delete_stop_ids')
+      );
   END IF;
 
   FOREACH v_table IN ARRAY ARRAY[
@@ -806,15 +890,6 @@ BEGIN
       ) USING v_row;
     END LOOP;
   END LOOP;
-
-  IF pg_catalog.jsonb_typeof(p_diff->'delete_stop_ids') = 'array' THEN
-    DELETE FROM public.fg_job_stops
-    WHERE company_id = p_company_id
-      AND id IN (
-        SELECT (value #>> '{}')::uuid
-        FROM pg_catalog.jsonb_array_elements(p_diff->'delete_stop_ids')
-      );
-  END IF;
 END;
 $$;
 

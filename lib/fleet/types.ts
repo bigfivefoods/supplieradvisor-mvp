@@ -50,6 +50,8 @@ export type FleetWorkspace = {
   fines_in_cpk: boolean;
   tyre_mode_default: TyreMode;
   overhead_include_subcontractors: boolean;
+  /** Basis points. 1000 is a 10% margin on the required rate. */
+  required_margin_bps: number;
   updated_at: string;
 };
 
@@ -256,10 +258,25 @@ export type FleetAudit = {
   at: string;
 };
 
+export type FleetCustomer = {
+  id: number;
+  trading_name: string;
+};
+
+export type FleetTrip = {
+  id: string;
+  vehicle_id: string;
+  job_id: string | null;
+  on_date: string;
+  loaded_km: number | null;
+};
+
 export type FleetBook = {
   workspace: FleetWorkspace;
   vehicles: FleetVehicle[];
   drivers: FleetDriver[];
+  customers: FleetCustomer[];
+  trips: FleetTrip[];
   compliance: FleetCompliance[];
   jobs: FleetJob[];
   stops: FleetStop[];

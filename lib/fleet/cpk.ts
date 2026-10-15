@@ -20,6 +20,8 @@ export type CpkEntry = {
   litres?: number | null;
   odometer_km?: number | null;
   full_tank?: boolean;
+  id?: string;
+  reverses_id?: string | null;
 };
 export type CpkProfile = {
   vehicle_id: string;
@@ -372,7 +374,9 @@ function tyreAccrual(profile: CpkProfile | null, km: number, modeDefault: 'accru
 
 export function fuelEfficiency(entries: CpkEntry[]): { litresPer100: number | null; warnings: string[] } {
   const warnings: string[] = [];
-  const fills = entries
+  const reversed = new Set(entries.map((row) => row.reverses_id).filter((value): value is string => Boolean(value)));
+  const live = entries.filter((row) => !row.reverses_id && !(row.id && reversed.has(row.id)));
+  const fills = live
     .filter((row) => row.category === 'fuel' && row.full_tank && row.odometer_km != null)
     .sort((a, b) => a.occurred_on.localeCompare(b.occurred_on) || (a.odometer_km || 0) - (b.odometer_km || 0));
   const valid = fills.filter((row, index) => {
@@ -434,19 +438,18 @@ function utilisationFor(
 
 function pickTarget(targets: CpkTarget[], vehicle: CpkVehicleInput, period: CpkPeriod, layer: 'fully_loaded' | 'operating'): number | null {
   const day = addDays(period.to, -1);
+  const rank = (kind: string) => (kind === 'vehicle' ? 3 : kind === 'vehicle_class' ? 2 : 1);
   const rows = targets
-    .filter((row) => row.layer === layer && row.effective_from.slice(0, 10) <= day)
-    .filter((row) => {
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => row.layer === layer && row.effective_from.slice(0, 10) <= day)
+    .filter(({ row }) => {
       if (row.scope_kind === 'vehicle') return row.scope_ref === vehicle.id;
       if (row.scope_kind === 'vehicle_class') return row.scope_ref === vehicle.kind;
       if (row.scope_kind === 'fleet') return true;
       return false;
     })
-    .sort((a, b) => {
-      const rank = (kind: string) => (kind === 'vehicle' ? 3 : kind === 'vehicle_class' ? 2 : 1);
-      return rank(b.scope_kind) - rank(a.scope_kind) || b.effective_from.localeCompare(a.effective_from);
-    });
-  const hit = rows[0];
+    .sort((a, b) => rank(b.row.scope_kind) - rank(a.row.scope_kind) || b.row.effective_from.localeCompare(a.row.effective_from) || b.index - a.index);
+  const hit = rows[0]?.row;
   if (!hit || !Number.isFinite(hit.target_cents_per_km)) return null;
   return hit.target_cents_per_km / 100;
 }

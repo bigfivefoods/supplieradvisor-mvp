@@ -69,6 +69,8 @@ if (!personal.ok) assert.match(personal.error, /Demo-data mode/);
 
 assert.equal(assertNoIdentityText('Call 0821234567').ok, true);
 assert.equal(assertNoIdentityText('8001015009087').ok, false);
+assert.equal(assertNoIdentityText('Reference 1234567890123').ok, true);
+assert.equal(assertNoIdentityText('80010150090870').ok, true);
 assert.equal(assertNoIdentityText('licence number ABC123456').ok, false);
 assert.equal(assertNoIdentityText('passport no X1234567').ok, false);
 const refused = applyFleetOp(

@@ -1,9 +1,27 @@
 /**
- * FleetAdvisor® book → cost engine. Revenue and loaded kilometres stay empty
- * until trips exist. Planned kilometres are not read.
+ * FleetAdvisor® book → cost engine. Trip days come from recorded trips, or from
+ * booked job windows when no trips are on file. Planned kilometres are not read.
  */
-import { computeFleetCpk, type CpkPeriod, type FleetCpkInput, type VehicleCpk } from './cpk';
-import type { FleetBook } from './types';
+import { addDays, computeFleetCpk, type CpkPeriod, type FleetCpkInput, type VehicleCpk } from './cpk';
+import type { FleetBook, FleetJob } from './types';
+
+function eachDate(from: string, to: string): string[] {
+  const days: string[] = [];
+  for (let day = from; day <= to && days.length < 366; day = addDays(day, 1)) days.push(day);
+  return days;
+}
+
+function tripWindow(book: FleetBook, job: FleetJob): string[] {
+  const stops = book.stops.filter((stop) => stop.job_id === job.id && stop.window_start);
+  const days = new Set<string>();
+  for (const stop of stops) {
+    const start = (stop.window_start || '').slice(0, 10);
+    const end = (stop.window_end || stop.window_start || '').slice(0, 10);
+    if (!start) continue;
+    for (const day of eachDate(start, end >= start ? end : start)) days.add(day);
+  }
+  return [...days];
+}
 
 export function cpkInputFromBook(book: FleetBook, period: CpkPeriod): FleetCpkInput {
   return {
@@ -14,15 +32,27 @@ export function cpkInputFromBook(book: FleetBook, period: CpkPeriod): FleetCpkIn
     includeSubcontractors: book.workspace.overhead_include_subcontractors,
     vehicles: book.vehicles
       .filter((vehicle) => !vehicle.archived_at)
-      .map((vehicle) => ({
-        id: vehicle.id,
-        kind: vehicle.kind,
-        ownership: vehicle.ownership,
-        readings: book.odometer_readings
-          .filter((row) => row.vehicle_id === vehicle.id)
-          .map((row) => ({ reading_km: row.reading_km, read_at: row.read_at })),
-      })),
+      .map((vehicle) => {
+        const recorded = book.trips.filter((trip) => trip.vehicle_id === vehicle.id);
+        const jobs = book.jobs.filter((job) => job.vehicle_id === vehicle.id && job.status !== 'cancelled' && job.status !== 'draft' && !job.archived_at);
+        const days = recorded.length ? recorded.map((trip) => trip.on_date.slice(0, 10)) : jobs.flatMap((job) => tripWindow(book, job));
+        const loaded = recorded.reduce((sum, trip) => sum + (trip.loaded_km || 0), 0);
+        const revenue = jobs.reduce((sum, job) => sum + (job.price_cents || 0), 0);
+        return {
+          id: vehicle.id,
+          kind: vehicle.kind,
+          ownership: vehicle.ownership,
+          trip_days: days,
+          loaded_km: recorded.length ? loaded : null,
+          revenue_cents: jobs.length ? revenue : null,
+          readings: book.odometer_readings
+            .filter((row) => row.vehicle_id === vehicle.id)
+            .map((row) => ({ reading_km: row.reading_km, read_at: row.read_at })),
+        };
+      }),
     entries: book.cost_entries.map((row) => ({
+      id: row.id,
+      reverses_id: row.reverses_id,
       vehicle_id: row.vehicle_id,
       category: row.category,
       occurred_on: row.occurred_on,
