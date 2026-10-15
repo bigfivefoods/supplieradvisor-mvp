@@ -237,7 +237,7 @@ export function PortalDeskView(props: DeskProps) {
         <p className="font-black text-slate-900">Workers and money</p>
         <p className="mt-1 text-sm text-slate-600">Certified and paid stay off the workers app until you allow them. The API enforces this.</p>
         <ConstructionButton className="mt-3" data-testid="workers-money-toggle" onClick={() => void props.handlers.run({ action: 'set_workers_money', workersSeeMoney: !props.store.settings.workers_see_money })}>
-          {props.store.settings.workers_see_money ? 'Workers can see certified and paid' : 'Workers cannot see certified and paid'}
+          {props.store.settings.workers_see_money ? 'Hide certified and paid from workers' : 'Allow workers to see certified and paid'}
         </ConstructionButton>
       </article>
       <label className="block text-xs font-bold text-slate-700">

@@ -1,8 +1,11 @@
 import { chromium } from 'playwright';
-import { mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const out = '/opt/cursor/artifacts/construction-screens';
+const docs = resolve('docs/pr/brief-113');
 mkdirSync(out, { recursive: true });
+mkdirSync(docs, { recursive: true });
 const base = 'http://localhost:3000';
 
 const desk = [
@@ -44,6 +47,66 @@ const trade = [
 
 const browser = await chromium.launch();
 
+{
+  const page = await browser.newPage();
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(base + '/preview/constructiongraph/programme?reset=1', { waitUntil: 'networkidle' });
+  await page.getByTestId('gantt-chart').waitFor();
+  const gantt = await page.getByTestId('gantt-chart').evaluate((chart) => {
+    const box = chart.getBoundingClientRect();
+    const bars = [...chart.querySelectorAll('[style*="width"]')].map((node) => {
+      const rect = node.getBoundingClientRect();
+      return { right: Math.round(rect.right), chart: Math.round(box.right), bleed: rect.right > box.right + 1 };
+    });
+    const milestone = chart.querySelector('[data-testid="gantt-milestone"]');
+    const mark = milestone ? milestone.getBoundingClientRect() : null;
+    return {
+      bars,
+      milestone: mark ? { width: Math.round(mark.width), height: Math.round(mark.height), inside: mark.left >= box.left - 1 && mark.right <= box.right + 1 && mark.width > 8 } : null,
+    };
+  });
+  console.log('GANTT', JSON.stringify(gantt));
+  if (gantt.bars.some((bar) => bar.bleed) || !gantt.milestone?.inside) {
+    throw new Error('Gantt bar or milestone is outside the chart');
+  }
+  const payments = await page.locator('[data-testid="preview-sidebar"] a').evaluateAll((links) => links.map((link) => link.textContent || ''));
+  console.log('NAV', payments.join(' | '));
+  if (!payments.some((label) => label.includes('Payments')) || payments.some((label) => label.includes('Paymen…') || label.includes('...'))) {
+    throw new Error('Section nav clips a label');
+  }
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto(base + '/preview/constructiongraph/work?role=owner&reset=1', { waitUntil: 'networkidle' });
+  const ownerTitle = await page.locator('[data-testid="role-owner"] h1').evaluate((el) => ({
+    text: el.textContent,
+    overflow: getComputedStyle(el).textOverflow,
+    client: el.clientWidth,
+    scroll: el.scrollWidth,
+  }));
+  console.log('OWNER TITLE', JSON.stringify(ownerTitle));
+  if (ownerTitle.text !== 'ConstructionAdvisor®' || ownerTitle.scroll > ownerTitle.client + 1) {
+    throw new Error('Owner title is clipped');
+  }
+  await page.goto(base + '/preview/constructiongraph/portal?kind=client&reset=1', { waitUntil: 'networkidle' });
+  const clientTitle = await page.locator('[data-testid="role-client"] h1').evaluate((el) => ({
+    text: el.textContent,
+    client: el.clientWidth,
+    scroll: el.scrollWidth,
+  }));
+  const project = await page.getByTestId('client-projects').innerText();
+  console.log('CLIENT TITLE', JSON.stringify(clientTitle));
+  console.log('CLIENT PROJECT', project.replace(/\s+/g, ' '));
+  if (clientTitle.text !== 'ConstructionAdvisor®' || clientTitle.scroll > clientTitle.client + 1) {
+    throw new Error('Client title is clipped');
+  }
+  if (/on_site|48\.75|41\.25/.test(project)) throw new Error('Client project still shows raw status');
+  await page.getByRole('button', { name: 'Money' }).click();
+  const wallet = await page.getByTestId('client-money').innerText();
+  console.log('CLIENT WALLET', wallet.replace(/\s+/g, ' '));
+  if (wallet.includes('Paid R 0') || wallet.includes('R 0')) throw new Error('Client wallet still shows Paid R 0');
+  if (!wallet.includes('Paid —') && !wallet.includes('Paid\n—')) throw new Error('Client wallet missing Paid dash');
+  await page.close();
+}
+
 async function shoot(page, name, path, viewport) {
   await page.setViewportSize(viewport);
   const response = await page.goto(base + path, { waitUntil: 'networkidle', timeout: 60000 });
@@ -79,6 +142,9 @@ for (const viewport of [
     await page.getByRole('button', { name: 'Money' }).click();
     await page.getByTestId('money-panel').waitFor();
     await page.screenshot({ path: `${out}/${tag}-owner-money.png`, fullPage: true });
+    await page.getByRole('button', { name: 'Plan' }).click();
+    await page.getByTestId('owner-plan').waitFor();
+    await page.screenshot({ path: `${out}/${tag}-owner-plan.png`, fullPage: true });
     console.log('owner tabs', tag);
   } catch (error) {
     console.error('FAIL owner tabs', error.message);
@@ -113,15 +179,15 @@ for (const viewport of [
     } catch (error) {
       console.error('FAIL reveal', error.message);
     }
-    try {
-      await page.goto(base + '/preview/constructiongraph/subcontractors?reset=1', { waitUntil: 'networkidle' });
-      await page.getByTestId('subcontractors-table').locator('tbody tr').first().click();
-      await page.getByTestId('site-link-coming').waitFor();
-      await page.screenshot({ path: `${out}/1280x800-site-link.png`, fullPage: true });
-      console.log('site link');
-    } catch (error) {
-      console.error('FAIL site link', error.message);
-    }
+  }
+  try {
+    await page.goto(base + '/preview/constructiongraph/subcontractors?reset=1', { waitUntil: 'networkidle' });
+    await page.getByTestId('subcontractors-table').locator('[data-row-id]').filter({ visible: true }).first().click();
+    await page.getByTestId('site-link-coming').waitFor();
+    await page.screenshot({ path: `${out}/${tag}-site-link.png`, fullPage: true });
+    console.log('site link', tag);
+  } catch (error) {
+    console.error('FAIL site link', error.message);
   }
   await context.close();
 }
@@ -150,3 +216,10 @@ try {
   console.error('FAIL gym', error.message);
 }
 await browser.close();
+
+for (const name of readdirSync(out)) {
+  if (!name.endsWith('.png')) continue;
+  if (name.startsWith('1280x800-trade') || name.startsWith('375x812-trade') || name.includes('gym-gate')) continue;
+  copyFileSync(`${out}/${name}`, `${docs}/${name}`);
+}
+console.log('copied screenshots into docs/pr/brief-113');

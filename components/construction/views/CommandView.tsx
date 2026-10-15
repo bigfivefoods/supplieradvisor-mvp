@@ -1,6 +1,6 @@
 'use client';
 
-import { Hammer } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Hammer, HardHat, Wallet } from 'lucide-react';
 import { attentionItems, bookIsEmpty, hasSampleRows } from '@/lib/construction/attention';
 import { programmeReport } from '@/lib/construction/constructiongraph';
 import { formatPct, formatRand, sastToday } from '@/lib/construction/format';
@@ -10,7 +10,7 @@ import {
   ConstructionPageHead,
   ConstructionProgress,
   ConstructionSection,
-  ConstructionStat,
+  ConstructionKpi,
   ConstructionStatusPill,
   ConstructionUnavailable,
 } from '@/components/construction/ConstructionUi';
@@ -78,20 +78,20 @@ export function CommandView(props: DeskProps) {
         </ConstructionSection>
       ) : null}
       {role === 'office' || role === 'owner' || role === 'viewer' ? (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" data-testid="command-kpi">
-          <ConstructionStat label="Projects on site" value={String(store.sites.filter((site) => site.status === 'on_site').length)} />
-          <ConstructionStat label="Programme plan" value={store.programme.length ? formatPct(roll.plannedPct) : '—'} />
-          <ConstructionStat label="Programme actual" value={store.programme.length ? formatPct(roll.actualPct) : '—'} />
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3" data-testid="command-kpi">
+          <ConstructionKpi icon={<HardHat />} label="Projects on site" value={String(store.sites.filter((site) => site.status === 'on_site').length)} sub={`${store.sites.length} in the book`} />
+          <ConstructionKpi icon={<CalendarDays />} label="Programme plan" value={store.programme.length ? formatPct(roll.plannedPct) : '—'} sub="From the stored row percents" tint="bg-white" />
+          <ConstructionKpi icon={<CalendarDays />} label="Programme actual" value={store.programme.length ? formatPct(roll.actualPct) : '—'} sub="From the stored row percents" tint="bg-white" />
           {caps.canSeeMoney && Object.prototype.hasOwnProperty.call(store, 'payments') ? (
             <>
-              <ConstructionStat label="Certified to date" value={formatRand(roll.certified)} />
-              <ConstructionStat label="Outstanding claims" value={formatRand(roll.outstandingBillings)} tone={roll.overduePayments ? 'warn' : 'default'} />
+              <ConstructionKpi icon={<Wallet />} label="Certified to date" value={formatRand(roll.certified)} sub="As entered" />
+              <ConstructionKpi icon={<Wallet />} label="Outstanding claims" value={formatRand(roll.outstandingBillings)} sub={roll.overduePayments ? `${roll.overduePayments} overdue` : 'Nothing overdue'} tint="bg-white" />
             </>
           ) : (
-            <ConstructionStat label="Money" value="—" />
+            <ConstructionKpi icon={<Wallet />} label="Money" value="—" sub="Hidden for this role" tint="bg-white" />
           )}
-          <ConstructionStat label="Open snags" value={String(roll.openSnags)} />
-          <ConstructionStat label="Variations waiting" value={String(store.variations.filter((row) => row.status === 'submitted' || row.status === 'queried').length)} />
+          <ConstructionKpi icon={<AlertTriangle />} label="Open snags" value={String(roll.openSnags)} sub="Still open on the sites" tint="bg-white" />
+          <ConstructionKpi icon={<Hammer />} label="Variations waiting" value={String(store.variations.filter((row) => row.status === 'submitted' || row.status === 'queried').length)} sub="Submitted or queried" />
         </div>
       ) : null}
       {!empty && !store.programme.length && role !== 'site_manager' ? (
@@ -137,6 +137,26 @@ export function CommandView(props: DeskProps) {
                 </a>
               );
             })}
+          </div>
+        </ConstructionSection>
+      ) : null}
+      {role !== 'site_manager' && store.snags.length ? (
+        <ConstructionSection title="Snag board" hint="Each card is a snag already on a site." testId="snag-board">
+          <div className="grid gap-3 md:grid-cols-3">
+            {(['open', 'in_progress', 'closed'] as const).map((status) => (
+              <div key={status} className="rounded-3xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#0f172a]">{status === 'in_progress' ? 'In progress' : status === 'open' ? 'Open' : 'Closed'}</p>
+                <ul className="mt-2 space-y-2">
+                  {store.snags.filter((row) => (row.status || 'open') === status).map((row) => (
+                    <li key={row.id} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                      <p className="text-sm font-black text-slate-900">{row.item}</p>
+                      <p className="text-xs text-slate-600">{row.location || 'No location'}</p>
+                    </li>
+                  ))}
+                  {store.snags.every((row) => (row.status || 'open') !== status) ? <li className="text-xs text-slate-500">None</li> : null}
+                </ul>
+              </div>
+            ))}
           </div>
         </ConstructionSection>
       ) : null}

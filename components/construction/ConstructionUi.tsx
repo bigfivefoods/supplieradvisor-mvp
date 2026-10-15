@@ -37,7 +37,7 @@ export const constructionChipOff =
 
 export function ConstructionKicker({ children }: { children?: ReactNode }) {
   return (
-    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0077b6]">
+    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0f172a]">
       {children || 'ConstructionAdvisor®'}
     </p>
   );
@@ -102,6 +102,64 @@ export function ConstructionPageHead({
         {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
       </div>
     </header>
+  );
+}
+
+export function ConstructionKpi({
+  value,
+  label,
+  sub,
+  icon,
+  tint = 'bg-sky-50',
+}: {
+  value: ReactNode;
+  label: string;
+  sub?: string;
+  icon?: ReactNode;
+  tint?: string;
+}) {
+  return (
+    <article className={`rounded-3xl border border-sky-100 ${tint} p-4 shadow-sm`}>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#0f172a]/70">{label}</p>
+        {icon ? (
+          <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#00b4d8] text-[#0f172a] [&>svg]:h-4 [&>svg]:w-4">
+            {icon}
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-2 text-2xl font-black tabular-nums text-[#0f172a]">{value}</p>
+      {sub ? <p className="mt-1 text-xs font-semibold text-slate-600">{sub}</p> : null}
+    </article>
+  );
+}
+
+/** Bars from amounts already stored. A missing figure stays an em dash. */
+export function ConstructionMoneyBars({
+  rows,
+}: {
+  rows: Array<{ label: string; value: number | null }>;
+}) {
+  const finite = rows.map((row) => (row.value == null || !Number.isFinite(row.value) ? 0 : Math.max(0, row.value)));
+  const peak = Math.max(1, ...finite);
+  return (
+    <div className="space-y-3" data-testid="money-chart">
+      {rows.map((row, index) => {
+        const missing = row.value == null || !Number.isFinite(row.value);
+        const width = missing ? 0 : Math.max(row.value! > 0 ? 4 : 0, (finite[index] / peak) * 100);
+        return (
+          <div key={row.label}>
+            <div className="flex items-baseline justify-between gap-3 text-xs font-bold text-[#0f172a]">
+              <span>{row.label}</span>
+              <span className="tabular-nums">{missing ? '—' : formatRand(row.value)}</span>
+            </div>
+            <div className="mt-1 h-2.5 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full rounded-full bg-[#00b4d8] text-[#0f172a]" style={{ width: `${Math.min(100, width)}%` }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -207,7 +265,7 @@ export function ConstructionLoading({
         <div className="h-20 animate-pulse rounded-2xl bg-slate-200 motion-reduce:animate-none" />
       </div>
       <p className="flex items-center justify-center gap-2 text-sm font-bold text-slate-600">
-        <Loader2 className="h-4 w-4 animate-spin text-[#0077b6] motion-reduce:animate-none" />
+        <Loader2 className="h-4 w-4 animate-spin text-[#0f172a] motion-reduce:animate-none" />
         {label}
       </p>
     </div>

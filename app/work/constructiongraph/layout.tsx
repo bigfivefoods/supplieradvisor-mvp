@@ -3,10 +3,10 @@ import { Providers } from '@/components/Providers';
 
 export const metadata: Metadata = {
   title: 'ConstructionAdvisor®',
-  description: 'ConstructionAdvisor® site diary, snags, safety, and programme.',
+  description: 'ConstructionAdvisor® for the whole business: projects, programme, money, variations, diary, and the team.',
   manifest: '/work/constructiongraph/manifest.webmanifest',
   appleWebApp: { capable: true, title: 'Construction', statusBarStyle: 'default' },
-  icons: { apple: '/construction/apple-touch-180.png' },
+  icons: { apple: '/construction/owner-apple-180.png' },
   robots: { index: false, follow: false },
 };
 

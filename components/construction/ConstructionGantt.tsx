@@ -4,6 +4,7 @@ import { useMemo, useRef } from 'react';
 import { AlertTriangle, Diamond } from 'lucide-react';
 import { ConstructionEmpty } from '@/components/construction/ConstructionUi';
 import { addDaysIso, type ConstructionProgrammeRow } from '@/lib/construction/constructiongraph';
+import { formatSastDate } from '@/lib/construction/format';
 import { criticalPathIds, forecastEnd, isDelayed, reviseEnd } from '@/lib/construction/programme-model';
 
 const DAY = 86_400_000;
@@ -29,7 +30,7 @@ export function ConstructionGantt({
   const critical = useMemo(() => new Set(criticalPathIds(rows)), [rows]);
   const layout = useMemo(() => {
     const stamps = rows.flatMap((row) =>
-      [row.planned_start, row.planned_end, row.baseline_start, row.baseline_end, row.actual_start, row.actual_end, reviseEnd(row).revisedEnd, today]
+      [row.planned_start, row.planned_end, row.baseline_start, row.baseline_end, row.actual_start, row.actual_end, reviseEnd(row).revisedEnd, forecastEnd(row, today), today]
         .map(parse)
         .filter((value): value is number => value != null)
     );
@@ -51,31 +52,31 @@ export function ConstructionGantt({
     );
   }
 
-  const dayWidth = 28;
-  const width = layout.span * dayWidth;
-  const todayLeft = Math.max(0, Math.round(((parse(today) || layout.origin) - layout.origin) / DAY)) * dayWidth;
   const byId = new Map(rows.map((row) => [row.id, row]));
+  const todayLeft = Math.max(0, Math.min(97, (((parse(today) || layout.origin) - layout.origin) / DAY / layout.span) * 100));
 
   const bar = (start?: string | null, end?: string | null) => {
     const a = parse(start);
     const b = parse(end || start);
     if (a == null || b == null) return null;
-    const left = Math.max(0, Math.round((a - layout.origin) / DAY)) * dayWidth;
-    const days = Math.max(1, Math.round((b - a) / DAY) + 1);
-    return { left, width: Math.max(days * dayWidth - 6, 12) };
+    const left = Math.max(0, Math.min(96, ((a - layout.origin) / DAY / layout.span) * 100));
+    const days = Math.max(1, (b - a) / DAY + 1);
+    const room = Math.max(0, 98 - left);
+    const width = Math.min(Math.max((days / layout.span) * 100, Math.min(1.5, room)), room);
+    return { left: `${left}%`, width: `${width}%` };
   };
 
   return (
     <div className="space-y-3" data-testid="programme-gantt">
-      <div className="hidden overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm sm:block" data-testid="gantt-chart">
-        <div style={{ minWidth: width + 180 }}>
-          <div className="grid grid-cols-[11rem_1fr] border-b border-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+      <div className="hidden overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm sm:block" data-testid="gantt-chart">
+        <div>
+          <div className="grid grid-cols-[11rem_minmax(0,1fr)] border-b border-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-500">
             <div className="px-3 py-2">Activity</div>
-            <div className="relative h-8" style={{ width }}>
+            <div className="relative h-8">
               <span
                 data-testid="gantt-today"
-                className="absolute top-0 h-full w-px bg-[#0077b6]"
-                style={{ left: todayLeft }}
+                className="absolute top-0 h-full w-px bg-[#00b4d8] text-[#0f172a]"
+                style={{ left: `${todayLeft}%` }}
                 title="Today"
               />
             </div>
@@ -93,7 +94,7 @@ export function ConstructionGantt({
                   key={row.id}
                   data-row-id={row.id}
                   data-critical={critical.has(row.id) ? '1' : '0'}
-                  className={`grid grid-cols-[11rem_1fr] border-b border-slate-50 ${critical.has(row.id) ? 'bg-sky-50/40' : ''}`}
+                  className={`grid grid-cols-[11rem_minmax(0,1fr)] border-b border-slate-50 ${critical.has(row.id) ? 'bg-sky-50/40' : ''}`}
                 >
                   <div className="px-3 py-3">
                     <p className="text-sm font-bold text-slate-900">{row.activity}</p>
@@ -113,7 +114,7 @@ export function ConstructionGantt({
                       </div>
                     )}
                   </div>
-                  <div className="relative h-16" style={{ width }}>
+                  <div className="relative h-16 overflow-hidden pr-3">
                     {baseline ? (
                       <div data-testid="gantt-baseline" className="absolute top-2 h-2 rounded-full bg-slate-200" style={{ left: baseline.left, width: baseline.width }} title="Baseline" />
                     ) : null}
@@ -121,14 +122,15 @@ export function ConstructionGantt({
                       <div className="absolute top-5 h-2 rounded-full bg-slate-300" style={{ left: plan.left, width: plan.width }} title="Plan" />
                     ) : null}
                     {row.kind === 'milestone' ? (
-                      <span data-testid="gantt-milestone" className="absolute top-7 inline-flex h-4 w-4 items-center justify-center text-[#0f172a]" style={{ left: (plan || actual)?.left || 0 }} title="Milestone">
-                        <Diamond className="h-3 w-3 fill-[#00b4d8] text-[#0f172a]" />
+                      <span data-testid="gantt-milestone" className="absolute top-4 inline-flex items-center gap-1 text-[#0f172a]" style={{ left: (plan || actual)?.left || 0 }} title="Milestone">
+                        <Diamond className="h-5 w-5 fill-[#00b4d8] text-[#0f172a]" />
+                        <span className="text-[11px] font-black">Milestone</span>
                       </span>
                     ) : actual ? (
                       <button
                         type="button"
                         disabled={readOnly}
-                        className={`absolute top-8 h-3 rounded-full ${late ? 'bg-orange-500 text-[#0f172a]' : 'bg-[#00b4d8] text-[#0f172a]'} disabled:cursor-default`}
+                        className={`absolute top-8 h-3 max-w-full rounded-full ${late ? 'bg-orange-500 text-[#0f172a]' : 'bg-[#00b4d8] text-[#0f172a]'} disabled:cursor-default`}
                         style={{ left: actual.left, width: actual.width }}
                         aria-label={`${row.activity} actual bar`}
                         onPointerDown={(event) => {
@@ -137,6 +139,8 @@ export function ConstructionGantt({
                         }}
                         onPointerUp={(event) => {
                           if (!drag.current || drag.current.id !== row.id) return;
+                          const track = event.currentTarget.parentElement?.clientWidth || 280;
+                          const dayWidth = Math.max(8, track / layout.span);
                           const days = Math.round((event.clientX - drag.current.x) / dayWidth);
                           drag.current = null;
                           if (days) onShift?.(row.id, days);
@@ -144,7 +148,7 @@ export function ConstructionGantt({
                       />
                     ) : null}
                     {revised.eotDays > 0 ? (
-                      <span data-testid="gantt-eot" className="absolute top-1 text-[10px] font-black text-orange-800" style={{ left: (plan?.left || 0) + (plan?.width || 0) }}>
+                      <span data-testid="gantt-eot" className="absolute top-1 text-[10px] font-black text-orange-800" style={{ left: plan ? `min(calc(${plan.left} + ${plan.width}), calc(100% - 4.5rem))` : '0%' }}>
                         EOT +{revised.eotDays}d
                       </span>
                     ) : null}
@@ -162,7 +166,7 @@ export function ConstructionGantt({
         </div>
       </div>
       <ol className="space-y-2 sm:hidden" data-testid="gantt-mobile-list">
-        <li data-testid="gantt-today" className="text-xs font-bold text-[#0077b6]">
+        <li data-testid="gantt-today" className="text-xs font-bold text-[#0f172a]">
           Today {today}
         </li>
         {rows.map((row) => {
@@ -208,5 +212,30 @@ export function ConstructionGantt({
       </p>
       <p className="sr-only">{addDaysIso(today, 0)}</p>
     </div>
+  );
+}
+
+export function ConstructionTimeline({ rows }: { rows: ConstructionProgrammeRow[] }) {
+  const sorted = rows
+    .slice()
+    .sort((a, b) => String(a.planned_start || a.start_date || '').localeCompare(String(b.planned_start || b.start_date || '')));
+  if (!sorted.length) return null;
+  return (
+    <ol className="space-y-2" data-testid="schedule-timeline">
+      {sorted.map((row) => (
+        <li key={row.id} className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+          <p className="text-xs font-black text-[#0f172a]">{formatSastDate(row.planned_start || row.start_date)}</p>
+          <div className="min-w-0">
+            <p className="flex flex-wrap items-center gap-2 font-black text-[#0f172a]">
+              {row.kind === 'milestone' ? <Diamond className="h-4 w-4 fill-[#00b4d8] text-[#0f172a]" aria-hidden /> : null}
+              {row.activity}
+            </p>
+            <p className="text-xs text-slate-600">
+              {row.kind === 'milestone' ? 'Milestone' : 'Task'} · {formatSastDate(row.planned_start || row.start_date)} to {formatSastDate(row.planned_end || row.end_date)}
+            </p>
+          </div>
+        </li>
+      ))}
+    </ol>
   );
 }

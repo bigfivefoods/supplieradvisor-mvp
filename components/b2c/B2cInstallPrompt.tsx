@@ -60,12 +60,16 @@ function markDismissed() {
 export function B2cInstallPrompt({
   autoShow = true,
   product = 'SA Member',
+  label,
   blurb = 'Install once — hire path, gym check-in, shop and your profile open like a real app. Free. Takes about 10 seconds.',
 }: {
   autoShow?: boolean;
   product?: string;
+  /** Visible product name. Defaults to `product`. Use this when the prose needs a registered mark. */
+  label?: string;
   blurb?: string;
 } = {}) {
+  const name = label || product;
   const [open, setOpen] = useState(false);
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
     null
@@ -155,7 +159,7 @@ export function B2cInstallPrompt({
                   id="sa-member-install-title"
                   className="text-xl font-black tracking-tight"
                 >
-                  Add {product} to your phone
+                  Add {name} to your phone
                 </h2>
               </div>
             </div>
@@ -203,7 +207,7 @@ export function B2cInstallPrompt({
                   <Smartphone className="h-4 w-4" />
                 </span>
                 <span>
-                  <span className="font-black text-slate-900 dark:text-white">3 · Open {product}</span>
+                  <span className="font-black text-slate-900 dark:text-white">3 · Open {name}</span>
                   <span className="mt-0.5 block text-[12px] text-slate-500 dark:text-neutral-400">
                     Use the new icon on your home screen next time.
                   </span>
@@ -213,7 +217,7 @@ export function B2cInstallPrompt({
           ) : (
             <p className="text-sm text-slate-600 dark:text-neutral-300">
               {deferred
-                ? `Your browser can install ${product} now. You will get a home-screen icon.`
+                ? `Your browser can install ${name} now. You will get a home-screen icon.`
                 : 'In Chrome, open the menu (⋮) and tap Install app or Add to Home screen.'}
             </p>
           )}

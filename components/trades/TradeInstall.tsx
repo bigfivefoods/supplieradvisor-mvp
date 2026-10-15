@@ -15,6 +15,7 @@ export function TradeInstallPrompt() {
       <B2cInstallPrompt
         autoShow={false}
         product="TradeAdvisor"
+        label="TradeAdvisor®"
         blurb="Add TradeAdvisor® to your home screen. Jobs, the plan, and invoices open like an app."
       />
     </>

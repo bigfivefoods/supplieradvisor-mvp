@@ -13,8 +13,8 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
     manifest: `/crew/constructiongraph/${safe}/manifest.webmanifest`,
     appleWebApp: { capable: true, title: 'Construction', statusBarStyle: 'default' },
     icons: {
-      icon: [{ url: '/construction/icon-192.png', sizes: '192x192', type: 'image/png' }],
-      apple: '/construction/apple-touch-180.png',
+      icon: [{ url: '/construction/workers-192.png', sizes: '192x192', type: 'image/png' }],
+      apple: '/construction/workers-apple-180.png',
     },
   };
 }

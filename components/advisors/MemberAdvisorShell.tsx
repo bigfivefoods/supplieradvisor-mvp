@@ -39,6 +39,7 @@ export function MemberAdvisorShell<T extends string = string>({
   presence = true,
   solidBrand = false,
   navTestId,
+  stackHeader = false,
 }: {
   color: string;
   header: ReactNode;
@@ -61,6 +62,8 @@ export function MemberAdvisorShell<T extends string = string>({
   solidBrand?: boolean;
   /** Optional hook for the mobile bottom bar. */
   navTestId?: string;
+  /** Put the title on its own row on a phone so a long name is not clipped. */
+  stackHeader?: boolean;
 }) {
   const ink = solidBrand ? '#0f172a' : advisorBrandInk(color);
   const phoneTabs = mobileTabs || tabs;
@@ -183,8 +186,8 @@ export function MemberAdvisorShell<T extends string = string>({
         }}
       >
         <div className="mx-auto max-w-6xl px-4 py-3 md:px-8 md:py-3.5">
-          <div className="flex items-stretch justify-between gap-3">
-            <div className="min-w-0 flex-1">{header}</div>
+          <div className={stackHeader ? 'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between' : 'flex items-stretch justify-between gap-3'}>
+            <div className={stackHeader ? 'w-full sm:min-w-0 sm:flex-1' : 'min-w-0 flex-1'}>{header}</div>
             <PortalHeaderTools appHref={appHref} spread onLightBrand={solidBrand} />
           </div>
         </div>

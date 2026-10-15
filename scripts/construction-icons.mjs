@@ -48,11 +48,13 @@ function crc32(buf) {
   return (c ^ 0xffffffff) >>> 0;
 }
 
-function draw(size, inset) {
+function canvas(size) {
   const rgba = Buffer.alloc(size * size * 4, 0);
   const set = (x, y, color) => {
-    if (x < 0 || y < 0 || x >= size || y >= size) return;
-    const i = (y * size + x) * 4;
+    const px = Math.round(x);
+    const py = Math.round(y);
+    if (px < 0 || py < 0 || px >= size || py >= size) return;
+    const i = (py * size + px) * 4;
     rgba[i] = color[0];
     rgba[i + 1] = color[1];
     rgba[i + 2] = color[2];
@@ -66,6 +68,43 @@ function draw(size, inset) {
       if (dx * dx + dy * dy <= radius * radius) set(x, y, NAVY);
     }
   }
+  const fillRect = (x0, y0, x1, y1, color) => {
+    const left = Math.floor(Math.min(x0, x1));
+    const right = Math.ceil(Math.max(x0, x1));
+    const top = Math.floor(Math.min(y0, y1));
+    const bottom = Math.ceil(Math.max(y0, y1));
+    for (let y = top; y <= bottom; y++) for (let x = left; x <= right; x++) set(x, y, color);
+  };
+  const fillEllipse = (cx, cy, rx, ry, color) => {
+    for (let y = Math.floor(cy - ry); y <= cy + ry; y++) {
+      for (let x = Math.floor(cx - rx); x <= cx + rx; x++) {
+        const dx = (x - cx) / rx;
+        const dy = (y - cy) / ry;
+        if (dx * dx + dy * dy <= 1) set(x, y, color);
+      }
+    }
+  };
+  const fillTri = (ax, ay, bx, by, cx, cy, color) => {
+    const minX = Math.floor(Math.min(ax, bx, cx));
+    const maxX = Math.ceil(Math.max(ax, bx, cx));
+    const minY = Math.floor(Math.min(ay, by, cy));
+    const maxY = Math.ceil(Math.max(ay, by, cy));
+    const area = (px, py, qx, qy, rx, ry) => (qx - px) * (ry - py) - (rx - px) * (qy - py);
+    const whole = area(ax, ay, bx, by, cx, cy);
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        const w0 = area(bx, by, cx, cy, x, y);
+        const w1 = area(cx, cy, ax, ay, x, y);
+        const w2 = area(ax, ay, bx, by, x, y);
+        if (whole >= 0 ? w0 >= 0 && w1 >= 0 && w2 >= 0 : w0 <= 0 && w1 <= 0 && w2 <= 0) set(x, y, color);
+      }
+    }
+  };
+  return { rgba, set, fillRect, fillEllipse, fillTri };
+}
+
+function draw(size, inset) {
+  const { rgba, set } = canvas(size);
   const cx = size / 2;
   const cy = size / 2;
   const scale = (size - inset * 2) / 512;
@@ -86,9 +125,42 @@ function draw(size, inset) {
   return rgba;
 }
 
+function drawRole(size, inset, role) {
+  const { rgba, fillRect, fillEllipse, fillTri } = canvas(size);
+  const x = (u) => inset + u * (size - inset * 2);
+  const y = (v) => inset + v * (size - inset * 2);
+  if (role === 'owner') {
+    fillRect(x(0.16), y(0.28), x(0.84), y(0.4), CYAN);
+    fillRect(x(0.22), y(0.38), x(0.78), y(0.86), CYAN);
+    for (const [wu, wv] of [[0.3, 0.48], [0.54, 0.48], [0.3, 0.64], [0.54, 0.64]]) {
+      fillRect(x(wu), y(wv), x(wu + 0.14), y(wv + 0.1), NAVY);
+    }
+    fillRect(x(0.44), y(0.7), x(0.56), y(0.86), NAVY);
+  } else if (role === 'workers') {
+    const cx = size / 2;
+    const s = (size - inset * 2) / 2;
+    const cy = size / 2;
+    fillEllipse(cx, cy + s * 0.42, s * 0.92, s * 0.2, CYAN);
+    fillEllipse(cx, cy - s * 0.08, s * 0.58, s * 0.52, CYAN);
+    fillRect(cx - s * 0.58, cy + s * 0.08, cx + s * 0.58, cy + s * 0.24, NAVY);
+  } else {
+    fillTri(x(0.5), y(0.14), x(0.1), y(0.46), x(0.9), y(0.46), CYAN);
+    fillRect(x(0.22), y(0.42), x(0.78), y(0.86), CYAN);
+    fillRect(x(0.28), y(0.52), x(0.4), y(0.64), NAVY);
+    fillRect(x(0.44), y(0.62), x(0.58), y(0.86), NAVY);
+  }
+  return rgba;
+}
+
 const dir = resolve('public/construction');
 writeFileSync(resolve(dir, 'icon-192.png'), png(192, 192, draw(192, 18)));
 writeFileSync(resolve(dir, 'icon-512.png'), png(512, 512, draw(512, 36)));
 writeFileSync(resolve(dir, 'icon-maskable-512.png'), png(512, 512, draw(512, 96)));
 writeFileSync(resolve(dir, 'apple-touch-180.png'), png(180, 180, draw(180, 16)));
+for (const role of ['owner', 'workers', 'client']) {
+  writeFileSync(resolve(dir, `${role}-192.png`), png(192, 192, drawRole(192, 22, role)));
+  writeFileSync(resolve(dir, `${role}-512.png`), png(512, 512, drawRole(512, 48, role)));
+  writeFileSync(resolve(dir, `${role}-maskable-512.png`), png(512, 512, drawRole(512, 110, role)));
+  writeFileSync(resolve(dir, `${role}-apple-180.png`), png(180, 180, drawRole(180, 20, role)));
+}
 console.log('construction icons written');

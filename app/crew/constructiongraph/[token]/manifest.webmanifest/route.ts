@@ -18,9 +18,9 @@ export async function GET(_request: Request, { params }: Props) {
       background_color: '#f8fafc',
       theme_color: '#00b4d8',
       icons: [
-        { src: '/construction/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-        { src: '/construction/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-        { src: '/construction/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        { src: '/construction/workers-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: '/construction/workers-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: '/construction/workers-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
       ],
     },
     {

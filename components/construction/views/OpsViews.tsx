@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { BookOpen, CalendarDays, ClipboardList, Shield } from 'lucide-react';
-import { ConstructionGantt } from '@/components/construction/ConstructionGantt';
+import { ConstructionGantt, ConstructionTimeline } from '@/components/construction/ConstructionGantt';
 import {
   ConstructionButton,
   ConstructionDate,
@@ -90,6 +90,33 @@ export function ProgrammeView(props: DeskProps) {
           }}
         />
       )}
+      {!empty ? (
+        <>
+          <h2 className="text-sm font-black text-[#0f172a]">Schedule</h2>
+          <ConstructionTimeline rows={rows} />
+          <h2 className="text-sm font-black text-[#0f172a]">Packages</h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-testid="package-board">
+            {(['planned', 'in_progress', 'complete', 'delayed'] as const).map((status) => (
+              <div key={status} className="rounded-3xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#0f172a]">
+                  {status === 'in_progress' ? 'In progress' : status === 'planned' ? 'Planned' : status === 'complete' ? 'Complete' : 'Delayed'}
+                </p>
+                <ul className="mt-2 space-y-2">
+                  {rows.filter((row) => row.kind !== 'milestone' && (row.status || 'planned') === status).map((row) => (
+                    <li key={row.id} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                      <p className="text-sm font-black text-slate-900">{row.activity}</p>
+                      <p className="text-xs text-slate-600">{row.package_label || 'Package'}</p>
+                    </li>
+                  ))}
+                  {rows.every((row) => row.kind === 'milestone' || (row.status || 'planned') !== status) ? (
+                    <li className="text-xs text-slate-500">None</li>
+                  ) : null}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : null}
       <ConstructionDrawer open={open} title="New task" onClose={() => setOpen(false)} testId="programme-drawer">
         <label className="block text-xs font-bold text-slate-700">Activity<input data-testid="programme-activity" className={constructionField} value={activity} onChange={(event) => setActivity(event.target.value)} /></label>
         <label className="mt-3 block text-xs font-bold text-slate-700">Depends on
@@ -312,7 +339,7 @@ export function SafetyView(props: DeskProps) {
           </div>
         </div>
       ) : null}
-      <p className="text-sm"><a className="font-bold text-[#0077b6]" href="/dashboard/sheq">Open the Core SHEQ hub</a></p>
+      <p className="text-sm"><a className="font-bold text-[#0f172a]" href="/dashboard/sheq">Open the Core SHEQ hub</a></p>
     </div>
   );
 }

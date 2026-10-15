@@ -7,6 +7,7 @@ import {
   ConstructionDrawer,
   ConstructionEmpty,
   ConstructionMoney,
+  ConstructionMoneyBars,
   ConstructionPageHead,
   ConstructionStatusPill,
   ConstructionTable,
@@ -22,6 +23,12 @@ import {
   type ConstructionProgressPayment,
 } from '@/lib/construction/constructiongraph';
 import { formatRand, sastToday } from '@/lib/construction/format';
+
+function sumEntered(values: Array<number | null | undefined>): number | null {
+  const nums = values.filter((value): value is number => value != null && Number.isFinite(Number(value)));
+  if (!nums.length) return null;
+  return nums.reduce((sum, value) => sum + Number(value), 0);
+}
 
 function moneyHidden(props: DeskProps, key: 'payments' | 'certificates' | 'costs') {
   if (props.role === 'site_manager' || props.role === 'none') return true;
@@ -59,6 +66,20 @@ export function PaymentsView(props: DeskProps) {
           ) : null
         }
       />
+      {rows.length ? (
+        <article className="rounded-3xl border border-sky-100 bg-sky-50 p-4 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#0f172a]/70">Claims as entered</p>
+          <div className="mt-3">
+            <ConstructionMoneyBars
+              rows={[
+                { label: 'Claimed', value: sumEntered(rows.map((row) => row.claimed_amount)) },
+                { label: 'Certified', value: sumEntered(rows.map((row) => row.certified_amount)) },
+                { label: 'Paid', value: sumEntered(rows.map((row) => row.paid_amount)) },
+              ]}
+            />
+          </div>
+        </article>
+      ) : null}
       {rows.length === 0 ? (
         <ConstructionEmpty
           testId="payments-empty"

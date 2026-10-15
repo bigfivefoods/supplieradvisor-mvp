@@ -184,23 +184,23 @@ export function PreviewShell({ children }: { children: ReactNode }) {
       <div className="min-h-screen bg-[#f8fafc] text-[#0f172a]" data-book-ready={ready ? '1' : '0'} data-testid="construction-preview">
         <div className="border-b border-[#e2e8f0] bg-white">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-3 py-2">
-            <p className="text-xs font-black uppercase tracking-wide text-[#0077b6]">ConstructionAdvisor® sample</p>
+            <p className="text-xs font-black uppercase tracking-wide text-[#0f172a]">ConstructionAdvisor® sample</p>
             {(['owner', 'site_manager', 'office'] as const).map((item) => (
               <a key={item} className={`inline-flex min-h-10 items-center rounded-full px-3 text-xs font-black ${role === item ? 'bg-[#00b4d8] text-[#0f172a]' : 'bg-white text-slate-700 ring-1 ring-slate-200'}`} href={`/preview/constructiongraph?role=${item}`}>
                 {item === 'site_manager' ? 'Site manager' : item === 'office' ? 'Office' : 'Owner'}
               </a>
             ))}
           </div>
-          <nav aria-label="Sample sections" data-testid="preview-sidebar" className="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-3 pb-3">
+          <nav aria-label="Sample sections" data-testid="preview-sidebar" className="mx-auto flex max-w-6xl flex-wrap gap-2 px-3 pb-3">
             {steps.map((step) => {
               const root = '/dashboard/constructiongraph';
               const href = step.href.startsWith(root)
                 ? `/preview/constructiongraph${step.href.slice(root.length)}`
                 : step.href;
               return (
-                <a key={step.href} href={href} className="inline-flex min-h-11 shrink-0 items-center rounded-full bg-white px-3 text-xs font-bold text-slate-800 ring-1 ring-slate-200">
-                  <span className="text-[10px] uppercase text-slate-500">{step.section}</span>
-                  <span className="ml-1">{step.name}</span>
+                <a key={step.href} href={href} className="inline-flex min-h-11 items-center gap-1 whitespace-nowrap rounded-full bg-white px-3 text-xs font-bold text-slate-800 ring-1 ring-slate-200">
+                  <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">{step.section}</span>
+                  <span>{step.name}</span>
                 </a>
               );
             })}

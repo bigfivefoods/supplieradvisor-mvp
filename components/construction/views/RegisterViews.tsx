@@ -258,13 +258,27 @@ export function SubcontractorsView(props: DeskProps) {
         {selected ? (
           <div className="space-y-3 text-sm">
             <p className="font-black">{selected.name}</p>
-            <p>Programme</p>
-            <ul>{props.store.programme.filter((row) => row.subcontractor_id === selected.id || row.package_label === selected.package_label).map((row) => <li key={row.id} data-row-id={row.id}>{row.activity}</li>)}</ul>
-            <p>Snags</p>
-            <ul>{props.store.snags.filter((row) => row.assigned_to === selected.name).map((row) => <li key={row.id}>{row.item}</li>)}</ul>
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#0f172a]">Programme</p>
+            <ul className="space-y-1">
+              {props.store.programme.filter((row) => row.subcontractor_id === selected.id || row.package_label === selected.package_label).map((row) => (
+                <li key={row.id} data-row-id={row.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                  <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Programme</span>
+                  <span className="mt-0.5 block font-black text-[#0f172a]">{row.activity}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#0f172a]">Snags</p>
+            <ul className="space-y-1">
+              {props.store.snags.filter((row) => row.assigned_to === selected.name).map((row) => (
+                <li key={row.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                  <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Snag</span>
+                  <span className="mt-0.5 block font-black text-[#0f172a]">{row.item}</span>
+                </li>
+              ))}
+            </ul>
             <div data-testid="site-link-slot">
               <p className="font-black">Invite to TradeAdvisor®</p>
-              <p className="text-sm font-black text-[#0077b6]" data-testid="site-link-coming">Site Link coming next</p>
+              <p className="text-sm font-black text-[#0f172a]" data-testid="site-link-coming">Site Link coming next</p>
               <button type="button" disabled className="mt-2 inline-flex min-h-11 items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-black text-slate-500">Invite to TradeAdvisor®</button>
             </div>
           </div>
