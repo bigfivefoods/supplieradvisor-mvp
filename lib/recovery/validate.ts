@@ -1,11 +1,15 @@
 import { normalizeTeamRole } from '@/lib/business/permissions';
 import type {
+  AllocationLabel,
+  CommissionKind,
   OperatorType,
   ProductType,
   ProgrammeType,
+  RecoverBookOp,
   RecoverOp,
   RemittanceTerms,
   StaffRole,
+  StopFlag,
   TrustMode,
 } from './types';
 
@@ -212,6 +216,110 @@ export function validateRecoverOp(
 
 export function programmeIsCollectionsOnly(types: readonly string[]): boolean {
   return types.length === 1 && types[0] === 'recovery' && PROGRAMME.includes('recovery');
+}
+
+const BOOK_OPS = new Set([
+  'creditor.upsert',
+  'creditor.archive',
+  'mandate.upsert',
+  'mandate.set_status',
+  'debtor.upsert',
+  'contact_point.upsert',
+  'contact_point.remove',
+  'account.create',
+  'account.assign',
+  'account.set_flag',
+  'account.clear_flag',
+  'account.add_note',
+  'account.recall',
+  'account.adjust',
+  'debtor.merge',
+  'account.reveal_id',
+]);
+
+const FLAGS: readonly StopFlag[] = ['debt_review', 'deceased', 'insolvency', 'represented', 'dispute', 'do_not_contact'];
+const COMMISSION: readonly CommissionKind[] = ['pct_of_recovered', 'tiered', 'flat_per_account', 'flat_plus_pct'];
+const ALLOCATION: readonly AllocationLabel[] = ['costs', 'interest', 'fees', 'principal'];
+const PRODUCTS: readonly ProductType[] = ['nca_credit', 'trade', 'levy', 'rent', 'medical', 'utility', 'other'];
+
+function rejectPlainId(patch: Record<string, unknown>): ValidationFail | null {
+  if ('id_number' in patch || 'passport' in patch) {
+    return { ok: false, error: 'An identity number cannot be stored that way.' };
+  }
+  return null;
+}
+
+export function validateBookOp(raw: unknown): ValidationOk<RecoverBookOp> | ValidationFail {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { ok: false, error: 'Request could not be read.' };
+  }
+  const body = raw as Record<string, unknown>;
+  if ('company_id' in body || 'companyId' in body) {
+    return { ok: false, error: 'Request could not be read.' };
+  }
+  const op = String(body.op || '');
+  if (!BOOK_OPS.has(op)) return { ok: false, error: 'That action is not available.' };
+  const patch = (body.patch && typeof body.patch === 'object' && !Array.isArray(body.patch)
+    ? body.patch
+    : body) as Record<string, unknown>;
+  const clean = { ...patch };
+  delete clean.op;
+  delete clean.company_id;
+  delete clean.companyId;
+  const blocked = rejectPlainId(clean);
+  if (blocked) return blocked;
+  if (op === 'account.set_flag' || op === 'account.clear_flag') {
+    const flag = text(clean.flag, 40);
+    if (!FLAGS.includes(flag as StopFlag)) return { ok: false, error: 'Choose a recorded flag.' };
+    const reason = text(clean.reason, 500);
+    if (!reason) return { ok: false, error: 'A reason is required.' };
+    clean.flag = flag;
+    clean.reason = reason;
+  }
+  if (op === 'account.add_note') {
+    const note = text(clean.note_text, 2000);
+    if (!note) return { ok: false, error: 'Write a note first.' };
+    clean.note_text = note;
+  }
+  if (op === 'account.adjust') {
+    const cents = Number(clean.adjustment_cents);
+    if (!Number.isInteger(cents) || Math.abs(cents) > 1_000_000_000_000) {
+      return { ok: false, error: 'Enter the adjustment in cents.' };
+    }
+  }
+  if (op === 'creditor.upsert') {
+    if (!text(clean.name, 200)) return { ok: false, error: 'Enter a creditor name.' };
+    if (clean.contact_email) {
+      const email = emailOf(clean.contact_email);
+      if (typeof email !== 'string') return email;
+      clean.contact_email = email;
+    }
+  }
+  if (op === 'mandate.upsert' || op === 'mandate.set_status') {
+    if (clean.product_type && !PRODUCTS.includes(clean.product_type as ProductType)) {
+      return { ok: false, error: 'Choose a product type.' };
+    }
+    if (clean.commission_model && typeof clean.commission_model === 'object') {
+      const model = clean.commission_model as Record<string, unknown>;
+      if (model.kind && !COMMISSION.includes(model.kind as CommissionKind)) {
+        return { ok: false, error: 'Choose a commission kind.' };
+      }
+      for (const key of ['bps', 'cents', 'flat_cents'] as const) {
+        if (model[key] == null || model[key] === '') continue;
+        const n = Number(model[key]);
+        if (!Number.isInteger(n) || n < 0) return { ok: false, error: 'Commission figures must be whole numbers.' };
+      }
+    }
+    if (clean.allocation_order) {
+      const order = Array.isArray(clean.allocation_order) ? clean.allocation_order.map(String) : [];
+      const sorted = [...order].sort().join(',');
+      const expect = [...ALLOCATION].sort().join(',');
+      if (order.length !== 4 || sorted !== expect) {
+        return { ok: false, error: 'Allocation order must list each component once.' };
+      }
+    }
+  }
+  return { ok: true, value: { op, patch: clean } as RecoverBookOp };
 }
 
 export type { RemittanceTerms, ProductType };

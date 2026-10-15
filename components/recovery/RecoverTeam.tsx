@@ -202,6 +202,9 @@ export function RecoverTeam() {
 
           <div className="space-y-4">
             <RecoverPanel title="Staff">
+              <p className="mb-3 text-sm text-slate-600">
+                Council registration is shown as recorded by you. ⚖ VERIFY the categories of persons who must register. RecoverAdvisor® gives no legal advice.
+              </p>
               {canStaff ? (
                 <form
                   className="mb-4 grid gap-3 sm:grid-cols-2"
@@ -238,6 +241,9 @@ export function RecoverTeam() {
                   </RecoverField>
                   <RecoverField label="CFDC number">
                     <input name="cfdc_registration_no" className={recoverInputClass} disabled={!desk.ready} />
+                  </RecoverField>
+                  <RecoverField label="Registration date as recorded by you">
+                    <input name="registration_expires_on" type="date" className={recoverInputClass} disabled={!desk.ready} />
                   </RecoverField>
                   <RecoverField label="Monthly target (rand)">
                     <input
@@ -380,6 +386,7 @@ function StaffTable({
           <li key={row.id} className="rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
             <p className="break-all text-sm font-black text-slate-900">{row.email}</p>
             <p className="mt-1 text-xs font-bold text-slate-700">{staffRoleLabel(row.role)}</p>
+            <RegistrationChip row={row} />
             <p className="mt-1 text-sm tabular-nums text-slate-700">{formatRand(row.monthly_target_cents)}</p>
             {row.status === 'active' && canStaff ? (
               <button
@@ -414,6 +421,7 @@ function StaffTable({
                   <Users className="h-3.5 w-3.5 text-[#0077b6]" aria-hidden />
                   {staffRoleLabel(row.role)}
                 </span>
+                <RegistrationChip row={row} />
               </td>
               <td className="px-3 py-3 tabular-nums text-slate-700">{formatRand(row.monthly_target_cents)}</td>
               <td className="px-3 py-3">
@@ -435,5 +443,18 @@ function StaffTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+function RegistrationChip({ row }: { row: RecoverStaff }) {
+  if (row.role !== 'collector') return null;
+  const today = new Date().toISOString().slice(0, 10);
+  const missing = !row.cfdc_registration_no;
+  const expired = Boolean(row.registration_expires_on && row.registration_expires_on < today);
+  if (!missing && !expired) return null;
+  return (
+    <p data-testid="recover-reg-chip" className="mt-1 text-xs font-bold text-[#0077b6]">
+      {missing ? 'Missing registration as recorded by you' : 'Expired registration as recorded by you'}
+    </p>
   );
 }

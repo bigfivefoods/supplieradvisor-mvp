@@ -1916,6 +1916,48 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.recover_bulk_assign(
+  p_company_id bigint,
+  p_actor_id text,
+  p_ids jsonb,
+  p_staff_id uuid,
+  p_team_id uuid,
+  p_as_of date
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_id text;
+  v_count integer := 0;
+  v_patch jsonb;
+BEGIN
+  IF p_company_id IS NULL OR p_company_id <= 0 OR p_ids IS NULL
+     OR pg_catalog.jsonb_typeof(p_ids) <> 'array' THEN
+    RAISE EXCEPTION 'closed' USING ERRCODE = '22023';
+  END IF;
+  IF pg_catalog.jsonb_array_length(p_ids) < 1 OR pg_catalog.jsonb_array_length(p_ids) > 100 THEN
+    RAISE EXCEPTION 'cap' USING ERRCODE = '22023';
+  END IF;
+  FOR v_id IN SELECT pg_catalog.btrim(value) FROM pg_catalog.jsonb_array_elements_text(p_ids)
+  LOOP
+    v_patch := pg_catalog.jsonb_build_object(
+      'id', v_id,
+      'staff_id', p_staff_id,
+      'team_id', p_team_id
+    );
+    IF p_as_of IS NOT NULL THEN
+      v_patch := v_patch || pg_catalog.jsonb_build_object('as_of', p_as_of);
+    END IF;
+    PERFORM public.recover_book_commit(p_company_id, p_actor_id, 'account.assign', v_id, v_patch);
+    v_count := v_count + 1;
+  END LOOP;
+  RETURN pg_catalog.jsonb_build_object('ok', true, 'count', v_count);
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.recover_erase_company(p_company_id bigint)
 RETURNS void
 LANGUAGE plpgsql

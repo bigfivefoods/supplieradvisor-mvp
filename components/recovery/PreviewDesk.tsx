@@ -5,21 +5,37 @@ import { usePathname } from 'next/navigation';
 import { RECOVER_DEMO_BANNER } from '@/lib/recovery/brand';
 import { recovergraphNavSteps, recoverSidebarSteps } from '@/lib/recovery/nav';
 import { blankDesk, illustrationFor, sampleDesk } from '@/lib/recovery/sample-desk';
+import { AccountView, AccountsView, CreditorBookView, ImportView, MandateBookView } from './book-views';
 import { RecoverCreditors, RecoverMandates } from './RecoverBooks';
 import { RecoverCommand } from './RecoverCommand';
+import { RecoverInstalled } from './RecoverInstalled';
 import { RecoverPortals } from './RecoverPortals';
 import { RecoverQueue } from './RecoverQueue';
 import { RecoverTeam } from './RecoverTeam';
 import { ClientAccount } from './RecoverPreviews';
+import {
+  clearHarbourSession,
+  commitPreviewCsv,
+  emptyMemory,
+  harbourDesk,
+  harbourMemory,
+  readHarbourSession,
+  rollbackPreview,
+  writeHarbourSession,
+  type MemoryBook,
+} from '@/lib/recovery/preview-memory';
+import { capabilitiesFor } from '@/lib/recovery/roles';
+import { HARBOUR_CREDITORS } from '@/lib/recovery/harbour-seed';
 import { RecoverPreviewProvider, useRecoverIllustration } from './useRecoverDesk';
 
 const PreviewRoleContext = createContext<PreviewRole>('owner');
 
-export type PreviewRole = 'owner' | 'agent' | 'client';
+export type PreviewRole = 'owner' | 'manager' | 'agent' | 'finance' | 'compliance' | 'viewer' | 'client';
 
 function readRole(value: string | null): PreviewRole {
   if (value === 'agent' || value === 'worker') return 'agent';
   if (value === 'client') return 'client';
+  if (value === 'manager' || value === 'finance' || value === 'compliance' || value === 'viewer') return value;
   return 'owner';
 }
 
@@ -39,10 +55,10 @@ function ClientSample() {
   );
 }
 
-type BookMode = 'sample' | 'empty' | 'pending' | 'nav';
+type BookMode = 'sample' | 'empty' | 'pending' | 'nav' | 'harbour';
 
 function readBook(value: string | null): BookMode {
-  if (value === 'empty' || value === 'pending' || value === 'nav') return value;
+  if (value === 'empty' || value === 'pending' || value === 'nav' || value === 'harbour') return value;
   return 'sample';
 }
 
@@ -84,23 +100,39 @@ export function PreviewShell({ children }: { children: ReactNode }) {
   const path = usePathname() || '/preview/recovergraph';
   const [role, setRole] = useState<PreviewRole>('owner');
   const [book, setBook] = useState<BookMode>('sample');
+  const [memory, setMemory] = useState<MemoryBook>(emptyMemory());
+  const [accountId, setAccountId] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const reset = params.get('reset') === '1';
+    const nextBook = reset ? 'harbour' : readBook(params.get('book'));
     setRole(readRole(params.get('role')));
-    setBook(readBook(params.get('book')));
+    setBook(nextBook);
+    setAccountId(params.get('account'));
+    if (reset) clearHarbourSession();
+    setMemory(nextBook === 'harbour' ? (reset ? harbourMemory() : readHarbourSession() || harbourMemory()) : emptyMemory());
     setReady(true);
   }, [path]);
 
+  const remember = (next: MemoryBook) => {
+    setMemory(next);
+    if (book === 'harbour' || new URLSearchParams(window.location.search).get('book') === 'harbour' || new URLSearchParams(window.location.search).get('reset') === '1') {
+      writeHarbourSession(next);
+    }
+  };
+
   const deskRole = role === 'agent' ? 'agent' : 'owner';
   const desk = useMemo(() => {
+    if (book === 'harbour') return harbourDesk(role === 'client' ? 'viewer' : role, memory);
     if (book === 'pending') return blankDesk('pending', deskRole);
     if (book === 'empty' || book === 'nav') return blankDesk('empty', deskRole);
     return sampleDesk(deskRole);
-  }, [book, deskRole]);
+  }, [book, deskRole, memory, role]);
   const picture = useMemo(() => {
     if (book !== 'sample') return null;
+    if (role === 'finance' || role === 'compliance' || role === 'viewer' || role === 'manager') return null;
     return illustrationFor(role === 'client' ? 'client' : role === 'agent' ? 'agent' : 'owner');
   }, [book, role]);
   const steps = recovergraphNavSteps();
@@ -108,6 +140,7 @@ export function PreviewShell({ children }: { children: ReactNode }) {
 
   return (
     <PreviewRoleContext.Provider value={role}>
+    <MemoryContext.Provider value={{ memory, setMemory: remember, mode: book, accountId }}>
     <RecoverPreviewProvider
       desk={desk}
       illustration={picture}
@@ -124,7 +157,7 @@ export function PreviewShell({ children }: { children: ReactNode }) {
               {book === 'sample' ? 'RecoverAdvisor® Sample' : 'RecoverAdvisor®'}
             </p>
             <p className="shrink-0 text-xs font-bold text-slate-600">
-              {book === 'sample' ? 'Illustration · sample data' : 'No accounts yet'}
+              {book === 'sample' ? 'Illustration · sample data' : book === 'harbour' ? 'Demo data. No messages are sent.' : 'No accounts yet'}
             </p>
             {(
               [
@@ -172,13 +205,64 @@ export function PreviewShell({ children }: { children: ReactNode }) {
         </div>
       </div>
     </RecoverPreviewProvider>
+    </MemoryContext.Provider>
     </PreviewRoleContext.Provider>
   );
 }
 
+const MemoryContext = createContext<{
+  memory: MemoryBook;
+  setMemory: (book: MemoryBook) => void;
+  mode: BookMode;
+  accountId: string | null;
+} | null>(null);
+
 export function PreviewDesk({ view }: { view: string }) {
   const role = useContext(PreviewRoleContext);
+  const memory = useContext(MemoryContext);
+  const deskRole = role === 'agent' || role === 'finance' || role === 'compliance' || role === 'viewer' || role === 'manager' ? role : 'owner';
   if (role === 'client') return <ClientSample />;
+  if (view === 'installed') {
+    return <RecoverInstalled role={role === 'agent' ? 'agent' : 'owner'} book={memory?.mode === 'harbour' ? memory.memory : null} />;
+  }
+  if (memory?.mode === 'harbour' && view === 'accounts') {
+    return <AccountsView phase="ready" book={memory.memory} role={deskRole} caps={capabilitiesFor(deskRole)} showDemo />;
+  }
+  if (memory?.mode === 'harbour' && view === 'account') {
+    const rows = visibleRows(memory.memory, deskRole);
+    const account =
+      rows.find((row) => row.id === memory.accountId) ||
+      rows.find((row) => row.flags.length > 0) ||
+      rows[0] ||
+      null;
+    return <AccountView phase="ready" account={account} role={deskRole} caps={capabilitiesFor(deskRole)} showDemo />;
+  }
+  if (memory?.mode === 'harbour' && view === 'imports') {
+    return (
+      <ImportView
+        phase="ready"
+        book={memory.memory}
+        caps={capabilitiesFor(deskRole)}
+        onCommit={async (text) => {
+          const result = await commitPreviewCsv(memory.memory, text, HARBOUR_CREDITORS[0].key);
+          memory.setMemory(result.book);
+        }}
+        onRollback={(id) => memory.setMemory(rollbackPreview(memory.memory, id).book)}
+        onLoadDemo={() => memory.setMemory(harbourMemory())}
+        onClearDemo={() => memory.setMemory(emptyMemory())}
+        showDemo
+      />
+    );
+  }
+  if (memory?.mode === 'harbour' && view === 'creditors') {
+    const desk = harbourDesk(deskRole, memory.memory);
+    return <CreditorBookView phase="ready" creditors={desk.creditors} mandates={desk.mandates} showDemo />;
+  }
+  if (memory?.mode === 'harbour' && view === 'mandates') {
+    return <MandateBookView phase="ready" mandates={harbourDesk(deskRole, memory.memory).mandates} />;
+  }
+  if (view === 'accounts') return <AccountsView phase="ready" book={emptyMemory()} role={deskRole} caps={capabilitiesFor(deskRole)} />;
+  if (view === 'imports') return <ImportView phase="ready" book={emptyMemory()} caps={capabilitiesFor(deskRole)} />;
   if (view === 'queue') return <RecoverQueue />;
   if (view === 'creditors') return <RecoverCreditors />;
   if (view === 'mandates') return <RecoverMandates />;
@@ -187,22 +271,47 @@ export function PreviewDesk({ view }: { view: string }) {
   return <RecoverCommand />;
 }
 
+function visibleRows(book: MemoryBook, role: PreviewRole) {
+  if (role === 'agent') return book.accounts.filter((row) => row.assignee === 'pieter');
+  if (role === 'viewer') return [];
+  if (role === 'finance' || role === 'compliance') return book.accounts.map((row) => ({ ...row, contacts: [] }));
+  return book.accounts;
+}
+
 const LAUNCH_COPY = {
   owner: {
-    title: 'The whole book',
-    body: 'Queues, creditor books, and team workload will open in this app.',
+    title: 'The book',
+    body: 'Command, accounts, creditors, and import status open in this app. Queue scoring and trust money stay launching soon.',
+  },
+  manager: {
+    title: 'The book',
+    body: 'Command, accounts, creditors, and import status open in this app.',
   },
   agent: {
-    title: 'Your queue',
-    body: 'Only the accounts assigned to you will open in this app.',
+    title: 'Your accounts',
+    body: 'Signed-in agents see the accounts assigned to them, with masked identity numbers and notes. Invite links are not issued yet.',
+  },
+  finance: {
+    title: 'Accounts',
+    body: 'Finance sees placed balances without contact points. Trust money stays launching soon.',
+  },
+  compliance: {
+    title: 'Accounts',
+    body: 'Compliance sees placed accounts without contact points.',
+  },
+  viewer: {
+    title: 'Counts',
+    body: 'A viewer sees counts only.',
   },
   client: {
-    title: 'Your accounts',
-    body: 'Only your own accounts will open in this app.',
+    title: 'Your placed accounts',
+    body: 'Your placed accounts and statements will appear here when the client portal opens. This page reads no token.',
   },
 } as const;
 
 export function RecoverLaunching({ role }: { role: PreviewRole }) {
+  if (role === 'owner') return <RecoverInstalled role="owner" />;
+  if (role === 'agent') return <RecoverInstalled role="agent" />;
   const copy = LAUNCH_COPY[role];
   return (
     <main

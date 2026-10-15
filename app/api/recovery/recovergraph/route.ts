@@ -45,7 +45,12 @@ export async function GET(request: NextRequest) {
       email: member.member.email,
     });
     const role = resolveRecoverRole(gate.role, load.self);
-    return json(deskResponseBody(projectDesk(role, load), canRecoveryTrust(gate.role, 'view')));
+    const projected = projectDesk(role, load);
+    if (role !== 'agent' && role !== 'none' && load.ready) {
+      const { loadBookStats } = await import('@/lib/recovery/book-db');
+      projected.book = await loadBookStats(member.member.companyId);
+    }
+    return json(deskResponseBody(projected, canRecoveryTrust(gate.role, 'view')));
   } catch (error) {
     if (error instanceof MigrationPendingError) {
       return json({ ready: false, reason: 'migration_pending' }, 409);

@@ -109,6 +109,24 @@ assert.deepEqual(
 assert.ok(FUNCTIONAL_MODULE_ORDER.includes('fleetgraph'), 'functional nav order should include fleetgraph');
 assert.equal(FUNCTIONAL_DISPLAY_NAME.fleetgraph, 'FleetAdvisor®');
 
+const recover = MODULE_NAV.find((m) => m.id === 'recovergraph');
+assert.ok(recover, 'MODULE_NAV should register recovergraph');
+assert.equal(recover!.name, 'RecoverAdvisor®');
+assert.equal(recover!.steps.length, 8, 'recovergraph should expose 8 nav steps');
+assert.deepEqual(
+  recover!.steps.map((s) => s.name),
+  [
+    'Command centre',
+    'Queue',
+    'Accounts',
+    'Creditors',
+    'Mandates',
+    'Imports & batches',
+    'Team & registrations',
+    'Portals & install',
+  ]
+);
+
 const iconKeys = MODULE_NAV.map((m) => m.icon.displayName || m.icon.name || String(m.icon));
 assert.equal(
   new Set(iconKeys).size,

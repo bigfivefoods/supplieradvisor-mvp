@@ -1,0 +1,179 @@
+import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { decryptId, encryptId } from './pii-crypto';
+import { isMigrationPending, MigrationPendingError, readFeatureResult } from './recovergraph-db';
+import type { RecoverBookOp, RecoverBookStats } from './types';
+
+const PERSONAL = new Set([
+  'debtor.upsert',
+  'contact_point.upsert',
+  'contact_point.remove',
+  'account.create',
+]);
+
+export function bookOpNeedsRealData(op: RecoverBookOp['op']): boolean {
+  return PERSONAL.has(op);
+}
+
+export async function commitBook(
+  companyId: number,
+  actorId: string,
+  op: RecoverBookOp
+): Promise<Record<string, unknown>> {
+  if (!('patch' in op)) throw new Error('unsupported');
+  const supabase = getSupabaseServer();
+  const result = await supabase.rpc('recover_book_commit', {
+    p_company_id: companyId,
+    p_actor_id: actorId,
+    p_action: op.op,
+    p_target: String(op.patch.id || op.patch.account_id || ''),
+    p_patch: op.patch,
+  });
+  if (isMigrationPending(result.error)) throw new MigrationPendingError();
+  if (result.error) throw new Error(calmSql(result.error.message));
+  return (result.data || { ok: true }) as Record<string, unknown>;
+}
+
+export async function revealAccountId(input: {
+  companyId: number;
+  actorId: string;
+  accountId: string;
+  reason: string;
+}): Promise<{ id_number: string }> {
+  const supabase = getSupabaseServer();
+  const committed = await supabase.rpc('recover_book_commit', {
+    p_company_id: input.companyId,
+    p_actor_id: input.actorId,
+    p_action: 'account.reveal_id',
+    p_target: input.accountId,
+    p_patch: { id: input.accountId, reason: input.reason },
+  });
+  if (isMigrationPending(committed.error)) throw new MigrationPendingError();
+  if (committed.error) throw new Error(calmSql(committed.error.message));
+  const account = await supabase
+    .from('recover_accounts')
+    .select('debtor_id')
+    .eq('company_id', input.companyId)
+    .eq('id', input.accountId)
+    .maybeSingle();
+  if (account.error || !account.data) throw new Error('missing');
+  const debtor = await supabase
+    .from('recover_debtors')
+    .select('id_number_enc')
+    .eq('company_id', input.companyId)
+    .eq('id', account.data.debtor_id)
+    .maybeSingle();
+  if (debtor.error || !debtor.data?.id_number_enc) throw new Error('pii_not_configured');
+  const plain = decryptId(String(debtor.data.id_number_enc));
+  if (!plain.ok) throw new Error(plain.code);
+  return { id_number: plain.value };
+}
+
+export async function prepareDebtorPatch(patch: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const next = { ...patch };
+  const plain = typeof next.id_plain === 'string' ? next.id_plain : '';
+  delete next.id_plain;
+  if (!plain) return next;
+  const sealed = encryptId(plain);
+  if (!sealed.ok) throw new Error(sealed.code);
+  next.id_number_enc = sealed.enc;
+  next.id_hash = sealed.hash;
+  next.id_last4 = sealed.last4;
+  next.id_key_version = sealed.version;
+  return next;
+}
+
+export async function listBookAccounts(input: {
+  companyId: number;
+  limit: number;
+  after: string | null;
+  state: string | null;
+  creditorId: string | null;
+  batchId: string | null;
+  assigned: 'yes' | 'no' | null;
+  search: string | null;
+}) {
+  const supabase = getSupabaseServer();
+  let query = supabase
+    .from('recover_accounts')
+    .select(
+      'id, ref, creditor_id, debtor_id, creditor_account_ref, balance_cents, state, assigned_to, team_id, placed_at, flags, stage_key, principal_cents, interest_cents, fees_cents, costs_cents, adjustment_cents, original_cents, batch_id'
+    )
+    .eq('company_id', input.companyId)
+    .order('placed_at', { ascending: false })
+    .limit(input.limit);
+  if (input.after) query = query.lt('placed_at', input.after);
+  if (input.state) query = query.eq('state', input.state);
+  if (input.creditorId) query = query.eq('creditor_id', input.creditorId);
+  if (input.batchId) query = query.eq('batch_id', input.batchId);
+  if (input.assigned === 'yes') query = query.not('assigned_to', 'is', null);
+  if (input.assigned === 'no') query = query.is('assigned_to', null);
+  const result = await query;
+  const pending = readFeatureResult(result.error, 'accounts');
+  if (!pending.ready) return pending;
+  if (result.error) throw new Error('accounts');
+  const rows = (result.data || []) as Record<string, unknown>[];
+  const debtorIds = [...new Set(rows.map((row) => String(row.debtor_id || '')).filter(Boolean))];
+  const names = new Map<string, { display_name?: string; id_last4?: string | null }>();
+  if (debtorIds.length) {
+    const debtors = await supabase
+      .from('recover_debtors')
+      .select('id, display_name, id_last4')
+      .eq('company_id', input.companyId)
+      .in('id', debtorIds);
+    const debtorPending = readFeatureResult(debtors.error, 'accounts');
+    if (!debtorPending.ready) return debtorPending;
+    for (const debtor of debtors.data || []) {
+      names.set(String(debtor.id), { display_name: debtor.display_name, id_last4: debtor.id_last4 });
+    }
+  }
+  return {
+    ready: true as const,
+    rows: rows.map((row) => {
+      const debtor = names.get(String(row.debtor_id || ''));
+      return {
+        ...row,
+        display_name: debtor?.display_name || '',
+        id_last4: debtor?.id_last4 || null,
+      };
+    }),
+  };
+}
+
+export async function loadBookStats(companyId: number): Promise<RecoverBookStats | null> {
+  const supabase = getSupabaseServer();
+  const result = await supabase
+    .from('recover_accounts')
+    .select('balance_cents, assigned_to, state')
+    .eq('company_id', companyId)
+    .limit(2000);
+  if (isMigrationPending(result.error) || result.error) return null;
+  const rows = (result.data || []) as { balance_cents?: number; assigned_to?: string | null; state?: string }[];
+  const active = rows.filter((row) => row.state === 'active' || !row.state);
+  return {
+    placedCount: rows.length,
+    placedBalanceCents: active.reduce((sum, row) => sum + Number(row.balance_cents || 0), 0),
+    assignedCount: rows.filter((row) => row.assigned_to).length,
+    unassignedCount: rows.filter((row) => !row.assigned_to && (row.state === 'active' || !row.state)).length,
+    imported: rows.length > 0,
+  };
+}
+
+export async function demoRowsExist(companyId: number): Promise<boolean | 'pending'> {
+  const supabase = getSupabaseServer();
+  const result = await supabase.rpc('recover_demo_rows_exist', { p_company_id: companyId });
+  if (isMigrationPending(result.error)) return 'pending';
+  if (result.error) throw new Error('workspace');
+  return Boolean(result.data);
+}
+
+function calmSql(message: string | undefined): string {
+  const text = String(message || '');
+  if (text.includes('Clear the demo book first')) return 'Clear the demo book first';
+  if (text.includes('registration_missing')) return 'registration_missing';
+  if (text.includes('registration_expired')) return 'registration_expired';
+  if (text.includes('conflict') || text.includes('40001')) return 'conflict';
+  if (text.includes('throttled')) return 'throttled';
+  if (text.includes('plaintext_id')) return 'plaintext_id';
+  if (text.includes('already_imported')) return 'already_imported';
+  return 'closed';
+}

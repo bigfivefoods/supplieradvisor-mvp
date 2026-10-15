@@ -53,10 +53,10 @@ export function RecoverCreditors() {
         <RecoverEmpty
           testId="recover-creditors-empty"
           icon={Building2}
-          title="No accounts placed yet"
-          body="No creditors yet. Creditor records appear here once a book is placed."
+          title="No creditors yet"
+          body="Add the first client who will place accounts."
           art={<CreditorArt />}
-          action={<RecoverButton href="/dashboard/customers">Open customers</RecoverButton>}
+          action={<RecoverButton href="/dashboard/recovergraph/creditors">Add your first creditor</RecoverButton>}
           preview={
             illustration ? (
               <RecoverSample title="Sample layout of a creditor book">

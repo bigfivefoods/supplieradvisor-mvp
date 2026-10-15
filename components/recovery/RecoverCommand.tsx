@@ -12,6 +12,7 @@ import {
   Users,
 } from 'lucide-react';
 import { RECOVER_PRODUCT_NAME } from '@/lib/recovery/brand';
+import { formatRecoverMoney } from '@/lib/recovery/money';
 import { queueNavLabel } from '@/lib/recovery/roles';
 import type { RecoverDeskPayload, RecoverWorkspace } from '@/lib/recovery/types';
 import { AgentArt, DeskArt, PendingArt } from './RecoverArt';
@@ -153,6 +154,16 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
       done: (counts.mandates ?? 0) > 0,
       href: '/dashboard/recovergraph/mandates',
     },
+    {
+      label: 'First import',
+      done: Boolean(desk.book?.imported),
+      href: '/dashboard/recovergraph/imports',
+    },
+    {
+      label: 'First account assigned',
+      done: (desk.book?.assignedCount ?? 0) > 0,
+      href: '/dashboard/recovergraph/accounts',
+    },
   ];
 
   return (
@@ -204,8 +215,14 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
             <RecoverKpi
               testId="recover-kpi-placed"
               label="Placed"
-              value={picture ? picture.placed : '—'}
-              sub={picture ? 'Illustration · sample data' : 'No accounts placed yet'}
+              value={picture ? picture.placed : desk.book && desk.book.placedCount > 0 ? String(desk.book.placedCount) : '—'}
+              sub={
+                picture
+                  ? 'Illustration · sample data'
+                  : desk.book && desk.book.placedCount > 0
+                    ? `${formatRecoverMoney(desk.book.placedBalanceCents)}. Placed balance; payments are not recorded yet.`
+                    : 'No accounts placed yet'
+              }
               icon={Scale}
               tint="border-sky-100 bg-sky-50"
             />
@@ -237,6 +254,11 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
             />
       </div>
 
+      {!picture && desk.book && desk.book.placedCount > 0 ? (
+        <p className="mb-6 text-sm text-slate-700" data-testid="recover-placed-live">
+          {desk.book.placedCount} accounts placed. Recovered, in trust, and clocks stay blank until those books exist.
+        </p>
+      ) : null}
       {picture ? (
         <div className="mb-8 grid gap-4">
           <NeedsAttention items={picture.attention} />

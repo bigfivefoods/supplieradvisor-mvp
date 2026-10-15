@@ -40,6 +40,11 @@ export const RECOVERGRAPH_NAV_SECTIONS: readonly RecoverNavSection[] = [
         desc: 'Accounts waiting for work',
         roleLabel: 'queue',
       },
+      {
+        label: 'Accounts',
+        href: '/dashboard/recovergraph/accounts',
+        desc: 'Placed accounts and their history',
+      },
     ],
   },
   {
@@ -54,6 +59,11 @@ export const RECOVERGRAPH_NAV_SECTIONS: readonly RecoverNavSection[] = [
         label: 'Mandates',
         href: '/dashboard/recovergraph/mandates',
         desc: 'Authority to collect',
+      },
+      {
+        label: 'Imports & batches',
+        href: '/dashboard/recovergraph/imports',
+        desc: "Bring in a creditor's book",
       },
     ],
   },

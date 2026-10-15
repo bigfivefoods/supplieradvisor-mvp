@@ -100,6 +100,17 @@ jobs:
             lib/recovery/brief111-portal-shells.test.ts \
             lib/recovery/brief111-preview.test.ts \
             lib/recovery/brief111-sample-scope.test.ts \
+            lib/recovery/brief116-pii.test.ts \
+            lib/recovery/brief116-sa-id.test.ts \
+            lib/recovery/brief116-normalise.test.ts \
+            lib/recovery/brief116-import-book.test.ts \
+            lib/recovery/brief116-duplicates.test.ts \
+            lib/recovery/brief116-roles.test.ts \
+            lib/recovery/brief116-api-security.test.ts \
+            lib/recovery/brief116-demo-book.test.ts \
+            lib/recovery/brief116-pwa.test.ts \
+            lib/recovery/brief116-brand.test.ts \
+            lib/recovery/brief116-ui-parity.test.ts \
             lib/chrome/trade-sidebar.test.ts
           do
             if [ -f "$file" ]; then

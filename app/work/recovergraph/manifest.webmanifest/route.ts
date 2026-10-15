@@ -19,7 +19,7 @@ export function GET() {
     {
       headers: {
         'Content-Type': 'application/manifest+json; charset=utf-8',
-        'Cache-Control': 'public, max-age=3600',
+        'Cache-Control': 'private, no-store',
       },
     }
   );

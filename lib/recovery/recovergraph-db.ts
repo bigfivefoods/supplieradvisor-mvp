@@ -18,6 +18,23 @@ import type { RecoverLoad } from './project';
 
 type DbError = { code?: string; message?: string } | null;
 
+export type RecoverFeature = 'accounts' | 'creditors' | 'import' | 'book';
+
+export function readFeatureResult(
+  error: DbError,
+  feature: RecoverFeature
+): { ready: false; reason: 'migration_pending'; feature: RecoverFeature } | { ready: true } {
+  if (!error) return { ready: true };
+  const code = String(error.code || '');
+  const message = String(error.message || '').toLowerCase();
+  const coded =
+    code === 'PGRST205' || code === 'PGRST202' || code === '42P01' || code === '42883';
+  const recoverObject = message.includes('recover_');
+  if (coded && recoverObject) return { ready: false, reason: 'migration_pending', feature };
+  if (isMigrationPending(error)) return { ready: false, reason: 'migration_pending', feature };
+  return { ready: true };
+}
+
 export function isMigrationPending(error: DbError): boolean {
   if (!error) return false;
   const code = String(error.code || '');
@@ -257,6 +274,11 @@ export async function applyRecoverOp(
     return;
   }
 
+  if (op.enabled) {
+    const { demoRowsExist } = await import('./book-db');
+    const demo = await demoRowsExist(companyId);
+    if (demo === true) throw new Error('Clear the demo book first');
+  }
   await commitDesk(companyId, actor.userId, 'set_real_data_enabled', 'recover_workspaces', {
     enabled: op.enabled,
     real_data_confirmed_by: op.enabled ? actor.userId : null,

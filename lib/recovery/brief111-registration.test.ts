@@ -36,7 +36,7 @@ assert.ok(INDUSTRY_ADVISOR_MODULE_IDS.includes('recovergraph'));
 assert.ok(ADVISOR_PACK_UNLOCKS.recovery.includes('recovergraph'));
 assert.equal(ADVISOR_MODULE_CORE_HREF.recovergraph.book, '/dashboard/recovergraph/creditors');
 
-const banned = [ ['dr', 'inc'].join(''), ['Har', 'bour'].join('') ].map((word) => word.toLowerCase());
+const banned = [ ['kwa', 'den'].join(''), ['dr', 'inc'].join('') ].map((word) => word.toLowerCase());
 
 function walk(dir: string): string[] {
   if (!existsSync(dir)) return [];
