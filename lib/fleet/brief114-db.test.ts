@@ -8,10 +8,11 @@
  */
 import assert from 'node:assert/strict';
 import { execFile, execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { emptyFleetBook } from './empty-book';
-import { fleetDiff, stopRowsConflict } from './fleetgraph-db';
 import { applyFleetOp, type OpContext } from './ops';
+import { stopRowsConflict } from './stop-ownership';
 import type { FleetBook } from './types';
 
 const url = process.env.FLEET_DATABASE_URL;
@@ -59,7 +60,34 @@ function fails(statement: string, pattern: RegExp) {
   assert.fail(`expected Postgres to reject: ${statement.slice(0, 120)}`);
 }
 
+function localImportsStayLocal(entry: string) {
+  const seen = new Set<string>();
+  const pending = [resolve(entry)];
+  while (pending.length) {
+    const file = pending.pop();
+    if (!file || seen.has(file)) continue;
+    seen.add(file);
+    const source = readFileSync(file, 'utf8');
+    for (const match of source.matchAll(/from\s+['"]([^'"]+)['"]/g)) {
+      const spec = match[1];
+      if (spec.startsWith('node:')) continue;
+      if (!spec.startsWith('.')) throw new Error(`${file} imports ${spec}. The fleet Postgres job has no node_modules.`);
+      const base = resolve(file, '..', spec);
+      const next = [base, `${base}.ts`, `${base}.tsx`].find((candidate) => {
+        try {
+          readFileSync(candidate);
+          return true;
+        } catch {
+          return false;
+        }
+      });
+      if (next) pending.push(next);
+    }
+  }
+}
+
 async function main() {
+localImportsStayLocal('lib/fleet/brief114-db.test.ts');
 psql(`
   DROP SCHEMA IF EXISTS public CASCADE;
   CREATE SCHEMA public;
@@ -400,8 +428,19 @@ const profileCtx: OpContext = {
   companyId: 1,
   enforceRealData: false,
 };
-function commitBook(before: FleetBook, after: FleetBook) {
-  const json = JSON.stringify(fleetDiff(before, after));
+function commitProfiles(before: FleetBook, after: FleetBook) {
+  const profiles = after.cost_profiles.flatMap((row) => {
+    const prior = before.cost_profiles.find((item) => item.id === row.id);
+    if (prior && JSON.stringify(prior) === JSON.stringify(row)) return [];
+    return [{ ...row, previous_updated_at: prior?.updated_at ?? null }];
+  });
+  const known = new Set(before.audit.map((row) => row.id));
+  const audit = after.audit.filter((row) => !known.has(row.id)).map((row) => ({ ...row, created_at: row.at }));
+  const json = JSON.stringify({
+    company_id: after.workspace.company_id,
+    upserts: { fg_cost_profiles: profiles },
+    inserts: { fg_audit_log: audit },
+  });
   if (json.includes('$diff$')) throw new Error('diff quote');
   psql(`SELECT public.fg_commit_diff(${after.workspace.company_id}, $diff$${json}$diff$::jsonb);`);
 }
@@ -409,23 +448,25 @@ let profileBook = emptyFleetBook(1, profileCtx.now);
 const profileVehicle = applyFleetOp(profileBook, { op: 'vehicle.upsert', payload: { reg_no: 'REPLACE 1', kind: 'rigid', ownership: 'owned' } }, profileCtx);
 assert.equal(profileVehicle.ok, true);
 if (!profileVehicle.ok) throw new Error('profile vehicle');
-commitBook(profileBook, profileVehicle.book);
 profileBook = profileVehicle.book;
+const seeded = profileBook.vehicles[0];
+if (!seeded) throw new Error('profile vehicle id');
+psql(`INSERT INTO public.fg_vehicles (id, company_id, reg_no, kind, ownership, status, updated_at) VALUES ('${seeded.id}', 1, '${seeded.reg_no.replace(/'/g, "''")}', '${seeded.kind}', '${seeded.ownership}', '${seeded.status}', '${profileCtx.now}');`);
 const profileVehicleId = profileBook.vehicles[0]?.id;
 if (!profileVehicleId) throw new Error('profile vehicle id');
 const auditsBefore = Number(psql(`SELECT count(*) FROM public.fg_audit_log WHERE company_id = 1 AND action = 'cost_profile.set';`));
 const firstProfile = applyFleetOp(profileBook, { op: 'cost_profile.set', payload: { vehicle_id: profileVehicleId, effective_from: '2024-06-01', finance_monthly_cents: 100 } }, profileCtx);
 assert.equal(firstProfile.ok, true);
 if (!firstProfile.ok) throw new Error('first profile');
-commitBook(profileBook, firstProfile.book);
+commitProfiles(profileBook, firstProfile.book);
 const secondProfile = applyFleetOp(firstProfile.book, { op: 'cost_profile.set', payload: { vehicle_id: profileVehicleId, effective_from: '2024-06-01', finance_monthly_cents: 80 } }, profileCtx);
 assert.equal(secondProfile.ok, true);
 if (!secondProfile.ok) throw new Error('second profile');
-commitBook(firstProfile.book, secondProfile.book);
+commitProfiles(firstProfile.book, secondProfile.book);
 const thirdProfile = applyFleetOp(secondProfile.book, { op: 'cost_profile.set', payload: { vehicle_id: profileVehicleId, effective_from: '2024-08-01', finance_monthly_cents: 40 } }, profileCtx);
 assert.equal(thirdProfile.ok, true);
 if (!thirdProfile.ok) throw new Error('third profile');
-commitBook(secondProfile.book, thirdProfile.book);
+commitProfiles(secondProfile.book, thirdProfile.book);
 assert.equal(
   psql(`SELECT effective_from::text || '|' || COALESCE(effective_to::text, 'null') || '|' || finance_monthly_cents::text FROM public.fg_cost_profiles WHERE vehicle_id = '${profileVehicleId}' ORDER BY effective_from;`),
   '2024-06-01|2024-08-01|80\n2024-08-01|null|40'

@@ -22,7 +22,10 @@ import type {
   FleetVehicle,
   FleetWorkspace,
 } from './types';
+import { STOP_UUID, stopRowsConflict } from './stop-ownership';
 import { sameCompanyCustomer } from './validation';
+
+export { stopRowsConflict };
 
 type DbError = { code?: string; message?: string } | null;
 
@@ -39,17 +42,6 @@ export function isFleetSchemaMissing(error: DbError): boolean {
   if (code === '42P01') return /does not exist/i.test(message);
   if (code === '42883') return /(?:undefined function|function)\s+(?:[\w."]+\.)?fg_[a-z0-9_]+/i.test(message);
   return false;
-}
-
-const STOP_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-/** A stop id already stored on another job, or another company, cannot be reused. */
-export function stopRowsConflict(
-  rows: Array<{ id?: string; job_id?: string | null; company_id?: number | null }>,
-  companyId: number,
-  jobId: string | null
-): boolean {
-  return rows.some((row) => Number(row.company_id) !== companyId || String(row.job_id || '') !== (jobId || ''));
 }
 
 export async function collectPages<T>(
