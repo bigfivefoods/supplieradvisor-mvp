@@ -21,7 +21,7 @@ test('sample project, programme, variation, diary, and site manager', async ({ p
   await page.getByTestId('programme-activity').fill('E2E follow-on');
   await page.getByTestId('programme-depends').selectOption({ index: 1 });
   await page.getByTestId('programme-save').click();
-  await expect(page.getByText('E2E follow-on')).toBeVisible();
+  await expect(page.getByTestId('gantt-chart').getByText('E2E follow-on')).toBeVisible();
 
   await page.goto('/preview/constructiongraph/variations');
   await page.getByTestId('variation-add').click();
@@ -41,7 +41,7 @@ test('sample project, programme, variation, diary, and site manager', async ({ p
   await page.goto('/preview/constructiongraph/safety');
   await page.getByTestId('safety-toolbox-title').fill('E2E toolbox');
   await page.getByTestId('safety-toolbox-add').click();
-  await expect(page.getByText('E2E toolbox')).toBeVisible();
+  await expect(page.getByTestId('safety-toolbox').locator('table').getByText('E2E toolbox')).toBeVisible();
 
   await page.goto('/preview/constructiongraph?role=site_manager');
   await expect(page.locator('[data-book-ready="1"]')).toBeVisible();
