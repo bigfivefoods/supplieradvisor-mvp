@@ -12,6 +12,7 @@ import {
   RecoverSample,
   RecoverScreen,
 } from './RecoverChrome';
+import { SampleQueueTable } from './RecoverPreviews';
 import { useRecoverDesk } from './useRecoverDesk';
 
 export function RecoverQueue() {
@@ -46,18 +47,8 @@ export function RecoverQueue() {
             body="Assigned accounts stay hidden until the database setup is approved."
             art={<PendingArt />}
             preview={
-              <RecoverSample title="How a queue row will look">
-                <div className="grid gap-2">
-                  {['Sample account', 'Sample creditor', 'Sample next step'].map((label) => (
-                    <div
-                      key={label}
-                      className="flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-[#e2e8f0] bg-white px-3"
-                    >
-                      <span className="text-sm font-semibold text-slate-900">{label}</span>
-                      <span className="text-sm font-black tabular-nums text-slate-600">—</span>
-                    </div>
-                  ))}
-                </div>
+              <RecoverSample title="Sample layout of the queue">
+                <SampleQueueTable />
               </RecoverSample>
             }
           />
@@ -68,7 +59,6 @@ export function RecoverQueue() {
           icon={ListChecks}
           title={title}
           body="No accounts assigned yet. Accounts appear here once a creditor book is imported."
-          legend={['Account', 'Creditor', 'Next action', 'Clock']}
           art={<QueueArt />}
           action={
             manager ? (
@@ -78,18 +68,8 @@ export function RecoverQueue() {
             )
           }
           preview={
-            <RecoverSample title="How a queue row will look">
-              <div className="grid gap-2">
-                {['Sample account', 'Sample creditor', 'Sample next step'].map((label) => (
-                  <div
-                    key={label}
-                    className="flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-[#e2e8f0] bg-white px-3"
-                  >
-                    <span className="text-sm font-semibold text-slate-900">{label}</span>
-                    <span className="text-sm font-black tabular-nums text-slate-600">—</span>
-                  </div>
-                ))}
-              </div>
+            <RecoverSample title="Sample layout of the queue">
+              <SampleQueueTable />
             </RecoverSample>
           }
         />

@@ -22,15 +22,16 @@ export function isMigrationPending(error: DbError): boolean {
   if (!error) return false;
   const code = String(error.code || '');
   const message = String(error.message || '').toLowerCase();
-  return (
+  const recoverObject = message.includes('recover_');
+  const missing =
     code === '42P01' ||
     code === 'PGRST202' ||
     code === 'PGRST205' ||
     code === 'PGRST204' ||
     message.includes('does not exist') ||
     message.includes('schema cache') ||
-    message.includes('could not find the table')
-  );
+    message.includes('could not find');
+  return recoverObject && missing;
 }
 
 function pending(): RecoverLoad {
@@ -175,43 +176,22 @@ export async function loadRecoverDesk(
   };
 }
 
-async function writeAudit(
-  companyId: number,
-  actorId: string,
-  action: string,
-  target: string,
-  payload: Record<string, unknown>
-): Promise<void> {
-  const supabase = getSupabaseServer();
-  const inserted = await supabase.from('recover_audit_log').insert({
-    company_id: companyId,
-    actor_kind: 'staff',
-    actor_id: actorId,
-    action,
-    target,
-    payload,
-  });
-  if (isMigrationPending(inserted.error)) {
-    const err = new Error('migration_pending');
-    err.name = 'MigrationPendingError';
-    throw err;
-  }
-  if (inserted.error) throw new Error('audit');
-}
-
 export async function companyRecovergraphEnabled(companyId: number): Promise<boolean> {
   const supabase = getSupabaseServer();
   const row = await supabase.from('profiles').select('metadata').eq('id', companyId).maybeSingle();
-  if (isMigrationPending(row.error)) return false;
-  if (row.error) throw new Error('company');
+  if (row.error) {
+    if (isMigrationPending(row.error)) throw new MigrationPendingError();
+    throw new Error('company');
+  }
   const meta = (row.data?.metadata || null) as { enabled_modules?: Record<string, boolean> } | null;
   return isModuleEnabled(meta?.enabled_modules ?? null, 'recovergraph');
 }
 
-async function commitWorkspace(
+async function commitDesk(
   companyId: number,
   actorId: string,
-  action: 'update_workspace' | 'set_real_data_enabled',
+  action: RecoverOp['op'],
+  target: string,
   patch: Record<string, unknown>
 ): Promise<void> {
   const supabase = getSupabaseServer();
@@ -219,12 +199,13 @@ async function commitWorkspace(
     p_company_id: companyId,
     p_actor_id: actorId,
     p_action: action,
-    p_target: 'recover_workspaces',
+    p_target: target,
     p_patch: patch,
   });
   if (isMigrationPending(result.error)) throw new MigrationPendingError();
   const message = String(result.error?.message || '');
   if (message.includes('missing_workspace')) throw new Error('missing_workspace');
+  if (message.includes('missing_staff')) throw new Error('missing_staff');
   if (result.error) throw new Error('workspace');
 }
 
@@ -235,25 +216,12 @@ export class MigrationPendingError extends Error {
   }
 }
 
-function stamp() {
-  return new Date().toISOString();
-}
-
 export async function applyRecoverOp(
   companyId: number,
   actor: { userId: string; email: string | null },
   op: RecoverOp
 ): Promise<void> {
-  const supabase = getSupabaseServer();
-  const now = stamp();
   if (op.op === 'init_workspace' || op.op === 'update_workspace') {
-    const existing = await supabase
-      .from('recover_workspaces')
-      .select('id')
-      .eq('company_id', companyId)
-      .maybeSingle();
-    if (isMigrationPending(existing.error)) throw new MigrationPendingError();
-    if (existing.error) throw new Error('workspace');
     const changed: Record<string, unknown> = {};
     if (op.display_name !== undefined) changed.display_name = op.display_name;
     if (op.operator_type !== undefined) changed.operator_type = op.operator_type;
@@ -264,95 +232,32 @@ export async function applyRecoverOp(
     if (op.cfdc_expiry !== undefined) changed.cfdc_expiry = op.cfdc_expiry;
     if (op.vat_registered !== undefined) changed.vat_registered = op.vat_registered;
     if (op.vat_rate_bps !== undefined) changed.vat_rate_bps = op.vat_rate_bps;
-    if (op.op === 'update_workspace') {
-      if (!existing.data) throw new Error('missing_workspace');
-      await commitWorkspace(companyId, actor.userId, 'update_workspace', changed);
-      return;
-    }
-    if (!existing.data) {
-      const inserted = await supabase.from('recover_workspaces').insert({
-        company_id: companyId,
-        display_name: op.display_name ?? '',
-        operator_type: op.operator_type ?? 'agency',
-        trust_mode: op.trust_mode ?? 'trust',
-        programme_types: ['recovery'],
-        cfdc_registration_no: op.cfdc_registration_no ?? '',
-        cfdc_expiry: op.cfdc_expiry ?? null,
-        vat_registered: Boolean(op.vat_registered),
-        vat_rate_bps: op.vat_rate_bps ?? null,
-        updated_at: now,
-      });
-      if (isMigrationPending(inserted.error)) throw new MigrationPendingError();
-      if (inserted.error) throw new Error('workspace');
-    }
-    await writeAudit(companyId, actor.userId, op.op, 'recover_workspaces', changed);
+    await commitDesk(companyId, actor.userId, op.op, 'recover_workspaces', changed);
     return;
   }
 
   if (op.op === 'upsert_staff') {
-    const row = {
+    await commitDesk(companyId, actor.userId, op.op, op.id || op.email, {
+      id: op.id || null,
       email: op.email,
       role: op.role,
       team_id: op.team_id || null,
       cfdc_registration_no: op.cfdc_registration_no || '',
       registration_status: op.registration_status || '',
       monthly_target_cents: op.monthly_target_cents,
-      status: 'active',
-      updated_at: now,
-    };
-    if (op.id) {
-      const updated = await supabase
-        .from('recover_staff')
-        .update(row)
-        .eq('company_id', companyId)
-        .eq('id', op.id);
-      if (isMigrationPending(updated.error)) throw new MigrationPendingError();
-      if (updated.error) throw new Error('staff');
-      await writeAudit(companyId, actor.userId, op.op, op.id, { role: op.role });
-      return;
-    }
-    const found = await supabase
-      .from('recover_staff')
-      .select('id')
-      .eq('company_id', companyId)
-      .eq('email', op.email)
-      .maybeSingle();
-    if (isMigrationPending(found.error)) throw new MigrationPendingError();
-    if (found.error) throw new Error('staff');
-    if (found.data?.id) {
-      const updated = await supabase
-        .from('recover_staff')
-        .update(row)
-        .eq('company_id', companyId)
-        .eq('id', found.data.id);
-      if (updated.error) throw new Error('staff');
-      await writeAudit(companyId, actor.userId, op.op, String(found.data.id), { role: op.role });
-      return;
-    }
-    const inserted = await supabase.from('recover_staff').insert({
-      company_id: companyId,
-      user_id: null,
-      ...row,
     });
-    if (isMigrationPending(inserted.error)) throw new MigrationPendingError();
-    if (inserted.error) throw new Error('staff');
-    await writeAudit(companyId, actor.userId, op.op, op.email, { role: op.role });
     return;
   }
 
   if (op.op === 'deactivate_staff') {
-    const updated = await supabase
-      .from('recover_staff')
-      .update({ status: 'inactive', updated_at: now })
-      .eq('company_id', companyId)
-      .eq('id', op.id);
-    if (isMigrationPending(updated.error)) throw new MigrationPendingError();
-    if (updated.error) throw new Error('staff');
-    await writeAudit(companyId, actor.userId, op.op, op.id, { status: 'inactive' });
+    await commitDesk(companyId, actor.userId, op.op, op.id, {
+      id: op.id,
+      status: 'inactive',
+    });
     return;
   }
 
-  await commitWorkspace(companyId, actor.userId, 'set_real_data_enabled', {
+  await commitDesk(companyId, actor.userId, 'set_real_data_enabled', 'recover_workspaces', {
     enabled: op.enabled,
     real_data_confirmed_by: op.enabled ? actor.userId : null,
   });

@@ -57,8 +57,11 @@ export function middleware(request: NextRequest) {
   }
 
   // Signed-out portal shells. No API is opened. Tokens are never cached.
+  // The request header lets the root layout skip install tags on these pages.
   if (isRecoverPortalPath(pathname)) {
-    const portal = NextResponse.next();
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('x-sa-portal', 'recover');
+    const portal = NextResponse.next({ request: { headers: requestHeaders } });
     applySecurityHeaders(portal);
     portal.headers.set('Cache-Control', 'private, no-store');
     portal.headers.set('X-Robots-Tag', 'noindex, nofollow');

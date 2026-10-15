@@ -229,6 +229,14 @@ async function main() {
     INSERT INTO public.recover_audit_log (company_id, actor_kind, action, payload)
     VALUES (104, 'system', 'kept', '{"kept":true}'::jsonb);
   `);
+  fails(
+    `BEGIN; SET LOCAL ROLE service_role; UPDATE public.recover_audit_log SET company_id = NULL WHERE action = 'kept'; ROLLBACK;`,
+    /append-only/
+  );
+  assert.equal(
+    psql(`SELECT company_id FROM public.recover_audit_log WHERE action = 'kept';`),
+    '104'
+  );
   psql(`DELETE FROM public.profiles WHERE id = 104;`);
   assert.equal(
     psql(`SELECT company_id IS NULL FROM public.recover_audit_log WHERE action = 'kept';`),
@@ -264,6 +272,55 @@ async function main() {
   fails(
     `SELECT public.recover_desk_commit(103, 'user-1', 'update_workspace', 'recover_workspaces', '{"display_name":"Nope"}'::jsonb);`,
     /missing_workspace/
+  );
+  psql(`
+    SELECT public.recover_desk_commit(
+      103, 'user-1', 'init_workspace', 'recover_workspaces',
+      '{"display_name":"New desk","trust_mode":"direct","operator_type":"agency"}'::jsonb
+    );
+  `);
+  assert.equal(
+    psql(`SELECT display_name || ' ' || trust_mode FROM public.recover_workspaces WHERE company_id = 103;`),
+    'New desk direct'
+  );
+  psql(`
+    SELECT public.recover_desk_commit(
+      103, 'user-1', 'init_workspace', 'recover_workspaces',
+      '{"display_name":"Overwrite"}'::jsonb
+    );
+  `);
+  assert.equal(
+    psql(`SELECT display_name FROM public.recover_workspaces WHERE company_id = 103;`),
+    'New desk'
+  );
+  assert.equal(
+    psql(`SELECT count(*) FROM public.recover_audit_log WHERE company_id = 103 AND action = 'init_workspace';`),
+    '2'
+  );
+  psql(`
+    SELECT public.recover_desk_commit(
+      101, 'user-1', 'upsert_staff', 'agent@example.com',
+      '{"email":"agent@example.com","role":"collector","monthly_target_cents":null}'::jsonb
+    );
+  `);
+  assert.equal(
+    psql(`SELECT role || ' ' || status FROM public.recover_staff WHERE company_id = 101 AND lower(email) = 'agent@example.com';`),
+    'collector active'
+  );
+  const staffId = psql(`SELECT id FROM public.recover_staff WHERE company_id = 101 AND lower(email) = 'agent@example.com';`);
+  psql(`
+    SELECT public.recover_desk_commit(
+      101, 'user-1', 'deactivate_staff', '${staffId}',
+      '{"id":"${staffId}","status":"inactive"}'::jsonb
+    );
+  `);
+  assert.equal(
+    psql(`SELECT status FROM public.recover_staff WHERE id = '${staffId}';`),
+    'inactive'
+  );
+  assert.match(
+    psql(`SELECT payload::text FROM public.recover_audit_log WHERE company_id = 101 AND action = 'deactivate_staff';`),
+    /inactive/
   );
   assert.equal(
     psql(`SELECT count(*) FROM public.recover_audit_log WHERE company_id = 103 AND action = 'update_workspace';`),

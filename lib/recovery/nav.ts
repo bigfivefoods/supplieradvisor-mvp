@@ -1,3 +1,5 @@
+import { queueNavLabel, recoverSectionVisible, resolveRecoverRole, type StaffRoleInput } from './roles';
+
 /**
  * Sidebar sections for RecoverAdvisor®.
  * Briefs B–K append children here. Only pages that exist are listed,
@@ -71,6 +73,21 @@ export const RECOVERGRAPH_NAV_SECTIONS: readonly RecoverNavSection[] = [
     ],
   },
 ];
+
+export function recoverSidebarSteps<T extends { name: string; href: string; section?: string }>(
+  companyRole: string | null | undefined,
+  staff: StaffRoleInput,
+  steps: readonly T[]
+): T[] {
+  const recoverRole = resolveRecoverRole(companyRole, staff);
+  return steps
+    .filter((step) => recoverSectionVisible(recoverRole, step.section || ''))
+    .map((step) =>
+      step.href === '/dashboard/recovergraph/queue'
+        ? { ...step, name: queueNavLabel(recoverRole) }
+        : step
+    );
+}
 
 export function recovergraphNavSteps(): Array<{
   name: string;

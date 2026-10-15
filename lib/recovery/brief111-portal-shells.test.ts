@@ -30,8 +30,13 @@ assert.match(layout, /absolute: 'RecoverAdvisor®'/);
 assert.match(layout, /manifest: null/);
 assert.match(layout, /description: null/);
 assert.match(layout, /keywords: null/);
+assert.match(layout, /icons:/);
+assert.match(layout, /apple:\s*\[\]/);
+assert.match(layout, /appleWebApp:\s*false/);
+assert.match(layout, /themeColor:\s*'#f8fafc'/);
 assert.doesNotMatch(layout, /manifest\.webmanifest/);
 assert.doesNotMatch(layout, /SupplierAdvisor/);
+assert.doesNotMatch(layout, /apple-mobile-web-app-capable" content="yes"/);
 
 assert.deepEqual([...RECOVER_PORTAL_PAGE_PREFIXES], [
   '/creditor/recovergraph',
@@ -49,6 +54,11 @@ assert.doesNotMatch(paths, /\/api\/public\/recovergraph/);
 const middleware = readFileSync(resolve('middleware.ts'), 'utf8');
 assert.match(middleware, /isRecoverPortalPath/);
 assert.match(middleware, /private, no-store/);
+assert.match(middleware, /x-sa-portal/);
+
+const root = readFileSync(resolve('app/layout.tsx'), 'utf8');
+assert.match(root, /x-sa-portal/);
+assert.match(root, /portal \? null/);
 
 const chrome = readFileSync(resolve('components/recovery/RecoverChrome.tsx'), 'utf8');
 assert.doesNotMatch(chrome, /<aside/);

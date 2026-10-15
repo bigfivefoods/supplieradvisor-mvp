@@ -148,7 +148,8 @@ function workspaceFields(
 }
 
 export function validateRecoverOp(
-  raw: unknown
+  raw: unknown,
+  options?: { canWriteTrust?: boolean }
 ): ValidationOk<RecoverOp> | ValidationFail {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return { ok: false, error: 'Request could not be read.' };
@@ -158,9 +159,13 @@ export function validateRecoverOp(
   if (op === 'init_workspace' || op === 'update_workspace') {
     const fields = workspaceFields(body, op === 'update_workspace');
     if (!fields.ok) return fields;
+    const value = { ...fields.value };
+    if (options?.canWriteTrust === false) {
+      delete value.trust_mode;
+    }
     return {
       ok: true,
-      value: { op, ...fields.value } as RecoverOp,
+      value: { op, ...value } as RecoverOp,
     };
   }
   if (op === 'upsert_staff') {

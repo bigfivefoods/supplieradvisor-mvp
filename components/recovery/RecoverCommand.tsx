@@ -17,7 +17,7 @@ import {
 } from '@/lib/recovery/brand';
 import { queueNavLabel } from '@/lib/recovery/roles';
 import type { RecoverDeskPayload, RecoverWorkspace } from '@/lib/recovery/types';
-import { AgentArt, PendingArt, QueueArt } from './RecoverArt';
+import { AgentArt, DeskArt, PendingArt, QueueArt } from './RecoverArt';
 import type { RecoverRole } from '@/lib/recovery/roles';
 import {
   RecoverBanner,
@@ -32,6 +32,7 @@ import {
   dash,
   formatRand,
 } from './RecoverChrome';
+import { AgeingBuckets, RecoveryFunnel, SampleQueueTable, WorkloadStrip } from './RecoverPreviews';
 import { useRecoverDesk } from './useRecoverDesk';
 
 function todayIso() {
@@ -101,14 +102,10 @@ function CommandBody({ desk }: { desk: RecoverDeskPayload }) {
           body="Command centre, queues, creditors, and mandates stay closed until the database setup is approved."
           art={<PendingArt />}
           preview={
-            <RecoverSample title="What opens after approval">
-              <div className="grid gap-2 sm:grid-cols-3">
-                {['Command centre', 'Creditor book', 'Team'].map((label) => (
-                  <div key={label} className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-4">
-                    <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Sample</div>
-                    <div className="mt-1 text-sm font-black text-slate-900">{label}</div>
-                  </div>
-                ))}
+            <RecoverSample title="Sample layout of the desk">
+              <div className="grid gap-3">
+                <RecoveryFunnel />
+                <WorkloadStrip />
               </div>
             </RecoverSample>
           }
@@ -186,20 +183,23 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
           style={{ background: 'var(--sa-page-glow-2, rgba(0,180,216,0.08))' }}
           aria-hidden
         />
-        <div className="relative max-w-xl">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-200/80 bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-widest text-[#0077b6] shadow-sm">
-            <span className="relative flex h-1.5 w-1.5" aria-hidden>
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75 motion-reduce:animate-none" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            </span>
-            {desk.workspace?.display_name || 'Workspace not created'}
+        <div className="relative grid items-center gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+          <div className="max-w-xl">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-200/80 bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-widest text-[#0077b6] shadow-sm">
+              <span className="relative flex h-1.5 w-1.5" aria-hidden>
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75 motion-reduce:animate-none" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              </span>
+              {desk.workspace?.display_name || 'Workspace not created'}
+            </div>
+            <h2 className="mb-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+              Today’s picture
+            </h2>
+            <p className="text-sm leading-relaxed text-slate-600">
+              No accounts placed yet. Placed, recovered, trust, and clock figures stay blank until those books exist.
+            </p>
           </div>
-          <h2 className="mb-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
-            Today’s picture
-          </h2>
-          <p className="text-sm leading-relaxed text-slate-600">
-            No accounts placed yet. Placed, recovered, trust, and clock figures stay blank until those books exist.
-          </p>
+          <DeskArt />
         </div>
       </section>
 
@@ -237,6 +237,14 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
               sub="No clocks are running"
               icon={Clock3}
             />
+      </div>
+
+      <div className="mb-6 grid gap-4 lg:grid-cols-2">
+        <RecoveryFunnel />
+        <AgeingBuckets />
+      </div>
+      <div className="mb-8">
+        <WorkloadStrip />
       </div>
 
       <div className="mb-8 grid gap-4 lg:grid-cols-2">
@@ -391,20 +399,8 @@ function AgentHome({ desk }: { desk: RecoverDeskPayload }) {
           </p>
         </RecoverPanel>
       </div>
-      <RecoverSample title="A day on this desk">
-        <div className="grid gap-3 md:grid-cols-3">
-          {[
-            ['Open the queue', 'Assigned accounts will list here, one row each.'],
-            ['Work the next step', 'Each row will name the account and the next action.'],
-            ['Leave the rest', 'Creditors, mandates, and trust stay with the manager.'],
-          ].map(([title, body]) => (
-            <div key={title} className="rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-sm">
-              <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Sample</div>
-              <h3 className="mt-1 text-sm font-black text-slate-900">{title}</h3>
-              <p className="mt-1 text-sm leading-relaxed text-slate-600">{body}</p>
-            </div>
-          ))}
-        </div>
+      <RecoverSample title="Sample layout of my queue">
+        <SampleQueueTable />
       </RecoverSample>
     </div>
   );

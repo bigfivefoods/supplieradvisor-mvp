@@ -2,6 +2,9 @@
  * Run: npx --yes tsx lib/recovery/brief111-roles.test.ts
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { recovergraphNavSteps, recoverSidebarSteps } from './nav';
 import { deskResponseBody, projectDesk } from './project';
 import {
   capabilitiesFor,
@@ -68,6 +71,26 @@ assert.equal(recoverSectionVisible('agent', 'Place'), false);
 assert.equal(recoverSectionVisible('agent', 'Setup'), false);
 assert.equal(recoverSectionVisible('none', 'Overview'), false);
 assert.equal(recoverSectionVisible('manager', 'Setup'), true);
+
+const agentNav = recoverSidebarSteps(
+  'member',
+  { role: 'collector', status: 'active' },
+  recovergraphNavSteps()
+);
+assert.deepEqual(
+  agentNav.map((step) => step.name),
+  ['Command centre', 'My queue']
+);
+assert.deepEqual(
+  agentNav.map((step) => step.href),
+  ['/dashboard/recovergraph', '/dashboard/recovergraph/queue']
+);
+const ownerNav = recoverSidebarSteps('owner', null, recovergraphNavSteps());
+assert.ok(ownerNav.some((step) => step.name === 'All queues'));
+assert.ok(ownerNav.some((step) => step.href === '/dashboard/recovergraph/creditors'));
+assert.ok(ownerNav.some((step) => step.href === '/dashboard/recovergraph/settings/team'));
+const sidebar = readFileSync(resolve('components/Sidebar.tsx'), 'utf8');
+assert.match(sidebar, /recoverSidebarSteps\(/);
 
 const load: RecoverLoad = {
   ready: true,

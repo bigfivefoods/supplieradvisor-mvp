@@ -30,11 +30,7 @@ import { buildGuideNavSteps } from '@/lib/guide/curriculum';
 import { AdvisorWordmark } from '@/components/brand/AdvisorSkinApplier';
 import { PortalBrandLogo } from '@/components/brand/PortalBrandLogo';
 import { useAdvisorSkin } from '@/lib/brand/useAdvisorSkin';
-import {
-  queueNavLabel,
-  recoverSectionVisible,
-  resolveRecoverRole,
-} from '@/lib/recovery/roles';
+import { recoverSidebarSteps } from '@/lib/recovery/nav';
 import { RECOVER_COMPANY_COOKIE } from '@/lib/recovery/member-company';
 
 const EXPANDED_KEY = 'sa-sidebar-expanded-v1';
@@ -229,18 +225,9 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
           };
         }
         if (mod.id === 'recovergraph' && role) {
-          const recoverRole = resolveRecoverRole(role, recoverStaff);
           return {
             ...mod,
-            sub: mod.sub
-              .filter((step) =>
-                recoverSectionVisible(recoverRole, step.section || '')
-              )
-              .map((step) =>
-                step.href === '/dashboard/recovergraph/queue'
-                  ? { ...step, name: queueNavLabel(recoverRole) }
-                  : step
-              ),
+            sub: recoverSidebarSteps(role, recoverStaff, mod.sub),
           };
         }
         return mod;

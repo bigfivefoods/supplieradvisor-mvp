@@ -5,6 +5,7 @@ import type { LucideIcon } from 'lucide-react';
 import { RECOVER_PENDING_BANNER } from '@/lib/recovery/brand';
 import { PortalArt } from './RecoverArt';
 import { RecoverBanner, RecoverRoleChip, RecoverSample, RecoverScreen } from './RecoverChrome';
+import { SamplePortalBoard } from './RecoverPreviews';
 import { useRecoverDesk } from './useRecoverDesk';
 
 const CARDS: Array<{
@@ -101,15 +102,11 @@ export function RecoverPortals() {
               </p>
             </div>
           </div>
-          <RecoverSample title="What a portal page will show">
-            <div className="grid gap-3 sm:grid-cols-3">
-              {['Their own book', 'The next step', 'Shared documents'].map((label) => (
-                <div key={label} className="rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-sm">
-                  <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Sample</div>
-                  <div className="mt-1 text-sm font-black text-slate-900">{label}</div>
-                  <div className="mt-2 text-lg font-black tabular-nums text-slate-900">—</div>
-                </div>
-              ))}
+          <RecoverSample title="Sample layout of a signed-out page">
+            <div className="grid gap-3">
+              <SamplePortalBoard kind="creditor" />
+              <SamplePortalBoard kind="debtor" />
+              <SamplePortalBoard kind="attorney" />
             </div>
           </RecoverSample>
         </div>

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import { Noto_Sans_Arabic } from 'next/font/google';
 import './globals.css';
 import LocaleHtml from '@/components/i18n/LocaleHtml';
@@ -125,30 +126,35 @@ export const viewport: Viewport = {
   colorScheme: 'light dark',
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const portal = (await headers()).get('x-sa-portal') === 'recover';
   return (
     <LocaleHtml className="scroll-smooth">
       <head>
         <JsonLd />
         {/* Apply stored theme before paint — avoids light flash in dark mode */}
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
-        {/* Capable flags only — name/icon/manifest come from the route so a
-            gym PWA (VUKA) is not installed as SupplierAdvisor. */}
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        {/* Register SW as early as possible (Android install criteria) */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
+        {portal ? null : (
+          <>
+            {/* Capable flags only — name/icon/manifest come from the route so a
+                gym PWA (VUKA) is not installed as SupplierAdvisor. */}
+            <meta name="apple-mobile-web-app-capable" content="yes" />
+            <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+            <meta name="mobile-web-app-capable" content="yes" />
+            {/* Register SW as early as possible (Android install criteria) */}
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `
 (function(){
   if(!('serviceWorker' in navigator)) return;
   window.addEventListener('load',function(){
     navigator.serviceWorker.register('/sw.js',{scope:'/',updateViaCache:'none'}).catch(function(){});
   });
 })();`,
-          }}
-        />
+              }}
+            />
+          </>
+        )}
       </head>
       <body className={`min-h-dvh antialiased bg-sa-bg text-sa-text ${notoSansArabic.variable}`}>
         <PublicProviders>{children}</PublicProviders>

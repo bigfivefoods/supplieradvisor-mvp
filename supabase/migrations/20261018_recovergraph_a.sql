@@ -293,7 +293,10 @@ LANGUAGE plpgsql
 SET search_path = ''
 AS $$
 BEGIN
+  -- A profile delete fires the foreign-key action inside an outer trigger,
+  -- so this row trigger is nested. A direct UPDATE is depth 1 and stays refused.
   IF TG_OP = 'UPDATE'
+     AND pg_catalog.pg_trigger_depth() > 1
      AND OLD.company_id IS NOT NULL
      AND NEW.company_id IS NULL
      AND NEW.id = OLD.id
@@ -656,6 +659,132 @@ BEGIN
     GET DIAGNOSTICS v_found = ROW_COUNT;
     IF v_found = 0 THEN
       RAISE EXCEPTION 'missing_workspace' USING ERRCODE = 'P0002';
+    END IF;
+  ELSIF p_action = 'init_workspace' THEN
+    INSERT INTO public.recover_workspaces (
+      company_id,
+      display_name,
+      operator_type,
+      trust_mode,
+      programme_types,
+      cfdc_registration_no,
+      cfdc_expiry,
+      vat_registered,
+      vat_rate_bps,
+      updated_at
+    )
+    VALUES (
+      p_company_id,
+      COALESCE(p_patch->>'display_name', ''),
+      COALESCE(NULLIF(p_patch->>'operator_type', ''), 'agency'),
+      COALESCE(NULLIF(p_patch->>'trust_mode', ''), 'trust'),
+      ARRAY['recovery']::text[],
+      COALESCE(p_patch->>'cfdc_registration_no', ''),
+      NULLIF(p_patch->>'cfdc_expiry', '')::date,
+      COALESCE((p_patch->>'vat_registered')::boolean, false),
+      CASE
+        WHEN p_patch ? 'vat_rate_bps' AND NULLIF(p_patch->>'vat_rate_bps', '') IS NOT NULL
+          THEN (p_patch->>'vat_rate_bps')::integer
+        ELSE NULL
+      END,
+      pg_catalog.now()
+    )
+    ON CONFLICT (company_id) DO NOTHING;
+  ELSIF p_action = 'upsert_staff' THEN
+    IF NULLIF(p_patch->>'id', '') IS NOT NULL THEN
+      UPDATE public.recover_staff
+      SET
+        email = COALESCE(NULLIF(p_patch->>'email', ''), email),
+        role = COALESCE(NULLIF(p_patch->>'role', ''), role),
+        team_id = CASE
+          WHEN p_patch ? 'team_id' THEN NULLIF(p_patch->>'team_id', '')::uuid
+          ELSE team_id
+        END,
+        cfdc_registration_no = CASE
+          WHEN p_patch ? 'cfdc_registration_no' THEN COALESCE(p_patch->>'cfdc_registration_no', '')
+          ELSE cfdc_registration_no
+        END,
+        registration_status = CASE
+          WHEN p_patch ? 'registration_status' THEN COALESCE(p_patch->>'registration_status', '')
+          ELSE registration_status
+        END,
+        monthly_target_cents = CASE
+          WHEN p_patch ? 'monthly_target_cents' AND NULLIF(p_patch->>'monthly_target_cents', '') IS NULL THEN NULL
+          WHEN p_patch ? 'monthly_target_cents' THEN (p_patch->>'monthly_target_cents')::bigint
+          ELSE monthly_target_cents
+        END,
+        status = 'active',
+        updated_at = pg_catalog.now()
+      WHERE company_id = p_company_id
+        AND id = (p_patch->>'id')::uuid;
+      GET DIAGNOSTICS v_found = ROW_COUNT;
+      IF v_found = 0 THEN
+        RAISE EXCEPTION 'missing_staff' USING ERRCODE = 'P0002';
+      END IF;
+    ELSE
+      UPDATE public.recover_staff
+      SET
+        role = COALESCE(NULLIF(p_patch->>'role', ''), role),
+        team_id = CASE
+          WHEN p_patch ? 'team_id' THEN NULLIF(p_patch->>'team_id', '')::uuid
+          ELSE team_id
+        END,
+        cfdc_registration_no = CASE
+          WHEN p_patch ? 'cfdc_registration_no' THEN COALESCE(p_patch->>'cfdc_registration_no', '')
+          ELSE cfdc_registration_no
+        END,
+        registration_status = CASE
+          WHEN p_patch ? 'registration_status' THEN COALESCE(p_patch->>'registration_status', '')
+          ELSE registration_status
+        END,
+        monthly_target_cents = CASE
+          WHEN p_patch ? 'monthly_target_cents' AND NULLIF(p_patch->>'monthly_target_cents', '') IS NULL THEN NULL
+          WHEN p_patch ? 'monthly_target_cents' THEN (p_patch->>'monthly_target_cents')::bigint
+          ELSE monthly_target_cents
+        END,
+        status = 'active',
+        updated_at = pg_catalog.now()
+      WHERE company_id = p_company_id
+        AND lower(email) = lower(COALESCE(p_patch->>'email', ''));
+      GET DIAGNOSTICS v_found = ROW_COUNT;
+      IF v_found = 0 THEN
+        INSERT INTO public.recover_staff (
+          company_id,
+          user_id,
+          email,
+          role,
+          team_id,
+          status,
+          cfdc_registration_no,
+          registration_status,
+          monthly_target_cents,
+          updated_at
+        )
+        VALUES (
+          p_company_id,
+          NULL,
+          COALESCE(p_patch->>'email', ''),
+          COALESCE(NULLIF(p_patch->>'role', ''), 'collector'),
+          NULLIF(p_patch->>'team_id', '')::uuid,
+          'active',
+          COALESCE(p_patch->>'cfdc_registration_no', ''),
+          COALESCE(p_patch->>'registration_status', ''),
+          CASE
+            WHEN NULLIF(p_patch->>'monthly_target_cents', '') IS NULL THEN NULL
+            ELSE (p_patch->>'monthly_target_cents')::bigint
+          END,
+          pg_catalog.now()
+        );
+      END IF;
+    END IF;
+  ELSIF p_action = 'deactivate_staff' THEN
+    UPDATE public.recover_staff
+    SET status = 'inactive', updated_at = pg_catalog.now()
+    WHERE company_id = p_company_id
+      AND id = NULLIF(p_patch->>'id', '')::uuid;
+    GET DIAGNOSTICS v_found = ROW_COUNT;
+    IF v_found = 0 THEN
+      RAISE EXCEPTION 'missing_staff' USING ERRCODE = 'P0002';
     END IF;
   ELSE
     RAISE EXCEPTION 'unsupported' USING ERRCODE = '22023';

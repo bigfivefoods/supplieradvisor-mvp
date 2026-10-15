@@ -87,6 +87,50 @@ export function PendingArt() {
   );
 }
 
+export function DeskArt() {
+  return (
+    <Frame
+      id="recover-art-desk"
+      label="Illustration of a collections desk with a ledger, a cheque, a phone, and a handshake"
+    >
+      <rect x="24" y="40" width="88" height="128" rx="16" fill="white" stroke="#e2e8f0" />
+      <rect x="36" y="56" width="64" height="8" rx="4" fill="#0f172a" />
+      <rect x="36" y="74" width="48" height="6" rx="3" fill="#cbd5e1" />
+      <rect x="36" y="88" width="56" height="6" rx="3" fill="#e2e8f0" />
+      <rect x="36" y="102" width="40" height="6" rx="3" fill="#e2e8f0" />
+      <rect x="36" y="128" width="40" height="18" rx="8" fill="#00b4d8" />
+      <rect x="124" y="36" width="132" height="62" rx="12" fill="white" stroke="#e2e8f0" />
+      <rect x="138" y="50" width="46" height="7" rx="3" fill="#0077b6" />
+      <rect x="138" y="66" width="96" height="6" rx="3" fill="#cbd5e1" />
+      <path
+        d="M138 84c14 5 22-7 36-2 12 4 18-5 32-1"
+        fill="none"
+        stroke="#0f172a"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <rect x="132" y="116" width="34" height="62" rx="10" fill="white" stroke="#e2e8f0" />
+      <rect x="138" y="126" width="22" height="32" rx="4" fill="#e0f7fb" />
+      <circle cx="149" cy="168" r="3" fill="#0077b6" />
+      <circle cx="214" cy="148" r="30" fill="#00b4d8" />
+      <path
+        d="M198 150c8-12 18-12 24-2 5 7 12 9 20 2"
+        fill="none"
+        stroke="#0f172a"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+      <path
+        d="M200 160c12 2 18 8 32 6"
+        fill="none"
+        stroke="#0f172a"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+    </Frame>
+  );
+}
+
 export function PortalArt() {
   return (
     <Frame id="recover-art-portal" label="Illustration of a closed portal door">

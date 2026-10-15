@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 
 export const metadata: Metadata = {
   title: { absolute: 'RecoverAdvisor®' },
@@ -15,6 +15,25 @@ export const metadata: Metadata = {
   twitter: null,
   alternates: null,
   robots: 'noindex, nofollow',
+  icons: {
+    icon: [],
+    shortcut: [],
+    apple: [],
+    other: [],
+  },
+  // `false` clears web-app metas. An object with capable: false still emits a status-bar style.
+  appleWebApp: false,
+  other: {
+    'apple-mobile-web-app-capable': '',
+    'apple-mobile-web-app-status-bar-style': '',
+    'mobile-web-app-capable': '',
+    'msapplication-TileColor': '',
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#f8fafc',
+  colorScheme: 'light',
 };
 
 export default function RecoverPortalLayout({ children }: { children: React.ReactNode }) {

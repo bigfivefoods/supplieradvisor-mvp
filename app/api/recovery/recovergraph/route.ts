@@ -46,7 +46,10 @@ export async function GET(request: NextRequest) {
     });
     const role = resolveRecoverRole(gate.role, load.self);
     return json(deskResponseBody(projectDesk(role, load), canRecoveryTrust(gate.role, 'view')));
-  } catch {
+  } catch (error) {
+    if (error instanceof MigrationPendingError) {
+      return json({ ready: false, reason: 'migration_pending' }, 409);
+    }
     return json({ error: 'RecoverAdvisor® could not be opened.' }, 500);
   }
 }
@@ -75,7 +78,8 @@ export async function POST(request: NextRequest) {
     } catch {
       return json({ error: 'Request could not be read.' }, 400);
     }
-    const parsed = validateRecoverOp(raw);
+    const canWriteTrust = canRecoveryTrust(gate.role, 'write');
+    const parsed = validateRecoverOp(raw, { canWriteTrust });
     if (!parsed.ok) return json({ error: parsed.error }, 400);
 
     const load = await loadRecoverDesk(member.member.companyId, {
@@ -117,6 +121,9 @@ export async function POST(request: NextRequest) {
     }
     if (error instanceof Error && error.message === 'missing_workspace') {
       return json({ error: 'Set up the workspace first.' }, 400);
+    }
+    if (error instanceof Error && error.message === 'missing_staff') {
+      return json({ error: 'Choose a staff record.' }, 400);
     }
     return json({ error: 'RecoverAdvisor® could not save that change.' }, 500);
   }

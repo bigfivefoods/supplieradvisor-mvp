@@ -12,6 +12,7 @@ import {
   RecoverSample,
   RecoverScreen,
 } from './RecoverChrome';
+import { SampleCreditorCards, SampleMandateTimeline } from './RecoverPreviews';
 import { useRecoverDesk } from './useRecoverDesk';
 
 const TERMS: Record<string, string> = {
@@ -53,19 +54,11 @@ export function RecoverCreditors() {
           icon={Building2}
           title="No accounts placed yet"
           body="No creditors yet. Creditor records appear here once a book is placed."
-          legend={['Creditor', 'Registration', 'Remittance', 'Status']}
           art={<CreditorArt />}
           action={<RecoverButton href="/dashboard/customers">Open customers</RecoverButton>}
           preview={
-            <RecoverSample title="How a creditor row will look">
-              <div className="grid gap-2 sm:grid-cols-2">
-                {['Sample creditor', 'Sample registration', 'Monthly remittance', 'Not active yet'].map((label) => (
-                  <div key={label} className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
-                    <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Sample</div>
-                    <div className="mt-1 text-sm font-semibold text-slate-900">{label}</div>
-                  </div>
-                ))}
-              </div>
+            <RecoverSample title="Sample layout of a creditor book">
+              <SampleCreditorCards />
             </RecoverSample>
           }
         />
@@ -129,19 +122,11 @@ export function RecoverMandates() {
           icon={ShieldCheck}
           title="No mandates yet"
           body="A mandate records the authority to collect for a creditor. Add the creditor first."
-          legend={['Creditor', 'Product', 'Programme', 'Status']}
           art={<MandateArt />}
           action={<RecoverButton href="/dashboard/recovergraph/creditors">Open creditors</RecoverButton>}
           preview={
-            <RecoverSample title="How a mandate row will look">
-              <div className="grid gap-2 sm:grid-cols-2">
-                {['Sample creditor', 'Sample product', 'Collections', 'Draft'].map((label) => (
-                  <div key={label} className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-3">
-                    <div className="text-xs font-bold uppercase tracking-wide text-slate-600">Sample</div>
-                    <div className="mt-1 text-sm font-semibold text-slate-900">{label}</div>
-                  </div>
-                ))}
-              </div>
+            <RecoverSample title="Sample layout of a mandate">
+              <SampleMandateTimeline />
             </RecoverSample>
           }
         />
