@@ -17,6 +17,7 @@ export type AdvisorSkinId =
   | 'construction'
   | 'gym'
   | 'trade'
+  | 'recover'
   | 'physio'
   | 'dental'
   | 'medical'
@@ -43,6 +44,10 @@ export type AdvisorSkin = {
   /** Brand blues/accents (applied as --sa-brand / --sa-brand-deep) */
   brand: string;
   brandDeep: string;
+  /** Optional surface tokens. Cyan fill still uses navy label text. */
+  ink?: string;
+  surface?: string;
+  line?: string;
 };
 
 export const SUPPLIER_SKIN: AdvisorSkin = {
@@ -138,6 +143,22 @@ export const ADVISOR_SKINS: readonly AdvisorSkin[] = [
     packIds: ['trades'],
     brand: '#00b4d8',
     brandDeep: '#0077b6',
+  },
+  {
+    id: 'recover',
+    name: 'RecoverAdvisor',
+    registered: 'RecoverAdvisor®',
+    shortName: 'Recover',
+    tagline: 'Collections workspace',
+    homeHref: '/dashboard/recovergraph',
+    prefixes: ['/dashboard/recovergraph'],
+    moduleIds: ['recovergraph'],
+    packIds: ['recovery'],
+    brand: '#00b4d8',
+    brandDeep: '#0077b6',
+    ink: '#0f172a',
+    surface: '#f8fafc',
+    line: '#e2e8f0',
   },
   {
     id: 'physio',
@@ -456,7 +477,7 @@ export function applyAdvisorSkinToDocument(skin: AdvisorSkin) {
     const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
     root.style.setProperty(
       '--sa-brand-ink',
-      skin.id === 'trade' ? '#0f172a' : lum > 0.55 ? '#111827' : '#ffffff'
+      skin.ink || (skin.id === 'trade' ? '#0f172a' : lum > 0.55 ? '#111827' : '#ffffff')
     );
     if (skin.id === 'supplier') {
       root.style.removeProperty('--sa-page-glow-1');

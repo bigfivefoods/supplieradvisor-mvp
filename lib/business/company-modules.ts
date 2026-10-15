@@ -80,6 +80,8 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
     'ConstructionAdvisor® — clients with many projects, BOQ quotes, dated programme, progress payments (claim → client pay), costs, reports and a PWA',
   tradegraph:
     'TradeAdvisor® — quotes, jobs and invoices in rand, materials from SupplierAdvisor® suppliers, schedule, CoC/PIRB reminders, and a customer app',
+  recovergraph:
+    'RecoverAdvisor® — collections workspace for an agency, in-house credit team, or attorney practice. Creditors, mandates, queue, team, and portals.',
   intelligence: 'Pulse, forecasts, scorecards & Super-Cube® leadership',
   schools:
     'SchoolAdvisor® (public sector) — NSNP kitchen, learners, SPs, catalogue, feeding, prizes (DBE / PEU / schools)',
@@ -213,9 +215,10 @@ export const MODULE_CATEGORIES: ModuleCategory[] = [
     band: 'industry',
     title: 'Services',
     blurb:
-      'TradeAdvisor®, GymAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, MedicalAdvisor®, VetAdvisor®, HireAdvisor®, RetailAdvisor®, ApparelAdvisor® and ContainerAdvisor®.',
+      'TradeAdvisor®, RecoverAdvisor®, GymAdvisor®, PhysioAdvisor®, DentalAdvisor®, PsychiatryAdvisor®, MedicalAdvisor®, VetAdvisor®, HireAdvisor®, RetailAdvisor®, ApparelAdvisor® and ContainerAdvisor®.',
     moduleIds: [
       'tradegraph',
+      'recovergraph',
       'fitgraph',
       'physiograph',
       'dentalgraph',
@@ -417,6 +420,7 @@ export const INDUSTRY_ADVISOR_MODULE_IDS = [
   'quarrygraph',
   'constructiongraph',
   'tradegraph',
+  'recovergraph',
   'apparelgraph',
   'fitgraph',
   'physiograph',
@@ -662,6 +666,7 @@ export const SECTOR_VERTICAL_MODULE_IDS: Record<string, readonly string[]> = {
     'hiregraph',
     'retailgraph',
     'tradegraph',
+    'recovergraph',
   ],
   public_sector: ['schools', 'health'],
 };
@@ -1108,6 +1113,7 @@ export function moduleIdForPath(pathname: string | null | undefined): string | n
   if (pathname.startsWith('/dashboard/apparelgraph')) return 'apparelgraph';
   if (pathname.startsWith('/dashboard/constructiongraph')) return 'constructiongraph';
   if (pathname.startsWith('/dashboard/tradegraph')) return 'tradegraph';
+  if (pathname.startsWith('/dashboard/recovergraph')) return 'recovergraph';
   if (pathname.startsWith('/dashboard/fitgraph')) return 'fitgraph';
   if (pathname.startsWith('/dashboard/physiograph')) return 'physiograph';
   if (pathname.startsWith('/dashboard/dentalgraph')) return 'dentalgraph';

@@ -31,11 +31,31 @@ const PUBLIC_EXACT = new Set([
 ]);
 
 /**
+ * Signed-out portal pages. These are pages only.
+ * The desk API stays on the authenticated route list.
+ */
+export const RECOVER_PORTAL_PAGE_PREFIXES = [
+  '/creditor/recovergraph',
+  '/debtor/recovergraph',
+  '/attorney/recovergraph',
+] as const;
+
+export function isRecoverPortalPath(pathname: string): boolean {
+  const p = (pathname.split('?')[0] || pathname).replace(/\/$/, '') || '/';
+  return RECOVER_PORTAL_PAGE_PREFIXES.some(
+    (prefix) => p === prefix || p.startsWith(`${prefix}/`)
+  );
+}
+
+/**
  * Signed-out sample pages. Page prefixes only — never an API prefix.
  * Middleware already leaves non-dashboard pages open; this helper is the
  * explicit allow-list and must not make any /api route public.
  */
-export const PUBLIC_PAGE_PREFIXES = ['/preview/constructiongraph'] as const;
+export const PUBLIC_PAGE_PREFIXES = [
+  '/preview/constructiongraph',
+  '/preview/recovergraph',
+] as const;
 
 export function isPublicPagePath(pathname: string): boolean {
   const p = pathname.split('?')[0] || pathname;

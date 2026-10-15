@@ -1,13 +1,17 @@
 'use client';
 
 import { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
+import { isRecoverPortalPath } from '@/lib/auth/public-paths';
 
 /**
  * Registers minimal /sw.js (offline fallback + installability only).
  * Does not cache Next.js bundles (that broke Safari/Chrome after deploys).
  */
 export default function ServiceWorkerRegister() {
+  const pathname = usePathname() || '';
   useEffect(() => {
+    if (isRecoverPortalPath(pathname)) return;
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
 
     const allowDev = process.env.NEXT_PUBLIC_SW_DEV === '1';
@@ -30,7 +34,7 @@ export default function ServiceWorkerRegister() {
     };
 
     void run();
-  }, []);
+  }, [pathname]);
 
   return null;
 }

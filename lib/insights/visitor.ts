@@ -239,8 +239,11 @@ const ID_ROUTES = new Set(['c', 'i', 'p', 'r', 't', 'pay', 'hire', 'apparel', 'c
 const MODULE_ROUTES = new Set(['f', 'clinician', 'pwa']);
 const KNOWN_SECOND: Record<string, Set<string>> = {
   join: new Set(['fitgraph', 'tradegraph', 'member', 'work']),
-  customer: new Set(['tradegraph']),
-  crew: new Set(['tradegraph']),
+  customer: new Set(['tradegraph', 'recovergraph']),
+  crew: new Set(['tradegraph', 'recovergraph']),
+  creditor: new Set(['recovergraph']),
+  debtor: new Set(['recovergraph']),
+  attorney: new Set(['recovergraph']),
   embed: new Set(['advisor', 'containers', 'fitgraph', 'hire', 'retail', 'store', 'tradegraph']),
   nsnp: new Set(['menu', 'transparency']),
   s: new Set(['food', 'peu', 'serve']),

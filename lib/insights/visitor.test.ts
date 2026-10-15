@@ -457,4 +457,11 @@ assert.equal(dv[2].device, undefined);
 const sv = sanitizeBatch({ v: 1, e: [{ k: 'vital', p: '/', l: 'lcp', v: 1200, device: 'mobile' }] });
 assert.equal(sv?.e[0].device, 'mobile');
 
+assert.equal(publicPath('/creditor/recovergraph/abc123token'), '/creditor/recovergraph/:id');
+assert.equal(publicPath('/debtor/recovergraph/abc123token'), '/debtor/recovergraph/:id');
+assert.equal(publicPath('/attorney/recovergraph/abc123token'), '/attorney/recovergraph/:id');
+assert.equal(publicPath('/customer/recovergraph/abc123token'), '/customer/recovergraph/:id');
+assert.equal(publicPath('/crew/recovergraph/abc123token'), '/crew/recovergraph/:id');
+assert.equal(publicPath('/dashboard/recovergraph/queue'), '/app/industry');
+
 console.log('visitor.test.ts: ok');

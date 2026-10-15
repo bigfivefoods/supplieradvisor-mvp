@@ -1442,6 +1442,41 @@ export const INDUSTRY_PACKS: readonly IndustryPackDef[] = [
       { name: 'Quality', href: '/dashboard/quality', desc: 'Compliance' },
     ],
   },
+  {
+    id: 'recovery',
+    name: 'RecoverAdvisor®',
+    shortName: 'RecoverAdvisor®',
+    description:
+      'Collections workspace for an agency, an in-house credit team, or an attorney practice. Collections only. Trust accounting stays on unless the owner changes it. Documents, Messages, and Calendar remain core surfaces.',
+    monthlyZar: INDUSTRY_PACK_MONTHLY_ZAR,
+    priority: 1,
+    recommendSectors: ['tertiary'],
+    recommendEntities: ['private_company'],
+    modules: [
+      {
+        id: 'recovery_os',
+        name: 'RecoverAdvisor®',
+        description: 'Command centre, queue, creditors, mandates, team, and portals.',
+        unlocks: [
+          'recovergraph',
+          'customers',
+          'accounting',
+          'people',
+          'Documents',
+          'Messages',
+          'Calendar',
+        ],
+      },
+    ],
+    industryToolsHrefs: [
+      { name: 'Command centre', href: '/dashboard/recovergraph', desc: 'Workspace home' },
+      { name: 'Queue', href: '/dashboard/recovergraph/queue', desc: 'Work waiting' },
+      { name: 'Creditors', href: '/dashboard/recovergraph/creditors', desc: 'Placed books' },
+      { name: 'Mandates', href: '/dashboard/recovergraph/mandates', desc: 'Authority to collect' },
+      { name: 'Team', href: '/dashboard/recovergraph/settings/team', desc: 'Operator and staff' },
+      { name: 'Portals', href: '/dashboard/recovergraph/settings/portals', desc: 'Access not open yet' },
+    ],
+  },
 ] as const;
 
 export type IndustryPackId = (typeof INDUSTRY_PACKS)[number]['id'];
@@ -1638,6 +1673,12 @@ export function enabledModulesMapFromPacks(
     unlocked.add('customers');
     unlocked.add('operations');
     unlocked.add('inventory');
+    unlocked.add('people');
+  }
+  if (packIds.includes('recovery')) {
+    unlocked.add('recovergraph');
+    unlocked.add('customers');
+    unlocked.add('accounting');
     unlocked.add('people');
   }
   // Physio / allied health clinic → PhysioAdvisor
@@ -2036,6 +2077,12 @@ export function appModulesUnlockedByPack(pack: IndustryPackDef): string[] {
     ids.add('customers');
     ids.add('operations');
     ids.add('inventory');
+    ids.add('people');
+  }
+  if (pack.id === 'recovery') {
+    ids.add('recovergraph');
+    ids.add('customers');
+    ids.add('accounting');
     ids.add('people');
   }
   if (
