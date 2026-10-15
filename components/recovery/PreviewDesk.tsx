@@ -75,11 +75,11 @@ export function PreviewShell({ children }: { children: ReactNode }) {
         data-testid="recover-preview"
       >
         <div className="border-b border-[#e2e8f0] bg-white">
-          <div className="mx-auto flex max-w-6xl items-center gap-2 overflow-x-auto whitespace-nowrap px-3 py-2">
-            <p className="text-xs font-black uppercase tracking-wide text-[#0f172a]">
+          <div className="mx-auto flex h-12 max-w-6xl flex-nowrap items-center gap-2 overflow-x-auto whitespace-nowrap px-3">
+            <p className="shrink-0 text-xs font-black uppercase tracking-wide text-[#0f172a]">
               RecoverAdvisor® Sample
             </p>
-            <p className="text-xs font-bold text-slate-600">Illustration · sample data</p>
+            <p className="shrink-0 text-xs font-bold text-slate-600">Illustration · sample data</p>
             {(
               [
                 ['owner', 'Owner'],
