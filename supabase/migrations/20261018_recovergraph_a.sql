@@ -20,8 +20,11 @@
 -- service_role, and recover_portal on every recover_ table. Default privileges
 -- that GRANT ALL ON TABLES would otherwise leave TRUNCATE in place.
 -- recover_audit_log is the only append-only table. A BEFORE TRUNCATE statement
--- trigger refuses a wipe even for the table owner. Portal attempts are pruned,
--- so they are not append-only.
+-- trigger refuses a wipe even for the table owner. EXECUTE on that trigger
+-- function is revoked from PUBLIC, anon, and authenticated. Portal attempts
+-- are pruned, so they are not append-only.
+-- Staff audit rows store the staff id in both payload and target. An email
+-- passed as the target is not written.
 --
 -- ROLLBACK (run manually, in this order, only after review).
 -- Functions that the audit trigger depends on are dropped after the tables.
@@ -372,6 +375,8 @@ CREATE TRIGGER recover_audit_log_no_truncate
   BEFORE TRUNCATE ON public.recover_audit_log
   FOR EACH STATEMENT
   EXECUTE FUNCTION public.recover_forbid_truncate();
+
+REVOKE ALL ON FUNCTION public.recover_forbid_truncate() FROM PUBLIC, anon, authenticated;
 
 DO $$
 DECLARE
@@ -895,7 +900,10 @@ BEGIN
     'staff',
     p_actor_id,
     p_action,
-    p_target,
+    CASE
+      WHEN p_action IN ('upsert_staff', 'deactivate_staff') THEN v_staff_id::text
+      ELSE p_target
+    END,
     CASE
       WHEN p_action IN ('upsert_staff', 'deactivate_staff')
         THEN pg_catalog.jsonb_build_object('staff_id', v_staff_id)

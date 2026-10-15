@@ -237,7 +237,7 @@ export async function applyRecoverOp(
   }
 
   if (op.op === 'upsert_staff') {
-    await commitDesk(companyId, actor.userId, op.op, op.id || op.email, {
+    await commitDesk(companyId, actor.userId, op.op, op.id || 'recover_staff', {
       id: op.id || null,
       email: op.email,
       role: op.role,

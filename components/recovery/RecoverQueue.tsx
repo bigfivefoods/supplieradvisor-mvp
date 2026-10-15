@@ -12,7 +12,8 @@ import {
   RecoverRoleChip,
   RecoverScreen,
 } from './RecoverChrome';
-import { QueueBoard, queueRowsFromAccounts } from './RecoverPreviews';
+import { AgentDesk, ClientAccount, QueueBoard, queueRowsFromAccounts } from './RecoverPreviews';
+import type { RecoverIllustration } from '@/lib/recovery/sample-desk';
 import { useRecoverDesk, useRecoverIllustration } from './useRecoverDesk';
 
 export function RecoverQueue() {
@@ -20,10 +21,17 @@ export function RecoverQueue() {
   const illustration = useRecoverIllustration();
   const title = desk ? queueNavLabel(desk.role) : 'Queue';
   const manager = desk?.role === 'owner' || desk?.role === 'manager';
+  const description = illustration
+    ? illustration.scope === 'account'
+      ? 'Your own account. Other books stay off this page. Illustration · sample data.'
+      : illustration.scope === 'queue'
+        ? 'Your queue, the next action, and the promises on it. Illustration · sample data.'
+        : 'Every account on the illustrated book. Illustration · sample data.'
+    : 'No account book yet. Accounts appear here once a creditor book is imported.';
   return (
     <RecoverScreen
       title={title}
-      description="Accounts assigned for work. This version has no account book yet."
+      description={description}
       action={desk ? <RecoverRoleChip role={desk.role} /> : null}
     >
       {error ? <RecoverBanner testId="recover-banner-error" tone="error">{error}</RecoverBanner> : null}
@@ -49,7 +57,7 @@ export function RecoverQueue() {
           />
         </div>
       ) : illustration ? (
-        <QueueBoard rows={queueRowsFromAccounts(illustration.accounts)} />
+        <IllustratedQueue illustration={illustration} />
       ) : (
         <RecoverEmpty
           testId="recover-queue-empty"
@@ -67,5 +75,18 @@ export function RecoverQueue() {
         />
       )}
     </RecoverScreen>
+  );
+}
+
+function IllustratedQueue({ illustration }: { illustration: RecoverIllustration }) {
+  if (illustration.scope === 'account') return <ClientAccount picture={illustration} />;
+  if (illustration.scope === 'queue') return <AgentDesk picture={illustration} />;
+  return (
+    <div className="space-y-4">
+      <p className="text-sm leading-relaxed text-slate-600">
+        Every account on the illustrated book. Workload and the placed total stay on the command centre.
+      </p>
+      <QueueBoard rows={queueRowsFromAccounts(illustration.accounts)} />
+    </div>
   );
 }

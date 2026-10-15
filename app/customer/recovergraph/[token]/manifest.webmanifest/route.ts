@@ -10,7 +10,7 @@ export async function GET(_request: Request, { params }: Props) {
     {
       name: 'RecoverAdvisor® client',
       short_name: 'Client',
-      description: 'RecoverAdvisor® for a client: the sample creditor, account, and attorney views.',
+      description: 'RecoverAdvisor® for a client. Account and payment screens are not open yet.',
       start_url: `${start}?source=pwa`,
       scope: start,
       id: start,

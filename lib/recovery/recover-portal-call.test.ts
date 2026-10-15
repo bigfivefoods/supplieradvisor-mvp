@@ -239,6 +239,13 @@ async function main() {
       fails(`BEGIN; SET LOCAL ROLE ${role}; SELECT ${fn}; ROLLBACK;`, /permission denied/i);
     }
   }
+  for (const role of ['anon', 'authenticated']) {
+    assert.equal(
+      psql(`SELECT has_function_privilege('${role}', 'public.recover_forbid_truncate()', 'EXECUTE');`),
+      'f',
+      `${role} recover_forbid_truncate`
+    );
+  }
 
   psql(`
     INSERT INTO public.profiles (id) VALUES (101), (102), (103);
@@ -381,6 +388,12 @@ async function main() {
   assert.match(upsertPayload, new RegExp(staffId));
   assert.doesNotMatch(upsertPayload, /agent@example.com/);
   assert.doesNotMatch(upsertPayload, /@/);
+  const upsertTarget = psql(
+    `SELECT target FROM public.recover_audit_log WHERE company_id = 101 AND action = 'upsert_staff';`
+  );
+  assert.equal(upsertTarget, staffId);
+  assert.doesNotMatch(upsertTarget, /agent@example.com/);
+  assert.doesNotMatch(upsertTarget, /@/);
   psql(`
     SELECT public.recover_desk_commit(
       101, 'user-1', 'deactivate_staff', '${staffId}',
@@ -398,6 +411,20 @@ async function main() {
   assert.doesNotMatch(deactivatePayload, /inactive/);
   assert.doesNotMatch(deactivatePayload, /agent@example.com/);
   assert.doesNotMatch(deactivatePayload, /@/);
+  const deactivateTarget = psql(
+    `SELECT target FROM public.recover_audit_log WHERE company_id = 101 AND action = 'deactivate_staff';`
+  );
+  assert.equal(deactivateTarget, staffId);
+  assert.doesNotMatch(deactivateTarget, /agent@example.com/);
+  assert.doesNotMatch(deactivateTarget, /@/);
+  assert.equal(
+    psql(`
+      SELECT count(*) FROM public.recover_audit_log
+      WHERE action IN ('upsert_staff', 'deactivate_staff')
+        AND target LIKE '%@%';
+    `),
+    '0'
+  );
   assert.equal(
     psql(`SELECT count(*) FROM public.recover_audit_log WHERE company_id = 103 AND action = 'update_workspace';`),
     '0'

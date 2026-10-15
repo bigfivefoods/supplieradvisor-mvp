@@ -32,13 +32,11 @@ import {
 } from './RecoverChrome';
 import {
   AgeingBuckets,
+  AgentDesk,
   NeedsAttention,
   PromiseTimeline,
-  QueueBoard,
   RecoveryFunnel,
-  SampleKpiStrip,
   WorkloadStrip,
-  queueRowsFromAccounts,
 } from './RecoverPreviews';
 import { useRecoverDesk, useRecoverHref, useRecoverIllustration, useRecoverLinks } from './useRecoverDesk';
 
@@ -241,7 +239,6 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
 
       {picture ? (
         <div className="mb-8 grid gap-4">
-          {picture.scope === 'book' ? <SampleKpiStrip /> : null}
           <NeedsAttention items={picture.attention} />
           {picture.scope === 'book' ? (
             <div className="grid gap-4 lg:grid-cols-2">
@@ -401,9 +398,9 @@ function AgentHome({ desk }: { desk: RecoverDeskPayload }) {
           <AgentArt />
         </div>
       </section>
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(16rem,0.8fr)]">
+      <div className="space-y-4">
         {picture ? (
-          <QueueBoard rows={queueRowsFromAccounts(picture.accounts)} />
+          <AgentDesk picture={picture} />
         ) : (
           <RecoverEmpty
             testId="recover-queue-empty"

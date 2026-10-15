@@ -1,6 +1,6 @@
 /** Labelled sample layouts. Figures here are illustrations, never a live book. */
 import { formatRecoverMoney } from '@/lib/recovery/money';
-import type { SampleAccount, SampleAttention, SamplePromise } from '@/lib/recovery/sample-desk';
+import type { RecoverIllustration, SampleAccount, SampleAttention, SamplePromise } from '@/lib/recovery/sample-desk';
 
 function zar(rands: number) {
   return formatRecoverMoney(Math.round(rands * 100));
@@ -19,24 +19,6 @@ function StageChip({ label }: { label: string }) {
     <span className="inline-flex rounded-full bg-[#00b4d8] px-2.5 py-1 text-xs font-bold text-[#0f172a]">
       {label}
     </span>
-  );
-}
-
-function Spark({ points }: { points: readonly number[] }) {
-  const max = Math.max(...points);
-  const min = Math.min(...points);
-  const span = max - min || 1;
-  const d = points
-    .map((point, index) => {
-      const x = (index / (points.length - 1)) * 72;
-      const y = 22 - ((point - min) / span) * 16;
-      return `${index === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`;
-    })
-    .join(' ');
-  return (
-    <svg viewBox="0 0 72 24" className="mt-2 h-6 w-[4.5rem]" aria-hidden>
-      <path d={d} fill="none" stroke="#0077b6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }
 
@@ -94,7 +76,7 @@ export function queueRowsFromAccounts(accounts: readonly SampleAccount[]): Queue
 
 export function QueueBoard({ rows }: { rows: readonly QueueBoardRow[] }) {
   return (
-    <div className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm">
+    <div className="min-w-0 max-w-full overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] bg-gradient-to-r from-cyan-50 to-white px-4 py-3">
         <div>
           <p className="text-sm font-black text-slate-900">Work queue</p>
@@ -102,32 +84,32 @@ export function QueueBoard({ rows }: { rows: readonly QueueBoardRow[] }) {
         </div>
         <SampleMark />
       </div>
-      <div className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[44rem] text-left text-sm">
+      <div className="hidden min-w-0 overflow-x-auto md:block">
+        <table className="w-full text-left text-sm">
           <thead className="bg-[#f8fafc] text-[11px] font-bold uppercase tracking-wider text-slate-600">
             <tr>
-              <th className="px-4 py-3">Account</th>
-              <th className="px-4 py-3">Creditor</th>
-              <th className="px-4 py-3">Next action</th>
-              <th className="px-4 py-3">Stage</th>
-              <th className="px-4 py-3 text-right">Amount</th>
-              <th className="px-4 py-3 text-right">Clock</th>
+              <th className="whitespace-nowrap px-4 py-3">Account</th>
+              <th className="whitespace-nowrap px-4 py-3">Creditor</th>
+              <th className="whitespace-nowrap px-4 py-3">Next action</th>
+              <th className="whitespace-nowrap px-4 py-3">Stage</th>
+              <th className="whitespace-nowrap px-4 py-3 text-right">Amount</th>
+              <th className="whitespace-nowrap px-4 py-3 text-right">Clock</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
               <tr key={row.account} className="border-t border-[#e2e8f0]">
                 <td className="px-4 py-3">
-                  <div className="font-semibold text-slate-900">{row.holder}</div>
-                  <div className="text-xs text-slate-600">{row.account}</div>
+                  <div className="whitespace-nowrap font-semibold text-slate-900">{row.holder}</div>
+                  <div className="whitespace-nowrap text-xs text-slate-600">{row.account}</div>
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-slate-700">{row.creditor}</td>
-                <td className="px-4 py-3 font-medium text-slate-900">{row.action}</td>
+                <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-900">{row.action}</td>
                 <td className="px-4 py-3">
                   <StageChip label={row.stage} />
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-black tabular-nums text-slate-900">{row.amount}</td>
-                <td className="px-4 py-3 text-right text-sm font-bold tabular-nums text-[#0077b6]">{row.clock}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-bold tabular-nums text-[#0077b6]">{row.clock}</td>
               </tr>
             ))}
           </tbody>
@@ -455,33 +437,142 @@ export function WorkloadStrip() {
   );
 }
 
-const SAMPLE_KPIS = [
-  { label: 'Placed', value: zar(1240600), sub: '128 sample accounts', points: [18, 22, 20, 28, 26, 34, 40] },
-  { label: 'Recovered', value: zar(186400), sub: '12 sample accounts', points: [4, 6, 5, 9, 8, 11, 14] },
-  { label: 'In trust', value: zar(94250), sub: 'Sample trust picture', points: [8, 7, 9, 8, 10, 9, 11] },
-  { label: 'Clocks', value: '6', sub: 'Due this sample week', points: [2, 3, 3, 5, 4, 6, 6] },
-] as const;
-
-export function SampleKpiStrip() {
+export function AgentDesk({ picture }: { picture: RecoverIllustration }) {
+  const next = picture.accounts[0];
   return (
-    <div className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] px-4 py-3 sm:px-5">
-        <h2 className="text-sm font-black text-slate-800">Sample desk picture</h2>
-        <SampleMark />
-      </div>
-      <div className="grid grid-cols-2 gap-3 p-4 sm:p-5 lg:grid-cols-4">
-        {SAMPLE_KPIS.map((tile) => (
-          <div key={tile.label} className="rounded-2xl border border-cyan-100 bg-gradient-to-br from-cyan-50 to-white px-3 py-3">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600">{tile.label}</p>
-            <p className="mt-1 text-lg font-black tabular-nums text-slate-900 sm:text-xl">{tile.value}</p>
-            <p className="mt-0.5 text-xs font-medium text-slate-600">{tile.sub}</p>
-            <Spark points={tile.points} />
+    <div className="space-y-4" data-testid="recover-agent-desk">
+      {next ? (
+        <section className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] bg-gradient-to-r from-cyan-50 to-white px-4 py-3 sm:px-5">
+            <h2 className="text-sm font-black text-slate-900">Next best action</h2>
+            <SampleMark />
           </div>
-        ))}
+          <div className="grid gap-4 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:p-5">
+            <div className="min-w-0">
+              <p className="whitespace-nowrap text-lg font-black text-slate-900">{next.holder}</p>
+              <p className="text-xs text-slate-600">{next.ref}</p>
+              <p className="mt-3 text-sm font-semibold leading-relaxed text-slate-900">{next.action}</p>
+              <p className="mt-1 whitespace-nowrap text-xs text-slate-600">{next.creditor}</p>
+            </div>
+            <div className="sm:text-right">
+              <p className="whitespace-nowrap text-[clamp(0.95rem,3.2vw,1.5rem)] font-black tabular-nums leading-none text-[#0f172a]">
+                {next.amount}
+              </p>
+              <p className="mt-2 text-sm font-bold tabular-nums text-[#0077b6]">{next.clock}</p>
+              <div className="mt-3">
+                <StageChip label={next.stage} />
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] px-4 py-3 sm:px-5">
+            <h2 className="text-sm font-black text-slate-900">Promises due</h2>
+            <SampleMark />
+          </div>
+          <ul>
+            {picture.promises.map((step) => (
+              <li key={`${step.when}-${step.who}`} className="border-t border-[#e2e8f0] px-4 py-3 sm:px-5">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#0077b6]">{step.when}</p>
+                <p className="whitespace-nowrap text-sm font-black text-slate-900">
+                  {step.who} · {step.amount}
+                </p>
+                <p className="mt-0.5 text-sm leading-relaxed text-slate-600">{step.note}</p>
+              </li>
+            ))}
+          </ul>
+          <p className="border-t border-[#e2e8f0] px-4 py-3 text-xs leading-relaxed text-slate-600 sm:px-5">
+            Illustration · sample data. Dates on this queue, not receipts taken today.
+          </p>
+        </section>
+        <section className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] px-4 py-3 sm:px-5">
+            <h2 className="text-sm font-black text-slate-900">Call notes</h2>
+            <SampleMark />
+          </div>
+          <ol className="space-y-3 p-4 text-sm leading-relaxed text-slate-700 sm:p-5">
+            <li>Open with the account reference and confirm who is speaking.</li>
+            <li>State the illustrated arrangement and the next date on the promise.</li>
+            <li>Agree the next step, then leave the note on the account.</li>
+          </ol>
+          <p className="border-t border-[#e2e8f0] px-4 py-3 text-xs leading-relaxed text-slate-600 sm:px-5">
+            Illustration · sample data. This wording is not a live script.
+          </p>
+        </section>
       </div>
-      <p className="border-t border-[#e2e8f0] px-4 py-3 text-xs leading-relaxed text-slate-600 sm:px-5">
-        Illustration · sample data. The tiles above the illustration stay blank until a real book exists.
-      </p>
+      <QueueBoard rows={queueRowsFromAccounts(picture.accounts)} />
+    </div>
+  );
+}
+
+export function ClientAccount({ picture }: { picture: RecoverIllustration }) {
+  const account = picture.accounts[0];
+  const steps = picture.promises;
+  return (
+    <div className="space-y-4" data-testid="recover-client-account">
+      <section className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] bg-gradient-to-r from-cyan-50 to-white px-4 py-3 sm:px-5">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-600">Your balance</p>
+            <h2 className="mt-1 whitespace-nowrap text-lg font-black text-slate-900">
+              {account ? `${account.holder} · ${account.ref}` : 'Your account'}
+            </h2>
+          </div>
+          <SampleMark />
+        </div>
+        <div className="px-4 py-5 sm:px-5">
+          <p className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[clamp(1.25rem,6vw,2.25rem)] font-black tabular-nums leading-none tracking-tight text-[#0f172a]">
+            {account?.amount || '—'}
+          </p>
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-600">
+            Illustration · sample data. This is your own account. It is not a demand and not a live balance.
+          </p>
+        </div>
+      </section>
+      <section className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] px-4 py-3 sm:px-5">
+          <h2 className="text-sm font-black text-slate-900">Payment plan</h2>
+          <SampleMark />
+        </div>
+        <ol className="px-4 py-2 sm:px-5">
+          {steps.map((step, index) => (
+            <li key={`${step.when}-${step.note}`} className="relative flex gap-4 py-4">
+              {index < steps.length - 1 ? (
+                <span className="absolute left-[15px] top-10 h-[calc(100%-1.25rem)] w-px bg-[#00b4d8]" aria-hidden />
+              ) : null}
+              <span
+                className="relative z-[1] mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#00b4d8] text-[11px] font-black text-[#0f172a]"
+                aria-hidden
+              >
+                {index + 1}
+              </span>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#0077b6]">{step.when}</p>
+                <p className="whitespace-nowrap text-sm font-black text-slate-900">{step.amount}</p>
+                <p className="mt-0.5 text-sm leading-relaxed text-slate-600">{step.note}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <div className="px-4 pb-4 sm:px-5">
+          <div className="h-2 overflow-hidden rounded-full bg-[#f8fafc] ring-1 ring-[#e2e8f0]">
+            <div className="h-full w-1/2 rounded-full bg-[#00b4d8]" />
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-slate-600">
+            Illustration · sample data. The first step of this plan is marked. Later steps are not receipts.
+          </p>
+        </div>
+      </section>
+      <div className="flex flex-wrap gap-2">
+        <span className="inline-flex min-h-11 items-center rounded-full bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a]">
+          Pay · Launching soon
+        </span>
+        <span className="inline-flex min-h-11 items-center rounded-full bg-white px-4 text-sm font-black text-[#0f172a] ring-1 ring-[#e2e8f0]">
+          Arrange · Launching soon
+        </span>
+      </div>
     </div>
   );
 }

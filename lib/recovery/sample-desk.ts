@@ -243,6 +243,21 @@ const AGENT_CAPS = {
   canSetRealData: false,
 };
 
+export function blankDesk(mode: 'empty' | 'pending', role: 'owner' | 'agent' = 'owner'): RecoverDeskPayload {
+  return {
+    ready: mode === 'empty',
+    reason: mode === 'pending' ? 'migration_pending' : undefined,
+    workspace: null,
+    role,
+    capabilities: role === 'owner' ? OWNER_CAPS : AGENT_CAPS,
+    counts: { creditors: 0, mandates: 0, staff: 0 },
+    creditors: [],
+    mandates: [],
+    staff: [],
+    self: null,
+  };
+}
+
 export function sampleDesk(role: 'owner' | 'agent'): RecoverDeskPayload {
   const agent = role === 'agent';
   return {

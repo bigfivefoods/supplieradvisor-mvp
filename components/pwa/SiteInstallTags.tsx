@@ -20,7 +20,11 @@ function hidesSiteInstallTags(path: string) {
   );
 }
 
-/** Install tags for the main site. Portal and RecoverAdvisor® app shells render none of this. */
+/**
+ * Marketing-site install tags.
+ * The script registers /sw.js with scope "/", the same origin-wide scope as public/sw.js.
+ * Portal routes and RecoverAdvisor® app shells skip these tags, so those documents do not register the worker.
+ */
 export default function SiteInstallTags() {
   const path = usePathname() || '/';
   if (hidesSiteInstallTags(path)) return null;

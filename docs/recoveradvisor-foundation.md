@@ -42,7 +42,7 @@ An agent sees Overview and Work only. An agent does not see other staff, credito
 
 - Programme: collections only (`recovery`). Managed repayment is reserved in the schema and is not selectable.
 - Trust mode: `trust`.
-- Demo-data mode: `real_data_enabled` is false until the company owner types `ENABLE REAL DATA`. Debtor records stay in London (`eu-west-2`) and must not be loaded before that sign-off.
+- Demo-data mode: `real_data_enabled` is false until the company owner types `ENABLE REAL DATA`. Debtor records stay off until data-location and operator-agreement sign-off. VERIFY the project region from its configuration before any debtor data is loaded. This note does not name a region.
 
 While demo-data mode is on, the shell shows: “RecoverAdvisor® is in demo-data mode until data-location and operator-agreement sign-off is complete.”
 
@@ -54,7 +54,7 @@ File: `supabase/migrations/20261018_recovergraph_a.sql`.
 
 Not applied to any live database — awaiting Craig's approval.
 
-1. Open the Supabase SQL editor for the London project.
+1. Open the Supabase SQL editor for this project. VERIFY the region in the project settings first. This document does not name one.
 2. Paste the file and run it once. The script is idempotent; a second run is safe.
 3. Verify forced row security:
 

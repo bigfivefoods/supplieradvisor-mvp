@@ -258,7 +258,7 @@ export function RecoverKpi({
   tint?: string;
 }) {
   return (
-    <div data-testid={testId} className={`h-full min-w-0 rounded-3xl border p-4 shadow-sm ${tint}`}>
+    <div data-testid={testId} className={`h-full min-w-0 max-w-full overflow-hidden rounded-3xl border p-3 shadow-sm sm:p-4 ${tint}`}>
       <div className="mb-3 flex min-w-0 items-start justify-between gap-2">
         <p className="min-w-0 flex-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#0f172a]/70">
           {label}
@@ -267,7 +267,9 @@ export function RecoverKpi({
           <Icon className="h-4 w-4" aria-hidden />
         </div>
       </div>
-      <div className="text-2xl font-black tabular-nums tracking-tight text-[#0f172a] sm:text-3xl">{value}</div>
+      <div className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[clamp(0.8rem,3.2vw,1.875rem)] font-black tabular-nums leading-none tracking-tight text-[#0f172a]">
+        {value}
+      </div>
       <div className="mt-1 line-clamp-2 text-xs font-medium leading-snug text-slate-600">{sub}</div>
     </div>
   );
