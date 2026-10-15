@@ -37,6 +37,7 @@ export function MemberAdvisorShell<T extends string = string>({
   mobileNav = 'wrap',
   appHref = '/me',
   presence = true,
+  solidBrand = false,
 }: {
   color: string;
   header: ReactNode;
@@ -52,8 +53,13 @@ export function MemberAdvisorShell<T extends string = string>({
   appHref?: string;
   /** Gym member heartbeats need Privy. Trade customer pages leave this off. */
   presence?: boolean;
+  /**
+   * Keep the brand fill exact and paint navy ink on it.
+   * TradeAdvisor® uses this so cyan stays #00b4d8. Other Advisors leave it off.
+   */
+  solidBrand?: boolean;
 }) {
-  const ink = advisorBrandInk(color);
+  const ink = solidBrand ? '#0f172a' : advisorBrandInk(color);
   const phoneTabs = mobileTabs || tabs;
   const bottom = mobileNav === 'bottom';
 
@@ -164,15 +170,19 @@ export function MemberAdvisorShell<T extends string = string>({
     >
       {presence ? <B2cPresencePing /> : null}
       <header
-        className="sticky top-0 z-40 shrink-0 text-white pt-[env(safe-area-inset-top)] shadow-[0_8px_24px_rgba(15,23,42,0.12)]"
+        className={`sticky top-0 z-40 shrink-0 pt-[env(safe-area-inset-top)] shadow-[0_8px_24px_rgba(15,23,42,0.12)] ${
+          solidBrand ? 'text-[#0f172a]' : 'text-white'
+        }`}
         style={{
-          background: `linear-gradient(135deg, ${color} 0%, color-mix(in srgb, ${color} 55%, #0f172a) 100%)`,
+          background: solidBrand
+            ? color
+            : `linear-gradient(135deg, ${color} 0%, color-mix(in srgb, ${color} 55%, #0f172a) 100%)`,
         }}
       >
         <div className="mx-auto max-w-6xl px-4 py-3 md:px-8 md:py-3.5">
           <div className="flex items-stretch justify-between gap-3">
             <div className="min-w-0 flex-1">{header}</div>
-            <PortalHeaderTools appHref={appHref} spread />
+            <PortalHeaderTools appHref={appHref} spread onLightBrand={solidBrand} />
           </div>
         </div>
       </header>

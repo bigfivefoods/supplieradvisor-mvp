@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo, useRef } from 'react';
+import { CalendarRange } from 'lucide-react';
+import { TradeEmpty, TradeStat } from '@/components/trades/TradeUi';
 import {
   forecastEnd,
   readGantt,
@@ -36,10 +38,11 @@ export function GanttChart({
 
   if (!tasks.length) {
     return (
-      <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center">
-        <p className="text-base font-black text-slate-900">No programme yet</p>
-        <p className="mt-1 text-sm text-slate-600">Accept a quote to lock the plan, or add phases on the job.</p>
-      </div>
+      <TradeEmpty
+        title="No programme yet"
+        hint="Accept a quote to lock the plan, or add phases on the job."
+        icon={<CalendarRange />}
+      />
     );
   }
 
@@ -49,13 +52,18 @@ export function GanttChart({
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-3 gap-2">
-        <Stat label="Plan end" value={view.project_plan_end || '—'} />
-        <Stat label="Forecast" value={view.project_forecast_end || '—'} />
-        <Stat
+        <TradeStat label="Plan end" value={view.project_plan_end || '—'} />
+        <TradeStat label="Forecast" value={view.project_forecast_end || '—'} />
+        <TradeStat
           label="Variance"
+          tone={view.variance_days > 0 ? 'warn' : 'default'}
           value={view.variance_days === 0 ? 'On plan' : `${view.variance_days > 0 ? '+' : ''}${view.variance_days}d`}
-          warn={view.variance_days > 0}
         />
+      </div>
+      <div className="flex flex-wrap gap-2 text-[11px] font-bold text-slate-600">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 shadow-sm ring-1 ring-slate-200"><span className="h-2 w-6 rounded-full bg-slate-300" /> Plan</span>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 shadow-sm ring-1 ring-slate-200"><span className="h-2 w-6 rounded-full bg-[#00b4d8]" /> Forecast</span>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 shadow-sm ring-1 ring-slate-200"><span className="h-2 w-6 rounded-full bg-amber-500" /> Late</span>
       </div>
       {view.current ? (
         <p className="rounded-2xl bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-950">
@@ -67,7 +75,7 @@ export function GanttChart({
           {view.delays.length} task{view.delays.length === 1 ? '' : 's'} behind the locked plan.
         </p>
       ) : null}
-      <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm [scrollbar-width:thin]">
         <div className="min-w-[640px]">
           <div className="grid grid-cols-[9.5rem_1fr] border-b border-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-500">
             <div className="px-3 py-2">Task</div>
@@ -158,15 +166,6 @@ export function GanttChart({
           Upcoming: {view.upcoming.map((task) => `${task.name} (${task.plan_start})`).join(' · ')}
         </p>
       ) : null}
-    </div>
-  );
-}
-
-function Stat({ label, value, warn = false }: { label: string; value: string; warn?: boolean }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
-      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={`text-sm font-black ${warn ? 'text-amber-700' : 'text-slate-900'}`}>{value}</p>
     </div>
   );
 }

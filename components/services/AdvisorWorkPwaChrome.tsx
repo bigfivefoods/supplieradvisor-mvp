@@ -42,6 +42,8 @@ export function AdvisorWorkPwaChrome({
   appHref = '/me',
   surface = 'dark',
   showInstall = true,
+  solidBrand = false,
+  fromClass = 'from-yellow-50',
 }: {
   brand: string;
   name: string;
@@ -58,29 +60,37 @@ export function AdvisorWorkPwaChrome({
   surface?: 'dark' | 'light';
   /** Trade apps bring their own install sheet. Gym coaches keep the default. */
   showInstall?: boolean;
+  /** Exact brand fill with navy ink. TradeAdvisor® cyan uses this. */
+  solidBrand?: boolean;
+  /** Page wash behind a light surface. Gym stays yellow; TradeAdvisor® uses sky. */
+  fromClass?: string;
 }) {
   const light = surface === 'light';
-  const paleHeader = isLightBrand(accent);
-  const ink = advisorBrandInk(accent);
+  const paleHeader = solidBrand || isLightBrand(accent);
+  const ink = solidBrand ? '#0f172a' : advisorBrandInk(accent);
 
   return (
     <div
       className={
         light
-          ? 'advisor-portal min-h-[100dvh] bg-gradient-to-b from-yellow-50 to-slate-50 text-slate-900 dark:from-slate-950 dark:to-black dark:text-slate-100'
+          ? `advisor-portal min-h-[100dvh] bg-gradient-to-b ${fromClass} to-slate-50 text-slate-900 dark:from-slate-950 dark:to-black dark:text-slate-100`
           : 'min-h-dvh bg-slate-950 text-slate-100'
       }
     >
       <header
         className={
           light
-            ? 'sticky top-0 z-40 text-white pt-[env(safe-area-inset-top)] shadow-[0_8px_24px_rgba(15,23,42,0.12)]'
+            ? `sticky top-0 z-40 pt-[env(safe-area-inset-top)] shadow-[0_8px_24px_rgba(15,23,42,0.12)] ${
+                solidBrand ? 'text-[#0f172a]' : 'text-white'
+              }`
             : 'sticky top-0 z-30 border-b border-white/10 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]'
         }
         style={{
-          background: light
-            ? `linear-gradient(135deg, ${accent} 0%, color-mix(in srgb, ${accent} 55%, #0f172a) 100%)`
-            : `linear-gradient(160deg, ${accent} 0%, #0f172a 72%)`,
+          background: solidBrand
+            ? accent
+            : light
+              ? `linear-gradient(135deg, ${accent} 0%, color-mix(in srgb, ${accent} 55%, #0f172a) 100%)`
+              : `linear-gradient(160deg, ${accent} 0%, #0f172a 72%)`,
         }}
       >
         {light ? (
@@ -90,6 +100,7 @@ export function AdvisorWorkPwaChrome({
                 logoUrl={logoUrl}
                 brand={brand}
                 eyebrow={eyebrow || 'Coach'}
+                onLightFill={solidBrand}
               />
             </div>
             <PortalHeaderTools

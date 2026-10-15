@@ -18,7 +18,10 @@ import { formatZar, quoteTotals, type QuoteLine } from '@/lib/trades/tradegraph'
 import { GanttChart } from '@/components/trades/GanttChart';
 import { useTradeBook } from '@/components/trades/TradeBook';
 import { getSelectedCompanyId } from '@/lib/containers/company';
-import { GymSectionTitle, GymStat } from '@/components/fitness/GymMemberPwaUi';
+import { HubTelemetryGrid, TelemetryCard } from '@/components/chrome/CommandHubChrome';
+import { AlertList, AvatarStack, DayTimeline, JobFaceMeta, MoneyBars, PageHead, StatusPill, bookToday, jobFace, moneyRows, officeAlerts, prettyDay } from '@/components/trades/TradeOffice';
+import { TradeEmpty, TradeHeading, TradeStat, tradeChipOff, tradeChipOn } from '@/components/trades/TradeUi';
+import { CalendarDays, FilePenLine, HardHat, Receipt, TrendingUp, Users, Wallet } from 'lucide-react';
 
 const COL: Record<BoardColumn, string> = {
   enquiry: 'Enquiry',
@@ -64,23 +67,21 @@ export function TradeNav({ base }: { base: string }) {
         key={label}
         href={target}
         aria-current={on ? 'page' : undefined}
-        className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${
-          on ? 'bg-[#00b4d8] text-[#0f172a]' : 'border border-slate-200 bg-white text-slate-800'
-        }`}
+        className={on ? tradeChipOn : tradeChipOff}
       >
         {label}
       </Link>
     );
   };
   return (
-    <div className="mb-4 space-y-2">
-      <nav className="flex gap-2 overflow-x-auto pb-1" aria-label="TradeAdvisor®">
+    <nav className="mb-5 rounded-3xl border border-slate-200 bg-white p-2 shadow-sm" aria-label="TradeAdvisor®">
+      <div className="flex flex-wrap gap-1.5">
         {PRIMARY_LINKS.map(([href, label]) => chip(href, label))}
-      </nav>
-      <nav className="flex gap-2 overflow-x-auto pb-1" aria-label="More TradeAdvisor®">
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-1.5 border-t border-slate-100 pt-1.5" aria-label="More TradeAdvisor®">
         {MORE_LINKS.map(([href, label]) => chip(href, label))}
-      </nav>
-    </div>
+      </div>
+    </nav>
   );
 }
 
@@ -88,50 +89,120 @@ export function TradeCommand({ base }: { base: string }) {
   const { book } = useTradeBook();
   const report = tradeReport(book);
   const cards = boardCards(book);
+  const today = bookToday(book.store.settings.public_token);
+  const slots = book.store.schedule.filter((slot) => slot.starts_at.slice(0, 10) === today);
+  const onTools = cards.filter((row) => row.column === 'in_progress').length;
+  const liveJobs = book.store.jobs.filter((row) => row.status !== 'cancelled').length;
+  const workHref = base.startsWith('/preview') ? '/preview/tradegraph/work?role=owner' : '/work/tradegraph';
+  const previewColumns = BOARD_COLUMNS.filter((column) => ['enquiry', 'quoted', 'scheduled', 'in_progress'].includes(column));
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        <GymStat value={book.store.customers.length} label="Customers" />
-        <GymStat value={cards.filter((row) => row.column === 'in_progress').length} label="On the tools" />
-        <GymStat value={formatZar(report.outstanding_cents)} label="Outstanding" />
-        <GymStat value={`${Math.round(report.win_rate * 100)}%`} label="Quote win rate" />
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Link href={`${base}/board?new=1`} className="rounded-full bg-[#00b4d8] px-4 py-2.5 text-sm font-bold text-[#0f172a]" data-testid="new-job-link">
-          New job
-        </Link>
-        <Link href={`${base}/quote`} className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-900">
-          New quote
-        </Link>
-        <Link href={base.startsWith('/preview') ? '/preview/tradegraph/work?role=owner' : '/work/tradegraph'} className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold">
-          Open the work app
-        </Link>
-        <Link href="/customer/tradegraph/demo" className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold">
-          Customer app
-        </Link>
-      </div>
-      <section className="rounded-3xl border border-slate-200 bg-white p-4">
-        <GymSectionTitle hint="Harbour Plumbing sample, or your live book.">Today</GymSectionTitle>
-        <ul className="mt-3 space-y-2">
-          {book.store.schedule
-            .filter((slot) => slot.starts_at.slice(0, 10) === '2026-10-14')
-            .map((slot) => (
-              <li key={slot.id} className="rounded-2xl bg-slate-50 px-3 py-2 text-sm">
-                <p className="font-bold">{slot.title}</p>
-                <p className="text-slate-600">{slot.starts_at.slice(11, 16)} · {slot.address}</p>
-              </li>
-            ))}
-        </ul>
+      <section className="overflow-hidden rounded-3xl bg-[#00b4d8] text-[#0f172a] shadow-sm">
+        <div className="flex flex-col gap-4 p-5 sm:p-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0f172a]/70">Office · {prettyDay(today)}</p>
+            <h2 className="mt-1 text-3xl font-black tracking-tight sm:text-4xl">{book.store.settings.brand_name}</h2>
+            <p className="mt-1 text-sm font-semibold text-[#0f172a]/80">
+              {book.store.settings.city} · {book.store.settings.phone} · {liveJobs} jobs on the book
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link href={`${base}/board?new=1`} className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-white px-4 text-sm font-black text-[#0f172a] shadow-sm" data-testid="new-job-link">
+              New job
+            </Link>
+            <Link href={`${base}/quote`} className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#0f172a]/10 px-4 text-sm font-black text-[#0f172a]">
+              New quote
+            </Link>
+            <Link href={workHref} className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#0f172a]/10 px-4 text-sm font-black text-[#0f172a]">
+              Work app
+            </Link>
+            <Link href="/customer/tradegraph/demo" className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#0f172a]/10 px-4 text-sm font-black text-[#0f172a]">
+              Customer app
+            </Link>
+          </div>
+        </div>
       </section>
-      <section className="rounded-3xl border border-slate-200 bg-white p-4">
-        <GymSectionTitle>Core links</GymSectionTitle>
-        <div className="mt-3 flex flex-wrap gap-2 text-sm font-bold">
-          <Link className="rounded-full bg-slate-100 px-3 py-1.5" href="/dashboard/customers">Customers</Link>
-          <Link className="rounded-full bg-slate-100 px-3 py-1.5" href="/dashboard/inventory/products">Price book</Link>
-          <Link className="rounded-full bg-slate-100 px-3 py-1.5" href="/dashboard/suppliers/po">Purchase orders</Link>
-          <Link className="rounded-full bg-slate-100 px-3 py-1.5" href="/dashboard/accounting">Finance</Link>
-          <Link className="rounded-full bg-slate-100 px-3 py-1.5" href="/dashboard/my-business/team">Team</Link>
-          <Link className="rounded-full bg-slate-100 px-3 py-1.5" href="/dashboard/my-business/verify">VerifyNow</Link>
+      <HubTelemetryGrid className="mb-0">
+        <TelemetryCard label="Customers" value={book.store.customers.length} sub={`${book.desk.sites.length} sites on file`} accent="cyan" icon={Users} href={`${base}/customers`} />
+        <TelemetryCard label="On the tools" value={onTools} sub={`${onTools} of ${liveJobs} jobs in progress`} accent="emerald" icon={HardHat} href={`${base}/board`} />
+        <TelemetryCard label="Outstanding" value={formatZar(report.outstanding_cents)} sub={`${overdueInvoices(book, today).length} overdue`} accent="amber" icon={Receipt} href={`${base}/invoices`} />
+        <TelemetryCard label="Win rate" value={`${Math.round(report.win_rate * 100)}%`} sub={`${report.won} of ${report.decided} quotes decided`} accent="violet" icon={TrendingUp} href={`${base}/reports`} />
+        <TelemetryCard label="Received" value={formatZar(report.revenue_cents)} sub="Payments on this book" accent="sky" icon={Wallet} href={`${base}/reports`} />
+        <TelemetryCard label="Today" value={slots.length} sub={prettyDay(today)} accent="slate" icon={CalendarDays} href={`${base}/calendar`} />
+      </HubTelemetryGrid>
+      <div className="grid gap-4 xl:grid-cols-5">
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:col-span-3">
+          <TradeHeading hint={prettyDay(today)}>Today’s schedule</TradeHeading>
+          <div className="mt-4">
+            <DayTimeline book={book} slots={slots} />
+          </div>
+        </section>
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:col-span-2">
+          <TradeHeading hint="Overdue money, unsigned quotes, certificates, and tasks.">Next actions</TradeHeading>
+          <div className="mt-4">
+            <AlertList items={officeAlerts(book, today, base)} />
+          </div>
+        </section>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-5">
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:col-span-3">
+          <div className="flex items-center justify-between gap-3">
+            <TradeHeading hint="Enquiry through the tools. Open the board for the full pipeline.">Pipeline</TradeHeading>
+            <Link href={`${base}/board`} className="text-xs font-black text-[#00b4d8]">Open board</Link>
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {previewColumns.map((column) => {
+              const rows = cards.filter((card) => card.column === column).slice(0, 2);
+              return (
+                <div key={column} className="rounded-2xl bg-slate-50 p-2">
+                  <p className="px-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
+                    {COL[column]} · {cards.filter((card) => card.column === column).length}
+                  </p>
+                  <ul className="mt-1 space-y-1.5">
+                    {rows.map((card) => (
+                      <li key={card.id} className="rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs">
+                        <p className="font-black text-slate-900">{card.title}</p>
+                        <p className="truncate text-slate-500">{card.subtitle}</p>
+                      </li>
+                    ))}
+                    {!rows.length ? <li className="px-1 py-3 text-center text-[11px] text-slate-400">Empty</li> : null}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:col-span-2">
+          <TradeHeading hint="Invoice totals on the book, largest first.">Money</TradeHeading>
+          <div className="mt-4">
+            <MoneyBars rows={moneyRows(book)} />
+          </div>
+          <Link href={`${base}/reports`} className="mt-4 inline-flex text-xs font-black text-[#00b4d8]">Open reports</Link>
+        </section>
+      </div>
+      <section>
+        <TradeHeading hint="Status, customer, site, time, who is on it, and the value.">Live jobs</TradeHeading>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          {book.store.jobs.filter((job) => job.status === 'in_progress' || job.status === 'scheduled').map((job) => {
+            const face = jobFace(book, job.id);
+            return (
+              <Link key={job.id} href={`${base}/gantt?job=${job.id}`} className="block rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-[#00b4d8]">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">{job.number}</p>
+                    <p className="mt-0.5 font-black text-slate-900">{job.title}</p>
+                  </div>
+                  <StatusPill status={job.status} />
+                </div>
+                <JobFaceMeta book={book} jobId={job.id} />
+                {face ? (
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full rounded-full bg-[#00b4d8]" style={{ width: `${Math.max(4, face.job.progress_pct)}%` }} />
+                  </div>
+                ) : null}
+              </Link>
+            );
+          })}
         </div>
       </section>
     </div>
@@ -143,27 +214,30 @@ export function TradeBoard({ base, startNew = false }: { base: string; startNew?
   const [open, setOpen] = useState(startNew);
   const cards = boardCards(book);
   return (
-    <div>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <GymSectionTitle hint="Drag is on the Gantt. Move a card by opening the job.">Job board</GymSectionTitle>
-        <button type="button" className="rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" data-testid="new-job" onClick={() => setOpen(true)}>
+    <div className="space-y-4">
+      <PageHead kicker="Floor" title="Jobs" detail="Drag is on the Gantt. Open a card to move the job.">
+        <button type="button" className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]" data-testid="new-job" onClick={() => setOpen(true)}>
           New job
         </button>
-      </div>
+      </PageHead>
       {open ? <NewJobForm onClose={() => setOpen(false)} /> : null}
       <div className="flex gap-3 overflow-x-auto pb-2" data-testid="job-board">
         {BOARD_COLUMNS.map((column) => (
-          <section key={column} className="w-64 shrink-0 rounded-3xl bg-slate-100 p-2" data-testid={`column-${column}`}>
-            <h3 className="px-2 py-1 text-xs font-black uppercase tracking-wide text-slate-600">
-              {COL[column]} · {cards.filter((card) => card.column === column).length}
+          <section key={column} className="w-72 shrink-0 rounded-3xl border border-slate-200 bg-slate-50 p-2 shadow-sm lg:w-auto lg:min-w-[220px] lg:flex-1" data-testid={`column-${column}`}>
+            <h3 className="flex items-center justify-between px-2 py-1.5 text-[11px] font-black uppercase tracking-wide text-slate-600">
+              <span>{COL[column]}</span>
+              <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-slate-700">{cards.filter((card) => card.column === column).length}</span>
             </h3>
             <ul className="space-y-2">
               {cards.filter((card) => card.column === column).map((card) => (
                 <li key={card.id}>
                   {card.kind === 'job' ? (
-                    <Link href={`${base}/gantt?job=${card.ref_id}`} className="block rounded-2xl border border-slate-200 bg-white p-3 text-sm shadow-sm">
-                      <p className="font-bold">{card.title}</p>
-                      <p className="text-slate-600">{card.subtitle}</p>
+                    <Link href={`${base}/gantt?job=${card.ref_id}`} className="block rounded-2xl border border-slate-200 bg-white p-3 text-sm shadow-sm transition hover:border-[#00b4d8]">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-black text-slate-900">{card.title}</p>
+                        <StatusPill status={column} />
+                      </div>
+                      <JobFaceMeta book={book} jobId={card.ref_id} />
                     </Link>
                   ) : card.kind === 'request' ? (
                     <button
@@ -182,14 +256,21 @@ export function TradeBoard({ base, startNew = false }: { base: string; startNew?
                         });
                       }}
                     >
-                      <p className="font-bold">{card.title}</p>
-                      <p className="text-slate-600">{card.subtitle}</p>
-                      <p className="mt-1 text-xs font-bold text-[#00b4d8]">Make this a job</p>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-black text-slate-900">{card.title}</p>
+                        <StatusPill status="enquiry" />
+                      </div>
+                      <p className="mt-1 text-slate-600">{card.subtitle}</p>
+                      <p className="mt-2 text-xs font-black text-[#00b4d8]">Make this a job</p>
                     </button>
                   ) : (
                     <Link href={`${base}/quote?quote=${card.ref_id}`} className="block rounded-2xl border border-slate-200 bg-white p-3 text-sm shadow-sm">
-                      <p className="font-bold">{card.title}</p>
-                      <p className="text-slate-600">{card.subtitle}</p>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-black text-slate-900">{card.title}</p>
+                        <StatusPill status="quoted" />
+                      </div>
+                      <p className="mt-1 text-slate-600">{card.subtitle}</p>
+                      {card.money ? <p className="mt-2 text-sm font-black tabular-nums">{formatZar(Number(card.money))}</p> : null}
                     </Link>
                   )}
                 </li>
@@ -212,7 +293,7 @@ function NewJobForm({ onClose }: { onClose: () => void }) {
   const [address, setAddress] = useState('');
   return (
     <form
-      className="mb-4 rounded-3xl border border-slate-200 bg-white p-4"
+      className="mb-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
       data-testid="new-job-form"
       onSubmit={(event) => {
         event.preventDefault();
@@ -223,7 +304,7 @@ function NewJobForm({ onClose }: { onClose: () => void }) {
       <h3 className="font-black">New job</h3>
       <label className="mt-3 block text-sm font-semibold">
         Customer
-        <select className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" data-testid="job-customer" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
+        <select className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30" data-testid="job-customer" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
           {book.store.customers.map((row) => (
             <option key={row.id} value={row.id}>{row.name}</option>
           ))}
@@ -231,14 +312,14 @@ function NewJobForm({ onClose }: { onClose: () => void }) {
       </label>
       <label className="mt-3 block text-sm font-semibold">
         Title
-        <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" data-testid="job-title" value={title} onChange={(event) => setTitle(event.target.value)} required />
+        <input className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30" data-testid="job-title" value={title} onChange={(event) => setTitle(event.target.value)} required />
       </label>
       <label className="mt-3 block text-sm font-semibold">
         Site address
-        <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={address} onChange={(event) => setAddress(event.target.value)} />
+        <input className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30" value={address} onChange={(event) => setAddress(event.target.value)} />
       </label>
       <div className="mt-4 flex gap-2">
-        <button type="submit" className="rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" data-testid="job-save">Save job</button>
+        <button type="submit" className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]" data-testid="job-save">Save job</button>
         <button type="button" className="rounded-full border border-slate-200 px-4 py-2 text-sm font-bold" onClick={onClose}>Cancel</button>
       </div>
     </form>
@@ -254,10 +335,20 @@ export function TradeQuoteBuilder({ presetCustomer = '', base = '/preview/tradeg
   const [deposit, setDeposit] = useState(30);
   const [jobId, setJobId] = useState('');
   const totals = quoteTotals(lines, book.store.settings.vat_rate);
+  const sent = book.store.quotes.filter((row) => row.status === 'sent').length;
+  const drafts = book.store.quotes.filter((row) => row.status === 'draft').length;
+  const accepted = book.store.quotes.filter((row) => row.status === 'accepted').length;
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+    <div className="space-y-4">
+      <PageHead kicker="Floor" title="Quote" detail="Lines come from the price book. VAT is 15% on top." />
+      <HubTelemetryGrid className="mb-0">
+        <TelemetryCard label="Drafts" value={drafts} sub="Not sent yet" accent="slate" icon={FilePenLine} />
+        <TelemetryCard label="Waiting" value={sent} sub="Sent for signature" accent="sky" icon={Receipt} />
+        <TelemetryCard label="Accepted" value={accepted} sub="Won on this book" accent="emerald" icon={TrendingUp} />
+      </HubTelemetryGrid>
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
       <form
-        className="rounded-3xl border border-slate-200 bg-white p-4"
+        className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
         data-testid="quote-builder"
         onSubmit={(event) => {
           event.preventDefault();
@@ -272,11 +363,10 @@ export function TradeQuoteBuilder({ presetCustomer = '', base = '/preview/tradeg
           });
         }}
       >
-        <h1 className="text-3xl font-black tracking-tight text-slate-900">Quote builder</h1>
-        <p className="mt-1 text-sm text-slate-600">Lines come from the price book. VAT is 15% on top.</p>
+        <h3 className="text-lg font-black tracking-tight text-slate-900">New draft</h3>
         <label className="mt-3 block text-sm font-semibold">
           Customer
-          <select className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" data-testid="quote-customer" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
+          <select className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30" data-testid="quote-customer" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
             {book.store.customers.map((row) => (
               <option key={row.id} value={row.id}>{row.name}</option>
             ))}
@@ -284,7 +374,7 @@ export function TradeQuoteBuilder({ presetCustomer = '', base = '/preview/tradeg
         </label>
         <label className="mt-3 block text-sm font-semibold">
           Link to a job
-          <select className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" data-testid="quote-job" value={jobId} onChange={(event) => setJobId(event.target.value)}>
+          <select className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30" data-testid="quote-job" value={jobId} onChange={(event) => setJobId(event.target.value)}>
             <option value="">No job yet</option>
             {book.store.jobs.filter((row) => row.customer_id === customerId).map((row) => (
               <option key={row.id} value={row.id}>{row.number} · {row.title}</option>
@@ -293,7 +383,7 @@ export function TradeQuoteBuilder({ presetCustomer = '', base = '/preview/tradeg
         </label>
         <label className="mt-3 block text-sm font-semibold">
           Title
-          <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" data-testid="quote-title" value={title} onChange={(event) => setTitle(event.target.value)} />
+          <input className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30" data-testid="quote-title" value={title} onChange={(event) => setTitle(event.target.value)} />
         </label>
         <div className="mt-3 flex flex-wrap gap-2">
           {book.desk.templates.map((template) => (
@@ -356,12 +446,12 @@ export function TradeQuoteBuilder({ presetCustomer = '', base = '/preview/tradeg
         </ul>
         <label className="mt-3 block text-sm font-semibold">
           Deposit %
-          <input className="mt-1 w-24 rounded-xl border border-slate-200 px-3 py-2" type="number" min={0} max={100} value={deposit} onChange={(event) => setDeposit(Number(event.target.value))} />
+          <input className="mt-1 w-24 min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30" type="number" min={0} max={100} value={deposit} onChange={(event) => setDeposit(Number(event.target.value))} />
         </label>
         <p className="mt-3 text-sm">
           {formatZar(totals.subtotal_cents)} ex VAT · VAT {formatZar(totals.vat_cents)} · <strong>{formatZar(totals.total_cents)} incl VAT</strong>
         </p>
-        <button type="submit" className="mt-4 rounded-full bg-[#00b4d8] px-4 py-2.5 text-sm font-bold text-[#0f172a]" data-testid="quote-save">
+        <button type="submit" className="mt-4 inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]" data-testid="quote-save">
           Save draft
         </button>
       </form>
@@ -369,11 +459,17 @@ export function TradeQuoteBuilder({ presetCustomer = '', base = '/preview/tradeg
         {book.store.quotes.slice(0, 8).map((quote) => {
           const money = quoteTotals(quote.lines, book.store.settings.vat_rate);
           return (
-            <article key={quote.id} className="rounded-3xl border border-slate-200 bg-white p-3 text-sm">
-              <p className="font-bold">{quote.number} · {quote.title}</p>
-              <p className="text-slate-600">{quote.status} · {formatZar(money.total_cents)} incl VAT</p>
+            <article key={quote.id} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm text-sm">
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-black text-slate-900">{quote.number}</p>
+                <StatusPill status={quote.status} />
+              </div>
+              <p className="mt-1 font-bold text-slate-800">{quote.title}</p>
+              <p className="text-slate-600">{book.store.customers.find((row) => row.id === quote.customer_id)?.name}</p>
+              <p className="mt-2 text-lg font-black tabular-nums">{formatZar(money.total_cents)}</p>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">incl VAT</p>
               {quote.status === 'draft' ? (
-                <button type="button" className="mt-2 rounded-full bg-[#00b4d8] px-3 py-1 text-xs font-bold text-[#0f172a]" data-testid={`send-${quote.id}`} onClick={() => dispatch({ type: 'send_quote', quote_id: quote.id })}>
+                <button type="button" className="mt-2 inline-flex min-h-10 items-center justify-center rounded-2xl bg-[#00b4d8] px-3 text-xs font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]" data-testid={`send-${quote.id}`} onClick={() => dispatch({ type: 'send_quote', quote_id: quote.id })}>
                   Send to customer
                 </button>
               ) : null}
@@ -395,6 +491,7 @@ export function TradeQuoteBuilder({ presetCustomer = '', base = '/preview/tradeg
         })}
       </aside>
     </div>
+    </div>
   );
 }
 
@@ -412,25 +509,45 @@ export function TradeGantt({ jobId, heading }: { jobId?: string; heading?: React
   }
   const register = voRegister(book, job.id, book.store.settings.vat_rate);
   const customer = book.store.customers.find((row) => row.id === job.customer_id);
+  const face = jobFace(book, job.id);
   return (
     <div className="space-y-4">
       {heading ?? (
-        <header>
-          <p className="text-xs font-bold uppercase tracking-widest text-[#00b4d8]">{job.number}</p>
-          <h2 className="text-2xl font-black">{job.title}</h2>
-          <p className="text-sm text-slate-600">{customer?.name} · {job.address}</p>
-          <a className="text-sm font-bold text-[#00b4d8]" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`} target="_blank" rel="noreferrer">
-            Open the site in maps
+        <PageHead kicker={job.number} title={job.title} detail={`${customer?.name || 'Customer'} · ${job.address}`}>
+          <StatusPill status={job.status} />
+          <a className="inline-flex min-h-10 items-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-800 shadow-sm" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.address)}`} target="_blank" rel="noreferrer">
+            Open in maps
           </a>
-        </header>
+        </PageHead>
       )}
+      {face ? (
+        <div className="grid gap-2 sm:grid-cols-3">
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Progress</p>
+            <p className="mt-1 text-2xl font-black tabular-nums">{face.job.progress_pct}%</p>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full rounded-full bg-[#00b4d8]" style={{ width: `${Math.max(4, face.job.progress_pct)}%` }} />
+            </div>
+          </div>
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">On the job</p>
+            <div className="mt-2"><AvatarStack people={face.techs} /></div>
+            <p className="mt-2 text-sm font-bold text-slate-700">{face.techs.map((member) => member.name.split(' ')[0]).join(', ') || 'Unassigned'}</p>
+          </div>
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Revised incl VAT</p>
+            <p className="mt-1 text-2xl font-black tabular-nums">{formatZar(register.revised_incl_cents)}</p>
+            <p className="text-xs text-slate-500">{register.orders.length} variation{register.orders.length === 1 ? '' : 's'}</p>
+          </div>
+        </div>
+      ) : null}
       <GanttChart
         tasks={programme.tasks}
         members={book.desk.team}
         onShift={(taskId, days) => dispatch({ type: 'shift_task', job_id: job.id, task_id: taskId, days })}
       />
       <form
-        className="flex flex-wrap items-end gap-2 rounded-3xl border border-slate-200 bg-white p-4"
+        className="flex flex-wrap items-end gap-2 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
         onSubmit={(event) => {
           event.preventDefault();
           dispatch({ type: 'rebaseline', job_id: job.id, reason });
@@ -439,13 +556,13 @@ export function TradeGantt({ jobId, heading }: { jobId?: string; heading?: React
       >
         <label className="text-sm font-semibold">
           Re-baseline
-          <input className="mt-1 block rounded-xl border border-slate-200 px-3 py-2" data-testid="rebaseline-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Why the plan changed" />
+          <input className="mt-1 block min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30" data-testid="rebaseline-reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Why the plan changed" />
         </label>
         <button type="submit" className="rounded-full border border-slate-200 px-4 py-2 text-sm font-bold">Lock a new plan</button>
         {programme.history.length ? <p className="text-xs text-slate-500">{programme.history.length} earlier baseline{programme.history.length === 1 ? '' : 's'} kept.</p> : null}
       </form>
-      <section className="rounded-3xl border border-slate-200 bg-white p-4" data-testid="vo-register">
-        <GymSectionTitle hint="Original contract plus approved variations.">Variation orders</GymSectionTitle>
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="vo-register">
+        <TradeHeading hint="Original contract plus approved variations.">Variation orders</TradeHeading>
         <p className="mt-2 text-sm">
           Original {formatZar(register.original_cents)} · Approved VOs {formatZar(register.approved_cents)} · <strong>Revised {formatZar(register.revised_cents)} ex VAT</strong> · {formatZar(register.revised_incl_cents)} incl VAT
         </p>
@@ -455,7 +572,7 @@ export function TradeGantt({ jobId, heading }: { jobId?: string; heading?: React
               <p className="font-bold">{vo.number} · {vo.title} · {vo.status}</p>
               <p>{formatZar(vo.cost_cents)} ex VAT · {vo.days} day{vo.days === 1 ? '' : 's'}</p>
               {vo.status === 'draft' ? (
-                <button type="button" className="mt-1 rounded-full bg-[#00b4d8] px-3 py-1 text-xs font-bold text-[#0f172a]" onClick={() => dispatch({ type: 'send_vo', vo_id: vo.id })}>
+                <button type="button" className="mt-1 inline-flex min-h-10 items-center justify-center rounded-2xl bg-[#00b4d8] px-3 text-xs font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]" onClick={() => dispatch({ type: 'send_vo', vo_id: vo.id })}>
                   Send for signature
                 </button>
               ) : null}
@@ -480,17 +597,17 @@ export function TradeGantt({ jobId, heading }: { jobId?: string; heading?: React
             setVoScope('');
           }}
         >
-          <input className="rounded-xl border border-slate-200 px-3 py-2 text-sm" data-testid="vo-title" placeholder="Variation title" value={voTitle} onChange={(event) => setVoTitle(event.target.value)} required />
-          <input className="rounded-xl border border-slate-200 px-3 py-2 text-sm" data-testid="vo-scope" placeholder="Scope change" value={voScope} onChange={(event) => setVoScope(event.target.value)} required />
+          <input className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30 text-sm" data-testid="vo-title" placeholder="Variation title" value={voTitle} onChange={(event) => setVoTitle(event.target.value)} required />
+          <input className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30 text-sm" data-testid="vo-scope" placeholder="Scope change" value={voScope} onChange={(event) => setVoScope(event.target.value)} required />
           <label className="text-xs font-bold">
             Cost in rands, ex VAT
-            <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="number" min={0} value={voCost} onChange={(event) => setVoCost(Number(event.target.value))} />
+            <input className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30 text-sm" type="number" min={0} value={voCost} onChange={(event) => setVoCost(Number(event.target.value))} />
           </label>
           <label className="text-xs font-bold">
             Extra days
-            <input className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" type="number" min={0} value={voDays} onChange={(event) => setVoDays(Number(event.target.value))} />
+            <input className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30 text-sm" type="number" min={0} value={voDays} onChange={(event) => setVoDays(Number(event.target.value))} />
           </label>
-          <button type="submit" className="rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a] md:col-span-2" data-testid="vo-save">
+          <button type="submit" className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99] md:col-span-2" data-testid="vo-save">
             Save variation
           </button>
         </form>
@@ -513,7 +630,7 @@ function JobFold({ jobId }: { jobId: string }) {
   const gantt = readGantt(programme.tasks);
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <section className="rounded-3xl border border-slate-200 bg-white p-4">
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="font-black">Notes and checklist</h3>
         <form
           className="mt-2 flex gap-2"
@@ -523,12 +640,12 @@ function JobFold({ jobId }: { jobId: string }) {
             setNote('');
           }}
         >
-          <input className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm" value={note} onChange={(event) => setNote(event.target.value)} placeholder={internal ? 'Internal note' : 'Note for the customer'} />
+          <input className="flex-1 min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30 text-sm" value={note} onChange={(event) => setNote(event.target.value)} placeholder={internal ? 'Internal note' : 'Note for the customer'} />
           <label className="flex items-center gap-1 text-xs font-bold">
             <input type="checkbox" checked={internal} onChange={(event) => setInternal(event.target.checked)} />
             Internal only
           </label>
-          <button className="rounded-full bg-[#00b4d8] px-3 py-2 text-xs font-bold text-[#0f172a]" type="submit">{internal ? 'Save' : 'Share'}</button>
+          <button className="inline-flex min-h-10 items-center justify-center rounded-2xl bg-[#00b4d8] px-3 text-xs font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]" type="submit">{internal ? 'Save' : 'Share'}</button>
         </form>
         <ul className="mt-3 space-y-1 text-sm">
           {programme.checklist.map((item) => (
@@ -549,11 +666,11 @@ function JobFold({ jobId }: { jobId: string }) {
             event.currentTarget.reset();
           }}
         >
-          <input name="label" className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Add a check" required />
+          <input name="label" className="flex-1 min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30 text-sm" placeholder="Add a check" required />
           <button className="rounded-full border border-slate-200 px-3 py-2 text-xs font-bold" type="submit">Add</button>
         </form>
       </section>
-      <section className="rounded-3xl border border-slate-200 bg-white p-4">
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="font-black">Photos, time, materials</h3>
         {photosOpen ? (
           <div className="mt-2 grid grid-cols-2 gap-2">
@@ -592,7 +709,7 @@ function JobFold({ jobId }: { jobId: string }) {
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             type="button"
-            className="rounded-full bg-[#00b4d8] px-3 py-2 text-xs font-bold text-[#0f172a]"
+            className="inline-flex min-h-10 items-center justify-center rounded-2xl bg-[#00b4d8] px-3 text-xs font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]"
             data-testid="time-clock"
             onClick={() => {
               if (started) {
@@ -649,7 +766,7 @@ function JobFold({ jobId }: { jobId: string }) {
           ))}
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <button type="button" className="rounded-full bg-[#00b4d8] px-3 py-2 text-xs font-bold text-[#0f172a]" data-testid="invoice-final" onClick={() => dispatch({ type: 'create_invoice', job_id: job.id, kind: 'final' })}>
+          <button type="button" className="inline-flex min-h-10 items-center justify-center rounded-2xl bg-[#00b4d8] px-3 text-xs font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]" data-testid="invoice-final" onClick={() => dispatch({ type: 'create_invoice', job_id: job.id, kind: 'final' })}>
             Invoice the balance
           </button>
           <button type="button" className="rounded-full border border-slate-200 px-3 py-2 text-xs font-bold" onClick={() => dispatch({ type: 'create_invoice', job_id: job.id, kind: 'progress', percent: 40 })}>
@@ -664,9 +781,17 @@ function JobFold({ jobId }: { jobId: string }) {
 export function TradeInvoices() {
   const { book, dispatch } = useTradeBook();
   const late = overdueInvoices(book, '2026-10-14');
+  const outstanding = book.store.invoices
+    .filter((row) => row.status !== 'void' && row.status !== 'paid')
+    .reduce((sum, row) => sum + row.total_cents, 0);
   return (
-    <div className="space-y-3">
-      <GymSectionTitle hint="Deposits, progress bills, and Paystack links.">Invoices</GymSectionTitle>
+    <div className="space-y-4">
+      <PageHead kicker="Money" title="Invoices" detail="Deposits, progress bills, and Paystack links." />
+      <HubTelemetryGrid className="mb-0">
+        <TelemetryCard label="On the book" value={book.store.invoices.length} sub="Including paid" accent="slate" icon={Receipt} />
+        <TelemetryCard label="Overdue" value={late.length} sub="Issued and past due" accent="amber" icon={TrendingUp} />
+        <TelemetryCard label="Open" value={formatZar(outstanding)} sub="Not void and not paid" accent="cyan" icon={Wallet} />
+      </HubTelemetryGrid>
       {late.length ? (
         <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4">
           <p className="font-black text-amber-950">{late.length} overdue</p>
@@ -676,7 +801,7 @@ export function TradeInvoices() {
                 <span>{row.invoice.number} · {row.days} days · {formatZar(row.balance_cents)}</span>
                 <button
                   type="button"
-                  className="rounded-full bg-[#00b4d8] px-3 py-1 text-xs font-bold text-[#0f172a]"
+                  className="inline-flex min-h-10 items-center justify-center rounded-2xl bg-[#00b4d8] px-3 text-xs font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]"
                   onClick={() => {
                     const customer = book.store.customers.find((item) => item.id === row.invoice.customer_id);
                     dispatch({
@@ -695,19 +820,28 @@ export function TradeInvoices() {
           </ul>
         </div>
       ) : (
-        <p className="rounded-3xl border border-dashed border-slate-300 px-4 py-6 text-sm text-slate-600">No overdue invoices.</p>
+        <p className="rounded-3xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm font-semibold text-slate-600 shadow-sm">No overdue invoices.</p>
       )}
       <ul className="space-y-2">
         {book.store.invoices.map((invoice) => {
           const meta = book.desk.invoice_meta.find((row) => row.invoice_id === invoice.id);
           return (
-            <li key={invoice.id} className="rounded-3xl border border-slate-200 bg-white p-4 text-sm">
-              <p className="font-bold">{invoice.number} · {meta?.kind || 'final'} · {invoice.status}</p>
-              <p>{formatZar(invoice.total_cents)} incl VAT</p>
+            <li key={invoice.id} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm text-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">{meta?.kind || 'final'}</p>
+                  <p className="mt-0.5 font-black text-slate-900">{invoice.number}</p>
+                  <p className="text-slate-600">{book.store.customers.find((row) => row.id === invoice.customer_id)?.name}</p>
+                </div>
+                <div className="text-right">
+                  <StatusPill status={invoice.status} />
+                  <p className="mt-2 text-lg font-black tabular-nums">{formatZar(invoice.total_cents)}</p>
+                </div>
+              </div>
               {invoice.status !== 'paid' && invoice.status !== 'void' ? (
                 <button
                   type="button"
-                  className="mt-2 rounded-full bg-[#00b4d8] px-3 py-1.5 text-xs font-bold text-[#0f172a]"
+                  className="mt-2 inline-flex min-h-10 items-center justify-center rounded-2xl bg-[#00b4d8] px-3 text-xs font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]"
                   data-testid={`pay-link-${invoice.id}`}
                   onClick={() => dispatch({ type: 'pay_link', invoice_id: invoice.id })}
                 >
@@ -740,28 +874,37 @@ export function TradeCalendar() {
     : icsToken
       ? `/api/public/tradegraph/ics?ics=${encodeURIComponent(icsToken)}`
       : '';
+  const todaySlots = book.store.schedule.filter((slot) => slot.starts_at.slice(0, 10) === anchor);
   return (
-    <div>
-      <div className="mb-3 flex gap-2">
+    <div className="space-y-4">
+      <PageHead kicker="Floor" title="Calendar" detail={`${prettyDay(anchor)} · tap a visit to move it one day later.`}>
         {(['day', 'week', 'month'] as const).map((item) => (
-          <button key={item} type="button" className={`rounded-full px-3 py-1.5 text-xs font-bold ${mode === item ? 'bg-[#00b4d8] text-[#0f172a]' : 'bg-white border border-slate-200'}`} onClick={() => setMode(item)}>
+          <button key={item} type="button" className={`min-h-10 rounded-2xl px-3 text-xs font-black capitalize ${mode === item ? 'bg-[#00b4d8] text-[#0f172a] shadow-sm' : 'border border-slate-200 bg-white text-slate-700 shadow-sm'}`} onClick={() => setMode(item)}>
             {item}
           </button>
         ))}
         {subscribeHref ? (
-          <a className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold" href={subscribeHref}>
+          <a className="inline-flex min-h-10 items-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-800 shadow-sm" href={subscribeHref}>
             {sample ? 'Download ICS' : 'Subscribe to calendar'}
           </a>
         ) : null}
-      </div>
+      </PageHead>
+      <HubTelemetryGrid className="mb-0">
+        <TelemetryCard label="Today" value={todaySlots.length} sub={anchor} accent="cyan" icon={CalendarDays} />
+        <TelemetryCard label="On the board" value={book.store.schedule.length} sub="All visits" accent="slate" icon={CalendarDays} />
+        <TelemetryCard label="Team" value={lanes.length} sub="People with a lane" accent="emerald" icon={Users} />
+      </HubTelemetryGrid>
       <div className="space-y-3">
         {lanes.map((member) => (
-          <section key={member.id} className="rounded-3xl border border-slate-200 bg-white p-3">
+          <section key={member.id} className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
             <h3 className="flex items-center gap-2 text-sm font-black text-slate-900">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: member.colour }} aria-hidden />
-              {member.name}
+              <AvatarStack people={[member]} />
+              <span>
+                {member.name}
+                <span className="mt-0.5 block text-[11px] font-bold uppercase tracking-wide text-slate-400">{member.trade}</span>
+              </span>
             </h3>
-            <div className="mt-2 flex gap-2 overflow-x-auto">
+            <div className="mt-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
               {days.map((day) => {
                 const slots = book.store.schedule.filter((slot) => slot.starts_at.slice(0, 10) === day);
                 const mine = slots.filter((slot) => {
@@ -770,8 +913,8 @@ export function TradeCalendar() {
                   return programme ? programme.assignees.includes(member.id) : member.role === 'owner';
                 });
                 return (
-                  <div key={day} className="w-36 shrink-0 rounded-2xl bg-slate-50 p-2">
-                    <p className="text-[10px] font-bold text-slate-600">{day.slice(5)}</p>
+                  <div key={day} className={`w-40 shrink-0 rounded-2xl p-2 ${day === anchor ? 'bg-cyan-50 ring-1 ring-[#00b4d8]/40' : 'bg-slate-50'}`}>
+                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">{day.slice(5)}{day === anchor ? ' · today' : ''}</p>
                     {mine.map((slot) => (
                       <button
                         key={slot.id}
@@ -798,14 +941,14 @@ export function TradeCalendar() {
           </section>
         ))}
       </div>
-      <section className="mt-4 rounded-3xl border border-slate-200 bg-white p-4">
+      <section className="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="font-black">Booking requests</h3>
         <ul className="mt-2 space-y-2 text-sm">
           {book.desk.bookings.map((row) => (
             <li key={row.id} className="flex flex-wrap items-center justify-between gap-2">
               <span>{row.note} · {row.status}</span>
               {row.status === 'requested' ? (
-                <button type="button" className="rounded-full bg-[#00b4d8] px-3 py-1 text-xs font-bold text-[#0f172a]" onClick={() => dispatch({ type: 'confirm_booking', booking_id: row.id })}>
+                <button type="button" className="inline-flex min-h-10 items-center justify-center rounded-2xl bg-[#00b4d8] px-3 text-xs font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]" onClick={() => dispatch({ type: 'confirm_booking', booking_id: row.id })}>
                   Confirm
                 </button>
               ) : null}
@@ -825,22 +968,35 @@ function shift(day: string, delta: number) {
 export function TradeReports() {
   const { book } = useTradeBook();
   const report = tradeReport(book);
+  const rows = report.jobs.filter((row) => row.revenue_cents || row.cost_cents);
+  const max = Math.max(...rows.map((row) => Math.abs(row.profit_cents)), 1);
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        <GymStat value={formatZar(report.revenue_cents)} label="Revenue received" />
-        <GymStat value={formatZar(report.outstanding_cents)} label="Outstanding" />
-        <GymStat value={`${Math.round(report.win_rate * 100)}%`} label="Win rate" />
-        <GymStat value={`${report.won}/${report.decided}`} label="Quotes won" />
-      </div>
-      <ul className="space-y-2">
-        {report.jobs.filter((row) => row.revenue_cents || row.cost_cents).map((row) => (
-          <li key={row.id} className="rounded-3xl border border-slate-200 bg-white p-4 text-sm">
-            <p className="font-bold">{row.number} · {row.title}</p>
-            <p>Revenue {formatZar(row.revenue_cents)} · Cost {formatZar(row.cost_cents)} · Profit {formatZar(row.profit_cents)}</p>
-          </li>
-        ))}
-      </ul>
+      <PageHead kicker="Money" title="Reports" detail="Received cash, what is still open, and profit on each job." />
+      <HubTelemetryGrid className="mb-0">
+        <TelemetryCard label="Received" value={formatZar(report.revenue_cents)} sub="Payments posted" accent="emerald" icon={Wallet} />
+        <TelemetryCard label="Outstanding" value={formatZar(report.outstanding_cents)} sub="Invoices minus payments" accent="amber" icon={Receipt} />
+        <TelemetryCard label="Win rate" value={`${Math.round(report.win_rate * 100)}%`} sub={`${report.won} of ${report.decided} decided`} accent="violet" icon={TrendingUp} />
+        <TelemetryCard label="Jobs with cost" value={rows.length} sub="Revenue or cost recorded" accent="slate" icon={HardHat} />
+      </HubTelemetryGrid>
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <TradeHeading hint="Profit is received revenue minus materials, orders, and logged time.">Job profit</TradeHeading>
+        <ul className="mt-4 space-y-3">
+          {rows.map((row) => (
+            <li key={row.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p className="font-black text-slate-900">{row.number} · {row.title}</p>
+                <p className={`text-sm font-black tabular-nums ${row.profit_cents < 0 ? 'text-rose-700' : 'text-emerald-800'}`}>{formatZar(row.profit_cents)}</p>
+              </div>
+              <p className="mt-1 text-xs text-slate-600">Revenue {formatZar(row.revenue_cents)} · Cost {formatZar(row.cost_cents)}</p>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-white">
+                <div className={`h-full rounded-full ${row.profit_cents < 0 ? 'bg-rose-400' : 'bg-[#00b4d8]'}`} style={{ width: `${Math.max(6, Math.round((Math.abs(row.profit_cents) / max) * 100))}%` }} />
+              </div>
+            </li>
+          ))}
+          {!rows.length ? <li><TradeEmpty title="No job costs yet" hint="Log time and materials on a job to see profit." /></li> : null}
+        </ul>
+      </section>
     </div>
   );
 }
@@ -849,9 +1005,11 @@ export function TradeCustomers() {
   const { book, dispatch } = useTradeBook();
   const [name, setName] = useState('');
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="space-y-4">
+      <PageHead kicker="People" title="Customers" detail="Sites, phones, and the link into the company customer book." />
+      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
       <form
-        className="rounded-3xl border border-slate-200 bg-white p-4"
+        className="h-fit rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
         onSubmit={(event) => {
           event.preventDefault();
           dispatch({
@@ -862,27 +1020,37 @@ export function TradeCustomers() {
         }}
       >
         <h2 className="font-black">Add a customer</h2>
-        <input className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-2" value={name} onChange={(event) => setName(event.target.value)} placeholder="Name" required />
-        <button className="mt-3 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]" type="submit">Save</button>
+        <input className="mt-3 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30" value={name} onChange={(event) => setName(event.target.value)} placeholder="Name" required />
+        <button className="mt-3 inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]" type="submit">Save</button>
       </form>
-      <ul className="space-y-2">
+      <ul className="grid gap-3 sm:grid-cols-2">
         {book.store.customers.map((customer) => {
           const sites = book.desk.sites.filter((row) => row.customer_id === customer.id);
           const link = book.desk.customer_links.find((row) => row.customer_id === customer.id);
+          const jobs = book.store.jobs.filter((row) => row.customer_id === customer.id);
           return (
-            <li key={customer.id} className="rounded-3xl border border-slate-200 bg-white p-4 text-sm">
-              <p className="font-black">{customer.name}</p>
-              <p className="text-slate-600">{customer.address}, {customer.suburb}</p>
+            <li key={customer.id} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm text-sm">
+              <div className="flex items-start gap-3">
+                <AvatarStack people={[{ name: customer.name, colour: '#00b4d8' }]} />
+                <div className="min-w-0">
+                  <p className="font-black text-slate-900">{customer.name}</p>
+                  <p className="text-slate-600">{customer.suburb || customer.city}</p>
+                </div>
+              </div>
+              <p className="mt-3 text-slate-700">{customer.address}{customer.suburb ? `, ${customer.suburb}` : ''}</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{jobs.length} job{jobs.length === 1 ? '' : 's'} · {sites.length} site{sites.length === 1 ? '' : 's'}</p>
+              {customer.phone ? <p className="mt-1 text-slate-600">{customer.phone}</p> : null}
               {sites.map((site) => (
                 <p key={site.id} className="text-slate-600">{site.label}: {site.address}</p>
               ))}
-              <Link className="mt-1 inline-block font-bold text-[#00b4d8]" href={link?.connection_id ? `/dashboard/customers/${link.connection_id}` : '/dashboard/customers'}>
+              <Link className="mt-2 inline-block font-bold text-[#00b4d8]" href={link?.connection_id ? `/dashboard/customers/${link.connection_id}` : '/dashboard/customers'}>
                 Open in Customers
               </Link>
             </li>
           );
         })}
       </ul>
+      </div>
     </div>
   );
 }
@@ -891,13 +1059,18 @@ export function TradeMaterials() {
   const { book, dispatch, live, reload } = useTradeBook();
   return (
     <div className="space-y-4">
-      <section className="rounded-3xl border border-slate-200 bg-white p-4">
+      <PageHead kicker="Yard" title="Materials" detail="Harbour catalogue on the sample book. Signed-in books can pull SupplierAdvisor® products." />
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <h2 className="font-black">Price book</h2>
-        <ul className="mt-2 space-y-1 text-sm">
+        <ul className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {book.desk.price_book.map((item) => (
-            <li key={item.id} className="flex justify-between gap-3">
-              <span>{item.kind} · {item.name}</span>
-              <span>{formatZar(sellCents(item))}</span>
+            <li key={item.id} className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3">
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-black text-slate-900">{item.name}</p>
+                <StatusPill status={item.kind} />
+              </div>
+              <p className="mt-2 text-lg font-black tabular-nums">{formatZar(sellCents(item))}</p>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{item.unit} · {item.sku}</p>
             </li>
           ))}
         </ul>
@@ -924,19 +1097,22 @@ export function TradeMaterials() {
           <Link href="/dashboard/inventory/products" className="self-center text-sm font-bold text-[#00b4d8]">Open inventory</Link>
         </div>
       </section>
-      <section className="rounded-3xl border border-slate-200 bg-white p-4">
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="font-black">Supplier orders</h2>
         <ul className="mt-2 space-y-2 text-sm">
           {book.store.materials.map((order) => (
-            <li key={order.id}>
-              <p className="font-bold">{order.supplier_name} · {order.status}</p>
-              <p>{order.lines.map((line) => line.description).join(', ')}</p>
+            <li key={order.id} className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3">
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-black text-slate-900">{order.supplier_name}</p>
+                <StatusPill status={order.status} />
+              </div>
+              <p className="mt-1 text-slate-600">{order.lines.map((line) => `${line.qty} × ${line.description}`).join(', ')}</p>
             </li>
           ))}
         </ul>
         <button
           type="button"
-          className="mt-3 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]"
+          className="mt-3 inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]"
           onClick={() =>
             dispatch({
               type: 'order_materials',
@@ -957,19 +1133,39 @@ export function TradeMaterials() {
 export function TradeTeam() {
   const { book } = useTradeBook();
   return (
-    <ul className="space-y-2">
-      {book.desk.team.map((member) => (
-        <li key={member.id} className="rounded-3xl border border-slate-200 bg-white p-4">
-          <p className="font-black">{member.name}</p>
-          <p className="text-sm text-slate-600">{member.role === 'owner' ? 'Owner' : 'Technician'} · {member.trade}</p>
-          <p className="text-sm text-slate-600">{member.email}</p>
-          <Link href={`/crew/tradegraph/${member.portal_token}`} className="text-sm font-bold text-[#00b4d8]">Open their work app</Link>
-        </li>
-      ))}
-      <li>
-        <Link href="/dashboard/my-business/team" className="text-sm font-bold text-[#00b4d8]">Company members and permissions</Link>
-      </li>
-    </ul>
+    <div className="space-y-4">
+      <PageHead kicker="People" title="Team" detail="Owners and technicians. Each person has a work app.">
+        <Link href="/dashboard/my-business/team" className="inline-flex min-h-11 items-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 shadow-sm">Company permissions</Link>
+      </PageHead>
+      <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {book.desk.team.map((member) => {
+          const jobs = book.desk.programmes.filter((row) => row.assignees.includes(member.id)).length;
+          return (
+            <li key={member.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-3">
+                <span
+                  className="inline-flex h-12 w-12 items-center justify-center rounded-2xl text-sm font-black"
+                  style={{ backgroundColor: member.colour, color: member.colour.toLowerCase() === '#00b4d8' ? '#0f172a' : '#fff' }}
+                >
+                  {member.name.split(' ').slice(0, 2).map((part) => part.slice(0, 1)).join('')}
+                </span>
+                <div className="min-w-0">
+                  <p className="font-black text-slate-900">{member.name}</p>
+                  <p className="text-sm text-slate-600">{member.trade}</p>
+                </div>
+              </div>
+              <div className="mt-3 flex items-center gap-2">
+                <StatusPill status={member.role} />
+                <span className="text-xs font-bold text-slate-500">{jobs} job{jobs === 1 ? '' : 's'}</span>
+              </div>
+              <p className="mt-2 text-sm text-slate-600">{member.email}</p>
+              <p className="text-sm text-slate-600">{member.phone}</p>
+              <Link href={`/crew/tradegraph/${member.portal_token}`} className="mt-3 inline-flex min-h-10 items-center rounded-2xl bg-[#00b4d8] px-3 text-xs font-black text-[#0f172a]">Open their work app</Link>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 
@@ -981,18 +1177,20 @@ function quotePdfHref(publicToken: string, quoteId: string): string {
 export function QuoteSheet({ quoteId }: { quoteId: string }) {
   const { book } = useTradeBook();
   const quote = book.store.quotes.find((row) => row.id === quoteId) || book.store.quotes[0];
-  if (!quote) return <p>No quote yet.</p>;
+  if (!quote) return <TradeEmpty title="No quote yet" hint="Save a draft in the quote builder first." />;
   const customer = book.store.customers.find((row) => row.id === quote.customer_id);
   const totals = quoteTotals(quote.lines, book.store.settings.vat_rate);
   const meta = book.desk.quote_meta.find((row) => row.quote_id === quote.id);
   return (
-    <article className="mx-auto max-w-xl rounded-3xl border border-slate-200 bg-white shadow-sm" data-testid="quote-sheet">
-      <div className="h-3 rounded-t-3xl bg-[#00b4d8]" />
+    <article className="mx-auto max-w-xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm" data-testid="quote-sheet">
+      <div className="bg-[#00b4d8] px-6 py-5 text-[#0f172a]">
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0f172a]/70">TradeAdvisor®</p>
+        <h1 className="mt-1 text-2xl font-black tracking-tight">{book.store.settings.brand_name}</h1>
+        <p className="text-sm font-semibold text-[#0f172a]/80">{book.store.settings.city} · {book.store.settings.phone}</p>
+      </div>
       <div className="p-6">
-        <p className="text-xs font-bold uppercase tracking-widest text-[#00b4d8]">TradeAdvisor®</p>
-        <h1 className="text-2xl font-black">{book.store.settings.brand_name}</h1>
-        <p className="text-sm text-slate-600">{book.store.settings.city} · {book.store.settings.phone}</p>
-        <h2 className="mt-6 text-lg font-black">{quote.number} · {quote.title}</h2>
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">{quote.number}</p>
+        <h2 className="mt-1 text-lg font-black text-slate-900">{quote.title}</h2>
         <p className="text-sm">{customer?.name}<br />{customer?.address}, {customer?.suburb}</p>
         <table className="mt-4 w-full text-sm">
           <tbody>
@@ -1005,9 +1203,11 @@ export function QuoteSheet({ quoteId }: { quoteId: string }) {
             ))}
           </tbody>
         </table>
-        <p className="mt-3 text-sm">{formatZar(totals.subtotal_cents)} ex VAT</p>
-        <p className="text-sm">VAT 15% {formatZar(totals.vat_cents)}</p>
-        <p className="text-lg font-black">{formatZar(totals.total_cents)} incl VAT</p>
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <TradeStat value={formatZar(totals.subtotal_cents)} label="Ex VAT" />
+          <TradeStat value={formatZar(totals.vat_cents)} label="VAT 15%" />
+          <TradeStat value={formatZar(totals.total_cents)} label="Incl VAT" />
+        </div>
         {meta?.deposit_pct ? <p className="text-sm">Deposit {meta.deposit_pct}% on acceptance.</p> : null}
         {meta?.signature ? <p className="mt-4 text-sm">Signed by {meta.signature.name} on {meta.signature.signed_at.slice(0, 10)}.</p> : null}
         <a className="mt-4 inline-block text-sm font-bold text-[#00b4d8]" href={quotePdfHref(book.store.settings.public_token, quote.id)}>

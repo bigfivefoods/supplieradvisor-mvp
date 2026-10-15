@@ -258,27 +258,28 @@ function LiveCustomerTradeApp({ token }: { token: string }) {
   }
 
   return (
-    <div className="min-h-dvh bg-[#f8fafc] text-slate-900">
-      <div className="h-2 bg-[#00b4d8]" />
-      <header className="mx-auto flex max-w-md items-center justify-between px-4 py-4">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#00b4d8]">
+    <div className="min-h-dvh bg-gradient-to-b from-sky-50 to-slate-50 text-slate-900">
+      <header className="sticky top-0 z-30 bg-[#00b4d8] text-[#0f172a] shadow-[0_8px_24px_rgba(15,23,42,0.12)]">
+        <div className="mx-auto flex max-w-md items-center justify-between px-4 py-4">
+        <div className="min-w-0">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#0f172a]/70">
             TradeAdvisor®
           </p>
-          <h1 className="text-xl font-black">{brand}</h1>
+          <h1 className="truncate text-xl font-black">{brand}</h1>
         </div>
         {demo ? (
           <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-900">
             Sample
           </span>
         ) : null}
+        </div>
       </header>
       <main className="mx-auto max-w-md px-4 pb-28">
         {message ? (
           <p className="mb-3 rounded-2xl bg-sky-50 px-3 py-2 text-sm text-sky-950">{message}</p>
         ) : null}
         {phase !== 'in' ? (
-          <section className="rounded-3xl border border-slate-200 bg-white p-5">
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-black">Open your jobs</h2>
             <p className="mt-1 text-sm text-slate-600">
               Use the email your tradesperson has on file. SupplierAdvisor® sends a code or a magic link. No password.
@@ -287,7 +288,7 @@ function LiveCustomerTradeApp({ token }: { token: string }) {
               <label className="mt-4 block text-sm font-semibold">
                 Email
                 <input
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-3"
+                  className="mt-1 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   type="email"
@@ -298,7 +299,7 @@ function LiveCustomerTradeApp({ token }: { token: string }) {
               <label className="mt-4 block text-sm font-semibold">
                 6-digit code
                 <input
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-3 tracking-[0.3em]"
+                  className="mt-1 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 tracking-[0.3em] outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30"
                   value={code}
                   onChange={(event) => setCode(event.target.value)}
                   inputMode="numeric"
@@ -310,7 +311,7 @@ function LiveCustomerTradeApp({ token }: { token: string }) {
               type="button"
               disabled={busy}
               onClick={() => void (phase === 'email' ? sendCode() : verifyCode())}
-              className="mt-4 w-full rounded-full bg-[#00b4d8] py-3 text-sm font-bold text-[#0f172a]"
+              className="mt-4 flex min-h-12 w-full items-center justify-center rounded-2xl bg-[#00b4d8] py-3 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]"
             >
               {phase === 'email' ? 'Email me a code' : 'Sign in'}
             </button>
@@ -328,7 +329,7 @@ function LiveCustomerTradeApp({ token }: { token: string }) {
               </a>
             )}
             {(portal?.jobs || []).map((job) => (
-              <article key={job.id} className="rounded-3xl border border-slate-200 bg-white p-4">
+              <article key={job.id} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xs font-bold text-slate-500">{job.number}</p>
@@ -366,7 +367,7 @@ function LiveCustomerTradeApp({ token }: { token: string }) {
         ) : null}
 
         {phase === 'in' && tab === 'statement' ? (
-          <section className="rounded-3xl border border-slate-200 bg-white p-4">
+          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="text-lg font-black">Statement</h2>
             <p className="mt-1 text-3xl font-black text-[#00b4d8]">
               {formatZar(portal?.balance_cents || 0)}
@@ -418,7 +419,7 @@ function LiveCustomerTradeApp({ token }: { token: string }) {
             ) : (
               <a
                 href="/api/public/tradegraph/statement"
-                className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-4 py-2 text-sm font-bold text-[#0f172a]"
+                className="mt-4 inline-flex items-center gap-2 inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]"
               >
                 <FileText className="h-4 w-4" /> Download PDF
               </a>
@@ -427,12 +428,12 @@ function LiveCustomerTradeApp({ token }: { token: string }) {
         ) : null}
 
         {phase === 'in' && tab === 'request' ? (
-          <section className="rounded-3xl border border-slate-200 bg-white p-4">
+          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="text-lg font-black">Request a job</h2>
             <label className="mt-3 block text-sm font-semibold">
               What needs doing?
               <textarea
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+                className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30"
                 rows={4}
                 value={request.description}
                 onChange={(event) =>
@@ -443,7 +444,7 @@ function LiveCustomerTradeApp({ token }: { token: string }) {
             <label className="mt-3 block text-sm font-semibold">
               Address
               <input
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+                className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30"
                 value={request.address}
                 onChange={(event) => setRequest({ ...request, address: event.target.value })}
               />
@@ -451,7 +452,7 @@ function LiveCustomerTradeApp({ token }: { token: string }) {
             <label className="mt-3 block text-sm font-semibold">
               Preferred dates
               <input
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"
+                className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30"
                 value={request.preferred_dates}
                 onChange={(event) =>
                   setRequest({ ...request, preferred_dates: event.target.value })
@@ -483,7 +484,7 @@ function LiveCustomerTradeApp({ token }: { token: string }) {
               type="button"
               disabled={busy}
               onClick={() => void submitRequest()}
-              className="mt-4 w-full rounded-full bg-[#00b4d8] py-3 text-sm font-bold text-[#0f172a]"
+              className="mt-4 flex min-h-12 w-full items-center justify-center rounded-2xl bg-[#00b4d8] py-3 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]"
             >
               Send request
             </button>
@@ -491,14 +492,14 @@ function LiveCustomerTradeApp({ token }: { token: string }) {
         ) : null}
 
         {tab === 'install' ? (
-          <section className="rounded-3xl border border-slate-200 bg-white p-4">
+          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="text-lg font-black">Add to your home screen</h2>
             <p className="mt-2 text-sm text-slate-600">
               Install this as an app for {brand}. It opens on your jobs, works on a phone, and keeps a short offline note if the network drops.
             </p>
             <button
               type="button"
-              className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#00b4d8] px-4 py-3 text-sm font-bold text-[#0f172a]"
+              className="mt-4 inline-flex min-h-12 items-center gap-2 rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]"
               onClick={() => void installEvent?.prompt()}
             >
               <Download className="h-4 w-4" /> Add to home screen
@@ -522,28 +523,48 @@ function LiveCustomerTradeApp({ token }: { token: string }) {
           </section>
         ) : null}
       </main>
-      <nav className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white/95 px-2 pb-[env(safe-area-inset-bottom)]">
-        <div className="mx-auto grid max-w-md grid-cols-4">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/80 bg-white/95 px-2 pt-1 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur-md" style={{ paddingBottom: 'max(0.4rem, env(safe-area-inset-bottom))' }}>
+        <div className="mx-auto flex max-w-md items-end justify-around">
           {(
             [
-              ['jobs', 'Jobs', HardHat],
-              ['statement', 'Statement', FileText],
-              ['request', 'Request', Plus],
-              ['install', 'Install', Download],
+              ['jobs', 'Jobs', HardHat, false],
+              ['statement', 'Statement', FileText, false],
+              ['request', 'Request', Plus, true],
+              ['install', 'Install', Download, false],
             ] as const
-          ).map(([id, label, Icon]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setTab(id)}
-              className={`flex flex-col items-center gap-1 py-3 text-[11px] font-bold ${
-                tab === id ? 'text-[#00b4d8]' : 'text-slate-500'
-              }`}
-            >
-              <Icon className="h-5 w-5" />
-              {label}
-            </button>
-          ))}
+          ).map(([id, label, Icon, emphasis]) => {
+            const on = tab === id;
+            if (emphasis) {
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setTab(id)}
+                  aria-current={on ? 'page' : undefined}
+                  className="relative -mt-5 flex flex-col items-center gap-0.5 px-1"
+                >
+                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#00b4d8] text-[#0f172a] shadow-lg ring-4 ring-white">
+                    <Icon className="h-6 w-6" />
+                  </span>
+                  <span className={`text-[10px] font-black ${on ? 'text-slate-900' : 'text-slate-500'}`}>{label}</span>
+                </button>
+              );
+            }
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setTab(id)}
+                aria-current={on ? 'page' : undefined}
+                className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 px-1 py-1 text-[10px] font-black ${
+                  on ? 'text-[#00b4d8]' : 'text-slate-500'
+                }`}
+              >
+                <Icon className="h-5 w-5" />
+                {label}
+              </button>
+            );
+          })}
         </div>
       </nav>
     </div>

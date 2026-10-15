@@ -12,7 +12,7 @@ export function FeedComposer({ jobId, author }: { jobId: string; author: string 
   const [phase, setPhase] = useState<PhotoPhase>('during');
   return (
     <form
-      className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4"
+      className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
       data-testid="feed-composer"
       onSubmit={(event) => {
         event.preventDefault();
@@ -32,12 +32,12 @@ export function FeedComposer({ jobId, author }: { jobId: string; author: string 
         <input type="checkbox" checked={internal} onChange={(event) => setInternal(event.target.checked)} />
         Internal only
       </label>
-      <button className="min-h-11 rounded-full bg-[#00b4d8] px-4 text-sm font-bold text-[#0f172a]" type="submit">
+      <button className="min-h-11 rounded-2xl bg-[#00b4d8] px-4 text-sm font-black text-[#0f172a] shadow-sm transition active:scale-[0.99]" type="submit">
         {internal ? 'Save internally' : 'Share with client'}
       </button>
       <label className="block text-sm font-semibold">
         Site photo
-        <select className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2" value={phase} onChange={(event) => setPhase(event.target.value as PhotoPhase)}>
+        <select className="mt-1 w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-[#00b4d8] focus:ring-2 focus:ring-[#00b4d8]/30" value={phase} onChange={(event) => setPhase(event.target.value as PhotoPhase)}>
           <option value="before">Before</option>
           <option value="during">During</option>
           <option value="after">After</option>

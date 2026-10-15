@@ -7,7 +7,7 @@ export function TradeInstallPrompt() {
     <>
       <button
         type="button"
-        className="mb-3 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-800"
+        className="mb-3 inline-flex min-h-10 items-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-800 shadow-sm"
         onClick={() => window.dispatchEvent(new Event('sa-open-install'))}
       >
         Add to home screen
