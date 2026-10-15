@@ -236,7 +236,7 @@ export function PreviewDesk({ view }: { view: string }) {
   if (memory?.mode === 'harbour' && view === 'accounts') {
     const caps = capabilitiesFor(deskRole);
     const people = harbourDesk(deskRole, memory.memory).staff
-      .filter((row) => row.status === 'active')
+      .filter((row) => row.status === 'active' && row.role === 'collector')
       .map((row) => ({ id: row.id, label: row.email }));
     return (
       <AccountsView
@@ -245,6 +245,12 @@ export function PreviewDesk({ view }: { view: string }) {
         role={deskRole}
         caps={caps}
         showDemo
+        onOpen={(id) => {
+          const params = new URLSearchParams(window.location.search);
+          if (!params.get('book')) params.set('book', 'harbour');
+          params.set('account', id);
+          window.location.assign(`/preview/recovergraph/account?${params.toString()}`);
+        }}
         assignees={people}
         onAssign={caps.canMutateAccounts ? async (accountId, staffId) => {
           const person = HARBOUR_TEAM.find((row) => row.key === staffId);
@@ -270,7 +276,57 @@ export function PreviewDesk({ view }: { view: string }) {
       rows.find((row) => row.flags.length > 0) ||
       rows[0] ||
       null;
-    return <AccountView phase="ready" account={account} role={deskRole} caps={capabilitiesFor(deskRole)} showDemo />;
+    const caps = capabilitiesFor(deskRole);
+    const patch = (next: MemoryBook) => memory.setMemory(next);
+    return (
+      <AccountView
+        phase="ready"
+        account={account}
+        role={deskRole}
+        caps={caps}
+        showDemo
+        onReveal={async () => ({ id_number: account?.id_masked || '••••••' })}
+        onNote={caps.canAddNote && account ? async (note) => {
+          patch({
+            ...memory.memory,
+            accounts: memory.memory.accounts.map((row) => row.id === account.id ? {
+              ...row,
+              notes: [...row.notes, { at: 'today', text: note }],
+              events: [...row.events, { id: `note-${row.notes.length}`, type: 'note', at: 'today', label: 'Note', note }],
+            } : row),
+          });
+          return true;
+        } : undefined}
+        onFlag={caps.canMutateAccounts && account ? async (flag, reason, clear) => {
+          patch({
+            ...memory.memory,
+            accounts: memory.memory.accounts.map((row) => row.id === account.id ? {
+              ...row,
+              flags: clear ? row.flags.filter((item) => item.key !== flag) : [...row.flags.filter((item) => item.key !== flag), { key: flag, reason }],
+            } : row),
+          });
+          return true;
+        } : undefined}
+        onAdjust={caps.canMutateAccounts && account ? async (cents) => {
+          patch({
+            ...memory.memory,
+            accounts: memory.memory.accounts.map((row) => row.id === account.id ? { ...row, adjustment_cents: cents } : row),
+          });
+          return true;
+        } : undefined}
+        onRecall={caps.canMutateAccounts && account ? async (closeReason) => {
+          patch({
+            ...memory.memory,
+            accounts: memory.memory.accounts.map((row) => row.id === account.id ? {
+              ...row,
+              state: 'recalled',
+              events: [...row.events, { id: 'recall', type: 'recall', at: 'today', label: 'Recalled', note: closeReason }],
+            } : row),
+          });
+          return true;
+        } : undefined}
+      />
+    );
   }
   if (memory?.mode === 'harbour' && view === 'imports') {
     return (
@@ -278,13 +334,31 @@ export function PreviewDesk({ view }: { view: string }) {
         phase="ready"
         book={memory.memory}
         caps={capabilitiesFor(deskRole)}
-        onCommit={async (text) => {
-          const result = await commitPreviewCsv(memory.memory, text, HARBOUR_CREDITORS[0].key);
+        onCommit={async (input) => {
+          const result = await commitPreviewCsv(memory.memory, input.csv, input.creditorId);
           memory.setMemory(result.book);
+          if (result.code === 'imported') return { ok: true, message: `Placed ${result.created} accounts.` };
+          return {
+            ok: false,
+            message: result.code === 'already_imported' ? 'That file is already placed for this creditor.' : 'That file could not be placed.',
+            errors: result.errors,
+          };
         }}
-        onRollback={(id) => memory.setMemory(rollbackPreview(memory.memory, id).book)}
-        onLoadDemo={() => memory.setMemory(harbourMemory())}
-        onClearDemo={() => memory.setMemory(emptyMemory())}
+        onRollback={(id) => {
+          const result = rollbackPreview(memory.memory, id);
+          memory.setMemory(result.book);
+          return result.code === 'rolled_back'
+            ? { ok: true, message: 'That batch was rolled back.' }
+            : { ok: false, message: 'That batch can no longer be rolled back.' };
+        }}
+        onLoadDemo={() => {
+          memory.setMemory(harbourMemory());
+          return { ok: true, message: 'The fictional Harbour demo book is on this workspace.' };
+        }}
+        onClearDemo={() => {
+          memory.setMemory(emptyMemory());
+          return { ok: true, message: 'The demo book was cleared.' };
+        }}
         showDemo
       />
     );

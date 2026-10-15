@@ -99,7 +99,17 @@ export async function POST(request: NextRequest) {
     const role = resolveRecoverRole(gate.role, load.self);
     const caps = capabilitiesFor(role);
     if (extra?.ok) {
-      if (extra.value.op === 'creditor.upsert' || extra.value.op === 'mandate.upsert' || extra.value.op === 'account.assign' || extra.value.op === 'debtor.merge') {
+      if (
+        extra.value.op === 'creditor.upsert' ||
+        extra.value.op === 'mandate.upsert' ||
+        extra.value.op === 'account.assign' ||
+        extra.value.op === 'account.set_flag' ||
+        extra.value.op === 'account.clear_flag' ||
+        extra.value.op === 'account.add_note' ||
+        extra.value.op === 'account.recall' ||
+        extra.value.op === 'account.adjust' ||
+        extra.value.op === 'debtor.merge'
+      ) {
         if (!allowedBookOps(role).has(extra.value.op)) return denied();
         if (extra.value.op === 'creditor.upsert') {
           const customerId = Number(extra.value.patch.customer_id);
@@ -188,6 +198,18 @@ export async function POST(request: NextRequest) {
     }
     if (error instanceof Error && error.message === 'conflict') {
       return json({ error: 'That record changed. Open it again.' }, 400);
+    }
+    if (error instanceof Error && error.message === 'duplicate_creditor') {
+      return json({ error: 'A creditor with that name is already on the book.' }, 400);
+    }
+    if (error instanceof Error && error.message === 'duplicate_customer') {
+      return json({ error: 'That customer is already linked to a creditor.' }, 400);
+    }
+    if (error instanceof Error && error.message === 'mandate_locked') {
+      return json({ error: 'That mandate already has accounts. The creditor, product, and credit-agreement mark stay as they are.' }, 400);
+    }
+    if (error instanceof Error && error.message === 'collector') {
+      return json({ error: 'Assign an account to a collector.' }, 400);
     }
     if (error instanceof Error && (error.message === 'closed' || error.message === 'name' || error.message === 'creditor' || error.message === 'cap')) {
       return json({ error: 'RecoverAdvisor® could not save that change.' }, 400);

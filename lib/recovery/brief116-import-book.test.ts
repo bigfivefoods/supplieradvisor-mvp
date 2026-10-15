@@ -49,6 +49,15 @@ if (phone.ok) {
   assert.equal(result.rows[0].contacts.length, 0);
 }
 
+const badType = parseBookCsv('reference,name,principal,id type\nA-7,Ada,10,passport_card\n');
+assert.equal(badType.ok, true);
+if (badType.ok) {
+  const result = validateBook(badType, suggestMapping(badType.headers), { today: '2026-06-15' });
+  assert.equal(result.errors.some((issue) => issue.code === 'invalid_id_type'), true);
+  assert.equal(result.rows.length, 0);
+  assert.equal(JSON.stringify(result.errors).includes('passport_card'), false);
+}
+
 assert.equal(parseBookCsv('a,b\n' + '1,2\n'.repeat(2001)).ok, false);
 assert.equal(decodeBookUtf8(Uint8Array.from([0xff, 0xfe, 0xfd])).ok, false);
 async function hashes() {

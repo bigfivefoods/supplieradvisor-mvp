@@ -39,7 +39,7 @@ Load the fictional Harbour demo book while real debtor data is off. Enabling rea
 
 ## Stop flags
 
-Debt review, deceased estate, insolvency, represented, dispute, and do-not-contact are stored with a reason. The account shows a calm banner. Nothing in RecoverAdvisor® contacts a debtor yet, so the flag does not block a message.
+Debt review, deceased estate, insolvency, represented, dispute, and do-not-contact are stored with a reason. An owner or a manager sets or clears a flag from the account page. The account shows a calm banner. Nothing in RecoverAdvisor® contacts a debtor yet, so the flag does not send or block a message.
 
 ## CSV
 

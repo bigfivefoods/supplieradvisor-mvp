@@ -172,6 +172,19 @@ async function main() {
   `);
   assert.equal(truncateLeak, '');
 
+  for (const sig of [
+    'public.recover_erase_company(bigint)',
+    'public.recover_open_erase_token()',
+    'public.recover_write_audit(bigint, text, text, text, jsonb)',
+    'public.recover_write_event(bigint, uuid, text, text, jsonb, text)',
+  ]) {
+    assert.equal(psql(`SELECT has_function_privilege('service_role', '${sig}', 'EXECUTE');`), 'f', sig);
+  }
+  assert.equal(
+    psql(`SELECT has_function_privilege('service_role', 'public.recover_book_commit(bigint, text, text, text, jsonb)', 'EXECUTE');`),
+    't'
+  );
+
   for (const role of ['anon', 'authenticated', 'recover_portal']) {
     fails(`BEGIN; SET LOCAL ROLE ${role}; SELECT 1 FROM public.recover_debtors; ROLLBACK;`, /permission denied/i);
   }
@@ -445,6 +458,10 @@ async function main() {
     psql(`SELECT value FROM public.recover_contact_points WHERE company_id = 1 AND debtor_id = '${ada}';`),
     '0100000001'
   );
+  psql(`
+    INSERT INTO public.recover_contact_points (company_id, debtor_id, kind, value, source)
+    VALUES (1, '${bea}', 'phone', '0100000001', 'manual');
+  `);
   assert.equal(psql(`SELECT count(*) FROM public.recover_contact_points WHERE company_id = 2;`), '0');
   const merged = JSON.parse(psql(`
     SELECT public.recover_book_commit(1, 'owner', 'debtor.merge', 't', jsonb_build_object('source_id','${ada}','target_id','${bea}'));
@@ -454,6 +471,18 @@ async function main() {
   assert.equal(psql(`SELECT status FROM public.recover_debtors WHERE id = '${ada}';`), 'merged');
   assert.equal(psql(`SELECT debtor_id FROM public.recover_accounts WHERE creditor_account_ref = 'ACC-1';`), bea);
   assert.equal(psql(`SELECT debtor_id FROM public.recover_contact_points WHERE value = '0100000001';`), bea);
+  assert.equal(
+    psql(`SELECT count(*) FROM public.recover_contact_points WHERE company_id = 1 AND debtor_id = '${bea}' AND value = '0100000001';`),
+    '1'
+  );
+  assert.equal(
+    psql(`SELECT count(*) FROM public.recover_account_events e JOIN public.recover_accounts a ON a.id = e.account_id WHERE e.type = 'merge' AND a.creditor_account_ref = 'ACC-1';`),
+    '1'
+  );
+  assert.equal(
+    psql(`SELECT count(*) FROM public.recover_account_events e JOIN public.recover_accounts a ON a.id = e.account_id WHERE e.type = 'merge' AND a.creditor_account_ref = 'ACC-2';`),
+    '0'
+  );
   assert.equal(
     psql(`SELECT count(*) FROM public.recover_audit_log WHERE action = 'debtor.merge' AND target = '${bea}';`),
     '1'
@@ -468,6 +497,116 @@ async function main() {
   `)) as { ok: boolean };
   assert.equal(assigned.ok, true);
   assert.equal(psql(`SELECT assigned_to FROM public.recover_accounts WHERE id = '${acc1}';`), staffA);
+
+  psql(`SELECT public.recover_desk_commit(1, 'owner', 'upsert_staff', 's', '{"email":"fin@book.example","role":"finance_view"}'::jsonb);`);
+  const staffFin = psql(`SELECT id FROM public.recover_staff WHERE email = 'fin@book.example';`);
+  fails(
+    `SELECT public.recover_book_commit(1, 'owner', 'account.assign', 't', jsonb_build_object('id','${acc1}','staff_id','${staffFin}'));`,
+    /collector|22023/
+  );
+  psql(`SELECT public.recover_book_commit(1, 'owner', 'account.reveal_id', 't', jsonb_build_object('id','${acc1}','reason','Checking the file'));`);
+  assert.equal(
+    psql(`SELECT payload->>'reason' FROM public.recover_account_events WHERE account_id = '${acc1}' AND type = 'view_sensitive';`),
+    'Checking the file'
+  );
+  assert.equal(
+    psql(`SELECT position('Checking' in payload::text) = 0 FROM public.recover_audit_log WHERE action = 'account.reveal_id' AND target = '${acc1}';`),
+    't'
+  );
+
+  fails(
+    `SELECT public.recover_book_commit(1, 'owner', 'mandate.upsert', 't', jsonb_build_object(
+      'id','${mandate.id}','creditor_id','${creditor.id}','product_type','trade','status','active'
+    ));`,
+    /mandate_locked|22023/
+  );
+  fails(
+    `SELECT public.recover_book_commit(1, 'owner', 'mandate.upsert', 't', jsonb_build_object(
+      'id','${mandate.id}','creditor_id','${creditor.id}','nca_regulated',false,'status','active'
+    ));`,
+    /mandate_locked|22023/
+  );
+  const keptMandate = JSON.parse(psql(`
+    SELECT public.recover_book_commit(1, 'owner', 'mandate.upsert', 't', jsonb_build_object(
+      'id','${mandate.id}','creditor_id','${creditor.id}'
+    ));
+  `)) as { ok: boolean };
+  assert.equal(keptMandate.ok, true);
+  assert.equal(psql(`SELECT status FROM public.recover_mandates WHERE id = '${mandate.id}';`), 'active');
+  assert.equal(psql(`SELECT product_type FROM public.recover_mandates WHERE id = '${mandate.id}';`), 'nca_credit');
+
+  const manual = JSON.parse(psql(`
+    SELECT public.recover_book_commit(1, 'owner', 'debtor.upsert', 't', '{"display_name":"Manual Person","kind":"person"}'::jsonb);
+  `)) as { id: string };
+  const unrelated = JSON.parse(psql(`
+    SELECT public.recover_import_commit(1, 'owner', jsonb_build_object(
+      'creditor_id','${creditor.id}','mandate_id','${mandate.id}','source','csv','file_name','cara.csv',
+      'file_sha256','${sha('4')}','is_demo', false
+    ), jsonb_build_array(
+      jsonb_build_object('creditor_account_ref','CARA-1','display_name','Cara','principal_cents',8,'original_cents',8)
+    ));
+  `)) as { code: string; batch_id: string };
+  assert.equal(unrelated.code, 'imported');
+  const cara = psql(`SELECT id FROM public.recover_debtors WHERE company_id = 1 AND display_name = 'Cara';`);
+  const rolledCara = JSON.parse(psql(`
+    SELECT public.recover_rollback_batch(1, 'owner', '${unrelated.batch_id}'::uuid);
+  `)) as { code: string };
+  assert.equal(rolledCara.code, 'rolled_back');
+  assert.equal(psql(`SELECT count(*) FROM public.recover_debtors WHERE id = '${cara}';`), '0');
+  assert.equal(psql(`SELECT count(*) FROM public.recover_debtors WHERE id = '${manual.id}';`), '1');
+  assert.equal(psql(`SELECT count(*) FROM public.recover_debtors WHERE id = '${ada}';`), '1');
+  assert.equal(psql(`SELECT merged_into_id FROM public.recover_debtors WHERE id = '${ada}';`), bea);
+  assert.equal(psql(`SELECT count(*) FROM public.recover_debtors WHERE id = '${bea}';`), '1');
+
+  const pageImport = JSON.parse(psql(`
+    SELECT public.recover_import_commit(1, 'owner', jsonb_build_object(
+      'creditor_id','${creditor.id}','mandate_id','${mandate.id}','source','csv','file_name','page.csv',
+      'file_sha256','${sha('5')}','is_demo', false
+    ), (
+      SELECT jsonb_agg(jsonb_build_object(
+        'creditor_account_ref', 'PAGE-' || lpad(g::text, 3, '0'),
+        'display_name', 'Page ' || g,
+        'principal_cents', 1,
+        'original_cents', 1
+      ))
+      FROM generate_series(1, 60) g
+    ));
+  `)) as { code: string; created: number };
+  assert.equal(pageImport.code, 'imported');
+  assert.equal(pageImport.created, 60);
+  const pageIds = psql(`SELECT json_agg(id) FROM public.recover_accounts WHERE company_id = 1 AND creditor_account_ref LIKE 'PAGE-%';`);
+  const pageAssign = JSON.parse(psql(`
+    SELECT public.recover_bulk_assign(1, 'owner', '${pageIds}'::jsonb, '${staffA}', NULL, '2026-06-01');
+  `)) as { ok: boolean; count: number };
+  assert.equal(pageAssign.ok, true);
+  assert.equal(pageAssign.count, 60);
+  const firstPage = psql(`
+    SELECT count(*) FROM public.recover_accounts_for_agent(1, '${staffA}', 50, NULL, NULL, NULL, 'PAGE-');
+  `);
+  assert.equal(firstPage, '50');
+  const cursor = psql(`
+    SELECT id::text || '|' || placed_at::text
+    FROM public.recover_accounts_for_agent(1, '${staffA}', 50, NULL, NULL, NULL, 'PAGE-')
+    ORDER BY placed_at ASC, id ASC
+    LIMIT 1;
+  `);
+  const [cursorId, cursorAt] = cursor.split('|');
+  assert.equal(
+    psql(`
+      SELECT count(*) FROM public.recover_accounts_for_agent(
+        1, '${staffA}', 50, '${cursorAt}'::timestamptz, NULL, NULL, 'PAGE-'
+      );
+    `),
+    '0'
+  );
+  assert.equal(
+    psql(`
+      SELECT count(*) FROM public.recover_accounts_for_agent(
+        1, '${staffA}', 50, '${cursorAt}'::timestamptz, NULL, '${cursorId}'::uuid, 'PAGE-'
+      );
+    `),
+    '10'
+  );
 
   // demo lifecycle on company 2, which has no real accounts
   psql(`SELECT public.recover_desk_commit(2, 'owner', 'set_real_data_enabled', 'w', '{"enabled":true}'::jsonb);`);

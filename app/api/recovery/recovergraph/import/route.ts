@@ -3,6 +3,7 @@ import { requireCompanyPermission } from '@/lib/auth/api-auth';
 import { getSupabaseServer } from '@/lib/supabase/server-client';
 import { harbourBookPayload } from '@/lib/recovery/harbour-seed';
 import { fileSha256, parseBookCsv, suggestMapping, validateBook } from '@/lib/recovery/import-book';
+import { sastToday } from '@/lib/recovery/normalise';
 import { resolveMemberCompany } from '@/lib/recovery/member-company';
 import { companyRecovergraphEnabled, isMigrationPending, loadRecoverDesk, MigrationPendingError } from '@/lib/recovery/recovergraph-db';
 import { encryptId } from '@/lib/recovery/pii-crypto';
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
       const parsed = parseBookCsv(String(body.csv || ''));
       if (!parsed.ok) return json({ ready: true, errors: [{ row: 0, field: 'file', code: parsed.code }], summary: { will_create: 0, already_placed: 0, errors: 1, warnings: 0 } });
       const mapping = (body.mapping && typeof body.mapping === 'object' ? body.mapping : suggestMapping(parsed.headers)) as Record<string, string>;
-      const result = validateBook(parsed, mapping, { today: new Date().toISOString().slice(0, 10) });
+      const result = validateBook(parsed, mapping, { today: sastToday() });
       const sha = await fileSha256(String(body.csv || ''));
       return json({
         ready: true,
@@ -112,8 +113,27 @@ export async function POST(request: NextRequest) {
     const csv = String(body.csv || '');
     const parsed = parseBookCsv(csv);
     if (!parsed.ok) return json({ error: 'That file could not be read.' }, 400);
+    const creditorId = String(body.creditor_id || '');
+    const mandateId = String(body.mandate_id || '');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(creditorId)) {
+      return json({ error: 'Choose a creditor.' }, 400);
+    }
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(mandateId)) {
+      return json({ error: 'Choose an active mandate.' }, 400);
+    }
+    const sha = await fileSha256(csv);
+    if (String(body.dry_sha || '') !== sha) {
+      return json({ error: 'Run a dry run on this file before placing it.' }, 400);
+    }
     const mapping = (body.mapping && typeof body.mapping === 'object' ? body.mapping : suggestMapping(parsed.headers)) as Record<string, string>;
-    const validated = validateBook(parsed, mapping, { today: new Date().toISOString().slice(0, 10) });
+    const validated = validateBook(parsed, mapping, { today: sastToday() });
+    if (validated.errors.length > 0 || validated.rows.length === 0) {
+      return json({
+        error: 'The dry run found rows that cannot be placed.',
+        errors: validated.errors,
+        summary: validated.summary,
+      }, 400);
+    }
     if (validated.rows.some((row) => row.id_plain)) {
       const probe = encryptId('configured');
       if (!probe.ok) return json({ ready: false, reason: 'pii_not_configured' });
@@ -158,11 +178,11 @@ export async function POST(request: NextRequest) {
       p_company_id: member.member.companyId,
       p_actor_id: gate.userId,
       p_batch: {
-        creditor_id: body.creditor_id,
-        mandate_id: body.mandate_id,
+        creditor_id: creditorId,
+        mandate_id: mandateId,
         source: 'csv',
         file_name: String(body.file_name || 'book.csv').slice(0, 120),
-        file_sha256: await fileSha256(csv),
+        file_sha256: sha,
         mapping,
         is_demo: false,
       },

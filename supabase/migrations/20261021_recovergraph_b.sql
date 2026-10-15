@@ -163,6 +163,7 @@ CREATE TABLE IF NOT EXISTS public.recover_debtors (
   status text NOT NULL DEFAULT 'active',
   merged_into_id uuid,
   is_demo boolean NOT NULL DEFAULT false,
+  source_batch_id uuid,
   created_at timestamptz NOT NULL DEFAULT pg_catalog.now(),
   updated_at timestamptz NOT NULL DEFAULT pg_catalog.now(),
   CONSTRAINT recover_debtors_kind_check CHECK (kind IN ('person', 'company')),
@@ -222,6 +223,9 @@ CREATE TABLE IF NOT EXISTS public.recover_batches (
   ),
   CONSTRAINT recover_batches_sha_check CHECK (file_sha256 ~ '^[0-9a-f]{64}$')
 );
+
+ALTER TABLE public.recover_debtors
+  ADD COLUMN IF NOT EXISTS source_batch_id uuid;
 
 CREATE INDEX IF NOT EXISTS idx_recover_batches_company
   ON public.recover_batches (company_id, creditor_id, status);
@@ -702,6 +706,7 @@ DECLARE
   v_staff_status text;
   v_today date;
   v_flags jsonb;
+  v_moved uuid[];
   v_balance bigint;
 BEGIN
   IF p_company_id IS NULL OR p_company_id <= 0 OR p_action IS NULL OR p_patch IS NULL
@@ -818,16 +823,34 @@ BEGIN
     IF COALESCE(NULLIF(p_patch->>'programme_type', ''), 'recovery') <> 'recovery' THEN
       RAISE EXCEPTION 'programme' USING ERRCODE = '22023';
     END IF;
-    v_status := COALESCE(NULLIF(p_patch->>'status', ''), 'draft');
+    v_status := NULLIF(p_patch->>'status', '');
     IF NULLIF(p_patch->>'id', '') IS NOT NULL THEN
       v_id := (p_patch->>'id')::uuid;
-      SELECT updated_at INTO v_updated FROM public.recover_mandates
+      SELECT updated_at, status, creditor_id, product_type, nca_regulated
+        INTO v_updated, v_role, v_mandate, v_product, v_nca
+      FROM public.recover_mandates
       WHERE id = v_id AND company_id = p_company_id;
       IF NOT FOUND THEN
         RAISE EXCEPTION 'missing' USING ERRCODE = 'P0002';
       END IF;
       IF v_expected IS NOT NULL AND v_updated IS DISTINCT FROM v_expected THEN
         RAISE EXCEPTION 'conflict' USING ERRCODE = '40001';
+      END IF;
+      IF v_status IS NULL THEN
+        v_status := v_role;
+      END IF;
+      IF EXISTS (
+        SELECT 1 FROM public.recover_accounts
+        WHERE company_id = p_company_id AND mandate_id = v_id
+      ) AND (
+        v_creditor IS DISTINCT FROM v_mandate
+        OR COALESCE(NULLIF(p_patch->>'product_type', ''), v_product) IS DISTINCT FROM v_product
+        OR (
+          p_patch ? 'nca_regulated'
+          AND (p_patch->>'nca_regulated')::boolean IS DISTINCT FROM v_nca
+        )
+      ) THEN
+        RAISE EXCEPTION 'mandate_locked' USING ERRCODE = '22023';
       END IF;
       UPDATE public.recover_mandates SET
         creditor_id = v_creditor,
@@ -852,6 +875,9 @@ BEGIN
         updated_at = pg_catalog.now()
       WHERE id = v_id AND company_id = p_company_id;
     ELSE
+      IF v_status IS NULL THEN
+        v_status := 'draft';
+      END IF;
       INSERT INTO public.recover_mandates (
         company_id, creditor_id, programme_type, product_type, nca_regulated, processing_role,
         authority_to_litigate, bureau_authority, retention_months, start_on, end_on, status,
@@ -1107,6 +1133,9 @@ BEGIN
       IF NOT FOUND OR v_staff_status <> 'active' THEN
         RAISE EXCEPTION 'staff' USING ERRCODE = '22023';
       END IF;
+      IF v_role IS DISTINCT FROM 'collector' THEN
+        RAISE EXCEPTION 'collector' USING ERRCODE = '22023';
+      END IF;
       SELECT operator_type, block_unregistered_assignment INTO v_operator, v_block
       FROM public.recover_workspaces WHERE company_id = p_company_id;
       v_today := COALESCE(NULLIF(p_patch->>'as_of', '')::date, (pg_catalog.now() AT TIME ZONE 'Africa/Johannesburg')::date);
@@ -1278,25 +1307,39 @@ BEGIN
     IF NOT FOUND THEN
       RAISE EXCEPTION 'missing' USING ERRCODE = 'P0002';
     END IF;
+    SELECT COALESCE(array_agg(id), ARRAY[]::uuid[]) INTO v_moved
+    FROM public.recover_accounts
+    WHERE company_id = p_company_id AND debtor_id = v_source;
     UPDATE public.recover_accounts
     SET debtor_id = v_debtor, updated_at = pg_catalog.now()
     WHERE company_id = p_company_id AND debtor_id = v_source;
     UPDATE public.recover_contact_points
     SET debtor_id = v_debtor, updated_at = pg_catalog.now()
     WHERE company_id = p_company_id AND debtor_id = v_source;
+    DELETE FROM public.recover_contact_points c
+    WHERE c.company_id = p_company_id
+      AND c.debtor_id = v_debtor
+      AND EXISTS (
+        SELECT 1 FROM public.recover_contact_points older
+        WHERE older.company_id = c.company_id
+          AND older.debtor_id = c.debtor_id
+          AND older.kind = c.kind
+          AND older.value = c.value
+          AND (older.created_at, older.id) < (c.created_at, c.id)
+      );
     UPDATE public.recover_debtors
     SET status = 'merged', merged_into_id = v_debtor, updated_at = pg_catalog.now()
     WHERE id = v_source AND company_id = p_company_id;
-    FOR v_id IN
-      SELECT id FROM public.recover_accounts
-      WHERE company_id = p_company_id AND debtor_id = v_debtor
-    LOOP
-      PERFORM public.recover_write_event(
-        p_company_id, v_id, 'merge', p_actor_id,
-        pg_catalog.jsonb_build_object('source_id', v_source, 'target_id', v_debtor),
-        NULL
-      );
-    END LOOP;
+    IF v_moved IS NOT NULL THEN
+      FOREACH v_id IN ARRAY v_moved
+      LOOP
+        PERFORM public.recover_write_event(
+          p_company_id, v_id, 'merge', p_actor_id,
+          pg_catalog.jsonb_build_object('source_id', v_source, 'target_id', v_debtor),
+          NULL
+        );
+      END LOOP;
+    END IF;
     PERFORM public.recover_write_audit(
       p_company_id, p_actor_id, p_action, v_debtor::text,
       pg_catalog.jsonb_build_object('source_id', v_source, 'target_id', v_debtor)
@@ -1309,6 +1352,10 @@ BEGIN
     IF NOT FOUND THEN
       RAISE EXCEPTION 'missing' USING ERRCODE = 'P0002';
     END IF;
+    v_reason := pg_catalog.btrim(COALESCE(p_patch->>'reason', ''));
+    IF v_reason = '' OR char_length(v_reason) > 200 THEN
+      RAISE EXCEPTION 'reason' USING ERRCODE = '22023';
+    END IF;
     IF (
       SELECT count(*) FROM public.recover_account_events
       WHERE company_id = p_company_id
@@ -1320,7 +1367,7 @@ BEGIN
     END IF;
     PERFORM public.recover_write_event(
       p_company_id, v_id, 'view_sensitive', p_actor_id,
-      pg_catalog.jsonb_build_object('account_id', v_id),
+      pg_catalog.jsonb_build_object('account_id', v_id, 'reason', v_reason),
       NULL
     );
     PERFORM public.recover_write_audit(
@@ -1438,6 +1485,10 @@ BEGIN
     IF v_row ? 'id_number' OR v_row ? 'passport' THEN
       RAISE EXCEPTION 'plaintext_id' USING ERRCODE = '22023';
     END IF;
+    IF NULLIF(v_row->>'id_type', '') IS NOT NULL
+       AND v_row->>'id_type' NOT IN ('sa_id', 'passport', 'company_reg', 'other') THEN
+      RAISE EXCEPTION 'row_invalid' USING ERRCODE = '22023';
+    END IF;
     IF COALESCE(v_row->>'principal_cents', '') !~ '^[0-9]+$'
        OR COALESCE(v_row->>'interest_cents', '0') !~ '^[0-9]+$'
        OR COALESCE(v_row->>'fees_cents', '0') !~ '^[0-9]+$'
@@ -1490,7 +1541,7 @@ BEGIN
     IF v_debtor IS NULL THEN
       INSERT INTO public.recover_debtors (
         company_id, kind, display_name, first_names, last_name, company_name, id_type,
-        id_number_enc, id_hash, id_last4, id_key_version, dob, language, status, is_demo, updated_at
+        id_number_enc, id_hash, id_last4, id_key_version, dob, language, status, is_demo, source_batch_id, updated_at
       ) VALUES (
         p_company_id,
         COALESCE(NULLIF(v_row->>'kind', ''), 'person'),
@@ -1507,6 +1558,7 @@ BEGIN
         NULLIF(v_row->>'language', ''),
         'active',
         v_demo,
+        v_batch,
         pg_catalog.now()
       ) RETURNING id INTO v_debtor;
     END IF;
@@ -1650,6 +1702,7 @@ BEGIN
   DELETE FROM public.recover_contact_points WHERE company_id = p_company_id AND batch_id = p_batch_id;
   DELETE FROM public.recover_debtors d
   WHERE d.company_id = p_company_id
+    AND d.source_batch_id = p_batch_id
     AND NOT EXISTS (SELECT 1 FROM public.recover_accounts a WHERE a.debtor_id = d.id)
     AND NOT EXISTS (SELECT 1 FROM public.recover_contact_points c WHERE c.debtor_id = d.id);
   UPDATE public.recover_batches
@@ -1810,12 +1863,16 @@ BEGIN
 END;
 $$;
 
+DROP FUNCTION IF EXISTS public.recover_accounts_for_agent(bigint, uuid, integer, timestamptz, text);
+
 CREATE OR REPLACE FUNCTION public.recover_accounts_for_agent(
   p_company_id bigint,
   p_staff_id uuid,
   p_limit integer,
   p_after timestamptz,
-  p_state text
+  p_state text,
+  p_after_id uuid DEFAULT NULL,
+  p_search text DEFAULT NULL
 ) RETURNS TABLE (
   id uuid,
   ref text,
@@ -1841,10 +1898,12 @@ AS $$
 DECLARE
   v_team uuid;
   v_limit integer;
+  v_search text;
 BEGIN
   IF p_company_id IS NULL OR p_staff_id IS NULL THEN
     RAISE EXCEPTION 'closed' USING ERRCODE = '22023';
   END IF;
+  v_search := NULLIF(replace(replace(COALESCE(p_search, ''), '%', ''), '_', ''), '');
   SELECT s.team_id INTO v_team
   FROM public.recover_staff s
   WHERE s.id = p_staff_id AND s.company_id = p_company_id AND s.status = 'active';
@@ -1863,8 +1922,18 @@ BEGIN
   WHERE a.company_id = p_company_id
     AND (a.assigned_to = p_staff_id OR (v_team IS NOT NULL AND a.team_id = v_team))
     AND (p_state IS NULL OR p_state = '' OR a.state = p_state)
-    AND (p_after IS NULL OR a.placed_at < p_after)
-  ORDER BY a.placed_at DESC
+    AND (
+      p_after IS NULL
+      OR a.placed_at < p_after
+      OR (a.placed_at = p_after AND p_after_id IS NOT NULL AND a.id < p_after_id)
+    )
+    AND (
+      v_search IS NULL
+      OR a.ref ILIKE '%' || v_search || '%'
+      OR a.creditor_account_ref ILIKE '%' || v_search || '%'
+      OR d.display_name ILIKE '%' || v_search || '%'
+    )
+  ORDER BY a.placed_at DESC, a.id DESC
   LIMIT v_limit;
 END;
 $$;
@@ -2093,3 +2162,14 @@ END
 $lock$;
 
 REVOKE ALL ON TABLE public.recover_erase_guard FROM PUBLIC, anon, authenticated, recover_portal, service_role;
+
+DO $narrow$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    EXECUTE 'REVOKE ALL ON FUNCTION public.recover_erase_company(bigint) FROM service_role';
+    EXECUTE 'REVOKE ALL ON FUNCTION public.recover_open_erase_token() FROM service_role';
+    EXECUTE 'REVOKE ALL ON FUNCTION public.recover_write_audit(bigint, text, text, text, jsonb) FROM service_role';
+    EXECUTE 'REVOKE ALL ON FUNCTION public.recover_write_event(bigint, uuid, text, text, jsonb, text) FROM service_role';
+  END IF;
+END
+$narrow$;

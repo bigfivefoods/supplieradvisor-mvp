@@ -36,7 +36,7 @@ export type MemoryAccount = {
   debtor_id: string;
   contacts: MemoryContact[];
   notes: { at: string; text: string }[];
-  events: { type: string; at: string; label: string }[];
+  events: { id?: string; type: string; at: string; label: string; note?: string }[];
   nca_regulated: boolean;
   product_type: string;
 };

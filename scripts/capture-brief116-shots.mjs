@@ -93,6 +93,13 @@ for (const [width, height] of [
   await page.getByRole('button', { name: 'Run dry run' }).click();
   await page.getByTestId('recover-dry-errors').waitFor();
   await save(`${width}x${height}-import-dry-run.png`);
+  await ready('/preview/recovergraph/imports?reset=1&role=owner');
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByTestId('recover-csv').fill('account number,debtor name,principal\nDEMO-900,Sample Debtor,1234.56\n');
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('button', { name: 'Run dry run' }).click();
+  await page.getByTestId('recover-dry-errors').waitFor();
   await page.getByTestId('recover-commit').click();
   await page.getByTestId('recover-commit-result').waitFor();
   await save(`${width}x${height}-import-committed.png`);
@@ -120,6 +127,34 @@ await save('1280x800-tradeadvisor-preview.png');
 await page.goto(`${base}/preview/constructiongraph`, { waitUntil: 'domcontentloaded' });
 await page.waitForTimeout(800);
 await save('1280x800-constructionadvisor-preview.png');
+
+for (const [width, height, tag] of [
+  [1280, 900, '1280'],
+  [768, 1024, '768'],
+  [375, 812, '375'],
+]) {
+  await page.setViewportSize({ width, height });
+  const views = [
+    ['creditors', '/preview/recovergraph/creditors?book=harbour&role=owner'],
+    ['mandates', '/preview/recovergraph/mandates?book=harbour&role=owner'],
+    ['accounts', '/preview/recovergraph/accounts?book=harbour&role=owner'],
+    ['imports', '/preview/recovergraph/imports?book=harbour&role=owner'],
+    ['team', '/preview/recovergraph/team?book=harbour&role=owner'],
+    ['account', '/preview/recovergraph/account?book=harbour&role=owner'],
+  ];
+  for (const [name, url] of views) {
+    await ready(url);
+    if (name === 'team') {
+      await page.getByTestId('recover-staff-table').scrollIntoViewIfNeeded();
+    }
+    if (name === 'account') {
+      await page.getByTestId('recover-stop-flag').scrollIntoViewIfNeeded();
+    }
+    const wide = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
+    if (wide) throw new Error(`${tag}-${name} overflows horizontally`);
+    await save(`${tag}-${name}.png`);
+  }
+}
 
 await browser.close();
 console.log('shots written', out);

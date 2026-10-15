@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCompanyPermission } from '@/lib/auth/api-auth';
 import { loadAccountsForAgent } from '@/lib/recovery/agent-read';
-import { listBookAccounts, loadDebtorContacts, revealAccountId } from '@/lib/recovery/book-db';
+import { listBookAccounts, listDuplicateDebtors, loadAccountEvents, loadDebtorContacts, revealAccountId } from '@/lib/recovery/book-db';
 import { resolveMemberCompany } from '@/lib/recovery/member-company';
 import { companyRecovergraphEnabled, loadRecoverDesk, MigrationPendingError } from '@/lib/recovery/recovergraph-db';
 import { allowedBookOps, capabilitiesFor, resolveRecoverRole } from '@/lib/recovery/roles';
@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
     if (!caps.canSeeAccountRows && role !== 'viewer') return json({ error: 'You do not have access to do that.' }, 403);
     const params = new URL(request.url).searchParams;
     const limit = Math.min(50, Math.max(1, Number(params.get('limit') || 50)));
+    const accountId = params.get('id');
     if (role === 'viewer') {
       return json({ ready: true, counts: { placed: load.book?.placedCount ?? 0 }, rows: [] });
     }
@@ -44,7 +45,9 @@ export async function GET(request: NextRequest) {
         staffId: load.self.id,
         limit,
         after: params.get('after'),
+        afterId: params.get('after_id'),
         state: params.get('state'),
+        search: params.get('q'),
       });
       if (!scoped.ready) return json(scoped);
       const scopedRows = scoped.rows as Record<string, unknown>[];
@@ -76,22 +79,29 @@ export async function GET(request: NextRequest) {
           caps
         )
       );
-      return json({ ready: true, rows });
+      const last = rows[rows.length - 1] as { placed_at?: string; id?: string } | undefined;
+      const events = accountId && rows[0] ? await loadAccountEvents(member.member.companyId, String(rows[0].id), Boolean(caps.canAddNote)) : [];
+      if (events && typeof events === 'object' && 'ready' in events && events.ready === false) return json(events);
+      return json({
+        ready: true,
+        rows: accountId ? rows.map((row) => ({ ...row, events: Array.isArray(events) ? events : [] })) : rows,
+        next: !accountId && rows.length === limit && last?.placed_at && last.id ? { placed_at: last.placed_at, id: last.id } : null,
+      });
     }
     const listed = await listBookAccounts({
       companyId: member.member.companyId,
       limit,
       after: params.get('after'),
+      afterId: params.get('after_id'),
       state: params.get('state'),
       creditorId: params.get('creditor'),
       batchId: params.get('batch'),
       assigned: params.get('assigned') === 'yes' || params.get('assigned') === 'no' ? (params.get('assigned') as 'yes' | 'no') : null,
       search: params.get('q'),
+      accountId,
     });
     if (!listed.ready) return json(listed);
-    return json({
-      ready: true,
-      rows: (listed.rows as Record<string, unknown>[]).map((row) =>
+    const rows = (listed.rows as Record<string, unknown>[]).map((row) =>
         serialiseAccount(
           {
             id: String(row.id),
@@ -112,11 +122,27 @@ export async function GET(request: NextRequest) {
             costs_cents: Number(row.costs_cents || 0),
             adjustment_cents: Number(row.adjustment_cents || 0),
             original_cents: Number(row.original_cents || 0),
+            placed_at: row.placed_at ? String(row.placed_at) : undefined,
           },
           role,
           caps
         )
-      ),
+    );
+    const focus = accountId ? rows[0] : null;
+    const events = focus ? await loadAccountEvents(member.member.companyId, String(focus.id), Boolean(caps.canAddNote)) : [];
+    if (events && typeof events === 'object' && 'ready' in events && (events as { ready?: boolean }).ready === false) {
+      return json(events);
+    }
+    const duplicates = caps.canMutateAccounts ? await listDuplicateDebtors(member.member.companyId) : [];
+    if (duplicates && typeof duplicates === 'object' && 'ready' in duplicates && (duplicates as { ready?: boolean }).ready === false) {
+      return json(duplicates);
+    }
+    const last = rows[rows.length - 1] as { placed_at?: string; id?: string } | undefined;
+    return json({
+      ready: true,
+      rows: focus ? [{ ...focus, events: Array.isArray(events) ? events : [] }] : rows,
+      duplicates: Array.isArray(duplicates) ? duplicates : [],
+      next: !accountId && rows.length === limit && last?.placed_at && last.id ? { placed_at: last.placed_at, id: last.id } : null,
     });
   } catch (error) {
     if (error instanceof MigrationPendingError) return json({ ready: false, reason: 'migration_pending', feature: 'accounts' });
@@ -140,6 +166,8 @@ export async function POST(request: NextRequest) {
     if (rawText.length > 16_000) return json({ error: 'Request could not be read.' }, 400);
     const body = JSON.parse(rawText) as { op?: string; accountId?: string; reason?: string };
     if (body.op !== 'account.reveal_id') return json({ error: 'That action is not available.' }, 400);
+    const reason = String(body.reason || '').trim();
+    if (!reason || reason.length > 200) return json({ error: 'A reason is required.' }, 400);
     const load = await loadRecoverDesk(member.member.companyId, { userId: gate.userId, email: member.member.email });
     const role = resolveRecoverRole(gate.role, load.self);
     if (!allowedBookOps(role).has('account.reveal_id')) return json({ error: 'You do not have access to do that.' }, 403);
@@ -148,7 +176,7 @@ export async function POST(request: NextRequest) {
       companyId: member.member.companyId,
       actorId: gate.userId,
       accountId: String(body.accountId || ''),
-      reason: String(body.reason || ''),
+      reason,
     });
     return json({ ready: true, id_number: revealed.id_number });
   } catch (error) {

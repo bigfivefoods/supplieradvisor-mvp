@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Shield, Users } from 'lucide-react';
 import { RecoverPendingBanner } from './RecoverChrome';
 import { ENABLE_REAL_DATA_PHRASE } from '@/lib/recovery/validate';
+import { sastToday } from '@/lib/recovery/normalise';
 import { staffRoleLabel } from '@/lib/recovery/roles';
 import type {
   OperatorType,
@@ -117,7 +118,7 @@ export function RecoverTeam() {
       {loading || !desk ? (
         <div className="h-64 animate-pulse rounded-3xl bg-slate-100 motion-reduce:animate-none" aria-busy="true" />
       ) : (
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid gap-4 min-[1440px]:grid-cols-2">
           <RecoverPanel title="Workspace">
             <form
               data-testid="recover-team-form"
@@ -406,7 +407,7 @@ function StaffTable({
     );
   }
   return (
-    <div data-testid="recover-staff-table" className="overflow-hidden rounded-2xl border border-[#e2e8f0]">
+    <div data-testid="recover-staff-table" className="overflow-x-auto rounded-2xl border border-[#e2e8f0]">
       <ul className="grid gap-2 p-3 md:hidden">
         {rows.map((row) => (
           <li key={row.id} className="rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
@@ -474,7 +475,7 @@ function StaffTable({
 
 function RegistrationChip({ row }: { row: RecoverStaff }) {
   if (row.role !== 'collector') return null;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = sastToday();
   const missing = !row.cfdc_registration_no;
   const expired = Boolean(row.registration_expires_on && row.registration_expires_on < today);
   if (!missing && !expired) return null;

@@ -60,13 +60,48 @@ export function useLiveBatches() {
   return { phase, book, reload: load };
 }
 
-export function useLiveAccounts() {
+export type AccountQuery = {
+  q?: string;
+  state?: string;
+  assigned?: string;
+  after?: string;
+  afterId?: string;
+  id?: string;
+};
+
+export type AccountCursor = { placed_at: string; id: string } | null;
+export type DuplicateGroup = {
+  name: string;
+  debtors: { id: string; display_name: string; id_last4: string | null }[];
+};
+
+export function useLiveAccounts(query: AccountQuery = {}) {
+  const q = query.q || '';
+  const state = query.state || '';
+  const assigned = query.assigned || '';
+  const after = query.after || '';
+  const afterId = query.afterId || '';
+  const id = query.id || '';
   const [phase, setPhase] = useState<BookPhase>('loading');
   const [book, setBook] = useState<MemoryBook>(emptyMemory());
   const [placedCount, setPlacedCount] = useState<number | undefined>(undefined);
+  const [next, setNext] = useState<AccountCursor>(null);
+  const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([]);
   const load = useCallback(async () => {
     try {
-      const response = await fetch('/api/recovery/recovergraph/accounts', { headers: { accept: 'application/json' }, cache: 'no-store' });
+      const params = new URLSearchParams();
+      if (q) params.set('q', q);
+      if (state) params.set('state', state);
+      if (assigned) params.set('assigned', assigned);
+      if (after && afterId) {
+        params.set('after', after);
+        params.set('after_id', afterId);
+      }
+      if (id) params.set('id', id);
+      const response = await fetch(`/api/recovery/recovergraph/accounts?${params.toString()}`, {
+        headers: { accept: 'application/json' },
+        cache: 'no-store',
+      });
       if (!response.ok) {
         setPhase('error');
         return;
@@ -76,6 +111,8 @@ export function useLiveAccounts() {
         reason?: string;
         rows?: Record<string, unknown>[];
         counts?: { placed?: number };
+        next?: AccountCursor;
+        duplicates?: DuplicateGroup[];
       };
       if (body.reason === 'migration_pending') {
         setPhase('pending');
@@ -88,17 +125,19 @@ export function useLiveAccounts() {
       const rows = Array.isArray(body.rows) ? body.rows : [];
       setBook(rowsToBook(rows));
       if (typeof body.counts?.placed === 'number') setPlacedCount(body.counts.placed);
+      setNext(body.next?.placed_at && body.next.id ? body.next : null);
+      setDuplicates(Array.isArray(body.duplicates) ? body.duplicates : []);
       setPhase('ready');
     } catch {
       setPhase('error');
     }
-  }, []);
+  }, [q, state, assigned, after, afterId, id]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  return { phase, book, placedCount, reload: load };
+  return { phase, book, placedCount, next, duplicates, reload: load };
 }
 
 function rowsToBook(rows: Record<string, unknown>[]): MemoryBook {
@@ -134,8 +173,20 @@ function rowsToBook(rows: Record<string, unknown>[]): MemoryBook {
           s129_delivery_method: null,
         }))
       : [],
-    notes: [],
-    events: [{ type: 'import', at: String(row.placed_at || ''), label: 'Imported' }],
+    notes: Array.isArray(row.events)
+      ? (row.events as { type?: string; at?: string; note?: string }[])
+          .filter((event) => event.type === 'note' && event.note)
+          .map((event) => ({ at: String(event.at || ''), text: String(event.note || '') }))
+      : [],
+    events: Array.isArray(row.events)
+      ? (row.events as { id?: string; type?: string; at?: string; label?: string; note?: string }[]).map((event) => ({
+          id: event.id ? String(event.id) : undefined,
+          type: String(event.type || ''),
+          at: String(event.at || ''),
+          label: String(event.label || 'Recorded'),
+          note: event.note ? String(event.note) : '',
+        }))
+      : [],
     nca_regulated: false,
     product_type: '',
   }));

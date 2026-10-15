@@ -4,18 +4,26 @@
 import assert from 'node:assert/strict';
 import { normaliseEmail, normaliseName, normalisePhoneZA, parseAmountCents, parseDateStrict } from './normalise';
 
-assert.equal(normalisePhoneZA('0821234567').ok && normalisePhoneZA('0821234567').value, '+27821234567');
-assert.equal(normalisePhoneZA('27821234567').ok && normalisePhoneZA('27821234567').value, '+27821234567');
-assert.equal(normalisePhoneZA('+27 82-123-4567').ok && normalisePhoneZA('+27 82-123-4567').value, '+27821234567');
-assert.equal(normalisePhoneZA('010 000 0001').ok && normalisePhoneZA('010 000 0001').value, '+27100000001');
+const phoneA = normalisePhoneZA('0821234567');
+const phoneB = normalisePhoneZA('27821234567');
+const phoneC = normalisePhoneZA('+27 82-123-4567');
+const phoneD = normalisePhoneZA('010 000 0001');
+assert.equal(phoneA.ok && phoneA.value, '+27821234567');
+assert.equal(phoneB.ok && phoneB.value, '+27821234567');
+assert.equal(phoneC.ok && phoneC.value, '+27821234567');
+assert.equal(phoneD.ok && phoneD.value, '+27100000001');
 assert.equal(normalisePhoneZA('not-a-phone').ok, false);
-assert.equal(normaliseEmail(' Ada@Example.com ').ok && normaliseEmail(' Ada@Example.com ').value, 'ada@example.com');
+const email = normaliseEmail(' Ada@Example.com ');
+assert.equal(email.ok && email.value, 'ada@example.com');
 assert.equal(normaliseEmail('ada').ok, false);
 assert.equal(normaliseName('  Élsa   Botha '), 'elsa botha');
 
-assert.equal(parseAmountCents('R 1 234,56').ok && parseAmountCents('R 1 234,56').cents, 123456);
-assert.equal(parseAmountCents('1,234.56').ok && parseAmountCents('1,234.56').cents, 123456);
-assert.equal(parseAmountCents('1234.56').ok && parseAmountCents('1234.56').cents, 123456);
+const centsA = parseAmountCents('R 1 234,56');
+const centsB = parseAmountCents('1,234.56');
+const centsC = parseAmountCents('1234.56');
+assert.equal(centsA.ok && centsA.cents, 123456);
+assert.equal(centsB.ok && centsB.cents, 123456);
+assert.equal(centsC.ok && centsC.cents, 123456);
 assert.equal(parseAmountCents('-1').ok, false);
 assert.equal(parseAmountCents('NaN').ok, false);
 assert.equal(parseAmountCents('1e6').ok, false);

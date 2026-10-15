@@ -1,5 +1,5 @@
 /**
- * Run: npx --yes tsx lib/recovery/brief116-pii.test.ts
+ * Run: NODE_OPTIONS='--conditions=react-server' npx --yes tsx lib/recovery/brief116-pii.test.ts
  */
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';

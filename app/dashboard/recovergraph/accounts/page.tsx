@@ -1,16 +1,21 @@
 'use client';
 
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { AccountsView } from '@/components/recovery/book-views';
 import { useLiveAccounts } from '@/components/recovery/live-book';
 import { useRecoverDesk } from '@/components/recovery/useRecoverDesk';
 import { capabilitiesFor } from '@/lib/recovery/roles';
 
 export default function RecoverAccountsPage() {
+  const router = useRouter();
   const { desk, loading, error, save } = useRecoverDesk();
-  const live = useLiveAccounts();
+  const [query, setQuery] = useState({ q: '', state: '', assigned: '', after: '', afterId: '' });
+  const live = useLiveAccounts(query);
   const phase = loading ? 'loading' : error ? 'error' : live.phase;
   const role = desk?.role || 'viewer';
   const canAssign = role === 'owner' || role === 'manager';
+  const collectors = (desk?.staff || []).filter((row) => row.status === 'active' && row.role === 'collector');
   return (
     <AccountsView
       phase={phase}
@@ -18,7 +23,18 @@ export default function RecoverAccountsPage() {
       role={role}
       caps={desk?.capabilities || capabilitiesFor(role)}
       placedCount={live.placedCount}
-      assignees={(desk?.staff || []).filter((row) => row.status === 'active').map((row) => ({ id: row.id, label: row.email }))}
+      assignees={collectors.map((row) => ({ id: row.id, label: row.email }))}
+      serverQuery
+      duplicates={live.duplicates}
+      nextCursor={live.next}
+      onQuery={(next) => setQuery({
+        q: next.q,
+        state: next.state,
+        assigned: next.assigned,
+        after: next.after || '',
+        afterId: next.afterId || '',
+      })}
+      onOpen={(id) => router.push(`/dashboard/recovergraph/accounts/${id}`)}
       onBulkAssign={
         canAssign
           ? async (ids, staffId) => {

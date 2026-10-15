@@ -217,7 +217,12 @@ export function validateBook(
       contacts.push({ kind: 'address', value: address.slice(0, 320), source: 'import', quality: 'unknown', do_not_contact: false, s129_delivery_method: s129 });
     }
     let idPlain: string | null = null;
+    const idTypes = new Set(['', 'sa_id', 'passport', 'company_reg', 'other']);
     let idType = cell(raw, 'id_type') as ValidBookRow['id_type'];
+    if (!idTypes.has(idType)) {
+      errors.push({ row, field: 'id_type', code: 'invalid_id_type' });
+      return;
+    }
     const idRaw = cell(raw, 'id_number');
     if (idRaw) {
       if (!idType) idType = 'sa_id';

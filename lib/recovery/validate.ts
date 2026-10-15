@@ -269,6 +269,11 @@ export function validateBookOp(raw: unknown): ValidationOk<RecoverBookOp> | Vali
   delete clean.companyId;
   const blocked = rejectPlainId(clean);
   if (blocked) return blocked;
+  if (op.startsWith('account.') && op !== 'account.create') {
+    const id = text(clean.id, 80);
+    if (!UUID.test(id)) return { ok: false, error: 'Choose an account.' };
+    clean.id = id;
+  }
   if (op === 'account.set_flag' || op === 'account.clear_flag') {
     const flag = text(clean.flag, 40);
     if (!FLAGS.includes(flag as StopFlag)) return { ok: false, error: 'Choose a recorded flag.' };
@@ -320,6 +325,9 @@ export function validateBookOp(raw: unknown): ValidationOk<RecoverBookOp> | Vali
     } else {
       delete clean.customer_id;
     }
+    if (clean.id != null && String(clean.id) !== '' && !UUID.test(String(clean.id))) {
+      return { ok: false, error: 'Choose a creditor.' };
+    }
     if (clean.contact_email) {
       const email = emailOf(clean.contact_email);
       if (typeof email !== 'string') return email;
@@ -327,6 +335,12 @@ export function validateBookOp(raw: unknown): ValidationOk<RecoverBookOp> | Vali
     }
   }
   if (op === 'mandate.upsert') {
+    const creditorId = text(clean.creditor_id, 80);
+    if (!UUID.test(creditorId)) return { ok: false, error: 'Choose a creditor.' };
+    if (clean.id != null && String(clean.id) !== '' && !UUID.test(String(clean.id))) {
+      return { ok: false, error: 'Choose a mandate.' };
+    }
+    clean.creditor_id = creditorId;
     if (!text(clean.creditor_id, 80)) return { ok: false, error: 'Choose a creditor.' };
     if (!text(clean.product_type, 40) || !PRODUCTS.includes(text(clean.product_type, 40) as ProductType)) {
       return { ok: false, error: 'Choose a product type.' };
@@ -363,7 +377,21 @@ export function validateBookOp(raw: unknown): ValidationOk<RecoverBookOp> | Vali
 }
 
 export type DeskExtra =
-  | Extract<RecoverBookOp, { op: 'creditor.upsert' | 'mandate.upsert' | 'account.assign' | 'debtor.merge' }>
+  | Extract<
+      RecoverBookOp,
+      {
+        op:
+          | 'creditor.upsert'
+          | 'mandate.upsert'
+          | 'account.assign'
+          | 'account.set_flag'
+          | 'account.clear_flag'
+          | 'account.add_note'
+          | 'account.recall'
+          | 'account.adjust'
+          | 'debtor.merge';
+      }
+    >
   | { op: 'staff.set_expiry'; staff_id: string; email: string; expires_on: string | null }
   | { op: 'account.bulk_assign'; ids: string[]; staff_id: string | null; team_id: string | null }
   | { op: 'workspace.set_assignment_block'; enabled: boolean };
@@ -378,7 +406,17 @@ export function validateDeskExtra(
   if (op === 'workspace.set_assignment_block') {
     return { ok: true, value: { op, enabled: Boolean((raw as { enabled?: unknown }).enabled) } };
   }
-  if (op === 'creditor.upsert' || op === 'mandate.upsert' || op === 'account.assign' || op === 'debtor.merge') {
+  if (
+    op === 'creditor.upsert' ||
+    op === 'mandate.upsert' ||
+    op === 'account.assign' ||
+    op === 'account.set_flag' ||
+    op === 'account.clear_flag' ||
+    op === 'account.add_note' ||
+    op === 'account.recall' ||
+    op === 'account.adjust' ||
+    op === 'debtor.merge'
+  ) {
     const book = validateBookOp(raw);
     if (!book.ok) return { ...book, attempted: true };
     return { ok: true, value: book.value as DeskExtra };

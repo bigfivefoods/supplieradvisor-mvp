@@ -3,6 +3,16 @@ export const AMOUNT_GUARD_CENTS = 100_000_000_000;
 
 const EARLIEST = '1990-01-01';
 
+/** Calendar date in South Africa, not UTC. */
+export function sastToday(now = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Johannesburg',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+}
+
 export function normalisePhoneZA(
   input: string
 ): { ok: true; value: string } | { ok: false; reason: 'empty' | 'junk' } {
@@ -85,7 +95,7 @@ export function parseDateStrict(
     return { ok: false, reason: 'calendar' };
   }
   if (options?.purpose === 'default_date') {
-    const today = options.today || new Date().toISOString().slice(0, 10);
+    const today = options.today || sastToday();
     if (iso > today) return { ok: false, reason: 'future' };
     if (iso < EARLIEST) return { ok: false, reason: 'early' };
   }

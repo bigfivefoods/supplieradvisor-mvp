@@ -82,17 +82,38 @@ export async function prepareDebtorPatch(patch: Record<string, unknown>): Promis
   return next;
 }
 
+const ACCOUNT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PLACED_AT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+
 export async function listBookAccounts(input: {
   companyId: number;
   limit: number;
   after: string | null;
+  afterId: string | null;
   state: string | null;
   creditorId: string | null;
   batchId: string | null;
   assigned: 'yes' | 'no' | null;
   search: string | null;
+  accountId?: string | null;
 }) {
   const supabase = getSupabaseServer();
+  const needle = String(input.search || '').replace(/[%_\\,()]/g, '').trim().slice(0, 80);
+  let debtorMatch: string[] = [];
+  if (needle) {
+    const found = await supabase
+      .from('recover_debtors')
+      .select('id')
+      .eq('company_id', input.companyId)
+      .eq('status', 'active')
+      .ilike('display_name', `%${needle}%`)
+      .limit(100);
+    const pendingSearch = readFeatureResult(found.error, 'accounts');
+    if (!pendingSearch.ready) return pendingSearch;
+    debtorMatch = ((found.data || []) as { id?: string }[])
+      .map((row) => String(row.id || ''))
+      .filter((id) => ACCOUNT_UUID.test(id));
+  }
   let query = supabase
     .from('recover_accounts')
     .select(
@@ -100,13 +121,22 @@ export async function listBookAccounts(input: {
     )
     .eq('company_id', input.companyId)
     .order('placed_at', { ascending: false })
+    .order('id', { ascending: false })
     .limit(input.limit);
-  if (input.after) query = query.lt('placed_at', input.after);
+  if (input.after && input.afterId && PLACED_AT.test(input.after) && ACCOUNT_UUID.test(input.afterId)) {
+    query = query.or(`placed_at.lt."${input.after}",and(placed_at.eq."${input.after}",id.lt.${input.afterId})`);
+  }
+  if (needle) {
+    const parts = [`ref.ilike.%${needle}%`, `creditor_account_ref.ilike.%${needle}%`];
+    if (debtorMatch.length) parts.push(`debtor_id.in.(${debtorMatch.join(',')})`);
+    query = query.or(parts.join(','));
+  }
   if (input.state) query = query.eq('state', input.state);
   if (input.creditorId) query = query.eq('creditor_id', input.creditorId);
   if (input.batchId) query = query.eq('batch_id', input.batchId);
   if (input.assigned === 'yes') query = query.not('assigned_to', 'is', null);
   if (input.assigned === 'no') query = query.is('assigned_to', null);
+  if (input.accountId && ACCOUNT_UUID.test(input.accountId)) query = query.eq('id', input.accountId);
   const result = await query;
   const pending = readFeatureResult(result.error, 'accounts');
   if (!pending.ready) return pending;
@@ -141,6 +171,70 @@ export async function listBookAccounts(input: {
       };
     }),
   };
+}
+
+export async function listDuplicateDebtors(companyId: number) {
+  const supabase = getSupabaseServer();
+  const result = await supabase
+    .from('recover_debtors')
+    .select('id, display_name, id_last4')
+    .eq('company_id', companyId)
+    .eq('status', 'active')
+    .limit(400);
+  const pending = readFeatureResult(result.error, 'accounts');
+  if (!pending.ready) return pending;
+  if (result.error) return [];
+  const groups = new Map<string, { id: string; display_name: string; id_last4: string | null }[]>();
+  for (const row of result.data || []) {
+    const name = String(row.display_name || '').trim().toLowerCase();
+    if (!name) continue;
+    const list = groups.get(name) || [];
+    list.push({
+      id: String(row.id),
+      display_name: String(row.display_name || ''),
+      id_last4: row.id_last4 ? String(row.id_last4) : null,
+    });
+    groups.set(name, list);
+  }
+  return [...groups.values()]
+    .filter((group) => group.length > 1)
+    .slice(0, 20)
+    .map((group) => ({
+      name: group[0].display_name,
+      debtors: group.map((row) => ({ id: row.id, display_name: row.display_name, id_last4: row.id_last4 })),
+    }));
+}
+
+const EVENT_LABEL: Record<string, string> = {
+  import: 'Imported',
+  assign: 'Assigned',
+  flag: 'Flag recorded',
+  note: 'Note',
+  recall: 'Recalled',
+  adjust: 'Adjustment',
+  merge: 'Debtor merge',
+  view_sensitive: 'Identity viewed',
+};
+
+export async function loadAccountEvents(companyId: number, accountId: string, includeNotes: boolean) {
+  const supabase = getSupabaseServer();
+  const result = await supabase
+    .from('recover_account_events')
+    .select('id, type, at, note_text')
+    .eq('company_id', companyId)
+    .eq('account_id', accountId)
+    .order('at', { ascending: false })
+    .limit(100);
+  const pending = readFeatureResult(result.error, 'accounts');
+  if (!pending.ready) return pending;
+  if (result.error) return [];
+  return ((result.data || []) as { id?: string; type?: string; at?: string; note_text?: string | null }[]).map((row, index) => ({
+    id: String(row.id || index),
+    type: String(row.type || ''),
+    at: row.at ? String(row.at) : '',
+    label: EVENT_LABEL[String(row.type || '')] || 'Recorded',
+    note: includeNotes && row.type === 'note' ? String(row.note_text || '') : '',
+  }));
 }
 
 export async function loadDebtorContacts(companyId: number, debtorIds: string[]) {
@@ -333,6 +427,10 @@ function calmSql(message: string | undefined): string {
   if (text.includes('plaintext_id')) return 'plaintext_id';
   if (text.includes('already_imported')) return 'already_imported';
   if (/\bname\b/.test(text)) return 'name';
+  if (text.includes('uq_recover_creditors_name')) return 'duplicate_creditor';
+  if (text.includes('uq_recover_creditors_customer')) return 'duplicate_customer';
+  if (text.includes('mandate_locked')) return 'mandate_locked';
+  if (text.includes('collector')) return 'collector';
   if (text.includes('creditor')) return 'creditor';
   if (text.includes('cap')) return 'cap';
   return 'closed';

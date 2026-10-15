@@ -1,3 +1,4 @@
+import 'server-only';
 import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { maskId } from './mask';
 
@@ -43,6 +44,7 @@ export function encryptId(
   if (!trimmed) return { ok: false, code: 'pii_not_configured' };
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', encKey, iv);
+  cipher.setAAD(Buffer.from('recover-id-v1'));
   const ciphertext = Buffer.concat([cipher.update(trimmed, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
   const enc = `v${VERSION}:${iv.toString('base64url')}:${tag.toString('base64url')}:${ciphertext.toString('base64url')}`;
@@ -67,6 +69,7 @@ export function decryptId(enc: string): { ok: true; value: string } | PiiFailure
     const data = Buffer.from(parts[3], 'base64url');
     if (iv.length !== 12 || tag.length !== 16) return { ok: false, code: 'decrypt_failed' };
     const decipher = createDecipheriv('aes-256-gcm', encKey, iv);
+    decipher.setAAD(Buffer.from('recover-id-v1'));
     decipher.setAuthTag(tag);
     const value = Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
     return { ok: true, value };

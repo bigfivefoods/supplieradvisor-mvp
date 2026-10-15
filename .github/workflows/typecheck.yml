@@ -114,7 +114,11 @@ jobs:
             lib/chrome/trade-sidebar.test.ts
           do
             if [ -f "$file" ]; then
-              npx --yes tsx "$file"
+              if [ "$file" = "lib/recovery/brief116-pii.test.ts" ]; then
+                NODE_OPTIONS="${NODE_OPTIONS:-} --conditions=react-server" npx --yes tsx "$file"
+              else
+                npx --yes tsx "$file"
+              fi
             else
               echo "Skipping missing test: $file"
             fi

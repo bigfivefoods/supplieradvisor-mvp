@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Building2, Flag, ListChecks, ShieldCheck, Upload } from 'lucide-react';
 import { HARBOUR_BANNER, HARBOUR_CREDITORS, HARBOUR_TODAY } from '@/lib/recovery/harbour-seed';
-import { parseBookCsv, suggestMapping, validateBook, type BookIssue } from '@/lib/recovery/import-book';
+import { fileSha256, parseBookCsv, suggestMapping, validateBook, type BookIssue } from '@/lib/recovery/import-book';
 import { formatRecoverMoney } from '@/lib/recovery/money';
 import type { MemoryAccount, MemoryBatch, MemoryBook } from '@/lib/recovery/preview-memory';
 import { visibleAccounts } from '@/lib/recovery/preview-memory';
@@ -28,6 +28,44 @@ type MandateSave = {
 };
 
 export type BookPhase = 'loading' | 'error' | 'ready' | 'pending';
+
+const PRODUCT_LABEL: Record<string, string> = {
+  nca_credit: 'Credit',
+  trade: 'Trade',
+  levy: 'Levy',
+  rent: 'Rent',
+  medical: 'Medical',
+  utility: 'Utility',
+  other: 'Other',
+};
+
+export type ImportCommitInput = {
+  csv: string;
+  creditorId: string;
+  mandateId: string;
+  mapping: Record<string, string>;
+  drySha: string;
+  fileName: string;
+};
+
+export type ImportActionResult = {
+  ok: boolean;
+  message: string;
+  errors?: BookIssue[];
+  summary?: { will_create: number; already_placed: number; errors: number; warnings: number };
+  sha?: string;
+};
+
+const MAP_FIELDS: { key: string; label: string }[] = [
+  { key: 'creditor_account_ref', label: 'Account reference' },
+  { key: 'display_name', label: 'Debtor name' },
+  { key: 'principal_cents', label: 'Principal' },
+  { key: 'id_type', label: 'Identity type' },
+  { key: 'id_number', label: 'Identity number' },
+  { key: 'phone', label: 'Phone' },
+  { key: 'email', label: 'Email' },
+  { key: 'default_date', label: 'Default date' },
+];
 
 const FLAG_LABEL: Record<string, string> = {
   debt_review: 'Debt review',
@@ -58,6 +96,10 @@ export function AccountsView({
   onBulkAssign,
   onAssign,
   onMerge,
+  serverQuery = false,
+  duplicates = [],
+  nextCursor = null,
+  onQuery,
 }: {
   phase: BookPhase;
   book: MemoryBook;
@@ -70,6 +112,10 @@ export function AccountsView({
   onBulkAssign?: (ids: string[], staffId: string) => Promise<boolean>;
   onAssign?: (accountId: string, staffId: string) => Promise<boolean>;
   onMerge?: (sourceId: string, targetId: string) => Promise<boolean>;
+  serverQuery?: boolean;
+  duplicates?: { name: string; debtors: { id: string; display_name: string; id_last4: string | null }[] }[];
+  nextCursor?: { placed_at: string; id: string } | null;
+  onQuery?: (next: { q: string; state: string; assigned: string; after?: string | null; afterId?: string | null }) => void;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [staffId, setStaffId] = useState('');
@@ -77,7 +123,30 @@ export function AccountsView({
   const [oneStaff, setOneStaff] = useState('');
   const [mergeSource, setMergeSource] = useState('');
   const [mergeTarget, setMergeTarget] = useState('');
-  const rows = visibleAccounts(book, role);
+  const [confirm, setConfirm] = useState<string>('');
+  const [q, setQ] = useState('');
+  const [stateFilter, setStateFilter] = useState('');
+  const [assignedFilter, setAssignedFilter] = useState('');
+  const allRows = visibleAccounts(book, role);
+  const rows = serverQuery
+    ? allRows
+    : allRows.filter((row) => {
+        const hay = `${row.ref} ${row.debtor_name} ${row.creditor_account_ref}`.toLowerCase();
+        if (q && !hay.includes(q.trim().toLowerCase())) return false;
+        if (stateFilter && row.state !== stateFilter) return false;
+        if (assignedFilter === 'yes' && !row.assignee) return false;
+        if (assignedFilter === 'no' && row.assignee) return false;
+        return true;
+      });
+  const debtors = rows.filter((row, index, list) => list.findIndex((item) => item.debtor_id === row.debtor_id) === index);
+  const accountLabel = (id: string) => {
+    const row = rows.find((item) => item.id === id);
+    return row ? `${row.ref} · ${row.id_masked}` : 'this account';
+  };
+  const debtorLabel = (id: string) => {
+    const row = debtors.find((item) => item.debtor_id === id);
+    return row ? `${row.debtor_name} · ${row.id_masked}` : 'this debtor';
+  };
   return (
     <RecoverScreen title="Accounts" description="Placed accounts and their history." testId="recover-accounts">
       <RecoverDemoGate desk={null} />
@@ -90,7 +159,7 @@ export function AccountsView({
           {placedCount ?? book.accounts.length} placed accounts. Account rows stay off this view.
         </p>
       ) : null}
-      {phase === 'ready' && role !== 'viewer' && rows.length === 0 ? (
+      {phase === 'ready' && role !== 'viewer' && rows.length === 0 && !q && !stateFilter && !assignedFilter ? (
         <RecoverEmpty
           testId="recover-accounts-empty"
           icon={ListChecks}
@@ -99,26 +168,63 @@ export function AccountsView({
           action={<a className={recoverBtn} href="/dashboard/recovergraph/imports">Open imports</a>}
         />
       ) : null}
-      {phase === 'ready' && role !== 'viewer' && rows.length > 0 ? (
+      {phase === 'ready' && role !== 'viewer' && rows.length === 0 && (q || stateFilter || assignedFilter) ? (
+        <RecoverEmpty testId="recover-accounts-empty" icon={ListChecks} title="No matching accounts" body="Try another name, reference, or filter." />
+      ) : null}
+      {phase === 'ready' && role !== 'viewer' ? (
         <div data-testid="recover-accounts-list" className="grid gap-3">
-          {onAssign ? (
+          <form
+            className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_9rem_auto]"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (serverQuery) onQuery?.({ q, state: stateFilter, assigned: assignedFilter, after: null, afterId: null });
+            }}
+          >
+            <input aria-label="Search accounts" className={recoverField} value={q} placeholder="Name or reference" onChange={(event) => setQ(event.target.value)} />
+            <select aria-label="State" className={recoverField} value={stateFilter} onChange={(event) => setStateFilter(event.target.value)}>
+              <option value="">Any state</option>
+              <option value="active">Active</option>
+              <option value="recalled">Recalled</option>
+              <option value="closed">Closed</option>
+            </select>
+            <select aria-label="Assigned" className={recoverField} value={assignedFilter} onChange={(event) => setAssignedFilter(event.target.value)}>
+              <option value="">Anyone</option>
+              <option value="yes">Assigned</option>
+              <option value="no">Unassigned</option>
+            </select>
+            {serverQuery ? <button className={recoverBtn} type="submit">Search</button> : null}
+          </form>
+          {duplicates.length ? (
+            <section data-testid="recover-duplicate-debtors" className={`${recoverCard} p-4`}>
+              <h2 className="font-black">Possible duplicate debtors</h2>
+              <ul className="mt-2 space-y-1 text-sm">
+                {duplicates.map((group) => (
+                  <li key={group.name}>
+                    {group.name}: {group.debtors.map((debtor) => `${debtor.display_name} · ${debtor.id_last4 ? `•••••• ${debtor.id_last4}` : '••••••'}`).join(', ')}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {onAssign && rows.length > 0 ? (
             <form
               className="flex flex-col gap-2 sm:flex-row"
               data-testid="recover-assign-one"
               onSubmit={(event) => {
                 event.preventDefault();
                 if (!oneAccount || !oneStaff) return;
-                void onAssign(oneAccount, oneStaff);
+                const person = assignees.find((row) => row.id === oneStaff)?.label || 'that collector';
+                setConfirm(`Assign ${accountLabel(oneAccount)} to ${person}.`);
               }}
             >
               <select aria-label="Account" className={recoverField} value={oneAccount} onChange={(event) => setOneAccount(event.target.value)}>
                 <option value="">Choose an account</option>
                 {rows.map((row) => (
-                  <option key={row.id} value={row.id}>{row.ref}</option>
+                  <option key={row.id} value={row.id}>{row.ref} · {row.id_masked}</option>
                 ))}
               </select>
               <select aria-label="Assign one account to" className={recoverField} value={oneStaff} onChange={(event) => setOneStaff(event.target.value)}>
-                <option value="">Choose a person</option>
+                <option value="">Choose a collector</option>
                 {assignees.map((person) => (
                   <option key={person.id} value={person.id}>{person.label}</option>
                 ))}
@@ -126,45 +232,44 @@ export function AccountsView({
               <button className={recoverBtn} type="submit">Assign account</button>
             </form>
           ) : null}
-          {onMerge ? (
+          {onMerge && debtors.length > 1 ? (
             <form
               className="flex flex-col gap-2 sm:flex-row"
               data-testid="recover-merge"
               onSubmit={(event) => {
                 event.preventDefault();
                 if (!mergeSource || !mergeTarget || mergeSource === mergeTarget) return;
-                void onMerge(mergeSource, mergeTarget);
+                setConfirm(`Merge ${debtorLabel(mergeSource)} into ${debtorLabel(mergeTarget)}. A merge is reversible only by support.`);
               }}
             >
               <select aria-label="Debtor to merge" className={recoverField} value={mergeSource} onChange={(event) => setMergeSource(event.target.value)}>
                 <option value="">Debtor to merge</option>
-                {rows.filter((row, index, list) => list.findIndex((item) => item.debtor_id === row.debtor_id) === index).map((row) => (
-                  <option key={row.debtor_id} value={row.debtor_id}>{row.debtor_name}</option>
+                {debtors.map((row) => (
+                  <option key={row.debtor_id} value={row.debtor_id}>{row.debtor_name} · {row.id_masked}</option>
                 ))}
               </select>
               <select aria-label="Debtor to keep" className={recoverField} value={mergeTarget} onChange={(event) => setMergeTarget(event.target.value)}>
                 <option value="">Debtor to keep</option>
-                {rows.filter((row, index, list) => list.findIndex((item) => item.debtor_id === row.debtor_id) === index).map((row) => (
-                  <option key={`keep-${row.debtor_id}`} value={row.debtor_id}>{row.debtor_name}</option>
+                {debtors.map((row) => (
+                  <option key={`keep-${row.debtor_id}`} value={row.debtor_id}>{row.debtor_name} · {row.id_masked}</option>
                 ))}
               </select>
               <button className={recoverBtn} type="submit">Merge debtors</button>
             </form>
           ) : null}
-          {onBulkAssign ? (
+          {onBulkAssign && rows.length > 0 ? (
             <form
               className="flex flex-col gap-2 sm:flex-row"
               data-testid="recover-bulk-assign"
               onSubmit={(event) => {
                 event.preventDefault();
                 if (!staffId || picked.length === 0) return;
-                void onBulkAssign(picked, staffId).then((ok) => {
-                  if (ok) setPicked([]);
-                });
+                const person = assignees.find((row) => row.id === staffId)?.label || 'that collector';
+                setConfirm(`Assign ${picked.length} selected accounts to ${person}.`);
               }}
             >
               <select aria-label="Assign to" className={recoverField} value={staffId} onChange={(event) => setStaffId(event.target.value)}>
-                <option value="">Choose a person</option>
+                <option value="">Choose a collector</option>
                 {assignees.map((person) => (
                   <option key={person.id} value={person.id}>{person.label}</option>
                 ))}
@@ -172,13 +277,41 @@ export function AccountsView({
               <button className={recoverBtn} type="submit">Assign selected</button>
             </form>
           ) : null}
+          {confirm ? (
+            <div data-testid="recover-confirm" className="rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3 text-sm text-[#0f172a]">
+              <p>{confirm}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={recoverBtn}
+                  onClick={() => {
+                    const text = confirm;
+                    setConfirm('');
+                    if (text.startsWith('Assign ') && text.includes(' selected ')) {
+                      void onBulkAssign?.(picked, staffId).then((ok) => {
+                        if (ok) setPicked([]);
+                      });
+                      return;
+                    }
+                    if (text.startsWith('Assign ')) {
+                      void onAssign?.(oneAccount, oneStaff);
+                      return;
+                    }
+                    void onMerge?.(mergeSource, mergeTarget);
+                  }}
+                >
+                  Confirm
+                </button>
+                <button type="button" className={recoverGhost} onClick={() => setConfirm('')}>Cancel</button>
+              </div>
+            </div>
+          ) : null}
+          {rows.length > 0 ? (
           <div className="hidden min-w-0 grid-cols-[8rem_1fr_8rem_6rem] gap-3 px-2 text-xs font-bold uppercase tracking-wide text-slate-500 sm:grid">
             <span>Reference</span><span>Debtor</span><span className="text-right">Balance</span><span>State</span>
           </div>
-          {[...rows]
-            .sort((a, b) => (a.placed_at < b.placed_at ? 1 : a.placed_at > b.placed_at ? -1 : b.ref.localeCompare(a.ref)))
-            .slice(0, 50)
-            .map((row) => (
+          ) : null}
+          {(serverQuery ? rows : [...rows].sort((a, b) => (a.placed_at < b.placed_at ? 1 : a.placed_at > b.placed_at ? -1 : b.ref.localeCompare(a.ref)))).map((row) => (
             <button key={row.id} type="button" data-testid={`recover-account-${row.ref}`} onClick={() => onOpen?.(row.id)} className={`${recoverCard} grid min-h-11 gap-1 px-4 py-3 text-left sm:grid-cols-[8rem_1fr_8rem_6rem] sm:items-center`}>
               <span className="font-black text-[#0f172a]">
                 {onBulkAssign ? (
@@ -206,6 +339,16 @@ export function AccountsView({
               <span className="text-xs font-bold uppercase">{row.state}{row.flags.length ? ' · flag' : ''}</span>
             </button>
           ))}
+          {serverQuery && nextCursor ? (
+            <button
+              type="button"
+              className={recoverBtn}
+              data-testid="recover-accounts-next"
+              onClick={() => onQuery?.({ q, state: stateFilter, assigned: assignedFilter, after: nextCursor.placed_at, afterId: nextCursor.id })}
+            >
+              Next page
+            </button>
+          ) : null}
         </div>
       ) : null}
       {caps.canMutateAccounts ? null : null}
@@ -220,18 +363,39 @@ export function AccountView({
   caps,
   onReveal,
   showDemo = false,
+  revealedId = '',
+  notice = '',
+  onNote,
+  onFlag,
+  onAdjust,
+  onRecall,
 }: {
   phase: BookPhase;
   account: MemoryAccount | null;
   role: RecoverRole;
   caps: RecoverCapabilities;
-  onReveal?: () => void;
+  onReveal?: (reason: string) => void | Promise<{ id_number?: string; message?: string } | void>;
   showDemo?: boolean;
+  revealedId?: string;
+  notice?: string;
+  onNote?: (note: string) => Promise<boolean> | boolean;
+  onFlag?: (flag: string, reason: string, clear?: boolean) => Promise<boolean> | boolean;
+  onAdjust?: (cents: number) => Promise<boolean> | boolean;
+  onRecall?: (closeReason: string) => Promise<boolean> | boolean;
 }) {
   const [reveal, setReveal] = useState(false);
+  const [shown, setShown] = useState('');
+  const [flag, setFlag] = useState('debt_review');
+  const [flagReason, setFlagReason] = useState('');
+  const [note, setNote] = useState('');
+  const [cents, setCents] = useState('');
+  const [closeReason, setCloseReason] = useState('');
+  const idText = revealedId || shown;
+  const noteEvents = new Set(account?.events.filter((event) => event.type === 'note').map((event) => `${event.at}:${event.note || ''}`) || []);
   return (
     <RecoverScreen title={account?.ref || 'Account'} description="Placed balance; payments are not recorded yet." testId="recover-account">
       {showDemo ? <BookBanner /> : null}
+      {notice ? <p role="status" className="rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3 text-sm text-[#0f172a]">{notice}</p> : null}
       {phase === 'loading' ? <Skeleton testId="recover-account-loading" /> : null}
       {phase === 'pending' ? <PendingFeature /> : null}
       {phase === 'error' ? <RecoverBanner testId="recover-banner-error" tone="error">This account could not be opened.</RecoverBanner> : null}
@@ -239,25 +403,26 @@ export function AccountView({
         <RecoverEmpty testId="recover-account-empty" icon={ListChecks} title="No accounts yet" body="Choose an account from the list." action={<a className={recoverBtn} href="/dashboard/recovergraph/accounts">Back to accounts</a>} />
       ) : null}
       {phase === 'ready' && account ? (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]" data-role={role}>
           <div className="space-y-4">
             {account.flags.length ? (
               <div data-testid="recover-stop-banner" className="flex gap-3 rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3 text-sm text-[#0f172a]">
                 <Flag className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                 <p>
-                  {account.flags.map((flag) => FLAG_LABEL[flag.key] || flag.key).join(', ')} recorded. Nothing in RecoverAdvisor® contacts a debtor yet.
+                  {account.flags.map((item) => FLAG_LABEL[item.key] || item.key).join(', ')} recorded. Nothing in RecoverAdvisor® contacts a debtor yet, so this flag does not send or block a message.
                 </p>
               </div>
             ) : null}
             <ol data-testid="recover-timeline" className="space-y-2">
-              {account.events.map((event) => (
-                <li key={`${event.type}-${event.at}`} className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-2 text-sm">
+              {account.events.map((event, index) => (
+                <li key={event.id || `${event.type}-${event.at}-${index}`} className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-2 text-sm">
                   <span className="font-bold">{event.label}</span>
                   <span className="ml-2 text-slate-600">{event.at}</span>
+                  {event.note ? <span className="mt-1 block text-slate-700">{event.note}</span> : null}
                 </li>
               ))}
-              {account.notes.map((note) => (
-                <li key={note.at} className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-2 text-sm">{note.text}</li>
+              {account.notes.filter((item) => !noteEvents.has(`${item.at}:${item.text}`)).map((item, index) => (
+                <li key={`${item.at}-${index}`} className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-2 text-sm">{item.text}</li>
               ))}
             </ol>
           </div>
@@ -277,17 +442,28 @@ export function AccountView({
             </section>
             <section className={`${recoverCard} p-4`}>
               <p className="font-black">{account.debtor_name}</p>
-              <p className="text-sm text-slate-700">{account.id_masked}</p>
-              <p className="mt-1 inline-flex rounded-full bg-cyan-50 px-2 py-1 text-xs font-bold text-[#0077b6]">Placed</p>
+              <p className="text-sm text-slate-700" data-testid={idText ? 'recover-revealed-id' : undefined}>{idText || account.id_masked}</p>
+              <p className="mt-1 inline-flex rounded-full bg-cyan-50 px-2 py-1 text-xs font-bold text-[#0077b6]">{account.state}</p>
               {caps.canRevealId ? (
                 <button type="button" className={`${recoverBtn} mt-3 w-full`} data-testid="recover-reveal" onClick={() => setReveal(true)}>
                   Reveal ID
                 </button>
               ) : null}
               {reveal ? (
-                <form data-testid="recover-reveal-prompt" className="mt-3 space-y-2" onSubmit={(event) => { event.preventDefault(); onReveal?.(); setReveal(false); }}>
+                <form
+                  data-testid="recover-reveal-prompt"
+                  className="mt-3 space-y-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const reason = String(new FormData(event.currentTarget).get('reason') || '').trim();
+                    void Promise.resolve(onReveal?.(reason)).then((result) => {
+                      if (result && result.id_number) setShown(result.id_number);
+                    });
+                    setReveal(false);
+                  }}
+                >
                   <p className="text-xs text-slate-600">This view is logged.</p>
-                  <input aria-label="Reason" className={recoverField} required />
+                  <input aria-label="Reason" name="reason" className={recoverField} required maxLength={200} />
                   <button className={recoverBtn} type="submit">Show the ID</button>
                 </form>
               ) : null}
@@ -302,7 +478,82 @@ export function AccountView({
                 ))}
               </ul>
             ) : null}
-            {role === 'agent' && caps.canAddNote ? <button type="button" className={recoverGhost}>Add note</button> : null}
+            {caps.canAddNote && onNote ? (
+              <form
+                className="space-y-2"
+                data-testid="recover-add-note"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const text = note.trim();
+                  if (!text) return;
+                  void Promise.resolve(onNote(text)).then((ok) => {
+                    if (ok !== false) setNote('');
+                  });
+                }}
+              >
+                <label className="block text-xs font-bold">Note
+                  <textarea aria-label="Note" className={recoverField} rows={3} value={note} onChange={(event) => setNote(event.target.value)} required />
+                </label>
+                <button type="submit" className={recoverGhost}>Add note</button>
+              </form>
+            ) : null}
+            {onFlag ? (
+              <form
+                className="space-y-2"
+                data-testid="recover-stop-flag"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const clear = (event.nativeEvent as SubmitEvent).submitter?.getAttribute('value') === 'clear';
+                  void onFlag(flag, flagReason.trim(), clear);
+                }}
+              >
+                <label className="block text-xs font-bold">Stop flag
+                  <select aria-label="Stop flag" className={recoverField} value={flag} onChange={(event) => setFlag(event.target.value)}>
+                    {Object.entries(FLAG_LABEL).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                </label>
+                <input aria-label="Flag reason" className={recoverField} value={flagReason} onChange={(event) => setFlagReason(event.target.value)} required placeholder="Reason" />
+                <div className="flex flex-wrap gap-2">
+                  <button className={recoverBtn} type="submit" value="set">Set flag</button>
+                  <button className={recoverGhost} type="submit" value="clear">Clear flag</button>
+                </div>
+                <p className="text-xs text-slate-600">An owner or manager records the flag. It does not send or block a message.</p>
+              </form>
+            ) : null}
+            {onAdjust ? (
+              <form
+                className="space-y-2"
+                data-testid="recover-adjust"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const amount = Number(cents);
+                  if (!Number.isInteger(amount)) return;
+                  void onAdjust(amount);
+                }}
+              >
+                <label className="block text-xs font-bold">Adjustment in cents
+                  <input aria-label="Adjustment in cents" className={recoverField} inputMode="numeric" value={cents} onChange={(event) => setCents(event.target.value)} required />
+                </label>
+                <button className={recoverBtn} type="submit">Record adjustment</button>
+              </form>
+            ) : null}
+            {onRecall ? (
+              <form
+                className="space-y-2"
+                data-testid="recover-recall"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void onRecall(closeReason.trim());
+                }}
+              >
+                <label className="block text-xs font-bold">Recall reason
+                  <input aria-label="Recall reason" className={recoverField} value={closeReason} onChange={(event) => setCloseReason(event.target.value)} required />
+                </label>
+                <button className={recoverBtn} type="submit">Recall account</button>
+              </form>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -318,25 +569,55 @@ export function ImportView({
   onRollback,
   onLoadDemo,
   onClearDemo,
+  onDryRun,
   showDemo = false,
+  creditors = [],
+  mandates = [],
+  notice = '',
 }: {
   phase: BookPhase;
   book: MemoryBook;
   caps: RecoverCapabilities;
   showDemo?: boolean;
-  onCommit?: (text: string) => void;
-  onRollback?: (id: string) => void;
-  onLoadDemo?: () => void;
-  onClearDemo?: () => void;
+  creditors?: { id: string; name: string }[];
+  mandates?: { id: string; creditor_id: string; status?: string; label?: string }[];
+  notice?: string;
+  onDryRun?: (input: { csv: string; mapping: Record<string, string> }) => Promise<ImportActionResult>;
+  onCommit?: (input: ImportCommitInput) => Promise<ImportActionResult> | ImportActionResult | void;
+  onRollback?: (id: string) => Promise<ImportActionResult> | ImportActionResult | void;
+  onLoadDemo?: () => Promise<ImportActionResult> | ImportActionResult | void;
+  onClearDemo?: () => Promise<ImportActionResult> | ImportActionResult | void;
 }) {
+  const demoPick = showDemo && creditors.length === 0;
+  const creditorChoices = demoPick
+    ? HARBOUR_CREDITORS.map((row) => ({ id: row.key, name: row.name }))
+    : creditors;
+  const mandateChoices = demoPick
+    ? HARBOUR_CREDITORS.map((row) => ({ id: row.key, creditor_id: row.key, status: 'active', label: `${row.name} · active` }))
+    : mandates.filter((row) => !row.status || row.status === 'active');
   const [step, setStep] = useState(1);
   const [text, setText] = useState('');
   const [dry, setDry] = useState(false);
   const [issues, setIssues] = useState<BookIssue[]>([]);
-  const [summary, setSummary] = useState<{ will_create: number; already_placed: number; errors: number; warnings: number } | null>(null);
+  const [summary, setSummary] = useState<ImportActionResult['summary'] | null>(null);
+  const [creditorId, setCreditorId] = useState(demoPick ? creditorChoices[0]?.id || '' : '');
+  const [mandateId, setMandateId] = useState(demoPick ? mandateChoices[0]?.id || '' : '');
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [drySha, setDrySha] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
+  const [commitMessage, setCommitMessage] = useState('');
+  const mandatesForCreditor = mandateChoices.filter((row) => row.creditor_id === creditorId);
+  const message = actionMessage || notice;
+
+  async function remember(result: ImportActionResult | void) {
+    if (result?.message) setActionMessage(result.message);
+  }
+
   return (
     <RecoverScreen title="Imports & batches" description="Bring in a creditor's book." testId="recover-imports">
       {showDemo ? <BookBanner /> : null}
+      {message ? <p role="status" data-testid="recover-import-notice" className="rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3 text-sm text-[#0f172a]">{message}</p> : null}
       {phase === 'loading' ? <Skeleton testId="recover-imports-loading" /> : null}
       {phase === 'pending' ? <PendingFeature /> : null}
       {phase === 'error' ? <RecoverBanner testId="recover-banner-error" tone="error">Imports could not be opened.</RecoverBanner> : null}
@@ -349,29 +630,44 @@ export function ImportView({
           </ol>
           {step === 1 ? (
             <div className="space-y-2">
-              {HARBOUR_CREDITORS.filter((row) => row.nca_regulated || row.key).slice(0, 5).map((row) => (
-                <p key={row.key} className="text-sm">{row.name} · active mandate</p>
-              ))}
-              <button type="button" className={recoverBtn} onClick={() => setStep(2)}>Continue</button>
+              {creditorChoices.length === 0 ? (
+                <p className="text-sm">Add a creditor and an active mandate before placing a book.</p>
+              ) : null}
+              <label className="block text-xs font-bold">Creditor
+                <select
+                  aria-label="Creditor"
+                  className={recoverField}
+                  value={creditorId}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    setCreditorId(next);
+                    const match = mandateChoices.find((row) => row.creditor_id === next);
+                    setMandateId(match?.id || '');
+                    setDry(false);
+                  }}
+                >
+                  <option value="">Choose a creditor</option>
+                  {creditorChoices.map((row) => (
+                    <option key={row.id} value={row.id}>{row.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-xs font-bold">Active mandate
+                <select aria-label="Mandate" className={recoverField} value={mandateId} onChange={(event) => { setMandateId(event.target.value); setDry(false); }}>
+                  <option value="">Choose a mandate</option>
+                  {mandatesForCreditor.map((row) => (
+                    <option key={row.id} value={row.id}>{row.label || 'Active mandate'}</option>
+                  ))}
+                </select>
+              </label>
+              <button type="button" className={recoverBtn} disabled={!creditorId || !mandateId} onClick={() => setStep(2)}>Continue</button>
             </div>
           ) : null}
           {step === 2 ? (
             <div className="space-y-2">
               <p className="rounded-full bg-cyan-50 px-3 py-2 text-xs font-bold text-[#0f172a]" data-testid="recover-xlsx-chip">Excel (.xlsx): launching soon</p>
-              <textarea data-testid="recover-csv" className={recoverField} rows={5} value={text} onChange={(event) => { setText(event.target.value); setDry(false); }} placeholder="Paste a CSV" />
+              <textarea data-testid="recover-csv" className={recoverField} rows={5} value={text} onChange={(event) => { setText(event.target.value); setDry(false); setDrySha(''); }} placeholder="Paste a CSV" />
               <p className="text-xs text-slate-600">UTF-8 CSV up to 2 MiB and 2,000 rows.</p>
-              <button type="button" className={recoverBtn} onClick={() => setStep(3)}>Continue</button>
-            </div>
-          ) : null}
-          {step === 3 ? (
-            <div className="space-y-2">
-              <p className="text-sm">Columns are suggested from the header names. Required: account reference, debtor name, principal.</p>
-              <button type="button" className={recoverBtn} onClick={() => setStep(4)}>Continue</button>
-            </div>
-          ) : null}
-          {step === 4 ? (
-            <div className="space-y-2" data-testid="recover-dry-run">
-              <p className="text-sm">Dry run shows counts and row, field, and code only.</p>
               <button
                 type="button"
                 className={recoverBtn}
@@ -380,13 +676,75 @@ export function ImportView({
                   if (!parsed.ok) {
                     setIssues([{ row: 0, field: 'file', code: parsed.code }]);
                     setSummary({ will_create: 0, already_placed: 0, errors: 1, warnings: 0 });
-                    setDry(true);
+                    setActionMessage('That file could not be read.');
                     return;
                   }
-                  const result = validateBook(parsed, suggestMapping(parsed.headers), { today: HARBOUR_TODAY });
-                  setIssues([...result.errors, ...result.warnings]);
-                  setSummary(result.summary);
-                  setDry(true);
+                  setHeaders(parsed.headers);
+                  setMapping(suggestMapping(parsed.headers));
+                  setIssues([]);
+                  setSummary(null);
+                  setDry(false);
+                  setStep(3);
+                }}
+              >
+                Continue
+              </button>
+            </div>
+          ) : null}
+          {step === 3 ? (
+            <div className="space-y-2">
+              <p className="text-sm">Match each column. Required: account reference, debtor name, principal.</p>
+              {MAP_FIELDS.map((field) => (
+                <label key={field.key} className="block text-xs font-bold">{field.label}
+                  <select
+                    aria-label={field.label}
+                    className={recoverField}
+                    value={mapping[field.key] || ''}
+                    onChange={(event) => {
+                      setMapping((current) => ({ ...current, [field.key]: event.target.value }));
+                      setDry(false);
+                    }}
+                  >
+                    <option value="">Not mapped</option>
+                    {headers.map((header) => (
+                      <option key={`${field.key}-${header}`} value={header}>{header}</option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+              <button type="button" className={recoverBtn} onClick={() => setStep(4)}>Continue</button>
+            </div>
+          ) : null}
+          {step === 4 ? (
+            <div className="space-y-2" data-testid="recover-dry-run">
+              <p className="text-sm">Dry run shows counts and row, field, and code only. Commit uses that same file.</p>
+              <button
+                type="button"
+                className={recoverBtn}
+                onClick={() => {
+                  void (async () => {
+                    if (onDryRun) {
+                      const result = await onDryRun({ csv: text, mapping });
+                      setIssues(result.errors || []);
+                      setSummary(result.summary || null);
+                      setDrySha(result.sha || '');
+                      setDry(Boolean(result.ok && result.sha && (result.summary?.errors ?? 0) === 0));
+                      if (!result.ok) setActionMessage(result.message);
+                      return;
+                    }
+                    const parsed = parseBookCsv(text);
+                    if (!parsed.ok) {
+                      setIssues([{ row: 0, field: 'file', code: parsed.code }]);
+                      setSummary({ will_create: 0, already_placed: 0, errors: 1, warnings: 0 });
+                      setDry(false);
+                      return;
+                    }
+                    const result = validateBook(parsed, mapping, { today: HARBOUR_TODAY });
+                    setIssues([...result.errors, ...result.warnings]);
+                    setSummary(result.summary);
+                    setDrySha(await fileSha256(text));
+                    setDry(result.errors.length === 0);
+                  })();
                 }}
               >
                 Run dry run
@@ -404,26 +762,48 @@ export function ImportView({
               <button
                 type="button"
                 className={recoverBtn}
-                disabled={!dry}
+                disabled={!dry || !drySha || !creditorId || !mandateId}
                 data-testid="recover-commit"
                 onClick={() => {
-                  void Promise.resolve(onCommit?.(text)).then(() => setStep(5));
+                  void Promise.resolve(onCommit?.({
+                    csv: text,
+                    creditorId,
+                    mandateId,
+                    mapping,
+                    drySha,
+                    fileName: 'upload.csv',
+                  })).then((result) => {
+                    if (result && result.ok === false) {
+                      setCommitMessage(result.message);
+                      setIssues(result.errors || issues);
+                      if (result.summary) setSummary(result.summary);
+                      setActionMessage(result.message);
+                      return;
+                    }
+                    setCommitMessage(result?.message || 'Placed from this dry run.');
+                    setStep(5);
+                  });
                 }}
               >
                 Commit
               </button>
             </div>
           ) : null}
-          {step === 5 ? <p data-testid="recover-commit-result">Commit uses the dry run of this file.</p> : null}
+          {step === 5 ? <p data-testid="recover-commit-result">{commitMessage}</p> : null}
           <div className="flex flex-wrap gap-2">
             {caps.canImport ? (
-              <button type="button" className={recoverGhost} data-testid="recover-load-demo" onClick={onLoadDemo}>Load the fictional Harbour demo book</button>
+              <button type="button" className={recoverGhost} data-testid="recover-load-demo" onClick={() => void Promise.resolve(onLoadDemo?.()).then(remember)}>Load the fictional Harbour demo book</button>
             ) : null}
             {caps.canClearDemo ? (
-              <button type="button" className={recoverGhost} data-testid="recover-clear-demo" onClick={onClearDemo}>Clear demo book</button>
+              <button type="button" className={recoverGhost} data-testid="recover-clear-demo" onClick={() => void Promise.resolve(onClearDemo?.()).then(remember)}>Clear demo book</button>
             ) : null}
           </div>
-          <BatchList batches={book.batches} onRollback={onRollback} />
+          <BatchList
+            batches={book.batches}
+            onRollback={(id) => {
+              void Promise.resolve(onRollback?.(id)).then(remember);
+            }}
+          />
         </div>
       ) : null}
     </RecoverScreen>
@@ -448,7 +828,35 @@ export function CreditorBookView({
   const live = useRecoverDesk();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLFormElement>(null);
   const chosen = creditors.find((row) => row.id === selected) || null;
+  useEffect(() => {
+    if (!open) return;
+    const root = dialogRef.current;
+    const nodes = () => [...(root?.querySelectorAll<HTMLElement>('input, select, textarea, button') || [])];
+    nodes()[0]?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const list = nodes();
+      if (!list.length) return;
+      const first = list[0];
+      const last = list[list.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open]);
   return (
     <RecoverScreen title="Creditors" description="Clients who place accounts." testId="recover-creditor-book">
       {showDemo ? <BookBanner /> : null}
@@ -482,6 +890,10 @@ export function CreditorBookView({
       {open ? (
         <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-900/40 sm:items-center" data-testid="recover-creditor-drawer">
           <form
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="recover-creditor-dialog-title"
             className="w-full max-w-lg rounded-t-3xl bg-white p-5 sm:rounded-3xl"
             onSubmit={(event) => {
               event.preventDefault();
@@ -499,7 +911,7 @@ export function CreditorBookView({
               });
             }}
           >
-            <h2 className="text-xl font-black">Creditor</h2>
+            <h2 id="recover-creditor-dialog-title" className="text-xl font-black">Creditor</h2>
             <label className="mt-3 block text-xs font-bold">Name<input className={recoverField} name="name" required /></label>
             <label className="mt-3 block text-xs font-bold">
               Customer
@@ -549,7 +961,7 @@ export function MandateBookView({
           {mandates.map((row) => (
             <article key={row.id} className={`${recoverCard} p-4`}>
               <h2 className="font-black">{row.creditor_name}</h2>
-              <p className="text-sm">{row.product_type} · {row.status}</p>
+              <p className="text-sm">{PRODUCT_LABEL[row.product_type] || 'Other'} · {row.status}</p>
               {row.nca_regulated ? <p className="mt-2 text-sm text-slate-700">Accounts under this mandate will follow the credit-agreement notice steps when the workflow arrives; RecoverAdvisor® does not apply them yet.</p> : null}
               <p className="mt-2 text-sm text-slate-700">Commission is recorded for later; no fee is calculated or charged by RecoverAdvisor® yet.</p>
               <p className="mt-2 text-xs text-slate-600">Allocation order ⚖ VERIFY. The agreement document itself is not stored yet.</p>
