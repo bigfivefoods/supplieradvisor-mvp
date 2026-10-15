@@ -26,12 +26,13 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { overdueInvoices, type Book, type TeamMember } from '@/lib/trades/desk';
+import { officeOn, officeUsesCoreSidebar } from '@/lib/trades/office-nav';
 import { complianceReminders, formatZar, quoteTotals, type ScheduleSlot } from '@/lib/trades/tradegraph';
 import { TradeEmpty } from '@/components/trades/TradeUi';
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 
-const GROUPS: { id: string; label: string; items: NavItem[] }[] = [
+export const OFFICE_NAV_GROUPS: { id: string; label: string; items: NavItem[] }[] = [
   {
     id: 'floor',
     label: 'Floor',
@@ -120,14 +121,10 @@ export function prettyDay(iso: string) {
   });
 }
 
-export function officeOn(path: string, base: string, href: string) {
-  const target = `${base}${href}` || base;
-  if (href === '') return path === base || path === `${base}/`;
-  return path === target || path.startsWith(`${target}/`);
-}
+export { officeOn, officeUsesCoreSidebar } from '@/lib/trades/office-nav';
 
 function sectionLabel(path: string, base: string) {
-  for (const group of GROUPS) {
+  for (const group of OFFICE_NAV_GROUPS) {
     for (const item of group.items) {
       if (officeOn(path, base, item.href)) return item.label;
     }
@@ -424,9 +421,17 @@ export function TradeOfficeFrame({
   if (bare) {
     return <main className="min-h-dvh bg-gradient-to-b from-sky-50 to-slate-100 text-slate-900">{children}</main>;
   }
+  // Signed-in office sits in the core dashboard sidebar. No second column, no phone dock.
+  if (officeUsesCoreSidebar(base)) {
+    return (
+      <div className="min-w-0 text-slate-900" data-office-chrome="core">
+        {children}
+      </div>
+    );
+  }
   return (
-    <main className="min-h-dvh bg-gradient-to-b from-sky-50 via-slate-50 to-slate-100 text-slate-900">
-      <div className="lg:grid lg:min-h-dvh lg:grid-cols-[272px_minmax(0,1fr)]">
+    <main className="min-h-dvh bg-gradient-to-b from-sky-50 via-slate-50 to-slate-100 text-slate-900" data-office-chrome="preview">
+      <div className="lg:grid lg:min-h-dvh lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="sticky top-0 hidden h-dvh flex-col border-r border-slate-200 bg-white lg:flex">
           <div className="bg-[#00b4d8] px-4 py-5 text-[#0f172a]">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0f172a]/70">TradeAdvisor®</p>
@@ -434,7 +439,7 @@ export function TradeOfficeFrame({
             <p className="truncate text-xs font-semibold text-[#0f172a]/80">{city}{phone ? ` · ${phone}` : ''}</p>
           </div>
           <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-4" aria-label="TradeAdvisor®">
-            {GROUPS.map((group) => (
+            {OFFICE_NAV_GROUPS.map((group) => (
               <div key={group.id}>
                 <p className="px-3 pb-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{group.label}</p>
                 <div className="space-y-0.5">
@@ -463,7 +468,7 @@ export function TradeOfficeFrame({
           <div className="absolute inset-x-0 bottom-16 max-h-[72dvh] overflow-y-auto rounded-t-3xl bg-white p-4 shadow-2xl">
             <p className="px-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">All sections</p>
             <div className="mt-3 space-y-4">
-              {GROUPS.map((group) => (
+              {OFFICE_NAV_GROUPS.map((group) => (
                 <div key={group.id}>
                   <p className="px-1 text-[10px] font-black uppercase tracking-[0.16em] text-[#00b4d8]">{group.label}</p>
                   <div className="mt-1 grid grid-cols-2 gap-1.5">

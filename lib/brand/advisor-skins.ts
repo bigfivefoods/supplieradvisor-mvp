@@ -477,7 +477,7 @@ export function applyAdvisorSkinToDocument(skin: AdvisorSkin) {
     const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
     root.style.setProperty(
       '--sa-brand-ink',
-      skin.ink || (lum > 0.55 ? '#111827' : '#ffffff')
+      skin.ink || (skin.id === 'trade' ? '#0f172a' : lum > 0.55 ? '#111827' : '#ffffff')
     );
     if (skin.id === 'supplier') {
       root.style.removeProperty('--sa-page-glow-1');

@@ -32,7 +32,7 @@ export function lifecycleForPath(pathname: string | null | undefined): ModuleLif
   return best;
 }
 
-export function isStepActive(pathname: string, href: string, exact?: boolean) {
+function pathMatchesStep(pathname: string, href: string, exact?: boolean) {
   // Nav hrefs may include ?query (e.g. Messages deep-links) — match path only
   const base = (href || '').split('?')[0] || href;
   if (exact) return pathname === base;
@@ -47,4 +47,20 @@ export function isStepActive(pathname: string, href: string, exact?: boolean) {
     return pathname === base || pathname === base + '/';
   }
   return pathname.startsWith(base + '/');
+}
+
+/**
+ * Older TradeAdvisor® desk URLs that show the same screen as the current tab.
+ * /jobs is the jobs board; /schedule is the calendar.
+ */
+export function tradeStepAliases(href: string): string[] {
+  const base = (href || '').split('?')[0] || '';
+  if (/\/tradegraph\/board$/.test(base)) return [base.replace(/\/board$/, '/jobs')];
+  if (/\/tradegraph\/calendar$/.test(base)) return [base.replace(/\/calendar$/, '/schedule')];
+  return [];
+}
+
+export function isStepActive(pathname: string, href: string, exact?: boolean) {
+  if (pathMatchesStep(pathname, href, exact)) return true;
+  return tradeStepAliases(href).some((alias) => pathMatchesStep(pathname, alias, false));
 }
