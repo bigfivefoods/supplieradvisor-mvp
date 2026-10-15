@@ -46,7 +46,14 @@ export function isInstallBannerSuppressedPath(path: string): boolean {
     path.startsWith('/customer') ||
     path.startsWith('/preview/tradegraph') ||
     path.startsWith('/work/tradegraph') ||
-    path.startsWith('/crew/tradegraph')
+    path.startsWith('/crew/tradegraph') ||
+    path.startsWith('/creditor/recovergraph') ||
+    path.startsWith('/debtor/recovergraph') ||
+    path.startsWith('/attorney/recovergraph') ||
+    path.startsWith('/preview/recovergraph') ||
+    path.startsWith('/work/recovergraph') ||
+    path.startsWith('/crew/recovergraph') ||
+    path.startsWith('/customer/recovergraph')
   );
 }
 
@@ -212,7 +219,16 @@ export default function InstallAppBanner() {
     };
     window.addEventListener('beforeinstallprompt', onBip);
 
-    // Early SW register (duplicate of ServiceWorkerRegister is fine)
+    // Early SW register (duplicate of ServiceWorkerRegister is fine).
+    // Signed-out RecoverAdvisor® portals must not register a worker.
+    const pathNow = window.location.pathname || '';
+    if (
+      pathNow.startsWith('/creditor/recovergraph') ||
+      pathNow.startsWith('/debtor/recovergraph') ||
+      pathNow.startsWith('/attorney/recovergraph')
+    ) {
+      return;
+    }
     if ('serviceWorker' in navigator) {
       void navigator.serviceWorker
         .register('/sw.js', { scope: '/', updateViaCache: 'none' })

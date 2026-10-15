@@ -57,7 +57,11 @@ export type PermissionResource =
   /** Platform control plane — SupplierAdvisor admin console only */
   | 'platform'
   /** GymAdvisor® OS — company workspace; gym owner only (not coach/ops/admin) */
-  | 'gym_owner';
+  | 'gym_owner'
+  /** RecoverAdvisor® collections workspace */
+  | 'recovery'
+  /** RecoverAdvisor® trust configuration — owner, manager, and finance */
+  | 'recovery_trust';
 
 const ALL_RESOURCES: PermissionResource[] = [
   'dashboard',
@@ -89,6 +93,8 @@ const ALL_RESOURCES: PermissionResource[] = [
   'schools',
   'platform',
   'gym_owner',
+  'recovery',
+  'recovery_trust',
 ];
 
 const LEVEL_RANK: Record<AccessLevel, number> = {
@@ -124,6 +130,8 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     platform: 'view',
     // GymAdvisor OS is owner-only
     gym_owner: 'none',
+    recovery: 'write',
+    recovery_trust: 'view',
   },
   member: {
     ...fullAccess('write'),
@@ -135,6 +143,8 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     accounting: 'none',
     platform: 'none',
     gym_owner: 'none',
+    recovery: 'view',
+    recovery_trust: 'none',
   },
   viewer: {
     ...fullAccess('view'),
@@ -144,6 +154,8 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     verification: 'view',
     platform: 'none',
     gym_owner: 'none',
+    recovery: 'view',
+    recovery_trust: 'none',
   },
   finance: {
     ...fullAccess('view'),
@@ -156,6 +168,8 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     invites: 'none',
     platform: 'none',
     gym_owner: 'none',
+    recovery: 'view',
+    recovery_trust: 'write',
   },
   operations: {
     ...fullAccess('view'),
@@ -175,6 +189,8 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     banking: 'none',
     platform: 'none',
     gym_owner: 'none',
+    recovery: 'write',
+    recovery_trust: 'none',
   },
   sales: {
     ...fullAccess('view'),
@@ -187,6 +203,8 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     invites: 'none',
     platform: 'none',
     gym_owner: 'none',
+    recovery: 'none',
+    recovery_trust: 'none',
   },
   /**
    * Independent sales contractors: ONLY the /sales portal UI.
@@ -201,6 +219,8 @@ export const ROLE_PERMISSIONS: Record<TeamRole, Record<PermissionResource, Acces
     buyer: 'none',
     platform: 'none',
     gym_owner: 'none',
+    recovery: 'none',
+    recovery_trust: 'none',
   },
 };
 
@@ -394,6 +414,7 @@ export const SIDEBAR_MODULE_RESOURCE: Record<string, PermissionResource> = {
   fleetgraph: 'operations',
   tradegraph: 'operations',
   fitgraph: 'gym_owner',
+  recovergraph: 'recovery',
   physiograph: 'operations',
   dentalgraph: 'operations',
   hiregraph: 'operations',
@@ -452,7 +473,9 @@ export function resourceForPath(pathname: string | null | undefined): Permission
   if (pathname.startsWith('/dashboard/constructiongraph')) return 'operations';
   if (pathname.startsWith('/dashboard/fleetgraph')) return 'operations';
   if (pathname.startsWith('/dashboard/tradegraph')) return 'operations';
+  if (pathname.startsWith('/dashboard/recovergraph/trust')) return 'recovery_trust';
   if (pathname.startsWith('/dashboard/fitgraph')) return 'gym_owner';
+  if (pathname.startsWith('/dashboard/recovergraph')) return 'recovery';
   if (pathname.startsWith('/dashboard/physiograph')) return 'operations';
   if (pathname.startsWith('/dashboard/dentalgraph')) return 'operations';
   if (pathname.startsWith('/dashboard/hiregraph')) return 'operations';
@@ -544,6 +567,8 @@ export function resourceLabel(resource: PermissionResource): string {
     schools: 'SchoolAdvisor® (NSNP)',
     platform: 'Platform console',
     gym_owner: 'GymAdvisor® (owner only)',
+    recovery: 'RecoverAdvisor®',
+    recovery_trust: 'RecoverAdvisor® trust',
   };
   return map[resource];
 }
