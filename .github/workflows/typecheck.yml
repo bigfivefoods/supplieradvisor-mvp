@@ -182,6 +182,10 @@ jobs:
         env:
           RECOVER_PORTAL_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/recovergraph
         run: npx --yes tsx lib/recovery/recover-portal-call.test.ts
+      - name: Run RecoverAdvisor book database contract
+        env:
+          RECOVER_PORTAL_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/recovergraph
+        run: npx --yes tsx lib/recovery/brief116-db.test.ts
 
   construction-portal-db:
     name: construction portal Postgres
