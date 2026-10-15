@@ -295,7 +295,7 @@ async function main() {
   );
   assert.equal(
     psql(`SELECT count(*) FROM public.recover_audit_log WHERE company_id = 103 AND action = 'init_workspace';`),
-    '2'
+    '1'
   );
   psql(`
     SELECT public.recover_desk_commit(

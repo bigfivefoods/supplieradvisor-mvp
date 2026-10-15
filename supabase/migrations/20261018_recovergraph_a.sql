@@ -690,6 +690,12 @@ BEGIN
       pg_catalog.now()
     )
     ON CONFLICT (company_id) DO NOTHING;
+    -- A repeat init finds the existing workspace and changes nothing.
+    -- Do not append an audit row for that no-op.
+    GET DIAGNOSTICS v_found = ROW_COUNT;
+    IF v_found = 0 THEN
+      RETURN;
+    END IF;
   ELSIF p_action = 'upsert_staff' THEN
     IF NULLIF(p_patch->>'id', '') IS NOT NULL THEN
       UPDATE public.recover_staff

@@ -32,7 +32,7 @@ import {
   dash,
   formatRand,
 } from './RecoverChrome';
-import { AgeingBuckets, RecoveryFunnel, SampleQueueTable, WorkloadStrip } from './RecoverPreviews';
+import { AgeingBuckets, RecoveryFunnel, SampleKpiStrip, SampleQueueTable, WorkloadStrip } from './RecoverPreviews';
 import { useRecoverDesk } from './useRecoverDesk';
 
 function todayIso() {
@@ -104,6 +104,7 @@ function CommandBody({ desk }: { desk: RecoverDeskPayload }) {
           preview={
             <RecoverSample title="Sample layout of the desk">
               <div className="grid gap-3">
+                <SampleKpiStrip />
                 <RecoveryFunnel />
                 <WorkloadStrip />
               </div>
@@ -239,9 +240,12 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
             />
       </div>
 
-      <div className="mb-6 grid gap-4 lg:grid-cols-2">
-        <RecoveryFunnel />
-        <AgeingBuckets />
+      <div className="mb-6 grid gap-4">
+        <SampleKpiStrip />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <RecoveryFunnel />
+          <AgeingBuckets />
+        </div>
       </div>
       <div className="mb-8">
         <WorkloadStrip />

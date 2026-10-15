@@ -34,35 +34,33 @@ export function RecoverFrame({ children }: { children: React.ReactNode }) {
         }
         .recover-page-header {
           position: relative;
+          z-index: 0;
           background-color: var(--sa-page-fill);
           background-image:
             radial-gradient(ellipse 90% 140% at 8% 0%, var(--sa-page-glow-1), transparent 70%),
             radial-gradient(ellipse 70% 120% at 100% 0%, var(--sa-page-glow-2), transparent 68%);
           background-repeat: no-repeat;
-          margin: -0.95rem -0.85rem 1.35rem;
-          padding: 0.95rem 0.85rem 1.1rem;
+          margin: -0.95rem -0.85rem 0;
+          padding: 0.95rem 0.85rem 0.35rem;
         }
-        .recover-page-header::after {
-          content: '';
-          position: absolute;
-          left: 0;
-          right: 0;
-          bottom: -1.25rem;
-          height: 1.25rem;
-          background: linear-gradient(to bottom, var(--sa-page-fill), transparent);
-          pointer-events: none;
+        .recover-page-body {
+          position: relative;
+          z-index: 1;
+          margin-top: 1.15rem;
         }
         @media (min-width: 640px) {
           .recover-page-header {
-            margin: -1.25rem -1.15rem 1.5rem;
-            padding: 1.25rem 1.15rem 1.15rem;
+            margin: -1.25rem -1.15rem 0;
+            padding: 1.25rem 1.15rem 0.4rem;
           }
+          .recover-page-body { margin-top: 1.35rem; }
         }
         @media (min-width: 1024px) {
           .recover-page-header {
-            margin: -1.4rem -1.35rem 1.75rem;
-            padding: 1.4rem 1.35rem 1.2rem;
+            margin: -1.4rem -1.35rem 0;
+            padding: 1.4rem 1.35rem 0.45rem;
           }
+          .recover-page-body { margin-top: 1.5rem; }
         }
       `}</style>
       {children}
@@ -142,7 +140,7 @@ export function RecoverScreen({
       <div data-testid={testId} className="min-w-0">
         <header
           data-testid="recover-page-header"
-          className="recover-page-header z-30 min-w-0 w-full md:sticky md:top-14"
+          className="recover-page-header min-w-0 w-full"
         >
           <ModuleCrumbs />
           <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -162,7 +160,7 @@ export function RecoverScreen({
             {action ? <div className="flex min-w-0 flex-wrap gap-2">{action}</div> : null}
           </div>
         </header>
-        {children}
+        <div className="recover-page-body min-w-0">{children}</div>
       </div>
     </RecoverFrame>
   );
@@ -369,7 +367,7 @@ export function RecoverSample({
   return (
     <div className="border-t border-[#e2e8f0] bg-[#f8fafc] px-5 py-5 sm:px-6">
       <p className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-slate-600">
-        Illustration · not live data · {title}
+        Illustration · sample data · not a live book · {title}
       </p>
       {children}
     </div>
