@@ -9,6 +9,7 @@ export async function loadAccountsForAgent(input: {
   afterId: string | null;
   state: string | null;
   search: string | null;
+  accountId?: string | null;
 }) {
   const supabase = getSupabaseServer();
   const result = await supabase.rpc('recover_accounts_for_agent', {
@@ -19,6 +20,7 @@ export async function loadAccountsForAgent(input: {
     p_state: input.state,
     p_after_id: input.afterId,
     p_search: input.search,
+    p_account_id: input.accountId || null,
   });
   const pending = readFeatureResult(result.error, 'accounts');
   if (!pending.ready) return pending;

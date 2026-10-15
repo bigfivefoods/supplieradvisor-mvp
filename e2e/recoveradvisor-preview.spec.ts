@@ -54,6 +54,7 @@ test.describe('RecoverAdvisor preview', () => {
     await expect(accountRows.getByText(/RC-/).first()).toBeVisible();
     await page.goto('/preview/recovergraph/imports?book=harbour&role=owner');
     await page.getByTestId('recover-rollback-upload').click();
+    await page.getByTestId('recover-confirm').getByRole('button', { name: 'Confirm' }).click();
     await page.goto('/preview/recovergraph/accounts?book=harbour&role=owner');
     await expect(page.getByText('Sample Debtor')).toHaveCount(0);
     await expect(page.locator('[data-testid^="recover-account-"]').getByText(/RC-/).first()).toBeVisible();

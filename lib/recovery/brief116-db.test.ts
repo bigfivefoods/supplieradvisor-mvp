@@ -513,6 +513,39 @@ async function main() {
     psql(`SELECT position('Checking' in payload::text) = 0 FROM public.recover_audit_log WHERE action = 'account.reveal_id' AND target = '${acc1}';`),
     't'
   );
+  fails(
+    `SELECT public.recover_book_commit(1, 'owner', 'account.adjust', 't', jsonb_build_object('id','${acc1}','adjustment_cents',100));`,
+    /reason|22023/
+  );
+  psql(`SELECT public.recover_book_commit(1, 'owner', 'account.adjust', 't', jsonb_build_object('id','${acc1}','adjustment_cents',100,'reason','Fee correction'));`);
+  assert.equal(
+    psql(`SELECT payload->>'reason' FROM public.recover_account_events WHERE account_id = '${acc1}' AND type = 'adjust';`),
+    'Fee correction'
+  );
+  assert.equal(psql(`SELECT adjustment_cents FROM public.recover_accounts WHERE id = '${acc1}';`), '100');
+  assert.equal(
+    psql(`SELECT position('Fee correction' in payload::text) = 0 FROM public.recover_audit_log WHERE action = 'account.adjust' AND target = '${acc1}';`),
+    't'
+  );
+  psql(`UPDATE public.recover_staff SET user_id = 'agent-a' WHERE id = '${staffA}';`);
+  psql(`UPDATE public.recover_staff SET user_id = 'agent-b' WHERE id = '${staffB}';`);
+  fails(
+    `SELECT public.recover_book_commit(1, 'agent-b', 'account.add_note', 't', jsonb_build_object('id','${acc1}','note_text','Not mine'));`,
+    /note_scope|22023/
+  );
+  psql(`SELECT public.recover_book_commit(1, 'agent-a', 'account.add_note', 't', jsonb_build_object('id','${acc1}','note_text','Mine'));`);
+  assert.equal(
+    psql(`SELECT count(*) FROM public.recover_account_events WHERE account_id = '${acc1}' AND type = 'note' AND note_text = 'Mine';`),
+    '1'
+  );
+  const acc2 = psql(`SELECT id FROM public.recover_accounts WHERE creditor_account_ref = 'ACC-2';`);
+  psql(`UPDATE public.recover_accounts SET assigned_to = NULL, team_id = (SELECT team_id FROM public.recover_staff WHERE id = '${staffA}') WHERE id = '${acc2}';`);
+  psql(`SELECT public.recover_book_commit(1, 'agent-a', 'account.add_note', 't', jsonb_build_object('id','${acc2}','note_text','Team note'));`);
+  fails(
+    `SELECT public.recover_book_commit(1, 'agent-b', 'account.add_note', 't', jsonb_build_object('id','${acc2}','note_text','Still not mine'));`,
+    /note_scope|22023/
+  );
+  psql(`SELECT public.recover_book_commit(1, 'owner', 'account.add_note', 't', jsonb_build_object('id','${acc1}','note_text','Owner still can'));`);
 
   fails(
     `SELECT public.recover_book_commit(1, 'owner', 'mandate.upsert', 't', jsonb_build_object(
@@ -606,6 +639,26 @@ async function main() {
       );
     `),
     '10'
+  );
+  const beyond = psql(`
+    SELECT id FROM public.recover_accounts
+    WHERE company_id = 1 AND creditor_account_ref LIKE 'PAGE-%'
+    ORDER BY placed_at ASC, id ASC
+    LIMIT 1;
+  `);
+  assert.equal(
+    psql(`SELECT count(*) FROM public.recover_accounts_for_agent(1, '${staffB}', 50, NULL, NULL, NULL, NULL, '${beyond}'::uuid);`),
+    '0'
+  );
+  assert.equal(
+    psql(`SELECT count(*) FROM public.recover_accounts_for_agent(1, '${staffA}', 50, NULL, NULL, NULL, NULL, '${beyond}'::uuid);`),
+    '1'
+  );
+  assert.equal(
+    psql(`
+      SELECT creditor_account_ref FROM public.recover_accounts_for_agent(1, '${staffA}', 50, NULL, NULL, NULL, NULL, '${beyond}'::uuid);
+    `),
+    psql(`SELECT creditor_account_ref FROM public.recover_accounts WHERE id = '${beyond}';`)
   );
 
   // demo lifecycle on company 2, which has no real accounts

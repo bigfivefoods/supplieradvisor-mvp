@@ -72,6 +72,7 @@ export type AccountQuery = {
 export type AccountCursor = { placed_at: string; id: string } | null;
 export type DuplicateGroup = {
   name: string;
+  match?: 'identity' | 'contact';
   debtors: { id: string; display_name: string; id_last4: string | null }[];
 };
 
@@ -155,10 +156,10 @@ function rowsToBook(rows: Record<string, unknown>[]): MemoryBook {
     costs_cents: Number(row.costs_cents || 0),
     adjustment_cents: Number(row.adjustment_cents || 0),
     original_cents: Number(row.original_cents || 0),
-    state: row.state === 'recalled' ? 'recalled' : 'active',
+    state: accountState(row.state),
     flags: flagList(row.flags),
     assignee: row.assigned_to ? String(row.assigned_to) : null,
-    assignee_name: null,
+    assignee_name: row.assignee_name ? String(row.assignee_name) : null,
     placed_at: String(row.placed_at || ''),
     batch_id: String(row.batch_id || ''),
     creditor_account_ref: String(row.creditor_account_ref || ''),
@@ -188,9 +189,17 @@ function rowsToBook(rows: Record<string, unknown>[]): MemoryBook {
         }))
       : [],
     nca_regulated: false,
-    product_type: '',
+    product_type: String(row.mandate_label || row.product_type || ''),
   }));
   return { accounts, batches: [], next: accounts.length + 1 };
+}
+
+function accountState(value: unknown): MemoryAccount['state'] {
+  const state = String(value || 'active');
+  if (state === 'recalled' || state === 'arrangement' || state === 'dispute' || state === 'paid' || state === 'closed' || state === 'prescribed' || state === 'stopped') {
+    return state;
+  }
+  return 'active';
 }
 
 function flagList(value: unknown): { key: string; reason: string }[] {

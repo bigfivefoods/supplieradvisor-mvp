@@ -201,7 +201,9 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
             <p className="text-sm leading-relaxed text-slate-600">
               {picture
                 ? 'Illustration · sample data. These figures are a picture of a book, not a live workspace.'
-                : 'No accounts placed yet. Placed, recovered, trust, and clock figures stay blank until those books exist.'}
+                : desk.book && desk.book.placedCount > 0
+                  ? `${desk.book.placedCount} accounts are on the book. Recovered, in trust, and clocks stay blank until those books exist.`
+                  : 'No accounts placed yet. Placed, recovered, trust, and clock figures stay blank until those books exist.'}
             </p>
           </div>
           <DeskArt />
@@ -271,7 +273,7 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
           <PromiseTimeline items={picture.promises} />
           {picture.scope === 'book' ? <WorkloadStrip /> : null}
         </div>
-      ) : (
+      ) : desk.book && desk.book.placedCount > 0 ? null : (
         <div className="mb-8">
           <RecoverEmpty
             testId="recover-accounts-empty"
@@ -312,7 +314,7 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
         <RecoverPanel title="Next">
           <p className="mb-4 text-sm leading-relaxed text-slate-600">
             {desk.workspace
-              ? 'Creditors and mandates are read-only here. Create the customer record in Customers, then place the book in a later release.'
+              ? 'Open creditors and mandates to record who places accounts, then import the book.'
               : 'Create the workspace profile before inviting staff or reading a book.'}
           </p>
           <RecoverButton
@@ -334,8 +336,8 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
           icon={ListChecks}
           code="01"
           title={queueNavLabel(desk.role)}
-          desc="Accounts waiting for work. None are assigned yet."
-          metric="—"
+          desc={desk.book && desk.book.assignedCount > 0 ? `${desk.book.assignedCount} accounts are assigned.` : 'Accounts waiting for work. None are assigned yet.'}
+          metric={desk.book && desk.book.assignedCount > 0 ? String(desk.book.assignedCount) : '—'}
           metricLabel="Accounts"
           accent="from-cyan-50 to-white border-cyan-100"
         />

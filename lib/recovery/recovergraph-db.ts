@@ -151,7 +151,7 @@ export async function loadRecoverDesk(
   const mandates = await supabase
     .from('recover_mandates')
     .select(
-      'id, creditor_id, programme_type, product_type, nca_regulated, processing_role, status'
+      'id, creditor_id, programme_type, product_type, nca_regulated, processing_role, status, agreement_reference'
     )
     .eq('company_id', companyId)
     .order('created_at', { ascending: false })
@@ -203,6 +203,7 @@ export async function loadRecoverDesk(
       nca_regulated: Boolean(row.nca_regulated),
       processing_role: (row.processing_role || 'operator') as ProcessingRole,
       status: String(row.status || 'draft'),
+      agreement_reference: row.agreement_reference ? String(row.agreement_reference) : '',
     })
   );
 

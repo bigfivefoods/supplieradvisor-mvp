@@ -76,6 +76,8 @@ export type AccountRecord = {
   original_cents?: number;
   notes?: unknown;
   events?: unknown;
+  mandate_label?: string;
+  assignee_name?: string;
 };
 
 export function serialiseAccount(
@@ -109,6 +111,8 @@ export function serialiseAccount(
       costs_cents: account.costs_cents ?? 0,
       adjustment_cents: account.adjustment_cents ?? 0,
       original_cents: account.original_cents ?? 0,
+      mandate_label: account.mandate_label || '',
+      assignee_name: account.assignee_name || '',
     };
   }
   const out: Record<string, unknown> = { ...account, id_masked: masked };

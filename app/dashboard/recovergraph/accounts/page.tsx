@@ -10,8 +10,10 @@ import { capabilitiesFor } from '@/lib/recovery/roles';
 export default function RecoverAccountsPage() {
   const router = useRouter();
   const { desk, loading, error, save } = useRecoverDesk();
-  const [query, setQuery] = useState({ q: '', state: '', assigned: '', after: '', afterId: '' });
-  const live = useLiveAccounts(query);
+  const [filters, setFilters] = useState({ q: '', state: '', assigned: '' });
+  const [history, setHistory] = useState<{ after: string; afterId: string }[]>([{ after: '', afterId: '' }]);
+  const cursor = history[history.length - 1];
+  const live = useLiveAccounts({ ...filters, after: cursor.after, afterId: cursor.afterId });
   const phase = loading ? 'loading' : error ? 'error' : live.phase;
   const role = desk?.role || 'viewer';
   const canAssign = role === 'owner' || role === 'manager';
@@ -22,18 +24,25 @@ export default function RecoverAccountsPage() {
       book={live.book}
       role={role}
       caps={desk?.capabilities || capabilitiesFor(role)}
-      placedCount={live.placedCount}
+      placedCount={desk?.book?.placedCount ?? live.placedCount}
+      stats={desk?.book ?? null}
       assignees={collectors.map((row) => ({ id: row.id, label: row.email }))}
       serverQuery
       duplicates={live.duplicates}
       nextCursor={live.next}
-      onQuery={(next) => setQuery({
-        q: next.q,
-        state: next.state,
-        assigned: next.assigned,
-        after: next.after || '',
-        afterId: next.afterId || '',
-      })}
+      hasPrevious={history.length > 1}
+      onQuery={(next) => {
+        if (next.back) {
+          setHistory((items) => (items.length > 1 ? items.slice(0, -1) : items));
+          return;
+        }
+        setFilters({ q: next.q, state: next.state, assigned: next.assigned });
+        if (!next.after) {
+          setHistory([{ after: '', afterId: '' }]);
+          return;
+        }
+        setHistory((items) => [...items, { after: next.after || '', afterId: next.afterId || '' }]);
+      }}
       onOpen={(id) => router.push(`/dashboard/recovergraph/accounts/${id}`)}
       onBulkAssign={
         canAssign

@@ -1212,13 +1212,27 @@ BEGIN
     IF v_note = '' OR char_length(v_note) > 2000 THEN
       RAISE EXCEPTION 'note' USING ERRCODE = '22023';
     END IF;
-    SELECT updated_at INTO v_updated FROM public.recover_accounts
+    SELECT updated_at, assigned_to, team_id INTO v_updated, v_source, v_mandate
+    FROM public.recover_accounts
     WHERE id = v_id AND company_id = p_company_id;
     IF NOT FOUND THEN
       RAISE EXCEPTION 'missing' USING ERRCODE = 'P0002';
     END IF;
     IF v_expected IS NOT NULL AND v_updated IS DISTINCT FROM v_expected THEN
       RAISE EXCEPTION 'conflict' USING ERRCODE = '40001';
+    END IF;
+    SELECT s.id, s.team_id INTO v_staff, v_team
+    FROM public.recover_staff s
+    WHERE s.company_id = p_company_id
+      AND s.user_id = p_actor_id
+      AND s.status = 'active'
+      AND s.role = 'collector'
+    ORDER BY s.created_at
+    LIMIT 1;
+    IF v_staff IS NOT NULL
+       AND v_source IS DISTINCT FROM v_staff
+       AND (v_team IS NULL OR v_mandate IS DISTINCT FROM v_team) THEN
+      RAISE EXCEPTION 'note_scope' USING ERRCODE = '22023';
     END IF;
     UPDATE public.recover_accounts SET updated_at = pg_catalog.now()
     WHERE id = v_id AND company_id = p_company_id;
@@ -1259,6 +1273,10 @@ BEGIN
 
   ELSIF p_action = 'account.adjust' THEN
     v_id := NULLIF(p_patch->>'id', '')::uuid;
+    v_reason := pg_catalog.btrim(COALESCE(p_patch->>'reason', ''));
+    IF v_reason = '' OR char_length(v_reason) > 500 THEN
+      RAISE EXCEPTION 'reason' USING ERRCODE = '22023';
+    END IF;
     IF (p_patch->>'adjustment_cents') !~ '^-?[0-9]+$' THEN
       RAISE EXCEPTION 'amount' USING ERRCODE = '22023';
     END IF;
@@ -1282,7 +1300,7 @@ BEGIN
     WHERE id = v_id AND company_id = p_company_id;
     PERFORM public.recover_write_event(
       p_company_id, v_id, 'adjust', p_actor_id,
-      pg_catalog.jsonb_build_object('adjustment_cents', v_cents),
+      pg_catalog.jsonb_build_object('adjustment_cents', v_cents, 'reason', v_reason),
       NULL
     );
     PERFORM public.recover_write_audit(
@@ -1864,6 +1882,8 @@ END;
 $$;
 
 DROP FUNCTION IF EXISTS public.recover_accounts_for_agent(bigint, uuid, integer, timestamptz, text);
+DROP FUNCTION IF EXISTS public.recover_accounts_for_agent(bigint, uuid, integer, timestamptz, text, uuid, text);
+DROP FUNCTION IF EXISTS public.recover_accounts_for_agent(bigint, uuid, integer, timestamptz, text, uuid, text, uuid);
 
 CREATE OR REPLACE FUNCTION public.recover_accounts_for_agent(
   p_company_id bigint,
@@ -1872,7 +1892,8 @@ CREATE OR REPLACE FUNCTION public.recover_accounts_for_agent(
   p_after timestamptz,
   p_state text,
   p_after_id uuid DEFAULT NULL,
-  p_search text DEFAULT NULL
+  p_search text DEFAULT NULL,
+  p_account_id uuid DEFAULT NULL
 ) RETURNS TABLE (
   id uuid,
   ref text,
@@ -1888,7 +1909,15 @@ CREATE OR REPLACE FUNCTION public.recover_accounts_for_agent(
   flags jsonb,
   stage_key text,
   creditor_account_ref text,
-  updated_at timestamptz
+  updated_at timestamptz,
+  principal_cents bigint,
+  interest_cents bigint,
+  fees_cents bigint,
+  costs_cents bigint,
+  adjustment_cents bigint,
+  original_cents bigint,
+  mandate_label text,
+  assignee_name text
 )
 LANGUAGE plpgsql
 STABLE
@@ -1915,20 +1944,36 @@ BEGIN
   SELECT
     a.id, a.ref, c.name, a.debtor_id, d.display_name, d.id_last4, a.balance_cents,
     a.state, a.assigned_to, a.team_id, a.placed_at, a.flags, a.stage_key,
-    a.creditor_account_ref, a.updated_at
+    a.creditor_account_ref, a.updated_at,
+    a.principal_cents, a.interest_cents, a.fees_cents, a.costs_cents, a.adjustment_cents, a.original_cents,
+    CASE
+      WHEN m.id IS NULL THEN ''
+      ELSE COALESCE(m.product_type, '') ||
+        CASE
+          WHEN NULLIF(pg_catalog.btrim(COALESCE(m.agreement_reference, '')), '') IS NOT NULL
+            THEN ' · ' || pg_catalog.btrim(m.agreement_reference)
+          ELSE ''
+        END
+    END,
+    COALESCE(who.email, '')
   FROM public.recover_accounts a
   JOIN public.recover_creditors c ON c.id = a.creditor_id AND c.company_id = a.company_id
   JOIN public.recover_debtors d ON d.id = a.debtor_id AND d.company_id = a.company_id
+  LEFT JOIN public.recover_mandates m ON m.id = a.mandate_id AND m.company_id = a.company_id
+  LEFT JOIN public.recover_staff who ON who.id = a.assigned_to AND who.company_id = a.company_id
   WHERE a.company_id = p_company_id
     AND (a.assigned_to = p_staff_id OR (v_team IS NOT NULL AND a.team_id = v_team))
-    AND (p_state IS NULL OR p_state = '' OR a.state = p_state)
+    AND (p_account_id IS NULL OR a.id = p_account_id)
+    AND (p_account_id IS NOT NULL OR p_state IS NULL OR p_state = '' OR a.state = p_state)
     AND (
-      p_after IS NULL
+      p_account_id IS NOT NULL
+      OR p_after IS NULL
       OR a.placed_at < p_after
       OR (a.placed_at = p_after AND p_after_id IS NOT NULL AND a.id < p_after_id)
     )
     AND (
-      v_search IS NULL
+      p_account_id IS NOT NULL
+      OR v_search IS NULL
       OR a.ref ILIKE '%' || v_search || '%'
       OR a.creditor_account_ref ILIKE '%' || v_search || '%'
       OR d.display_name ILIKE '%' || v_search || '%'

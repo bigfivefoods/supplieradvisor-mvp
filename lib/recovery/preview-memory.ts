@@ -26,7 +26,7 @@ export type MemoryAccount = {
   costs_cents: number;
   adjustment_cents: number;
   original_cents: number;
-  state: 'active' | 'recalled';
+  state: 'active' | 'recalled' | 'arrangement' | 'dispute' | 'paid' | 'closed' | 'prescribed' | 'stopped';
   flags: { key: string; reason: string }[];
   assignee: string | null;
   assignee_name: string | null;
@@ -225,6 +225,8 @@ export function bookStats(book: MemoryBook, role: RecoverRole): RecoverBookStats
     assignedCount: book.accounts.filter((row) => row.assignee).length,
     unassignedCount: book.accounts.filter((row) => !row.assignee && row.state === 'active').length,
     imported: book.batches.some((batch) => batch.status === 'imported'),
+    arrangementCount: rows.filter((row) => row.state === 'arrangement').length,
+    paidCount: rows.filter((row) => row.state === 'paid').length,
   };
 }
 

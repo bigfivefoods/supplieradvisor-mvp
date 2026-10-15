@@ -148,6 +148,8 @@ export type RecoverBookStats = {
   assignedCount: number;
   unassignedCount: number;
   imported: boolean;
+  arrangementCount?: number;
+  paidCount?: number;
 };
 
 export type RecoverCapabilities = {

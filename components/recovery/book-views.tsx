@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Building2, Flag, ListChecks, ShieldCheck, Upload } from 'lucide-react';
+import { Building2, Flag, HandCoins, ListChecks, ShieldCheck, Upload, Users } from 'lucide-react';
 import { HARBOUR_BANNER, HARBOUR_CREDITORS, HARBOUR_TODAY } from '@/lib/recovery/harbour-seed';
 import { fileSha256, parseBookCsv, suggestMapping, validateBook, type BookIssue } from '@/lib/recovery/import-book';
 import { formatRecoverMoney } from '@/lib/recovery/money';
 import type { MemoryAccount, MemoryBatch, MemoryBook } from '@/lib/recovery/preview-memory';
 import { visibleAccounts } from '@/lib/recovery/preview-memory';
-import type { RecoverCapabilities, RecoverCreditor, RecoverMandate, RecoverRole } from '@/lib/recovery/types';
-import { RecoverBanner, RecoverDemoGate, RecoverEmpty, RecoverScreen } from './RecoverChrome';
+import type { RecoverBookStats, RecoverCapabilities, RecoverCreditor, RecoverMandate, RecoverRole } from '@/lib/recovery/types';
+import { RecoverBanner, RecoverDemoGate, RecoverEmpty, RecoverKpi, RecoverScreen } from './RecoverChrome';
 import { useRecoverDesk } from './useRecoverDesk';
 import { recoverBtn, recoverCard, recoverField, recoverGhost } from './RecoverUi';
 
@@ -67,6 +67,29 @@ const MAP_FIELDS: { key: string; label: string }[] = [
   { key: 'default_date', label: 'Default date' },
 ];
 
+const ISSUE_LABEL: Record<string, string> = {
+  utf8: 'That file is not plain text',
+  byte_cap: 'That file is larger than 2 MiB',
+  empty: 'That file has no rows',
+  row_cap: 'That file has more than 2,000 rows',
+  missing_column: 'A required column is not mapped',
+  required: 'This value is required',
+  duplicate_account: 'That account reference is repeated',
+  invalid_id_type: 'Identity type is not recognised',
+  invalid_id: 'Identity number could not be checked',
+  invalid_phone: 'Phone number could not be read',
+  invalid_email: 'Email address could not be read',
+  negative: 'Amount cannot be negative',
+  scientific: 'Use a plain number',
+  nan: 'Amount is not a number',
+  format: 'Use a recognised format',
+  guard: 'Amount is too large',
+  future: 'Date is in the future',
+  early: 'Date is too early',
+  calendar: 'That date is not on the calendar',
+  junk: 'This value could not be read',
+};
+
 const FLAG_LABEL: Record<string, string> = {
   debt_review: 'Debt review',
   deceased: 'Deceased estate',
@@ -76,10 +99,95 @@ const FLAG_LABEL: Record<string, string> = {
   do_not_contact: 'Do not contact',
 };
 
+function counted(count: number, one: string, many: string) {
+  const n = Number(count) || 0;
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+function issueLabel(code: string) {
+  return ISSUE_LABEL[code] || 'This row needs a correction';
+}
+
+function formatWhen(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('en-ZA', {
+    timeZone: 'Africa/Johannesburg',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+function randsToCents(raw: string): number | null {
+  const text = raw.trim().replace(/^R\s*/i, '').replace(/\s/g, '').replace(',', '.');
+  if (!/^-?\d+(\.\d{1,2})?$/.test(text)) return null;
+  const negative = text.startsWith('-');
+  const [whole, frac = ''] = (negative ? text.slice(1) : text).split('.');
+  const cents = Number(whole) * 100 + Number((frac + '00').slice(0, 2));
+  if (!Number.isSafeInteger(cents)) return null;
+  return negative ? -cents : cents;
+}
+
+function mandateOptionLabel(row: { label?: string; product_type?: string; agreement_reference?: string }) {
+  if (row.product_type) {
+    const product = PRODUCT_LABEL[row.product_type] || row.product_type;
+    return `${product} · ${row.agreement_reference?.trim() || 'No reference'}`;
+  }
+  return row.label || 'Active mandate';
+}
+
+function mandateText(account: MemoryAccount) {
+  if (!account.product_type) return 'Not recorded';
+  if (account.product_type.includes('·')) return account.product_type;
+  return PRODUCT_LABEL[account.product_type] || account.product_type;
+}
+
+function StateChip({ state }: { state: string }) {
+  const live = state === 'active' || state === 'arrangement';
+  return (
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${live ? 'bg-[#00b4d8] text-[#0f172a]' : 'bg-white text-[#0f172a] ring-1 ring-[#00b4d8]'}`}>
+      {state.replaceAll('_', ' ')}
+    </span>
+  );
+}
+
 export function BookBanner() {
   return (
     <div data-testid="recover-demo-data" role="status" className="rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3 text-sm font-medium text-[#0f172a]">
       {HARBOUR_BANNER}
+    </div>
+  );
+}
+
+function AccountKpis({
+  rows,
+  stats,
+  placedCount,
+  serverQuery,
+}: {
+  rows: MemoryAccount[];
+  stats?: RecoverBookStats | null;
+  placedCount?: number;
+  serverQuery: boolean;
+}) {
+  const placed = stats?.placedCount ?? (serverQuery ? placedCount ?? rows.length : rows.length);
+  const balance = stats?.placedBalanceCents ?? rows.reduce((sum, row) => sum + (row.state === 'active' ? row.balance_cents : 0), 0);
+  const assigned = stats?.assignedCount ?? rows.filter((row) => row.assignee).length;
+  const unassigned = stats?.unassignedCount ?? rows.filter((row) => !row.assignee && row.state === 'active').length;
+  const arrangement = stats?.arrangementCount ?? rows.filter((row) => row.state === 'arrangement').length;
+  const paid = stats?.paidCount ?? rows.filter((row) => row.state === 'paid').length;
+  if (placed <= 0 && rows.length === 0) return null;
+  return (
+    <div data-testid="recover-account-kpis" className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+      <RecoverKpi testId="recover-kpi-book-placed" label="Placed" value={String(placed)} sub="Accounts on this book" icon={ListChecks} tint="border-sky-100 bg-sky-50" />
+      <RecoverKpi testId="recover-kpi-book-balance" label="Balance" value={formatRecoverMoney(balance)} sub="Placed balance. Payments are not recorded yet." icon={HandCoins} tint="border-cyan-100 bg-cyan-50" />
+      <RecoverKpi testId="recover-kpi-book-assigned" label="Assigned" value={String(assigned)} sub="With a collector" icon={Users} tint="border-sky-100 bg-sky-50" />
+      <RecoverKpi testId="recover-kpi-book-open" label="Unassigned" value={String(unassigned)} sub="Active and not assigned" icon={ShieldCheck} tint="border-cyan-100 bg-cyan-50" />
+      {arrangement > 0 ? <RecoverKpi testId="recover-kpi-book-arrangement" label="In arrangement" value={String(arrangement)} sub="Recorded on the account" icon={ListChecks} tint="border-cyan-100 bg-cyan-50" /> : null}
+      {paid > 0 ? <RecoverKpi testId="recover-kpi-book-paid" label="Paid" value={String(paid)} sub="Marked paid on this book" icon={HandCoins} tint="border-emerald-100 bg-emerald-50" /> : null}
     </div>
   );
 }
@@ -92,6 +200,7 @@ export function AccountsView({
   onOpen,
   showDemo = false,
   placedCount,
+  stats = null,
   assignees = [],
   onBulkAssign,
   onAssign,
@@ -99,6 +208,7 @@ export function AccountsView({
   serverQuery = false,
   duplicates = [],
   nextCursor = null,
+  hasPrevious = false,
   onQuery,
 }: {
   phase: BookPhase;
@@ -108,14 +218,16 @@ export function AccountsView({
   onOpen?: (id: string) => void;
   showDemo?: boolean;
   placedCount?: number;
+  stats?: RecoverBookStats | null;
   assignees?: { id: string; label: string }[];
   onBulkAssign?: (ids: string[], staffId: string) => Promise<boolean>;
   onAssign?: (accountId: string, staffId: string) => Promise<boolean>;
   onMerge?: (sourceId: string, targetId: string) => Promise<boolean>;
   serverQuery?: boolean;
-  duplicates?: { name: string; debtors: { id: string; display_name: string; id_last4: string | null }[] }[];
+  duplicates?: { name: string; match?: 'identity' | 'contact'; debtors: { id: string; display_name: string; id_last4: string | null }[] }[];
   nextCursor?: { placed_at: string; id: string } | null;
-  onQuery?: (next: { q: string; state: string; assigned: string; after?: string | null; afterId?: string | null }) => void;
+  hasPrevious?: boolean;
+  onQuery?: (next: { q: string; state: string; assigned: string; after?: string | null; afterId?: string | null; back?: boolean }) => void;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [staffId, setStaffId] = useState('');
@@ -138,6 +250,10 @@ export function AccountsView({
         if (assignedFilter === 'no' && row.assignee) return false;
         return true;
       });
+  const pageKey = rows.map((row) => row.id).join('|');
+  useEffect(() => {
+    setPicked([]);
+  }, [pageKey]);
   const debtors = rows.filter((row, index, list) => list.findIndex((item) => item.debtor_id === row.debtor_id) === index);
   const accountLabel = (id: string) => {
     const row = rows.find((item) => item.id === id);
@@ -173,6 +289,7 @@ export function AccountsView({
       ) : null}
       {phase === 'ready' && role !== 'viewer' ? (
         <div data-testid="recover-accounts-list" className="grid gap-3">
+          <AccountKpis rows={rows} stats={stats} placedCount={placedCount} serverQuery={serverQuery} />
           <form
             className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_9rem_auto]"
             onSubmit={(event) => {
@@ -192,90 +309,114 @@ export function AccountsView({
               <option value="yes">Assigned</option>
               <option value="no">Unassigned</option>
             </select>
-            {serverQuery ? <button className={recoverBtn} type="submit">Search</button> : null}
+            {serverQuery ? <button className={`${recoverBtn} whitespace-nowrap`} type="submit">Search</button> : null}
           </form>
           {duplicates.length ? (
             <section data-testid="recover-duplicate-debtors" className={`${recoverCard} p-4`}>
-              <h2 className="font-black">Possible duplicate debtors</h2>
-              <ul className="mt-2 space-y-1 text-sm">
+              <h2 className="font-black text-[#0f172a]">Possible duplicate debtors</h2>
+              <p className="mt-1 text-xs text-slate-600">Matched on the same identity, or the same name with the same phone or email.</p>
+              <ul className="mt-3 space-y-3 text-sm">
                 {duplicates.map((group) => (
-                  <li key={group.name}>
-                    {group.name}: {group.debtors.map((debtor) => `${debtor.display_name} · ${debtor.id_last4 ? `•••••• ${debtor.id_last4}` : '••••••'}`).join(', ')}
+                  <li key={`${group.match || 'pair'}-${group.debtors.map((debtor) => debtor.id).join('-')}`} className="rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] px-3 py-3">
+                    <p className="text-xs font-bold uppercase tracking-wide text-[#0077b6]">{group.match === 'identity' ? 'Same identity' : 'Same name and phone or email'}</p>
+                    <p className="mt-1">{group.debtors.map((debtor) => `${debtor.display_name} · ${debtor.id_last4 ? `•••••• ${debtor.id_last4}` : '••••••'}`).join(' and ')}</p>
+                    {onMerge && group.debtors.length > 1 ? (
+                      <button
+                        type="button"
+                        className={`${recoverBtn} mt-2 whitespace-nowrap`}
+                        onClick={() => {
+                          setMergeSource(group.debtors[0].id);
+                          setMergeTarget(group.debtors[1].id);
+                          setConfirm(`Merge ${group.debtors[0].display_name} into ${group.debtors[1].display_name}. A merge is reversible only by support.`);
+                        }}
+                      >
+                        Merge this pair
+                      </button>
+                    ) : null}
                   </li>
                 ))}
               </ul>
             </section>
           ) : null}
+          {onAssign || onMerge || onBulkAssign ? (
+            <p className="text-xs text-slate-600">Assign and merge lists use the accounts on this page.</p>
+          ) : null}
           {onAssign && rows.length > 0 ? (
-            <form
-              className="flex flex-col gap-2 sm:flex-row"
-              data-testid="recover-assign-one"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (!oneAccount || !oneStaff) return;
-                const person = assignees.find((row) => row.id === oneStaff)?.label || 'that collector';
-                setConfirm(`Assign ${accountLabel(oneAccount)} to ${person}.`);
-              }}
-            >
-              <select aria-label="Account" className={recoverField} value={oneAccount} onChange={(event) => setOneAccount(event.target.value)}>
-                <option value="">Choose an account</option>
-                {rows.map((row) => (
-                  <option key={row.id} value={row.id}>{row.ref} · {row.id_masked}</option>
-                ))}
-              </select>
-              <select aria-label="Assign one account to" className={recoverField} value={oneStaff} onChange={(event) => setOneStaff(event.target.value)}>
-                <option value="">Choose a collector</option>
-                {assignees.map((person) => (
-                  <option key={person.id} value={person.id}>{person.label}</option>
-                ))}
-              </select>
-              <button className={recoverBtn} type="submit">Assign account</button>
-            </form>
+            <details className={`${recoverCard} p-4`} data-testid="recover-assign-one">
+              <summary className="cursor-pointer font-black text-[#0f172a]">Assign account</summary>
+              <form
+                className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (!oneAccount || !oneStaff) return;
+                  const person = assignees.find((row) => row.id === oneStaff)?.label || 'that collector';
+                  setConfirm(`Assign ${accountLabel(oneAccount)} to ${person}.`);
+                }}
+              >
+                <select aria-label="Account" className={recoverField} value={oneAccount} onChange={(event) => setOneAccount(event.target.value)}>
+                  <option value="">Choose an account</option>
+                  {rows.map((row) => (
+                    <option key={row.id} value={row.id}>{row.ref} · {row.id_masked}</option>
+                  ))}
+                </select>
+                <select aria-label="Assign one account to" className={recoverField} value={oneStaff} onChange={(event) => setOneStaff(event.target.value)}>
+                  <option value="">Choose a collector</option>
+                  {assignees.map((person) => (
+                    <option key={person.id} value={person.id}>{person.label}</option>
+                  ))}
+                </select>
+                <button className={`${recoverBtn} whitespace-nowrap`} type="submit">Assign account</button>
+              </form>
+            </details>
           ) : null}
           {onMerge && debtors.length > 1 ? (
-            <form
-              className="flex flex-col gap-2 sm:flex-row"
-              data-testid="recover-merge"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (!mergeSource || !mergeTarget || mergeSource === mergeTarget) return;
-                setConfirm(`Merge ${debtorLabel(mergeSource)} into ${debtorLabel(mergeTarget)}. A merge is reversible only by support.`);
-              }}
-            >
-              <select aria-label="Debtor to merge" className={recoverField} value={mergeSource} onChange={(event) => setMergeSource(event.target.value)}>
-                <option value="">Debtor to merge</option>
-                {debtors.map((row) => (
-                  <option key={row.debtor_id} value={row.debtor_id}>{row.debtor_name} · {row.id_masked}</option>
-                ))}
-              </select>
-              <select aria-label="Debtor to keep" className={recoverField} value={mergeTarget} onChange={(event) => setMergeTarget(event.target.value)}>
-                <option value="">Debtor to keep</option>
-                {debtors.map((row) => (
-                  <option key={`keep-${row.debtor_id}`} value={row.debtor_id}>{row.debtor_name} · {row.id_masked}</option>
-                ))}
-              </select>
-              <button className={recoverBtn} type="submit">Merge debtors</button>
-            </form>
+            <details className={`${recoverCard} p-4`} data-testid="recover-merge">
+              <summary className="cursor-pointer font-black text-[#0f172a]">Merge debtors</summary>
+              <form
+                className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (!mergeSource || !mergeTarget || mergeSource === mergeTarget) return;
+                  setConfirm(`Merge ${debtorLabel(mergeSource)} into ${debtorLabel(mergeTarget)}. A merge is reversible only by support.`);
+                }}
+              >
+                <select aria-label="Debtor to merge" className={recoverField} value={mergeSource} onChange={(event) => setMergeSource(event.target.value)}>
+                  <option value="">Debtor to merge</option>
+                  {debtors.map((row) => (
+                    <option key={row.debtor_id} value={row.debtor_id}>{row.debtor_name} · {row.id_masked}</option>
+                  ))}
+                </select>
+                <select aria-label="Debtor to keep" className={recoverField} value={mergeTarget} onChange={(event) => setMergeTarget(event.target.value)}>
+                  <option value="">Debtor to keep</option>
+                  {debtors.map((row) => (
+                    <option key={`keep-${row.debtor_id}`} value={row.debtor_id}>{row.debtor_name} · {row.id_masked}</option>
+                  ))}
+                </select>
+                <button className={`${recoverBtn} whitespace-nowrap`} type="submit">Merge debtors</button>
+              </form>
+            </details>
           ) : null}
           {onBulkAssign && rows.length > 0 ? (
-            <form
-              className="flex flex-col gap-2 sm:flex-row"
-              data-testid="recover-bulk-assign"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (!staffId || picked.length === 0) return;
-                const person = assignees.find((row) => row.id === staffId)?.label || 'that collector';
-                setConfirm(`Assign ${picked.length} selected accounts to ${person}.`);
-              }}
-            >
-              <select aria-label="Assign to" className={recoverField} value={staffId} onChange={(event) => setStaffId(event.target.value)}>
-                <option value="">Choose a collector</option>
-                {assignees.map((person) => (
-                  <option key={person.id} value={person.id}>{person.label}</option>
-                ))}
-              </select>
-              <button className={recoverBtn} type="submit">Assign selected</button>
-            </form>
+            <details className={`${recoverCard} p-4`} data-testid="recover-bulk-assign">
+              <summary className="cursor-pointer font-black text-[#0f172a]">Assign selected</summary>
+              <form
+                className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (!staffId || picked.length === 0) return;
+                  const person = assignees.find((row) => row.id === staffId)?.label || 'that collector';
+                  setConfirm(`Assign ${picked.length} selected accounts to ${person}.`);
+                }}
+              >
+                <select aria-label="Assign to" className={recoverField} value={staffId} onChange={(event) => setStaffId(event.target.value)}>
+                  <option value="">Choose a collector</option>
+                  {assignees.map((person) => (
+                    <option key={person.id} value={person.id}>{person.label}</option>
+                  ))}
+                </select>
+                <button className={`${recoverBtn} whitespace-nowrap`} type="submit">Assign selected</button>
+              </form>
+            </details>
           ) : null}
           {confirm ? (
             <div data-testid="recover-confirm" className="rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3 text-sm text-[#0f172a]">
@@ -312,7 +453,7 @@ export function AccountsView({
           </div>
           ) : null}
           {(serverQuery ? rows : [...rows].sort((a, b) => (a.placed_at < b.placed_at ? 1 : a.placed_at > b.placed_at ? -1 : b.ref.localeCompare(a.ref)))).map((row) => (
-            <button key={row.id} type="button" data-testid={`recover-account-${row.ref}`} onClick={() => onOpen?.(row.id)} className={`${recoverCard} grid min-h-11 gap-1 px-4 py-3 text-left sm:grid-cols-[8rem_1fr_8rem_6rem] sm:items-center`}>
+            <button key={row.id} type="button" data-testid={`recover-account-${row.ref}`} onClick={() => onOpen?.(row.id)} className={`${recoverCard} grid min-h-11 min-w-0 gap-2 px-4 py-3 text-left sm:grid-cols-[8rem_minmax(0,1fr)_8rem_auto] sm:items-center`}>
               <span className="font-black text-[#0f172a]">
                 {onBulkAssign ? (
                   <input
@@ -326,28 +467,45 @@ export function AccountsView({
                 ) : null}
                 {row.ref}
               </span>
-              <span>
-                <span className="block text-sm font-semibold">{row.debtor_name}</span>
-                <span className="block text-xs text-slate-600">{row.creditor_name} · {row.id_masked}</span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold text-[#0f172a]">{row.debtor_name}</span>
+                <span className="block truncate text-xs text-slate-600">{row.creditor_name} · {row.id_masked}</span>
                 {row.contacts.length ? (
-                  <span data-testid="recover-account-contacts" className="mt-1 block text-xs text-slate-700">
+                  <span data-testid="recover-account-contacts" className="mt-1 block truncate text-xs text-slate-700">
                     {row.contacts.map((contact) => `${contact.kind} ${contact.value}`).join(' · ')}
                   </span>
                 ) : null}
               </span>
-              <span className="text-right text-sm font-black tabular-nums">{formatRecoverMoney(row.balance_cents)}</span>
-              <span className="text-xs font-bold uppercase">{row.state}{row.flags.length ? ' · flag' : ''}</span>
+              <span className="text-sm font-black tabular-nums text-[#0f172a] sm:text-right">{formatRecoverMoney(row.balance_cents)}</span>
+              <span className="flex flex-wrap items-center gap-1">
+                <StateChip state={row.state} />
+                {row.flags.length ? <span className="inline-flex rounded-full bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#0f172a] ring-1 ring-[#00b4d8]">Flag</span> : null}
+              </span>
             </button>
           ))}
-          {serverQuery && nextCursor ? (
-            <button
-              type="button"
-              className={recoverBtn}
-              data-testid="recover-accounts-next"
-              onClick={() => onQuery?.({ q, state: stateFilter, assigned: assignedFilter, after: nextCursor.placed_at, afterId: nextCursor.id })}
-            >
-              Next page
-            </button>
+          {serverQuery && (hasPrevious || nextCursor) ? (
+            <div className="flex flex-wrap gap-2">
+              {hasPrevious ? (
+                <button
+                  type="button"
+                  className={`${recoverGhost} whitespace-nowrap`}
+                  data-testid="recover-accounts-prev"
+                  onClick={() => onQuery?.({ q, state: stateFilter, assigned: assignedFilter, back: true })}
+                >
+                  Previous page
+                </button>
+              ) : null}
+              {nextCursor ? (
+                <button
+                  type="button"
+                  className={`${recoverBtn} whitespace-nowrap`}
+                  data-testid="recover-accounts-next"
+                  onClick={() => onQuery?.({ q, state: stateFilter, assigned: assignedFilter, after: nextCursor.placed_at, afterId: nextCursor.id })}
+                >
+                  Next page
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>
       ) : null}
@@ -380,7 +538,7 @@ export function AccountView({
   notice?: string;
   onNote?: (note: string) => Promise<boolean> | boolean;
   onFlag?: (flag: string, reason: string, clear?: boolean) => Promise<boolean> | boolean;
-  onAdjust?: (cents: number) => Promise<boolean> | boolean;
+  onAdjust?: (cents: number, reason: string) => Promise<boolean> | boolean;
   onRecall?: (closeReason: string) => Promise<boolean> | boolean;
 }) {
   const [reveal, setReveal] = useState(false);
@@ -388,8 +546,10 @@ export function AccountView({
   const [flag, setFlag] = useState('debt_review');
   const [flagReason, setFlagReason] = useState('');
   const [note, setNote] = useState('');
-  const [cents, setCents] = useState('');
+  const [rands, setRands] = useState('');
+  const [adjustReason, setAdjustReason] = useState('');
   const [closeReason, setCloseReason] = useState('');
+  const [confirm, setConfirm] = useState('');
   const idText = revealedId || shown;
   const noteEvents = new Set(account?.events.filter((event) => event.type === 'note').map((event) => `${event.at}:${event.note || ''}`) || []);
   return (
@@ -403,8 +563,21 @@ export function AccountView({
         <RecoverEmpty testId="recover-account-empty" icon={ListChecks} title="No accounts yet" body="Choose an account from the list." action={<a className={recoverBtn} href="/dashboard/recovergraph/accounts">Back to accounts</a>} />
       ) : null}
       {phase === 'ready' && account ? (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]" data-role={role}>
-          <div className="space-y-4">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]" data-role={role}>
+          <div className="min-w-0 space-y-4">
+            <section className="rounded-3xl bg-[#00b4d8] p-5 text-[#0f172a]">
+              <p className="text-xs font-bold uppercase tracking-[0.16em]">RecoverAdvisor®</p>
+              <h2 className="mt-1 text-2xl font-black tracking-tight">{account.ref}</h2>
+              <p className="mt-2 text-3xl font-black tabular-nums">{formatRecoverMoney(account.balance_cents)}</p>
+              <p className="mt-1 text-sm">Placed balance. Payments are not recorded yet.</p>
+              <div className="mt-3"><StateChip state={account.state} /></div>
+              <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+                <div><dt className="text-xs font-bold uppercase tracking-wide">Creditor</dt><dd className="font-semibold">{account.creditor_name || 'Not recorded'}</dd></div>
+                <div><dt className="text-xs font-bold uppercase tracking-wide">Mandate</dt><dd className="font-semibold">{mandateText(account)}</dd></div>
+                <div><dt className="text-xs font-bold uppercase tracking-wide">Assigned</dt><dd className="font-semibold">{account.assignee_name || 'Unassigned'}</dd></div>
+                <div><dt className="text-xs font-bold uppercase tracking-wide">Debtor</dt><dd className="font-semibold">{account.debtor_name}</dd></div>
+              </dl>
+            </section>
             {account.flags.length ? (
               <div data-testid="recover-stop-banner" className="flex gap-3 rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3 text-sm text-[#0f172a]">
                 <Flag className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
@@ -416,21 +589,23 @@ export function AccountView({
             <ol data-testid="recover-timeline" className="space-y-2">
               {account.events.map((event, index) => (
                 <li key={event.id || `${event.type}-${event.at}-${index}`} className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-2 text-sm">
-                  <span className="font-bold">{event.label}</span>
-                  <span className="ml-2 text-slate-600">{event.at}</span>
+                  <span className="font-bold text-[#0f172a]">{event.label}</span>
+                  <span className="ml-2 text-slate-600">{formatWhen(event.at)}</span>
                   {event.note ? <span className="mt-1 block text-slate-700">{event.note}</span> : null}
                 </li>
               ))}
               {account.notes.filter((item) => !noteEvents.has(`${item.at}:${item.text}`)).map((item, index) => (
-                <li key={`${item.at}-${index}`} className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-2 text-sm">{item.text}</li>
+                <li key={`${item.at}-${index}`} className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-2 text-sm">
+                  <span className="font-bold text-[#0f172a]">Note</span>
+                  <span className="ml-2 text-slate-600">{formatWhen(item.at)}</span>
+                  <span className="mt-1 block text-slate-700">{item.text}</span>
+                </li>
               ))}
             </ol>
           </div>
-          <div className="space-y-3">
+          <div className="min-w-0 space-y-3">
             <section className={`${recoverCard} p-4`}>
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Placed balance</p>
-              <p className="text-2xl font-black tabular-nums">{formatRecoverMoney(account.balance_cents)}</p>
-              <p className="mt-1 text-xs text-slate-600">Placed balance; payments are not recorded yet.</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Balance breakdown</p>
               <dl className="mt-3 space-y-1 text-sm">
                 <Row k="Original" v={account.original_cents} />
                 <Row k="Principal" v={account.principal_cents} />
@@ -462,7 +637,7 @@ export function AccountView({
                     setReveal(false);
                   }}
                 >
-                  <p className="text-xs text-slate-600">This view is logged.</p>
+                  <p className="text-xs text-slate-600">This view is logged. Do not put a phone number, email, identity number, or other personal information in this reason.</p>
                   <input aria-label="Reason" name="reason" className={recoverField} required maxLength={200} />
                   <button className={recoverBtn} type="submit">Show the ID</button>
                 </form>
@@ -478,81 +653,118 @@ export function AccountView({
                 ))}
               </ul>
             ) : null}
+            {confirm ? (
+              <div data-testid="recover-confirm" className="rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3 text-sm text-[#0f172a]">
+                <p>{confirm}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className={`${recoverBtn} whitespace-nowrap`}
+                    onClick={() => {
+                      const text = confirm;
+                      setConfirm('');
+                      if (text.startsWith('Recall ')) {
+                        void onRecall?.(closeReason.trim());
+                        return;
+                      }
+                      const cents = randsToCents(rands);
+                      if (cents == null || !adjustReason.trim()) return;
+                      void onAdjust?.(cents, adjustReason.trim());
+                      setRands('');
+                      setAdjustReason('');
+                    }}
+                  >
+                    Confirm
+                  </button>
+                  <button type="button" className={recoverGhost} onClick={() => setConfirm('')}>Cancel</button>
+                </div>
+              </div>
+            ) : null}
             {caps.canAddNote && onNote ? (
-              <form
-                className="space-y-2"
-                data-testid="recover-add-note"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const text = note.trim();
-                  if (!text) return;
-                  void Promise.resolve(onNote(text)).then((ok) => {
-                    if (ok !== false) setNote('');
-                  });
-                }}
-              >
-                <label className="block text-xs font-bold">Note
-                  <textarea aria-label="Note" className={recoverField} rows={3} value={note} onChange={(event) => setNote(event.target.value)} required />
-                </label>
-                <button type="submit" className={recoverGhost}>Add note</button>
-              </form>
+              <details className={`${recoverCard} p-4`} open data-testid="recover-add-note">
+                <summary className="cursor-pointer font-black text-[#0f172a]">Add note</summary>
+                <form
+                  className="mt-3 space-y-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const text = note.trim();
+                    if (!text) return;
+                    void Promise.resolve(onNote(text)).then((ok) => {
+                      if (ok !== false) setNote('');
+                    });
+                  }}
+                >
+                  <label className="block text-xs font-bold">Note
+                    <textarea aria-label="Note" className={recoverField} rows={3} value={note} onChange={(event) => setNote(event.target.value)} required />
+                  </label>
+                  <button type="submit" className={`${recoverGhost} whitespace-nowrap`}>Add note</button>
+                </form>
+              </details>
             ) : null}
             {onFlag ? (
-              <form
-                className="space-y-2"
-                data-testid="recover-stop-flag"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const clear = (event.nativeEvent as SubmitEvent).submitter?.getAttribute('value') === 'clear';
-                  void onFlag(flag, flagReason.trim(), clear);
-                }}
-              >
-                <label className="block text-xs font-bold">Stop flag
-                  <select aria-label="Stop flag" className={recoverField} value={flag} onChange={(event) => setFlag(event.target.value)}>
-                    {Object.entries(FLAG_LABEL).map(([key, label]) => (
-                      <option key={key} value={key}>{label}</option>
-                    ))}
-                  </select>
-                </label>
-                <input aria-label="Flag reason" className={recoverField} value={flagReason} onChange={(event) => setFlagReason(event.target.value)} required placeholder="Reason" />
-                <div className="flex flex-wrap gap-2">
-                  <button className={recoverBtn} type="submit" value="set">Set flag</button>
-                  <button className={recoverGhost} type="submit" value="clear">Clear flag</button>
-                </div>
-                <p className="text-xs text-slate-600">An owner or manager records the flag. It does not send or block a message.</p>
-              </form>
+              <details className={`${recoverCard} p-4`} open data-testid="recover-stop-flag">
+                <summary className="cursor-pointer font-black text-[#0f172a]">Stop flag</summary>
+                <form
+                  className="mt-3 space-y-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const clear = (event.nativeEvent as SubmitEvent).submitter?.getAttribute('value') === 'clear';
+                    void onFlag(flag, flagReason.trim(), clear);
+                  }}
+                >
+                  <label className="block text-xs font-bold">Stop flag
+                    <select aria-label="Stop flag" className={recoverField} value={flag} onChange={(event) => setFlag(event.target.value)}>
+                      {Object.entries(FLAG_LABEL).map(([key, label]) => (
+                        <option key={key} value={key}>{label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <input aria-label="Flag reason" className={recoverField} value={flagReason} onChange={(event) => setFlagReason(event.target.value)} required placeholder="Reason" />
+                  <div className="flex flex-wrap gap-2">
+                    <button className={`${recoverBtn} whitespace-nowrap`} type="submit" value="set">Set flag</button>
+                    <button className={`${recoverGhost} whitespace-nowrap`} type="submit" value="clear">Clear flag</button>
+                  </div>
+                  <p className="text-xs text-slate-600">An owner or manager records the flag. It does not send or block a message.</p>
+                </form>
+              </details>
             ) : null}
             {onAdjust ? (
-              <form
-                className="space-y-2"
-                data-testid="recover-adjust"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const amount = Number(cents);
-                  if (!Number.isInteger(amount)) return;
-                  void onAdjust(amount);
-                }}
-              >
-                <label className="block text-xs font-bold">Adjustment in cents
-                  <input aria-label="Adjustment in cents" className={recoverField} inputMode="numeric" value={cents} onChange={(event) => setCents(event.target.value)} required />
-                </label>
-                <button className={recoverBtn} type="submit">Record adjustment</button>
-              </form>
+              <details className={`${recoverCard} p-4`} data-testid="recover-adjust">
+                <summary className="cursor-pointer font-black text-[#0f172a]">Adjustment</summary>
+                <form
+                  className="mt-3 space-y-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (randsToCents(rands) == null || !adjustReason.trim()) return;
+                    setConfirm('This replaces the current adjustment. It is not added on top. RecoverAdvisor® refuses the change if the balance would go below zero.');
+                  }}
+                >
+                  <label className="block text-xs font-bold">Replacement amount in rands
+                    <input aria-label="Adjustment in rands" className={recoverField} inputMode="decimal" value={rands} onChange={(event) => setRands(event.target.value)} required placeholder="0.00" />
+                  </label>
+                  <input aria-label="Adjustment reason" className={recoverField} value={adjustReason} onChange={(event) => setAdjustReason(event.target.value)} required maxLength={500} placeholder="Reason" />
+                  <p className="text-xs text-slate-600">This sets the adjustment figure. It does not add to the one already recorded.</p>
+                  <button className={`${recoverBtn} whitespace-nowrap`} type="submit">Record adjustment</button>
+                </form>
+              </details>
             ) : null}
             {onRecall ? (
-              <form
-                className="space-y-2"
-                data-testid="recover-recall"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void onRecall(closeReason.trim());
-                }}
-              >
-                <label className="block text-xs font-bold">Recall reason
-                  <input aria-label="Recall reason" className={recoverField} value={closeReason} onChange={(event) => setCloseReason(event.target.value)} required />
-                </label>
-                <button className={recoverBtn} type="submit">Recall account</button>
-              </form>
+              <details className={`${recoverCard} p-4`} data-testid="recover-recall">
+                <summary className="cursor-pointer font-black text-[#0f172a]">Recall account</summary>
+                <form
+                  className="mt-3 space-y-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (!closeReason.trim()) return;
+                    setConfirm('Recall closes this account and takes it off the active book.');
+                  }}
+                >
+                  <label className="block text-xs font-bold">Recall reason
+                    <input aria-label="Recall reason" className={recoverField} value={closeReason} onChange={(event) => setCloseReason(event.target.value)} required />
+                  </label>
+                  <button className={`${recoverBtn} whitespace-nowrap`} type="submit">Recall account</button>
+                </form>
+              </details>
             ) : null}
           </div>
         </div>
@@ -580,7 +792,7 @@ export function ImportView({
   caps: RecoverCapabilities;
   showDemo?: boolean;
   creditors?: { id: string; name: string }[];
-  mandates?: { id: string; creditor_id: string; status?: string; label?: string }[];
+  mandates?: { id: string; creditor_id: string; status?: string; label?: string; product_type?: string; agreement_reference?: string }[];
   notice?: string;
   onDryRun?: (input: { csv: string; mapping: Record<string, string> }) => Promise<ImportActionResult>;
   onCommit?: (input: ImportCommitInput) => Promise<ImportActionResult> | ImportActionResult | void;
@@ -593,7 +805,14 @@ export function ImportView({
     ? HARBOUR_CREDITORS.map((row) => ({ id: row.key, name: row.name }))
     : creditors;
   const mandateChoices = demoPick
-    ? HARBOUR_CREDITORS.map((row) => ({ id: row.key, creditor_id: row.key, status: 'active', label: `${row.name} · active` }))
+    ? HARBOUR_CREDITORS.map((row) => ({
+        id: row.key,
+        creditor_id: row.key,
+        status: 'active',
+        product_type: row.product_type,
+        agreement_reference: row.agreement_reference,
+        label: `${PRODUCT_LABEL[row.product_type] || row.product_type} · ${row.agreement_reference}`,
+      }))
     : mandates.filter((row) => !row.status || row.status === 'active');
   const [step, setStep] = useState(1);
   const [text, setText] = useState('');
@@ -656,7 +875,7 @@ export function ImportView({
                 <select aria-label="Mandate" className={recoverField} value={mandateId} onChange={(event) => { setMandateId(event.target.value); setDry(false); }}>
                   <option value="">Choose a mandate</option>
                   {mandatesForCreditor.map((row) => (
-                    <option key={row.id} value={row.id}>{row.label || 'Active mandate'}</option>
+                    <option key={row.id} value={row.id}>{mandateOptionLabel(row)}</option>
                   ))}
                 </select>
               </label>
@@ -717,7 +936,10 @@ export function ImportView({
           ) : null}
           {step === 4 ? (
             <div className="space-y-2" data-testid="recover-dry-run">
-              <p className="text-sm">Dry run shows counts and row, field, and code only. Commit uses that same file.</p>
+              <p className="text-sm">Dry run checks this file and shows what would be placed. Commit sends the same file again. RecoverAdvisor® checks the hash and validates the rows again. It does not keep a separate dry-run session.</p>
+              <p className="rounded-2xl border border-[#e2e8f0] bg-white px-3 py-2 text-sm text-[#0f172a]" data-testid="recover-import-summary">
+                {creditorChoices.find((row) => row.id === creditorId)?.name || 'Creditor'} · {mandateOptionLabel(mandatesForCreditor.find((row) => row.id === mandateId) || {})}
+              </p>
               <button
                 type="button"
                 className={recoverBtn}
@@ -754,7 +976,7 @@ export function ImportView({
                   <p>{summary.will_create} to place. {summary.errors} errors. {summary.warnings} warnings. {summary.already_placed} already placed.</p>
                   <ul className="mt-2 space-y-1">
                     {issues.map((issue) => (
-                      <li key={`${issue.row}-${issue.field}-${issue.code}`}>Row {issue.row} · {issue.field} · {issue.code}</li>
+                      <li key={`${issue.row}-${issue.field}-${issue.code}`}>Row {issue.row} · {issue.field} · {issueLabel(issue.code)}</li>
                     ))}
                   </ul>
                 </div>
@@ -872,7 +1094,7 @@ export function CreditorBookView({
             <article key={row.id} className={`${recoverCard} p-4`}>
               <h2 className="font-black">{row.name}</h2>
               <p className="text-sm text-slate-600">{row.reg_no || 'No registration recorded'}</p>
-              <p className="text-sm">{row.mandate_count ?? mandates.filter((item) => item.creditor_id === row.id).length} mandates · {row.account_count ?? 0} accounts</p>
+              <p className="text-sm">{counted(row.mandate_count ?? mandates.filter((item) => item.creditor_id === row.id).length, 'mandate', 'mandates')} · {counted(row.account_count ?? 0, 'account', 'accounts')}</p>
               <button type="button" className={`${recoverGhost} mt-3`} data-testid="recover-creditor-open" onClick={() => setSelected(row.id)}>Open creditor</button>
             </article>
           ))}
@@ -1036,6 +1258,7 @@ export function MandateBookView({
 }
 
 function BatchList({ batches, onRollback }: { batches: MemoryBatch[]; onRollback?: (id: string) => void }) {
+  const [pending, setPending] = useState<string | null>(null);
   if (batches.length === 0) {
     return (
       <RecoverEmpty testId="recover-batches-empty" icon={Upload} title="No batches yet" body="A committed file appears here." action={<span className={recoverBtn}>Start an import</span>} />
@@ -1047,7 +1270,16 @@ function BatchList({ batches, onRollback }: { batches: MemoryBatch[]; onRollback
         <li key={batch.id} className={`${recoverCard} p-4 text-sm`}>
           <p className="font-black">{batch.file_name}</p>
           <p>{batch.status} · {batch.created} placed · {batch.skipped} skipped</p>
-          <button type="button" className={`${recoverGhost} mt-2`} data-testid={batch.file_name === 'upload.csv' ? 'recover-rollback-upload' : `recover-rollback-${batch.id}`} onClick={() => onRollback?.(batch.id)}>Rollback</button>
+          <button type="button" className={`${recoverGhost} mt-2 whitespace-nowrap`} data-testid={batch.file_name === 'upload.csv' ? 'recover-rollback-upload' : `recover-rollback-${batch.id}`} onClick={() => setPending(batch.id)}>Rollback</button>
+          {pending === batch.id ? (
+            <div data-testid="recover-confirm" className="mt-3 rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3 text-sm text-[#0f172a]">
+              <p>Rollback removes only the untouched accounts from this batch. Accounts that were noted, assigned, flagged, or merged stay on the book.</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button type="button" className={`${recoverBtn} whitespace-nowrap`} onClick={() => { setPending(null); onRollback?.(batch.id); }}>Confirm</button>
+                <button type="button" className={recoverGhost} onClick={() => setPending(null)}>Cancel</button>
+              </div>
+            </div>
+          ) : null}
         </li>
       ))}
     </ul>

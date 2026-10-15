@@ -50,7 +50,14 @@ export default function RecoverImportsPage() {
   const creditors = (desk?.creditors || []).map((row) => ({ id: row.id, name: row.name }));
   const mandates = (desk?.mandates || [])
     .filter((row) => row.status === 'active')
-    .map((row) => ({ id: row.id, creditor_id: row.creditor_id, status: row.status, label: row.creditor_name }));
+    .map((row) => ({
+      id: row.id,
+      creditor_id: row.creditor_id,
+      status: row.status,
+      product_type: row.product_type,
+      agreement_reference: row.agreement_reference,
+      label: row.creditor_name,
+    }));
   return (
     <ImportView
       phase={loading || live.phase === 'loading' ? 'loading' : error ? 'error' : live.phase}

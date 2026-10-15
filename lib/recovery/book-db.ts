@@ -1,4 +1,5 @@
 import { getSupabaseServer } from '@/lib/supabase/server-client';
+import { pairsFromDebtors } from './duplicates';
 import { decryptId, encryptId } from './pii-crypto';
 import { isMigrationPending, MigrationPendingError, readFeatureResult } from './recovergraph-db';
 import type { RecoverBookOp, RecoverBookStats } from './types';
@@ -117,7 +118,7 @@ export async function listBookAccounts(input: {
   let query = supabase
     .from('recover_accounts')
     .select(
-      'id, ref, creditor_id, debtor_id, creditor_account_ref, balance_cents, state, assigned_to, team_id, placed_at, flags, stage_key, principal_cents, interest_cents, fees_cents, costs_cents, adjustment_cents, original_cents, batch_id'
+      'id, ref, creditor_id, mandate_id, debtor_id, creditor_account_ref, balance_cents, state, assigned_to, team_id, placed_at, flags, stage_key, principal_cents, interest_cents, fees_cents, costs_cents, adjustment_cents, original_cents, batch_id'
     )
     .eq('company_id', input.companyId)
     .order('placed_at', { ascending: false })
@@ -158,6 +159,8 @@ export async function listBookAccounts(input: {
   }
   const contacts = await loadDebtorContacts(input.companyId, debtorIds);
   if (contacts === 'pending') return { ready: false as const, reason: 'migration_pending' as const, feature: 'accounts' as const };
+  const labels = await loadAccountLabels(input.companyId, rows);
+  if (labels === 'pending') return { ready: false as const, reason: 'migration_pending' as const, feature: 'accounts' as const };
   return {
     ready: true as const,
     rows: rows.map((row) => {
@@ -168,6 +171,9 @@ export async function listBookAccounts(input: {
         display_name: debtor?.display_name || '',
         id_last4: debtor?.id_last4 || null,
         contacts: contacts.get(debtorId) || [],
+        creditor_name: labels.creditors.get(String(row.creditor_id || '')) || '',
+        mandate_label: labels.mandates.get(String(row.mandate_id || '')) || '',
+        assignee_name: labels.staff.get(String(row.assigned_to || '')) || '',
       };
     }),
   };
@@ -177,31 +183,41 @@ export async function listDuplicateDebtors(companyId: number) {
   const supabase = getSupabaseServer();
   const result = await supabase
     .from('recover_debtors')
-    .select('id, display_name, id_last4')
+    .select('id, display_name, id_last4, id_hash')
     .eq('company_id', companyId)
     .eq('status', 'active')
     .limit(400);
   const pending = readFeatureResult(result.error, 'accounts');
   if (!pending.ready) return pending;
   if (result.error) return [];
-  const groups = new Map<string, { id: string; display_name: string; id_last4: string | null }[]>();
-  for (const row of result.data || []) {
-    const name = String(row.display_name || '').trim().toLowerCase();
-    if (!name) continue;
-    const list = groups.get(name) || [];
-    list.push({
-      id: String(row.id),
+  const people = ((result.data || []) as { id?: string; display_name?: string; id_last4?: string | null; id_hash?: string | null }[])
+    .map((row) => ({
+      id: String(row.id || ''),
       display_name: String(row.display_name || ''),
       id_last4: row.id_last4 ? String(row.id_last4) : null,
-    });
-    groups.set(name, list);
+      id_hash: row.id_hash ? String(row.id_hash) : null,
+      phones: [] as string[],
+      emails: [] as string[],
+    }))
+    .filter((row) => row.id);
+  const contacts = await loadDebtorContacts(companyId, people.map((row) => row.id));
+  if (contacts === 'pending') return { ready: false as const, reason: 'migration_pending' as const, feature: 'accounts' as const };
+  for (const person of people) {
+    for (const contact of contacts.get(person.id) || []) {
+      if (contact.kind === 'email') person.emails.push(contact.value);
+      if (contact.kind === 'phone' || contact.kind === 'whatsapp') person.phones.push(contact.value);
+    }
   }
-  return [...groups.values()]
-    .filter((group) => group.length > 1)
+  return pairsFromDebtors(people)
     .slice(0, 20)
-    .map((group) => ({
-      name: group[0].display_name,
-      debtors: group.map((row) => ({ id: row.id, display_name: row.display_name, id_last4: row.id_last4 })),
+    .map((pair) => ({
+      name: pair.right.display_name,
+      match: pair.match,
+      debtors: [pair.left, pair.right].map((row) => ({
+        id: row.id,
+        display_name: row.display_name,
+        id_last4: row.id_last4,
+      })),
     }));
 }
 
@@ -306,7 +322,43 @@ export async function loadBookStats(companyId: number): Promise<RecoverBookStats
     assignedCount: rows.filter((row) => row.assigned_to).length,
     unassignedCount: rows.filter((row) => !row.assigned_to && (row.state === 'active' || !row.state)).length,
     imported: rows.length > 0,
+    arrangementCount: rows.filter((row) => row.state === 'arrangement').length,
+    paidCount: rows.filter((row) => row.state === 'paid').length,
   };
+}
+
+async function loadAccountLabels(companyId: number, rows: Record<string, unknown>[]) {
+  const supabase = getSupabaseServer();
+  const creditors = new Map<string, string>();
+  const mandates = new Map<string, string>();
+  const staff = new Map<string, string>();
+  const creditorIds = [...new Set(rows.map((row) => String(row.creditor_id || '')).filter(Boolean))];
+  const mandateIds = [...new Set(rows.map((row) => String(row.mandate_id || '')).filter(Boolean))];
+  const staffIds = [...new Set(rows.map((row) => String(row.assigned_to || '')).filter(Boolean))];
+  if (creditorIds.length) {
+    const found = await supabase.from('recover_creditors').select('id, name').eq('company_id', companyId).in('id', creditorIds);
+    if (isMigrationPending(found.error)) return 'pending' as const;
+    for (const row of found.data || []) creditors.set(String(row.id), String(row.name || ''));
+  }
+  if (mandateIds.length) {
+    const found = await supabase
+      .from('recover_mandates')
+      .select('id, product_type, agreement_reference')
+      .eq('company_id', companyId)
+      .in('id', mandateIds);
+    if (isMigrationPending(found.error)) return 'pending' as const;
+    for (const row of found.data || []) {
+      const product = String(row.product_type || '');
+      const reference = String(row.agreement_reference || '').trim();
+      mandates.set(String(row.id), reference ? `${product} · ${reference}` : product);
+    }
+  }
+  if (staffIds.length) {
+    const found = await supabase.from('recover_staff').select('id, email').eq('company_id', companyId).in('id', staffIds);
+    if (isMigrationPending(found.error)) return 'pending' as const;
+    for (const row of found.data || []) staff.set(String(row.id), String(row.email || ''));
+  }
+  return { creditors, mandates, staff };
 }
 
 export async function demoRowsExist(companyId: number): Promise<boolean | 'pending'> {
@@ -429,8 +481,11 @@ function calmSql(message: string | undefined): string {
   if (/\bname\b/.test(text)) return 'name';
   if (text.includes('uq_recover_creditors_name')) return 'duplicate_creditor';
   if (text.includes('uq_recover_creditors_customer')) return 'duplicate_customer';
+  if (text.includes('note_scope')) return 'note_scope';
   if (text.includes('mandate_locked')) return 'mandate_locked';
   if (text.includes('collector')) return 'collector';
+  if (/\bbalance\b/.test(text)) return 'balance';
+  if (/\breason\b/.test(text)) return 'reason';
   if (text.includes('creditor')) return 'creditor';
   if (text.includes('cap')) return 'cap';
   return 'closed';

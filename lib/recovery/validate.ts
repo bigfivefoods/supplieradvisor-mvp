@@ -311,8 +311,12 @@ export function validateBookOp(raw: unknown): ValidationOk<RecoverBookOp> | Vali
   if (op === 'account.adjust') {
     const cents = Number(clean.adjustment_cents);
     if (!Number.isInteger(cents) || Math.abs(cents) > 1_000_000_000_000) {
-      return { ok: false, error: 'Enter the adjustment in cents.' };
+      return { ok: false, error: 'Enter the replacement adjustment in rands.' };
     }
+    const reason = text(clean.reason, 500);
+    if (!reason) return { ok: false, error: 'A reason is required.' };
+    clean.adjustment_cents = cents;
+    clean.reason = reason;
   }
   if (op === 'creditor.upsert') {
     if (!text(clean.name, 200)) return { ok: false, error: 'Enter a creditor name.' };

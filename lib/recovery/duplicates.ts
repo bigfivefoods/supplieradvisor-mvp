@@ -38,6 +38,22 @@ export function findDebtorDuplicates(debtors: readonly DebtorMatch[], incoming: 
 
 export type AccountRef = { id: string; creditor_id: string; creditor_account_ref: string };
 
+export function pairsFromDebtors<T extends DebtorMatch>(rows: readonly T[]): { left: T; right: T; match: 'identity' | 'contact' }[] {
+  const seen = new Set<string>();
+  const pairs: { left: T; right: T; match: 'identity' | 'contact' }[] = [];
+  for (const row of rows) {
+    for (const hit of findDebtorDuplicates(rows, row)) {
+      const key = [row.id, hit.id].sort().join(':');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const other = rows.find((item) => item.id === hit.id);
+      if (!other) continue;
+      pairs.push({ left: row, right: other, match: hit.kind === 'same_id' ? 'identity' : 'contact' });
+    }
+  }
+  return pairs;
+}
+
 export function findAccountDuplicates(
   existing: readonly AccountRef[],
   incoming: { creditor_id: string; creditor_account_ref: string }

@@ -10,6 +10,7 @@ import {
   MigrationPendingError,
 } from '@/lib/recovery/recovergraph-db';
 import { deskResponseBody, projectDesk } from '@/lib/recovery/project';
+import { loadAccountsForAgent } from '@/lib/recovery/agent-read';
 import { bulkAssignAccounts, commitBook, customerInCompany, findStaffId, setAssignmentBlock, setStaffExpiry } from '@/lib/recovery/book-db';
 import { validateDeskExtra, validateRecoverOp, validateSetRealData } from '@/lib/recovery/validate';
 
@@ -118,6 +119,21 @@ export async function POST(request: NextRequest) {
             if (!same) return json({ error: 'Choose a customer from this company.' }, 400);
           }
         }
+        if (extra.value.op === 'account.add_note' && role === 'agent') {
+          if (!load.self?.id) return denied();
+          const visible = await loadAccountsForAgent({
+            companyId: member.member.companyId,
+            staffId: load.self.id,
+            limit: 1,
+            after: null,
+            afterId: null,
+            state: null,
+            search: null,
+            accountId: String(extra.value.patch.id || ''),
+          });
+          if (!visible.ready) return json({ ready: false, reason: 'migration_pending' }, 409);
+          if (!(visible.rows as unknown[]).length) return json({ error: 'That account is not on your book.' }, 403);
+        }
         await commitBook(member.member.companyId, gate.userId, extra.value);
       } else if (extra.value.op === 'workspace.set_assignment_block') {
         if (!caps.canEditSettings) return denied();
@@ -210,6 +226,15 @@ export async function POST(request: NextRequest) {
     }
     if (error instanceof Error && error.message === 'collector') {
       return json({ error: 'Assign an account to a collector.' }, 400);
+    }
+    if (error instanceof Error && error.message === 'note_scope') {
+      return json({ error: 'That account is not on your book.' }, 403);
+    }
+    if (error instanceof Error && error.message === 'reason') {
+      return json({ error: 'A reason is required.' }, 400);
+    }
+    if (error instanceof Error && error.message === 'balance') {
+      return json({ error: 'That adjustment would take the balance below zero.' }, 400);
     }
     if (error instanceof Error && (error.message === 'closed' || error.message === 'name' || error.message === 'creditor' || error.message === 'cap')) {
       return json({ error: 'RecoverAdvisor® could not save that change.' }, 400);

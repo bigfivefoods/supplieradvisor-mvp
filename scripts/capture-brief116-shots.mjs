@@ -141,6 +141,7 @@ for (const [width, height, tag] of [
     ['imports', '/preview/recovergraph/imports?book=harbour&role=owner'],
     ['team', '/preview/recovergraph/team?book=harbour&role=owner'],
     ['account', '/preview/recovergraph/account?book=harbour&role=owner'],
+    ['command', '/preview/recovergraph?book=harbour&role=owner'],
   ];
   for (const [name, url] of views) {
     await ready(url);

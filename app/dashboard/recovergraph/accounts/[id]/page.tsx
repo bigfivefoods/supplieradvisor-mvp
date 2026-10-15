@@ -14,7 +14,7 @@ export default function RecoverAccountPage() {
   const live = useLiveAccounts({ id });
   const role = desk?.role || 'viewer';
   const caps = desk?.capabilities || capabilitiesFor(role);
-  const account = live.book.accounts.find((row) => row.id === id) || live.book.accounts[0] || null;
+  const account = live.book.accounts.find((row) => row.id === id) || null;
   const [revealed, setRevealed] = useState('');
   const [notice, setNotice] = useState('');
   return (
@@ -56,8 +56,8 @@ export default function RecoverAccountPage() {
         if (ok) await live.reload();
         return ok;
       } : undefined}
-      onAdjust={caps.canMutateAccounts ? async (cents) => {
-        const ok = await save({ op: 'account.adjust', id, adjustment_cents: cents });
+      onAdjust={caps.canMutateAccounts ? async (cents, reason) => {
+        const ok = await save({ op: 'account.adjust', id, adjustment_cents: cents, reason });
         setNotice(ok ? 'Adjustment recorded.' : 'RecoverAdvisor® could not save that adjustment.');
         if (ok) await live.reload();
         return ok;

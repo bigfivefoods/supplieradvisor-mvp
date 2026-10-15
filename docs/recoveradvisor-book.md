@@ -52,6 +52,10 @@ DEMO-1,Sample Debtor,1234.56,0100000001,sample.debtor@demo.example
 
 Excel (.xlsx) is deferred. The pinned spreadsheet package has published prototype-pollution and ReDoS advisories, so this brief does not parse it.
 
+A dry run returns a hash of the file that was sent. Commit sends that same file again. The server checks the hash matches and validates the rows again, with the creditor and mandate chosen on that commit. It does not store the dry run, the column mapping, or a session to compare later. A commit is accepted only when that second check passes.
+
+An agent can add a note only on an account assigned to them or to their team. An adjustment replaces the stored adjustment figure. It is not added on top, it needs a reason, and it is refused if the balance would go below zero.
+
 ## Installable apps
 
 | App | Route | This brief | Later |
