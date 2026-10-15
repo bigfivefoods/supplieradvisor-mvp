@@ -620,9 +620,8 @@ export function ImportView(props: FleetDeskProps) {
           : planShipDrivers([driverRow], props.book, props.today, () => PREVIEW_SHIP_DRIVER_ID);
       const hash = shipSourceHash(mode === 'ship_drivers' ? 'ship_drivers' : 'ship_vehicles', mode === 'ship_drivers' ? [driverRow] : [vehicleRow]);
       const shown = planned.summary;
-      const rows = shipRowsForDesk(true, demo && mode === 'ship_drivers' ? [] : planned.rows);
       setResult({
-        rows,
+        rows: demo && mode === 'ship_drivers' ? [] : planned.rows,
         errors: [],
         warnings: planned.warnings,
         summary: shown,
