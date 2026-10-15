@@ -62,6 +62,51 @@ test('job, quote, client accept, gantt, variation, invoice, pay link', async ({ 
   await expect(page.getByTestId('pay-amount')).toContainText('R');
 });
 
+test('preview office nav keeps the active tab and browser back', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await ready(page);
+  await expect(page.locator('[data-office-chrome="preview"]')).toBeVisible();
+  const nav = page.getByRole('navigation', { name: 'TradeAdvisor®' });
+  await expect(nav).toHaveCount(1);
+  await expect(nav.getByRole('link', { name: 'Home', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(nav.getByText('Floor', { exact: true })).toBeVisible();
+  await expect(nav.getByText('Money', { exact: true })).toBeVisible();
+  await expect(nav.getByText('People', { exact: true })).toBeVisible();
+  await expect(nav.getByText('Yard', { exact: true })).toBeVisible();
+
+  await nav.getByRole('link', { name: 'Jobs', exact: true }).click();
+  await expect(page).toHaveURL(/\/preview\/tradegraph\/board$/);
+  await expect(page.getByTestId('job-board')).toBeVisible();
+  await expect(nav.getByRole('link', { name: 'Jobs', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(nav.getByRole('link', { name: 'Home', exact: true })).not.toHaveAttribute('aria-current', 'page');
+
+  await nav.getByRole('link', { name: 'Invoices', exact: true }).click();
+  await expect(page).toHaveURL(/\/preview\/tradegraph\/invoices$/);
+  await expect(nav.getByRole('link', { name: 'Invoices', exact: true })).toHaveAttribute('aria-current', 'page');
+
+  await page.goBack();
+  await expect(page).toHaveURL(/\/preview\/tradegraph\/board$/);
+  await expect(nav.getByRole('link', { name: 'Jobs', exact: true })).toHaveAttribute('aria-current', 'page');
+  await page.goBack();
+  await expect(page).toHaveURL(/\/preview\/tradegraph\/?(\?.*)?$/);
+  await expect(nav.getByRole('link', { name: 'Home', exact: true })).toHaveAttribute('aria-current', 'page');
+});
+
+test('preview phone keeps the office dock', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await ready(page);
+  const dock = page.locator('nav.fixed');
+  await expect(dock.getByRole('link', { name: 'Home', exact: true })).toBeVisible();
+  await expect(dock.getByRole('link', { name: 'Jobs', exact: true })).toBeVisible();
+  await dock.getByRole('link', { name: 'Invoices', exact: true }).click();
+  await expect(page).toHaveURL(/\/preview\/tradegraph\/invoices$/);
+  await expect(dock.getByRole('link', { name: 'Invoices', exact: true })).toHaveAttribute('aria-current', 'page');
+  await dock.getByRole('button', { name: 'More', exact: true }).click();
+  await page.getByRole('link', { name: 'Compliance', exact: true }).click();
+  await expect(page).toHaveURL(/\/preview\/tradegraph\/compliance$/);
+  await expect(page.getByRole('heading', { name: 'Compliance' })).toBeVisible();
+});
+
 test('owner, technician, and client apps', async ({ page }) => {
   await ready(page);
   await page.goto('/preview/tradegraph/work?role=owner');
