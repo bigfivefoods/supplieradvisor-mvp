@@ -109,7 +109,7 @@ export function PreviewShell({ children }: { children: ReactNode }) {
         </div>
         <div className="mx-auto max-w-6xl px-3 py-4">
           {ready ? (
-            children
+            <div className="sa-page">{children}</div>
           ) : (
             <div className="h-40 animate-pulse rounded-3xl bg-slate-100 motion-reduce:animate-none" />
           )}
@@ -145,7 +145,7 @@ export function RecoverSampleApp({
         <p className="mb-3 text-xs font-black uppercase tracking-[0.14em] text-slate-600">
           RecoverAdvisor® · Illustration · sample data
         </p>
-        {role === 'client' ? <ClientSample /> : <RecoverCommand />}
+        <div className="sa-page">{role === 'client' ? <ClientSample /> : <RecoverCommand />}</div>
       </div>
     </RecoverPreviewProvider>
   );
