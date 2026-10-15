@@ -1,0 +1,306 @@
+/**
+ * FleetAdvisor® illustration book. Fictional rows for the signed-out preview only.
+ */
+import { cpkInputFromBook } from './book-cpk';
+import { sample01Input } from './cpk-fixtures';
+import { emptyFleetBook } from './empty-book';
+import type { FleetCpkInput } from './cpk';
+import type { FleetBook } from './types';
+
+const NOW = '2024-07-01T08:00:00.000Z';
+
+export function sampleFleetBook(): FleetBook {
+  const fixture = sample01Input();
+  const vehicle = fixture.vehicles[0];
+  const profile = fixture.profiles[0];
+  const book = emptyFleetBook(1, NOW);
+  book.workspace = {
+    ...book.workspace,
+    id: 'ws-sample',
+    display_name: 'Sample Haulage (Pty) Ltd',
+    operator_type: 'haulier',
+    depot_label: 'Sample Depot',
+    waybill_prefix: 'SMP',
+    real_data_enabled: false,
+    updated_at: NOW,
+  };
+  book.vehicles = [
+    {
+      id: vehicle.id,
+      company_id: 1,
+      reg_no: 'SAMPLE 01',
+      kind: 'rigid',
+      ownership: 'owned',
+      make: 'Sample',
+      model: 'Rigid',
+      year: 2019,
+      vin: '',
+      gvm_kg: 16000,
+      tare_kg: 8000,
+      payload_kg: 8000,
+      fuel_type: 'Diesel',
+      tank_litres: 400,
+      odometer_km: 18000,
+      odometer_at: '2024-07-01',
+      status: 'active',
+      depot_label: 'Sample Depot',
+      tracker_fitted: false,
+      tracker_provider: '',
+      notes: '',
+      archived_at: null,
+      updated_at: NOW,
+    },
+    {
+      id: 'sample-02',
+      company_id: 1,
+      reg_no: 'SAMPLE 02',
+      kind: 'van',
+      ownership: 'leased',
+      make: 'Sample',
+      model: 'Van',
+      year: 2021,
+      vin: '',
+      gvm_kg: null,
+      tare_kg: null,
+      payload_kg: null,
+      fuel_type: 'Diesel',
+      tank_litres: null,
+      odometer_km: null,
+      odometer_at: null,
+      status: 'workshop',
+      depot_label: 'Sample Depot',
+      tracker_fitted: false,
+      tracker_provider: '',
+      notes: '',
+      archived_at: null,
+      updated_at: NOW,
+    },
+  ];
+  book.drivers = [
+    {
+      id: 'driver-a',
+      company_id: 1,
+      full_name: 'Sample Driver A',
+      phone: '',
+      email: 'sample.driver.a@example.com',
+      employment: 'employee',
+      licence_code: 'EC',
+      status: 'active',
+      person_id: null,
+      notes: '',
+      archived_at: null,
+      updated_at: NOW,
+    },
+    {
+      id: 'driver-b',
+      company_id: 1,
+      full_name: 'Sample Driver B',
+      phone: '',
+      email: 'sample.driver.b@example.com',
+      employment: 'contractor',
+      licence_code: 'C',
+      status: 'active',
+      person_id: null,
+      notes: '',
+      archived_at: null,
+      updated_at: NOW,
+    },
+  ];
+  book.compliance = [
+    {
+      id: 'comp-disc',
+      company_id: 1,
+      subject_kind: 'vehicle',
+      subject_id: 'sample-01',
+      kind: 'licence_disc',
+      reference: '',
+      issued_on: '2024-01-01',
+      expires_on: '2024-06-20',
+      detail: {},
+      status_note: '',
+      archived_at: null,
+      updated_at: NOW,
+    },
+    {
+      id: 'comp-prdp',
+      company_id: 1,
+      subject_kind: 'driver',
+      subject_id: 'driver-a',
+      kind: 'prdp',
+      reference: '',
+      issued_on: '2023-07-01',
+      expires_on: '2025-07-01',
+      detail: { category: 'G' },
+      status_note: '',
+      archived_at: null,
+      updated_at: NOW,
+    },
+  ];
+  book.jobs = [
+    {
+      id: 'job-1',
+      company_id: 1,
+      reference: 'SMP-1',
+      customer_id: null,
+      customer_name: 'Sample Retailer',
+      service_type: 'full load',
+      cargo_description: 'Sample pallets',
+      cargo_kg: 4000,
+      cargo_volume_m3: null,
+      packages: 8,
+      status: 'booked',
+      dangerous_goods: false,
+      abnormal: false,
+      abnormal_dims: null,
+      cross_border: false,
+      countries: [],
+      price_cents: 14_000_000,
+      notes: '',
+      archived_at: null,
+      updated_at: NOW,
+    },
+  ];
+  book.stops = [
+    {
+      id: 'stop-1',
+      company_id: 1,
+      job_id: 'job-1',
+      seq: 1,
+      kind: 'pickup',
+      place_name: 'Sample Depot',
+      address: '1 Sample Street',
+      suburb: '',
+      city: 'Sample City',
+      province: '',
+      country: 'ZA',
+      window_start: null,
+      window_end: null,
+      contact_name: '',
+      contact_phone: '',
+      instructions: '',
+      updated_at: NOW,
+    },
+    {
+      id: 'stop-2',
+      company_id: 1,
+      job_id: 'job-1',
+      seq: 2,
+      kind: 'delivery',
+      place_name: 'Sample DC',
+      address: '2 Sample Road',
+      suburb: '',
+      city: 'Sample City',
+      province: '',
+      country: 'ZA',
+      window_start: null,
+      window_end: null,
+      contact_name: '',
+      contact_phone: '',
+      instructions: '',
+      updated_at: NOW,
+    },
+  ];
+  book.cost_profiles = [
+    {
+      id: 'profile-01',
+      company_id: 1,
+      vehicle_id: profile.vehicle_id,
+      effective_from: profile.effective_from,
+      effective_to: null,
+      purchase_price_cents: profile.purchase_price_cents ?? null,
+      residual_cents: profile.residual_cents ?? null,
+      depreciation_method: profile.depreciation_method || 'time',
+      life_months: profile.life_months ?? null,
+      life_km: profile.life_km ?? null,
+      in_service_on: profile.in_service_on ?? null,
+      disposed_on: null,
+      finance_monthly_cents: profile.finance_monthly_cents || 0,
+      insurance_annual_cents: profile.insurance_annual_cents || 0,
+      licences_annual_cents: profile.licences_annual_cents || 0,
+      tracker_monthly_cents: profile.tracker_monthly_cents || 0,
+      other_standing_monthly_cents: 0,
+      driver_cost_monthly_cents: profile.driver_cost_monthly_cents || 0,
+      tyre_mode: profile.tyre_mode || 'accrual',
+      tyre_set_cost_cents: profile.tyre_set_cost_cents ?? null,
+      tyre_life_km: profile.tyre_life_km ?? null,
+      updated_at: NOW,
+    },
+  ];
+  book.cost_entries = fixture.entries.map((entry, index) => ({
+    id: `entry-${index + 1}`,
+    company_id: 1,
+    vehicle_id: entry.vehicle_id,
+    trip_id: null,
+    driver_id: null,
+    category: entry.category as FleetBook['cost_entries'][number]['category'],
+    occurred_on: entry.occurred_on,
+    amount_cents: entry.amount_cents,
+    vat_cents: entry.vat_cents || 0,
+    vat_claimable: entry.vat_claimable !== false,
+    litres: entry.litres ?? null,
+    odometer_km: entry.odometer_km ?? null,
+    full_tank: Boolean(entry.full_tank),
+    source: 'manual',
+    reference: '',
+    note: '',
+    reverses_id: null,
+    created_at: NOW,
+  }));
+  book.odometer_readings = (vehicle.readings || []).map((reading, index) => ({
+    id: `odo-${index + 1}`,
+    company_id: 1,
+    vehicle_id: vehicle.id,
+    reading_km: reading.reading_km,
+    read_at: reading.read_at,
+    source: 'manual' as const,
+    note: '',
+    created_at: NOW,
+  }));
+  book.status_events = (fixture.statusEvents || []).map((event, index) => ({
+    id: `status-${index + 1}`,
+    company_id: 1,
+    vehicle_id: event.vehicle_id,
+    status: event.status as FleetBook['status_events'][number]['status'],
+    from_at: event.from_at,
+    note: '',
+    created_at: NOW,
+  }));
+  book.overhead_pools = fixture.pools.map((pool, index) => ({
+    id: `pool-${index + 1}`,
+    company_id: 1,
+    period_month: pool.period_month,
+    amount_cents: pool.amount_cents,
+    basis: pool.basis,
+    updated_at: NOW,
+  }));
+  book.cpk_targets = fixture.targets.map((target, index) => ({
+    id: `target-${index + 1}`,
+    company_id: 1,
+    scope_kind: target.scope_kind,
+    scope_ref: target.scope_ref,
+    layer: target.layer,
+    target_cents_per_km: target.target_cents_per_km,
+    effective_from: target.effective_from,
+    updated_at: NOW,
+  }));
+  return book;
+}
+
+/** Illustration-only distance and revenue so SAMPLE 01 matches the worked example. */
+export function sampleCpkInput(book: FleetBook, period: FleetCpkInput['period']): FleetCpkInput {
+  const input = cpkInputFromBook(book, period);
+  const fixture = sample01Input();
+  input.vehicles = input.vehicles.map((vehicle) => {
+    const reg = book.vehicles.find((row) => row.id === vehicle.id)?.reg_no;
+    if (reg !== 'SAMPLE 01') return vehicle;
+    const sample = fixture.vehicles[0];
+    return {
+      ...vehicle,
+      revenue_cents: sample.revenue_cents,
+      loaded_km: sample.loaded_km,
+      trip_days: sample.trip_days,
+      planned_km: null,
+    };
+  });
+  return input;
+}

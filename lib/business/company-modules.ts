@@ -78,6 +78,8 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
     'ApparelAdvisor® — range, style/colour/size, landed costing, critical path, QA ship holds, wholesale ATS and buyer PWA',
   constructiongraph:
     'ConstructionAdvisor® — clients with many projects, BOQ quotes, dated programme, progress payments (claim → client pay), costs, reports and a PWA',
+  fleetgraph:
+    'FleetAdvisor® — vehicles, drivers, jobs, odometer readings and cost per kilometre from the company’s own entries',
   tradegraph:
     'TradeAdvisor® — quotes, jobs and invoices in rand, materials from SupplierAdvisor® suppliers, schedule, CoC/PIRB reminders, and a customer app',
   intelligence: 'Pulse, forecasts, scorecards & Super-Cube® leadership',
@@ -108,6 +110,7 @@ export type ModuleCategoryId =
   | 'core_insights'
   | 'ind_primary'
   | 'ind_build'
+  | 'ind_transport'
   | 'ind_services'
   | 'ind_programme';
 
@@ -207,6 +210,14 @@ export const MODULE_CATEGORIES: ModuleCategory[] = [
     blurb:
       'ConstructionAdvisor® — BOQ quotes, dated programme, progress payments, costs and a client/contractor PWA.',
     moduleIds: ['constructiongraph'],
+  },
+  {
+    id: 'ind_transport',
+    band: 'industry',
+    title: 'Transport & logistics',
+    blurb:
+      'FleetAdvisor® for hauliers, couriers, bulk operators and in-house fleets. ContainerAdvisor® stays under Services.',
+    moduleIds: ['fleetgraph'],
   },
   {
     id: 'ind_services',
@@ -416,6 +427,7 @@ export const INDUSTRY_ADVISOR_MODULE_IDS = [
   'fieldgraph',
   'quarrygraph',
   'constructiongraph',
+  'fleetgraph',
   'tradegraph',
   'apparelgraph',
   'fitgraph',
@@ -651,7 +663,7 @@ function applyStoredModuleFlags(
 
 export const SECTOR_VERTICAL_MODULE_IDS: Record<string, readonly string[]> = {
   primary: ['fieldgraph', 'quarrygraph'],
-  secondary: ['apparelgraph', 'constructiongraph', 'containers'],
+  secondary: ['apparelgraph', 'constructiongraph', 'containers', 'fleetgraph'],
   tertiary: [
     'fitgraph',
     'physiograph',
@@ -662,6 +674,7 @@ export const SECTOR_VERTICAL_MODULE_IDS: Record<string, readonly string[]> = {
     'hiregraph',
     'retailgraph',
     'tradegraph',
+    'fleetgraph',
   ],
   public_sector: ['schools', 'health'],
 };
@@ -1107,6 +1120,7 @@ export function moduleIdForPath(pathname: string | null | undefined): string | n
   if (pathname.startsWith('/dashboard/quarrygraph')) return 'quarrygraph';
   if (pathname.startsWith('/dashboard/apparelgraph')) return 'apparelgraph';
   if (pathname.startsWith('/dashboard/constructiongraph')) return 'constructiongraph';
+  if (pathname.startsWith('/dashboard/fleetgraph')) return 'fleetgraph';
   if (pathname.startsWith('/dashboard/tradegraph')) return 'tradegraph';
   if (pathname.startsWith('/dashboard/fitgraph')) return 'fitgraph';
   if (pathname.startsWith('/dashboard/physiograph')) return 'physiograph';

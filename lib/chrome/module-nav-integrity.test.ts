@@ -98,6 +98,17 @@ assert.deepEqual(
   construction!.steps.map((s) => s.name)
 );
 
+const fleet = MODULE_NAV.find((m) => m.id === 'fleetgraph');
+assert.ok(fleet, 'MODULE_NAV should register fleetgraph');
+assert.equal(fleet!.name, 'FleetAdvisor®');
+assert.equal(fleet!.steps.length, 7, 'fleetgraph should expose 7 nav steps');
+assert.deepEqual(
+  fleet!.steps.map((s) => s.name),
+  ['Command', 'Fleet map', 'Vehicles', 'Drivers', 'Jobs', 'CPK', 'Settings']
+);
+assert.ok(FUNCTIONAL_MODULE_ORDER.includes('fleetgraph'), 'functional nav order should include fleetgraph');
+assert.equal(FUNCTIONAL_DISPLAY_NAME.fleetgraph, 'FleetAdvisor®');
+
 const iconKeys = MODULE_NAV.map((m) => m.icon.displayName || m.icon.name || String(m.icon));
 assert.equal(
   new Set(iconKeys).size,

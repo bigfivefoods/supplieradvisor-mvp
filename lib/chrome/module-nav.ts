@@ -43,6 +43,7 @@ import {
   Shirt,
   Hammer,
   Wrench,
+  Truck,
 } from 'lucide-react';
 import type { ProcessStep } from '@/components/relationship/RelationshipChrome';
 import type { PermissionResource } from '@/lib/business/permissions';
@@ -940,6 +941,58 @@ export const MODULE_NAV: readonly ModuleNav[] = [
         href: '/dashboard/constructiongraph/portal',
         desc: 'Client and workers links',
         section: 'Grow',
+      },
+    ],
+  },
+  {
+    id: 'fleetgraph',
+    name: 'FleetAdvisor®',
+    icon: Truck,
+    href: '/dashboard/fleetgraph',
+    resource: 'operations',
+    steps: [
+      {
+        name: 'Command',
+        href: '/dashboard/fleetgraph',
+        exact: true,
+        desc: 'Vehicles, drivers, jobs and cost per kilometre',
+        section: 'Home',
+      },
+      {
+        name: 'Fleet map',
+        href: '/dashboard/fleetgraph/map',
+        desc: 'Odometer today. Live positions are not tracked yet',
+        section: 'Fleet',
+      },
+      {
+        name: 'Vehicles',
+        href: '/dashboard/fleetgraph/vehicles',
+        desc: 'Registration, status, odometer and cost per kilometre',
+        section: 'Fleet',
+      },
+      {
+        name: 'Drivers',
+        href: '/dashboard/fleetgraph/drivers',
+        desc: 'Name, licence code and expiry dates',
+        section: 'Fleet',
+      },
+      {
+        name: 'Jobs',
+        href: '/dashboard/fleetgraph/jobs',
+        desc: 'Loads, stops and customers',
+        section: 'Work',
+      },
+      {
+        name: 'CPK',
+        href: '/dashboard/fleetgraph/cpk',
+        desc: 'Cost per kilometre from your own entries',
+        section: 'Insights',
+      },
+      {
+        name: 'Settings',
+        href: '/dashboard/fleetgraph/settings',
+        desc: 'Workspace, targets and who sees rates',
+        section: 'Setup',
       },
     ],
   },

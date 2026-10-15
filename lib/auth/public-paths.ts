@@ -35,7 +35,10 @@ const PUBLIC_EXACT = new Set([
  * Middleware already leaves non-dashboard pages open; this helper is the
  * explicit allow-list and must not make any /api route public.
  */
-export const PUBLIC_PAGE_PREFIXES = ['/preview/constructiongraph'] as const;
+export const PUBLIC_PAGE_PREFIXES = [
+  '/preview/constructiongraph',
+  '/preview/fleetgraph',
+] as const;
 
 export function isPublicPagePath(pathname: string): boolean {
   const p = pathname.split('?')[0] || pathname;
