@@ -6,14 +6,16 @@
  *
  * v5 — network-only for app code; precache only offline page + icons.
  */
-const CACHE = 'sa-offline-v7';
+const CACHE = 'sa-offline-v8';
 const OFFLINE_URL = '/offline.html';
 const TRADE_OFFLINE_URL = '/trade-customer-offline.html';
 const TRADE_FIELD_OFFLINE_URL = '/trade-field-offline.html';
+const CONSTRUCTION_OFFLINE_URL = '/construction-offline.html';
 const PRECACHE = [
   OFFLINE_URL,
   TRADE_OFFLINE_URL,
   TRADE_FIELD_OFFLINE_URL,
+  CONSTRUCTION_OFFLINE_URL,
   '/add-to-home.html',
   '/sa-icon-192.png',
   '/sa-icon-512.png',
@@ -99,6 +101,12 @@ self.addEventListener('fetch', (event) => {
     }
   }
 
+  // ConstructionAdvisor® portal reads stay on the network. Never cache them.
+  if (url.pathname.startsWith('/api/public/constructiongraph')) {
+    event.respondWith(fetch(req, { cache: 'no-store' }));
+    return;
+  }
+
   // Never intercept APIs, Next data, or the SW itself
   if (
     url.pathname.startsWith('/api/') ||
@@ -121,7 +129,9 @@ self.addEventListener('fetch', (event) => {
             ? TRADE_OFFLINE_URL
             : url.pathname.startsWith('/work/tradegraph') || url.pathname.startsWith('/crew/tradegraph')
               ? TRADE_FIELD_OFFLINE_URL
-              : OFFLINE_URL;
+              : url.pathname.startsWith('/construction/') || url.pathname.startsWith('/work/constructiongraph')
+                ? CONSTRUCTION_OFFLINE_URL
+                : OFFLINE_URL;
           const offline = await caches.match(offlineUrl);
           return (
             offline ||

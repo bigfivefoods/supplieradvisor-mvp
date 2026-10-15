@@ -5,10 +5,10 @@ import {
   CONSTRUCTIONGRAPH_TOKEN_KEY,
   CONSTRUCTIONGRAPH_TOKENS_KEY,
   applyPaymentAction,
-  portalViewForToken,
   readConstructiongraphFromMetadata,
   writeConstructiongraphToMetadata,
 } from '@/lib/construction/constructiongraph';
+import { publicConstructionView } from '@/lib/construction/portal-screen';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -77,9 +77,9 @@ export async function GET(request: NextRequest) {
 
     const store = readConstructiongraphFromMetadata(asObject(profile.metadata));
     const companyName = String(
-      profile.trading_name || profile.legal_name || 'ConstructionAdvisor'
+      profile.trading_name || profile.legal_name || 'ConstructionAdvisor®'
     );
-    const view = portalViewForToken(store, token, companyName);
+    const view = publicConstructionView(store, token, companyName);
     if (!view) {
       return NextResponse.json({ error: 'Portal not found' }, { status: 404 });
     }
@@ -172,9 +172,9 @@ export async function POST(request: NextRequest) {
     if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
 
     const companyName = String(
-      profile.trading_name || profile.legal_name || 'ConstructionAdvisor'
+      profile.trading_name || profile.legal_name || 'ConstructionAdvisor®'
     );
-    const view = portalViewForToken(result.store, token, companyName);
+    const view = publicConstructionView(result.store, token, companyName);
     return NextResponse.json({ success: true, view });
   } catch (e: unknown) {
     return NextResponse.json(

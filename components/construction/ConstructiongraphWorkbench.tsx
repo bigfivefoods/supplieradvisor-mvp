@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { RelationshipHeader } from '@/components/relationship/RelationshipChrome';
@@ -9,7 +8,12 @@ import {
   ConstructiongraphPage,
   ConstructiongraphRequired,
 } from '@/components/construction/ConstructiongraphShell';
-import type { ConstructiongraphStore } from '@/lib/construction/constructiongraph';
+import { constructionField } from '@/components/construction/ConstructionUi';
+import {
+  emptyConstructiongraphStore,
+  type ConstructiongraphStore,
+} from '@/lib/construction/constructiongraph';
+import type { ConstructionRole } from '@/lib/construction/roles';
 
 export type ConstructionSummary = ReturnType<
   typeof import('@/lib/construction/constructiongraph').summariseConstructiongraph
@@ -19,22 +23,28 @@ export function useConstructiongraph() {
   const companyId = getSelectedCompanyId()!;
   const [store, setStore] = useState<ConstructiongraphStore | null>(null);
   const [summary, setSummary] = useState<ConstructionSummary | null>(null);
+  const [role, setRole] = useState<ConstructionRole>('viewer');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
       const res = await fetch(
         `/api/construction/constructiongraph?companyId=${companyId}`,
         { cache: 'no-store' }
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load');
-      setStore(data.store || null);
+      setStore(data.store || emptyConstructiongraphStore());
       setSummary(data.summary || null);
+      if (data.role) setRole(data.role as ConstructionRole);
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Load failed');
+      const message = e instanceof Error ? e.message : 'Load failed';
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -54,21 +64,34 @@ export function useConstructiongraph() {
           body: JSON.stringify({ companyId, ...body }),
         });
         const data = await res.json();
+        if (res.status === 409) {
+          toast.error('This changed while you were saving, please retry');
+          await load();
+          const conflict = new Error('This changed while you were saving, please retry') as Error & {
+            toasted?: boolean;
+          };
+          conflict.toasted = true;
+          throw conflict;
+        }
         if (!res.ok) throw new Error(data.error || 'Save failed');
-        setStore(data.store || null);
+        setStore(data.store || emptyConstructiongraphStore());
         setSummary(data.summary || null);
+        if (data.role) setRole(data.role as ConstructionRole);
+        toast.success('Saved');
         return data;
       } catch (e: unknown) {
-        toast.error(e instanceof Error ? e.message : 'Save failed');
+        if (!(e as { toasted?: boolean }).toasted) {
+          toast.error(e instanceof Error ? e.message : 'Save failed');
+        }
         throw e;
       } finally {
         setSaving(false);
       }
     },
-    [companyId]
+    [companyId, load]
   );
 
-  return { companyId, store, summary, loading, saving, load, post };
+  return { companyId, store, summary, role, loading, saving, error, load, post };
 }
 
 export function ConstructiongraphWorkbench({
@@ -96,8 +119,8 @@ export function ConstructiongraphWorkbench({
 
 export function ConstructionLoadingBlock() {
   return (
-    <div className="py-16 flex justify-center">
-      <Loader2 className="w-8 h-8 animate-spin text-amber-800 dark:text-white" />
+    <div className="flex justify-center py-16">
+      <p className="text-sm font-bold text-slate-600">Loading the book…</p>
     </div>
   );
 }
@@ -108,7 +131,7 @@ export function ConstructionEmptyHint({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-4 py-6 text-sm text-stone-600">
+    <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-600">
       {children}
     </div>
   );
@@ -127,7 +150,7 @@ export function ConstructionProjectSelect({
 }) {
   return (
     <select
-      className="rounded-lg border border-stone-300 px-3 py-2 text-sm"
+      className={constructionField}
       value={value}
       onChange={(e) => onChange(e.target.value)}
     >

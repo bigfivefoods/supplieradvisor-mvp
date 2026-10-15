@@ -30,6 +30,15 @@ const files = [
   'app/dashboard/constructiongraph/handover/page.tsx',
   'app/dashboard/constructiongraph/reports/page.tsx',
   'app/dashboard/constructiongraph/portal/page.tsx',
+  'app/dashboard/constructiongraph/diary/page.tsx',
+  'app/construction/[token]/layout.tsx',
+  'app/construction/[token]/manifest.webmanifest/route.ts',
+  'app/work/constructiongraph/page.tsx',
+  'app/work/constructiongraph/layout.tsx',
+  'app/preview/constructiongraph/page.tsx',
+  'components/construction/ConstructionUi.tsx',
+  'components/construction/PortalApp.tsx',
+  'components/construction/PreviewApp.tsx',
 ];
 
 for (const rel of files) {

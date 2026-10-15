@@ -215,7 +215,7 @@ export const ADVISOR_MODULE_CORE_HREF: Record<
     money: '/dashboard/accounting',
   },
   constructiongraph: {
-    label: 'ConstructionAdvisor',
+    label: 'ConstructionAdvisor®',
     staff: '/dashboard/people/directory',
     book: '/dashboard/customers/profiles',
     money: '/dashboard/accounting',

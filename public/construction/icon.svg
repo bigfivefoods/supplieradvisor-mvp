@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ConstructionAdvisor">
+  <rect width="512" height="512" rx="96" fill="#0f172a"/>
+  <g fill="#00b4d8" transform="translate(256 256)">
+    <rect x="-28" y="-150" width="56" height="250" rx="12" transform="rotate(-28)"/>
+    <rect x="-118" y="-168" width="210" height="64" rx="16" transform="rotate(-28)"/>
+  </g>
+</svg>

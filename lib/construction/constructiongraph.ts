@@ -70,6 +70,7 @@ export type ConstructionClient = {
   city?: string;
   contact?: string;
   notes?: string;
+  sample?: boolean;
 };
 
 export type ConstructionSite = {
@@ -88,6 +89,10 @@ export type ConstructionSite = {
   status?: ConstructionSiteStatus | string;
   contract_type?: ConstructionContractType | string;
   notes?: string;
+  site_manager_name?: string;
+  site_manager_phone?: string;
+  handover_date?: string | null;
+  sample?: boolean;
 };
 
 export type ConstructionQuote = {
@@ -100,6 +105,7 @@ export type ConstructionQuote = {
   issued_at?: string | null;
   accepted_at?: string | null;
   notes?: string;
+  sample?: boolean;
 };
 
 export type ConstructionDrawing = {
@@ -110,6 +116,12 @@ export type ConstructionDrawing = {
   revision?: string;
   discipline?: (typeof DRAWING_DISCIPLINES)[number] | string;
   status?: 'issued' | 'superseded' | 'for_construction' | 'as_built' | string;
+  doc_kind?: 'drawing' | 'specification' | 'rfi' | 'transmittal' | 'permit' | 'other' | string;
+  issued_on?: string | null;
+  issued_to?: string;
+  supersedes_id?: string | null;
+  notes?: string;
+  sample?: boolean;
 };
 
 export type ConstructionBoqItem = {
@@ -124,6 +136,7 @@ export type ConstructionBoqItem = {
   amount?: number;
   actual_qty?: number;
   actual_amount?: number;
+  sample?: boolean;
 };
 
 export type ConstructionCost = {
@@ -135,6 +148,7 @@ export type ConstructionCost = {
   amount: number;
   date?: string | null;
   cost_code?: string;
+  sample?: boolean;
 };
 
 export type ConstructionSubcontractor = {
@@ -145,6 +159,10 @@ export type ConstructionSubcontractor = {
   contact?: string;
   status?: 'appointed' | 'tendering' | 'complete' | string;
   contract_value?: number | null;
+  package_label?: string;
+  email?: string;
+  phone?: string;
+  sample?: boolean;
 };
 
 export type ConstructionMaterial = {
@@ -155,6 +173,7 @@ export type ConstructionMaterial = {
   ordered_qty: number;
   delivered_qty?: number;
   po_number?: string | null;
+  sample?: boolean;
 };
 
 export type ConstructionPlant = {
@@ -164,6 +183,7 @@ export type ConstructionPlant = {
   description: string;
   status?: 'on_site' | 'off_hire' | 'breakdown' | string;
   hired?: boolean;
+  sample?: boolean;
 };
 
 export type ConstructionProgrammeRow = {
@@ -180,16 +200,53 @@ export type ConstructionProgrammeRow = {
   planned_pct?: number;
   actual_pct?: number;
   status?: 'planned' | 'in_progress' | 'complete' | 'delayed' | string;
+  kind?: 'phase' | 'task' | 'milestone' | string;
+  parent_id?: string | null;
+  depends_on?: string[];
+  sort?: number;
+  package_label?: string;
+  subcontractor_id?: string | null;
+  baseline_start?: string | null;
+  baseline_end?: string | null;
+  eot_days?: number;
+  note?: string;
+  sample?: boolean;
 };
 
 export type ConstructionSafetyRow = {
   id: string;
   site_id?: string | null;
-  kind: 'toolbox' | 'incident' | 'inspection' | 'permit' | string;
+  kind:
+    | 'toolbox'
+    | 'incident'
+    | 'inspection'
+    | 'permit'
+    | 'induction'
+    | 'risk_assessment'
+    | 'method_statement'
+    | string;
   title: string;
   date?: string | null;
   status?: 'open' | 'closed' | string;
   notes?: string;
+  severity?: 'near_miss' | 'first_aid' | 'lost_time' | 'property' | string;
+  person_name?: string;
+  company?: string;
+  expires_on?: string | null;
+  attendees?: number;
+  action_owner?: string;
+  due_date?: string | null;
+  valid_from?: string | null;
+  valid_to?: string | null;
+  sample?: boolean;
+};
+
+export type ConstructionVariationLine = {
+  description: string;
+  qty: number;
+  uom: string;
+  rate?: number;
+  amount?: number;
 };
 
 export type ConstructionVariation = {
@@ -198,7 +255,18 @@ export type ConstructionVariation = {
   number: string;
   description: string;
   amount?: number | null;
-  status?: 'draft' | 'submitted' | 'approved' | 'rejected' | 'claimed' | string;
+  status?: 'draft' | 'submitted' | 'approved' | 'rejected' | 'claimed' | 'queried' | string;
+  title?: string;
+  reference?: string;
+  direction?: 'client_instruction' | 'contractor_proposal' | 'subcontractor' | string;
+  days?: number;
+  lines?: ConstructionVariationLine[];
+  submitted_on?: string | null;
+  decided_on?: string | null;
+  decided_by_name?: string;
+  decision_note?: string;
+  programme_row_ids?: string[];
+  sample?: boolean;
 };
 
 export type ConstructionCertificate = {
@@ -212,6 +280,7 @@ export type ConstructionCertificate = {
   paid_at?: string | null;
   paid_amount?: number | null;
   status?: 'draft' | 'issued' | 'paid' | string;
+  sample?: boolean;
 };
 
 /** Dated progress payment on the project plan (JBCC-style claim → certify → pay). */
@@ -234,6 +303,7 @@ export type ConstructionProgressPayment = {
   paid_amount?: number | null;
   status?: ConstructionPaymentStatus | string;
   notes?: string;
+  sample?: boolean;
 };
 
 export type ConstructionSnag = {
@@ -243,15 +313,26 @@ export type ConstructionSnag = {
   location?: string;
   status?: 'open' | 'in_progress' | 'closed' | string;
   due_date?: string | null;
+  priority?: 'low' | 'normal' | 'high' | string;
+  assigned_to?: string;
+  closed_on?: string | null;
+  sample?: boolean;
 };
 
 export type ConstructionPortal = {
   id?: string;
   token: string;
-  kind: 'public' | 'client' | 'contractor';
+  kind: 'public' | 'client' | 'contractor' | 'subcontractor';
   client_id?: string | null;
   site_id?: string | null;
+  subcontractor_id?: string | null;
   label?: string;
+  created_at?: string;
+  expires_at?: string | null;
+  revoked_at?: string | null;
+  token_hint?: string;
+  legacy?: boolean;
+  sample?: boolean;
 };
 
 export type ConstructionSettings = {
@@ -274,9 +355,37 @@ export type ConstructiongraphStore = {
   certificates: ConstructionCertificate[];
   payments: ConstructionProgressPayment[];
   snags: ConstructionSnag[];
+  diary: DiaryEntry[];
   portals: ConstructionPortal[];
   settings: ConstructionSettings;
   updated_at?: string;
+};
+
+export type DiaryLabour = { trade: string; count: number };
+export type DiaryPlantUse = { item: string; hours: number };
+export type DiaryDelivery = { item: string; ref?: string };
+export type DiaryDelay = { cause: string; hours: number; note?: string };
+export type DiaryAddendum = { at: string; by: string; text: string };
+
+export type DiaryEntry = {
+  id: string;
+  site_id: string;
+  date: string;
+  weather?: string;
+  temp_c?: number;
+  labour?: DiaryLabour[];
+  plant?: DiaryPlantUse[];
+  deliveries?: DiaryDelivery[];
+  visitors?: string;
+  instructions?: string;
+  delays?: DiaryDelay[];
+  progress_note?: string;
+  safety_note?: string;
+  author_name?: string;
+  signed_off_at?: string | null;
+  signed_off_by?: string | null;
+  addenda?: DiaryAddendum[];
+  sample?: boolean;
 };
 
 function asObject(v: unknown): Record<string, unknown> {
@@ -351,8 +460,9 @@ export function paymentsForProject(
   store: ConstructiongraphStore,
   siteId?: string | null
 ): ConstructionProgressPayment[] {
-  if (!siteId) return store.payments;
-  return store.payments.filter((row) => row.site_id === siteId);
+  const rows = store.payments || [];
+  if (!siteId) return rows;
+  return rows.filter((row) => row.site_id === siteId);
 }
 
 export function paymentCashflow(
@@ -390,6 +500,7 @@ export function emptyConstructiongraphStore(): ConstructiongraphStore {
     certificates: [],
     payments: [],
     snags: [],
+    diary: [],
     portals: [],
     settings: {},
   };
@@ -414,8 +525,9 @@ export function hydrateConstructiongraphStore(
     sites: store.sites.map((s) => ({ ...s })),
     programme: [...(store.programme || [])],
     payments: [...(store.payments || [])],
-    settings: { ...store.settings },
-    portals: store.portals.map((p) => ({
+    diary: [...(store.diary || [])],
+    settings: { ...(store.settings || {}) },
+    portals: (store.portals || []).map((p) => ({
       ...p,
       id: p.id || p.token,
     })),
@@ -440,7 +552,7 @@ export function hydrateConstructiongraphStore(
     site.client = client.name;
   }
 
-  for (const row of next.programme) {
+  next.programme.forEach((row, index) => {
     if (!row.planned_start && row.start_date) row.planned_start = row.start_date;
     if (!row.planned_end && row.end_date) row.planned_end = row.end_date;
     if (row.planned_pct == null && row.pct_complete != null) {
@@ -449,7 +561,11 @@ export function hydrateConstructiongraphStore(
     if (row.actual_pct == null && row.pct_complete != null) {
       row.actual_pct = row.pct_complete;
     }
-  }
+    if (!row.kind) row.kind = 'task';
+    if (!row.depends_on) row.depends_on = [];
+    if (row.sort == null) row.sort = index;
+    if (row.eot_days == null) row.eot_days = 0;
+  });
 
   if (
     next.settings.public_token &&
@@ -471,7 +587,33 @@ export function readConstructiongraphFromMetadata(
   const src = asObject(meta);
   const raw = asObject(src[CONSTRUCTIONGRAPH_META_KEY]);
   const settings = asObject(raw.settings);
-  const store: ConstructiongraphStore = {
+  const known = new Set([
+    'clients',
+    'sites',
+    'quotes',
+    'drawings',
+    'boq',
+    'costs',
+    'subcontractors',
+    'materials',
+    'plant',
+    'programme',
+    'safety',
+    'variations',
+    'certificates',
+    'payments',
+    'snags',
+    'diary',
+    'portals',
+    'settings',
+    'updated_at',
+  ]);
+  const unknown: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (!known.has(key)) unknown[key] = value;
+  }
+  const store = {
+    ...unknown,
     clients: asArray<ConstructionClient>(raw.clients),
     sites: asArray<ConstructionSite>(raw.sites),
     quotes: asArray<ConstructionQuote>(raw.quotes),
@@ -487,8 +629,10 @@ export function readConstructiongraphFromMetadata(
     certificates: asArray<ConstructionCertificate>(raw.certificates),
     payments: asArray<ConstructionProgressPayment>(raw.payments),
     snags: asArray<ConstructionSnag>(raw.snags),
+    diary: asArray<DiaryEntry>(raw.diary),
     portals: asArray<ConstructionPortal>(raw.portals),
     settings: {
+      ...settings,
       public_token:
         typeof settings.public_token === 'string'
           ? settings.public_token
@@ -498,7 +642,7 @@ export function readConstructiongraphFromMetadata(
     },
     updated_at:
       typeof raw.updated_at === 'string' ? raw.updated_at : undefined,
-  };
+  } as ConstructiongraphStore;
   return hydrateConstructiongraphStore(store);
 }
 
@@ -519,7 +663,12 @@ function mergeIdArray(existing: unknown, incoming: unknown): unknown[] {
       const id = rowIdentity(row);
       if (!id) continue;
       if (seen.has(id)) continue;
-      out.push(row);
+      const prior = prev.find((item) => rowIdentity(item) === id);
+      out.push(
+        prior && typeof prior === 'object' && !Array.isArray(prior)
+          ? { ...(prior as Record<string, unknown>), ...(row as Record<string, unknown>) }
+          : row
+      );
       seen.add(id);
       continue;
     }
@@ -676,10 +825,10 @@ export function projectReport(
   }));
   const boqPlanned = boqLines.reduce((s, row) => s + row.planned, 0);
   const boqActual = boqLines.reduce((s, row) => s + row.actual, 0);
-  const costs = store.costs
+  const costs = (store.costs || [])
     .filter((c) => c.site_id === siteId)
     .reduce((s, c) => s + money(c.amount), 0);
-  const certified = store.certificates
+  const certified = (store.certificates || [])
     .filter((c) => c.site_id === siteId)
     .reduce((s, c) => s + money(c.certified_amount), 0);
   const variations = store.variations
@@ -812,6 +961,9 @@ export function upsertPortal(
     }
     if (row.kind === 'contractor') {
       return p.kind === 'contractor' && p.site_id === row.site_id;
+    }
+    if (row.kind === 'subcontractor') {
+      return p.kind === 'subcontractor' && p.subcontractor_id === row.subcontractor_id;
     }
     return p.token === row.token;
   };
@@ -1127,6 +1279,11 @@ export function portalViewForToken(
       ? { token, kind: 'public' as const }
       : null);
   if (!portal) return null;
+  if (portal.kind === 'subcontractor') return null;
+  if (portal.revoked_at) return null;
+  if (portal.expires_at && String(portal.expires_at).slice(0, 10) < new Date().toISOString().slice(0, 10)) {
+    return null;
+  }
   const roll = programmeReport(store);
   let projects = roll.projects;
   if (portal.kind === 'client' && portal.client_id) {
@@ -1241,7 +1398,7 @@ export function constructiongraphSeedStore(
   const publicToken = mintConstructionToken();
   const clientToken = mintConstructionToken();
   const contractorToken = mintConstructionToken();
-  return hydrateConstructiongraphStore({
+  return markSampleRows(hydrateConstructiongraphStore({
     clients: [
       {
         id: 'cli_apex',
@@ -1539,6 +1696,7 @@ export function constructiongraphSeedStore(
         due_date: today,
       },
     ],
+    diary: [],
     portals: [
       {
         id: publicToken,
@@ -1563,5 +1721,30 @@ export function constructiongraphSeedStore(
     ],
     settings: { public_token: publicToken },
     updated_at: nowIso,
+  }));
+}
+
+function markSampleRows(store: ConstructiongraphStore): ConstructiongraphStore {
+  const mark = <T extends { sample?: boolean }>(rows: T[]): T[] =>
+    rows.map((row) => (row.sample ? row : { ...row, sample: true }));
+  return hydrateConstructiongraphStore({
+    ...store,
+    clients: mark(store.clients),
+    sites: mark(store.sites),
+    quotes: mark(store.quotes),
+    drawings: mark(store.drawings),
+    boq: mark(store.boq),
+    costs: mark(store.costs),
+    subcontractors: mark(store.subcontractors),
+    materials: mark(store.materials),
+    plant: mark(store.plant),
+    programme: mark(store.programme),
+    safety: mark(store.safety),
+    variations: mark(store.variations),
+    certificates: mark(store.certificates),
+    payments: mark(store.payments),
+    snags: mark(store.snags),
+    diary: mark(store.diary || []),
+    portals: mark(store.portals),
   });
 }

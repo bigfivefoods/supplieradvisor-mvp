@@ -1,0 +1,11 @@
+{
+  "timezone": "Africa/Johannesburg",
+  "kept_outside": "still-here",
+  "constructiongraph": {
+    "legacy_note": "pre-113",
+    "clients": [{ "id": "c1", "name": "Old Client", "extra_city": "Kept" }],
+    "sites": [{ "id": "s1", "code": "OLD-1", "name": "Old Hall", "client": "Old Client", "status": "on_site" }],
+    "programme": [{ "id": "p1", "activity": "Dig", "start_date": "2026-01-01", "end_date": "2026-01-10", "pct_complete": 10 }],
+    "settings": { "public_token": "cg_oldtoken1", "custom_flag": true }
+  }
+}

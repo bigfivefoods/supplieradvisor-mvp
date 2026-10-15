@@ -30,6 +30,19 @@ const PUBLIC_EXACT = new Set([
   '/api/billing/webhook',
 ]);
 
+/**
+ * Signed-out sample pages. Page prefixes only — never an API prefix.
+ * Middleware already leaves non-dashboard pages open; this helper is the
+ * explicit allow-list and must not make any /api route public.
+ */
+export const PUBLIC_PAGE_PREFIXES = ['/preview/constructiongraph'] as const;
+
+export function isPublicPagePath(pathname: string): boolean {
+  const p = pathname.split('?')[0] || pathname;
+  if (p === '/api' || p.startsWith('/api/')) return false;
+  return PUBLIC_PAGE_PREFIXES.some((prefix) => p === prefix || p.startsWith(`${prefix}/`));
+}
+
 export function isPublicApiPath(pathname: string): boolean {
   const p = pathname.split('?')[0] || pathname;
   if (PUBLIC_EXACT.has(p)) return true;

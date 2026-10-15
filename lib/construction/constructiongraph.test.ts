@@ -295,5 +295,8 @@ assert.equal(ipc.status, 'issued');
 
 assert.ok((clientView?.payments.length || 0) >= 2);
 assert.ok(contractorView?.payments.every((p) => p.siteCode === 'PRJ-01'));
+assert.ok(Array.isArray(seed.diary));
+assert.equal(seed.programme.every((row) => row.kind === 'task' || row.kind === 'phase' || row.kind === 'milestone'), true);
+assert.equal(seed.sites.every((row) => row.sample === true), true);
 
 console.log('constructiongraph.test.ts ok');
