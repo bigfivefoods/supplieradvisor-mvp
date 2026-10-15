@@ -36,7 +36,11 @@ assert.match(layout, /appleWebApp:\s*false/);
 assert.match(layout, /themeColor:\s*'#f8fafc'/);
 assert.doesNotMatch(layout, /manifest\.webmanifest/);
 assert.doesNotMatch(layout, /SupplierAdvisor/);
-assert.doesNotMatch(layout, /apple-mobile-web-app-capable" content="yes"/);
+assert.doesNotMatch(layout, /apple-mobile-web-app-capable/);
+assert.doesNotMatch(layout, /mobile-web-app-capable/);
+assert.doesNotMatch(layout, /serviceWorker\.register/);
+assert.doesNotMatch(layout, /node\.remove\(\)/);
+assert.doesNotMatch(layout, /rel="icon"/);
 
 assert.deepEqual([...RECOVER_PORTAL_PAGE_PREFIXES], [
   '/creditor/recovergraph',
@@ -58,9 +62,8 @@ assert.match(middleware, /x-sa-portal/);
 
 const root = readFileSync(resolve('app/layout.tsx'), 'utf8');
 assert.doesNotMatch(root, /headers\(/);
-assert.match(layout, /apple-mobile-web-app-capable/);
-assert.match(layout, /serviceWorker\.register/);
-assert.match(layout, /node\.remove\(\)/);
+assert.doesNotMatch(root, /serviceWorker\.register/);
+assert.doesNotMatch(root, /apple-mobile-web-app-capable/);
 
 const chrome = readFileSync(resolve('components/recovery/RecoverChrome.tsx'), 'utf8');
 assert.doesNotMatch(chrome, /<aside/);

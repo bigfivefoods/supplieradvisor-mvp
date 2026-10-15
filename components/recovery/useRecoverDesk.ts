@@ -1,9 +1,51 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { createContext, createElement, useCallback, useContext, useEffect, useState } from 'react';
 import { getSelectedCompanyId } from '@/lib/containers/company';
 import { RECOVER_COMPANY_COOKIE } from '@/lib/recovery/member-company';
+import type { RecoverIllustration } from '@/lib/recovery/sample-desk';
 import type { RecoverDeskPayload, RecoverOp } from '@/lib/recovery/types';
+
+const PreviewContext = createContext<RecoverDeskPayload | null>(null);
+const IllustrationContext = createContext<RecoverIllustration | null>(null);
+const HrefBaseContext = createContext<string | null>(null);
+
+export function RecoverPreviewProvider({
+  desk,
+  illustration,
+  hrefBase = null,
+  children,
+}: {
+  desk: RecoverDeskPayload;
+  illustration: RecoverIllustration | null;
+  hrefBase?: string | null;
+  children: React.ReactNode;
+}) {
+  return createElement(
+    PreviewContext.Provider,
+    { value: desk },
+    createElement(
+      IllustrationContext.Provider,
+      { value: illustration },
+      createElement(HrefBaseContext.Provider, { value: hrefBase }, children)
+    )
+  );
+}
+
+export function useRecoverIllustration() {
+  return useContext(IllustrationContext);
+}
+
+export function useRecoverHref(path: string) {
+  const base = useContext(HrefBaseContext);
+  if (!base) return path;
+  const root = '/dashboard/recovergraph';
+  const [basePath, query] = base.split('?');
+  const suffix = query ? `?${query}` : '';
+  if (path === root) return `${basePath}${suffix}`;
+  if (path.startsWith(`${root}/`)) return `${basePath}${path.slice(root.length)}${suffix}`;
+  return path;
+}
 
 function rememberCompany() {
   const companyId = getSelectedCompanyId();
@@ -12,12 +54,19 @@ function rememberCompany() {
 }
 
 export function useRecoverDesk() {
-  const [desk, setDesk] = useState<RecoverDeskPayload | null>(null);
+  const preview = useContext(PreviewContext);
+  const [desk, setDesk] = useState<RecoverDeskPayload | null>(preview);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!preview);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
+    if (preview) {
+      setDesk(preview);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     rememberCompany();
     setLoading(true);
     setError(null);
@@ -41,13 +90,18 @@ export function useRecoverDesk() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [preview]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   const save = useCallback(async (op: RecoverOp) => {
+    if (preview) {
+      void op;
+      setError(null);
+      return true;
+    }
     rememberCompany();
     setSaving(true);
     setError(null);
@@ -74,7 +128,7 @@ export function useRecoverDesk() {
     } finally {
       setSaving(false);
     }
-  }, []);
+  }, [preview]);
 
   return { desk, error, loading, saving, reload: load, save };
 }

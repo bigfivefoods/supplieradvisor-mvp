@@ -57,7 +57,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Signed-out portal shells. No API is opened. Tokens are never cached.
-  // The request header lets the root layout skip install tags on these pages.
+  // x-sa-portal marks the request. The root layout does not read it.
   if (isRecoverPortalPath(pathname)) {
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set('x-sa-portal', 'recover');

@@ -1,4 +1,5 @@
 /** Labelled sample layouts. Figures here are illustrations, never a live book. */
+import { SAMPLE_ILLUSTRATION, type SampleAccount, type SampleAttention, type SamplePromise } from '@/lib/recovery/sample-desk';
 
 function zar(amount: number) {
   return new Intl.NumberFormat('en-ZA', {
@@ -64,7 +65,7 @@ const QUEUE_ROWS = [
   {
     account: 'RA-19802',
     holder: 'Oak Lane Grocer',
-    creditor: 'Atlas Book',
+    creditor: 'Northline Credit',
     action: 'Send the statement',
     stage: 'New',
     amount: 42910,
@@ -72,18 +73,40 @@ const QUEUE_ROWS = [
   },
 ] as const;
 
-export function SampleQueueTable() {
+export type QueueBoardRow = {
+  account: string;
+  holder: string;
+  creditor: string;
+  action: string;
+  stage: string;
+  amount: string;
+  clock: string;
+};
+
+export function queueRowsFromAccounts(accounts: readonly SampleAccount[]): QueueBoardRow[] {
+  return accounts.map((row) => ({
+    account: row.ref,
+    holder: row.holder,
+    creditor: row.creditor,
+    action: row.action,
+    stage: row.stage,
+    amount: row.amount,
+    clock: row.clock,
+  }));
+}
+
+export function QueueBoard({ rows }: { rows: readonly QueueBoardRow[] }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-[#e2e8f0] bg-white shadow-sm">
+    <div className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] bg-gradient-to-r from-cyan-50 to-white px-4 py-3">
         <div>
           <p className="text-sm font-black text-slate-900">Work queue</p>
-          <p className="text-xs text-slate-600">Three sample accounts, with the next action and the amount</p>
+          <p className="text-xs text-slate-600">Next action, stage, and amount for each sample account</p>
         </div>
         <SampleMark />
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[44rem] text-left text-sm">
+      <div className="hidden md:block">
+        <table className="w-full text-left text-sm">
           <thead className="bg-[#f8fafc] text-[11px] font-bold uppercase tracking-wider text-slate-600">
             <tr>
               <th className="px-4 py-3">Account</th>
@@ -95,7 +118,7 @@ export function SampleQueueTable() {
             </tr>
           </thead>
           <tbody>
-            {QUEUE_ROWS.map((row) => (
+            {rows.map((row) => (
               <tr key={row.account} className="border-t border-[#e2e8f0]">
                 <td className="px-4 py-3">
                   <div className="font-semibold text-slate-900">{row.holder}</div>
@@ -106,15 +129,109 @@ export function SampleQueueTable() {
                 <td className="px-4 py-3">
                   <StageChip label={row.stage} />
                 </td>
-                <td className="px-4 py-3 text-right text-sm font-black tabular-nums text-slate-900">
-                  {zar(row.amount)}
-                </td>
+                <td className="px-4 py-3 text-right text-sm font-black tabular-nums text-slate-900">{row.amount}</td>
                 <td className="px-4 py-3 text-right text-sm font-bold tabular-nums text-[#0077b6]">{row.clock}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      <ul className="grid gap-3 p-3 md:hidden">
+        {rows.map((row) => (
+          <li key={row.account} className="rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-black text-slate-900">{row.holder}</p>
+                <p className="text-xs text-slate-600">{row.account}</p>
+              </div>
+              <StageChip label={row.stage} />
+            </div>
+            <p className="mt-2 text-sm font-medium text-slate-900">{row.action}</p>
+            <p className="mt-1 text-xs text-slate-600">{row.creditor}</p>
+            <div className="mt-3 flex items-end justify-between gap-3">
+              <p className="text-sm font-black tabular-nums text-slate-900">{row.amount}</p>
+              <p className="text-sm font-bold tabular-nums text-[#0077b6]">{row.clock}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function SampleQueueTable() {
+  return (
+    <QueueBoard
+      rows={QUEUE_ROWS.map((row) => ({
+        account: row.account,
+        holder: row.holder,
+        creditor: row.creditor,
+        action: row.action,
+        stage: row.stage,
+        amount: zar(row.amount),
+        clock: row.clock,
+      }))}
+    />
+  );
+}
+
+export function NeedsAttention({ items = SAMPLE_ILLUSTRATION.attention }: { items?: readonly SampleAttention[] }) {
+  return (
+    <div className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] px-4 py-3 sm:px-5">
+        <h2 className="text-sm font-black text-slate-800">Needs attention</h2>
+        <SampleMark />
+      </div>
+      <ul>
+        {items.map((item) => (
+          <li key={item.title} className="flex items-center justify-between gap-3 border-t border-[#e2e8f0] px-4 py-3 sm:px-5">
+            <div className="min-w-0">
+              <p className="font-black text-slate-900">{item.title}</p>
+              <p className="text-sm leading-snug text-slate-600">{item.detail}</p>
+            </div>
+            <StageChip label={item.stage} />
+          </li>
+        ))}
+      </ul>
+      <p className="border-t border-[#e2e8f0] px-4 py-3 text-xs leading-relaxed text-slate-600 sm:px-5">
+        Illustration · sample data. These rows are not live accounts on this desk.
+      </p>
+    </div>
+  );
+}
+
+export function PromiseTimeline({ items = SAMPLE_ILLUSTRATION.promises }: { items?: readonly SamplePromise[] }) {
+  return (
+    <div className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] px-4 py-3 sm:px-5">
+        <h2 className="text-sm font-black text-slate-800">Promise to pay</h2>
+        <SampleMark />
+      </div>
+      <ol className="px-4 py-2 sm:px-5">
+        {items.map((step, index) => (
+          <li key={`${step.when}-${step.who}`} className="relative flex gap-4 py-4">
+            {index < items.length - 1 ? (
+              <span className="absolute left-[15px] top-10 h-[calc(100%-1.25rem)] w-px bg-[#00b4d8]" aria-hidden />
+            ) : null}
+            <span
+              className="relative z-[1] mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#00b4d8] text-[11px] font-black text-[#0f172a]"
+              aria-hidden
+            >
+              {index + 1}
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#0077b6]">{step.when}</p>
+              <p className="text-sm font-black text-slate-900">
+                {step.who} · {step.amount}
+              </p>
+              <p className="mt-0.5 text-sm leading-relaxed text-slate-600">{step.note}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <p className="border-t border-[#e2e8f0] px-4 py-3 text-xs leading-relaxed text-slate-600 sm:px-5">
+        Illustration · sample data. These dates are a picture of a payment arrangement, not receipts.
+      </p>
     </div>
   );
 }
@@ -312,7 +429,7 @@ export function WorkloadStrip() {
   return (
     <div className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e2e8f0] px-4 py-3 sm:px-5">
-        <h2 className="text-sm font-black text-slate-800">Team workload</h2>
+        <h2 className="text-sm font-black text-slate-800">Collector workload</h2>
         <SampleMark />
       </div>
       <ul className="grid gap-3 p-4 sm:grid-cols-3 sm:p-5">

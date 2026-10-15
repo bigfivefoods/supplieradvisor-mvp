@@ -7,6 +7,7 @@ import { CreditorArt, MandateArt } from './RecoverArt';
 import {
   RecoverBanner,
   RecoverButton,
+  RecoverDemoGate,
   RecoverEmpty,
   RecoverRoleChip,
   RecoverSample,
@@ -41,6 +42,7 @@ export function RecoverCreditors() {
       action={desk ? <RecoverRoleChip role={desk.role} /> : null}
     >
       {error ? <RecoverBanner testId="recover-banner-error" tone="error">{error}</RecoverBanner> : null}
+      <RecoverDemoGate desk={desk} />
       {desk && !desk.ready ? (
         <RecoverBanner testId="recover-banner-pending" tone="pending">
           {RECOVER_PENDING_BANNER}
@@ -71,30 +73,33 @@ export function RecoverCreditors() {
 
 function CreditorTable({ rows }: { rows: RecoverCreditor[] }) {
   return (
-    <div
-      data-testid="recover-creditors-list"
-      className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm"
-    >
-      <table className="w-full min-w-[36rem] text-left text-sm">
-        <thead className="bg-[#f8fafc] text-xs font-bold uppercase tracking-wider text-slate-600">
-          <tr>
-            <th className="px-4 py-3">Creditor</th>
-            <th className="px-4 py-3">Registration</th>
-            <th className="px-4 py-3">Remittance</th>
-            <th className="px-4 py-3">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.id} className="border-t border-[#e2e8f0]">
-              <td className="px-4 py-3 font-semibold text-slate-900">{row.name || 'Unnamed creditor'}</td>
-              <td className="px-4 py-3 tabular-nums text-slate-700">{row.reg_no || '—'}</td>
-              <td className="px-4 py-3 text-slate-700">{TERMS[row.remittance_terms] || row.remittance_terms}</td>
-              <td className="px-4 py-3 text-slate-700">{row.status}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div data-testid="recover-creditors-list" className="grid gap-3 sm:grid-cols-2">
+      {rows.map((row) => (
+        <article key={row.id} className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm">
+          <div className="border-b border-[#e2e8f0] bg-gradient-to-r from-cyan-50 to-white px-4 py-3">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Creditor</p>
+            <h2 className="mt-0.5 text-base font-black text-slate-900">{row.name || 'Unnamed creditor'}</h2>
+          </div>
+          <dl className="grid grid-cols-2">
+            <div className="border-t border-[#e2e8f0] px-4 py-3">
+              <dt className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Registration</dt>
+              <dd className="mt-1 text-sm font-semibold text-slate-900">{row.reg_no || '—'}</dd>
+            </div>
+            <div className="border-t border-[#e2e8f0] px-4 py-3">
+              <dt className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Remittance</dt>
+              <dd className="mt-1 text-sm font-semibold text-slate-900">
+                {TERMS[row.remittance_terms] || row.remittance_terms}
+              </dd>
+            </div>
+          </dl>
+          <div className="flex items-center justify-between border-t border-[#e2e8f0] px-4 py-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-600">Status</span>
+            <span className="inline-flex rounded-full bg-[#00b4d8] px-2.5 py-1 text-xs font-bold text-[#0f172a]">
+              {row.status}
+            </span>
+          </div>
+        </article>
+      ))}
     </div>
   );
 }
@@ -109,6 +114,7 @@ export function RecoverMandates() {
       action={desk ? <RecoverRoleChip role={desk.role} /> : null}
     >
       {error ? <RecoverBanner testId="recover-banner-error" tone="error">{error}</RecoverBanner> : null}
+      <RecoverDemoGate desk={desk} />
       {desk && !desk.ready ? (
         <RecoverBanner testId="recover-banner-pending" tone="pending">
           {RECOVER_PENDING_BANNER}
@@ -139,30 +145,33 @@ export function RecoverMandates() {
 
 function MandateTable({ rows }: { rows: RecoverMandate[] }) {
   return (
-    <div
-      data-testid="recover-mandates-list"
-      className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm"
-    >
-      <table className="w-full min-w-[40rem] text-left text-sm">
-        <thead className="bg-[#f8fafc] text-xs font-bold uppercase tracking-wider text-slate-600">
-          <tr>
-            <th className="px-4 py-3">Creditor</th>
-            <th className="px-4 py-3">Product</th>
-            <th className="px-4 py-3">Programme</th>
-            <th className="px-4 py-3">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.id} className="border-t border-[#e2e8f0]">
-              <td className="px-4 py-3 font-semibold text-slate-900">{row.creditor_name || 'Creditor'}</td>
-              <td className="px-4 py-3 text-slate-700">{PRODUCTS[row.product_type] || row.product_type}</td>
-              <td className="px-4 py-3 text-slate-700">Collections</td>
-              <td className="px-4 py-3 text-slate-700">{row.status}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div data-testid="recover-mandates-list" className="grid gap-3 sm:grid-cols-2">
+      {rows.map((row) => (
+        <article key={row.id} className="overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm">
+          <div className="border-b border-[#e2e8f0] bg-gradient-to-r from-cyan-50 to-white px-4 py-3">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Mandate</p>
+            <h2 className="mt-0.5 text-base font-black text-slate-900">{row.creditor_name || 'Creditor'}</h2>
+          </div>
+          <dl className="grid grid-cols-2">
+            <div className="border-t border-[#e2e8f0] px-4 py-3">
+              <dt className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Product</dt>
+              <dd className="mt-1 text-sm font-semibold text-slate-900">
+                {PRODUCTS[row.product_type] || row.product_type}
+              </dd>
+            </div>
+            <div className="border-t border-[#e2e8f0] px-4 py-3">
+              <dt className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Programme</dt>
+              <dd className="mt-1 text-sm font-semibold text-slate-900">Collections</dd>
+            </div>
+          </dl>
+          <div className="flex items-center justify-between border-t border-[#e2e8f0] px-4 py-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-600">Status</span>
+            <span className="inline-flex rounded-full bg-[#00b4d8] px-2.5 py-1 text-xs font-bold text-[#0f172a]">
+              {row.status}
+            </span>
+          </div>
+        </article>
+      ))}
     </div>
   );
 }

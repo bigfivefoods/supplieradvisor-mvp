@@ -7,16 +7,18 @@ import { PendingArt, QueueArt } from './RecoverArt';
 import {
   RecoverBanner,
   RecoverButton,
+  RecoverDemoGate,
   RecoverEmpty,
   RecoverRoleChip,
   RecoverSample,
   RecoverScreen,
 } from './RecoverChrome';
-import { SampleQueueTable } from './RecoverPreviews';
-import { useRecoverDesk } from './useRecoverDesk';
+import { QueueBoard, SampleQueueTable, queueRowsFromAccounts } from './RecoverPreviews';
+import { useRecoverDesk, useRecoverIllustration } from './useRecoverDesk';
 
 export function RecoverQueue() {
   const { desk, error, loading } = useRecoverDesk();
+  const illustration = useRecoverIllustration();
   const title = desk ? queueNavLabel(desk.role) : 'Queue';
   const manager = desk?.role === 'owner' || desk?.role === 'manager';
   return (
@@ -26,6 +28,7 @@ export function RecoverQueue() {
       action={desk ? <RecoverRoleChip role={desk.role} /> : null}
     >
       {error ? <RecoverBanner testId="recover-banner-error" tone="error">{error}</RecoverBanner> : null}
+      <RecoverDemoGate desk={desk} />
       {loading ? (
         <div data-testid="recover-queue-skeleton" className="space-y-3" aria-busy="true">
           {[0, 1, 2].map((i) => (
@@ -53,6 +56,8 @@ export function RecoverQueue() {
             }
           />
         </div>
+      ) : illustration ? (
+        <QueueBoard rows={queueRowsFromAccounts(illustration.accounts)} />
       ) : (
         <RecoverEmpty
           testId="recover-queue-empty"

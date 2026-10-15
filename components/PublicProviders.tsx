@@ -5,6 +5,7 @@ import { LocaleDictionaryProvider } from '@/components/i18n/LocaleDictionaryProv
 import LocaleNotice from '@/components/i18n/LocaleNotice';
 import InstallAppBanner from '@/components/pwa/InstallAppBanner';
 import ServiceWorkerRegister from '@/components/pwa/ServiceWorkerRegister';
+import SiteInstallTags from '@/components/pwa/SiteInstallTags';
 import { ThemeProvider, useTheme } from '@/components/theme/ThemeProvider';
 
 function ThemedToaster() {
@@ -24,6 +25,7 @@ function ThemedToaster() {
 export function PublicProviders({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
+      <SiteInstallTags />
       <ServiceWorkerRegister />
       <LocaleDictionaryProvider>
         <div className="min-h-dvh pointer-events-auto isolate bg-sa-bg text-sa-text">

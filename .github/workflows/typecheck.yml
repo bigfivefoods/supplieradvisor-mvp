@@ -86,6 +86,7 @@ jobs:
             lib/recovery/brief111-real-data-guard.test.ts \
             lib/recovery/brief111-api-gates.test.ts \
             lib/recovery/brief111-portal-shells.test.ts \
+            lib/recovery/brief111-preview.test.ts \
             lib/chrome/trade-sidebar.test.ts
           do
             if [ -f "$file" ]; then

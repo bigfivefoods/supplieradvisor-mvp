@@ -4,8 +4,10 @@ import Link from 'next/link';
 import type { LucideIcon } from 'lucide-react';
 import { ArrowRight, Shield } from 'lucide-react';
 import { ModuleCrumbs } from '@/components/chrome/ModuleCrumbs';
-import { RECOVER_BRAND, RECOVER_PRODUCT_NAME } from '@/lib/recovery/brand';
+import { RECOVER_BRAND, RECOVER_DEMO_BANNER, RECOVER_PRODUCT_NAME } from '@/lib/recovery/brand';
 import { recoverRoleLabel, type RecoverRole } from '@/lib/recovery/roles';
+import type { RecoverDeskPayload } from '@/lib/recovery/types';
+import { useRecoverHref } from './useRecoverDesk';
 
 export function RecoverFrame({ children }: { children: React.ReactNode }) {
   return (
@@ -42,6 +44,9 @@ export function RecoverFrame({ children }: { children: React.ReactNode }) {
           background-repeat: no-repeat;
           margin: -0.95rem -0.85rem 0;
           padding: 0.95rem 0.85rem 0.35rem;
+          border-top-left-radius: var(--sa-page-radius);
+          border-top-right-radius: var(--sa-page-radius);
+          overflow: hidden;
         }
         .recover-page-body {
           position: relative;
@@ -81,11 +86,12 @@ export function RecoverButton({
   onClick?: () => void;
   disabled?: boolean;
 }) {
+  const mapped = useRecoverHref(href || '/dashboard/recovergraph');
   const className =
     'recover-fill recover-focus inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-semibold shadow-sm transition-colors motion-safe:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60';
   if (href) {
     return (
-      <Link href={href} className={className}>
+      <Link href={mapped} className={className}>
         {children}
       </Link>
     );
@@ -206,34 +212,42 @@ export function RecoverBanner({
   );
 }
 
+export function RecoverDemoGate({ desk }: { desk: RecoverDeskPayload | null }) {
+  if (!desk?.ready || !desk.workspace || desk.workspace.real_data_enabled) return null;
+  return (
+    <RecoverBanner testId="recover-banner-demo" tone="demo">
+      {RECOVER_DEMO_BANNER}
+    </RecoverBanner>
+  );
+}
+
 export function RecoverKpi({
   testId,
   label,
   value,
   sub,
   icon: Icon,
+  tint = 'border-sky-100 bg-sky-50',
 }: {
   testId: string;
   label: string;
   value: string;
   sub: string;
   icon: LucideIcon;
+  tint?: string;
 }) {
   return (
-    <div
-      data-testid={testId}
-      className="sa-metric-card h-full min-w-0 rounded-2xl border border-cyan-100 bg-gradient-to-br from-cyan-50 to-white px-3 py-3 shadow-sm sm:px-4 sm:py-3.5"
-    >
-      <div className="mb-1 flex min-w-0 items-start justify-between gap-2">
-        <div className="sa-metric-label min-w-0 flex-1">{label}</div>
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white bg-white/80 text-[#0077b6]">
-          <Icon className="h-3.5 w-3.5" aria-hidden />
+    <div data-testid={testId} className={`h-full min-w-0 rounded-3xl border p-4 shadow-sm ${tint}`}>
+      <div className="mb-3 flex min-w-0 items-start justify-between gap-2">
+        <p className="min-w-0 flex-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#0f172a]/70">
+          {label}
+        </p>
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[#00b4d8] text-[#0f172a]">
+          <Icon className="h-4 w-4" aria-hidden />
         </div>
       </div>
-      <div className="sa-metric-value tabular-nums text-slate-900">{value}</div>
-      <div className="mt-0.5 line-clamp-2 text-xs font-medium leading-snug text-slate-600">
-        {sub}
-      </div>
+      <div className="text-2xl font-black tabular-nums tracking-tight text-[#0f172a] sm:text-3xl">{value}</div>
+      <div className="mt-1 line-clamp-2 text-xs font-medium leading-snug text-slate-600">{sub}</div>
     </div>
   );
 }
@@ -257,10 +271,11 @@ export function RecoverModuleCard({
   metricLabel?: string;
   accent?: string;
 }) {
+  const mapped = useRecoverHref(href);
   return (
     <Link
-      href={href}
-      className={`sa-metric-card group min-w-0 rounded-3xl border bg-gradient-to-br p-4 shadow-sm transition-all hover:border-[#0077b6]/40 hover:shadow-md sm:p-6 ${accent}`}
+      href={mapped}
+      className={`sa-metric-card group flex h-full min-w-0 flex-col rounded-3xl border bg-gradient-to-br p-4 shadow-sm transition-all hover:border-[#0077b6]/40 hover:shadow-md sm:p-6 ${accent}`}
     >
       <div className="mb-4 flex min-w-0 items-start justify-between gap-3">
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-50 bg-white text-[#0077b6] shadow-sm">

@@ -15,6 +15,7 @@ import type {
 import {
   RecoverBanner,
   RecoverButton,
+  RecoverDemoGate,
   RecoverField,
   RecoverPanel,
   RecoverQuietButton,
@@ -94,6 +95,7 @@ export function RecoverTeam() {
       action={desk ? <RecoverRoleChip role={desk.role} /> : null}
     >
       {error ? <RecoverBanner testId="recover-banner-error" tone="error">{error}</RecoverBanner> : null}
+      <RecoverDemoGate desk={desk} />
       {desk && !desk.ready ? (
         <RecoverBanner testId="recover-banner-pending" tone="pending">
           {RECOVER_PENDING_BANNER}
@@ -375,7 +377,28 @@ function StaffTable({
   }
   return (
     <div data-testid="recover-staff-table" className="overflow-hidden rounded-2xl border border-[#e2e8f0]">
-      <table className="w-full text-left text-sm">
+      <ul className="grid gap-2 p-3 md:hidden">
+        {rows.map((row) => (
+          <li key={row.id} className="rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
+            <p className="break-all text-sm font-black text-slate-900">{row.email}</p>
+            <p className="mt-1 text-xs font-bold text-slate-700">{staffRoleLabel(row.role)}</p>
+            <p className="mt-1 text-sm tabular-nums text-slate-700">{formatRand(row.monthly_target_cents)}</p>
+            {row.status === 'active' && canStaff ? (
+              <button
+                type="button"
+                className="recover-focus mt-2 min-h-11 text-sm font-semibold text-[#0077b6]"
+                disabled={saving}
+                onClick={() => onDeactivate(row.id)}
+              >
+                Deactivate
+              </button>
+            ) : (
+              <p className="mt-2 text-sm text-slate-600">{row.status}</p>
+            )}
+          </li>
+        ))}
+      </ul>
+      <table className="hidden w-full text-left text-sm md:table">
         <thead className="bg-[#f8fafc] text-xs font-bold uppercase tracking-wider text-slate-600">
           <tr>
             <th className="px-3 py-3">Email</th>

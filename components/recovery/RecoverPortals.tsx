@@ -4,9 +4,9 @@ import { Gavel, Landmark, UserRound } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { RECOVER_PENDING_BANNER } from '@/lib/recovery/brand';
 import { PortalArt } from './RecoverArt';
-import { RecoverBanner, RecoverRoleChip, RecoverSample, RecoverScreen } from './RecoverChrome';
+import { RecoverBanner, RecoverDemoGate, RecoverRoleChip, RecoverSample, RecoverScreen } from './RecoverChrome';
 import { SamplePortalBoard } from './RecoverPreviews';
-import { useRecoverDesk } from './useRecoverDesk';
+import { useRecoverDesk, useRecoverIllustration } from './useRecoverDesk';
 
 const CARDS: Array<{
   testId: string;
@@ -44,6 +44,7 @@ const CARDS: Array<{
 
 export function RecoverPortals() {
   const { desk, error, loading } = useRecoverDesk();
+  const illustration = useRecoverIllustration();
   return (
     <RecoverScreen
       title="Portals & install"
@@ -51,6 +52,7 @@ export function RecoverPortals() {
       action={desk ? <RecoverRoleChip role={desk.role} /> : null}
     >
       {error ? <RecoverBanner testId="recover-banner-error" tone="error">{error}</RecoverBanner> : null}
+      <RecoverDemoGate desk={desk} />
       {desk && !desk.ready ? (
         <RecoverBanner testId="recover-banner-pending" tone="pending">
           {RECOVER_PENDING_BANNER}
@@ -89,6 +91,31 @@ export function RecoverPortals() {
           })}
         </div>
       )}
+      {illustration && !loading ? (
+        <section className="mt-4 overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-sm">
+          <div className="border-b border-[#e2e8f0] bg-gradient-to-r from-cyan-50 to-white px-5 py-4">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-600">Illustration · sample data</p>
+            <h2 className="mt-1 text-lg font-black text-slate-900">Installable apps</h2>
+            <p className="mt-1 max-w-xl text-sm leading-relaxed text-slate-600">
+              RecoverAdvisor® can be installed for the owner, for workers, and for a client. These sample shells do not open a live book.
+            </p>
+          </div>
+          <div className="grid gap-3 p-4 sm:grid-cols-3">
+            <a className="rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] px-4 py-4" href="/work/recovergraph">
+              <p className="text-xs font-bold uppercase tracking-wider text-[#0077b6]">Owner</p>
+              <p className="mt-1 text-sm font-black text-slate-900">Open the owner app</p>
+            </a>
+            <a className="rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] px-4 py-4" href="/crew/recovergraph/sampledesk">
+              <p className="text-xs font-bold uppercase tracking-wider text-[#0077b6]">Workers</p>
+              <p className="mt-1 text-sm font-black text-slate-900">Open the workers app</p>
+            </a>
+            <a className="rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] px-4 py-4" href="/customer/recovergraph/sampledesk">
+              <p className="text-xs font-bold uppercase tracking-wider text-[#0077b6]">Client</p>
+              <p className="mt-1 text-sm font-black text-slate-900">Open the client app</p>
+            </a>
+          </div>
+        </section>
+      ) : null}
       {!loading ? (
         <div className="mt-4 overflow-hidden rounded-3xl border border-[#e2e8f0] bg-white shadow-[0_20px_50px_-28px_rgba(15,23,42,0.45)]">
           <div className="grid items-center gap-2 bg-gradient-to-br from-cyan-50 via-white to-sky-50 lg:grid-cols-[18rem_minmax(0,1fr)]">

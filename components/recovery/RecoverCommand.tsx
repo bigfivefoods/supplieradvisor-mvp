@@ -2,6 +2,7 @@
 
 import {
   Building2,
+  CalendarClock,
   Clock3,
   HandCoins,
   Landmark,
@@ -10,18 +11,15 @@ import {
   ShieldCheck,
   Users,
 } from 'lucide-react';
-import {
-  RECOVER_DEMO_BANNER,
-  RECOVER_PENDING_BANNER,
-  RECOVER_PRODUCT_NAME,
-} from '@/lib/recovery/brand';
+import { RECOVER_PENDING_BANNER, RECOVER_PRODUCT_NAME } from '@/lib/recovery/brand';
 import { queueNavLabel } from '@/lib/recovery/roles';
 import type { RecoverDeskPayload, RecoverWorkspace } from '@/lib/recovery/types';
-import { AgentArt, DeskArt, PendingArt, QueueArt } from './RecoverArt';
+import { AgentArt, DeskArt, PendingArt } from './RecoverArt';
 import type { RecoverRole } from '@/lib/recovery/roles';
 import {
   RecoverBanner,
   RecoverButton,
+  RecoverDemoGate,
   RecoverEmpty,
   RecoverKpi,
   RecoverModuleCard,
@@ -32,8 +30,18 @@ import {
   dash,
   formatRand,
 } from './RecoverChrome';
-import { AgeingBuckets, RecoveryFunnel, SampleKpiStrip, SampleQueueTable, WorkloadStrip } from './RecoverPreviews';
-import { useRecoverDesk } from './useRecoverDesk';
+import {
+  AgeingBuckets,
+  NeedsAttention,
+  PromiseTimeline,
+  QueueBoard,
+  RecoveryFunnel,
+  SampleKpiStrip,
+  SampleQueueTable,
+  WorkloadStrip,
+  queueRowsFromAccounts,
+} from './RecoverPreviews';
+import { useRecoverDesk, useRecoverIllustration } from './useRecoverDesk';
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -119,6 +127,7 @@ function CommandBody({ desk }: { desk: RecoverDeskPayload }) {
 }
 
 function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
+  const picture = useRecoverIllustration();
   const showTrust = desk.capabilities.canSeeTrust;
   const showCfdc =
     (desk.role === 'owner' || desk.role === 'manager' || desk.role === 'compliance') &&
@@ -162,11 +171,7 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
 
   return (
     <>
-      {!desk.workspace?.real_data_enabled ? (
-        <RecoverBanner testId="recover-banner-demo" tone="demo">
-          {RECOVER_DEMO_BANNER}
-        </RecoverBanner>
-      ) : null}
+      <RecoverDemoGate desk={desk} />
       {showCfdc ? (
         <RecoverBanner testId="recover-banner-cfdc" tone="cfdc">
           This agency needs a current Council for Debt Collectors registration before collection work starts.
@@ -197,7 +202,9 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
               Today’s picture
             </h2>
             <p className="text-sm leading-relaxed text-slate-600">
-              No accounts placed yet. Placed, recovered, trust, and clock figures stay blank until those books exist.
+              {picture
+                ? 'Illustration · sample data. These figures are a picture of a book, not a live workspace.'
+                : 'No accounts placed yet. Placed, recovered, trust, and clock figures stay blank until those books exist.'}
             </p>
           </div>
           <DeskArt />
@@ -211,43 +218,47 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
             <RecoverKpi
               testId="recover-kpi-placed"
               label="Placed"
-              value="—"
-              sub="No accounts placed yet"
+              value={picture ? picture.placed : '—'}
+              sub={picture ? 'Illustration · sample data' : 'No accounts placed yet'}
               icon={Scale}
+              tint="border-sky-100 bg-sky-50"
             />
             <RecoverKpi
               testId="recover-kpi-recovered"
               label="Recovered"
-              value="—"
-              sub="Nothing recovered yet"
+              value={picture ? picture.recovered : '—'}
+              sub={picture ? 'Illustration · sample data' : 'Nothing recovered yet'}
               icon={HandCoins}
+              tint="border-cyan-100 bg-cyan-50"
             />
             {showTrust ? (
               <RecoverKpi
                 testId="recover-kpi-trust"
                 label="In trust"
-                value="—"
-                sub="Trust ledger is not open yet"
+                value={picture ? picture.trust : '—'}
+                sub={picture ? 'Illustration · sample data' : 'Trust ledger is not open yet'}
                 icon={Landmark}
+                tint="border-emerald-100 bg-emerald-50"
               />
             ) : null}
             <RecoverKpi
               testId="recover-kpi-clocks"
               label="Clocks expiring"
-              value="—"
-              sub="No clocks are running"
+              value={picture ? picture.clocks : '—'}
+              sub={picture ? 'Illustration · sample data' : 'No clocks are running'}
               icon={Clock3}
+              tint="border-amber-100 bg-amber-50"
             />
       </div>
 
-      <div className="mb-6 grid gap-4">
-        <SampleKpiStrip />
+      <div className="mb-8 grid gap-4">
+        {picture ? null : <SampleKpiStrip />}
+        <NeedsAttention items={picture?.attention} />
         <div className="grid gap-4 lg:grid-cols-2">
           <RecoveryFunnel />
           <AgeingBuckets />
         </div>
-      </div>
-      <div className="mb-8">
+        <PromiseTimeline items={picture?.promises} />
         <WorkloadStrip />
       </div>
 
@@ -297,7 +308,7 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
       </div>
 
       <h2 className="mb-4 text-sm font-black uppercase tracking-widest text-[#0077b6]">Workbenches</h2>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <RecoverModuleCard
           href="/dashboard/recovergraph/queue"
           icon={ListChecks}
@@ -348,21 +359,26 @@ function OwnerHome({ desk }: { desk: RecoverDeskPayload }) {
           desc="Creditor, debtor, and attorney access. Not open yet."
           accent="from-teal-50 to-white border-teal-100"
         />
+        <RecoverModuleCard
+          href="/dashboard/recovergraph/queue"
+          icon={CalendarClock}
+          code="06"
+          title="Promises"
+          desc="Promise-to-pay dates. Live promises are not loaded in this version."
+          accent="from-sky-50 to-white border-sky-100"
+        />
       </div>
     </>
   );
 }
 
 function AgentHome({ desk }: { desk: RecoverDeskPayload }) {
+  const picture = useRecoverIllustration();
   const name = desk.workspace?.display_name || RECOVER_PRODUCT_NAME;
   const target = desk.self?.monthly_target_cents;
   return (
     <div data-testid="recover-agent-home" className="space-y-6">
-      {!desk.workspace?.real_data_enabled ? (
-        <RecoverBanner testId="recover-banner-demo" tone="demo">
-          {RECOVER_DEMO_BANNER}
-        </RecoverBanner>
-      ) : null}
+      <RecoverDemoGate desk={desk} />
       <section className="sa-hero mb-2">
         <div
           className="pointer-events-none absolute -right-10 -top-10 h-56 w-56 rounded-full blur-3xl"
@@ -384,28 +400,37 @@ function AgentHome({ desk }: { desk: RecoverDeskPayload }) {
           <AgentArt />
         </div>
       </section>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(16rem,0.8fr)]">
-        <RecoverEmpty
-          testId="recover-queue-empty"
-          icon={ListChecks}
-          title="My queue"
-          body="No accounts assigned yet. Accounts appear here once a creditor book is imported."
-          art={<QueueArt />}
-          action={<RecoverButton href="/dashboard/recovergraph/queue">Open my queue</RecoverButton>}
-        />
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(16rem,0.8fr)]">
+        {picture ? (
+          <QueueBoard rows={queueRowsFromAccounts(picture.accounts)} />
+        ) : (
+          <RecoverEmpty
+            testId="recover-queue-empty"
+            icon={ListChecks}
+            title="My queue"
+            body="No accounts assigned yet. Accounts appear here once a creditor book is imported."
+            action={<RecoverButton href="/dashboard/recovergraph/queue">Open my queue</RecoverButton>}
+          />
+        )}
         <RecoverPanel title="Monthly target" testId="recover-target-empty">
           <p className="sa-metric-value tabular-nums text-slate-900">{formatRand(target)}</p>
           {target == null ? (
             <p className="mt-2 text-sm leading-relaxed text-slate-600">No monthly target set.</p>
+          ) : (
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">Illustration · sample data</p>
+          )}
+          {target == null ? (
+            <p className="mt-4 text-sm leading-relaxed text-slate-600">
+              A target appears here when a manager sets one on your staff row. Until then the figure stays blank.
+            </p>
           ) : null}
-          <p className="mt-4 text-sm leading-relaxed text-slate-600">
-            A target appears here when a manager sets one on your staff row. Until then the figure stays blank.
-          </p>
         </RecoverPanel>
       </div>
-      <RecoverSample title="Sample layout of my queue">
-        <SampleQueueTable />
-      </RecoverSample>
+      {picture ? null : (
+        <RecoverSample title="Sample layout of my queue">
+          <SampleQueueTable />
+        </RecoverSample>
+      )}
     </div>
   );
 }
