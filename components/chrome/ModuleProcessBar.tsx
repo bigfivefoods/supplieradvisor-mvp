@@ -189,14 +189,14 @@ export default function ModuleProcessBar({ onOpenMobileMenu }: Props) {
                               }
                               className={`inline-flex items-center gap-1 sm:gap-1.5 rounded-full border px-2 sm:px-2.5 py-1.5 min-h-[36px] sm:min-h-[40px] ${stepLabelClass} transition-all whitespace-nowrap touch-manipulation ${
                                 active
-                                  ? 'border-[#00b4d8] bg-[#00b4d8] text-white shadow-sm'
+                                  ? 'border-[#00b4d8] bg-[#00b4d8] text-[#0f172a] shadow-sm'
                                   : 'border-neutral-200 bg-white text-neutral-600 hover:border-[#00b4d8]/40 hover:text-[#0077b6]'
                               }`}
                             >
                               <span
                                 className={`flex h-4 w-4 items-center justify-center rounded text-[9px] font-black shrink-0 ${
                                   active
-                                    ? 'bg-white/20 text-white'
+                                    ? 'bg-[#0f172a]/10 text-[#0f172a]'
                                     : 'bg-[#00b4d8]/10 text-[#00b4d8]'
                                 }`}
                               >

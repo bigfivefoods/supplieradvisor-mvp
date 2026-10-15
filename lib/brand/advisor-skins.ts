@@ -454,7 +454,10 @@ export function applyAdvisorSkinToDocument(skin: AdvisorSkin) {
     root.style.setProperty('--sa-brand-soft', `rgba(${r}, ${g}, ${b}, 0.16)`);
     root.style.setProperty('--sa-brand-glow', `rgba(${r}, ${g}, ${b}, 0.28)`);
     const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-    root.style.setProperty('--sa-brand-ink', lum > 0.55 ? '#111827' : '#ffffff');
+    root.style.setProperty(
+      '--sa-brand-ink',
+      skin.id === 'trade' ? '#0f172a' : lum > 0.55 ? '#111827' : '#ffffff'
+    );
     if (skin.id === 'supplier') {
       root.style.removeProperty('--sa-page-glow-1');
       root.style.removeProperty('--sa-page-glow-2');

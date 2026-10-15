@@ -25,6 +25,7 @@ import {
   ADVISOR_OS_MODULE_IDS,
   functionalSidebarModules,
 } from '@/lib/chrome/functional-nav';
+import { tradeStepAliases } from '@/lib/chrome/module-lifecycles';
 import { buildGuideNavSteps } from '@/lib/guide/curriculum';
 import { AdvisorWordmark } from '@/components/brand/AdvisorSkinApplier';
 import { PortalBrandLogo } from '@/components/brand/PortalBrandLogo';
@@ -291,7 +292,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     return pathname === base || pathname.startsWith(`${base}/`);
   };
 
-  const isSubActive = (href: string, exact?: boolean) => {
+  const subMatches = (href: string, exact?: boolean) => {
     if (!pathname) return false;
     const base = pathOnly(href);
     if (exact || base === '/sales' || base === '/dashboard') {
@@ -302,6 +303,11 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     const parts = base.split('/').filter(Boolean);
     if (parts.length <= 2) return pathname === base;
     return pathname === base || pathname.startsWith(base + '/');
+  };
+
+  const isSubActive = (href: string, exact?: boolean) => {
+    if (subMatches(href, exact)) return true;
+    return tradeStepAliases(href).some((alias) => subMatches(alias, false));
   };
 
   const showChromeLabels = forceExpanded || !isCollapsed;
