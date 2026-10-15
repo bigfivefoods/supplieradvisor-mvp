@@ -32,6 +32,7 @@ export const ADVISOR_OS_MODULE_IDS = [
   'apparelgraph',
   'constructiongraph',
   'tradegraph',
+  'recovergraph',
   'quarrygraph',
   'fieldgraph',
   'schools',
@@ -53,6 +54,7 @@ const PACK_TO_ADVISOR_MODULE: Record<string, AdvisorOsModuleId> = {
   apparel: 'apparelgraph',
   construction_building: 'constructiongraph',
   trades: 'tradegraph',
+  recovery: 'recovergraph',
   quarry_aggregates: 'quarrygraph',
   agri_regen: 'fieldgraph',
   public_procurement: 'schools',
@@ -149,6 +151,7 @@ export const FUNCTIONAL_MODULE_ORDER: readonly string[] = [
   'apparelgraph', // ApparelAdvisor® apparel manufacturing OS
   'constructiongraph', // ConstructionAdvisor® building OS
   'tradegraph', // TradeAdvisor® trades & artisan OS
+  'recovergraph', // RecoverAdvisor® collections OS
   'quarrygraph', // QuarryAdvisor® aggregates OS
   'fieldgraph', // CropAdvisor® agri OS
   'schools', // SchoolAdvisor® (public sector / NSNP)
@@ -209,6 +212,7 @@ export const FUNCTIONAL_DISPLAY_NAME: Record<string, string> = {
   apparelgraph: 'ApparelAdvisor (Apparel)',
   constructiongraph: 'ConstructionAdvisor',
   tradegraph: 'TradeAdvisor®',
+  recovergraph: 'RecoverAdvisor®',
   containers: 'ContainerAdvisor',
   schools: 'SchoolAdvisor',
   health: 'HealthAdvisor',

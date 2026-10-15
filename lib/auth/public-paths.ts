@@ -30,6 +30,23 @@ const PUBLIC_EXACT = new Set([
   '/api/billing/webhook',
 ]);
 
+/**
+ * Signed-out portal pages. These are pages only.
+ * The desk API stays on the authenticated route list.
+ */
+export const RECOVER_PORTAL_PAGE_PREFIXES = [
+  '/creditor/recovergraph',
+  '/debtor/recovergraph',
+  '/attorney/recovergraph',
+] as const;
+
+export function isRecoverPortalPath(pathname: string): boolean {
+  const p = (pathname.split('?')[0] || pathname).replace(/\/$/, '') || '/';
+  return RECOVER_PORTAL_PAGE_PREFIXES.some(
+    (prefix) => p === prefix || p.startsWith(`${prefix}/`)
+  );
+}
+
 export function isPublicApiPath(pathname: string): boolean {
   const p = pathname.split('?')[0] || pathname;
   if (PUBLIC_EXACT.has(p)) return true;

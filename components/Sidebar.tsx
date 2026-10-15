@@ -29,6 +29,12 @@ import { buildGuideNavSteps } from '@/lib/guide/curriculum';
 import { AdvisorWordmark } from '@/components/brand/AdvisorSkinApplier';
 import { PortalBrandLogo } from '@/components/brand/PortalBrandLogo';
 import { useAdvisorSkin } from '@/lib/brand/useAdvisorSkin';
+import {
+  queueNavLabel,
+  recoverSectionVisible,
+  resolveRecoverRole,
+} from '@/lib/recovery/roles';
+import { RECOVER_COMPANY_COOKIE } from '@/lib/recovery/member-company';
 
 const EXPANDED_KEY = 'sa-sidebar-expanded-v1';
 
@@ -86,6 +92,44 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
   const [savingOrder, setSavingOrder] = useState(false);
   const programme = useProgrammeRole();
   const healthProgramme = useHealthProgrammeRole();
+  const [recoverStaff, setRecoverStaff] = useState<{
+    role: string;
+    status?: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!selectedCompanyId || !isCompanyModuleEnabled('recovergraph')) {
+      setRecoverStaff(null);
+      return;
+    }
+    const key = `recover-role:${selectedCompanyId}`;
+    try {
+      const cached = sessionStorage.getItem(key);
+      if (cached) setRecoverStaff(JSON.parse(cached) as { role: string; status?: string | null } | null);
+    } catch {
+      /* soft */
+    }
+    let cancelled = false;
+    document.cookie = `${RECOVER_COMPANY_COOKIE}=${selectedCompanyId};path=/;SameSite=Lax`;
+    fetch('/api/recovery/recovergraph', { credentials: 'include', cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body: { self?: { role?: string; status?: string | null } | null } | null) => {
+        if (cancelled || !body) return;
+        const next = body.self?.role
+          ? { role: body.self.role, status: body.self.status }
+          : null;
+        setRecoverStaff(next);
+        try {
+          sessionStorage.setItem(key, JSON.stringify(next));
+        } catch {
+          /* soft */
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCompanyId, isCompanyModuleEnabled]);
 
   const modules = useMemo(() => {
     const simplifiedSchool =
@@ -183,6 +227,21 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
             })),
           };
         }
+        if (mod.id === 'recovergraph' && role) {
+          const recoverRole = resolveRecoverRole(role, recoverStaff);
+          return {
+            ...mod,
+            sub: mod.sub
+              .filter((step) =>
+                recoverSectionVisible(recoverRole, step.section || '')
+              )
+              .map((step) =>
+                step.href === '/dashboard/recovergraph/queue'
+                  ? { ...step, name: queueNavLabel(recoverRole) }
+                  : step
+              ),
+          };
+        }
         return mod;
       });
   }, [
@@ -192,6 +251,7 @@ export default function Sidebar({ forceExpanded = false }: { forceExpanded?: boo
     programme.role,
     healthProgramme.role,
     modules,
+    recoverStaff,
   ]);
 
   const persistOrder = async (fromId: string, toId: string) => {

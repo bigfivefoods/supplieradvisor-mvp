@@ -14,6 +14,7 @@ export const ADVISOR_OS_MODULE_IDS = [
   'apparelgraph',
   'constructiongraph',
   'tradegraph',
+  'recovergraph',
 ] as const;
 
 export type AdvisorOsModuleId = (typeof ADVISOR_OS_MODULE_IDS)[number];
@@ -154,6 +155,15 @@ export const ADVISOR_PACK_UNLOCKS: Record<string, readonly string[]> = {
     'inventory',
     'operations',
   ],
+  recovery: [
+    'recovergraph',
+    'customers',
+    'accounting',
+    'people',
+    'Documents',
+    'Messages',
+    'Calendar',
+  ],
 };
 
 export const ADVISOR_MODULE_CORE_HREF: Record<
@@ -225,6 +235,12 @@ export const ADVISOR_MODULE_CORE_HREF: Record<
     staff: '/dashboard/tradegraph/customers',
     book: '/dashboard/tradegraph/jobs',
     money: '/dashboard/tradegraph/jobs',
+  },
+  recovergraph: {
+    label: 'RecoverAdvisor®',
+    staff: '/dashboard/recovergraph/settings/team',
+    book: '/dashboard/recovergraph/creditors',
+    money: '/dashboard/accounting',
   },
 };
 

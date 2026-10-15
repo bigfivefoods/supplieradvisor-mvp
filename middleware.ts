@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { canonicalRedirectForAppHost } from '@/lib/http/app-host';
-import { isPublicApiPath } from '@/lib/auth/public-paths';
+import { isPublicApiPath, isRecoverPortalPath } from '@/lib/auth/public-paths';
 
 /**
  * Edge middleware — app-host redirect, security headers, coarse API gate.
@@ -54,6 +54,15 @@ export function middleware(request: NextRequest) {
     applySecurityHeaders(redirect);
     redirect.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
     return redirect;
+  }
+
+  // Signed-out portal shells. No API is opened. Tokens are never cached.
+  if (isRecoverPortalPath(pathname)) {
+    const portal = NextResponse.next();
+    applySecurityHeaders(portal);
+    portal.headers.set('Cache-Control', 'private, no-store');
+    portal.headers.set('X-Robots-Tag', 'noindex, nofollow');
+    return portal;
   }
 
   // Host check above needs a broad matcher. www routes outside the original

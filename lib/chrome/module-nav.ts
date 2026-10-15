@@ -43,9 +43,11 @@ import {
   Shirt,
   Hammer,
   Wrench,
+  HandCoins,
 } from 'lucide-react';
 import type { ProcessStep } from '@/components/relationship/RelationshipChrome';
 import type { PermissionResource } from '@/lib/business/permissions';
+import { recovergraphNavSteps } from '@/lib/recovery/nav';
 
 export type ModuleNavItem = {
   name: string;
@@ -89,6 +91,7 @@ export type ModuleNav = {
  * projects FolderKanban · sustainability Leaf · intelligence Brain · guide BookOpen
  * people IdCard · schools School
  * apparelgraph Shirt · constructiongraph Hammer · tradegraph Wrench
+ * recovergraph HandCoins
  */
 export const MODULE_NAV: readonly ModuleNav[] = [
   {
@@ -1291,6 +1294,14 @@ export const MODULE_NAV: readonly ModuleNav[] = [
 
       { name: 'Messages', href: '/dashboard/messages?from=health&channel=colleague', desc: 'DoH · facility · SP threads', section: 'Govern', rail: false },
     ],
+  },
+  {
+    id: 'recovergraph',
+    name: 'RecoverAdvisor®',
+    icon: HandCoins,
+    href: '/dashboard/recovergraph',
+    resource: 'recovery',
+    steps: recovergraphNavSteps(),
   },
   {
     id: 'guide',

@@ -30,6 +30,30 @@ test.describe('Tier-1 API auth', () => {
     expect(res.status()).toBe(401);
   });
 
+  test('recovery desk without token → 401 or 403', async ({ request }) => {
+    const res = await request.get(`${base}/api/recovery/recovergraph`);
+    expect([401, 403]).toContain(res.status());
+    const json = await res.json();
+    expect(json.workspace).toBeFalsy();
+    expect(json.creditors).toBeFalsy();
+    expect(json.staff).toBeFalsy();
+  });
+
+  test('recovery desk post without token → 401 or 403', async ({ request }) => {
+    const res = await request.post(`${base}/api/recovery/recovergraph`, {
+      data: { op: 'init_workspace', display_name: 'Desk' },
+    });
+    expect([401, 403]).toContain(res.status());
+    const json = await res.json();
+    expect(json.workspace).toBeFalsy();
+    expect(json.creditors).toBeFalsy();
+  });
+
+  test('public recovergraph route is absent', async ({ request }) => {
+    const res = await request.get(`${base}/api/public/recovergraph`);
+    expect(res.status()).toBe(404);
+  });
+
   test('spoofed privyUserId without token → 401', async ({ request }) => {
     const res = await request.post(`${base}/api/inventory/scan`, {
       data: {

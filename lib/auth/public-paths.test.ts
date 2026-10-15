@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { isPublicApiPath, PUBLIC_API_PREFIXES } from './public-paths';
+import { isPublicApiPath, isRecoverPortalPath, PUBLIC_API_PREFIXES } from './public-paths';
 
 assert.equal(isPublicApiPath('/api/health'), true);
 assert.equal(isPublicApiPath('/api/health/agency'), false);
@@ -49,5 +49,17 @@ assert.doesNotMatch(paths, /getSupabaseServer/);
 const agency = src('app/api/health/agency/route.ts');
 assert.match(agency, /requireCompanyAccess/);
 assert.match(agency, /runtime = 'nodejs'/);
+
+assert.equal(isPublicApiPath('/api/recovery/recovergraph'), false);
+assert.equal(isRecoverPortalPath('/creditor/recovergraph/person'), true);
+assert.equal(isRecoverPortalPath('/debtor/recovergraph/person'), true);
+assert.equal(isRecoverPortalPath('/attorney/recovergraph/person'), true);
+assert.equal(isRecoverPortalPath('/api/recovery/recovergraph'), false);
+
+const recoverPaths = src('lib/auth/public-paths.ts');
+assert.match(recoverPaths, /\/creditor\/recovergraph/);
+assert.match(recoverPaths, /\/debtor\/recovergraph/);
+assert.match(recoverPaths, /\/attorney\/recovergraph/);
+assert.doesNotMatch(recoverPaths, /\/api\/recovery/);
 
 console.log('public-paths Brief 13 tests ok');

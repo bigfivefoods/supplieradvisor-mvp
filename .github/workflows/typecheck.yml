@@ -58,7 +58,13 @@ jobs:
             lib/insights/visitor.test.ts \
             lib/http/brief105-public-mailers.test.ts \
             lib/trades/brief108-public-feeds.test.ts \
-            lib/trades/brief109-otp.test.ts
+            lib/trades/brief109-otp.test.ts \
+            lib/recovery/brief111-roles.test.ts \
+            lib/recovery/brief111-permissions.test.ts \
+            lib/recovery/brief111-registration.test.ts \
+            lib/recovery/brief111-real-data-guard.test.ts \
+            lib/recovery/brief111-api-gates.test.ts \
+            lib/recovery/brief111-portal-shells.test.ts
           do
             if [ -f "$file" ]; then
               npx --yes tsx "$file"
@@ -96,3 +102,33 @@ jobs:
         env:
           TRADE_PORTAL_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/tradegraph
         run: npx --yes tsx lib/trades/trade-portal-call.test.ts
+
+  recover-portal-db:
+    name: recover portal Postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: recovergraph
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d recovergraph"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install psql
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Run recover portal functions against Postgres
+        env:
+          RECOVER_PORTAL_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/recovergraph
+        run: npx --yes tsx lib/recovery/recover-portal-call.test.ts

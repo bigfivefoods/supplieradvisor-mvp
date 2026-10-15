@@ -1,0 +1,533 @@
+-- RecoverAdvisor® foundation (Brief A). Written for the SQL editor.
+-- Not applied to any live database by this change. Do not run it from the app.
+--
+-- company_id is bigint because public.profiles.id is bigint in this database
+-- (the same key TradeAdvisor® uses). customers.id is bigint too.
+-- There is no workspace-wide public token. Portal secrets are per person and hashed.
+--
+-- recover_portal is nologin and has no table grants. Forced row security has no
+-- policy for anon, authenticated, or recover_portal, so a direct query is denied.
+-- The SECURITY DEFINER functions below are owned by the migration role (the table
+-- owner). A function owned by recover_portal could not read a session: that role
+-- has no grants and row security is forced. service_role is the only execute grantee.
+-- search_path is empty and every reference is schema-qualified.
+--
+-- ROLLBACK (run manually, in this order, only after review):
+--   DROP FUNCTION IF EXISTS public.recover_portal_call(text, text, text, jsonb);
+--   DROP FUNCTION IF EXISTS public.recover_portal_register_failure(uuid, bigint, text, text);
+--   DROP FUNCTION IF EXISTS public.recover_portal_is_throttled(bigint, text, text);
+--   DROP FUNCTION IF EXISTS public.recover_verify_code_ct(text, text);
+--   DROP FUNCTION IF EXISTS public.recover_forbid_mutation();
+--   DROP TABLE IF EXISTS public.recover_portal_attempts;
+--   DROP TABLE IF EXISTS public.recover_portal_otps;
+--   DROP TABLE IF EXISTS public.recover_portal_sessions;
+--   DROP TABLE IF EXISTS public.recover_portal_invites;
+--   DROP TABLE IF EXISTS public.recover_audit_log;
+--   DROP TABLE IF EXISTS public.recover_mandates;
+--   DROP TABLE IF EXISTS public.recover_creditors;
+--   DROP TABLE IF EXISTS public.recover_staff;
+--   DROP TABLE IF EXISTS public.recover_teams;
+--   DROP TABLE IF EXISTS public.recover_workspaces;
+--   DROP ROLE IF EXISTS recover_portal;
+
+CREATE SCHEMA IF NOT EXISTS extensions;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pgcrypto') THEN
+    CREATE EXTENSION pgcrypto WITH SCHEMA extensions;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'recover_portal') THEN
+    CREATE ROLE recover_portal NOLOGIN NOBYPASSRLS;
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS public.recover_workspaces (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id bigint NOT NULL UNIQUE REFERENCES public.profiles(id) ON DELETE CASCADE,
+  display_name text NOT NULL DEFAULT '',
+  operator_type text NOT NULL DEFAULT 'agency',
+  programme_types text[] NOT NULL DEFAULT ARRAY['recovery']::text[],
+  trust_mode text NOT NULL DEFAULT 'trust',
+  cfdc_registration_no text NOT NULL DEFAULT '',
+  cfdc_expiry date,
+  vat_registered boolean NOT NULL DEFAULT false,
+  vat_rate_bps integer,
+  contact_policy jsonb NOT NULL DEFAULT '{}'::jsonb,
+  trust_settings jsonb NOT NULL DEFAULT '{}'::jsonb,
+  comms_flags jsonb NOT NULL DEFAULT '{"email":false,"whatsapp":false,"sms":false}'::jsonb,
+  retention jsonb NOT NULL DEFAULT '{}'::jsonb,
+  real_data_enabled boolean NOT NULL DEFAULT false,
+  real_data_confirmed_by text,
+  real_data_confirmed_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT recover_workspaces_operator_check CHECK (
+    operator_type IN ('agency', 'in_house', 'attorney')
+  ),
+  CONSTRAINT recover_workspaces_trust_check CHECK (trust_mode IN ('trust', 'direct')),
+  CONSTRAINT recover_workspaces_programme_check CHECK (
+    programme_types <@ ARRAY['recovery', 'managed_repayment']::text[]
+    AND cardinality(programme_types) >= 1
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_recover_workspaces_company
+  ON public.recover_workspaces (company_id);
+
+CREATE TABLE IF NOT EXISTS public.recover_teams (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  lead_staff_id uuid,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_recover_teams_company
+  ON public.recover_teams (company_id, name);
+
+CREATE TABLE IF NOT EXISTS public.recover_staff (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  user_id text,
+  email text NOT NULL,
+  role text NOT NULL,
+  team_id uuid REFERENCES public.recover_teams(id) ON DELETE SET NULL,
+  status text NOT NULL DEFAULT 'active',
+  cfdc_registration_no text NOT NULL DEFAULT '',
+  registration_status text NOT NULL DEFAULT '',
+  monthly_target_cents bigint,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT recover_staff_role_check CHECK (
+    role IN ('manager', 'collector', 'compliance', 'finance_view')
+  ),
+  CONSTRAINT recover_staff_status_check CHECK (status IN ('active', 'inactive'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_recover_staff_email
+  ON public.recover_staff (company_id, lower(email));
+
+CREATE INDEX IF NOT EXISTS idx_recover_staff_company
+  ON public.recover_staff (company_id, status);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'recover_teams_lead_staff_id_fkey'
+  ) THEN
+    ALTER TABLE public.recover_teams
+      ADD CONSTRAINT recover_teams_lead_staff_id_fkey
+      FOREIGN KEY (lead_staff_id) REFERENCES public.recover_staff(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS public.recover_creditors (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  customer_id bigint REFERENCES public.customers(id) ON DELETE SET NULL,
+  name text NOT NULL DEFAULT '',
+  reg_no text NOT NULL DEFAULT '',
+  vat_no text NOT NULL DEFAULT '',
+  remittance_terms text NOT NULL DEFAULT 'monthly',
+  portal_enabled boolean NOT NULL DEFAULT false,
+  status text NOT NULL DEFAULT 'active',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT recover_creditors_terms_check CHECK (
+    remittance_terms IN ('monthly', 'weekly', 'on_receipt')
+  ),
+  CONSTRAINT recover_creditors_status_check CHECK (status IN ('active', 'inactive'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_recover_creditors_company
+  ON public.recover_creditors (company_id, status);
+
+CREATE TABLE IF NOT EXISTS public.recover_mandates (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  creditor_id uuid NOT NULL REFERENCES public.recover_creditors(id) ON DELETE CASCADE,
+  programme_type text NOT NULL DEFAULT 'recovery',
+  product_type text NOT NULL,
+  nca_regulated boolean NOT NULL,
+  processing_role text NOT NULL,
+  authority_to_litigate boolean NOT NULL DEFAULT false,
+  bureau_authority boolean NOT NULL DEFAULT false,
+  retention_months integer,
+  start_on date,
+  end_on date,
+  status text NOT NULL DEFAULT 'draft',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT recover_mandates_programme_check CHECK (
+    programme_type IN ('recovery', 'managed_repayment')
+  ),
+  CONSTRAINT recover_mandates_product_check CHECK (
+    product_type IN ('nca_credit', 'trade', 'levy', 'rent', 'medical', 'utility', 'other')
+  ),
+  CONSTRAINT recover_mandates_processing_check CHECK (
+    processing_role IN ('responsible_party', 'operator')
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_recover_mandates_company
+  ON public.recover_mandates (company_id, creditor_id, status);
+
+CREATE TABLE IF NOT EXISTS public.recover_audit_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  actor_kind text NOT NULL,
+  actor_id text,
+  action text NOT NULL,
+  target text,
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT recover_audit_actor_check CHECK (actor_kind IN ('staff', 'system', 'portal'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_recover_audit_company
+  ON public.recover_audit_log (company_id, at DESC);
+
+CREATE TABLE IF NOT EXISTS public.recover_portal_invites (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  portal text NOT NULL,
+  subject_id uuid,
+  email text NOT NULL,
+  token_hash text NOT NULL,
+  expires_at timestamptz NOT NULL,
+  used_at timestamptz,
+  revoked_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT recover_portal_invites_portal_check CHECK (
+    portal IN ('creditor', 'debtor', 'attorney')
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_recover_portal_invites_company
+  ON public.recover_portal_invites (company_id, portal, lower(email));
+
+CREATE TABLE IF NOT EXISTS public.recover_portal_otps (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  invite_id uuid NOT NULL REFERENCES public.recover_portal_invites(id) ON DELETE CASCADE,
+  code_hash text NOT NULL,
+  expires_at timestamptz NOT NULL,
+  used_at timestamptz,
+  failed_attempts integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT recover_portal_otps_attempts_check CHECK (failed_attempts >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_recover_portal_otps_invite
+  ON public.recover_portal_otps (invite_id, expires_at DESC);
+
+CREATE TABLE IF NOT EXISTS public.recover_portal_sessions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  token_hash text NOT NULL,
+  portal text NOT NULL,
+  subject_id uuid,
+  expires_at timestamptz NOT NULL,
+  revoked_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT recover_portal_sessions_portal_check CHECK (
+    portal IN ('creditor', 'debtor', 'attorney')
+  )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_recover_portal_sessions_hash
+  ON public.recover_portal_sessions (token_hash);
+
+CREATE INDEX IF NOT EXISTS idx_recover_portal_sessions_company
+  ON public.recover_portal_sessions (company_id, portal);
+
+CREATE TABLE IF NOT EXISTS public.recover_portal_attempts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id bigint NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  portal text NOT NULL,
+  scope text NOT NULL,
+  key_hash text NOT NULL,
+  at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT recover_portal_attempts_portal_check CHECK (
+    portal IN ('creditor', 'debtor', 'attorney')
+  ),
+  CONSTRAINT recover_portal_attempts_scope_check CHECK (scope IN ('email', 'book', 'ip'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_recover_portal_attempts_recent
+  ON public.recover_portal_attempts (company_id, scope, at DESC);
+
+CREATE OR REPLACE FUNCTION public.recover_forbid_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  RAISE EXCEPTION 'append-only' USING ERRCODE = '55000';
+END;
+$$;
+
+DROP TRIGGER IF EXISTS recover_audit_log_append_only ON public.recover_audit_log;
+CREATE TRIGGER recover_audit_log_append_only
+  BEFORE UPDATE OR DELETE ON public.recover_audit_log
+  FOR EACH ROW
+  EXECUTE FUNCTION public.recover_forbid_mutation();
+
+DO $$
+DECLARE
+  t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[
+    'recover_workspaces',
+    'recover_teams',
+    'recover_staff',
+    'recover_creditors',
+    'recover_mandates',
+    'recover_audit_log',
+    'recover_portal_invites',
+    'recover_portal_otps',
+    'recover_portal_sessions',
+    'recover_portal_attempts'
+  ]
+  LOOP
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+    EXECUTE format('ALTER TABLE public.%I FORCE ROW LEVEL SECURITY', t);
+    EXECUTE format('REVOKE ALL ON TABLE public.%I FROM PUBLIC', t);
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+      EXECUTE format('REVOKE ALL ON TABLE public.%I FROM anon', t);
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+      EXECUTE format('REVOKE ALL ON TABLE public.%I FROM authenticated', t);
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'recover_portal') THEN
+      EXECUTE format('REVOKE ALL ON TABLE public.%I FROM recover_portal', t);
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+      EXECUTE format(
+        'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.%I TO service_role',
+        t
+      );
+    END IF;
+  END LOOP;
+END $$;
+
+-- Constant-time compare of two hex digests. Length and decode failures are false.
+-- The two inputs are never compared with plain equality.
+CREATE OR REPLACE FUNCTION public.recover_verify_code_ct(a text, b text)
+RETURNS boolean
+LANGUAGE plpgsql
+IMMUTABLE
+SET search_path = ''
+AS $$
+DECLARE
+  left_bytes bytea;
+  right_bytes bytea;
+  diff integer := 0;
+  i integer;
+  n integer;
+BEGIN
+  IF a IS NULL OR b IS NULL THEN
+    RETURN false;
+  END IF;
+  IF pg_catalog.length(a) <> pg_catalog.length(b) OR pg_catalog.length(a) = 0 THEN
+    RETURN false;
+  END IF;
+  BEGIN
+    left_bytes := pg_catalog.decode(a, 'hex');
+    right_bytes := pg_catalog.decode(b, 'hex');
+  EXCEPTION WHEN others THEN
+    RETURN false;
+  END;
+  n := pg_catalog.octet_length(left_bytes);
+  IF n <> pg_catalog.octet_length(right_bytes) OR n = 0 THEN
+    RETURN false;
+  END IF;
+  FOR i IN 0 .. n - 1 LOOP
+    diff := diff | (pg_catalog.get_byte(left_bytes, i) # pg_catalog.get_byte(right_bytes, i));
+  END LOOP;
+  RETURN diff = 0;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.recover_verify_code_ct(text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.recover_verify_code_ct(text, text) TO service_role;
+
+-- Call before any code comparison. Blank input and unexpected errors are locked.
+CREATE OR REPLACE FUNCTION public.recover_portal_is_throttled(
+  p_company_id bigint,
+  p_portal text,
+  p_email_hash text
+) RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  email_count integer;
+  book_count integer;
+BEGIN
+  IF p_company_id IS NULL
+     OR p_portal IS NULL
+     OR p_email_hash IS NULL
+     OR pg_catalog.btrim(p_email_hash) = ''
+     OR p_portal NOT IN ('creditor', 'debtor', 'attorney') THEN
+    RETURN true;
+  END IF;
+  SELECT count(*) INTO email_count
+  FROM public.recover_portal_attempts
+  WHERE company_id = p_company_id
+    AND scope = 'email'
+    AND key_hash = p_email_hash
+    AND at > pg_catalog.now() - interval '15 minutes';
+  SELECT count(*) INTO book_count
+  FROM public.recover_portal_attempts
+  WHERE company_id = p_company_id
+    AND scope = 'book'
+    AND at > pg_catalog.now() - interval '15 minutes';
+  RETURN email_count > 10 OR book_count > 50;
+EXCEPTION WHEN others THEN
+  RETURN true;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.recover_portal_is_throttled(bigint, text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.recover_portal_is_throttled(bigint, text, text) TO service_role;
+
+-- One statement increments the live code. At 5 failures the code is burned.
+-- Returns false on bad input or any error so the caller treats the attempt as locked.
+CREATE OR REPLACE FUNCTION public.recover_portal_register_failure(
+  p_invite_id uuid,
+  p_company_id bigint,
+  p_email_hash text,
+  p_ip_hash text
+) RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_portal text;
+BEGIN
+  IF p_company_id IS NULL
+     OR p_email_hash IS NULL
+     OR pg_catalog.btrim(p_email_hash) = '' THEN
+    RETURN false;
+  END IF;
+
+  SELECT portal INTO v_portal
+  FROM public.recover_portal_invites
+  WHERE id = p_invite_id
+    AND company_id = p_company_id;
+
+  IF v_portal IS NULL THEN
+    v_portal := 'debtor';
+  END IF;
+
+  INSERT INTO public.recover_portal_attempts (company_id, portal, scope, key_hash)
+  VALUES (p_company_id, v_portal, 'email', p_email_hash);
+
+  INSERT INTO public.recover_portal_attempts (company_id, portal, scope, key_hash)
+  VALUES (
+    p_company_id,
+    v_portal,
+    'book',
+    encode(extensions.digest(convert_to(p_company_id::text, 'UTF8'), 'sha256'), 'hex')
+  );
+
+  IF p_ip_hash IS NOT NULL AND pg_catalog.btrim(p_ip_hash) <> '' THEN
+    INSERT INTO public.recover_portal_attempts (company_id, portal, scope, key_hash)
+    VALUES (p_company_id, v_portal, 'ip', p_ip_hash);
+  END IF;
+
+  UPDATE public.recover_portal_otps
+  SET
+    failed_attempts = failed_attempts + 1,
+    used_at = CASE
+      WHEN failed_attempts + 1 >= 5 THEN pg_catalog.now()
+      ELSE used_at
+    END
+  WHERE id = (
+    SELECT id
+    FROM public.recover_portal_otps
+    WHERE invite_id = p_invite_id
+      AND company_id = p_company_id
+      AND used_at IS NULL
+      AND expires_at > pg_catalog.now()
+    ORDER BY expires_at DESC
+    LIMIT 1
+  );
+
+  RETURN true;
+EXCEPTION WHEN others THEN
+  RETURN false;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.recover_portal_register_failure(uuid, bigint, text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.recover_portal_register_failure(uuid, bigint, text, text) TO service_role;
+
+-- Skeleton portal entry. The only whitelisted op is ping, and it returns no
+-- company or subject data. Every other outcome is the same generic denial.
+CREATE OR REPLACE FUNCTION public.recover_portal_call(
+  p_portal text,
+  p_token_hash text,
+  p_op text,
+  p_args jsonb
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_portal text;
+  v_hash text;
+  v_expires timestamptz;
+  v_revoked timestamptz;
+  v_match boolean := false;
+BEGIN
+  PERFORM p_args;
+  SELECT portal, token_hash, expires_at, revoked_at
+    INTO v_portal, v_hash, v_expires, v_revoked
+  FROM public.recover_portal_sessions
+  WHERE token_hash = p_token_hash
+  LIMIT 1;
+
+  IF v_hash IS NOT NULL THEN
+    v_match := public.recover_verify_code_ct(v_hash, p_token_hash);
+  END IF;
+
+  IF v_match
+     AND v_revoked IS NULL
+     AND v_expires > pg_catalog.now()
+     AND v_portal = p_portal
+     AND p_op = 'ping'
+     AND p_portal IN ('creditor', 'debtor', 'attorney') THEN
+    RETURN pg_catalog.jsonb_build_object('ok', true, 'portal', v_portal);
+  END IF;
+
+  RETURN pg_catalog.jsonb_build_object('ok', false);
+EXCEPTION WHEN others THEN
+  RETURN pg_catalog.jsonb_build_object('ok', false);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.recover_portal_call(text, text, text, jsonb) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.recover_portal_call(text, text, text, jsonb) TO service_role;
+
+COMMENT ON FUNCTION public.recover_portal_call(text, text, text, jsonb) IS
+  'RecoverAdvisor® portal skeleton. ping only. No company or subject payload.';
+
+COMMENT ON FUNCTION public.recover_portal_is_throttled(bigint, text, text) IS
+  'Call before comparing a sign-in code. More than 10 email failures or 50 workspace failures in 15 minutes locks. Errors lock.';
+
+COMMENT ON FUNCTION public.recover_portal_register_failure(uuid, bigint, text, text) IS
+  'Atomic wrong-code counter. The fifth failure burns the code. Errors lock.';
