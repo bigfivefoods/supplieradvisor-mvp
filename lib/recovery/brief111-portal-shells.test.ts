@@ -57,8 +57,10 @@ assert.match(middleware, /private, no-store/);
 assert.match(middleware, /x-sa-portal/);
 
 const root = readFileSync(resolve('app/layout.tsx'), 'utf8');
-assert.match(root, /x-sa-portal/);
-assert.match(root, /portal \? null/);
+assert.doesNotMatch(root, /headers\(/);
+assert.match(layout, /apple-mobile-web-app-capable/);
+assert.match(layout, /serviceWorker\.register/);
+assert.match(layout, /node\.remove\(\)/);
 
 const chrome = readFileSync(resolve('components/recovery/RecoverChrome.tsx'), 'utf8');
 assert.doesNotMatch(chrome, /<aside/);
