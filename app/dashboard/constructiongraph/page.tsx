@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { Hammer } from 'lucide-react';
 import { toast } from 'sonner';
@@ -13,12 +14,27 @@ function zar(n: number) {
   return `R ${Number(n || 0).toLocaleString('en-ZA')}`;
 }
 
+type IssuedLink = { id: string; kind: string; token: string; path: string };
+
 export default function ConstructiongraphOverviewPage() {
   const { summary, loading, post, saving } = useConstructiongraph();
+  const [issued, setIssued] = useState<IssuedLink[] | null>(null);
 
   const seed = async () => {
-    await post({ action: 'seed_demo' });
+    const data = await post({ action: 'seed_demo' });
+    const links = Array.isArray(data?.issued) ? (data.issued as IssuedLink[]) : [];
+    if (links.length) setIssued(links);
     toast.success('ConstructionAdvisor® starter programme loaded');
+  };
+
+  const copyLink = async (path: string) => {
+    const url = `${window.location.origin}${path}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Link copied');
+    } catch {
+      toast.error('Copy failed');
+    }
   };
 
   return (
@@ -58,6 +74,29 @@ export default function ConstructiongraphOverviewPage() {
               : ''}
             . Core Projects stays a separate hub.
           </div>
+          {issued?.length ? (
+            <div
+              className="rounded-2xl border px-4 py-3 text-sm space-y-2"
+              style={{ background: '#00b4d8', color: '#0f172a', borderColor: '#00b4d8' }}
+            >
+              <p className="font-black">
+                This link is shown once. Copy it now; if you lose it, reissue.
+              </p>
+              {issued.map((link) => (
+                <div key={link.id} className="flex flex-wrap items-center gap-2">
+                  <span className="font-bold uppercase text-[10px]">{link.kind}</span>
+                  <code className="text-xs break-all">{link.path}</code>
+                  <button
+                    type="button"
+                    className="rounded-lg bg-[#0f172a] px-3 py-1 text-xs font-bold text-white"
+                    onClick={() => void copyLink(link.path)}
+                  >
+                    Copy
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
           <div className="flex flex-wrap gap-2">
             <Link
               href="/dashboard/constructiongraph/payments"

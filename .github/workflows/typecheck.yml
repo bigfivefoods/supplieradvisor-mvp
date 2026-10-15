@@ -66,6 +66,20 @@ jobs:
               echo "Skipping missing test: $file"
             fi
           done
+      - name: ConstructionAdvisor portal tests
+        run: |
+          set -euo pipefail
+          for file in \
+            lib/construction/constructiongraph.test.ts \
+            lib/construction/constructiongraph-authz.test.ts \
+            lib/construction/constructiongraph-naming.test.ts \
+            lib/construction/brief112-portal-tokens.test.ts \
+            lib/construction/brief112-portal-views.test.ts \
+            lib/construction/brief112-portal-routes.test.ts \
+            lib/construction/brief112-staff-route.test.ts
+          do
+            npx --yes tsx "$file"
+          done
 
   trade-portal-db:
     name: trade portal Postgres
@@ -96,3 +110,33 @@ jobs:
         env:
           TRADE_PORTAL_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/tradegraph
         run: npx --yes tsx lib/trades/trade-portal-call.test.ts
+
+  construction-portal-db:
+    name: construction portal Postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: constructiongraph
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d constructiongraph"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install psql
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Run construction portal throttle against Postgres
+        env:
+          CONSTRUCTION_PORTAL_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/constructiongraph
+        run: npx --yes tsx lib/construction/brief112-portal-db.test.ts

@@ -77,6 +77,34 @@ export default function ConstructionPortalPage() {
         ? 'Contractor PWA'
         : 'Programme PWA';
 
+  const subtitle =
+    view.kind === 'client'
+      ? `${view.clientName} · ${view.projects.length} project${view.projects.length === 1 ? '' : 's'}`
+      : view.kind === 'contractor'
+        ? `${view.projectCode} · ${view.projectName}`
+        : `${view.projects.length} project${view.projects.length === 1 ? '' : 's'}`;
+
+  const tiles =
+    view.kind === 'client'
+      ? [
+          ['Contract', zar(view.projects.reduce((sum, row) => sum + row.contractValue, 0))],
+          ['Certified', zar(view.projects.reduce((sum, row) => sum + row.certified, 0))],
+          ['Paid', zar(view.projects.reduce((sum, row) => sum + row.paid, 0))],
+          ['Outstanding', zar(view.projects.reduce((sum, row) => sum + row.outstanding, 0))],
+        ]
+      : view.kind === 'contractor'
+        ? [
+            [
+              'Plan / actual',
+              `${Math.round(view.projects[0]?.plannedPct || 0)}% / ${Math.round(view.projects[0]?.actualPct || 0)}%`,
+            ],
+            ['Open snags', String(view.openSnags.length)],
+          ]
+        : view.projects.slice(0, 4).map((project) => [
+            project.code,
+            `${Math.round(project.plannedPct)}% / ${Math.round(project.actualPct)}%`,
+          ]);
+
   return (
     <div className="min-h-dvh bg-stone-50 text-slate-900">
       <header className="border-b border-stone-200 bg-stone-900 text-white px-4 py-6">
@@ -84,11 +112,7 @@ export default function ConstructionPortalPage() {
           ConstructionAdvisor® · {kindLabel}
         </p>
         <h1 className="text-2xl font-black mt-1">{view.companyName}</h1>
-        <p className="text-sm text-stone-300 mt-1">
-          {view.clientName ? `${view.clientName} · ` : ''}
-          {view.projectName ? `${view.projectName} · ` : ''}
-          {view.projects.length} project{view.projects.length === 1 ? '' : 's'}
-        </p>
+        <p className="text-sm text-stone-300 mt-1">{subtitle}</p>
       </header>
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-4">
         {error ? (
@@ -97,15 +121,7 @@ export default function ConstructionPortalPage() {
           </p>
         ) : null}
         <div className="grid grid-cols-2 gap-3">
-          {[
-            ['Budget', zar(view.programme.budget)],
-            ['Costs', zar(view.programme.costs)],
-            ['Paid', zar(view.programme.paidBillings)],
-            [
-              'Programme',
-              `${Math.round(view.programme.plannedPct)}% / ${Math.round(view.programme.actualPct)}%`,
-            ],
-          ].map(([label, value]) => (
+          {tiles.map(([label, value]) => (
             <div
               key={String(label)}
               className="rounded-2xl border border-stone-200 bg-white p-3"
@@ -118,9 +134,9 @@ export default function ConstructionPortalPage() {
           ))}
         </div>
 
-        {view.quotes.length ? (
+        {view.kind === 'client' && view.quotes.length ? (
           <section className="rounded-2xl border border-stone-200 bg-white p-4 text-sm">
-            <h2 className="font-black">Quotes / BOQ</h2>
+            <h2 className="font-black">Quotes</h2>
             <div className="mt-2 space-y-1 text-xs">
               {view.quotes.map((q) => (
                 <div key={q.id}>
@@ -134,31 +150,37 @@ export default function ConstructionPortalPage() {
 
         {view.projects.map((p) => (
           <section
-            key={p.siteId}
+            key={'siteId' in p ? p.siteId : p.code}
             className="rounded-2xl border border-stone-200 bg-white p-4 text-sm"
           >
             <h2 className="font-black">
               {p.code} · {p.name}
             </h2>
             <p className="text-xs text-stone-500 mt-0.5">
-              {p.clientName} · {p.status}
+              {'clientName' in p && p.clientName ? `${p.clientName} · ` : ''}
+              {p.status}
             </p>
-            <dl className="mt-2 grid grid-cols-2 gap-1 text-xs">
-              <div>Budget {zar(p.budget)}</div>
-              <div>Costs {zar(p.costs)}</div>
-              <div>BOQ {zar(p.boqPlanned)}</div>
-              <div>BOQ actual {zar(p.boqActual)}</div>
-              <div>Planned claims {zar(p.plannedBillings)}</div>
-              <div>Paid {zar(p.paidBillings)}</div>
-              <div>
+            {view.kind === 'client' && 'contractValue' in p ? (
+              <dl className="mt-2 grid grid-cols-2 gap-1 text-xs">
+                <div>Contract {zar(p.contractValue)}</div>
+                <div>Certified {zar(p.certified)}</div>
+                <div>Paid {zar(p.paid)}</div>
+                <div>Due {zar(p.outstanding)}</div>
+                <div>
+                  Plan {Math.round(p.plannedPct)}% / actual {Math.round(p.actualPct)}%
+                </div>
+                <div>Open snags {p.openSnags}</div>
+              </dl>
+            ) : (
+              <p className="mt-2 text-xs">
                 Plan {Math.round(p.plannedPct)}% / actual {Math.round(p.actualPct)}%
-              </div>
-              <div>Due {zar(p.outstandingBillings)}</div>
-            </dl>
+                {'openSnags' in p ? ` · open snags ${p.openSnags}` : ''}
+              </p>
+            )}
           </section>
         ))}
 
-        {view.payments.length ? (
+        {view.kind !== 'public' && view.payments.length ? (
           <section className="rounded-2xl border border-stone-200 bg-white p-4 text-sm">
             <h2 className="font-black">Progress payments</h2>
             <div className="mt-2 space-y-3">
@@ -171,8 +193,11 @@ export default function ConstructionPortalPage() {
                     claim {row.plannedClaimDate || '—'}
                     {row.claimedAt ? ` · issued ${row.claimedAt}` : ''} · pay{' '}
                     {row.plannedPayDate || '—'}
-                    {row.paidAt ? ` · paid ${row.paidAt}` : ''} · planned{' '}
-                    {zar(row.plannedAmount)} · paid {zar(row.paidAmount)}
+                    {view.kind === 'client' && row.paidAt ? ` · paid ${row.paidAt}` : ''} · planned{' '}
+                    {zar(row.plannedAmount)}
+                    {view.kind === 'client'
+                      ? ` · certified ${zar(row.certifiedAmount || 0)} · paid ${zar(row.paidAmount || 0)}`
+                      : ` · claimed ${zar(row.claimedAmount)}`}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {view.kind === 'contractor' &&
@@ -206,7 +231,7 @@ export default function ConstructionPortalPage() {
           </section>
         ) : null}
 
-        {view.activities.length ? (
+        {view.kind !== 'public' && view.activities.length ? (
           <section className="rounded-2xl border border-stone-200 bg-white p-4 text-sm">
             <h2 className="font-black">Programme plan vs actuals</h2>
             <div className="mt-2 space-y-1 text-xs">
@@ -215,6 +240,20 @@ export default function ConstructionPortalPage() {
                   <b>{row.activity}</b> · {row.siteCode} · {row.plannedStart || '—'} →{' '}
                   {row.plannedEnd || '—'} · planned {row.plannedPct}% · actual{' '}
                   {row.actualPct}% · {row.status}
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {view.kind === 'contractor' && view.openSnags.length ? (
+          <section className="rounded-2xl border border-stone-200 bg-white p-4 text-sm">
+            <h2 className="font-black">Open snags</h2>
+            <div className="mt-2 space-y-1 text-xs">
+              {view.openSnags.map((row) => (
+                <div key={`${row.item}-${row.location}`}>
+                  <b>{row.item}</b>
+                  {row.location ? ` · ${row.location}` : ''} · {row.status}
                 </div>
               ))}
             </div>
