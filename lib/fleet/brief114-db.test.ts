@@ -9,6 +9,10 @@
 import assert from 'node:assert/strict';
 import { execFile, execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
+import { emptyFleetBook } from './empty-book';
+import { fleetDiff, stopRowsConflict } from './fleetgraph-db';
+import { applyFleetOp, type OpContext } from './ops';
+import type { FleetBook } from './types';
 
 const url = process.env.FLEET_DATABASE_URL;
 if (!url) throw new Error('FLEET_DATABASE_URL is required');
@@ -382,6 +386,59 @@ fails(
 fails(
   `INSERT INTO public.fg_cost_entries (company_id, vehicle_id, category, occurred_on, amount_cents, reverses_id) VALUES (1, '${vehicleId}', 'toll', '2024-06-05', -1, gen_random_uuid());`,
   /fg_cost_entries_reverses|foreign key/i
+);
+
+const stopRow = psql(`SELECT job_id::text || '|' || company_id::text FROM public.fg_job_stops WHERE id = '${stopA}';`).split('|');
+assert.equal(stopRowsConflict([{ id: stopA, job_id: stopRow[0], company_id: Number(stopRow[1]) }], 1, stopRow[0]), false);
+assert.equal(stopRowsConflict([{ id: stopA, job_id: stopRow[0], company_id: Number(stopRow[1]) }], 1, jobId === stopRow[0] ? '00000000-0000-4000-8000-000000000099' : jobId), true);
+assert.equal(stopRowsConflict([{ id: stopA, job_id: stopRow[0], company_id: Number(stopRow[1]) }], 2, stopRow[0]), true);
+
+const profileCtx: OpContext = {
+  role: 'owner',
+  actorId: 'db-profile',
+  now: '2024-07-02T01:00:00.000Z',
+  companyId: 1,
+  enforceRealData: false,
+};
+function commitBook(before: FleetBook, after: FleetBook) {
+  const json = JSON.stringify(fleetDiff(before, after));
+  if (json.includes('$diff$')) throw new Error('diff quote');
+  psql(`SELECT public.fg_commit_diff(${after.workspace.company_id}, $diff$${json}$diff$::jsonb);`);
+}
+let profileBook = emptyFleetBook(1, profileCtx.now);
+const profileVehicle = applyFleetOp(profileBook, { op: 'vehicle.upsert', payload: { reg_no: 'REPLACE 1', kind: 'rigid', ownership: 'owned' } }, profileCtx);
+assert.equal(profileVehicle.ok, true);
+if (!profileVehicle.ok) throw new Error('profile vehicle');
+commitBook(profileBook, profileVehicle.book);
+profileBook = profileVehicle.book;
+const profileVehicleId = profileBook.vehicles[0]?.id;
+if (!profileVehicleId) throw new Error('profile vehicle id');
+const auditsBefore = Number(psql(`SELECT count(*) FROM public.fg_audit_log WHERE company_id = 1 AND action = 'cost_profile.set';`));
+const firstProfile = applyFleetOp(profileBook, { op: 'cost_profile.set', payload: { vehicle_id: profileVehicleId, effective_from: '2024-06-01', finance_monthly_cents: 100 } }, profileCtx);
+assert.equal(firstProfile.ok, true);
+if (!firstProfile.ok) throw new Error('first profile');
+commitBook(profileBook, firstProfile.book);
+const secondProfile = applyFleetOp(firstProfile.book, { op: 'cost_profile.set', payload: { vehicle_id: profileVehicleId, effective_from: '2024-06-01', finance_monthly_cents: 80 } }, profileCtx);
+assert.equal(secondProfile.ok, true);
+if (!secondProfile.ok) throw new Error('second profile');
+commitBook(firstProfile.book, secondProfile.book);
+const thirdProfile = applyFleetOp(secondProfile.book, { op: 'cost_profile.set', payload: { vehicle_id: profileVehicleId, effective_from: '2024-08-01', finance_monthly_cents: 40 } }, profileCtx);
+assert.equal(thirdProfile.ok, true);
+if (!thirdProfile.ok) throw new Error('third profile');
+commitBook(secondProfile.book, thirdProfile.book);
+assert.equal(
+  psql(`SELECT effective_from::text || '|' || COALESCE(effective_to::text, 'null') || '|' || finance_monthly_cents::text FROM public.fg_cost_profiles WHERE vehicle_id = '${profileVehicleId}' ORDER BY effective_from;`),
+  '2024-06-01|2024-08-01|80\n2024-08-01|null|40'
+);
+assert.equal(psql(`SELECT count(*) FROM public.fg_cost_profiles WHERE vehicle_id = '${profileVehicleId}' AND effective_to IS NOT DISTINCT FROM effective_from;`), '0');
+assert.equal(Number(psql(`SELECT count(*) FROM public.fg_audit_log WHERE company_id = 1 AND action = 'cost_profile.set';`)) - auditsBefore, 3);
+fails(
+  `INSERT INTO public.fg_cost_profiles (company_id, vehicle_id, effective_from, effective_to, finance_monthly_cents) VALUES (1, '${profileVehicleId}', '2024-09-01', '2024-09-01', 1);`,
+  /fg_cost_profiles_range|check constraint/i
+);
+fails(
+  `INSERT INTO public.fg_cost_profiles (company_id, vehicle_id, effective_from, finance_monthly_cents) VALUES (1, '${profileVehicleId}', '2024-07-01', 1);`,
+  /fg_cost_profiles_no_overlap|exclusion|conflicting/i
 );
 
 console.log('brief114-db.test.ts ok');

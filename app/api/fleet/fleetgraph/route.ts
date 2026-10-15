@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireCompanyPermission } from '@/lib/auth/api-auth';
 import { cpkForBook } from '@/lib/fleet/book-cpk';
 import { applyFleetOp } from '@/lib/fleet/ops';
-import { commitFleetOp, customerBelongsToCompany, insertCustomer, loadFleetBook, nextJobNumber } from '@/lib/fleet/fleetgraph-db';
+import { commitFleetOp, customerBelongsToCompany, foreignStops, insertCustomer, loadFleetBook, nextJobNumber } from '@/lib/fleet/fleetgraph-db';
 import { sastDate } from '@/lib/fleet/format';
 import { periodFor } from '@/lib/fleet/periods';
 import { capabilitiesFor, resolveFleetRole, viewForRole } from '@/lib/fleet/roles';
@@ -116,6 +116,19 @@ export async function POST(request: NextRequest) {
     const needsCustomer = !payload.customer_id && customerName.length > 0;
     const preview = applyFleetOp(loaded.book, op, ctx, expected);
     if (!preview.ok) return json(preview.status, { error: preview.error });
+    const stopIds = Array.isArray(payload.stops)
+      ? payload.stops.map((item) => (item && typeof item === 'object' ? String((item as { id?: unknown }).id || '') : '')).filter(Boolean)
+      : [];
+    const jobId = typeof payload.id === 'string' ? payload.id : null;
+    let taken: { ok: true; foreign: boolean } | { ok: false; missing: boolean };
+    try {
+      taken = await foreignStops(gated.companyId, jobId, stopIds);
+    } catch {
+      return json(400, { error: 'Check the stops.' });
+    }
+    if (!taken.ok && taken.missing) return json(200, { ready: false, reason: 'migration_pending' });
+    if (!taken.ok) return json(500, { error: 'The desk could not save that.' });
+    if (taken.foreign) return json(400, { error: 'That stop belongs to another job.' });
     if (needsCustomer) {
       let created: { ok: true; id: number } | { ok: false };
       try {

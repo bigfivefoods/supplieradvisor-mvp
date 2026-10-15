@@ -69,4 +69,33 @@ const emptyCommand = render('ready');
 assert.match(emptyCommand, /Add your first vehicle/);
 assert.match(emptyCommand, /Illustration · sample data/);
 
+const ownerDesk = render('ready', sampleFleetBook(), 'owner');
+assert.match(ownerDesk, /running, standing and capital costs/);
+assert.match(ownerDesk, /Nothing is dated this week/);
+const dispatcherDesk = render('ready', sampleFleetBook(), 'dispatcher');
+assert.equal(dispatcherDesk.split('1 open job').length - 1, 1);
+assert.equal(dispatcherDesk.split('SMP-1').length - 1, 1);
+
+function pendingScreen(screen: 'cpk' | 'settings') {
+  return renderToStaticMarkup(
+    createElement(FleetDesk, {
+      screen,
+      phase: 'ready',
+      book: emptyFleetBook(),
+      role: 'viewer',
+      caps: capabilitiesFor('viewer'),
+      periodId: 'last',
+      hrefBase: '/preview/fleetgraph',
+      today: '2024-07-02',
+      migrationPending: true,
+    })
+  );
+}
+const pendingCpk = pendingScreen('cpk');
+const pendingSettings = pendingScreen('settings');
+assert.match(pendingCpk, /pending/i);
+assert.equal(pendingCpk.includes('hidden for this role'), false);
+assert.match(pendingSettings, /pending/i);
+assert.equal(pendingSettings.includes('read-only for this role'), false);
+
 console.log('brief114-ui-parity.test.ts ok');

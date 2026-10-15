@@ -262,6 +262,7 @@ export type FleetAudit = {
 export type FleetCustomer = {
   id: number;
   trading_name: string;
+  status?: string;
 };
 
 export type FleetTrip = {

@@ -79,6 +79,15 @@ function shiftSast(iso: string): string {
  * Rand to cents. Parses the decimal text so 1.005 is 101 and 8.325 is 833.
  * Empty, non-numeric, and non-finite values are null, never zero.
  */
+function groupedDigits(body: string, separator: ',' | '.'): string | null {
+  const parts = body.split(separator);
+  if (parts.some((part) => part.length === 0)) return null;
+  if (parts.length === 1) return /^\d+$/.test(parts[0]) ? parts[0] : null;
+  if (!/^\d{1,3}$/.test(parts[0])) return null;
+  if (!parts.slice(1).every((part) => /^\d{3}$/.test(part))) return null;
+  return parts.join('');
+}
+
 export function centsFromRand(value: number | string): number | null {
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) return null;
@@ -86,22 +95,57 @@ export function centsFromRand(value: number | string): number | null {
   }
   let raw = String(value).trim().replace(/[\s\u00a0\u202f]/g, '');
   if (!raw) return null;
-  const lastComma = raw.lastIndexOf(',');
-  const lastDot = raw.lastIndexOf('.');
-  if (lastComma >= 0 && lastDot >= 0) {
-    raw = lastComma > lastDot ? raw.replace(/\./g, '').replace(',', '.') : raw.replace(/,/g, '');
-  } else if (lastComma >= 0) {
-    const frac = raw.slice(lastComma + 1);
-    raw = /^\d{1,2}$/.test(frac) && raw.indexOf(',') === lastComma ? `${raw.slice(0, lastComma)}.${frac}` : raw.replace(/,/g, '');
+  const negative = raw.startsWith('-');
+  if (negative) raw = raw.slice(1);
+  if (!raw || raw.includes('-') || raw.includes('+')) return null;
+  const commas = raw.split(',').length - 1;
+  const dots = raw.split('.').length - 1;
+  let whole = raw;
+  let frac = '';
+  if (commas > 0 && dots > 0) {
+    const lastComma = raw.lastIndexOf(',');
+    const lastDot = raw.lastIndexOf('.');
+    const decimalSep = lastComma > lastDot ? ',' : '.';
+    const groupSep = decimalSep === ',' ? '.' : ',';
+    const splitAt = raw.lastIndexOf(decimalSep);
+    const grouped = groupedDigits(raw.slice(0, splitAt), groupSep);
+    const tail = raw.slice(splitAt + 1);
+    if (grouped == null || !/^\d+$/.test(tail)) return null;
+    whole = grouped;
+    frac = tail;
+  } else if (commas === 1) {
+    const splitAt = raw.indexOf(',');
+    const tail = raw.slice(splitAt + 1);
+    const head = raw.slice(0, splitAt);
+    if (/^\d+$/.test(head) && /^\d{1,2}$/.test(tail)) {
+      whole = head;
+      frac = tail;
+    } else {
+      const grouped = groupedDigits(raw, ',');
+      if (grouped == null) return null;
+      whole = grouped;
+    }
+  } else if (commas > 1) {
+    const grouped = groupedDigits(raw, ',');
+    if (grouped == null) return null;
+    whole = grouped;
+  } else if (dots > 1) {
+    const grouped = groupedDigits(raw, '.');
+    if (grouped == null) return null;
+    whole = grouped;
+  } else if (dots === 1) {
+    const [head, tail] = raw.split('.');
+    if (!/^\d+$/.test(head) || !/^\d+$/.test(tail)) return null;
+    whole = head;
+    frac = tail;
+  } else if (!/^\d+$/.test(raw)) {
+    return null;
   }
-  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(raw);
-  if (!match) return null;
-  const sign = match[1] === '-' ? -1 : 1;
-  const frac = (match[3] || '').padEnd(3, '0');
-  let cents = Number(match[2]) * 100 + Number(frac.slice(0, 2));
-  if (Number(frac[2] || '0') >= 5) cents += 1;
+  const padded = frac.padEnd(3, '0');
+  let cents = Number(whole) * 100 + Number(padded.slice(0, 2));
+  if (Number(padded[2] || '0') >= 5) cents += 1;
   if (!Number.isSafeInteger(cents)) return null;
-  const signed = sign * cents;
+  const signed = (negative ? -1 : 1) * cents;
   return signed === 0 ? 0 : signed;
 }
 

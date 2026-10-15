@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, CalendarClock, ClipboardList, Gauge, Truck, Users } from 'lucide-react';
+import { AlertTriangle, Check, ChevronRight, ClipboardList, Gauge, Truck, Users } from 'lucide-react';
 import { cpkForBook } from '@/lib/fleet/book-cpk';
 import { complianceLabel, complianceStatus } from '@/lib/fleet/compliance';
-import { fleetHeadline, requiredRate, type VehicleCpk } from '@/lib/fleet/cpk';
+import { addDays, fleetHeadline, requiredRate, type VehicleCpk } from '@/lib/fleet/cpk';
 import { signedPerKm } from '@/lib/fleet/cpk-fixtures';
 import { centsFromRand, formatKm, formatLitresPer100, formatPerKm, formatSastDate } from '@/lib/fleet/format';
 import {
@@ -25,6 +25,7 @@ import type { FleetCapabilities } from '@/lib/fleet/roles';
 import type { FleetBook, FleetOp, FleetRole } from '@/lib/fleet/types';
 import { CpkWaterfallArt, DispatchArt, ExpiryStripArt, FleetRegisterArt, MapSketchArt, PodArt } from './Illustrations';
 import {
+  FleetAvatar,
   FleetBanner,
   FleetCompletenessChip,
   FleetDate,
@@ -233,37 +234,38 @@ function CommandView(props: FleetDeskProps) {
               <p className="px-5 pb-4 text-sm font-bold text-white">Office records prices and running costs. Driver pay stays with the owner, so this figure is not the owner&apos;s.</p>
             ) : null}
             {props.role === 'dispatcher' ? (
-              <p className="px-5 pb-4 text-sm font-bold text-white">{boardLine}. Prices and cost per kilometre stay with the owner and office.</p>
+              <p className="px-5 pb-4 text-sm font-bold text-white">Prices and cost per kilometre stay with the owner and office.</p>
             ) : null}
           </section>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <div className={`grid grid-cols-2 gap-3 ${props.role === 'dispatcher' ? 'lg:grid-cols-3' : 'lg:grid-cols-5'}`}>
             <FleetStat tone="navy" label="Vehicles" value={String(vehicles.length)} icon={<Truck className="h-4 w-4" aria-hidden />} />
             <FleetStat tone="cyan" label="Drivers" value={String(drivers.length)} icon={<Users className="h-4 w-4" aria-hidden />} />
-            <FleetStat tone="deep" label="Open jobs" value={String(openJobs.length)} icon={<ClipboardList className="h-4 w-4" aria-hidden />} />
-            <FleetStat tone="slate" label="Dates due" value={String(expiring.length)} icon={<AlertTriangle className="h-4 w-4" aria-hidden />} />
-            <div className="col-span-2 lg:col-span-1">
-              <FleetStat
-                tone="white"
-                label={props.caps.seesCosts ? 'Loaded km' : 'In workshop'}
-                value={props.caps.seesCosts ? formatKm(fleet.loadedKm || null) : String(workshop)}
-                icon={<Gauge className="h-4 w-4" aria-hidden />}
-              />
-            </div>
+            {props.role === 'dispatcher' ? (
+              <FleetStat tone="slate" label="In workshop" value={String(workshop)} icon={<Gauge className="h-4 w-4" aria-hidden />} />
+            ) : (
+              <>
+                <FleetStat tone="deep" label="Open jobs" value={String(openJobs.length)} icon={<ClipboardList className="h-4 w-4" aria-hidden />} />
+                <FleetStat tone="slate" label="Dates due" value={String(expiring.length)} icon={<AlertTriangle className="h-4 w-4" aria-hidden />} />
+                <div className="col-span-2 lg:col-span-1">
+                  <FleetStat tone="white" label="Loaded km" value={formatKm(fleet.loadedKm || null)} icon={<Gauge className="h-4 w-4" aria-hidden />} />
+                </div>
+              </>
+            )}
           </div>
           <div className="grid gap-3 lg:grid-cols-3">
             <FleetSection card title="Today">
               <TodayList {...props} />
             </FleetSection>
             <FleetSection card title="Next actions">
-              <ul className="space-y-2 text-sm font-bold">
-                <li><Link className={fleetLink} href={`${props.hrefBase}/jobs`}>Open the job board</Link></li>
-                <li><Link className={fleetLink} href={`${props.hrefBase}/vehicles`}>Record an odometer reading</Link></li>
+              <div className="space-y-2">
+                <ActionLink href={`${props.hrefBase}/jobs`} icon={<ClipboardList className="h-4 w-4" aria-hidden />} label="Open the job board" pill={countPhrase(openJobs.length, 'open', 'open')} tone="deep" />
+                <ActionLink href={`${props.hrefBase}/vehicles`} icon={<Gauge className="h-4 w-4" aria-hidden />} label="Record an odometer reading" pill={props.book.odometer_readings.length ? 'On file' : 'Due'} tone={props.book.odometer_readings.length ? 'ok' : 'due'} />
                 {props.caps.seesCosts ? (
-                  <li><Link className={fleetLink} href={`${props.hrefBase}/cpk`}>Review the fleet cost</Link></li>
+                  <ActionLink href={`${props.hrefBase}/cpk`} icon={<Truck className="h-4 w-4" aria-hidden />} label="Review the fleet cost" pill="Cost" tone="cost" />
                 ) : (
-                  <li><Link className={fleetLink} href={`${props.hrefBase}/drivers`}>Check driver dates</Link></li>
+                  <ActionLink href={`${props.hrefBase}/drivers`} icon={<Users className="h-4 w-4" aria-hidden />} label="Check driver dates" pill={expiring.length ? 'Due' : 'Clear'} tone={expiring.length ? 'due' : 'ok'} />
                 )}
-              </ul>
+              </div>
             </FleetSection>
             <FleetSection card title="Needs attention">
               {attention.length === 0 ? (
@@ -279,13 +281,17 @@ function CommandView(props: FleetDeskProps) {
               )}
             </FleetSection>
           </div>
-          <FleetSection card title="Compliance expiry">
-            <ExpiryList {...props} />
-          </FleetSection>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <FleetSection card title="Compliance expiry">
+              <ExpiryList {...props} />
+            </FleetSection>
+            <FleetSection card title="This week">
+              <WeekStrip {...props} />
+            </FleetSection>
+          </div>
           {props.role === 'dispatcher' ? (
             <FleetSection card title="Dispatch board">
-              <p className="mb-2 text-sm text-slate-600">Assign a vehicle and a driver. This board does not show prices.</p>
-              <TodayList {...props} />
+              <p className="text-sm text-slate-600">Assign a vehicle and a driver from the job. Today already lists the open jobs. This board does not show prices.</p>
             </FleetSection>
           ) : null}
           {props.role === 'office' ? (
@@ -325,7 +331,7 @@ function fleetRollup(rows: VehicleCpk[], periodId: PeriodId, windowDays: number)
     };
   }
   const partial = rows.some((row) => row.status === 'ok' && row.completeness !== 'complete');
-  const how = 'Total fully loaded cost ÷ kilometres, including overhead on vehicles with no distance';
+  const how = 'A vehicle with no distance leaves its own running, standing and capital costs out of this figure. Overhead on that vehicle is included';
   return {
     value: `${formatPerKm(headline.perKm)}/km`,
     hint: `${how}. ${partial ? 'Partial · ' : ''}${name}${headline.targetPerKm != null ? ` · target ${formatPerKm(headline.targetPerKm)}/km` : ''}`,
@@ -335,6 +341,80 @@ function fleetRollup(rows: VehicleCpk[], periodId: PeriodId, windowDays: number)
     unallocatedCents: headline.unallocatedCents,
     loadedKm: headline.loadedKm,
   };
+}
+
+function ActionLink(props: { href: string; icon: ReactNode; label: string; pill: string; tone: 'deep' | 'ok' | 'due' | 'cost' }) {
+  const tint =
+    props.tone === 'due'
+      ? 'border-orange-200 bg-orange-50'
+      : props.tone === 'ok'
+        ? 'border-emerald-200 bg-emerald-50'
+        : props.tone === 'cost'
+          ? 'border-[#00b4d8]/40 bg-[#00b4d8]/15'
+          : 'border-slate-200 bg-slate-100';
+  const pillTone = props.tone === 'due' ? 'warn' : props.tone === 'ok' ? 'ok' : 'muted';
+  return (
+    <Link href={props.href} className={`${fleetFocus} flex min-h-11 items-center gap-2 rounded-2xl border px-3 py-2 ${tint}`}>
+      <span className="text-[#0077b6]">{props.icon}</span>
+      <span className="min-w-0 flex-1 text-sm font-black text-slate-900">{props.label}</span>
+      <FleetStatusPill tone={pillTone}>{props.pill}</FleetStatusPill>
+      <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+    </Link>
+  );
+}
+
+function weekMonday(today: string): string {
+  const [year, month, day] = today.split('-').map(Number);
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  const delta = weekday === 0 ? -6 : 1 - weekday;
+  return addDays(today, delta);
+}
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function WeekStrip(props: FleetDeskProps) {
+  const start = weekMonday(props.today);
+  const days = Array.from({ length: 7 }, (_, index) => addDays(start, index));
+  const end = addDays(start, 7);
+  const marks: Array<{ id: string; day: string; label: string }> = [];
+  for (const stop of props.book.stops) {
+    const job = props.book.jobs.find((row) => row.id === stop.job_id);
+    if (!job || job.archived_at || job.status === 'cancelled') continue;
+    const day = (stop.window_start || stop.window_end || '').slice(0, 10);
+    if (day >= start && day < end) marks.push({ id: `stop-${stop.id}`, day, label: job.reference });
+  }
+  for (const row of props.book.compliance) {
+    if (row.archived_at || !row.expires_on) continue;
+    const day = row.expires_on.slice(0, 10);
+    if (day >= start && day < end) marks.push({ id: `exp-${row.id}`, day, label: complianceKindLabel(row.kind) });
+  }
+  return (
+    <div>
+      <ol className="grid grid-cols-7 gap-1">
+        {days.map((day) => {
+          const count = marks.filter((mark) => mark.day === day).length;
+          const [year, month, date] = day.split('-').map(Number);
+          const name = WEEKDAYS[new Date(Date.UTC(year, month - 1, date)).getUTCDay()];
+          return (
+            <li key={day} className={`rounded-2xl border px-1 py-2 text-center ${day === props.today ? 'border-[#00b4d8] bg-[#00b4d8]/15' : 'border-slate-200'}`}>
+              <p className="text-[10px] font-black uppercase text-slate-500">{name}</p>
+              <p className="text-sm font-black text-[#0f172a]">{date}</p>
+              {count ? <span className="mt-1 inline-block h-1.5 w-1.5 rounded-full bg-[#00b4d8]" aria-hidden /> : <span className="mt-1 block text-[10px] text-slate-300">·</span>}
+            </li>
+          );
+        })}
+      </ol>
+      {marks.length === 0 ? (
+        <p className="mt-3 text-sm text-slate-600">Nothing is dated this week. Job windows and expiry dates show here when they fall in these seven days.</p>
+      ) : (
+        <ul className="mt-3 space-y-1 text-sm font-bold text-slate-800">
+          {marks.map((mark) => (
+            <li key={mark.id}>{formatSastDate(mark.day)} · {mark.label}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function TodayList(props: FleetDeskProps) {
@@ -357,16 +437,26 @@ function TodayList(props: FleetDeskProps) {
 }
 
 function ExpiryList(props: FleetDeskProps) {
-  const rows = props.book.compliance.filter((row) => row.expires_on).slice(0, 4);
-  if (!rows.length) return <p className="text-sm text-slate-600">No expiry dates yet.</p>;
+  const rows = props.book.compliance.filter((row) => row.expires_on && !row.archived_at).slice(0, 6);
+  if (!rows.length) return <p className="text-sm text-slate-600">No expiry dates yet. A licence disc or a driver date will show here with a due badge.</p>;
   return (
     <ul className="space-y-2">
-      {rows.map((row) => (
-        <li key={row.id} className="flex items-center justify-between gap-2 text-sm">
-          <span className="font-bold text-slate-800">{complianceKindLabel(row.kind)}</span>
-          <span className="inline-flex items-center gap-1 text-slate-600"><CalendarClock className="h-3.5 w-3.5" aria-hidden />{complianceLabel(row.expires_on, props.today, props.book.workspace.expiring_window_days)}</span>
-        </li>
-      ))}
+      {rows.map((row) => {
+        const state = complianceStatus(row.expires_on, props.today, props.book.workspace.expiring_window_days);
+        const tone = state === 'expired' ? 'bad' : state === 'expiring' ? 'warn' : 'ok';
+        const subject = row.subject_kind === 'driver'
+          ? props.book.drivers.find((item) => item.id === row.subject_id)?.full_name
+          : props.book.vehicles.find((item) => item.id === row.subject_id)?.reg_no;
+        return (
+          <li key={row.id} className="flex items-center justify-between gap-2 rounded-2xl border border-slate-200 px-3 py-2">
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-black text-slate-900">{complianceKindLabel(row.kind)}</span>
+              <span className="block truncate text-xs text-slate-600">{subject || 'Fleet'}</span>
+            </span>
+            <FleetStatusPill tone={tone}>{complianceLabel(row.expires_on, props.today, props.book.workspace.expiring_window_days)}</FleetStatusPill>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -395,15 +485,31 @@ function SetupList(props: FleetDeskProps) {
     ['First cost profile', props.book.cost_profiles.length > 0],
     ['First job', props.book.jobs.length > 0],
   ] as const;
+  const doneCount = steps.filter(([, done]) => done).length;
+  const next = steps.find(([, done]) => !done);
   return (
-    <ul className="grid gap-2 sm:grid-cols-2">
-      {steps.map(([label, done]) => (
-        <li key={label} className="flex items-center justify-between rounded-2xl border border-slate-200 px-3 py-2 text-sm">
-          <span>{label}</span>
-          <FleetStatusPill tone={done ? 'ok' : 'muted'}>{done ? 'Done' : 'Still to add'}</FleetStatusPill>
-        </li>
-      ))}
-    </ul>
+    <div>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-black text-slate-900">{doneCount} of {steps.length} done</p>
+        <p className="text-sm font-bold text-[#0077b6]">{next ? `Next: ${next[0]}` : 'Setup is complete'}</p>
+      </div>
+      <div className="mb-3 h-2 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-valuenow={doneCount} aria-valuemin={0} aria-valuemax={steps.length}>
+        <div className="h-full rounded-full bg-[#00b4d8]" style={{ width: `${Math.round((doneCount / steps.length) * 100)}%` }} />
+      </div>
+      <ul className="grid gap-2 sm:grid-cols-2">
+        {steps.map(([label, done]) => (
+          <li key={label} className={`flex items-center justify-between gap-2 rounded-2xl border px-3 py-2 text-sm ${done ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
+            <span className="flex min-w-0 items-center gap-2 font-bold text-slate-900">
+              <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${done ? 'bg-[#00b4d8] text-[#0f172a]' : 'border border-slate-300 text-transparent'}`} aria-hidden>
+                <Check className="h-3 w-3" />
+              </span>
+              {label}
+            </span>
+            <FleetStatusPill tone={done ? 'ok' : 'muted'}>{done ? 'Done' : 'Still to add'}</FleetStatusPill>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -781,7 +887,7 @@ function VehiclesView(props: FleetDeskProps) {
                     Add cost entry
                   </button>
                   <ul className="space-y-1 text-sm">
-                    {props.book.cost_entries.filter((row) => row.vehicle_id === current.id && !row.reverses_id).map((row) => {
+                    {props.book.cost_entries.filter((row) => row.vehicle_id === current.id && !row.reverses_id && row.amount_cents !== 0).map((row) => {
                       const reversed = props.book.cost_entries.some((item) => item.reverses_id === row.id);
                       return (
                         <li key={row.id} className="flex items-center justify-between gap-2">
@@ -921,16 +1027,19 @@ function DriversView(props: FleetDeskProps) {
           rows={rows.map((driver) => ({
             id: driver.id,
             cells: [
-              <button key="n" type="button" className={`${fleetLink} ${fleetFocus} min-h-11`} onClick={() => setOpen(driver.id)}>{driver.full_name}</button>,
+              <button key="n" type="button" className={`${fleetLink} ${fleetFocus} inline-flex min-h-11 items-center gap-2`} onClick={() => setOpen(driver.id)}><FleetAvatar name={driver.full_name} />{driver.full_name}</button>,
               employmentLabel(driver.employment),
               driver.licence_code || '—',
               <FleetStatusPill key="s" tone={driver.status === 'active' ? 'ok' : 'muted'}>{driverStatusLabel(driver.status)}</FleetStatusPill>,
             ],
             card: (
-              <button type="button" className="min-h-11 text-left" onClick={() => setOpen(driver.id)}>
+              <button type="button" className="flex min-h-11 items-center gap-2 text-left" onClick={() => setOpen(driver.id)}>
+                <FleetAvatar name={driver.full_name} />
+                <span>
                 <p className="font-black">{driver.full_name}</p>
                 <p className="text-sm text-slate-600">{driverStatusLabel(driver.status)} · {employmentLabel(driver.employment)}</p>
                 <p className="text-sm text-slate-600">Next due {nextDue(props.book, driver.id, props.today)}</p>
+                </span>
               </button>
             ),
           }))}
@@ -1148,22 +1257,31 @@ function JobsView(props: FleetDeskProps) {
       ) : (
         <FleetTable
           columns={['Reference', 'Customer', 'Status', ...(props.caps.seesRates ? ['Price'] : [])]}
-          rows={rows.map((job) => ({
+          rows={rows.map((job) => {
+            const driverName = props.book.drivers.find((row) => row.id === job.driver_id)?.full_name || '';
+            return {
             id: job.id,
             cells: [
-              <button key="r" type="button" className={`${fleetLink} ${fleetFocus} min-h-11`} onClick={() => setOpen(job.id)}>{job.reference}</button>,
+              <button key="r" type="button" className={`${fleetLink} ${fleetFocus} inline-flex min-h-11 items-center gap-2`} onClick={() => setOpen(job.id)}>
+                {driverName ? <FleetAvatar name={driverName} /> : null}
+                {job.reference}
+              </button>,
               job.customer_name || '—',
               <FleetStatusPill key="s" tone={job.status === 'cancelled' ? 'muted' : 'ok'}>{jobStatusLabel(job.status)}</FleetStatusPill>,
               ...(props.caps.seesRates ? [<FleetMoney key="p" cents={job.price_cents} />] : []),
             ],
             card: (
-              <button type="button" className="min-h-11 text-left" onClick={() => setOpen(job.id)}>
-                <p className="font-black">{job.reference}</p>
-                <p className="text-sm text-slate-600">{jobStatusLabel(job.status)} · {props.book.vehicles.find((row) => row.id === job.vehicle_id)?.reg_no || 'No vehicle'}</p>
-                <p className="text-sm text-slate-600">{job.customer_name || 'No customer yet'}</p>
+              <button type="button" className="flex min-h-11 items-center gap-2 text-left" onClick={() => setOpen(job.id)}>
+                {driverName ? <FleetAvatar name={driverName} /> : null}
+                <span>
+                  <p className="font-black">{job.reference}</p>
+                  <p className="text-sm text-slate-600">{jobStatusLabel(job.status)} · {props.book.vehicles.find((row) => row.id === job.vehicle_id)?.reg_no || 'No vehicle'}</p>
+                  <p className="text-sm text-slate-600">{job.customer_name || 'No customer yet'}</p>
+                </span>
               </button>
             ),
-          }))}
+          };
+          })}
         />
       )}
       <FleetSection title="Still to come">
@@ -1202,11 +1320,18 @@ function JobsView(props: FleetDeskProps) {
           >
             <option value="">Choose a customer from this company</option>
             {props.book.customers
-              .filter((row) => !customerQuery.trim() || row.trading_name.toLowerCase().includes(customerQuery.trim().toLowerCase()))
+              .filter((row) => {
+                const currentCustomer = current?.customer_id === row.id;
+                const active = !row.status || row.status === 'active';
+                if (!active && !currentCustomer) return false;
+                return !customerQuery.trim() || row.trading_name.toLowerCase().includes(customerQuery.trim().toLowerCase());
+              })
               .slice()
               .sort((a, b) => a.trading_name.localeCompare(b.trading_name))
               .map((row) => (
-                <option key={row.id} value={String(row.id)}>{row.trading_name}</option>
+                <option key={row.id} value={String(row.id)}>
+                  {row.trading_name}{row.status && row.status !== 'active' ? ` · ${row.status}` : ''}
+                </option>
               ))}
             <option value="__new">Add a customer</option>
           </select>
@@ -1240,8 +1365,8 @@ function JobsView(props: FleetDeskProps) {
           Vehicle
           <select className={`${fleetField} ${fleetFocus}`} value={vehicleId} onChange={(event) => setVehicleId(event.target.value)}>
             <option value="">Unassigned</option>
-            {props.book.vehicles.filter((row) => !row.archived_at).map((row) => (
-              <option key={row.id} value={row.id}>{row.reg_no}</option>
+            {props.book.vehicles.filter((row) => !row.archived_at || row.id === current?.vehicle_id).map((row) => (
+              <option key={row.id} value={row.id}>{row.reg_no}{row.archived_at ? ' · archived' : ''}</option>
             ))}
           </select>
         </label>
@@ -1249,8 +1374,8 @@ function JobsView(props: FleetDeskProps) {
           Driver
           <select className={`${fleetField} ${fleetFocus}`} value={driverId} onChange={(event) => setDriverId(event.target.value)}>
             <option value="">Unassigned</option>
-            {props.book.drivers.filter((row) => !row.archived_at).map((row) => (
-              <option key={row.id} value={row.id}>{row.full_name}</option>
+            {props.book.drivers.filter((row) => !row.archived_at || row.id === current?.driver_id).map((row) => (
+              <option key={row.id} value={row.id}>{row.full_name}{row.archived_at ? ' · archived' : ''}</option>
             ))}
           </select>
         </label>
@@ -1356,6 +1481,19 @@ function CpkView(props: FleetDeskProps) {
   const fleetVariance = fleet.perKm != null && fleet.target != null ? fleet.perKm - fleet.target : null;
   const fleetVarianceStatus = fleetVariance == null ? 'no_target' : Math.abs(fleetVariance) < 0.005 ? 'on_target' : fleetVariance > 0 ? 'over' : 'under';
   const unallocated = fleet.unallocatedCents;
+  if (props.migrationPending) {
+    return (
+      <main className="mx-auto max-w-6xl space-y-4 px-4 py-4" data-testid="fleet-cpk">
+        <FleetPageHead title="CPK" detail="Cost per kilometre is pending until the fleet tables are applied." illustration={props.illustrate} />
+        <Banners {...props} />
+        <FleetEmpty
+          title="Cost per kilometre is pending"
+          hint="Figures stay off this page until the fleet tables are applied. This is not hidden because of your role."
+          action={<Link className={`${fleetBtn} ${fleetFocus}`} href={props.hrefBase}>Back to command</Link>}
+        />
+      </main>
+    );
+  }
   if (!props.caps.seesCosts) {
     return (
       <main className="mx-auto max-w-6xl space-y-4 px-4 py-4" data-testid="fleet-cpk">
@@ -1466,6 +1604,19 @@ function SettingsView(props: FleetDeskProps) {
   const [name, setName] = useState(props.book.workspace.display_name);
   const [retention, setRetention] = useState(String(props.book.workspace.retention_days ?? 1825));
   const [marginPct, setMarginPct] = useState(String(props.book.workspace.required_margin_bps / 100));
+  if (props.migrationPending) {
+    return (
+      <main className="mx-auto max-w-6xl space-y-4 px-4 py-4" data-testid="fleet-settings">
+        <FleetPageHead title="Settings" detail="Settings are pending until the fleet tables are applied." illustration={props.illustrate} />
+        <Banners {...props} />
+        <FleetEmpty
+          title="Settings are pending"
+          hint="The workspace cannot be saved until the fleet tables are applied. This is not a read-only role."
+          action={<Link className={`${fleetBtn} ${fleetFocus}`} href={props.hrefBase}>Back to command</Link>}
+        />
+      </main>
+    );
+  }
   if (!props.caps.canEditSettings && props.role !== 'owner' && props.role !== 'manager') {
     return (
       <main className="mx-auto max-w-6xl space-y-4 px-4 py-4" data-testid="fleet-settings">

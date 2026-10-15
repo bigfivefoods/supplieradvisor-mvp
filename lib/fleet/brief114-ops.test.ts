@@ -214,8 +214,22 @@ const clash = applyFleetOp(
 );
 assert.equal(clash.ok, true);
 if (!clash.ok) throw new Error('clash');
-assert.equal(clash.book.cost_profiles.filter((row) => row.effective_from === '2024-06-01' && row.effective_to === '2024-06-01').length, 1);
-assert.equal(clash.book.cost_profiles.find((row) => row.effective_from === '2024-06-01' && row.effective_to == null)?.finance_monthly_cents, 80);
+const replaced = clash.book.cost_profiles.filter((row) => row.vehicle_id === vehicleId && row.effective_from === '2024-06-01');
+assert.equal(replaced.length, 1);
+assert.equal(replaced[0]?.id, juneRow?.id);
+assert.equal(replaced[0]?.finance_monthly_cents, 80);
+assert.equal(replaced[0]?.effective_to ?? null, null);
+assert.equal(clash.book.cost_profiles.some((row) => row.effective_to != null && row.effective_to <= row.effective_from), false);
+const laterProfile = applyFleetOp(
+  clash.book,
+  { op: 'cost_profile.set', payload: { vehicle_id: vehicleId, effective_from: '2024-08-01', finance_monthly_cents: 40 } },
+  ctx
+);
+assert.equal(laterProfile.ok, true);
+if (!laterProfile.ok) throw new Error('later profile');
+assert.equal(laterProfile.book.cost_profiles.find((row) => row.id === juneRow?.id)?.effective_to, '2024-08-01');
+assert.equal(laterProfile.book.cost_profiles.find((row) => row.effective_from === '2024-08-01')?.finance_monthly_cents, 40);
+assert.equal(laterProfile.book.audit.filter((row) => row.action === 'cost_profile.set').length >= 3, true);
 const emptyProfile = applyFleetOp(may.book, { op: 'cost_profile.set', payload: { vehicle_id: vehicleId, effective_from: '2024-06-20' } }, ctx);
 assert.equal(emptyProfile.ok, false);
 if (emptyProfile.ok) throw new Error('empty profile');
@@ -377,7 +391,144 @@ assert.equal(centsFromRand(Number.NaN), null);
 assert.equal(centsFromRand(Number.POSITIVE_INFINITY), null);
 assert.equal(centsFromRand('1500,50'), 150050);
 assert.equal(centsFromRand('1 500.00'), 150000);
+assert.equal(centsFromRand('1,500.00'), 150000);
+assert.equal(centsFromRand('1,,5'), null);
 assert.equal(Object.is(centsFromRand('-0.004'), 0), true);
+
+const farPool = applyFleetOp(pool.book, { op: 'overhead_pool.set', payload: { period_month: '2024-08-01', amount_cents: 1000 } }, ctx);
+assert.equal(farPool.ok, true);
+const farTarget = applyFleetOp(pool.book, { op: 'cpk_target.set', payload: { scope_kind: 'fleet', layer: 'fully_loaded', target_cents_per_km: 1550, effective_from: '2024-08-01' } }, ctx);
+assert.equal(farTarget.ok, true);
+const farStop = applyFleetOp(
+  pool.book,
+  { op: 'job.upsert', payload: { status: 'draft', customer_name: 'Depot', stops: [{ place_name: 'Later', kind: 'pickup', window_start: '2024-08-01', window_end: '2024-08-02' }] } },
+  ctx
+);
+assert.equal(farStop.ok, true);
+const farProfile = applyFleetOp(
+  pool.book,
+  { op: 'cost_profile.set', payload: { vehicle_id: vehicleId, effective_from: '2029-01-01', finance_monthly_cents: 10, in_service_on: '2029-01-01', disposed_on: '2029-06-01' } },
+  ctx
+);
+assert.equal(farProfile.ok, true);
+const tooFar = applyFleetOp(pool.book, { op: 'overhead_pool.set', payload: { period_month: '2030-01-01', amount_cents: 1000 } }, ctx);
+assert.equal(tooFar.ok, false);
+const ancientCompliance = applyFleetOp(
+  kept.book,
+  { op: 'compliance.upsert', payload: { subject_kind: 'vehicle', subject_id: vehicleId, kind: 'insurance', expires_on: '1850-01-01' } },
+  ctx
+);
+assert.equal(ancientCompliance.ok, false);
+const distantCompliance = applyFleetOp(
+  kept.book,
+  { op: 'compliance.upsert', payload: { subject_kind: 'vehicle', subject_id: vehicleId, kind: 'insurance', expires_on: '9999-01-01' } },
+  ctx
+);
+assert.equal(distantCompliance.ok, false);
+const ancientIssued = applyFleetOp(
+  kept.book,
+  { op: 'compliance.upsert', payload: { subject_kind: 'vehicle', subject_id: vehicleId, kind: 'insurance', expires_on: '2027-01-01', issued_on: '1850-01-01' } },
+  ctx
+);
+assert.equal(ancientIssued.ok, false);
+const futureCost = applyFleetOp(fuel.book, { op: 'cost_entry.add', payload: { vehicle_id: vehicleId, category: 'toll', amount_cents: 100, occurred_on: '2024-07-04' } }, ctx);
+assert.equal(futureCost.ok, false);
+const idName = applyFleetOp(pool.book, { op: 'driver.upsert', payload: { full_name: 'Person 8001015009087' } }, ctx);
+assert.equal(idName.ok, false);
+const idMake = applyFleetOp(pool.book, { op: 'vehicle.upsert', payload: { reg_no: 'CA 9', kind: 'van', ownership: 'owned', make: '8001015009087' } }, ctx);
+assert.equal(idMake.ok, false);
+
+const roster = {
+  ...pool.book,
+  customers: [
+    { id: 8, trading_name: 'Open Buyer', status: 'active' },
+    { id: 7, trading_name: 'Quiet Prospect', status: 'prospect' },
+  ],
+};
+const hired = applyFleetOp(roster, { op: 'job.upsert', payload: { status: 'draft', customer_id: 8, stops: [{ place_name: 'Yard', kind: 'pickup' }] } }, ctx);
+assert.equal(hired.ok, true);
+if (!hired.ok) throw new Error('hired');
+const hiredJob = hired.book.jobs.at(-1);
+const cooled = {
+  ...hired.book,
+  customers: hired.book.customers.map((row) => (row.id === 8 ? { ...row, status: 'prospect' } : row)),
+};
+const keptCustomer = applyFleetOp(
+  cooled,
+  { op: 'job.upsert', payload: { id: hiredJob?.id, status: 'booked', customer_id: 8, stops: [{ place_name: 'Yard', kind: 'pickup' }] } },
+  ctx,
+  hiredJob?.updated_at
+);
+assert.equal(keptCustomer.ok, true);
+const switched = applyFleetOp(cooled, { op: 'job.upsert', payload: { status: 'draft', customer_id: 7, stops: [{ place_name: 'Other', kind: 'pickup' }] } }, ctx);
+assert.equal(switched.ok, false);
+const orphaned = { ...cooled, customers: cooled.customers.filter((row) => row.id !== 8) };
+const stillCustomer = applyFleetOp(
+  orphaned,
+  { op: 'job.upsert', payload: { id: hiredJob?.id, status: 'booked', customer_id: 8, stops: [{ place_name: 'Yard', kind: 'pickup' }] } },
+  ctx,
+  hiredJob?.updated_at
+);
+assert.equal(stillCustomer.ok, true);
+
+const archivedFleet = {
+  ...pool.book,
+  vehicles: pool.book.vehicles.map((row) => ({ ...row, archived_at: ctx.now })),
+};
+const freshArchived = applyFleetOp(
+  archivedFleet,
+  { op: 'job.upsert', payload: { status: 'draft', customer_name: 'Depot', vehicle_id: vehicleId, stops: [{ place_name: 'Yard', kind: 'pickup' }] } },
+  ctx
+);
+assert.equal(freshArchived.ok, false);
+const assigned = applyFleetOp(
+  pool.book,
+  { op: 'job.upsert', payload: { status: 'draft', customer_name: 'Depot', vehicle_id: vehicleId, stops: [{ place_name: 'Yard', kind: 'pickup' }] } },
+  ctx
+);
+assert.equal(assigned.ok, true);
+if (!assigned.ok) throw new Error('assigned');
+const assignedJob = assigned.book.jobs.at(-1);
+const afterArchive = {
+  ...assigned.book,
+  vehicles: assigned.book.vehicles.map((row) => (row.id === vehicleId ? { ...row, archived_at: ctx.now } : row)),
+};
+const keepVehicle = applyFleetOp(
+  afterArchive,
+  { op: 'job.upsert', payload: { id: assignedJob?.id, status: 'booked', vehicle_id: vehicleId, stops: [{ place_name: 'Yard', kind: 'pickup' }] } },
+  ctx,
+  assignedJob?.updated_at
+);
+assert.equal(keepVehicle.ok, true);
+const namedDriver = applyFleetOp(pool.book, { op: 'driver.upsert', payload: { full_name: 'Sample Driver' } }, ctx);
+assert.equal(namedDriver.ok, true);
+if (!namedDriver.ok) throw new Error('driver');
+const driverId = namedDriver.book.drivers[0]?.id;
+const withDriver = applyFleetOp(
+  namedDriver.book,
+  { op: 'job.upsert', payload: { status: 'draft', customer_name: 'Depot', driver_id: driverId, stops: [{ place_name: 'Yard', kind: 'pickup' }] } },
+  ctx
+);
+assert.equal(withDriver.ok, true);
+if (!withDriver.ok) throw new Error('with driver');
+const drivenJob = withDriver.book.jobs.at(-1);
+const driverArchived = {
+  ...withDriver.book,
+  drivers: withDriver.book.drivers.map((row) => ({ ...row, archived_at: ctx.now })),
+};
+const keepDriver = applyFleetOp(
+  driverArchived,
+  { op: 'job.upsert', payload: { id: drivenJob?.id, status: 'booked', driver_id: driverId, stops: [{ place_name: 'Yard', kind: 'pickup' }] } },
+  ctx,
+  drivenJob?.updated_at
+);
+assert.equal(keepDriver.ok, true);
+const newDriver = applyFleetOp(
+  driverArchived,
+  { op: 'job.upsert', payload: { status: 'draft', customer_name: 'Depot', driver_id: driverId, stops: [{ place_name: 'Other', kind: 'pickup' }] } },
+  ctx
+);
+assert.equal(newDriver.ok, false);
 
 const added = applyFleetOp(moved.book, { op: 'job.upsert', payload: { status: 'draft', new_customer_name: 'Sample Buyer', stops: [] } }, ctx);
 assert.equal(added.ok, true);

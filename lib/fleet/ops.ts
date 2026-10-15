@@ -273,8 +273,10 @@ function upsertCompliance(book: FleetBook, op: FleetOp, ctx: OpContext, expected
         row.subject_id === subjectId &&
         row.kind === kind
     );
-  const expires = dateOrNull(op.payload.expires_on);
-  if (!expires) return deny(400, 'Add an expiry date.');
+  const expires = plannedDay(op.payload.expires_on, ctx);
+  if (expires === false) return deny(400, 'Check the expiry date.');
+  const issued = op.payload.issued_on == null || op.payload.issued_on === '' ? null : plannedDay(op.payload.issued_on, ctx);
+  if (issued === false) return deny(400, 'Check the issued date.');
   if (existing && !expected) return deny(409, 'This date is already on file. Reload it and save again.');
   if (existing) {
     const clash = cas(existing.updated_at, expected);
@@ -287,7 +289,7 @@ function upsertCompliance(book: FleetBook, op: FleetOp, ctx: OpContext, expected
     subject_id: subjectId,
     kind: kind as FleetCompliance['kind'],
     reference: cleanText(op.payload.reference, 64),
-    issued_on: dateOrNull(op.payload.issued_on),
+    issued_on: issued,
     expires_on: expires,
     detail,
     status_note: cleanText(op.payload.status_note, 400),
@@ -325,12 +327,14 @@ function upsertJob(book: FleetBook, op: FleetOp, ctx: OpContext, expected?: stri
     customers = [...customers, { id: customerId, trading_name: named }];
   } else if (customerId) {
     const known = customers.find((row) => row.id === customerId);
-    if (!known) return deny(400, 'Choose a customer from this company.');
-    if (!customerName) customerName = known.trading_name;
+    const keeping = Boolean(existing && existing.customer_id === customerId);
+    if (!known && !keeping) return deny(400, 'Choose a customer from this company.');
+    if (known?.status && known.status !== 'active' && !keeping) return deny(400, 'Choose an active customer.');
+    if (!customerName) customerName = known?.trading_name || existing?.customer_name || '';
   }
-  const vehicleId = memberId(book, 'vehicle', op.payload.vehicle_id);
+  const vehicleId = memberId(book, 'vehicle', op.payload.vehicle_id, existing?.vehicle_id ?? null);
   if (typeof vehicleId !== 'string' && vehicleId !== null) return vehicleId;
-  const driverId = memberId(book, 'driver', op.payload.driver_id);
+  const driverId = memberId(book, 'driver', op.payload.driver_id, existing?.driver_id ?? null);
   if (typeof driverId !== 'string' && driverId !== null) return driverId;
   const reference = existing?.reference || cleanText(op.payload.reference, 40) || nextJobReference(book);
   const row: FleetJob = {
@@ -390,8 +394,8 @@ function readStops(
       if (!owned && !isUuid(supplied)) return { ok: false, status: 400, error: 'Check the stop.' };
       stopId = supplied;
     }
-    const windowStart = raw.window_start == null || raw.window_start === '' ? null : boundedDay(raw.window_start, ctx);
-    const windowEnd = raw.window_end == null || raw.window_end === '' ? null : boundedDay(raw.window_end, ctx);
+    const windowStart = raw.window_start == null || raw.window_start === '' ? null : plannedDay(raw.window_start, ctx);
+    const windowEnd = raw.window_end == null || raw.window_end === '' ? null : plannedDay(raw.window_end, ctx);
     if (windowStart === false || windowEnd === false) return { ok: false, status: 400, error: 'Check the stop dates.' };
     rows.push({
       id: stopId,
@@ -421,7 +425,7 @@ function addOdometer(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
   if (!vehicle) return deny(400, 'Choose a vehicle.');
   const reading = numOf(op.payload.reading_km);
   if (reading == null || reading <= 0 || reading > 10_000_000) return deny(400, 'Check the odometer reading.');
-  const readAt = op.payload.read_at == null || op.payload.read_at === '' ? todayOf(ctx) : boundedDay(op.payload.read_at, ctx);
+  const readAt = op.payload.read_at == null || op.payload.read_at === '' ? todayOf(ctx) : historicDay(op.payload.read_at, ctx);
   if (readAt === false) return deny(400, 'Check the odometer date.');
   const entryId = id();
   const priorAt = vehicle.odometer_at ? vehicle.odometer_at.slice(0, 10) : '';
@@ -482,7 +486,7 @@ function addCost(book: FleetBook, op: FleetOp, ctx: OpContext, reverse: boolean)
     reverses = prior.id;
   } else {
     if (amount == null || amount <= 0) return deny(400, 'Check the amount.');
-    const dated = op.payload.occurred_on == null || op.payload.occurred_on === '' ? todayOf(ctx) : boundedDay(op.payload.occurred_on, ctx);
+    const dated = op.payload.occurred_on == null || op.payload.occurred_on === '' ? todayOf(ctx) : historicDay(op.payload.occurred_on, ctx);
     if (dated === false) return deny(400, 'Check the date.');
     occurred = dated;
     if (presentNumber(op.payload.litres) && (litres == null || litres < 0 || litres > 5000)) return deny(400, 'Check the litres.');
@@ -532,7 +536,7 @@ function addCost(book: FleetBook, op: FleetOp, ctx: OpContext, reverse: boolean)
 function setProfile(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
   const vehicle = book.vehicles.find((row) => row.id === op.payload.vehicle_id);
   if (!vehicle) return deny(400, 'Choose a vehicle.');
-  const from = op.payload.effective_from == null || op.payload.effective_from === '' ? todayOf(ctx) : boundedDay(op.payload.effective_from, ctx);
+  const from = op.payload.effective_from == null || op.payload.effective_from === '' ? todayOf(ctx) : plannedDay(op.payload.effective_from, ctx);
   if (from === false) return deny(400, 'Check the effective date.');
   const method = cleanText(op.payload.depreciation_method || 'time', 20);
   const tyre = cleanText(op.payload.tyre_mode || book.workspace.tyre_mode_default, 20);
@@ -552,25 +556,28 @@ function setProfile(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
     money.values.other_standing_monthly_cents > 0 ||
     money.values.driver_cost_monthly_cents > 0;
   if (!hasCost) return deny(400, 'Add at least one cost.');
+  const same = book.cost_profiles.find((row) => row.vehicle_id === vehicle.id && row.effective_from === from);
   const profiles = book.cost_profiles.map((row) => {
-    if (row.vehicle_id !== vehicle.id) return row;
-    if (row.effective_from === from && row.effective_to !== from) return { ...row, effective_to: from, updated_at: ctx.now };
+    if (row.vehicle_id !== vehicle.id || row.id === same?.id) return row;
     if (!row.effective_to && row.effective_from < from) return { ...row, effective_to: from, updated_at: ctx.now };
     return row;
   });
-  const inService = op.payload.in_service_on == null || op.payload.in_service_on === '' ? from : boundedDay(op.payload.in_service_on, ctx);
+  const inService = op.payload.in_service_on == null || op.payload.in_service_on === '' ? from : plannedDay(op.payload.in_service_on, ctx);
   if (inService === false) return deny(400, 'Check the in-service date.');
-  const disposed = op.payload.disposed_on == null || op.payload.disposed_on === '' ? null : boundedDay(op.payload.disposed_on, ctx);
+  const disposed = op.payload.disposed_on == null || op.payload.disposed_on === '' ? null : plannedDay(op.payload.disposed_on, ctx);
   if (disposed === false) return deny(400, 'Check the disposal date.');
   const later = profiles
-    .filter((row) => row.vehicle_id === vehicle.id && row.effective_from > from && row.effective_to !== row.effective_from)
+    .filter((row) => row.vehicle_id === vehicle.id && row.id !== same?.id && row.effective_from > from)
     .map((row) => row.effective_from)
     .sort();
-  const effectiveTo = later[0] || null;
-  const overlap = profiles.some((row) => row.vehicle_id === vehicle.id && rangesOverlap(from, effectiveTo, row.effective_from, row.effective_to));
+  const keptEnd = same?.effective_to && same.effective_to > from ? same.effective_to : null;
+  const effectiveTo = later[0] || keptEnd;
+  const overlap = profiles.some(
+    (row) => row.vehicle_id === vehicle.id && row.id !== same?.id && rangesOverlap(from, effectiveTo, row.effective_from, row.effective_to)
+  );
   if (overlap) return deny(409, 'That cost profile overlaps an existing one.');
   const row: FleetCostProfile = {
-    id: id(),
+    id: same?.id || id(),
     company_id: ctx.companyId,
     vehicle_id: vehicle.id,
     effective_from: from,
@@ -593,11 +600,12 @@ function setProfile(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
     tyre_life_km: intOf(op.payload.tyre_life_km),
     updated_at: ctx.now,
   };
-  return done({ ...book, cost_profiles: [...profiles, row] }, ctx, 'cost_profile.set', 'cost_profile', row.id, { vehicle_id: vehicle.id });
+  const cost_profiles = same ? profiles.map((item) => (item.id === row.id ? row : item)) : [...profiles, row];
+  return done({ ...book, cost_profiles }, ctx, 'cost_profile.set', 'cost_profile', row.id, { vehicle_id: vehicle.id, replaced: Boolean(same) });
 }
 
 function setPool(book: FleetBook, op: FleetOp, ctx: OpContext, expected?: string | null): OpOutcome {
-  const month = boundedDay(op.payload.period_month, ctx);
+  const month = plannedDay(op.payload.period_month, ctx);
   if (month === false || !month) return deny(400, 'Choose a month.');
   const period = `${month.slice(0, 7)}-01`;
   const amount = cleanMoney(op.payload.amount_cents);
@@ -630,7 +638,7 @@ function setTarget(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
   if (layer !== 'fully_loaded' && layer !== 'operating') return deny(400, 'Choose a target layer.');
   const target = cleanMoney(op.payload.target_cents_per_km);
   if (target == null || target <= 0) return deny(400, 'Check the target.');
-  const effective = op.payload.effective_from == null || op.payload.effective_from === '' ? todayOf(ctx) : boundedDay(op.payload.effective_from, ctx);
+  const effective = op.payload.effective_from == null || op.payload.effective_from === '' ? todayOf(ctx) : plannedDay(op.payload.effective_from, ctx);
   if (effective === false) return deny(400, 'Check the effective date.');
   const row = {
     id: id(),
@@ -747,12 +755,19 @@ function isUuid(value: string): boolean {
   return UUID_RE.test(value);
 }
 
-function memberId(book: FleetBook, kind: 'vehicle' | 'driver', value: unknown): string | null | OpOutcome {
+function memberId(
+  book: FleetBook,
+  kind: 'vehicle' | 'driver',
+  value: unknown,
+  keepingId: string | null
+): string | null | OpOutcome {
   const text = cleanText(value, 80);
   if (!text) return null;
   const rows = kind === 'vehicle' ? book.vehicles : book.drivers;
-  if (!rows.some((row) => row.id === text && !row.archived_at)) {
-    return deny(400, kind === 'vehicle' ? 'Choose a vehicle from this fleet.' : 'Choose a driver from this fleet.');
+  const row = rows.find((item) => item.id === text);
+  if (!row) return deny(400, kind === 'vehicle' ? 'Choose a vehicle from this fleet.' : 'Choose a driver from this fleet.');
+  if (row.archived_at && text !== keepingId) {
+    return deny(400, kind === 'vehicle' ? 'That vehicle is archived.' : 'That driver is archived.');
   }
   return text;
 }
@@ -766,10 +781,20 @@ function addCalendarDays(iso: string, days: number): string {
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
 
-function boundedDay(value: unknown, ctx: OpContext): string | false {
+/** Ledger facts and odometer readings: not before 2000, and not after tomorrow. */
+function historicDay(value: unknown, ctx: OpContext): string | false {
+  return dayInWindow(value, ctx, 1);
+}
+
+/** Plans, profiles, targets, pools and compliance dates: 2000 through five years ahead. */
+function plannedDay(value: unknown, ctx: OpContext): string | false {
+  return dayInWindow(value, ctx, 366 * 5);
+}
+
+function dayInWindow(value: unknown, ctx: OpContext, aheadDays: number): string | false {
   const day = dateOrNull(value);
   if (!day) return false;
-  const latest = addCalendarDays(todayOf(ctx), 1);
+  const latest = addCalendarDays(todayOf(ctx), aheadDays);
   if (day < '2000-01-01' || day > latest) return false;
   return day;
 }
@@ -790,6 +815,24 @@ const FREE_TEXT_KEYS = new Set([
   'detail',
   'new_customer_name',
   'instructions',
+  'full_name',
+  'make',
+  'model',
+  'vin',
+  'depot_label',
+  'tracker_provider',
+  'fuel_type',
+  'licence_code',
+  'phone',
+  'email',
+  'display_name',
+  'service_type',
+  'address',
+  'suburb',
+  'city',
+  'province',
+  'contact_name',
+  'contact_phone',
 ]);
 
 function screenPayloadText(payload: Record<string, unknown>): OpOutcome | null {

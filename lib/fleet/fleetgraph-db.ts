@@ -37,8 +37,19 @@ export function isFleetSchemaMissing(error: DbError): boolean {
   if (/\bprofiles\b|\bcustomers\b/i.test(message)) return false;
   if (code === 'PGRST205' || code === 'PGRST202') return /schema cache|could not find/i.test(message);
   if (code === '42P01') return /does not exist/i.test(message);
-  if (code === '42883') return /undefined function|does not exist/i.test(message);
+  if (code === '42883') return /(?:undefined function|function)\s+(?:[\w."]+\.)?fg_[a-z0-9_]+/i.test(message);
   return false;
+}
+
+const STOP_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** A stop id already stored on another job, or another company, cannot be reused. */
+export function stopRowsConflict(
+  rows: Array<{ id?: string; job_id?: string | null; company_id?: number | null }>,
+  companyId: number,
+  jobId: string | null
+): boolean {
+  return rows.some((row) => Number(row.company_id) !== companyId || String(row.job_id || '') !== (jobId || ''));
 }
 
 export async function collectPages<T>(
@@ -117,20 +128,58 @@ export async function loadFleetBook(companyId: number): Promise<FleetLoad> {
   book.overhead_pools = (rows.fg_overhead_pools as Record<string, unknown>[]).map(mapPool);
   book.cpk_targets = (rows.fg_cpk_targets as Record<string, unknown>[]).map(mapTarget);
   book.audit = [];
-  const customers = await admin
+  book.customers = await loadCustomers(
+    admin,
+    companyId,
+    book.jobs.map((job) => job.customer_id).filter((id): id is number => typeof id === 'number' && id > 0)
+  );
+  return { ready: true, book };
+}
+
+async function loadCustomers(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  companyId: number,
+  jobCustomerIds: number[]
+): Promise<FleetBook['customers']> {
+  const active = await admin
     .from('customers')
-    .select('id, trading_name')
+    .select('id, trading_name, status')
     .eq('profile_id', companyId)
     .eq('status', 'active')
     .order('trading_name', { ascending: true })
     .limit(500);
-  book.customers = customers.error
-    ? []
-    : ((customers.data || []) as Record<string, unknown>[]).map((row) => ({
-        id: Number(row.id),
-        trading_name: text(row.trading_name),
-      }));
-  return { ready: true, book };
+  const listed = active.error
+    ? await admin.from('customers').select('id, trading_name').eq('profile_id', companyId).order('trading_name', { ascending: true }).limit(500)
+    : active;
+  const extraIds = [...new Set(jobCustomerIds)];
+  const extra = extraIds.length
+    ? await admin.from('customers').select('id, trading_name, status').eq('profile_id', companyId).in('id', extraIds)
+    : { data: [], error: null };
+  const rows = [...((listed.data || []) as Record<string, unknown>[]), ...((extra.error ? [] : extra.data || []) as Record<string, unknown>[])];
+  const byId = new Map<number, FleetBook['customers'][number]>();
+  for (const row of rows) {
+    const id = Number(row.id);
+    if (!Number.isFinite(id)) continue;
+    byId.set(id, {
+      id,
+      trading_name: text(row.trading_name),
+      status: row.status == null || row.status === '' ? undefined : text(row.status),
+    });
+  }
+  return [...byId.values()].sort((a, b) => a.trading_name.localeCompare(b.trading_name));
+}
+
+export async function foreignStops(
+  companyId: number,
+  jobId: string | null,
+  ids: string[]
+): Promise<{ ok: true; foreign: boolean } | { ok: false; missing: boolean }> {
+  const unique = [...new Set(ids.filter((id) => STOP_UUID.test(id)))];
+  if (!unique.length) return { ok: true, foreign: false };
+  const admin = getSupabaseAdmin();
+  const { data, error } = await admin.from('fg_job_stops').select('id, job_id, company_id').in('id', unique);
+  if (error) return { ok: false, missing: isFleetSchemaMissing(error) };
+  return { ok: true, foreign: stopRowsConflict((data || []) as Array<{ job_id?: string; company_id?: number }>, companyId, jobId) };
 }
 
 export async function customerBelongsToCompany(customerId: number, companyId: number): Promise<boolean> {

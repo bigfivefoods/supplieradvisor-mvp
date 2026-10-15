@@ -43,6 +43,16 @@ export const fleetChipOff =
 export const fleetFocus =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00b4d8] focus-visible:ring-offset-2';
 
+export function FleetAvatar({ name }: { name: string }) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const letters = ((parts[0]?.[0] || '') + (parts.length > 1 ? parts[parts.length - 1]?.[0] || '' : '')).toUpperCase() || '?';
+  return (
+    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#00b4d8] text-[11px] font-black text-[#0f172a]" aria-hidden>
+      {letters}
+    </span>
+  );
+}
+
 export function FleetKicker({ children }: { children: ReactNode }) {
   return (
     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0077b6]">
