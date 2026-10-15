@@ -242,3 +242,7 @@ jobs:
         env:
           FLEET_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fleetgraph
         run: npx --yes tsx lib/fleet/brief114-db.test.ts
+      - name: Run FleetAdvisor compliance database contract
+        env:
+          FLEET_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/fleetgraph
+        run: npx --yes tsx lib/fleet/brief115-db.test.ts
