@@ -4,6 +4,7 @@
  */
 import { emptyFleetBook } from './empty-book';
 import { prdpCategoryMissing } from './compliance';
+import { validatePermitDetail } from './permits';
 import { sastDate } from './format';
 import { assertRealDataAllowed } from './real-data-guard';
 import { allowedOpsForRole } from './roles';
@@ -122,6 +123,14 @@ export function applyFleetOp(book: FleetBook, op: FleetOp, ctx: OpContext, expec
   if (op.op === 'vehicle.set_status') return setStatus(book, op, ctx, expectedUpdatedAt);
   if (op.op === 'driver.upsert') return upsertDriver(book, op, ctx, expectedUpdatedAt);
   if (op.op === 'compliance.upsert') return upsertCompliance(book, op, ctx, expectedUpdatedAt);
+  if (op.op === 'compliance.renew') return renewCompliance(book, op, ctx);
+  if (op.op === 'compliance.bulk_upsert') return bulkCompliance(book, op, ctx);
+  if (op.op === 'trailer.link') return linkTrailer(book, op, ctx);
+  if (op.op === 'trailer.unlink') return unlinkTrailer(book, op, ctx);
+  if (op.op === 'reminder.upsert') return upsertReminder(book, op, ctx, expectedUpdatedAt);
+  if (op.op === 'reminder.archive') return archiveReminder(book, op, ctx, expectedUpdatedAt);
+  if (op.op === 'import.dry_run') return dryRunImport(book, op, ctx);
+  if (op.op === 'import.commit') return commitImport(book, op, ctx);
   if (op.op === 'job.upsert') return upsertJob(book, op, ctx, expectedUpdatedAt);
   if (op.op === 'odometer.add') return addOdometer(book, op, ctx);
   if (op.op === 'cost_entry.add') return addCost(book, op, ctx, false);
@@ -174,6 +183,8 @@ function upsertVehicle(book: FleetBook, op: FleetOp, ctx: OpContext, expected?: 
     tracker_provider: kept('tracker_provider', cleanText(payload.tracker_provider, 80), existing?.tracker_provider || ''),
     notes: kept('notes', cleanText(payload.notes, 2000), existing?.notes || ''),
     archived_at: payload.archived_at ? ctx.now : existing?.archived_at || null,
+    source_system: existing?.source_system ?? null,
+    source_id: existing?.source_id ?? null,
     updated_at: ctx.now,
   };
   const vehicles = existing ? book.vehicles.map((item) => (item.id === row.id ? row : item)) : [...book.vehicles, row];
@@ -250,6 +261,8 @@ function upsertDriver(book: FleetBook, op: FleetOp, ctx: OpContext, expected?: s
     person_id: intOf(op.payload.person_id),
     notes: cleanText(op.payload.notes, 2000),
     archived_at: op.payload.archived_at ? ctx.now : existing?.archived_at || null,
+    source_system: existing?.source_system ?? null,
+    source_id: existing?.source_id ?? null,
     updated_at: ctx.now,
   };
   if (row.archived_at && ctx.role === 'dispatcher') return deny(403, 'You cannot archive a driver.');
@@ -261,8 +274,12 @@ function upsertCompliance(book: FleetBook, op: FleetOp, ctx: OpContext, expected
   const kind = cleanText(op.payload.kind, 40);
   const subject = cleanText(op.payload.subject_kind, 20);
   if (!COMPLIANCE_KIND.has(kind) || !SUBJECT.has(subject)) return deny(400, 'Choose what this date belongs to.');
-  const detail = op.payload.detail && typeof op.payload.detail === 'object' ? (op.payload.detail as Record<string, unknown>) : {};
-  if (prdpCategoryMissing(kind, detail)) return deny(400, 'PrDP needs a category.');
+  let detail = op.payload.detail && typeof op.payload.detail === 'object' ? { ...(op.payload.detail as Record<string, unknown>) } : {};
+  if (kind === 'cross_border_permit' || kind === 'abnormal_permit' || kind === 'prdp') {
+    const permit = validatePermitDetail(kind, detail);
+    if (!permit.ok) return deny(400, permit.error);
+    detail = permit.detail;
+  } else if (prdpCategoryMissing(kind, detail)) return deny(400, 'PrDP needs a category.');
   const subjectId = subject === 'company' ? null : cleanText(op.payload.subject_id, 80) || null;
   const existing =
     book.compliance.find((row) => row.id === op.payload.id) ||
@@ -294,6 +311,7 @@ function upsertCompliance(book: FleetBook, op: FleetOp, ctx: OpContext, expected
     detail,
     status_note: cleanText(op.payload.status_note, 400),
     archived_at: null,
+    renewed_from_id: existing?.renewed_from_id ?? null,
     updated_at: ctx.now,
   };
   const compliance = existing ? book.compliance.map((item) => (item.id === row.id ? row : item)) : [...book.compliance, row];
@@ -702,6 +720,9 @@ function updateSettings(book: FleetBook, op: FleetOp, ctx: OpContext, expected?:
         ? Boolean(op.payload.dispatcher_sees_rates)
         : book.workspace.dispatcher_sees_rates,
     retention_days: ctx.role === 'owner' && 'retention_days' in op.payload ? retention : book.workspace.retention_days,
+    expected_vehicle_kinds: kindsOf(op.payload.expected_vehicle_kinds, book.workspace.expected_vehicle_kinds),
+    expected_driver_kinds: kindsOf(op.payload.expected_driver_kinds, book.workspace.expected_driver_kinds),
+    prdp_gvm_threshold_kg: prdpThreshold(op.payload, book.workspace.prdp_gvm_threshold_kg),
     updated_at: ctx.now,
   };
   if (!['haulier', 'courier', 'bulk', 'in_house', 'mixed'].includes(workspace.operator_type)) return deny(400, 'Choose an operator type.');
@@ -912,6 +933,245 @@ function profileMoney(payload: Record<string, unknown>):
     values[key] = amount;
   }
   return { ok: true, values: values as Record<(typeof OPTIONAL_MONEY)[number], number | null> & Record<(typeof REQUIRED_MONEY)[number], number> };
+}
+
+function kindsOf(value: unknown, current: FleetBook['workspace']['expected_vehicle_kinds']) {
+  if (!Array.isArray(value)) return current;
+  const allowed = new Set([
+    'licence_disc', 'roadworthy', 'operator_card', 'insurance', 'cross_border_permit', 'abnormal_permit', 'other_permit',
+    'driver_licence', 'prdp', 'medical', 'induction', 'other',
+  ]);
+  const next = value.map((item) => String(item)).filter((item) => allowed.has(item));
+  return next as FleetBook['workspace']['expected_vehicle_kinds'];
+}
+
+function prdpThreshold(payload: Record<string, unknown>, current: number | null): number | null {
+  if (!('prdp_gvm_threshold_kg' in payload)) return current;
+  if (payload.prdp_gvm_threshold_kg == null || payload.prdp_gvm_threshold_kg === '') return null;
+  const value = Number(payload.prdp_gvm_threshold_kg);
+  if (!Number.isFinite(value) || value < 0 || value > 100000) return current;
+  return Math.trunc(value);
+}
+
+function renewCompliance(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
+  const prior = book.compliance.find((row) => row.id === op.payload.id && !row.archived_at);
+  if (!prior) return deny(400, 'Choose a date that is still current.');
+  if (prior.subject_kind === 'driver' && ctx.enforceRealData && !book.workspace.real_data_enabled) {
+    return deny(400, 'Demo-data mode is on. Personal details stay off until an owner confirms real data in Settings.');
+  }
+  const expires = plannedDay(op.payload.expires_on, ctx);
+  if (expires === false) return deny(400, 'Check the expiry date.');
+  if (prior.expires_on && expires <= prior.expires_on && op.payload.allow_earlier !== true) {
+    return deny(400, 'The new expiry must be after the current one.');
+  }
+  const issued = op.payload.issued_on == null || op.payload.issued_on === '' ? prior.issued_on : plannedDay(op.payload.issued_on, ctx);
+  if (issued === false) return deny(400, 'Check the issued date.');
+  const item: FleetCompliance = {
+    ...prior,
+    id: id(),
+    reference: 'reference' in op.payload ? cleanText(op.payload.reference, 64) : prior.reference,
+    issued_on: issued,
+    expires_on: expires,
+    archived_at: null,
+    renewed_from_id: prior.id,
+    updated_at: ctx.now,
+  };
+  const compliance = book.compliance.map((row) => (row.id === prior.id ? { ...row, archived_at: ctx.now, updated_at: ctx.now } : row));
+  return done({ ...book, compliance: [...compliance, item] }, ctx, 'compliance.renew', 'compliance', item.id, { kind: item.kind });
+}
+
+function bulkCompliance(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
+  const rows = Array.isArray(op.payload.rows) ? op.payload.rows : null;
+  if (!rows || rows.length > 200) return deny(400, 'Send at most 200 rows.');
+  let next = book;
+  const changed: string[] = [];
+  for (const raw of rows) {
+    if (!raw || typeof raw !== 'object') return deny(400, 'Check the rows.');
+    const payload = raw as Record<string, unknown>;
+    const outcome = upsertCompliance(next, { op: 'compliance.upsert', payload }, ctx, typeof payload.expected_updated_at === 'string' ? payload.expected_updated_at : payload.id ? undefined : null);
+    if (!outcome.ok) return outcome;
+    next = outcome.book;
+    changed.push(outcome.audit.target_id);
+  }
+  return done(next, ctx, 'compliance.bulk_upsert', 'compliance', changed[0] || '', { count: changed.length });
+}
+
+function linkTrailer(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
+  const truck = book.vehicles.find((row) => row.id === op.payload.truck_id && !row.archived_at);
+  const trailer = book.vehicles.find((row) => row.id === op.payload.trailer_id && !row.archived_at);
+  if (!truck || !trailer) return deny(400, 'Choose a truck and a trailer.');
+  if (truck.kind === 'trailer' || trailer.kind !== 'trailer' || truck.id === trailer.id) return deny(400, 'A trailer hitches to a truck, not to another trailer.');
+  const from = plannedDay(op.payload.from_on, ctx);
+  if (from === false) return deny(400, 'Check the start date.');
+  const to = op.payload.to_on == null || op.payload.to_on === '' ? null : plannedDay(op.payload.to_on, ctx);
+  if (to === false) return deny(400, 'Check the end date.');
+  if (to && to < from) return deny(400, 'The end date must be on or after the start date.');
+  const overlap = book.trailer_links.some((link) => {
+    if (link.archived_at || link.trailer_id !== trailer.id) return false;
+    const end = to || '9999-12-31';
+    const otherEnd = link.to_on || '9999-12-31';
+    return from <= otherEnd && link.from_on <= end;
+  });
+  if (overlap) return deny(409, 'That trailer is already hitched to a truck on those dates.');
+  const row = {
+    id: id(),
+    company_id: ctx.companyId,
+    truck_id: truck.id,
+    trailer_id: trailer.id,
+    from_on: from,
+    to_on: to,
+    created_by: ctx.actorId,
+    archived_at: null,
+    updated_at: ctx.now,
+  };
+  return done({ ...book, trailer_links: [...book.trailer_links, row] }, ctx, 'trailer.link', 'trailer_link', row.id, { trailer_id: trailer.id });
+}
+
+function unlinkTrailer(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
+  const link = book.trailer_links.find((row) => row.id === op.payload.id);
+  if (!link) return deny(400, 'Choose a hitch.');
+  const clash = cas(link.updated_at, typeof op.payload.expected_updated_at === 'string' ? op.payload.expected_updated_at : link.updated_at);
+  if (op.payload.expected_updated_at && clash) return clash;
+  const to = plannedDay(op.payload.to_on || todayOf(ctx), ctx);
+  if (to === false) return deny(400, 'Check the end date.');
+  const next = { ...link, to_on: to, updated_at: ctx.now };
+  return done(
+    { ...book, trailer_links: book.trailer_links.map((row) => (row.id === link.id ? next : row)) },
+    ctx,
+    'trailer.unlink',
+    'trailer_link',
+    link.id,
+    {}
+  );
+}
+
+function upsertReminder(book: FleetBook, op: FleetOp, ctx: OpContext, expected?: string | null): OpOutcome {
+  const scope = cleanText(op.payload.scope_kind, 20);
+  if (!['all', 'vehicle', 'driver'].includes(scope)) return deny(400, 'Choose who this reminder covers.');
+  const kind = op.payload.kind == null || op.payload.kind === '' ? null : cleanText(op.payload.kind, 40);
+  if (kind && !COMPLIANCE_KIND.has(kind)) return deny(400, 'Choose a date kind.');
+  const thresholds = Array.isArray(op.payload.thresholds_days) ? op.payload.thresholds_days.map((value) => Number(value)) : [30, 14, 7, 0];
+  if (thresholds.length < 1 || thresholds.length > 6 || thresholds.some((day) => !Number.isInteger(day) || day < 0 || day > 365)) {
+    return deny(400, 'Use 1 to 6 thresholds between 0 and 365.');
+  }
+  for (let index = 1; index < thresholds.length; index += 1) {
+    if (thresholds[index - 1] <= thresholds[index]) return deny(400, 'List thresholds from the longest lead to 0.');
+  }
+  const channels = Array.isArray(op.payload.channels) ? op.payload.channels.map((value) => String(value)) : [];
+  if (channels.some((channel) => channel !== 'email' && channel !== 'push')) return deny(400, 'Choose email, web push, or both.');
+  const members = new Set(book.members.map((member) => member.id));
+  const recipients = Array.isArray(op.payload.recipient_member_ids) ? op.payload.recipient_member_ids.map((value) => String(value)).slice(0, 20) : [];
+  if (recipients.some((id) => !members.has(id))) return deny(400, 'Choose people who belong to this company.');
+  const existing = book.reminders.find((row) => row.id === op.payload.id && !row.archived_at);
+  if (existing && expected) {
+    const clash = cas(existing.updated_at, expected);
+    if (clash) return clash;
+  }
+  const row = {
+    id: existing?.id || id(),
+    company_id: ctx.companyId,
+    scope_kind: scope as 'all' | 'vehicle' | 'driver',
+    kind: kind as FleetCompliance['kind'] | null,
+    thresholds_days: thresholds,
+    channels: channels as Array<'email' | 'push'>,
+    recipient_member_ids: recipients,
+    enabled: Boolean(op.payload.enabled),
+    archived_at: null,
+    updated_at: ctx.now,
+  };
+  const reminders = existing ? book.reminders.map((item) => (item.id === row.id ? row : item)) : [...book.reminders, row];
+  return done({ ...book, reminders }, ctx, 'reminder.upsert', 'reminder', row.id, { scope });
+}
+
+function archiveReminder(book: FleetBook, op: FleetOp, ctx: OpContext, expected?: string | null): OpOutcome {
+  const existing = book.reminders.find((row) => row.id === op.payload.id);
+  if (!existing) return deny(400, 'Choose a reminder.');
+  const clash = cas(existing.updated_at, expected);
+  if (expected && clash) return clash;
+  const row = { ...existing, archived_at: ctx.now, updated_at: ctx.now };
+  return done({ ...book, reminders: book.reminders.map((item) => (item.id === row.id ? row : item)) }, ctx, 'reminder.archive', 'reminder', row.id, {});
+}
+
+function dryRunImport(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
+  const kind = cleanText(op.payload.kind, 40);
+  if (!importAllowed(kind, ctx.role)) return deny(403, 'You cannot import that.');
+  const counts = op.payload.summary && typeof op.payload.summary === 'object' ? (op.payload.summary as Record<string, number>) : {};
+  const run = {
+    id: id(),
+    company_id: ctx.companyId,
+    kind: kind as FleetBook['import_runs'][number]['kind'],
+    status: 'dry_run' as const,
+    row_counts: {
+      create: Number(counts.create || 0),
+      link: Number(counts.link || 0),
+      fill: Number(counts.fill || 0),
+      errors: Number(counts.errors || 0),
+    },
+    source_hash: cleanText(op.payload.source_hash, 80),
+    source_label: cleanText(op.payload.source_label, 120),
+    created_by: ctx.actorId,
+    dry_run: true,
+    committed_at: null,
+    created_at: ctx.now,
+  };
+  return done({ ...book, import_runs: [run, ...book.import_runs] }, ctx, 'import.dry_run', 'import', run.id, { kind });
+}
+
+function commitImport(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
+  const kind = cleanText(op.payload.kind, 40);
+  if (!importAllowed(kind, ctx.role)) return deny(403, 'You cannot import that.');
+  const hash = cleanText(op.payload.source_hash, 80);
+  if (!hash) return deny(400, 'Run a dry run first.');
+  const fresh = book.import_runs.find((run) => run.dry_run && run.source_hash === hash && run.kind === kind && run.company_id === ctx.companyId);
+  if (!fresh) return deny(400, 'Run a dry run first.');
+  const age = Date.parse(ctx.now) - Date.parse(fresh.created_at);
+  if (!Number.isFinite(age) || age > 60 * 60 * 1000) return deny(400, 'That dry run is no longer fresh. Run it again.');
+  if (book.import_runs.some((run) => !run.dry_run && run.status === 'committed' && run.source_hash === hash && run.kind === kind)) {
+    return { ok: true, book, audit: { action: 'import.commit', target_kind: 'import', target_id: fresh.id, payload: { already_imported: true } } };
+  }
+  const plans = Array.isArray(op.payload.plans) ? op.payload.plans : [];
+  if (plans.length > 500) return deny(400, 'That file has too many rows.');
+  let next = book;
+  for (const plan of plans) {
+    if (!plan || typeof plan !== 'object') return deny(400, 'Check the rows.');
+    const row = plan as { action?: string; vehicle?: FleetVehicle; driver?: FleetDriver; item?: FleetCompliance };
+    if (row.vehicle) {
+      const vehicles = next.vehicles.some((item) => item.id === row.vehicle!.id)
+        ? next.vehicles.map((item) => (item.id === row.vehicle!.id ? { ...item, ...row.vehicle, company_id: ctx.companyId } : item))
+        : [...next.vehicles, { ...row.vehicle, company_id: ctx.companyId }];
+      next = { ...next, vehicles };
+    } else if (row.driver) {
+      const drivers = next.drivers.some((item) => item.id === row.driver!.id)
+        ? next.drivers.map((item) => (item.id === row.driver!.id ? { ...item, ...row.driver, company_id: ctx.companyId } : item))
+        : [...next.drivers, { ...row.driver, company_id: ctx.companyId }];
+      next = { ...next, drivers };
+    } else if (row.item) {
+      const compliance = next.compliance.some((item) => item.id === row.item!.id)
+        ? next.compliance.map((item) => (item.id === row.item!.id ? { ...item, ...row.item, company_id: ctx.companyId } : item))
+        : [...next.compliance, { ...row.item, company_id: ctx.companyId }];
+      next = { ...next, compliance };
+    }
+  }
+  const run = {
+    id: id(),
+    company_id: ctx.companyId,
+    kind: kind as FleetBook['import_runs'][number]['kind'],
+    status: 'committed' as const,
+    row_counts: { rows: plans.length },
+    source_hash: hash,
+    source_label: cleanText(op.payload.source_label, 120),
+    created_by: ctx.actorId,
+    dry_run: false,
+    committed_at: ctx.now,
+    created_at: ctx.now,
+  };
+  return done({ ...next, import_runs: [run, ...next.import_runs] }, ctx, 'import.commit', 'import', run.id, { kind, rows: plans.length });
+}
+
+function importAllowed(kind: string, role: FleetRole): boolean {
+  if (kind === 'ship_vehicles' || kind === 'ship_drivers') return role === 'owner';
+  if (kind === 'vehicles_csv' || kind === 'drivers_csv' || kind === 'compliance_csv') return role === 'owner' || role === 'manager';
+  return false;
 }
 
 export function cloneBook(book: FleetBook = emptyFleetBook()): FleetBook {

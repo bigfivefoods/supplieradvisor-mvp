@@ -6,7 +6,7 @@ import { emptyFleetBook } from '@/lib/fleet/empty-book';
 import { sastDate } from '@/lib/fleet/format';
 import type { PeriodId } from '@/lib/fleet/periods';
 import { capabilitiesFor } from '@/lib/fleet/roles';
-import type { FleetBook, FleetOp, FleetRole } from '@/lib/fleet/types';
+import type { FleetBook, FleetOp, FleetReadiness, FleetRole } from '@/lib/fleet/types';
 import { fleetBtn, fleetFocus } from './FleetUi';
 import { FleetDesk, type FleetScreen } from './FleetViews';
 
@@ -15,14 +15,16 @@ type Payload = {
   reason?: string;
   role?: FleetRole;
   book?: FleetBook & { cpk?: unknown };
+  readiness?: FleetReadiness;
   error?: string;
 };
 
-export function FleetLive({ screen }: { screen: FleetScreen }) {
+export function FleetLive({ screen, subjectId }: { screen: FleetScreen; subjectId?: string }) {
   const [phase, setPhase] = useState<'loading' | 'error' | 'ready'>('loading');
   const [book, setBook] = useState<FleetBook>(emptyFleetBook());
   const [role, setRole] = useState<FleetRole>('viewer');
   const [pending, setPending] = useState(false);
+  const [readiness, setReadiness] = useState<FleetReadiness | undefined>(undefined);
   const [notice, setNotice] = useState<string | null>(null);
   const [periodId, setPeriodId] = useState<PeriodId>('last');
   const today = sastDate(new Date()) || '2024-07-02';
@@ -50,6 +52,7 @@ export function FleetLive({ screen }: { screen: FleetScreen }) {
       delete (next as FleetBook & { cpk?: unknown }).cpk;
       setBook(next);
       setRole(body.role || 'viewer');
+      setReadiness(body.readiness);
       setPending(false);
       setPhase('ready');
     }
@@ -81,6 +84,7 @@ export function FleetLive({ screen }: { screen: FleetScreen }) {
       delete (next as FleetBook & { cpk?: unknown }).cpk;
       setBook(next);
       setRole(body.role || role);
+      if (body.readiness) setReadiness(body.readiness);
       setNotice(null);
     }
     return true;
@@ -108,6 +112,8 @@ export function FleetLive({ screen }: { screen: FleetScreen }) {
         today={today}
         notice={notice}
         migrationPending={pending}
+        subjectId={subjectId}
+        readiness={readiness}
         onPeriod={setPeriodId}
         onRetry={() => {
           setNotice(null);

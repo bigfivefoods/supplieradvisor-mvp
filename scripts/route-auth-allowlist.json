@@ -24,5 +24,6 @@
   { "route": "/api/push/vapid-public-key", "methods": ["GET"], "reason": "Public VAPID key" },
   { "route": "/api/reseller/invite", "methods": ["GET"], "reason": "Token-based invite preview is intentionally public" },
   { "route": "/api/banking/cron-sync", "methods": ["GET", "POST"], "reason": "Cron secret protected sync endpoint" },
+  { "route": "/api/fleet/fleetgraph/cron/reminders", "methods": ["GET", "POST"], "reason": "FleetAdvisor® reminder cron. Secret check runs before any company work." },
   { "route": "/api/banking/webhooks/banklink", "methods": ["GET", "POST"], "reason": "Banking webhook" }
 ]

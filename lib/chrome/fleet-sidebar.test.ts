@@ -24,12 +24,14 @@ const expected = [
   ['Fleet', 'Fleet map', '/dashboard/fleetgraph/map', undefined],
   ['Fleet', 'Vehicles', '/dashboard/fleetgraph/vehicles', undefined],
   ['Fleet', 'Drivers', '/dashboard/fleetgraph/drivers', undefined],
+  ['Fleet', 'Compliance', '/dashboard/fleetgraph/compliance', undefined],
   ['Work', 'Jobs', '/dashboard/fleetgraph/jobs', undefined],
   ['Insights', 'CPK', '/dashboard/fleetgraph/cpk', undefined],
+  ['Setup', 'Import', '/dashboard/fleetgraph/import', undefined],
   ['Setup', 'Settings', '/dashboard/fleetgraph/settings', undefined],
 ] as const;
 
-assert.equal(fleet!.steps.length, 7);
+assert.equal(fleet!.steps.length, 9);
 assert.deepEqual(
   fleet!.steps.map((step) => [step.section, step.name, step.href, step.exact]),
   expected.map((row) => [row[0], row[1], row[2], row[3]])

@@ -23,6 +23,24 @@ function carriesPersonal(op: FleetOp): boolean {
   if (op.op === 'driver.upsert') {
     return Boolean(text(payload.full_name) || text(payload.phone) || text(payload.email));
   }
+  if (op.op === 'compliance.upsert' || op.op === 'compliance.renew') {
+    return text(payload.subject_kind) === 'driver';
+  }
+  if (op.op === 'compliance.bulk_upsert' && Array.isArray(payload.rows)) {
+    return payload.rows.some((row) => row && typeof row === 'object' && text((row as { subject_kind?: unknown }).subject_kind) === 'driver');
+  }
+  if (op.op === 'import.commit') {
+    const kind = text(payload.kind);
+    if (kind === 'drivers_csv' || kind === 'ship_drivers') return true;
+    const plans = Array.isArray(payload.plans) ? payload.plans : Array.isArray(payload.rows) ? payload.rows : [];
+    if (kind === 'compliance_csv') {
+      return plans.some((row) => {
+        if (!row || typeof row !== 'object') return false;
+        const item = (row as { item?: { subject_kind?: unknown }; subject_kind?: unknown }).item;
+        return text(item?.subject_kind || (row as { subject_kind?: unknown }).subject_kind) === 'driver';
+      });
+    }
+  }
   if (op.op === 'job.upsert' && Array.isArray(payload.stops)) {
     return payload.stops.some((stop) => {
       if (!stop || typeof stop !== 'object') return false;

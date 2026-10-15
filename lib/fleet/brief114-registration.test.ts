@@ -68,6 +68,7 @@ assert.equal(skin?.brandDeep, '#0077b6');
 
 const fleetNav = MODULE_NAV.find((mod) => mod.id === 'fleetgraph');
 assert.equal(fleetNav?.name, 'FleetAdvisor®');
+assert.equal(fleetNav?.steps.length, 9);
 const icons = MODULE_NAV.map((mod) => mod.icon);
 assert.equal(new Set(icons).size, icons.length);
 

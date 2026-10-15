@@ -75,7 +75,19 @@ jobs:
             lib/fleet/brief114-brand.test.ts \
             lib/fleet/brief114-ui-parity.test.ts \
             lib/fleet/brief114-preview.test.ts \
-            lib/fleet/brief114-ops.test.ts
+            lib/fleet/brief114-ops.test.ts \
+            lib/fleet/brief115-assignable.test.ts \
+            lib/fleet/brief115-compliance-centre.test.ts \
+            lib/fleet/brief115-reminders.test.ts \
+            lib/fleet/brief115-cron-route.test.ts \
+            lib/fleet/brief115-csv.test.ts \
+            lib/fleet/brief115-import.test.ts \
+            lib/fleet/brief115-permits.test.ts \
+            lib/fleet/brief115-roles.test.ts \
+            lib/fleet/brief115-api-security.test.ts \
+            lib/fleet/brief115-brand.test.ts \
+            lib/fleet/brief115-ui-parity.test.ts \
+            lib/fleet/brief115-root-layout.test.ts
           do
             npx --yes tsx "$file"
           done
