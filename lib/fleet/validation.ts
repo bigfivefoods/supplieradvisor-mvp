@@ -94,10 +94,11 @@ export function isSaIdNumber(digits: string): boolean {
   return sum % 10 === 0;
 }
 
-/** Refuse a real SA ID and licence or passport phrases. A long reference is not an ID. */
+/** Refuse any 13-digit run and licence or passport phrases. A mistype must not slip through. */
 export function assertNoIdentityText(value: string): FieldError {
-  const tokens = value.match(/(?<!\d)\d{13}(?!\d)/g) || [];
-  if (tokens.some((token) => isSaIdNumber(token))) return fail('Remove the identity number. This desk does not store it.');
+  if (/(?<!\d)\d{13}(?!\d)/.test(value)) {
+    return fail('Remove the 13-digit number. This desk does not store identity numbers.');
+  }
   if (/\b(passport|licence|license)\s*(number|no\.?|#)/i.test(value)) {
     return fail('Remove the licence or passport number. This desk does not store it.');
   }

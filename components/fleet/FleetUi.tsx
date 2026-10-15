@@ -37,9 +37,9 @@ export const fleetLabel = 'block text-xs font-bold text-slate-700';
 /** Deep cyan on white. Cyan #00b4d8 text on white is 2.46:1. */
 export const fleetLink = 'text-sm font-bold text-[#0077b6]';
 export const fleetChipOn =
-  'shrink-0 rounded-2xl bg-[#00b4d8] px-3 py-2 text-xs font-black text-[#0f172a] shadow-sm';
+  'shrink-0 whitespace-nowrap rounded-2xl bg-[#00b4d8] px-2.5 py-2 text-xs font-black text-[#0f172a] shadow-sm';
 export const fleetChipOff =
-  'shrink-0 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:border-slate-300';
+  'shrink-0 whitespace-nowrap rounded-2xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:border-slate-300';
 export const fleetFocus =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00b4d8] focus-visible:ring-offset-2';
 
@@ -89,12 +89,21 @@ export function FleetPageHead({
   );
 }
 
+const STAT_TONE = {
+  navy: 'border-[#0f172a] bg-[#0f172a] text-white',
+  cyan: 'border-[#00b4d8] bg-[#00b4d8]/20 text-[#0f172a]',
+  deep: 'border-[#0077b6]/50 bg-[#0077b6]/10 text-[#0f172a]',
+  slate: 'border-slate-300 bg-slate-100 text-[#0f172a]',
+  white: 'border-[#0f172a]/15 bg-white text-[#0f172a]',
+} as const;
+
 export function FleetStat({
   value,
   label,
   hint,
   testId,
   icon,
+  tone = 'cyan',
   className = '',
 }: {
   value: ReactNode;
@@ -102,14 +111,19 @@ export function FleetStat({
   hint?: string;
   testId?: string;
   icon?: ReactNode;
+  tone?: keyof typeof STAT_TONE;
   className?: string;
 }) {
+  const ink = tone === 'navy' ? 'text-white' : 'text-[#0f172a]';
+  const muted = tone === 'navy' ? 'text-white/80' : 'text-slate-600';
   return (
-    <div className={`rounded-2xl border border-[#00b4d8]/40 bg-[#00b4d8]/10 px-3 py-3 text-center shadow-sm ${className}`} data-testid={testId}>
-      {icon ? <div className="mb-1 flex justify-center text-[#0077b6]">{icon}</div> : null}
-      <p className="truncate text-xl font-black tabular-nums text-slate-900">{value}</p>
-      <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
-      {hint ? <p className="mt-1 text-[11px] leading-snug text-slate-500">{hint}</p> : null}
+    <div className={`flex items-start justify-between gap-2 rounded-2xl border px-3 py-3 text-left shadow-sm ${STAT_TONE[tone]} ${className}`} data-testid={testId}>
+      <div className="min-w-0">
+        <p className={`truncate text-xl font-black tabular-nums ${ink}`}>{value}</p>
+        <p className={`mt-0.5 text-[10px] font-bold uppercase tracking-wide ${muted}`}>{label}</p>
+        {hint ? <p className={`mt-1 text-[11px] leading-snug ${muted}`}>{hint}</p> : null}
+      </div>
+      {icon ? <div className={`shrink-0 ${tone === 'navy' ? 'text-white' : 'text-[#0077b6]'}`}>{icon}</div> : null}
     </div>
   );
 }
@@ -119,14 +133,16 @@ export function FleetSection({
   hint,
   action,
   children,
+  card = false,
 }: {
   title: string;
   hint?: string;
   action?: ReactNode;
   children?: ReactNode;
+  card?: boolean;
 }) {
   return (
-    <section className="min-w-0">
+    <section className={card ? fleetCardPad : 'min-w-0'}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-base font-black text-slate-900">{title}</h2>
@@ -313,7 +329,7 @@ export function FleetSegmented({
 }) {
   return (
     <div className="min-w-0" role="tablist" aria-label={label}>
-      <div className="flex gap-2 overflow-x-auto">
+      <div className="flex w-full min-w-0 gap-1.5 overflow-x-auto pb-1">
         {options.map((option) => {
           const on = option.id === value;
           return (

@@ -450,13 +450,30 @@ CREATE TABLE IF NOT EXISTS public.fg_portal_attempts (
 CREATE INDEX IF NOT EXISTS fg_portal_attempts_window ON public.fg_portal_attempts (company_id, at);
 CREATE INDEX IF NOT EXISTS fg_portal_attempts_key ON public.fg_portal_attempts (company_id, scope, key_hash, at);
 
+CREATE TABLE IF NOT EXISTS public.fg_erase_guard (
+  id integer PRIMARY KEY,
+  token text
+);
+
 CREATE OR REPLACE FUNCTION public.fg_forbid_mutation()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+DECLARE
+  v_token text;
+  v_guard text;
 BEGIN
+  IF TG_OP = 'DELETE' THEN
+    v_token := NULLIF(pg_catalog.current_setting('fg.erase_token', true), '');
+    IF v_token IS NOT NULL THEN
+      SELECT g.token INTO v_guard FROM public.fg_erase_guard AS g WHERE g.id = 1;
+      IF v_guard IS NOT NULL AND length(v_guard) >= 32 AND v_token = v_guard THEN
+        RETURN OLD;
+      END IF;
+    END IF;
+  END IF;
   RAISE EXCEPTION 'fg_append_only' USING ERRCODE = '42501';
 END;
 $$;
@@ -647,21 +664,6 @@ BEGIN
       ADD CONSTRAINT fg_telematics_company_vehicle
       FOREIGN KEY (company_id, vehicle_id) REFERENCES public.fg_vehicles (company_id, id) ON DELETE CASCADE;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fg_jobs_company_vehicle') THEN
-    ALTER TABLE public.fg_jobs
-      ADD CONSTRAINT fg_jobs_company_vehicle
-      FOREIGN KEY (company_id, vehicle_id) REFERENCES public.fg_vehicles (company_id, id) ON DELETE SET NULL;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fg_jobs_company_driver') THEN
-    ALTER TABLE public.fg_jobs
-      ADD CONSTRAINT fg_jobs_company_driver
-      FOREIGN KEY (company_id, driver_id) REFERENCES public.fg_drivers (company_id, id) ON DELETE SET NULL;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fg_cost_entries_company_driver') THEN
-    ALTER TABLE public.fg_cost_entries
-      ADD CONSTRAINT fg_cost_entries_company_driver
-      FOREIGN KEY (company_id, driver_id) REFERENCES public.fg_drivers (company_id, id) ON DELETE SET NULL;
-  END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fg_job_stops_company_job') THEN
     ALTER TABLE public.fg_job_stops
       ADD CONSTRAINT fg_job_stops_company_job
@@ -669,6 +671,21 @@ BEGIN
   END IF;
 END
 $fk$;
+
+ALTER TABLE public.fg_jobs DROP CONSTRAINT IF EXISTS fg_jobs_company_vehicle;
+ALTER TABLE public.fg_jobs
+  ADD CONSTRAINT fg_jobs_company_vehicle
+  FOREIGN KEY (company_id, vehicle_id) REFERENCES public.fg_vehicles (company_id, id) ON DELETE SET NULL (vehicle_id);
+
+ALTER TABLE public.fg_jobs DROP CONSTRAINT IF EXISTS fg_jobs_company_driver;
+ALTER TABLE public.fg_jobs
+  ADD CONSTRAINT fg_jobs_company_driver
+  FOREIGN KEY (company_id, driver_id) REFERENCES public.fg_drivers (company_id, id) ON DELETE SET NULL (driver_id);
+
+ALTER TABLE public.fg_cost_entries DROP CONSTRAINT IF EXISTS fg_cost_entries_company_driver;
+ALTER TABLE public.fg_cost_entries
+  ADD CONSTRAINT fg_cost_entries_company_driver
+  FOREIGN KEY (company_id, driver_id) REFERENCES public.fg_drivers (company_id, id) ON DELETE SET NULL (driver_id);
 
 ALTER TABLE public.fg_job_stops DROP CONSTRAINT IF EXISTS fg_job_stops_seq;
 ALTER TABLE public.fg_job_stops
@@ -740,51 +757,40 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+DECLARE
+  v_token text;
 BEGIN
   IF p_company_id IS NULL OR p_company_id <= 0 THEN
     RAISE EXCEPTION 'fg_erase_closed' USING ERRCODE = '22023';
   END IF;
-  ALTER TABLE public.fg_audit_log DISABLE TRIGGER USER;
-  ALTER TABLE public.fg_cost_entries DISABLE TRIGGER USER;
-  ALTER TABLE public.fg_odometer_readings DISABLE TRIGGER USER;
-  ALTER TABLE public.fg_vehicle_status_events DISABLE TRIGGER USER;
-  ALTER TABLE public.fg_position_events DISABLE TRIGGER USER;
-  BEGIN
-    DELETE FROM public.fg_job_stops WHERE company_id = p_company_id;
-    DELETE FROM public.fg_cost_entries WHERE company_id = p_company_id AND reverses_id IS NOT NULL;
-    DELETE FROM public.fg_cost_entries WHERE company_id = p_company_id;
-    DELETE FROM public.fg_odometer_readings WHERE company_id = p_company_id;
-    DELETE FROM public.fg_vehicle_status_events WHERE company_id = p_company_id;
-    DELETE FROM public.fg_position_events WHERE company_id = p_company_id;
-    DELETE FROM public.fg_audit_log WHERE company_id = p_company_id;
-    DELETE FROM public.fg_cost_profiles WHERE company_id = p_company_id;
-    DELETE FROM public.fg_compliance_items WHERE company_id = p_company_id;
-    DELETE FROM public.fg_overhead_pools WHERE company_id = p_company_id;
-    DELETE FROM public.fg_cpk_targets WHERE company_id = p_company_id;
-    DELETE FROM public.fg_telematics_links WHERE company_id = p_company_id;
-    DELETE FROM public.fg_import_runs WHERE company_id = p_company_id;
-    DELETE FROM public.fg_portal_attempts WHERE company_id = p_company_id;
-    DELETE FROM public.fg_portal_sessions WHERE company_id = p_company_id;
-    DELETE FROM public.fg_portal_otps WHERE company_id = p_company_id;
-    DELETE FROM public.fg_portal_invites WHERE company_id = p_company_id;
-    DELETE FROM public.fg_jobs WHERE company_id = p_company_id;
-    DELETE FROM public.fg_drivers WHERE company_id = p_company_id;
-    DELETE FROM public.fg_vehicles WHERE company_id = p_company_id;
-    DELETE FROM public.fg_counters WHERE company_id = p_company_id;
-    DELETE FROM public.fg_workspaces WHERE company_id = p_company_id;
-    ALTER TABLE public.fg_audit_log ENABLE TRIGGER USER;
-    ALTER TABLE public.fg_cost_entries ENABLE TRIGGER USER;
-    ALTER TABLE public.fg_odometer_readings ENABLE TRIGGER USER;
-    ALTER TABLE public.fg_vehicle_status_events ENABLE TRIGGER USER;
-    ALTER TABLE public.fg_position_events ENABLE TRIGGER USER;
-  EXCEPTION WHEN OTHERS THEN
-    ALTER TABLE public.fg_audit_log ENABLE TRIGGER USER;
-    ALTER TABLE public.fg_cost_entries ENABLE TRIGGER USER;
-    ALTER TABLE public.fg_odometer_readings ENABLE TRIGGER USER;
-    ALTER TABLE public.fg_vehicle_status_events ENABLE TRIGGER USER;
-    ALTER TABLE public.fg_position_events ENABLE TRIGGER USER;
-    RAISE;
-  END;
+  v_token := gen_random_uuid()::text || gen_random_uuid()::text;
+  INSERT INTO public.fg_erase_guard (id, token) VALUES (1, v_token)
+  ON CONFLICT (id) DO UPDATE SET token = EXCLUDED.token;
+  PERFORM set_config('fg.erase_token', v_token, true);
+  DELETE FROM public.fg_job_stops WHERE company_id = p_company_id;
+  DELETE FROM public.fg_cost_entries WHERE company_id = p_company_id AND reverses_id IS NOT NULL;
+  DELETE FROM public.fg_cost_entries WHERE company_id = p_company_id;
+  DELETE FROM public.fg_odometer_readings WHERE company_id = p_company_id;
+  DELETE FROM public.fg_vehicle_status_events WHERE company_id = p_company_id;
+  DELETE FROM public.fg_position_events WHERE company_id = p_company_id;
+  DELETE FROM public.fg_audit_log WHERE company_id = p_company_id;
+  DELETE FROM public.fg_cost_profiles WHERE company_id = p_company_id;
+  DELETE FROM public.fg_compliance_items WHERE company_id = p_company_id;
+  DELETE FROM public.fg_overhead_pools WHERE company_id = p_company_id;
+  DELETE FROM public.fg_cpk_targets WHERE company_id = p_company_id;
+  DELETE FROM public.fg_telematics_links WHERE company_id = p_company_id;
+  DELETE FROM public.fg_import_runs WHERE company_id = p_company_id;
+  DELETE FROM public.fg_portal_attempts WHERE company_id = p_company_id;
+  DELETE FROM public.fg_portal_sessions WHERE company_id = p_company_id;
+  DELETE FROM public.fg_portal_otps WHERE company_id = p_company_id;
+  DELETE FROM public.fg_portal_invites WHERE company_id = p_company_id;
+  DELETE FROM public.fg_jobs WHERE company_id = p_company_id;
+  DELETE FROM public.fg_drivers WHERE company_id = p_company_id;
+  DELETE FROM public.fg_vehicles WHERE company_id = p_company_id;
+  DELETE FROM public.fg_counters WHERE company_id = p_company_id;
+  DELETE FROM public.fg_workspaces WHERE company_id = p_company_id;
+  UPDATE public.fg_erase_guard SET token = NULL WHERE id = 1;
+  PERFORM set_config('fg.erase_token', '', true);
 END;
 $$;
 
@@ -959,6 +965,12 @@ BEGIN
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname LIKE 'fg\_%'
   LOOP
+    IF rel.relname = 'fg_erase_guard' THEN
+      EXECUTE 'ALTER TABLE public.fg_erase_guard ENABLE ROW LEVEL SECURITY';
+      EXECUTE 'ALTER TABLE public.fg_erase_guard FORCE ROW LEVEL SECURITY';
+      EXECUTE 'REVOKE ALL ON TABLE public.fg_erase_guard FROM PUBLIC, anon, authenticated, fleet_portal, service_role';
+      CONTINUE;
+    END IF;
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', rel.relname);
     EXECUTE format('ALTER TABLE public.%I FORCE ROW LEVEL SECURITY', rel.relname);
     EXECUTE format('DROP POLICY IF EXISTS sa_deny_anon ON public.%I', rel.relname);
@@ -1005,3 +1017,5 @@ BEGIN
   END LOOP;
 END
 $lock$;
+
+REVOKE ALL ON TABLE public.fg_erase_guard FROM PUBLIC, anon, authenticated, fleet_portal, service_role;

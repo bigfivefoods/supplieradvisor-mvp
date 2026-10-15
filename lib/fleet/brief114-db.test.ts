@@ -234,7 +234,17 @@ assert.equal(psql(`SELECT count(*) FROM public.fg_vehicles WHERE company_id = 88
 assert.equal(psql(`SELECT count(*) FROM public.fg_cost_entries WHERE company_id = 88002;`), '0');
 assert.equal(psql(`SELECT count(*) FROM public.fg_audit_log WHERE company_id = 88002;`), '0');
 fails(`BEGIN; SELECT set_config('fg.erasing', 'on', true); DELETE FROM public.fg_audit_log WHERE company_id = 1; COMMIT;`, /fg_append_only/);
+fails(`BEGIN; SET ROLE service_role; SELECT set_config('fg.erase_token', 'forged-token-that-is-long-enough-for-the-check', true); DELETE FROM public.fg_audit_log WHERE company_id = 1; COMMIT;`, /fg_append_only/);
+fails(`SET ROLE service_role; UPDATE public.fg_erase_guard SET token = 'forged';`, /permission denied/i);
 fails(`SET ROLE service_role; ALTER TABLE public.fg_audit_log DISABLE TRIGGER USER;`, /permission denied|must be owner/i);
+psql(`INSERT INTO public.profiles (id) VALUES (88004);`);
+const otherVehicle = psql(`INSERT INTO public.fg_vehicles (company_id, reg_no) VALUES (1, 'STAY 1') RETURNING id;`);
+psql(`INSERT INTO public.fg_audit_log (company_id, actor_kind, actor_id, action, target_kind, target_id) VALUES (88004, 'staff', 'u', 'hold', 'vehicle', '${otherVehicle}');`);
+const heldErase = psqlAsync(`BEGIN; SELECT public.fg_erase_company(88004); SELECT pg_sleep(2); COMMIT;`);
+await new Promise((resolvePromise) => setTimeout(resolvePromise, 300));
+const during = await psqlAsync(`SET statement_timeout = '1500ms'; INSERT INTO public.fg_audit_log (company_id, actor_kind, actor_id, action, target_kind, target_id) VALUES (1, 'staff', 'other', 'during-erase', 'vehicle', '${otherVehicle}') RETURNING action;`);
+assert.equal(during, 'during-erase');
+await heldErase;
 fails(`SELECT public.fg_erase_company(NULL);`, /fg_erase_closed/);
 
 psql(`INSERT INTO public.profiles (id) VALUES (88003);`);
@@ -354,6 +364,12 @@ psql(`SELECT public.fg_commit_diff(1, jsonb_build_object(
   ))
 ));`);
 assert.equal(psql(`SELECT place_name FROM public.fg_job_stops WHERE job_id = '${jobId}' ORDER BY seq;`), 'A\nC');
+assert.match(psql(`SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'fg_jobs_company_vehicle';`), /ON DELETE SET NULL \(vehicle_id\)/);
+assert.match(psql(`SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'fg_jobs_company_driver';`), /ON DELETE SET NULL \(driver_id\)/);
+const linkVehicle = psql(`INSERT INTO public.fg_vehicles (company_id, reg_no) VALUES (1, 'LINK 1') RETURNING id;`);
+psql(`UPDATE public.fg_jobs SET vehicle_id = '${linkVehicle}' WHERE id = '${jobId}';`);
+psql(`DELETE FROM public.fg_vehicles WHERE id = '${linkVehicle}';`);
+assert.equal(psql(`SELECT company_id::text || ':' || COALESCE(vehicle_id::text, 'null') FROM public.fg_jobs WHERE id = '${jobId}';`), '1:null');
 
 fails(
   `INSERT INTO public.fg_jobs (company_id, reference, customer_id) VALUES (1, 'CROSS', 2);`,

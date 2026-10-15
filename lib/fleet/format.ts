@@ -80,9 +80,20 @@ function shiftSast(iso: string): string {
  * Empty, non-numeric, and non-finite values are null, never zero.
  */
 export function centsFromRand(value: number | string): number | null {
-  if (typeof value === 'number' && !Number.isFinite(value)) return null;
-  const raw = (typeof value === 'number' ? value.toFixed(8) : String(value)).trim();
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return null;
+    return centsFromRand(value.toFixed(8));
+  }
+  let raw = String(value).trim().replace(/[\s\u00a0\u202f]/g, '');
   if (!raw) return null;
+  const lastComma = raw.lastIndexOf(',');
+  const lastDot = raw.lastIndexOf('.');
+  if (lastComma >= 0 && lastDot >= 0) {
+    raw = lastComma > lastDot ? raw.replace(/\./g, '').replace(',', '.') : raw.replace(/,/g, '');
+  } else if (lastComma >= 0) {
+    const frac = raw.slice(lastComma + 1);
+    raw = /^\d{1,2}$/.test(frac) && raw.indexOf(',') === lastComma ? `${raw.slice(0, lastComma)}.${frac}` : raw.replace(/,/g, '');
+  }
   const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(raw);
   if (!match) return null;
   const sign = match[1] === '-' ? -1 : 1;
@@ -90,7 +101,8 @@ export function centsFromRand(value: number | string): number | null {
   let cents = Number(match[2]) * 100 + Number(frac.slice(0, 2));
   if (Number(frac[2] || '0') >= 5) cents += 1;
   if (!Number.isSafeInteger(cents)) return null;
-  return sign * cents;
+  const signed = sign * cents;
+  return signed === 0 ? 0 : signed;
 }
 
 export function randFromCents(cents: number | null | undefined): number | null {

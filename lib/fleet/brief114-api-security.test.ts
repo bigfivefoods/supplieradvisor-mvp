@@ -41,13 +41,20 @@ for (const file of [...walk('components/fleet'), ...walk('app/dashboard/fleetgra
   assert.equal(src.includes('fleetgraph-db'), false, file);
 }
 
+assert.equal(isFleetSchemaMissing({ code: '42P01', message: 'relation does not exist' }), true);
 assert.equal(isFleetSchemaMissing({ code: '42P01', message: 'relation "public.fg_vehicles" does not exist' }), true);
 assert.equal(isFleetSchemaMissing({ code: '42P01', message: 'relation "public.profiles" does not exist' }), false);
-assert.equal(isFleetSchemaMissing({ code: 'PGRST205', message: 'schema cache' }), false);
-assert.equal(isFleetSchemaMissing({ code: '42883', message: 'function public.fg_commit_diff() does not exist' }), true);
-assert.equal(isFleetSchemaMissing({ code: '42883', message: 'undefined function' }), false);
-assert.equal(isFleetSchemaMissing({ code: 'PGRST202', message: 'could not find the function' }), false);
+assert.equal(isFleetSchemaMissing({ code: 'PGRST205', message: 'schema cache' }), true);
+assert.equal(isFleetSchemaMissing({ code: 'PGRST205', message: "Could not find the table 'public.fg_vehicles' in the schema cache" }), true);
+assert.equal(isFleetSchemaMissing({ code: '42883', message: 'undefined function' }), true);
+assert.equal(isFleetSchemaMissing({ code: '42883', message: 'function public.fg_commit_diff(bigint, jsonb) does not exist' }), true);
+assert.equal(isFleetSchemaMissing({ code: 'PGRST202', message: 'could not find the function' }), true);
+assert.equal(
+  isFleetSchemaMissing({ code: 'PGRST202', message: 'Could not find the function public.fg_commit_diff(p_company_id, p_diff) in the schema cache' }),
+  true
+);
 assert.ok(route.indexOf('applyFleetOp') < route.indexOf('nextJobNumber'));
+assert.equal(route.includes('if (needsNumber || needsCustomer)'), false);
 assert.equal(isFleetSchemaMissing({ code: '23505', message: 'duplicate key' }), false);
 assert.equal(isFleetSchemaMissing(null), false);
 

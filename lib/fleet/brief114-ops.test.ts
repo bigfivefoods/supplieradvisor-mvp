@@ -118,15 +118,13 @@ assert.equal(again.book.compliance.filter((row) => row.kind === 'driver_licence'
 assert.equal(again.book.compliance[0].expires_on, '2028-01-01');
 
 const blankJob = applyFleetOp(again.book, { op: 'job.upsert', payload: { status: 'draft', stops: [] } }, ctx);
-assert.equal(blankJob.ok, true);
-if (!blankJob.ok) throw new Error('job');
-assert.equal(blankJob.book.jobs[0].customer_name, '');
-assert.equal(JSON.stringify(blankJob.book.jobs).includes('Sample Retailer'), false);
-assert.equal(JSON.stringify(blankJob.book.stops).includes('Sample Depot'), false);
+assert.equal(blankJob.ok, false);
+if (blankJob.ok) throw new Error('job');
+assert.equal(blankJob.status, 400);
 
 const vehicleId = dated.vehicles[0].id;
 const fuel = applyFleetOp(
-  blankJob.book,
+  again.book,
   {
     op: 'cost_entry.add',
     payload: {
@@ -214,9 +212,30 @@ const clash = applyFleetOp(
   { op: 'cost_profile.set', payload: { vehicle_id: vehicleId, effective_from: '2024-06-01', finance_monthly_cents: 80 } },
   ctx
 );
-assert.equal(clash.ok, false);
-if (clash.ok) throw new Error('clash');
-assert.equal(clash.status, 409);
+assert.equal(clash.ok, true);
+if (!clash.ok) throw new Error('clash');
+assert.equal(clash.book.cost_profiles.filter((row) => row.effective_from === '2024-06-01' && row.effective_to === '2024-06-01').length, 1);
+assert.equal(clash.book.cost_profiles.find((row) => row.effective_from === '2024-06-01' && row.effective_to == null)?.finance_monthly_cents, 80);
+const emptyProfile = applyFleetOp(may.book, { op: 'cost_profile.set', payload: { vehicle_id: vehicleId, effective_from: '2024-06-20' } }, ctx);
+assert.equal(emptyProfile.ok, false);
+if (emptyProfile.ok) throw new Error('empty profile');
+assert.equal(emptyProfile.status, 400);
+const blankName = applyFleetOp(may.book, { op: 'settings.update', payload: { display_name: '   ' } }, ctx, may.book.workspace.updated_at);
+assert.equal(blankName.ok, false);
+if (blankName.ok) throw new Error('name');
+assert.equal(blankName.status, 400);
+const hugeLitres = applyFleetOp(fuel.book, { op: 'cost_entry.add', payload: { vehicle_id: vehicleId, category: 'fuel', amount_cents: 100, litres: 5001, occurred_on: '2024-06-02' } }, ctx);
+assert.equal(hugeLitres.ok, false);
+const hugeOdo = applyFleetOp(fuel.book, { op: 'cost_entry.add', payload: { vehicle_id: vehicleId, category: 'toll', amount_cents: 100, odometer_km: 10_000_001, occurred_on: '2024-06-02' } }, ctx);
+assert.equal(hugeOdo.ok, false);
+const oldDate = applyFleetOp(fuel.book, { op: 'cost_entry.add', payload: { vehicle_id: vehicleId, category: 'toll', amount_cents: 100, occurred_on: '1999-12-31' } }, ctx);
+assert.equal(oldDate.ok, false);
+const futureDate = applyFleetOp(fuel.book, { op: 'odometer.add', payload: { vehicle_id: vehicleId, reading_km: 1100, read_at: '2024-07-04' } }, ctx);
+assert.equal(futureDate.ok, false);
+const foreignVehicle = applyFleetOp(fuel.book, { op: 'job.upsert', payload: { status: 'draft', customer_name: 'Depot', vehicle_id: 'not-a-uuid', stops: [{ place_name: 'Yard', kind: 'pickup' }] } }, ctx);
+assert.equal(foreignVehicle.ok, false);
+if (foreignVehicle.ok) throw new Error('foreign');
+assert.equal(foreignVehicle.status, 400);
 
 const basis = applyFleetOp(may.book, { op: 'settings.update', payload: { overhead_basis: 'nope' } }, ctx, may.book.workspace.updated_at);
 assert.equal(basis.ok, false);
@@ -290,15 +309,23 @@ assert.equal(badPool.ok, false);
 const zeroTarget = applyFleetOp(pool.book, { op: 'cpk_target.set', payload: { scope_kind: 'fleet', layer: 'fully_loaded', target_cents_per_km: 0 } }, ctx);
 assert.equal(zeroTarget.ok, false);
 
+const stopA = '11111111-1111-4111-8111-111111111111';
+const stopB = '22222222-2222-4222-8222-222222222222';
+const stopC = '33333333-3333-4333-8333-333333333333';
+const badStop = applyFleetOp(pool.book, { op: 'job.upsert', payload: { status: 'booked', customer_name: 'Depot', stops: [{ id: 'stop-a', kind: 'pickup', place_name: 'One' }] } }, ctx);
+assert.equal(badStop.ok, false);
+if (badStop.ok) throw new Error('bad stop');
+assert.equal(badStop.status, 400);
 const withStops = applyFleetOp(
   pool.book,
   {
     op: 'job.upsert',
     payload: {
       status: 'booked',
+      customer_name: 'Depot',
       stops: [
-        { id: 'stop-a', kind: 'pickup', place_name: 'One' },
-        { id: 'stop-b', kind: 'delivery', place_name: 'Two' },
+        { id: stopA, kind: 'pickup', place_name: 'One' },
+        { id: stopB, kind: 'delivery', place_name: 'Two' },
       ],
     },
   },
@@ -315,8 +342,8 @@ const moved = applyFleetOp(
       id: job?.id,
       status: 'booked',
       stops: [
-        { id: 'stop-b', kind: 'pickup', place_name: 'Two' },
-        { id: 'stop-c', kind: 'delivery', place_name: 'Three' },
+        { id: stopB, kind: 'pickup', place_name: 'Two' },
+        { id: stopC, kind: 'delivery', place_name: 'Three' },
       ],
     },
   },
@@ -326,17 +353,31 @@ const moved = applyFleetOp(
 assert.equal(moved.ok, true);
 if (!moved.ok) throw new Error('moved');
 const diff = fleetDiff(withStops.book, moved.book);
-assert.deepEqual(diff.delete_stop_ids, ['stop-a']);
+assert.deepEqual(diff.delete_stop_ids, [stopA]);
 const seq = diff.upserts.fg_job_stops.map((row) => `${row.id}:${row.seq}`).sort();
-assert.deepEqual(seq, ['stop-b:1', 'stop-c:2']);
-assert.equal(fleetPersistStatus({ code: '23505', message: 'duplicate key' }).ok, false);
-assert.equal(fleetPersistStatus({ code: '23505', message: 'duplicate key' }).ok === false && fleetPersistStatus({ code: '23505', message: 'fg_reverse_closed' }).status, 409);
+assert.deepEqual(seq, [`${stopB}:1`, `${stopC}:2`]);
+const stolen = applyFleetOp(
+  moved.book,
+  { op: 'job.upsert', payload: { status: 'draft', customer_name: 'Other', stops: [{ id: stopB, kind: 'pickup', place_name: 'Stolen' }] } },
+  ctx
+);
+assert.equal(stolen.ok, false);
+if (stolen.ok) throw new Error('stolen');
+assert.equal(stolen.status, 400);
+const duplicate = fleetPersistStatus({ code: '23505', message: 'duplicate key' });
+assert.equal(duplicate.ok, false);
+const reversedClosed = fleetPersistStatus({ code: '23505', message: 'fg_reverse_closed' });
+assert.equal(reversedClosed.ok, false);
+if (!reversedClosed.ok) assert.equal(reversedClosed.status, 409);
 
 assert.equal(centsFromRand('1.005'), 101);
 assert.equal(centsFromRand('8.325'), 833);
 assert.equal(centsFromRand(''), null);
 assert.equal(centsFromRand(Number.NaN), null);
 assert.equal(centsFromRand(Number.POSITIVE_INFINITY), null);
+assert.equal(centsFromRand('1500,50'), 150050);
+assert.equal(centsFromRand('1 500.00'), 150000);
+assert.equal(Object.is(centsFromRand('-0.004'), 0), true);
 
 const added = applyFleetOp(moved.book, { op: 'job.upsert', payload: { status: 'draft', new_customer_name: 'Sample Buyer', stops: [] } }, ctx);
 assert.equal(added.ok, true);

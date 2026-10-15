@@ -3,12 +3,16 @@
  * Run: npx --yes tsx lib/fleet/brief114-cpk.test.ts
  */
 import assert from 'node:assert/strict';
+import { cpkForBook } from './book-cpk';
+import { periodFor } from './periods';
 import { filterFixes, freshness, pathKm } from './positions';
+import { sampleFleetBook } from './sample-book';
 import {
   allocateCustomerCost,
   computeFleetCpk,
   driverVariance,
   estimateTripCost,
+  fleetHeadline,
   fuelEfficiency,
   laneCpk,
   ledgerCategoryAllowed,
@@ -690,6 +694,53 @@ const sameDay = computeFleetCpk({
   statusEvents: [],
 })[0];
 assert.equal(sameDay.target_per_km, 20);
+
+for (let pair = 0; pair < 24; pair += 1) {
+  const older = {
+    scope_kind: 'fleet' as const,
+    scope_ref: '',
+    layer: 'fully_loaded' as const,
+    target_cents_per_km: 1000 + pair,
+    effective_from: '2024-06-01',
+    created_at: `2024-06-01T00:00:${String(pair).padStart(2, '0')}Z`,
+    updated_at: `2024-06-01T00:00:${String(pair).padStart(2, '0')}Z`,
+  };
+  const newer = {
+    ...older,
+    target_cents_per_km: 5000 + pair,
+    created_at: `2024-06-02T00:00:${String(pair).padStart(2, '0')}Z`,
+    updated_at: `2024-06-02T00:00:${String(pair).padStart(2, '0')}Z`,
+  };
+  const targets = pair % 2 === 0 ? [newer, older] : [older, newer];
+  const picked = computeFleetCpk({
+    period: { from: '2024-06-01', to: '2024-07-01' },
+    minKm: 1,
+    vehicles: [
+      {
+        id: 'v',
+        kind: 'rigid',
+        ownership: 'owned',
+        readings: [
+          { reading_km: 0, read_at: '2024-06-01' },
+          { reading_km: 1000, read_at: '2024-06-20' },
+        ],
+      },
+    ],
+    entries: [{ vehicle_id: 'v', category: 'toll', occurred_on: '2024-06-10', amount_cents: 100 }],
+    profiles: [],
+    pools: [],
+    targets,
+    statusEvents: [],
+  })[0];
+  assert.equal(picked.target_per_km, (5000 + pair) / 100, `pair ${pair}`);
+}
+
+const preview = fleetHeadline(cpkForBook(sampleFleetBook(), periodFor('last', '2024-07-02', 90)));
+assert.equal(formatPerKm(preview.perKm), 'R15.95');
+assert.equal(formatPerKm(preview.targetPerKm), 'R15.50');
+assert.equal(signedPerKm(preview.perKm != null && preview.targetPerKm != null ? preview.perKm - preview.targetPerKm : null), '+R0.45');
+assert.equal(formatPerKm(preview.breakevenPerLoadedKm), 'R21.27');
+assert.equal(formatPerKm(requiredRate(preview.breakevenPerLoadedKm, 0.1)), 'R23.63');
 
 console.log('brief114-cpk.test.ts ok');
 console.log(

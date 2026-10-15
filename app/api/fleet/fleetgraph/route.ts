@@ -114,10 +114,8 @@ export async function POST(request: NextRequest) {
     const needsNumber = !payload.reference && !payload.id;
     const customerName = typeof payload.new_customer_name === 'string' ? payload.new_customer_name.trim() : '';
     const needsCustomer = !payload.customer_id && customerName.length > 0;
-    if (needsNumber || needsCustomer) {
-      const preview = applyFleetOp(loaded.book, op, ctx, expected);
-      if (!preview.ok) return json(preview.status, { error: preview.error });
-    }
+    const preview = applyFleetOp(loaded.book, op, ctx, expected);
+    if (!preview.ok) return json(preview.status, { error: preview.error });
     if (needsCustomer) {
       let created: { ok: true; id: number } | { ok: false };
       try {
@@ -126,8 +124,10 @@ export async function POST(request: NextRequest) {
         return json(400, { error: 'Choose a customer from this company.' });
       }
       if (!created.ok) return json(400, { error: 'Choose a customer from this company.' });
+      const tradingName = customerName.slice(0, 160);
       payload.customer_id = created.id;
-      payload.customer_name = customerName.slice(0, 160);
+      payload.customer_name = tradingName;
+      loaded.book.customers = [...loaded.book.customers, { id: created.id, trading_name: tradingName }];
     }
     if (needsNumber) {
       const number = await nextJobNumber(gated.companyId);

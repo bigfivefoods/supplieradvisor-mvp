@@ -51,6 +51,8 @@ export type CpkTarget = {
   layer: 'fully_loaded' | 'operating';
   target_cents_per_km: number;
   effective_from: string;
+  updated_at?: string;
+  created_at?: string;
 };
 export type CpkStatusEvent = { vehicle_id: string; status: string; from_at: string };
 export type CpkVehicleInput = {
@@ -448,7 +450,14 @@ function pickTarget(targets: CpkTarget[], vehicle: CpkVehicleInput, period: CpkP
       if (row.scope_kind === 'fleet') return true;
       return false;
     })
-    .sort((a, b) => rank(b.row.scope_kind) - rank(a.row.scope_kind) || b.row.effective_from.localeCompare(a.row.effective_from) || b.index - a.index);
+    .sort(
+      (a, b) =>
+        rank(b.row.scope_kind) - rank(a.row.scope_kind) ||
+        b.row.effective_from.localeCompare(a.row.effective_from) ||
+        (b.row.updated_at || '').localeCompare(a.row.updated_at || '') ||
+        (b.row.created_at || '').localeCompare(a.row.created_at || '') ||
+        b.index - a.index
+    );
   const hit = rows[0]?.row;
   if (!hit || !Number.isFinite(hit.target_cents_per_km)) return null;
   return hit.target_cents_per_km / 100;
@@ -851,6 +860,45 @@ function sanitizeVehicle(row: VehicleCpk): VehicleCpk {
     profit_per_km: num(row.profit_per_km),
     margin: num(row.margin),
     peer: row.peer.hidden ? { hidden: true } : { hidden: false, delta_per_km: num(row.peer.delta_per_km) || 0 },
+  };
+}
+
+/** Fleet headline: every vehicle's fully loaded cost, plus overhead left unallocated, over the kilometres that were actually driven. */
+export function fleetHeadline(rows: VehicleCpk[]): {
+  perKm: number | null;
+  breakevenPerLoadedKm: number | null;
+  unallocatedCents: number;
+  totalCents: number;
+  totalKm: number;
+  loadedKm: number;
+  targetPerKm: number | null;
+} {
+  const unallocated = rows.find((row) => row.overhead_unallocated_cents != null)?.overhead_unallocated_cents || 0;
+  let body = 0;
+  let totalKm = 0;
+  let loadedKm = 0;
+  let targetWeighted = 0;
+  let targetKm = 0;
+  for (const row of rows) {
+    body += (row.running_cents || 0) + (row.standing_cents || 0) + (row.capital_cents || 0) + (row.overhead_cents || 0);
+    if (row.status === 'ok' && (row.total_km || 0) > 0) {
+      totalKm += row.total_km || 0;
+      loadedKm += row.loaded_km || 0;
+      if (row.target_per_km != null) {
+        targetWeighted += row.target_per_km * (row.total_km || 0);
+        targetKm += row.total_km || 0;
+      }
+    }
+  }
+  const totalCents = body + unallocated;
+  return {
+    perKm: totalKm > 0 ? totalCents / totalKm / 100 : null,
+    breakevenPerLoadedKm: loadedKm > 0 ? totalCents / loadedKm / 100 : null,
+    unallocatedCents: unallocated,
+    totalCents,
+    totalKm,
+    loadedKm,
+    targetPerKm: targetKm > 0 ? targetWeighted / targetKm : null,
   };
 }
 

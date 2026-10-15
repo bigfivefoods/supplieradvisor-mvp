@@ -109,6 +109,11 @@ export function FleetLive({ screen }: { screen: FleetScreen }) {
         notice={notice}
         migrationPending={pending}
         onPeriod={setPeriodId}
+        onRetry={() => {
+          setNotice(null);
+          setPhase('loading');
+          load().catch(() => setPhase('error'));
+        }}
         onOp={async (op, expected) => {
           try {
             return await onOp(op, expected);

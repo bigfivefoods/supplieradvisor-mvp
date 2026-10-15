@@ -26,11 +26,19 @@ import { sameCompanyCustomer } from './validation';
 
 type DbError = { code?: string; message?: string } | null;
 
+const FLEET_SCHEMA_CODES = new Set(['42P01', '42883', 'PGRST205', 'PGRST202']);
+
 export function isFleetSchemaMissing(error: DbError): boolean {
   if (!error) return false;
   const code = error.code || '';
-  if (code !== '42P01' && code !== '42883') return false;
-  return /fg_/i.test(error.message || '');
+  if (!FLEET_SCHEMA_CODES.has(code)) return false;
+  const message = error.message || '';
+  if (/fg_/i.test(message)) return true;
+  if (/\bprofiles\b|\bcustomers\b/i.test(message)) return false;
+  if (code === 'PGRST205' || code === 'PGRST202') return /schema cache|could not find/i.test(message);
+  if (code === '42P01') return /does not exist/i.test(message);
+  if (code === '42883') return /undefined function|does not exist/i.test(message);
+  return false;
 }
 
 export async function collectPages<T>(
@@ -82,7 +90,12 @@ export async function loadFleetBook(companyId: number): Promise<FleetLoad> {
   for (const table of tables) {
     const loaded = await collectPages((from, to) => {
       const query = admin.from(table).select('*').eq('company_id', companyId);
-      const ordered = table === 'fg_job_stops' ? query.order('seq', { ascending: true }).order('id', { ascending: true }) : query.order('id', { ascending: true });
+      const ordered =
+        table === 'fg_job_stops'
+          ? query.order('seq', { ascending: true }).order('id', { ascending: true })
+          : table === 'fg_cpk_targets'
+            ? query.order('updated_at', { ascending: true }).order('created_at', { ascending: true }).order('id', { ascending: true })
+            : query.order('id', { ascending: true });
       return ordered.range(from, to);
     });
     if (isFleetSchemaMissing(loaded.error)) return { ready: false, reason: 'migration_pending' };
@@ -104,7 +117,13 @@ export async function loadFleetBook(companyId: number): Promise<FleetLoad> {
   book.overhead_pools = (rows.fg_overhead_pools as Record<string, unknown>[]).map(mapPool);
   book.cpk_targets = (rows.fg_cpk_targets as Record<string, unknown>[]).map(mapTarget);
   book.audit = [];
-  const customers = await admin.from('customers').select('id, trading_name').eq('profile_id', companyId).limit(500);
+  const customers = await admin
+    .from('customers')
+    .select('id, trading_name')
+    .eq('profile_id', companyId)
+    .eq('status', 'active')
+    .order('trading_name', { ascending: true })
+    .limit(500);
   book.customers = customers.error
     ? []
     : ((customers.data || []) as Record<string, unknown>[]).map((row) => ({
@@ -465,6 +484,7 @@ function mapTarget(row: Record<string, unknown>): FleetTarget {
     target_cents_per_km: Number(row.target_cents_per_km || 0),
     effective_from: text(row.effective_from).slice(0, 10),
     updated_at: text(row.updated_at),
+    created_at: text(row.created_at),
   };
 }
 

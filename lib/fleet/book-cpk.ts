@@ -75,6 +75,8 @@ export function cpkInputFromBook(book: FleetBook, period: CpkPeriod): FleetCpkIn
       layer: row.layer,
       target_cents_per_km: row.target_cents_per_km,
       effective_from: row.effective_from,
+      updated_at: row.updated_at,
+      created_at: row.created_at,
     })),
     statusEvents: book.status_events.map((row) => ({
       vehicle_id: row.vehicle_id,

@@ -119,6 +119,15 @@ export function PreviewShell({ screen }: { screen: FleetScreen }) {
               notice={notice}
               illustrate
               onPeriod={setPeriodId}
+              onRetry={() => {
+                setNotice(null);
+                if (new URLSearchParams(window.location.search).get('empty') === '1') {
+                  setBook(emptyFleetBook(1, '2024-07-02T08:00:00.000Z'));
+                  return;
+                }
+                window.sessionStorage.removeItem(KEY);
+                setBook(sampleFleetBook());
+              }}
               onOp={onOp}
             />
           ) : (

@@ -244,6 +244,7 @@ export type FleetTarget = {
   target_cents_per_km: number;
   effective_from: string;
   updated_at: string;
+  created_at?: string;
 };
 
 export type FleetAudit = {
