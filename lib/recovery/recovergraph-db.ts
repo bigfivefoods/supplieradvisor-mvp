@@ -162,6 +162,20 @@ export async function loadRecoverDesk(
   if (staff.error) throw new Error('staff');
 
   const staffRows = ((staff.data || []) as Record<string, unknown>[]).map(asStaff);
+  const expiry = await supabase
+    .from('recover_staff')
+    .select('id, registration_expires_on')
+    .eq('company_id', companyId)
+    .limit(200);
+  if (!expiry.error) {
+    const dates = new Map(
+      ((expiry.data || []) as { id: string; registration_expires_on?: string | null }[]).map((row) => [
+        String(row.id),
+        row.registration_expires_on ? String(row.registration_expires_on) : null,
+      ])
+    );
+    for (const row of staffRows) row.registration_expires_on = dates.get(row.id) ?? null;
+  }
   const email = (actor.email || '').trim().toLowerCase();
   const self =
     staffRows.find((row) => row.user_id && row.user_id === actor.userId) ||

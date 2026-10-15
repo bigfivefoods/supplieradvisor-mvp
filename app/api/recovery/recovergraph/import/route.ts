@@ -8,6 +8,7 @@ import { companyRecovergraphEnabled, isMigrationPending, loadRecoverDesk, Migrat
 import { encryptId } from '@/lib/recovery/pii-crypto';
 import { assertDemoBookAllowed, assertRealDataAllowed, DemoBookBlockedError, RealDataBlockedError } from '@/lib/recovery/real-data-guard';
 import { allowedBookOps, resolveRecoverRole } from '@/lib/recovery/roles';
+import { listBookBatches } from '@/lib/recovery/book-db';
 
 export const runtime = 'nodejs';
 const NO_STORE = { 'Cache-Control': 'private, no-store' };
@@ -15,6 +16,27 @@ const BODY_CAP = 2_500_000;
 
 function json(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: NO_STORE });
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const member = await resolveMemberCompany(request);
+    if (!member.ok) return json({ error: member.error }, member.status);
+    const gate = await requireCompanyPermission(request, member.member.companyId, 'recovery', 'view');
+    if (!gate.ok) {
+      gate.response.headers.set('Cache-Control', 'private, no-store');
+      return gate.response;
+    }
+    if (!(await companyRecovergraphEnabled(member.member.companyId))) {
+      return json({ error: 'You do not have access to do that.' }, 403);
+    }
+    return json(await listBookBatches(member.member.companyId));
+  } catch (error) {
+    if (error instanceof MigrationPendingError || (error instanceof Error && error.message === 'migration_pending')) {
+      return json({ ready: false, reason: 'migration_pending', feature: 'import' });
+    }
+    return json({ error: 'Imports could not be opened.' }, 500);
+  }
 }
 
 export async function POST(request: NextRequest) {

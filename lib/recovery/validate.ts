@@ -295,6 +295,15 @@ export function validateBookOp(raw: unknown): ValidationOk<RecoverBookOp> | Vali
       clean.contact_email = email;
     }
   }
+  if (op === 'mandate.upsert') {
+    if (!text(clean.creditor_id, 80)) return { ok: false, error: 'Choose a creditor.' };
+    if (!text(clean.product_type, 40) || !PRODUCTS.includes(text(clean.product_type, 40) as ProductType)) {
+      return { ok: false, error: 'Choose a product type.' };
+    }
+    clean.product_type = text(clean.product_type, 40);
+    clean.creditor_id = text(clean.creditor_id, 80);
+    clean.programme_type = 'recovery';
+  }
   if (op === 'mandate.upsert' || op === 'mandate.set_status') {
     if (clean.product_type && !PRODUCTS.includes(clean.product_type as ProductType)) {
       return { ok: false, error: 'Choose a product type.' };
@@ -320,6 +329,55 @@ export function validateBookOp(raw: unknown): ValidationOk<RecoverBookOp> | Vali
     }
   }
   return { ok: true, value: { op, patch: clean } as RecoverBookOp };
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export type DeskExtra =
+  | Extract<RecoverBookOp, { op: 'creditor.upsert' | 'mandate.upsert' }>
+  | { op: 'staff.set_expiry'; staff_id: string; email: string; expires_on: string | null }
+  | { op: 'account.bulk_assign'; ids: string[]; staff_id: string | null; team_id: string | null };
+
+export function validateDeskExtra(
+  raw: unknown
+): ValidationOk<DeskExtra> | (ValidationFail & { attempted: boolean }) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { ok: false, attempted: false, error: 'Request could not be read.' };
+  }
+  const op = String((raw as { op?: unknown }).op || '');
+  if (op === 'creditor.upsert' || op === 'mandate.upsert') {
+    const book = validateBookOp(raw);
+    if (!book.ok) return { ...book, attempted: true };
+    return { ok: true, value: book.value as DeskExtra };
+  }
+  if (op === 'staff.set_expiry') {
+    const body = raw as Record<string, unknown>;
+    const expires = optionalDate(body.expires_on);
+    if (isFail(expires)) return { ...expires, attempted: true };
+    const staffId = text(body.staff_id, 80);
+    const email = body.email == null || body.email === '' ? '' : emailOf(body.email);
+    if (typeof email !== 'string') return { ...email, attempted: true };
+    if (!staffId && !email) return { ok: false, attempted: true, error: 'Choose a staff record.' };
+    if (staffId && !UUID.test(staffId)) return { ok: false, attempted: true, error: 'Choose a staff record.' };
+    return { ok: true, value: { op: 'staff.set_expiry', staff_id: staffId, email, expires_on: expires } };
+  }
+  if (op === 'account.bulk_assign') {
+    const body = raw as Record<string, unknown>;
+    const ids = Array.isArray(body.ids) ? body.ids.map((id) => text(id, 80)).filter(Boolean) : [];
+    if (ids.length < 1 || ids.length > 100 || ids.some((id) => !UUID.test(id))) {
+      return { ok: false, attempted: true, error: 'Choose between 1 and 100 accounts.' };
+    }
+    const staffId = text(body.staff_id, 80);
+    const teamId = text(body.team_id, 80);
+    if (staffId && !UUID.test(staffId)) return { ok: false, attempted: true, error: 'Choose a staff record.' };
+    if (teamId && !UUID.test(teamId)) return { ok: false, attempted: true, error: 'Choose a team.' };
+    if (!staffId && !teamId) return { ok: false, attempted: true, error: 'Choose who receives these accounts.' };
+    return {
+      ok: true,
+      value: { op: 'account.bulk_assign', ids, staff_id: staffId || null, team_id: teamId || null },
+    };
+  }
+  return { ok: false, attempted: false, error: 'That action is not available.' };
 }
 
 export type { RemittanceTerms, ProductType };

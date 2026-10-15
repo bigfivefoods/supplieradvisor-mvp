@@ -6,6 +6,24 @@ import { RECOVER_COMPANY_COOKIE } from '@/lib/recovery/member-company';
 import type { RecoverIllustration } from '@/lib/recovery/sample-desk';
 import type { RecoverDeskPayload, RecoverOp } from '@/lib/recovery/types';
 
+export type DeskSave =
+  | RecoverOp
+  | {
+      op: 'creditor.upsert' | 'mandate.upsert' | 'staff.set_expiry' | 'account.bulk_assign';
+      name?: string;
+      reg_no?: string;
+      contact_email?: string;
+      creditor_id?: string;
+      product_type?: string;
+      nca_regulated?: boolean;
+      commission_model?: { kind: string };
+      staff_id?: string | null;
+      email?: string;
+      expires_on?: string | null;
+      ids?: string[];
+      team_id?: string | null;
+    };
+
 const PreviewContext = createContext<RecoverDeskPayload | null>(null);
 const IllustrationContext = createContext<RecoverIllustration | null>(null);
 const HrefBaseContext = createContext<string | null>(null);
@@ -107,7 +125,7 @@ export function useRecoverDesk() {
     void load();
   }, [load]);
 
-  const save = useCallback(async (op: RecoverOp) => {
+  const save = useCallback(async (op: DeskSave) => {
     if (preview) {
       void op;
       setError(null);

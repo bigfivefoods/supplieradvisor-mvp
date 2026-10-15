@@ -166,6 +166,91 @@ export async function demoRowsExist(companyId: number): Promise<boolean | 'pendi
   return Boolean(result.data);
 }
 
+export async function setStaffExpiry(input: {
+  companyId: number;
+  actorId: string;
+  staffId: string;
+  expiresOn: string | null;
+}): Promise<void> {
+  const supabase = getSupabaseServer();
+  const result = await supabase.rpc('recover_set_staff_expiry', {
+    p_company_id: input.companyId,
+    p_actor_id: input.actorId,
+    p_staff_id: input.staffId,
+    p_expires: input.expiresOn,
+  });
+  if (isMigrationPending(result.error)) throw new MigrationPendingError();
+  if (result.error) throw new Error(calmSql(result.error.message));
+}
+
+export async function bulkAssignAccounts(input: {
+  companyId: number;
+  actorId: string;
+  ids: string[];
+  staffId: string | null;
+  teamId: string | null;
+}): Promise<Record<string, unknown>> {
+  const supabase = getSupabaseServer();
+  const result = await supabase.rpc('recover_bulk_assign', {
+    p_company_id: input.companyId,
+    p_actor_id: input.actorId,
+    p_ids: input.ids,
+    p_staff_id: input.staffId,
+    p_team_id: input.teamId,
+    p_as_of: null,
+  });
+  if (isMigrationPending(result.error)) throw new MigrationPendingError();
+  if (result.error) throw new Error(calmSql(result.error.message));
+  return (result.data || { ok: true }) as Record<string, unknown>;
+}
+
+export async function listBookBatches(companyId: number) {
+  const supabase = getSupabaseServer();
+  const result = await supabase
+    .from('recover_batches')
+    .select('id, creditor_id, file_name, status, row_stats, created_at')
+    .eq('company_id', companyId)
+    .order('created_at', { ascending: false })
+    .limit(100);
+  const pending = readFeatureResult(result.error, 'import');
+  if (!pending.ready) return pending;
+  if (result.error) throw new Error('batches');
+  const names = new Map<string, string>();
+  const creditors = await supabase.from('recover_creditors').select('id, name').eq('company_id', companyId);
+  const creditorPending = readFeatureResult(creditors.error, 'import');
+  if (!creditorPending.ready) return creditorPending;
+  if (!creditors.error) {
+    for (const row of creditors.data || []) names.set(String(row.id), String(row.name || ''));
+  }
+  return {
+    ready: true as const,
+    batches: ((result.data || []) as Record<string, unknown>[]).map((row) => {
+      const stats = row.row_stats && typeof row.row_stats === 'object' ? (row.row_stats as Record<string, unknown>) : {};
+      return {
+        id: String(row.id),
+        creditor_id: String(row.creditor_id || ''),
+        creditor_name: names.get(String(row.creditor_id || '')) || '',
+        file_name: String(row.file_name || ''),
+        status: String(row.status || ''),
+        created: Number(stats.created || 0),
+        skipped: Number(stats.skipped || 0),
+        created_at: row.created_at ? String(row.created_at) : '',
+      };
+    }),
+  };
+}
+
+export async function findStaffId(companyId: number, staffId: string, email: string): Promise<string | 'pending' | null> {
+  const supabase = getSupabaseServer();
+  let query = supabase.from('recover_staff').select('id').eq('company_id', companyId).limit(1);
+  query = staffId ? query.eq('id', staffId) : query.eq('email', email);
+  const result = await query.maybeSingle();
+  const pending = readFeatureResult(result.error, 'book');
+  if (!pending.ready) return 'pending';
+  if (result.error || !result.data?.id) return null;
+  return String(result.data.id);
+}
+
 function calmSql(message: string | undefined): string {
   const text = String(message || '');
   if (text.includes('Clear the demo book first')) return 'Clear the demo book first';
@@ -175,5 +260,8 @@ function calmSql(message: string | undefined): string {
   if (text.includes('throttled')) return 'throttled';
   if (text.includes('plaintext_id')) return 'plaintext_id';
   if (text.includes('already_imported')) return 'already_imported';
+  if (/\bname\b/.test(text)) return 'name';
+  if (text.includes('creditor')) return 'creditor';
+  if (text.includes('cap')) return 'cap';
   return 'closed';
 }

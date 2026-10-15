@@ -1,7 +1,7 @@
 import { harbourBatches, HARBOUR_AGENCY, HARBOUR_CREDITORS, HARBOUR_TEAM, HARBOUR_TODAY } from './harbour-seed';
 import { fileSha256, parseBookCsv, suggestMapping, validateBook } from './import-book';
 import { capabilitiesFor } from './roles';
-import type { RecoverBookStats, RecoverDeskPayload, RecoverRole } from './types';
+import type { AllocationLabel, ProductType, RecoverBookStats, RecoverDeskPayload, RecoverRole } from './types';
 
 export type MemoryContact = {
   kind: string;
@@ -46,17 +46,29 @@ export type MemoryBatch = {
   creditor_name: string;
   file_name: string;
   file_sha256: string;
-  status: 'imported' | 'rolled_back';
+  status: 'imported' | 'rolled_back' | 'validating' | 'rejected';
   created: number;
   skipped: number;
   errors: { row: number; field: string; code: string }[];
   account_ids: string[];
 };
 
+export type MemoryExtraCreditor = { id: string; name: string; reg_no: string };
+export type MemoryExtraMandate = {
+  id: string;
+  creditor_id: string;
+  creditor_name: string;
+  product_type: string;
+  nca_regulated: boolean;
+  status: string;
+};
+
 export type MemoryBook = {
   accounts: MemoryAccount[];
   batches: MemoryBatch[];
   next: number;
+  extraCreditors?: MemoryExtraCreditor[];
+  extraMandates?: MemoryExtraMandate[];
 };
 
 const TEAM_NAME: Record<string, string> = Object.fromEntries(HARBOUR_TEAM.map((row) => [row.key, row.name]));
@@ -124,6 +136,30 @@ export function harbourMemory(): MemoryBook {
     });
   }
   return { accounts, batches, next };
+}
+
+export function rememberPreviewCreditor(book: MemoryBook, name: string, regNo: string): MemoryBook {
+  const id = `extra-creditor-${book.next}`;
+  return {
+    ...book,
+    next: book.next + 1,
+    extraCreditors: [...(book.extraCreditors || []), { id, name, reg_no: regNo }],
+  };
+}
+
+export function rememberPreviewMandate(
+  book: MemoryBook,
+  input: { creditor_id: string; creditor_name: string; product_type: string; nca_regulated: boolean }
+): MemoryBook {
+  const id = `extra-mandate-${book.next}`;
+  return {
+    ...book,
+    next: book.next + 1,
+    extraMandates: [
+      ...(book.extraMandates || []),
+      { id, ...input, status: 'draft' },
+    ],
+  };
 }
 
 export function emptyMemory(): MemoryBook {
@@ -204,7 +240,8 @@ export function harbourDesk(role: RecoverRole, book: MemoryBook): RecoverDeskPay
       : { creditors: HARBOUR_CREDITORS.length, mandates: HARBOUR_CREDITORS.length, staff: HARBOUR_TEAM.length },
     creditors: agent
       ? []
-      : HARBOUR_CREDITORS.map((row) => ({
+      : [
+          ...HARBOUR_CREDITORS.map((row) => ({
           id: row.key,
           name: row.name,
           reg_no: row.reg_no,
@@ -216,9 +253,23 @@ export function harbourDesk(role: RecoverRole, book: MemoryBook): RecoverDeskPay
           mandate_count: 1,
           account_count: book.accounts.filter((account) => account.creditor_id === row.key).length,
         })),
+          ...(book.extraCreditors || []).map((row) => ({
+            id: row.id,
+            name: row.name,
+            reg_no: row.reg_no,
+            vat_no: '',
+            remittance_terms: 'monthly' as const,
+            portal_enabled: false,
+            status: 'active',
+            customer_id: null,
+            mandate_count: (book.extraMandates || []).filter((item) => item.creditor_id === row.id).length,
+            account_count: 0,
+          })),
+        ],
     mandates: agent || role === 'none'
       ? []
-      : HARBOUR_CREDITORS.map((row) => ({
+      : ([
+          ...HARBOUR_CREDITORS.map((row) => ({
           id: `mandate-${row.key}`,
           creditor_id: row.key,
           creditor_name: row.name,
@@ -228,10 +279,23 @@ export function harbourDesk(role: RecoverRole, book: MemoryBook): RecoverDeskPay
           processing_role: 'operator' as const,
           status: 'active',
           commission_model: { kind: row.commission_kind },
-          allocation_order: ['costs', 'interest', 'fees', 'principal'] as const,
+          allocation_order: ['costs', 'interest', 'fees', 'principal'],
           agreement_reference: row.agreement_reference,
           signed_on: row.signed_on,
         })),
+          ...(book.extraMandates || []).map((row) => ({
+            id: row.id,
+            creditor_id: row.creditor_id,
+            creditor_name: row.creditor_name,
+            programme_type: 'recovery' as const,
+            product_type: row.product_type as ProductType,
+            nca_regulated: row.nca_regulated,
+            processing_role: 'operator' as const,
+            status: row.status,
+            commission_model: { kind: 'flat_per_account' as const },
+            allocation_order: ['costs', 'interest', 'fees', 'principal'] as AllocationLabel[],
+          })),
+        ] as RecoverDeskPayload['mandates']),
     staff: agent
       ? []
       : HARBOUR_TEAM.map((row) => ({
@@ -316,6 +380,7 @@ export async function commitPreviewCsv(
   });
   return {
     book: {
+      ...book,
       accounts: [...book.accounts, ...created],
       batches: [
         ...book.batches,

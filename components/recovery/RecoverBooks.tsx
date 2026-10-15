@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Building2, ShieldCheck } from 'lucide-react';
 import { useRecoverDesk, useRecoverIllustration } from './useRecoverDesk';
 import type { RecoverCreditor, RecoverMandate } from '@/lib/recovery/types';
@@ -9,6 +10,7 @@ import {
   RecoverButton,
   RecoverDemoGate,
   RecoverEmpty,
+  RecoverField,
   RecoverPendingBanner,
   RecoverRoleChip,
   RecoverSample,
@@ -33,13 +35,14 @@ const PRODUCTS: Record<string, string> = {
 };
 
 export function RecoverCreditors() {
-  const { desk, error, loading } = useRecoverDesk();
+  const { desk, error, loading, save } = useRecoverDesk();
+  const [open, setOpen] = useState(false);
   const illustration = useRecoverIllustration();
   const rows = desk?.creditors ?? [];
   return (
     <RecoverScreen
       title="Creditors"
-      description="Clients who place accounts. Creating a creditor book is a later step."
+      description="Clients who place accounts."
       action={desk ? <RecoverRoleChip role={desk.role} /> : null}
     >
       {error ? <RecoverBanner testId="recover-banner-error" tone="error">{error}</RecoverBanner> : null}
@@ -56,7 +59,7 @@ export function RecoverCreditors() {
           title="No creditors yet"
           body="Add the first client who will place accounts."
           art={<CreditorArt />}
-          action={<RecoverButton href="/dashboard/recovergraph/creditors">Add your first creditor</RecoverButton>}
+          action={<RecoverButton type="button" onClick={() => setOpen(true)}>Add your first creditor</RecoverButton>}
           preview={
             illustration ? (
               <RecoverSample title="Sample layout of a creditor book">
@@ -66,8 +69,45 @@ export function RecoverCreditors() {
           }
         />
       ) : (
-        <CreditorTable rows={rows} />
+        <div className="space-y-3">
+          <CreditorTable rows={rows} />
+          <RecoverButton type="button" onClick={() => setOpen(true)}>Add a creditor</RecoverButton>
+        </div>
       )}
+      {open ? (
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-900/40 sm:items-center" data-testid="recover-creditor-drawer">
+          <form
+            className="w-full max-w-lg rounded-t-3xl bg-white p-5 sm:rounded-3xl"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const data = new FormData(event.currentTarget);
+              void save({
+                op: 'creditor.upsert',
+                name: String(data.get('name') || ''),
+                reg_no: String(data.get('reg_no') || ''),
+                contact_email: String(data.get('contact_email') || ''),
+              }).then((ok) => {
+                if (ok) setOpen(false);
+              });
+            }}
+          >
+            <h2 className="text-xl font-black">Creditor</h2>
+            <RecoverField label="Name">
+              <input name="name" required className="min-h-11 w-full rounded-xl border border-slate-200 px-3" />
+            </RecoverField>
+            <RecoverField label="Registration">
+              <input name="reg_no" className="min-h-11 w-full rounded-xl border border-slate-200 px-3" />
+            </RecoverField>
+            <RecoverField label="Email">
+              <input name="contact_email" type="email" className="min-h-11 w-full rounded-xl border border-slate-200 px-3" />
+            </RecoverField>
+            <div className="mt-4 flex gap-2">
+              <RecoverButton type="submit">Save creditor</RecoverButton>
+              <RecoverButton type="button" onClick={() => setOpen(false)}>Close</RecoverButton>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </RecoverScreen>
   );
 }
@@ -106,13 +146,14 @@ function CreditorTable({ rows }: { rows: RecoverCreditor[] }) {
 }
 
 export function RecoverMandates() {
-  const { desk, error, loading } = useRecoverDesk();
+  const { desk, error, loading, save } = useRecoverDesk();
+  const [open, setOpen] = useState(false);
   const illustration = useRecoverIllustration();
   const rows = desk?.mandates ?? [];
   return (
     <RecoverScreen
       title="Mandates"
-      description="Authority to collect. Mandate forms arrive with the creditor book."
+      description="Authority to collect."
       action={desk ? <RecoverRoleChip role={desk.role} /> : null}
     >
       {error ? <RecoverBanner testId="recover-banner-error" tone="error">{error}</RecoverBanner> : null}
@@ -129,7 +170,7 @@ export function RecoverMandates() {
           title="No mandates yet"
           body="A mandate records the authority to collect for a creditor. Add the creditor first."
           art={<MandateArt />}
-          action={<RecoverButton href="/dashboard/recovergraph/creditors">Open creditors</RecoverButton>}
+          action={<RecoverButton type="button" onClick={() => setOpen(true)}>Add a mandate</RecoverButton>}
           preview={
             illustration ? (
               <RecoverSample title="Sample layout of a mandate">
@@ -139,8 +180,58 @@ export function RecoverMandates() {
           }
         />
       ) : (
-        <MandateTable rows={rows} />
+        <div className="space-y-3">
+          <MandateTable rows={rows} />
+          <RecoverButton type="button" onClick={() => setOpen(true)}>Add a mandate</RecoverButton>
+        </div>
       )}
+      {open ? (
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-900/40 sm:items-center" data-testid="recover-mandate-drawer">
+          <form
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-5 sm:rounded-3xl"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const data = new FormData(event.currentTarget);
+              void save({
+                op: 'mandate.upsert',
+                creditor_id: String(data.get('creditor_id') || ''),
+                product_type: String(data.get('product_type') || ''),
+                nca_regulated: data.get('nca_regulated') === 'on',
+                commission_model: { kind: String(data.get('commission_kind') || 'flat_per_account') },
+              }).then((ok) => {
+                if (ok) setOpen(false);
+              });
+            }}
+          >
+            <h2 className="text-xl font-black">Mandate</h2>
+            <RecoverField label="Creditor">
+              <select name="creditor_id" required className="min-h-11 w-full rounded-xl border border-slate-200 px-3">
+                <option value="">Choose a creditor</option>
+                {(desk?.creditors || []).map((row) => (
+                  <option key={row.id} value={row.id}>{row.name}</option>
+                ))}
+              </select>
+            </RecoverField>
+            <RecoverField label="Product">
+              <select name="product_type" required defaultValue="trade" className="min-h-11 w-full rounded-xl border border-slate-200 px-3">
+                <option value="trade">Trade</option>
+                <option value="nca_credit">Credit</option>
+                <option value="levy">Levy</option>
+                <option value="rent">Rent</option>
+                <option value="medical">Medical</option>
+                <option value="utility">Utility</option>
+                <option value="other">Other</option>
+              </select>
+            </RecoverField>
+            <p className="mt-2 text-sm">Commission is recorded for later; no fee is calculated or charged by RecoverAdvisor® yet.</p>
+            <p className="mt-2 text-xs">Allocation order ⚖ VERIFY. RecoverAdvisor® gives no legal advice.</p>
+            <div className="mt-4 flex gap-2">
+              <RecoverButton type="submit">Save mandate</RecoverButton>
+              <RecoverButton type="button" onClick={() => setOpen(false)}>Close</RecoverButton>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </RecoverScreen>
   );
 }

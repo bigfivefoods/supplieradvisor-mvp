@@ -9,7 +9,22 @@ import type { MemoryAccount, MemoryBatch, MemoryBook } from '@/lib/recovery/prev
 import { visibleAccounts } from '@/lib/recovery/preview-memory';
 import type { RecoverCapabilities, RecoverCreditor, RecoverMandate, RecoverRole } from '@/lib/recovery/types';
 import { RecoverBanner, RecoverDemoGate, RecoverEmpty, RecoverScreen } from './RecoverChrome';
+import { useRecoverDesk } from './useRecoverDesk';
 import { recoverBtn, recoverCard, recoverField, recoverGhost } from './RecoverUi';
+
+type CreditorSave = {
+  op: 'creditor.upsert';
+  name: string;
+  reg_no?: string;
+  contact_email?: string;
+};
+type MandateSave = {
+  op: 'mandate.upsert';
+  creditor_id: string;
+  product_type: string;
+  nca_regulated?: boolean;
+  commission_model?: { kind: string };
+};
 
 export type BookPhase = 'loading' | 'error' | 'ready' | 'pending';
 
@@ -38,6 +53,8 @@ export function AccountsView({
   onOpen,
   showDemo = false,
   placedCount,
+  assignees = [],
+  onBulkAssign,
 }: {
   phase: BookPhase;
   book: MemoryBook;
@@ -46,7 +63,11 @@ export function AccountsView({
   onOpen?: (id: string) => void;
   showDemo?: boolean;
   placedCount?: number;
+  assignees?: { id: string; label: string }[];
+  onBulkAssign?: (ids: string[], staffId: string) => Promise<boolean>;
 }) {
+  const [picked, setPicked] = useState<string[]>([]);
+  const [staffId, setStaffId] = useState('');
   const rows = visibleAccounts(book, role);
   return (
     <RecoverScreen title="Accounts" description="Placed accounts and their history." testId="recover-accounts">
@@ -71,6 +92,27 @@ export function AccountsView({
       ) : null}
       {phase === 'ready' && role !== 'viewer' && rows.length > 0 ? (
         <div data-testid="recover-accounts-list" className="grid gap-3">
+          {onBulkAssign ? (
+            <form
+              className="flex flex-col gap-2 sm:flex-row"
+              data-testid="recover-bulk-assign"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!staffId || picked.length === 0) return;
+                void onBulkAssign(picked, staffId).then((ok) => {
+                  if (ok) setPicked([]);
+                });
+              }}
+            >
+              <select aria-label="Assign to" className={recoverField} value={staffId} onChange={(event) => setStaffId(event.target.value)}>
+                <option value="">Choose a person</option>
+                {assignees.map((person) => (
+                  <option key={person.id} value={person.id}>{person.label}</option>
+                ))}
+              </select>
+              <button className={recoverBtn} type="submit">Assign selected</button>
+            </form>
+          ) : null}
           <div className="hidden min-w-0 grid-cols-[8rem_1fr_8rem_6rem] gap-3 px-2 text-xs font-bold uppercase tracking-wide text-slate-500 sm:grid">
             <span>Reference</span><span>Debtor</span><span className="text-right">Balance</span><span>State</span>
           </div>
@@ -79,7 +121,19 @@ export function AccountsView({
             .slice(0, 50)
             .map((row) => (
             <button key={row.id} type="button" data-testid={`recover-account-${row.ref}`} onClick={() => onOpen?.(row.id)} className={`${recoverCard} grid min-h-11 gap-1 px-4 py-3 text-left sm:grid-cols-[8rem_1fr_8rem_6rem] sm:items-center`}>
-              <span className="font-black text-[#0f172a]">{row.ref}</span>
+              <span className="font-black text-[#0f172a]">
+                {onBulkAssign ? (
+                  <input
+                    type="checkbox"
+                    className="mr-2"
+                    aria-label={`Select ${row.ref}`}
+                    checked={picked.includes(row.id)}
+                    onClick={(event) => event.stopPropagation()}
+                    onChange={() => setPicked((current) => current.includes(row.id) ? current.filter((id) => id !== row.id) : [...current, row.id])}
+                  />
+                ) : null}
+                {row.ref}
+              </span>
               <span>
                 <span className="block text-sm font-semibold">{row.debtor_name}</span>
                 <span className="block text-xs text-slate-600">{row.creditor_name} · {row.id_masked}</span>
@@ -317,12 +371,15 @@ export function CreditorBookView({
   creditors,
   mandates,
   showDemo = false,
+  onSave,
 }: {
   phase: BookPhase;
   creditors: RecoverCreditor[];
   mandates: RecoverMandate[];
   showDemo?: boolean;
+  onSave?: (op: CreditorSave) => boolean | Promise<boolean>;
 }) {
+  const live = useRecoverDesk();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const chosen = creditors.find((row) => row.id === selected) || null;
@@ -358,9 +415,27 @@ export function CreditorBookView({
       ) : null}
       {open ? (
         <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-900/40 sm:items-center" data-testid="recover-creditor-drawer">
-          <form className="w-full max-w-lg rounded-t-3xl bg-white p-5 sm:rounded-3xl" onSubmit={(event) => { event.preventDefault(); setOpen(false); }}>
+          <form
+            className="w-full max-w-lg rounded-t-3xl bg-white p-5 sm:rounded-3xl"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const data = new FormData(event.currentTarget);
+              const op: CreditorSave = {
+                op: 'creditor.upsert',
+                name: String(data.get('name') || ''),
+                reg_no: String(data.get('reg_no') || ''),
+                contact_email: String(data.get('contact_email') || ''),
+              };
+              const send = onSave ? onSave(op) : live.save(op);
+              void Promise.resolve(send).then((ok) => {
+                if (ok !== false) setOpen(false);
+              });
+            }}
+          >
             <h2 className="text-xl font-black">Creditor</h2>
             <label className="mt-3 block text-xs font-bold">Name<input className={recoverField} name="name" required /></label>
+            <label className="mt-3 block text-xs font-bold">Registration<input className={recoverField} name="reg_no" /></label>
+            <label className="mt-3 block text-xs font-bold">Email<input className={recoverField} name="contact_email" type="email" /></label>
             <div className="mt-4 flex gap-2">
               <button className={recoverBtn} type="submit">Save creditor</button>
               <button className={recoverGhost} type="button" onClick={() => setOpen(false)}>Close</button>
@@ -372,7 +447,18 @@ export function CreditorBookView({
   );
 }
 
-export function MandateBookView({ phase, mandates }: { phase: BookPhase; mandates: RecoverMandate[] }) {
+export function MandateBookView({
+  phase,
+  mandates,
+  creditors = [],
+  onSave,
+}: {
+  phase: BookPhase;
+  mandates: RecoverMandate[];
+  creditors?: { id: string; name: string }[];
+  onSave?: (op: MandateSave) => boolean | Promise<boolean>;
+}) {
+  const live = useRecoverDesk();
   const [open, setOpen] = useState(false);
   return (
     <RecoverScreen title="Mandates" description="Authority to collect." testId="recover-mandates-book">
@@ -398,8 +484,58 @@ export function MandateBookView({ phase, mandates }: { phase: BookPhase; mandate
       ) : null}
       {open ? (
         <div className="fixed inset-0 z-[70] flex items-end bg-slate-900/40 sm:items-center sm:justify-center" data-testid="recover-mandate-drawer">
-          <form className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-5 sm:rounded-3xl" onSubmit={(event) => { event.preventDefault(); setOpen(false); }}>
+          <form
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-5 sm:rounded-3xl"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const data = new FormData(event.currentTarget);
+              const op: MandateSave = {
+                op: 'mandate.upsert',
+                creditor_id: String(data.get('creditor_id') || ''),
+                product_type: String(data.get('product_type') || ''),
+                nca_regulated: data.get('nca_regulated') === 'on',
+                commission_model: { kind: String(data.get('commission_kind') || 'flat_per_account') },
+              };
+              const send = onSave ? onSave(op) : live.save(op);
+              void Promise.resolve(send).then((ok) => {
+                if (ok !== false) setOpen(false);
+              });
+            }}
+          >
             <h2 className="text-xl font-black">Mandate</h2>
+            <label className="mt-3 block text-xs font-bold">
+              Creditor
+              <select className={recoverField} name="creditor_id" required>
+                <option value="">Choose a creditor</option>
+                {creditors.map((row) => (
+                  <option key={row.id} value={row.id}>{row.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="mt-3 block text-xs font-bold">
+              Product
+              <select className={recoverField} name="product_type" required defaultValue="trade">
+                <option value="nca_credit">Credit</option>
+                <option value="trade">Trade</option>
+                <option value="levy">Levy</option>
+                <option value="rent">Rent</option>
+                <option value="medical">Medical</option>
+                <option value="utility">Utility</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+            <label className="mt-3 flex min-h-11 items-center gap-2 text-sm font-bold">
+              <input name="nca_regulated" type="checkbox" /> Credit agreement recorded
+            </label>
+            <label className="mt-3 block text-xs font-bold">
+              Commission kind
+              <select className={recoverField} name="commission_kind" defaultValue="flat_per_account">
+                <option value="pct_of_recovered">Percent of recovered</option>
+                <option value="tiered">Tiered</option>
+                <option value="flat_per_account">Flat per account</option>
+                <option value="flat_plus_pct">Flat plus percent</option>
+              </select>
+            </label>
             <p className="mt-2 text-sm">Accounts under this mandate will follow the credit-agreement notice steps when the workflow arrives; RecoverAdvisor® does not apply them yet.</p>
             <p className="mt-2 text-sm">Recorded for later; no fee is calculated or charged by RecoverAdvisor® yet.</p>
             <p className="mt-2 text-xs">Allocation order ⚖ VERIFY. The document itself is not stored yet. Authority to litigate and bureau authority are recorded only. RecoverAdvisor® gives no legal advice.</p>

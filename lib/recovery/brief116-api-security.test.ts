@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { readFeatureResult } from './recovergraph-db';
+import { validateDeskExtra } from './validate';
 import { isPublicApiPath } from '@/lib/auth/public-paths';
 
 const routes = [
@@ -52,5 +53,25 @@ for (const code of ['PGRST205', 'PGRST202', '42P01', '42883']) {
 const desk = readFileSync(resolve('lib/recovery/recovergraph-db.ts'), 'utf8');
 const load = desk.slice(desk.indexOf('export async function loadRecoverDesk'), desk.indexOf('export async function companyRecovergraphEnabled'));
 assert.equal(load.includes('recover_accounts'), false);
+
+const deskRoute = readFileSync(resolve('app/api/recovery/recovergraph/route.ts'), 'utf8');
+const post = deskRoute.slice(deskRoute.indexOf('export async function POST'));
+assert.ok(post.indexOf('validateRecoverOp') < post.indexOf('validateDeskExtra'));
+assert.ok(post.indexOf('allowedBookOps') < post.indexOf('commitBook'));
+assert.ok(post.indexOf('canManageStaff') < post.indexOf('setStaffExpiry'));
+assert.ok(post.indexOf("role !== 'owner'") < post.indexOf('bulkAssignAccounts'));
+assert.match(post, /creditor\.upsert/);
+assert.match(post, /mandate\.upsert/);
+assert.match(readFileSync(resolve('app/api/recovery/recovergraph/import/route.ts'), 'utf8'), /export async function GET/);
+const badCreditor = validateDeskExtra({ op: 'creditor.upsert', name: '' });
+assert.equal(badCreditor.ok, false);
+const badAssign = validateDeskExtra({ op: 'account.bulk_assign', ids: [], staff_id: '' });
+assert.equal(badAssign.ok, false);
+const viewerAssign = validateDeskExtra({
+  op: 'account.bulk_assign',
+  ids: ['11111111-1111-4111-8111-111111111111'],
+  staff_id: '22222222-2222-4222-8222-222222222222',
+});
+assert.equal(viewerAssign.ok, true);
 
 console.log('brief116-api-security.test.ts ok');

@@ -20,6 +20,8 @@ import {
   harbourDesk,
   harbourMemory,
   readHarbourSession,
+  rememberPreviewCreditor,
+  rememberPreviewMandate,
   rollbackPreview,
   writeHarbourSession,
   type MemoryBook,
@@ -256,10 +258,41 @@ export function PreviewDesk({ view }: { view: string }) {
   }
   if (memory?.mode === 'harbour' && view === 'creditors') {
     const desk = harbourDesk(deskRole, memory.memory);
-    return <CreditorBookView phase="ready" creditors={desk.creditors} mandates={desk.mandates} showDemo />;
+    return (
+      <CreditorBookView
+        phase="ready"
+        creditors={desk.creditors}
+        mandates={desk.mandates}
+        showDemo
+        onSave={(op) => {
+          const name = String(op.name || '').trim();
+          if (!name) return false;
+          memory.setMemory(rememberPreviewCreditor(memory.memory, name, String(op.reg_no || '')));
+          return true;
+        }}
+      />
+    );
   }
   if (memory?.mode === 'harbour' && view === 'mandates') {
-    return <MandateBookView phase="ready" mandates={harbourDesk(deskRole, memory.memory).mandates} />;
+    const mandateDesk = harbourDesk(deskRole, memory.memory);
+    return (
+      <MandateBookView
+        phase="ready"
+        mandates={mandateDesk.mandates}
+        creditors={mandateDesk.creditors}
+        onSave={(op) => {
+          const creditor = mandateDesk.creditors.find((row) => row.id === op.creditor_id);
+          if (!creditor || !op.product_type) return false;
+          memory.setMemory(rememberPreviewMandate(memory.memory, {
+            creditor_id: creditor.id,
+            creditor_name: creditor.name,
+            product_type: op.product_type,
+            nca_regulated: Boolean(op.nca_regulated),
+          }));
+          return true;
+        }}
+      />
+    );
   }
   if (view === 'accounts') return <AccountsView phase="ready" book={emptyMemory()} role={deskRole} caps={capabilitiesFor(deskRole)} />;
   if (view === 'imports') return <ImportView phase="ready" book={emptyMemory()} caps={capabilitiesFor(deskRole)} />;

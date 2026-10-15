@@ -1,9 +1,8 @@
 'use client';
 
 import { ImportView } from '@/components/recovery/book-views';
-import { useLiveAccounts } from '@/components/recovery/live-book';
+import { useLiveBatches } from '@/components/recovery/live-book';
 import { useRecoverDesk } from '@/components/recovery/useRecoverDesk';
-import { emptyMemory } from '@/lib/recovery/preview-memory';
 import { capabilitiesFor } from '@/lib/recovery/roles';
 
 async function postImport(body: Record<string, unknown>) {
@@ -16,17 +15,29 @@ async function postImport(body: Record<string, unknown>) {
 
 export default function RecoverImportsPage() {
   const { desk, loading, error } = useRecoverDesk();
-  const live = useLiveAccounts();
+  const live = useLiveBatches();
   const role = desk?.role || 'viewer';
   return (
     <ImportView
-      phase={loading ? 'loading' : error ? 'error' : live.phase}
-      book={emptyMemory()}
+      phase={loading || live.phase === 'loading' ? 'loading' : error ? 'error' : live.phase}
+      book={live.book}
       caps={desk?.capabilities || capabilitiesFor(role)}
-      onCommit={(text) => postImport({ action: 'commit', csv: text, file_name: 'book.csv' })}
-      onRollback={(id) => postImport({ action: 'rollback', batch_id: id })}
-      onLoadDemo={() => postImport({ action: 'load_demo' })}
-      onClearDemo={() => postImport({ action: 'clear_demo' })}
+      onCommit={async (text) => {
+        await postImport({ action: 'commit', csv: text, file_name: 'book.csv' });
+        await live.reload();
+      }}
+      onRollback={async (id) => {
+        await postImport({ action: 'rollback', batch_id: id });
+        await live.reload();
+      }}
+      onLoadDemo={async () => {
+        await postImport({ action: 'load_demo' });
+        await live.reload();
+      }}
+      onClearDemo={async () => {
+        await postImport({ action: 'clear_demo' });
+        await live.reload();
+      }}
     />
   );
 }

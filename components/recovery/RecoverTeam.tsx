@@ -75,13 +75,18 @@ export function RecoverTeam() {
 
   async function onStaff(form: FormData) {
     const rands = String(form.get('target_rands') || '').trim();
+    const email = String(form.get('email') || '');
+    const expires = String(form.get('registration_expires_on') || '').trim();
     const ok = await save({
       op: 'upsert_staff',
-      email: String(form.get('email') || ''),
+      email,
       role: String(form.get('role') || 'collector') as StaffRole,
       cfdc_registration_no: String(form.get('cfdc_registration_no') || ''),
       monthly_target_cents: rands === '' ? null : Math.round(Number(rands) * 100),
     });
+    if (ok && expires) {
+      await save({ op: 'staff.set_expiry', email, expires_on: expires });
+    }
     if (ok) {
       setStaffEmail('');
       setStaffTarget('');

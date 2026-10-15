@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCompanyPermission } from '@/lib/auth/api-auth';
 import { canRecoveryTrust } from '@/lib/recovery/permissions';
-import { resolveRecoverRole, capabilitiesFor } from '@/lib/recovery/roles';
+import { allowedBookOps, capabilitiesFor, resolveRecoverRole } from '@/lib/recovery/roles';
 import { resolveMemberCompany } from '@/lib/recovery/member-company';
 import {
   applyRecoverOp,
@@ -10,7 +10,8 @@ import {
   MigrationPendingError,
 } from '@/lib/recovery/recovergraph-db';
 import { deskResponseBody, projectDesk } from '@/lib/recovery/project';
-import { validateRecoverOp, validateSetRealData } from '@/lib/recovery/validate';
+import { bulkAssignAccounts, commitBook, findStaffId, setStaffExpiry } from '@/lib/recovery/book-db';
+import { validateDeskExtra, validateRecoverOp, validateSetRealData } from '@/lib/recovery/validate';
 
 export const runtime = 'nodejs';
 
@@ -85,7 +86,10 @@ export async function POST(request: NextRequest) {
     }
     const canWriteTrust = canRecoveryTrust(gate.role, 'write');
     const parsed = validateRecoverOp(raw, { canWriteTrust });
-    if (!parsed.ok) return json({ error: parsed.error }, 400);
+    const extra = parsed.ok ? null : validateDeskExtra(raw);
+    if (!parsed.ok && (!extra || !extra.ok)) {
+      return json({ error: extra?.attempted ? extra.error : parsed.error }, 400);
+    }
 
     const load = await loadRecoverDesk(member.member.companyId, {
       userId: gate.userId,
@@ -94,6 +98,38 @@ export async function POST(request: NextRequest) {
     if (!load.ready) return json({ ready: false, reason: 'migration_pending' }, 409);
     const role = resolveRecoverRole(gate.role, load.self);
     const caps = capabilitiesFor(role);
+    if (extra?.ok) {
+      if (extra.value.op === 'creditor.upsert' || extra.value.op === 'mandate.upsert') {
+        if (!allowedBookOps(role).has(extra.value.op)) return denied();
+        await commitBook(member.member.companyId, gate.userId, extra.value);
+      } else if (extra.value.op === 'staff.set_expiry') {
+        if (!caps.canManageStaff) return denied();
+        const staffId = await findStaffId(member.member.companyId, extra.value.staff_id, extra.value.email);
+        if (staffId === 'pending') return json({ ready: false, reason: 'migration_pending' }, 409);
+        if (!staffId) return json({ error: 'Choose a staff record.' }, 400);
+        await setStaffExpiry({
+          companyId: member.member.companyId,
+          actorId: gate.userId,
+          staffId,
+          expiresOn: extra.value.expires_on,
+        });
+      } else if (extra.value.op === 'account.bulk_assign') {
+        if (role !== 'owner' && role !== 'manager') return denied();
+        await bulkAssignAccounts({
+          companyId: member.member.companyId,
+          actorId: gate.userId,
+          ids: extra.value.ids,
+          staffId: extra.value.staff_id,
+          teamId: extra.value.team_id,
+        });
+      }
+      const next = await loadRecoverDesk(member.member.companyId, {
+        userId: gate.userId,
+        email: member.member.email,
+      });
+      return json(deskResponseBody(projectDesk(role, next), canRecoveryTrust(gate.role, 'view')));
+    }
+    if (!parsed.ok) return json({ error: parsed.error }, 400);
     const op = parsed.value;
 
     if (op.op === 'set_real_data_enabled') {
@@ -129,6 +165,18 @@ export async function POST(request: NextRequest) {
     }
     if (error instanceof Error && error.message === 'missing_staff') {
       return json({ error: 'Choose a staff record.' }, 400);
+    }
+    if (error instanceof Error && error.message === 'registration_missing') {
+      return json({ error: 'That person has no Council registration recorded.' }, 400);
+    }
+    if (error instanceof Error && error.message === 'registration_expired') {
+      return json({ error: 'That registration is recorded as expired.' }, 400);
+    }
+    if (error instanceof Error && error.message === 'conflict') {
+      return json({ error: 'That record changed. Open it again.' }, 400);
+    }
+    if (error instanceof Error && (error.message === 'closed' || error.message === 'name' || error.message === 'creditor' || error.message === 'cap')) {
+      return json({ error: 'RecoverAdvisor® could not save that change.' }, 400);
     }
     return json({ error: 'RecoverAdvisor® could not save that change.' }, 500);
   }

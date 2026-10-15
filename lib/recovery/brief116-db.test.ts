@@ -387,6 +387,32 @@ async function main() {
     /registration_missing|23514/
   );
   psql(`SELECT public.recover_set_staff_expiry(1, 'owner', '${staffC}', '2000-01-01');`);
+  assert.equal(psql(`SELECT registration_expires_on FROM public.recover_staff WHERE id = '${staffC}';`), '2000-01-01');
+  assert.equal(
+    psql(`SELECT count(*) FROM public.recover_audit_log WHERE action = 'staff.registration_expiry' AND target = '${staffC}';`),
+    '1'
+  );
+  assert.equal(
+    psql(`SELECT position('@' in payload::text) = 0 FROM public.recover_audit_log WHERE action = 'staff.registration_expiry' AND target = '${staffC}';`),
+    't'
+  );
+  const assignIds = psql(`
+    SELECT json_agg(id) FROM public.recover_accounts
+    WHERE company_id = 1 AND creditor_account_ref IN ('ACC-1', 'ACC-2');
+  `);
+  const bulk = JSON.parse(psql(`
+    SELECT public.recover_bulk_assign(1, 'owner', '${assignIds}'::jsonb, '${staffA}', NULL, '2026-06-01');
+  `)) as { ok: boolean; count: number };
+  assert.equal(bulk.ok, true);
+  assert.equal(bulk.count, 2);
+  assert.equal(
+    psql(`SELECT count(*) FROM public.recover_accounts WHERE company_id = 1 AND creditor_account_ref IN ('ACC-1', 'ACC-2') AND assigned_to = '${staffA}';`),
+    '2'
+  );
+  fails(
+    `SELECT public.recover_bulk_assign(1, 'owner', '[]'::jsonb, '${staffA}', NULL, NULL);`,
+    /cap|22023/
+  );
   fails(
     `SELECT public.recover_book_commit(1, 'owner', 'account.assign', 't', jsonb_build_object('id','${noted}','staff_id','${staffC}','as_of','2026-06-01'));`,
     /registration_expired|23514/

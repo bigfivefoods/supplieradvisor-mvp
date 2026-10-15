@@ -1,8 +1,64 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { emptyMemory, type MemoryAccount, type MemoryBook } from '@/lib/recovery/preview-memory';
 import type { BookPhase } from './book-views';
+
+export function useLiveBatches() {
+  const [phase, setPhase] = useState<BookPhase>('loading');
+  const [book, setBook] = useState<MemoryBook>(emptyMemory());
+  const load = useCallback(async () => {
+    setPhase('loading');
+    try {
+      const res = await fetch('/api/recovery/recovergraph/import', { cache: 'no-store' });
+      const body = (await res.json().catch(() => null)) as {
+        ready?: boolean;
+        reason?: string;
+        error?: string;
+        batches?: {
+          id: string;
+          creditor_id: string;
+          creditor_name: string;
+          file_name: string;
+          status: MemoryBook['batches'][number]['status'];
+          created: number;
+          skipped: number;
+        }[];
+      } | null;
+      if (body?.reason === 'migration_pending') {
+        setPhase('pending');
+        setBook(emptyMemory());
+        return;
+      }
+      if (!res.ok || !body || body.error || !body.batches) {
+        setPhase('error');
+        return;
+      }
+      setBook({
+        ...emptyMemory(),
+        batches: body.batches.map((row) => ({
+          id: row.id,
+          creditor_id: row.creditor_id,
+          creditor_name: row.creditor_name,
+          file_name: row.file_name,
+          file_sha256: '',
+          status: row.status === 'rolled_back' || row.status === 'validating' || row.status === 'rejected' ? row.status : 'imported',
+          created: Number(row.created || 0),
+          skipped: Number(row.skipped || 0),
+          errors: [],
+          account_ids: [],
+        })),
+      });
+      setPhase('ready');
+    } catch {
+      setPhase('error');
+    }
+  }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  return { phase, book, reload: load };
+}
 
 export function useLiveAccounts() {
   const [phase, setPhase] = useState<BookPhase>('loading');
