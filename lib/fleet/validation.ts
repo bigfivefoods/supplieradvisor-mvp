@@ -75,6 +75,15 @@ export function assertNoIdentity(value: unknown): FieldError {
   return { ok: true };
 }
 
+/** Refuse SA ID-shaped numbers and licence or passport phrases in free text. Ordinary phone numbers stay. */
+export function assertNoIdentityText(value: string): FieldError {
+  if (/\d{13}/.test(value)) return fail('Remove the identity number. This desk does not store it.');
+  if (/\b(passport|licence|license)\s*(number|no\.?|#)/i.test(value)) {
+    return fail('Remove the licence or passport number. This desk does not store it.');
+  }
+  return { ok: true };
+}
+
 export function assertLedgerCategory(category: string): FieldError {
   if (!ledgerCategoryAllowed(category)) {
     return fail('Standing and capital costs belong on the cost profile, not the ledger.');

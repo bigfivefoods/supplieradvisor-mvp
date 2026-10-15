@@ -37,6 +37,7 @@ test.describe('FleetAdvisor preview', () => {
     await page.getByTestId('fleet-open-SAMPLE-01').click();
     await page.getByTestId('fleet-odometer-km').fill('18100');
     await page.getByTestId('fleet-save-odometer').click();
+    await page.getByTestId('fleet-cost-date').fill('2024-06-15');
     await page.getByTestId('fleet-cost-amount').fill('250000');
     await page.getByTestId('fleet-save-cost').click();
 

@@ -48,14 +48,21 @@ function present(book: FleetBook, companyRole: string) {
   return { ready: true, role, caps, period, book: view };
 }
 
+function pendingOrFailure(reason: 'migration_pending' | 'error') {
+  if (reason === 'migration_pending') return json(200, { ready: false, reason: 'migration_pending' });
+  console.error('fleetgraph load failed');
+  return json(500, { error: 'The desk could not load.' });
+}
+
 async function serveBook(companyId: number, companyRole: string, book?: FleetBook) {
   if (book) return json(200, present(book, companyRole));
   try {
     const loaded = await loadFleetBook(companyId);
-    if (!loaded.ready) return json(200, { ready: false, reason: 'migration_pending' });
+    if (!loaded.ready) return pendingOrFailure(loaded.reason);
     return json(200, present(loaded.book, companyRole));
   } catch {
-    return json(200, { ready: false, reason: 'migration_pending' });
+    console.error('fleetgraph load failed');
+    return json(500, { error: 'The desk could not load.' });
   }
 }
 
@@ -78,9 +85,10 @@ export async function POST(request: NextRequest) {
   try {
     loaded = await loadFleetBook(gated.companyId);
   } catch {
-    return json(200, { ready: false, reason: 'migration_pending' });
+    console.error('fleetgraph load failed');
+    return json(500, { error: 'The desk could not load.' });
   }
-  if (!loaded.ready) return json(200, { ready: false, reason: 'migration_pending' });
+  if (!loaded.ready) return pendingOrFailure(loaded.reason);
   const fleetRole = resolveFleetRole(gated.companyRole);
   const customerId = Number(payload.customer_id);
   if (payload.customer_id != null && payload.customer_id !== '' && Number.isFinite(customerId) && customerId > 0) {
@@ -94,9 +102,13 @@ export async function POST(request: NextRequest) {
   }
   if (opName === 'job.upsert' && !payload.reference && !payload.id) {
     const number = await nextJobNumber(gated.companyId);
-    if (number == null) return json(200, { ready: false, reason: 'migration_pending' });
+    if (!number.ok && number.missing) return json(200, { ready: false, reason: 'migration_pending' });
+    if (!number.ok) {
+      console.error('fleetgraph number failed');
+      return json(500, { error: 'The desk could not save that.' });
+    }
     const prefix = loaded.book.workspace.waybill_prefix || 'JOB';
-    payload.reference = `${prefix}-${number}`;
+    payload.reference = `${prefix}-${number.value}`;
   }
   const op = { op: opName as FleetOpName, payload } satisfies FleetOp;
   try {
@@ -112,10 +124,16 @@ export async function POST(request: NextRequest) {
       },
       typeof body.expected_updated_at === 'string' ? body.expected_updated_at : null
     );
+    if (!outcome.ok && outcome.pending) return json(200, { ready: false, reason: 'migration_pending' });
+    if (!outcome.ok && outcome.status === 500) {
+      console.error('fleetgraph save failed');
+      return json(500, { error: 'The desk could not save that.' });
+    }
     if (!outcome.ok) return json(outcome.status, { error: outcome.error });
     return json(200, present(outcome.book, gated.companyRole));
   } catch {
-    return json(200, { ready: false, reason: 'migration_pending' });
+    console.error('fleetgraph save failed');
+    return json(500, { error: 'The desk could not save that.' });
   }
 }
 

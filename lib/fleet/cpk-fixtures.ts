@@ -121,11 +121,11 @@ export function sample01Input(): FleetCpkInput {
 }
 
 export const SAMPLE_01_DISPLAY = {
-  l1: 'R66,400.00',
-  l2: 'R44,000.00',
-  l3: 'R12,000.00',
-  l4: 'R5,200.00',
-  total: 'R127,600.00',
+  l1: 'R66 400.00',
+  l2: 'R44 000.00',
+  l3: 'R12 000.00',
+  l4: 'R5 200.00',
+  total: 'R127 600.00',
   running: 'R8.30',
   standing: 'R5.50',
   capital: 'R1.50',
@@ -135,7 +135,7 @@ export const SAMPLE_01_DISPLAY = {
   target: 'R15.50',
   breakeven: 'R21.27',
   required: 'R23.63',
-  profit: 'R12,400.00',
+  profit: 'R12 400.00',
   profitPerKm: 'R1.55',
   margin: '8.9%',
   fuel: '35.0 L/100 km',

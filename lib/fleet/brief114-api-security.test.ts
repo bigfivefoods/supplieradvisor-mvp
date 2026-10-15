@@ -43,6 +43,9 @@ for (const file of [...walk('components/fleet'), ...walk('app/dashboard/fleetgra
 
 assert.equal(isFleetSchemaMissing({ code: '42P01', message: 'relation does not exist' }), true);
 assert.equal(isFleetSchemaMissing({ code: 'PGRST205', message: 'schema cache' }), true);
+assert.equal(isFleetSchemaMissing({ code: '42883', message: 'undefined function' }), true);
+assert.equal(isFleetSchemaMissing({ code: 'PGRST202', message: 'could not find the function' }), true);
+assert.equal(isFleetSchemaMissing({ code: '23505', message: 'duplicate key' }), false);
 assert.equal(isFleetSchemaMissing(null), false);
 
 const db = readFileSync('lib/fleet/fleetgraph-db.ts', 'utf8');
@@ -50,6 +53,9 @@ assert.equal(db.includes("from('fg_audit_log').delete"), false);
 assert.equal(db.includes("from('fg_cost_entries').delete"), false);
 assert.equal(db.includes("from('fg_odometer_readings').delete"), false);
 assert.equal(db.includes("from('fg_position_events')"), false);
+assert.equal(db.includes("from('fg_audit_log')"), false);
+assert.match(db, /fg_commit_diff/);
 assert.match(db, /ready: false, reason: 'migration_pending'/);
+assert.match(db, /ready: false, reason: 'error'/);
 
 console.log('brief114-api-security.test.ts ok');

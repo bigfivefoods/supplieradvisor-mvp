@@ -81,6 +81,7 @@ export type VehicleCpk = {
   standing_cents: number | null;
   capital_cents: number | null;
   overhead_cents: number | null;
+  overhead_unallocated_cents: number | null;
   total_cents: number | null;
   running_per_km: number | null;
   standing_per_km: number | null;
@@ -473,6 +474,7 @@ function emptyVehicle(id: string, message: string, next: string | null, status: 
     standing_cents: null,
     capital_cents: null,
     overhead_cents: null,
+    overhead_unallocated_cents: null,
     total_cents: null,
     running_per_km: null,
     standing_per_km: null,
@@ -551,7 +553,6 @@ export function computeFleetCpk(input: FleetCpkInput): VehicleCpk[] {
       return row;
     }
     const km = distance.km;
-    const mode = profile?.tyre_mode || tyreDefault;
     const lines = {
       fuel: 0,
       toll: 0,
@@ -561,6 +562,8 @@ export function computeFleetCpk(input: FleetCpkInput): VehicleCpk[] {
     };
     for (const entry of inPeriod) {
       if (entry.category === 'fine' && !fines) continue;
+      const dayProfile = profileFor(input.profiles, vehicle.id, entry.occurred_on);
+      const mode = dayProfile?.tyre_mode || tyreDefault;
       if (entry.category === 'tyres' && mode === 'accrual') continue;
       const net = netCents(entry);
       if (entry.category === 'fuel') lines.fuel += net;
@@ -571,12 +574,34 @@ export function computeFleetCpk(input: FleetCpkInput): VehicleCpk[] {
         lines.other += net;
       }
     }
-    const accruedTyres = tyreAccrual(profile, km, tyreDefault);
-    if (mode === 'accrual') lines.tyres = accruedTyres;
+    const segments = profileSegments(input.profiles, vehicle.id, input.period.from, input.period.to);
+    const activeDays = segments.reduce((sum, segment) => sum + (segment.profile ? dayCount(segment.from, segment.to) : 0), 0);
+    let accruedTyres = 0;
+    for (const segment of segments) {
+      if (!segment.profile) continue;
+      const share = activeDays > 0 ? (km * dayCount(segment.from, segment.to)) / activeDays : 0;
+      accruedTyres += tyreAccrual(segment.profile, share, tyreDefault);
+    }
+    lines.tyres += accruedTyres;
     const running = lines.fuel + lines.toll + lines.maintenance + lines.tyres + lines.other;
-    const standingLines = profile
-      ? standingFor(profile, input.period.from, input.period.to).standing
-      : { driver: 0, finance: 0, insurance: 0, licences: 0, tracker: 0, other: 0 };
+    const standingLines = { driver: 0, finance: 0, insurance: 0, licences: 0, tracker: 0, other: 0 };
+    let capital = 0;
+    let sawProfile = false;
+    let missingDepreciation = false;
+    for (const segment of segments) {
+      if (!segment.profile) continue;
+      sawProfile = true;
+      const part = standingFor(segment.profile, segment.from, segment.to).standing;
+      standingLines.driver += part.driver;
+      standingLines.finance += part.finance;
+      standingLines.insurance += part.insurance;
+      standingLines.licences += part.licences;
+      standingLines.tracker += part.tracker;
+      standingLines.other += part.other;
+      const share = activeDays > 0 ? (km * dayCount(segment.from, segment.to)) / activeDays : 0;
+      capital += capitalFor(segment.profile, segment.from, segment.to, segment.profile.depreciation_method === 'distance' ? share : km);
+      if (segment.profile.purchase_price_cents == null || !(segment.profile.life_months || segment.profile.life_km)) missingDepreciation = true;
+    }
     const standing =
       standingLines.driver +
       standingLines.finance +
@@ -584,13 +609,10 @@ export function computeFleetCpk(input: FleetCpkInput): VehicleCpk[] {
       standingLines.licences +
       standingLines.tracker +
       standingLines.other;
-    const capital = profile ? capitalFor(profile, input.period.from, input.period.to, km) : 0;
     const missing: string[] = [];
-    if (!profile) missing.push('no cost profile');
-    else if (profile.purchase_price_cents == null || !(profile.life_months || profile.life_km)) {
-      missing.push('no depreciation inputs');
-    }
-    const hasRunningInput = inPeriod.some((row) => row.category !== 'fine' && row.category !== 'tyres') || accruedTyres > 0 || (mode === 'ledger' && lines.tyres > 0);
+    if (!sawProfile) missing.push('no cost profile');
+    else if (missingDepreciation) missing.push('no depreciation inputs');
+    const hasRunningInput = inPeriod.some((row) => row.category !== 'fine' && row.category !== 'tyres') || accruedTyres > 0 || lines.tyres > 0;
     if (!hasRunningInput) missing.push('no running entries');
     const fuel = fuelEfficiency(entries);
     const loaded = finite(vehicle.loaded_km) ?? distance.loadedKmFromTrips;
@@ -611,6 +633,7 @@ export function computeFleetCpk(input: FleetCpkInput): VehicleCpk[] {
       standing_cents: standing,
       capital_cents: capital,
       overhead_cents: 0,
+      overhead_unallocated_cents: null,
       total_cents: running + standing + capital,
       running_per_km: running / km / 100,
       standing_per_km: standing / km / 100,
@@ -664,46 +687,112 @@ export function computeFleetCpk(input: FleetCpkInput): VehicleCpk[] {
       row.margin = vehicle.revenue_cents > 0 ? row.profit_cents / vehicle.revenue_cents : null;
     }
     if (!row.missing.length) row.completeness = 'complete';
+    const bare =
+      (row.running_cents || 0) === 0 &&
+      (row.standing_cents || 0) === 0 &&
+      (row.capital_cents || 0) === 0 &&
+      (row.overhead_cents || 0) === 0;
+    if (bare) {
+      row.status = 'not_enough_data';
+      row.message = 'Not enough data';
+      row.next_step = 'Add a cost profile and a running cost';
+      row.completeness = 'none';
+      row.fully_loaded_per_km = null;
+      row.operating_per_km = null;
+      row.running_per_km = null;
+      row.standing_per_km = null;
+      row.capital_per_km = null;
+      row.overhead_per_km = null;
+      row.variance_per_km = null;
+      row.variance_status = 'no_target';
+    }
   }
   applyPeers(drafts, input.vehicles);
   return drafts.map(sanitizeVehicle);
 }
 
+function profileSegments(
+  profiles: CpkProfile[],
+  vehicleId: string,
+  from: string,
+  to: string
+): Array<{ profile: CpkProfile | null; from: string; to: string }> {
+  const days = eachDay(from, to);
+  if (!days.length) return [];
+  const keyFor = (day: string) => {
+    const profile = profileFor(profiles, vehicleId, day);
+    if (!profile || !inFleet(profile, day)) return '';
+    return `${profile.effective_from}|${profile.purchase_price_cents}|${profile.finance_monthly_cents}|${profile.driver_cost_monthly_cents}|${profile.depreciation_method}|${profile.tyre_mode}`;
+  };
+  const out: Array<{ profile: CpkProfile | null; from: string; to: string }> = [];
+  let current = keyFor(days[0]);
+  let start = days[0];
+  for (let index = 1; index < days.length; index += 1) {
+    const key = keyFor(days[index]);
+    if (key === current) continue;
+    out.push({ profile: current ? profileFor(profiles, vehicleId, start) : null, from: start, to: days[index] });
+    current = key;
+    start = days[index];
+  }
+  out.push({ profile: current ? profileFor(profiles, vehicleId, start) : null, from: start, to });
+  return out;
+}
+
+function vehicleActiveOn(vehicle: CpkVehicleInput, profiles: CpkProfile[], events: CpkStatusEvent[], day: string): boolean {
+  if (statusOn(events, vehicle.id, day) === 'sold') return false;
+  const profile = profileFor(profiles, vehicle.id, day);
+  if (profile) return inFleet(profile, day);
+  return true;
+}
+
 function allocateOverhead(rows: VehicleCpk[], input: FleetCpkInput) {
-  const pools = input.pools.filter((pool) => {
-    const month = pool.period_month.slice(0, 7);
-    const from = `${month}-01`;
-    const to = addDays(from, 32).slice(0, 7) === month ? addDays(from, 32) : addDays(`${month}-28`, 4);
-    const monthTo = nextMonth(from);
-    return monthTo > input.period.from.slice(0, 10) && from < input.period.to.slice(0, 10);
-  });
+  let unallocated = 0;
   const covered = new Set<string>();
+  const pools = input.pools.filter((pool) => {
+    const monthFrom = `${pool.period_month.slice(0, 7)}-01`;
+    const monthTo = nextMonth(monthFrom);
+    return monthTo > input.period.from.slice(0, 10) && monthFrom < input.period.to.slice(0, 10);
+  });
   for (const pool of pools) {
     const monthFrom = `${pool.period_month.slice(0, 7)}-01`;
     const monthTo = nextMonth(monthFrom);
-    const sliceFrom = monthFrom > input.period.from ? monthFrom : input.period.from.slice(0, 10);
-    const sliceTo = monthTo < input.period.to ? monthTo : input.period.to.slice(0, 10);
+    const sliceFrom = monthFrom > input.period.from.slice(0, 10) ? monthFrom : input.period.from.slice(0, 10);
+    const sliceTo = monthTo < input.period.to.slice(0, 10) ? monthTo : input.period.to.slice(0, 10);
+    const monthDays = dayCount(monthFrom, monthTo);
+    const sliceDays = dayCount(sliceFrom, sliceTo);
+    if (monthDays <= 0 || sliceDays <= 0) continue;
+    const amount = (pool.amount_cents * sliceDays) / monthDays;
+    const events = input.statusEvents || [];
     const weights = input.vehicles.map((vehicle) => {
       if (vehicle.ownership === 'subcontractor' && !input.includeSubcontractors) return 0;
       const row = rows.find((item) => item.vehicle_id === vehicle.id);
-      if (!row || row.status !== 'ok') return 0;
-      if (pool.basis === 'km') return row.total_km || 0;
+      if (pool.basis === 'km') return row?.total_km || 0;
       if (pool.basis === 'revenue') return Math.max(0, vehicle.revenue_cents || 0);
-      const profile = profileFor(input.profiles, vehicle.id, sliceFrom);
-      return eachDay(sliceFrom, sliceTo).filter((day) => (profile ? inFleet(profile, day) : true)).length;
+      return eachDay(sliceFrom, sliceTo).filter((day) => vehicleActiveOn(vehicle, input.profiles, events, day)).length;
     });
     const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+    if (totalWeight <= 0) {
+      unallocated += amount;
+      continue;
+    }
+    let assigned = 0;
     input.vehicles.forEach((vehicle, index) => {
       const row = rows.find((item) => item.vehicle_id === vehicle.id);
-      if (!row || row.status !== 'ok') return;
+      if (!row || weights[index] <= 0) return;
       covered.add(vehicle.id);
-      if (totalWeight <= 0 || weights[index] <= 0) return;
-      row.overhead_cents = (row.overhead_cents || 0) + (pool.amount_cents * weights[index]) / totalWeight;
+      const share = (amount * weights[index]) / totalWeight;
+      row.overhead_cents = (row.overhead_cents || 0) + share;
+      assigned += share;
     });
+    unallocated += amount - assigned;
   }
   for (const row of rows) {
+    row.overhead_unallocated_cents = unallocated;
     if (row.status !== 'ok') continue;
-    if (!covered.has(row.vehicle_id)) row.missing = [...row.missing, 'no overhead pool'];
+    if (!covered.has(row.vehicle_id) && pools.length === 0) row.missing = [...row.missing, 'no overhead pool'];
+    else if (!covered.has(row.vehicle_id) && pools.length > 0 && (row.overhead_cents || 0) === 0) {
+      row.missing = [...row.missing, 'no overhead pool'];
+    }
   }
 }
 
@@ -743,6 +832,7 @@ function sanitizeVehicle(row: VehicleCpk): VehicleCpk {
     standing_cents: num(row.standing_cents),
     capital_cents: num(row.capital_cents),
     overhead_cents: num(row.overhead_cents),
+    overhead_unallocated_cents: num(row.overhead_unallocated_cents),
     total_cents: num(row.total_cents),
     running_per_km: num(row.running_per_km),
     standing_per_km: num(row.standing_per_km),

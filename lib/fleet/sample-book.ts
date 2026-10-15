@@ -156,6 +156,8 @@ export function sampleFleetBook(): FleetBook {
       countries: [],
       price_cents: 14_000_000,
       notes: '',
+      vehicle_id: 'sample-01',
+      driver_id: 'driver-a',
       archived_at: null,
       updated_at: NOW,
     },
@@ -254,6 +256,8 @@ export function sampleFleetBook(): FleetBook {
     read_at: reading.read_at,
     source: 'manual' as const,
     note: '',
+    recorded_by: 'sample',
+    anomaly: false,
     created_at: NOW,
   }));
   book.status_events = (fixture.statusEvents || []).map((event, index) => ({
@@ -263,6 +267,7 @@ export function sampleFleetBook(): FleetBook {
     status: event.status as FleetBook['status_events'][number]['status'],
     from_at: event.from_at,
     note: '',
+    by_actor: 'sample',
     created_at: NOW,
   }));
   book.overhead_pools = fixture.pools.map((pool, index) => ({

@@ -23,7 +23,10 @@ const expected: Record<string, string> = {
 for (const option of TEAM_ROLE_OPTIONS) {
   assert.equal(resolveFleetRole(option.value), expected[option.value], option.value);
 }
-assert.equal(resolveFleetRole('not-a-role'), 'dispatcher');
+assert.equal(resolveFleetRole('not-a-role'), 'none');
+assert.equal(resolveFleetRole(null), 'none');
+assert.equal(resolveFleetRole(''), 'none');
+assert.equal(allowedOpsForRole('none').length, 0);
 
 const book = emptyFleetBook(1, '2024-07-02T00:00:00.000Z');
 book.jobs = [
@@ -46,6 +49,8 @@ book.jobs = [
     countries: [],
     price_cents: 888002,
     notes: '',
+    vehicle_id: null,
+    driver_id: null,
     archived_at: null,
     updated_at: '2024-07-02T00:00:00.000Z',
   },

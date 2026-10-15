@@ -84,7 +84,7 @@ export function PreviewShell({ screen }: { screen: FleetScreen }) {
         </button>
       </div>
       <div className="md:grid md:grid-cols-[240px_minmax(0,1fr)]">
-        <aside className={`${menu ? 'block' : 'hidden'} border-[#e2e8f0] bg-white md:block md:border-r`} data-testid="fleet-sidebar">
+        <aside className={`${menu ? 'block' : 'hidden'} min-h-screen border-[#e2e8f0] bg-white md:sticky md:top-0 md:block md:min-h-screen md:border-r`} data-testid="fleet-sidebar">
           <p className="px-4 pt-4 text-xs font-black uppercase tracking-wide text-[#0077b6]">FleetAdvisor®</p>
           <ul className="space-y-1 p-3">
             {steps.map((step) => {

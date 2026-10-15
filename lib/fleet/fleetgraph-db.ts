@@ -28,8 +28,24 @@ type DbError = { code?: string; message?: string } | null;
 
 export function isFleetSchemaMissing(error: DbError): boolean {
   if (!error) return false;
-  const text = `${error.code || ''} ${error.message || ''}`;
-  return error.code === '42P01' || error.code === 'PGRST205' || /does not exist|schema cache|could not find the table/i.test(text);
+  const code = error.code || '';
+  if (code === '42P01' || code === '42883' || code === 'PGRST205' || code === 'PGRST202') return true;
+  const text = `${code} ${error.message || ''}`;
+  return /does not exist|schema cache|could not find the (table|function)|undefined function/i.test(text);
+}
+
+export async function collectPages<T>(
+  fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: DbError }>,
+  size = 1000
+): Promise<{ rows: T[]; error: DbError }> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += size) {
+    const page = await fetchPage(from, from + size - 1);
+    if (page.error) return { rows: [], error: page.error };
+    const chunk = page.data || [];
+    rows.push(...chunk);
+    if (chunk.length < size) return { rows, error: null };
+  }
 }
 
 function num(value: unknown): number | null {
@@ -62,14 +78,15 @@ export async function loadFleetBook(companyId: number): Promise<FleetLoad> {
     'fg_vehicle_status_events',
     'fg_overhead_pools',
     'fg_cpk_targets',
-    'fg_audit_log',
   ] as const;
   const rows: Record<string, unknown[]> = {};
   for (const table of tables) {
-    const { data, error } = await admin.from(table).select('*').eq('company_id', companyId);
-    if (isFleetSchemaMissing(error)) return { ready: false, reason: 'migration_pending' };
-    if (error) return { ready: false, reason: 'migration_pending' };
-    rows[table] = data || [];
+    const loaded = await collectPages((from, to) =>
+      admin.from(table).select('*').eq('company_id', companyId).order('id', { ascending: true }).range(from, to)
+    );
+    if (isFleetSchemaMissing(loaded.error)) return { ready: false, reason: 'migration_pending' };
+    if (loaded.error) return { ready: false, reason: 'error' };
+    rows[table] = loaded.rows;
   }
   const workspaceRow = (rows.fg_workspaces[0] || null) as Record<string, unknown> | null;
   const book = emptyFleetBook(companyId);
@@ -96,12 +113,15 @@ export async function customerBelongsToCompany(customerId: number, companyId: nu
   return sameCompanyCustomer(num((data as { profile_id?: unknown }).profile_id), companyId);
 }
 
-export async function nextJobNumber(companyId: number): Promise<number | null> {
+export async function nextJobNumber(
+  companyId: number
+): Promise<{ ok: true; value: number } | { ok: false; missing: boolean }> {
   const admin = getSupabaseAdmin();
   const { data, error } = await admin.rpc('fg_next_number', { p_company_id: companyId, p_name: 'job' });
-  if (error || data == null) return null;
+  if (error) return { ok: false, missing: isFleetSchemaMissing(error) };
   const value = Number(data);
-  return Number.isFinite(value) ? value : null;
+  if (!Number.isFinite(value)) return { ok: false, missing: false };
+  return { ok: true, value };
 }
 
 export async function commitFleetOp(
@@ -113,103 +133,68 @@ export async function commitFleetOp(
   const outcome = applyFleetOp(before, op, ctx, expectedUpdatedAt);
   if (!outcome.ok) return outcome;
   const saved = await persistDiff(before, outcome.book);
-  if (!saved.ok) return { ok: false, status: saved.status, error: saved.error };
+  if (!saved.ok) return { ok: false, status: saved.status, error: saved.error, pending: saved.pending };
   return outcome;
 }
 
-async function persistDiff(before: FleetBook, after: FleetBook): Promise<{ ok: true } | { ok: false; status: 409 | 400; error: string }> {
+async function persistDiff(
+  before: FleetBook,
+  after: FleetBook
+): Promise<{ ok: true } | { ok: false; status: 409 | 400 | 500; error: string; pending?: boolean }> {
   const admin = getSupabaseAdmin();
   const companyId = after.workspace.company_id;
-  if (after.workspace.display_name || after.workspace.id) {
-    const saved = await upsertRow(admin, 'fg_workspaces', workspaceRow(after.workspace), before.workspace.id ? before.workspace.updated_at : null, companyId);
-    if (!saved.ok) return saved;
+  const diff = {
+    company_id: companyId,
+    upserts: {
+      fg_workspaces: workspaceChanged(before, after) ? [{ ...workspaceRow(after.workspace), previous_updated_at: before.workspace.id ? before.workspace.updated_at : null }] : [],
+      fg_vehicles: changedRows(before.vehicles, after.vehicles, vehicleRow),
+      fg_drivers: changedRows(before.drivers, after.drivers, driverRow),
+      fg_compliance_items: changedRows(before.compliance, after.compliance, complianceRow),
+      fg_jobs: changedRows(before.jobs, after.jobs, jobRow),
+      fg_job_stops: changedRows(before.stops, after.stops, stopRow),
+      fg_cost_profiles: changedRows(before.cost_profiles, after.cost_profiles, profileRow),
+      fg_overhead_pools: changedRows(before.overhead_pools, after.overhead_pools, poolRow),
+      fg_cpk_targets: changedRows(before.cpk_targets, after.cpk_targets, targetRow),
+    },
+    inserts: {
+      fg_cost_entries: newRows(before.cost_entries, after.cost_entries, entryRow),
+      fg_odometer_readings: newRows(before.odometer_readings, after.odometer_readings, odoRow),
+      fg_vehicle_status_events: newRows(before.status_events, after.status_events, statusRow),
+      fg_audit_log: newRows(before.audit, after.audit, auditRow),
+    },
+    delete_stop_ids: before.stops.filter((stop) => !after.stops.some((row) => row.id === stop.id)).map((stop) => stop.id),
+  };
+  const { error } = await admin.rpc('fg_commit_diff', { p_company_id: companyId, p_diff: diff });
+  if (!error) return { ok: true };
+  if (isFleetSchemaMissing(error)) return { ok: false, status: 500, error: 'The desk could not save that.', pending: true };
+  const text = `${error.code || ''} ${error.message || ''}`;
+  if (error.code === '40001' || /fg_conflict/i.test(text)) {
+    return { ok: false, status: 409, error: 'This record changed. Reload and try again.' };
   }
-  const checks = [
-    await syncRows(admin, 'fg_vehicles', before.vehicles, after.vehicles, companyId, vehicleRow),
-    await syncRows(admin, 'fg_drivers', before.drivers, after.drivers, companyId, driverRow),
-    await syncRows(admin, 'fg_compliance_items', before.compliance, after.compliance, companyId, complianceRow),
-    await syncRows(admin, 'fg_jobs', before.jobs, after.jobs, companyId, jobRow),
-    await syncRows(admin, 'fg_job_stops', before.stops, after.stops, companyId, stopRow),
-    await syncRows(admin, 'fg_cost_profiles', before.cost_profiles, after.cost_profiles, companyId, profileRow),
-    await syncRows(admin, 'fg_overhead_pools', before.overhead_pools, after.overhead_pools, companyId, poolRow),
-    await syncRows(admin, 'fg_cpk_targets', before.cpk_targets, after.cpk_targets, companyId, targetRow),
-  ];
-  for (const check of checks) if (!check.ok) return check;
-  const appended = [
-    await insertNew(admin, 'fg_cost_entries', before.cost_entries, after.cost_entries, entryRow),
-    await insertNew(admin, 'fg_odometer_readings', before.odometer_readings, after.odometer_readings, odoRow),
-    await insertNew(admin, 'fg_vehicle_status_events', before.status_events, after.status_events, statusRow),
-    await insertNew(admin, 'fg_audit_log', before.audit, after.audit, auditRow),
-  ];
-  for (const check of appended) if (!check.ok) return check;
-  const removedStops = before.stops.filter((stop) => !after.stops.some((row) => row.id === stop.id));
-  for (const stop of removedStops) {
-    const { error } = await admin.from('fg_job_stops').delete().eq('company_id', companyId).eq('id', stop.id);
-    if (error) return { ok: false, status: 400, error: 'The desk could not save that.' };
-  }
-  return { ok: true };
+  console.error('fleetgraph save failed');
+  return { ok: false, status: 500, error: 'The desk could not save that.' };
 }
 
-type Admin = ReturnType<typeof getSupabaseAdmin>;
-
-async function upsertRow(
-  admin: Admin,
-  table: string,
-  row: Record<string, unknown>,
-  previousUpdatedAt: string | null,
-  companyId: number
-): Promise<{ ok: true } | { ok: false; status: 409 | 400; error: string }> {
-  if (!row.id) {
-    const { error } = await admin.from(table).insert(row);
-    if (error) return { ok: false, status: 400, error: 'The desk could not save that.' };
-    return { ok: true };
-  }
-  const { data: existing, error: readError } = await admin.from(table).select('id').eq('id', row.id).eq('company_id', companyId).maybeSingle();
-  if (readError) return { ok: false, status: 400, error: 'The desk could not save that.' };
-  if (!existing) {
-    const { error } = await admin.from(table).insert(row);
-    if (error) return { ok: false, status: 400, error: 'The desk could not save that.' };
-    return { ok: true };
-  }
-  let query = admin.from(table).update(row).eq('id', row.id).eq('company_id', companyId);
-  if (previousUpdatedAt) query = query.eq('updated_at', previousUpdatedAt);
-  const { data, error } = await query.select('id');
-  if (error) return { ok: false, status: 400, error: 'The desk could not save that.' };
-  if (!data || data.length === 0) return { ok: false, status: 409, error: 'This record changed. Reload and try again.' };
-  return { ok: true };
+function workspaceChanged(before: FleetBook, after: FleetBook): boolean {
+  if (!after.workspace.id && !after.workspace.display_name) return false;
+  return !before.workspace.id || before.workspace.updated_at !== after.workspace.updated_at;
 }
 
-async function syncRows<T extends { id: string; updated_at?: string }>(
-  admin: Admin,
-  table: string,
+function changedRows<T extends { id: string; updated_at?: string }>(
   before: T[],
   after: T[],
-  companyId: number,
   toRow: (row: T) => Record<string, unknown>
-): Promise<{ ok: true } | { ok: false; status: 409 | 400; error: string }> {
-  for (const row of after) {
+): Record<string, unknown>[] {
+  return after.flatMap((row) => {
     const prior = before.find((item) => item.id === row.id);
-    if (prior && prior.updated_at === row.updated_at) continue;
-    const saved = await upsertRow(admin, table, toRow(row), prior?.updated_at || null, companyId);
-    if (!saved.ok) return saved;
-  }
-  return { ok: true };
+    if (prior && prior.updated_at === row.updated_at) return [];
+    return [{ ...toRow(row), previous_updated_at: prior?.updated_at || null }];
+  });
 }
 
-async function insertNew<T extends { id: string }>(
-  admin: Admin,
-  table: string,
-  before: T[],
-  after: T[],
-  toRow: (row: T) => Record<string, unknown>
-): Promise<{ ok: true } | { ok: false; status: 409 | 400; error: string }> {
+function newRows<T extends { id: string }>(before: T[], after: T[], toRow: (row: T) => Record<string, unknown>): Record<string, unknown>[] {
   const known = new Set(before.map((row) => row.id));
-  for (const row of after) {
-    if (known.has(row.id)) continue;
-    const { error } = await admin.from(table).insert(toRow(row));
-    if (error) return { ok: false, status: 400, error: 'The desk could not save that.' };
-  }
-  return { ok: true };
+  return after.filter((row) => !known.has(row.id)).map((row) => toRow(row));
 }
 
 function mapWorkspace(row: Record<string, unknown>): FleetWorkspace {
@@ -322,6 +307,8 @@ function mapJob(row: Record<string, unknown>): FleetJob {
     countries: Array.isArray(row.countries) ? row.countries.map((item) => String(item)) : [],
     price_cents: num(row.price_cents) == null ? null : Math.trunc(Number(row.price_cents)),
     notes: text(row.notes),
+    vehicle_id: row.vehicle_id ? text(row.vehicle_id) : null,
+    driver_id: row.driver_id ? text(row.driver_id) : null,
     archived_at: row.archived_at ? text(row.archived_at) : null,
     updated_at: text(row.updated_at),
   };
@@ -408,6 +395,8 @@ function mapOdo(row: Record<string, unknown>): FleetOdometer {
     read_at: text(row.read_at),
     source: text(row.source, 'manual') as FleetOdometer['source'],
     note: text(row.note),
+    recorded_by: text(row.recorded_by),
+    anomaly: bool(row.anomaly),
     created_at: text(row.created_at),
   };
 }
@@ -420,6 +409,7 @@ function mapStatus(row: Record<string, unknown>): FleetStatusEvent {
     status: text(row.status) as FleetStatusEvent['status'],
     from_at: text(row.from_at),
     note: text(row.note),
+    by_actor: text(row.by_actor),
     created_at: text(row.created_at),
   };
 }
@@ -480,10 +470,10 @@ function entryRow(row: FleetCostEntry): Record<string, unknown> {
   return { ...row, updated_at: row.created_at };
 }
 function odoRow(row: FleetOdometer): Record<string, unknown> {
-  return { ...row, updated_at: row.created_at, recorded_by: '' };
+  return { ...row, updated_at: row.created_at, recorded_by: row.recorded_by };
 }
 function statusRow(row: FleetStatusEvent): Record<string, unknown> {
-  return { ...row, updated_at: row.created_at, by_actor: '' };
+  return { ...row, updated_at: row.created_at, by_actor: row.by_actor };
 }
 function auditRow(row: FleetBook['audit'][number]): Record<string, unknown> {
   return { ...row, created_at: row.at };

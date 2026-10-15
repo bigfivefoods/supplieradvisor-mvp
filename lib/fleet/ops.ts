@@ -4,6 +4,7 @@
  */
 import { emptyFleetBook } from './empty-book';
 import { prdpCategoryMissing } from './compliance';
+import { sastDate } from './format';
 import { assertRealDataAllowed } from './real-data-guard';
 import { allowedOpsForRole } from './roles';
 import type {
@@ -27,6 +28,7 @@ import {
   assertBounded,
   assertLedgerCategory,
   assertNoIdentity,
+  assertNoIdentityText,
   cleanEmail,
   cleanMoney,
   cleanText,
@@ -46,7 +48,7 @@ export type OpOutcome =
       book: FleetBook;
       audit: Pick<FleetAudit, 'action' | 'target_kind' | 'target_id' | 'payload'>;
     }
-  | { ok: false; status: 400 | 403 | 409; error: string };
+  | { ok: false; status: 400 | 403 | 409 | 500; error: string; pending?: boolean };
 
 const KINDS = new Set(['rigid', 'tractor', 'trailer', 'tipper', 'van', 'other']);
 const OWNERSHIP = new Set(['owned', 'leased', 'subcontractor']);
@@ -108,6 +110,8 @@ export function applyFleetOp(book: FleetBook, op: FleetOp, ctx: OpContext, expec
   if (!allowedOpsForRole(ctx.role).includes(op.op)) return deny(403, 'You cannot do that.');
   const identity = assertNoIdentity(op.payload);
   if (!identity.ok) return deny(400, identity.error);
+  const screened = screenPayloadText(op.payload);
+  if (screened) return screened;
   if (ctx.enforceRealData) {
     const gate = assertRealDataAllowed(book.workspace, op);
     if (!gate.ok) return deny(400, gate.error);
@@ -183,8 +187,9 @@ function upsertVehicle(book: FleetBook, op: FleetOp, ctx: OpContext, expected?: 
           company_id: ctx.companyId,
           vehicle_id: row.id,
           status: row.status,
-          from_at: ctx.now.slice(0, 10),
+          from_at: todayOf(ctx),
           note: '',
+          by_actor: ctx.actorId,
           created_at: ctx.now,
         },
       ],
@@ -211,8 +216,9 @@ function setStatus(book: FleetBook, op: FleetOp, ctx: OpContext, expected?: stri
         company_id: ctx.companyId,
         vehicle_id: row.id,
         status: row.status,
-        from_at: ctx.now.slice(0, 10),
+        from_at: todayOf(ctx),
         note: cleanText(op.payload.note, 400),
+        by_actor: ctx.actorId,
         created_at: ctx.now,
       },
     ],
@@ -247,7 +253,7 @@ function upsertDriver(book: FleetBook, op: FleetOp, ctx: OpContext, expected?: s
   };
   if (row.archived_at && ctx.role === 'dispatcher') return deny(403, 'You cannot archive a driver.');
   const drivers = existing ? book.drivers.map((item) => (item.id === row.id ? row : item)) : [...book.drivers, row];
-  return done({ ...book, drivers }, ctx, 'driver.upsert', 'driver', row.id, { full_name: row.full_name });
+  return done({ ...book, drivers }, ctx, 'driver.upsert', 'driver', row.id, { driver_id: row.id });
 }
 
 function upsertCompliance(book: FleetBook, op: FleetOp, ctx: OpContext, expected?: string | null): OpOutcome {
@@ -256,7 +262,16 @@ function upsertCompliance(book: FleetBook, op: FleetOp, ctx: OpContext, expected
   if (!COMPLIANCE_KIND.has(kind) || !SUBJECT.has(subject)) return deny(400, 'Choose what this date belongs to.');
   const detail = op.payload.detail && typeof op.payload.detail === 'object' ? (op.payload.detail as Record<string, unknown>) : {};
   if (prdpCategoryMissing(kind, detail)) return deny(400, 'PrDP needs a category.');
-  const existing = book.compliance.find((row) => row.id === op.payload.id);
+  const subjectId = subject === 'company' ? null : cleanText(op.payload.subject_id, 80) || null;
+  const existing =
+    book.compliance.find((row) => row.id === op.payload.id) ||
+    book.compliance.find(
+      (row) =>
+        !row.archived_at &&
+        row.subject_kind === subject &&
+        row.subject_id === subjectId &&
+        row.kind === kind
+    );
   if (existing) {
     const clash = cas(existing.updated_at, expected);
     if (clash) return clash;
@@ -265,7 +280,7 @@ function upsertCompliance(book: FleetBook, op: FleetOp, ctx: OpContext, expected
     id: existing?.id || id(),
     company_id: ctx.companyId,
     subject_kind: subject as FleetCompliance['subject_kind'],
-    subject_id: subject === 'company' ? null : cleanText(op.payload.subject_id, 80) || null,
+    subject_id: subjectId,
     kind: kind as FleetCompliance['kind'],
     reference: cleanText(op.payload.reference, 64),
     issued_on: dateOrNull(op.payload.issued_on),
@@ -313,6 +328,8 @@ function upsertJob(book: FleetBook, op: FleetOp, ctx: OpContext, expected?: stri
     countries: Array.isArray(op.payload.countries) ? op.payload.countries.map((item) => cleanText(item, 8)).filter(Boolean).slice(0, 12) : [],
     price_cents: price,
     notes: cleanText(op.payload.notes, 2000),
+    vehicle_id: cleanText(op.payload.vehicle_id, 80) || null,
+    driver_id: cleanText(op.payload.driver_id, 80) || null,
     archived_at: null,
     updated_at: ctx.now,
   };
@@ -364,8 +381,12 @@ function addOdometer(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
   if (!vehicle) return deny(400, 'Choose a vehicle.');
   const reading = numOf(op.payload.reading_km);
   if (reading == null || reading < 0 || reading > 10_000_000) return deny(400, 'Check the odometer reading.');
-  const readAt = dateOrNull(op.payload.read_at) || ctx.now.slice(0, 10);
+  const readAt = dateOrNull(op.payload.read_at) || todayOf(ctx);
   const entryId = id();
+  const priorAt = vehicle.odometer_at ? vehicle.odometer_at.slice(0, 10) : '';
+  const priorKm = vehicle.odometer_km;
+  const anomaly = priorKm != null && (readAt < priorAt || reading <= priorKm);
+  const advance = !anomaly && (priorKm == null || (readAt >= priorAt && reading > priorKm));
   const next: FleetBook = {
     ...book,
     odometer_readings: [
@@ -378,11 +399,15 @@ function addOdometer(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
         read_at: readAt,
         source: 'manual',
         note: cleanText(op.payload.note, 400),
+        recorded_by: ctx.actorId,
+        anomaly,
         created_at: ctx.now,
       },
     ],
     vehicles: book.vehicles.map((row) =>
-      row.id === vehicle.id ? { ...row, odometer_km: reading, odometer_at: readAt, updated_at: ctx.now } : row
+      row.id === vehicle.id && advance
+        ? { ...row, odometer_km: reading, odometer_at: readAt, updated_at: ctx.now }
+        : row
     ),
   };
   return done(next, ctx, 'odometer.add', 'odometer', entryId, { vehicle_id: vehicle.id, reading_km: reading });
@@ -398,6 +423,8 @@ function addCost(book: FleetBook, op: FleetOp, ctx: OpContext, reverse: boolean)
   if (reverse) {
     const prior = book.cost_entries.find((row) => row.id === op.payload.reverses_id && row.vehicle_id === vehicle.id);
     if (!prior) return deny(400, 'Choose the cost entry to reverse.');
+    if (prior.reverses_id) return deny(400, 'A reversal cannot be reversed.');
+    if (book.cost_entries.some((row) => row.reverses_id === prior.id)) return deny(400, 'That cost entry is already reversed.');
     category = prior.category;
     amount = -prior.amount_cents;
     vat = -prior.vat_cents;
@@ -413,7 +440,7 @@ function addCost(book: FleetBook, op: FleetOp, ctx: OpContext, reverse: boolean)
     trip_id: null,
     driver_id: null,
     category: category as RunningCategory,
-    occurred_on: dateOrNull(op.payload.occurred_on) || ctx.now.slice(0, 10),
+    occurred_on: dateOrNull(op.payload.occurred_on) || todayOf(ctx),
     amount_cents: amount,
     vat_cents: vat,
     vat_claimable: Boolean(op.payload.vat_claimable),
@@ -439,7 +466,7 @@ function addCost(book: FleetBook, op: FleetOp, ctx: OpContext, reverse: boolean)
 function setProfile(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
   const vehicle = book.vehicles.find((row) => row.id === op.payload.vehicle_id);
   if (!vehicle) return deny(400, 'Choose a vehicle.');
-  const from = dateOrNull(op.payload.effective_from) || ctx.now.slice(0, 10);
+  const from = dateOrNull(op.payload.effective_from) || todayOf(ctx);
   const method = cleanText(op.payload.depreciation_method || 'time', 20);
   const tyre = cleanText(op.payload.tyre_mode || book.workspace.tyre_mode_default, 20);
   if ((method !== 'time' && method !== 'distance') || (tyre !== 'accrual' && tyre !== 'ledger')) {
@@ -520,7 +547,7 @@ function setTarget(book: FleetBook, op: FleetOp, ctx: OpContext): OpOutcome {
     scope_ref: cleanText(op.payload.scope_ref, 80),
     layer: layer as 'fully_loaded' | 'operating',
     target_cents_per_km: target,
-    effective_from: dateOrNull(op.payload.effective_from) || ctx.now.slice(0, 10),
+    effective_from: dateOrNull(op.payload.effective_from) || todayOf(ctx),
     updated_at: ctx.now,
   };
   return done({ ...book, cpk_targets: [...book.cpk_targets, row] }, ctx, 'cpk_target.set', 'cpk_target', row.id, { layer });
@@ -607,11 +634,34 @@ function numOf(value: unknown): number | null {
   return number;
 }
 
+function todayOf(ctx: OpContext): string {
+  return sastDate(ctx.now) || ctx.now.slice(0, 10);
+}
+
 function dateOrNull(value: unknown): string | null {
   if (typeof value !== 'string') return null;
-  const text = value.trim();
-  if (!text) return null;
-  return text.slice(0, 10);
+  return sastDate(value);
+}
+
+const FREE_TEXT_KEYS = new Set(['reference', 'notes', 'note', 'status_note', 'cargo_description']);
+
+function screenPayloadText(payload: Record<string, unknown>): OpOutcome | null {
+  for (const [key, value] of Object.entries(payload)) {
+    if (!FREE_TEXT_KEYS.has(key) || typeof value !== 'string') continue;
+    const hit = assertNoIdentityText(value);
+    if (!hit.ok) return deny(400, hit.error);
+  }
+  if (Array.isArray(payload.stops)) {
+    for (const stop of payload.stops) {
+      if (!stop || typeof stop !== 'object') continue;
+      const instructions = (stop as { instructions?: unknown }).instructions;
+      if (typeof instructions === 'string') {
+        const hit = assertNoIdentityText(instructions);
+        if (!hit.ok) return deny(400, hit.error);
+      }
+    }
+  }
+  return null;
 }
 
 export function cloneBook(book: FleetBook = emptyFleetBook()): FleetBook {

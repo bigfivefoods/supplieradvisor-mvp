@@ -39,12 +39,16 @@ export function MapSketchArt() {
     <FleetIllustration>
       <svg viewBox="0 0 320 160" className="h-40 w-full" role="img" aria-label="Sketch of a fleet map">
         <rect width="320" height="160" rx="16" fill="#ffffff" />
+        <path d="M10 130 H310" stroke="#e2e8f0" strokeWidth="10" />
+        <path d="M40 20 V150" stroke="#e2e8f0" strokeWidth="8" />
         <path d="M20 120 C 80 40, 140 140, 200 70 S 280 40, 300 90" fill="none" stroke="#0077b6" strokeWidth="3" />
+        <rect x="48" y="96" width="54" height="22" rx="6" fill="#ffffff" stroke="#0f172a" />
+        <text x="54" y="111" fontSize="10" fill="#0f172a">Depot</text>
         <circle cx="70" cy="78" r="8" fill="#00b4d8" stroke="#0f172a" />
         <circle cx="180" cy="86" r="8" fill="#00b4d8" stroke="#0f172a" />
         <circle cx="250" cy="64" r="8" fill="#00b4d8" stroke="#0f172a" />
-        <text x="82" y="82" fontSize="11" fill="#0f172a">Sample Depot</text>
-        <text x="192" y="104" fontSize="11" fill="#0f172a">Sample DC</text>
+        <text x="82" y="74" fontSize="11" fill="#0f172a">SAMPLE 01</text>
+        <text x="192" y="104" fontSize="11" fill="#0f172a">SAMPLE 02</text>
       </svg>
     </FleetIllustration>
   );

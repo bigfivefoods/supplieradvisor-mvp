@@ -128,6 +128,8 @@ export type FleetJob = {
   countries: string[];
   price_cents: number | null;
   notes: string;
+  vehicle_id: string | null;
+  driver_id: string | null;
   archived_at: string | null;
   updated_at: string;
 };
@@ -206,6 +208,8 @@ export type FleetOdometer = {
   read_at: string;
   source: OdometerSource;
   note: string;
+  recorded_by: string;
+  anomaly: boolean;
   created_at: string;
 };
 
@@ -216,6 +220,7 @@ export type FleetStatusEvent = {
   status: VehicleStatus;
   from_at: string;
   note: string;
+  by_actor: string;
   created_at: string;
 };
 
@@ -269,7 +274,7 @@ export type FleetBook = {
 
 export type FleetLoad =
   | { ready: true; book: FleetBook }
-  | { ready: false; reason: 'migration_pending' };
+  | { ready: false; reason: 'migration_pending' | 'error' };
 
 export const FLEET_OPS = [
   'vehicle.upsert',

@@ -457,6 +457,9 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
+  IF TG_OP = 'DELETE' AND pg_catalog.current_setting('fg.erasing', true) = 'on' THEN
+    RETURN OLD;
+  END IF;
   RAISE EXCEPTION 'fg_append_only' USING ERRCODE = '42501';
 END;
 $$;
@@ -605,6 +608,216 @@ BEGIN
 END;
 $$;
 
+ALTER TABLE public.fg_jobs ADD COLUMN IF NOT EXISTS vehicle_id uuid;
+ALTER TABLE public.fg_jobs ADD COLUMN IF NOT EXISTS driver_id uuid;
+ALTER TABLE public.fg_odometer_readings ADD COLUMN IF NOT EXISTS anomaly boolean NOT NULL DEFAULT false;
+
+CREATE UNIQUE INDEX IF NOT EXISTS fg_vehicles_company_id ON public.fg_vehicles (company_id, id);
+CREATE UNIQUE INDEX IF NOT EXISTS fg_drivers_company_id ON public.fg_drivers (company_id, id);
+CREATE UNIQUE INDEX IF NOT EXISTS fg_jobs_company_id ON public.fg_jobs (company_id, id);
+CREATE UNIQUE INDEX IF NOT EXISTS fg_portal_invites_token_hash_key ON public.fg_portal_invites (token_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS fg_cost_entries_one_reversal ON public.fg_cost_entries (reverses_id) WHERE reverses_id IS NOT NULL;
+
+DO $fk$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fg_cost_profiles_company_vehicle') THEN
+    ALTER TABLE public.fg_cost_profiles
+      ADD CONSTRAINT fg_cost_profiles_company_vehicle
+      FOREIGN KEY (company_id, vehicle_id) REFERENCES public.fg_vehicles (company_id, id) ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fg_cost_entries_company_vehicle') THEN
+    ALTER TABLE public.fg_cost_entries
+      ADD CONSTRAINT fg_cost_entries_company_vehicle
+      FOREIGN KEY (company_id, vehicle_id) REFERENCES public.fg_vehicles (company_id, id) ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fg_odometer_company_vehicle') THEN
+    ALTER TABLE public.fg_odometer_readings
+      ADD CONSTRAINT fg_odometer_company_vehicle
+      FOREIGN KEY (company_id, vehicle_id) REFERENCES public.fg_vehicles (company_id, id) ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fg_status_company_vehicle') THEN
+    ALTER TABLE public.fg_vehicle_status_events
+      ADD CONSTRAINT fg_status_company_vehicle
+      FOREIGN KEY (company_id, vehicle_id) REFERENCES public.fg_vehicles (company_id, id) ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fg_position_company_vehicle') THEN
+    ALTER TABLE public.fg_position_events
+      ADD CONSTRAINT fg_position_company_vehicle
+      FOREIGN KEY (company_id, vehicle_id) REFERENCES public.fg_vehicles (company_id, id) ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fg_telematics_company_vehicle') THEN
+    ALTER TABLE public.fg_telematics_links
+      ADD CONSTRAINT fg_telematics_company_vehicle
+      FOREIGN KEY (company_id, vehicle_id) REFERENCES public.fg_vehicles (company_id, id) ON DELETE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fg_jobs_company_vehicle') THEN
+    ALTER TABLE public.fg_jobs
+      ADD CONSTRAINT fg_jobs_company_vehicle
+      FOREIGN KEY (company_id, vehicle_id) REFERENCES public.fg_vehicles (company_id, id) ON DELETE SET NULL;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fg_jobs_company_driver') THEN
+    ALTER TABLE public.fg_jobs
+      ADD CONSTRAINT fg_jobs_company_driver
+      FOREIGN KEY (company_id, driver_id) REFERENCES public.fg_drivers (company_id, id) ON DELETE SET NULL;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fg_cost_entries_company_driver') THEN
+    ALTER TABLE public.fg_cost_entries
+      ADD CONSTRAINT fg_cost_entries_company_driver
+      FOREIGN KEY (company_id, driver_id) REFERENCES public.fg_drivers (company_id, id) ON DELETE SET NULL;
+  END IF;
+END
+$fk$;
+
+CREATE OR REPLACE FUNCTION public.fg_forbid_truncate()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF pg_catalog.current_setting('fg.erasing', true) = 'on' THEN
+    RETURN NULL;
+  END IF;
+  RAISE EXCEPTION 'fg_append_only' USING ERRCODE = '42501';
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.fg_reject_reversal_of_reversal()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF NEW.reverses_id IS NOT NULL AND EXISTS (
+    SELECT 1 FROM public.fg_cost_entries WHERE id = NEW.reverses_id AND reverses_id IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'fg_reverse_closed' USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.fg_erase_company(p_company_id bigint)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  IF p_company_id IS NULL OR p_company_id <= 0 THEN
+    RAISE EXCEPTION 'fg_erase_closed' USING ERRCODE = '22023';
+  END IF;
+  PERFORM pg_catalog.set_config('fg.erasing', 'on', true);
+  DELETE FROM public.profiles WHERE id = p_company_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.fg_commit_diff(p_company_id bigint, p_diff jsonb)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_table text;
+  v_row jsonb;
+  v_cols text;
+  v_id uuid;
+  v_prev text;
+  v_found integer;
+  v_exists boolean;
+BEGIN
+  IF p_company_id IS NULL OR p_company_id <= 0 OR p_diff IS NULL OR pg_catalog.jsonb_typeof(p_diff) <> 'object' THEN
+    RAISE EXCEPTION 'fg_commit_closed' USING ERRCODE = '22023';
+  END IF;
+  IF (p_diff->>'company_id')::bigint IS DISTINCT FROM p_company_id THEN
+    RAISE EXCEPTION 'fg_commit_closed' USING ERRCODE = '22023';
+  END IF;
+
+  FOREACH v_table IN ARRAY ARRAY[
+    'fg_workspaces', 'fg_vehicles', 'fg_drivers', 'fg_compliance_items', 'fg_jobs', 'fg_job_stops',
+    'fg_cost_profiles', 'fg_overhead_pools', 'fg_cpk_targets'
+  ]
+  LOOP
+    IF pg_catalog.jsonb_typeof(p_diff->'upserts'->v_table) IS DISTINCT FROM 'array' THEN
+      CONTINUE;
+    END IF;
+    FOR v_row IN SELECT value FROM pg_catalog.jsonb_array_elements(p_diff->'upserts'->v_table)
+    LOOP
+      IF (v_row->>'company_id')::bigint IS DISTINCT FROM p_company_id THEN
+        RAISE EXCEPTION 'fg_commit_closed' USING ERRCODE = '22023';
+      END IF;
+      v_id := NULLIF(v_row->>'id', '')::uuid;
+      v_prev := NULLIF(v_row->>'previous_updated_at', '');
+      SELECT string_agg(quote_ident(c.column_name), ', ' ORDER BY c.ordinal_position)
+        INTO v_cols
+      FROM information_schema.columns c
+      WHERE c.table_schema = 'public'
+        AND c.table_name = v_table
+        AND c.column_name <> 'created_at'
+        AND (v_row ? c.column_name);
+      IF v_cols IS NULL OR v_id IS NULL THEN
+        RAISE EXCEPTION 'fg_commit_closed' USING ERRCODE = '22023';
+      END IF;
+      EXECUTE format('SELECT EXISTS (SELECT 1 FROM public.%I WHERE id = $1 AND company_id = $2)', v_table)
+        INTO v_exists USING v_id, p_company_id;
+      IF NOT v_exists THEN
+        EXECUTE format(
+          'INSERT INTO public.%I (%s) SELECT %s FROM pg_catalog.jsonb_populate_record(NULL::public.%I, $1) AS rec',
+          v_table, v_cols, v_cols, v_table
+        ) USING v_row;
+      ELSE
+        EXECUTE format(
+          'UPDATE public.%I AS t SET (%s) = (SELECT %s FROM pg_catalog.jsonb_populate_record(NULL::public.%I, $1) AS rec) WHERE t.id = $2 AND t.company_id = $3 AND ($4::text IS NULL OR t.updated_at = $4::timestamptz)',
+          v_table, v_cols, v_cols, v_table
+        ) USING v_row, v_id, p_company_id, v_prev;
+        GET DIAGNOSTICS v_found = ROW_COUNT;
+        IF v_found = 0 THEN
+          RAISE EXCEPTION 'fg_conflict' USING ERRCODE = '40001';
+        END IF;
+      END IF;
+    END LOOP;
+  END LOOP;
+
+  FOREACH v_table IN ARRAY ARRAY['fg_cost_entries', 'fg_odometer_readings', 'fg_vehicle_status_events', 'fg_audit_log']
+  LOOP
+    IF pg_catalog.jsonb_typeof(p_diff->'inserts'->v_table) IS DISTINCT FROM 'array' THEN
+      CONTINUE;
+    END IF;
+    FOR v_row IN SELECT value FROM pg_catalog.jsonb_array_elements(p_diff->'inserts'->v_table)
+    LOOP
+      IF (v_row->>'company_id')::bigint IS DISTINCT FROM p_company_id THEN
+        RAISE EXCEPTION 'fg_commit_closed' USING ERRCODE = '22023';
+      END IF;
+      SELECT string_agg(quote_ident(c.column_name), ', ' ORDER BY c.ordinal_position)
+        INTO v_cols
+      FROM information_schema.columns c
+      WHERE c.table_schema = 'public'
+        AND c.table_name = v_table
+        AND c.column_name <> 'created_at'
+        AND (v_row ? c.column_name);
+      IF v_cols IS NULL THEN
+        RAISE EXCEPTION 'fg_commit_closed' USING ERRCODE = '22023';
+      END IF;
+      EXECUTE format(
+        'INSERT INTO public.%I (%s) SELECT %s FROM pg_catalog.jsonb_populate_record(NULL::public.%I, $1) AS rec',
+        v_table, v_cols, v_cols, v_table
+      ) USING v_row;
+    END LOOP;
+  END LOOP;
+
+  IF pg_catalog.jsonb_typeof(p_diff->'delete_stop_ids') = 'array' THEN
+    DELETE FROM public.fg_job_stops
+    WHERE company_id = p_company_id
+      AND id IN (
+        SELECT (value #>> '{}')::uuid
+        FROM pg_catalog.jsonb_array_elements(p_diff->'delete_stop_ids')
+      );
+  END IF;
+END;
+$$;
+
 DROP TRIGGER IF EXISTS fg_audit_log_append_only ON public.fg_audit_log;
 CREATE TRIGGER fg_audit_log_append_only
   BEFORE UPDATE OR DELETE ON public.fg_audit_log
@@ -630,6 +843,36 @@ CREATE TRIGGER fg_position_append_only
   BEFORE UPDATE OR DELETE ON public.fg_position_events
   FOR EACH ROW EXECUTE FUNCTION public.fg_forbid_mutation();
 
+DROP TRIGGER IF EXISTS fg_audit_log_no_truncate ON public.fg_audit_log;
+CREATE TRIGGER fg_audit_log_no_truncate
+  BEFORE TRUNCATE ON public.fg_audit_log
+  FOR EACH STATEMENT EXECUTE FUNCTION public.fg_forbid_truncate();
+
+DROP TRIGGER IF EXISTS fg_cost_entries_no_truncate ON public.fg_cost_entries;
+CREATE TRIGGER fg_cost_entries_no_truncate
+  BEFORE TRUNCATE ON public.fg_cost_entries
+  FOR EACH STATEMENT EXECUTE FUNCTION public.fg_forbid_truncate();
+
+DROP TRIGGER IF EXISTS fg_odometer_no_truncate ON public.fg_odometer_readings;
+CREATE TRIGGER fg_odometer_no_truncate
+  BEFORE TRUNCATE ON public.fg_odometer_readings
+  FOR EACH STATEMENT EXECUTE FUNCTION public.fg_forbid_truncate();
+
+DROP TRIGGER IF EXISTS fg_status_events_no_truncate ON public.fg_vehicle_status_events;
+CREATE TRIGGER fg_status_events_no_truncate
+  BEFORE TRUNCATE ON public.fg_vehicle_status_events
+  FOR EACH STATEMENT EXECUTE FUNCTION public.fg_forbid_truncate();
+
+DROP TRIGGER IF EXISTS fg_position_no_truncate ON public.fg_position_events;
+CREATE TRIGGER fg_position_no_truncate
+  BEFORE TRUNCATE ON public.fg_position_events
+  FOR EACH STATEMENT EXECUTE FUNCTION public.fg_forbid_truncate();
+
+DROP TRIGGER IF EXISTS fg_cost_entries_no_double_reverse ON public.fg_cost_entries;
+CREATE TRIGGER fg_cost_entries_no_double_reverse
+  BEFORE INSERT ON public.fg_cost_entries
+  FOR EACH ROW EXECUTE FUNCTION public.fg_reject_reversal_of_reversal();
+
 DO $lock$
 DECLARE
   rel record;
@@ -652,6 +895,18 @@ BEGIN
     );
     EXECUTE format('REVOKE ALL ON TABLE public.%I FROM PUBLIC, anon, authenticated, fleet_portal', rel.relname);
     EXECUTE format('GRANT ALL ON TABLE public.%I TO service_role', rel.relname);
+    IF rel.relname IN (
+      'fg_audit_log',
+      'fg_cost_entries',
+      'fg_odometer_readings',
+      'fg_vehicle_status_events',
+      'fg_position_events'
+    ) THEN
+      EXECUTE format(
+        'REVOKE TRUNCATE ON TABLE public.%I FROM PUBLIC, anon, authenticated, fleet_portal, service_role',
+        rel.relname
+      );
+    END IF;
   END LOOP;
 
   FOR rel IN

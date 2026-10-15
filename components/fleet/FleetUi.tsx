@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { formatRandFromCents, formatSastDate } from '@/lib/fleet/format';
 import {
   AlertTriangle,
@@ -93,14 +94,19 @@ export function FleetStat({
   label,
   hint,
   testId,
+  icon,
+  className = '',
 }: {
   value: ReactNode;
   label: string;
   hint?: string;
   testId?: string;
+  icon?: ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-center shadow-sm" data-testid={testId}>
+    <div className={`rounded-2xl border border-slate-200 bg-white px-3 py-3 text-center shadow-sm ${className}`} data-testid={testId}>
+      {icon ? <div className="mb-1 flex justify-center text-[#0077b6]">{icon}</div> : null}
       <p className="truncate text-xl font-black tabular-nums text-slate-900">{value}</p>
       <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
       {hint ? <p className="mt-1 text-[11px] leading-snug text-slate-500">{hint}</p> : null}
@@ -258,12 +264,15 @@ export function FleetCompletenessChip({
 
 export function FleetVariancePill({
   status,
+  delta,
 }: {
   status: 'on_target' | 'over' | 'under' | 'no_target';
+  delta?: string | null;
 }) {
-  if (status === 'over') return <FleetStatusPill tone="bad">Over target</FleetStatusPill>;
-  if (status === 'under') return <FleetStatusPill tone="ok">Under target</FleetStatusPill>;
-  if (status === 'on_target') return <FleetStatusPill tone="ok">On target</FleetStatusPill>;
+  const figure = delta && delta !== '—' ? ` ${delta}` : '';
+  if (status === 'over') return <FleetStatusPill tone="bad">{`Over${figure}`}</FleetStatusPill>;
+  if (status === 'under') return <FleetStatusPill tone="ok">{`Under${figure}`}</FleetStatusPill>;
+  if (status === 'on_target') return <FleetStatusPill tone="ok">{`On target${figure}`}</FleetStatusPill>;
   return (
     <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-600">
       <MinusCircle className="h-3.5 w-3.5" aria-hidden />
@@ -304,7 +313,7 @@ export function FleetSegmented({
 }) {
   return (
     <div className="min-w-0" role="tablist" aria-label={label}>
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex flex-wrap gap-2">
         {options.map((option) => {
           const on = option.id === value;
           return (
@@ -387,6 +396,11 @@ export function FleetDrawer({
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const previous = useRef<HTMLElement | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -407,9 +421,9 @@ export function FleetDrawer({
     };
   }, [open, onClose]);
 
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center sm:items-stretch sm:justify-end" data-testid={testId}>
+  if (!open || !mounted) return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-stretch sm:justify-end" data-testid={testId}>
       <button type="button" className="absolute inset-0 bg-slate-900/40" aria-label="Close" onClick={onClose} />
       <div
         ref={panelRef}
@@ -428,7 +442,8 @@ export function FleetDrawer({
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

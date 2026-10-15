@@ -14,17 +14,21 @@ export function formatRandFromCents(cents: number | null | undefined): string {
   const sign = rounded < 0 ? '-' : '';
   const abs = Math.abs(rounded) / 100;
   const [whole, frac] = abs.toFixed(2).split('.');
-  return `${sign}R${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${frac}`;
+  return `${sign}R${groupThousands(whole)}.${frac}`;
 }
 
-/** Rand per kilometre, 2 decimals, en-ZA grouping. */
+/** Rand per kilometre, 2 decimals. Space grouping, same as the rest of the desk. */
 export function formatPerKm(randPerKm: number | null | undefined): string {
   if (randPerKm == null || !Number.isFinite(randPerKm)) return '—';
   const rounded = roundHalfAway(randPerKm, 2);
   const sign = rounded < 0 ? '-' : '';
   const abs = Math.abs(rounded);
   const [whole, frac] = abs.toFixed(2).split('.');
-  return `${sign}R${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${frac}`;
+  return `${sign}R${groupThousands(whole)}.${frac}`;
+}
+
+function groupThousands(whole: string): string {
+  return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
 
 export function formatKm(km: number | null | undefined): string {

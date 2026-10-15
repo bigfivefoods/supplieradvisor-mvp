@@ -1,14 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Truck } from 'lucide-react';
+import { AlertTriangle, CalendarClock, ClipboardList, Gauge, Truck, Users } from 'lucide-react';
 import { cpkForBook } from '@/lib/fleet/book-cpk';
 import { complianceLabel, complianceStatus } from '@/lib/fleet/compliance';
-import { computeFleetCpk, type VehicleCpk } from '@/lib/fleet/cpk';
-import { formatKm, formatLitresPer100, formatPerKm } from '@/lib/fleet/format';
+import { computeFleetCpk, requiredRate, type VehicleCpk } from '@/lib/fleet/cpk';
+import { SAMPLE_01_DISPLAY, sample01Input, signedPerKm } from '@/lib/fleet/cpk-fixtures';
+import { centsFromRand, formatKm, formatLitresPer100, formatPerKm } from '@/lib/fleet/format';
+import {
+  complianceKindLabel,
+  driverStatusLabel,
+  employmentLabel,
+  fleetRoleLabel,
+  jobStatusLabel,
+  runningCategoryLabel,
+  ownershipLabel,
+  vehicleKindLabel,
+  vehicleStatusLabel,
+} from '@/lib/fleet/labels';
 import { nextMonth, periodFor, type PeriodId } from '@/lib/fleet/periods';
-import { sampleCpkInput } from '@/lib/fleet/sample-book';
 import type { FleetCapabilities } from '@/lib/fleet/roles';
 import type { FleetBook, FleetOp, FleetRole } from '@/lib/fleet/types';
 import { CpkWaterfallArt, DispatchArt, ExpiryStripArt, FleetRegisterArt, MapSketchArt, PodArt } from './Illustrations';
@@ -58,8 +69,13 @@ export type FleetDeskProps = {
 function useCpk(props: FleetDeskProps): VehicleCpk[] {
   const period = periodFor(props.periodId, props.today, props.book.workspace.cpk_window_days);
   if (!props.caps.seesCosts) return [];
-  const input = props.illustrate ? sampleCpkInput(props.book, period) : null;
-  return input ? computeFleetCpk(input) : cpkForBook(props.book, period);
+  const rows = cpkForBook(props.book, period);
+  if (!props.illustrate || period.from !== '2024-06-01' || period.to !== '2024-07-01') return rows;
+  const fixture = sample01Input();
+  const readings = props.book.odometer_readings.filter((row) => row.vehicle_id === 'sample-01');
+  if (props.book.cost_entries.length !== fixture.entries.length || readings.length !== 2) return rows;
+  const sample = computeFleetCpk(fixture)[0];
+  return rows.map((row) => (row.vehicle_id === 'sample-01' ? { ...sample, vehicle_id: row.vehicle_id } : row));
 }
 
 export function FleetDesk(props: FleetDeskProps) {
@@ -119,7 +135,7 @@ function CommandView(props: FleetDeskProps) {
     const state = complianceStatus(row.expires_on, props.today, props.book.workspace.expiring_window_days);
     return state === 'expired' || state === 'expiring';
   });
-  const fleet = fleetRollup(cpk);
+  const fleet = fleetRollup(cpk, 'last', props.book.workspace.cpk_window_days);
   const empty = vehicles.length === 0 && drivers.length === 0 && openJobs.length === 0;
   const attention = attentionRows(props);
   return (
@@ -135,7 +151,7 @@ function CommandView(props: FleetDeskProps) {
           testId="fleet-command-empty"
           icon={<Truck />}
           title="Your fleet desk is empty"
-          hint="Add a vehicle to start the register. Cost per kilometre stays on Not enough data until odometer readings and costs exist."
+          hint="Add a vehicle to start the register. Cost per kilometre shows Not enough data until odometer readings and costs exist."
           illustration={
             <div className="space-y-3">
               <FleetRegisterArt />
@@ -151,20 +167,50 @@ function CommandView(props: FleetDeskProps) {
         />
       ) : (
         <>
+          <section className="rounded-3xl bg-[#00b4d8] px-5 py-5 text-[#0f172a] shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em]">Fleet cost per kilometre</p>
+                <p className="mt-1 text-4xl font-black tabular-nums">{props.caps.seesCosts ? fleet.value : 'Hidden for this role'}</p>
+                <p className="mt-1 text-sm font-bold">{props.caps.seesCosts ? fleet.hint : 'Dispatchers work the register. Costs stay with office and owners.'}</p>
+              </div>
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-black" data-testid="fleet-role-chip">
+                {fleetRoleLabel(props.role)}
+              </span>
+            </div>
+            {props.caps.seesCosts && props.role === 'office' ? (
+              <p className="mt-3 text-sm font-bold">Driver pay is hidden for this role.</p>
+            ) : null}
+          </section>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <FleetStat label="Vehicles" value={String(vehicles.length)} />
-            <FleetStat label="Drivers" value={String(drivers.length)} />
-            <FleetStat label="Open jobs" value={String(openJobs.length)} />
-            <FleetStat label="Expiring or expired" value={String(expiring.length)} />
+            <FleetStat label="Vehicles" value={String(vehicles.length)} icon={<Truck className="h-4 w-4" aria-hidden />} />
+            <FleetStat label="Drivers" value={String(drivers.length)} icon={<Users className="h-4 w-4" aria-hidden />} />
+            <FleetStat label="Open jobs" value={String(openJobs.length)} icon={<ClipboardList className="h-4 w-4" aria-hidden />} />
+            <FleetStat label="Expiring or expired" value={String(expiring.length)} icon={<AlertTriangle className="h-4 w-4" aria-hidden />} />
             {props.caps.seesCosts ? (
-              <div data-testid="fleet-cpk-tile">
-                <FleetStat
-                  label="Fleet CPK"
-                  value={fleet.value}
-                  hint={fleet.hint}
-                />
+              <div className="col-span-2 lg:col-span-1" data-testid="fleet-cpk-tile">
+                <FleetStat label="Fleet CPK" value={fleet.value} hint={fleet.hint} icon={<Gauge className="h-4 w-4" aria-hidden />} />
               </div>
             ) : null}
+          </div>
+          <div className="grid gap-3 lg:grid-cols-3">
+            <FleetSection title="Today">
+              <TodayList {...props} />
+            </FleetSection>
+            <FleetSection title="Next actions">
+              {attention.length === 0 ? (
+                <p className="text-sm text-slate-600">Nothing is waiting.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {attention.slice(0, 4).map((item) => (
+                    <li key={item} className="text-sm font-bold text-slate-800">{item}</li>
+                  ))}
+                </ul>
+              )}
+            </FleetSection>
+            <FleetSection title="Compliance expiry">
+              <ExpiryList {...props} />
+            </FleetSection>
           </div>
           <FleetSection title="Needs attention">
             {attention.length === 0 ? (
@@ -188,22 +234,57 @@ function CommandView(props: FleetDeskProps) {
   );
 }
 
-function fleetRollup(rows: VehicleCpk[]): { value: string; hint: string } {
-  const ready = rows.filter((row) => row.status === 'ok' && row.fully_loaded_per_km != null && row.total_km);
-  if (!ready.length) return { value: 'Not enough data', hint: rows[0]?.next_step || 'Add two odometer readings at least 7 days apart' };
+function fleetRollup(rows: VehicleCpk[], periodId: PeriodId, windowDays: number): { value: string; hint: string } {
+  const ready = rows.filter((row) => row.status === 'ok' && row.fully_loaded_per_km != null && (row.total_km || 0) > 0);
+  const name = periodId === 'mtd' ? 'month to date' : periodId === 'trail' ? `trailing ${windowDays} days` : 'last full month';
+  if (!ready.length) return { value: 'Not enough data', hint: rows.find((row) => row.next_step)?.next_step || 'Add two odometer readings at least 7 days apart' };
   const km = ready.reduce((sum, row) => sum + (row.total_km || 0), 0);
-  const cents = ready.reduce((sum, row) => sum + (row.total_cents || 0), 0);
-  const perKm = km > 0 ? cents / km / 100 : null;
+  const total = ready.reduce((sum, row) => sum + (row.total_cents || 0), 0);
+  const perKm = km > 0 ? total / km / 100 : null;
   const partial = ready.some((row) => row.completeness !== 'complete');
-  return { value: `${formatPerKm(perKm)}/km`, hint: partial ? 'Partial' : 'Complete · last full month' };
+  return { value: `${formatPerKm(perKm)}/km`, hint: partial ? `Partial · ${name}` : `Complete · ${name}` };
+}
+
+function TodayList(props: FleetDeskProps) {
+  const jobs = props.book.jobs.filter((job) => !job.archived_at && job.status !== 'cancelled').slice(0, 4);
+  if (!jobs.length) return <p className="text-sm text-slate-600">No open jobs on the board.</p>;
+  return (
+    <ul className="space-y-2">
+      {jobs.map((job) => {
+        const vehicle = props.book.vehicles.find((row) => row.id === job.vehicle_id);
+        const driver = props.book.drivers.find((row) => row.id === job.driver_id);
+        return (
+          <li key={job.id} className="text-sm">
+            <p className="font-black text-slate-900">{job.reference}</p>
+            <p className="text-slate-600">{jobStatusLabel(job.status)} · {vehicle?.reg_no || 'No vehicle'} · {driver?.full_name || 'No driver'}</p>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function ExpiryList(props: FleetDeskProps) {
+  const rows = props.book.compliance.filter((row) => row.expires_on).slice(0, 4);
+  if (!rows.length) return <p className="text-sm text-slate-600">No expiry dates yet.</p>;
+  return (
+    <ul className="space-y-2">
+      {rows.map((row) => (
+        <li key={row.id} className="flex items-center justify-between gap-2 text-sm">
+          <span className="font-bold text-slate-800">{complianceKindLabel(row.kind)}</span>
+          <span className="inline-flex items-center gap-1 text-slate-600"><CalendarClock className="h-3.5 w-3.5" aria-hidden />{complianceLabel(row.expires_on, props.today, props.book.workspace.expiring_window_days)}</span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function attentionRows(props: FleetDeskProps): string[] {
   const items: Array<{ rank: number; label: string }> = [];
   for (const row of props.book.compliance) {
     const state = complianceStatus(row.expires_on, props.today, props.book.workspace.expiring_window_days);
-    if (state === 'expired') items.push({ rank: 0, label: `${row.kind.replaceAll('_', ' ')} · ${complianceLabel(row.expires_on, props.today, props.book.workspace.expiring_window_days)}` });
-    if (state === 'expiring') items.push({ rank: 1, label: `${row.kind.replaceAll('_', ' ')} · ${complianceLabel(row.expires_on, props.today, props.book.workspace.expiring_window_days)}` });
+    if (state === 'expired') items.push({ rank: 0, label: `${complianceKindLabel(row.kind)} · ${complianceLabel(row.expires_on, props.today, props.book.workspace.expiring_window_days)}` });
+    if (state === 'expiring') items.push({ rank: 1, label: `${complianceKindLabel(row.kind)} · ${complianceLabel(row.expires_on, props.today, props.book.workspace.expiring_window_days)}` });
   }
   for (const vehicle of props.book.vehicles) {
     if (vehicle.status === 'workshop' || vehicle.status === 'off_road') {
@@ -306,7 +387,7 @@ function MapView(props: FleetDeskProps) {
                 formatKm(vehicle.odometer_km),
                 <FleetDate key="d" value={vehicle.odometer_at} />,
                 <FleetStatusPill key="s" tone={vehicle.status === 'active' ? 'ok' : 'warn'}>
-                  {vehicle.status.replaceAll('_', ' ')}
+                  {vehicleStatusLabel(vehicle.status)}
                 </FleetStatusPill>,
               ],
               card: (
@@ -331,6 +412,13 @@ function VehiclesView(props: FleetDeskProps) {
   const [reg, setReg] = useState('');
   const [odo, setOdo] = useState('');
   const [amount, setAmount] = useState('');
+  const [costDate, setCostDate] = useState(props.today);
+  const [category, setCategory] = useState('maintenance');
+  const [litres, setLitres] = useState('');
+  const [fuelOdo, setFuelOdo] = useState('');
+  const [vatClaim, setVatClaim] = useState(true);
+  const [status, setStatus] = useState('active');
+  const [showProfile, setShowProfile] = useState(false);
   const rows = props.book.vehicles.filter((vehicle) => {
     if (vehicle.archived_at) return false;
     if (filter !== 'all' && vehicle.status !== filter) return false;
@@ -392,11 +480,11 @@ function VehiclesView(props: FleetDeskProps) {
                 <button key="o" type="button" className={`${fleetLink} ${fleetFocus} min-h-11`} data-testid={`fleet-open-${vehicle.reg_no.replace(/\s+/g, '-')}`} onClick={() => setOpen(vehicle.id)}>
                   {vehicle.reg_no}
                 </button>,
-                vehicle.kind,
+                vehicleKindLabel(vehicle.kind),
                 <FleetStatusPill key="s" tone={vehicle.status === 'active' ? 'ok' : vehicle.status === 'sold' ? 'muted' : 'warn'}>
-                  {vehicle.status.replaceAll('_', ' ')}
+                  {vehicleStatusLabel(vehicle.status)}
                 </FleetStatusPill>,
-                vehicle.ownership,
+                ownershipLabel(vehicle.ownership),
                 formatKm(vehicle.odometer_km),
                 ...(props.caps.seesCosts
                   ? [
@@ -410,7 +498,7 @@ function VehiclesView(props: FleetDeskProps) {
               card: (
                 <button type="button" className="min-h-11 w-full text-left" onClick={() => setOpen(vehicle.id)}>
                   <p className="font-black">{vehicle.reg_no}</p>
-                  <p className="text-sm text-slate-600">{vehicle.kind} · {formatKm(vehicle.odometer_km)}</p>
+                  <p className="text-sm text-slate-600">{vehicleKindLabel(vehicle.kind)} · {vehicleStatusLabel(vehicle.status)} · {formatKm(vehicle.odometer_km)}</p>
                 </button>
               ),
             };
@@ -420,7 +508,7 @@ function VehiclesView(props: FleetDeskProps) {
       <FleetDrawer open={open != null} title={current ? current.reg_no : 'New vehicle'} onClose={() => setOpen(null)} testId="fleet-vehicle-drawer">
         <div className="space-y-4">
           <section>
-            <h3 className="text-sm font-black">Details</h3>
+            <h3 className="mb-3 text-sm font-black tracking-tight text-[#0f172a]">Details</h3>
             <label className={fleetLabel}>
               Registration
               <input className={`${fleetField} ${fleetFocus}`} data-testid="fleet-reg" value={open === 'new' ? reg : current?.reg_no || ''} onChange={(event) => setReg(event.target.value)} />
@@ -465,11 +553,11 @@ function VehiclesView(props: FleetDeskProps) {
                   ))}
                 </ul>
                 {props.caps.canEditRegister ? (
-                  <div className="flex flex-col gap-2 sm:flex-row">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                     <input className={`${fleetField} ${fleetFocus}`} data-testid="fleet-odometer-km" inputMode="decimal" value={odo} onChange={(event) => setOdo(event.target.value)} placeholder="Reading" />
                     <button
                       type="button"
-                      className={`${fleetBtn} ${fleetFocus}`}
+                      className={`${fleetBtn} ${fleetFocus} shrink-0 whitespace-nowrap`}
                       data-testid="fleet-save-odometer"
                       onClick={() => {
                         props.onOp?.({ op: 'odometer.add', payload: { vehicle_id: current.id, reading_km: Number(odo), read_at: props.today } });
@@ -481,27 +569,110 @@ function VehiclesView(props: FleetDeskProps) {
                   </div>
                 ) : null}
               </section>
+              {props.caps.canEditRegister ? (
+                <section className="space-y-2">
+                  <h3 className="text-sm font-black">Status</h3>
+                  <label className={fleetLabel}>
+                    Vehicle status
+                    <select className={`${fleetField} ${fleetFocus}`} value={status} onChange={(event) => setStatus(event.target.value)}>
+                      <option value="active">Active</option>
+                      <option value="workshop">Workshop</option>
+                      <option value="off_road">Off road</option>
+                      <option value="sold">Sold</option>
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    className={`${fleetGhost} ${fleetFocus}`}
+                    onClick={() => props.onOp?.({ op: 'vehicle.set_status', payload: { id: current.id, status } }, current.updated_at)}
+                  >
+                    Save status
+                  </button>
+                </section>
+              ) : null}
               {props.caps.seesCosts ? (
-                <section>
+                <section className="space-y-2">
                   <h3 className="text-sm font-black">Costs and profile</h3>
                   <p className="text-sm text-slate-600">Purchase, standing costs and tyre mode live on the cost profile. The ledger is for fuel, tolls and maintenance.</p>
-                  <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                    <input className={`${fleetField} ${fleetFocus}`} data-testid="fleet-cost-amount" inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Amount in cents" />
-                    <button
-                      type="button"
-                      className={`${fleetBtn} ${fleetFocus}`}
-                      data-testid="fleet-save-cost"
-                      onClick={() => {
-                        props.onOp?.({
-                          op: 'cost_entry.add',
-                          payload: { vehicle_id: current.id, category: 'maintenance', amount_cents: Number(amount), occurred_on: props.illustrate ? '2024-06-15' : props.today, vat_claimable: true },
-                        });
-                        setAmount('');
-                      }}
-                    >
-                      Add cost entry
-                    </button>
-                  </div>
+                  <label className={fleetLabel}>
+                    Category
+                    <select className={`${fleetField} ${fleetFocus}`} value={category} onChange={(event) => setCategory(event.target.value)}>
+                      <option value="fuel">Fuel</option>
+                      <option value="toll">Toll</option>
+                      <option value="border">Border</option>
+                      <option value="maintenance">Maintenance</option>
+                      <option value="tyres">Tyres</option>
+                      <option value="other_running">Other running</option>
+                      <option value="fine">Fine</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </label>
+                  <label className={fleetLabel}>
+                    Amount (rand)
+                    <input className={`${fleetField} ${fleetFocus}`} data-testid="fleet-cost-amount" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" />
+                  </label>
+                  <label className={fleetLabel}>
+                    Date
+                    <input className={`${fleetField} ${fleetFocus}`} data-testid="fleet-cost-date" type="date" value={costDate} onChange={(event) => setCostDate(event.target.value)} />
+                  </label>
+                  <label className="mt-2 flex min-h-11 items-center gap-2 text-sm font-bold text-slate-800">
+                    <input type="checkbox" checked={vatClaim} onChange={(event) => setVatClaim(event.target.checked)} />
+                    VAT is claimable
+                  </label>
+                  {category === 'fuel' ? (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className={fleetLabel}>
+                        Litres
+                        <input className={`${fleetField} ${fleetFocus}`} inputMode="decimal" value={litres} onChange={(event) => setLitres(event.target.value)} />
+                      </label>
+                      <label className={fleetLabel}>
+                        Odometer at fill
+                        <input className={`${fleetField} ${fleetFocus}`} inputMode="decimal" value={fuelOdo} onChange={(event) => setFuelOdo(event.target.value)} />
+                      </label>
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    className={`${fleetBtn} ${fleetFocus}`}
+                    data-testid="fleet-save-cost"
+                    onClick={() => {
+                      props.onOp?.({
+                        op: 'cost_entry.add',
+                        payload: {
+                          vehicle_id: current.id,
+                          category,
+                          amount_cents: centsFromRand(Number(amount)),
+                          occurred_on: costDate || props.today,
+                          vat_claimable: vatClaim,
+                          litres: category === 'fuel' && litres ? Number(litres) : null,
+                          odometer_km: category === 'fuel' && fuelOdo ? Number(fuelOdo) : null,
+                          full_tank: category === 'fuel',
+                        },
+                      });
+                      setAmount('');
+                    }}
+                  >
+                    Add cost entry
+                  </button>
+                  <ul className="space-y-1 text-sm">
+                    {props.book.cost_entries.filter((row) => row.vehicle_id === current.id && !row.reverses_id).map((row) => {
+                      const reversed = props.book.cost_entries.some((item) => item.reverses_id === row.id);
+                      return (
+                        <li key={row.id} className="flex items-center justify-between gap-2">
+                          <span>{runningCategoryLabel(row.category)} · <FleetMoney cents={row.amount_cents} /></span>
+                          {props.caps.canEditRegister && !reversed ? (
+                            <button type="button" className={`${fleetGhost} ${fleetFocus}`} onClick={() => props.onOp?.({ op: 'cost_entry.reverse', payload: { vehicle_id: current.id, reverses_id: row.id } })}>
+                              Reverse
+                            </button>
+                          ) : <span className="text-xs text-slate-500">{reversed ? 'Reversed' : ''}</span>}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <button type="button" className={`${fleetLink} ${fleetFocus} min-h-11`} onClick={() => setShowProfile((value) => !value)}>
+                    Add a cost profile
+                  </button>
+                  {showProfile ? <ProfileForm {...props} vehicleId={current.id} /> : null}
                 </section>
               ) : null}
               {props.caps.seesCosts ? <CpkCard metric={cpk.find((row) => row.vehicle_id === current.id) || null} caps={props.caps} /> : null}
@@ -567,8 +738,33 @@ function ComplianceList({ book, subjectId, today }: { book: FleetBook; subjectId
 function DriversView(props: FleetDeskProps) {
   const [open, setOpen] = useState<string | 'new' | null>(null);
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [employment, setEmployment] = useState('employee');
+  const [licenceCode, setLicenceCode] = useState('');
+  const [notes, setNotes] = useState('');
+  const [email, setEmail] = useState('');
   const [expiry, setExpiry] = useState('');
+  const [complianceKind, setComplianceKind] = useState('driver_licence');
+  const [prdpCategory, setPrdpCategory] = useState('G');
   const current = props.book.drivers.find((row) => row.id === open);
+  useEffect(() => {
+    if (open == null) return;
+    if (open === 'new' || !current) {
+      setName('');
+      setPhone('');
+      setEmployment('employee');
+      setLicenceCode('');
+      setNotes('');
+      setEmail('');
+      return;
+    }
+    setName(current.full_name);
+    setPhone(current.phone);
+    setEmployment(current.employment);
+    setLicenceCode(current.licence_code);
+    setNotes(current.notes);
+    setEmail(current.email);
+  }, [open, current]);
   const rows = props.book.drivers.filter((row) => !row.archived_at);
   return (
     <main className="mx-auto min-w-0 max-w-6xl space-y-4 overflow-x-hidden px-4 py-4" data-testid="fleet-drivers">
@@ -598,18 +794,44 @@ function DriversView(props: FleetDeskProps) {
             id: driver.id,
             cells: [
               <button key="n" type="button" className={`${fleetLink} ${fleetFocus} min-h-11`} onClick={() => setOpen(driver.id)}>{driver.full_name}</button>,
-              driver.employment.replaceAll('_', ' '),
+              employmentLabel(driver.employment),
               driver.licence_code || '—',
-              <FleetStatusPill key="s" tone={driver.status === 'active' ? 'ok' : 'muted'}>{driver.status.replaceAll('_', ' ')}</FleetStatusPill>,
+              <FleetStatusPill key="s" tone={driver.status === 'active' ? 'ok' : 'muted'}>{driverStatusLabel(driver.status)}</FleetStatusPill>,
             ],
-            card: <button type="button" className="min-h-11 text-left font-black" onClick={() => setOpen(driver.id)}>{driver.full_name}</button>,
+            card: (
+              <button type="button" className="min-h-11 text-left" onClick={() => setOpen(driver.id)}>
+                <p className="font-black">{driver.full_name}</p>
+                <p className="text-sm text-slate-600">{driverStatusLabel(driver.status)} · {employmentLabel(driver.employment)}</p>
+                <p className="text-sm text-slate-600">Next due {nextDue(props.book, driver.id, props.today)}</p>
+              </button>
+            ),
           }))}
         />
       )}
       <FleetDrawer open={open != null} title={current ? current.full_name : 'New driver'} onClose={() => setOpen(null)}>
         <label className={fleetLabel}>
           Name
-          <input className={`${fleetField} ${fleetFocus}`} data-testid="fleet-driver-name" value={open === 'new' ? name : current?.full_name || ''} onChange={(event) => setName(event.target.value)} />
+          <input className={`${fleetField} ${fleetFocus}`} data-testid="fleet-driver-name" value={name} onChange={(event) => setName(event.target.value)} />
+        </label>
+        <label className={fleetLabel}>
+          Phone
+          <input className={`${fleetField} ${fleetFocus}`} value={phone} onChange={(event) => setPhone(event.target.value)} />
+        </label>
+        <label className={fleetLabel}>
+          Employment
+          <select className={`${fleetField} ${fleetFocus}`} value={employment} onChange={(event) => setEmployment(event.target.value)}>
+            <option value="employee">Employee</option>
+            <option value="contractor">Contractor</option>
+            <option value="owner_operator">Owner-operator</option>
+          </select>
+        </label>
+        <label className={fleetLabel}>
+          Licence code
+          <input className={`${fleetField} ${fleetFocus}`} value={licenceCode} onChange={(event) => setLicenceCode(event.target.value)} placeholder="EC" />
+        </label>
+        <label className={fleetLabel}>
+          Notes
+          <input className={`${fleetField} ${fleetFocus}`} value={notes} onChange={(event) => setNotes(event.target.value)} />
         </label>
         {props.caps.canEditRegister ? (
           <button
@@ -618,7 +840,19 @@ function DriversView(props: FleetDeskProps) {
             data-testid="fleet-save-driver"
             onClick={() => {
               props.onOp?.(
-                { op: 'driver.upsert', payload: { id: current?.id, full_name: open === 'new' ? name : name || current?.full_name, employment: current?.employment || 'employee', status: current?.status || 'active', licence_code: current?.licence_code || '', email: current?.email || '' } },
+                {
+                  op: 'driver.upsert',
+                  payload: {
+                    id: current?.id,
+                    full_name: name,
+                    phone,
+                    notes,
+                    email,
+                    employment,
+                    licence_code: licenceCode,
+                    status: current?.status || 'active',
+                  },
+                },
                 current?.updated_at
               );
               setOpen(null);
@@ -634,6 +868,21 @@ function DriversView(props: FleetDeskProps) {
             {props.caps.canEditRegister ? (
               <>
                 <label className={fleetLabel}>
+                  Date kind
+                  <select className={`${fleetField} ${fleetFocus}`} value={complianceKind} onChange={(event) => setComplianceKind(event.target.value)}>
+                    <option value="driver_licence">Driving licence</option>
+                    <option value="prdp">PrDP</option>
+                    <option value="medical">Medical</option>
+                    <option value="induction">Induction</option>
+                  </select>
+                </label>
+                {complianceKind === 'prdp' ? (
+                  <label className={fleetLabel}>
+                    PrDP category
+                    <input className={`${fleetField} ${fleetFocus}`} value={prdpCategory} onChange={(event) => setPrdpCategory(event.target.value)} />
+                  </label>
+                ) : null}
+                <label className={fleetLabel}>
                   Driving licence expiry
                   <input className={`${fleetField} ${fleetFocus}`} data-testid="fleet-compliance-expiry" type="date" value={expiry} onChange={(event) => setExpiry(event.target.value)} />
                 </label>
@@ -642,10 +891,21 @@ function DriversView(props: FleetDeskProps) {
                   className={`${fleetBtn} ${fleetFocus}`}
                   data-testid="fleet-save-compliance"
                   onClick={() => {
-                    props.onOp?.({
-                      op: 'compliance.upsert',
-                      payload: { subject_kind: 'driver', subject_id: current.id, kind: 'driver_licence', expires_on: expiry },
-                    });
+                    const existing = props.book.compliance.find((row) => row.subject_id === current.id && row.kind === complianceKind && !row.archived_at);
+                    props.onOp?.(
+                      {
+                        op: 'compliance.upsert',
+                        payload: {
+                          id: existing?.id,
+                          subject_kind: 'driver',
+                          subject_id: current.id,
+                          kind: complianceKind,
+                          expires_on: expiry,
+                          detail: complianceKind === 'prdp' ? { category: prdpCategory } : {},
+                        },
+                      },
+                      existing?.updated_at
+                    );
                     setExpiry('');
                   }}
                 >
@@ -664,7 +924,52 @@ function JobsView(props: FleetDeskProps) {
   const [open, setOpen] = useState<string | 'new' | null>(null);
   const [filter, setFilter] = useState('all');
   const [customer, setCustomer] = useState('');
+  const [addingCustomer, setAddingCustomer] = useState(false);
+  const [cargo, setCargo] = useState('');
+  const [cargoKg, setCargoKg] = useState('');
+  const [dangerous, setDangerous] = useState(false);
+  const [abnormal, setAbnormal] = useState(false);
+  const [crossBorder, setCrossBorder] = useState(false);
+  const [price, setPrice] = useState('');
+  const [vehicleId, setVehicleId] = useState('');
+  const [driverId, setDriverId] = useState('');
+  const [stops, setStops] = useState<Array<{ kind: string; place_name: string }>>([
+    { kind: 'pickup', place_name: '' },
+    { kind: 'delivery', place_name: '' },
+  ]);
   const current = props.book.jobs.find((row) => row.id === open);
+  useEffect(() => {
+    if (open == null) return;
+    if (open === 'new' || !current) {
+      setCustomer('');
+      setAddingCustomer(false);
+      setCargo('');
+      setCargoKg('');
+      setDangerous(false);
+      setAbnormal(false);
+      setCrossBorder(false);
+      setPrice('');
+      setVehicleId('');
+      setDriverId('');
+      setStops([
+        { kind: 'pickup', place_name: '' },
+        { kind: 'delivery', place_name: '' },
+      ]);
+      return;
+    }
+    setCustomer(current.customer_name);
+    setAddingCustomer(false);
+    setCargo(current.cargo_description);
+    setCargoKg(current.cargo_kg == null ? '' : String(current.cargo_kg));
+    setDangerous(current.dangerous_goods);
+    setAbnormal(current.abnormal);
+    setCrossBorder(current.cross_border);
+    setPrice(current.price_cents == null ? '' : String(current.price_cents / 100));
+    setVehicleId(current.vehicle_id || '');
+    setDriverId(current.driver_id || '');
+    const existing = props.book.stops.filter((stop) => stop.job_id === current.id);
+    setStops(existing.length ? existing.map((stop) => ({ kind: stop.kind, place_name: stop.place_name })) : [{ kind: 'pickup', place_name: '' }]);
+  }, [open, current, props.book.stops]);
   const rows = props.book.jobs.filter((job) => !job.archived_at && (filter === 'all' || job.status === filter));
   return (
     <main className="mx-auto min-w-0 max-w-6xl space-y-4 overflow-x-hidden px-4 py-4" data-testid="fleet-jobs">
@@ -704,13 +1009,14 @@ function JobsView(props: FleetDeskProps) {
             cells: [
               <button key="r" type="button" className={`${fleetLink} ${fleetFocus} min-h-11`} onClick={() => setOpen(job.id)}>{job.reference}</button>,
               job.customer_name || '—',
-              <FleetStatusPill key="s" tone={job.status === 'cancelled' ? 'muted' : 'ok'}>{job.status}</FleetStatusPill>,
+              <FleetStatusPill key="s" tone={job.status === 'cancelled' ? 'muted' : 'ok'}>{jobStatusLabel(job.status)}</FleetStatusPill>,
               ...(props.caps.seesRates ? [<FleetMoney key="p" cents={job.price_cents} />] : []),
             ],
             card: (
               <button type="button" className="min-h-11 text-left" onClick={() => setOpen(job.id)}>
                 <p className="font-black">{job.reference}</p>
-                <p className="text-sm text-slate-600">{job.customer_name}</p>
+                <p className="text-sm text-slate-600">{jobStatusLabel(job.status)} · {props.book.vehicles.find((row) => row.id === job.vehicle_id)?.reg_no || 'No vehicle'}</p>
+                <p className="text-sm text-slate-600">{job.customer_name || 'No customer yet'}</p>
               </button>
             ),
           }))}
@@ -730,36 +1036,111 @@ function JobsView(props: FleetDeskProps) {
       </FleetSection>
       <FleetDrawer open={open != null} title={current ? current.reference : 'New job'} onClose={() => setOpen(null)} testId="fleet-job-drawer">
         <label className={fleetLabel}>
-          Customer name
-          <input className={`${fleetField} ${fleetFocus}`} value={customer} onChange={(event) => setCustomer(event.target.value)} placeholder="Or pick a customer later" />
-        </label>
-        {props.caps.seesRates ? <p className="mt-2 text-sm text-slate-600">Price is visible for this role.</p> : <p className="mt-2 text-sm text-slate-600">Prices are hidden for this role.</p>}
-        {current ? (
-          <ul className="mt-3 space-y-1 text-sm">
-            {props.book.stops.filter((stop) => stop.job_id === current.id).map((stop) => (
-              <li key={stop.id}>{stop.kind} · {stop.place_name}</li>
+          Customer
+          <select
+            className={`${fleetField} ${fleetFocus}`}
+            value={addingCustomer ? '__new' : customer}
+            onChange={(event) => {
+              if (event.target.value === '__new') {
+                setAddingCustomer(true);
+                setCustomer('');
+                return;
+              }
+              setAddingCustomer(false);
+              setCustomer(event.target.value);
+            }}
+          >
+            <option value="">Choose a customer from this company</option>
+            {Array.from(new Set(props.book.jobs.map((job) => job.customer_name).filter(Boolean))).map((name) => (
+              <option key={name} value={name}>{name}</option>
             ))}
-          </ul>
+            <option value="__new">Add a customer</option>
+          </select>
+        </label>
+        {addingCustomer ? (
+          <label className={fleetLabel}>
+            New customer name
+            <input className={`${fleetField} ${fleetFocus}`} value={customer} onChange={(event) => setCustomer(event.target.value)} />
+          </label>
         ) : null}
+        <label className={fleetLabel}>
+          Cargo
+          <input className={`${fleetField} ${fleetFocus}`} value={cargo} onChange={(event) => setCargo(event.target.value)} />
+        </label>
+        <label className={fleetLabel}>
+          Cargo kg
+          <input className={`${fleetField} ${fleetFocus}`} inputMode="decimal" value={cargoKg} onChange={(event) => setCargoKg(event.target.value)} />
+        </label>
+        <label className="mt-2 flex min-h-11 items-center gap-2 text-sm font-bold"><input type="checkbox" checked={dangerous} onChange={(event) => setDangerous(event.target.checked)} /> Dangerous goods</label>
+        <label className="flex min-h-11 items-center gap-2 text-sm font-bold"><input type="checkbox" checked={abnormal} onChange={(event) => setAbnormal(event.target.checked)} /> Abnormal load</label>
+        <label className="flex min-h-11 items-center gap-2 text-sm font-bold"><input type="checkbox" checked={crossBorder} onChange={(event) => setCrossBorder(event.target.checked)} /> Cross-border</label>
+        <label className={fleetLabel}>
+          Vehicle
+          <select className={`${fleetField} ${fleetFocus}`} value={vehicleId} onChange={(event) => setVehicleId(event.target.value)}>
+            <option value="">Unassigned</option>
+            {props.book.vehicles.filter((row) => !row.archived_at).map((row) => (
+              <option key={row.id} value={row.id}>{row.reg_no}</option>
+            ))}
+          </select>
+        </label>
+        <label className={fleetLabel}>
+          Driver
+          <select className={`${fleetField} ${fleetFocus}`} value={driverId} onChange={(event) => setDriverId(event.target.value)}>
+            <option value="">Unassigned</option>
+            {props.book.drivers.filter((row) => !row.archived_at).map((row) => (
+              <option key={row.id} value={row.id}>{row.full_name}</option>
+            ))}
+          </select>
+        </label>
+        <div className="mt-3 space-y-2">
+          <h3 className="text-sm font-black">Stops</h3>
+          {stops.map((stop, index) => (
+            <div key={`${stop.kind}-${index}`} className="grid grid-cols-[8rem_minmax(0,1fr)] gap-2">
+              <select
+                className={`${fleetField} ${fleetFocus}`}
+                value={stop.kind}
+                onChange={(event) => setStops((rows) => rows.map((item, itemIndex) => itemIndex === index ? { ...item, kind: event.target.value } : item))}
+              >
+                <option value="pickup">Pickup</option>
+                <option value="delivery">Delivery</option>
+                <option value="via">Via</option>
+              </select>
+              <input
+                className={`${fleetField} ${fleetFocus}`}
+                value={stop.place_name}
+                placeholder="Place"
+                onChange={(event) => setStops((rows) => rows.map((item, itemIndex) => itemIndex === index ? { ...item, place_name: event.target.value } : item))}
+              />
+            </div>
+          ))}
+          <button type="button" className={`${fleetGhost} ${fleetFocus}`} onClick={() => setStops((rows) => [...rows, { kind: 'via', place_name: '' }])}>Add a stop</button>
+        </div>
+        {props.caps.seesRates ? (
+          <label className={fleetLabel}>
+            Price (rand)
+            <input className={`${fleetField} ${fleetFocus}`} inputMode="decimal" value={price} onChange={(event) => setPrice(event.target.value)} />
+          </label>
+        ) : <p className="mt-2 text-sm text-slate-600">Prices are hidden for this role.</p>}
         {props.caps.canEditRegister ? (
           <button
             type="button"
             className={`${fleetBtn} ${fleetFocus} mt-3`}
             onClick={() => {
-              props.onOp?.(
-                {
-                  op: 'job.upsert',
-                  payload: {
-                    id: current?.id,
-                    customer_name: customer || current?.customer_name || 'Sample Retailer',
-                    status: current?.status || 'draft',
-                    stops: current
-                      ? props.book.stops.filter((stop) => stop.job_id === current.id)
-                      : [{ kind: 'pickup', place_name: 'Sample Depot' }, { kind: 'delivery', place_name: 'Sample DC' }],
-                  },
-                },
-                current?.updated_at
-              );
+              const payload: Record<string, unknown> = {
+                id: current?.id,
+                customer_name: customer,
+                status: current?.status || 'draft',
+                cargo_description: cargo,
+                cargo_kg: cargoKg ? Number(cargoKg) : null,
+                dangerous_goods: dangerous,
+                abnormal,
+                cross_border: crossBorder,
+                vehicle_id: vehicleId || null,
+                driver_id: driverId || null,
+                stops: stops.filter((stop) => stop.place_name.trim()),
+              };
+              if (props.caps.seesRates) payload.price_cents = price === '' ? null : centsFromRand(Number(price));
+              props.onOp?.({ op: 'job.upsert', payload }, current?.updated_at);
               setOpen(null);
             }}
           >
@@ -783,7 +1164,9 @@ function CpkView(props: FleetDeskProps) {
     const end = nextMonth(start);
     return start < period.to && end > period.from;
   });
-  const fleet = fleetRollup(cpk);
+  const fleet = fleetRollup(cpk, props.periodId, props.book.workspace.cpk_window_days);
+  const headline = cpk.find((row) => row.status === 'ok' && row.fully_loaded_per_km != null) || null;
+  const unallocated = cpk.find((row) => (row.overhead_unallocated_cents || 0) > 0)?.overhead_unallocated_cents ?? null;
   if (!props.caps.seesCosts) {
     return (
       <main className="mx-auto max-w-6xl space-y-4 px-4 py-4" data-testid="fleet-cpk">
@@ -811,7 +1194,7 @@ function CpkView(props: FleetDeskProps) {
         options={[
           { id: 'mtd', label: 'Month to date' },
           { id: 'last', label: 'Last full month' },
-          { id: 'trail', label: 'Trailing 90 days' },
+          { id: 'trail', label: `Trailing ${props.book.workspace.cpk_window_days} days` },
         ]}
       />
       {vehicles.length === 0 ? (
@@ -819,12 +1202,28 @@ function CpkView(props: FleetDeskProps) {
           title="No cost per kilometre yet"
           hint="Add a vehicle and a cost profile. Until then the sample waterfall below is only an illustration."
           illustration={<CpkWaterfallArt />}
-          action={<Link className={`${fleetBtn} ${fleetFocus}`} href={`${props.hrefBase}/vehicles`}>Add a cost profile</Link>}
+          action={<Link className={`${fleetBtn} ${fleetFocus}`} href={`${props.hrefBase}/vehicles`}>Add a vehicle</Link>}
         />
       ) : (
         <>
-          <div data-testid="fleet-cpk-headline">
-            <FleetStat label="Fully loaded" value={fleet.value} hint={fleet.hint} testId="fleet-cpk-value" />
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="fleet-cpk-headline">
+            <p className="text-xs font-black uppercase tracking-wide text-[#0077b6]">Fully loaded</p>
+            <p className="mt-1 text-3xl font-black tabular-nums text-[#0f172a]" data-testid="fleet-cpk-value">{fleet.value}</p>
+            <p className="text-sm text-slate-600">{fleet.hint}</p>
+            {headline ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm font-bold text-slate-800">
+                <span>Target {formatPerKm(headline.target_per_km)}/km</span>
+                <FleetVariancePill status={headline.variance_status} delta={signedPerKm(headline.variance_per_km)} />
+                <span>Breakeven {formatPerKm(headline.breakeven_per_loaded_km)}/loaded km</span>
+                <span>Required {formatPerKm(requiredRate(headline.breakeven_per_loaded_km, 0.1))}/km</span>
+                <span>Utilisation {headline.utilisation ? `${headline.utilisation.trip_days}/${headline.utilisation.available_days}` : '—'}</span>
+              </div>
+            ) : null}
+            {props.illustrate ? (
+              <p className="mt-2 text-sm text-slate-600">SAMPLE 01 is the worked example for one vehicle ({SAMPLE_01_DISPLAY.fully}/km when the illustration book is unchanged).</p>
+            ) : null}
+            {unallocated != null ? <p className="mt-2 text-sm font-bold text-slate-800">Unallocated overhead <FleetMoney cents={unallocated} /></p> : null}
+            {headline ? <LayerBar metric={headline} /> : null}
           </div>
           <FleetTable
             columns={['Vehicle', 'CPK', 'Variance', 'Source', 'L/100 km']}
@@ -835,7 +1234,7 @@ function CpkView(props: FleetDeskProps) {
                 cells: [
                   vehicle.reg_no,
                   metric?.status === 'ok' ? `${formatPerKm(metric.fully_loaded_per_km)}/km` : metric?.message || 'Not enough data',
-                  <FleetVariancePill key="v" status={metric?.variance_status || 'no_target'} />,
+                  <FleetVariancePill key="v" status={metric?.variance_status || 'no_target'} delta={signedPerKm(metric?.variance_per_km ?? null)} />,
                   metric?.distance_source || 'none',
                   formatLitresPer100(metric?.litres_per_100km),
                 ],
@@ -852,27 +1251,16 @@ function CpkView(props: FleetDeskProps) {
           <FleetSection title="Data completeness">
             <ul className="space-y-2 text-sm font-bold text-slate-800">
               <li>{withReadings} of {vehicles.length} vehicles have two odometer readings. <Link className={fleetLink} href={`${props.hrefBase}/vehicles`}>Add a reading</Link></li>
-              <li>{missingProfiles === 0 ? 'Every vehicle has a cost profile.' : `No cost profile for ${missingProfiles} ${missingProfiles === 1 ? 'vehicle' : 'vehicles'}.`} <Link className={fleetLink} href={`${props.hrefBase}/vehicles`}>Open vehicles</Link></li>
+              <li>{missingProfiles === 0 ? 'Every vehicle has a cost profile.' : `No cost profile for ${missingProfiles} ${missingProfiles === 1 ? 'vehicle' : 'vehicles'}.`} <button type="button" className={`${fleetLink} ${fleetFocus} min-h-11`} onClick={() => document.getElementById('fleet-profile-form')?.scrollIntoView({ behavior: 'smooth' })}>Add a cost profile</button></li>
               <li>{hasPool ? 'An overhead pool covers this period.' : 'No overhead pool covers this period.'}</li>
             </ul>
           </FleetSection>
           {props.caps.canEditSettings ? (
             <FleetSection title="Target and overhead">
-              <p className="mb-2 text-sm text-slate-600">Targets are the company&apos;s own figures.</p>
-              <button
-                type="button"
-                className={`${fleetGhost} ${fleetFocus}`}
-                onClick={() => props.onOp?.({ op: 'cpk_target.set', payload: { scope_kind: 'fleet', scope_ref: '', layer: 'fully_loaded', target_cents_per_km: 1550, effective_from: props.today } })}
-              >
-                Save a fleet target
-              </button>
-              <button
-                type="button"
-                className={`${fleetGhost} ${fleetFocus} ml-2`}
-                onClick={() => props.onOp?.({ op: 'overhead_pool.set', payload: { period_month: poolMonth, amount_cents: 0, basis: props.book.workspace.overhead_basis } })}
-              >
-                Save this month&apos;s overhead
-              </button>
+              <TargetOverheadForm {...props} poolMonth={poolMonth} />
+              <div id="fleet-profile-form" className="mt-4">
+                <ProfileForm {...props} />
+              </div>
             </FleetSection>
           ) : null}
         </>
@@ -891,6 +1279,7 @@ function CpkView(props: FleetDeskProps) {
 function SettingsView(props: FleetDeskProps) {
   const [phrase, setPhrase] = useState('');
   const [name, setName] = useState(props.book.workspace.display_name);
+  const [retention, setRetention] = useState(String(props.book.workspace.retention_days ?? 1825));
   if (!props.caps.canEditSettings && props.role !== 'owner' && props.role !== 'manager') {
     return (
       <main className="mx-auto max-w-6xl space-y-4 px-4 py-4" data-testid="fleet-settings">
@@ -944,7 +1333,17 @@ function SettingsView(props: FleetDeskProps) {
           >
             {props.book.workspace.dispatcher_sees_rates ? 'Hide prices from dispatchers' : 'Let dispatchers see prices'}
           </button>
-          <p className="mt-3 text-sm text-slate-600">File retention applies when proof-of-delivery storage arrives. The suggested holding period is 5 years.</p>
+          <label className={`${fleetLabel} mt-3`}>
+            Suggested holding period (days)
+            <input className={`${fleetField} ${fleetFocus}`} inputMode="numeric" value={retention} onChange={(event) => setRetention(event.target.value)} />
+          </label>
+          <button
+            type="button"
+            className={`${fleetGhost} ${fleetFocus} mt-2`}
+            onClick={() => props.onOp?.({ op: 'settings.update', payload: { retention_days: Number(retention) } }, props.book.workspace.updated_at)}
+          >
+            Save holding period
+          </button>
           <label className={`${fleetLabel} mt-4`}>
             Type ENABLE REAL DATA to leave demo-data mode
             <input className={`${fleetField} ${fleetFocus}`} value={phrase} onChange={(event) => setPhrase(event.target.value)} />
@@ -957,6 +1356,178 @@ function SettingsView(props: FleetDeskProps) {
         <p className="text-sm text-slate-600">Retention, price visibility and the real-data switch are owner-only.</p>
       )}
     </main>
+  );
+}
+
+function nextDue(book: FleetBook, subjectId: string, today: string): string {
+  const rows = book.compliance.filter((row) => row.subject_id === subjectId && row.expires_on);
+  if (!rows.length) return '—';
+  const next = [...rows].sort((a, b) => String(a.expires_on).localeCompare(String(b.expires_on)))[0];
+  return complianceLabel(next.expires_on, today, book.workspace.expiring_window_days);
+}
+
+function LayerBar({ metric }: { metric: VehicleCpk }) {
+  const parts = [
+    { label: 'Running', cents: metric.running_cents || 0, color: '#00b4d8' },
+    { label: 'Standing', cents: metric.standing_cents || 0, color: '#0077b6' },
+    { label: 'Capital', cents: metric.capital_cents || 0, color: '#0f172a' },
+    { label: 'Overhead', cents: metric.overhead_cents || 0, color: '#64748b' },
+  ];
+  const total = parts.reduce((sum, part) => sum + part.cents, 0) || 1;
+  return (
+    <div className="mt-4" data-testid="fleet-cpk-layers">
+      <div className="flex h-3 overflow-hidden rounded-full" aria-hidden>
+        {parts.map((part) => (
+          <div key={part.label} style={{ width: `${(part.cents / total) * 100}%`, background: part.color }} />
+        ))}
+      </div>
+      <ul className="mt-2 flex flex-wrap gap-3 text-xs font-bold text-slate-700">
+        {parts.map((part) => (
+          <li key={part.label} className="inline-flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-full" style={{ background: part.color }} />
+            {part.label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function TargetOverheadForm(props: FleetDeskProps & { poolMonth: string }) {
+  const [targetRand, setTargetRand] = useState('');
+  const [scope, setScope] = useState('fleet');
+  const [classRef, setClassRef] = useState('rigid');
+  const [overheadRand, setOverheadRand] = useState('');
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-slate-600">Targets are this company&apos;s own figures, in rand per kilometre.</p>
+      <label className={fleetLabel}>
+        Target scope
+        <select className={`${fleetField} ${fleetFocus}`} value={scope} onChange={(event) => setScope(event.target.value)}>
+          <option value="fleet">Whole fleet</option>
+          <option value="vehicle_class">Vehicle class</option>
+        </select>
+      </label>
+      {scope === 'vehicle_class' ? (
+        <label className={fleetLabel}>
+          Vehicle class
+          <select className={`${fleetField} ${fleetFocus}`} value={classRef} onChange={(event) => setClassRef(event.target.value)}>
+            {['rigid', 'tractor', 'trailer', 'tipper', 'van', 'other'].map((kind) => (
+              <option key={kind} value={kind}>{vehicleKindLabel(kind)}</option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      <label className={fleetLabel}>
+        Target (rand per km)
+        <input className={`${fleetField} ${fleetFocus}`} inputMode="decimal" value={targetRand} onChange={(event) => setTargetRand(event.target.value)} placeholder="15.50" />
+      </label>
+      <button
+        type="button"
+        className={`${fleetBtn} ${fleetFocus}`}
+        onClick={() =>
+          props.onOp?.({
+            op: 'cpk_target.set',
+            payload: {
+              scope_kind: scope,
+              scope_ref: scope === 'vehicle_class' ? classRef : '',
+              layer: 'fully_loaded',
+              target_cents_per_km: centsFromRand(Number(targetRand)),
+              effective_from: props.today,
+            },
+          })
+        }
+      >
+        Save target
+      </button>
+      <label className={fleetLabel}>
+        Monthly overhead pool (rand)
+        <input className={`${fleetField} ${fleetFocus}`} inputMode="decimal" value={overheadRand} onChange={(event) => setOverheadRand(event.target.value)} placeholder="0.00" />
+      </label>
+      <button
+        type="button"
+        className={`${fleetGhost} ${fleetFocus}`}
+        onClick={() =>
+          props.onOp?.({
+            op: 'overhead_pool.set',
+            payload: {
+              period_month: props.poolMonth,
+              amount_cents: centsFromRand(Number(overheadRand)),
+              basis: props.book.workspace.overhead_basis,
+            },
+          })
+        }
+      >
+        Save overhead pool
+      </button>
+    </div>
+  );
+}
+
+function ProfileForm(props: FleetDeskProps & { vehicleId?: string }) {
+  const [vehicleId, setVehicleId] = useState(props.vehicleId || props.book.vehicles[0]?.id || '');
+  const [finance, setFinance] = useState('');
+  const [insurance, setInsurance] = useState('');
+  const [licences, setLicences] = useState('');
+  const [tracker, setTracker] = useState('');
+  const [driverPay, setDriverPay] = useState('');
+  const [purchase, setPurchase] = useState('');
+  const [life, setLife] = useState('60');
+  const [from, setFrom] = useState(props.today);
+  useEffect(() => {
+    if (props.vehicleId) setVehicleId(props.vehicleId);
+  }, [props.vehicleId]);
+  if (!props.book.vehicles.length) return <p className="text-sm text-slate-600">Add a vehicle before a cost profile.</p>;
+  return (
+    <div className="space-y-2">
+      <h3 className="text-sm font-black">Cost profile</h3>
+      {props.vehicleId ? null : (
+        <label className={fleetLabel}>
+          Vehicle
+          <select className={`${fleetField} ${fleetFocus}`} value={vehicleId} onChange={(event) => setVehicleId(event.target.value)}>
+            {props.book.vehicles.map((row) => (
+              <option key={row.id} value={row.id}>{row.reg_no}</option>
+            ))}
+          </select>
+        </label>
+      )}
+      <label className={fleetLabel}>Effective from<input className={`${fleetField} ${fleetFocus}`} type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
+      <label className={fleetLabel}>Purchase price (rand)<input className={`${fleetField} ${fleetFocus}`} inputMode="decimal" value={purchase} onChange={(event) => setPurchase(event.target.value)} /></label>
+      <label className={fleetLabel}>Life (months)<input className={`${fleetField} ${fleetFocus}`} inputMode="numeric" value={life} onChange={(event) => setLife(event.target.value)} /></label>
+      <label className={fleetLabel}>Finance each month (rand)<input className={`${fleetField} ${fleetFocus}`} inputMode="decimal" value={finance} onChange={(event) => setFinance(event.target.value)} /></label>
+      <label className={fleetLabel}>Insurance each year (rand)<input className={`${fleetField} ${fleetFocus}`} inputMode="decimal" value={insurance} onChange={(event) => setInsurance(event.target.value)} /></label>
+      <label className={fleetLabel}>Licences each year (rand)<input className={`${fleetField} ${fleetFocus}`} inputMode="decimal" value={licences} onChange={(event) => setLicences(event.target.value)} /></label>
+      <label className={fleetLabel}>Tracker each month (rand)<input className={`${fleetField} ${fleetFocus}`} inputMode="decimal" value={tracker} onChange={(event) => setTracker(event.target.value)} /></label>
+      {props.caps.seesDriverPay ? (
+        <label className={fleetLabel}>Driver cost each month (rand)<input className={`${fleetField} ${fleetFocus}`} inputMode="decimal" value={driverPay} onChange={(event) => setDriverPay(event.target.value)} /></label>
+      ) : (
+        <p className="text-sm text-slate-600">Driver pay is hidden for this role.</p>
+      )}
+      <button
+        type="button"
+        className={`${fleetBtn} ${fleetFocus}`}
+        onClick={() =>
+          props.onOp?.({
+            op: 'cost_profile.set',
+            payload: {
+              vehicle_id: vehicleId,
+              effective_from: from,
+              depreciation_method: 'time',
+              life_months: Number(life) || 60,
+              purchase_price_cents: purchase === '' ? null : centsFromRand(Number(purchase)),
+              finance_monthly_cents: centsFromRand(Number(finance || 0)),
+              insurance_annual_cents: centsFromRand(Number(insurance || 0)),
+              licences_annual_cents: centsFromRand(Number(licences || 0)),
+              tracker_monthly_cents: centsFromRand(Number(tracker || 0)),
+              driver_cost_monthly_cents: props.caps.seesDriverPay ? centsFromRand(Number(driverPay || 0)) : 0,
+              tyre_mode: 'accrual',
+            },
+          })
+        }
+      >
+        Save cost profile
+      </button>
+    </div>
   );
 }
 

@@ -2,7 +2,7 @@
  * FleetAdvisor® roles derived from the company permission matrix.
  * Do not edit permissions.ts and do not keep a parallel company-role list.
  */
-import { canAccess, normalizeTeamRole, type TeamRole } from '../business/permissions';
+import { canAccess, normalizeTeamRole, TEAM_ROLE_OPTIONS, type TeamRole } from '../business/permissions';
 import type { FleetBook, FleetOpName, FleetRole } from './types';
 import { FLEET_OPS } from './types';
 
@@ -35,9 +35,11 @@ const WRITE_OPS: FleetOpName[] = [
  * operations write and no accounting view → dispatcher.
  * operations view and accounting write → office.
  * any other operations view → viewer.
- * Unknown company roles normalise to member, which is a dispatcher.
+ * Unknown, empty, or missing company roles are none. They do not write.
  */
 export function resolveFleetRole(companyRole: string | null | undefined): FleetRole {
+  const raw = String(companyRole ?? '').trim().toLowerCase();
+  if (!raw || !TEAM_ROLE_OPTIONS.some((option) => option.value === raw)) return 'none';
   const role: TeamRole = normalizeTeamRole(companyRole);
   if (role === 'owner') return 'owner';
   if (role === 'admin') return 'manager';

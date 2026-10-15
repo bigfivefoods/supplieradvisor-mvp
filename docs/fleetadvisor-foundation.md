@@ -47,6 +47,7 @@ Company role comes from the existing permission matrix. It is not a second list.
 | finance | office |
 | viewer, sales | viewer |
 | sales_contractor | none |
+| unknown, empty, or missing | none |
 
 Dispatchers do not see job prices unless the owner turns that switch on. They do not see cost profiles, ledger rows, overhead or cost per kilometre. Office can read costs and prices. Driver pay stays off that view. Admin is a manager: costs yes, invoicing and the real-data switch no.
 
@@ -56,7 +57,7 @@ A period is a half-open range of calendar dates in South African Standard Time. 
 
 Distance prefers trip odometer deltas, then odometer readings, then GPS-derived distance. Planned kilometres are never used. If the distance is missing the screen says "Not enough data". If it is under the company minimum it says "Not enough distance". A partial result names what is still missing. Targets are the company's own. There is no external benchmark.
 
-The method is specified in the design notes, section 8.5.
+Fully loaded cost per kilometre is running plus standing plus capital plus overhead, divided by the kilometres in the period. Operating cost per kilometre leaves capital and overhead out. A monthly overhead pool is prorated by the days of that month that fall inside the period, then shared across every vehicle that is in the fleet on those days, including a vehicle that has no odometer readings yet. Kilometre sharing gives a vehicle with no distance a weight of zero, and any amount that cannot be shared is shown as unallocated. A cost profile applies on each day it is in force, so a profile that starts mid-period and a finance change mid-period are both counted for the days they cover. The trailing window uses the company setting `cpk_window_days` (90 unless the company changes it).
 
 ## Real-data gate
 

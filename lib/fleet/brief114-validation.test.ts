@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { emptyFleetBook } from './empty-book';
 import { applyFleetOp } from './ops';
-import { assertLedgerCategory, cleanEmail, findIdentityKey, sameCompanyCustomer } from './validation';
+import { assertLedgerCategory, assertNoIdentityText, cleanEmail, findIdentityKey, sameCompanyCustomer } from './validation';
 
 assert.ok(findIdentityKey({ licence_no: '123' }));
 assert.ok(findIdentityKey({ nested: { passport_number: 'x' } }));
@@ -66,5 +66,16 @@ const personal = applyFleetOp(
 );
 assert.equal(personal.ok, false);
 if (!personal.ok) assert.match(personal.error, /Demo-data mode/);
+
+assert.equal(assertNoIdentityText('Call 0821234567').ok, true);
+assert.equal(assertNoIdentityText('8001015009087').ok, false);
+assert.equal(assertNoIdentityText('licence number ABC123456').ok, false);
+assert.equal(assertNoIdentityText('passport no X1234567').ok, false);
+const refused = applyFleetOp(
+  book,
+  { op: 'job.upsert', payload: { customer_name: 'Depot', notes: 'ID 8001015009087', status: 'draft' } },
+  { ...ctx, enforceRealData: false }
+);
+assert.equal(refused.ok, false);
 
 console.log('brief114-validation.test.ts ok');

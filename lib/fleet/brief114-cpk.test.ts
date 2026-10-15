@@ -74,10 +74,10 @@ assert.equal(row.utilisation?.trip_days, SAMPLE_01_DISPLAY.tripDays);
 assert.equal(row.utilisation?.available_days, SAMPLE_01_DISPLAY.availableDays);
 assert.equal(row.utilisation?.idle_days, SAMPLE_01_DISPLAY.idleDays);
 assert.equal(row.utilisation?.workshop_days, SAMPLE_01_DISPLAY.workshopDays);
-assert.equal(money(row.layer_lines?.running.fuel ?? null), 'R52,000.00');
-assert.equal(money(row.layer_lines?.running.toll ?? null), 'R6,400.00');
-assert.equal(money(row.layer_lines?.running.maintenance ?? null), 'R4,800.00');
-assert.equal(money(row.layer_lines?.running.tyres ?? null), 'R3,200.00');
+assert.equal(money(row.layer_lines?.running.fuel ?? null), 'R52 000.00');
+assert.equal(money(row.layer_lines?.running.toll ?? null), 'R6 400.00');
+assert.equal(money(row.layer_lines?.running.maintenance ?? null), 'R4 800.00');
+assert.equal(money(row.layer_lines?.running.tyres ?? null), 'R3 200.00');
 finiteTree(row);
 
 const planned = resolveDistance({
@@ -425,6 +425,233 @@ assert.equal(freshness(60_000), 'fresh');
 assert.equal(freshness(10 * 60_000), 'stale');
 assert.equal(freshness(2 * 60 * 60_000), 'offline');
 assert.equal(pathKm([{ at: '2024-06-01T10:00:00.000Z', lat: 0, lng: 0 }, { at: '2024-06-01T12:00:00.000Z', lat: 0.01, lng: 0 }]), 0);
+
+const partialPool = computeFleetCpk({
+  period: { from: '2024-06-01', to: '2024-06-16' },
+  vehicles: [
+    {
+      id: 'part',
+      kind: 'rigid',
+      ownership: 'owned',
+      readings: [
+        { reading_km: 0, read_at: '2024-06-01' },
+        { reading_km: 1000, read_at: '2024-06-16' },
+      ],
+    },
+  ],
+  entries: [{ vehicle_id: 'part', category: 'toll', occurred_on: '2024-06-02', amount_cents: 100 }],
+  profiles: [
+    {
+      vehicle_id: 'part',
+      effective_from: '2024-06-01',
+      finance_monthly_cents: 0,
+      depreciation_method: 'time',
+      life_months: 60,
+      purchase_price_cents: 1,
+      residual_cents: 0,
+      in_service_on: '2024-06-01',
+    },
+  ],
+  pools: [{ period_month: '2024-06-01', amount_cents: 1_000_000, basis: 'equal_vehicle_days' }],
+  targets: [],
+})[0];
+assert.equal(partialPool.overhead_cents, 500_000);
+
+const trailing = computeFleetCpk({
+  period: { from: '2024-05-15', to: '2024-06-15' },
+  vehicles: [
+    {
+      id: 'trail',
+      kind: 'rigid',
+      ownership: 'owned',
+      readings: [
+        { reading_km: 0, read_at: '2024-05-15' },
+        { reading_km: 2000, read_at: '2024-06-15' },
+      ],
+    },
+  ],
+  entries: [{ vehicle_id: 'trail', category: 'toll', occurred_on: '2024-05-20', amount_cents: 100 }],
+  profiles: [
+    {
+      vehicle_id: 'trail',
+      effective_from: '2024-01-01',
+      finance_monthly_cents: 0,
+      depreciation_method: 'time',
+      life_months: 60,
+      purchase_price_cents: 1,
+      residual_cents: 0,
+      in_service_on: '2024-01-01',
+    },
+  ],
+  pools: [
+    { period_month: '2024-05-01', amount_cents: 1_000_000, basis: 'equal_vehicle_days' },
+    { period_month: '2024-06-01', amount_cents: 1_000_000, basis: 'equal_vehicle_days' },
+  ],
+  targets: [],
+})[0];
+const mayShare = (1_000_000 * 17) / 31;
+const juneShare = (1_000_000 * 14) / 30;
+assert.ok(Math.abs((trailing.overhead_cents || 0) - (mayShare + juneShare)) < 1);
+assert.notEqual(trailing.overhead_cents, 2_000_000);
+
+const shared = computeFleetCpk({
+  period: { from: '2024-06-01', to: '2024-07-01' },
+  vehicles: [
+    {
+      id: 'with-km',
+      kind: 'rigid',
+      ownership: 'owned',
+      readings: [
+        { reading_km: 0, read_at: '2024-06-01' },
+        { reading_km: 1000, read_at: '2024-07-01' },
+      ],
+    },
+    { id: 'no-odo', kind: 'rigid', ownership: 'owned' },
+  ],
+  entries: [{ vehicle_id: 'with-km', category: 'toll', occurred_on: '2024-06-02', amount_cents: 100 }],
+  profiles: [],
+  pools: [{ period_month: '2024-06-01', amount_cents: 1_000_000, basis: 'equal_vehicle_days' }],
+  targets: [],
+});
+assert.equal(shared.find((item) => item.vehicle_id === 'with-km')?.overhead_cents, 500_000);
+assert.equal(shared.find((item) => item.vehicle_id === 'no-odo')?.overhead_cents, 500_000);
+assert.equal(shared[0].overhead_unallocated_cents, 0);
+
+const kmBasis = computeFleetCpk({
+  period: { from: '2024-06-01', to: '2024-07-01' },
+  vehicles: [
+    {
+      id: 'moved',
+      kind: 'rigid',
+      ownership: 'owned',
+      readings: [
+        { reading_km: 0, read_at: '2024-06-01' },
+        { reading_km: 1000, read_at: '2024-07-01' },
+      ],
+    },
+    { id: 'still', kind: 'van', ownership: 'owned' },
+  ],
+  entries: [{ vehicle_id: 'moved', category: 'toll', occurred_on: '2024-06-02', amount_cents: 100 }],
+  profiles: [],
+  pools: [{ period_month: '2024-06-01', amount_cents: 900_000, basis: 'km' }],
+  targets: [],
+});
+assert.equal(kmBasis.find((item) => item.vehicle_id === 'moved')?.overhead_cents, 900_000);
+assert.equal(kmBasis.find((item) => item.vehicle_id === 'still')?.overhead_cents, null);
+assert.equal(kmBasis[0].overhead_unallocated_cents, 0);
+
+const nobodyMoved = computeFleetCpk({
+  period: { from: '2024-06-01', to: '2024-07-01' },
+  vehicles: [{ id: 'parked', kind: 'rigid', ownership: 'owned' }],
+  entries: [],
+  profiles: [],
+  pools: [{ period_month: '2024-06-01', amount_cents: 400_000, basis: 'km' }],
+  targets: [],
+})[0];
+assert.equal(nobodyMoved.overhead_cents, null);
+assert.equal(nobodyMoved.overhead_unallocated_cents, 400_000);
+
+const midProfile = computeFleetCpk({
+  period: { from: '2024-06-01', to: '2024-07-01' },
+  vehicles: [
+    {
+      id: 'mid',
+      kind: 'rigid',
+      ownership: 'owned',
+      readings: [
+        { reading_km: 0, read_at: '2024-06-01' },
+        { reading_km: 3000, read_at: '2024-07-01' },
+      ],
+    },
+  ],
+  entries: [{ vehicle_id: 'mid', category: 'toll', occurred_on: '2024-06-20', amount_cents: 100 }],
+  profiles: [
+    {
+      vehicle_id: 'mid',
+      effective_from: '2024-06-16',
+      finance_monthly_cents: 1_830_000,
+      depreciation_method: 'time',
+      life_months: 60,
+      purchase_price_cents: 73_000_000,
+      residual_cents: 0,
+      in_service_on: '2024-06-16',
+    },
+  ],
+  pools: [{ period_month: '2024-06-01', amount_cents: 0, basis: 'equal_vehicle_days' }],
+  targets: [],
+})[0];
+const midDaily = (1_830_000 * 12) / 366;
+assert.ok(Math.abs((midProfile.layer_lines?.standing.finance || 0) - midDaily * 15) < 1);
+assert.ok((midProfile.capital_cents || 0) > 0);
+assert.notEqual(midProfile.standing_cents, 0);
+
+const financeChange = computeFleetCpk({
+  period: { from: '2024-06-01', to: '2024-07-01' },
+  vehicles: [
+    {
+      id: 'fin',
+      kind: 'rigid',
+      ownership: 'owned',
+      readings: [
+        { reading_km: 0, read_at: '2024-06-01' },
+        { reading_km: 2000, read_at: '2024-07-01' },
+      ],
+    },
+  ],
+  entries: [{ vehicle_id: 'fin', category: 'toll', occurred_on: '2024-06-04', amount_cents: 100 }],
+  profiles: [
+    {
+      vehicle_id: 'fin',
+      effective_from: '2024-06-01',
+      effective_to: '2024-06-16',
+      finance_monthly_cents: 1_000_000,
+      depreciation_method: 'time',
+      life_months: 60,
+      purchase_price_cents: 100_000,
+      residual_cents: 0,
+      in_service_on: '2024-06-01',
+    },
+    {
+      vehicle_id: 'fin',
+      effective_from: '2024-06-16',
+      finance_monthly_cents: 2_000_000,
+      depreciation_method: 'time',
+      life_months: 60,
+      purchase_price_cents: 100_000,
+      residual_cents: 0,
+      in_service_on: '2024-06-01',
+    },
+  ],
+  pools: [{ period_month: '2024-06-01', amount_cents: 0, basis: 'km' }],
+  targets: [],
+})[0];
+const expectedFinance = 15 * ((1_000_000 * 12) / 366) + 15 * ((2_000_000 * 12) / 366);
+const ignoredFinance = 30 * ((1_000_000 * 12) / 366);
+assert.ok(Math.abs((financeChange.layer_lines?.standing.finance || 0) - expectedFinance) < 1);
+assert.ok(Math.abs((financeChange.layer_lines?.standing.finance || 0) - ignoredFinance) > 1000);
+
+const zeroCost = computeFleetCpk({
+  period: { from: '2024-06-01', to: '2024-07-01' },
+  vehicles: [
+    {
+      id: 'empty-cost',
+      kind: 'rigid',
+      ownership: 'owned',
+      readings: [
+        { reading_km: 0, read_at: '2024-06-01' },
+        { reading_km: 1500, read_at: '2024-07-01' },
+      ],
+    },
+  ],
+  entries: [],
+  profiles: [],
+  pools: [],
+  targets: [],
+})[0];
+assert.equal(zeroCost.status, 'not_enough_data');
+assert.equal(zeroCost.message, 'Not enough data');
+assert.equal(zeroCost.fully_loaded_per_km, null);
+assert.equal(zeroCost.completeness, 'none');
 
 console.log('brief114-cpk.test.ts ok');
 console.log(
