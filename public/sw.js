@@ -88,6 +88,12 @@ self.addEventListener('fetch', (event) => {
   }
   if (url.origin !== self.location.origin) return;
 
+  // ConstructionAdvisor® portal JSON is private. Never cache it.
+  if (url.pathname.startsWith('/api/public/constructiongraph')) {
+    event.respondWith(fetch(req, { cache: 'no-store' }));
+    return;
+  }
+
   // Real TradeAdvisor® quote PDFs and calendars are private. Never cache them.
   // The sample Harbour feed (token=demo or token=tg_harbour) stays on the network path below.
   if (url.pathname.startsWith('/api/public/tradegraph/')) {
