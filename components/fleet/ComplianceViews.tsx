@@ -109,26 +109,27 @@ export function ComplianceView(props: FleetDeskProps) {
   const [open, setOpen] = useState<CentreRow | null>(null);
   const [bulk, setBulk] = useState(false);
   const [permitOpen, setPermitOpen] = useState(false);
-  const rows = useMemo(
+  const summaryRows = useMemo(
     () =>
       centreRows(props.book, props.today, {
-        status: status as 'all',
+        status: 'all',
         subject: subject as 'all',
         kind: kind === 'all' ? 'all' : (kind as ComplianceKind),
         search,
         permitsOnly: permits,
       }),
-    [props.book, props.today, status, subject, kind, search, permits]
+    [props.book, props.today, subject, kind, search, permits]
   );
-  const summary = centreSummary(rows);
+  const rows = status === 'all' ? summaryRows : summaryRows.filter((row) => row.status === status);
+  const summary = centreSummary(summaryRows);
   const agenda = monthAgenda(rows);
   const canEdit = props.caps.canEditRegister;
-  const exportable = props.caps.canExportCompliance && rows.some((row) => !row.synthetic);
+  const exportable = props.caps.canExportCompliance && summaryRows.some((row) => !row.synthetic);
   const preview = props.hrefBase.startsWith('/preview');
 
   async function download() {
     if (!exportable) return;
-    const table = exportRows(rows, props.book.workspace.real_data_enabled);
+    const table = exportRows(summaryRows, props.book.workspace.real_data_enabled);
     const csv = writeCsv(table.headers, table.rows);
     if (preview) {
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
@@ -311,14 +312,32 @@ export function ComplianceView(props: FleetDeskProps) {
           }))}
         />
       )}
-      <ItemDrawer props={props} row={open} onClose={() => setOpen(null)} />
+      <ItemDrawer
+        props={props}
+        row={open}
+        onClose={() => setOpen(null)}
+        onRenewed={() => {
+          setStatus('all');
+          setOpen(null);
+        }}
+      />
       <BulkDrawer props={props} open={bulk} onClose={() => setBulk(false)} />
       <PermitDrawer props={props} open={permitOpen} onClose={() => setPermitOpen(false)} />
     </>
   );
 }
 
-function ItemDrawer({ props, row, onClose }: { props: FleetDeskProps; row: CentreRow | null; onClose: () => void }) {
+function ItemDrawer({
+  props,
+  row,
+  onClose,
+  onRenewed,
+}: {
+  props: FleetDeskProps;
+  row: CentreRow | null;
+  onClose: () => void;
+  onRenewed: () => void;
+}) {
   const [expires, setExpires] = useState('2027-03-12');
   const [reference, setReference] = useState('');
   if (!row) return <FleetDrawer open={false} title="Date" onClose={onClose}>{null}</FleetDrawer>;
@@ -364,12 +383,13 @@ function ItemDrawer({ props, row, onClose }: { props: FleetDeskProps; row: Centr
             className={`${fleetBtn} ${fleetFocus}`}
             data-testid="fleet-renew"
             disabled={!props.caps.canEditRegister || !current}
-            onClick={() =>
-              props.onOp?.({
+            onClick={() => {
+              const ok = props.onOp?.({
                 op: 'compliance.renew',
                 payload: { id: current?.id, expires_on: expires, reference },
-              })
-            }
+              });
+              if (ok) onRenewed();
+            }}
           >
             Renew
           </button>
@@ -598,10 +618,10 @@ export function ImportView(props: FleetDeskProps) {
   }
 
   function commit() {
-    if (!result || !fresh) return;
+    if (!result || (!fresh && !already)) return;
     const outcome = props.onOp?.({
       op: 'import.commit',
-      payload: { kind: mode, source_hash: result.source_hash, source_label: 'Pasted CSV', plans: result.rows },
+      payload: { kind: mode, source_hash: result.source_hash, source_label: mode.startsWith('ship') ? 'Ship' : 'Pasted CSV', plans: result.rows },
     });
     if (outcome === false) return;
     setFresh(false);
@@ -653,7 +673,7 @@ export function ImportView(props: FleetDeskProps) {
           type="button"
           className={`${fleetBtn} ${fleetFocus}`}
           data-testid="fleet-commit"
-          disabled={!fresh || !result || (driverKind && demo) || (ship ? !canShip : !canCsv)}
+          disabled={(!fresh && !already) || !result || (driverKind && demo) || (ship ? !canShip : !canCsv)}
           onClick={commit}
         >
           Commit

@@ -143,7 +143,7 @@ test.describe('FleetAdvisor preview', () => {
     await expect(page.getByTestId('fleet-sidebar')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Compliance' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Import' })).toBeVisible();
-    const buttons = page.locator('button:visible');
+    const buttons = page.locator('[data-book-ready="1"] button:visible');
     const count = await buttons.count();
     for (let index = 0; index < count; index += 1) {
       const box = await buttons.nth(index).boundingBox();
